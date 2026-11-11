@@ -79,7 +79,6 @@
       "conflictClear": "Ein anderer Agent hat aktualisiert; daher wurde nicht geleert. Prüfe den neuesten Inhalt und versuche es erneut.",
       "conflictDraftPreserved": "Ein anderer Agent hat das Arbeitsgedächtnis aktualisiert. Dein Entwurf bleibt erhalten. Kopiere ihn und öffne erneut, um ihn mit der aktuellen Fassung zusammenzuführen.",
       "create": "Arbeitsgedächtnis erstellen",
-      "description": "Aktueller wichtiger Arbeitskontext für alle Chats des allgemeinen Agent. Älterer Kontext wird automatisch verdichtet oder vergessen.",
       "edit": "Bearbeiten",
       "emptyTitle": "Noch kein Arbeitsgedächtnis",
       "failed": "Arbeitsgedächtnis konnte nicht gespeichert werden.",
@@ -245,7 +244,11 @@
       "visible": "Inhaltsverzeichnis anzeigen"
     },
     "status": {
-      "draft": "Entwurf"
+      "discarded": "Verworfen",
+      "draft": "Entwurf",
+      "drifting": "Treibend",
+      "finished": "Fertig",
+      "resting": "Ruhend"
     }
   },
   "elementEditor": {
@@ -382,14 +385,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
-      "mapping": "Choose MappingChoices JSON",
-      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
-      "pending": "Mapping choices required before import",
-      "selected": "Explicit mapping choices selected",
-      "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "destination": "Eine separate v3-Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
+      "pending": "Vor dem Import sind Zuordnungen erforderlich",
+      "start": "In neue Bibliothek importieren",
+      "switching": "Die fertige v3-Bibliothek wird geöffnet",
+      "title": "Als v3 erneut importieren"
     }
   },
   "importDialog": {
@@ -397,7 +397,6 @@
     "chooseFiles": "Dateien auswählen",
     "chooseFolder": "Ordner auswählen",
     "clear": "Leeren",
-    "filesTitle": "Dateien",
     "importing": "Wird importiert…",
     "start": "Import starten ({{count}})",
     "status": {
@@ -412,10 +411,8 @@
       "failed": "fehlgeschlagen",
       "ok": "importiert"
     },
-    "targetTitle": "Ziel",
     "targets": {
       "chapter": {
-        "desc": "Knoten des Haupttexts: erscheint in der Zeitleiste und zählt zur Wortstatistik.",
         "label": "Kapitel"
       },
       "element": {
@@ -1270,12 +1267,6 @@
       "ui_locale_desc": "Sprache für Menüs, Schaltflächen und Meldungen. Deine Texte bleiben unverändert."
     },
     "models": {
-      "providers": {
-        "anthropic": "Vom allgemeinen Agent verwendet.",
-        "deepseek": "Vom allgemeinen Agent verwendet.",
-        "openai": "Vom allgemeinen Agent verwendet.",
-        "openaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif."
-      },
       "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund.",
       "speechTitle": "Sprachtranskription",
       "title": "Die Dienste, mit denen sich Driftings KI-Funktionen verbinden."
@@ -1294,7 +1285,6 @@
     "rail": {
       "about_app": "Über Drifting",
       "account": "Konto",
-      "agent": "Allgemeiner Agent",
       "appearance": "Darstellung",
       "editor": "Editor",
       "keys": "Tastatur",
@@ -1594,6 +1584,13 @@
     "title": "Titel",
     "unassigned": "Nicht zugeordnet"
   },
+  "v3Settings": {
+    "providerAnthropic": "Vom allgemeinen Agent verwendet.",
+    "providerDeepseek": "Vom allgemeinen Agent verwendet.",
+    "providerOpenai": "Vom allgemeinen Agent verwendet.",
+    "providerOpenaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif.",
+    "railAgent": "Allgemeiner Agent"
+  },
   "v3Shell": {
     "about": "Beschreibung",
     "belongTo": "Zuordnen",
@@ -1637,6 +1634,11 @@
     "setActTrack": "Als Aktspur verwenden · {{name}}",
     "unsetActTrack": "Als normale Spur verwenden · {{name}}",
     "views": "Zeitleistenansichten"
+  },
+  "v3Transfer": {
+    "chapterDesc": "Manuskriptkapitel: kann auf der Zeitleiste platziert werden und zählt zur Wortstatistik.",
+    "filesTitle": "Dateien",
+    "targetTitle": "Ziel"
   },
   "voiceAgent": {
     "error": {

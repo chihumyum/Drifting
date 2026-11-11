@@ -79,7 +79,6 @@
       "conflictClear": "其他 Agent 已更新工作记忆，因此没有清空。请检查最新内容后重试。",
       "conflictDraftPreserved": "其他 Agent 已更新工作记忆。当前草稿未被覆盖；请先复制草稿，再重新打开工作记忆进行合并。",
       "create": "创建工作记忆",
-      "description": "所有 General Agent 对话共享的近期重要工作上下文。旧内容会自动收缩或遗忘。",
       "edit": "编辑",
       "emptyTitle": "还没有工作记忆",
       "failed": "无法保存工作记忆。",
@@ -245,7 +244,11 @@
       "visible": "显示 TOC"
     },
     "status": {
-      "draft": "草稿"
+      "discarded": "已弃用",
+      "draft": "草稿",
+      "drifting": "漂浮中",
+      "finished": "已完成",
+      "resting": "休眠"
     }
   },
   "elementEditor": {
@@ -378,10 +381,7 @@
     },
     "v3": {
       "destination": "导入到独立的新 v3 库，保留当前库和 0.1 源库。",
-      "mapping": "选择 MappingChoices JSON",
-      "no_choices": "尚未选择显式映射。未定映射会在写入前停止。",
       "pending": "导入前需要映射选择",
-      "selected": "已选择显式映射",
       "start": "导入到新库",
       "switching": "正在打开已完成的 v3 库",
       "title": "重新导入为 v3"
@@ -392,7 +392,6 @@
     "chooseFiles": "选择文件",
     "chooseFolder": "选择文件夹",
     "clear": "清空",
-    "filesTitle": "文件 · FILES",
     "importing": "导入中…",
     "start": "开始导入 ({{count}})",
     "status": {
@@ -407,10 +406,8 @@
       "failed": "失败",
       "ok": "成功"
     },
-    "targetTitle": "类型 · TARGET",
     "targets": {
       "chapter": {
-        "desc": "主线节点 — 进时间线、参与字数统计。",
         "label": "章节"
       },
       "element": {
@@ -1257,12 +1254,6 @@
       "ui_locale_desc": "菜单、按钮与提示文字的语言，不影响你写的内容。"
     },
     "models": {
-      "providers": {
-        "anthropic": "供 General Agent 使用。",
-        "deepseek": "供 General Agent 使用。",
-        "openai": "供 General Agent 使用。",
-        "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。"
-      },
       "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。",
       "speechTitle": "语音转写",
       "title": "AI 功能连接的服务。"
@@ -1281,7 +1272,6 @@
     "rail": {
       "about_app": "关于 Drifting",
       "account": "账号",
-      "agent": "General Agent",
       "appearance": "外观",
       "editor": "编辑器",
       "keys": "快捷键",
@@ -1581,6 +1571,13 @@
     "title": "标题",
     "unassigned": "未归属"
   },
+  "v3Settings": {
+    "providerAnthropic": "供帮手使用。",
+    "providerDeepseek": "供帮手使用。",
+    "providerOpenai": "供帮手使用。",
+    "providerOpenaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行帮手，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
+    "railAgent": "帮手"
+  },
   "v3Shell": {
     "about": "说明",
     "belongTo": "归属到",
@@ -1624,6 +1621,11 @@
     "setActTrack": "设为幕轨道 · {{name}}",
     "unsetActTrack": "取消幕轨道 · {{name}}",
     "views": "时间线视图"
+  },
+  "v3Transfer": {
+    "chapterDesc": "书稿章节 — 可放入时间线，参与字数统计。",
+    "filesTitle": "文件",
+    "targetTitle": "类型"
   },
   "voiceAgent": {
     "error": {

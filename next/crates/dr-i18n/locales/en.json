@@ -79,7 +79,6 @@
       "conflictClear": "Another Agent updated Working Memory, so it was not cleared. Review the latest content and try again.",
       "conflictDraftPreserved": "Another Agent updated Working Memory. Your draft was preserved; copy it, then reopen Working Memory to merge with the latest revision.",
       "create": "Create working memory",
-      "description": "Recent high-signal work context shared by every General Agent chat. Older context is compacted or forgotten automatically.",
       "edit": "Edit",
       "emptyTitle": "No working memory yet",
       "failed": "Working Memory could not be saved.",
@@ -245,7 +244,11 @@
       "visible": "Show TOC"
     },
     "status": {
-      "draft": "Draft"
+      "discarded": "Discarded",
+      "draft": "Draft",
+      "drifting": "Floating",
+      "finished": "Finished",
+      "resting": "Resting"
     }
   },
   "elementEditor": {
@@ -383,10 +386,7 @@
     },
     "v3": {
       "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
-      "mapping": "Choose MappingChoices JSON",
-      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
       "pending": "Mapping choices required before import",
-      "selected": "Explicit mapping choices selected",
       "start": "Import into new library",
       "switching": "Opening the completed v3 library",
       "title": "Reimport as v3"
@@ -397,7 +397,6 @@
     "chooseFiles": "Choose files",
     "chooseFolder": "Choose folder",
     "clear": "Clear",
-    "filesTitle": "Files",
     "importing": "Importing…",
     "start": "Start import ({{count}})",
     "status": {
@@ -412,10 +411,8 @@
       "failed": "failed",
       "ok": "imported"
     },
-    "targetTitle": "Target",
     "targets": {
       "chapter": {
-        "desc": "Mainline node — goes on the timeline and counts toward word stats.",
         "label": "Chapter"
       },
       "element": {
@@ -1270,12 +1267,6 @@
       "ui_locale_desc": "The language of menus, buttons and messages. Your writing is not affected."
     },
     "models": {
-      "providers": {
-        "anthropic": "Used by General Agent.",
-        "deepseek": "Used by General Agent.",
-        "openai": "Used by General Agent.",
-        "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan."
-      },
       "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain.",
       "speechTitle": "Voice transcription",
       "title": "The services Drifting's AI features connect to."
@@ -1294,7 +1285,6 @@
     "rail": {
       "about_app": "About Drifting",
       "account": "Account",
-      "agent": "General Agent",
       "appearance": "Appearance",
       "editor": "Editor",
       "keys": "Keyboard",
@@ -1594,6 +1584,13 @@
     "title": "Title",
     "unassigned": "Unassigned"
   },
+  "v3Settings": {
+    "providerAnthropic": "Used by General Agent.",
+    "providerDeepseek": "Used by General Agent.",
+    "providerOpenai": "Used by General Agent.",
+    "providerOpenaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
+    "railAgent": "General Agent"
+  },
   "v3Shell": {
     "about": "Description",
     "belongTo": "Assign to",
@@ -1637,6 +1634,11 @@
     "setActTrack": "Use as act track · {{name}}",
     "unsetActTrack": "Use as regular lane · {{name}}",
     "views": "Timeline views"
+  },
+  "v3Transfer": {
+    "chapterDesc": "Manuscript chapter — can be placed on the timeline and counts toward word stats.",
+    "filesTitle": "Files",
+    "targetTitle": "Target"
   },
   "voiceAgent": {
     "error": {

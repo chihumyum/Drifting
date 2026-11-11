@@ -79,7 +79,6 @@
       "conflictClear": "Un autre Agent l’a mise à jour ; elle n’a pas été effacée. Vérifiez le contenu récent et réessayez.",
       "conflictDraftPreserved": "Un autre Agent a mis à jour la mémoire de travail. Votre brouillon est conservé ; copiez-le, puis rouvrez-la pour le fusionner avec la version récente.",
       "create": "Créer la mémoire de travail",
-      "description": "Contexte de travail récent et pertinent partagé par toutes les conversations d’Agent général. L’ancien contexte est condensé ou oublié automatiquement.",
       "edit": "Modifier",
       "emptyTitle": "Aucune mémoire de travail",
       "failed": "Impossible d’enregistrer la mémoire de travail.",
@@ -245,7 +244,11 @@
       "visible": "Afficher la table des matières"
     },
     "status": {
-      "draft": "Brouillon"
+      "discarded": "Écarté",
+      "draft": "Brouillon",
+      "drifting": "À la dérive",
+      "finished": "Terminé",
+      "resting": "Au repos"
     }
   },
   "elementEditor": {
@@ -382,14 +385,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
-      "mapping": "Choose MappingChoices JSON",
-      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
-      "pending": "Mapping choices required before import",
-      "selected": "Explicit mapping choices selected",
-      "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "destination": "Une bibliothèque v3 distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
+      "pending": "Choix de correspondance requis avant l’import",
+      "start": "Importer dans une nouvelle bibliothèque",
+      "switching": "Ouverture de la bibliothèque v3 terminée",
+      "title": "Réimporter en v3"
     }
   },
   "importDialog": {
@@ -397,7 +397,6 @@
     "chooseFiles": "Choisir des fichiers",
     "chooseFolder": "Choisir un dossier",
     "clear": "Effacer",
-    "filesTitle": "Fichiers",
     "importing": "Importation…",
     "start": "Démarrer l’importation ({{count}})",
     "status": {
@@ -412,10 +411,8 @@
       "failed": "échec",
       "ok": "importé"
     },
-    "targetTitle": "Destination",
     "targets": {
       "chapter": {
-        "desc": "Nœud du texte principal : figure sur la chronologie et compte dans les statistiques.",
         "label": "Chapitre"
       },
       "element": {
@@ -1279,12 +1276,6 @@
       "ui_locale_desc": "Langue des menus, boutons et messages. Vos écrits ne sont pas modifiés."
     },
     "models": {
-      "providers": {
-        "anthropic": "Utilisé par Agent général.",
-        "deepseek": "Utilisé par Agent général.",
-        "openai": "Utilisé par Agent général.",
-        "openaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT."
-      },
       "speechDesc": "Identifiant de transcription vocale, distinct des fournisseurs de chat. Les noms d’éléments et de contexte du projet sont transmis pour corriger les noms propres. Les requêtes vont directement à Bailian ; la clé reste dans le trousseau système.",
       "speechTitle": "Transcription vocale",
       "title": "Les services auxquels se connecte l’IA de Drifting."
@@ -1303,7 +1294,6 @@
     "rail": {
       "about_app": "À propos de Drifting",
       "account": "Compte",
-      "agent": "Agent général",
       "appearance": "Apparence",
       "editor": "Éditeur",
       "keys": "Clavier",
@@ -1603,6 +1593,13 @@
     "title": "Titre",
     "unassigned": "Sans rattachement"
   },
+  "v3Settings": {
+    "providerAnthropic": "Utilisé par Agent général.",
+    "providerDeepseek": "Utilisé par Agent général.",
+    "providerOpenai": "Utilisé par Agent général.",
+    "providerOpenaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT.",
+    "railAgent": "Agent général"
+  },
   "v3Shell": {
     "about": "Description",
     "belongTo": "Rattacher à",
@@ -1646,6 +1643,11 @@
     "setActTrack": "Utiliser comme piste d’actes · {{name}}",
     "unsetActTrack": "Revenir à une piste normale · {{name}}",
     "views": "Vues chronologiques"
+  },
+  "v3Transfer": {
+    "chapterDesc": "Chapitre du manuscrit : peut figurer sur la chronologie et compte dans les statistiques.",
+    "filesTitle": "Fichiers",
+    "targetTitle": "Destination"
   },
   "voiceAgent": {
     "error": {

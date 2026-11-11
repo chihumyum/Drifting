@@ -79,7 +79,6 @@
       "conflictClear": "다른 Agent가 업데이트하여 지우지 않았습니다. 최신 내용을 확인한 뒤 다시 시도하세요.",
       "conflictDraftPreserved": "다른 Agent가 작업 메모리를 업데이트했습니다. 초안은 보존되었습니다. 복사한 뒤 작업 메모리를 다시 열어 최신 버전과 병합하세요.",
       "create": "작업 메모리 만들기",
-      "description": "모든 범용 Agent 대화가 공유하는 최근의 중요한 작업 맥락입니다. 오래된 맥락은 자동으로 압축하거나 잊습니다.",
       "edit": "편집",
       "emptyTitle": "아직 작업 메모리가 없습니다",
       "failed": "작업 메모리를 저장할 수 없습니다.",
@@ -245,7 +244,11 @@
       "visible": "목차 표시"
     },
     "status": {
-      "draft": "초안"
+      "discarded": "폐기됨",
+      "draft": "초안",
+      "drifting": "떠다니는 중",
+      "finished": "완료",
+      "resting": "정박 중"
     }
   },
   "elementEditor": {
@@ -377,14 +380,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
-      "mapping": "Choose MappingChoices JSON",
-      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
-      "pending": "Mapping choices required before import",
-      "selected": "Explicit mapping choices selected",
-      "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "destination": "별도의 새 v3 보관함을 만듭니다. 현재 보관함과 0.1 원본 보관함은 그대로 유지됩니다.",
+      "pending": "가져오기 전에 매핑 선택이 필요합니다",
+      "start": "새 보관함으로 가져오기",
+      "switching": "완료된 v3 보관함을 여는 중",
+      "title": "v3로 다시 가져오기"
     }
   },
   "importDialog": {
@@ -392,7 +392,6 @@
     "chooseFiles": "파일 선택",
     "chooseFolder": "폴더 선택",
     "clear": "지우기",
-    "filesTitle": "파일",
     "importing": "가져오는 중…",
     "start": "가져오기 시작({{count}})",
     "status": {
@@ -407,10 +406,8 @@
       "failed": "실패",
       "ok": "가져옴"
     },
-    "targetTitle": "대상",
     "targets": {
       "chapter": {
-        "desc": "본편 노드로 타임라인에 표시되며 글자 수에 포함됩니다.",
         "label": "장"
       },
       "element": {
@@ -1263,12 +1260,6 @@
       "ui_locale_desc": "메뉴, 버튼, 메시지의 언어입니다. 집필 내용에는 영향을 주지 않습니다."
     },
     "models": {
-      "providers": {
-        "anthropic": "범용 Agent에서 사용합니다.",
-        "deepseek": "범용 Agent에서 사용합니다.",
-        "openai": "범용 Agent에서 사용합니다.",
-        "openaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다."
-      },
       "speechDesc": "위의 채팅 제공업체와 별개인 음성 입력 전사 인증 정보입니다. 고유명사 교정을 위해 작품의 요소·설정 이름을 함께 보냅니다. 요청은 기기에서 Bailian으로 직접 전송되며 키는 시스템 키체인에만 저장됩니다.",
       "speechTitle": "음성 전사",
       "title": "Drifting의 AI 기능이 연결하는 서비스."
@@ -1287,7 +1278,6 @@
     "rail": {
       "about_app": "Drifting 정보",
       "account": "계정",
-      "agent": "범용 Agent",
       "appearance": "모양",
       "editor": "편집기",
       "keys": "키보드",
@@ -1587,6 +1577,13 @@
     "title": "제목",
     "unassigned": "미소속"
   },
+  "v3Settings": {
+    "providerAnthropic": "범용 Agent에서 사용합니다.",
+    "providerDeepseek": "범용 Agent에서 사용합니다.",
+    "providerOpenai": "범용 Agent에서 사용합니다.",
+    "providerOpenaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다.",
+    "railAgent": "범용 Agent"
+  },
   "v3Shell": {
     "about": "설명",
     "belongTo": "소속 지정",
@@ -1630,6 +1627,11 @@
     "setActTrack": "막 트랙으로 사용 · {{name}}",
     "unsetActTrack": "일반 레인으로 전환 · {{name}}",
     "views": "타임라인 보기"
+  },
+  "v3Transfer": {
+    "chapterDesc": "원고 장으로 타임라인에 배치할 수 있으며 글자 수에 포함됩니다.",
+    "filesTitle": "파일",
+    "targetTitle": "대상"
   },
   "voiceAgent": {
     "error": {

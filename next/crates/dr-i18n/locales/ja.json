@@ -79,7 +79,6 @@
       "conflictClear": "別のAgentが更新したため、消去しませんでした。最新の内容を確認して再試行してください。",
       "conflictDraftPreserved": "別のAgentが作業記憶を更新しました。草稿は保全されています。コピーしてから開き直し、最新版と統合してください。",
       "create": "作業記憶を作成",
-      "description": "汎用Agentの全チャットで共有する最近の重要な作業背景です。古い情報は自動圧縮・忘却されます。",
       "edit": "編集",
       "emptyTitle": "作業記憶はまだありません",
       "failed": "作業記憶を保存できませんでした。",
@@ -245,7 +244,11 @@
       "visible": "目次を表示"
     },
     "status": {
-      "draft": "下書き"
+      "discarded": "不採用",
+      "draft": "下書き",
+      "drifting": "漂流中",
+      "finished": "完成",
+      "resting": "停泊中"
     }
   },
   "elementEditor": {
@@ -377,14 +380,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
-      "mapping": "Choose MappingChoices JSON",
-      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
-      "pending": "Mapping choices required before import",
-      "selected": "Explicit mapping choices selected",
-      "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "destination": "別の新しい v3 ライブラリを作成します。現在のライブラリと 0.1 の元データはそのまま残ります。",
+      "pending": "読み込み前にマッピングの指定が必要です",
+      "start": "新しいライブラリに読み込む",
+      "switching": "読み込み済みの v3 ライブラリを開いています",
+      "title": "v3 として再読み込み"
     }
   },
   "importDialog": {
@@ -392,7 +392,6 @@
     "chooseFiles": "ファイルを選択",
     "chooseFolder": "フォルダを選択",
     "clear": "消去",
-    "filesTitle": "ファイル",
     "importing": "インポート中…",
     "start": "インポート開始（{{count}}）",
     "status": {
@@ -407,10 +406,8 @@
       "failed": "失敗",
       "ok": "インポート済み"
     },
-    "targetTitle": "対象",
     "targets": {
       "chapter": {
-        "desc": "本編のノードです。タイムラインに入り、文字数に計上します。",
         "label": "章"
       },
       "element": {
@@ -1263,12 +1260,6 @@
       "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
     },
     "models": {
-      "providers": {
-        "anthropic": "汎用Agentで使用します。",
-        "deepseek": "汎用Agentで使用します。",
-        "openai": "汎用Agentで使用します。",
-        "openaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。"
-      },
       "speechDesc": "上のチャット提供元とは別の、音声入力用認証情報です。固有名詞の補正のため作品の要素名や設定名を添えます。端末からBailianへ直接送信し、キーはシステムキーチェーンだけに保存します。",
       "speechTitle": "音声文字起こし",
       "title": "DriftingのAI機能が接続するサービス。"
@@ -1287,7 +1278,6 @@
     "rail": {
       "about_app": "Driftingについて",
       "account": "アカウント",
-      "agent": "汎用Agent",
       "appearance": "外観",
       "editor": "エディタ",
       "keys": "キーボード",
@@ -1587,6 +1577,13 @@
     "title": "タイトル",
     "unassigned": "未所属"
   },
+  "v3Settings": {
+    "providerAnthropic": "汎用Agentで使用します。",
+    "providerDeepseek": "汎用Agentで使用します。",
+    "providerOpenai": "汎用Agentで使用します。",
+    "providerOpenaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。",
+    "railAgent": "汎用Agent"
+  },
   "v3Shell": {
     "about": "説明",
     "belongTo": "所属先",
@@ -1630,6 +1627,11 @@
     "setActTrack": "幕トラックにする · {{name}}",
     "unsetActTrack": "通常のレーンに戻す · {{name}}",
     "views": "タイムラインビュー"
+  },
+  "v3Transfer": {
+    "chapterDesc": "原稿の章です。タイムラインに配置でき、文字数に計上します。",
+    "filesTitle": "ファイル",
+    "targetTitle": "対象"
   },
   "voiceAgent": {
     "error": {

@@ -79,7 +79,6 @@
       "conflictClear": "Outro Agent atualizou a memória; ela não foi limpa. Revise o conteúdo recente e tente novamente.",
       "conflictDraftPreserved": "Outro Agent atualizou a memória de trabalho. Seu rascunho foi preservado; copie-o e reabra para mesclá-lo com a versão mais recente.",
       "create": "Criar memória de trabalho",
-      "description": "Contexto recente e relevante compartilhado por todos os chats do Agent geral. O contexto antigo é compactado ou esquecido automaticamente.",
       "edit": "Editar",
       "emptyTitle": "Ainda não há memória de trabalho",
       "failed": "Não foi possível salvar a memória de trabalho.",
@@ -245,7 +244,11 @@
       "visible": "Mostrar sumário"
     },
     "status": {
-      "draft": "Rascunho"
+      "discarded": "Descartado",
+      "draft": "Rascunho",
+      "drifting": "À deriva",
+      "finished": "Concluído",
+      "resting": "Em repouso"
     }
   },
   "elementEditor": {
@@ -382,14 +385,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
-      "mapping": "Choose MappingChoices JSON",
-      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
-      "pending": "Mapping choices required before import",
-      "selected": "Explicit mapping choices selected",
-      "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "destination": "Uma biblioteca v3 separada será criada. A biblioteca atual e a origem 0.1 são preservadas.",
+      "pending": "Opções de mapeamento necessárias antes da importação",
+      "start": "Importar para nova biblioteca",
+      "switching": "Abrindo a biblioteca v3 concluída",
+      "title": "Reimportar como v3"
     }
   },
   "importDialog": {
@@ -397,7 +397,6 @@
     "chooseFiles": "Escolher arquivos",
     "chooseFolder": "Escolher pasta",
     "clear": "Limpar",
-    "filesTitle": "Arquivos",
     "importing": "Importando…",
     "start": "Iniciar importação ({{count}})",
     "status": {
@@ -412,10 +411,8 @@
       "failed": "falha",
       "ok": "importado"
     },
-    "targetTitle": "Destino",
     "targets": {
       "chapter": {
-        "desc": "Nó do texto principal: aparece na linha do tempo e conta nas estatísticas.",
         "label": "Capítulo"
       },
       "element": {
@@ -1279,12 +1276,6 @@
       "ui_locale_desc": "Idioma dos menus, botões e mensagens. Seu texto não é alterado."
     },
     "models": {
-      "providers": {
-        "anthropic": "Usado pelo Agent geral.",
-        "deepseek": "Usado pelo Agent geral.",
-        "openai": "Usado pelo Agent geral.",
-        "openaiCodex": "Entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent geral com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT."
-      },
       "speechDesc": "Credencial de transcrição da entrada de voz, separada dos provedores de chat. Inclui nomes de elementos e ambientação do projeto para corrigir nomes próprios. Solicitações vão diretamente ao Bailian e a chave fica só no chaveiro do sistema.",
       "speechTitle": "Transcrição de voz",
       "title": "Os serviços aos quais a IA do Drifting se conecta."
@@ -1303,7 +1294,6 @@
     "rail": {
       "about_app": "Sobre o Drifting",
       "account": "Conta",
-      "agent": "Agent geral",
       "appearance": "Aparência",
       "editor": "Editor",
       "keys": "Teclado",
@@ -1603,6 +1593,13 @@
     "title": "Título",
     "unassigned": "Sem atribuição"
   },
+  "v3Settings": {
+    "providerAnthropic": "Usado pelo Agent geral.",
+    "providerDeepseek": "Usado pelo Agent geral.",
+    "providerOpenai": "Usado pelo Agent geral.",
+    "providerOpenaiCodex": "Entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent geral com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT.",
+    "railAgent": "Agent geral"
+  },
   "v3Shell": {
     "about": "Descrição",
     "belongTo": "Associar a",
@@ -1646,6 +1643,11 @@
     "setActTrack": "Usar como faixa de atos · {{name}}",
     "unsetActTrack": "Voltar para faixa normal · {{name}}",
     "views": "Visualizações da linha do tempo"
+  },
+  "v3Transfer": {
+    "chapterDesc": "Capítulo do manuscrito: pode entrar na linha do tempo e conta nas estatísticas.",
+    "filesTitle": "Arquivos",
+    "targetTitle": "Destino"
   },
   "voiceAgent": {
     "error": {

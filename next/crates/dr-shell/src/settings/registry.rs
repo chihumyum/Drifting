@@ -63,7 +63,7 @@ impl Section {
             Section::Language => keys::settings::rail::LANGUAGE,
             Section::Keys => keys::settings::rail::KEYS,
             Section::Models => keys::settings::rail::MODELS,
-            Section::Agent => keys::settings::rail::AGENT,
+            Section::Agent => keys::v3_settings::RAIL_AGENT,
             Section::LocalData => keys::settings::sync::LOCAL_DATA,
             Section::About => keys::settings::rail::ABOUT_APP,
         }
@@ -156,14 +156,14 @@ pub static INFO_ROWS: &[InfoRow] = &[
         section: Section::Models,
         group: None,
         label: keys::settings::codex_subscription::NAME,
-        description: Some(keys::settings::models::providers::OPENAI_CODEX),
+        description: Some(keys::v3_settings::PROVIDER_OPENAI_CODEX),
         action: RowAction::Module,
     },
     InfoRow {
         id: "models.deepseek",
         section: Section::Models,
         group: None,
-        label: keys::settings::models::providers::DEEPSEEK,
+        label: keys::v3_settings::PROVIDER_DEEPSEEK,
         description: None,
         action: RowAction::Module,
     },
@@ -171,7 +171,7 @@ pub static INFO_ROWS: &[InfoRow] = &[
         id: "models.anthropic",
         section: Section::Models,
         group: None,
-        label: keys::settings::models::providers::ANTHROPIC,
+        label: keys::v3_settings::PROVIDER_ANTHROPIC,
         description: None,
         action: RowAction::Module,
     },
@@ -179,7 +179,7 @@ pub static INFO_ROWS: &[InfoRow] = &[
         id: "models.openai",
         section: Section::Models,
         group: None,
-        label: keys::settings::models::providers::OPENAI,
+        label: keys::v3_settings::PROVIDER_OPENAI,
         description: None,
         action: RowAction::Module,
     },
@@ -822,5 +822,54 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn chinese_settings_use_localized_agent_name_without_english_general_agent() {
+        use dr_i18n::{I18n, Locale, Platform};
+        let zh = I18n::new(Locale::ZhCn, Platform::Mac);
+        let en = I18n::new(Locale::En, Platform::Mac);
+        assert_eq!(zh.t(Section::Agent.label()), "帮手");
+        assert_eq!(en.t(Section::Agent.label()), "General Agent");
+        for section in Section::ALL {
+            assert!(
+                !zh.t(section.label()).contains("General Agent"),
+                "section {:?} leaked General Agent in zh-CN",
+                section
+            );
+            assert!(
+                !zh.t(section.group()).contains("General Agent"),
+                "section group {:?} leaked General Agent in zh-CN",
+                section
+            );
+        }
+        for row in INFO_ROWS {
+            assert!(
+                !zh.t(row.label).contains("General Agent"),
+                "info row {} label leaked General Agent in zh-CN",
+                row.id
+            );
+            if let Some(desc) = row.description {
+                assert!(
+                    !zh.t(desc).contains("General Agent"),
+                    "info row {} description leaked General Agent in zh-CN",
+                    row.id
+                );
+            }
+        }
+        for def in REGISTRY {
+            assert!(
+                !zh.t(def.label).contains("General Agent"),
+                "setting {} label leaked General Agent in zh-CN",
+                def.key
+            );
+            if let Some(desc) = def.description {
+                assert!(
+                    !zh.t(desc).contains("General Agent"),
+                    "setting {} description leaked General Agent in zh-CN",
+                    def.key
+                );
+            }
+        }
     }
 }

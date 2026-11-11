@@ -74,6 +74,21 @@ fn text(value: &FieldValue) -> String {
         FieldValue::Null => String::new(),
     }
 }
+
+/// Localized display label for built-in template enum options (`draft`,
+/// `finished`, `discarded`, `drifting`, `resting`). Author-defined option
+/// values pass through verbatim, and stored [`FieldValue`] strings never change.
+pub fn option_label(raw: &str, cx: &App) -> SharedString {
+    use dr_i18n::keys::editor_top_bar::status as s;
+    match raw {
+        "draft" => t(cx, s::DRAFT),
+        "finished" => t(cx, s::FINISHED),
+        "discarded" => t(cx, s::DISCARDED),
+        "drifting" => t(cx, s::DRIFTING),
+        "resting" => t(cx, s::RESTING),
+        _ => raw.to_owned().into(),
+    }
+}
 struct Input {
     area: Entity<TextArea>,
     dirty: bool,
@@ -451,7 +466,7 @@ impl TypedFields {
                     .iter()
                     .map(|(id, title)| (id.clone(), title.clone().into())),
             ),
-            _ => choices.extend(def.options.iter().map(|s| (s.clone(), s.clone().into()))),
+            _ => choices.extend(def.options.iter().map(|s| (s.clone(), option_label(s, cx)))),
         }
         choices
     }
@@ -484,6 +499,11 @@ impl Render for TypedFields {
                         FieldValue::List(xs) => xs.contains(&option),
                         _ => false,
                     };
+                    let label = if def.field_type == "multi_select" {
+                        option_label(&option, cx)
+                    } else {
+                        option.clone().into()
+                    };
                     let (id, weak, old, kind) = (
                         id.clone(),
                         weak.clone(),
@@ -494,12 +514,12 @@ impl Render for TypedFields {
                         div()
                             .id(SharedString::from(format!("{}-{option}", id)))
                             .role(gpui::Role::CheckBox)
-                            .aria_label(option.clone())
+                            .aria_label(label.clone())
                             .cursor_pointer()
                             .px_2()
                             .py_1()
                             .when(selected, |d| d.bg(p.accent.alpha(0.15)))
-                            .child(format!("{} {}", if selected { "✓" } else { "□" }, option))
+                            .child(format!("{} {}", if selected { "✓" } else { "□" }, label))
                             .on_click(move |_, _, cx| {
                                 let next = if kind == "toggle" {
                                     FieldValue::Bool(!selected)

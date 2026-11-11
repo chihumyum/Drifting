@@ -104,32 +104,28 @@ fn name_or_untitled(name: &str, cx: &App) -> SharedString {
     }
 }
 
-fn ready(r: &Ready, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
-    let entity = cx.entity();
-    let close = closer(cx);
+fn ready_body_lines(r: &Ready, cx: &App) -> (SharedString, Vec<String>) {
     let pending = r
         .pending
         .iter()
-        .map(|p| index(format!("{}: {}", p.code, p.source), window, cx))
+        .map(|p| format!("{}: {}", p.code, p.source))
+        .collect::<Vec<_>>();
+    (t(cx, keys::import::v3::DESTINATION), pending)
+}
+
+fn ready(r: &Ready, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
+    let entity = cx.entity();
+    let close = closer(cx);
+    let (destination, pending_lines) = ready_body_lines(r, cx);
+    let pending = pending_lines
+        .into_iter()
+        .map(|line| index(line, window, cx))
         .collect::<Vec<_>>();
     Dialog::new("v3-import-ready", t(cx, keys::import::v3::TITLE))
         .eyebrow(EYEBROW)
         .subtitle(r.folder.clone())
         .width(WIDTH)
-        .body(quiet(t(cx, keys::import::v3::DESTINATION), window, cx))
-        .body(index(r.target.display().to_string(), window, cx))
-        .body(quiet(
-            t(
-                cx,
-                if r.explicit_choices {
-                    keys::import::v3::SELECTED
-                } else {
-                    keys::import::v3::NO_CHOICES
-                },
-            ),
-            window,
-            cx,
-        ))
+        .body(quiet(destination, window, cx))
         .when(!pending.is_empty(), |d| {
             d.body(quiet(t(cx, keys::import::v3::PENDING), window, cx))
                 .body(
@@ -140,14 +136,6 @@ fn ready(r: &Ready, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyE
                         .children(pending),
                 )
         })
-        .action(
-            Button::new("v3-import-mapping", t(cx, keys::import::v3::MAPPING))
-                .text()
-                .on_click({
-                    let entity = entity.clone();
-                    move |_, window, cx| entity.update(cx, |i, cx| i.choose_mapping(window, cx))
-                }),
-        )
         .action(
             Button::new("v3-import-cancel", t(cx, keys::common::CANCEL))
                 .text()
@@ -581,4 +569,34 @@ fn failed(f: &Failed, window: &mut Window, cx: &mut Context<LegacyImport>) -> An
     )
     .on_close(close)
     .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dr_i18n::Locale;
+    use gpui::TestAppContext;
+    use std::path::PathBuf;
+
+    #[gpui::test]
+    fn ready_dialog_lines_never_expose_raw_target_path_or_mapping_json(cx: &mut TestAppContext) {
+        let ready = Ready {
+            folder: "synthetic-0.1".into(),
+            target: PathBuf::from("synthetic-root/reimport-v3-secret-target"),
+            explicit_choices: true,
+            pending: Vec::new(),
+        };
+        cx.update(|cx| {
+            for locale in Locale::ALL {
+                dr_shell::Strings::install(locale, cx);
+                let (dest, pending) = ready_body_lines(&ready, cx);
+                assert!(
+                    !dest.contains("reimport-v3-secret-target"),
+                    "{locale:?}: {dest}"
+                );
+                assert!(!dest.contains("MappingChoices"), "{locale:?}: {dest}");
+                assert!(pending.is_empty());
+            }
+        });
+    }
 }

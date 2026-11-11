@@ -65,6 +65,13 @@
   2. **macOS CI `dr-agent` 崩溃恢复测试失败**（已完成并合入 `main` `5ded0501`）：查明 SQLite WAL 单事务保证章节正文与 `agent_settlement` 始终原子一致，根因是 `dr_testkit::crash::Harness::run` 在续写子进程尚未打印首条 `durable` 就被 `SIGKILL` 时把基线退回 `-1` 而丢掉前序已核实落盘的 `floor`；已在 `dr-testkit` 跨轮次保留 `floor`（同时堵住前序步骤丢失的漏检盲区），并在 `dr-agent/tests/crash.rs` 新增零重试、100% 确定性复现的永久回归测试。
 - 三、一的 1–4 做完（5 可选）、二的同步接线合进 `main`（或写明卡在待作者事项上）且二之二的 CI 追补全部完成并写进晨报后，在本页「晨报」写最终总结并停下。
 
+### 凌晨追加（11-12，排在合入 `app-sync` 之后、写最终晨报之前）
+
+1. 先关掉同步会话留下的两个冒烟窗口：`~/Drifting-app-sync-v3/next/target/debug/drifting`，profile 分别是 `app-sync-a-634d89f6`（21:49 起）和 `app-sync-a-6b6b6f11`（23:04 起）。它们还开在副屏上，会干扰后面的真窗口测试。确认同步会话已经交回、没有冒烟在跑再关。顺手让 `run_app_sync_smoke.py` 退出时把两个窗口都关掉。
+2. 合入 `app-sync` 以后，补上它留下的待协调：设置 › 账号页里的「退出登录」也要先调 `dr_shell::sync::run_before_sign_out` 排空上传，再吊销令牌（在 `dr-view-account` 里），加测试。
+3. 同步会话顺带发现一个测试竞态：`dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo`，偶尔会和 `dr-view-history` 的 `AutomaticHistory` 后台 `entry_snapshot.capture` 抢同一本书的 oplog frontier。查清楚，改成确定的，不许靠重试、放宽断言或 `ignore`。
+4. 另有一个并行会话在 `~/drifting-server` 做 Hosted 服务端的 `loro-v2`，它不碰 `~/Drifting`。它的交回说明会写在 `~/Drifting-autopilot-logs/loro-v2-server.md`。写晨报前读一下：已经交回的，就在 `m36-sync-v2.md`「服务端需要提供的」一节标出服务端已经具备的部分（只改文档）；还没交回的，在晨报里写「进行中」，不要等它。
+
 ## 你能做什么、不能做什么
 
 **能做：**开子会话（下面的方法）；给子会话写指令；本地合并进 `main`；退回；给退回的问题开修复会话；会话死了就接手；在 `docs/rust-rewrite/` 里补必要的协调文档。
@@ -159,6 +166,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 20:27 | 晚间队列第 2 项完成：核验 `Antigravity` 宿主 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，在冻结候选 `8f5bf493` 上跑通完整 `guardian-native-ime.py`（`g-evening-ime-3`，副屏真窗口）：真实系统 `Control-Space` 切到 Apple 拼音（`SCIM.ITABC`），硬件级 `CGEvent` 输入 `nihao` 观察到真实平台预编辑 `ni hao` 且持久正文与 frontier 未提前提交，空格提交恰好一次「你好」并推进 frontier，退出重开读回与提交版本逐字一致，原输入源恢复无误。立即进入晚间队列第 3 项（第 22 条「幕轨道」）。 | `61c80bbd` |
 | 11-11 23:33 | GitHub `next/` CI 追补完成（`main` `e8dad601`，run `43024370854`）：① `codex/ci-crash-fix`（`dcd6dc09` → 合入 `main` `5ded0501`）：核实 `DocInner::append` 单一 SQLite WAL 事务保证正文与 `agent_settlement` 原子一致，修复 `dr_testkit::crash::Harness` 续写子进程首步未打印 `durable` 即被 `SIGKILL` 时丢掉前序已核实落盘基线 `floor` 的缺陷（同时补齐前序步骤丢失检测），并新增 3 轮强杀确定性永久回归测试 `killing_resumed_agent_writer_on_first_step_recovers_book_and_settlement`（零重试、零放宽断言、零 `ignore`）；② `codex/ci-win-fix`（`6731d34a` → 合入 `main` `8d980c7c`）：修复 `dr-ui/src/components/color.rs:431` Windows 取色器 `cx.background_executor().spawn(...)`，并通过本机 `--target x86_64-pc-windows-msvc --keep-going` 全工作区排查修掉 `spikes/prose-spike` 无条件依赖 `objc2`／Apple 框架的阻塞，记录 5 个需 MSVC／`llvm-rc` 的第三方原生 build script（未装系统组件）。全套门禁通过，详记晨报。 | `8d980c7c` |
 | 11-11 23:45 | 晚间队列第 3 项完成：第 22 条「幕轨道」默认落地（`codex/act-track-v3` `0c4a189c` → 合入 `main` `bd9c3748`）。`TimelineLane` 新增可选 `act_track`（旧文档缺省读为 `false`，新书默认无幕轨道），`dr-import-v1` 在旧库含幕时按需在树顶层建「幕」层级（允许任意模板、新条目默认构想叶子模板、住处取初始化返回实际 id）并导入绑构想／新建同名条目／多幕复用提示／跨度计算／已有位置保留，8 类情形永久测试（含源库字节与 `mtime_ns` 零改动核对）全绿；`dr-view-timeline` 支持多条幕轨置顶在标尺正下方带分隔线、新建幕轨道与已有泳道切换幕轨道、泳道内首条新建落回视图起点、拖入与拉宽跨度及九语文案；副屏真窗口 `act-track-v3`（44/44）、`k4-g3-views-lanes`（40/40）、`switch-v3`（49/49）全部 0 pending 通过。立即进入晚间队列第 4 项。 | `bd9c3748` |
+| 11-12 00:52 | 晚间队列第 4 项完成：文案和调试残留清理（`codex/copy-cleanup-v3`，只改文字与移除普通界面调试入口，零布局改动）。① 条目页内置枚举选项（`writing_status`：`draft`／`revised`／`finished`；构想 `status`：`drifting`／`anchored`／`settled`）九语显示本地化，底层存储值原样不变；② 设定侧栏与页头九语本地化，修复中文显示英文 `General Agent`；③ 导入文档对话框替换旧术语「主线节点」与中英混排大写小标题；④ 从 0.1 重新导入对话框隐藏 `Application Support`／`app-local-data` 原始绝对路径并移出普通界面的「选择 MappingChoices JSON」（保留程序／调试桥入口 `LegacyImport::choose_mapping`）；同步记入作者 11-12 凌晨四条追加。全套门禁通过，立即进入晚间队列第 5 项（M22、M23 空闲 `heavy` 首帧复测与优化）。 | 本提交 |
 
 ## 技术待协调
 
@@ -393,3 +401,14 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   3. **时间线界面与九语文案（`dr-view-timeline`、`dr-i18n`）：** 多条幕轨置顶渲染在标尺正下方并以底部分隔线与普通泳道区隔；支持「新建幕轨道」、已有泳道切换幕轨开关、泳道内首条新建自动对齐视图起点（修复空幕轨新建落到全视图最末章外侧的越界问题）、拖入已有条目、拖拽改跨度与双击进条目页；补齐九语文案。
 - **全套门禁与副屏真窗口验收：** `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、全工作区 `cargo test --workspace --locked`（0 失败）、`cargo xtask check`（13 门禁含 `v3-cutover` 700 文件与 `audit`）、仓库根 `pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check` 全绿；副屏真窗口 `act-track-v3.json`（44/44）、`k4-g3-views-lanes.json`（40/40）、`switch-v3.json`（49/49）全部 `0 pending` 通过（外部证据 `~/Drifting-autopilot-logs/act-track-smoke-3/`）。
 - **下一步：** 立即开新工作区进入晚间队列第 4 项（文案和调试残留）。
+
+### 晚间队列追加五（2026-11-12 00:52，晚间最终指令第 4 项：文案和调试残留清理完成）
+
+- **落地内容（只改文字与移除普通界面调试入口，不动布局、不改存储格式）：**
+  1. **条目页内置枚举值九语本地化（`dr-view-elements/src/fields/v3.rs`、`dr-i18n`）：** 为内置单选／多选字段选项增加界面显示映射——章写作状态 `draft`／`revised`／`finished` 与构想状态 `drifting`／`anchored`／`settled` 在九种界面语言下均显示对应本地化名称（如简体中文「草稿／修改中／定稿」「漂流中／已锚定／已落定」），用户自定义枚举选项原样显示，底层 Loro 文档存储的原始英文枚举键（`"finished"`、`"drifting"` 等）完全不变。新增永久测试 `builtin_enum_options_render_localized_labels_while_storing_raw_crdt_values`。
+  2. **设定侧栏与页头消除英文残留（`dr-shell/src/settings/registry.rs`、`dr-i18n`）：** 将设定面板硬编码的英文 `"General Agent"` 及相关分组名接入 `v3Settings.*` 九语词条（简体中文显示「通用帮手」），新增全部九语种覆盖测试。
+  3. **导入文档对话框移除旧术语与中英混排大写标题（`dr-view-transfer/src/documents.rs`、`dr-i18n`）：** 将残留的旧术语「主线节点」（`importPreview.summaryNodes`）及中英混排大写小标题改为 canonical v3 的章节数与九语小标题（`v3Transfer.importDocs.*`），新增永久测试 `import_dialog_copy_uses_v3_chapter_terms_and_clean_chinese_headings`。
+  4. **从 0.1 重新导入对话框隐藏绝对路径并移出普通界面 `MappingChoices JSON`（`dr-view-import/src/view.rs`）：** 普通就绪对话框改为显示已选源书库文件夹名与简明新库提示，不再向普通用户暴露 `Application Support`／`app-local-data` 原始绝对路径，并从普通界面移除「选择 MappingChoices JSON」按钮（保留 `LegacyImport::choose_mapping` 供开发者测试与调试桥调用）。新增单测与九语集成测试核对。
+  5. **补记作者 11-12 凌晨追加：** 已原样记入本页「晚间最终指令 › 凌晨追加（11-12）」，并按第 1 条确认 `app-sync` 已交回、无冒烟在跑后关掉其遗留的两个副屏冒烟窗口（`app-sync-a-634d89f6`、`app-sync-a-6b6b6f11`），同时修好 `~/Drifting-autopilot-logs/run_app_sync_smoke.py` 的 `finally` 双窗退出清理。
+- **全套门禁结果：** `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、全工作区 `cargo test --workspace --locked`、`cargo xtask check`（13 道门禁含 `terms` 48,208 词条与 `audit` 974 包 0 漏洞）、仓库根 `pnpm public:check`、`pnpm ci:contract:check` 全部通过。
+- **下一步：** 立即开新工作区进入晚间队列第 5 项（趁机器空闲 `load1m < 4` 在 `heavy` 样书上重量 M22、M23 首帧并做不改行为优化）。
