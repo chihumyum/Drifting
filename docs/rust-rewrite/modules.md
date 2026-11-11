@@ -94,7 +94,7 @@ F3 的命令注册表一好就能开，不必等阶段 3。
 | M37 | 偏好同步 | 约 20 个键，每个键各自以最后写入为准 | `features/preference-sync/*` | M35 | S |
 | M38 | 分享链接 | 发布端：发布、更新、收件箱（轮询）。阅读页：见决定 D8 | `features/share-links/*` 约 1k、`src/share-web` 2.45k、`src/shared/share-document.ts` | M35 | M |
 | M39 | 反馈与崩溃上报 | 反馈对话框，可以附带脱敏的诊断信息；崩溃跟进的通知 | `features/feedback/FeedbackDialog.tsx` 168、`services/diagnostics` | F7 | S |
-| M40 | Markdown 文件夹双向同步 | 章节和构想写成 Markdown 文件；外部修改合并回正文；文件夹认领（`.drifting/owner.json`）；文件头字段 | `services/markdown-mirror/*` 1.39k；Rust 可以复用 `src-tauri/src/markdown_projection.rs` 2952。旧版每 1.5 s 轮询一次，新版改用 notify 监听 | F3、F4a | M |
+| M40 | Markdown 文件夹双向同步 | 章节和构想写成 Markdown 文件；外部修改合并回正文；文件夹认领（`.drifting/owner.json`）；文件头字段（canonical v3 待定方案见 [m40-markdown-folder-v3.md](modules/m40-markdown-folder-v3.md)） | `services/markdown-mirror/*` 1.39k；Rust 可以复用 `src-tauri/src/markdown_projection.rs` 2952。旧版每 1.5 s 轮询一次，新版改用 notify 监听 | F3、F4a | M |
 | M41 | 导出与搬运 | EPUB / DOCX / PDF 原稿导出；Markdown 分享；`.driftingbook` v2；整库备份；导入 docx 和 Markdown | Rust 原样复用 `src-tauri/src/manuscript_export/*` 约 4.8k（PDF 排版用 krilla、rustybuzz；DOCX、EPUB 只用 zip 手写，不需要 docx-rs、epub-builder 或 typst），只新写「Loro → `Manuscript`」的转换、`library_backup.rs` 709；TS 的 `services/export`、`services/book-transfer`、`components/modals/ImportDialog.tsx` 449 | F3、dr-text | M |
 | M42 | 自动更新与旧版交接 | 检查更新（启动时检查，之后每 3 小时一次），一键安装；最后一个 Tauri 版本把更新交给 GPUI 版本 | `src-tauri/src/app_update.rs` 214、`services/update/*`、`.github/workflows/release.yml` | F7 | M |
 | M43 | Windows 版 | 双架构的 NSIS 安装包；深链接注册；输入法验收（微软拼音）；字体回退 | `docs/windows.md`、`.github/workflows/windows.yml` | F7 | M |
