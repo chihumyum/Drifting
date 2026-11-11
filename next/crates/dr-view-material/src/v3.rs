@@ -1,6 +1,6 @@
 //! V3 material associations, read without a legacy navigation conversion.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use dr_doc::v3::BorrowedBookV3;
 use dr_model::{id::BookId, kind::EntityKind, shared::EntityRef, v3 as model};
@@ -44,11 +44,7 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
                 .map(|r| r.to.id)
                 .collect();
             let templates = view.templates_map();
-            let entries: BTreeMap<_, _> = view
-                .entries_raw()
-                .into_iter()
-                .map(|e| (e.id.clone(), e))
-                .collect();
+            let entries = view.entry_headers();
             let mut choices: Vec<_> = entries
                 .values()
                 .filter(|e| {
@@ -86,11 +82,7 @@ pub fn related(ws: &Workspace, book: &str, entry: &str) -> Result<HashSet<String
                 return Err(invalid("book is in the trash"));
             }
             let templates = v.templates_map();
-            let entries: BTreeMap<_, _> = v
-                .entries_raw()
-                .into_iter()
-                .map(|e| (e.id.clone(), e))
-                .collect();
+            let entries = v.entry_headers();
             let Some(selected) = entries.get(entry.as_str()).filter(|e| {
                 !e.is_trashed()
                     && model::effective_ancestors(&entries, &templates, &e.id)
@@ -106,5 +98,68 @@ pub fn related(ws: &Workspace, book: &str, entry: &str) -> Result<HashSet<String
                 .filter(|t| t.kind == EntityKind::Material)
                 .map(|t| t.id)
                 .collect())
+        })?
+}
+
+/// Returns `(linked_materials, entry_related_materials)` from one v3 book snapshot:
+/// - `linked_materials`: every `Material` id participating in at least one live canonical relation;
+/// - `entry_related_materials`: when `selected_entry` is `Some`, materials related to that entry.
+pub fn shelf_relations(
+    ws: &Workspace,
+    book: &str,
+    selected_entry: Option<&str>,
+) -> Result<(HashSet<String>, Option<HashSet<String>>)> {
+    let book_id = BookId::parse(book).map_err(invalid)?;
+    let selected_entry = selected_entry.map(ToOwned::to_owned);
+    ws.library()
+        .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
+        .read(move |doc| {
+            if !dr_doc::v3::is_v3_doc(doc) {
+                return Err(invalid("v3 materials require a v3 book"));
+            }
+            let b = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
+            let v = b.view();
+            if v.meta().deleted_at.is_some() {
+                return Err(invalid("book is in the trash"));
+            }
+            let material_rels = v.relations_matching(|r| {
+                r.from.kind == EntityKind::Material || r.to.kind == EntityKind::Material
+            });
+            let mut linked = HashSet::new();
+            for r in &material_rels {
+                if r.from.kind == EntityKind::Material {
+                    linked.insert(r.from.id.clone());
+                }
+                if r.to.kind == EntityKind::Material {
+                    linked.insert(r.to.id.clone());
+                }
+            }
+            let entry_related = match selected_entry {
+                None => None,
+                Some(entry) => {
+                    let templates = v.templates_map();
+                    let entries = v.entry_headers();
+                    let is_live = entries.get(entry.as_str()).is_some_and(|e| {
+                        !e.is_trashed()
+                            && model::effective_ancestors(&entries, &templates, &e.id)
+                                .iter()
+                                .all(|a| entries.get(a).is_some_and(|a| !a.is_trashed()))
+                    });
+                    if !is_live {
+                        Some(HashSet::new())
+                    } else {
+                        let target = EntityRef::new(EntityKind::Entry, entry);
+                        let rels = material_rels
+                            .into_iter()
+                            .filter(|r| r.from == target || r.to == target)
+                            .flat_map(|r| [r.from, r.to])
+                            .filter(|t| t.kind == EntityKind::Material)
+                            .map(|t| t.id)
+                            .collect();
+                        Some(rels)
+                    }
+                }
+            };
+            Ok((linked, entry_related))
         })?
 }

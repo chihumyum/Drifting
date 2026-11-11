@@ -12,7 +12,9 @@ use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID};
 
 use crate::catalog::EntitySnapshot;
 use crate::catalog::fields::{F, kv_entries};
-use crate::catalog::read::{ForestNode, forest, forest_entry_status, forest_node};
+use crate::catalog::read::{
+    ForestNode, forest, forest_entry_headers, forest_entry_status, forest_node,
+};
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::{DocError, Result};
@@ -848,6 +850,54 @@ impl<'a> BookViewV3<'a> {
             .and_then(Self::read_entry_node)
     }
 
+    /// Scalar-only entry headers (`id`, `parent`, `title`, `template`, `deleted_at`)
+    /// keyed by `EntryId`, without decoding nested `fields:*`, `kv:*`, `overrides`
+    /// or `layout` containers. Preserves exact `is_trashed`, `effective_template`,
+    /// `is_level`, `is_leaf` and `effective_ancestors` semantics.
+    pub fn entry_headers(&self) -> BTreeMap<EntryId, Entry> {
+        let headers = forest_entry_headers(&self.tree(book_v3::ENTRIES));
+        let valid_ids: HashSet<String> = headers
+            .iter()
+            .filter(|h| EntryId::parse(&h.id).is_ok())
+            .map(|h| h.id.clone())
+            .collect();
+        let mut out = BTreeMap::new();
+        for h in headers {
+            let Ok(id) = EntryId::parse(&h.id) else {
+                continue;
+            };
+            let parent = h
+                .parent
+                .as_deref()
+                .filter(|p| valid_ids.contains(*p))
+                .and_then(|p| EntryId::parse(p).ok());
+            let template = h
+                .template
+                .as_deref()
+                .and_then(|t| EntryTemplateId::parse(t).ok());
+            out.insert(
+                id.clone(),
+                Entry {
+                    id,
+                    parent,
+                    pos: String::new(),
+                    title: h.title,
+                    template,
+                    overrides: None,
+                    fields: BTreeMap::new(),
+                    kv: BTreeMap::new(),
+                    primary: None,
+                    layout: EntryLayout::default(),
+                    created_at: None,
+                    updated_at: None,
+                    deleted_at: h.deleted_at,
+                    name_conflict: None,
+                },
+            );
+        }
+        out
+    }
+
     /// Effective parent of `id` after applying `V3-LEAF-NO-CHILDREN` tolerance
     /// (children placed under a leaf by a concurrent merge are lifted to the
     /// nearest non-leaf ancestor).
@@ -1342,19 +1392,53 @@ impl<'a> BookViewV3<'a> {
     }
 
     pub fn relations_raw(&self) -> Vec<Relation> {
-        entities(self.doc, book_v3::RELATIONS)
-            .iter()
-            .filter_map(|(id, v)| {
-                let f = F(v);
-                Some(Relation {
-                    id: RelationId::parse(id).ok()?,
-                    from: f.entity_ref("from_kind", "from")?,
-                    to: f.entity_ref("to_kind", "to")?,
-                    relation_type: f.id("type")?,
-                    created_at: f.ts("created_at"),
-                })
-            })
-            .collect()
+        use loro::{Container, ValueOrContainer};
+        let str_val = |m: &LoroMap, key: &str| -> Option<String> {
+            match m.get(key)? {
+                ValueOrContainer::Value(LoroValue::String(s)) if !s.is_empty() => {
+                    Some(s.to_string())
+                }
+                _ => None,
+            }
+        };
+        let ts_val = |m: &LoroMap, key: &str| -> Option<Timestamp> {
+            match m.get(key)? {
+                ValueOrContainer::Value(LoroValue::I64(i)) => Some(Timestamp(i)),
+                ValueOrContainer::Value(LoroValue::Double(d))
+                    if d.is_finite() && d.fract() == 0.0 =>
+                {
+                    Some(Timestamp(d as i64))
+                }
+                _ => None,
+            }
+        };
+        let mut out = Vec::new();
+        self.doc.get_map(book_v3::RELATIONS).for_each(|id, val| {
+            let ValueOrContainer::Container(Container::Map(m)) = val else {
+                return;
+            };
+            let Some(rel_id) = RelationId::parse(id).ok() else {
+                return;
+            };
+            let (Some(fk), Some(fid), Some(tk), Some(tid), Some(ty)) = (
+                str_val(&m, "from_kind"),
+                str_val(&m, "from"),
+                str_val(&m, "to_kind"),
+                str_val(&m, "to"),
+                str_val(&m, "type").and_then(|s| RelationTypeId::parse(&s).ok()),
+            ) else {
+                return;
+            };
+            out.push(Relation {
+                id: rel_id,
+                from: EntityRef::new(EntityKind::from(fk.as_str()), fid),
+                to: EntityRef::new(EntityKind::from(tk.as_str()), tid),
+                relation_type: ty,
+                created_at: ts_val(&m, "created_at"),
+            });
+        });
+        out.sort_by(|a, b| a.id.cmp(&b.id));
+        out
     }
 
     fn entity_map(&self, root: &str, id: &str) -> Option<LoroMap> {
@@ -1402,31 +1486,68 @@ impl<'a> BookViewV3<'a> {
     }
 
     pub fn relations(&self) -> Vec<Relation> {
-        self.visible_relations(|_| true)
+        self.visible_relations(None, |_| true)
     }
 
     pub fn relations_of(&self, end: &EntityRef) -> Vec<Relation> {
-        self.visible_relations(|r| &r.from == end || &r.to == end)
+        self.visible_relations(None, |r| &r.from == end || &r.to == end)
     }
 
-    fn visible_relations(&self, keep: impl Fn(&Relation) -> bool) -> Vec<Relation> {
+    pub fn relations_matching(&self, keep: impl Fn(&Relation) -> bool) -> Vec<Relation> {
+        self.visible_relations(None, keep)
+    }
+
+    pub fn relations_matching_with_entries(
+        &self,
+        entries: &(HashSet<String>, HashSet<String>),
+        keep: impl Fn(&Relation) -> bool,
+    ) -> Vec<Relation> {
+        self.visible_relations(Some(entries), keep)
+    }
+
+    fn visible_relations(
+        &self,
+        precomputed_entries: Option<&(HashSet<String>, HashSet<String>)>,
+        keep: impl Fn(&Relation) -> bool,
+    ) -> Vec<Relation> {
+        let raw: Vec<Relation> = self
+            .relations_raw()
+            .into_iter()
+            .filter(|r| keep(r))
+            .collect();
+        if raw.is_empty() {
+            return Vec::new();
+        }
         let types: HashMap<RelationTypeId, RelationTypeV3> = self
             .relation_types()
             .into_iter()
             .map(|t| (t.id.clone(), t))
             .collect();
-        let entries: HashMap<String, Entry> = self
-            .entries_raw()
-            .into_iter()
-            .map(|e| (e.id.to_string(), e))
-            .collect();
-        let templates = self.templates_map();
+        let needs_templates = raw.iter().any(|r| {
+            types
+                .get(&r.relation_type)
+                .is_some_and(|t| !t.source_templates.is_empty() || !t.target_templates.is_empty())
+        });
+        let full_entries_and_tpls: Option<(
+            HashMap<String, Entry>,
+            BTreeMap<EntryTemplateId, EntryTemplate>,
+        )> = needs_templates.then(|| {
+            let entries = self
+                .entry_headers()
+                .into_iter()
+                .map(|(k, e)| (k.to_string(), e))
+                .collect();
+            (entries, self.templates_map())
+        });
+        let owned_entry_sets = if full_entries_and_tpls.is_none() && precomputed_entries.is_none() {
+            Some(self.entry_existence_sets())
+        } else {
+            None
+        };
+        let entry_sets = precomputed_entries.or(owned_entry_sets.as_ref());
         let mut seen: HashSet<(EntityRef, EntityRef, RelationTypeId)> = HashSet::new();
         let mut out = Vec::new();
-        for r in self.relations_raw() {
-            if !keep(&r) {
-                continue;
-            }
+        for r in raw {
             let Some(t) = types.get(&r.relation_type) else {
                 continue;
             };
@@ -1439,9 +1560,12 @@ impl<'a> BookViewV3<'a> {
                 if tpls.is_empty() || end.kind != EntityKind::Entry {
                     return true;
                 }
+                let Some((entries, templates)) = full_entries_and_tpls.as_ref() else {
+                    return true;
+                };
                 entries
                     .get(&end.id)
-                    .and_then(|e| e.effective_template(&templates))
+                    .and_then(|e| e.effective_template(templates))
                     .is_some_and(|et| tpls.contains(&et.id))
             };
             let symmetric = t.orientation == RelationOrientation::Symmetric;
@@ -1460,8 +1584,14 @@ impl<'a> BookViewV3<'a> {
                 continue;
             }
             let alive = |end: &EntityRef| match end.kind {
-                EntityKind::Entry => entries.get(&end.id).is_some_and(|e| !e.is_trashed()),
-                _ => self.entity_exists(end),
+                EntityKind::Entry => match (&full_entries_and_tpls, entry_sets) {
+                    (Some((entries, _)), _) => {
+                        entries.get(&end.id).is_some_and(|e| !e.is_trashed())
+                    }
+                    (_, Some((live, _))) => live.contains(&end.id),
+                    _ => false,
+                },
+                _ => self.entity_exists_with(end, entry_sets),
             };
             if !alive(&r.from) || !alive(&r.to) {
                 continue;
@@ -1549,6 +1679,19 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
+    pub fn comments_with_entries(
+        &self,
+        entries: &(HashSet<String>, HashSet<String>),
+    ) -> Vec<CommentV3> {
+        let raw = entities(self.doc, book_v3::COMMENTS);
+        if raw.is_empty() {
+            return Vec::new();
+        }
+        raw.iter()
+            .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries)))
+            .collect()
+    }
+
     /// `(id, target, target_module, anchor)` for every anchored comment without
     /// scanning the entry tree (`target_missing` is not needed to carry anchors).
     pub fn anchored_comments(
@@ -1576,6 +1719,25 @@ impl<'a> BookViewV3<'a> {
             .into_iter()
             .filter_map(|(id, v)| Some((id, F(&v).kind::<AssetKind>("kind")?)))
             .collect()
+    }
+
+    pub fn material_titles(&self) -> HashMap<String, String> {
+        use loro::{Container, ValueOrContainer};
+        let mut out = HashMap::new();
+        self.doc.get_map(book_v3::MATERIALS).for_each(|id, val| {
+            let ValueOrContainer::Container(Container::Map(m)) = val else {
+                return;
+            };
+            if MaterialId::parse(id).is_err() {
+                return;
+            }
+            let title = match m.get("title") {
+                Some(ValueOrContainer::Value(LoroValue::String(s))) => s.to_string(),
+                _ => String::new(),
+            };
+            out.insert(id.to_owned(), title);
+        });
+        out
     }
 
     pub fn materials(&self) -> Vec<Material> {

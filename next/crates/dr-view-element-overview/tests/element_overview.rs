@@ -559,8 +559,22 @@ fn heavy_seed_reference_timings(cx: &mut TestAppContext) {
     });
 
     let t_open = Instant::now();
-    let ov = mount_overview(&shell, vcx);
+    vcx.update(|window, cx| {
+        shell.update(cx, |ws, cx| {
+            ws.super_view = Some(SuperView::Elements);
+            cx.notify();
+        });
+        window.draw(cx).clear(cx);
+    });
+    let first_frame_ms = t_open.elapsed().as_secs_f64() * 1000.0;
+    wait(vcx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_element_overview::current(cx).is_some_and(|ov| ov.read(cx).is_ready())
+        })
+    });
     let open_ms = t_open.elapsed().as_secs_f64() * 1000.0;
+    let ov =
+        vcx.update(|_, cx| dr_view_element_overview::current(cx).expect("mounted ElementOverview"));
 
     let (el_count, pair_count, first_id) = vcx.update(|_, cx| {
         let v = ov.read(cx);
@@ -595,6 +609,6 @@ fn heavy_seed_reference_timings(cx: &mut TestAppContext) {
     let pin_settle_ms = t_pin.elapsed().as_secs_f64() * 1000.0;
 
     eprintln!(
-        "[m22-heavy-reference] elements={el_count} cooccurrence_pairs={pair_count} open_first_frame_ms={open_ms:.2} draw_p50_ms={p50_draw_ms:.2} draw_p95_ms={p95_draw_ms:.2} pin_reheat_settle_ms={pin_settle_ms:.2}"
+        "[m22-heavy-reference] elements={el_count} cooccurrence_pairs={pair_count} first_frame_ms={first_frame_ms:.2} open_first_frame_ms={open_ms:.2} draw_p50_ms={p50_draw_ms:.2} draw_p95_ms={p95_draw_ms:.2} pin_reheat_settle_ms={pin_settle_ms:.2}"
     );
 }

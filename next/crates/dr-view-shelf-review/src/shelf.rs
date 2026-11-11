@@ -2,6 +2,8 @@
 //! `+` create/import menu, grouped `MaterialCard` grid, and per-card hover
 //! actions (open, open in system, v3 entry links, folder moves, delete).
 
+use std::rc::Rc;
+
 use dr_i18n::keys;
 use dr_shell::{nav::Target, strings::tf, t};
 use dr_ui::{
@@ -25,22 +27,34 @@ use dr_view_material::{
 use dr_workspace::dto::MaterialInfo;
 use gpui::{
     AnyElement, Context, ExternalPaths, InteractiveElement, IntoElement, ParentElement,
-    PathPromptOptions, SharedString, StatefulInteractiveElement as _, Styled, Window, div,
+    PathPromptOptions, SharedString, StatefulInteractiveElement as _, Styled, Window, div, list,
     prelude::FluentBuilder as _, px,
 };
 
 use crate::{
     model::{KIND_ORDER, matches_material, normalize_query},
-    view::ShelfReviewView,
+    view::{ShelfGridRow, ShelfReviewView, sync_list_state},
 };
 
 impl ShelfReviewView {
     /// Visible materials after search query, kind chips and v3 entry relation filter.
     pub fn visible_materials(&self, cx: &mut gpui::App) -> Vec<MaterialInfo> {
-        let query = normalize_query(&self.query_text(cx));
+        self.materials_snapshot(cx).visible.to_vec()
+    }
+
+    /// Visible materials that currently have zero live relations to any live entity.
+    pub fn orphan_materials(&self, cx: &mut gpui::App) -> Vec<MaterialInfo> {
+        self.materials_snapshot(cx).orphans.to_vec()
+    }
+
+    pub(crate) fn compute_visible_materials(
+        &self,
+        query: &str,
+        cx: &mut gpui::App,
+    ) -> Vec<MaterialInfo> {
         let folders = self.book.material_folders();
         let items = self.book.material_items();
-        let tree = Tree::new(folders, items, None);
+        let tree = (!query.is_empty()).then(|| Tree::new(folders, items, None));
         items
             .iter()
             .filter(|mat| self.active_kinds.contains(mat.kind.as_str()))
@@ -63,19 +77,11 @@ impl ShelfReviewView {
                 let folder_path = mat
                     .folder
                     .as_deref()
-                    .map(|fid| tree.path(fid))
+                    .and_then(|fid| tree.as_ref().map(|t| t.path(fid)))
                     .filter(|p| !p.is_empty());
-                matches_material(mat, words.as_deref(), folder_path.as_deref(), &query)
+                matches_material(mat, words.as_deref(), folder_path.as_deref(), query)
             })
             .cloned()
-            .collect()
-    }
-
-    /// Visible materials that currently have zero live relations to any live entity.
-    pub fn orphan_materials(&self, cx: &mut gpui::App) -> Vec<MaterialInfo> {
-        self.visible_materials(cx)
-            .into_iter()
-            .filter(|mat| !self.linked_materials.contains(&mat.id))
             .collect()
     }
 
@@ -88,8 +94,7 @@ impl ShelfReviewView {
     ) -> AnyElement {
         let view_weak = cx.weak_entity();
         let mat = material.clone();
-        let folders = self.book.material_folders().to_vec();
-        let all_items = self.book.material_items().to_vec();
+        let book = self.book.clone();
         let card_id = SharedString::from(format!("{id_prefix}-hover-{}", mat.id));
 
         HoverCard::new(card_id, target_el, move |_, cx| {
@@ -98,7 +103,9 @@ impl ShelfReviewView {
             } else {
                 mat.title.clone().into()
             };
-            let tree = Tree::new(&folders, &all_items, None);
+            let folders = book.material_folders();
+            let all_items = book.material_items();
+            let tree = Tree::new(folders, all_items, None);
             let root_label = t(cx, keys::material_folders::ROOT).to_string();
             let folder_summary = mat
                 .folder
@@ -265,6 +272,7 @@ impl ShelfReviewView {
 
     pub(crate) fn render_material_shelf(
         &self,
+        mat_w: f32,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -272,7 +280,7 @@ impl ShelfReviewView {
         let (p, s) = (theme.palette, theme.scale);
         let entity = cx.entity();
         let all_materials = self.book.material_items();
-        let visible = self.visible_materials(cx);
+        let visible = self.materials_snapshot(cx).visible;
 
         let entry_bounds = overlay::use_bounds("shelf-entry-filter-bounds", window, cx);
         let add_bounds = overlay::use_bounds("shelf-add-material-bounds", window, cx);
@@ -459,44 +467,88 @@ impl ShelfReviewView {
                 )
                 .into_any_element()
         } else {
-            let mut sections = div()
+            let cols = (((mat_w - 28.0).max(172.0) + 10.0) / 182.0)
+                .floor()
+                .max(1.0) as usize;
+            let (rows, keys) = {
+                let cached = self.shelf_rows_cache.borrow().as_ref().and_then(
+                    |(c_vis, c_cols, c_rows, c_keys)| {
+                        (Rc::ptr_eq(c_vis, &visible) && *c_cols == cols)
+                            .then(|| (c_rows.clone(), c_keys.clone()))
+                    },
+                );
+                if let Some(hit) = cached {
+                    hit
+                } else {
+                    let mut groups: Vec<(&'static str, Vec<MaterialInfo>)> = Vec::new();
+                    for kind in KIND_ORDER {
+                        let items: Vec<MaterialInfo> =
+                            visible.iter().filter(|m| m.kind == kind).cloned().collect();
+                        if !items.is_empty() {
+                            groups.push((kind, items));
+                        }
+                    }
+                    let group_count = groups.len();
+                    let mut built_rows = Vec::new();
+                    let mut built_keys = Vec::new();
+                    for (g_idx, (kind, items)) in groups.into_iter().enumerate() {
+                        built_keys.push(format!("hdr:{kind}"));
+                        built_rows.push(ShelfGridRow::Header {
+                            kind,
+                            count: items.len(),
+                            first: g_idx == 0,
+                        });
+                        let chunks: Vec<&[MaterialInfo]> = items.chunks(cols).collect();
+                        let chunk_count = chunks.len();
+                        for (c_idx, chunk) in chunks.into_iter().enumerate() {
+                            let last_in_group = c_idx + 1 == chunk_count;
+                            let last_overall = g_idx + 1 == group_count && last_in_group;
+                            let bottom_pad = if last_overall {
+                                12.0
+                            } else if last_in_group {
+                                0.0
+                            } else {
+                                10.0
+                            };
+                            built_keys.push(format!("cards:{kind}:{c_idx}:{}", chunk[0].id));
+                            built_rows.push(ShelfGridRow::Cards {
+                                items: chunk.to_vec().into(),
+                                bottom_pad,
+                            });
+                        }
+                    }
+                    let rows_rc: Rc<[ShelfGridRow]> = built_rows.into();
+                    let keys_rc: Rc<[String]> = built_keys.into();
+                    *self.shelf_rows_cache.borrow_mut() =
+                        Some((visible.clone(), cols, rows_rc.clone(), keys_rc.clone()));
+                    (rows_rc, keys_rc)
+                }
+            };
+
+            sync_list_state(
+                &self.material_list,
+                &self.material_list_sig,
+                &keys,
+                cols as i32,
+            );
+            let weak = cx.weak_entity();
+            div()
                 .id("shelf-materials-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .px(px(14.0))
-                .py(px(12.0))
-                .flex()
-                .flex_col()
-                .gap(px(16.0));
-
-            for kind in KIND_ORDER {
-                let group: Vec<_> = visible.iter().filter(|m| m.kind == kind).cloned().collect();
-                if group.is_empty() {
-                    continue;
-                }
-                let mut grid = div().flex().flex_row().flex_wrap().gap(px(10.0));
-                for mat in group.iter() {
-                    let open_id = mat.id.clone();
-                    let open_ent = entity.clone();
-                    let card_el = MaterialCard::new(
-                        SharedString::from(format!("shelf-mat-card-{}", mat.id)),
-                        mat,
-                    )
-                    .width(172.0)
-                    .on_click(move |_, _, cx| {
-                        open_ent.update(cx, |this, cx| this.open_material(&open_id, cx));
-                    });
-                    grid =
-                        grid.child(self.render_material_hover_card("shelf-mat", mat, card_el, cx));
-                }
-                sections = sections.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.0))
-                        .child(
-                            div()
+                .overflow_hidden()
+                .child(
+                    list(self.material_list.clone(), move |ix, window, cx| {
+                        let Some(row) = rows.get(ix) else {
+                            return div().into_any_element();
+                        };
+                        let theme = Theme::of(window, cx);
+                        let (p, s) = (theme.palette, theme.scale);
+                        match row {
+                            ShelfGridRow::Header { kind, count, first } => div()
+                                .px(px(14.0))
+                                .pt(px(if *first { 12.0 } else { 16.0 }))
+                                .pb(px(8.0))
                                 .flex()
                                 .flex_row()
                                 .items_baseline()
@@ -514,13 +566,51 @@ impl ShelfReviewView {
                                         .font_role(Role::Index)
                                         .type_px(s.caption, s.line_caption)
                                         .text_color(p.ink(4).solid())
-                                        .child(group.len().to_string()),
-                                ),
-                        )
-                        .child(grid),
-                );
-            }
-            sections.into_any_element()
+                                        .child(count.to_string()),
+                                )
+                                .into_any_element(),
+                            ShelfGridRow::Cards { items, bottom_pad } => {
+                                let Some(ent) = weak.upgrade() else {
+                                    return div().into_any_element();
+                                };
+                                let mut grid = div()
+                                    .px(px(14.0))
+                                    .pb(px(*bottom_pad))
+                                    .flex()
+                                    .flex_row()
+                                    .gap(px(10.0));
+                                for mat in items.iter() {
+                                    let open_id = mat.id.clone();
+                                    let open_ent = ent.clone();
+                                    let card_el = MaterialCard::new(
+                                        SharedString::from(format!("shelf-mat-card-{}", mat.id)),
+                                        mat,
+                                    )
+                                    .width(172.0)
+                                    .on_click(
+                                        move |_, _, cx| {
+                                            open_ent.update(cx, |this, cx| {
+                                                this.open_material(&open_id, cx)
+                                            });
+                                        },
+                                    );
+                                    let hover_el = ent.update(cx, |this, cx| {
+                                        this.render_material_hover_card(
+                                            "shelf-mat",
+                                            mat,
+                                            card_el,
+                                            cx,
+                                        )
+                                    });
+                                    grid = grid.child(hover_el);
+                                }
+                                grid.into_any_element()
+                            }
+                        }
+                    })
+                    .size_full(),
+                )
+                .into_any_element()
         };
 
         let drop_ent = entity.clone();

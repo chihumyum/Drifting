@@ -36,10 +36,12 @@
   - `dr-workspace::cooccurrence::tests`：验证真实同段共现计数、同篇跨段不误连、`source_block == None` 仅计提及不拼伪同段、以及回收站条目即时排除。
   - `dr-view-element-overview`（6 项纯算法测试 + 5 项 GPUI 集成测试）：验证跨库同种子力导向坐标逐位一致、`book_memory` 模式与坐标恢复及双书隔离、跨岛拖放复用 G2 `prepare_drop`（`accept: true` 归属与 `accept: false` 迁居）及撤销、`relation_graph` 固定／解固保留 `board` 与 `grid`、`Shift` 建边与图例过滤及删除、浮岛小卡邻域隔离与展开挂载 G1 `EntryPage` 及 `library::replace` 释放屏障。
 - **调试桥副屏真窗口验收**：在 `showcase` 种子《慢钟》上走通 68 步零挂起场景（默认「关系」打开、点选《慢钟》人物弹出小卡、展开内嵌 `EntryPage` 抽屉再收起、切「群岛」、浅深色重开验证 `book_memory` 恢复、在「关系」画布真鼠标拖动固定并出现「恢复自动排布」、在「群岛」画布真鼠标把要素拖入另一座岛并校验落盘 `parent`）。
-- **`Preset::Heavy` release 参考耗时**（约 165 万字符、300 要素、28,468 处实体链接、12,187 对真实同段共现；`cargo test --release --locked -p dr-view-element-overview --test element_overview heavy_seed_reference_timings -- --ignored --nocapture`；注：测量时宿主机存在其他常驻后台负载 `load1m ≈ 10.6–12.0`，按 `autopilot.md` 规矩仅作模块参考值记录，不冒充空闲正式里程碑证据）：
-  - 首次打开（含同段共现查询、300 节点 / 12,187 对弹簧 240 步冷算落定与首帧绘制）：`387.78 ms`
-  - 单帧绘制（30 帧）：`p50 = 27.28 ms`，`p95 = 45.27 ms`
-  - 拖动固定后重热落定并持久化：`876.98 ms`
+- **`Preset::Heavy` release 空闲实测与优化对比**（约 165 万字符、300 要素、28,468 处实体链接、12,187 对真实同段共现；`cargo test --release --locked -p dr-view-element-overview --test element_overview heavy_seed_reference_timings -- --ignored --nocapture`，机器空闲 `load1m < 4.0`）：
+  - **不改格式与行为的热路径优化**：`dr-workspace::cooccurrence` 改用稠密存活条目 `u32` 下标与打包 `u64` 键去重计数；`relate.rs` 复用空间哈希网格桶消除 240 步 × 300 节点的每步 `HashMap<_, Vec<_>>` 分配；`dr-doc::v3` 的 `relations_raw` 改为标量字段遍历；`OverviewView` 消除建窗期的重复初次加载与拖动固定后的重复收敛，并对「正文同段」砂线与关系弧启用视口裁剪及分档透明度合并 `PathBuilder::stroke` 批绘（同时 `dr-ui::glass::paint_rim` 对滚出遮罩的玻璃框提前裁剪）。
+  - **开书进入首帧（`open_first_frame_ms`，含同段共现查询、300 节点 / 12,187 对弹簧 240 步冷算落定与首帧绘制）**：优化前（`load1m 3.47 → 3.31`）`160.47 ms` → 优化后（`load1m 3.22–3.64`）**`87.30–91.62 ms`**（满足 `benchmarks.md` Super View 首开 `≤ 100 ms` 发布档预算；视图挂载至首帧 `first_frame_ms` 由 `99.29 ms` 降至 **`73.48–76.80 ms`**）。
+  - **单帧绘制（30 帧）**：优化前 `p50 = 12.24 ms`、`p95 = 14.60 ms` → 优化后 **`p50 = 8.93–9.35 ms`、`p95 = 9.46–11.22 ms`**（满足 60 Hz `≤ 16.7 ms` 与 Super View 最差帧 `≤ 100 ms`）。
+  - **拖动固定后重热落定并持久化（`pin_reheat_settle_ms`）**：优化前 `372.02 ms` → 优化后 **`252.32–261.44 ms`**。
+  - *附注*：早先在宿主机高负载（`load1m ≈ 10.6–12.0`）下测得的参考值为首帧 `387.78 ms`、单帧 `p50 = 27.28 ms` / `p95 = 45.27 ms`、重热持久化 `876.98 ms`，现已被上述空闲实测正式替代。
 
 ## 待协调／待作者
 

@@ -2,7 +2,7 @@
 //! (`ShelfReviewHeadStart` and `ShelfReviewHeadEnd`).
 
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
@@ -35,16 +35,16 @@ use dr_workspace::{
         v3::{
             comment::{CommentCreate, CommentCreateIn},
             material_links::{SetEntryLink, SetEntryLinkIn},
-            relations::{List as RelationList, ListIn as RelationListIn},
         },
     },
 };
 use futures::{FutureExt as _, future::LocalBoxFuture};
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Context, DragMoveEvent, Entity, FocusHandle,
-    Focusable as _, InteractiveElement, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent,
-    ParentElement, Pixels, Render, SharedString, StatefulInteractiveElement as _, Styled,
-    Subscription, Task, WeakEntity, Window, canvas, div, px,
+    Focusable as _, InteractiveElement, IntoElement, KeyDownEvent, ListAlignment, ListState,
+    MouseButton, MouseDownEvent, ParentElement, Pixels, Render, SharedString,
+    StatefulInteractiveElement as _, Styled, Subscription, Task, WeakEntity, Window, canvas, div,
+    list, px,
 };
 
 use crate::{
@@ -52,8 +52,168 @@ use crate::{
     drawer::{DrawerResizeDrag, EmptyDragGhost},
     model::{
         KIND_ORDER, MEMORY_KEY, RAIL_KEY_STEP, Rail, ShelfCounts, ShelfMemory, filter_listing,
+        normalize_query,
     },
 };
+
+#[derive(Clone, PartialEq, Eq)]
+struct ReviewCacheKey {
+    rv_id: gpui::EntityId,
+    data_rev: u64,
+    query: String,
+}
+
+#[derive(Clone)]
+pub(crate) enum RailRow {
+    Header {
+        first: bool,
+        mark: Option<dr_ui::sand::Kind>,
+        title: SharedString,
+        jump: Option<dr_view_review::v3::Target>,
+    },
+    Card {
+        item: Rc<dr_workspace::dto::CommentInfo>,
+        bottom_pad: f32,
+    },
+}
+
+#[derive(Clone)]
+pub(crate) enum ShelfGridRow {
+    Header {
+        kind: &'static str,
+        count: usize,
+        first: bool,
+    },
+    Cards {
+        items: Rc<[dr_workspace::dto::MaterialInfo]>,
+        bottom_pad: f32,
+    },
+}
+
+pub(crate) type ListSigSlot = RefCell<(Option<Rc<[String]>>, i32)>;
+pub(crate) type ShelfRowsCache = RefCell<
+    Option<(
+        Rc<[dr_workspace::dto::MaterialInfo]>,
+        usize,
+        Rc<[ShelfGridRow]>,
+        Rc<[String]>,
+    )>,
+>;
+
+pub(crate) fn sync_list_state(
+    list_state: &ListState,
+    sig_slot: &ListSigSlot,
+    keys: &Rc<[String]>,
+    measure_key: i32,
+) {
+    let mut prev = sig_slot.borrow_mut();
+    let same_keys = prev
+        .0
+        .as_ref()
+        .is_some_and(|old| Rc::ptr_eq(old, keys) || old.as_ref() == keys.as_ref());
+    if !same_keys {
+        let mut offset = list_state.logical_scroll_top();
+        if let Some(old) = prev.0.as_ref()
+            && let Some(anchor) = old.get(offset.item_ix)
+            && let Some(new_ix) = keys.iter().position(|k| k == anchor)
+        {
+            offset.item_ix = new_ix;
+        }
+        offset.item_ix = offset.item_ix.min(keys.len().saturating_sub(1));
+        list_state.reset(keys.len());
+        if !keys.is_empty() {
+            list_state.scroll_to(offset);
+        }
+        *prev = (Some(keys.clone()), measure_key);
+    } else {
+        prev.0 = Some(keys.clone());
+        if prev.1 != measure_key {
+            list_state.remeasure_items(0..keys.len());
+            prev.1 = measure_key;
+        }
+    }
+}
+
+fn build_rail_rows(
+    rv_ref: &ReviewView,
+    groups: &[dr_view_review::Group],
+) -> (Rc<[RailRow]>, Rc<[String]>) {
+    let editing_id = rv_ref.editing_id();
+    let mut rows = Vec::new();
+    let mut keys = Vec::new();
+    let group_count = groups.len();
+    for (g_idx, group) in groups.iter().enumerate() {
+        let (mark, group_title, jump) = rv_ref.group_header(group);
+        keys.push(format!("hdr:{g_idx}:{group_title}"));
+        rows.push(RailRow::Header {
+            first: g_idx == 0,
+            mark,
+            title: group_title,
+            jump,
+        });
+        let item_count = group.items.len();
+        for (i_idx, item) in group.items.iter().enumerate() {
+            let last_in_group = i_idx + 1 == item_count;
+            let last_overall = g_idx + 1 == group_count && last_in_group;
+            let bottom_pad = if last_overall {
+                10.0
+            } else if last_in_group {
+                0.0
+            } else {
+                6.0
+            };
+            let is_editing = editing_id == Some(item.id.as_str());
+            keys.push(format!("card:{}:{}", item.id, u8::from(is_editing)));
+            rows.push(RailRow::Card {
+                item: Rc::new(item.clone()),
+                bottom_pad,
+            });
+        }
+    }
+    (rows.into(), keys.into())
+}
+
+#[derive(Clone)]
+pub(crate) struct CachedReview {
+    pub(crate) open_todos: usize,
+    pub(crate) open_comments: usize,
+    pub(crate) todo_rows: Rc<[RailRow]>,
+    pub(crate) todo_keys: Rc<[String]>,
+    pub(crate) comment_rows: Rc<[RailRow]>,
+    pub(crate) comment_keys: Rc<[String]>,
+    pub(crate) resolved_items: Rc<[(dr_workspace::dto::CommentInfo, SharedString)]>,
+    pub(crate) resolved_keys: Rc<[String]>,
+}
+
+impl Default for CachedReview {
+    fn default() -> Self {
+        Self {
+            open_todos: 0,
+            open_comments: 0,
+            todo_rows: Rc::from([]),
+            todo_keys: Rc::from([]),
+            comment_rows: Rc::from([]),
+            comment_keys: Rc::from([]),
+            resolved_items: Rc::from([]),
+            resolved_keys: Rc::from([]),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct MaterialCacheKey {
+    book_ptr: usize,
+    mat_state_rev: u64,
+    kinds_mask: u8,
+    selected_entry: Option<String>,
+}
+
+#[derive(Clone)]
+pub(crate) struct CachedMaterials {
+    pub(crate) visible: Rc<[dr_workspace::dto::MaterialInfo]>,
+    pub(crate) orphans: Rc<[dr_workspace::dto::MaterialInfo]>,
+    pub(crate) orphan_keys: Rc<[String]>,
+}
 
 static NEXT_REVIEW_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -205,8 +365,22 @@ pub struct ShelfReviewView {
     entry_links_loading: HashSet<String>,
     relations_loaded: bool,
     rel_serial: u64,
+    mat_state_rev: u64,
     rel_task: Option<Task<()>>,
     import_task: Option<Task<()>>,
+    review_cache: RefCell<Option<(ReviewCacheKey, CachedReview)>>,
+    material_cache: RefCell<Option<(MaterialCacheKey, CachedMaterials)>>,
+    pub(crate) shelf_rows_cache: ShelfRowsCache,
+    pub(crate) todo_list: ListState,
+    pub(crate) todo_list_sig: ListSigSlot,
+    pub(crate) comment_list: ListState,
+    pub(crate) comment_list_sig: ListSigSlot,
+    pub(crate) material_list: ListState,
+    pub(crate) material_list_sig: ListSigSlot,
+    pub(crate) orphan_list: ListState,
+    pub(crate) orphan_list_sig: ListSigSlot,
+    pub(crate) resolved_list: ListState,
+    pub(crate) resolved_list_sig: ListSigSlot,
 
     in_flight_writes: Vec<futures::future::Shared<futures::channel::oneshot::Receiver<()>>>,
     _ws_sub: Option<Subscription>,
@@ -271,8 +445,22 @@ impl ShelfReviewView {
             entry_links_loading: HashSet::new(),
             relations_loaded: false,
             rel_serial: 0,
+            mat_state_rev: 0,
             rel_task: None,
             import_task: None,
+            review_cache: RefCell::new(None),
+            material_cache: RefCell::new(None),
+            shelf_rows_cache: RefCell::new(None),
+            todo_list: ListState::new(0, ListAlignment::Top, px(220.0)),
+            todo_list_sig: RefCell::new((None, 0)),
+            comment_list: ListState::new(0, ListAlignment::Top, px(220.0)),
+            comment_list_sig: RefCell::new((None, 0)),
+            material_list: ListState::new(0, ListAlignment::Top, px(240.0)),
+            material_list_sig: RefCell::new((None, 0)),
+            orphan_list: ListState::new(0, ListAlignment::Top, px(160.0)),
+            orphan_list_sig: RefCell::new((None, 0)),
+            resolved_list: ListState::new(0, ListAlignment::Top, px(160.0)),
+            resolved_list_sig: RefCell::new((None, 0)),
             in_flight_writes: Vec::new(),
             _ws_sub: None,
             _lib_sub: None,
@@ -423,49 +611,139 @@ impl ShelfReviewView {
         out
     }
 
-    pub fn counts(&self, cx: &mut App) -> ShelfCounts {
-        let (open_todos, open_comments, resolved) = match &self.review {
-            Some(rv) => {
-                let query = self.query_text(cx);
-                let rv_ref = rv.read(cx);
-                let todos = filter_listing(rv_ref.cards_for(Filter::Todos, None), &query, |item| {
-                    rv_ref
-                        .source_summary(&item.id)
-                        .map(|(title, _)| title.to_string())
-                        .unwrap_or_default()
-                });
-                let comments =
-                    filter_listing(rv_ref.cards_for(Filter::Comments, None), &query, |item| {
-                        rv_ref
-                            .source_summary(&item.id)
-                            .map(|(title, _)| title.to_string())
-                            .unwrap_or_default()
-                    });
-                let all = filter_listing(rv_ref.cards_for(Filter::All, None), &query, |item| {
-                    rv_ref
-                        .source_summary(&item.id)
-                        .map(|(title, _)| title.to_string())
-                        .unwrap_or_default()
-                });
-                (
-                    todos.open.iter().map(|g| g.items.len()).sum(),
-                    comments.open.iter().map(|g| g.items.len()).sum(),
-                    all.resolved.iter().map(|g| g.items.len()).sum(),
-                )
+    fn active_kinds_mask(&self) -> u8 {
+        let mut mask = 0u8;
+        for (idx, kind) in KIND_ORDER.iter().enumerate() {
+            if self.active_kinds.contains(kind) {
+                mask |= 1u8 << idx;
             }
-            None => (0, 0, 0),
+        }
+        mask
+    }
+
+    pub(crate) fn review_snapshot(&self, cx: &App) -> CachedReview {
+        let Some(rv) = &self.review else {
+            return CachedReview::default();
         };
-        let visible = self.visible_materials(cx);
-        let orphans = visible
-            .iter()
-            .filter(|m| !self.linked_materials.contains(&m.id))
-            .count();
-        ShelfCounts {
+        let query = self.query_text(cx);
+        let rv_ref = rv.read(cx);
+        let key = ReviewCacheKey {
+            rv_id: rv.entity_id(),
+            data_rev: rv_ref.data_revision(),
+            query: query.clone(),
+        };
+        if let Some((cached_key, cached)) = self.review_cache.borrow().as_ref()
+            && *cached_key == key
+        {
+            return cached.clone();
+        }
+        let todos = filter_listing(rv_ref.cards_for(Filter::Todos, None), &query, |item| {
+            rv_ref
+                .source_summary(&item.id)
+                .map(|(title, _)| title.to_string())
+                .unwrap_or_default()
+        });
+        let comments = filter_listing(rv_ref.cards_for(Filter::Comments, None), &query, |item| {
+            rv_ref
+                .source_summary(&item.id)
+                .map(|(title, _)| title.to_string())
+                .unwrap_or_default()
+        });
+        let all = filter_listing(rv_ref.cards_for(Filter::All, None), &query, |item| {
+            rv_ref
+                .source_summary(&item.id)
+                .map(|(title, _)| title.to_string())
+                .unwrap_or_default()
+        });
+        let open_todos = todos.open.iter().map(|g| g.items.len()).sum();
+        let open_comments = comments.open.iter().map(|g| g.items.len()).sum();
+        let (todo_rows, todo_keys) = build_rail_rows(rv_ref, &todos.open);
+        let (comment_rows, comment_keys) = build_rail_rows(rv_ref, &comments.open);
+        let mut resolved_items = Vec::new();
+        let mut resolved_keys = Vec::new();
+        for group in all.resolved {
+            let (_, group_title, _) = rv_ref.group_header(&group);
+            for item in group.items {
+                resolved_keys.push(item.id.clone());
+                resolved_items.push((item, group_title.clone()));
+            }
+        }
+        let built = CachedReview {
             open_todos,
             open_comments,
-            materials: visible.len(),
+            todo_rows,
+            todo_keys,
+            comment_rows,
+            comment_keys,
+            resolved_items: resolved_items.into(),
+            resolved_keys: resolved_keys.into(),
+        };
+        *self.review_cache.borrow_mut() = Some((key, built.clone()));
+        built
+    }
+
+    pub(crate) fn materials_snapshot(&self, cx: &mut App) -> CachedMaterials {
+        let query = normalize_query(&self.query_text(cx));
+        if query.is_empty() {
+            let key = MaterialCacheKey {
+                book_ptr: Rc::as_ptr(&self.book) as usize,
+                mat_state_rev: self.mat_state_rev,
+                kinds_mask: self.active_kinds_mask(),
+                selected_entry: self.selected_entry.clone(),
+            };
+            if let Some((cached_key, cached)) = self.material_cache.borrow().as_ref()
+                && *cached_key == key
+            {
+                return cached.clone();
+            }
+            let visible: Rc<[_]> = self.compute_visible_materials("", cx).into();
+            let orphans_vec: Vec<_> = visible
+                .iter()
+                .filter(|mat| !self.linked_materials.contains(&mat.id))
+                .cloned()
+                .collect();
+            let orphan_keys: Rc<[String]> = orphans_vec
+                .iter()
+                .map(|m| m.id.clone())
+                .collect::<Vec<_>>()
+                .into();
+            let orphans: Rc<[_]> = orphans_vec.into();
+            let built = CachedMaterials {
+                visible,
+                orphans,
+                orphan_keys,
+            };
+            *self.material_cache.borrow_mut() = Some((key, built.clone()));
+            return built;
+        }
+        let visible: Rc<[_]> = self.compute_visible_materials(&query, cx).into();
+        let orphans_vec: Vec<_> = visible
+            .iter()
+            .filter(|mat| !self.linked_materials.contains(&mat.id))
+            .cloned()
+            .collect();
+        let orphan_keys: Rc<[String]> = orphans_vec
+            .iter()
+            .map(|m| m.id.clone())
+            .collect::<Vec<_>>()
+            .into();
+        let orphans: Rc<[_]> = orphans_vec.into();
+        CachedMaterials {
+            visible,
             orphans,
-            resolved,
+            orphan_keys,
+        }
+    }
+
+    pub fn counts(&self, cx: &mut App) -> ShelfCounts {
+        let rev = self.review_snapshot(cx);
+        let mats = self.materials_snapshot(cx);
+        ShelfCounts {
+            open_todos: rev.open_todos,
+            open_comments: rev.open_comments,
+            materials: mats.visible.len(),
+            orphans: mats.orphans.len(),
+            resolved: rev.resolved_items.len(),
         }
     }
 
@@ -537,6 +815,7 @@ impl ShelfReviewView {
             self.memory_loaded_for = None;
             self.selected_entry = None;
             self.entry_related_materials = None;
+            self.mat_state_rev += 1;
             self.entry_links_cache.clear();
             self.entry_links_loading.clear();
             self.relations_loaded = false;
@@ -555,6 +834,7 @@ impl ShelfReviewView {
                 self.selected_entry = None;
                 self.entry_related_materials = None;
             }
+            self.mat_state_rev += 1;
             self.bind_review(cx);
             if rev_changed {
                 self.entry_links_cache.clear();
@@ -665,6 +945,7 @@ impl ShelfReviewView {
         if crate::is_frozen(cx) || self.book_id.is_empty() || self.book.v3().is_none() {
             self.linked_materials.clear();
             self.entry_related_materials = None;
+            self.mat_state_rev += 1;
             self.relations_loaded = false;
             return;
         }
@@ -676,30 +957,7 @@ impl ShelfReviewView {
         let book = self.book_id.clone();
         let selected = self.selected_entry.clone();
         let task = cx.background_executor().spawn(async move {
-            let relations = lib
-                .run::<RelationList>(
-                    &Actor::User,
-                    RelationListIn {
-                        book: book.clone(),
-                        entity: None,
-                        relation_type: None,
-                    },
-                )
-                .map(|r| r.output)?;
-            let mut linked = HashSet::new();
-            for rel in relations {
-                if rel.from.kind == "material" {
-                    linked.insert(rel.from.id);
-                }
-                if rel.to.kind == "material" {
-                    linked.insert(rel.to.id);
-                }
-            }
-            let entry_related = match selected {
-                Some(entry_id) => Some(dr_view_material::v3::related(&lib, &book, &entry_id)?),
-                None => None,
-            };
-            dr_workspace::Result::Ok((linked, entry_related))
+            dr_view_material::v3::shelf_relations(&lib, &book, selected.as_deref())
         });
 
         let expected_book = self.book_id.clone();
@@ -714,6 +972,7 @@ impl ShelfReviewView {
                     Ok((linked, entry_related)) => {
                         this.linked_materials = linked;
                         this.entry_related_materials = entry_related;
+                        this.mat_state_rev += 1;
                         this.relations_loaded = true;
                     }
                     Err(e) => {
@@ -1108,21 +1367,10 @@ impl ShelfReviewView {
         let (p, s) = (theme.palette, theme.scale);
         let entity = cx.entity();
 
-        let (groups, count) = match &self.review {
-            Some(rv) => {
-                let query = self.query_text(cx);
-                let rv_ref = rv.read(cx);
-                let listing = filter_listing(rv_ref.cards_for(Filter::Todos, None), &query, |i| {
-                    rv_ref
-                        .source_summary(&i.id)
-                        .map(|(t, _)| t.to_string())
-                        .unwrap_or_default()
-                });
-                let total: usize = listing.open.iter().map(|g| g.items.len()).sum();
-                (listing.open, total)
-            }
-            None => (Vec::new(), 0),
-        };
+        let cached_rev = self.review_snapshot(cx);
+        let rows = cached_rev.todo_rows;
+        let keys = cached_rev.todo_keys;
+        let count = cached_rev.open_todos;
 
         let new_ent = entity.clone();
         let header = div()
@@ -1160,7 +1408,8 @@ impl ShelfReviewView {
                     }),
             );
 
-        let body = if groups.is_empty() {
+        let body = if rows.is_empty() {
+            sync_list_state(&self.todo_list, &self.todo_list_sig, &keys, width as i32);
             div()
                 .flex_1()
                 .min_h_0()
@@ -1177,37 +1426,68 @@ impl ShelfReviewView {
                 )
                 .into_any_element()
         } else {
-            let mut list = div()
+            sync_list_state(&self.todo_list, &self.todo_list_sig, &keys, width as i32);
+            let weak = cx.weak_entity();
+            let rv_opt = self.review.clone();
+            div()
                 .id("shelf-todos-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .px(px(10.0))
-                .py(px(10.0))
-                .flex()
-                .flex_col()
-                .gap(px(12.0));
-
-            if let Some(rv) = self.review.clone() {
-                for group in groups {
-                    let (mark, group_title, jump_target) = rv.read(cx).group_header(&group);
-                    let mut section = div().flex().flex_col().gap(px(6.0));
-                    section = section.child(self.render_group_label(
-                        "todo",
-                        mark,
-                        group_title,
-                        jump_target,
-                        window,
-                        cx,
-                    ));
-                    for item in &group.items {
-                        let card = rv.update(cx, |r, cx| r.render_card(item, false, window, cx));
-                        section = section.child(card);
-                    }
-                    list = list.child(section);
-                }
-            }
-            list.into_any_element()
+                .overflow_hidden()
+                .child(
+                    list(self.todo_list.clone(), move |ix, window, cx| {
+                        let Some(row) = rows.get(ix) else {
+                            return div().into_any_element();
+                        };
+                        match row {
+                            RailRow::Header {
+                                first,
+                                mark,
+                                title,
+                                jump,
+                            } => {
+                                let label = weak
+                                    .upgrade()
+                                    .map(|ent| {
+                                        ent.update(cx, |this, cx| {
+                                            this.render_group_label(
+                                                "todo",
+                                                *mark,
+                                                title.clone(),
+                                                jump.clone(),
+                                                window,
+                                                cx,
+                                            )
+                                        })
+                                    })
+                                    .unwrap_or_else(|| div().into_any_element());
+                                div()
+                                    .px(px(10.0))
+                                    .pt(px(if *first { 10.0 } else { 12.0 }))
+                                    .pb(px(6.0))
+                                    .child(label)
+                                    .into_any_element()
+                            }
+                            RailRow::Card { item, bottom_pad } => {
+                                let card = rv_opt
+                                    .as_ref()
+                                    .map(|rv| {
+                                        rv.update(cx, |r, cx| {
+                                            r.render_card(item, false, window, cx)
+                                        })
+                                    })
+                                    .unwrap_or_else(|| div().into_any_element());
+                                div()
+                                    .px(px(10.0))
+                                    .pb(px(*bottom_pad))
+                                    .child(card)
+                                    .into_any_element()
+                            }
+                        }
+                    })
+                    .size_full(),
+                )
+                .into_any_element()
         };
 
         let down_ent = entity.clone();
@@ -1273,22 +1553,10 @@ impl ShelfReviewView {
         let (p, s) = (theme.palette, theme.scale);
         let entity = cx.entity();
 
-        let (groups, count) = match &self.review {
-            Some(rv) => {
-                let query = self.query_text(cx);
-                let rv_ref = rv.read(cx);
-                let listing =
-                    filter_listing(rv_ref.cards_for(Filter::Comments, None), &query, |i| {
-                        rv_ref
-                            .source_summary(&i.id)
-                            .map(|(t, _)| t.to_string())
-                            .unwrap_or_default()
-                    });
-                let total: usize = listing.open.iter().map(|g| g.items.len()).sum();
-                (listing.open, total)
-            }
-            None => (Vec::new(), 0),
-        };
+        let cached_rev = self.review_snapshot(cx);
+        let rows = cached_rev.comment_rows;
+        let keys = cached_rev.comment_keys;
+        let count = cached_rev.open_comments;
 
         let new_ent = entity.clone();
         let header = div()
@@ -1326,7 +1594,7 @@ impl ShelfReviewView {
                     }),
             );
 
-        let body = if groups.is_empty() {
+        let body = if rows.is_empty() {
             div()
                 .flex_1()
                 .min_h_0()
@@ -1343,37 +1611,73 @@ impl ShelfReviewView {
                 )
                 .into_any_element()
         } else {
-            let mut list = div()
+            sync_list_state(
+                &self.comment_list,
+                &self.comment_list_sig,
+                &keys,
+                width as i32,
+            );
+            let weak = cx.weak_entity();
+            let rv_opt = self.review.clone();
+            div()
                 .id("shelf-comments-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .px(px(10.0))
-                .py(px(10.0))
-                .flex()
-                .flex_col()
-                .gap(px(12.0));
-
-            if let Some(rv) = self.review.clone() {
-                for group in groups {
-                    let (mark, group_title, jump_target) = rv.read(cx).group_header(&group);
-                    let mut section = div().flex().flex_col().gap(px(6.0));
-                    section = section.child(self.render_group_label(
-                        "comment",
-                        mark,
-                        group_title,
-                        jump_target,
-                        window,
-                        cx,
-                    ));
-                    for item in &group.items {
-                        let card = rv.update(cx, |r, cx| r.render_card(item, false, window, cx));
-                        section = section.child(card);
-                    }
-                    list = list.child(section);
-                }
-            }
-            list.into_any_element()
+                .overflow_hidden()
+                .child(
+                    list(self.comment_list.clone(), move |ix, window, cx| {
+                        let Some(row) = rows.get(ix) else {
+                            return div().into_any_element();
+                        };
+                        match row {
+                            RailRow::Header {
+                                first,
+                                mark,
+                                title,
+                                jump,
+                            } => {
+                                let label = weak
+                                    .upgrade()
+                                    .map(|ent| {
+                                        ent.update(cx, |this, cx| {
+                                            this.render_group_label(
+                                                "comment",
+                                                *mark,
+                                                title.clone(),
+                                                jump.clone(),
+                                                window,
+                                                cx,
+                                            )
+                                        })
+                                    })
+                                    .unwrap_or_else(|| div().into_any_element());
+                                div()
+                                    .px(px(10.0))
+                                    .pt(px(if *first { 10.0 } else { 12.0 }))
+                                    .pb(px(6.0))
+                                    .child(label)
+                                    .into_any_element()
+                            }
+                            RailRow::Card { item, bottom_pad } => {
+                                let card = rv_opt
+                                    .as_ref()
+                                    .map(|rv| {
+                                        rv.update(cx, |r, cx| {
+                                            r.render_card(item, false, window, cx)
+                                        })
+                                    })
+                                    .unwrap_or_else(|| div().into_any_element());
+                                div()
+                                    .px(px(10.0))
+                                    .pb(px(*bottom_pad))
+                                    .child(card)
+                                    .into_any_element()
+                            }
+                        }
+                    })
+                    .size_full(),
+                )
+                .into_any_element()
         };
 
         let down_ent = entity.clone();
@@ -1490,6 +1794,9 @@ impl Render for ShelfReviewView {
         let cw = self.container_width();
         let ch = self.container_height();
         let (todo_w, comment_w) = self.memory.resolve_widths(cw);
+        let mat_w = cw
+            .map(|w| (w - todo_w - comment_w).max(crate::model::LIBRARY_MIN_WIDTH))
+            .unwrap_or(720.0);
 
         let bounds_cell = self.stage_bounds.clone();
         let probe = canvas(
@@ -1542,7 +1849,7 @@ impl Render for ShelfReviewView {
                     .flex_row()
                     .child(self.render_todo_rail(todo_w, window, cx))
                     .child(self.render_comment_rail(comment_w, window, cx))
-                    .child(self.render_material_shelf(window, cx)),
+                    .child(self.render_material_shelf(mat_w, window, cx)),
             )
             .child(self.render_bottom_drawer(ch, window, cx))
             .children(self.render_dialog(window, cx))

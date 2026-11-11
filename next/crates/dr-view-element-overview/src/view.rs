@@ -345,10 +345,16 @@ pub struct ElementOverview {
     pub(crate) drop_island_id: Option<String>,
 
     // True v3 mentions & shared-paragraph co-occurrence sand lines
+    pub(crate) loaded_lib_ptr: usize,
     pub(crate) cooccurrences: EntryCooccurrenceGraph,
     pub(crate) lines_on: bool,
     pub(crate) line_threshold: u32,
     pub(crate) find_query: String,
+    pub(crate) cached_present_ids: HashSet<String>,
+    pub(crate) cached_threshold_pairs: Rc<[IslePair]>,
+    pub(crate) cached_mark_weights: HashMap<String, f32>,
+    pub(crate) cached_major_ids: BTreeSet<String>,
+    pub(crate) cached_isle_starts: BTreeMap<String, RelatePoint>,
 
     // Force-directed relation layout (`关系`)
     pub(crate) relate_live: BTreeMap<String, RelatePoint>,
@@ -405,10 +411,16 @@ impl ElementOverview {
             },
             element_centers: HashMap::new(),
             drop_island_id: None,
+            loaded_lib_ptr: 0,
             cooccurrences: EntryCooccurrenceGraph::default(),
             lines_on: true,
             line_threshold: 2,
             find_query: String::new(),
+            cached_present_ids: HashSet::new(),
+            cached_threshold_pairs: Rc::from(&[][..]),
+            cached_mark_weights: HashMap::new(),
+            cached_major_ids: BTreeSet::new(),
+            cached_isle_starts: BTreeMap::new(),
             relate_live: BTreeMap::new(),
             relate_rest: None,
             relate_signature: None,
@@ -459,6 +471,7 @@ impl ElementOverview {
         self.pending_link = None;
         self.type_manager = None;
         self.lib = None;
+        self.loaded_lib_ptr = 0;
         cx.notify();
     }
 
@@ -497,6 +510,11 @@ impl ElementOverview {
 
         let id_changed = self.book_id != book_id;
         let snap_changed = !Rc::ptr_eq(&self.book, &book);
+        let next_lib_ptr = lib
+            .as_ref()
+            .map(|l| l.library() as *const _ as usize)
+            .unwrap_or(0);
+        let lib_changed = lib.is_some() && next_lib_ptr != self.loaded_lib_ptr;
         if lib.is_some() {
             self.lib = lib;
         }
@@ -514,7 +532,7 @@ impl ElementOverview {
                 sheet.refresh(self.book.clone(), cx);
             }
             self.reload_all_headless(cx);
-        } else {
+        } else if lib_changed {
             self.reload_relations_and_cooccurrences();
             self.ensure_relate_settled(false, cx);
         }
@@ -649,11 +667,16 @@ impl ElementOverview {
 
     pub(crate) fn reload_relations_and_cooccurrences(&mut self) {
         let Some(lib) = &self.lib else {
+            self.loaded_lib_ptr = 0;
+            self.rebuild_derived_caches();
             return;
         };
         if self.book_id.is_empty() {
+            self.loaded_lib_ptr = 0;
+            self.rebuild_derived_caches();
             return;
         };
+        self.loaded_lib_ptr = lib.library() as *const _ as usize;
         let me = &Actor::User;
         if let Ok(out) = lib.run::<RelationTypes>(
             me,
@@ -676,22 +699,64 @@ impl ElementOverview {
         if let Ok(graph) = lib.entry_cooccurrences(&self.book_id) {
             self.cooccurrences = graph;
         }
+        self.rebuild_derived_caches();
     }
 
-    pub(crate) fn present_element_ids(&self) -> HashSet<String> {
-        self.elements.iter().map(|e| e.id.clone()).collect()
+    pub(crate) fn rebuild_derived_caches(&mut self) {
+        let present: HashSet<String> = self.elements.iter().map(|e| e.id.clone()).collect();
+        let pairs = isle_pairs(&self.cooccurrences.pairs, self.line_threshold, &present);
+        let most = self
+            .cooccurrences
+            .mentions
+            .iter()
+            .filter(|(id, _)| present.contains(*id))
+            .map(|(_, c)| *c)
+            .max()
+            .unwrap_or(0);
+        let mut weights = HashMap::with_capacity(present.len());
+        for (id, &count) in &self.cooccurrences.mentions {
+            if count > 0 && present.contains(id) {
+                weights.insert(id.clone(), isle_mark_weight(count, most));
+            }
+        }
+        let major_ids = major_element_ids(&self.cooccurrences.mentions, &present, 12);
+        let mut isle_starts = BTreeMap::new();
+        for el in &self.elements {
+            if let Some(c) = self.element_centers.get(&el.id) {
+                isle_starts.insert(
+                    el.id.clone(),
+                    RelatePoint::new(f64::from(c.x), f64::from(c.y)),
+                );
+            }
+        }
+        self.cached_present_ids = present;
+        self.cached_threshold_pairs = pairs.into();
+        self.cached_mark_weights = weights;
+        self.cached_major_ids = major_ids;
+        self.cached_isle_starts = isle_starts;
     }
 
-    pub(crate) fn threshold_sand_pairs(&self) -> Vec<IslePair> {
-        let present = self.present_element_ids();
-        isle_pairs(&self.cooccurrences.pairs, self.line_threshold, &present)
+    pub(crate) fn present_element_ids(&self) -> &HashSet<String> {
+        &self.cached_present_ids
     }
 
-    pub(crate) fn active_sand_pairs(&self) -> Vec<IslePair> {
+    pub(crate) fn threshold_sand_pairs(&self) -> &[IslePair] {
+        &self.cached_threshold_pairs
+    }
+
+    pub(crate) fn active_sand_pairs(&self) -> &[IslePair] {
         if self.lines_on {
-            self.threshold_sand_pairs()
+            &self.cached_threshold_pairs
         } else {
-            Vec::new()
+            &[]
+        }
+    }
+
+    pub(crate) fn active_sand_pairs_rc(&self) -> Rc<[IslePair]> {
+        if self.lines_on {
+            self.cached_threshold_pairs.clone()
+        } else {
+            Rc::from(&[][..])
         }
     }
 
@@ -735,8 +800,8 @@ impl ElementOverview {
         }
         for pair in self.active_sand_pairs() {
             springs.push(RelateSpring {
-                a: pair.a,
-                b: pair.b,
+                a: pair.a.clone(),
+                b: pair.b.clone(),
                 kind: SpringKind::Prose,
                 roles: Vec::new(),
                 count: pair.count,
@@ -746,16 +811,7 @@ impl ElementOverview {
     }
 
     pub(crate) fn isle_starts(&self) -> BTreeMap<String, RelatePoint> {
-        let mut out = BTreeMap::new();
-        for el in &self.elements {
-            if let Some(c) = self.element_centers.get(&el.id) {
-                out.insert(
-                    el.id.clone(),
-                    RelatePoint::new(f64::from(c.x), f64::from(c.y)),
-                );
-            }
-        }
-        out
+        self.cached_isle_starts.clone()
     }
 
     fn aspect_ratio(&self) -> f64 {
@@ -972,8 +1028,8 @@ impl ElementOverview {
         {
             Ok(_) => {
                 self._tween_task = None;
-                self.sync_workspace_book(cx);
                 let pt = RelatePoint::new(rounded.0, rounded.1);
+                self.refresh_book_after_pin_change(element_id, Some(pt), cx);
                 self.relate_live.insert(element_id.to_owned(), pt);
                 let pins = self.author_pins();
                 let (nodes, springs) = self.relate_nodes_and_springs();
@@ -1025,9 +1081,51 @@ impl ElementOverview {
             log::warn!("failed to unpin element {element_id}: {err}");
             return;
         }
-        self.sync_workspace_book(cx);
+        self.refresh_book_after_pin_change(element_id, None, cx);
         self.ensure_relate_settled(true, cx);
         cx.notify();
+    }
+
+    fn refresh_book_after_pin_change(
+        &mut self,
+        element_id: &str,
+        next_pin: Option<RelatePoint>,
+        cx: &mut Context<Self>,
+    ) {
+        for el in &mut self.elements {
+            if el.id == element_id {
+                el.relation_pin = next_pin;
+            }
+        }
+        for isl in &mut self.island_models {
+            for g in &mut isl.groups {
+                for item in &mut g.items {
+                    if item.id == element_id {
+                        item.relation_pin = next_pin;
+                    }
+                }
+            }
+        }
+        let Some(lib) = &self.lib else {
+            return;
+        };
+        let Ok(fresh) = Book::load(lib, &self.book_id) else {
+            return;
+        };
+        let fresh_rc = Rc::new(fresh);
+        self.book = fresh_rc.clone();
+        if let Some(sheet) = &self.island_sheet {
+            sheet.refresh(fresh_rc.clone(), cx);
+        }
+        if let Some(ws) = self.ws.upgrade() {
+            let expected_book = self.book_id.clone();
+            ws.update(cx, |w, cx| {
+                if w.book_id == expected_book {
+                    w.book = fresh_rc;
+                    cx.notify();
+                }
+            });
+        }
     }
 
     pub fn reset_view(&mut self, cx: &mut Context<Self>) {
@@ -1305,7 +1403,11 @@ impl ElementOverview {
     }
 
     pub fn set_line_threshold(&mut self, threshold: u32, cx: &mut Context<Self>) {
-        self.line_threshold = threshold.max(1);
+        let next = threshold.max(1);
+        if self.line_threshold != next {
+            self.line_threshold = next;
+            self.rebuild_derived_caches();
+        }
         self.ensure_relate_settled(false, cx);
         cx.notify();
     }
@@ -1438,26 +1540,7 @@ impl ElementOverview {
             })
             .map(|r| (r.from.id.clone(), r.to.id.clone()))
             .collect();
-        Some(isle_neighbours(focus_id, &pairs, &rel_pairs))
-    }
-
-    pub(crate) fn mark_weights(&self) -> HashMap<String, f32> {
-        let present = self.present_element_ids();
-        let most = self
-            .cooccurrences
-            .mentions
-            .iter()
-            .filter(|(id, _)| present.contains(*id))
-            .map(|(_, c)| *c)
-            .max()
-            .unwrap_or(0);
-        let mut weights = HashMap::new();
-        for (id, &count) in &self.cooccurrences.mentions {
-            if count > 0 && present.contains(id) {
-                weights.insert(id.clone(), isle_mark_weight(count, most));
-            }
-        }
-        weights
+        Some(isle_neighbours(focus_id, pairs, &rel_pairs))
     }
 
     pub(crate) fn element_color(&self, el: &IslandItem) -> Option<Rgb> {
@@ -1852,7 +1935,7 @@ impl ElementOverview {
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let p = Theme::of(window, cx).palette;
-        let fallback = self.isle_starts();
+        let fallback = &self.cached_isle_starts;
         let mut out = Vec::with_capacity(self.elements.len());
 
         for element in &self.elements {
@@ -1967,7 +2050,7 @@ impl ElementOverview {
 
     fn render_lines_canvas(
         &self,
-        sand_pairs: Vec<IslePair>,
+        sand_pairs: Rc<[IslePair]>,
         relate_edges: Vec<RelateEdgeView>,
         neighbourhood: Option<HashSet<String>>,
         isolated: bool,
@@ -1998,6 +2081,10 @@ impl ElementOverview {
             move |_, _, _| {},
             move |bounds, _, window, _| {
                 let origin = bounds.origin;
+                let min_sx = f32::from(origin.x) - 16.0;
+                let min_sy = f32::from(origin.y) - 16.0;
+                let max_sx = f32::from(origin.x + bounds.size.width) + 16.0;
+                let max_sy = f32::from(origin.y + bounds.size.height) + 16.0;
                 let to_screen = |wx: f32, wy: f32| -> Point<Pixels> {
                     point(
                         origin.x + px(wx * zoom + pan.x),
@@ -2005,14 +2092,20 @@ impl ElementOverview {
                     )
                 };
 
-                // 1. Prose shared-paragraph sand lines (`正文同段`)
+                // 1. Prose shared-paragraph sand lines (`正文同段`), batched into quantized
+                //    `(strength_bucket, touches_active)` strokes to avoid per-pair tessellation.
+                const SAND_BUCKETS: usize = 16;
                 let most = sand_pairs
                     .iter()
                     .map(|sp| sp.count)
                     .max()
                     .unwrap_or(1)
                     .max(1);
-                for pair in &sand_pairs {
+                let has_active = active_id.is_some();
+                let mut sand_batches: [Option<(PathBuilder, f32)>; SAND_BUCKETS * 2] =
+                    std::array::from_fn(|_| None);
+
+                for pair in sand_pairs.iter() {
                     if isolated
                         && let Some(vis) = &neighbourhood
                         && (!vis.contains(&pair.a) || !vis.contains(&pair.b))
@@ -2029,22 +2122,43 @@ impl ElementOverview {
                     let dy = y2 - y0;
                     let cx_pt = (x0 + x2) * 0.5 - dy * 0.08;
                     let cy_pt = (y0 + y2) * 0.5 + dx * 0.08;
-                    let strength = (pair.count as f32) / (most as f32);
+                    let p0 = to_screen(x0, y0);
+                    let p2 = to_screen(x2, y2);
+                    let ctrl = to_screen(cx_pt, cy_pt);
+                    let p_min_x = f32::from(p0.x).min(f32::from(p2.x)).min(f32::from(ctrl.x));
+                    let p_max_x = f32::from(p0.x).max(f32::from(p2.x)).max(f32::from(ctrl.x));
+                    let p_min_y = f32::from(p0.y).min(f32::from(p2.y)).min(f32::from(ctrl.y));
+                    let p_max_y = f32::from(p0.y).max(f32::from(p2.y)).max(f32::from(ctrl.y));
+                    if p_max_x < min_sx || p_min_x > max_sx || p_max_y < min_sy || p_min_y > max_sy
+                    {
+                        continue;
+                    }
+
+                    let raw_strength = ((pair.count as f32) / (most as f32)).clamp(0.0, 1.0);
+                    let q_idx = ((raw_strength * ((SAND_BUCKETS - 1) as f32)).round() as usize)
+                        .min(SAND_BUCKETS - 1);
+                    let strength = (q_idx as f32) / ((SAND_BUCKETS - 1) as f32);
                     let touches = active_id
                         .as_deref()
                         .is_some_and(|aid| pair.a == aid || pair.b == aid);
-                    let mut alpha = 0.18 + strength * 0.42;
-                    if active_id.is_some() {
-                        alpha = if touches {
-                            (alpha * 1.7).min(0.90)
-                        } else {
-                            alpha * 0.15
-                        };
-                    }
-                    let mut builder =
-                        PathBuilder::stroke(px((1.2 + strength * 2.0).clamp(1.0, 3.2)));
-                    builder.move_to(to_screen(x0, y0));
-                    builder.curve_to(to_screen(x2, y2), to_screen(cx_pt, cy_pt));
+                    let slot = q_idx * 2 + usize::from(touches);
+                    let (builder, _) = sand_batches[slot].get_or_insert_with(|| {
+                        let mut alpha = 0.18 + strength * 0.42;
+                        if has_active {
+                            alpha = if touches {
+                                (alpha * 1.7).min(0.90)
+                            } else {
+                                alpha * 0.15
+                            };
+                        }
+                        let stroke_w = (1.2 + strength * 2.0).clamp(1.0, 3.2);
+                        (PathBuilder::stroke(px(stroke_w)), alpha)
+                    });
+                    builder.move_to(p0);
+                    builder.curve_to(p2, ctrl);
+                }
+
+                for (builder, alpha) in sand_batches.into_iter().flatten() {
                     if let Ok(path) = builder.build() {
                         window.paint_path(path, sand_color.alpha(alpha));
                     }
@@ -2087,7 +2201,6 @@ impl Render for ElementOverview {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = Theme::of(window, cx).palette;
         let lod = isles_lod(self.zoom);
-        let weights = self.mark_weights();
         let neighbourhood = self.neighbourhood();
         let find_hits = self.find_hits();
         let keep_set = find_hits.as_ref().or(neighbourhood.as_ref());
@@ -2107,10 +2220,8 @@ impl Render for ElementOverview {
                     .map(|e| e.id.clone())
                     .collect()
             });
-        let present = self.present_element_ids();
-        let major_ids = major_element_ids(&self.cooccurrences.mentions, &present, 12);
 
-        let sand_pairs = self.active_sand_pairs();
+        let sand_pairs = self.active_sand_pairs_rc();
         let relate_edges = self.build_relate_edges();
         let crowded = relate_edges.len() > RELATE_LABEL_BUDGET;
         let role_labels_all = lod != IslesLod::Far && !crowded;
@@ -2118,7 +2229,7 @@ impl Render for ElementOverview {
         let world_items = match self.layout_mode {
             ElementLayoutMode::Isles => self.render_isles_canvas(
                 lod,
-                &weights,
+                &self.cached_mark_weights,
                 &neighbourhood,
                 &dimmed,
                 &hidden,
@@ -2127,11 +2238,11 @@ impl Render for ElementOverview {
             ),
             ElementLayoutMode::Relate => self.render_relate_cells(
                 lod,
-                &weights,
+                &self.cached_mark_weights,
                 &neighbourhood,
                 &dimmed,
                 &hidden,
-                &major_ids,
+                &self.cached_major_ids,
                 window,
                 cx,
             ),

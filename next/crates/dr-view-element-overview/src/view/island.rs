@@ -157,7 +157,7 @@ impl ElementOverview {
         let mentions_label = tf(cx, k_island::MENTIONS, &[("count", &mentions)]);
 
         let present = self.present_element_ids();
-        let companions = isle_companions(element_id, &self.cooccurrences.pairs, &present, 5);
+        let companions = isle_companions(element_id, &self.cooccurrences.pairs, present, 5);
         let companion_rows: Vec<AnyElement> = companions
             .into_iter()
             .filter_map(|(cid, count)| {
