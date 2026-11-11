@@ -290,3 +290,12 @@ metadata 的外部纯文本仍走既有 F4c 路径并有对照契约。无法保
 拒绝；完整历史对无法保真嵌套树的已接首次真实提交前整批拒绝保持，后续技术能力归
 G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅度暂缓，不记为通过；
 不宣称 G1 全部完成或 autopilot 终点。原作者树／WIP、progress.md、旧客户端不改。
+
+### AutomaticHistory 定时周期与订前基线确定性修复（2026-11-12）
+
+**根因：**与 F2 单文档 `history_label`（写入独立 SQLite 表、不推进 Loro `oplog_frontiers()`）不同，canonical v3 的完整条目快照（`entry_snapshot.capture`）将快照清单写入 `book:<id>` 文档的 `entry_checkpoints`，从而推进 `book:<id>` 的 `oplog_frontiers()`。此前 [`AutomaticHistory::start`](../../../next/crates/dr-view-history/src/automatic.rs) 存在两处时序问题：① 收到 `Message::Changed` 后未按 `dr_store::history::PERIODIC_INTERVAL_MS`（15 分钟）设置定时器，而是在后台线程立即对 `dirty` 调用 `capture(..., Periodic)`，首次无快照条目会当场向 `book:<id>` 提交写入；② 初始 `owners(&ws)` 在 `subscribe` 之后的后台线程里异步读取，若前台紧接 `start` 立刻执行 `entry.create` 或仅改动 `memberships`／`undo` 使 `changed.is_empty()`，旧回退分支 `dirty.extend(current.keys().cloned())` 会把整本书全部条目排入后台连续捕获，小概率与前台 `Book::load` 之后的受守卫写入（如 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo`）撞上 `WritePreconditions` `stale observation`。
+
+**做了什么：**
+1. `AutomaticHistory::start` 在调用 `ws.library().subscribe(...)` **之前**同步记录各书 `loro_head` 的 `Frontiers`（轻量 SQLite 点查，不在 UI 线程重放 Loro 文档）；工作线程首次收到某书 `DocId::Book` 事件时用 `load_copy_at` 取订前版本建立精确基线，彻底移除 `changed.is_empty()` 全书标脏回退。
+2. 工作线程引入 `PERIODIC_INTERVAL`（15 分钟，另供测试入口 `start_with_interval`）与 `recv_timeout` 截止时刻：`Message::Changed` 仅在内存中更新 `known`、`dirty` 与首次到期时间，绝不在前台交互当刻后台写 `book:<id>`；仅在周期到点时冲刷 `dirty`（失败项保留待下一轮），关库／换库经 `finish()` → `capture_on_close` 同步排空不变。
+3. 新增两条确定性永久单测 `immediate_foreground_edits_enqueue_only_touched_entries_without_racing_book_head` 与 `periodic_cadence_captures_dirty_entries_after_interval_elapses`（通过工作线程 FIFO 通道栅栏核对，零重试、零放宽断言、零 `ignore`）。
