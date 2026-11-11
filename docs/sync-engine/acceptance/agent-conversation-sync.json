@@ -15,7 +15,7 @@
       "agent_chat_queue"
     ],
     "sourceSha256": {
-      "crates/drifting-core/src/database.rs": "f38f652818f2e2c914720b1fda61dd301313762d50b66cfe4d1ef925263bf19f",
+      "crates/drifting-core/src/database.rs": "7b67c369fe32956545278e0c66ac6a1d6cfc1a0818cac8859785722b9634a305",
       "crates/drifting-core/src/file_io.rs": "6fc087da3c633abb0a450aebce976fa750138b5df3db79d797223f7574c52f82",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
@@ -342,7 +342,7 @@
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
     },
     "native": {
-      "passed": 200,
+      "passed": 204,
       "failed": 0,
       "ignored": 2,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"
