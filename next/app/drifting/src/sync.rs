@@ -176,7 +176,8 @@ pub fn init(platform: &Identity, cx: &mut App) {
     // Re-attach after a library replacement finishes (or if release was aborted).
     dr_shell::release::after_release(cx, reconcile);
 
-    // Pre-sign-out drain from the account menu while the bearer token is still valid.
+    // Pre-sign-out drain (invoked by `dr_view_account::sign_out` from both the
+    // sidebar account menu and Settings › Account) while the bearer token is still valid.
     dr_shell::sync::set_before_account_action(cx, {
         let runtime = Arc::clone(&runtime);
         move |cx| {
@@ -960,5 +961,145 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(25));
         }
+    }
+
+    #[gpui::test]
+    fn settings_sign_out_drains_pending_uploads_before_token_revocation_and_returns_to_local(
+        cx: &mut TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        let token = "synthetic-settings-signout-token-003".to_owned();
+        let server = FakeSyncServer::start(&token);
+        server.set_revoke_token_on_sign_out(true);
+        let origin = HostedOrigin::parse(server.base_url()).unwrap();
+        let config = HostedConfig::with_origin(origin.clone());
+
+        let tmp = tempfile::tempdir().unwrap();
+        let secrets = Arc::new(SecretStore::in_memory());
+        SessionTokenStore::new(Arc::clone(&secrets))
+            .write(&origin, &token)
+            .unwrap();
+
+        let platform = Identity::current();
+        let acct = Arc::new(
+            AccountService::new(config, tmp.path(), platform.url_scheme, secrets).unwrap(),
+        );
+        let settled = acct.bootstrap();
+        assert_eq!(settled.status, SessionStatus::Connected);
+        assert!(settled.is_account_library);
+
+        let ws_acct = Workspace::open_dir(&settled.active_library_dir, "0.2.0-test").unwrap();
+        seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)
+            .unwrap()
+            .write_to(ws_acct.library())
+            .unwrap();
+
+        cx.update(|cx| {
+            let _ = dr_ui::fonts::register(cx);
+            install_shell(ws_acct, cx);
+            dr_view_account::init(AccountUiService::with_service(Arc::clone(&acct)), cx);
+            init(platform, cx);
+            register_final_drain(cx);
+        });
+
+        let init_deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            cx.run_until_parked();
+            let ready = cx.update(|cx| {
+                cx.global::<Supervisor>().snapshot.completed_cycles >= 1
+                    && cx.global::<Supervisor>().snapshot.pending_docs == 0
+            });
+            if ready {
+                break;
+            }
+            assert!(
+                Instant::now() < init_deadline,
+                "timed out waiting for initial sync cycle before sign-out"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        let window = cx.add_window(dr_view_account::AccountSettingsView::new);
+        let mut vcx = gpui::VisualTestContext::from_window(*window, cx);
+        vcx.run_until_parked();
+
+        // Create a new book right before clicking "Sign out" in Settings › Account.
+        // Because `server.set_revoke_token_on_sign_out(true)` invalidates `token` as
+        // soon as `POST /api/auth/sign-out` runs, this book can ONLY reach the server
+        // if `dr_view_account::sign_out` awaits `dr_shell::sync::run_before_sign_out`
+        // BEFORE revoking the token!
+        let created_book_id = vcx.update(|_window, cx| {
+            let ws = cx.global::<Services>().library.as_ref().unwrap();
+            let created = ws
+                .call(
+                    &Actor::User,
+                    "project.create",
+                    json!({ "name": "设置页退出前排空验证" }),
+                )
+                .unwrap();
+            created["output"]["id"].as_str().unwrap().to_owned()
+        });
+
+        let signout_bounds = vcx
+            .debug_bounds("settings-account-signout")
+            .expect("Settings › Account sign-out button must render");
+        vcx.simulate_click(signout_bounds.center(), gpui::Modifiers::none());
+
+        let local_root = LibraryRegistry::load_or_init(tmp.path())
+            .unwrap()
+            .local_library_dir(tmp.path());
+        let out_deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            vcx.run_until_parked();
+            let signed_out_and_switched = vcx.update(|_window, cx| {
+                let st = cx.global::<AccountUiService>();
+                let lib_matches_local = cx
+                    .global::<Services>()
+                    .library
+                    .as_ref()
+                    .is_some_and(|ws| ws.library().paths().root == local_root);
+                !st.signing_out
+                    && st.state.status == SessionStatus::SignedOut
+                    && !st.state.is_account_library
+                    && lib_matches_local
+                    && cx.global::<Supervisor>().snapshot.mode == "signed_out"
+            });
+            if signed_out_and_switched {
+                break;
+            }
+            assert!(
+                Instant::now() < out_deadline,
+                "timed out waiting for Settings › Account sign-out + switch back to local library"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        assert!(
+            server.is_token_revoked(&token),
+            "POST /api/auth/sign-out must have revoked the session token"
+        );
+
+        // Rotate to a second device's fresh token and verify the book created right
+        // before Settings › Account sign-out was uploaded prior to token revocation.
+        let peer_token = "synthetic-peer-verify-token-004";
+        server.set_expected_token(peer_token);
+        let peer_dir = tempfile::tempdir().unwrap();
+        let ws_peer = Workspace::open_dir(peer_dir.path(), "0.2.0-test").unwrap();
+        let mut peer_engine =
+            dr_sync::SyncEngine::new(server.base_url(), ws_peer.library()).unwrap();
+        peer_engine
+            .sync_once(ws_peer.library(), peer_token)
+            .unwrap();
+        let shelf = ws_peer.call(&Actor::User, "book.shelf", json!({})).unwrap();
+        let ids: Vec<&str> = shelf["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|b| b["id"].as_str())
+            .collect();
+        assert!(
+            ids.contains(&created_book_id.as_str()),
+            "expected peer shelf {ids:?} to contain book {created_book_id} drained before sign-out"
+        );
     }
 }

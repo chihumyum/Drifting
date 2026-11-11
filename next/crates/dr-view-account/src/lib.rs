@@ -251,16 +251,26 @@ pub fn open_auth_dialog(window: &mut Window, cx: &mut App) {
     dr_shell::dialogs::show_in(handle, cx, view.into());
 }
 
-/// Signs out of the current Hosted account in the background and switches back to the local library.
+/// Drains pending Hosted sync uploads (via [`dr_shell::sync::run_before_sign_out`])
+/// while the session token is still valid, then signs out of the current Hosted
+/// account in the background and switches back to the local library.
 pub fn sign_out(cx: &mut App) {
-    let Some(inner) = cx.try_global::<Service>().map(|s| s.inner.clone()) else {
+    let Some(inner) = cx
+        .try_global::<Service>()
+        .filter(|s| !s.signing_out)
+        .map(|s| s.inner.clone())
+    else {
         return;
     };
     cx.update_global::<Service, _>(|svc, _| {
         svc.signing_out = true;
     });
     cx.refresh_windows();
+    let pre_drain = dr_shell::sync::run_before_sign_out(cx);
     cx.spawn(async move |cx| {
+        if let Some(drain_fut) = pre_drain {
+            drain_fut.await;
+        }
         let res = cx
             .background_executor()
             .spawn(async move { inner.sign_out() })
@@ -820,6 +830,163 @@ mod tests {
                 let _ = cx;
             })
             .expect("update window");
+    }
+
+    #[gpui::test]
+    fn settings_account_sign_out_drains_before_revoking_token(cx: &mut TestAppContext) {
+        use std::cell::RefCell;
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        use std::task::{Context as TaskContext, Poll, Waker};
+
+        struct DrainGate(Rc<RefCell<(bool, Option<Waker>)>>);
+        impl std::future::Future for DrainGate {
+            type Output = ();
+            fn poll(self: std::pin::Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<()> {
+                let mut st = self.0.borrow_mut();
+                if st.0 {
+                    Poll::Ready(())
+                } else {
+                    st.1 = Some(cx.waker().clone());
+                    Poll::Pending
+                }
+            }
+        }
+
+        cx.executor().allow_parking();
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let origin = server.origin();
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = Arc::new(
+            AccountService::new(
+                server.config(),
+                tmp.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service"),
+        );
+        svc.sign_up_email(
+            "林昭",
+            "drain-signout@example.test",
+            "correct-horse-battery",
+        )
+        .expect("sign up");
+        let signed_in_state = svc.state();
+        assert_eq!(signed_in_state.status, SessionStatus::Connected);
+        let active_token = svc.current_token().expect("active bearer token");
+
+        let hook_calls = Arc::new(AtomicUsize::new(0));
+        let token_valid_during_drain = Arc::new(AtomicBool::new(false));
+        let gate_state: Rc<RefCell<(bool, Option<Waker>)>> = Rc::new(RefCell::new((false, None)));
+
+        cx.update(|cx| {
+            let _ = dr_ui::fonts::register(cx);
+            dr_shell::init(
+                shell_info(),
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+            init(Service::with_service(svc.clone()), cx);
+            apply_account_state(signed_in_state, cx);
+
+            let hook_calls = Arc::clone(&hook_calls);
+            let token_valid_during_drain = Arc::clone(&token_valid_during_drain);
+            let gate_for_hook = Rc::clone(&gate_state);
+            let svc_for_hook = Arc::clone(&svc);
+            let origin_for_hook = origin.clone();
+            let token_for_hook = active_token.clone();
+
+            dr_shell::sync::set_before_account_action(cx, move |cx| {
+                hook_calls.fetch_add(1, Ordering::SeqCst);
+                let gate = DrainGate(Rc::clone(&gate_for_hook));
+                let svc_bg = Arc::clone(&svc_for_hook);
+                let origin_bg = origin_for_hook.clone();
+                let token_bg = token_for_hook.clone();
+                let valid_flag = Arc::clone(&token_valid_during_drain);
+                let exec = cx.background_executor().clone();
+                Some(Box::pin(async move {
+                    gate.await;
+                    exec.spawn(async move {
+                        let still_stored =
+                            svc_bg.current_token().as_deref() == Some(token_bg.as_str());
+                        let still_valid_on_server = svc_bg
+                            .client()
+                            .get_session(&origin_bg, &token_bg)
+                            .ok()
+                            .flatten()
+                            .is_some();
+                        valid_flag.store(still_stored && still_valid_on_server, Ordering::SeqCst);
+                    })
+                    .await;
+                }))
+            });
+        });
+
+        let window = cx.add_window(AccountSettingsView::new);
+        let mut vcx = gpui::VisualTestContext::from_window(*window, cx);
+        vcx.run_until_parked();
+
+        let signout_bounds = vcx
+            .debug_bounds("settings-account-signout")
+            .expect("Settings › Account sign-out button must render when signed in");
+        vcx.simulate_click(signout_bounds.center(), gpui::Modifiers::none());
+
+        // While draining, `signing_out` is already true, duplicate `sign_out` calls are
+        // ignored, and the session token is still valid on `FakeAuthServer`.
+        vcx.update(|_window, cx| {
+            assert!(cx.global::<Service>().signing_out);
+            sign_out(cx);
+        });
+        assert_eq!(hook_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(svc.current_token().as_deref(), Some(active_token.as_str()));
+        assert!(
+            svc.client()
+                .get_session(&origin, &active_token)
+                .expect("query session before drain finishes")
+                .is_some(),
+            "token must remain valid while pre-sign-out drain is running"
+        );
+
+        // Release the drain gate and wait for background sign-out + token revocation.
+        {
+            let mut st = gate_state.borrow_mut();
+            st.0 = true;
+            if let Some(waker) = st.1.take() {
+                waker.wake();
+            }
+        }
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            vcx.run_until_parked();
+            let finished = vcx.update(|_window, cx| {
+                let st = cx.global::<Service>();
+                !st.signing_out && st.state.status == SessionStatus::SignedOut
+            });
+            if finished {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "timed out waiting for sign_out to finish after drain"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        assert!(
+            token_valid_during_drain.load(Ordering::SeqCst),
+            "token must still be stored and valid on server at the end of run_before_sign_out"
+        );
+        assert_eq!(hook_calls.load(Ordering::SeqCst), 1);
+        assert!(svc.current_token().is_none());
+        assert!(
+            svc.client()
+                .get_session(&origin, &active_token)
+                .expect("query session after sign-out")
+                .is_none(),
+            "token must be revoked on FakeAuthServer after drain completes"
+        );
     }
 
     #[test]
