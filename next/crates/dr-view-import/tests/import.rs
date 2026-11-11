@@ -279,6 +279,12 @@ fn folder_selection_and_mapping_file_drive_the_same_gui_configuration(cx: &mut T
     });
     cx.run_until_parked();
     assert!(matches!(state(cx), State::Ready(_)));
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    let view_src = include_str!("../src/view.rs");
+    assert!(
+        !view_src.contains("\"v3-import-mapping\"") && !view_src.contains("r.target.display()"),
+        "ordinary Ready dialog must not expose MappingChoices JSON button or raw target path"
+    );
     let path = dir.path().join("explicit-synthetic-choices.json");
     std::fs::write(&path, serde_json::to_vec(&common::v3_choices()).unwrap()).unwrap();
     let i = importer(cx);
@@ -586,4 +592,41 @@ fn library_without_act_drift_imports_with_default_choices(cx: &mut TestAppContex
     assert_eq!(rt.target_kinds, [dr_model::kind::EntityKind::Entry]);
     assert!(rt.source_templates.is_empty());
     assert!(rt.target_templates.is_empty());
+}
+
+#[test]
+fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_or_paths() {
+    use dr_i18n::{I18n, Locale, Platform, keys};
+    let en = I18n::new(Locale::En, Platform::Mac);
+    for locale in Locale::ALL {
+        let i18n = I18n::new(locale, Platform::Mac);
+        for key in [
+            keys::import::v3::TITLE,
+            keys::import::v3::DESTINATION,
+            keys::import::v3::START,
+            keys::import::v3::PENDING,
+            keys::import::v3::SWITCHING,
+        ] {
+            let text = i18n.t(key);
+            assert!(!text.is_empty(), "{locale:?} {}", key.name());
+            assert!(
+                !text.contains("MappingChoices"),
+                "{locale:?} {} leaked MappingChoices: {text}",
+                key.name()
+            );
+            assert!(
+                !text.contains("reimport-v3-"),
+                "{locale:?} {} leaked internal target folder: {text}",
+                key.name()
+            );
+            if locale != Locale::En {
+                assert_ne!(
+                    text,
+                    en.t(key),
+                    "{locale:?} {} was left in English: {text}",
+                    key.name()
+                );
+            }
+        }
+    }
 }

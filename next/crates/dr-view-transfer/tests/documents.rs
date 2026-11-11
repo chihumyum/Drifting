@@ -199,3 +199,34 @@ fn warnings_are_in_the_interface_language() {
         "이미지 1개는 가져오지 않았습니다"
     );
 }
+
+#[test]
+fn import_dialog_copy_uses_v3_chapter_terms_and_clean_chinese_headings() {
+    use dr_i18n::{I18n, Locale, Platform, keys};
+    let zh = I18n::new(Locale::ZhCn, Platform::Mac);
+    assert_eq!(zh.t(keys::v3_transfer::TARGET_TITLE), "类型");
+    assert_eq!(zh.t(keys::v3_transfer::FILES_TITLE), "文件");
+    let zh_desc = zh.t(Kind::Chapter.desc());
+    assert!(zh_desc.starts_with("书稿章节"), "{zh_desc}");
+    assert!(!zh_desc.contains("主线节点"), "{zh_desc}");
+
+    for locale in Locale::ALL {
+        let i18n = I18n::new(locale, Platform::Mac);
+        let desc = i18n.t(Kind::Chapter.desc());
+        for retired in [
+            "主线节点",
+            "主線節點",
+            "Mainline node",
+            "本編のノード",
+            "본편 노드",
+            "Haupttexts",
+            "texte principal",
+            "texto principal",
+        ] {
+            assert!(
+                !desc.contains(retired),
+                "{locale:?} chapter desc still contains retired term {retired:?}: {desc}"
+            );
+        }
+    }
+}

@@ -46,7 +46,7 @@ pub enum Kind {
 impl Kind {
     pub const ALL: [Kind; 3] = [Kind::Chapter, Kind::Element, Kind::Idea];
 
-    fn label(self) -> Key {
+    pub fn label(self) -> Key {
         match self {
             Kind::Chapter => k::targets::chapter::LABEL,
             Kind::Element => k::targets::element::LABEL,
@@ -54,9 +54,9 @@ impl Kind {
         }
     }
 
-    fn desc(self) -> Key {
+    pub fn desc(self) -> Key {
         match self {
-            Kind::Chapter => k::targets::chapter::DESC,
+            Kind::Chapter => keys::v3_transfer::CHAPTER_DESC,
             Kind::Element => k::targets::element::DESC,
             Kind::Idea => k::targets::idea::DESC,
         }
@@ -425,7 +425,7 @@ impl Render for DocumentsDialog {
 
         let kind_index = Kind::ALL.iter().position(|x| *x == self.kind).unwrap_or(0);
         let set_kind = this.clone();
-        let kind = section(t(k::TARGET_TITLE))
+        let kind = section(t(keys::v3_transfer::TARGET_TITLE))
             .child(
                 Segmented::new(
                     "import-kind",
@@ -586,7 +586,7 @@ impl Render for DocumentsDialog {
                     ),
             );
         }
-        let files = section(t(k::FILES_TITLE))
+        let files = section(t(keys::v3_transfer::FILES_TITLE))
             .child(pickers)
             .children((!self.items.is_empty()).then_some(list));
 

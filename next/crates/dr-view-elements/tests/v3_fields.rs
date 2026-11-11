@@ -2,7 +2,7 @@
 use dr_shell::{
     Services, SettingsFile, ShellInfo, book::Book, pages::PageViewHost, v3::ModuleHost,
 };
-use dr_view_elements::fields::v3::{TypedFields, parse};
+use dr_view_elements::fields::v3::{TypedFields, option_label, parse};
 use dr_workspace::{
     Actor, Workspace,
     commands::v3::types::{FieldDef, FieldValue},
@@ -171,4 +171,135 @@ fn draft_survives_refresh_and_invalid_input_stays_editable(cx: &mut TestAppConte
         "43",
         "a confirmed save must not hide a later external value"
     );
+}
+
+#[gpui::test]
+fn builtin_enum_options_localize_display_labels_without_changing_stored_values(
+    cx: &mut TestAppContext,
+) {
+    use dr_i18n::Locale;
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open(
+        dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let id = call(&ws, "project.create", json!({"name": "枚举本地化"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let idea = dr_testkit::seed::acceptance::novel_entry(&ws, &id, "tpl-idea", "夜航", None)["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let module = json!({
+        "id": "mod-multi",
+        "name": "多选状态",
+        "kind": "fields",
+        "config": {
+            "defs": [
+                {
+                    "id": "status_select",
+                    "name": "状态单选",
+                    "field_type": "select",
+                    "options": ["draft", "finished", "discarded", "drifting", "resting", "custom-opt"]
+                },
+                {
+                    "id": "tags",
+                    "name": "状态多选",
+                    "field_type": "multi_select",
+                    "options": ["drifting", "resting", "custom-opt"]
+                }
+            ]
+        }
+    });
+    call(
+        &ws,
+        "entry_template.put_module",
+        json!({"book": id, "template": "tpl-idea", "module": module}),
+    );
+
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "test",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(dr_ui::Appearance::Light),
+            },
+            Services::default(),
+            SettingsFile::in_memory(),
+            cx,
+        );
+        for locale in Locale::ALL {
+            dr_shell::Strings::install(locale, cx);
+            for raw in ["draft", "finished", "discarded", "drifting", "resting"] {
+                let label = option_label(raw, cx);
+                assert!(!label.is_empty(), "{locale:?} {raw}");
+                if locale != Locale::En {
+                    assert_ne!(label.as_ref(), raw, "{locale:?} should localize {raw}");
+                }
+            }
+            assert_eq!(option_label("custom-opt", cx).as_ref(), "custom-opt");
+        }
+        dr_shell::Strings::install(Locale::En, cx);
+        assert_eq!(option_label("draft", cx).as_ref(), "Draft");
+        assert_eq!(option_label("finished", cx).as_ref(), "Finished");
+        assert_eq!(option_label("discarded", cx).as_ref(), "Discarded");
+        assert_eq!(option_label("drifting", cx).as_ref(), "Floating");
+        assert_eq!(option_label("resting", cx).as_ref(), "Resting");
+
+        dr_shell::Strings::install(Locale::Ja, cx);
+        assert_eq!(option_label("draft", cx).as_ref(), "下書き");
+        assert_eq!(option_label("finished", cx).as_ref(), "完成");
+        assert_eq!(option_label("discarded", cx).as_ref(), "不採用");
+        assert_eq!(option_label("drifting", cx).as_ref(), "漂流中");
+        assert_eq!(option_label("resting", cx).as_ref(), "停泊中");
+
+        dr_shell::Strings::install(Locale::ZhCn, cx);
+        assert_eq!(option_label("draft", cx).as_ref(), "草稿");
+        assert_eq!(option_label("finished", cx).as_ref(), "已完成");
+        assert_eq!(option_label("discarded", cx).as_ref(), "已弃用");
+        assert_eq!(option_label("drifting", cx).as_ref(), "漂浮中");
+        assert_eq!(option_label("resting", cx).as_ref(), "休眠");
+    });
+
+    let book = Rc::new(Book::load(&ws, &id).unwrap());
+    let host = ModuleHost {
+        page: PageViewHost {
+            workspace: WeakEntity::new_invalid(),
+            library: ws.clone(),
+            book_id: id.clone(),
+            book,
+        },
+        entry: idea.clone(),
+        module: serde_json::from_value(module).unwrap(),
+    };
+    let window = cx.add_window(|w, cx| TypedFields::new(host, w, cx));
+    let view = window.root(cx).unwrap();
+    let mut vcx = VisualTestContext::from_window(window.into(), cx);
+    vcx.update(|w, _| w.activate_window());
+    vcx.simulate_resize(size(px(1000.), px(800.)));
+    draw(&mut vcx);
+
+    view.update(&mut vcx, |v, cx| {
+        v.set("status_select", FieldValue::Text("finished".into()), cx);
+        v.set("tags", FieldValue::List(vec!["drifting".into()]), cx);
+    });
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !view.read_with(&vcx, |v, _| v.is_settled()) {
+        draw(&mut vcx);
+        assert!(Instant::now() < deadline, "field save timed out");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let stored = call(
+        &ws,
+        "module.read",
+        json!({"book": id, "entry": idea, "module": "mod-multi"}),
+    )["fields"]
+        .clone();
+    assert_eq!(stored["status_select"], "finished");
+    assert_eq!(stored["tags"], json!(["drifting"]));
 }
