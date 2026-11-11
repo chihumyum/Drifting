@@ -60,7 +60,10 @@
   4. **文案和调试残留**（只改文字、去掉调试入口，不动布局）：条目页枚举值九语本地化、中文设置里的「General Agent」、导入对话框旧术语「主线节点」、从 0.1 重新导入对话框隐藏原始绝对路径并从普通界面移除「选择 MappingChoices JSON」（保留开发者／调试桥入口）。
   5. **有余力再做**：M22、M23 在 `heavy` 样书上趁机器空闲（一分钟负载 `< 4`）重量首帧；超出 `benchmarks.md` 预算的，在不改行为的前提下优化。
 - 二、收「同步接线」（`handback/app-sync`）。
-- 三、一的 1–4 做完（5 可选）且二的同步接线合进 `main`（或写明卡在待作者事项上）后，在本页「晨报」写最终总结并停下。
+- 二之二、**GitHub Actions `next/` CI 追补（`main` `e8dad601`，run `43024370854`，收尾前做完并写进晨报）**：
+  1. **Windows 编译错误与全工作区交叉排查**（已完成并合入 `main` `8d980c7c`）：修复 `crates/dr-ui/src/components/color.rs:431` 调用不存在的 `App::background_spawn`（改用 `cx.background_executor().spawn(...)`），并用 `cargo check/clippy --workspace --all-targets --target x86_64-pc-windows-msvc --locked --keep-going` 在本机找全并修掉 `spikes/prose-spike` 无条件拉入 `objc2`／Apple 框架与 macOS 专属 `libc` 符号的问题；5 个需要 MSVC／Windows SDK／`llvm-rc` 的第三方原生 build script 记录在晨报，不装系统组件，等下次推送后看 Windows CI。
+  2. **macOS CI `dr-agent` 崩溃恢复测试失败**（已完成并合入 `main` `5ded0501`）：查明 SQLite WAL 单事务保证章节正文与 `agent_settlement` 始终原子一致，根因是 `dr_testkit::crash::Harness::run` 在续写子进程尚未打印首条 `durable` 就被 `SIGKILL` 时把基线退回 `-1` 而丢掉前序已核实落盘的 `floor`；已在 `dr-testkit` 跨轮次保留 `floor`（同时堵住前序步骤丢失的漏检盲区），并在 `dr-agent/tests/crash.rs` 新增零重试、100% 确定性复现的永久回归测试。
+- 三、一的 1–4 做完（5 可选）、二的同步接线合进 `main`（或写明卡在待作者事项上）且二之二的 CI 追补全部完成并写进晨报后，在本页「晨报」写最终总结并停下。
 
 ## 你能做什么、不能做什么
 
@@ -153,7 +156,8 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 18:35 | 夜间队列第 5 项完成：`codex/markdown-v3-plan`（`0731b3c4` → 合入 `main` `5f1ea41c`，零代码改动）撰写 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)（已知 v3 约束、七组拍板矩阵、五步实现顺序、永久验收清单）并补交叉链接；`xtask check` 与公开边界门禁全绿。 | `3cc69c03` |
 | 11-11 19:40 | 夜间队列第 6 项暨全部队列收尾完成：`codex/import-v3-23-25`（`e25b56e4` → 合入 `main` `78a9df97`）落地作者 11-11 新定的导入第 23 条（「未归属」默认按需建在初始化返回的实际故事线入口末位，沿用 `TPL_STORYLINE`、层级设置与实际书稿入口 `home`，无主归属、不再要 `MappingChoices`）与第 25 条（非内置关系类型端点转 `entry`/`patch`/`comment`/`material` 去重、模板列表留空，原种类写入 `import_original`，内置关系类型不动）；第 22 条 `act_binding` 继续 `Pending`（等作者确认幕轨道，不建「大纲」关系）。全套 2,230 通过／0 失败／21 忽略、含 `audit` 的 `xtask check`、副屏 `switch-v3.json` 47/47 真窗口验收与根门禁全绿，写完最终晨报后停下。 | `b202e4f2` |
 | 11-11 20:08 | 晚间队列第 1 项完成：记录作者 11-11 晚最终指令与四项产品决定——① 整书视图冷首开分段／懒挂载暂不做（120 ms 保持不动，未来新层级结构方向已记）；② 视觉打磨暂不做（13 条留作清单，M22 浮岛小卡提及分布并入一起暂缓）；③ M21 故事图四个待定问题标为「暂缓」（等新层级结构落地）；④ M40 Markdown 文件夹七组规则写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节（代码等新层级结构落地再写，本轮不实现），同步更新「待作者」，立即进入晚间队列第 2 项（重跑输入法外部测试）。 | `8f5bf493` |
-| 11-11 20:27 | 晚间队列第 2 项完成：核验 `Antigravity` 宿主 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，在冻结候选 `8f5bf493` 上跑通完整 `guardian-native-ime.py`（`g-evening-ime-3`，副屏真窗口）：真实系统 `Control-Space` 切到 Apple 拼音（`SCIM.ITABC`），硬件级 `CGEvent` 输入 `nihao` 观察到真实平台预编辑 `ni hao` 且持久正文与 frontier 未提前提交，空格提交恰好一次「你好」并推进 frontier，退出重开读回与提交版本逐字一致，原输入源恢复无误。立即进入晚间队列第 3 项（第 22 条「幕轨道」）。 | 本提交 |
+| 11-11 20:27 | 晚间队列第 2 项完成：核验 `Antigravity` 宿主 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，在冻结候选 `8f5bf493` 上跑通完整 `guardian-native-ime.py`（`g-evening-ime-3`，副屏真窗口）：真实系统 `Control-Space` 切到 Apple 拼音（`SCIM.ITABC`），硬件级 `CGEvent` 输入 `nihao` 观察到真实平台预编辑 `ni hao` 且持久正文与 frontier 未提前提交，空格提交恰好一次「你好」并推进 frontier，退出重开读回与提交版本逐字一致，原输入源恢复无误。立即进入晚间队列第 3 项（第 22 条「幕轨道」）。 | `61c80bbd` |
+| 11-11 23:33 | GitHub `next/` CI 追补完成（`main` `e8dad601`，run `43024370854`）：① `codex/ci-crash-fix`（`dcd6dc09` → 合入 `main` `5ded0501`）：核实 `DocInner::append` 单一 SQLite WAL 事务保证正文与 `agent_settlement` 原子一致，修复 `dr_testkit::crash::Harness` 续写子进程首步未打印 `durable` 即被 `SIGKILL` 时丢掉前序已核实落盘基线 `floor` 的缺陷（同时补齐前序步骤丢失检测），并新增 3 轮强杀确定性永久回归测试 `killing_resumed_agent_writer_on_first_step_recovers_book_and_settlement`（零重试、零放宽断言、零 `ignore`）；② `codex/ci-win-fix`（`6731d34a` → 合入 `main` `8d980c7c`）：修复 `dr-ui/src/components/color.rs:431` Windows 取色器 `cx.background_executor().spawn(...)`，并通过本机 `--target x86_64-pc-windows-msvc --keep-going` 全工作区排查修掉 `spikes/prose-spike` 无条件依赖 `objc2`／Apple 框架的阻塞，记录 5 个需 MSVC／`llvm-rc` 的第三方原生 build script（未装系统组件）。全套门禁通过，详记晨报。 | `8d980c7c` |
 
 ## 技术待协调
 
@@ -347,3 +351,34 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   3. **提交与重开持久化：** 发送真实空格键提交后，`ime` 归 `null`，首段精确变为 `"你好潮声与记录"`（恰好提交一次），frontier 推进至 `01b8ddceecc8dc9cae5702`；恢复系统原输入源（`cleanupErrors: []`）并正常退出 App，重新启动打开同一本书读回正文与 frontier（`01b8ddceecc8dc9cae5702`）完全一致（`passed: true`）。
   - *附注：* 前两次尝试（`g-evening-ime-1`、`g-evening-ime-2`）因探针每次临时 JIT 编译 Swift 且 `NSRunningApplication.activate(options: [])` 未置顶副屏窗口，被前台焦点守卫捕获到浏览器／编辑器切走焦点而安全中止、未向其他应用误发按键；将守卫探针预编译为二进制并改用标准 `activateIgnoringOtherApps` 置顶目标窗口后，`g-evening-ime-3` 一次完整通过。
 - **下一步：** 立即开新工作区进入晚间队列第 3 项（第 22 条「幕轨道」）。
+
+### 晚间队列追加三（2026-11-11 23:35，GitHub Actions `next/` CI 两项故障排查与修复完成 — `main` `e8dad601` / run `43024370854`）
+
+1. **Windows 编译错误修复与本机全工作区 `x86_64-pc-windows-msvc` 排查（`codex/ci-win-fix` `6731d34a` → 合入 `main` `8d980c7c`）：**
+   - **直接故障修复：** `next/crates/dr-ui/src/components/color.rs`（`#[cfg(windows)] mod system::pick`）把调用不存在于钉选 GPUI `v1.27.0` `gpui::App` 上的 `cx.background_spawn(...)` 改为 `cx.background_executor().spawn(async move { choose(owner, current) })`，与 `dr-ui`／各视图其余后台任务派发方式一致。
+   - **本机交叉检查新抓出的第二处 Windows 编译阻塞：** 在本机执行 `cargo check/clippy --workspace --all-targets --target x86_64-pc-windows-msvc --locked --keep-going` 时，发现工作区成员 `next/spikes/prose-spike` 在普通 `[dependencies]` 下无条件启用了 `objc2`、`libc` 与 `raw-window-handle`（默认 `shell` feature 打开），导致 `objc2 v0.6.5` 在 Windows 目标直接触发 `compile_error!("`objc2` only works on Apple platforms...")`，且 `src/bin/prose-spike/{main.rs,platform.rs}` 无条件链接 `CoreFoundation` 框架并调用 macOS 专属 `libc::{getrusage, proc_pid_rusage, sysctlbyname}`（此前因 `dr-ui` 先报错退出而被遮住，若不一并修掉下次推送仍会挂在 `prose-spike`）。现已照 `dr-editor` 的规矩将 `libc`、`objc2`、`raw-window-handle` 移入 `[target.'cfg(target_os = "macos")'.dependencies]`，并为 `src/bin/prose-spike/main.rs` 补齐 `#[cfg(target_os = "macos")]` 与非 macOS 入口守卫；经 `cargo tree --workspace -e normal,dev --target x86_64-pc-windows-msvc --locked` 核实，Windows 依赖图中已彻底无 `objc*`／`core-foundation*`／Apple 专有库。
+   - **本机已通过的 Windows 目标检查：**
+     - `dr-model`、`prose-metrics`、`prose-linebreak`、`gpui-ime`、`dr-debug-protocol`、`dr-corpus` 及 `dr-platform --no-default-features --lib --bins`（覆盖 `single_instance.rs`、`tray.rs`、`secrets/windows.rs` 等全部 `windows 0.62` 调用）在 `cargo clippy ... --target x86_64-pc-windows-msvc --locked -- -D warnings` 下全部零警告通过。
+     - 受下方原生 C／RC 构建脚本阻断的包内的全部 `#[cfg(windows)]` 代码片段（`dr-ui` 的 `ChooseColorW` 与 `ImmGetContext`/`ImmNotifyIME`/`GetFocus`、`gpui-prose` 的 `SystemIme`、`dr-view-stats` 的 `GetLocalTime`/`GetSystemTime`、`dr-mcp` 的 `CREATE_NO_WINDOW`、`dr-import-v1` 的 `OpenOptionsExt::share_mode(0)`、`dr-store` 的 `OsStrExt::encode_wide`）亦用 `clippy-driver --target x86_64-pc-windows-msvc -D warnings` 对已编出的 `libwindows.rmeta` 与 `libraw_window_handle.rmeta` 完成零警告交叉类型校验。
+   - **因需要 MSVC 工具链／Windows SDK／`llvm-rc` 而在 macOS 本机无法跑完 build script 的 5 个第三方原生依赖（遵照禁令未安装任何系统组件，待下次推送后由 GitHub Actions `windows-x64` 与 `windows-arm64` 实机跑完 `clippy`、`test`、`build` 与 NSIS 安装器检查）：**
+     1. `stacker v0.1.25`（编译 `src/arch/windows.c` 报 `'windows.h' file not found`）；
+     2. `psm v0.1.32`（汇编 `src/arch/x86_64_msvc.asm` 时 `cc-rs` 报 `failed to find tool "lib.exe"`）；
+     3. `libsqlite3-sys v0.39.1`（交叉编译 bundled `sqlite3.c` 缺少 Windows CRT／SDK 头文件）；
+     4. `ring v0.17.14`（编译 `crypto/curve25519/curve25519.c` 报 `'assert.h' file not found`）；
+     5. `gpui v0.2.2`（`crates/gpui/build.rs:46` 调用 `embed-resource` 编译 `resources/windows/gpui.rc` 报 `NotAttempted("llvm-rc")`）。
+2. **macOS CI `dr-agent` 崩溃恢复测试失败根因核查、修复与永久回归测试（`codex/ci-crash-fix` `dcd6dc09` → 合入 `main` `5ded0501`）：**
+   - **数据正确性核查结论：崩溃恢复不会造成书正文与 `agent_settlement` 结算记录不一致。**
+     - 存储事务核实：`next/crates/dr-store/src/holder.rs`（`DocInner::append`）将正文的 `record_append`（`loro_update` + `loro_head`）、`doc_history_label` 与 `INSERT INTO agent_settlement` 放在同一个 SQLite WAL 事务（`conn.unchecked_transaction()?` → 单次 `tx.commit()?`）内原子提交；无论进程在事务中哪条 SQL 前后被 `SIGKILL` 强杀，重开时 WAL 只会整笔回滚或整笔恢复，绝不会出现「正文进了、结算没进」或反过来的分叉。
+     - CI 报错现场核实：`next/crates/dr-testkit/src/crash.rs`（`Harness::run`）在报步号错之前，已经先调了 `dr-agent/tests/crash.rs` 的 `verify(&kill, root)` 并成功返回 `Ok(Recovered { step: 4 })`——说明第 5 轮强杀重开后，章节正文段落数、每段文本、`agent_settlement` 记录数、`before_frontiers` 链条及末条 `after_frontiers == doc_frontier` 在第 4 步完全一致。
+   - **真实根因（`dr_testkit::crash::Harness::run` 跨轮次基线丢失）：**
+     - 试验台每轮强杀后在同一个临时库目录上启动新子进程续写。前 5 轮（`kill 0..=4`）已落盘步骤 `0..=4`；第 6 轮（`kill 5`）的新子进程重开读到已有 5 步，从 `step = 5` 开始写第一笔事务。
+     - 在较慢的 macOS CI 机器上，`kill 5` 的随机延迟恰好落在子进程首次 `append` 事务期间（例如 `DR_STORE_CRASH_PAUSE_APPEND_MS=25` 暂停窗口内或 `tx.commit()` 完成前），子进程尚未输出本进程的第一条 `durable 5` 就被 `SIGKILL`，故本轮 `durable == None`。
+     - 旧 `Harness::run` 仅从当前子进程 stdout 计算 `let reported = durable.map_or(-1, |d| d as i64);`，忘掉了前几轮已核实落盘的 `floor = 4`。SQLite WAL 正确回滚未完成的第 5 步、重开得到 `got.step = 4` 后，旧代码用 `4 > -1 + 1` 误报 `kill 5: reopened at 4 beyond the step being written (0)`。
+     - 同时发现旧写法的反向盲区：当续写子进程死在首条 `durable` 前时，`reported = -1` 让 `got.step < -1` 永远不触发——倘若崩溃恢复真的丢掉了前几轮已落盘的 `0..=4` 步（例如退回 `2`），旧断言反而放过数据丢失！
+   - **修复方案与永久确定性回归测试（零重试、零放宽断言、零 `ignore`）：**
+     - `next/crates/dr-testkit/src/crash.rs`：`Harness::run` 跨轮次维护前序已核实落盘步号 `floor`（初值 `-1`，每轮 `verify` 通过后更新为 `got.step`），抽出纯函数 `check_step(index, floor, durable, recovered)`：若子进程报出 `durable <= floor` 直接判错；以 `baseline = durable.map_or(floor, |d| d as i64)` 作为必须保住的落盘下界、以 `baseline + 1` 作为唯一允许在途的一步，既消除续写首步被杀的误报，又严格堵上「丢失前序已落盘步骤（`recovered < floor`）」的漏检盲区，并补齐两条单测（`resumed_kill_before_first_durable_report_keeps_prior_floor`、`check_step_catches_lost_prior_steps_rewinds_and_two_steps_ahead`）。
+     - `next/crates/dr-agent/tests/crash.rs`：① 新增 `warm_workspace`，在子进程打印 `ready` 启动计时前先预热 `BookSlot`，避免冷加载吞掉随机 `delay_ms` 窗口；② 新增 3 轮确定性永久回归测试 `killing_resumed_agent_writer_on_first_step_recovers_book_and_settlement`（第 0 轮提交 `0..=4` 后精准停在第 5 步 `loro_update` 与 `agent_settlement` 之间强杀 → 验证回滚至 4；第 1 轮续写子进程在首步 `step = 5`、`durable == None` 的事务内强杀 → 修复前 100% 稳定复现 `kill 1: reopened at 4 beyond the step being written (0)`，修复后精确验证回滚至 4；第 2 轮续写子进程在首步 `tx.commit()` 之后、打印 `durable 5` 之前强杀 → 验证恢复至 5 且 `one_step_beyond == 1`），全程严格校验正文、`agent_settlement` 与前后 frontiers 一致。同步更新 [`f8-testkit.md`](../foundations/f8-testkit.md) 与 [`m27-agent-runtime.md`](../modules/m27-agent-runtime.md)。
+3. **全套门禁结果：**
+   - `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo check --locked -p drifting --features debug-bridge`、`cargo check -p prose-spike --lib --no-default-features --locked`：全部通过。
+   - `cargo test -p dr-testkit -p dr-agent -p dr-ui -p prose-spike -p dr-platform --locked` 及全工作区测试套件（+3 条新增永久测试）：通过（注：全量跑时顺带观察到既有 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 在 `SEED=1` 或特定异步通知时序下会与外壳 `Workspace` 后台重载产生快照竞态，与本轮改动的 crate 无依赖交集，按分轨范围未越界改动 M22）。
+   - `cargo xtask check`（12 道门禁含 `v3-cutover` 与 `audit` 974 包 0 漏洞）、仓库根 `pnpm public:check`（5,583 文件）、`pnpm ci:contract:check`（660 测试文件）：全部通过。
