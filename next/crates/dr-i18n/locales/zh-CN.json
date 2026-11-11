@@ -221,6 +221,10 @@
       "week": "本周"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "编辑类型",
+    "empty": "当前视图尚无关联"
+  },
   "editorOutline": {
     "aria": "大纲",
     "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
@@ -886,7 +890,18 @@
     }
   },
   "relationTypes": {
-    "description": "说明"
+    "builtIn": "内建",
+    "create": "新建",
+    "createInline": "新建关系类型",
+    "delete": "删除关系类型",
+    "description": "说明",
+    "directed": "有向",
+    "name": "名称",
+    "sourceRole": "源角色",
+    "swap": "交换关系两端",
+    "symmetric": "对称",
+    "targetRole": "目标角色",
+    "title": "关系类型定义"
   },
   "reviewPanel": {
     "commentPlaceholder": "写批注…",
@@ -1353,6 +1368,15 @@
   "speech": {
     "backlog": "转写积压"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "创建",
+      "delete": "删除关联",
+      "hideKind": "隐藏「{{label}}」",
+      "kindLabel": "关系类型",
+      "showKind": "显示「{{label}}」"
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入"
@@ -1366,6 +1390,56 @@
     "sections": {
       "facts": "字段"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "还没有要素",
+      "noCategories": "还没有要素类目"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "关闭",
+        "companions": "常同段",
+        "edit": "编辑",
+        "isolate": "只看它",
+        "relations": "关系",
+        "showAll": "看全部",
+        "times": "× {{count}}"
+      },
+      "find": "找要素",
+      "island": {
+        "category": "类目",
+        "categoryMeta": "{{count}} 个要素",
+        "collapse": "收成小卡",
+        "element": "要素",
+        "mentions": "{{count}} 处",
+        "openInTab": "在标签页中打开",
+        "resize": "拖动调整浮岛宽度",
+        "unmentioned": "未出场"
+      },
+      "lines": "正文同段",
+      "linesTitle": "两个要素在同一章的同一段里都被提到，就连一条砂线",
+      "newElement": "在这里新建要素",
+      "pinned": "已固定",
+      "thresholdLabel": "同段连线",
+      "unpin": "恢复自动排布"
+    },
+    "layout": {
+      "isles": "群岛",
+      "relate": "关系"
+    },
+    "linkHintFrom": "从",
+    "linkHintTo": "连到…　选第二个要素或章节，Esc 取消",
+    "manualRelationTitle": "新建手动关联",
+    "meta": "{{categories}} 类 · {{elements}} 要素",
+    "relate": {
+      "relayout": "重新排布"
+    },
+    "reset": "重置",
+    "startEdgeFromElement": "从此要素新建关联",
+    "uncategorized": "未分类",
+    "unnamedCategory": "未命名分类"
   },
   "templateEditor": {
     "accept": "收别处的条目",

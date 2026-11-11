@@ -64,7 +64,7 @@
 | # | 模块 | 作者能做什么 | 旧代码 | 依赖 | 大小 |
 | --- | --- | --- | --- | --- | --- |
 | M21 | 故事图 ⌘⌥3 | 故事线泳道，可切换书序或叙事序；构想卡片和虚线；按住 Shift 点两个节点建关系；把未安放的章节拖到轴上；幕轨和时间钉 | `DesktopStoryGraphView.tsx` 1792；三个 Super View 共用的图形核心约 5.1k；`graph-view.css` 1004 | M14、M17 | L |
-| M22 | 要素全景 ⌘⌥4 | 群岛：每个分类一座岛，三档缩放，按提及次数决定印章大小，同段共现画砂线，聚焦模式，浮动岛卡可以展开成编辑器，把要素拖到另一座岛就改分类；关系：力导向布局，拖动固定，记住位置，弧线两端写角色名 | `DesktopSuperElementView.tsx` 2873，合计约 4.2k，用到 canvas、SVG 和 d3-force；`super-element.css` 936 | M11、M17 | XL |
+| M22 | [要素全景](modules/m22-element-overview.md) ⌘⌥4 | 群岛：每个分类一座岛，三档缩放，按提及次数决定印章大小，同段共现画砂线，聚焦模式，浮动岛卡可以展开成编辑器，把要素拖到另一座岛就改分类；关系：力导向布局，拖动固定，记住位置，弧线两端写角色名 | `DesktopSuperElementView.tsx` 2873，合计约 4.2k，用到 canvas、SVG 和 d3-force；`super-element.css` 936 | M11、M17 | XL |
 | M23 | [审阅与素材](modules/m23-shelf-review.md) ⌘⌥5 | 待办和批注两列，宽度可调；素材库带类型片和关系筛选；底部抽屉放未分类的素材和已解决的条目 | `DesktopSuperMemoMaterialView.tsx` 1572 | M18、M19 | M |
 | M24 | 字海、加载与首次体验 | 字海托起 Drifting；欢迎；选文件夹；示例书落位；6 步导览；空状态提示；内置样书（傲慢与偏见、阿Q正传） | `lib/char-sea/*` 1.7k（WebGL2，改成 CPU 模拟；动起来时点留在原地、只浮出字，见 P0-D）、`components/modals/PreAlphaOnboardingDialog.tsx` 409、`features/guide/CoachTour.tsx`、`services/built-in-sample` | P0-D、M01 | L |
 | M25 | 书架封面与写作热力图 | 14 种封面画风，用底部按钮轮换；53 周砂笔热力图；书卡上近 30 天的砂条 | `lib/shelf-cover/*` 1.95k（Canvas 2D，改用 tiny-skia）、`views/shelf/WritingHeatmap.tsx` | M01、M07 | M |

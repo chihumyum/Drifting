@@ -221,6 +221,10 @@
       "week": "Diese Woche"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "Typen bearbeiten",
+    "empty": "In dieser Ansicht gibt es noch keine Beziehungen"
+  },
   "editorOutline": {
     "aria": "Gliederung",
     "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
@@ -899,7 +903,18 @@
     }
   },
   "relationTypes": {
-    "description": "Beschreibung"
+    "builtIn": "Integriert",
+    "create": "Neu",
+    "createInline": "Beziehungstyp erstellen",
+    "delete": "Beziehungstyp löschen",
+    "description": "Beschreibung",
+    "directed": "Gerichtet",
+    "name": "Name",
+    "sourceRole": "Quellrolle",
+    "swap": "Beziehungsendpunkte tauschen",
+    "symmetric": "Symmetrisch",
+    "targetRole": "Zielrolle",
+    "title": "Definitionen der Beziehungstypen"
   },
   "reviewPanel": {
     "commentPlaceholder": "Kommentar schreiben…",
@@ -1366,6 +1381,15 @@
   "speech": {
     "backlog": "Transkriptionsrückstand"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Erstellen",
+      "delete": "Beziehung löschen",
+      "hideKind": "„{{label}}“ ausblenden",
+      "kindLabel": "Beziehungstyp",
+      "showKind": "„{{label}}“ anzeigen"
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus."
@@ -1379,6 +1403,56 @@
     "sections": {
       "facts": "Fakten"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "Noch keine Elemente",
+      "noCategories": "Noch keine Elementkategorien"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "Schließen",
+        "companions": "Häufig gemeinsam",
+        "edit": "Bearbeiten",
+        "isolate": "Nur dieses",
+        "relations": "Beziehungen",
+        "showAll": "Alle anzeigen",
+        "times": "× {{count}}"
+      },
+      "find": "Element suchen",
+      "island": {
+        "category": "Kategorie",
+        "categoryMeta": "{{count}} Elemente",
+        "collapse": "Zurück zur Karte",
+        "element": "Element",
+        "mentions": "{{count}} Erwähnungen",
+        "openInTab": "In Tab öffnen",
+        "resize": "Ziehen, um die Inselgröße zu ändern",
+        "unmentioned": "Nicht im Text"
+      },
+      "lines": "Gleicher Absatz",
+      "linesTitle": "Eine sandfarbene Linie verbindet zwei Elemente, die im selben Absatz eines Kapitels erwähnt werden",
+      "newElement": "Hier neues Element erstellen",
+      "pinned": "Fixiert",
+      "thresholdLabel": "Absatzverbindungen",
+      "unpin": "Zur automatischen Anordnung zurückkehren"
+    },
+    "layout": {
+      "isles": "Inseln",
+      "relate": "Beziehungen"
+    },
+    "linkHintFrom": "Von",
+    "linkHintTo": "zu… zweites Element oder Kapitel wählen, Esc bricht ab",
+    "manualRelationTitle": "Neue manuelle Beziehung",
+    "meta": "{{categories}} Kategorien · {{elements}} Elemente",
+    "relate": {
+      "relayout": "Neu anordnen"
+    },
+    "reset": "Zurücksetzen",
+    "startEdgeFromElement": "Beziehung von diesem Element erstellen",
+    "uncategorized": "Ohne Kategorie",
+    "unnamedCategory": "Unbenannte Kategorie"
   },
   "templateEditor": {
     "accept": "Einträge von anderswo aufnehmen",

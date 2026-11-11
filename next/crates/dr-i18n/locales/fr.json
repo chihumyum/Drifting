@@ -221,6 +221,10 @@
       "week": "Cette semaine"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "Modifier les types",
+    "empty": "Aucune relation dans cette vue pour le moment"
+  },
   "editorOutline": {
     "aria": "Plan",
     "hiddenItems": "{{count}} éléments éloignés ; survolez pour afficher"
@@ -908,7 +912,18 @@
     }
   },
   "relationTypes": {
-    "description": "Description"
+    "builtIn": "Intégré",
+    "create": "Nouveau",
+    "createInline": "Créer un type de relation",
+    "delete": "Supprimer le type de relation",
+    "description": "Description",
+    "directed": "Orientée",
+    "name": "Nom",
+    "sourceRole": "Rôle source",
+    "swap": "Inverser les extrémités de la relation",
+    "symmetric": "Symétrique",
+    "targetRole": "Rôle cible",
+    "title": "Définitions des types de relation"
   },
   "reviewPanel": {
     "commentPlaceholder": "Rédiger un commentaire…",
@@ -1375,6 +1390,15 @@
   "speech": {
     "backlog": "Transcriptions en attente"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Créer",
+      "delete": "Supprimer la relation",
+      "hideKind": "Masquer « {{label}} »",
+      "kindLabel": "Type de relation",
+      "showKind": "Afficher « {{label}} »"
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne."
@@ -1388,6 +1412,56 @@
     "sections": {
       "facts": "Faits"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "Aucun élément pour le moment",
+      "noCategories": "Aucune catégorie d’éléments pour le moment"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "Fermer",
+        "companions": "Souvent ensemble",
+        "edit": "Modifier",
+        "isolate": "Celui-ci uniquement",
+        "relations": "Relations",
+        "showAll": "Tout afficher",
+        "times": "× {{count}}"
+      },
+      "find": "Trouver un élément",
+      "island": {
+        "category": "Catégorie",
+        "categoryMeta": "{{count}} éléments",
+        "collapse": "Revenir à la fiche",
+        "element": "Élément",
+        "mentions": "{{count}} mentions",
+        "openInTab": "Ouvrir dans un onglet",
+        "resize": "Faites glisser pour redimensionner l’île",
+        "unmentioned": "Absent du texte"
+      },
+      "lines": "Même paragraphe",
+      "linesTitle": "Une ligne couleur sable relie deux éléments mentionnés dans un même paragraphe de chapitre",
+      "newElement": "Nouvel élément ici",
+      "pinned": "Épinglé",
+      "thresholdLabel": "Liens par paragraphe",
+      "unpin": "Revenir à la disposition automatique"
+    },
+    "layout": {
+      "isles": "Îles",
+      "relate": "Relations"
+    },
+    "linkHintFrom": "De",
+    "linkHintTo": "vers… choisissez un second élément ou chapitre, Échap pour annuler",
+    "manualRelationTitle": "Nouvelle relation manuelle",
+    "meta": "{{categories}} catégories · {{elements}} éléments",
+    "relate": {
+      "relayout": "Réorganiser"
+    },
+    "reset": "Réinitialiser",
+    "startEdgeFromElement": "Créer une relation depuis cet élément",
+    "uncategorized": "Sans catégorie",
+    "unnamedCategory": "Catégorie sans titre"
   },
   "templateEditor": {
     "accept": "Accepter les entrées d’ailleurs",

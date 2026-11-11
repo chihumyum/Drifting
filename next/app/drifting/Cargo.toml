@@ -33,6 +33,7 @@ dr-store.workspace = true
 dr-ui.workspace = true
 dr-view-account.workspace = true
 dr-view-agent.workspace = true
+dr-view-element-overview.workspace = true
 dr-view-elements.workspace = true
 dr-view-feedback.workspace = true
 dr-view-home.workspace = true
