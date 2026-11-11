@@ -13,8 +13,15 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::state::ShutdownAction;
 
-const UPDATE_ENDPOINT: &str =
-    "https://github.com/chihumyum/Drifting/releases/latest/download/latest.json";
+/// Tried in order. `update.json` is the manifest the Rust client (0.2) will
+/// publish; until it exists GitHub answers 404 and the updater falls through
+/// to `latest.json`, which every 0.1 release keeps pointing at the newest
+/// 0.1 build. A 0.1 release never attaches `update.json` itself
+/// (docs/rust-rewrite/modules/m42-update.md, "旧版那头的交接").
+const UPDATE_ENDPOINTS: [&str; 2] = [
+    "https://github.com/chihumyum/Drifting/releases/latest/download/update.json",
+    "https://github.com/chihumyum/Drifting/releases/latest/download/latest.json",
+];
 
 #[derive(Default)]
 struct PendingUpdate {
@@ -91,12 +98,14 @@ pub(crate) async fn update_check(
     state: State<'_, AppUpdateState>,
 ) -> Result<Option<UpdateMetadata>, String> {
     updater_ready()?;
-    let endpoint = UPDATE_ENDPOINT
-        .parse()
+    let endpoints = UPDATE_ENDPOINTS
+        .iter()
+        .map(|endpoint| endpoint.parse())
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("Updater endpoint is invalid: {error}"))?;
     let update = app
         .updater_builder()
-        .endpoints(vec![endpoint])
+        .endpoints(endpoints)
         .map_err(|error| format!("could not configure the updater: {error}"))?
         .timeout(Duration::from_secs(30))
         .build()
@@ -207,8 +216,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn endpoint_is_the_latest_published_release_manifest() {
-        assert!(UPDATE_ENDPOINT.starts_with("https://github.com/"));
-        assert!(UPDATE_ENDPOINT.ends_with("/releases/latest/download/latest.json"));
+    fn endpoints_try_the_rust_client_manifest_before_the_latest_0_1_release() {
+        let [first, second] = UPDATE_ENDPOINTS;
+        assert!(first.starts_with("https://github.com/chihumyum/Drifting/"));
+        assert!(first.ends_with("/releases/latest/download/update.json"));
+        assert!(second.starts_with("https://github.com/chihumyum/Drifting/"));
+        assert!(second.ends_with("/releases/latest/download/latest.json"));
+        for endpoint in UPDATE_ENDPOINTS {
+            assert!(endpoint.parse::<tauri::Url>().is_ok(), "{endpoint}");
+        }
     }
 }

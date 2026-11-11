@@ -155,9 +155,11 @@ version history.
 ## Update checks
 
 The official build checks
+`https://github.com/chihumyum/Drifting/releases/latest/download/update.json`
+and then
 `https://github.com/chihumyum/Drifting/releases/latest/download/latest.json` at
-most once a day, and whenever you check manually in **Settings → Updates**. GitHub sees the
-request and your IP address. Downloading and installing an update each need
+most once every 3 hours, and whenever you check manually in **Settings → Updates**. GitHub sees the
+requests and your IP address. Downloading and installing an update each need
 your confirmation. Source builds do not check.
 
 ## Your controls
