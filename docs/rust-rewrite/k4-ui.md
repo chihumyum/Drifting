@@ -51,7 +51,7 @@ K4-0 交完第二次以后，`dr-shell` 的左栏（`workspace/sidebar.rs`）和
 
 **切换前不做、切换后再做的：**
 
-- M40 Markdown 文件夹的 v3 写法（树对应目录、多篇正文怎么放）另出方案。
+- M40 Markdown 文件夹的 v3 写法（树对应目录、多篇正文怎么放）另出方案，见 [m40-markdown-folder-v3.md](modules/m40-markdown-folder-v3.md)。
 - 三个 Super View（M21–M23）。
 - 分享链接（M38）、立绘生成（M33）、样式打磨。
 - K5 模板编辑器另开一个会话：模板集合的位置已定，界面照 [K5 原型第 2 版](https://claude.ai/artifact/Q9cfuRn9u5T5vZ38qG1JU7)；条目页内部长什么样，等作者细化。

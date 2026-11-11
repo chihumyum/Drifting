@@ -95,7 +95,7 @@ GUI 的 `Options.v3` 是非可选 `MappingChoices`，默认空选择也必须过
 
 M10 的三个技术缺口已补齐（夜间队列第 2 项）：28 旧 `entityLink`（`material`／`library_item`、显式 `module`／`targetModule`、带容器跨度重映射的 `targetBlockId`／`targetEndBlockId`）在当前正文、模板与快照历史中经 `ProseTxn::link_entity_v3` 无损写入 `EntityLinkV3`；29 `FieldDef` 新增可选 `default_value`，经 `entry_template.put` 校验并在 `entry.create` 初始化新条目字段值，导入器在当前书目与历史 `elementTemplateKvJson` 回放中无损保留非空字段默认值；30 带标记与链接的旧表格单元经 `ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell` 在 `Prose`／`Note` 两种 profile、模板与历史版本间无损导入与往返。真正损坏或超出 profile 的链接／单元格内容仍 prewrite 结构化拒绝并保持源库零修改。31 的 App v3 样书与索引已接通，importer 活动 deriver 拒绝规则保留，通过闭库新目标流程满足。22、23、25 三个作者策略保持原样 pending。
 
-v3 Markdown 文件夹、分享链接和界面设计／性能打磨仍按原授权边界暂缓。当前 SyncEngine 没有生产 App 自动调度，loopback 窗口链不覆盖它。源格式或未来表示无法无损迁移时继续 prewrite 拒绝，保留原数据；这不等于完成全部未来表示扩展。
+v3 Markdown 文件夹（待定方案见 [m40-markdown-folder-v3.md](modules/m40-markdown-folder-v3.md)）、分享链接和界面设计／性能打磨仍按原授权边界暂缓。当前 SyncEngine 没有生产 App 自动调度，loopback 窗口链不覆盖它。源格式或未来表示无法无损迁移时继续 prewrite 拒绝，保留原数据；这不等于完成全部未来表示扩展。
 
 ## 检查结果
 
