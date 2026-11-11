@@ -721,34 +721,62 @@ impl Workspace {
         match loaded {
             Ok(Some(book)) => {
                 log::debug!("book {} read in {ms:.1} ms", book.id);
-                if book.id != self.book_id {
-                    self.book_id = book.id.clone();
-                    self.restore_layout(cx);
+                let same_book = book.id == self.book_id && self.book.id == book.id;
+                let cur_rev = same_book
+                    .then(|| self.book.v3().map(|v| v.revision.as_str()))
+                    .flatten();
+                let new_rev = book.v3().map(|v| v.revision.as_str());
+                let (strictly_older, behind_live) = match (&self.library, new_rev) {
+                    (Some(lib), Some(candidate)) => lib
+                        .check_book_revision_freshness(&book.id, candidate, cur_rev)
+                        .unwrap_or((false, false)),
+                    _ => (false, false),
+                };
+                if behind_live {
+                    self.book_stale = true;
                 }
-                // Tabs whose things are gone close (they went while the
-                // app was closed, or since the last read).
-                let gone: Vec<Target> = self
-                    .nav
-                    .tabs()
-                    .iter()
-                    .flat_map(|t| t.leaves())
-                    .map(|l| l.target.clone())
-                    .filter(|t| !book.exists(t))
-                    .collect();
-                for target in &gone {
-                    self.nav.forget(target);
-                    self.editors.remove(&target.key());
+                if strictly_older {
+                    log::debug!(
+                        "skipping superseded book {} snapshot ({:?} < {:?})",
+                        book.id,
+                        new_rev,
+                        cur_rev
+                    );
+                } else {
+                    let same_revision = same_book && cur_rev.is_some() && cur_rev == new_rev;
+                    if book.id != self.book_id {
+                        self.book_id = book.id.clone();
+                        self.restore_layout(cx);
+                    }
+                    // Tabs whose things are gone close (they went while the
+                    // app was closed, or since the last read).
+                    let gone: Vec<Target> = self
+                        .nav
+                        .tabs()
+                        .iter()
+                        .flat_map(|t| t.leaves())
+                        .map(|l| l.target.clone())
+                        .filter(|t| !book.exists(t))
+                        .collect();
+                    for target in &gone {
+                        self.nav.forget(target);
+                        self.editors.remove(&target.key());
+                    }
+                    let id = book.id.clone();
+                    if !same_revision {
+                        self.book = Rc::new(book);
+                    }
+                    self.sync_active_book();
+                    self.retitle_editors(cx);
+                    Settings::update(cx, |file| file.set_last_book(&id));
+                    if !gone.is_empty() {
+                        self.changed(cx);
+                        crate::sync::notify_holder_released(cx);
+                    }
+                    if !same_revision || !gone.is_empty() {
+                        cx.notify();
+                    }
                 }
-                let id = book.id.clone();
-                self.book = Rc::new(book);
-                self.sync_active_book();
-                self.retitle_editors(cx);
-                Settings::update(cx, |file| file.set_last_book(&id));
-                if !gone.is_empty() {
-                    self.changed(cx);
-                    crate::sync::notify_holder_released(cx);
-                }
-                cx.notify();
             }
             Ok(None) => {
                 log::info!("the library has no book");

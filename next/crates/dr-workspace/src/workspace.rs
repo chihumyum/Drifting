@@ -1157,6 +1157,39 @@ impl Workspace {
         })?
     }
 
+    /// Compares a background-loaded `candidate_rev` against an optional
+    /// `current_rev` already held on the UI thread and the live `book:<id>`
+    /// holder frontier. Returns `(strictly_older_than_current, effective_behind_live)`.
+    pub fn check_book_revision_freshness(
+        &self,
+        book: &str,
+        candidate_rev: &str,
+        current_rev: Option<&str>,
+    ) -> Result<(bool, bool)> {
+        let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let candidate = crate::naming::frontiers_from_hex(candidate_rev)?;
+        let current = current_rev
+            .map(crate::naming::frontiers_from_hex)
+            .transpose()?;
+        let slot = self.book_slot(&book_id)?;
+        Ok(slot.handle.read(move |doc| {
+            let live = doc.oplog_frontiers();
+            let strictly_older = match current.as_ref() {
+                Some(cur) if *cur != candidate => matches!(
+                    doc.cmp_frontiers(&candidate, cur),
+                    Ok(Some(std::cmp::Ordering::Less))
+                ),
+                _ => false,
+            };
+            let behind_live = if strictly_older {
+                current.as_ref().is_some_and(|cur| *cur != live)
+            } else {
+                candidate != live
+            };
+            (strictly_older, behind_live)
+        })?)
+    }
+
     /// Whether `entry` is a live (non-trashed) entry in `book`.
     pub fn is_live_entry(&self, book: &str, entry: &dr_model::id::EntryId) -> Result<bool> {
         let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
