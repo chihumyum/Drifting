@@ -200,3 +200,37 @@ cargo test -p dr-sync --lib --locked
 5. **0.1（Yjs）向 `next/`（`loro-v2`）的迁移边界**：
    - **不做服务端侧 Yjs → Loro 在线自动转换**。0.1 的 SQLite + Yjs 模型与 canonical v3 的 Loro 条目树／多正文模块存在结构映射（含作者在导入向导中的显式确认项），转换权威统一在客户端 M10（`dr-import-v1`）。
    - 切换期间同一账号下的 `project-v1`（0.1 客户端）与 `loro-v2`（`next/` 客户端）在服务端按命名空间并存、互不覆盖：作者在 `next/` 通过「导入 · Drifting 0.1」将本机 0.1 库导入到 `next/` 账号库后，由 `next/` 自动同步引擎把 canonical v3 文档与素材以 `loro-v2` 对象上传，其他登录同一账号的 `next/` 设备即自动拉取收敛。需作者拍板的唯一运维口径是：**切换期 `usedBytes` 是否将 `project-v1` 与 `loro-v2` 合并计入同一 `500 MiB` 配额，还是给切换期留独立过渡额度**。
+
+## 交回（2026-11-11：新版 App 接入自动同步）
+
+### 做了什么
+
+1. **内核自动同步运行时与删书物理资源回收（`dr-sync` + `dr-workspace`）**：
+   - 新增 [`dr_sync::SyncRuntime`](../../../next/crates/dr-sync/src/runtime.rs)，在独立后台工作线程上驱动 `SyncEngine::sync_once`：开库后立即跑首轮同步并按固定周期轮询；订阅 `StoreEvent` 将连续本地编辑按尾部防抖合并为单次上传；瞬时网络／5xx 错误按指数退避重试，离线快速重连，遇到 `401`（`Reauth`）或 `413`（`Quota`）自动暂停重试直至凭据变化或手动触发；未登录／本机模式不创建网络循环、零请求。
+   - 补齐整书永久删除后接收端的物理资源回收：当 `DocPurge` 使某本书满足整书已清除（`library.book_purged(b) && library.purged("book:<b>").is_some()`）时，自动回收本机已下载的该书物理资源变体与 `asset` 表记录，并在从 `cursor = 0` 重放时跳过已清除书的历史 `AssetBlob` 下载，另一本书的资源与文档不受影响。
+   - 保持 F2 持有者边界：远端 `DocPurge` 遇到当前打开的文档先释放非活跃书槽位，若仍被编辑器持有则维持 `StoreError::AlreadyOpen` 阻塞且不推进 `sync-cursor-v2.json`，待标签页／书切换释放持有者后自动唤醒重跑；拉取更新后自动刷新 `Workspace` 派生缓存与脏全文索引，并在 [`dr-workspace`](../../../next/crates/dr-workspace/src/sync.rs) 提供 `"sync.status"`、`"sync.now"` 与 `check_book_revision_freshness`（防止外壳异步旧快照回退覆盖同步新版本）。
+   - 新增独立回环假服务示例 `cargo run -p dr-sync --example fake_sync_server` 及 `FakeSyncServer::set_fail_all` 断网注入接口。
+2. **桌面 App 生命周期监督器与排空屏障（`app/drifting`）**：
+   - 新增 [`app/drifting/src/sync.rs`](../../../next/app/drifting/src/sync.rs) 生产监督器并在 `main.rs` 挂载：监听 `AccountUiService` 与 `LibraryRegistry` 状态切换账号库／本机库（含首次启动 `first_run::write_samples` 短暂持有 `Workspace` 克隆时的非阻塞重试切换），仅在已登录且当前打开目标账号库时启动 `SyncRuntime`。
+   - 接入两阶段释放屏障：阶段一 `release::before_release` 调用 `pause_for_release()` 冻结新周期并等待在途拉取落定；待 G1 `after_drain` 最终快照写入完成后，阶段二通过 `dr_shell::sync::register_final_drain` 调用 `drain_and_detach()` 将最终快照一并上传排空（离线时最佳努力限时返回，不卡死退出／换库，本地 SQLite 提交完整保留）；侧栏账号浮层退出登录前先经 `register_before_sign_out` 排空待传改动。
+3. **F6 稿纸左下角同步角标与通知中心联动（`dr-shell`）**：
+   - 新增 [`dr_shell::sync`](../../../next/crates/dr-shell/src/sync.rs) 并接入主舞台首栏稿纸左下角（`left: 16px, bottom: 16px`，沉浸模式同步保留）：已同步／本机模式／暂停隐藏；同步中满 3s 显示呼吸云朵并保持至少 1.5s，打字时淡出、停笔 2s 恢复；重试满 30s 慢闪；离线显示散沙云朵；严重异常（`NotStarted`、`Reauth`、`Quota`、`Failing`）一律显示朱砂「`!`」，悬停 220ms 浮出卡片支持重试、重新登录与直达「偏好设置 → 账号」。
+   - 严重同步问题置顶写入 `Notifications`（`Source::Sync`），并在侧栏通知风铃旁显示朱砂「`!`」印记；恢复正常或回到本机模式后自动撤除置顶告警。
+4. **服务端契约文档**：在本文新增「服务端需要提供的」一节，完整列出 `loro-v2` 命名空间、HTTP 头与幂等规则、`413` 分层配额、数据库迁移与整书清除后的 GC 策略及 0.1 → `next/` 迁移边界。
+
+### 检查结果
+
+在受检源码提交 `6d6bec016638f907474546782e5b62df023d8bf2`（已合并 `main` `28d1930f0`）上，统一设置 `CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1` 执行：
+
+- `cargo fmt --all --check`：通过（退出码 0）。
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`：通过（退出码 0，零警告）。
+- `cargo test --workspace --locked`：通过（共 **2236 通过、0 失败、21 忽略**；含 `dr-sync` 全部 20 项测试——新增 [`auto_sync_runtime`](../../../next/crates/dr-sync/tests/auto_sync_runtime.rs) 端到端双向自动同步／断网恢复／删书回收资源与库外合成哨兵文件零改动／打开文档阻塞与释放后续跑／换库与退出排空／本机模式零请求，以及 `drifting::sync::tests` 3 项监督器与冷启动重试测试、`dr-shell::sync::tests` 角标状态机测试、`dr-workspace::sync::tests` 新鲜度守卫测试）。
+- `cargo xtask check`：全部 13 项门禁与 `cargo audit` 通过（974 个锁定包、0 漏洞、12 条既有提示；既有基准测量文件状态未改动）。
+- 仓库根 `pnpm public:check`：通过（5589 个候选文件）。
+- **副屏双窗口真窗口往返重开冒烟**：持有 `$HOME/Drifting-autopilot-logs/native-window-lease.json` 租约，在 `DRIFTING_WINDOW_DISPLAY=secondary`、`DRIFTING_DEV_EPHEMERAL_SECRETS=1` 下启动两个隔离开发 profile 真窗口连接同一 `127.0.0.1` 回环 `fake_sync_server` 与合成令牌（日志与摘要位于 `$HOME/Drifting-autopilot-logs/app-sync-v3-smoke-f8fd2904/`）：甲窗输入正文后乙窗自动出现，乙窗回应后甲窗自动出现，甲窗输入末行后立即执行 `app.quit` 排空退出、乙窗退出，双窗重开后两库正文均完整收敛且逐字一致，租约正常释放。全套门禁日志存于 `$HOME/Drifting-autopilot-logs/app-sync-v3-checks/`。最终交回仅在本提交追加此交回小节，Rust／Cargo 源码树与 `6d6bec016` 完全一致。
+
+### 待协调
+
+- **Hosted 服务端上线与切换期配额口径（待作者）**：客户端自动同步已完备接线，真实云端联调需另一仓库的 Hosted 服务部署本文「服务端需要提供的」所列 `loro-v2` 命名空间与表迁移，并由作者拍板切换期 `usedBytes` 是否将 0.1 `project-v1` 与 `next/` `loro-v2` 合并计入同一 `500 MiB` 配额或提供过渡额度。
+- **「偏好设置 → 账号」页内退出登录按钮的预排空钩子**：侧栏账号浮层的退出入口已在吊销令牌前调用 `dr_shell::sync::run_before_sign_out` 排空上传；`dr-view-account` 不在本任务可改动 crate 范围内，若作者从设置页内部点击退出登录，当前监督器会在收到吊销状态后停止远端任务并切回本机库（未上传改动仍完整保存在原账号库磁盘目录中，重新登录即可续传），后续可在 `dr-view-account` 退登动作前补一行同一排空钩子。
+- **顺带记录的既有测试竞态观察（不属本改动，供整合与 G1／M22 参考）**：排查工作区测试时发现 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 偶发与 `dr-view-history::AutomaticHistory` 后台线程的 `entry_snapshot.capture` 竞争同一 `book:<id>` 的 `oplog_frontiers()`（`membership.add`／`undo` 不改条目自有状态哈希，`changed.is_empty()` 分支会将全书条目加入 `dirty` 并在后台连续写入首次快照），小概率触发 `WritePreconditions` 的 `stale observation`。本分支未触碰 `dr-view-element-overview` 与 `dr-view-history`。
