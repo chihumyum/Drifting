@@ -1621,6 +1621,7 @@
     "trash": "Déplacer vers les suppressions récentes"
   },
   "v3Timeline": {
+    "actLevelName": "Actes",
     "addLane": "Ajouter une piste",
     "bindEntry": "Associer une entrée",
     "colorValue": "Valeur de couleur",
@@ -1630,6 +1631,8 @@
     "members": "{{count}} membres",
     "moveDown": "Descendre",
     "moveUp": "Monter",
+    "newActTrack": "Nouvelle piste d’actes",
+    "newEntryInLane": "Nouvelle entrée",
     "newView": "Nouvelle vue",
     "placeEntry": "Placer une entrée",
     "placementActions": "Actions de placement",
@@ -1640,6 +1643,8 @@
     "resize": "Ajuster la longueur",
     "ruler": "Règle temporelle",
     "selectLane": "Choisir une piste",
+    "setActTrack": "Utiliser comme piste d’actes · {{name}}",
+    "unsetActTrack": "Revenir à une piste normale · {{name}}",
     "views": "Vues chronologiques"
   },
   "voiceAgent": {

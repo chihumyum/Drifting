@@ -11236,6 +11236,13 @@ expression: json
         }
       },
       "properties": {
+        "act_track": {
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "book": {
           "type": "string"
         },
@@ -11344,6 +11351,13 @@ expression: json
       "$defs": {
         "TimelineLane": {
           "properties": {
+            "act_track": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "entry": {
               "type": "string"
             },
@@ -11357,7 +11371,8 @@ expression: json
           },
           "required": [
             "entry",
-            "pos"
+            "pos",
+            "act_track"
           ],
           "type": "object"
         },
@@ -11647,6 +11662,13 @@ expression: json
       "$defs": {
         "TimelineLane": {
           "properties": {
+            "act_track": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "entry": {
               "type": "string"
             },
@@ -12106,6 +12128,22 @@ expression: json
             },
             {
               "properties": {
+                "field": {
+                  "const": "lane_act_track",
+                  "type": "string"
+                },
+                "lane": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "lane"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
                 "entry": {
                   "type": "string"
                 },
@@ -12171,6 +12209,51 @@ expression: json
       "type": "object"
     },
     "summary": "Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "act_track": {
+          "type": "boolean"
+        },
+        "book": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "lane",
+        "act_track"
+      ],
+      "title": "LaneActTrackIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.set_lane_act_track",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Switch whether a stored lane in a v3 view is displayed as a top act track."
   },
   {
     "access": "write",

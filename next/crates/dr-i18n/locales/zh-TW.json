@@ -1605,6 +1605,7 @@
     "trash": "移至最近刪除"
   },
   "v3Timeline": {
+    "actLevelName": "幕",
     "addLane": "加入泳道",
     "bindEntry": "掛條目",
     "colorValue": "顏色值",
@@ -1614,6 +1615,8 @@
     "members": "{{count}} 個成員",
     "moveDown": "下移",
     "moveUp": "上移",
+    "newActTrack": "新增幕軌道",
+    "newEntryInLane": "新增條目",
     "newView": "新增視圖",
     "placeEntry": "放入條目",
     "placementActions": "擺放操作",
@@ -1624,6 +1627,8 @@
     "resize": "調整長度",
     "ruler": "時間標尺",
     "selectLane": "選擇泳道",
+    "setActTrack": "設為幕軌道 · {{name}}",
+    "unsetActTrack": "取消幕軌道 · {{name}}",
     "views": "時間線視圖"
   },
   "voiceAgent": {

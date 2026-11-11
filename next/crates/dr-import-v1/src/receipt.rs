@@ -434,6 +434,12 @@ fn explain(key: &str) -> Option<&'static str> {
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
         "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
+        "act-binding-shared-idea-split" => {
+            "同一个构想绑了多个幕：最早的一幕沿用该构想，其余各幕在「幕」下新建了同名条目"
+        }
+        "act-binding-kept-existing-placement" => {
+            "幕绑定的构想在默认时间线视图里原本就有位置，保留了原位置而未用幕跨度覆盖"
+        }
         _ => return None,
     })
 }

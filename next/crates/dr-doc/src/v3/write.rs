@@ -802,6 +802,13 @@ impl TimelineViewWriterV3 {
         Ok(self)
     }
 
+    pub fn set_lane_act_track(&self, entry: &EntryId, act_track: Option<bool>) -> Result<&Self> {
+        let lanes = self.map.ensure_mergeable_map("lanes")?;
+        let l = lanes.ensure_mergeable_map(entry.as_str())?;
+        set(&l, "act_track", act_track)?;
+        Ok(self)
+    }
+
     pub fn remove_lane(&self, entry: &EntryId) -> Result<&Self> {
         let lanes = self.map.ensure_mergeable_map("lanes")?;
         if lanes.get(entry.as_str()).is_some() {

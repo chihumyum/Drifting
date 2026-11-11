@@ -466,37 +466,15 @@ pub fn path_of(p: &Path) -> String {
 /// No author library or product default consumes this choice.
 pub fn v3_choices() -> dr_import_v1::v3::MappingChoices {
     dr_import_v1::v3::MappingChoices {
-        act_binding: Some(dr_import_v1::v3::ActBindingChoice {
-            act_is_source: true,
-            relation_type: dr_model::v3::RelationTypeV3 {
-                id: dr_model::id::RelationTypeId::parse("test-fixture-act-binding").unwrap(),
-                name: "测试幕注".into(),
-                normalized_name: "测试幕注".into(),
-                description: String::new(),
-                orientation: dr_model::kind::RelationOrientation::Directed,
-                system_key: None,
-                locked: false,
-                source_role: String::new(),
-                target_role: String::new(),
-                color: None,
-                source_kinds: vec![dr_model::kind::EntityKind::Entry],
-                target_kinds: vec![dr_model::kind::EntityKind::Entry],
-                source_templates: vec![
-                    dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_GROUP).unwrap(),
-                ],
-                target_templates: vec![
-                    dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_IDEA).unwrap(),
-                ],
-            },
-        }),
+        profile: Some("test-fixture-explicit".into()),
     }
 }
 
 /// Positive canonical-import fixture. The original builder deliberately has a
 /// dangling relation; strict v3 import refuses that record rather than hiding it.
 /// Keep `build` unchanged for prewrite rejection coverage, remove only that
-/// known invalid fixture row, and bind `act-1` to `IDEA` so policy #22 remains
-/// exercised before explicit `MappingChoices` are provided.
+/// known invalid fixture row, and bind `act-1` to `IDEA` so the settled #22
+/// act-track mapping is exercised on default canonical import.
 pub fn build_v3(stamped: bool) -> Old {
     let old = build(stamped);
     let c = Connection::open(&old.db).unwrap();

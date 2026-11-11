@@ -1178,3 +1178,225 @@ fn local_lane_removal_keeps_hidden_backup_membership_positions_and_other_views(
             .any(|p| p["entry"] == member)
     );
 }
+
+#[gpui::test]
+fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_and_short_segments(
+    cx: &mut TestAppContext,
+) {
+    use gpui::{Modifiers, MouseButton, point, px};
+    let (_dir, lib, id) = seed();
+    let initial = Book::load(&lib, &id).unwrap();
+    let b0 = initial.v3().unwrap();
+    let view0 = b0.timeline_views[0].clone();
+    let storyline0 = view0.lanes[0].entry.clone();
+    let source = b0
+        .entries
+        .iter()
+        .find(|e| {
+            e.template.as_deref() == Some("tpl-idea")
+                && !view0.placements.iter().any(|p| p.entry == e.id)
+        })
+        .unwrap_or_else(|| {
+            b0.entries
+                .iter()
+                .find(|e| e.template.as_deref() == Some("tpl-idea"))
+                .unwrap()
+        })
+        .clone();
+    assert!(!view0.placements.iter().any(|p| p.entry == source.id));
+
+    let (host, cx) = visual(cx, &lib, &id);
+    let ws = host.read_with(cx, |h, _| h._workspace.clone());
+    wait(cx, |cx| ws.read_with(cx, |ws, _| ws.book.v3().is_some()));
+    refresh(&host, &lib, &id, cx);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    assert!(t.read_with(cx, |t, _| t.lanes().iter().all(|l| !l.act_track)));
+
+    // 1. Create first act track -> top-level "Acts" (`tpl-act-track`), placed first with `act_track = true`.
+    t.update(cx, |t, cx| t.create_act_track(cx));
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"][0]["act_track"]
+            == json!(true)
+    });
+    refresh(&host, &lib, &id, cx);
+    let act1 = t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert!(lanes[0].act_track);
+        assert_eq!(lanes[0].title, "Acts");
+        assert!(!lanes[1].act_track);
+        lanes[0].id.clone()
+    });
+    let act1_entry = call(&lib, "entry.get", json!({"book":id,"id":act1}));
+    assert!(act1_entry["parent"].is_null());
+    assert_eq!(act1_entry["template"], "tpl-act-track");
+    let tpl =
+        lib.observe(&format!("book:{id}")).unwrap().value["templates"]["tpl-act-track"].clone();
+    assert_eq!(tpl["lane"], true);
+    assert_eq!(tpl["settings"]["default_template"], "tpl-idea");
+    assert_eq!(tpl["settings"]["allow"], json!([]));
+    assert!(tpl["settings"]["home"].is_null());
+
+    // 2. Create second act track -> auto-numbered "Acts 2", placed right after "Acts" and above normal lanes.
+    t.update(cx, |t, cx| t.create_act_track(cx));
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|l| l["act_track"] == json!(true))
+            .count()
+            == 2
+    });
+    refresh(&host, &lib, &id, cx);
+    let act2 = t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert_eq!(lanes[0].id, act1);
+        assert!(lanes[1].act_track);
+        assert_eq!(lanes[1].title, "Acts 2");
+        assert!(!lanes[2].act_track);
+        lanes[1].id.clone()
+    });
+
+    // 3. Reordering within act-track group stays above normal lanes.
+    t.update(cx, |t, cx| t.reorder_lane(act1.clone(), 1, cx));
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"][0]["entry"] == act2
+    });
+    refresh(&host, &lib, &id, cx);
+    t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert_eq!(lanes[0].id, act2);
+        assert_eq!(lanes[1].id, act1);
+        assert!(!lanes[2].act_track);
+    });
+
+    // 4. Create entry directly inside `act1` -> Idea leaf under `act1`, membership + interval `span = 4.0`.
+    t.update(cx, |t, cx| t.create_entry_in_lane(act1.clone(), cx));
+    wait(cx, |_| {
+        call(&lib, "membership.list", json!({"book":id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == act1)
+    });
+    refresh(&host, &lib, &id, cx);
+    frame(cx);
+    let created_id = call(&lib, "membership.list", json!({"book":id}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["host"] == act1)
+        .unwrap()["member"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let created_entry = call(&lib, "entry.get", json!({"book":id,"id":created_id}));
+    assert_eq!(created_entry["parent"], act1);
+    assert_eq!(created_entry["template"], "tpl-idea");
+    let created_clip = cx
+        .debug_bounds(Box::leak(
+            format!("v3-clip-{act1}-{created_id}").into_boxed_str(),
+        ))
+        .unwrap();
+    assert!(
+        f32::from(created_clip.size.width) > 60.,
+        "interval clip width = {:?}",
+        created_clip.size.width
+    );
+
+    // 5. Drag external unplaced entry onto `act1` -> `span: None` short segment (14..=24 px), then resize into interval.
+    let page = PageViewHost {
+        workspace: ws.downgrade(),
+        library: lib.clone(),
+        book_id: id.clone(),
+        book: Rc::new(Book::load(&lib, &id).unwrap()),
+    };
+    drag_to_lane(
+        &host,
+        EntryDrag::new(page, &source.id, &source.title),
+        &act1,
+        cx,
+    );
+    wait(cx, |_| {
+        call(&lib, "membership.list", json!({"book":id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == act1 && m["member"] == source.id)
+    });
+    refresh(&host, &lib, &id, cx);
+    frame(cx);
+    let source_after = call(&lib, "entry.get", json!({"book":id,"id":source.id}));
+    assert_eq!(source_after["parent"], json!(source.parent));
+    let short_clip = cx
+        .debug_bounds(Box::leak(
+            format!("v3-clip-{act1}-{}", source.id).into_boxed_str(),
+        ))
+        .unwrap();
+    let short_w = f32::from(short_clip.size.width);
+    assert!(
+        (14.0..=24.0).contains(&short_w),
+        "short segment width expected in 14..=24, got {short_w}"
+    );
+    let handle = cx
+        .debug_bounds(Box::leak(
+            format!("v3-resize-{act1}-{}", source.id).into_boxed_str(),
+        ))
+        .unwrap()
+        .center();
+    let stretched = handle + point(px(120.), px(0.));
+    cx.simulate_mouse_down(handle, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(stretched, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_up(stretched, MouseButton::Left, Modifiers::none());
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["entry"] == source.id && p["span"].as_f64().is_some_and(|s| s > 2.0))
+    });
+    refresh(&host, &lib, &id, cx);
+    frame(cx);
+    let long_clip = cx
+        .debug_bounds(Box::leak(
+            format!("v3-clip-{act1}-{}", source.id).into_boxed_str(),
+        ))
+        .unwrap();
+    assert!(f32::from(long_clip.size.width) > 60.);
+
+    // 6. Toggle existing storyline lane into act track and back.
+    t.update(cx, |t, cx| {
+        t.set_lane_act_track(storyline0.clone(), true, cx)
+    });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|l| l["entry"] == storyline0 && l["act_track"] == json!(true))
+    });
+    refresh(&host, &lib, &id, cx);
+    assert!(t.read_with(cx, |t, _| {
+        t.lanes()
+            .iter()
+            .take(3)
+            .any(|l| l.id == storyline0 && l.act_track)
+    }));
+    t.update(cx, |t, cx| {
+        t.set_lane_act_track(storyline0.clone(), false, cx)
+    });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|l| l["entry"] == storyline0 && l["act_track"].is_null())
+    });
+    refresh(&host, &lib, &id, cx);
+    t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        let pos = lanes.iter().position(|l| l.id == storyline0).unwrap();
+        assert!(pos >= 2 && !lanes[pos].act_track);
+    });
+}

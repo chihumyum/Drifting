@@ -19,6 +19,7 @@ pub(super) enum ViewEdit {
     AddLane(String),
     RemoveLane(String),
     Reorder(String, isize),
+    SetActTrack(String, bool),
 }
 
 /// The frontier is the original book observation behind the displayed F6
@@ -28,7 +29,7 @@ pub(super) struct ViewScope {
     pub book: String,
     pub view: String,
     pub version: String,
-    pub lanes: Vec<String>,
+    pub lanes: Vec<(String, bool)>,
 }
 
 fn run_view_edit(lib: &Library, scope: ViewScope, edit: ViewEdit) -> Result<(), WsError> {
@@ -45,23 +46,38 @@ fn run_view_edit(lib: &Library, scope: ViewScope, edit: ViewEdit) -> Result<(), 
             "timeline_view.remove_lane",
             serde_json::json!({"book":scope.book,"view":scope.view,"lane":lane}),
         ),
+        ViewEdit::SetActTrack(lane, act_track) => (
+            "timeline_view.set_lane_act_track",
+            serde_json::json!({"book":scope.book,"view":scope.view,"lane":lane,"act_track":act_track}),
+        ),
         ViewEdit::Reorder(lane, delta) => {
-            let i = scope
+            let is_act = scope
                 .lanes
                 .iter()
-                .position(|id| id == &lane)
+                .find(|(id, _)| id == &lane)
+                .map(|(_, act)| *act)
                 .ok_or_else(|| WsError::NotFound {
                     what: "timeline lane",
                     id: lane.clone(),
                 })?;
-            let j = i.saturating_add_signed(delta).min(scope.lanes.len() - 1);
+            let group: Vec<&str> = scope
+                .lanes
+                .iter()
+                .filter(|(_, act)| *act == is_act)
+                .map(|(id, _)| id.as_str())
+                .collect();
+            let i = group
+                .iter()
+                .position(|id| *id == lane)
+                .expect("lane belongs to its own group");
+            let j = i.saturating_add_signed(delta).min(group.len() - 1);
             if i == j {
                 return Ok(());
             }
             let place = if j < i {
-                dr_workspace::naming::Place::Before(scope.lanes[j].clone())
+                dr_workspace::naming::Place::Before(group[j].to_owned())
             } else {
-                dr_workspace::naming::Place::After(scope.lanes[j].clone())
+                dr_workspace::naming::Place::After(group[j].to_owned())
             };
             (
                 "timeline_view.move_lane",
@@ -290,6 +306,181 @@ impl Timeline {
             self.edit_view(id, ViewEdit::Reorder(lane, delta), cx);
         }
     }
+    pub fn set_lane_act_track(&mut self, lane: String, act_track: bool, cx: &mut Context<Self>) {
+        if let Some(id) = self.view().map(|v| v.id.clone()) {
+            self.edit_view(id, ViewEdit::SetActTrack(lane, act_track), cx);
+        }
+    }
+    pub fn create_act_track(&mut self, cx: &mut Context<Self>) {
+        let Some(view_id) = self.view().map(|v| v.id.clone()) else {
+            return;
+        };
+        let base_name = t(cx, keys::v3_timeline::ACT_LEVEL_NAME).to_string();
+        self.popup = None;
+        self.write(cx, move |lib, book| {
+            let observed = lib.observe(&format!("book:{book}"))?;
+            if observed.value["templates"].get("tpl-act-track").is_none() {
+                let tpl = timeline::act_track_template(base_name.clone());
+                lib.call(
+                    &Actor::User,
+                    "entry_template.put",
+                    serde_json::json!({"book": book, "template": tpl}),
+                )?;
+            }
+            let entries_out = lib.call(
+                &Actor::User,
+                "entry.list",
+                serde_json::json!({"book": book}),
+            )?["output"]
+                .clone();
+            let root_titles: Vec<String> = entries_out
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|e| e["parent"].is_null() && e["deleted_at"].is_null())
+                .filter_map(|e| e["title"].as_str().map(str::to_owned))
+                .collect();
+            let title = dr_workspace::naming::unique_name(
+                &base_name,
+                "幕",
+                root_titles.iter().map(String::as_str),
+            );
+            let created = lib.call(
+                &Actor::User,
+                "entry.create",
+                serde_json::json!({
+                    "book": book,
+                    "parent": serde_json::Value::Null,
+                    "title": title,
+                    "template": "tpl-act-track",
+                }),
+            )?;
+            let lane_id = created["output"]["id"]
+                .as_str()
+                .ok_or_else(|| WsError::Internal("entry.create returned no id".into()))?
+                .to_owned();
+            let views = lib
+                .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
+                .output;
+            let place = views
+                .iter()
+                .find(|v| v.id == view_id && v.deleted_at.is_none())
+                .and_then(|v| {
+                    if let Some(last_act) = v.lanes.iter().rfind(|l| l.act_track == Some(true)) {
+                        Some(dr_workspace::naming::Place::After(last_act.entry.clone()))
+                    } else if !v.lanes.is_empty() {
+                        Some(dr_workspace::naming::Place::First)
+                    } else {
+                        None
+                    }
+                });
+            lib.call(
+                &Actor::User,
+                "timeline_view.add_lane",
+                serde_json::json!({
+                    "book": book,
+                    "view": view_id,
+                    "lane": lane_id,
+                    "place": place,
+                    "act_track": true,
+                }),
+            )?;
+            Ok(())
+        });
+    }
+    pub fn create_entry_in_lane(&mut self, lane: String, cx: &mut Context<Self>) {
+        let Some(view_id) = self.view().map(|v| v.id.clone()) else {
+            return;
+        };
+        let untitled = t(cx, keys::common::UNTITLED).to_string();
+        self.popup = None;
+        self.write(cx, move |lib, book| {
+            let entries_before = lib.call(
+                &Actor::User,
+                "entry.list",
+                serde_json::json!({"book": book}),
+            )?["output"]
+                .clone();
+            let memberships_before = lib.call(
+                &Actor::User,
+                "membership.list",
+                serde_json::json!({"book": book}),
+            )?["output"]
+                .clone();
+            let mut lane_members = std::collections::HashSet::<String>::new();
+            for e in entries_before.as_array().into_iter().flatten() {
+                if e["deleted_at"].is_null()
+                    && e["parent"].as_str() == Some(lane.as_str())
+                    && let Some(id) = e["id"].as_str()
+                {
+                    lane_members.insert(id.to_owned());
+                }
+            }
+            for m in memberships_before.as_array().into_iter().flatten() {
+                if m["host"].as_str() == Some(lane.as_str())
+                    && let Some(id) = m["member"].as_str()
+                {
+                    lane_members.insert(id.to_owned());
+                }
+            }
+            let created = lib.call(
+                &Actor::User,
+                "entry.create",
+                serde_json::json!({
+                    "book": book,
+                    "parent": lane,
+                    "title": untitled,
+                }),
+            )?;
+            let entry_id = created["output"]["id"]
+                .as_str()
+                .ok_or_else(|| WsError::Internal("entry.create returned no id".into()))?
+                .to_owned();
+            let views = lib
+                .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
+                .output;
+            let (at, span) = views
+                .iter()
+                .find(|v| v.id == view_id && v.deleted_at.is_none())
+                .map(|v| {
+                    let is_act = v
+                        .lanes
+                        .iter()
+                        .find(|l| l.entry == lane)
+                        .is_some_and(|l| l.act_track == Some(true));
+                    let lane_end = v
+                        .placements
+                        .iter()
+                        .filter(|p| lane_members.contains(&p.entry))
+                        .map(|p| p.at + p.span.unwrap_or(model::DEFAULT_SPAN))
+                        .reduce(f64::max);
+                    let at = match lane_end {
+                        Some(end) => end + 1.0,
+                        None => v
+                            .placements
+                            .iter()
+                            .map(|p| p.at)
+                            .reduce(f64::min)
+                            .unwrap_or(0.0),
+                    };
+                    (at, is_act.then_some(model::DEFAULT_SPAN))
+                })
+                .unwrap_or((0.0, None));
+            lib.call(
+                &Actor::User,
+                "timeline_view.place",
+                serde_json::json!({
+                    "book": book,
+                    "view": view_id,
+                    "entry": entry_id,
+                    "lane": lane,
+                    "at": at,
+                    "span": span,
+                }),
+            )?;
+            Ok(())
+        });
+    }
     pub(super) fn view_scope(&self) -> Option<ViewScope> {
         self.scope_for(&self.view()?.id)
     }
@@ -303,7 +494,11 @@ impl Timeline {
             book: self.book.id.clone(),
             view: id.into(),
             version: book.revision.clone(),
-            lanes: view.lanes.iter().map(|l| l.entry.clone()).collect(),
+            lanes: view
+                .lanes
+                .iter()
+                .map(|l| (l.entry.clone(), l.act_track == Some(true)))
+                .collect(),
         })
     }
     pub(super) fn edit_view(&mut self, id: String, edit: ViewEdit, cx: &mut Context<Self>) {
@@ -407,7 +602,11 @@ mod tests {
             book: book.clone(),
             view: view.id.clone(),
             version: shown.version,
-            lanes: view.lanes.iter().map(|l| l.entry.clone()).collect(),
+            lanes: view
+                .lanes
+                .iter()
+                .map(|l| (l.entry.clone(), l.act_track == Some(true)))
+                .collect(),
         };
         let mut pin = view
             .pins

@@ -729,6 +729,7 @@ fn timeline_field_commands_are_absent_and_refused_in_v3_agent_catalog() {
         "timeline_view.rename",
         "timeline_view.add_lane",
         "timeline_view.move_lane",
+        "timeline_view.set_lane_act_track",
         "timeline_view.remove_lane",
         "timeline_view.restore_fields",
     ] {

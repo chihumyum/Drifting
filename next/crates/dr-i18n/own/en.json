@@ -166,7 +166,12 @@
     "detachEntry": "Detach entry",
     "colorValue": "Color value",
     "laneTrack": "Lane {{name}}",
-    "selectLane": "Select lane"
+    "selectLane": "Select lane",
+    "newActTrack": "New act track",
+    "actLevelName": "Acts",
+    "setActTrack": "Use as act track · {{name}}",
+    "unsetActTrack": "Use as regular lane · {{name}}",
+    "newEntryInLane": "New entry"
   },
   "templateEditor": {
     "new_template": "New template",

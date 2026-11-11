@@ -166,7 +166,12 @@
     "detachEntry": "Dissocier l’entrée",
     "colorValue": "Valeur de couleur",
     "laneTrack": "Piste {{name}}",
-    "selectLane": "Choisir une piste"
+    "selectLane": "Choisir une piste",
+    "newActTrack": "Nouvelle piste d’actes",
+    "actLevelName": "Actes",
+    "setActTrack": "Utiliser comme piste d’actes · {{name}}",
+    "unsetActTrack": "Revenir à une piste normale · {{name}}",
+    "newEntryInLane": "Nouvelle entrée"
   },
   "templateEditor": {
     "new_template": "Nouveau modèle",

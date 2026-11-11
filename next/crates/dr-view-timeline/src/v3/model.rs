@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const UNIT: f32 = 20.0;
 pub const DEFAULT_SPAN: f64 = 4.0;
+pub const SHORT_ACT_SPAN: f64 = 0.9;
 pub const RAIL: f32 = 148.0;
 pub const HEAD: f32 = 30.0;
 pub const RULER: f32 = 40.0;
@@ -15,6 +16,7 @@ pub struct Lane {
     pub id: String,
     pub title: String,
     pub color: Option<String>,
+    pub act_track: bool,
     pub members: usize,
     pub clips: Vec<TimelinePlacement>,
 }
@@ -24,7 +26,8 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
     for m in &book.memberships {
         membership.entry(&m.host).or_default().insert(&m.member);
     }
-    view.lanes
+    let mut out: Vec<Lane> = view
+        .lanes
         .iter()
         .filter_map(|l| {
             let e = book.entry(&l.entry).filter(|e| e.deleted_at.is_none())?;
@@ -48,11 +51,14 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
                 id: l.entry.clone(),
                 title: e.title.clone(),
                 color: book.appearance(&e.id).and_then(|a| a.color),
+                act_track: l.act_track == Some(true),
                 members: members.map_or(0, BTreeSet::len),
                 clips,
             })
         })
-        .collect()
+        .collect();
+    out.sort_by_key(|l| !l.act_track);
+    out
 }
 
 /// Dropping a lane from a view retains its entry and memberships. Only

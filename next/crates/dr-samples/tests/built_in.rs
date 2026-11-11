@@ -302,7 +302,7 @@ fn an_interrupted_attempt_is_cleaned_up_and_attempts_run_out() {
 }
 
 #[test]
-fn created_markers_never_resurrect_books_and_act_drift_remains_pending_without_choice() {
+fn created_markers_never_resurrect_books_and_act_drift_imports_into_act_track_by_default() {
     let dir = tempfile::tempdir().unwrap();
     let ws = open(dir.path());
     set_marker(
@@ -313,7 +313,8 @@ fn created_markers_never_resurrect_books_and_act_drift_remains_pending_without_c
     assert!(ws.library().docs(None, None).unwrap().is_empty());
     ws.shutdown().unwrap();
 
-    // Policy #22 (`act_binding`) remains pending when an act binds a drift node.
+    // Author settled 11-11 (#22): acts import into a top-level act track ("幕")
+    // by default without needing MappingChoices or creating an outline relation.
     let mut source = dr_samples::a_q().unwrap();
     let drift_node = source
         .book
@@ -336,14 +337,24 @@ fn created_markers_never_resurrect_books_and_act_drift_remains_pending_without_c
         .0
         .unwrap();
     let pending = dr_samples::v3::MappingChoices::default().pending(&source.book.view());
-    assert_eq!(
-        pending,
-        vec![dr_samples::v3::Pending {
-            code: "act-binding-relation-type-and-direction".into(),
-            source: "sample-act-with-drift".into(),
-        }]
+    assert!(pending.is_empty(), "{pending:?}");
+    let converted =
+        dr_samples::v3::convert(&source, &dr_samples::v3::MappingChoices::default()).unwrap();
+    let view = converted.book.view();
+    dr_samples::v3::validate(&view).unwrap();
+    let act_track = view
+        .root_entry_by_template(
+            &dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_ACT_TRACK).unwrap(),
+        )
+        .expect("top-level act track level");
+    assert_eq!(act_track.title, "幕");
+    assert_eq!(act_track.parent, None);
+    let timeline = &view.timeline_views_raw()[0];
+    assert_eq!(timeline.lanes[0].entry, act_track.id);
+    assert_eq!(timeline.lanes[0].act_track, Some(true));
+    assert!(
+        view.memberships_raw()
+            .iter()
+            .any(|m| { m.host == act_track.id && m.member.as_str() == drift_node.as_str() })
     );
-    assert!(dr_samples::v3::convert(&source, &dr_samples::v3::MappingChoices::default()).is_err());
-    let converted = dr_samples::v3::convert(&source, &common::test_choices(&source)).unwrap();
-    dr_samples::v3::validate(&converted.book.view()).unwrap();
 }

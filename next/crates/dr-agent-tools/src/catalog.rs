@@ -927,6 +927,7 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
         "timeline_view.rename"
             | "timeline_view.add_lane"
             | "timeline_view.move_lane"
+            | "timeline_view.set_lane_act_track"
             | "timeline_view.remove_lane"
     ) {
         return Some("local timeline edits need exact lane, placement, and pin read coverage");
@@ -1141,6 +1142,13 @@ mod tests {
         pending!(Rename, "timeline_view.rename", Write, Book, Some(3));
         pending!(AddLane, "timeline_view.add_lane", Write, Book, Some(3));
         pending!(MoveLane, "timeline_view.move_lane", Write, Book, Some(3));
+        pending!(
+            SetLaneActTrack,
+            "timeline_view.set_lane_act_track",
+            Write,
+            Book,
+            Some(3)
+        );
         pending!(
             RemoveLane,
             "timeline_view.remove_lane",

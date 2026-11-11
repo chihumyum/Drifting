@@ -32,6 +32,7 @@ pub enum TimelineFieldV3 {
     Name,
     Lane(EntryId),
     LanePosition(EntryId),
+    LaneActTrack(EntryId),
     Placement(EntryId),
 }
 impl TimelineFieldV3 {
@@ -40,6 +41,7 @@ impl TimelineFieldV3 {
             Self::Name => vec!["name"],
             Self::Lane(id) => vec!["lanes", id.as_str()],
             Self::LanePosition(id) => vec!["lanes", id.as_str(), "pos"],
+            Self::LaneActTrack(id) => vec!["lanes", id.as_str(), "act_track"],
             Self::Placement(id) => vec!["placements", id.as_str()],
         }
     }
@@ -207,6 +209,14 @@ impl<'a> BookViewV3<'a> {
                     ));
                 }
             },
+            TimelineFieldV3::LaneActTrack(_) => match &value {
+                None | Some(ValueOrContainer::Value(LoroValue::Null | LoroValue::Bool(_))) => {}
+                _ => {
+                    return Err(DocError::NotInProfile(
+                        "timeline scalar uses an unsupported representation",
+                    ));
+                }
+            },
             TimelineFieldV3::Lane(_) | TimelineFieldV3::Placement(_) => match &value {
                 None => {}
                 Some(ValueOrContainer::Container(Container::Map(_))) => {
@@ -287,6 +297,14 @@ impl<'a> BookViewV3<'a> {
                 Ok((
                     selected_timeline_map(self.doc, &lanes, lane.as_str(), false)?,
                     "pos".into(),
+                ))
+            }
+            TimelineFieldV3::LaneActTrack(lane) => {
+                let lanes = selected_timeline_map(self.doc, &view, "lanes", false)?
+                    .expect("required lanes");
+                Ok((
+                    selected_timeline_map(self.doc, &lanes, lane.as_str(), false)?,
+                    "act_track".into(),
                 ))
             }
         }
@@ -993,9 +1011,11 @@ impl<'a> BookViewV3<'a> {
             Some(LoroValue::Map(m)) => m
                 .iter()
                 .filter_map(|(eid, lv)| {
+                    let lf = F(lv);
                     Some(TimelineLane {
                         entry: EntryId::parse(eid).ok()?,
-                        pos: F(lv).pos("pos"),
+                        pos: lf.pos("pos"),
+                        act_track: lf.bool("act_track"),
                     })
                 })
                 .collect(),

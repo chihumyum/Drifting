@@ -108,5 +108,6 @@ timeline_view.remove_lane    command  book     Remove one v3 view lane and newly
 timeline_view.remove_pin     command  book     Remove a time pin from a v3 timeline view.
 timeline_view.rename         command  book     Rename a v3 timeline view without changing its lanes, positions or pins.
 timeline_view.restore_fields command  book     Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view.
+timeline_view.set_lane_act_track command  book     Switch whether a stored lane in a v3 view is displayed as a top act track.
 todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.
 writing_day.record           command  book     Set this device's words for one day of a book (the writing-day recorder; not undoable).

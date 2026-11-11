@@ -212,7 +212,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `entries` | LoroTree | 一个条目树；节点 meta 有 `id`、`title`、`template`、`overrides`、`fields`、`kv:<模块 id>`、`primary`、`layout`、时间戳；兄弟顺序即文稿顺序 |
 | `templates` | LoroMap | 模板 id → 模板：`kind` 为 `level`／`leaf`，另有 `name`、`mark`、`color`、`agent`、`modules`、`deleted_at`；层级另有 `settings`、`lane`、`verbs` |
 | `memberships` | LoroMap | `<层级 id>\|<条目 id>` → `{host, member, pos, created_at}`；归属不改变住处 |
-| `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；三个子表分别按泳道条目 id、条目 id、时间钉 id 寻址 |
+| `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；三个子表分别按泳道条目 id、条目 id、时间钉 id 寻址；`lanes[<泳道条目 id>]` 含 `{pos, act_track?}` |
 | `patches` | LoroMap | 补丁 id → `{entry, module, source_entry, source_module, source_block, source_text, anchor, invalidated_at, title, body, pos}`；`body` 仍是可合并文本 |
 | `plot_grids` | LoroMap | `<条目 id>/<模块 id>` → 行、列、格子和尺寸；内容格式沿用 v2.2 |
 | `relation_types` | LoroMap | 共用关系类型字段，另有 `source_templates`／`target_templates`；端点种类为 entry／material／comment／patch |
@@ -247,7 +247,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ### 归属与时间线
 
-一个条目只有一个树上住处，可以归属多个接收层级；`primary` 必须是有效归属。视图的泳道引用开启 `lane` 的层级条目，泳道顺序独立于树。树上住在泳道下不自动构成时间线归属。位置按条目保存，同一视图中多个泳道共用一个位置，不同视图互不影响；拿出最后一个有效泳道时连同该视图的位置清除，共享泳道影响的所有视图一起处理。时间钉有 `at`、`label`、`color` 和可选条目引用，不是内置幕；删除视图不删除泳道条目。
+一个条目只有一个树上住处，可以归属多个接收层级；`primary` 必须是有效归属。视图的泳道引用开启 `lane` 的层级条目，泳道顺序独立于树；`lanes[<泳道条目 id>]` 的可选布尔字段 `act_track` 标记该泳道在当前视图顶部作为幕轨道按区间长度展示（缺省为普通泳道，每个时间线视图可有零到多条，新书默认没有）。树上住在泳道下不自动构成时间线归属。位置按条目保存，同一视图中多个泳道共用一个位置，不同视图互不影响；拿出最后一个有效泳道时连同该视图的位置清除，共享泳道影响的所有视图一起处理。时间钉有 `at`、`label`、`color` 和可选条目引用，不是内置幕；删除视图不删除泳道条目。
 
 ## 书目文档（v2.2）
 

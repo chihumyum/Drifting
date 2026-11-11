@@ -33,25 +33,7 @@ fn eid(s: &str) -> EntryId {
 
 fn choices() -> MappingChoices {
     MappingChoices {
-        act_binding: Some(ActBindingChoice {
-            act_is_source: true,
-            relation_type: RelationTypeV3 {
-                id: RelationTypeId::parse("test-act-binding").unwrap(),
-                name: "测试幕注".into(),
-                normalized_name: "测试幕注".into(),
-                description: String::new(),
-                orientation: RelationOrientation::Directed,
-                system_key: None,
-                locked: false,
-                source_role: String::new(),
-                target_role: String::new(),
-                color: None,
-                source_kinds: vec![EntityKind::Entry],
-                target_kinds: vec![EntityKind::Entry],
-                source_templates: vec![tid(TPL_GROUP)],
-                target_templates: vec![tid(TPL_IDEA)],
-            },
-        }),
+        profile: Some("test-explicit".into()),
     }
 }
 
@@ -63,6 +45,11 @@ fn entry_id(view: &BookViewV3<'_>, entry: &manifest::Entry) -> EntryId {
         Ideas => root(TPL_IDEAS),
         Elements => root(TPL_ELEMENTS),
         Storylines => root(TPL_STORYLINES),
+        ActTrack => root(TPL_ACT_TRACK),
+        ActLeaf { synthetic_rank, .. } => view.children_of(Some(&root(TPL_ACT_TRACK)))
+            [*synthetic_rank]
+            .id
+            .clone(),
         Act(id) | Node(id) | IdeaGroup(id) | Category(id) | Element(id) | Storyline(id) => eid(id),
         ElementGroup { category, name } => {
             view.children_of(Some(&eid(category)))
@@ -240,6 +227,15 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(actual.layout.grid, x.zip(*y));
         }
     }
+    if !expected.default_view.act_tracks.is_empty() {
+        let act_track_id = entry_id(view, &manifest::Entry::ActTrack);
+        assert!(!act_track_id.as_str().starts_with("root-"));
+        let act_settings = view.level_settings(Some(&act_track_id));
+        assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
+        assert!(act_settings.allow.is_empty());
+        assert_eq!(act_settings.home, None);
+        assert!(act_settings.accept);
+    }
     let storylines_root = entry_id(view, &manifest::Entry::Storylines);
     let manuscript_root = entry_id(view, &manifest::Entry::Manuscript);
     let unaffiliated_id = entry_id(view, &manifest::Entry::Unaffiliated);
@@ -277,10 +273,14 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert_eq!(actual.title, leaf.title);
         assert_eq!(actual.parent, leaf.home.as_ref().map(|e| entry_id(view, e)));
         assert_eq!(actual.template, leaf.template.as_ref().map(template_id));
-        assert_eq!(
-            text(&actual, "summary").as_deref(),
-            Some(leaf.summary.as_str())
-        );
+        if matches!(leaf.entry, manifest::Entry::ActLeaf { .. }) {
+            assert_eq!(text(&actual, "summary"), None);
+        } else {
+            assert_eq!(
+                text(&actual, "summary").as_deref(),
+                Some(leaf.summary.as_str())
+            );
+        }
         if let Some(status) = &leaf.status {
             assert_eq!(text(&actual, "status").as_ref(), Some(status));
         }
@@ -385,6 +385,19 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .map(|e| entry_id(view, e))
             .collect::<Vec<_>>()
     );
+    let want_act_tracks: BTreeSet<_> = expected
+        .default_view
+        .act_tracks
+        .iter()
+        .map(|e| entry_id(view, e))
+        .collect();
+    for lane in &timeline.lanes {
+        if want_act_tracks.contains(&lane.entry) {
+            assert_eq!(lane.act_track, Some(true));
+        } else {
+            assert_eq!(lane.act_track, None);
+        }
+    }
     let mut positions: Vec<_> = timeline
         .placements
         .iter()
@@ -501,10 +514,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         );
         assert_eq!(actual.metadata.as_deref(), row["metadata_json"].as_str());
     }
-    assert_eq!(
-        view.relations_raw().len(),
-        expected.relations.len() + expected.act_bindings.len()
-    );
+    assert_eq!(view.relations_raw().len(), expected.relations.len());
     for relation in &expected.relations {
         let actual = view
             .relations_raw()
@@ -522,15 +532,6 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert_eq!(
             (actual.from, actual.to, actual.relation_type.to_string()),
             (from, to, relation.relation_type.clone())
-        );
-    }
-    for binding in &expected.act_bindings {
-        assert!(
-            view.relations_raw()
-                .iter()
-                .any(|r| r.relation_type.as_str() == "test-act-binding"
-                    && r.from.id == entry_id(view, &binding.act).as_str()
-                    && r.to.id == entry_id(view, &binding.idea).as_str())
         );
     }
     assert_eq!(
@@ -699,8 +700,27 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
 
 #[test]
 fn undecided_mapping_stops_before_target_or_device_writes() {
-    let old = fixture::build();
+    // 1. Default MappingChoices now imports the complete v3 fixture cleanly
+    //    (policies #22, #23, and #25 are all author-settled 11-11 defaults).
+    let clean = fixture::build();
     let temp = tempfile::tempdir().unwrap();
+    let clean_root = temp.path().join("library-default");
+    let mut default_opts = options(&clean);
+    default_opts.v3 = MappingChoices::default();
+    let (outcome, _) = run::import(&clean.db, &clean_root, &default_opts).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(r) if r.books[0].status == "imported"));
+
+    // 2. A source preflight blocker (e.g. an act bound to a non-idea chapter node)
+    //    still stops before claiming device identity or creating library.sqlite.
+    let old = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.execute(
+            "UPDATE book_act SET drift_node_id = ?1 WHERE id = 'act-1'",
+            [CHAPTER],
+        )
+        .unwrap();
+    }
     let root = temp.path().join("library");
     let device = temp.path().join("device");
     let mut options = options(&old);
@@ -711,10 +731,7 @@ fn undecided_mapping_stops_before_target_or_device_writes() {
         panic!("{error}")
     };
     let codes: BTreeSet<_> = pending.iter().map(|p| p.code.as_str()).collect();
-    assert_eq!(
-        codes,
-        BTreeSet::from(["act-binding-relation-type-and-direction"])
-    );
+    assert_eq!(codes, BTreeSet::from(["act-binding-not-an-idea"]));
     assert!(!device.exists());
     assert!(!root.join("library.sqlite").exists());
 }
@@ -877,13 +894,7 @@ fn interrupted_v3_import_resumes_with_the_same_policy_and_rejects_another_path()
     assert!(lib.doc_info(&format!("book:{BOOK}")).unwrap().is_none());
     lib.close().unwrap();
     let mut changed = options(&old);
-    changed
-        .v3
-        .act_binding
-        .as_mut()
-        .unwrap()
-        .relation_type
-        .description = "different test policy".into();
+    changed.v3.profile = Some("different test policy".into());
     assert!(
         matches!(run::import(&old.db,&root,&changed),Err(dr_import_v1::ImportError::Invalid(message)) if message.contains("mapping policy"))
     );
@@ -1069,9 +1080,42 @@ fn historical_kv_and_custom_fields_can_share_the_builtin_summarys_display_name()
 }
 
 #[test]
-fn the_development_cli_exposes_v3_preflight_without_choosing_policy() {
-    let old = fixture::build();
+fn the_development_cli_exposes_v3_preflight_and_imports_default_acts() {
+    let blocked = fixture::build();
+    let c = rusqlite::Connection::open(&blocked.db).unwrap();
+    c.execute(
+        "UPDATE book_act SET drift_node_id = ?1",
+        rusqlite::params![CHAPTER],
+    )
+    .unwrap();
+    drop(c);
     let temp = tempfile::tempdir().unwrap();
+    let blocked_root = temp.path().join("blocked");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_m10-import"))
+        .args(["import"])
+        .arg(&blocked.db)
+        .arg("--to")
+        .arg(&blocked_root)
+        .args(["--v3", "--no-index"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["outcome"], "v3-pending");
+    assert!(
+        value["pending"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["code"] == "act-binding-not-an-idea")
+    );
+    assert!(!blocked_root.join("library.sqlite").exists());
+
+    let old = fixture::build();
     let root = temp.path().join("library");
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_m10-import"))
         .args(["import"])
@@ -1087,9 +1131,8 @@ fn the_development_cli_exposes_v3_preflight_without_choosing_policy() {
         String::from_utf8_lossy(&output.stderr)
     );
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value["outcome"], "v3-pending");
-    assert!(!value["pending"].as_array().unwrap().is_empty());
-    assert!(!root.join("library.sqlite").exists());
+    assert_eq!(value["outcome"], "imported");
+    assert!(root.join("library.sqlite").exists());
 }
 
 #[test]
@@ -2010,6 +2053,7 @@ fn default_unaffiliated_lane_created_only_when_needed_and_placed_last_under_stor
     assert_eq!(initial_kv.len(), 1);
     assert_eq!(initial_kv[0].key, "目标");
 
+    let act_track_id = view.root_entry_by_template(&tid(TPL_ACT_TRACK)).unwrap().id;
     let timeline = &view.timeline_views_raw()[0];
     assert_eq!(
         timeline
@@ -2018,6 +2062,7 @@ fn default_unaffiliated_lane_created_only_when_needed_and_placed_last_under_stor
             .map(|l| l.entry.clone())
             .collect::<Vec<_>>(),
         [
+            act_track_id,
             eid(fixture::STORYLINE_OTHER),
             eid(STORYLINE),
             unaffiliated.id.clone(),
@@ -2123,13 +2168,21 @@ fn default_unaffiliated_lane_created_only_when_needed_and_placed_last_under_stor
             .collect::<Vec<_>>(),
         [fixture::STORYLINE_OTHER, STORYLINE]
     );
+    let act_track_no_unaff = view_no_unaff
+        .root_entry_by_template(&tid(TPL_ACT_TRACK))
+        .unwrap()
+        .id;
     assert_eq!(
         view_no_unaff.timeline_views_raw()[0]
             .lanes
             .iter()
             .map(|l| l.entry.as_str())
             .collect::<Vec<_>>(),
-        [fixture::STORYLINE_OTHER, STORYLINE]
+        [
+            act_track_no_unaff.as_str(),
+            fixture::STORYLINE_OTHER,
+            STORYLINE
+        ]
     );
     lib_no_unaff.close().unwrap();
 }
@@ -2356,4 +2409,519 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
         !stored.iter().any(|(id, _, _)| id == generic_id.as_str()),
         "built-in relation type must not be written into import_original"
     );
+}
+
+#[test]
+fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched() {
+    use dr_import_v1::gate::Accept;
+
+    // Part A: when a legacy book has NO acts, no act track or TPL_ACT_TRACK is created.
+    let old_no_acts = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old_no_acts.db).unwrap();
+        c.execute("DELETE FROM book_act", []).unwrap();
+    }
+    let before_no_acts = source_tree_snapshot(&old_no_acts.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root_no_acts = temp.path().join("library-no-acts");
+    let mut opts_no_acts = Options::new("k3-v3-test");
+    opts_no_acts.accept = Accept::EVERYTHING;
+    opts_no_acts.v3 = MappingChoices::default();
+    opts_no_acts.old_root = Some(old_no_acts.root.clone());
+    opts_no_acts.verify_history = true;
+    opts_no_acts.index = false;
+    let (outcome_no_acts, _) = run::import(&old_no_acts.db, &root_no_acts, &opts_no_acts).unwrap();
+    assert!(matches!(outcome_no_acts, Outcome::Imported(_)));
+    assert_eq!(
+        before_no_acts,
+        source_tree_snapshot(&old_no_acts.root),
+        "source bytes, sizes and mtimes must never change"
+    );
+    let lib_no_acts = open(&root_no_acts);
+    let bytes_no_acts = lib_no_acts
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book_no_acts = BookDocV3::load(
+        BookId::parse(BOOK).unwrap(),
+        random_device_peer(),
+        &[bytes_no_acts],
+    )
+    .unwrap();
+    let view_no_acts = book_no_acts.view();
+    adapter::validate(&view_no_acts).unwrap();
+    assert!(view_no_acts.template(&tid(TPL_ACT_TRACK)).is_none());
+    assert!(
+        view_no_acts
+            .root_entry_by_template(&tid(TPL_ACT_TRACK))
+            .is_none()
+    );
+    assert!(
+        !view_no_acts
+            .entries_raw()
+            .iter()
+            .any(|e| e.parent.is_none() && e.title == "幕")
+    );
+    assert!(
+        view_no_acts.timeline_views_raw()[0]
+            .lanes
+            .iter()
+            .all(|l| l.act_track.is_none())
+    );
+    lib_no_acts.close().unwrap();
+
+    // Part B: comprehensive 8-case book:
+    //   1. 绑定 (`act-bound` -> live unplaced `idea-bound`)
+    //   2. 未绑定 (`act-unbound` -> `drift_node_id = NULL`)
+    //   3. 构想已删除 (`act-missing` hard-deleted + `act-trashed` soft-deleted `deleted_at`)
+    //   4. 一个构想绑多个幕 (`act-shared-1` & `act-shared-2` both bound to `idea-shared`)
+    //   5. 空幕 (`act-empty` with zero chapters)
+    //   6. 章节没有位置 (`act-unplaced` whose chapter has `narrative_order = NULL`)
+    //   7. 构想原来就有位置 (`act-placed-idea` bound to `IDEA` at `12.0`)
+    //   8. 重叠 (`act-bound` [10, 22] overlapping `act-unbound` [14, 24])
+    //   Plus: placed chapter before first act (`CHAPTER_BEFORE` at book_order -5, narrative 2)
+    //   generates NO act entry, and manuscript act groups remain intact.
+    const IDEA_BOUND: &str = "01900000-0000-7000-8000-0000000000d3";
+    const IDEA_TRASHED: &str = "01900000-0000-7000-8000-0000000000d4";
+    const IDEA_SHARED: &str = "01900000-0000-7000-8000-0000000000d5";
+    const IDEA_MISSING: &str = "01900000-0000-7000-8000-0000000000d9";
+
+    let old = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.pragma_update(None, "foreign_keys", false).unwrap();
+        c.execute("DELETE FROM book_act", []).unwrap();
+        // Give CHAPTER_BEFORE a narrative placement before the first act to verify
+        // pre-first-act chapters still never generate an act entry.
+        c.execute(
+            "UPDATE book_node SET narrative_order = 2.0 WHERE id = ?1",
+            [fixture::CHAPTER_BEFORE],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO node_storyline_link (node_id, storyline_id, is_primary) VALUES (?1, ?2, 1)",
+            rusqlite::params![fixture::CHAPTER_BEFORE, STORYLINE],
+        )
+        .unwrap();
+
+        for (id, title, group, deleted_at) in [
+            (IDEA_BOUND, "幕绑定构想", Some(SUBGROUP), None),
+            (IDEA_TRASHED, "已删幕构想", Some(GROUP), Some(T1)),
+            (IDEA_SHARED, "多幕共用构想", Some(GROUP), None),
+        ] {
+            c.execute(
+                "INSERT INTO book_node (id, project_id, title, summary, book_order, narrative_order, writing_status, kind, drift_group_id, position_x, position_y, deleted_at, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, '', NULL, NULL, 'drifting', 'drift', ?4, 15.0, -25.0, ?5, ?6, ?6)",
+                rusqlite::params![id, BOOK, title, group, deleted_at, T0],
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO node_content (node_id, content_json, created_at, updated_at) VALUES (?1, '{}', ?2, ?2)",
+                rusqlite::params![id, T0],
+            )
+            .unwrap();
+        }
+
+        for (id, name, color, start_order, drift) in [
+            (
+                "act-bound",
+                "第一幕·绑定",
+                Some("#aa0000"),
+                0.0,
+                Some(IDEA_BOUND),
+            ),
+            ("act-unbound", "第二幕·未绑", Some("#bb1100"), 10.0, None),
+            (
+                "act-missing",
+                "第三幕·硬删构想",
+                Some("#cc2200"),
+                20.0,
+                Some(IDEA_MISSING),
+            ),
+            (
+                "act-trashed",
+                "第四幕·回收站构想",
+                Some("#dd3300"),
+                30.0,
+                Some(IDEA_TRASHED),
+            ),
+            (
+                "act-shared-1",
+                "第五幕·共用甲",
+                Some("#ee4400"),
+                40.0,
+                Some(IDEA_SHARED),
+            ),
+            (
+                "act-shared-2",
+                "第六幕·共用乙",
+                Some("#ff5500"),
+                50.0,
+                Some(IDEA_SHARED),
+            ),
+            ("act-empty", "第七幕·空幕", None, 60.0, None),
+            ("act-unplaced", "第八幕·无位置章节", None, 70.0, None),
+            (
+                "act-placed-idea",
+                "第九幕·已有位置构想",
+                Some("#1166aa"),
+                80.0,
+                Some(IDEA),
+            ),
+        ] {
+            c.execute(
+                "INSERT INTO book_act (id, project_id, name, color, start_order, drift_node_id, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+                rusqlite::params![id, BOOK, name, color, start_order, drift, T0],
+            )
+            .unwrap();
+        }
+
+        // Reuse existing fixture chapters in act-bound (CHAPTER at book_order=5, narrative=10;
+        // CHAPTER_UNPLACED at book_order=12 -> move to 8, narrative=NULL) and act-unbound
+        // (CHAPTER_UNAFFILIATED at book_order=25 -> move to 15, narrative=20.0), then add the rest.
+        c.execute(
+            "UPDATE book_node SET book_order = 8.0 WHERE id = ?1",
+            [fixture::CHAPTER_UNPLACED],
+        )
+        .unwrap();
+        c.execute(
+            "UPDATE book_node SET book_order = 15.0, narrative_order = 20.0 WHERE id = ?1",
+            [fixture::CHAPTER_UNAFFILIATED],
+        )
+        .unwrap();
+
+        for (id, title, book_order, narrative_order) in [
+            (
+                "01900000-0000-7000-8000-0000000000c5",
+                "绑定幕末章",
+                6.0,
+                Some(18.0),
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000c6",
+                "未绑幕首章",
+                12.0,
+                Some(14.0),
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000c7",
+                "硬删幕章",
+                22.0,
+                Some(30.0),
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000c8",
+                "回收站幕章",
+                32.0,
+                Some(36.0),
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000c9",
+                "共用甲章",
+                42.0,
+                Some(42.0),
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000ca",
+                "共用乙章",
+                52.0,
+                Some(50.0),
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000cb",
+                "无叙事序幕章",
+                72.0,
+                None,
+            ),
+            (
+                "01900000-0000-7000-8000-0000000000cc",
+                "已摆构想幕章",
+                82.0,
+                Some(60.0),
+            ),
+        ] {
+            c.execute(
+                "INSERT INTO book_node (id, project_id, title, summary, book_order, narrative_order, writing_status, kind, position_x, position_y, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, '', ?4, ?5, 'draft', 'chapter', 0.0, 0.0, ?6, ?6)",
+                rusqlite::params![id, BOOK, title, book_order, narrative_order, T0],
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO node_content (node_id, content_json, created_at, updated_at) VALUES (?1, '{}', ?2, ?2)",
+                rusqlite::params![id, T0],
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO node_storyline_link (node_id, storyline_id, is_primary) VALUES (?1, ?2, 1)",
+                rusqlite::params![id, STORYLINE],
+            )
+            .unwrap();
+        }
+    }
+
+    let before = source_tree_snapshot(&old.root);
+    let root = temp.path().join("library-eight-cases");
+    let mut opts = Options::new("k3-v3-test");
+    opts.accept = Accept::EVERYTHING;
+    opts.v3 = MappingChoices::default();
+    opts.old_root = Some(old.root.clone());
+    opts.verify_history = true;
+    opts.index = false;
+
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected default 8-case act-track import to succeed")
+    };
+    assert_eq!(
+        before,
+        source_tree_snapshot(&old.root),
+        "source bytes, sizes and mtimes must never change"
+    );
+
+    // Report notes recorded in both structured Receipt and import-v1/summary.md.
+    let book_rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
+    assert_eq!(
+        book_rec
+            .notes
+            .0
+            .get("act-binding-shared-idea-split")
+            .copied(),
+        Some(1)
+    );
+    assert_eq!(
+        book_rec
+            .notes
+            .0
+            .get("act-binding-kept-existing-placement")
+            .copied(),
+        Some(1)
+    );
+    let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+    assert!(summary_md.contains("act-binding-shared-idea-split"));
+    assert!(summary_md.contains("act-binding-kept-existing-placement"));
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    adapter::validate(&view).unwrap();
+
+    // No outline / act-binding relation created.
+    assert!(
+        !view
+            .relation_types()
+            .iter()
+            .any(|rt| rt.name == "大纲" || rt.id.as_str().contains("act"))
+    );
+    assert!(
+        !view
+            .relations_raw()
+            .iter()
+            .any(|r| r.id.as_str().starts_with("import-act-binding-"))
+    );
+
+    // Top-level "幕" act track level & default view lane[0].
+    let act_track = view
+        .root_entry_by_template(&tid(TPL_ACT_TRACK))
+        .expect("root act track");
+    assert_eq!(act_track.title, "幕");
+    assert_eq!(act_track.parent, None);
+    assert!(!act_track.id.as_str().starts_with("root-"));
+    assert!(act_track.is_lane_level(&view.templates_map()));
+    let act_settings = view.level_settings(Some(&act_track.id));
+    assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
+    assert!(act_settings.allow.is_empty());
+    assert_eq!(act_settings.home, None);
+    assert!(act_settings.accept);
+
+    let timeline = &view.timeline_views_raw()[0];
+    assert_eq!(timeline.lanes[0].entry, act_track.id);
+    assert_eq!(timeline.lanes[0].act_track, Some(true));
+    assert!(timeline.lanes[1..].iter().all(|l| l.act_track.is_none()));
+
+    // Manuscript act groups under 书稿 remain intact, with CHAPTER_BEFORE first.
+    let manuscript_root = view
+        .root_entry_by_template(&tid(TPL_MANUSCRIPT))
+        .unwrap()
+        .id;
+    assert_eq!(
+        view.children_of(Some(&manuscript_root))
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect::<Vec<_>>(),
+        [
+            fixture::CHAPTER_BEFORE,
+            "act-bound",
+            "act-unbound",
+            "act-missing",
+            "act-trashed",
+            "act-shared-1",
+            "act-shared-2",
+            "act-empty",
+            "act-unplaced",
+            "act-placed-idea",
+        ]
+    );
+
+    // Synthetic entries residing directly under "幕" (6 acts: unbound, missing,
+    // trashed, shared-2, empty, unplaced). Pre-first-act CHAPTER_BEFORE creates none.
+    let synth_children = view.children_of(Some(&act_track.id));
+    assert_eq!(
+        synth_children
+            .iter()
+            .map(|e| e.title.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "第二幕·未绑",
+            "第三幕·硬删构想",
+            "第四幕·回收站构想",
+            "第六幕·共用乙",
+            "第七幕·空幕",
+            "第八幕·无位置章节",
+        ]
+    );
+    for child in &synth_children {
+        assert_eq!(child.parent, Some(act_track.id.clone()));
+        assert_eq!(child.template, Some(tid(TPL_IDEA)));
+        assert_eq!(child.deleted_at, None);
+    }
+
+    // Reused live ideas keep their original homes unchanged!
+    assert_eq!(
+        view.entry(&eid(IDEA_BOUND)).unwrap().parent,
+        Some(eid(SUBGROUP))
+    );
+    assert_eq!(
+        view.entry(&eid(IDEA_SHARED)).unwrap().parent,
+        Some(eid(GROUP))
+    );
+    assert_eq!(view.entry(&eid(IDEA)).unwrap().parent, Some(eid(SUBGROUP)));
+    // Soft-trashed idea was NOT bound into the act track.
+    assert!(
+        !view
+            .memberships_raw()
+            .iter()
+            .any(|m| m.host == act_track.id && m.member == eid(IDEA_TRASHED))
+    );
+
+    // Ordered memberships on "幕" equal all 9 acts in exact book order.
+    let mut track_members: Vec<_> = view
+        .memberships_raw()
+        .into_iter()
+        .filter(|m| m.host == act_track.id)
+        .collect();
+    track_members.sort_by(|a, b| a.pos.cmp(&b.pos).then_with(|| a.member.cmp(&b.member)));
+    let expected_members = [
+        eid(IDEA_BOUND),
+        synth_children[0].id.clone(),
+        synth_children[1].id.clone(),
+        synth_children[2].id.clone(),
+        eid(IDEA_SHARED),
+        synth_children[3].id.clone(),
+        synth_children[4].id.clone(),
+        synth_children[5].id.clone(),
+        eid(IDEA),
+    ];
+    assert_eq!(
+        track_members
+            .iter()
+            .map(|m| m.member.clone())
+            .collect::<Vec<_>>(),
+        expected_members
+    );
+
+    let placement_of = |id: &EntryId| -> Option<(f64, Option<f64>)> {
+        timeline
+            .placements
+            .iter()
+            .find(|p| &p.entry == id)
+            .map(|p| (p.at, p.span))
+    };
+
+    // Case 1 (`绑定`) + Case 8 (`重叠` with Case 2): chapters at 10.0 and 18.0 -> [10.0, 22.0] => (10.0, Some(12.0))
+    assert_eq!(placement_of(&eid(IDEA_BOUND)), Some((10.0, Some(12.0))));
+    // Case 2 (`未绑定`) + Case 8 (`重叠`): chapters at 14.0 and 20.0 -> [14.0, 24.0] => (14.0, Some(10.0))
+    assert_eq!(
+        placement_of(&synth_children[0].id),
+        Some((14.0, Some(10.0)))
+    );
+    // Case 3a (`构想已删除` hard-missing): chapter at 30.0 -> (30.0, Some(4.0))
+    assert_eq!(placement_of(&synth_children[1].id), Some((30.0, Some(4.0))));
+    // Case 3b (`构想已删除` soft-trashed): chapter at 36.0 -> (36.0, Some(4.0))
+    assert_eq!(placement_of(&synth_children[2].id), Some((36.0, Some(4.0))));
+    // Case 4 (`一个构想绑多个幕`): earliest act reuses IDEA_SHARED at (42.0, Some(4.0));
+    // second act creates synth_children[3] at (50.0, Some(4.0)).
+    assert_eq!(placement_of(&eid(IDEA_SHARED)), Some((42.0, Some(4.0))));
+    assert_eq!(placement_of(&synth_children[3].id), Some((50.0, Some(4.0))));
+    // Case 5 (`空幕`): membership present, NO placement!
+    assert_eq!(placement_of(&synth_children[4].id), None);
+    // Case 6 (`章节没有位置`): membership present, NO placement!
+    assert_eq!(placement_of(&synth_children[5].id), None);
+    // Case 7 (`构想原来就有位置`): keeps original (12.0, None) without overwriting with (60.0, Some(4.0))!
+    assert_eq!(placement_of(&eid(IDEA)), Some((12.0, None)));
+
+    lib.close().unwrap();
+
+    // Part C: when the act-track leaf template declares `color_field`, synthetic
+    // act entries carry over `act.color` via that `color_field` interface.
+    let mut seeded = dr_samples::a_q().unwrap();
+    let act_colored = ActId::parse("sample-act-colored").unwrap();
+    seeded
+        .book
+        .edit(dr_model::Origin::Import, |t| {
+            t.act(&act_colored)?
+                .name("彩幕")?
+                .color(Some("#336699"))?
+                .start_order(Some(0.0))?;
+            Ok(())
+        })
+        .0
+        .unwrap();
+    let mut colored_doc =
+        BookDocV3::create(seeded.book.book_id().clone(), random_device_peer()).unwrap();
+    colored_doc
+        .edit(dr_model::Origin::Import, |t| {
+            apply_novel_project_template(t)?;
+            let mut colored_leaf = t.view().template(&tid(TPL_IDEA)).unwrap();
+            colored_leaf.id = tid("tpl-colored-act-leaf");
+            let fields_mod = colored_leaf
+                .modules
+                .iter_mut()
+                .find(|m| m.id == mid(MOD_FIELDS))
+                .unwrap();
+            fields_mod.config.defs.push(FieldDef {
+                id: "act_color".into(),
+                name: "幕色".into(),
+                field_type: FieldType::Text,
+                options: Vec::new(),
+                target_template: None,
+                default_value: None,
+                pos: None,
+            });
+            fields_mod.config.color_field = Some("act_color".into());
+            t.template(&colored_leaf.id)?.set_full(&colored_leaf)?;
+
+            let mut custom_track = dr_doc::v3::act_track_level_template();
+            custom_track.settings.default_template = Some(Some(colored_leaf.id.clone()));
+            t.template(&custom_track.id)?.set_full(&custom_track)?;
+
+            adapter::sync_catalog(t, &seeded.book.view(), &MappingChoices::default())
+        })
+        .0
+        .unwrap();
+    let cview = colored_doc.view();
+    let ctrack = cview.root_entry_by_template(&tid(TPL_ACT_TRACK)).unwrap();
+    let cleaf = cview
+        .children_of(Some(&ctrack.id))
+        .into_iter()
+        .find(|e| e.title == "彩幕")
+        .expect("synthetic colored act leaf");
+    assert_eq!(text(&cleaf, "act_color").as_deref(), Some("#336699"));
 }

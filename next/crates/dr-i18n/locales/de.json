@@ -1612,6 +1612,7 @@
     "trash": "Zu „Zuletzt gelöscht“ verschieben"
   },
   "v3Timeline": {
+    "actLevelName": "Akte",
     "addLane": "Spur hinzufügen",
     "bindEntry": "Eintrag verknüpfen",
     "colorValue": "Farbwert",
@@ -1621,6 +1622,8 @@
     "members": "{{count}} Mitglieder",
     "moveDown": "Nach unten",
     "moveUp": "Nach oben",
+    "newActTrack": "Neue Aktspur",
+    "newEntryInLane": "Neuer Eintrag",
     "newView": "Neue Ansicht",
     "placeEntry": "Eintrag platzieren",
     "placementActions": "Platzierungsaktionen",
@@ -1631,6 +1634,8 @@
     "resize": "Länge anpassen",
     "ruler": "Zeitlineal",
     "selectLane": "Spur auswählen",
+    "setActTrack": "Als Aktspur verwenden · {{name}}",
+    "unsetActTrack": "Als normale Spur verwenden · {{name}}",
     "views": "Zeitleistenansichten"
   },
   "voiceAgent": {

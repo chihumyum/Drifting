@@ -19,7 +19,9 @@ pub enum Entry {
     Ideas,
     Elements,
     Storylines,
+    ActTrack,
     Act(String),
+    ActLeaf { act: String, synthetic_rank: usize },
     Node(String),
     IdeaGroup(String),
     Category(String),
@@ -126,8 +128,10 @@ pub struct Pin {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct View {
-    /// Ordered old storylines, plus the required synthetic lane if needed.
+    /// Ordered lanes in the default view (top-level act track first when
+    /// legacy acts exist, then storylines, then Unaffiliated if needed).
     pub lanes: Vec<Entry>,
+    pub act_tracks: Vec<Entry>,
     pub placements: Vec<Placement>,
     pub pins: Vec<Pin>,
     pub book_order_view: bool,
@@ -171,13 +175,6 @@ pub struct Relation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ActBinding {
-    pub act: Entry,
-    pub idea: Entry,
-    // Deliberately no type/direction: the mapping does not decide them.
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Comment {
     pub old_id: String,
     pub kind: String,
@@ -213,7 +210,6 @@ pub struct Manifest {
     pub leaf_templates: Vec<Template>,
     pub memberships: Vec<Membership>,
     pub default_view: View,
-    pub act_bindings: Vec<ActBinding>,
     pub relations: Vec<Relation>,
     pub comments: Vec<Comment>,
     pub patches: Vec<Patch>,
@@ -238,7 +234,6 @@ pub struct Counts {
     pub lanes: usize,
     pub placements: usize,
     pub pins: usize,
-    pub act_binding_relations: usize,
     pub patches: usize,
     pub plot_grids: usize,
     pub notes: usize,
@@ -263,7 +258,6 @@ impl Manifest {
             lanes: self.default_view.lanes.len(),
             placements: self.default_view.placements.len(),
             pins: self.default_view.pins.len(),
-            act_binding_relations: self.act_bindings.len(),
             patches: n("element_patch"),
             plot_grids: n("plot_grid_document"),
             notes: self.source_rows["comment"]
@@ -319,7 +313,6 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             },
         ],
         memberships: Vec::new(),
-        act_bindings: Vec::new(),
         relations: Vec::new(),
         prose: Vec::new(),
         comments: Vec::new(),
@@ -327,6 +320,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         plot_grids: Vec::new(),
         default_view: View {
             lanes: vec![],
+            act_tracks: vec![],
             placements: vec![],
             pins: vec![],
             book_order_view: false,
@@ -394,12 +388,14 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         if act.start_order.is_none() {
             pending(&mut out, "act-without-boundary", &act.id);
         }
-        if let Some(idea) = &act.drift {
-            out.act_bindings.push(ActBinding {
-                act: Entry::Act(act.id.clone()),
-                idea: Entry::Node(idea.clone()),
-            });
-            pending(&mut out, "act-binding-relation-type-and-direction", &act.id);
+        if let Some(idea) = &act.drift
+            && rows
+                .nodes
+                .iter()
+                .find(|n| &n.id == idea)
+                .is_some_and(|n| n.kind != "drift")
+        {
+            pending(&mut out, "act-binding-not-an-idea", &act.id);
         }
     }
     for pair in acts.windows(2) {
@@ -558,17 +554,21 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             pending(&mut out, "idea-has-legacy-book-order", &node.id);
         }
         let links: Vec<_> = rows.links.iter().filter(|l| l.node == node.id).collect();
-        for link in &links {
-            out.memberships.push(Membership {
-                member: Entry::Node(node.id.clone()),
-                level: Entry::Storyline(link.storyline.clone()),
-                primary: link.primary,
-            });
+        if node.deleted_at.is_none() {
+            for link in &links {
+                out.memberships.push(Membership {
+                    member: Entry::Node(node.id.clone()),
+                    level: Entry::Storyline(link.storyline.clone()),
+                    primary: link.primary,
+                });
+            }
         }
         if links.iter().filter(|l| l.primary).count() > 1 {
             pending(&mut out, "multiple-primary-storylines", &node.id);
         }
-        if let Some(at) = node.narrative_order {
+        if node.deleted_at.is_none()
+            && let Some(at) = node.narrative_order
+        {
             if links.is_empty() {
                 out.memberships.push(Membership {
                     member: Entry::Node(node.id.clone()),
@@ -581,6 +581,110 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                 at,
                 span: None,
             });
+        }
+    }
+    if !acts.is_empty() {
+        // Author settled 11-11 (#22): legacy acts import into a top-level act
+        // track ("幕") placed at the top of the default timeline view.
+        out.levels.push(level(
+            Entry::ActTrack,
+            None,
+            "幕".into(),
+            None,
+            None,
+            Some(LeafTemplate::Idea),
+            true,
+            None,
+        ));
+        out.default_view.lanes.insert(0, Entry::ActTrack);
+        out.default_view.act_tracks.push(Entry::ActTrack);
+        let unambiguous_boundaries = acts.iter().all(|a| a.start_order.is_some())
+            && !acts
+                .windows(2)
+                .any(|p| p[0].start_order == p[1].start_order);
+        let mut claimed_ideas = BTreeSet::new();
+        let mut synthetic_rank = 0usize;
+        for act in &acts {
+            let interval = if unambiguous_boundaries {
+                let mut min_at: Option<f64> = None;
+                let mut max_end: Option<f64> = None;
+                for ch in rows.nodes.iter().filter(|n| {
+                    n.kind == "chapter" && n.deleted_at.is_none() && n.narrative_order.is_some()
+                }) {
+                    let owner = ch.book_order.and_then(|at| {
+                        acts.iter()
+                            .rev()
+                            .find(|a| a.start_order.is_some_and(|start| start <= at))
+                    });
+                    if owner.is_some_and(|a| a.id == act.id)
+                        && let Some(at) = ch.narrative_order
+                    {
+                        let end = at + 4.0;
+                        min_at = Some(min_at.map_or(at, |m| m.min(at)));
+                        max_end = Some(max_end.map_or(end, |m| m.max(end)));
+                    }
+                }
+                min_at.zip(max_end).map(|(at, end)| (at, end - at))
+            } else {
+                None
+            };
+            let live_idea = act.drift.as_ref().and_then(|id| {
+                rows.nodes
+                    .iter()
+                    .find(|n| &n.id == id && n.kind == "drift" && n.deleted_at.is_none())
+            });
+            if let Some(idea) = live_idea
+                && claimed_ideas.insert(idea.id.clone())
+            {
+                let member = Entry::Node(idea.id.clone());
+                out.memberships.push(Membership {
+                    member: member.clone(),
+                    level: Entry::ActTrack,
+                    primary: false,
+                });
+                if idea.narrative_order.is_none()
+                    && let Some((at, span)) = interval
+                {
+                    out.default_view.placements.push(Placement {
+                        entry: member,
+                        at,
+                        span: Some(span),
+                    });
+                }
+            } else {
+                let act_leaf = Entry::ActLeaf {
+                    act: act.id.clone(),
+                    synthetic_rank,
+                };
+                synthetic_rank += 1;
+                out.leaves.push(Leaf {
+                    entry: act_leaf.clone(),
+                    home: Some(Entry::ActTrack),
+                    template: Some(LeafTemplate::Idea),
+                    title: act.name.clone(),
+                    order: None,
+                    summary: String::new(),
+                    status: None,
+                    aliases: vec![],
+                    portrait: None,
+                    fields: vec![],
+                    kv: vec![],
+                    layout: None,
+                    deleted_at: None,
+                });
+                out.memberships.push(Membership {
+                    member: act_leaf.clone(),
+                    level: Entry::ActTrack,
+                    primary: false,
+                });
+                if let Some((at, span)) = interval {
+                    out.default_view.placements.push(Placement {
+                        entry: act_leaf,
+                        at,
+                        span: Some(span),
+                    });
+                }
+            }
         }
     }
     if out
@@ -882,11 +986,6 @@ fn validate_references(out: &mut Manifest) {
     for m in &out.memberships {
         if !entries.contains(&m.member) || !levels.contains_key(&m.level) {
             issues.push(("dangling-membership", format!("{m:?}")));
-        }
-    }
-    for b in &out.act_bindings {
-        if !entries.contains(&b.idea) {
-            issues.push(("dangling-act-binding", format!("{:?}", b.act)));
         }
     }
     for p in &out.default_view.pins {

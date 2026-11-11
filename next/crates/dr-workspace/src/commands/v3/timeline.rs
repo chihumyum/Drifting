@@ -1,9 +1,16 @@
 use super::*;
 mod edit;
 pub use edit::{
-    Field, LaneAdd, LaneAddIn, LaneIn, LaneMove, LaneMoveIn, LaneRemove, RenameIn, RestoreFields,
-    RestoreFieldsIn, ViewRename,
+    Field, LaneActTrackIn, LaneAdd, LaneAddIn, LaneIn, LaneMove, LaneMoveIn, LaneRemove,
+    LaneSetActTrack, RenameIn, RestoreFields, RestoreFieldsIn, ViewRename,
 };
+
+/// Built-in swimlane level template for an act track (`tpl-act-track`).
+pub fn act_track_template(name: String) -> types::EntryTemplate {
+    let mut tpl = dr_doc::v3::act_track_level_template();
+    tpl.name = name;
+    convert(tpl).expect("valid built-in act track template")
+}
 pub(crate) fn register(r: &mut Registry) {
     edit::register(r);
     r.add::<ViewList>()
@@ -88,7 +95,8 @@ op! {
                 }
             }
             for l in tv.lanes {
-                w.put_lane(&l.entry, l.pos.as_ref())?;
+                w.put_lane(&l.entry, l.pos.as_ref())?
+                    .set_lane_act_track(&l.entry, l.act_track)?;
             }
             for p in tv.placements {
                 w.put_placement(&p.entry, p.at, p.span)?;
@@ -197,10 +205,12 @@ pub struct RemoveIn {
 op! {
     Remove="timeline_view.remove",Write,Book,"Remove an entry from a timeline lane and prune positions where it has no remaining lane.",fn(cx,input:RemoveIn)->Done {
         let s = cx.book_v3(&input.book)?;
-        let tv = view(&s.reader_v3.view(), &input.view)?;
+        let v = s.reader_v3.view();
+        let tv = view(&v, &input.view)?;
         if !tv.lanes.iter().any(|l| l.entry.as_str() == input.lane) {
             return Err(WsError::invalid("lane is not in this view"));
         }
+        live(&v, &input.entry)?;
         <membership::MembershipRemove as crate::registry::Op>::run(
             cx,
             membership::In {

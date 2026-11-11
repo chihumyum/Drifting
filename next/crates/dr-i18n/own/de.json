@@ -166,7 +166,12 @@
     "detachEntry": "Eintrag lösen",
     "colorValue": "Farbwert",
     "laneTrack": "Spur {{name}}",
-    "selectLane": "Spur auswählen"
+    "selectLane": "Spur auswählen",
+    "newActTrack": "Neue Aktspur",
+    "actLevelName": "Akte",
+    "setActTrack": "Als Aktspur verwenden · {{name}}",
+    "unsetActTrack": "Als normale Spur verwenden · {{name}}",
+    "newEntryInLane": "Neuer Eintrag"
   },
   "templateEditor": {
     "new_template": "Neue Vorlage",

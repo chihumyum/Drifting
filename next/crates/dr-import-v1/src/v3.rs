@@ -21,7 +21,7 @@ use crate::prose::Notes;
 use crate::run::Options;
 use crate::{ImportError, Result};
 
-pub use dr_samples::v3::{ActBindingChoice, MappingChoices, Pending, category_template};
+pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
@@ -129,9 +129,9 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             if act
                 .drift
                 .as_ref()
-                .is_some_and(|id| !rows.nodes.iter().any(|n| &n.id == id && n.kind == "drift"))
+                .is_some_and(|id| rows.nodes.iter().any(|n| &n.id == id && n.kind != "drift"))
             {
-                add("act-binding-missing-idea", &act.id);
+                add("act-binding-not-an-idea", &act.id);
             }
         }
         for tree in [&rows.groups, &rows.folders] {

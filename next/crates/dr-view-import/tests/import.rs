@@ -143,11 +143,12 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
         .unwrap()
         .get_deep_value();
     let (_view, cx) = setup(cx, lib);
-    let old = common::build_v3(true);
-    let before = source_files(&old.root);
-    configure(cx, &old.root);
-    let target = importer(cx).read_with(cx, |i, _| i.destination().unwrap().target());
-    assert_ne!(target, original);
+    // 1. Prewrite V3Pending stops before creating target or libraries.json.
+    let bad = common::build(true);
+    let bad_before = source_files(&bad.root);
+    configure(cx, &bad.root);
+    let bad_target = importer(cx).read_with(cx, |i, _| i.destination().unwrap().target());
+    assert_ne!(bad_target, original);
     start(cx);
     let State::Ready(ready) = settled(cx) else {
         panic!("expected structured pending")
@@ -156,15 +157,23 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
         ready
             .pending
             .iter()
-            .any(|p| p.code == "act-binding-relation-type-and-direction")
+            .any(|p| p.code == "invalid-or-duplicate-source-relation")
     );
-    assert!(!target.exists());
+    assert!(!bad_target.exists());
     assert!(!dir.path().join(dr_account::LIBRARIES_FILE).exists());
-    // Accepting stale caches cannot bypass a policy pending.
+    // Accepting stale caches cannot bypass a preflight pending.
     let i = importer(cx);
     cx.update(|w, cx| i.update(cx, |i, cx| i.import_anyway(w, cx)));
     assert!(matches!(state(cx), State::Ready(_)));
-    choices(cx);
+    assert_eq!(bad_before, source_files(&bad.root));
+
+    // 2. Clean 0.1 library with act drift binding now imports directly into a
+    //    new preferred v3 library with default MappingChoices and creates "幕".
+    let old = common::build_v3(true);
+    let before = source_files(&old.root);
+    configure(cx, &old.root);
+    let target = importer(cx).read_with(cx, |i, _| i.destination().unwrap().target());
+    assert_ne!(target, original);
     start(cx);
     let State::Done(done) = settled(cx) else {
         panic!("{:?}", state(cx))
@@ -175,7 +184,14 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
     let current = active(cx);
     assert_eq!(current.library().paths().root, target);
     let snapshot = dr_shell::book::Book::load(&current, common::BOOK).unwrap();
-    assert!(snapshot.v3().is_some());
+    let v3_doc = snapshot.v3().expect("canonical v3 book");
+    let act_track = v3_doc
+        .entries
+        .iter()
+        .find(|e| e.parent.is_none() && e.template.as_deref() == Some("tpl-act-track"))
+        .expect("imported act track");
+    assert_eq!(act_track.title, "幕");
+    assert_eq!(v3_doc.timeline_views[0].lanes[0].act_track, Some(true));
     assert!(current.library().stale_index_docs().unwrap().is_empty());
     let made = current
         .call(
