@@ -27,8 +27,14 @@ struct StoredObject {
 
 struct ServerState {
     expected_token: String,
+    synthetic_user_id: String,
+    synthetic_email: String,
+    synthetic_name: String,
     offline: bool,
+    forced_status_error: Option<u16>,
+    request_delay: Duration,
     remaining_ok_requests: Option<usize>,
+    sync_request_count: usize,
     quota_bytes: u64,
     hard_limit_bytes: u64,
     used_bytes_override: Option<u64>,
@@ -38,7 +44,8 @@ struct ServerState {
 }
 
 /// Loopback fake server implementing `/api/sync/v1/usage` and
-/// `/api/sync/v1/loro-v2/...`.
+/// `/api/sync/v1/loro-v2/...` (plus synthetic loopback `/api/auth/...` session
+/// bootstrap routes for two-window offline smoke testing).
 pub struct FakeSyncServer {
     base_url: String,
     state: Arc<Mutex<ServerState>>,
@@ -57,8 +64,14 @@ impl FakeSyncServer {
 
         let state = Arc::new(Mutex::new(ServerState {
             expected_token: expected_token.into(),
+            synthetic_user_id: "synthetic-sync-user-1".into(),
+            synthetic_email: "synthetic-sync@loopback.invalid".into(),
+            synthetic_name: "Synthetic Author".into(),
             offline: false,
+            forced_status_error: None,
+            request_delay: Duration::ZERO,
             remaining_ok_requests: None,
+            sync_request_count: 0,
             quota_bytes: DEFAULT_QUOTA_BYTES,
             hard_limit_bytes: DEFAULT_HARD_LIMIT_BYTES,
             used_bytes_override: None,
@@ -118,6 +131,33 @@ impl FakeSyncServer {
 
     pub fn set_expected_token(&self, token: impl Into<String>) {
         self.state.lock().expect("lock").expected_token = token.into();
+    }
+
+    pub fn set_synthetic_user(
+        &self,
+        user_id: impl Into<String>,
+        email: impl Into<String>,
+        name: impl Into<String>,
+    ) {
+        let mut guard = self.state.lock().expect("lock");
+        guard.synthetic_user_id = user_id.into();
+        guard.synthetic_email = email.into();
+        guard.synthetic_name = name.into();
+    }
+
+    /// Force sync endpoints to respond with an HTTP error status (e.g. `502` or `503`)
+    /// for testing retry/backoff and problem escalation.
+    pub fn set_forced_status_error(&self, status: Option<u16>) {
+        self.state.lock().expect("lock").forced_status_error = status;
+    }
+
+    /// Inject an artificial per-request delay (e.g. to test mid-sync edits or >= 3s breathing mark).
+    pub fn set_request_delay(&self, delay: Duration) {
+        self.state.lock().expect("lock").request_delay = delay;
+    }
+
+    pub fn sync_request_count(&self) -> usize {
+        self.state.lock().expect("lock").sync_request_count
     }
 
     pub fn stored_object_count(&self) -> usize {
@@ -193,6 +233,11 @@ fn handle_connection(
     }
     let body = &buf[header_end..(header_end + content_length).min(buf.len())];
 
+    let delay = state.lock().expect("lock").request_delay;
+    if !delay.is_zero() {
+        thread::sleep(delay);
+    }
+
     let mut guard = state.lock().expect("lock");
     if guard.offline {
         // Close socket abruptly to simulate network offline error.
@@ -205,6 +250,20 @@ fn handle_connection(
         *rem -= 1;
     }
 
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+
+    if method == "GET" && path == "/api/auth/providers" {
+        return write_json(
+            &mut stream,
+            200,
+            &json!({
+                "emailPassword": true,
+                "google": false,
+                "apple": false
+            }),
+        );
+    }
+
     let expected_bearer = format!("Bearer {}", guard.expected_token);
     if auth_header != expected_bearer {
         return write_json(
@@ -214,7 +273,39 @@ fn handle_connection(
         );
     }
 
-    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    if method == "GET" && path == "/api/auth/get-session" {
+        return write_json(
+            &mut stream,
+            200,
+            &json!({
+                "user": {
+                    "id": guard.synthetic_user_id,
+                    "email": guard.synthetic_email,
+                    "name": guard.synthetic_name,
+                    "emailVerified": true
+                },
+                "session": {
+                    "id": "synthetic-loopback-session"
+                }
+            }),
+        );
+    }
+
+    if method == "POST" && path == "/api/auth/sign-out" {
+        return write_json(&mut stream, 200, &json!({ "success": true }));
+    }
+
+    if path.starts_with("/api/sync/v1/") {
+        guard.sync_request_count = guard.sync_request_count.saturating_add(1);
+        if let Some(status) = guard.forced_status_error {
+            return write_json(
+                &mut stream,
+                status,
+                &json!({ "code": "UPSTREAM_ERROR", "message": "Injected server error" }),
+            );
+        }
+    }
+
     let objects_prefix = format!("/api/sync/v1/{SYNC_NAMESPACE_LORO_V2}/objects/");
     let changes_path = format!("/api/sync/v1/{SYNC_NAMESPACE_LORO_V2}/changes");
 

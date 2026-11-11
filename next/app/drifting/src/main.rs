@@ -13,6 +13,7 @@ mod check;
 mod identity;
 mod library;
 mod probe;
+mod sync;
 
 use std::path::Path;
 
@@ -178,12 +179,14 @@ fn main() {
         dr_shell::quit::hide_first(cx);
         // M35: Hosted account sign-in, first-run welcome step, and account library isolation.
         dr_view_account::init(
-            dr_view_account::Service::for_build(
+            sync::account_service_for_build(
                 platform,
                 dirs.as_ref().map(|dirs| dirs.data.as_path()),
             ),
             cx,
         );
+        // M36: automatic Hosted Sync v2 runtime, paper status mark, and release drain.
+        sync::init(platform, cx);
         // M24: the sea under the windows, the first run, the tour.
         dr_view_sea::shell::init(cx);
         // Stage 2 pages: the bookshelf opens first, Project Home is the
@@ -252,6 +255,9 @@ fn main() {
                     .spawn(async move { rx.await.unwrap_or_else(|_| Err("cancelled".into())) })
             }),
         );
+        // M36: final outbound sync drain after all editors/checkpoints settle,
+        // before the library closes or the app quits.
+        sync::register_final_drain(cx);
         // M42: updates, checked after launch and every three hours, installed
         // as the app quits. Last, so its quit hook runs after the others
         // have saved.

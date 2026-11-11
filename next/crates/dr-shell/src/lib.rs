@@ -41,6 +41,7 @@ pub mod quit;
 pub mod release;
 pub mod settings;
 pub mod strings;
+pub mod sync;
 pub mod workspace;
 
 use std::sync::Arc;

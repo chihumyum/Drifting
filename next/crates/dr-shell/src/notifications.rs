@@ -91,6 +91,9 @@ pub struct Notice {
     /// What clicking it opens: a book's document (`node:<id>`; M40's file
     /// that could not be merged opens its chapter).
     pub opens: Option<(String, String)>,
+    /// Active problems the author must act on stay pinned at the top and
+    /// cannot be dismissed or cleared until resolved (`sync-status.md`).
+    pub pinned: bool,
 }
 
 #[derive(Default)]
@@ -112,6 +115,20 @@ impl Notifications {
 
     pub fn unread(cx: &App) -> bool {
         cx.global::<Notifications>().unread
+    }
+
+    pub fn has_pinned(cx: &App) -> bool {
+        cx.try_global::<Notifications>()
+            .is_some_and(|n| n.items.iter().any(|item| item.pinned))
+    }
+
+    pub fn set_pinned(id: u64, pinned: bool, cx: &mut App) {
+        let n = cx.global_mut::<Notifications>();
+        if let Some(item) = n.items.iter_mut().find(|item| item.id == id) {
+            item.pinned = pinned;
+        }
+        n.items.sort_by_key(|item| !item.pinned);
+        cx.refresh_windows();
     }
 
     /// Posts a notice, newest first.
@@ -177,8 +194,13 @@ impl Notifications {
         let n = cx.global_mut::<Notifications>();
         n.next += 1;
         let id = n.next;
+        let index = n
+            .items
+            .iter()
+            .position(|item| !item.pinned)
+            .unwrap_or(n.items.len());
         n.items.insert(
-            0,
+            index,
             Notice {
                 id,
                 source,
@@ -187,6 +209,7 @@ impl Notifications {
                 crash_id,
                 action,
                 opens,
+                pinned: false,
             },
         );
         n.items.truncate(LIMIT);
@@ -204,7 +227,7 @@ impl Notifications {
 
     pub fn clear(cx: &mut App) {
         let n = cx.global_mut::<Notifications>();
-        n.items.clear();
+        n.items.retain(|item| item.pinned);
         n.unread = false;
         cx.refresh_windows();
     }
@@ -242,4 +265,39 @@ pub fn ago(at: SystemTime, now: SystemTime, cx: &App) -> SharedString {
         _ => (time::DAYS_AGO, secs / 86_400),
     };
     strings::tf(cx, key, &[("count", &count)])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::TestAppContext;
+
+    #[gpui::test]
+    fn pinned_sync_notices_stay_first_and_survive_clear(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            install(cx);
+            assert!(!Notifications::has_pinned(cx));
+
+            let ordinary_a = Notifications::post(Source::Update, "update available", cx);
+            let sync_problem = Notifications::post(Source::Sync, "session expired", cx);
+            Notifications::set_pinned(sync_problem, true, cx);
+            assert!(Notifications::has_pinned(cx));
+
+            // Subsequent ordinary notices insert below pinned rows.
+            let ordinary_b = Notifications::post(Source::Import, "import note", cx);
+            let ids: Vec<u64> = Notifications::items(cx).iter().map(|n| n.id).collect();
+            assert_eq!(ids, vec![sync_problem, ordinary_b, ordinary_a]);
+
+            // Clearing removes ordinary rows while retaining active pinned sync problems.
+            Notifications::clear(cx);
+            let remaining: Vec<u64> = Notifications::items(cx).iter().map(|n| n.id).collect();
+            assert_eq!(remaining, vec![sync_problem]);
+            assert!(Notifications::has_pinned(cx));
+
+            // Resolving removes the pinned row and turns off the bell danger seal.
+            Notifications::remove(sync_problem, cx);
+            assert!(Notifications::items(cx).is_empty());
+            assert!(!Notifications::has_pinned(cx));
+        });
+    }
 }
