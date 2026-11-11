@@ -445,7 +445,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
         sub={t('settings.about.sub')}
       />
 
-      // The panel's header already names the app; here only one line of readouts.
+      {/* The panel's header already names the app; here only one line of readouts. */}
       <div className="set-about-name">
         <div className="set-about-name__meta">
           <span>

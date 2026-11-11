@@ -34,6 +34,15 @@ export default tseslint.config(
       // making lint a usable CI gate; each lifecycle can then be refactored
       // without turning a dependency upgrade into a release-wide blocker.
       'react-hooks/set-state-in-effect': 'warn',
+      // Between JSX tags `// note` is text, not a comment: React renders it.
+      // Two such lines reached Settings in 0.1.0-alpha.11. Use {/* … */}.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXText[value=/(^|\\n)\\s*\\/[\\/*]/]',
+          message: 'This comment is JSX text and will render on screen; write it as {/* … */}.',
+        },
+      ],
     },
   },
   {
