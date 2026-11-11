@@ -136,7 +136,8 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 09:11 | 夜间队列第 2 项完成：`codex/import-v3-gaps`（`b05f19fb`）补齐导入三个技术缺口——28 旧链接到 `EntityLinkV3` 无损适配（含 `material`/`library_item`、显式 `module` 与跨容器 `targetBlockId` 范围重映射）、29 非空字段默认值（`FieldDef.default_value`、Loro 读写、`entry.create` 默认初始化、当前与历史目录快照无损保留且不覆盖条目实填值）、30 带标记或链接的旧表格单元（多段单元、带标记 `hardBreak`、单元格内 `EntityLinkV3` 往返及 `remove_cell`）；22、23、25 保持 `Pending` 不动。全套 2211 通过／0 失败／20 忽略，`xtask check` 与 `public:check` 全绿，合入 `main` `7fe13566`，继续夜间队列第 3 项。 | `d150b0f3` |
 | 11-11 13:45 | 夜间队列第 3 项完成：`codex/heavy-perf-v3`（`b1533b9b`）在空闲 release（`load1m < 4.0`）下用 `heavy` v3 样书量完首屏、开书、长章打字、滚动、切章节、层级页与左栏、搜索、时间线八条路径，按最慢优先分四步逐项修复并每步独立复测（不改格式、不动 Loro `1.17.1`、不改行为）：单章冷／热开由 `2,742.8 / 2,442.5 ms` 降至 `97.6 / 44.4 ms`，切章预览 `p50` 由 `2,377.5 ms` 降至 `38.8–46.0 ms`，末章跳转由 `2,444.6 ms` 降至 `46.7–55.7 ms`，`Book::load` 由 `149.4 ms` 降至 `27.1 ms`，开书到主页由 `159.9 ms` 降至 `48.4–52.6 ms`，层级页四种显示由 `1,721–1,758 ms` 降至 `43.6–56.7 ms`，整书标签由 `2,974.6 ms` 降至 `120.3–137.2 ms`（`book-bench` 冷 `104.4 ms`／热 `37.5 ms`），搜索 3 字／零命中降至 `9.16 / 8.66 ms`。提交三份新鲜里程碑证据并更新 `benchmarks.md`，合入 `main` `139ad7d4`，继续夜间队列第 4 项。 | `a0cac18f` |
 | 11-11 18:18 | 夜间队列第 4 项完成：Super View 接入 canonical v3。① M23 审阅与素材（`codex/m23-v3` `daab17c0` → 合入 `main` `5ce137a3`）：`dr-view-shelf-review` 接入 `SuperView::ReviewMaterials`（`⌘⌥5`），复用 M18 局部写入与 M19 素材卡片／`v3::{entry_links,related}` 关联筛选，提供拖宽比例与底部抽屉按书 `book_memory` 持久化及释放屏障；② M22 要素全景（`codex/m22-v3` `e390bde5` → 合入 `main` `c22489a1`）：`dr-workspace` 增按 `(book, source_doc, source_block)` 真实同段共现查询，`dr-view-relations` 补图例，`dr-view-element-overview` 接入 `SuperView::Elements`（`⌘⌥4`），支持默认关系图、群岛切换、三档缩放、聚焦、拖点固定（保留 `board`/`grid`）、拖上层级岛（复用 G2 `prepare_drop`）与浮层挂载真实 G1 `EntryPage`；全套 2,227 通过／0 失败／21 忽略，`xtask check` 全绿，副屏真窗口验收全过。③ M21 故事图按指示零代码改动，四项 v3 产品待定写入「待作者」。 | `c22489a1` |
-| 11-11 18:35 | 夜间队列第 5 项暨队列收尾完成：`codex/markdown-v3-plan`（`0731b3c4` → 合入 `main` `5f1ea41c`，零代码改动）撰写 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)（已知 v3 约束、七组拍板矩阵、五步实现顺序、永久验收清单）并补交叉链接；`xtask check` 与公开边界门禁全绿，晨报完成收尾总结后停下等作者。 | 本提交 |
+| 11-11 18:35 | 夜间队列第 5 项完成：`codex/markdown-v3-plan`（`0731b3c4` → 合入 `main` `5f1ea41c`，零代码改动）撰写 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)（已知 v3 约束、七组拍板矩阵、五步实现顺序、永久验收清单）并补交叉链接；`xtask check` 与公开边界门禁全绿。 | `3cc69c03` |
+| 11-11 19:40 | 夜间队列第 6 项暨全部队列收尾完成：`codex/import-v3-23-25`（`e25b56e4` → 合入 `main` `78a9df97`）落地作者 11-11 新定的导入第 23 条（「未归属」默认按需建在初始化返回的实际故事线入口末位，沿用 `TPL_STORYLINE`、层级设置与实际书稿入口 `home`，无主归属、不再要 `MappingChoices`）与第 25 条（非内置关系类型端点转 `entry`/`patch`/`comment`/`material` 去重、模板列表留空，原种类写入 `import_original`，内置关系类型不动）；第 22 条 `act_binding` 继续 `Pending`（等作者确认幕轨道，不建「大纲」关系）。全套 2,230 通过／0 失败／21 忽略、含 `audit` 的 `xtask check`、副屏 `switch-v3.json` 47/47 真窗口验收与根门禁全绿，写完最终晨报后停下。 | 本提交 |
 
 ## 技术待协调
 
@@ -268,16 +269,29 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 - **文档内容：** 新建 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)，并在 [`m40-markdown-folder.md`](../modules/m40-markdown-folder.md)、[`modules.md`](../modules.md)、[`k4-ui.md`](../k4-ui.md)、[`v3-cutover.md`](../v3-cutover.md) 补齐交叉引用。方案严格锚定已敲定的 v3 内核不变量（`EntryId + ModuleId` 正文寻址、`H1/H2/H3` 仅作标题层级、本机 SQLite `markdown_mirror` 状态隔离、段落级合并、`EntityLinkV3` 回退与 `Actor::Mirror` 单一撤销步），把需要作者拍板的七组格式与交互分歧整理为对比矩阵，并给出拍板后的五步实现顺序及永久数据安全与双书隔离验收清单。
 - **门禁复核：** `cargo xtask check --skip audit`、仓库根 `pnpm public:check`（5,579 文件）、`pnpm ci:contract:check`（659 测试文件）、`pnpm agent:capabilities:check` 全部通过。
 
+### 追加六（2026-11-11 19:40，夜间队列第 6 项：导入第 23、25 条默认行为落地，第 22 条保持 pending）
+
+- **合入记录：** 分支 `codex/import-v3-23-25`（`e25b56e4`）本地 `--no-ff` 合入 `main` 产品提交 `78a9df97`。
+- **落地内容：**
+  1. **第 23 条「未归属」改为默认行为（不再需要 `MappingChoices`）：** `dr-samples::v3::catalog::sync_catalog` 与 `dr-import-v1` 仅在旧库存在「有叙事序（`narrative_order.is_some()`）、但不属于任何故事线」的章节或构想时创建「未归属」泳道；挂在小说模板初始化实际返回的故事线入口 UUIDv7（`roots.storylines`）之下且排在所有已导入故事线最后（左栏树与默认时间线泳道顺序均排末位），复用标准故事线模板 `TPL_STORYLINE`（`home` 绑定初始化实际返回的书稿入口 UUIDv7 `roots.manuscript`，绝不恢复 `root-manuscript` 等固定 id）与相同层级设置（`overrides = None`），名字沿用旧界面的「未归属」（`bottomTimeline.synthetic.unaffiliated`），成员不设主归属（`primary = None`），叙事摆放坐标原样保留，断点续导重用同一已分配入口 id。内置样书（不含幕绑定构想）因此在新库首次启动时可零配置直接生成落架。
+  2. **第 25 条关系类型端点改为暂定默认行为（不再需要 `MappingChoices`）：** 非内置关系类型（`!locked && system_key.is_none()`）的端点种类按 `node`／`element`／`category`／`storyline` → `entry`、`patch` → `patch`、`comment` → `comment`、`library_item` → `material` 转换并去重，`source_templates` 与 `target_templates` 留空不展开成模板清单；旧库 `entity_relation_type_endpoint_kind` 的原始种类数组原样写入回执与新库 SQLite `import_original`（`collection = "relation_types"`，`field = "source_kinds" | "target_kinds"`）供日后还原；内置 `generic-association` 关系类型保持原样不动。
+  3. **第 22 条继续 `Pending`：** `MappingChoices` 现仅保留 `act_binding: Option<ActBindingChoice>`；源库含 `book_act.drift_node_id` 且未显式提供时继续写前返回 `act-binding-relation-type-and-direction`，不建「大纲」关系，等作者确认时间线视图幕轨道设计。
+  4. **文档同步：** 已在 [`m10-import.md`](../modules/m10-import.md) 第 22、23、25 条、[`v3-cutover.md`](../v3-cutover.md)「待作者／待协调」及本页「待作者」写明「作者已定 11-11」与第 22 条待定说明。
+- **永久测试与全套门禁：**
+  - `dr-import-v1/tests/v3_import.rs` 新增两条永久契约测试 `default_unaffiliated_lane_created_only_when_needed_and_placed_last_under_storylines`（覆盖有／无未归属叙事序节点的正负向对照、末位排序、实际分配的 `roots.storylines`／`roots.manuscript` UUIDv7、层级设置一致性、无主归属与源库全文件字节／大小／mtime／SHA-256 零改动）与 `default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_legacy_kinds_in_receipt`（覆盖全部 7 种旧端点去重映射、空模板列表、内置关系类型不动、`import_original` 原样保留与源库全文件字节／mtime 零改动），`dr-view-import/tests/import.rs` 新增零配置 GUI 导入测试 `library_without_act_drift_imports_with_default_choices`。
+  - 全套自动与真窗口检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked`（**2,230 通过／0 失败／21 忽略**）、`cargo xtask check`（含 `audit`，974 锁定包 0 漏洞）、副屏真窗口 `switch-v3.json` **47/47 步通过、0 pending**、仓库根 `pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check` 全部通过。
+
 ### 夜间队列（11-11）收尾总结
 
-1. **0–5 各项合入提交与最终 `main` 位置：**
+1. **0–6 各项合入提交与最终 `main` 位置：**
    - **第 0 项（canonical v3 切换完成与全仓表述对齐）：** 产品合入 `ad97a43c` + 文档与晨报第一版 `140d0775`。
    - **第 1 项（`showcase` v3 副屏浅／深色 48 张截图总览与 13 条视觉问题清单，零代码改动）：** `723e5981` → 合入 `main` `8b02dc4c`。
    - **第 2 项（导入三个技术缺口 28、29、30 无损闭环，22／23／25 保持 pending）：** `b05f19fb` → 合入 `main` `7fe13566` + 晨报记录 `d150b0f3`。
    - **第 3 项（`heavy` v3 约 165 万字空闲 release 八条路径逐项性能优化与里程碑证据）：** `b1533b9b` → 合入 `main` `139ad7d4` + 晨报记录 `a0cac18f`（其后完整保留主线既有提交 `1437e669` 与 `f2662713`）。
    - **第 4 项（Super View 接到 v3）：** M23 审阅与素材 `daab17c0` → 合入 `main` `5ce137a3`；M22 要素全景 `e390bde5` → 合入 `main` `c22489a1`；M21 故事图零代码改动、列清四项产品待定。
-   - **第 5 项（Markdown 文件夹 v3 方案文档，零代码改动）：** `0731b3c4` → 合入 `main` `5f1ea41c`。
-   - **收尾晨报提交：** 本提交（父提交 `5f1ea41c5d28db092c2675c0590245f5e0a57c65`）。本地 `main` 停在本提交，遵守全部禁令：未推送、未开 PR、未发版、未建或移动标签、未删任何分支或 `refs/wip/*`、未触碰 0.1 客户端。
+   - **第 5 项（Markdown 文件夹 v3 方案文档，零代码改动）：** `0731b3c4` → 合入 `main` `5f1ea41c` + 晨报记录 `3cc69c03`。
+   - **第 6 项（作者 11-11 新定导入第 23、25 条默认行为落地，第 22 条保持 pending）：** `e25b56e4` → 合入 `main` `78a9df97`。
+   - **收尾晨报提交：** 本提交（父提交 `78a9df979142e2d68f18199b59ef4b93813cb18c`）。本地 `main` 停在本提交，遵守全部禁令：未推送、未开 PR、未发版、未建或移动标签、未删任何分支或 `refs/wip/*`、未触碰 0.1 客户端。
 2. **量到的性能数字总览（`Preset::Heavy` 约 165 万字符、100 章、300 要素、28,468 处实体链接，release 构建）：**
    - **第 3 项空闲机器（`load1m < 4.0`）前后对比：**
      - 2 万字长章打开：冷开 `2,742.8 ms → 97.6–108.2 ms`，热开 `2,442.5 ms → 44.4 ms`（预算 `≤ 50 ms`）；单键写入 `p50 = 0.211–0.274 ms`（`≤ 1 ms`），单键帧 CPU `p95 = 1.637–2.544 ms`（`≤ 8.3 ms`）。
@@ -291,7 +305,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
    - **G1／K1 未知未来表示保真扩展：** 当前在首次真实提交前对无法保真表示整批拒绝以保原值与历史点不坏，后续扩展属引擎内部技术协调。
    - **视觉问题清单与旧模块里程碑证据：** 第 1 项列出的 13 条视觉／设计系统问题按“只列不改”保持原样；`xtask check` 中非本轮套件的历史里程碑证据（22 份 `stale`）按规矩未篡改，留待各模块空闲里程碑重采。
 4. **全部等作者定的事（均已汇总在上方「待作者」）：**
-   1. **M10 导入映射策略 22、23、25**（`act_binding` 关系类型／方向、`unaffiliated` 住处与模板、按关系类型的端点模板列表）。
+   1. **M10 导入映射仅剩第 22 条 `act_binding` 待作者确认**（作者在考虑改成「时间线视图里的幕轨道」，不建「大纲」关系；第 23、25 条作者已定 11-11 并已落地默认行为）。
    2. **条目页内部布局与第 1 项 13 条视觉／设计系统打磨方向**（双标题与内层嵌套滚动、主页重复新建按钮、层级页空 `about` 高度与看板／网格卡片形态、模板编辑顶栏防撞等）。
    3. **100 章整书标签冷首开若要压进 `< 100 ms` 的分段／懒挂载交互策略**（未挂载章高度估算、滚动条行为与跨章查找补载时机）。
    4. **M21 故事图在 canonical v3 下的四项产品设计**（画布是否纯展示当前 `TimelineView`、底部托盘存废与「待安放」筛选口径、Shift 连线的 `Relations` 模块承载与线型、多 `TimelineView` 选择联动）。
@@ -299,4 +313,4 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
    6. **M40 Markdown 文件夹 v3 的七组格式与交互拍板矩阵**（见 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)）。
    7. **（可选权限）macOS「辅助功能」勾选 `Antigravity`**（仅当需要在守卫宿主下复跑外部硬件级 `CGEvent` 系统拼音脚本时）。
 
-夜间队列（11-11）第 0–5 项至此全部完成并收尾，整合会话现按指示停下。
+夜间队列（11-11）第 0–6 项至此全部完成并收尾，整合会话现按指示停下。
