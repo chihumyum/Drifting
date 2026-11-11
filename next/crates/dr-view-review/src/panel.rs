@@ -74,6 +74,7 @@ pub struct ReviewView {
     scroll: ScrollHandle,
     editing: Option<(String, Entity<TextArea>, Subscription)>,
     writing: HashSet<String>,
+    in_flight: Vec<futures::future::Shared<futures::channel::oneshot::Receiver<()>>>,
     write_errors: HashMap<String, String>,
     /// TODOs completed or undone here: their check strokes are drawn.
     checks: HashMap<String, Tween>,
@@ -120,6 +121,7 @@ impl ReviewView {
             scroll: ScrollHandle::new(),
             editing: None,
             writing: HashSet::new(),
+            in_flight: Vec::new(),
             write_errors: HashMap::new(),
             checks: HashMap::new(),
             pending: None,
@@ -270,6 +272,11 @@ impl ReviewView {
         }));
     }
 
+    /// Reloads the current book's v3 review snapshot immediately.
+    pub fn reload_now(&mut self, cx: &mut Context<Self>) {
+        self.reload(cx);
+    }
+
     fn reload(&mut self, cx: &mut Context<Self>) {
         self.reload_v3(cx);
     }
@@ -330,6 +337,105 @@ impl ReviewView {
         }));
     }
 
+    /// Whether the first v3 snapshot load for the current book has completed.
+    pub fn is_loaded(&self) -> bool {
+        self.loaded
+    }
+
+    /// Current v3 snapshot (comments, targets and built-in entry associations).
+    pub fn v3_snapshot(&self) -> Option<&crate::v3::Snapshot> {
+        self.v3.as_ref().map(|s| &s.snapshot)
+    }
+
+    /// Comment currently being edited in place, if any.
+    pub fn editing_id(&self) -> Option<&str> {
+        self.editing.as_ref().map(|(id, _, _)| id.as_str())
+    }
+
+    /// Whether comment `id` has a partial write in flight.
+    pub fn is_writing(&self, id: &str) -> bool {
+        self.writing.contains(id)
+    }
+
+    /// Waits for all in-flight comment writes launched by this view to settle.
+    pub fn drain_writes(&self) -> futures::future::LocalBoxFuture<'static, ()> {
+        use futures::FutureExt as _;
+        let waiters: Vec<_> = self
+            .in_flight
+            .iter()
+            .filter(|rx| rx.peek().is_none())
+            .cloned()
+            .collect();
+        async move {
+            for rx in waiters {
+                let _ = rx.await;
+            }
+        }
+        .boxed_local()
+    }
+
+    /// Cards for `filter` and explicit `scope`, preserving any unsaved draft
+    /// card whose persisted comment was externally removed while being edited.
+    pub fn cards_for(&self, filter: Filter, scope: Option<&crate::v3::Target>) -> Listing {
+        let mut listing = self
+            .v3
+            .as_ref()
+            .map(|state| state.snapshot.cards(filter, scope))
+            .unwrap_or_default();
+        if self.v3.is_some()
+            && let Some((editing, _, _)) = &self.editing
+            && !listing
+                .open
+                .iter()
+                .chain(&listing.resolved)
+                .flat_map(|g| &g.items)
+                .any(|item| &item.id == editing)
+            && let Some(card) = self.items.iter().find(|item| &item.id == editing)
+        {
+            let matches_kind = match filter {
+                Filter::All => true,
+                Filter::Comments => card.kind != "todo",
+                Filter::Todos => card.kind == "todo",
+            };
+            if matches_kind {
+                listing.open.insert(
+                    0,
+                    Group {
+                        place: Place::Floating,
+                        items: vec![card.clone()],
+                    },
+                );
+            }
+        }
+        listing
+    }
+
+    /// Group header metadata `(mark, title, jump_target)` for multi-column hosts.
+    pub fn group_header(
+        &self,
+        group: &Group,
+    ) -> (Option<sand::Kind>, SharedString, Option<crate::v3::Target>) {
+        match &group.place {
+            Place::V3(target) => {
+                let mark = self.v3.as_ref().and_then(|s| (s.marks)(target));
+                (mark, self.group_title(group), Some(target.clone()))
+            }
+            Place::Gone | Place::Floating => (None, self.group_title(group), None),
+        }
+    }
+
+    /// Renders a single review or TODO card with its inline editor, failed-draft
+    /// state and source hover card.
+    pub fn render_card(
+        &self,
+        item: &CommentInfo,
+        resolved: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        self.card(item, resolved, window, cx)
+    }
+
     /// What is listed now.
     pub fn listing(&self) -> Listing {
         self.v3
@@ -385,12 +491,20 @@ impl ReviewView {
         }
         let book = self.book.clone();
         let book_epoch = self.book_epoch;
+        self.in_flight.retain(|rx| rx.peek().is_none());
+        let (done_tx, done_rx) = futures::channel::oneshot::channel();
+        self.in_flight.push(futures::FutureExt::shared(done_rx));
         cx.spawn(async move |this, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move { lib.call(&Actor::User, command, input) })
+                .spawn(async move {
+                    let out = lib.call(&Actor::User, command, input);
+                    let _ = done_tx.send(());
+                    out
+                })
                 .await;
             this.update(cx, |v, cx| {
+                v.in_flight.retain(|rx| rx.peek().is_none());
                 if v.book != book || v.book_epoch != book_epoch || v.v3.is_none() {
                     return;
                 }

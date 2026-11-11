@@ -202,6 +202,8 @@ fn main() {
         dr_view_plot::init(cx);
         // M19: image and PDF materials open in their viewer, not an editor.
         dr_view_material::init(cx);
+        // M23: Review & Materials Super View (⌘⌥5) on canonical v3.
+        dr_view_shelf_review::init(cx);
         // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
         // notification center), by mail unless built with the Hosted service.
         dr_view_feedback::init(

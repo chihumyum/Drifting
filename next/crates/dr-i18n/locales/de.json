@@ -565,6 +565,12 @@
     "card": {
       "addSnippetBody": "In diese Notiz schreiben…"
     },
+    "dialog": {
+      "create": "Erstellen",
+      "newTodo": "Neue Aufgabe",
+      "titlePlaceholder": "Titel",
+      "todoPlaceholder": "Aufgabeninhalt…"
+    },
     "empty": {
       "noRelated": "Keine Materialien mit dem aktuellen Eintrag verknüpft."
     },
@@ -590,6 +596,36 @@
       "openPdfFailed": "PDF kann nicht geöffnet werden",
       "previousPage": "Vorherige",
       "renderPdfFailed": "PDF kann nicht dargestellt werden"
+    },
+    "super": {
+      "all": "Alle",
+      "clearEntityFilter": "Beziehungsfilter löschen",
+      "collapseDrawer": "Schublade einklappen",
+      "commentEmptyHint": "Mit + einen Kommentar erstellen oder im Editor Text markieren und kommentieren",
+      "comments": "Kommentare",
+      "entityFilterAll": "Beziehungen · Alle",
+      "expandDrawer": "Schublade aufklappen",
+      "hideKind": "Klicken, um diese Art auszublenden",
+      "material": "Material",
+      "meta": "{{todos}} Aufgaben · {{comments}} Kommentare · {{materials}} Materialien",
+      "newMaterialButton": "Neues Material",
+      "noFilteredMaterials": "Keine Materialien entsprechen den Filtern.",
+      "noMaterials": "Dieses Projekt hat noch keine Materialien.",
+      "noOrphans": "Alle Materialien sind mit mindestens einer Entität verknüpft.",
+      "noResolved": "Noch nichts erledigt.",
+      "orphanHeader": "Unsortiert · Unverknüpfte Materialien",
+      "orphans": "Unsortiert",
+      "reopenShort": "Erneut öffnen",
+      "resizeComments": "Breite der Kommentarspalte ändern",
+      "resizeTodos": "Breite der Aufgabenspalte ändern",
+      "resolved": "Erledigt",
+      "resolvedHeader": "Erledigt · Archiv für Aufgaben und Kommentare",
+      "searchPlaceholder": "Titel oder Text durchsuchen…",
+      "showKind": "Klicken zum Anzeigen",
+      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder auf einer Kommentarkarte „Zu Aufgabe“ wählen"
+    },
+    "todo": {
+      "empty": "(leere Aufgabe)"
     },
     "toolbar": {
       "count": "{{count}} Materialien",
@@ -877,6 +913,7 @@
       "deleted": "Gelöscht",
       "floating": "Nicht angehängt"
     },
+    "newComment": "Neuer Kommentar",
     "resolved": "Erledigt ({{count}})",
     "scopes": {
       "current": "Aktuell"

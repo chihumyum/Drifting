@@ -558,6 +558,12 @@
     "card": {
       "addSnippetBody": "このメモに書く…"
     },
+    "dialog": {
+      "create": "作成",
+      "newTodo": "新しいTODO",
+      "titlePlaceholder": "タイトル",
+      "todoPlaceholder": "TODOの内容…"
+    },
     "empty": {
       "noRelated": "現在の項目に関連資料はありません。"
     },
@@ -583,6 +589,36 @@
       "openPdfFailed": "PDFを開けません",
       "previousPage": "前へ",
       "renderPdfFailed": "PDFを描画できません"
+    },
+    "super": {
+      "all": "すべて",
+      "clearEntityFilter": "関連フィルターを解除",
+      "collapseDrawer": "引き出しを閉じる",
+      "commentEmptyHint": "＋でコメントを作るか、エディタで文字を選んでコメントできます",
+      "comments": "コメント",
+      "entityFilterAll": "関係・すべて",
+      "expandDrawer": "引き出しを開く",
+      "hideKind": "クリックでこの種類を隠す",
+      "material": "資料",
+      "meta": "TODO {{todos}}件・コメント{{comments}}件・資料{{materials}}件",
+      "newMaterialButton": "新しい資料",
+      "noFilteredMaterials": "条件に一致する資料はありません。",
+      "noMaterials": "この作品に資料はまだありません。",
+      "noOrphans": "すべての資料が1つ以上のエンティティに関連付いています。",
+      "noResolved": "解決済みの項目はまだありません。",
+      "orphanHeader": "未整理・未関連の資料",
+      "orphans": "未整理",
+      "reopenShort": "開き直す",
+      "resizeComments": "コメント列の幅を変更",
+      "resizeTodos": "TODO列の幅を変更",
+      "resolved": "解決済み",
+      "resolvedHeader": "解決済み・TODOとコメントのアーカイブ",
+      "searchPlaceholder": "タイトル・本文を検索…",
+      "showKind": "クリックで表示",
+      "todoEmptyHint": "＋でTODOを作るか、コメントカードの「TODO に変換」を使います"
+    },
+    "todo": {
+      "empty": "（空のTODO）"
     },
     "toolbar": {
       "count": "{{count}}件の資料",
@@ -870,6 +906,7 @@
       "deleted": "削除済み",
       "floating": "未添付"
     },
+    "newComment": "新しいコメント",
     "resolved": "解決済み（{{count}}件）",
     "scopes": {
       "current": "現在"

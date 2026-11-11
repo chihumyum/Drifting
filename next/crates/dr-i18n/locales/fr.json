@@ -567,6 +567,12 @@
     "card": {
       "addSnippetBody": "Écrivez dans cette note…"
     },
+    "dialog": {
+      "create": "Créer",
+      "newTodo": "Nouvelle tâche",
+      "titlePlaceholder": "Titre",
+      "todoPlaceholder": "Contenu de la tâche…"
+    },
     "empty": {
       "noRelated": "Aucune ressource liée à l’élément actuel."
     },
@@ -592,6 +598,36 @@
       "openPdfFailed": "Impossible d’ouvrir le PDF",
       "previousPage": "Précédent",
       "renderPdfFailed": "Impossible d’afficher le PDF"
+    },
+    "super": {
+      "all": "Tout",
+      "clearEntityFilter": "Effacer le filtre de relations",
+      "collapseDrawer": "Réduire le tiroir",
+      "commentEmptyHint": "Cliquez sur + pour créer un commentaire ou sélectionnez du texte dans l’éditeur pour commenter",
+      "comments": "Commentaires",
+      "entityFilterAll": "Relations · Toutes",
+      "expandDrawer": "Développer le tiroir",
+      "hideKind": "Cliquez pour masquer ce type",
+      "material": "Ressource",
+      "meta": "{{todos}} tâches · {{comments}} commentaires · {{materials}} ressources",
+      "newMaterialButton": "Nouvelle ressource",
+      "noFilteredMaterials": "Aucune ressource ne correspond aux filtres.",
+      "noMaterials": "Ce projet n’a pas encore de ressources.",
+      "noOrphans": "Chaque ressource est liée à au moins une entité.",
+      "noResolved": "Rien n’a encore été résolu.",
+      "orphanHeader": "Non classé · Ressources sans lien",
+      "orphans": "Non classé",
+      "reopenShort": "Rouvrir",
+      "resizeComments": "Redimensionner la colonne des commentaires",
+      "resizeTodos": "Redimensionner la colonne des tâches",
+      "resolved": "Résolu",
+      "resolvedHeader": "Résolu · Archives des tâches et commentaires",
+      "searchPlaceholder": "Rechercher dans les titres ou le texte…",
+      "showKind": "Cliquez pour afficher",
+      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou choisissez « En tâche » sur une carte de commentaire"
+    },
+    "todo": {
+      "empty": "(tâche vide)"
     },
     "toolbar": {
       "count": "{{count}} ressources",
@@ -886,6 +922,7 @@
       "deleted": "Supprimés",
       "floating": "Non rattachés"
     },
+    "newComment": "Nouveau commentaire",
     "resolved": "Résolus ({{count}})",
     "scopes": {
       "current": "Actuel"

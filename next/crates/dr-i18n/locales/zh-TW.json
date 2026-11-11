@@ -558,6 +558,12 @@
     "card": {
       "addSnippetBody": "在此筆記中寫作…"
     },
+    "dialog": {
+      "create": "建立",
+      "newTodo": "新增待辦",
+      "titlePlaceholder": "標題",
+      "todoPlaceholder": "待辦內容…"
+    },
     "empty": {
       "noRelated": "目前項目未連結任何素材。"
     },
@@ -583,6 +589,36 @@
       "openPdfFailed": "無法開啟 PDF",
       "previousPage": "上一頁",
       "renderPdfFailed": "無法繪製 PDF"
+    },
+    "super": {
+      "all": "全部",
+      "clearEntityFilter": "清除關係篩選",
+      "collapseDrawer": "收合抽屜",
+      "commentEmptyHint": "按 + 新增註解，或在編輯器中選取文字留下註解",
+      "comments": "註解",
+      "entityFilterAll": "關係 · 全部",
+      "expandDrawer": "展開抽屜",
+      "hideKind": "點一下隱藏此種類",
+      "material": "素材",
+      "meta": "{{todos}} 項待辦 · {{comments}} 則註解 · {{materials}} 份素材",
+      "newMaterialButton": "新增素材",
+      "noFilteredMaterials": "沒有符合目前篩選條件的素材。",
+      "noMaterials": "此作品尚無素材。",
+      "noOrphans": "所有素材都已連結至少一個實體。",
+      "noResolved": "尚無已解決的待辦或註解。",
+      "orphanHeader": "未整理 · 未連結素材",
+      "orphans": "未整理",
+      "reopenShort": "重新開啟",
+      "resizeComments": "調整註解欄寬度",
+      "resizeTodos": "調整待辦欄寬度",
+      "resolved": "已解決",
+      "resolvedHeader": "已解決 · 待辦與註解封存",
+      "searchPlaceholder": "搜尋標題或正文…",
+      "showKind": "點一下顯示",
+      "todoEmptyHint": "按 + 建立待辦，或在批註卡片上點「轉為待辦」"
+    },
+    "todo": {
+      "empty": "（空白待辦）"
     },
     "toolbar": {
       "count": "{{count}} 份素材",
@@ -870,6 +906,7 @@
       "deleted": "已刪除",
       "floating": "未附加"
     },
+    "newComment": "新增註解",
     "resolved": "已解決（{{count}}）",
     "scopes": {
       "current": "目前"

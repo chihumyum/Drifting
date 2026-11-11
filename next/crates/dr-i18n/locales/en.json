@@ -565,6 +565,12 @@
     "card": {
       "addSnippetBody": "Write in this note…"
     },
+    "dialog": {
+      "create": "Create",
+      "newTodo": "New TODO",
+      "titlePlaceholder": "Title",
+      "todoPlaceholder": "Todo content…"
+    },
     "empty": {
       "noRelated": "No materials are linked to the current item."
     },
@@ -590,6 +596,36 @@
       "openPdfFailed": "Cannot open PDF",
       "previousPage": "Previous",
       "renderPdfFailed": "Cannot render PDF"
+    },
+    "super": {
+      "all": "All",
+      "clearEntityFilter": "Clear relation filter",
+      "collapseDrawer": "Collapse drawer",
+      "commentEmptyHint": "Click + to add a comment, or select text in an editor to leave one",
+      "comments": "Comments",
+      "entityFilterAll": "Relations · All",
+      "expandDrawer": "Expand drawer",
+      "hideKind": "Click to hide this kind",
+      "material": "Material",
+      "meta": "{{todos}} TODO · {{comments}} comments · {{materials}} materials",
+      "newMaterialButton": "New material",
+      "noFilteredMaterials": "No materials match the current filters.",
+      "noMaterials": "No materials in this project yet.",
+      "noOrphans": "Every material is linked to at least one entity.",
+      "noResolved": "Nothing resolved yet.",
+      "orphanHeader": "Unsorted · unlinked materials",
+      "orphans": "Unsorted",
+      "reopenShort": "Reopen",
+      "resizeComments": "Resize the comment column",
+      "resizeTodos": "Resize the TODO column",
+      "resolved": "Resolved",
+      "resolvedHeader": "Resolved · TODO & comment archive",
+      "searchPlaceholder": "Search title or body…",
+      "showKind": "Click to show",
+      "todoEmptyHint": "Click + to create a TODO, or choose To TODO on a comment card"
+    },
+    "todo": {
+      "empty": "(empty TODO)"
     },
     "toolbar": {
       "count": "{{count}} materials",
@@ -877,6 +913,7 @@
       "deleted": "Deleted",
       "floating": "Not attached"
     },
+    "newComment": "New comment",
     "resolved": "Resolved ({{count}})",
     "scopes": {
       "current": "Current"

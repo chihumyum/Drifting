@@ -567,6 +567,12 @@
     "card": {
       "addSnippetBody": "Escribe en esta nota…"
     },
+    "dialog": {
+      "create": "Crear",
+      "newTodo": "Nueva tarea",
+      "titlePlaceholder": "Título",
+      "todoPlaceholder": "Contenido de la tarea…"
+    },
     "empty": {
       "noRelated": "No hay materiales vinculados al elemento actual."
     },
@@ -592,6 +598,36 @@
       "openPdfFailed": "No se puede abrir el PDF",
       "previousPage": "Anterior",
       "renderPdfFailed": "No se puede representar el PDF"
+    },
+    "super": {
+      "all": "Todo",
+      "clearEntityFilter": "Quitar filtro de relaciones",
+      "collapseDrawer": "Contraer panel",
+      "commentEmptyHint": "Pulsa + para crear un comentario o selecciona texto en el editor para comentar",
+      "comments": "Comentarios",
+      "entityFilterAll": "Relaciones · Todas",
+      "expandDrawer": "Expandir panel",
+      "hideKind": "Haz clic para ocultar esta clase",
+      "material": "Material",
+      "meta": "{{todos}} tareas · {{comments}} comentarios · {{materials}} materiales",
+      "newMaterialButton": "Nuevo material",
+      "noFilteredMaterials": "Ningún material coincide con los filtros.",
+      "noMaterials": "Este proyecto aún no tiene materiales.",
+      "noOrphans": "Todos los materiales están vinculados al menos a una entidad.",
+      "noResolved": "Aún no hay nada resuelto.",
+      "orphanHeader": "Sin ordenar · Materiales sin vincular",
+      "orphans": "Sin ordenar",
+      "reopenShort": "Reabrir",
+      "resizeComments": "Cambiar el ancho de la columna de comentarios",
+      "resizeTodos": "Cambiar el ancho de la columna de tareas",
+      "resolved": "Resuelto",
+      "resolvedHeader": "Resueltos · Archivo de tareas y comentarios",
+      "searchPlaceholder": "Buscar título o texto…",
+      "showKind": "Haz clic para mostrar",
+      "todoEmptyHint": "Pulsa + para crear una tarea o elige «A tarea» en una tarjeta de comentario"
+    },
+    "todo": {
+      "empty": "(tarea vacía)"
     },
     "toolbar": {
       "count": "{{count}} materiales",
@@ -886,6 +922,7 @@
       "deleted": "Eliminados",
       "floating": "Sin adjuntar"
     },
+    "newComment": "Nuevo comentario",
     "resolved": "Resueltos ({{count}})",
     "scopes": {
       "current": "Actual"

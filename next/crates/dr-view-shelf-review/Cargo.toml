@@ -1,0 +1,31 @@
+[package]
+name = "dr-view-shelf-review"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Review and Materials Super View (M23): TODOs, comments, material shelf and unsorted/resolved drawer on canonical v3."
+
+[dependencies]
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-view-material.workspace = true
+dr-view-review.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-doc.workspace = true
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+tempfile.workspace = true
