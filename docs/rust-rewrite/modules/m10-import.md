@@ -739,8 +739,16 @@ cargo xtask check
    **K1 已回应（`dd39c0bd`）**：分类、构想分组、通用分组、故事线的层级模板已有带 `color_field` 的 `mod-fields`，个别条目颜色写 `fields.mod-fields.color`。K3 后半段已在 `d28e911d` 用该接口保留旧颜色并与旧幕分组逐项核对，第四十二批整合验收通过；没有新造每色模板。
 
 28. **K3 / K1：v3 正文链接的素材端点与模块选择。** `EntityKind::may_be_linked_v3` 放行 entry／material，但共用 `ProseTxn::link_entity` 仍按 v2 的 `may_be_linked` 检查，不能写 material；`EntityLink` 也没有 module 字段。不能重演第三十四批对 v2 行为的修改。当前 v3 预检对素材链接、显式模块以及需要指向特定正文的块链接返回 `v3-prose-link-writer-missing`，来源包含当前正文、历史和模板；不丢标记、不用 raw Loro 绕过 typed writer。样书转换也拒绝无法表达的链接。
+
+   **已补齐（11-11 夜间队列第 2 项）**：`dr_samples::v3::map_entity_link` 与 `dr-import-v1` 的 `plan_v3`／`sync_v3`／`read_paras_v3`／`export_v3` 已将旧 `material`／`library_item`、显式 `module`／`targetModule` 以及容器跨度重映射后的 `targetBlockId`／`targetEndBlockId` 无损适配到 `ProseTxn::link_entity_v3`（覆盖当前正文、模板与快照历史），既有 v2 `plan`／`sync` 保持未改；损坏或未知种类的源链接继续 prewrite 结构化拒绝（`invalid-source-entity-link`／`unsupported-entity-link-target-kind`）。
+
 29. **K3 / K1：分类字段模板的非空初值。** 旧模板 KV 行同时有 key 和 value；v3 `FieldDef` 能存字段定义但没有初值，KV 模块的 `initial_kv` 不能冒充字段默认值。当前完整夹具的初值为空，可以正常生成；旧库或历史里非空初值返回 `field-default-value-interface-missing`，不静默丢掉。字段模板重复名字、同一字段多值仍按 26 阻止。
+
+   **已补齐（11-11 夜间队列第 2 项）**：`FieldDef` 新增可选 `default_value: Option<FieldValue>`，完成 Loro 读写往返、`entry_template.put` 类型／枚举项校验与 `entry.create` 默认字段初始化；`sync_catalog` 与 `v3::holds` 在当前分类模板与历史 `elementTemplateKvJson` 回放中无损保留并逐项核对非空初值，同时不覆盖已导入要素自身保存的字段值。
+
 30. **K3：旧表格单元标记。** 现有旧正文规划把表格单元存成文本，遇到标记只记 `table-cell-marks`；直接复用会丢掉表格里的链接／格式。v3 预检返回 `legacy-table-cell-format-mapping`，等补无损映射后再放行；不修改既有 v2.2 行为。样书全文复制保留普通单元标记，但缺少 v3 单元链接转换接口的输入同样拒绝，现有两份样书不受影响。
+
+   **已补齐（11-11 夜间队列第 2 项）**：`ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell` 提供带 profile 预检的富文本与 `EntityLinkV3` 单元格写入，`dr-import-v1` 的 `plan_v3`／`sync_v3`／`read_paras_v3`／`export_v3` 及 `dr_samples::v3::convert` 已支持带内联样式、多段合并、`hardBreak` 与实体链接的表格单元在当前正文、模板与多版本历史间无损导入与往返；超出当前 profile 的单元格标记或非文本块继续 prewrite 拒绝（`unsupported-table-cell-mark`／`unsupported-table-cell-content`）。
 31. **K3 / K4：应用样书入口与 v3 索引接线。** 本段提供样书的 v3 生成／写库入口，原 App 仍按并存规则走 v2.2 的 `ensure_built_in`；旧索引不能用于 v3 书目。K4 接好新版工作区和索引后再切换默认入口／样书 once-only 接线并解除旧派生器门槛。本段没有跨入 dr-workspace、dr-index 或 dr-shell。
 32. **交回检查 / M40：Markdown 往返的链接前感叹号（已修复、阻塞解除）。** 同步 main `16f062d7` 后，全量测试在 `dr-mirror::body::tests::what_is_written_reads_back` 生成并稳定复现了失败：普通文本反斜杠和 `!` 后紧接带链接的「钟」，写出后被读成图片，只剩反斜杠。生成器的 `out.ends_with("\\!")` 把偶数个反斜杠也当作感叹号已转义。自动保存的 proptest 种子为 `37793c5b665db11cb1d76bdbe23dca949c368d4f15ef153ebb753c9c1a75c6d4`；直接运行同一测试二进制立即重现（0 通过／1 失败）。相关 dr-mirror／dr-export 源码与当时 main 一致。本项超出 K3 的两个 crate，作者明确授权后由 `897551ac` 一行修复并保留自动回归种子；定向 29 项和最终 workspace 2033 项均通过。
 

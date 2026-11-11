@@ -60,6 +60,7 @@ pub fn module(kind: &str, name: String) -> ModuleSpec {
             field_type: kind.into(),
             options: Vec::new(),
             target_template: None,
+            default_value: None,
             pos: None,
         });
         if kind == "aliases" {

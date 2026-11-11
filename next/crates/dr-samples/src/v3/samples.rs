@@ -6,9 +6,8 @@ use std::collections::BTreeMap;
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_doc::v3::{BookDocV3, genesis_v3};
-use dr_doc::{Anchor, DocError, Result};
+use dr_doc::{Anchor, Result};
 use dr_model::id::BookId;
-use dr_model::kind::EntityKind;
 use dr_model::{DocId, Origin};
 
 use super::*;
@@ -51,41 +50,15 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     let mut prose = Vec::new();
     let mut indices = BTreeMap::new();
     for (index, old) in source.prose.iter().enumerate() {
-        for (_, link) in old.view().entity_links() {
-            if link.kind == EntityKind::Material || link.block.is_some() || link.end_block.is_some()
-            {
-                return Err(super::catalog::invalid(
-                    "v3 prose link writer needs material/module support (m10 pending 28)",
-                ));
-            }
-        }
-        for paragraph in old.view().paragraphs() {
-            if let Some(embed) = paragraph.embed()
-                && let Some(dr_doc::prose::EmbedView::Table { rows, cols, .. }) =
-                    old.view().embed(embed)
-            {
-                for row in rows {
-                    for col in &cols {
-                        if old
-                            .view()
-                            .table_cell(embed, &row.id, &col.id)
-                            .is_some_and(|runs| runs.iter().any(|r| !r.marks.entities.is_empty()))
-                        {
-                            return Err(super::catalog::invalid(
-                                "v3 table-cell link writer is not available",
-                            ));
-                        }
-                    }
-                }
-            }
-        }
         let id = prose_id(source.book_id(), old.doc_id());
         let mut doc = ProseDoc::create(id.clone(), import_peer(&id.to_string()))?;
+        let old_links = old.view().entity_links();
+        let old_embeds = old.view().embed_refs();
         let (r, _) = doc.edit_at(
             Origin::Import,
             Some(crate::build::T0 + index as i64 + 1),
             |t| {
-                t.insert_copy(0, &old.view())?;
+                t.insert_copy_v3(0, &old.view())?;
                 // Copy creates fresh paragraph identities; a migration keeps
                 // the authored ids used by links, comments and task markers.
                 let old_blocks = old.view().blocks();
@@ -93,27 +66,62 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
                 if old_blocks.len() != new_blocks.len() {
                     return Err(super::catalog::invalid("sample paragraph count changed"));
                 }
-                for (old, new) in old_blocks.iter().zip(&new_blocks) {
-                    t.set_block_id(new.newline, old.id.as_ref())?;
+                for (old_b, new_b) in old_blocks.iter().zip(&new_blocks) {
+                    t.set_block_id(new_b.newline, old_b.id.as_ref())?;
                 }
-                let links = t.view().entity_links();
-                for (range, link) in &links {
-                    if link.kind == EntityKind::Material {
-                        return Err(DocError::NotInProfile(
-                            "v3 material link writer is not available",
-                        ));
-                    }
-                    if map_kind(&link.kind) != link.kind {
-                        t.unlink_entity(range.clone(), &link.target)?;
-                    }
-                }
-                // Remove old marks first, then add every mapped mark: links
+                // Remove old marks first, then add every mapped v3 mark: links
                 // with the same target but different block ranges may overlap.
-                for (range, link) in links {
-                    if map_kind(&link.kind) != link.kind {
-                        let mut mapped = link.clone();
-                        mapped.kind = map_kind(&link.kind);
-                        t.link_entity(range, &mapped)?;
+                for (range, link) in &old_links {
+                    t.unlink_entity(range.clone(), &link.target)?;
+                }
+                for (range, link) in &old_links {
+                    let mapped = map_entity_link(link, None)?;
+                    t.link_entity_v3(range.clone(), &mapped)?;
+                }
+                let new_embeds = t.view().embed_refs();
+                if old_embeds.len() != new_embeds.len() {
+                    return Err(super::catalog::invalid("sample embed count changed"));
+                }
+                for ((_, old_eid), (_, new_eid)) in old_embeds.iter().zip(&new_embeds) {
+                    if let Some(dr_doc::prose::EmbedView::Table { cells, .. }) =
+                        t.view().embed(new_eid)
+                    {
+                        for (row, col) in cells.keys() {
+                            let runs = old.view().table_cell(old_eid, row, col).unwrap_or_default();
+                            if runs.iter().any(|r| !r.marks.entities.is_empty()) {
+                                let mut by_target: BTreeMap<
+                                    String,
+                                    Vec<(std::ops::Range<usize>, dr_model::v3::EntityLinkV3)>,
+                                > = BTreeMap::new();
+                                let mut at = 0usize;
+                                for r in &runs {
+                                    let span = at..at + r.text.chars().count();
+                                    at = span.end;
+                                    if span.is_empty() {
+                                        continue;
+                                    }
+                                    for e in &r.marks.entities {
+                                        let mapped = map_entity_link(e, None)?;
+                                        let list =
+                                            by_target.entry(mapped.target.clone()).or_default();
+                                        if let Some((prev, last)) = list.last_mut()
+                                            && prev.end == span.start
+                                            && *last == mapped
+                                        {
+                                            prev.end = span.end;
+                                        } else {
+                                            list.push((span.clone(), mapped));
+                                        }
+                                    }
+                                }
+                                let mut cell_links: Vec<_> =
+                                    by_target.into_values().flatten().collect();
+                                cell_links.sort_by(|a, b| {
+                                    (a.0.start, &a.1.target).cmp(&(b.0.start, &b.1.target))
+                                });
+                                t.set_table_cell_runs_v3(new_eid, row, col, &runs, &cell_links)?;
+                            }
+                        }
                     }
                 }
                 Ok(())

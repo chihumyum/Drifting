@@ -399,7 +399,7 @@ fn write_templates(
             span,
             todo: &|_| None,
         };
-        let planned = crate::v3::plan(options, prose::plan(&lines, &blocks, &ctx));
+        let planned = prose::plan_v3(&lines, &blocks, &ctx);
         if planned.paras.iter().all(Para::is_empty) {
             continue;
         }
@@ -407,7 +407,9 @@ fn write_templates(
         let doc_id = crate::v3::doc_id(options, book, &owner.doc_id());
         let id_s = doc_id.to_string();
         let mut doc = ProseDoc::create(doc_id.clone(), import_peer(&id_s))?;
-        let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| write::sync(t, &planned.paras));
+        let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| {
+            write::sync_v3(t, &planned.paras)
+        });
         r?;
         let (r, _) = doc.edit_at(Origin::Repair, Some(ts), |t| t.repair_block_ids());
         r?;
@@ -900,7 +902,7 @@ fn write_library(
                 span: &span,
                 todo: &todo,
             };
-            let current = crate::v3::plan(options, prose::plan(&b.lines, &b.blocks, &ctx));
+            let current = prose::plan_v3(&b.lines, &b.blocks, &ctx);
             let mut versions: Vec<(Plan, &HistoryRow, i64)> = Vec::new();
             for h in &b.history {
                 let Some(preview) = h.preview.as_deref() else {
@@ -913,11 +915,7 @@ fn write_library(
                 };
                 let blocks = prose::doc_blocks(&lines);
                 let ts = parse_iso_ms(&h.created_at).unwrap_or(0);
-                versions.push((
-                    crate::v3::plan(options, prose::plan(&lines, &blocks, &ctx)),
-                    h,
-                    ts,
-                ));
+                versions.push((prose::plan_v3(&lines, &blocks, &ctx), h, ts));
             }
             let final_ms = parse_iso_ms(&b.owner.updated_at)
                 .unwrap_or(0)
@@ -928,7 +926,7 @@ fn write_library(
             let first_point = points.len();
             for (p, h, ts) in &versions {
                 let (r, _) = doc.edit_at(Origin::Import, Some(secs(*ts)), |t| {
-                    write::sync(t, &p.paras)
+                    write::sync_v3(t, &p.paras)
                 });
                 r?;
                 let parsed = h.meta.as_deref().and_then(meta::parse);
@@ -945,19 +943,19 @@ fn write_library(
                 });
             }
             let (r, _) = doc.edit_at(Origin::Import, Some(secs(final_ms)), |t| {
-                write::sync(t, &current.paras)
+                write::sync_v3(t, &current.paras)
             });
             r?;
-            let back: Vec<Para> = read::read_paras(&doc.view());
+            let back: Vec<Para> = read::read_paras_v3(&doc.view());
             let stored_exactly = back == current.paras;
-            let round_trips = prose::round_trips(&back, b.profile);
+            let round_trips = prose::round_trips_v3(&back, b.profile);
             if options.verify_history && !versions.is_empty() {
                 // Every version checks out on a detached copy.
                 let bytes = vec![doc.export_snapshot()?];
                 for (n, (p, _, _)) in versions.iter().enumerate() {
                     let at = &points[first_point + n].frontiers;
                     let copy = dr_doc::prose::ProseReader::load_at(b.doc_id.clone(), &bytes, at)?;
-                    if read::read_paras(&copy.view()) != p.paras {
+                    if read::read_paras_v3(&copy.view()) != p.paras {
                         notes.add("history-version-differs");
                     }
                 }

@@ -49,9 +49,6 @@ fn templates(
         }
     }
     for category in source.categories() {
-        if category.template_fields.iter().any(|f| !f.value.is_empty()) {
-            return Err(invalid("v3 field default-value writer is not available"));
-        }
         let mut tpl = base_element.clone();
         tpl.id = category_template(category.id.as_str());
         tpl.name = category.name;
@@ -71,6 +68,7 @@ fn templates(
                 field_type: FieldType::Text,
                 options: vec![],
                 target_template: None,
+                default_value: (!f.value.is_empty()).then(|| FieldValue::Text(f.value.clone())),
                 pos: f.pos.clone(),
             }));
         all.push(tpl);
@@ -832,11 +830,7 @@ pub(crate) fn target_doc(target: &EntityRef) -> Option<DocId> {
 }
 
 fn target_module(target: &EntityRef) -> Option<ModuleId> {
-    match target.kind {
-        EntityKind::Node | EntityKind::Element => Some(mid(MOD_PROSE)),
-        EntityKind::Storyline | EntityKind::Category => Some(mid(MOD_ABOUT)),
-        _ => None,
-    }
+    default_link_module(&target.kind)
 }
 
 /// Validate raw writes, rather than relying on tolerant readers that could

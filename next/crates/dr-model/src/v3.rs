@@ -217,7 +217,7 @@ v3_open_enum!(
 );
 
 /// Definition of a structured field inside a `fields` module.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FieldDef {
     pub id: String,
     pub name: String,
@@ -228,6 +228,9 @@ pub struct FieldDef {
     /// Optional target template filter when `field_type == FieldType::EntityRef`.
     #[serde(default)]
     pub target_template: Option<EntryTemplateId>,
+    /// Optional initial value copied into newly created entries of this template.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<FieldValue>,
     #[serde(default)]
     pub pos: Option<PosKey>,
 }
@@ -2664,6 +2667,7 @@ mod tests {
                 field_type: FieldType::Number,
                 options: Vec::new(),
                 target_template: None,
+                default_value: None,
                 pos: None,
             }],
         ));
@@ -2967,6 +2971,7 @@ mod tests {
                 field_type: FieldType::Aliases,
                 options: Vec::new(),
                 target_template: None,
+                default_value: None,
                 pos: None,
             }],
         ));

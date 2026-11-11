@@ -17,7 +17,7 @@ pub struct PutIn {
     pub book: String,
     pub template: types::EntryTemplate,
 }
-fn put(cx: &Cx<'_>, book: &str, t: m::EntryTemplate) -> Result<Done> {
+fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate) -> Result<Done> {
     let slot = cx.book_v3(book)?;
     let v = slot.reader_v3.view();
     let entries = v.entries_map();
@@ -25,6 +25,13 @@ fn put(cx: &Cx<'_>, book: &str, t: m::EntryTemplate) -> Result<Done> {
     name_ok(&t.name)?;
     if !t.kind.is_known() || t.deleted_at.is_some() {
         return Err(WsError::invalid("use a known live template kind"));
+    }
+    for module in &mut t.modules {
+        for field in &mut module.config.defs {
+            if matches!(field.default_value, Some(m::FieldValue::Null)) {
+                field.default_value = None;
+            }
+        }
     }
     m::check_template_modules(&t.kind, &t.modules)?;
     if t.settings.display.as_ref().is_some_and(|d| !d.is_known())
@@ -64,6 +71,9 @@ fn put(cx: &Cx<'_>, book: &str, t: m::EntryTemplate) -> Result<Done> {
             }
             if field.id.is_empty() || !fields.insert(&field.id) || !field.field_type.is_known() {
                 return Err(WsError::invalid("invalid field definition"));
+            }
+            if let Some(dv) = &field.default_value {
+                module::field_ok(&v, field, dv)?;
             }
         }
         for field in [

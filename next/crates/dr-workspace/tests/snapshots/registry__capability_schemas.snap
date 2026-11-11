@@ -3779,6 +3779,17 @@ expression: json
         },
         "FieldDef": {
           "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
             "field_type": {
               "type": "string"
             },
@@ -3821,6 +3832,29 @@ expression: json
             "pos"
           ],
           "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "KvEntry": {
           "properties": {
@@ -4508,6 +4542,17 @@ expression: json
         },
         "FieldDef": {
           "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
             "field_type": {
               "type": "string"
             },
@@ -4550,6 +4595,29 @@ expression: json
             "pos"
           ],
           "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "KvEntry": {
           "properties": {
@@ -5001,6 +5069,17 @@ expression: json
         },
         "FieldDef": {
           "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
             "field_type": {
               "type": "string"
             },
@@ -5040,6 +5119,29 @@ expression: json
             "field_type"
           ],
           "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "KvEntry": {
           "properties": {
@@ -5388,6 +5490,17 @@ expression: json
       "$defs": {
         "FieldDef": {
           "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
             "field_type": {
               "type": "string"
             },
@@ -5427,6 +5540,29 @@ expression: json
             "field_type"
           ],
           "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "KvEntry": {
           "properties": {
@@ -8418,6 +8554,17 @@ expression: json
       "$defs": {
         "FieldDef": {
           "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
             "field_type": {
               "type": "string"
             },
@@ -8460,6 +8607,29 @@ expression: json
             "pos"
           ],
           "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "KvEntry": {
           "properties": {
@@ -9138,6 +9308,17 @@ expression: json
         },
         "FieldDef": {
           "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
             "field_type": {
               "type": "string"
             },

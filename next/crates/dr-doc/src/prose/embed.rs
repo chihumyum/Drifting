@@ -187,4 +187,16 @@ impl TableWriter {
             .map_err(|_| loro::LoroError::ArgErr("cell update timed out".into()))?;
         Ok(())
     }
+
+    /// Remove a cell entry from a row so it reads as unset.
+    pub fn remove_cell(&self, row: &str, col: &str) -> Result<()> {
+        if let Some(rm) = sub_map(&self.entry, "rows")
+            && let Some(r) = sub_map(&rm, row)
+            && let Some(cm) = sub_map(&r, "cells")
+            && cm.get(col).is_some()
+        {
+            cm.delete(col)?;
+        }
+        Ok(())
+    }
 }

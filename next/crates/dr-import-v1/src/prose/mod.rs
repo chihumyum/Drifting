@@ -12,7 +12,10 @@ pub mod pm;
 pub mod read;
 pub mod write;
 
-pub use plan::{BlockSpan, Context, DocBlocks, LineAt, Notes, Para, Plan, doc_blocks, plan};
+pub use plan::{
+    BlockSpan, Context, DocBlocks, LineAt, Notes, Para, Plan, TableCellPlan, doc_blocks, plan,
+    plan_v3,
+};
 
 use dr_model::ProseProfile;
 
@@ -30,6 +33,22 @@ pub fn round_trips(paras: &[Para], profile: ProseProfile) -> bool {
         todo: &|_| None,
     };
     plan(&lines, &blocks, &ctx).paras == paras
+}
+
+/// Canonical v3 round trip: paragraphs (with v3 links and rich table cells)
+/// exported to JSON and planned again with [`plan_v3`] equal `paras`.
+pub fn round_trips_v3(paras: &[Para], profile: ProseProfile) -> bool {
+    let json = export::export_v3(paras);
+    let Ok(lines) = pm::parse_value(&json) else {
+        return false;
+    };
+    let blocks = doc_blocks(&lines);
+    let ctx = Context {
+        profile,
+        span: &|_| None,
+        todo: &|_| None,
+    };
+    plan_v3(&lines, &blocks, &ctx).paras == paras
 }
 
 #[cfg(test)]

@@ -7,7 +7,8 @@
 
 use dr_doc::prose::{EmbedView, Run};
 use dr_model::kind::ListKind;
-use dr_model::prose::{Align, LINE_BREAK, OBJECT_CHAR};
+use dr_model::prose::{Align, InlineMarks, LINE_BREAK, OBJECT_CHAR};
+use dr_model::v3::EntityLinkV3;
 use serde_json::{Map, Value, json};
 
 use super::plan::Para;
@@ -316,6 +317,293 @@ pub fn export(paras: &[Para]) -> Value {
         i += 1;
     }
     // 2. Lists, then 3. quotes and callouts around runs of blocks.
+    let mut grouped: Vec<(&Para, Value)> = Vec::new();
+    let mut k = 0;
+    while k < leaves.len() {
+        let head = leaves[k].0[0];
+        if head.attrs.list.is_some() && head.embed.is_none() {
+            let mut j = k;
+            while j < leaves.len()
+                && leaves[j].0[0].attrs.list.is_some()
+                && leaves[j].0[0].embed.is_none()
+                && leaves[j].0[0].attrs.quote == head.attrs.quote
+                && leaves[j].0[0].attrs.callout == head.attrs.callout
+            {
+                j += 1;
+            }
+            let ps: Vec<&Para> = leaves[k..j].iter().map(|l| l.0[0]).collect();
+            let bs: Vec<Value> = leaves[k..j].iter().map(|l| l.1.clone()).collect();
+            for list in lists(&ps, &bs) {
+                grouped.push((head, list));
+            }
+            k = j;
+            continue;
+        }
+        grouped.push((head, leaves[k].1.clone()));
+        k += 1;
+    }
+    let mut out = Vec::new();
+    let mut k = 0;
+    while k < grouped.len() {
+        let head = grouped[k].0;
+        let wrap = (head.attrs.quote || head.attrs.callout.is_some()) && head.embed.is_none();
+        if !wrap {
+            out.push(grouped[k].1.clone());
+            k += 1;
+            continue;
+        }
+        let mut j = k;
+        while j < grouped.len()
+            && grouped[j].0.embed.is_none()
+            && grouped[j].0.attrs.quote == head.attrs.quote
+            && grouped[j].0.attrs.callout == head.attrs.callout
+        {
+            j += 1;
+        }
+        let mut body: Vec<Value> = grouped[k..j].iter().map(|g| g.1.clone()).collect();
+        if head.attrs.callout.is_some() {
+            body = vec![json!({"type": "callout", "content": body})];
+        }
+        if head.attrs.quote {
+            body = vec![json!({"type": "blockquote", "content": body})];
+        }
+        out.extend(body);
+        k = j;
+    }
+    json!({"type": "doc", "content": out})
+}
+
+fn marks_of_v3(
+    m: &InlineMarks,
+    idx: usize,
+    v3_links: &[(std::ops::Range<usize>, EntityLinkV3)],
+) -> Vec<Value> {
+    let mut out = Vec::new();
+    if m.bold {
+        out.push(json!({"type": "bold"}));
+    }
+    if m.italic {
+        out.push(json!({"type": "italic"}));
+    }
+    if m.underline {
+        out.push(json!({"type": "underline"}));
+    }
+    if m.strike {
+        out.push(json!({"type": "strike"}));
+    }
+    if let Some(href) = &m.link {
+        out.push(json!({"type": "link", "attrs": {"href": href}}));
+    }
+    if let Some(color) = &m.highlight {
+        if color.is_empty() {
+            out.push(json!({"type": "highlight"}));
+        } else {
+            out.push(json!({"type": "highlight", "attrs": {"color": color}}));
+        }
+    }
+    if m.code {
+        out.push(json!({"type": "code"}));
+    }
+    let mut here: Vec<&EntityLinkV3> = v3_links
+        .iter()
+        .filter_map(|(r, l)| r.contains(&idx).then_some(l))
+        .collect();
+    here.sort_by(|a, b| a.target.cmp(&b.target));
+    for l in here {
+        let mut attrs = Map::new();
+        attrs.insert("targetKind".into(), l.kind.as_str().into());
+        attrs.insert("targetId".into(), l.target.as_str().into());
+        if let Some(module) = &l.module {
+            attrs.insert("targetModule".into(), module.as_str().into());
+        }
+        if let Some(b) = &l.block {
+            attrs.insert("targetBlockId".into(), b.as_str().into());
+        }
+        if let Some(b) = &l.end_block {
+            attrs.insert("targetEndBlockId".into(), b.as_str().into());
+        }
+        out.push(json!({"type": "entityLink", "attrs": attrs}));
+    }
+    out
+}
+
+fn inline_v3(runs: &[Run], v3_links: &[(std::ops::Range<usize>, EntityLinkV3)]) -> Vec<Value> {
+    let mut out = Vec::new();
+    let mut cur_text = String::new();
+    let mut cur_marks: Vec<Value> = Vec::new();
+    let flush = |cur_text: &mut String, cur_marks: &[Value], out: &mut Vec<Value>| {
+        if !cur_text.is_empty() {
+            let mut node = json!({"type": "text", "text": std::mem::take(cur_text)});
+            if !cur_marks.is_empty() {
+                node["marks"] = Value::Array(cur_marks.to_vec());
+            }
+            out.push(node);
+        }
+    };
+    let mut idx = 0usize;
+    for run in runs {
+        for c in run.text.chars() {
+            let marks = marks_of_v3(&run.marks, idx, v3_links);
+            idx += 1;
+            if c == LINE_BREAK {
+                flush(&mut cur_text, &cur_marks, &mut out);
+                let mut node = json!({"type": "hardBreak"});
+                if !marks.is_empty() {
+                    node["marks"] = Value::Array(marks);
+                }
+                out.push(node);
+            } else if c != OBJECT_CHAR {
+                if !cur_text.is_empty() && cur_marks != marks {
+                    flush(&mut cur_text, &cur_marks, &mut out);
+                }
+                if cur_text.is_empty() {
+                    cur_marks = marks;
+                }
+                cur_text.push(c);
+            }
+        }
+    }
+    flush(&mut cur_text, &cur_marks, &mut out);
+    out
+}
+
+fn text_block_v3(p: &Para) -> Value {
+    let mut a = leaf_attrs(p);
+    let kind = if let Some(h) = p.attrs.heading {
+        a.insert("level".into(), h.level().into());
+        "heading"
+    } else {
+        "paragraph"
+    };
+    json!({"type": kind, "attrs": a, "content": inline_v3(&p.runs, &p.v3_links)})
+}
+
+fn embed_block_v3(p: &Para, e: &EmbedView) -> Value {
+    match e {
+        EmbedView::Material { material, .. } => {
+            let mut a = Map::new();
+            if let Some(id) = &p.id {
+                a.insert("id".into(), id.as_str().into());
+            }
+            if let Some(m) = material {
+                a.insert("libraryItemId".into(), m.as_str().into());
+            }
+            json!({"type": "materialEmbed", "attrs": a})
+        }
+        EmbedView::Table {
+            rows, cols, cells, ..
+        } => {
+            let mut a = Map::new();
+            if let Some(id) = &p.id {
+                a.insert("id".into(), id.as_str().into());
+            }
+            let rows: Vec<Value> = rows
+                .iter()
+                .map(|r| {
+                    let row_cells: Vec<Value> = cols
+                        .iter()
+                        .filter_map(|c| {
+                            let key = (r.id.clone(), c.id.clone());
+                            let text = cells.get(&key)?;
+                            let content = if let Some(cp) = p.table_cells.get(&key) {
+                                inline_v3(&cp.runs, &cp.v3_links)
+                            } else if text.is_empty() {
+                                vec![]
+                            } else {
+                                vec![json!({"type": "text", "text": text})]
+                            };
+                            Some(json!({
+                                "type": "tableCell",
+                                "content": [{"type": "paragraph", "content": content}]
+                            }))
+                        })
+                        .collect();
+                    json!({"type": "tableRow", "content": row_cells})
+                })
+                .collect();
+            json!({"type": "table", "attrs": a, "content": rows})
+        }
+        EmbedView::Other { .. } => json!({"type": "paragraph", "content": []}),
+    }
+}
+
+/// Export canonical v3 paragraphs (including v3 entity links and rich table
+/// cells) to ProseMirror JSON for lossless round-trip verification.
+pub fn export_v3(paras: &[Para]) -> Value {
+    let mut leaves: Vec<(Vec<&Para>, Value)> = Vec::new();
+    let mut i = 0;
+    while i < paras.len() {
+        let p = &paras[i];
+        if let Some(e) = &p.embed {
+            leaves.push((vec![p], embed_block_v3(p, e)));
+            i += 1;
+            continue;
+        }
+        if p.attrs.rule {
+            let mut a = Map::new();
+            if let Some(id) = &p.id {
+                a.insert("id".into(), id.as_str().into());
+            }
+            leaves.push((vec![p], json!({"type": "horizontalRule", "attrs": a})));
+            i += 1;
+            continue;
+        }
+        if let Some(lang) = &p.attrs.code_block {
+            let mut j = i + 1;
+            while j < paras.len()
+                && paras[j].embed.is_none()
+                && paras[j].attrs.code_block.as_ref() == Some(lang)
+                && paras[j].id.is_none()
+                && paras[j].attrs.list == p.attrs.list
+                && paras[j].attrs.quote == p.attrs.quote
+            {
+                j += 1;
+            }
+            let mut runs: Vec<Run> = Vec::new();
+            let mut v3_links: Vec<(std::ops::Range<usize>, EntityLinkV3)> = Vec::new();
+            let mut offset = 0usize;
+            for (n, q) in paras[i..j].iter().enumerate() {
+                if n > 0 {
+                    runs.push(Run {
+                        text: "\n".into(),
+                        marks: Default::default(),
+                    });
+                    offset += 1;
+                }
+                runs.extend(q.runs.iter().cloned());
+                for (r, l) in &q.v3_links {
+                    v3_links.push((offset + r.start..offset + r.end, l.clone()));
+                }
+                offset += q.len();
+            }
+            let mut a = leaf_attrs(p);
+            a.insert("language".into(), lang.as_str().into());
+            let content: Vec<Value> = inline_v3(&runs, &v3_links).into_iter().fold(
+                Vec::<Value>::new(),
+                |mut acc, node| {
+                    if let (Some(last), Some(t)) = (acc.last_mut(), node["text"].as_str())
+                        && last.get("marks").is_none()
+                        && node.get("marks").is_none()
+                        && last["type"] == "text"
+                    {
+                        let joined = format!("{}{t}", last["text"].as_str().unwrap_or(""));
+                        last["text"] = joined.into();
+                        return acc;
+                    }
+                    acc.push(node);
+                    acc
+                },
+            );
+            leaves.push((
+                paras[i..j].iter().collect(),
+                json!({"type": "codeBlock", "attrs": a, "content": content}),
+            ));
+            i = j;
+            continue;
+        }
+        leaves.push((vec![p], text_block_v3(p)));
+        i += 1;
+    }
     let mut grouped: Vec<(&Para, Value)> = Vec::new();
     let mut k = 0;
     while k < leaves.len() {

@@ -611,3 +611,101 @@ fn structure_snapshot_keeps_duplicate_tree_ids_and_domain_cycle_tolerance() {
     assert!(snapshot.entry(&eid("y")).is_none());
     assert_eq!(snapshot.children_of(Some(&eid("shared"))).len(), 2);
 }
+
+#[test]
+fn field_def_default_value_round_trips_through_loro_and_omits_null() {
+    let mut doc = BookDocV3::create(bid(), 46).unwrap();
+    let p0 = PosKey::parse("a0").unwrap();
+    let p1 = PosKey::parse("a1").unwrap();
+    let p2 = PosKey::parse("a2").unwrap();
+    let p3 = PosKey::parse("a3").unwrap();
+    let p4 = PosKey::parse("a4").unwrap();
+    let tpl = EntryTemplate {
+        id: tid("tpl-char"),
+        kind: TemplateKind::Leaf,
+        name: "人物".into(),
+        mark: None,
+        color: None,
+        agent: None,
+        modules: vec![ModuleSpec {
+            id: mid("mod-fields"),
+            kind: ModuleKind::Fields,
+            name: "字段".into(),
+            pos: Some(p0.clone()),
+            config: ModuleConfig {
+                defs: vec![
+                    FieldDef {
+                        id: "origin".into(),
+                        name: "出身".into(),
+                        field_type: FieldType::Text,
+                        options: vec![],
+                        target_template: None,
+                        pos: Some(p0),
+                        default_value: Some(FieldValue::Text("未庄".into())),
+                    },
+                    FieldDef {
+                        id: "age".into(),
+                        name: "年龄".into(),
+                        field_type: FieldType::Number,
+                        options: vec![],
+                        target_template: None,
+                        pos: Some(p1),
+                        default_value: Some(FieldValue::Number(25.0)),
+                    },
+                    FieldDef {
+                        id: "tags".into(),
+                        name: "标签".into(),
+                        field_type: FieldType::MultiSelect,
+                        options: vec!["短工".into(), "闲人".into()],
+                        target_template: None,
+                        pos: Some(p2),
+                        default_value: Some(FieldValue::List(vec!["短工".into(), "闲人".into()])),
+                    },
+                    FieldDef {
+                        id: "empty".into(),
+                        name: "备注".into(),
+                        field_type: FieldType::Text,
+                        options: vec![],
+                        target_template: None,
+                        pos: Some(p3),
+                        default_value: None,
+                    },
+                    FieldDef {
+                        id: "nullish".into(),
+                        name: "空值".into(),
+                        field_type: FieldType::Text,
+                        options: vec![],
+                        target_template: None,
+                        pos: Some(p4),
+                        default_value: Some(FieldValue::Null),
+                    },
+                ],
+                ..ModuleConfig::default()
+            },
+            agent: None,
+        }],
+        settings: LevelSettingsOverride::default(),
+        lane: false,
+        verbs: Vec::new(),
+        deleted_at: None,
+    };
+    doc.edit(Origin::User, |t| {
+        t.template(&tpl.id)?.set_full(&tpl)?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    let snapshot = doc.export_snapshot().unwrap();
+    let reopened = BookDocV3::load(bid(), 47, &[snapshot]).unwrap();
+    let defs = &reopened.view().template(&tid("tpl-char")).unwrap().modules[0]
+        .config
+        .defs;
+    assert_eq!(defs[0].default_value, Some(FieldValue::Text("未庄".into())));
+    assert_eq!(defs[1].default_value, Some(FieldValue::Number(25.0)));
+    assert_eq!(
+        defs[2].default_value,
+        Some(FieldValue::List(vec!["短工".into(), "闲人".into()]))
+    );
+    assert_eq!(defs[3].default_value, None);
+    assert_eq!(defs[4].default_value, None);
+}

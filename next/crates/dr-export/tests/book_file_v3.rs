@@ -141,6 +141,7 @@ fn v3_archive_keeps_retained_bodies_hidden_bindings_and_literal_ids() {
                     field_type,
                     options: vec![],
                     target_template: None,
+                    default_value: None,
                     pos: None,
                 })
                 .collect(),

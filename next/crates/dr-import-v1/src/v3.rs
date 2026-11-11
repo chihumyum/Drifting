@@ -15,9 +15,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::book;
-use crate::legacy::{BookRows, Legacy};
+use crate::legacy::{BookRows, Legacy, ProseKind};
 use crate::meta::{Fields, Owner};
-use crate::prose::{Notes, Plan};
+use crate::prose::Notes;
 use crate::run::Options;
 use crate::{ImportError, Result};
 
@@ -35,18 +35,6 @@ pub(crate) fn mapping_key(options: &Options) -> Result<String> {
 
 pub(crate) fn doc_id(_options: &Options, book: &BookId, old: &DocId) -> DocId {
     dr_samples::v3::prose_id(book, old)
-}
-
-pub(crate) fn plan(_options: &Options, mut plan: Plan) -> Plan {
-    for para in &mut plan.paras {
-        for run in &mut para.runs {
-            for link in &mut run.marks.entities {
-                link.kind = dr_samples::v3::map_kind(&link.kind);
-            }
-        }
-    }
-
-    plan
 }
 
 /// Read-only preflight. It allocates no target ids on disk, adopts no device
@@ -218,9 +206,6 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 {
                     add("ambiguous-template-field", &category.id);
                 }
-                if !field.value.is_empty() {
-                    add("field-default-value-interface-missing", &category.id);
-                }
             }
         }
         for link in &rows.links {
@@ -353,7 +338,7 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                     .map(|s| (s.id.as_str(), s.template.as_str())),
             )
         {
-            inspect_json(source, json, &mut pending);
+            inspect_json(source, json, dr_model::ProseProfile::Prose, &mut pending);
             if !json.trim().is_empty() && crate::prose::pm::parse(json).is_err() {
                 pending.push(Pending {
                     code: "unreadable-source-template".into(),
@@ -439,12 +424,9 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         }
         if let Some(fields) = meta.template_kv {
             let mut names = BTreeSet::new();
-            for (key, value) in fields {
+            for (key, _value) in fields {
                 if !names.insert(key.clone()) {
                     add("ambiguous-history-template-field");
-                }
-                if !value.is_empty() {
-                    add("field-default-value-interface-missing");
                 }
                 category_fields
                     .entry((row.project_id.clone(), row.entity_id.clone()))
@@ -481,16 +463,28 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             });
         }
     }
-    for (source, json) in owners
+    for (source, json, profile) in owners
         .iter()
-        .filter_map(|o| o.cache.as_deref().map(|j| (o.old_doc_id(), j)))
-        .chain(
-            history
-                .iter()
-                .filter_map(|h| h.preview.as_deref().map(|j| (h.id.clone(), j))),
-        )
+        .filter_map(|o| {
+            let profile = if o.kind == ProseKind::LibraryItem {
+                dr_model::ProseProfile::Note
+            } else {
+                dr_model::ProseProfile::Prose
+            };
+            o.cache.as_deref().map(|j| (o.old_doc_id(), j, profile))
+        })
+        .chain(history.iter().filter_map(|h| {
+            let profile = if ProseKind::from_doc_id(&h.old_doc_id())
+                .is_some_and(|(k, _)| k == ProseKind::LibraryItem)
+            {
+                dr_model::ProseProfile::Note
+            } else {
+                dr_model::ProseProfile::Prose
+            };
+            h.preview.as_deref().map(|j| (h.id.clone(), j, profile))
+        }))
     {
-        inspect_json(&source, json, &mut pending);
+        inspect_json(&source, json, profile, &mut pending);
     }
     pending.sort_by(|a, b| (&a.code, &a.source).cmp(&(&b.code, &b.source)));
     pending.dedup();
@@ -506,50 +500,167 @@ fn valid_kv_json(json: &str) -> bool {
     })
 }
 
-fn inspect_json(source: &str, json: &str, pending: &mut Vec<Pending>) {
+fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pending>) {
+    let Some(attrs) = attrs.and_then(Value::as_object) else {
+        pending.push(Pending {
+            code: "invalid-source-entity-link".into(),
+            source: source.into(),
+        });
+        return;
+    };
+    let Some(target) = attrs
+        .get("targetId")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    else {
+        pending.push(Pending {
+            code: "invalid-source-entity-link".into(),
+            source: source.into(),
+        });
+        return;
+    };
+    let raw_kind = attrs
+        .get("targetKind")
+        .and_then(Value::as_str)
+        .unwrap_or("element");
+    let old_kind = dr_model::legacy::entity_kind(raw_kind);
+    let mapped_kind = dr_samples::v3::map_kind(&old_kind);
+    if !mapped_kind.may_be_linked_v3() {
+        pending.push(Pending {
+            code: "unsupported-entity-link-target-kind".into(),
+            source: source.into(),
+        });
+        return;
+    }
+    let valid_target = match mapped_kind {
+        dr_model::kind::EntityKind::Entry => EntryId::parse(target).is_ok(),
+        dr_model::kind::EntityKind::Material => MaterialId::parse(target).is_ok(),
+        _ => false,
+    };
+    if !valid_target {
+        pending.push(Pending {
+            code: "invalid-source-entity-link".into(),
+            source: source.into(),
+        });
+        return;
+    }
+    let m1 = attrs.get("module").filter(|v| !v.is_null());
+    let m2 = attrs.get("targetModule").filter(|v| !v.is_null());
+    if let (Some(a), Some(b)) = (m1, m2)
+        && a != b
+    {
+        pending.push(Pending {
+            code: "invalid-source-entity-link".into(),
+            source: source.into(),
+        });
+        return;
+    }
+    if let Some(raw_mod) = m1.or(m2) {
+        let valid_mod = mapped_kind == dr_model::kind::EntityKind::Entry
+            && raw_mod.as_str().is_some_and(|s| ModuleId::parse(s).is_ok());
+        if !valid_mod {
+            pending.push(Pending {
+                code: "invalid-source-entity-link".into(),
+                source: source.into(),
+            });
+            return;
+        }
+    }
+    for key in ["targetBlockId", "targetEndBlockId"] {
+        if let Some(raw_block) = attrs.get(key).filter(|v| !v.is_null())
+            && raw_block
+                .as_str()
+                .is_none_or(|s| s.is_empty() || BlockId::parse(s).is_err())
+        {
+            pending.push(Pending {
+                code: "invalid-source-entity-link".into(),
+                source: source.into(),
+            });
+            return;
+        }
+    }
+}
+
+fn inspect_json(
+    source: &str,
+    json: &str,
+    profile: dr_model::ProseProfile,
+    pending: &mut Vec<Pending>,
+) {
     if json.trim().is_empty() {
         return;
     }
-    fn walk(v: &Value, source: &str, in_table: bool, pending: &mut Vec<Pending>) {
+    fn walk(
+        v: &Value,
+        source: &str,
+        profile: dr_model::ProseProfile,
+        in_table: bool,
+        is_mark: bool,
+        pending: &mut Vec<Pending>,
+    ) {
         if let Some(object) = v.as_object() {
-            let in_table = in_table || object.get("type").and_then(Value::as_str) == Some("table");
+            let kind = object.get("type").and_then(Value::as_str);
+            if is_mark {
+                if kind == Some("entityLink") {
+                    inspect_entity_link(object.get("attrs"), source, pending);
+                } else if in_table {
+                    let allowed = match kind {
+                        Some("bold" | "italic" | "underline" | "strike") => true,
+                        Some("link") => object
+                            .get("attrs")
+                            .and_then(|a| a.get("href"))
+                            .and_then(Value::as_str)
+                            .is_some(),
+                        Some("highlight" | "code") => profile == dr_model::ProseProfile::Note,
+                        _ => false,
+                    };
+                    if !allowed {
+                        pending.push(Pending {
+                            code: "unsupported-table-cell-mark".into(),
+                            source: source.into(),
+                        });
+                    }
+                }
+                return;
+            }
+            let in_table = in_table || kind == Some("table");
             if in_table
-                && object
-                    .get("marks")
-                    .and_then(Value::as_array)
-                    .is_some_and(|marks| !marks.is_empty())
+                && let Some(k) = kind
+                && !matches!(
+                    k,
+                    "table"
+                        | "tableRow"
+                        | "tableCell"
+                        | "tableHeader"
+                        | "paragraph"
+                        | "text"
+                        | "hardBreak"
+                )
             {
                 pending.push(Pending {
-                    code: "legacy-table-cell-format-mapping".into(),
+                    code: "unsupported-table-cell-content".into(),
                     source: source.into(),
                 });
             }
-            if object.get("type").and_then(Value::as_str) == Some("entityLink") {
-                let attrs = &v["attrs"];
-                if [Some("material"), Some("library_item")].contains(&attrs["targetKind"].as_str())
-                    || attrs.get("module").is_some()
-                    || attrs.get("targetModule").is_some()
-                    || ["targetBlockId", "targetEndBlockId"]
-                        .iter()
-                        .any(|key| attrs.get(key).is_some_and(|value| !value.is_null()))
-                {
-                    pending.push(Pending {
-                        code: "v3-prose-link-writer-missing".into(),
-                        source: source.into(),
-                    });
+            if let Some(marks) = object.get("marks").and_then(Value::as_array) {
+                for mark in marks {
+                    walk(mark, source, profile, in_table, true, pending);
                 }
             }
-            for value in object.values() {
-                walk(value, source, in_table, pending);
+            for (k, value) in object {
+                if k == "marks" || k == "attrs" {
+                    continue;
+                }
+                walk(value, source, profile, in_table, false, pending);
             }
         } else if let Some(array) = v.as_array() {
             for value in array {
-                walk(value, source, in_table, pending);
+                walk(value, source, profile, in_table, is_mark, pending);
             }
         }
     }
     match serde_json::from_str(json) {
-        Ok(value) => walk(&value, source, false, pending),
+        Ok(value) => walk(&value, source, profile, false, false, pending),
         Err(_) => pending.push(Pending {
             code: "unreadable-source-prose".into(),
             source: source.into(),
@@ -720,8 +831,10 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
             .map(|d| (d.id.as_str(), d))
             .collect();
         if fields.iter().any(|f| {
-            defs.get(f.id.as_str())
-                .is_none_or(|d| d.name != f.key || d.pos != f.pos)
+            let want_default = (!f.value.is_empty()).then(|| FieldValue::Text(f.value.clone()));
+            defs.get(f.id.as_str()).is_none_or(|d| {
+                d.name != f.key || d.pos != f.pos || d.default_value != want_default
+            })
         }) {
             return false;
         }

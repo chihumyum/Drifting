@@ -46,7 +46,7 @@ pub enum StyleKey {
 }
 
 impl StyleKey {
-    fn key(self) -> &'static str {
+    pub(super) fn key(self) -> &'static str {
         match self {
             StyleKey::Bold => inline::BOLD,
             StyleKey::Italic => inline::ITALIC,
@@ -533,7 +533,7 @@ impl<'a> ProseTxn<'a> {
         self.per_segment(range, |r| Ok(text.mark(r, key, value.clone())?))
     }
 
-    fn check_style(&self, style: &InlineStyle) -> Result<()> {
+    pub(super) fn check_style(&self, style: &InlineStyle) -> Result<()> {
         if style.allowed_in(self.view.profile) {
             Ok(())
         } else {
@@ -682,7 +682,7 @@ impl<'a> ProseTxn<'a> {
 }
 
 /// The inline styles `m` carries (entity links and embeds aside).
-fn styles_of(m: &InlineMarks) -> impl Iterator<Item = InlineStyle> {
+pub(super) fn styles_of(m: &InlineMarks) -> impl Iterator<Item = InlineStyle> {
     [
         m.bold.then_some(InlineStyle::Bold),
         m.italic.then_some(InlineStyle::Italic),
@@ -697,7 +697,7 @@ fn styles_of(m: &InlineMarks) -> impl Iterator<Item = InlineStyle> {
 }
 
 /// The Loro mark key and value of `style`.
-fn style_mark(style: &InlineStyle) -> (&'static str, LoroValue) {
+pub(super) fn style_mark(style: &InlineStyle) -> (&'static str, LoroValue) {
     match style {
         InlineStyle::Bold => (inline::BOLD, true.into()),
         InlineStyle::Italic => (inline::ITALIC, true.into()),
