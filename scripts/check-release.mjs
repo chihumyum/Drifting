@@ -8,7 +8,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
-export const UPDATE_ENDPOINT = 'https://github.com/chihumyum/Drifting/releases/latest/download/latest.json';
+// Tried in this order: the Rust client's manifest (absent until 0.2 ships, so
+// the updater falls through) and then the newest 0.1 release's own manifest.
+export const UPDATE_ENDPOINTS = [
+  'https://github.com/chihumyum/Drifting/releases/latest/download/update.json',
+  'https://github.com/chihumyum/Drifting/releases/latest/download/latest.json',
+];
 
 const root = path.resolve(import.meta.dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -58,8 +63,10 @@ export function checkRelease({ tag } = {}) {
   if (!/^strip\s*=\s*"none"/mu.test(buildOverride)) {
     errors.push('src-tauri/Cargo.toml must keep [profile.release.build-override] strip = "none"');
   }
-  if (!read('src-tauri/src/app_update.rs').includes(`"${UPDATE_ENDPOINT}"`)) {
-    errors.push(`src-tauri/src/app_update.rs must poll ${UPDATE_ENDPOINT}`);
+  const updateSource = read('src-tauri/src/app_update.rs');
+  const endpointPositions = UPDATE_ENDPOINTS.map((endpoint) => updateSource.indexOf(`"${endpoint}"`));
+  if (endpointPositions.some((position) => position < 0) || endpointPositions[0] > endpointPositions[1]) {
+    errors.push(`src-tauri/src/app_update.rs must poll ${UPDATE_ENDPOINTS.join(' and then ')}`);
   }
   // An app linked against an SDK older than macOS 26 gets the older title bar,
   // and its traffic lights sit lower than the position the app sets.

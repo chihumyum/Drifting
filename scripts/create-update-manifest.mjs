@@ -1,6 +1,7 @@
 // Writes the Tauri updater manifest (latest.json) attached to a GitHub release.
-// The app polls releases/latest/download/latest.json, so publishing a release
-// is what offers it as an update.
+// The app polls releases/latest/download/update.json and then latest.json, so
+// publishing a release is what offers it as an update. A 0.1 release never
+// writes update.json: that name belongs to the Rust client (docs/releasing.md).
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';

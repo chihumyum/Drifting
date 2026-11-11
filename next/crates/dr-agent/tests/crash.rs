@@ -48,6 +48,27 @@ fn fixture() -> (SeededV3, DocId, String, Vec<String>) {
     (seeded, doc, block, text)
 }
 
+fn replace_step(ws: &Workspace, doc: &DocId, block: &str, base: &[String], step: i64) {
+    ws.call(
+        &Actor::agent(SESSION, step as u32, format!("step-{step}")),
+        "prose.replace",
+        json!({
+            "doc": doc.to_string(),
+            "block_id": block,
+            "find": expected(base, step - 1)[1],
+            "replace": expected(base, step)[1],
+        }),
+    )
+    .unwrap();
+}
+
+fn warm_workspace(ws: &Workspace, book_id: &str, doc: &DocId) {
+    ws.call(&Actor::User, "book.get", json!({"book": book_id}))
+        .unwrap();
+    ws.call(&Actor::User, "prose.read", json!({"doc": doc.to_string()}))
+        .unwrap();
+}
+
 fn expected(base: &[String], step: i64) -> Vec<String> {
     let mut text = base.to_vec();
     if step >= 0 {
@@ -71,7 +92,8 @@ fn agent_writer() {
     let Some(root) = crash::child_root() else {
         return;
     };
-    let (_, doc, block, base) = fixture();
+    let (seeded, doc, block, base) = fixture();
+    let book_id = seeded.books[0].book_id().to_string();
     let mut options = options();
     let enabled = Arc::new(AtomicBool::new(false));
     let checkpoint_enabled = enabled.clone();
@@ -92,24 +114,75 @@ fn agent_writer() {
     ws.set_auto_links(false);
     // Open/repair documents before reporting ready; only the tested writes
     // subsequently enter the checkpoint and get counted by the harness.
-    ws.call(&Actor::User, "prose.read", json!({"doc": doc.to_string()}))
-        .unwrap();
+    warm_workspace(&ws, &book_id, &doc);
     let mut reporter = Reporter::new();
     enabled.store(true, Ordering::Relaxed);
     loop {
-        ws.call(
-            &Actor::agent(SESSION, step as u32, format!("step-{step}")),
-            "prose.replace",
-            json!({
-                "doc": doc.to_string(),
-                "block_id": block,
-                "find": expected(&base, step - 1)[1],
-                "replace": expected(&base, step)[1],
-            }),
-        )
-        .unwrap();
+        replace_step(&ws, &doc, &block, &base, step);
         reporter.durable(step as u64);
         step += 1;
+    }
+}
+
+#[test]
+fn resumed_agent_writer() {
+    let Some(root) = crash::child_root() else {
+        return;
+    };
+    let stage = std::fs::read_to_string(root.join("stage")).unwrap();
+    let stage = stage.trim().to_string();
+    let lib_root = root.join("lib");
+    let (seeded, doc, block, base) = fixture();
+    let book_id = seeded.books[0].book_id().to_string();
+    let mut options = options();
+    let trap = Arc::new(AtomicBool::new(false));
+    let trap_flag = trap.clone();
+    let stage_for_hook = stage.clone();
+    options.append_checkpoint = Some(Arc::new(move || {
+        if trap_flag.load(Ordering::SeqCst) {
+            let mut reporter = Reporter::new();
+            if stage_for_hook == "seed_and_pause_mid_tx" {
+                for committed in 0..=4 {
+                    reporter.durable(committed);
+                }
+            }
+            reporter.phase("append_transaction");
+            std::thread::sleep(Duration::from_secs(30));
+        }
+    }));
+    let lib = Library::open(&lib_root, options).unwrap();
+    let step = lib
+        .settlements(Some(SESSION), Some(&doc.to_string()))
+        .unwrap()
+        .len() as i64;
+    let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
+    ws.set_auto_links(false);
+    warm_workspace(&ws, &book_id, &doc);
+    match stage.as_str() {
+        "seed_and_pause_mid_tx" => {
+            assert_eq!(step, 0);
+            for s in 0..=4 {
+                replace_step(&ws, &doc, &block, &base, s);
+            }
+            trap.store(true, Ordering::SeqCst);
+            replace_step(&ws, &doc, &block, &base, 5);
+            unreachable!("writer must be killed inside step 5 append_transaction");
+        }
+        "resume_pause_mid_tx" => {
+            assert_eq!(step, 5);
+            trap.store(true, Ordering::SeqCst);
+            replace_step(&ws, &doc, &block, &base, 5);
+            unreachable!("resumed writer must be killed inside step 5 append_transaction");
+        }
+        "resume_commit_before_report" => {
+            assert_eq!(step, 5);
+            replace_step(&ws, &doc, &block, &base, 5);
+            let mut reporter = Reporter::new();
+            reporter.phase("committed_before_report");
+            std::thread::sleep(Duration::from_secs(30));
+            unreachable!("resumed writer must be killed before durable(5) report");
+        }
+        other => panic!("unexpected stage: {other}"),
     }
 }
 
@@ -185,4 +258,65 @@ fn killing_mid_agent_transaction_recovers_book_and_settlement_together() {
             > 0,
         "at least one kill must land between the Loro row and receipt: {report:?}"
     );
+}
+
+#[test]
+fn killing_resumed_agent_writer_on_first_step_recovers_book_and_settlement() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let lib_root = root.join("lib");
+    let stage_file = root.join("stage");
+    let (seed, _, _, _) = fixture();
+    let lib = Library::open(&lib_root, options()).unwrap();
+    seed.write_to(&lib).unwrap();
+    lib.close().unwrap();
+    std::fs::write(&stage_file, "seed_and_pause_mid_tx").unwrap();
+
+    let report = Harness::for_test("resumed_agent_writer")
+        .kills(3)
+        .delay_ms(5, 15)
+        .run(root, |kill, root| {
+            let lib_root = root.join("lib");
+            let stage_file = root.join("stage");
+            let got = verify(&lib_root)?;
+            match kill.index {
+                0 => {
+                    if kill.durable != Some(4) || kill.phase != "append_transaction" {
+                        return Err(format!("unexpected kill 0 state: {kill:?}"));
+                    }
+                    if got.step != 4 {
+                        return Err(format!("expected step 4 after kill 0, got {}", got.step));
+                    }
+                    std::fs::write(&stage_file, "resume_pause_mid_tx")
+                        .map_err(|e| e.to_string())?;
+                }
+                1 => {
+                    if kill.durable.is_some() || kill.phase != "append_transaction" {
+                        return Err(format!("unexpected kill 1 state: {kill:?}"));
+                    }
+                    if got.step != 4 {
+                        return Err(format!("expected step 4 after kill 1, got {}", got.step));
+                    }
+                    std::fs::write(&stage_file, "resume_commit_before_report")
+                        .map_err(|e| e.to_string())?;
+                }
+                2 => {
+                    if kill.durable.is_some() || kill.phase != "committed_before_report" {
+                        return Err(format!("unexpected kill 2 state: {kill:?}"));
+                    }
+                    if got.step != 5 {
+                        return Err(format!("expected step 5 after kill 2, got {}", got.step));
+                    }
+                }
+                other => return Err(format!("unexpected kill index {other}")),
+            }
+            Ok(got)
+        })
+        .unwrap();
+
+    assert_eq!(report.kills, 3);
+    assert_eq!(report.last_step, 5);
+    assert_eq!(report.one_step_beyond, 1);
+    assert_eq!(report.by_phase.get("append_transaction"), Some(&2));
+    assert_eq!(report.by_phase.get("committed_before_report"), Some(&1));
 }

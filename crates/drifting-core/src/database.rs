@@ -1325,14 +1325,14 @@ fn database_has_pending_migrations(connection: &Connection) -> DatabaseResult<bo
     if !exists {
         return Ok(true);
     }
-    let applied: usize = connection
+    let applied: i64 = connection
         .query_row(
             &format!("SELECT count(*) FROM {MIGRATIONS_TABLE}"),
             [],
             |row| row.get(0),
         )
         .map_err(|error| format!("failed to count applied migrations: {error}"))?;
-    Ok(applied < journal.entries.len())
+    Ok(usize::try_from(applied).unwrap_or(0) < journal.entries.len())
 }
 
 fn database_opened_version(
@@ -2004,8 +2004,7 @@ fn query_sql(
         .map_err(|error| format!("failed to prepare SQLite query: {error}"))?;
     let columns = statement
         .column_names()
-        .iter()
-        .map(|name| (*name).to_string())
+        .map(str::to_string)
         .collect::<Vec<_>>();
     let column_count = statement.column_count();
     let mut query = statement
@@ -2536,7 +2535,9 @@ mod tests {
         let queued_checkpoint = thread::spawn(move || {
             started_sender.send(()).expect("announce checkpoint");
             let result = queued_gateway.checkpoint(CLIENT_SESSION.into());
-            finished_sender.send(result).expect("return checkpoint result");
+            finished_sender
+                .send(result)
+                .expect("return checkpoint result");
         });
 
         started_receiver.recv().expect("checkpoint started");

@@ -58,7 +58,7 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.appearance.theme')} hint="THEME" />
-        // The interface itself is the preview: one choice, like the account menu.
+        {/* The interface itself is the preview: one choice, like the account menu. */}
         <SettingsRow
           label={t('settings.appearance.theme')}
           desc={t('settings.appearance.theme_desc')}

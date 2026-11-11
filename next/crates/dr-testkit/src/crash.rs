@@ -201,6 +201,7 @@ impl Harness {
         let mut rng = Rng::new(self.seed);
         let mut by_phase = BTreeMap::new();
         let mut beyond = 0;
+        let mut floor = -1;
         let mut last = -1;
         let mut verify_ms = Vec::new();
         for index in 0..self.kills {
@@ -264,21 +265,9 @@ impl Harness {
             let t = Instant::now();
             let got = verify(&kill, root).map_err(|e| format!("kill {index}: {e}"))?;
             verify_ms.push(t.elapsed().as_secs_f64() * 1e3);
-            let reported = durable.map_or(-1, |d| d as i64);
-            if got.step < reported {
-                return Err(format!(
-                    "kill {index}: lost durable step {reported} (reopened at {})",
-                    got.step
-                ));
-            }
-            if got.step > reported + 1 {
-                return Err(format!(
-                    "kill {index}: reopened at {} beyond the step being written ({})",
-                    got.step,
-                    reported + 1
-                ));
-            }
-            beyond += usize::from(got.step == reported + 1);
+            let (next_floor, one_beyond) = check_step(index, floor, durable, got.step)?;
+            beyond += usize::from(one_beyond);
+            floor = next_floor;
             last = last.max(got.step);
         }
         Ok(Report {
@@ -288,5 +277,68 @@ impl Harness {
             last_step: last,
             verify_ms: Summary::of(&verify_ms),
         })
+    }
+}
+
+/// Checks one kill's recovered step against both the prior verified floor and
+/// whatever new durable step the current child process managed to report before
+/// dying. When a resumed child is killed inside its very first write (`durable`
+/// is `None`), `floor` remains the durable baseline and `floor + 1` is the step
+/// in flight.
+fn check_step(
+    index: usize,
+    floor: i64,
+    durable: Option<u64>,
+    recovered: i64,
+) -> Result<(i64, bool), String> {
+    if let Some(d) = durable
+        && (d as i64) <= floor
+    {
+        return Err(format!(
+            "kill {index}: writer reported durable step {d} at or behind prior step {floor}"
+        ));
+    }
+    let baseline = durable.map_or(floor, |d| d as i64);
+    if recovered < baseline {
+        return Err(format!(
+            "kill {index}: lost durable step {baseline} (reopened at {recovered})"
+        ));
+    }
+    if recovered > baseline + 1 {
+        return Err(format!(
+            "kill {index}: reopened at {recovered} beyond the step being written ({})",
+            baseline + 1
+        ));
+    }
+    Ok((recovered, recovered == baseline + 1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_step;
+
+    #[test]
+    fn resumed_kill_before_first_durable_report_keeps_prior_floor() {
+        // Prior kills committed 0..=4 (`floor == 4`). Child #5 is killed inside
+        // step 5 before printing `durable 5`: rolling back to 4 is exact, and
+        // committing 5 right before printing `durable 5` is one step beyond.
+        assert_eq!(check_step(5, 4, None, 4), Ok((4, false)));
+        assert_eq!(check_step(5, 4, None, 5), Ok((5, true)));
+    }
+
+    #[test]
+    fn check_step_catches_lost_prior_steps_rewinds_and_two_steps_ahead() {
+        assert_eq!(
+            check_step(5, 4, None, 3),
+            Err("kill 5: lost durable step 4 (reopened at 3)".into()),
+        );
+        assert_eq!(
+            check_step(5, 4, None, 6),
+            Err("kill 5: reopened at 6 beyond the step being written (5)".into()),
+        );
+        assert_eq!(
+            check_step(5, 4, Some(4), 4),
+            Err("kill 5: writer reported durable step 4 at or behind prior step 4".into()),
+        );
     }
 }
