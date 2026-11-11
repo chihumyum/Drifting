@@ -170,11 +170,12 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-12 02:25 | 晚间队列第 5 项完成：在机器空闲（`load1m < 4.0`）release 下重测并优化 M22（要素全景）与 M23（审阅与素材）`Preset::Heavy` 首帧与单帧耗时（不改格式、不动 Loro `=1.17.1`、不改行为）。① M22：稠密同段共现计数、空间哈希桶复用、`relations_raw` 标量遍历、去除建窗期重复初载与砂线／弧线视口裁剪批绘，`open_first_frame_ms` 由 `160.47 ms` 降至 **`87.30–91.62 ms`**（`first_frame_ms` `73.48–76.80 ms`，满足 `≤ 100 ms` 预算），单帧 `p50`/`p95` 降至 `8.93–9.35` / `9.46–11.22 ms`；② M23：五处滚动容器切换 `gpui::list(ListState)` 视口虚拟化、`glass::paint_rim` 视口裁剪与 `dr-doc` 标量 `entry_headers`／`material_titles` 扫描，`first_frame_ms` `2.35 ms`、`ready_ms` 由 `326.80 ms` 降至 **`136.06 ms`**，展开抽屉单帧 `p50`/`p95` 由 `43.37 / 48.34 ms` 降至 **`3.96 / 4.70 ms`**（达 120 Hz 发布档 `≤ 8.3 ms`）。立即进入第二部分（收 `handback/app-sync`）。 | `23713015` |
 | 11-12 04:16 | 晚间最终指令第二部分完成：接收并整合「同步接线」`handback/app-sync`（`2dabeb40` → 整合候选 `0c7610aa`，零冲突）。全套检查通过（`fmt`、`clippy`、单线程 `cargo test` **2,248 通过／0 失败／22 忽略**、`xtask check` 含 `audit`、`public:check`、`ci:contract:check`）；副屏两个独立 profile 真窗口连本机 `FakeSyncServer` 实测 A→B 实时到字、B→A 反向实时到字、最后落笔立即关窗排空上传及双窗重开收敛全绿（`~/Drifting-autopilot-logs/app-sync-v3-smoke-2c90e80b`），退出后零残留窗口或进程。立即进入凌晨追加第 2 项（设置 › 账号退出登录排空）。 | `c9905be9` |
 | 11-12 04:35 | 凌晨追加第 2 项完成（`codex/account-signout-drain-v3`）：`dr_shell::sync` 新增公开入口 `run_before_sign_out(cx)`，`dr_view_account::sign_out(cx)` 在发起 `inner.sign_out()` 吊销远端令牌之前先行调用并等待 `run_before_sign_out(cx)` 排空上传，同时以 `!s.signing_out` 重入保护收口侧栏账号菜单与「设置 › 账号」页两处退出登录入口（消除双跑排空与 `NeedsReauth` 重新登录误跑排空）；新增两条永久 GPUI 测试验证排空期间令牌仍有效、排空完成后才吊销令牌并切回本机库。立即进入凌晨追加第 3 项（修复 `AutomaticHistory` 与 `dr-view-element-overview` 抢 frontier 竞态）。 | `a3a75bd0` |
-| 11-12 05:15 | 凌晨追加第 3 项完成（`codex/fix-overview-history-race-v3`）：查清并确定性修复 `dr-view-history::AutomaticHistory` 与前台受守卫写操作抢 `book:<id>` `oplog_frontiers()` 的竞态——`AutomaticHistory::start` 在 `subscribe` 前同步记录各书 `loro_head` 的订前 `Frontiers`，工作线程按订前版本建立精确基线并移除 `changed.is_empty()` 全书标脏回退，同时按 `PERIODIC_INTERVAL`（15 分钟）定时冲刷 `dirty`（关库／换库仍经 `finish()` → `capture_on_close` 同步排空）；新增两条 FIFO 栅栏确定性单测，`drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 连续 20/20 轮全过（零重试、零放宽断言、零 `ignore`）。立即进入凌晨追加第 4 项与最终晨报收尾。 | 本提交 |
+| 11-12 05:15 | 凌晨追加第 3 项完成（`codex/fix-overview-history-race-v3`）：查清并确定性修复 `dr-view-history::AutomaticHistory` 与前台受守卫写操作抢 `book:<id>` `oplog_frontiers()` 的竞态——`AutomaticHistory::start` 在 `subscribe` 前同步记录各书 `loro_head` 的订前 `Frontiers`，工作线程按订前版本建立精确基线并移除 `changed.is_empty()` 全书标脏回退，同时按 `PERIODIC_INTERVAL`（15 分钟）定时冲刷 `dirty`（关库／换库仍经 `finish()` → `capture_on_close` 同步排空）；新增两条 FIFO 栅栏确定性单测，`drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 连续 20/20 轮全过（零重试、零放宽断言、零 `ignore`）。立即进入凌晨追加第 4 项与最终晨报收尾。 | `9ae09a41` |
+| 11-12 05:35 | 凌晨追加第 4 项暨晚间最终指令收尾完成（`codex/morning-report-final-v3`，纯文档）：核读已交回的 `~/Drifting-autopilot-logs/loro-v2-server.md`（`~/drifting-server` 本地 `main` `29074bc6`，未推送），在 [`m36-sync-v2.md`](../modules/m36-sync-v2.md)「服务端需要提供的」逐条标出服务端已具备部分与唯一可选后续优化（单文档增量折叠），撰写完整最终晨报收尾总结并停下。 | 本提交 |
 
 ## 技术待协调
 
-- **M36：生产自动同步与登出排空已完备接通，剩余云端上线与配额口径。** 第 71 批（`c9905be9`）已合入 `handback/app-sync`（`SyncRuntime`＋`app/drifting/src/sync.rs` `Supervisor`＋整书 `DocPurge` 接收端物理资源变体回收＋稿纸左下角角标与通知钉住），紧接补齐「设置 › 账号」页退出登录先经 `dr_shell::sync::run_before_sign_out` 排空上传再吊销令牌；真实 Hosted 服务端部署与切换期配额口径留作者。
+- **M36：客户端自动同步、登出排空与服务端 `loro-v2` 实现均已就绪，仅剩作者推送与生产部署。** 第 71 批（`c9905be9`）已合入 `handback/app-sync`（`SyncRuntime`＋`app/drifting/src/sync.rs` `Supervisor`＋整书 `DocPurge` 接收端物理资源变体回收＋稿纸左下角角标与通知钉住），紧接在 `a3a75bd0` 补齐「设置 › 账号」页退出登录先经 `dr_shell::sync::run_before_sign_out` 排空上传再吊销令牌；并行服务端会话亦已在 `~/drifting-server` 本地 `main`（`29074bc6`，未推送）完成 `loro-v2` 命名空间、三档配额（默认 `separate`、内置 `combined`）、有序迁移 `0010_loro_sync_v2.sql`、按需整书回收脚本与 `next/` 三设备往返验收（见 [`m36-sync-v2.md`](../modules/m36-sync-v2.md) 与 `~/Drifting-autopilot-logs/loro-v2-server.md`），真实生产部署与配额口径最终确认留作者。
 
 - **G1／K1：引擎身份保真扩展。** 普通嵌套树删除后，固定 Loro 1.17.1 的恢复可重建节点身份。当前安全阶段在首次真实提交之前对无法保真表示整批拒绝，所有当前原值、版本、before 点和重开状态不变；整合者独立只读复核后确认可正式接收。后续是 G1／K1 的引擎技术协调，不需要作者拍板，不宣称全部未来表示受支持。详见 [G1](../modules/k4-g1-pages.md)／[M09](../modules/m09-history.md) 本轮待协调。
 - **第 67 批接收状态。** 下列 G1/F6/K1/K6 正式候选已组合进 main `af0c55c3`；最终全套 2367／0／22、G1 53 步和 F6 43 步均过，真实 Home 路径已由根覆盖。下列源阶段未合描述保留来源，不再表示候选待收。普通通览跨章剪切／应用内粘贴替换静态复核为既有功能回退，交 G1 先动态复现再修；不与未知表示保真扩展混为一项，统一验收仍待。
@@ -201,6 +202,8 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   4. **【暂缓】多 `TimelineView` 选择与视图记忆联动：** 待新的层级结构落地后再定顶栏多视图切换／新建入口与底部时间线抽屉的联动方式。
 
 - **M40 Markdown 文件夹 v3 的七组格式与交互规则（作者已定 11-11：规则已定，代码等新的层级结构落地再写，本轮不实现）：** 七组规则已完整写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节——① 范围：全书所有叶子的正文模块，不含层级说明；② 一篇正文一个文件，多篇时用「标题 · 模块名.md」；③ 目录跟着树嵌套、不加序号，书稿文件夹另放只读「目录.md」按书序列出链接；④ 文件头：身份键加简单字段（单行文字、长文字、单选、数字）按字段名双向同步，重名或复杂类型只读，外部未知键原样保留；⑤ 第一期不支持外部新建、改名、移动、删除；⑥ 嵌入占位行受保护（外部删了也放回原处，其余改动照常合并并在通知中心提示），不导出只读摘要；⑦ 外部改动用蓝色墨色，两边改了同一处挂待办，一次删掉超过一半先存条目快照。代码等新的层级结构落地后再写。
+
+- **Hosted 服务端 `loro-v2` 推送部署与切换期配额口径确认（服务端本地 `29074bc6` 已就绪，待作者操作）：** 独立仓库 `~/drifting-server` 本地 `main`（`29074bc6`，未推送）已完成 `loro-v2` 全部契约实现与三设备联调验收（交回详情与五步生产上线清单见 `~/Drifting-autopilot-logs/loro-v2-server.md`）。当前默认 `SYNC_QUOTA_METERING_MODE=separate`（`loro-v2` 与 0.1 `project-v1` 各自独立 `500 MiB` 软上限／`1 GiB` 硬上限，避免切换期导入首次同步因历史占用触顶），并已内置 `SYNC_QUOTA_METERING_MODE=combined` 共享池开关供后续切环境变量合并；请作者确认配额口径并手动推送部署本仓与 `~/drifting-server`。
 
 ## 晨报
 
@@ -468,3 +471,46 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   - `dr-view-history/src/automatic.rs` 新增两条确定性单测 `immediate_foreground_edits_enqueue_only_touched_entries_without_racing_book_head`（经工作线程 FIFO 通道栅栏核对仅受影响条目入列、未触碰条目绝不入列、`book:<id>` frontier 零推进）与 `periodic_cadence_captures_dirty_entries_after_interval_elapses`（验证周期到点仅捕获脏条目且原因记为 `"periodic"`）。
   - `dr-view-page --test lifecycle`（2/2）、`dr-shell --test v3_release`（7/7）以及 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` **连续 20/20 轮**全部一次通过。
 - **下一步：** 立即进入凌晨追加第 4 项（核读已交回的 `~/Drifting-autopilot-logs/loro-v2-server.md` 并在 `m36-sync-v2.md` 标出服务端已具备部分）及晚间最终指令第三部分（写最终晨报收尾总结并停下）。
+
+### 晚间与凌晨队列（11-11 晚 – 11-12 晨）最终收尾总结
+
+1. **晚间最终指令（一～三）及 11-12 凌晨追加（1～4）全部完成并合入本地 `main`：**
+   - **一.1 记下作者四项决定（纯文档）：** `b1d7bd62` → 合入 `main` `8f5bf493`（整书冷首开 ~`120 ms` 保持不动、13 条视觉打磨＋M22 小卡提及分布暂缓、M21 故事图四项暂缓、M40 七组定稿写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节）。
+   - **一.2 重跑原生输入法外部测试：** `7892c3a9` → 合入 `main` `61c80bbd`（核验 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，副屏真窗口跑通完整 `guardian-native-ime.py`，证据 `~/Drifting-autopilot-logs/guardian-native-ime-g-evening-ime-3.json`）。
+   - **二之二 GitHub Actions `next/` CI 两项故障追补（run `43024370854`）：**
+     - macOS `dr-agent` crash 根因核查与 `dr_testkit::crash::Harness` 跨轮次 `floor` 基线修复＋3 轮确定性永久回归测试：`dcd6dc09` → 合入 `main` `5ded0501`；
+     - Windows 取色器 `cx.background_executor().spawn(...)` 修复＋全工作区 `x86_64-pc-windows-msvc` 交叉排查修掉 `spikes/prose-spike` 无条件依赖 Apple 框架：`6731d34a` → 合入 `main` `8d980c7c`（协调文档 `649f85db`）。
+   - **一.3 第 22 条「幕轨道」落地：** `0c4a189c` → 合入 `main` `bd9c3748`（文档 `cdb8e976`；`TimelineLane.act_track` 可选字段、旧库按需建顶层「幕」层级与 8 种情形永久测试、多条幕轨置顶渲染与新建／切换入口、九语文案、副屏 `act-track-v3` 44/44、`k4-g3-views-lanes` 40/40、`switch-v3` 49/49 全绿）。
+   - **一.4 文案和调试残留清理：** `407416ee` → 合入 `main` `17a69de7`（条目页内置枚举九语显示本地化且底层存储值不变、中文设定 `General Agent` 本地化、导入文档对话框去「主线节点」旧术语、0.1 重导隐藏绝对路径并从普通界面移除 `MappingChoices JSON` 按钮）。
+   - **凌晨追加 1 清理遗留冒烟窗口与收尾脚本：** 确认同步会话已交回且无在跑冒烟后关闭副屏遗留的 `app-sync-a-634d89f6` 与 `app-sync-a-6b6b6f11` 两个窗口，并修复 `~/Drifting-autopilot-logs/run_app_sync_smoke.py` `finally` 双窗退出清理。
+   - **一.5 M22、M23 `Preset::Heavy` 空闲首帧与单帧复测优化：** `9263a339` → 合入 `main` `23713015`（证据 `~/Drifting-autopilot-logs/superview-perf/`）。
+   - **二 接收并整合「同步接线」`handback/app-sync`：** `2dabeb40` → 整合候选 `0c7610aa` → 合入 `main` `c9905be9`（副屏双 profile 真窗口连本机 `FakeSyncServer` 往返、关窗排空与双窗重开收敛全绿，证据 `~/Drifting-autopilot-logs/app-sync-v3-smoke-2c90e80b/summary.json`）。
+   - **凌晨追加 2 设置 › 账号页「退出登录」排空上传：** `c5741eb3` → 合入 `main` `a3a75bd0`（`dr_shell::sync::run_before_sign_out` 公开入口接入 `dr_view_account::sign_out`，确保排空上传完成后才吊销远端令牌并切回本机库，附两条永久 GPUI 测试）。
+   - **凌晨追加 3 修复 `AutomaticHistory` 与要素全景抢 `oplog_frontiers` 竞态：** `d0f6a7dc` → 合入 `main` `9ae09a41`（订前同步 `loro_head` 基线＋15 分钟 `PERIODIC_INTERVAL` 定时器＋移除 `changed.is_empty()` 全书标脏回退；两条 FIFO 栅栏确定性单测与 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` **连续 20/20 轮**通过，零重试、零放宽断言、零 `ignore`）。
+   - **凌晨追加 4 核读服务端 `loro-v2` 交回并标注 `m36-sync-v2.md` 暨最终晨报收尾：** 本提交（父提交 `9ae09a419570d603a5b22e290ddc9236b1327c3e`）。
+
+2. **最终代码状态与全套门禁结果：**
+   - Rust／Cargo 产品源码树等价于 `9ae09a419570d603a5b22e290ddc9236b1327c3e`（本提交仅更新 `m36-sync-v2.md` 与 `autopilot.md` 两份文档）：
+     - `cargo fmt --all --check`：通过。
+     - `cargo clippy --workspace --all-targets --locked -- -D warnings`：通过（0 警告）。
+     - `RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked`：**2,252 通过、0 失败、22 忽略**。
+     - `cargo xtask check`：全部 13 道门禁与 `cargo audit` 通过（974 个锁定包、0 漏洞）。
+     - 仓库根 `pnpm public:check`（5,590 个候选文件）、`pnpm ci:contract:check`（660 个测试文件）、`pnpm agent:capabilities:check`（15 项测试）：全部通过。
+   - 全程严格遵守禁令：未推送、未开 PR、未发版、未打或移动标签、未连真实云服务或模型 API、未装系统组件、未动 0.1 客户端、未动 `~/drifting-server`、未删 `refs/wip/*` 或并行会话工作区（`~/Drifting-app-sync-v3` 原样保留），副屏无任何残留测试窗口或后台进程。
+
+3. **空闲 release（`load1m < 4.0`）`Preset::Heavy`（约 165 万字）关键性能指标汇总：**
+   - **核心八路径（夜间第 3 项）：** 书架首帧 `35.7 ms`／就绪 `165.9–190.5 ms`（预算 `≤ 300 ms`）；开书到主页 `48.4–52.6 ms`（`≤ 150 ms`）；2 万字长章热开 `p50 = 44.4 ms`（`≤ 50 ms`）、单键写入 `0.211–0.274 ms`（`≤ 1 ms`）、单键帧 CPU `p95 = 1.64–2.54 ms`（`≤ 8.3 ms`）；滚完全书 3,332 帧 `p95 = 0.704 ms`、内存 `150.4–204.5 MB`（`≤ 400 MB`）；未访问章预览切换 `p50 = 38.8–46.0 ms`（`≤ 50 ms`）、跳末章 `46.7–55.7 ms`（`≤ 80 ms`）；层级页四种显示打开 `43.6–56.7 ms`；3 字搜索 `9.16 ms`（`≤ 15 ms`）；时间线打开 `3.90 ms`、横滚 `p95 = 2.23–2.82 ms`；应用内整书标签冷开 `120.3–137.2 ms`（按作者决定保持不动）。
+   - **Super View（晚间第 5 项）：**
+     - **M22 要素全景（300 要素、12,187 对真实同段共现）：** `open_first_frame_ms` 由 `160.47 ms` 降至 **`87.30–91.62 ms`**（`first_frame_ms` **`73.48–76.80 ms`**，达 `≤ 100 ms` 发布档预算），单帧 `p50 = 8.93–9.35 ms` / `p95 = 9.46–11.22 ms`，拖点固定重热落定并持久化由 `372.02 ms` 降至 **`252.32–261.44 ms`**。
+     - **M23 审阅与素材（96 待办、64 批注、60 素材）：** 首帧 **`2.35 ms`**，`ready_ms` 由 `326.80 ms` 降至 **`136.06 ms`**，展开底部抽屉单帧绘制由 `p50 = 43.37 ms / p95 = 48.34 ms` 降至 **`p50 = 3.96 ms / p95 = 4.70 ms`**（达 120 Hz 发布档 `≤ 8.3 ms`）。
+
+4. **Hosted 服务端 `loro-v2` 交回核对（凌晨追加第 4 项，见 `~/Drifting-autopilot-logs/loro-v2-server.md`）：**
+   - `~/drifting-server` 本地 `main` 已停在 `29074bc6ad41351c865e8015a82a43f08ace9ecc`（**已交回、未推送**）。
+   - [`m36-sync-v2.md`](../modules/m36-sync-v2.md)「服务端需要提供的」第 1–5 项已逐条标明服务端已具备部分：`loro-v2` 命名空间与单账号隔离、裁剪后 `426 CLIENT_UPGRADE_REQUIRED`、`PUT`/`GET`/`usage` 全部 HTTP 接口与同键幂等 `200`／异摘要 `409`、三档配额（`assetBlob` 500 MiB／`loroUpdate` 1 GiB／`docPurge` 满额放行）、过渡期默认 `SYNC_QUOTA_METERING_MODE=separate` 与内置 `combined` 开关、有序迁移 `0010_loro_sync_v2.sql`（纳入 14 张账号归属表与生产备份恢复验证）及默认关闭的整书回收脚本；仅单文档 `isSnapshot: true` 旧增量折叠留作可选后续优化。本机已完成 86 项单测、32 项容器栈验收、11 项账号隔离检查及 `next/` 三设备往返＋`book.purge` 空库恢复实测。
+
+5. **留给作者的事项（醒来后可直接决策或执行）：**
+   1. **推送本仓库 `main` 触发 GitHub Actions Windows 实机 CI：** Windows 编译错误与 `prose-spike` Apple 依赖均已修复，macOS 本机因缺少 MSVC／Windows SDK／`llvm-rc` 无法跑完 `stacker`、`psm`、`libsqlite3-sys`、`ring`、`gpui` 5 个第三方原生 build script，推送后由 `windows-x64`／`windows-arm64` runner 验证完整编译、测试与 NSIS 打包。
+   2. **确认切换期配额口径并推送部署 `~/drifting-server` `main`（`29074bc6`）：** 确认是否保持默认 `SYNC_QUOTA_METERING_MODE=separate`（过渡期与 0.1 分开各享 `500 MiB / 1 GiB`），并按 `~/Drifting-autopilot-logs/loro-v2-server.md`「生产上线步骤」第 1–5 步先做生产备份再推送重建 `api` 容器（自动执行迁移 `0010_loro_sync_v2`）。
+   3. **已按作者 11-11 决定暂缓的后续产品方向（不阻塞当前主线）：** 新的层级结构落地后再推进任意层级自定义顺序整书视图、M21 故事图与 M40 Markdown 文件夹 v3 代码实现；截图总览 13 条问题与 M22 浮岛小卡提及分布留待视觉打磨阶段统一处理。
+
+全部夜间、晚间与凌晨追加队列至此圆满完成，整合者现按指示停下。
