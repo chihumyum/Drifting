@@ -221,6 +221,10 @@
       "week": "今週"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "種類を編集",
+    "empty": "このビューには関係がまだありません"
+  },
   "editorOutline": {
     "aria": "アウトライン",
     "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
@@ -892,7 +896,18 @@
     }
   },
   "relationTypes": {
-    "description": "説明"
+    "builtIn": "組み込み",
+    "create": "新規",
+    "createInline": "関係の種類を作成",
+    "delete": "関係の種類を削除",
+    "description": "説明",
+    "directed": "有向",
+    "name": "名前",
+    "sourceRole": "始点の役割",
+    "swap": "関係の始点と終点を入れ替え",
+    "symmetric": "対称",
+    "targetRole": "終点の役割",
+    "title": "関係の種類の定義"
   },
   "reviewPanel": {
     "commentPlaceholder": "コメントを入力…",
@@ -1359,6 +1374,15 @@
   "speech": {
     "backlog": "文字起こしの処理待ち"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "作成",
+      "delete": "関係を削除",
+      "hideKind": "「{{label}}」を非表示",
+      "kindLabel": "関係の種類",
+      "showKind": "「{{label}}」を表示"
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。"
@@ -1372,6 +1396,56 @@
     "sections": {
       "facts": "設定情報"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "要素はまだありません",
+      "noCategories": "要素のカテゴリはまだありません"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "閉じる",
+        "companions": "よく一緒に登場",
+        "edit": "編集",
+        "isolate": "これだけ表示",
+        "relations": "関係",
+        "showAll": "すべて表示",
+        "times": "× {{count}}"
+      },
+      "find": "要素を検索",
+      "island": {
+        "category": "カテゴリ",
+        "categoryMeta": "{{count}}要素",
+        "collapse": "カードに戻す",
+        "element": "要素",
+        "mentions": "{{count}}件の言及",
+        "openInTab": "タブで開く",
+        "resize": "ドラッグして島のサイズを変更",
+        "unmentioned": "本文に登場しない"
+      },
+      "lines": "同じ段落",
+      "linesTitle": "同じ章の段落内で言及された2つの要素を砂色の線で結びます",
+      "newElement": "ここに要素を作成",
+      "pinned": "固定済み",
+      "thresholdLabel": "段落のつながり",
+      "unpin": "自動配置に戻す"
+    },
+    "layout": {
+      "isles": "島々",
+      "relate": "関係"
+    },
+    "linkHintFrom": "始点",
+    "linkHintTo": "終点…2つ目の要素または章を選択。Esc でキャンセル",
+    "manualRelationTitle": "手動の関係を作成",
+    "meta": "{{categories}}カテゴリ・{{elements}}要素",
+    "relate": {
+      "relayout": "再配置"
+    },
+    "reset": "リセット",
+    "startEdgeFromElement": "この要素から関係を作成",
+    "uncategorized": "未分類",
+    "unnamedCategory": "無題のカテゴリ"
   },
   "templateEditor": {
     "accept": "別の場所の項目を受け入れる",

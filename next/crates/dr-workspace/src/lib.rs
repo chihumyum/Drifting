@@ -32,6 +32,7 @@
 pub mod actor;
 pub mod autolink;
 pub mod commands;
+pub mod cooccurrence;
 pub mod cx;
 pub mod dto;
 pub mod editor;
@@ -46,6 +47,7 @@ pub mod registry;
 mod workspace;
 
 pub use actor::Actor;
+pub use cooccurrence::EntryCooccurrenceGraph;
 pub use cx::{Cx, Effect, EffectAction, Faults, Invocation, Outcome};
 pub use editor::ProseSession;
 pub use error::{Result, WsError};

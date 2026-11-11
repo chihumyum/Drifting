@@ -221,6 +221,10 @@
       "week": "Esta semana"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "Editar tipos",
+    "empty": "Aún no hay relaciones en esta vista"
+  },
   "editorOutline": {
     "aria": "Esquema",
     "hiddenItems": "{{count}} elementos lejanos; pasa el cursor para verlos"
@@ -908,7 +912,18 @@
     }
   },
   "relationTypes": {
-    "description": "Descripción"
+    "builtIn": "Integrado",
+    "create": "Nuevo",
+    "createInline": "Crear tipo de relación",
+    "delete": "Eliminar tipo de relación",
+    "description": "Descripción",
+    "directed": "Dirigida",
+    "name": "Nombre",
+    "sourceRole": "Rol de origen",
+    "swap": "Intercambiar extremos de la relación",
+    "symmetric": "Simétrica",
+    "targetRole": "Rol de destino",
+    "title": "Definiciones de tipos de relación"
   },
   "reviewPanel": {
     "commentPlaceholder": "Escribe un comentario…",
@@ -1375,6 +1390,15 @@
   "speech": {
     "backlog": "Transcripciones pendientes"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Crear",
+      "delete": "Eliminar relación",
+      "hideKind": "Ocultar «{{label}}»",
+      "kindLabel": "Tipo de relación",
+      "showKind": "Mostrar «{{label}}»"
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena."
@@ -1388,6 +1412,56 @@
     "sections": {
       "facts": "Datos"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "Aún no hay elementos",
+      "noCategories": "Aún no hay categorías de elementos"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "Cerrar",
+        "companions": "Suelen aparecer juntos",
+        "edit": "Editar",
+        "isolate": "Solo este",
+        "relations": "Relaciones",
+        "showAll": "Mostrar todo",
+        "times": "× {{count}}"
+      },
+      "find": "Buscar elemento",
+      "island": {
+        "category": "Categoría",
+        "categoryMeta": "{{count}} elementos",
+        "collapse": "Volver a la tarjeta",
+        "element": "Elemento",
+        "mentions": "{{count}} menciones",
+        "openInTab": "Abrir en una pestaña",
+        "resize": "Arrastra para cambiar el tamaño de la isla",
+        "unmentioned": "No aparece en el texto"
+      },
+      "lines": "Mismo párrafo",
+      "linesTitle": "Una línea de color arena une dos elementos mencionados en el mismo párrafo de un capítulo",
+      "newElement": "Nuevo elemento aquí",
+      "pinned": "Fijado",
+      "thresholdLabel": "Enlaces por párrafo",
+      "unpin": "Volver al diseño automático"
+    },
+    "layout": {
+      "isles": "Islas",
+      "relate": "Relaciones"
+    },
+    "linkHintFrom": "Desde",
+    "linkHintTo": "a… elige un segundo elemento o capítulo; Esc cancela",
+    "manualRelationTitle": "Nueva relación manual",
+    "meta": "{{categories}} categorías · {{elements}} elementos",
+    "relate": {
+      "relayout": "Reorganizar"
+    },
+    "reset": "Restablecer",
+    "startEdgeFromElement": "Crear relación desde este elemento",
+    "uncategorized": "Sin categoría",
+    "unnamedCategory": "Categoría sin título"
   },
   "templateEditor": {
     "accept": "Aceptar entradas de otros lugares",

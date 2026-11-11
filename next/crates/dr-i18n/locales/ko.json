@@ -221,6 +221,10 @@
       "week": "이번 주"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "유형 편집",
+    "empty": "이 보기에는 아직 관계가 없습니다"
+  },
   "editorOutline": {
     "aria": "개요",
     "hiddenItems": "멀리 있는 개요 항목 {{count}}개 · 마우스를 올려 표시"
@@ -892,7 +896,18 @@
     }
   },
   "relationTypes": {
-    "description": "설명"
+    "builtIn": "기본 제공",
+    "create": "새로 만들기",
+    "createInline": "관계 유형 만들기",
+    "delete": "관계 유형 삭제",
+    "description": "설명",
+    "directed": "방향 있음",
+    "name": "이름",
+    "sourceRole": "출발점 역할",
+    "swap": "관계 끝점 맞바꾸기",
+    "symmetric": "대칭",
+    "targetRole": "대상 역할",
+    "title": "관계 유형 정의"
   },
   "reviewPanel": {
     "commentPlaceholder": "댓글 작성…",
@@ -1359,6 +1374,15 @@
   "speech": {
     "backlog": "전사 처리 지연"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "만들기",
+      "delete": "관계 삭제",
+      "hideKind": "“{{label}}” 숨기기",
+      "kindLabel": "관계 유형",
+      "showKind": "“{{label}}” 표시"
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다."
@@ -1372,6 +1396,56 @@
     "sections": {
       "facts": "설정 정보"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "아직 요소가 없습니다",
+      "noCategories": "아직 요소 분류가 없습니다"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "닫기",
+        "companions": "자주 함께 등장",
+        "edit": "편집",
+        "isolate": "이 항목만",
+        "relations": "관계",
+        "showAll": "모두 표시",
+        "times": "× {{count}}"
+      },
+      "find": "요소 찾기",
+      "island": {
+        "category": "분류",
+        "categoryMeta": "요소 {{count}}개",
+        "collapse": "카드로 돌아가기",
+        "element": "요소",
+        "mentions": "언급 {{count}}개",
+        "openInTab": "탭에서 열기",
+        "resize": "드래그하여 섬 크기 조절",
+        "unmentioned": "본문에 없음"
+      },
+      "lines": "같은 문단",
+      "linesTitle": "같은 장의 동일한 문단에서 언급된 두 요소를 모래색 선으로 연결합니다",
+      "newElement": "여기에 새 요소 만들기",
+      "pinned": "고정됨",
+      "thresholdLabel": "문단 연결",
+      "unpin": "자동 배치로 돌아가기"
+    },
+    "layout": {
+      "isles": "섬",
+      "relate": "관계"
+    },
+    "linkHintFrom": "출발",
+    "linkHintTo": "대상… 두 번째 요소나 장 선택, Esc로 취소",
+    "manualRelationTitle": "새 수동 관계",
+    "meta": "분류 {{categories}}개 · 요소 {{elements}}개",
+    "relate": {
+      "relayout": "재배치"
+    },
+    "reset": "초기화",
+    "startEdgeFromElement": "이 요소에서 관계 만들기",
+    "uncategorized": "미분류",
+    "unnamedCategory": "이름 없는 분류"
   },
   "templateEditor": {
     "accept": "다른 위치의 항목 허용",

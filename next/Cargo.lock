@@ -2176,6 +2176,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-element-overview"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-elements",
+ "dr-view-page",
+ "dr-view-relations",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "log",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-view-elements"
 version = "0.0.0"
 dependencies = [
@@ -2688,6 +2711,7 @@ dependencies = [
  "dr-ui",
  "dr-view-account",
  "dr-view-agent",
+ "dr-view-element-overview",
  "dr-view-elements",
  "dr-view-feedback",
  "dr-view-home",

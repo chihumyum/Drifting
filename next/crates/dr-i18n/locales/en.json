@@ -221,6 +221,10 @@
       "week": "This week"
     }
   },
+  "edgeKindManager": {
+    "editTypes": "Edit types",
+    "empty": "No relations in this view yet"
+  },
   "editorOutline": {
     "aria": "Outline",
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
@@ -899,7 +903,18 @@
     }
   },
   "relationTypes": {
-    "description": "Description"
+    "builtIn": "Built-in",
+    "create": "New",
+    "createInline": "Create relation type",
+    "delete": "Delete relation type",
+    "description": "Description",
+    "directed": "Directed",
+    "name": "Name",
+    "sourceRole": "Source role",
+    "swap": "Swap relation endpoints",
+    "symmetric": "Symmetric",
+    "targetRole": "Target role",
+    "title": "Relation type definitions"
   },
   "reviewPanel": {
     "commentPlaceholder": "Write a comment…",
@@ -1366,6 +1381,15 @@
   "speech": {
     "backlog": "Transcription backlog"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Create",
+      "delete": "Delete relation",
+      "hideKind": "Hide \"{{label}}\"",
+      "kindLabel": "Relation type",
+      "showKind": "Show \"{{label}}\""
+    }
+  },
   "storylineEditor": {
     "empty": {
       "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in."
@@ -1379,6 +1403,56 @@
     "sections": {
       "facts": "Facts"
     }
+  },
+  "superElement": {
+    "empty": {
+      "categoryNoElements": "No elements yet",
+      "noCategories": "No element categories yet"
+    },
+    "isles": {
+      "atLeast": "≥{{count}}",
+      "detail": {
+        "close": "Close",
+        "companions": "Often together",
+        "edit": "Edit",
+        "isolate": "Only this",
+        "relations": "Relations",
+        "showAll": "Show all",
+        "times": "× {{count}}"
+      },
+      "find": "Find element",
+      "island": {
+        "category": "Category",
+        "categoryMeta": "{{count}} elements",
+        "collapse": "Back to card",
+        "element": "Element",
+        "mentions": "{{count}} mentions",
+        "openInTab": "Open in a tab",
+        "resize": "Drag to resize the island",
+        "unmentioned": "Not in the prose"
+      },
+      "lines": "Same paragraph",
+      "linesTitle": "A sand line joins two elements mentioned in the same paragraph of a chapter",
+      "newElement": "New element here",
+      "pinned": "Pinned",
+      "thresholdLabel": "Paragraph links",
+      "unpin": "Back to automatic layout"
+    },
+    "layout": {
+      "isles": "Islands",
+      "relate": "Relations"
+    },
+    "linkHintFrom": "From",
+    "linkHintTo": "to… pick a second element or chapter, Esc cancels",
+    "manualRelationTitle": "New manual relation",
+    "meta": "{{categories}} categories · {{elements}} elements",
+    "relate": {
+      "relayout": "Re-arrange"
+    },
+    "reset": "Reset",
+    "startEdgeFromElement": "Create relation from this element",
+    "uncategorized": "Uncategorized",
+    "unnamedCategory": "Untitled category"
   },
   "templateEditor": {
     "accept": "Accept entries from elsewhere",

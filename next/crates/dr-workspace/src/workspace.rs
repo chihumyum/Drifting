@@ -809,6 +809,30 @@ impl Workspace {
         self.book_slot_with(book, false)
     }
 
+    pub(crate) fn flush_book_prose_indices(&self, book: &BookId) -> Result<()> {
+        let handles: Vec<DocHandle> = {
+            let p = lock(&self.inner.prose);
+            p.map
+                .values()
+                .filter(|(_, s)| s.book.as_ref() == Some(book))
+                .map(|(_, s)| s.handle.clone())
+                .collect()
+        };
+        for handle in handles {
+            handle.reindex_now()?;
+        }
+        let stale = self.inner.lib.stale_index_docs()?;
+        if !stale.is_empty() {
+            let stale_set: std::collections::HashSet<String> = stale.into_iter().collect();
+            for doc in self.inner.lib.docs(Some(book.as_str()), Some("body"))? {
+                if stale_set.contains(&doc.doc_id) {
+                    self.inner.lib.reindex_doc(&doc.doc_id)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn book_slot_or_create_v3(&self, book: &BookId) -> Result<Arc<BookSlot>> {
         self.book_slot_with(book, true)
     }
