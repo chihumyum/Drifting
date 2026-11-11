@@ -1009,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "drifting"
-version = "0.1.0-alpha.10"
+version = "0.1.0-alpha.11"
 dependencies = [
  "base64 0.22.1",
  "drifting-core",
