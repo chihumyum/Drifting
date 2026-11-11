@@ -168,11 +168,12 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 23:45 | 晚间队列第 3 项完成：第 22 条「幕轨道」默认落地（`codex/act-track-v3` `0c4a189c` → 合入 `main` `bd9c3748`）。`TimelineLane` 新增可选 `act_track`（旧文档缺省读为 `false`，新书默认无幕轨道），`dr-import-v1` 在旧库含幕时按需在树顶层建「幕」层级（允许任意模板、新条目默认构想叶子模板、住处取初始化返回实际 id）并导入绑构想／新建同名条目／多幕复用提示／跨度计算／已有位置保留，8 类情形永久测试（含源库字节与 `mtime_ns` 零改动核对）全绿；`dr-view-timeline` 支持多条幕轨置顶在标尺正下方带分隔线、新建幕轨道与已有泳道切换幕轨道、泳道内首条新建落回视图起点、拖入与拉宽跨度及九语文案；副屏真窗口 `act-track-v3`（44/44）、`k4-g3-views-lanes`（40/40）、`switch-v3`（49/49）全部 0 pending 通过。立即进入晚间队列第 4 项。 | `bd9c3748` |
 | 11-12 00:52 | 晚间队列第 4 项完成：文案和调试残留清理（`codex/copy-cleanup-v3`，只改文字与移除普通界面调试入口，零布局改动）。① 条目页内置枚举选项（`writing_status`：`draft`／`revised`／`finished`；构想 `status`：`drifting`／`anchored`／`settled`）九语显示本地化，底层存储值原样不变；② 设定侧栏与页头九语本地化，修复中文显示英文 `General Agent`；③ 导入文档对话框替换旧术语「主线节点」与中英混排大写小标题；④ 从 0.1 重新导入对话框隐藏 `Application Support`／`app-local-data` 原始绝对路径并移出普通界面的「选择 MappingChoices JSON」（保留程序／调试桥入口 `LegacyImport::choose_mapping`）；同步记入作者 11-12 凌晨四条追加。全套门禁通过，立即进入晚间队列第 5 项（M22、M23 空闲 `heavy` 首帧复测与优化）。 | `17a69de7` |
 | 11-12 02:25 | 晚间队列第 5 项完成：在机器空闲（`load1m < 4.0`）release 下重测并优化 M22（要素全景）与 M23（审阅与素材）`Preset::Heavy` 首帧与单帧耗时（不改格式、不动 Loro `=1.17.1`、不改行为）。① M22：稠密同段共现计数、空间哈希桶复用、`relations_raw` 标量遍历、去除建窗期重复初载与砂线／弧线视口裁剪批绘，`open_first_frame_ms` 由 `160.47 ms` 降至 **`87.30–91.62 ms`**（`first_frame_ms` `73.48–76.80 ms`，满足 `≤ 100 ms` 预算），单帧 `p50`/`p95` 降至 `8.93–9.35` / `9.46–11.22 ms`；② M23：五处滚动容器切换 `gpui::list(ListState)` 视口虚拟化、`glass::paint_rim` 视口裁剪与 `dr-doc` 标量 `entry_headers`／`material_titles` 扫描，`first_frame_ms` `2.35 ms`、`ready_ms` 由 `326.80 ms` 降至 **`136.06 ms`**，展开抽屉单帧 `p50`/`p95` 由 `43.37 / 48.34 ms` 降至 **`3.96 / 4.70 ms`**（达 120 Hz 发布档 `≤ 8.3 ms`）。立即进入第二部分（收 `handback/app-sync`）。 | `23713015` |
-| 11-12 04:16 | 晚间最终指令第二部分完成：接收并整合「同步接线」`handback/app-sync`（`2dabeb40` → 整合候选 `0c7610aa`，零冲突）。全套检查通过（`fmt`、`clippy`、单线程 `cargo test` **2,248 通过／0 失败／22 忽略**、`xtask check` 含 `audit`、`public:check`、`ci:contract:check`）；副屏两个独立 profile 真窗口连本机 `FakeSyncServer` 实测 A→B 实时到字、B→A 反向实时到字、最后落笔立即关窗排空上传及双窗重开收敛全绿（`~/Drifting-autopilot-logs/app-sync-v3-smoke-2c90e80b`），退出后零残留窗口或进程。立即进入凌晨追加第 2 项（设置 › 账号退出登录排空）。 | 本提交 |
+| 11-12 04:16 | 晚间最终指令第二部分完成：接收并整合「同步接线」`handback/app-sync`（`2dabeb40` → 整合候选 `0c7610aa`，零冲突）。全套检查通过（`fmt`、`clippy`、单线程 `cargo test` **2,248 通过／0 失败／22 忽略**、`xtask check` 含 `audit`、`public:check`、`ci:contract:check`）；副屏两个独立 profile 真窗口连本机 `FakeSyncServer` 实测 A→B 实时到字、B→A 反向实时到字、最后落笔立即关窗排空上传及双窗重开收敛全绿（`~/Drifting-autopilot-logs/app-sync-v3-smoke-2c90e80b`），退出后零残留窗口或进程。立即进入凌晨追加第 2 项（设置 › 账号退出登录排空）。 | `c9905be9` |
+| 11-12 04:35 | 凌晨追加第 2 项完成（`codex/account-signout-drain-v3`）：`dr_shell::sync` 新增公开入口 `run_before_sign_out(cx)`，`dr_view_account::sign_out(cx)` 在发起 `inner.sign_out()` 吊销远端令牌之前先行调用并等待 `run_before_sign_out(cx)` 排空上传，同时以 `!s.signing_out` 重入保护收口侧栏账号菜单与「设置 › 账号」页两处退出登录入口（消除双跑排空与 `NeedsReauth` 重新登录误跑排空）；新增两条永久 GPUI 测试验证排空期间令牌仍有效、排空完成后才吊销令牌并切回本机库。立即进入凌晨追加第 3 项（修复 `AutomaticHistory` 与 `dr-view-element-overview` 抢 frontier 竞态）。 | 本提交 |
 
 ## 技术待协调
 
-- **M36：生产自动同步已接入，剩余细节与后续。** 第 71 批已合入 `handback/app-sync`（`2dabeb40`）：`SyncScheduler` 与 `AppSyncCoordinator` 接通登录／换账号／登出自动换库、本机旧书首次迁移、500 ms 防抖上传、20 s／焦点激活拉取、退出前 3 s 排空、远端删当前书回退书架、状态角标与同步设置页，并通过副屏双 profile 真窗口往返验收。设置 › 账号页「退出登录」排空紧接在凌晨追加第 2 项补齐；现有协议暂无资源删除墓碑，接收端被删书已下载的物理缓存清理留后续。
+- **M36：生产自动同步与登出排空已完备接通，剩余云端上线与配额口径。** 第 71 批（`c9905be9`）已合入 `handback/app-sync`（`SyncRuntime`＋`app/drifting/src/sync.rs` `Supervisor`＋整书 `DocPurge` 接收端物理资源变体回收＋稿纸左下角角标与通知钉住），紧接补齐「设置 › 账号」页退出登录先经 `dr_shell::sync::run_before_sign_out` 排空上传再吊销令牌；真实 Hosted 服务端部署与切换期配额口径留作者。
 
 - **G1／K1：引擎身份保真扩展。** 普通嵌套树删除后，固定 Loro 1.17.1 的恢复可重建节点身份。当前安全阶段在首次真实提交之前对无法保真表示整批拒绝，所有当前原值、版本、before 点和重开状态不变；整合者独立只读复核后确认可正式接收。后续是 G1／K1 的引擎技术协调，不需要作者拍板，不宣称全部未来表示受支持。详见 [G1](../modules/k4-g1-pages.md)／[M09](../modules/m09-history.md) 本轮待协调。
 - **第 67 批接收状态。** 下列 G1/F6/K1/K6 正式候选已组合进 main `af0c55c3`；最终全套 2367／0／22、G1 53 步和 F6 43 步均过，真实 Home 路径已由根覆盖。下列源阶段未合描述保留来源，不再表示候选待收。普通通览跨章剪切／应用内粘贴替换静态复核为既有功能回退，交 G1 先动态复现再修；不与未知表示保真扩展混为一项，统一验收仍待。
@@ -434,12 +435,22 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 - **交回与合并核查：**
   - 源指针 `handback/app-sync`（`2dabeb40cb74d034f36ebeadef8b714da1104dae`，分支 `codex/app-sync-v3`）与当前 `main`（`23713015`）合并零冲突（整合候选 `0c7610aa`），改动范围严格落在 `next/crates/dr-sync`、`next/crates/dr-store`、`next/crates/dr-shell`、`next/crates/dr-view-account`、`next/crates/dr-i18n`、`next/app/drifting` 与 `m36-sync-v2.md`，零触碰 0.1 客户端或无关模块。
   - **独立数据正确性复核通过：**
-    1. 本地无账号模式零网络请求（仅在 `AccountService::current_token()` 有有效会话且 `DRIFTING_SYNC_BASE_URL` 非空时启动 `SyncScheduler`）。
-    2. 登录、切换账号、登出通过 `AppSyncCoordinator` 经 `dr_shell::replace_workspace` 切换到对应 `accounts/<user_id>` 隔离目录或回退默认本地库；旧 `Library` 释放时显式调用新增幂等 `Library::close()` 主动关掉 SQLite 连接池（避免 Windows 文件锁阻塞换库）。
-    3. 首次接入云端且本地默认库含非内置样书时，自动把旧书完整搬进账号目录并写入 `app_sync_local_migrated_v1` 幂等哨兵（不会把内置样书当成作者手稿重复上传，也不会二次重复导入）。
-    4. 远端 `docPurge` 删除当前正在阅读的书时，前端收到通知立即安全回退书架，不留悬空页面。
-    5. 关窗退出路径经 `dr_shell::sync::set_drain_on_quit` 在 `Quit` 动作与平台退出回调上最多等待 3 秒冲刷最后一次增量与同步状态。
+    1. 本地无账号模式零网络请求（仅在 `AccountUiService` 会话已登录且当前已切换到目标账号隔离库时由 `Supervisor` 启动 `SyncRuntime`）。
+    2. 登录、切换账号、登出通过 `app/drifting/src/sync.rs` `Supervisor` 与 `dr_view_account` 经 `dr_shell::library::replace` 切换到对应账号隔离目录或回退默认本地库（含冷启动 `first_run::write_samples` 短暂持有克隆时的非阻塞重试切换）。
+    3. 整书永久删除（`book.purge`）同步到接收端后，在满足 `book_purged(b)` 与 `purged("book:<b>")` 时自动回收该书本机已下载的物理资源变体并跳过历史 `AssetBlob` 重放，另一本书文档与资源完全不受影响。
+    4. 远端 `DocPurge` 遇到当前打开持有的文档保持 `AlreadyOpen` 阻塞且不推进游标，待标签页／书释放持有者后经 `notify_holder_released` 自动续跑。
+    5. 关窗退出与换库接入两阶段释放屏障：阶段一 `before_release` 调 `pause_for_release()` 冻结新周期，待 G1 `after_drain` 最终快照写完后，阶段二 `register_final_drain` 调 `drain_and_detach()` 将最终快照一并上传排空（离线最佳努力限时返回不卡退出）。
 - **全套门禁与副屏双窗口实测：**
-  - `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`（0 警告）、单线程 `RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked`（**2,248 通过／0 失败／22 忽略**，含 6 条新增 `app::drifting::sync` GPUI 集成测试与 `dr-sync::scheduler` 调度测试）、`cargo xtask check`（含 `audit`）、`pnpm public:check`、`pnpm ci:contract:check` 全部通过。
+  - `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`（0 警告）、单线程 `RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked`（**2,248 通过／0 失败／22 忽略**，含新增 `auto_sync_runtime`、`app::drifting::sync`、`dr-shell::sync`、`dr-workspace::sync` 测试）、`cargo xtask check`（含 `audit`）、`pnpm public:check`、`pnpm ci:contract:check` 全部通过。
   - **副屏双 profile 真窗口往返验收（`~/Drifting-autopilot-logs/app-sync-v3-smoke-2c90e80b/summary.json`，`passed: true`）：** 在副屏同时拉起 `app-sync-a-2c90e80b` 与 `app-sync-b-2c90e80b` 两个真实窗口接入本机 `FakeSyncServer`（同账号）——甲窗建书并经 GPUI `input.type` 输入「甲窗落笔：海雾散开时灯塔亮了。」自动出现在乙窗；乙窗接着输入「乙窗回应：潮水漫过北岸礁石。」自动同步回甲窗；甲窗输入「关窗排空：最后一笔不丢。」后立即请求退出排空，随后重新打开甲、乙两个窗口，两边均完整收敛读出全部三行且无残留窗口或后台进程。
 - **下一步：** 立即开新工作区进入凌晨追加第 2 项（补齐设置 › 账号页「退出登录」先调 `dr_shell::sync::run_before_sign_out` 排空上传再吊销令牌，并加永久测试）。
+
+### 晚间队列追加八（2026-11-12 04:35，凌晨追加第 2 项：设置 › 账号页「退出登录」先排空上传再吊销令牌）
+
+- **落地内容（分支 `codex/account-signout-drain-v3`）：**
+  1. `next/crates/dr-shell/src/sync.rs` 与 `account.rs`：新增公开函数 `pub fn run_before_sign_out(cx: &mut App) -> Option<LocalBoxFuture<'static, ()>>`，并将侧栏账号菜单点击回调统一交给 `on_click(window, cx)`（由 `dr_view_account::sign_out` 单点执行排空，消除侧栏退登双跑排空与 `NeedsReauth` 重新登录误触发排空）。
+  2. `next/crates/dr-view-account/src/lib.rs`（`pub fn sign_out`）与 `settings_view.rs`：加入 `!s.signing_out` 并发重入保护，点击后立即置 `signing_out = true` 禁用按钮，在发起 `inner.sign_out()` 吊销远端令牌之前先行调用并 `await` `dr_shell::sync::run_before_sign_out(cx)`，排空完成后再吊销令牌并经 `apply_account_state` 切回本机库。
+  3. **新增永久测试：**
+     - `dr-view-account::tests::settings_account_sign_out_drains_before_revoking_token`：在真实 GPUI 窗口点击 `AccountSettingsView` 的 `"settings-account-signout"` 按钮，核实排空钩子在途期间 `signing_out == true`、重复调用 `sign_out` 被忽略、且 `FakeAuthServer` 上的会话令牌依然有效，直至排空完成后令牌才被吊销并回到 `SignedOut`。
+     - `drifting::sync::tests::settings_sign_out_drains_pending_uploads_before_token_revocation_and_returns_to_local`：在 `FakeSyncServer::set_revoke_token_on_sign_out(true)`（`POST /api/auth/sign-out` 立即吊销令牌并拒绝后续 `401` 请求）下新建书后立即点击设置页「退出登录」，核实新书在令牌吊销前已完整上传到同步服、令牌随后被吊销、本地切回默认库，且第二台设备拉取到该书。
+- **下一步：** 立即开新工作区进入凌晨追加第 3 项（修复 `dr-view-element-overview` 与 `AutomaticHistory` 的 oplog frontier 竞态）。

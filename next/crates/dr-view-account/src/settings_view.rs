@@ -392,10 +392,14 @@ impl Render for AccountSettingsView {
             } else {
                 t(cx, h::SIGN_OUT)
             };
-            Button::new("settings-account-signout", label)
-                .small()
-                .disabled(signing_out)
-                .on_click(|_, _, cx| sign_out(cx))
+            div()
+                .debug_selector(|| "settings-account-signout".to_owned())
+                .child(
+                    Button::new("settings-account-signout", label)
+                        .small()
+                        .disabled(signing_out)
+                        .on_click(|_, _, cx| sign_out(cx)),
+                )
                 .into_any_element()
         } else {
             Button::new("settings-account-signin", t(cx, h::SIGN_IN))

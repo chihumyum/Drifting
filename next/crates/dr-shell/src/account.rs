@@ -344,7 +344,6 @@ pub fn menu(
         t(cx, keys::user_menu::SETTINGS),
         None,
     ));
-    let signed_in = info.signed_in;
     let account_action = info.action.map(|act| {
         let to_act = close.clone();
         let on_click = act.on_click.clone();
@@ -361,11 +360,7 @@ pub fn menu(
         .when(!disabled, |el| {
             el.cursor_pointer().on_click(move |_, window, cx| {
                 to_act(window, cx);
-                if signed_in {
-                    crate::sync::drain_before_account_action(window, cx, on_click.clone());
-                } else {
-                    on_click(window, cx);
-                }
+                on_click(window, cx);
             })
         })
         .child(row(Icon::Torii, act.label, None))

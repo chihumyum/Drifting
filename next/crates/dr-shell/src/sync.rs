@@ -25,7 +25,6 @@ use gpui::{
     SharedString, StatefulInteractiveElement as _, Styled, Task, Window, div, px,
 };
 
-use crate::account::AccountCallback;
 use crate::workspace::{Workspace, corner::CORNER_INSET};
 
 /// Dwell delay before opening the sync status hover card (`components.md`).
@@ -99,7 +98,8 @@ pub fn set_mark_hook(
     cx.set_global(MarkHook(Rc::new(hook)));
 }
 
-/// Registers an optional async drain that runs before signing out from the account menu.
+/// Registers an optional async drain that runs before signing out (from the
+/// sidebar account menu or Settings › Account) while the session token is still valid.
 pub fn set_before_account_action(
     cx: &mut App,
     hook: impl Fn(&mut App) -> Option<LocalBoxFuture<'static, ()>> + 'static,
@@ -127,29 +127,13 @@ pub(crate) fn notify_holder_released(cx: &mut App) {
     }
 }
 
-pub(crate) fn drain_before_account_action(
-    window: &mut Window,
-    cx: &mut App,
-    on_click: AccountCallback,
-) {
-    let maybe_drain = cx
-        .try_global::<BeforeAccountActionHook>()
+/// Invokes the registered pre-sign-out drain hook (if any) while the current
+/// bearer token is still valid, returning a future that resolves once pending
+/// outbound sync uploads have settled best-effort.
+pub fn run_before_sign_out(cx: &mut App) -> Option<LocalBoxFuture<'static, ()>> {
+    cx.try_global::<BeforeAccountActionHook>()
         .map(|h| h.0.clone())
-        .and_then(|h| h(cx));
-    let Some(drain_fut) = maybe_drain else {
-        on_click(window, cx);
-        return;
-    };
-    let handle = window.window_handle();
-    cx.spawn(async move |cx| {
-        drain_fut.await;
-        cx.update(|cx| {
-            let _ = handle.update(cx, |_, window, cx| {
-                on_click(window, cx);
-            });
-        });
-    })
-    .detach();
+        .and_then(|h| h(cx))
 }
 
 /// Evaluates the registered [`MarkHook`] directly (for tests and inspection).

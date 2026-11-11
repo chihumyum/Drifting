@@ -1,7 +1,7 @@
 //! Loopback fake Hosted Sync v2 server (`127.0.0.1:0`) for offline automated
 //! testing. Never connects to `api.drifting.cc`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,6 +27,8 @@ struct StoredObject {
 
 struct ServerState {
     expected_token: String,
+    revoke_token_on_sign_out: bool,
+    revoked_tokens: BTreeSet<String>,
     synthetic_user_id: String,
     synthetic_email: String,
     synthetic_name: String,
@@ -64,6 +66,8 @@ impl FakeSyncServer {
 
         let state = Arc::new(Mutex::new(ServerState {
             expected_token: expected_token.into(),
+            revoke_token_on_sign_out: false,
+            revoked_tokens: BTreeSet::new(),
             synthetic_user_id: "synthetic-sync-user-1".into(),
             synthetic_email: "synthetic-sync@loopback.invalid".into(),
             synthetic_name: "Synthetic Author".into(),
@@ -131,6 +135,18 @@ impl FakeSyncServer {
 
     pub fn set_expected_token(&self, token: impl Into<String>) {
         self.state.lock().expect("lock").expected_token = token.into();
+    }
+
+    pub fn set_revoke_token_on_sign_out(&self, revoke: bool) {
+        self.state.lock().expect("lock").revoke_token_on_sign_out = revoke;
+    }
+
+    pub fn is_token_revoked(&self, token: &str) -> bool {
+        self.state
+            .lock()
+            .expect("lock")
+            .revoked_tokens
+            .contains(token)
     }
 
     pub fn set_synthetic_user(
@@ -264,8 +280,9 @@ fn handle_connection(
         );
     }
 
+    let bearer_tok = auth_header.strip_prefix("Bearer ").unwrap_or("");
     let expected_bearer = format!("Bearer {}", guard.expected_token);
-    if auth_header != expected_bearer {
+    if auth_header != expected_bearer || guard.revoked_tokens.contains(bearer_tok) {
         return write_json(
             &mut stream,
             401,
@@ -292,6 +309,9 @@ fn handle_connection(
     }
 
     if method == "POST" && path == "/api/auth/sign-out" {
+        if guard.revoke_token_on_sign_out && !bearer_tok.is_empty() {
+            guard.revoked_tokens.insert(bearer_tok.to_owned());
+        }
         return write_json(&mut stream, 200, &json!({ "success": true }));
     }
 
