@@ -1,0 +1,254 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "v3-book-bench",
+  "milestone": "v3-heavy",
+  "generatedBy": "cargo run --release -p dr-testkit --bin bench -- v3-book --milestone v3-heavy",
+  "inputs": {
+    "crates/dr-corpus/src": "7a86cff886c07b439990a925f23b99d5600ac3e5f9c250de9b945b111ce39020",
+    "crates/dr-doc": "f073d6f1abb63327a0141270ee240e932a2a76ff34af0274337853dcf22ad8a4",
+    "crates/dr-model/src/v3.rs": "2e3e352263115e186b8c358bd60cb08a20e190f1d402e9683672541f3739458f",
+    "crates/dr-testkit/src/bench.rs": "6fe2fb7a977dbd389f665a53cc861f978208c6721e5bb1dbdbb538f0f6aa14d9",
+    "crates/dr-testkit/src/bench/v3_levels.rs": "c380e8cc2883892c7a34f858b038782efc46430bea6541a42351f85704feea22",
+    "crates/dr-testkit/src/bin/bench.rs": "293ff7b30c8477cff257fe46afee14e1ba518a3ee741ad47e5bd7e2f1d632a6a",
+    "crates/dr-testkit/src/seed": "69352248c103e33930f9c2f1338443f0d9b314d5f9fb11d76635664e45cb388b",
+    "crates/dr-workspace": "8cc0609a2e96d307e0ae02ee5eb4171bd7afca64e4eeff3c289b28c9c1ae319b"
+  },
+  "corpus": {
+    "preset": "v3-heavy",
+    "seed": "0x5eed0f08",
+    "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48",
+    "shape": {
+      "preset": "heavy",
+      "seed": "0x5eed0f08",
+      "books": 1,
+      "documents": 680,
+      "bodies": {
+        "categories": {
+          "count": 16,
+          "totalWords": 16000,
+          "minWords": 100,
+          "maxWords": 3000,
+          "medianWords": 754.0,
+          "p95Words": 3000,
+          "corpusSha256": "04be70fa2c12f8128c4c364de96cab86ab7fae7a76d4a92ba55c76c55f54ecd1"
+        },
+        "chapters": {
+          "count": 100,
+          "totalWords": 1500000,
+          "minWords": 2000,
+          "maxWords": 20000,
+          "medianWords": 19349.0,
+          "p95Words": 20000,
+          "corpusSha256": "53eb8978aa88ddb699615f24c6913dd94d51b40dc9041ca0a2e38e597510e650"
+        },
+        "comments": {
+          "count": 80,
+          "totalWords": 40000,
+          "minWords": 50,
+          "maxWords": 3000,
+          "medianWords": 319.0,
+          "p95Words": 1422,
+          "corpusSha256": "ed8dd3c4d2dabca544ace1dd5fc40d0dd337efc9a391fddf724b314dfb296b07"
+        },
+        "elements": {
+          "count": 300,
+          "totalWords": 500000,
+          "minWords": 100,
+          "maxWords": 10000,
+          "medianWords": 964.5,
+          "p95Words": 5361,
+          "corpusSha256": "f7956e2be36735784960cc3faeb06e3953a68db0a9659fce21d5015598abdfd2"
+        },
+        "ideas": {
+          "count": 200,
+          "totalWords": 1000000,
+          "minWords": 1000,
+          "maxWords": 50000,
+          "medianWords": 2741.0,
+          "p95Words": 14310,
+          "corpusSha256": "e03f04c45b51b154a4a0d39b745557cf53dff7123555c46da18510c4caa5b899"
+        },
+        "materialNotes": {
+          "count": 60,
+          "totalWords": 500000,
+          "minWords": 500,
+          "maxWords": 10000,
+          "medianWords": 10000.0,
+          "p95Words": 10000,
+          "corpusSha256": "a1a32bee9253602029f2463b1d83e5af34b99b922d3856585491e20c06f6bab6"
+        },
+        "storylines": {
+          "count": 3,
+          "totalWords": 60000,
+          "minWords": 5000,
+          "maxWords": 30000,
+          "medianWords": 25000.0,
+          "p95Words": 30000,
+          "corpusSha256": "770ad525e35a0456ca1adb646f24af5d65f312c73347dfdf921aafc290bedbb9"
+        },
+        "todos": {
+          "count": 120,
+          "totalWords": 30000,
+          "minWords": 50,
+          "maxWords": 1500,
+          "medianWords": 159.0,
+          "p95Words": 688,
+          "corpusSha256": "94a1743caa8a1822e6d8814974ca9fc7612214c75877c9e9c93fb9f11ec5a54e"
+        }
+      },
+      "chapters": 100,
+      "elements": 300,
+      "relations": 400,
+      "acts": 4,
+      "writingDays": 273,
+      "entityLinks": 28468,
+      "headings": [
+        624,
+        1186,
+        776
+      ],
+      "tasks": 180,
+      "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48"
+    },
+    "entries": 633,
+    "levels": 33,
+    "samples": 1,
+    "buildProfile": "release",
+    "queryPath": "batch",
+    "machineAtEnd": {
+      "cpu": "Apple M3 Pro",
+      "cores": 12,
+      "memoryBytes": 38654705664,
+      "os": "macos",
+      "osVersion": "27.0.1",
+      "arch": "aarch64",
+      "loadAverage1m": 3.67,
+      "profile": "release"
+    }
+  },
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "arch": "aarch64",
+    "loadAverage1m": 3.64,
+    "profile": "release"
+  },
+  "results": {
+    "suite": "v3-book",
+    "mode": "full",
+    "cases": {
+      "prepare": {
+        "what": "seed generation, shape audit, storing documents and first workspace open are separate from reading",
+        "shape": {
+          "books": 1
+        },
+        "ms": {
+          "firstWorkspaceOpen": {
+            "n": 1,
+            "p50": 1.058,
+            "p95": 1.058,
+            "max": 1.058,
+            "mean": 1.058
+          },
+          "seedGeneration": {
+            "n": 1,
+            "p50": 2001.703,
+            "p95": 2001.703,
+            "max": 2001.703,
+            "mean": 2001.703
+          },
+          "seedShape": {
+            "n": 1,
+            "p50": 43.817,
+            "p95": 43.817,
+            "max": 43.817,
+            "mean": 43.817
+          },
+          "storeSeed": {
+            "n": 1,
+            "p50": 2384.562,
+            "p95": 2384.562,
+            "max": 2384.562,
+            "mean": 2384.562
+          }
+        }
+      },
+      "read": {
+        "what": "one complete book structure read after reopening; includes holder loading, queries and JSON conversion, excludes UI construction and rendering",
+        "shape": {
+          "books": 1,
+          "entries": 633,
+          "levels": 33
+        },
+        "ms": {
+          "entries": {
+            "n": 1,
+            "p50": 16.448,
+            "p95": 16.448,
+            "max": 16.448,
+            "mean": 16.448
+          },
+          "levels": {
+            "n": 1,
+            "p50": 15.745,
+            "p95": 15.745,
+            "max": 15.745,
+            "mean": 15.745
+          },
+          "memberships": {
+            "n": 1,
+            "p50": 5.854,
+            "p95": 5.854,
+            "max": 5.854,
+            "mean": 5.854
+          },
+          "observeAfter": {
+            "n": 1,
+            "p50": 20.378,
+            "p95": 20.378,
+            "max": 20.378,
+            "mean": 20.378
+          },
+          "observeBefore": {
+            "n": 1,
+            "p50": 27.67,
+            "p95": 27.67,
+            "max": 27.67,
+            "mean": 27.67
+          },
+          "roots": {
+            "n": 1,
+            "p50": 11.875,
+            "p95": 11.875,
+            "max": 11.875,
+            "mean": 11.875
+          },
+          "templates": {
+            "n": 1,
+            "p50": 0.996,
+            "p95": 0.996,
+            "max": 0.996,
+            "mean": 0.996
+          },
+          "timelineViews": {
+            "n": 1,
+            "p50": 11.934,
+            "p95": 11.934,
+            "max": 11.934,
+            "mean": 11.934
+          },
+          "total": {
+            "n": 1,
+            "p50": 111.159,
+            "p95": 111.159,
+            "max": 111.159,
+            "mean": 111.159
+          }
+        }
+      }
+    }
+  }
+}

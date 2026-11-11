@@ -116,6 +116,7 @@ pub(crate) struct BookSlot {
     pub book: BookId,
     pub handle: DocHandle,
     pub reader_v3: dr_doc::v3::BookReaderV3,
+    pub link_names: std::sync::Mutex<Option<crate::autolink::SlotLinkCache>>,
 }
 
 impl BookSlot {
@@ -168,7 +169,10 @@ struct ProseSlots {
     map: HashMap<DocId, (u64, Arc<ProseSlot>)>,
 }
 
+static NEXT_WS_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 pub(crate) struct Inner {
+    pub id: u64,
     pub lib: Library,
     pub options: WorkspaceOptions,
     books: Mutex<HashMap<BookId, Arc<BookSlot>>>,
@@ -229,6 +233,7 @@ impl Workspace {
     /// deriver.
     pub fn open(lib: Library, options: WorkspaceOptions) -> Result<Self> {
         let inner = Arc::new(Inner {
+            id: NEXT_WS_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             journal: Journal::open(lib.clone())?,
             lib,
             options,
@@ -242,6 +247,12 @@ impl Workspace {
         });
         subscribe(&inner);
         Ok(Self { inner })
+    }
+
+    /// Process-unique identifier of this workspace instance (safe for in-memory
+    /// and disk libraries alike).
+    pub fn instance_id(&self) -> u64 {
+        self.inner.id
     }
 
     /// Open (or create) the library in `root` with the workspace's hooks.
@@ -842,6 +853,7 @@ impl Workspace {
             book: book.clone(),
             handle,
             reader_v3,
+            link_names: std::sync::Mutex::new(None),
         });
         // dr-doc's deterministic background repair, once per open.
         repair_book(&slot)?;
@@ -850,6 +862,76 @@ impl Workspace {
             .or_insert(slot)
             .clone();
         Ok(slot)
+    }
+
+    /// Every automatic-link name of `book`, cached on its open slot until the
+    /// book's committed frontiers advance.
+    pub fn book_link_names(
+        &self,
+        book: &str,
+    ) -> Result<Arc<Vec<dr_text::autolink::LinkName<dr_text::autolink::LinkTarget>>>> {
+        let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let slot = self.book_slot(&book_id)?;
+        Ok(crate::autolink::book_names(&slot))
+    }
+
+    /// Cached `(frontiers_hex, names, full_matcher)` for `book`, reused by
+    /// editor decorations and `@` completion until the book commits.
+    pub fn book_link_cache(
+        &self,
+        book: &str,
+    ) -> Result<(
+        String,
+        crate::autolink::CachedLinkNames,
+        crate::autolink::CachedLinkMatcher,
+    )> {
+        let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let slot = self.book_slot(&book_id)?;
+        let (frontiers, names, matcher) = crate::autolink::book_cache(&slot);
+        Ok((crate::naming::frontiers_hex(&frontiers), names, matcher))
+    }
+
+    /// Compiled automatic-link matcher for `book` excluding `own_entity_id`.
+    /// Shares the book's cached Aho-Corasick automaton whenever `own_entity_id`
+    /// is not itself an auto-link leaf.
+    pub fn book_link_matcher(
+        &self,
+        book: &str,
+        own_entity_id: &str,
+    ) -> Result<Arc<dr_text::autolink::LinkMatcher<dr_text::autolink::LinkTarget>>> {
+        let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let slot = self.book_slot(&book_id)?;
+        Ok(crate::autolink::book_matcher_for_owner(
+            &slot,
+            own_entity_id,
+        ))
+    }
+
+    /// Read a canonical v3 book document and its committed frontier version
+    /// together in a single holder read job. Rejects non-v3 books without
+    /// modifying them.
+    pub fn read_book_v3<R: Send + 'static>(
+        &self,
+        book: &str,
+        f: impl FnOnce(&loro::LoroDoc, String) -> Result<R> + Send + 'static,
+    ) -> Result<R> {
+        let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let slot = self.book_slot(&book_id)?;
+        slot.handle.read(move |doc| {
+            let version = crate::naming::frontiers_hex(&doc.oplog_frontiers());
+            f(doc, version)
+        })?
+    }
+
+    /// Whether `entry` is a live (non-trashed) entry in `book`.
+    pub fn is_live_entry(&self, book: &str, entry: &dr_model::id::EntryId) -> Result<bool> {
+        let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let slot = self.book_slot(&book_id)?;
+        Ok(slot
+            .reader_v3
+            .view()
+            .entry_raw(entry)
+            .is_some_and(|e| !e.is_trashed()))
     }
 
     /// The automatic-link matcher for text written in `doc`: every name of

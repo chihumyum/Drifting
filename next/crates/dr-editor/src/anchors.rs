@@ -38,9 +38,37 @@ pub fn comment_anchors(
     book: &str,
     doc: &str,
 ) -> Result<Vec<(String, Anchor)>, String> {
-    Ok(book_comment_anchors(ws, book)?
-        .remove(doc)
-        .unwrap_or_default())
+    let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
+    let wanted = doc.to_owned();
+    let handle = ws
+        .library()
+        .open_doc(&format!("book:{book}"), OpenDoc::Existing)
+        .map_err(|e| e.to_string())?;
+    let found = handle
+        .read(move |d| {
+            let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
+            let mut out = Vec::new();
+            for (id, target, target_module, anchor) in reader.view().anchored_comments() {
+                let target_doc = match target.kind {
+                    dr_model::kind::EntityKind::Entry => match target_module.as_ref() {
+                        Some(module) => format!("body:{}/{}", target.id, module),
+                        None => continue,
+                    },
+                    dr_model::kind::EntityKind::Material => format!("material:{}", target.id),
+                    _ => continue,
+                };
+                if target_doc == wanted {
+                    out.push((id.to_string(), anchor));
+                }
+            }
+            Ok::<_, dr_doc::DocError>(out)
+        })
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    Ok(found
+        .into_iter()
+        .filter_map(|(id, a)| Some((id, decode(&a)?)))
+        .collect())
 }
 
 /// Every anchored comment of `book`, by the prose document it is on (one
@@ -58,18 +86,16 @@ pub fn book_comment_anchors(
         .read(move |d| {
             let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
             let mut out = Vec::new();
-            for c in reader.view().comments() {
-                if let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref()) {
-                    let doc = match target.kind {
-                        dr_model::kind::EntityKind::Entry => match c.target_module.as_ref() {
-                            Some(module) => format!("body:{}/{}", target.id, module),
-                            None => continue,
-                        },
-                        dr_model::kind::EntityKind::Material => format!("material:{}", target.id),
-                        _ => continue,
-                    };
-                    out.push((doc, c.id.to_string(), anchor.clone()));
-                }
+            for (id, target, target_module, anchor) in reader.view().anchored_comments() {
+                let doc = match target.kind {
+                    dr_model::kind::EntityKind::Entry => match target_module.as_ref() {
+                        Some(module) => format!("body:{}/{}", target.id, module),
+                        None => continue,
+                    },
+                    dr_model::kind::EntityKind::Material => format!("material:{}", target.id),
+                    _ => continue,
+                };
+                out.push((doc, id.to_string(), anchor));
             }
             Ok::<_, dr_doc::DocError>(out)
         })

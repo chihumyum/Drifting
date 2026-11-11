@@ -75,7 +75,7 @@ fn convert<T: serde::de::DeserializeOwned>(value: impl Serialize) -> Result<T> {
     .map_err(|e| WsError::invalid(e.to_string()))
 }
 fn live(v: &BookViewV3<'_>, id: &str) -> Result<m::Entry> {
-    v.entry(&pid("entry", id)?)
+    v.entry_raw(&pid("entry", id)?)
         .filter(|e| !e.is_trashed())
         .ok_or_else(|| WsError::not_found("entry", id))
 }

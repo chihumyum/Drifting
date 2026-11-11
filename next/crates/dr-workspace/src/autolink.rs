@@ -75,13 +75,15 @@ pub fn matcher(book: &dr_doc::v3::BookViewV3<'_>, doc: &DocId) -> LinkMatcher<Li
     )
 }
 fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget>> {
-    let entries = v.entries_map();
+    let ordered = v.entries();
+    let entries: std::collections::BTreeMap<_, _> =
+        ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
     let templates = v.templates_map();
-    let memberships = v.memberships();
+    let memberships = v.memberships_raw();
     let mut out = Vec::new();
-    for e in v.entries() {
-        if !dr_model::v3::is_autolink_leaf(&e, &memberships, &entries, &templates)
-            || e.name_conflict.is_some()
+    for e in ordered {
+        if e.name_conflict.is_some()
+            || !dr_model::v3::is_autolink_leaf(&e, &memberships, &entries, &templates)
         {
             continue;
         }
@@ -95,10 +97,59 @@ fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget
     out
 }
 
+pub type CachedLinkNames = Arc<Vec<LinkName<LinkTarget>>>;
+pub type CachedLinkMatcher = Arc<LinkMatcher<LinkTarget>>;
+pub(crate) type SlotLinkCache = (loro::Frontiers, CachedLinkNames, CachedLinkMatcher);
+
+pub(crate) fn book_cache(slot: &BookSlot) -> SlotLinkCache {
+    let now = slot.handle.doc().oplog_frontiers();
+    if let Some((cached_at, names, matcher)) = crate::holder::lock(&slot.link_names).as_ref()
+        && *cached_at == now
+    {
+        return (cached_at.clone(), names.clone(), matcher.clone());
+    }
+    let book = slot.book.clone();
+    let computed = slot
+        .handle
+        .read(move |d| {
+            let frontiers = d.oplog_frontiers();
+            let names = dr_doc::v3::BorrowedBookV3::new(d, &book)
+                .map(|b| book_link_names_v3(&b.view()))
+                .unwrap_or_default();
+            let matcher = Arc::new(LinkMatcher::new(names.iter().cloned()));
+            (frontiers, Arc::new(names), matcher)
+        })
+        .ok();
+    if let Some((frontiers, names, matcher)) = computed {
+        *crate::holder::lock(&slot.link_names) =
+            Some((frontiers.clone(), names.clone(), matcher.clone()));
+        (frontiers, names, matcher)
+    } else {
+        let names = book_link_names_v3(&slot.reader_v3.view());
+        let matcher = Arc::new(LinkMatcher::new(names.iter().cloned()));
+        (now, Arc::new(names), matcher)
+    }
+}
+
 /// Every name of `slot`'s book (dr-text's `book_link_names`), read once
 /// until an element or a node changes.
 pub(crate) fn book_names(slot: &BookSlot) -> Arc<Vec<LinkName<LinkTarget>>> {
-    Arc::new(book_link_names_v3(&slot.reader_v3.view()))
+    book_cache(slot).1
+}
+
+/// [`matcher`] excluding `self_id`, reusing the book's compiled automaton
+/// whenever `self_id` is not itself an auto-link leaf.
+pub(crate) fn book_matcher_for_owner(
+    slot: &BookSlot,
+    self_id: &str,
+) -> Arc<LinkMatcher<LinkTarget>> {
+    let (_, names, full) = book_cache(slot);
+    if self_id.is_empty() || !names.iter().any(|n| n.target.id == self_id) {
+        return full;
+    }
+    Arc::new(LinkMatcher::new(
+        names.iter().filter(|n| n.target.id != self_id).cloned(),
+    ))
 }
 
 /// [`matcher`] for `doc` in `slot`'s book, from the book's cache.
@@ -107,12 +158,7 @@ pub(crate) fn book_matcher(slot: &BookSlot, doc: &DocId) -> Arc<LinkMatcher<Link
         DocId::Body(b) => b.entry().as_str(),
         _ => doc.entity_id(),
     };
-    Arc::new(LinkMatcher::new(
-        book_names(slot)
-            .iter()
-            .filter(|n| n.target.id != self_id)
-            .cloned(),
-    ))
+    book_matcher_for_owner(slot, self_id)
 }
 
 /// A run of one entity link on a paragraph (adjacent spans of one target

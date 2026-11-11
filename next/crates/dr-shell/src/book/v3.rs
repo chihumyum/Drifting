@@ -5,11 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use dr_doc::v3::BorrowedBookV3;
 use dr_ui::sand;
 use dr_workspace::{
-    Actor, Workspace, WsError,
-    commands::{
-        BookIn,
-        v3::{entry, membership, template, timeline, types},
-    },
+    Workspace, WsError,
+    commands::v3::{entry, types},
+    dto::GroupInfo,
 };
 use serde::Serialize;
 
@@ -80,6 +78,8 @@ pub struct BookV3 {
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
     template_index: BTreeMap<String, usize>,
+    #[serde(skip)]
+    hosts_by_member: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl BookV3 {
@@ -118,17 +118,12 @@ impl BookV3 {
         let template = self.template_of(id);
         let own_color = self.own_color(id);
         let color = if template.is_some_and(|t| t.kind == "leaf") {
-            let valid: BTreeSet<&str> = self
-                .memberships
-                .iter()
-                .filter(|m| m.member == id)
-                .map(|m| m.host.as_str())
-                .collect();
+            let valid = self.hosts_by_member.get(id);
             let primary = entry
                 .primary
                 .as_deref()
-                .filter(|p| valid.contains(p))
-                .or_else(|| valid.first().copied());
+                .filter(|&p| valid.is_some_and(|s| s.contains(p)))
+                .or_else(|| valid.and_then(|s| s.first().map(String::as_str)));
             match primary.filter(|p| self.template_of(p).is_some_and(|t| t.lane)) {
                 Some(lane) => self.own_color(lane),
                 None => own_color,
@@ -180,190 +175,181 @@ pub fn mark(name: Option<&str>, id: &str) -> sand::Kind {
 }
 
 pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
-    // A remote commit can arrive between queries. Never publish a mixed
-    // snapshot: retry the batch against a stable book frontier.
-    for _ in 0..3 {
-        let before = lib.observe(&format!("book:{id}"))?;
-        if before
-            .value
-            .pointer("/meta/deleted_at")
-            .is_some_and(|v| !v.is_null())
-        {
+    let book_id = dr_model::id::BookId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
+    let id_owned = id.to_owned();
+    let (name, mut v3) = lib.read_book_v3(id, move |doc, version| {
+        let bb = BorrowedBookV3::new(doc, &book_id).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let view = bb.view();
+        let meta = view.meta();
+        if meta.deleted_at.is_some() {
             return Err(WsError::NotFound {
                 what: "book",
-                id: id.to_owned(),
+                id: id_owned.clone(),
             });
         }
-        let input = || BookIn {
-            book: id.to_owned(),
-        };
-        let entries = lib
-            .run::<entry::EntryList>(
-                &Actor::User,
-                entry::ListIn {
-                    book: id.to_owned(),
-                    all: true,
-                    parent: None,
-                    trashed: true,
-                    query: None,
-                },
-            )?
-            .output;
-        let templates = lib
-            .run::<template::TemplateList>(&Actor::User, input())?
-            .output;
-        let resolved = lib.run::<entry::LevelList>(&Actor::User, input())?.output;
-        let roots = lib
-            .run::<entry::EntryList>(
-                &Actor::User,
-                entry::ListIn {
-                    book: id.to_owned(),
-                    all: false,
-                    parent: None,
-                    trashed: false,
-                    query: None,
-                },
-            )?
-            .output
-            .into_iter()
-            .map(|e| e.id)
+        let structure = view.structure_snapshot();
+        let entries_map = structure.entries_map();
+        let templates_map = structure.templates_map();
+
+        let entries: Vec<types::Entry> = structure
+            .entries()
+            .filter(|e| !e.is_trashed())
+            .map(Into::into)
             .collect();
-        let memberships = lib
-            .run::<membership::MembershipList>(&Actor::User, input())?
-            .output;
-        let timeline_views = lib.run::<timeline::ViewList>(&Actor::User, input())?.output;
-        // Keep the existing typed, read-only material metadata query within
-        // this frontier check; existence never comes from a prose document
-        // or legacy rows.
-        let book_id =
-            dr_model::id::BookId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
-        let (materials, manuscript) = lib
-            .library()
-            .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)?
-            .read(move |doc| {
-                let book = BorrowedBookV3::new(doc, &book_id)
-                    .map_err(|e| WsError::Invalid(e.to_string()))?;
-                let view = book.view();
-                let templates = view.templates_map();
-                let mut manuscript = Vec::new();
-                for level in view.manuscript_levels() {
-                    for entry in view.manuscript_leaves(&level) {
-                        if let Some(template) = entry.effective_template(&templates) {
-                            for module in template.prose_modules() {
-                                manuscript.push(ManuscriptBody {
-                                    entry: entry.id.to_string(),
-                                    module: module.id.to_string(),
-                                    title: entry.title.clone(),
-                                });
-                            }
-                        }
-                    }
-                }
-                Ok::<_, WsError>((
-                    view.materials().iter().map(Into::into).collect(),
-                    manuscript,
-                ))
-            })??;
-        let material_folders = lib
-            .run::<dr_workspace::commands::material::FolderList>(&Actor::User, input())?
-            .output;
-        let after = lib.observe(&format!("book:{id}"))?;
-        if before.version != after.version || resolved.version != after.version {
-            continue;
-        }
-        let levels = resolved
-            .levels
+        let templates: Vec<types::EntryTemplate> = templates_map.values().map(Into::into).collect();
+        let roots: Vec<String> = structure
+            .children_of(None)
             .into_iter()
-            .map(|info| {
+            .map(|e| e.id.to_string())
+            .collect();
+        let levels: BTreeMap<String, Level> = structure
+            .levels()
+            .map(|e| {
+                let resolved = structure.level_settings(&e.id).expect("live level");
                 (
-                    info.id,
+                    e.id.to_string(),
                     Level {
-                        settings: info.settings,
-                        sources: info
+                        settings: (&resolved.settings).into(),
+                        sources: resolved
                             .sources
-                            .into_iter()
-                            .map(|(key, source)| (key, source.into()))
+                            .iter()
+                            .map(|(k, s)| (k.clone(), entry::SettingSource::from(s).into()))
                             .collect(),
-                        children: info.children.into_iter().map(|e| e.id).collect(),
-                        members: info.members.into_iter().map(|e| e.id).collect(),
+                        children: structure
+                            .children_of(Some(&e.id))
+                            .into_iter()
+                            .map(|c| c.id.to_string())
+                            .collect(),
+                        members: structure
+                            .members_of(&e.id)
+                            .into_iter()
+                            .map(|m| m.id.to_string())
+                            .collect(),
                     },
                 )
             })
             .collect();
-        let entries: Vec<_> = entries
-            .into_iter()
-            .filter(|e| e.deleted_at.is_none())
-            .collect();
-        let mut v3 = BookV3 {
-            revision: after.version,
-            manuscript,
-            entries,
-            templates,
-            roots,
-            levels,
-            memberships,
-            timeline_views,
-            materials,
-            material_folders,
-            ..Default::default()
-        };
-        v3.entry_index = v3
-            .entries
+        let memberships: Vec<types::Membership> =
+            structure.memberships().iter().map(Into::into).collect();
+
+        let ms_levels = dr_model::v3::effective_manuscript_levels(entries_map, templates_map);
+        let mut manuscript = Vec::new();
+        for level_id in ms_levels {
+            for entry in structure.entries() {
+                if entry.is_trashed() || !entry.is_leaf(templates_map) {
+                    continue;
+                }
+                let anc = dr_model::v3::effective_ancestors(entries_map, templates_map, &entry.id);
+                if anc.contains(&level_id)
+                    && anc
+                        .iter()
+                        .all(|a| entries_map.get(a).is_some_and(|ae| !ae.is_trashed()))
+                    && let Some(template) = entry.effective_template(templates_map)
+                {
+                    for module in template.prose_modules() {
+                        manuscript.push(ManuscriptBody {
+                            entry: entry.id.to_string(),
+                            module: module.id.to_string(),
+                            title: entry.title.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        let raw_memberships = view.memberships_raw();
+        let timeline_views: Vec<types::TimelineView> = view
+            .timeline_views_with(entries_map, templates_map, &raw_memberships)
             .iter()
-            .enumerate()
-            .map(|(i, e)| (e.id.clone(), i))
+            .map(Into::into)
             .collect();
-        v3.template_index = v3
-            .templates
+        let materials: Vec<dr_workspace::dto::MaterialInfo> =
+            view.materials().iter().map(Into::into).collect();
+        let material_folders: Vec<GroupInfo> = view
+            .material_folders()
             .iter()
-            .enumerate()
-            .map(|(i, t)| (t.id.clone(), i))
+            .map(|f| GroupInfo {
+                id: f.id.to_string(),
+                name: f.name.clone(),
+                color: None,
+                parent: f.parent.as_ref().map(ToString::to_string),
+            })
             .collect();
-        let mut index = std::collections::HashMap::new();
-        for m in &v3.materials {
-            index.insert(
-                format!("material:{}", m.id),
-                Entry {
-                    title: m.title.clone(),
-                    mark: sand::Kind::Material,
-                    color: None,
-                },
-            );
-        }
-        for e in &v3.entries {
-            let a = v3.appearance(&e.id).expect("indexed entry");
-            index.insert(
-                format!("entry:{}", e.id),
-                Entry {
-                    title: e.title.clone(),
-                    mark: a.sand,
-                    color: a.color.as_deref().and_then(color_of),
-                },
-            );
-        }
-        for t in &v3.templates {
-            index.insert(
-                format!("template:{}", t.id),
-                Entry {
-                    title: t.name.clone(),
-                    mark: mark(t.mark.as_deref(), &t.id),
-                    color: t.color.as_deref().and_then(color_of),
-                },
-            );
-        }
-        return Ok(Book {
-            id: id.to_owned(),
-            name: after
-                .value
-                .pointer("/meta/name")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_owned(),
-            snapshot: Snapshot::V3(Box::new(v3)),
-            index,
-        });
+
+        Ok((
+            meta.name,
+            BookV3 {
+                revision: version,
+                manuscript,
+                entries,
+                templates,
+                roots,
+                levels,
+                memberships,
+                timeline_views,
+                materials,
+                material_folders,
+                ..Default::default()
+            },
+        ))
+    })?;
+
+    v3.entry_index = v3
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (e.id.clone(), i))
+        .collect();
+    v3.template_index = v3
+        .templates
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.id.clone(), i))
+        .collect();
+    for m in &v3.memberships {
+        v3.hosts_by_member
+            .entry(m.member.clone())
+            .or_default()
+            .insert(m.host.clone());
     }
-    Err(WsError::Conflict(
-        "book changed during snapshot queries".into(),
-    ))
+    let mut index = std::collections::HashMap::with_capacity(
+        v3.materials.len() + v3.entries.len() + v3.templates.len(),
+    );
+    for m in &v3.materials {
+        index.insert(
+            format!("material:{}", m.id),
+            Entry {
+                title: m.title.clone(),
+                mark: sand::Kind::Material,
+                color: None,
+            },
+        );
+    }
+    for e in &v3.entries {
+        let a = v3.appearance(&e.id).expect("indexed entry");
+        index.insert(
+            format!("entry:{}", e.id),
+            Entry {
+                title: e.title.clone(),
+                mark: a.sand,
+                color: a.color.as_deref().and_then(color_of),
+            },
+        );
+    }
+    for t in &v3.templates {
+        index.insert(
+            format!("template:{}", t.id),
+            Entry {
+                title: t.name.clone(),
+                mark: mark(t.mark.as_deref(), &t.id),
+                color: t.color.as_deref().and_then(color_of),
+            },
+        );
+    }
+    Ok(Book {
+        id: id.to_owned(),
+        name,
+        snapshot: Snapshot::V3(Box::new(v3)),
+        index,
+    })
 }

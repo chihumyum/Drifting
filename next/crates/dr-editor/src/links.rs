@@ -9,7 +9,7 @@
 //! use), cached per target until the book changes.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use dr_model::kind::EntityKind;
 use gpui_prose::render::RunStyle;
@@ -21,9 +21,19 @@ use loro::LoroValue;
 
 use crate::rules::markdown_rule;
 
+/// Bulk live target IDs `(entries, materials)` for one book state.
+pub type TargetSnapshot = (HashSet<String>, HashSet<String>);
+
 /// Whether entity link targets are alive.
 pub trait LinkTargets {
     fn alive(&self, kind: &EntityKind, id: &str) -> bool;
+
+    /// Optional bulk snapshot of `(live_entry_ids, live_material_ids)` so an
+    /// editor can populate its cache in a single book read instead of one read
+    /// per distinct link target.
+    fn snapshot(&self) -> Option<TargetSnapshot> {
+        None
+    }
 }
 
 /// The kind an entity mark's value names (elements when unsaid).
@@ -41,7 +51,8 @@ pub fn link_kind(value: &LoroValue) -> EntityKind {
 /// input rules.
 pub struct DriftingExtension {
     targets: Option<Box<dyn LinkTargets>>,
-    alive: RefCell<HashMap<String, bool>>,
+    alive: RefCell<HashMap<(EntityKind, String), bool>>,
+    preloaded: RefCell<Option<Option<TargetSnapshot>>>,
     markdown: bool,
     /// A material note's rules too (`==highlight==`).
     note: std::cell::Cell<bool>,
@@ -64,6 +75,7 @@ impl DriftingExtension {
         DriftingExtension {
             targets,
             alive: RefCell::default(),
+            preloaded: RefCell::new(None),
             markdown: true,
             note: std::cell::Cell::new(false),
             dry_underline: std::cell::Cell::new(false),
@@ -80,6 +92,7 @@ impl DriftingExtension {
     /// Forgets cached link targets (the book changed).
     pub fn invalidate(&self) {
         self.alive.borrow_mut().clear();
+        *self.preloaded.borrow_mut() = None;
     }
 
     /// Whether the paint layers draw the links' underline.
@@ -104,11 +117,23 @@ impl DriftingExtension {
         let Some(targets) = &self.targets else {
             return true;
         };
-        *self
-            .alive
-            .borrow_mut()
-            .entry(id.to_owned())
-            .or_insert_with(|| targets.alive(kind, id))
+        let key = (kind.clone(), id.to_owned());
+        if let Some(&cached) = self.alive.borrow().get(&key) {
+            return cached;
+        }
+        if self.preloaded.borrow().is_none() {
+            *self.preloaded.borrow_mut() = Some(targets.snapshot());
+        }
+        let alive = match self.preloaded.borrow().as_ref().and_then(Option::as_ref) {
+            Some((entries, materials)) => match kind {
+                EntityKind::Entry => entries.contains(id),
+                EntityKind::Material => materials.contains(id),
+                _ => false,
+            },
+            None => targets.alive(kind, id),
+        };
+        self.alive.borrow_mut().insert(key, alive);
+        alive
     }
 }
 

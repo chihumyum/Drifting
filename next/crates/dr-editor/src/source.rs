@@ -145,6 +145,21 @@ impl SessionSource {
     /// author: an editing session on the workspace and a read handle on the
     /// same holder.
     pub fn open(ws: &Workspace, doc_id: &str) -> Result<SessionSource, WsError> {
+        Self::open_inner(ws, doc_id, false)
+    }
+
+    /// Like [`Self::open`], when the caller has already verified `doc_id`
+    /// belongs to a canonical v3 book (avoids repeating `doc_info` + `is_book`
+    /// across every chapter of a whole-book open).
+    pub(crate) fn open_verified_v3(ws: &Workspace, doc_id: &str) -> Result<SessionSource, WsError> {
+        Self::open_inner(ws, doc_id, true)
+    }
+
+    fn open_inner(
+        ws: &Workspace,
+        doc_id: &str,
+        verified_v3: bool,
+    ) -> Result<SessionSource, WsError> {
         if !matches!(
             dr_model::DocId::parse(doc_id),
             Ok(dr_model::DocId::Body(_) | dr_model::DocId::Material(_))
@@ -153,7 +168,8 @@ impl SessionSource {
                 "only canonical body and material documents can be edited".into(),
             ));
         }
-        if let Some(book) = ws.library().doc_info(doc_id)?.and_then(|d| d.book_id)
+        if !verified_v3
+            && let Some(book) = ws.library().doc_info(doc_id)?.and_then(|d| d.book_id)
             && !crate::v3::is_book(ws, &book)?
         {
             return Err(WsError::Invalid(

@@ -100,6 +100,112 @@ pub(crate) fn forest(tree: &LoroTree) -> Vec<ForestNode> {
         .collect();
     normalize_forest(nodes)
 }
+
+/// Single-node lookup matching [`forest`]'s duplicate-ID selection, parent
+/// resolution and cycle-of-copies exclusion without decoding `get_deep_value`
+/// for the remaining nodes in `tree`.
+pub(crate) fn forest_node(tree: &LoroTree, target: &str) -> Option<ForestNode> {
+    let mut raw = tree.get_nodes(false);
+    raw.sort_by_key(|n| n.id);
+    let mut dom: HashMap<TreeID, String> = HashMap::new();
+    let mut kept: HashMap<String, (TreeID, TreeParentId)> = HashMap::new();
+    let mut copies: HashMap<String, Vec<TreeID>> = HashMap::new();
+    for n in raw {
+        let Some(loro::ValueOrContainer::Value(LoroValue::String(id))) =
+            tree.get_meta(n.id).ok().and_then(|m| m.get("id"))
+        else {
+            continue;
+        };
+        let id = id.to_string();
+        dom.insert(n.id, id.clone());
+        copies.entry(id.clone()).or_default().push(n.id);
+        kept.entry(id).or_insert((n.id, n.parent));
+    }
+    let &(kept_tid, _) = kept.get(target)?;
+    let parent_of = |id: &str| -> Option<&str> {
+        let &(_, parent) = kept.get(id)?;
+        match parent {
+            TreeParentId::Node(p) => dom.get(&p).map(String::as_str).filter(|&d| d != id),
+            _ => None,
+        }
+    };
+    let mut cur = target;
+    let mut seen = HashSet::new();
+    while let Some(p) = parent_of(cur) {
+        if !seen.insert(cur) {
+            return None;
+        }
+        cur = p;
+    }
+    let meta = tree.get_meta(kept_tid).ok()?.get_deep_value();
+    let pos = tree.fractional_index(kept_tid).unwrap_or_default();
+    let parent = parent_of(target).map(str::to_owned);
+    Some(ForestNode {
+        id: target.to_owned(),
+        parent,
+        meta,
+        tree_ids: copies.remove(target).unwrap_or_default(),
+        pos,
+    })
+}
+
+/// Returns `(live_ids, all_ids)` for `tree` using [`forest`]'s duplicate-ID
+/// selection and cycle-of-copies exclusion without decoding `get_deep_value`
+/// for every node's metadata map.
+pub(crate) fn forest_entry_status(tree: &LoroTree) -> (HashSet<String>, HashSet<String>) {
+    let mut raw = tree.get_nodes(false);
+    raw.sort_by_key(|n| n.id);
+    let mut dom: HashMap<TreeID, String> = HashMap::new();
+    let mut kept: HashMap<String, (TreeParentId, bool)> = HashMap::new();
+    for n in raw {
+        let Ok(meta) = tree.get_meta(n.id) else {
+            continue;
+        };
+        let Some(loro::ValueOrContainer::Value(LoroValue::String(id))) = meta.get("id") else {
+            continue;
+        };
+        let id = id.to_string();
+        dom.insert(n.id, id.clone());
+        kept.entry(id).or_insert_with(|| {
+            let trashed = matches!(
+                meta.get("deleted_at"),
+                Some(loro::ValueOrContainer::Value(
+                    LoroValue::I64(_) | LoroValue::Double(_)
+                ))
+            );
+            (n.parent, trashed)
+        });
+    }
+    let parent_of = |id: &str| -> Option<&str> {
+        let &(parent, _) = kept.get(id)?;
+        match parent {
+            TreeParentId::Node(p) => dom.get(&p).map(String::as_str).filter(|&d| d != id),
+            _ => None,
+        }
+    };
+    let mut live = HashSet::with_capacity(kept.len());
+    let mut all = HashSet::with_capacity(kept.len());
+    let mut seen = HashSet::new();
+    for (id, &(_, trashed)) in &kept {
+        seen.clear();
+        let mut cur = id.as_str();
+        let mut reachable = true;
+        while let Some(p) = parent_of(cur) {
+            if !seen.insert(cur) {
+                reachable = false;
+                break;
+            }
+            cur = p;
+        }
+        if reachable {
+            if !trashed {
+                live.insert(id.clone());
+            }
+            all.insert(id.clone());
+        }
+    }
+    (live, all)
+}
 /// The exact same duplicate-ID and ordering rules, over an atomic deep-value
 /// snapshot rather than repeated reads of an internally mutable LoroTree.
 pub(crate) fn forest_value(value: &LoroValue) -> Vec<ForestNode> {

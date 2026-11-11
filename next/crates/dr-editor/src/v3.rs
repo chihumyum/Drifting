@@ -39,6 +39,20 @@ pub fn prepare_body(
     entry: &str,
     module: &str,
 ) -> Result<crate::SessionSource, WsError> {
+    if let (Ok(eid), Ok(mid)) = (
+        dr_model::id::EntryId::parse(entry),
+        dr_model::id::ModuleId::parse(module),
+    ) {
+        let doc = dr_model::DocId::Body(dr_model::id::BodyDocId::new(eid.clone(), mid)).to_string();
+        if ws
+            .library()
+            .doc_info(&doc)?
+            .is_some_and(|d| d.book_id.as_deref() == Some(book))
+            && ws.is_live_entry(book, &eid)?
+        {
+            return crate::SessionSource::open_verified_v3(ws, &doc);
+        }
+    }
     let result = call(
         ws,
         "module.prose_document",
@@ -47,20 +61,36 @@ pub fn prepare_body(
     let doc = result["id"]
         .as_str()
         .ok_or_else(|| WsError::Invalid("module.prose_document returned no document".into()))?;
-    crate::SessionSource::open(ws, doc)
+    crate::SessionSource::open_verified_v3(ws, doc)
 }
 
-/// One visit, in manuscript tree order; every prose module keeps its own document.
-pub fn manuscript_docs(view: &BookViewV3<'_>) -> Vec<(String, String)> {
-    let levels = view.manuscript_levels();
-    let templates = view.templates_map();
-    view.entries()
-        .into_iter()
+fn manuscript_docs_from(
+    ordered: &[dr_model::v3::Entry],
+    entries: &std::collections::BTreeMap<dr_model::id::EntryId, dr_model::v3::Entry>,
+    templates: &std::collections::BTreeMap<
+        dr_model::id::EntryTemplateId,
+        dr_model::v3::EntryTemplate,
+    >,
+) -> Vec<(String, String)> {
+    let levels = dr_model::v3::effective_manuscript_levels(entries, templates);
+    ordered
+        .iter()
         .filter(|e| levels.contains(&e.id))
-        .flat_map(|level| view.manuscript_leaves(&level.id))
+        .flat_map(|level| {
+            ordered.iter().filter(|e| {
+                if e.is_trashed() || !e.is_leaf(templates) {
+                    return false;
+                }
+                let anc = dr_model::v3::effective_ancestors(entries, templates, &e.id);
+                anc.contains(&level.id)
+                    && anc
+                        .iter()
+                        .all(|a| entries.get(a).is_some_and(|ae| !ae.is_trashed()))
+            })
+        })
         .flat_map(|entry| {
             entry
-                .effective_template(&templates)
+                .effective_template(templates)
                 .into_iter()
                 .flat_map(|t| t.prose_modules())
                 .enumerate()
@@ -79,6 +109,15 @@ pub fn manuscript_docs(view: &BookViewV3<'_>) -> Vec<(String, String)> {
         .collect()
 }
 
+/// One visit, in manuscript tree order; every prose module keeps its own document.
+pub fn manuscript_docs(view: &BookViewV3<'_>) -> Vec<(String, String)> {
+    let ordered = view.entries_raw();
+    let entries: std::collections::BTreeMap<_, _> =
+        ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
+    let templates = view.templates_map();
+    manuscript_docs_from(&ordered, &entries, &templates)
+}
+
 pub(crate) fn page_infos(
     ws: &Workspace,
     book: &str,
@@ -86,15 +125,19 @@ pub(crate) fn page_infos(
 ) -> Result<Vec<crate::page::PageInfo>, WsError> {
     let docs = docs.to_vec();
     read(ws, book, move |view| {
-        let entries = view.entries_map();
+        let ordered = view.entries_raw();
+        let entries: std::collections::BTreeMap<_, _> =
+            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
         let templates = view.templates_map();
-        let manuscript = manuscript_docs(&view);
+        let manuscript = manuscript_docs_from(&ordered, &entries, &templates);
         let mut numbered = Vec::new();
+        let mut number_by_id = std::collections::HashMap::new();
         for (doc, _) in manuscript {
             if let Some((id, _)) = body(&doc)
-                && !numbered.contains(&id)
+                && !number_by_id.contains_key(&id)
             {
-                numbered.push(id);
+                numbered.push(id.clone());
+                number_by_id.insert(id, numbered.len() as u32);
             }
         }
         docs.iter()
@@ -103,7 +146,10 @@ pub(crate) fn page_infos(
                 let Some((id, module)) = body(doc) else {
                     return info;
                 };
-                let Some(entry) = entries.values().find(|e| e.id.as_str() == id) else {
+                let Some(entry) = dr_model::id::EntryId::parse(&id)
+                    .ok()
+                    .and_then(|eid| entries.get(&eid))
+                else {
                     return info;
                 };
                 info.title = entry.title.clone();
@@ -114,7 +160,7 @@ pub(crate) fn page_infos(
                     Some("tpl-idea") => crate::page::PageKind::Idea,
                     _ => crate::page::PageKind::Other,
                 };
-                info.number = numbered.iter().position(|e| e == &id).map(|i| i as u32 + 1);
+                info.number = number_by_id.get(&id).copied();
                 if let Some(t) = template {
                     for m in &t.modules {
                         let fields = entry.fields.get(&m.id);
@@ -237,17 +283,34 @@ pub struct LinkTargets {
 }
 impl crate::links::LinkTargets for LinkTargets {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        let (kind, id) = (kind.clone(), id.to_owned());
-        read(&self.workspace, &self.book, move |v| match kind {
-            dr_model::kind::EntityKind::Entry => v
-                .entries()
-                .iter()
-                .any(|e| e.id.as_str() == id && !e.is_trashed()),
-            dr_model::kind::EntityKind::Material => {
-                v.materials().iter().any(|m| m.id.as_str() == id)
-            }
-            _ => false,
+        if !matches!(
+            kind,
+            dr_model::kind::EntityKind::Entry | dr_model::kind::EntityKind::Material
+        ) {
+            return false;
+        }
+        let target = dr_model::shared::EntityRef::new(kind.clone(), id);
+        read(&self.workspace, &self.book, move |v| {
+            v.entity_exists(&target)
         })
         .unwrap_or(false)
+    }
+
+    fn snapshot(&self) -> Option<crate::links::TargetSnapshot> {
+        read(&self.workspace, &self.book, |v| {
+            let entries = v
+                .entries_raw()
+                .into_iter()
+                .filter(|e| !e.is_trashed())
+                .map(|e| e.id.to_string())
+                .collect();
+            let materials = v
+                .materials()
+                .into_iter()
+                .map(|m| m.id.to_string())
+                .collect();
+            (entries, materials)
+        })
+        .ok()
     }
 }

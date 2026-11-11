@@ -36,9 +36,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use dr_model::id::BookId;
 use dr_model::kind::EntityKind;
-use dr_store::OpenDoc;
 use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget};
 use dr_workspace::Workspace;
 pub use dr_workspace::autolink::{LinkEdit, LinkRun};
@@ -87,14 +85,15 @@ pub fn compare_names(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 /// Every name a link can point at, compiled.
+#[derive(Clone)]
 pub struct NameIndex {
-    matcher: LinkMatcher<LinkTarget>,
+    matcher: std::sync::Arc<LinkMatcher<LinkTarget>>,
     /// The pinyin initials of each of the matcher's names, in its order.
-    initials: Vec<crate::pinyin::Initials>,
+    initials: std::sync::Arc<Vec<crate::pinyin::Initials>>,
     /// The names of each target id.
-    names: HashMap<String, HashSet<String>>,
+    names: std::sync::Arc<HashMap<String, HashSet<String>>>,
     /// The group of each target id that is not an element.
-    groups: HashMap<String, NameGroup>,
+    groups: std::sync::Arc<HashMap<String, NameGroup>>,
 }
 
 impl NameIndex {
@@ -106,7 +105,15 @@ impl NameIndex {
                 .or_default()
                 .insert(n.name.trim().to_owned());
         }
-        let matcher = LinkMatcher::new(names);
+        let matcher = std::sync::Arc::new(LinkMatcher::new(names));
+        Self::from_matcher(matcher, by_target, HashMap::new())
+    }
+
+    fn from_matcher(
+        matcher: std::sync::Arc<LinkMatcher<LinkTarget>>,
+        by_target: HashMap<String, HashSet<String>>,
+        groups: HashMap<String, NameGroup>,
+    ) -> NameIndex {
         let initials = matcher
             .names()
             .iter()
@@ -114,16 +121,16 @@ impl NameIndex {
             .collect();
         NameIndex {
             matcher,
-            initials,
-            names: by_target,
-            groups: HashMap::new(),
+            initials: std::sync::Arc::new(initials),
+            names: std::sync::Arc::new(by_target),
+            groups: std::sync::Arc::new(groups),
         }
     }
 
     /// Says which targets are chapters and which are ideas (both are nodes
     /// to the matcher).
     pub fn with_groups(mut self, groups: HashMap<String, NameGroup>) -> NameIndex {
-        self.groups = groups;
+        self.groups = std::sync::Arc::new(groups);
         self
     }
 
@@ -143,12 +150,43 @@ impl NameIndex {
     /// titles), leaving out document `exclude` (`node:<id>`, …: a document
     /// never links to itself). Read on the book document's holder thread.
     pub fn load(ws: &Workspace, book: &str, exclude: &[&str]) -> Result<NameIndex, String> {
-        let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
-        let handle = ws
-            .library()
-            .open_doc(&format!("book:{book}"), OpenDoc::Existing)
-            .map_err(|e| e.to_string())?;
-        let exclude: Vec<String> = exclude
+        use std::sync::{Mutex, OnceLock};
+        type CacheKey = (u64, String);
+        type CacheEntry = (String, NameIndex);
+        static FULL_CACHE: OnceLock<Mutex<HashMap<CacheKey, CacheEntry>>> = OnceLock::new();
+
+        let (version, all, full_matcher) = ws.book_link_cache(book).map_err(|e| e.to_string())?;
+        if exclude.is_empty() {
+            let key = (ws.instance_id(), book.to_owned());
+            let cache = FULL_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+            if let Some((ver, idx)) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key)
+                && *ver == version
+            {
+                return Ok(idx.clone());
+            }
+            let mut by_target: HashMap<String, HashSet<String>> = HashMap::new();
+            let mut groups = HashMap::new();
+            for n in all.iter() {
+                by_target
+                    .entry(n.target.id.clone())
+                    .or_default()
+                    .insert(n.name.trim().to_owned());
+                if n.target.kind == EntityKind::Entry {
+                    groups
+                        .entry(n.target.id.clone())
+                        .or_insert(NameGroup::Entry);
+                }
+            }
+            let idx = NameIndex::from_matcher(full_matcher, by_target, groups);
+            let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.len() >= 64 {
+                guard.clear();
+            }
+            guard.insert(key, (version, idx.clone()));
+            return Ok(idx);
+        }
+
+        let exclude: HashSet<String> = exclude
             .iter()
             .map(|d| {
                 let id = d.split_once(':').map_or(*d, |(_, id)| id);
@@ -160,39 +198,19 @@ impl NameIndex {
                 .to_owned()
             })
             .collect();
-        let (names, groups) = handle
-            .read(move |d| {
-                if !dr_doc::v3::is_v3_doc(d) {
-                    return Err(dr_doc::DocError::NotInProfile("noncanonical book"));
-                }
-
-                let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
-                let v = reader.view();
-                let entries = v.entries_map();
-                let templates = v.templates_map();
-                let memberships = v.memberships();
-                let mut names = Vec::new();
-                let mut groups = HashMap::new();
-                for e in v.entries() {
-                    if exclude.iter().any(|id| e.id.as_str() == id)
-                        || e.name_conflict.is_some()
-                        || !dr_model::v3::is_autolink_leaf(&e, &memberships, &entries, &templates)
-                    {
-                        continue;
-                    }
-                    groups.insert(e.id.to_string(), NameGroup::Entry);
-                    let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());
-                    names.extend(
-                        std::iter::once(e.title.clone())
-                            .chain(e.aliases(&templates))
-                            .filter(|n| !n.trim().is_empty())
-                            .map(|n| LinkName::new(n, target.clone())),
-                    );
-                }
-                Ok((names, groups))
-            })
-            .map_err(|e| e.to_string())?
-            .map_err(|e| e.to_string())?;
+        let mut names = Vec::with_capacity(all.len());
+        let mut groups = HashMap::new();
+        for n in all.iter() {
+            if exclude.contains(&n.target.id) {
+                continue;
+            }
+            if n.target.kind == EntityKind::Entry {
+                groups
+                    .entry(n.target.id.clone())
+                    .or_insert(NameGroup::Entry);
+            }
+            names.push(n.clone());
+        }
         Ok(NameIndex::new(names).with_groups(groups))
     }
 
@@ -218,7 +236,7 @@ impl NameIndex {
             .matcher
             .names()
             .iter()
-            .zip(&self.initials)
+            .zip(self.initials.iter())
             .filter_map(|(n, initials)| {
                 let contains = n.name.to_lowercase().contains(&q);
                 (contains || initials.matches(&q)).then(|| {

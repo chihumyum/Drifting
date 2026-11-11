@@ -113,7 +113,7 @@ fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDo
                         Some((entry, module)) => {
                             match ws.library().doc_info(&chapter.doc).map_err(WsError::from) {
                                 Ok(Some(info)) if info.book_id.as_deref() == Some(book) => {
-                                    SessionSource::open(ws, &chapter.doc)
+                                    SessionSource::open_verified_v3(ws, &chapter.doc)
                                 }
                                 Ok(Some(_)) => Err(WsError::Invalid(
                                     "manuscript document belongs to another book".into(),
