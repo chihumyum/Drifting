@@ -72,9 +72,7 @@ fn every_mapping_row_has_a_nonempty_fixture_and_pinned_totals() {
             .collect::<Vec<_>>(),
         [
             "act-binding-relation-type-and-direction",
-            "synthetic-lane-tree-home-and-template-settings",
             "project-storyline-field-template-destination",
-            "relation-type-template-restrictions",
         ]
     );
 }
@@ -305,9 +303,15 @@ fn memberships_keep_primary_and_one_position_per_entry_in_multiple_lanes() {
         );
     }
     assert_eq!(level(&m, &Entry::Unaffiliated).title, "未归属");
-    // The scheme has not decided where this new lane lives in the tree.
-    assert!(level(&m, &Entry::Unaffiliated).parent.is_none());
-    assert!(level(&m, &Entry::Unaffiliated).default_leaf.is_none());
+    // Author settled 11-11 (#23): placed under Storylines with Chapter default leaf.
+    assert_eq!(
+        level(&m, &Entry::Unaffiliated).parent,
+        Some(Entry::Storylines)
+    );
+    assert_eq!(
+        level(&m, &Entry::Unaffiliated).default_leaf,
+        Some(LeafTemplate::Chapter)
+    );
     assert!(m.default_view.pins.contains(&Pin {
         old_id: "pin-1".into(),
         at: 11.5,

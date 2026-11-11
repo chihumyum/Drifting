@@ -288,37 +288,33 @@ fn a_sample_lands_once_and_waits_until_opened(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-async fn a_new_library_defers_samples_until_mapping_without_claiming_or_landing(
-    cx: &mut TestAppContext,
-) {
+async fn a_new_library_writes_both_v3_samples_once_and_marks_them_landing(cx: &mut TestAppContext) {
     shell(cx);
     let dir = tempfile::tempdir().unwrap();
     let lib = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
     let ws = dr_workspace::Workspace::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
     let task = cx.update(|cx| first_run::write_samples(ws.clone(), cx));
     let outcome = task.await;
-    let dr_samples::Outcome::Pending { items } = outcome else {
-        panic!("{outcome:?}");
-    };
-    assert!(
-        items
-            .iter()
-            .any(|p| p.code == "relation-type-template-restrictions")
+    let expected = dr_samples::book_ids();
+    assert_eq!(
+        outcome,
+        dr_samples::Outcome::Created {
+            books: expected.clone(),
+        }
     );
-    assert!(ws.library().docs(None, Some("book")).unwrap().is_empty());
-    assert!(
-        ws.library()
+    assert_eq!(ws.library().docs(None, Some("book")).unwrap().len(), 2);
+    let marker: serde_json::Value = serde_json::from_str(
+        &ws.library()
             .local_get(dr_samples::MARKER_SCOPE, dr_samples::MARKER_KEY)
             .unwrap()
-            .is_none(),
-        "missing policy never claims once-only success"
-    );
+            .expect("created marker"),
+    )
+    .unwrap();
+    assert_eq!(marker["status"], "created");
     cx.update(|cx| {
-        for book in dr_samples::book_ids() {
-            assert_eq!(
-                first_run::sample_on_shelf(&book, cx),
-                first_run::SampleOnShelf::default()
-            );
+        for book in expected {
+            let on = first_run::sample_on_shelf(&book, cx);
+            assert!(on.waiting && on.landing, "{book}: {on:?}");
         }
     });
 }

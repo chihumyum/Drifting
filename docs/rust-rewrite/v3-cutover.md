@@ -22,7 +22,7 @@ GUI 的 `Options.v3` 是非可选 `MappingChoices`，默认空选择也必须过
 
 导入历史目录先完整规划到内存，并在第一次目录写入前保存 `import-v3-replay` checkpoint：源／映射指纹、完整 Loro 操作、各历史 frontiers。续导重用完全相同的树根、组和操作；不在当前目录上重演历史，不删除 receipt，不改版本冒充升级。每个历史前缀实际写入后才给正文点记录相应 book frontiers。没有此 checkpoint 的旧半成品明确保留并拒绝续导，提示改用新目标。
 
-`root_references` 是显式新根引用接线，解析到本次真实分配的根；模板允许列表和住处约束仍完整执行。JSON 中的空 choices 只有不触发未定策略且全部预检通过时才可用。内置样书继续用 v3 writer 与原 once-only 标记：Created／作者已删除样书不复活，缺映射策略明确 pending。
+JSON 中的空 choices 只要源库不触发未定策略（目前仅剩第 22 条幕绑定构想 `act_binding`）且全部预检通过即可直接导入。内置样书不含幕绑定构想，使用默认 v3 转换器与原 once-only 标记直接写入新库：Created／作者已删除样书不复活。
 
 ## 仍保留的源格式边界
 
@@ -91,9 +91,13 @@ GUI 的 `Options.v3` 是非可选 `MappingChoices`，默认空选择也必须过
 
 ## 待作者／待协调
 
-只保留三个窄产品策略：M10 22 `act_binding` 的关系类型和方向；23 `unaffiliated` 的住处和完整 EntryTemplate（含 home）；25 每种关系类型的 source／target 模板列表。缺项 prewrite 返回对应 structured pending；不把 fixture choices 塞进默认。其余幕转分组、章／构想树和摆放、归属／主归属／时间钉、24 字段模板、27 颜色沿用已定映射。28–31 以真实预检与已有写入能力为准，不笼统扩成新的作者设计。
+M10 的两条导入策略**作者已定 11-11**（夜间队列第 6 项已落地为默认行为，不再需要 `MappingChoices`）：
+- **23「未归属」（作者已定 11-11）：** 仅当旧库存在「有叙事序、但不属于任何故事线」的章节或构想时才创建，建在小说模板生成的故事线入口（实际返回的 `roots.storylines`）下、排在最后，沿用其他导入故事线的模板（`TPL_STORYLINE`，`home` 绑定实际返回的 `roots.manuscript`，不恢复 `root-manuscript` 类固定 id）和层级设置，名字沿用旧界面的「未归属」（`bottomTimeline.synthetic.unaffiliated`），不设主归属，位置照现有映射。
+- **25 关系类型端点（作者已定 11-11，暂定）：** 非内置关系类型按 `node`／`element`／`category`／`storyline` → `entry`、`patch` → `patch`、`comment` → `comment`、`library_item` → `material` 转换并去重，`source_templates` 与 `target_templates` 留空不展开成模板清单；旧端点种类原样存入导入回执 `import_original`（`collection = "relation_types"`）供日后还原；内置关系类型不动（作者之后将重构关系类型）。
 
-M10 的三个技术缺口已补齐（夜间队列第 2 项）：28 旧 `entityLink`（`material`／`library_item`、显式 `module`／`targetModule`、带容器跨度重映射的 `targetBlockId`／`targetEndBlockId`）在当前正文、模板与快照历史中经 `ProseTxn::link_entity_v3` 无损写入 `EntityLinkV3`；29 `FieldDef` 新增可选 `default_value`，经 `entry_template.put` 校验并在 `entry.create` 初始化新条目字段值，导入器在当前书目与历史 `elementTemplateKvJson` 回放中无损保留非空字段默认值；30 带标记与链接的旧表格单元经 `ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell` 在 `Prose`／`Note` 两种 profile、模板与历史版本间无损导入与往返。真正损坏或超出 profile 的链接／单元格内容仍 prewrite 结构化拒绝并保持源库零修改。31 的 App v3 样书与索引已接通，importer 活动 deriver 拒绝规则保留，通过闭库新目标流程满足。22、23、25 三个作者策略保持原样 pending。
+目前 `MappingChoices` 只保留唯一一条未定产品策略：**M10 第 22 条 `act_binding` 继续 pending**——作者在考虑改成「时间线视图里的幕轨道」，不要建「大纲」关系，等作者确认；源库含 `book_act.drift_node_id` 且未提供显式选择时继续 prewrite 返回 `act-binding-relation-type-and-direction`，不把测试 fixture choices 塞进默认。其余幕转分组、章／构想树和摆放、归属／主归属／时间钉、24 字段模板、27 颜色沿用已定映射。
+
+M10 的三个技术缺口已补齐（夜间队列第 2 项）：28 旧 `entityLink`（`material`／`library_item`、显式 `module`／`targetModule`、带容器跨度重映射的 `targetBlockId`／`targetEndBlockId`）在当前正文、模板与快照历史中经 `ProseTxn::link_entity_v3` 无损写入 `EntityLinkV3`；29 `FieldDef` 新增可选 `default_value`，经 `entry_template.put` 校验并在 `entry.create` 初始化新条目字段值，导入器在当前书目与历史 `elementTemplateKvJson` 回放中无损保留非空字段默认值；30 带标记与链接的旧表格单元经 `ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell` 在 `Prose`／`Note` 两种 profile、模板与历史版本间无损导入与往返。真正损坏或超出 profile 的链接／单元格内容仍 prewrite 结构化拒绝并保持源库零修改。31 的 App v3 样书与索引已接通，importer 活动 deriver 拒绝规则保留，通过闭库新目标流程满足。
 
 v3 Markdown 文件夹（待定方案见 [m40-markdown-folder-v3.md](modules/m40-markdown-folder-v3.md)）、分享链接和界面设计／性能打磨仍按原授权边界暂缓。当前 SyncEngine 没有生产 App 自动调度，loopback 窗口链不覆盖它。源格式或未来表示无法无损迁移时继续 prewrite 拒绝，保留原数据；这不等于完成全部未来表示扩展。
 

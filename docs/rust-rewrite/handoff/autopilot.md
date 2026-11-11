@@ -40,6 +40,11 @@
 3. 大书性能。用 heavy 的 v3 样书（约 150 万字），release 构建，机器空闲（一分钟负载 < 4）时量：打开书、首屏、长章节里打字的延迟、滚动、切章节、层级页和左栏、搜索、时间线。对照 benchmarks.md 和各模块文档里的预算，从最慢的开始一项一项修，修一项量一次。不为了快去改数据格式和已有行为，Loro 版本不动。要改交互才能快的（比如分段加载长什么样），写进「待作者」。证据照 f8-testkit.md 的规矩。
 4. Super View 接到 v3。先读 ~/Drifting-autopilot-logs/post-switch-superviews-map.md。先做 M23 审阅与素材，再做 M22 要素全景。凡是要用到书序或幕的地方（v3 已经没有了），停下写进「待作者」，不自己设计。M21 故事图只写「待作者」，不动手。
 5. Markdown 文件夹 v3：只写方案文档，不写代码。
+6. 作者 11-11 追补导入的两条默认行为（排进夜间队列第 6 项）：
+   - 第 23 条「未归属」：只在旧库里有「有叙事序、但不属于任何故事线」的章节或构想时才建。建在小说模板生成的故事线入口下，排在最后，用和其他导入故事线一样的模板和层级设置，名字沿用旧界面的「未归属」（bottomTimeline.synthetic.unaffiliated）。不设主归属，位置照现有映射。住处用初始化后实际返回的故事线入口 id，不能恢复 root-manuscript 那类固定 id。这一条改成默认行为，不再需要 MappingChoices。
+   - 第 25 条关系类型端点：node、element、category、storyline 转成 entry；patch 转成 patch；comment 转成 comment；library_item 转成 material，去重。source_templates 和 target_templates 留空，不展开成模板清单。旧的种类原样留在导入记录里，以后可以还原。内置关系类型不动。这是暂定，作者之后要重构关系类型。也改成默认行为。
+   - 两条都要有永久测试：源库字节和修改时间不变，导入结果逐项核对。在 m10-import.md 的 23、25 条和 v3-cutover.md「待作者」写明「作者已定 11-11」，autopilot.md「待作者」同步更新。全套检查通过后本地合进 main，晨报追加一段。
+   - 第 22 条继续 pending：作者在考虑改成「时间线视图里的幕轨道」，不要建「大纲」关系，等作者确认。
 
 全部做完后给晨报收尾：每一项合进了什么、main 在哪、量到的性能数字、还开着的问题、等作者定的事。然后停。
 
@@ -147,7 +152,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 
 （这里只保留实际产品设计；已定功能及引擎能力留在技术待协调。）
 
-- **M10 切换映射的三个窄策略仍待作者。** 22 act_binding 的关系类型／方向；23 unaffiliated 的住处和完整 EntryTemplate／home；25 按关系类型的 source／target 模板列表。未给齐时 structured V3Pending 写前拒绝；显式 choices 的合成 GUI 路径照常实现。其余已定映射、根引用解析、worker／deriver／取消生命周期不转待作者。见 [切换记录](../v3-cutover.md)。
+- **M10 切换映射仅剩第 22 条 `act_binding` 待作者确认（第 23、25 条作者已定 11-11 并落地默认行为）。** 第 23 条「未归属」泳道与第 25 条关系类型端点去重／留空模板列表＋`import_original` 保留原种类已在夜间队列第 6 项作为默认行为落地，不再需要 `MappingChoices`。第 22 条 `act_binding`（幕绑定构想）继续保持 `Pending`（`act-binding-relation-type-and-direction`）：作者在考虑改成「时间线视图里的幕轨道」，不要建「大纲」关系，等作者确认；源库含幕绑定构想且未提供显式 choices 时继续写前结构化拒绝。见 [切换记录](../v3-cutover.md) 与 [M10 文档](../modules/m10-import.md)。
 
 - 条目页空间、重复标题等布局设计及样式／流畅度打磨已明确暂缓。本轮不自造布局，不以这些设计项阻塞安全快照阶段交回，也不把暂缓记成通过。
 

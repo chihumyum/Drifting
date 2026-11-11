@@ -8,56 +8,27 @@ mod samples;
 pub use catalog::{sync_catalog, validate};
 pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 
-use std::collections::BTreeMap;
-
 use dr_doc::import_v1::BookView;
 use dr_doc::v3::novel::*;
 use dr_model::id::*;
 use dr_model::import_v1::EntityRef;
 use dr_model::kind::EntityKind;
-use dr_model::v3::{EntryTemplate, RelationTypeV3};
+use dr_model::v3::RelationTypeV3;
 use serde::{Deserialize, Serialize};
 
-/// Choices still awaiting the author (m10-import.md 22, 23, 25). There is
-/// deliberately no permissive default. Tests supply labelled test choices.
+/// Policy choice still awaiting the author (m10-import.md 22): `act_binding`.
+/// Items 23 (`未归属`) and 25 (relation-type endpoint kinds) use settled
+/// product defaults (author decision, 2026-11-11).
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MappingChoices {
-    /// Explicit symbolic ids for fresh novel roots. These aliases are resolved
-    /// only inside the newly allocated target, never to source/old-library ids.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub root_references: BTreeMap<EntryId, RootReference>,
     pub act_binding: Option<ActBindingChoice>,
-    pub unaffiliated: Option<UnaffiliatedChoice>,
-    pub relation_templates: BTreeMap<RelationTypeId, TemplateRestriction>,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RootReference {
-    Manuscript,
-    Ideas,
-    Elements,
-    Storylines,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActBindingChoice {
     pub relation_type: RelationTypeV3,
     pub act_is_source: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct UnaffiliatedChoice {
-    pub parent: Option<EntryId>,
-    /// A full level template states default/allow/home explicitly.
-    pub template: EntryTemplate,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct TemplateRestriction {
-    pub source: Vec<EntryTemplateId>,
-    pub target: Vec<EntryTemplateId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,95 +156,16 @@ pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
 }
 
 impl MappingChoices {
-    /// Resolve author-selected aliases against this transaction's actual
-    /// roots. No root role is selected by default, and the full template is
-    /// otherwise unchanged. Empty aliases keep the existing mapping hash.
-    pub(crate) fn resolved_roots(
-        &self,
-        roots: [&EntryId; 4],
-        source: &BookView<'_>,
-    ) -> dr_doc::Result<Self> {
-        let authored = source
-            .nodes()
-            .iter()
-            .map(|e| e.id.to_string())
-            .chain(source.acts().iter().map(|e| e.id.to_string()))
-            .chain(source.drift_groups().iter().map(|e| e.id.to_string()))
-            .chain(source.categories().iter().map(|e| e.id.to_string()))
-            .chain(source.elements().iter().map(|e| e.id.to_string()))
-            .chain(source.storylines().iter().map(|e| e.id.to_string()))
-            .collect::<std::collections::BTreeSet<_>>();
-        if self
-            .root_references
-            .keys()
-            .any(|id| authored.contains(id.as_str()))
-        {
-            return Err(catalog::invalid(
-                "root reference collides with an authored source entry",
-            ));
-        }
-        let resolve = |id: &EntryId| match self.root_references.get(id) {
-            Some(RootReference::Manuscript) => (*roots[0]).clone(),
-            Some(RootReference::Ideas) => (*roots[1]).clone(),
-            Some(RootReference::Elements) => (*roots[2]).clone(),
-            Some(RootReference::Storylines) => (*roots[3]).clone(),
-            None => id.clone(),
-        };
-        let mut mapped = self.clone();
-        if let Some(choice) = &mut mapped.unaffiliated {
-            choice.parent = choice.parent.as_ref().map(resolve);
-            choice.template.settings.home = choice
-                .template
-                .settings
-                .home
-                .as_ref()
-                .map(|v| v.as_ref().map(resolve));
-        }
-        Ok(mapped)
-    }
-
     /// Policy questions only. Source integrity is checked separately by the
     /// importer, before any target or installation identity is written.
     pub fn pending(&self, source: &BookView<'_>) -> Vec<Pending> {
         let mut out = Vec::new();
-        let mut add = |code: &str, source: String| {
-            out.push(Pending {
-                code: code.into(),
-                source,
-            })
-        };
         for act in source.acts().iter().filter(|a| a.drift.is_some()) {
             if self.act_binding.is_none() {
-                add(
-                    "act-binding-relation-type-and-direction",
-                    act.id.to_string(),
-                );
-            }
-        }
-        if self.unaffiliated.is_none()
-            && source
-                .nodes()
-                .iter()
-                .any(|n| n.narrative_order.is_some() && n.storylines.is_empty())
-        {
-            add(
-                "synthetic-lane-tree-home-and-template-settings",
-                source.book_id().to_string(),
-            );
-        }
-        for rt in source
-            .relation_types()
-            .iter()
-            .filter(|r| !r.locked && r.system_key.is_none())
-        {
-            if rt
-                .source_kinds
-                .iter()
-                .chain(&rt.target_kinds)
-                .any(|k| map_kind(k) != *k)
-                && !self.relation_templates.contains_key(&rt.id)
-            {
-                add("relation-type-template-restrictions", rt.id.to_string());
+                out.push(Pending {
+                    code: "act-binding-relation-type-and-direction".into(),
+                    source: act.id.to_string(),
+                });
             }
         }
         out

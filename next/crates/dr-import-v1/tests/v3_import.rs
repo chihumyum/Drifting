@@ -32,54 +32,27 @@ fn eid(s: &str) -> EntryId {
 }
 
 fn choices() -> MappingChoices {
-    let mut choice = MappingChoices::default();
-    let mut lane = novel_project_templates()
-        .into_iter()
-        .find(|t| t.id.as_str() == TPL_STORYLINE)
-        .unwrap();
-    lane.id = tid("test-unaffiliated-template");
-    lane.settings.home = Some(None);
-    choice.unaffiliated = Some(UnaffiliatedChoice {
-        parent: None,
-        template: lane,
-    });
-    choice.act_binding = Some(ActBindingChoice {
-        act_is_source: true,
-        relation_type: RelationTypeV3 {
-            id: RelationTypeId::parse("test-act-binding").unwrap(),
-            name: "测试幕注".into(),
-            normalized_name: "测试幕注".into(),
-            description: String::new(),
-            orientation: RelationOrientation::Directed,
-            system_key: None,
-            locked: false,
-            source_role: String::new(),
-            target_role: String::new(),
-            color: None,
-            source_kinds: vec![EntityKind::Entry],
-            target_kinds: vec![EntityKind::Entry],
-            source_templates: vec![tid(TPL_GROUP)],
-            target_templates: vec![tid(TPL_IDEA)],
-        },
-    });
-    choice.relation_templates.insert(
-        RelationTypeId::parse(REL_TYPE).unwrap(),
-        TemplateRestriction {
-            source: vec![
-                adapter::category_template(CATEGORY),
-                adapter::category_template(fixture::CATEGORY_OTHER),
-            ],
-            target: vec![],
-        },
-    );
-    choice.relation_templates.insert(
-        RelationTypeId::parse(fixture::PATCH_RELATION).unwrap(),
-        TemplateRestriction {
-            source: vec![],
-            target: vec![tid(TPL_STORYLINE)],
-        },
-    );
-    choice
+    MappingChoices {
+        act_binding: Some(ActBindingChoice {
+            act_is_source: true,
+            relation_type: RelationTypeV3 {
+                id: RelationTypeId::parse("test-act-binding").unwrap(),
+                name: "测试幕注".into(),
+                normalized_name: "测试幕注".into(),
+                description: String::new(),
+                orientation: RelationOrientation::Directed,
+                system_key: None,
+                locked: false,
+                source_role: String::new(),
+                target_role: String::new(),
+                color: None,
+                source_kinds: vec![EntityKind::Entry],
+                target_kinds: vec![EntityKind::Entry],
+                source_templates: vec![tid(TPL_GROUP)],
+                target_templates: vec![tid(TPL_IDEA)],
+            },
+        }),
+    }
 }
 
 fn entry_id(view: &BookViewV3<'_>, entry: &manifest::Entry) -> EntryId {
@@ -99,9 +72,18 @@ fn entry_id(view: &BookViewV3<'_>, entry: &manifest::Entry) -> EntryId {
                 .id
         }
         Unaffiliated => {
-            view.entries_raw()
+            let storylines_root = root(TPL_STORYLINES);
+            let authored: BTreeSet<_> = [STORYLINE, fixture::STORYLINE_OTHER]
                 .into_iter()
-                .find(|e| e.template == Some(tid("test-unaffiliated-template")))
+                .map(eid)
+                .collect();
+            view.children_of(Some(&storylines_root))
+                .into_iter()
+                .find(|e| {
+                    e.template == Some(tid(TPL_STORYLINE))
+                        && e.title == "未归属"
+                        && !authored.contains(&e.id)
+                })
                 .unwrap()
                 .id
         }
@@ -237,14 +219,12 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     for level in &expected.levels {
         let actual = view.entry(&entry_id(view, &level.entry)).unwrap();
         assert_eq!(actual.title, level.title, "{:?}", level.entry);
-        // The independent oracle intentionally leaves the synthetic home
-        // undecided. Only this test supplies its explicit home/template.
-        if level.entry != manifest::Entry::Unaffiliated {
-            assert_eq!(
-                actual.parent,
-                level.parent.as_ref().map(|e| entry_id(view, e))
-            );
-        }
+        assert_eq!(
+            actual.parent,
+            level.parent.as_ref().map(|e| entry_id(view, e)),
+            "{:?}",
+            level.entry
+        );
         assert!(actual.is_level(&view.templates_map()));
         assert_eq!(actual.is_lane_level(&view.templates_map()), level.lane);
         if let Some(template) = &level.default_leaf {
@@ -260,6 +240,38 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(actual.layout.grid, x.zip(*y));
         }
     }
+    let storylines_root = entry_id(view, &manifest::Entry::Storylines);
+    let manuscript_root = entry_id(view, &manifest::Entry::Manuscript);
+    let unaffiliated_id = entry_id(view, &manifest::Entry::Unaffiliated);
+    assert_eq!(
+        view.children_of(Some(&storylines_root))
+            .iter()
+            .map(|e| e.id.clone())
+            .collect::<Vec<_>>(),
+        [
+            eid(fixture::STORYLINE_OTHER),
+            eid(STORYLINE),
+            unaffiliated_id.clone(),
+        ]
+    );
+    assert_eq!(
+        view.level_settings(Some(&unaffiliated_id)).home,
+        Some(manuscript_root)
+    );
+    let rel_type = view
+        .relation_type(&RelationTypeId::parse(REL_TYPE).unwrap())
+        .unwrap();
+    assert_eq!(rel_type.source_kinds, [EntityKind::Entry]);
+    assert_eq!(rel_type.target_kinds, [EntityKind::Entry]);
+    assert!(rel_type.source_templates.is_empty());
+    assert!(rel_type.target_templates.is_empty());
+    let patch_rt = view
+        .relation_type(&RelationTypeId::parse(fixture::PATCH_RELATION).unwrap())
+        .unwrap();
+    assert_eq!(patch_rt.source_kinds, [EntityKind::Patch]);
+    assert_eq!(patch_rt.target_kinds, [EntityKind::Entry]);
+    assert!(patch_rt.source_templates.is_empty());
+    assert!(patch_rt.target_templates.is_empty());
     for leaf in &expected.leaves {
         let actual = view.entry(&entry_id(view, &leaf.entry)).unwrap();
         assert_eq!(actual.title, leaf.title);
@@ -699,9 +711,10 @@ fn undecided_mapping_stops_before_target_or_device_writes() {
         panic!("{error}")
     };
     let codes: BTreeSet<_> = pending.iter().map(|p| p.code.as_str()).collect();
-    assert!(codes.contains("act-binding-relation-type-and-direction"));
-    assert!(codes.contains("synthetic-lane-tree-home-and-template-settings"));
-    assert!(codes.contains("relation-type-template-restrictions"));
+    assert_eq!(
+        codes,
+        BTreeSet::from(["act-binding-relation-type-and-direction"])
+    );
     assert!(!device.exists());
     assert!(!root.join("library.sqlite").exists());
 }
@@ -1893,4 +1906,454 @@ fn an_open_library_with_a_v2_deriver_is_not_given_v3_documents() {
     assert!(matches!(error, dr_import_v1::ImportError::Blocked(_)));
     assert!(lib.doc_info(&format!("book:{BOOK}")).unwrap().is_none());
     lib.close().unwrap();
+}
+
+#[test]
+fn default_unaffiliated_lane_created_only_when_needed_and_placed_last_under_storylines() {
+    use dr_import_v1::gate::Accept;
+
+    // 1. Positive case: source has narrative-ordered unaffiliated chapter & idea,
+    //    plus unaffiliated unplaced chapters (`CHAPTER_BEFORE`, `CHAPTER_UNPLACED`
+    //    when unlinked), and no act drift binding -> imports with zero MappingChoices.
+    let old = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.execute(
+            "UPDATE book_act SET drift_node_id = NULL WHERE id = 'act-1'",
+            [],
+        )
+        .unwrap();
+        // Make CHAPTER_UNPLACED unaffiliated as well (still narrative_order = NULL)
+        // to prove unplaced chapters never trigger or enter 未归属.
+        c.execute(
+            "DELETE FROM node_storyline_link WHERE node_id = ?1",
+            [fixture::CHAPTER_UNPLACED],
+        )
+        .unwrap();
+    }
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library-with-unaffiliated");
+    let mut opts = Options::new("k3-v3-test");
+    opts.accept = Accept::EVERYTHING;
+    opts.v3 = MappingChoices::default();
+    opts.old_root = Some(old.root.clone());
+    opts.verify_history = true;
+    opts.index = false;
+
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+    assert_eq!(
+        before,
+        source_tree_snapshot(&old.root),
+        "source bytes, sizes and mtimes must never change"
+    );
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    adapter::validate(&view).unwrap();
+
+    let storylines_root = view
+        .root_entry_by_template(&tid(TPL_STORYLINES))
+        .unwrap()
+        .id;
+    let manuscript_root = view
+        .root_entry_by_template(&tid(TPL_MANUSCRIPT))
+        .unwrap()
+        .id;
+    assert!(!storylines_root.as_str().starts_with("root-"));
+    assert!(!manuscript_root.as_str().starts_with("root-"));
+
+    let lane_children = view.children_of(Some(&storylines_root));
+    assert_eq!(
+        lane_children.len(),
+        3,
+        "two authored storylines then 未归属"
+    );
+    assert_eq!(lane_children[0].id.as_str(), fixture::STORYLINE_OTHER);
+    assert_eq!(lane_children[1].id.as_str(), STORYLINE);
+    let unaffiliated = &lane_children[2];
+    assert_eq!(unaffiliated.title, "未归属");
+    assert_eq!(unaffiliated.parent, Some(storylines_root.clone()));
+    assert_eq!(unaffiliated.template, Some(tid(TPL_STORYLINE)));
+    assert_eq!(unaffiliated.overrides, None);
+    assert!(!unaffiliated.id.as_str().starts_with("root-"));
+    assert_ne!(unaffiliated.id.as_str(), STORYLINE);
+    assert_ne!(unaffiliated.id.as_str(), fixture::STORYLINE_OTHER);
+
+    // Same template and level settings as standard imported storylines, with
+    // home pointing at the actual returned manuscript root UUIDv7.
+    let unaffiliated_settings = view.level_settings(Some(&unaffiliated.id));
+    let other_settings = view.level_settings(Some(&eid(fixture::STORYLINE_OTHER)));
+    assert_eq!(unaffiliated_settings, other_settings);
+    assert_eq!(unaffiliated_settings.home, Some(manuscript_root.clone()));
+    assert_eq!(
+        unaffiliated_settings.default_template,
+        Some(tid(TPL_CHAPTER))
+    );
+    let tpl_storyline = view.template(&tid(TPL_STORYLINE)).unwrap();
+    assert_eq!(tpl_storyline.settings.home, Some(Some(manuscript_root)));
+    let initial_kv = &tpl_storyline
+        .modules
+        .iter()
+        .find(|m| m.id.as_str() == MOD_KV)
+        .unwrap()
+        .config
+        .initial_kv;
+    assert_eq!(initial_kv.len(), 1);
+    assert_eq!(initial_kv[0].key, "目标");
+
+    let timeline = &view.timeline_views_raw()[0];
+    assert_eq!(
+        timeline
+            .lanes
+            .iter()
+            .map(|l| l.entry.clone())
+            .collect::<Vec<_>>(),
+        [
+            eid(fixture::STORYLINE_OTHER),
+            eid(STORYLINE),
+            unaffiliated.id.clone(),
+        ]
+    );
+
+    // Unaffiliated narrative-ordered chapter & idea join 未归属 without primary,
+    // keeping exact narrative placements.
+    for (node_id, expected_at) in [(fixture::CHAPTER_UNAFFILIATED, 18.25), (IDEA, 12.0)] {
+        let entry = view.entry(&eid(node_id)).unwrap();
+        assert_eq!(entry.primary, None, "{node_id} must have no primary lane");
+        let hosts: Vec<_> = view
+            .memberships_raw()
+            .into_iter()
+            .filter(|m| m.member == entry.id)
+            .map(|m| m.host)
+            .collect();
+        assert_eq!(hosts, std::slice::from_ref(&unaffiliated.id));
+        assert!(
+            timeline
+                .placements
+                .iter()
+                .any(|p| p.entry == entry.id && p.at == expected_at && p.span.is_none())
+        );
+    }
+    // Unaffiliated nodes WITHOUT narrative_order never join 未归属 or timeline placements.
+    for unplaced in [fixture::CHAPTER_BEFORE, fixture::CHAPTER_UNPLACED] {
+        assert!(
+            !view
+                .memberships_raw()
+                .iter()
+                .any(|m| m.member.as_str() == unplaced)
+        );
+        assert!(
+            !timeline
+                .placements
+                .iter()
+                .any(|p| p.entry.as_str() == unplaced)
+        );
+    }
+    lib.close().unwrap();
+
+    // 2. Negative case: when every narrative-ordered node belongs to at least one
+    //    storyline (even if unaffiliated nodes without narrative_order exist),
+    //    未归属 is NOT created at all.
+    let old_no_unaff = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old_no_unaff.db).unwrap();
+        c.execute(
+            "UPDATE book_act SET drift_node_id = NULL WHERE id = 'act-1'",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO node_storyline_link (node_id, storyline_id, is_primary) VALUES (?1, ?2, 0)",
+            rusqlite::params![fixture::CHAPTER_UNAFFILIATED, STORYLINE],
+        )
+        .unwrap();
+        c.execute(
+            "UPDATE book_node SET narrative_order = NULL WHERE id = ?1",
+            [IDEA],
+        )
+        .unwrap();
+    }
+    let before_no_unaff = source_tree_snapshot(&old_no_unaff.root);
+    let root_no_unaff = temp.path().join("library-without-unaffiliated");
+    let mut opts_no_unaff = opts.clone();
+    opts_no_unaff.old_root = Some(old_no_unaff.root.clone());
+    let (outcome, _) = run::import(&old_no_unaff.db, &root_no_unaff, &opts_no_unaff).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+    assert_eq!(
+        before_no_unaff,
+        source_tree_snapshot(&old_no_unaff.root),
+        "source bytes, sizes and mtimes must never change"
+    );
+
+    let lib_no_unaff = open(&root_no_unaff);
+    let bytes = lib_no_unaff
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book_no_unaff =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view_no_unaff = book_no_unaff.view();
+    adapter::validate(&view_no_unaff).unwrap();
+    assert!(
+        !view_no_unaff
+            .entries_raw()
+            .iter()
+            .any(|e| e.title == "未归属"),
+        "未归属 must not be created when no narrative-ordered unaffiliated node exists"
+    );
+    let sl_root = view_no_unaff
+        .root_entry_by_template(&tid(TPL_STORYLINES))
+        .unwrap()
+        .id;
+    assert_eq!(
+        view_no_unaff
+            .children_of(Some(&sl_root))
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect::<Vec<_>>(),
+        [fixture::STORYLINE_OTHER, STORYLINE]
+    );
+    assert_eq!(
+        view_no_unaff.timeline_views_raw()[0]
+            .lanes
+            .iter()
+            .map(|l| l.entry.as_str())
+            .collect::<Vec<_>>(),
+        [fixture::STORYLINE_OTHER, STORYLINE]
+    );
+    lib_no_unaff.close().unwrap();
+}
+
+#[test]
+fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_legacy_kinds_in_receipt()
+ {
+    use dr_import_v1::gate::Accept;
+
+    const RT_ALL_KINDS: &str = "custom-rt-all-seven-legacy-kinds";
+    let old = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.execute(
+            "UPDATE book_act SET drift_node_id = NULL WHERE id = 'act-1'",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO entity_relation_type (id, project_id, name, normalized_name, description, orientation, system_key, locked, source_role, target_role, created_at, updated_at) VALUES (?1, ?2, '全端点测试', '全端点测试', '覆盖七种旧端点', 'directed', NULL, 0, '起', '止', ?3, ?3)",
+            rusqlite::params![RT_ALL_KINDS, BOOK, T0],
+        )
+        .unwrap();
+        for kind in [
+            "node",
+            "element",
+            "category",
+            "storyline",
+            "patch",
+            "comment",
+            "library_item",
+        ] {
+            c.execute(
+                "INSERT INTO entity_relation_type_endpoint_kind (relation_type_id, side, entity_kind) VALUES (?1, 'source', ?2)",
+                rusqlite::params![RT_ALL_KINDS, kind],
+            )
+            .unwrap();
+        }
+        for kind in ["node", "element", "category", "storyline", "patch"] {
+            c.execute(
+                "INSERT INTO entity_relation_type_endpoint_kind (relation_type_id, side, entity_kind) VALUES (?1, 'target', ?2)",
+                rusqlite::params![RT_ALL_KINDS, kind],
+            )
+            .unwrap();
+        }
+    }
+
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library-relation-types");
+    let mut opts = Options::new("k3-v3-test");
+    opts.accept = Accept::EVERYTHING;
+    opts.v3 = MappingChoices::default();
+    opts.old_root = Some(old.root.clone());
+    opts.verify_history = true;
+    opts.index = false;
+
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected default relation-type import to succeed")
+    };
+    assert_eq!(
+        before,
+        source_tree_snapshot(&old.root),
+        "source bytes, sizes and mtimes must never change"
+    );
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    adapter::validate(&view).unwrap();
+
+    // 1. Custom relation type with all 7 legacy kinds: mapped + deduplicated, templates empty.
+    let all_rt = view
+        .relation_type(&RelationTypeId::parse(RT_ALL_KINDS).unwrap())
+        .unwrap();
+    assert_eq!(
+        all_rt.source_kinds,
+        [
+            EntityKind::Patch,
+            EntityKind::Entry,
+            EntityKind::Comment,
+            EntityKind::Material,
+        ],
+        "node/element/category/storyline collapse to one Entry alongside Patch, Comment and Material"
+    );
+    assert_eq!(
+        all_rt.target_kinds,
+        [EntityKind::Patch, EntityKind::Entry],
+        "node/element/category/storyline collapse to one Entry alongside Patch"
+    );
+    assert!(all_rt.source_templates.is_empty());
+    assert!(all_rt.target_templates.is_empty());
+
+    // 2. Fixture custom relation types also have mapped kinds and empty template lists.
+    let rel_rt = view
+        .relation_type(&RelationTypeId::parse(REL_TYPE).unwrap())
+        .unwrap();
+    assert_eq!(rel_rt.source_kinds, [EntityKind::Entry]);
+    assert_eq!(rel_rt.target_kinds, [EntityKind::Entry]);
+    assert!(rel_rt.source_templates.is_empty());
+    assert!(rel_rt.target_templates.is_empty());
+
+    let patch_rt = view
+        .relation_type(&RelationTypeId::parse(fixture::PATCH_RELATION).unwrap())
+        .unwrap();
+    assert_eq!(patch_rt.source_kinds, [EntityKind::Patch]);
+    assert_eq!(patch_rt.target_kinds, [EntityKind::Entry]);
+    assert!(patch_rt.source_templates.is_empty());
+    assert!(patch_rt.target_templates.is_empty());
+
+    // 3. Built-in generic-association relation type stays completely untouched.
+    let generic_id = dr_doc::catalog::generic_relation_type_id(&BookId::parse(BOOK).unwrap());
+    let generic = view.relation_type(&generic_id).unwrap();
+    assert!(generic.locked);
+    assert_eq!(
+        generic.system_key,
+        Some(SystemRelationKey::GenericAssociation)
+    );
+    assert_eq!(
+        generic.source_kinds,
+        [EntityKind::Comment, EntityKind::Material]
+    );
+    assert_eq!(generic.target_kinds, [EntityKind::Entry, EntityKind::Patch]);
+    assert!(generic.source_templates.is_empty());
+    assert!(generic.target_templates.is_empty());
+    lib.close().unwrap();
+
+    // 4. Verbatim legacy endpoint kinds are preserved in receipt.originals AND
+    //    durably stored in import_original (`collection = 'relation_types'`),
+    //    while the built-in generic-association type is never recorded there.
+    let want_originals = [
+        (
+            RT_ALL_KINDS.to_owned(),
+            "source_kinds".to_owned(),
+            vec![
+                "category",
+                "comment",
+                "element",
+                "library_item",
+                "node",
+                "patch",
+                "storyline",
+            ],
+        ),
+        (
+            RT_ALL_KINDS.to_owned(),
+            "target_kinds".to_owned(),
+            vec!["category", "element", "node", "patch", "storyline"],
+        ),
+        (
+            fixture::PATCH_RELATION.to_owned(),
+            "source_kinds".to_owned(),
+            vec!["patch"],
+        ),
+        (
+            fixture::PATCH_RELATION.to_owned(),
+            "target_kinds".to_owned(),
+            vec!["storyline"],
+        ),
+        (
+            REL_TYPE.to_owned(),
+            "source_kinds".to_owned(),
+            vec!["element"],
+        ),
+        (
+            REL_TYPE.to_owned(),
+            "target_kinds".to_owned(),
+            vec!["element"],
+        ),
+    ];
+
+    let mut receipt_rt: Vec<(String, String, Vec<String>)> = receipt
+        .originals
+        .iter()
+        .filter(|(c, _, _, _)| c == "relation_types")
+        .map(|(_, id, field, json)| {
+            let mut kinds: Vec<String> = serde_json::from_str(json).unwrap();
+            kinds.sort();
+            (id.clone(), field.clone(), kinds)
+        })
+        .collect();
+    receipt_rt.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    let mut expected_sorted: Vec<(String, String, Vec<String>)> = want_originals
+        .iter()
+        .map(|(id, f, ks)| {
+            (
+                id.clone(),
+                f.clone(),
+                ks.iter().map(|s| (*s).to_owned()).collect(),
+            )
+        })
+        .collect();
+    expected_sorted.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    assert_eq!(receipt_rt, expected_sorted);
+
+    let target_db = dr_store::LibraryPaths::new(&root).db;
+    let conn = rusqlite::Connection::open(&target_db).unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, field, json FROM import_original
+             WHERE collection = 'relation_types'
+             ORDER BY id, field",
+        )
+        .unwrap();
+    let stored: Vec<(String, String, Vec<String>)> = stmt
+        .query_map([], |r| {
+            let json: String = r.get(2)?;
+            let mut kinds: Vec<String> = serde_json::from_str(&json).unwrap();
+            kinds.sort();
+            Ok((r.get(0)?, r.get(1)?, kinds))
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert_eq!(stored, expected_sorted);
+    assert!(
+        !stored.iter().any(|(id, _, _)| id == generic_id.as_str()),
+        "built-in relation type must not be written into import_original"
+    );
 }

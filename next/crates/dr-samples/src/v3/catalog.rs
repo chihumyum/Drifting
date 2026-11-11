@@ -21,11 +21,7 @@ pub(crate) fn invalid(message: impl Into<String>) -> DocError {
 
 /// The mapping's required templates. Unused built-in leaf templates are
 /// harmless, but default category entries must never be added on import.
-fn templates(
-    source: &BookView<'_>,
-    choices: &MappingChoices,
-    manuscript: &EntryId,
-) -> Result<Vec<EntryTemplate>> {
+fn templates(source: &BookView<'_>, manuscript: &EntryId) -> Result<Vec<EntryTemplate>> {
     let mut all = novel_project_templates();
     let base_element = all
         .iter()
@@ -82,9 +78,6 @@ fn templates(
         tpl.id = storyline_template(storyline.id.as_str());
         tpl.name = storyline.name;
         all.push(tpl);
-    }
-    if let Some(choice) = &choices.unaffiliated {
-        all.push(choice.template.clone());
     }
     let mut unique = BTreeMap::new();
     for template in all {
@@ -274,17 +267,7 @@ pub fn sync_catalog(
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
         }))?;
-    let resolved_choices = choices.resolved_roots(
-        [
-            &roots.manuscript,
-            &roots.ideas,
-            &roots.elements,
-            &roots.storylines,
-        ],
-        source,
-    )?;
-    let choices = &resolved_choices;
-    for template in templates(source, choices, &roots.manuscript)? {
+    for template in templates(source, &roots.manuscript)? {
         txn.template(&template.id)?.set_full(&template)?;
     }
 
@@ -293,13 +276,17 @@ pub fn sync_catalog(
     let storylines = source.storylines();
     let acts = source.acts();
     let existing = txn.view().entries_raw();
+    let needs_unaffiliated = nodes
+        .iter()
+        .any(|n| n.narrative_order.is_some() && n.storylines.is_empty());
     // Synthetic entries are new entries, too. Reuse them during metadata
     // replay by their source meaning, and generate UUIDv7 on first creation.
-    let unaffiliated = choices.unaffiliated.as_ref().map(|choice| {
+    let unaffiliated = needs_unaffiliated.then(|| {
         existing
             .iter()
             .find(|e| {
-                e.template.as_ref() == Some(&choice.template.id)
+                e.parent.as_ref() == Some(&roots.storylines)
+                    && e.template.as_ref() == Some(&tid(TPL_STORYLINE))
                     && e.title == "未归属"
                     && !storylines.iter().any(|s| s.id.as_str() == e.id.as_str())
                     && !categories.iter().any(|c| c.id.as_str() == e.id.as_str())
@@ -501,16 +488,12 @@ pub fn sync_catalog(
             w.put_kv(&mid(MOD_KV), kv)?;
         }
     }
-    let needs_unaffiliated = nodes
-        .iter()
-        .any(|n| n.narrative_order.is_some() && n.storylines.is_empty());
-    if needs_unaffiliated {
-        let choice = choices.unaffiliated.as_ref().unwrap();
+    if let Some(unaffiliated) = &unaffiliated {
         entries.put(
-            unaffiliated.as_ref().unwrap(),
-            choice.parent.as_ref(),
+            unaffiliated,
+            Some(&roots.storylines),
             "未归属",
-            &choice.template.id,
+            &tid(TPL_STORYLINE),
         )?;
     }
     entries.finish()?;
@@ -642,11 +625,6 @@ fn copy_rest(
         if rt.locked || rt.system_key.is_some() {
             continue;
         }
-        let restriction = choices
-            .relation_templates
-            .get(&rt.id)
-            .cloned()
-            .unwrap_or_default();
         txn.relation_type(&rt.id)?
             .name(&rt.name)?
             .description(&rt.description)?
@@ -656,8 +634,8 @@ fn copy_rest(
             .color(rt.color.as_deref())?
             .source_kinds(&restrictions(&rt.source_kinds))?
             .target_kinds(&restrictions(&rt.target_kinds))?
-            .source_templates(&restriction.source)?
-            .target_templates(&restriction.target)?;
+            .source_templates(&[])?
+            .target_templates(&[])?;
     }
     let symmetric: BTreeSet<_> = source
         .relation_types()

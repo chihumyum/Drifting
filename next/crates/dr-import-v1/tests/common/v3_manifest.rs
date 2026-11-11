@@ -589,22 +589,19 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         .any(|m| m.level == Entry::Unaffiliated)
     {
         // Actual 0.1 timeline label: bottomTimeline.synthetic.unaffiliated.
+        // Author settled 11-11 (#23): placed last under the storylines root,
+        // using the storyline template and level settings.
         out.levels.push(level(
             Entry::Unaffiliated,
-            None,
+            Some(Entry::Storylines),
             "未归属".into(),
             None,
             None,
-            None,
+            Some(LeafTemplate::Chapter),
             true,
             None,
         ));
         out.default_view.lanes.push(Entry::Unaffiliated);
-        pending(
-            &mut out,
-            "synthetic-lane-tree-home-and-template-settings",
-            "bottomTimeline.synthetic.unaffiliated",
-        );
     }
     let mut groups = BTreeSet::new();
     for element in &rows.elements {
@@ -786,9 +783,6 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             "project-storyline-field-template-destination",
             book,
         );
-    }
-    if !rows.endpoints.is_empty() {
-        pending(&mut out, "relation-type-template-restrictions", book);
     }
     // Do not silently repair broken parents, links or bindings into a new
     // tree. Keep their records and report what cannot be represented yet.
