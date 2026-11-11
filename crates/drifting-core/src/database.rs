@@ -591,11 +591,12 @@ fn should_defer(
         Request::Execute { transaction_id, .. } | Request::Query { transaction_id, .. } => {
             *transaction_id != Some(active_transaction)
         }
-        Request::Begin { .. } | Request::SnapshotActiveDatabase { .. } => true,
+        Request::Begin { .. }
+        | Request::Checkpoint { .. }
+        | Request::SnapshotActiveDatabase { .. } => true,
         Request::Open { .. }
         | Request::Commit { .. }
         | Request::Rollback { .. }
-        | Request::Checkpoint { .. }
         | Request::Close { .. }
         | Request::RestoreSafetyBackup { .. }
         | Request::RestoreLibraryBackup { .. }
@@ -2495,6 +2496,63 @@ mod tests {
             )
             .expect("query events");
         assert_eq!(rows.rows, [vec![DatabaseValue::Text("ordinary".into())]]);
+    }
+
+    #[test]
+    fn checkpoint_waits_until_the_owning_transaction_finishes() {
+        let (_directory, gateway) = gateway();
+        gateway
+            .open("checkpoint-defer.db".into(), CLIENT_SESSION.into(), false)
+            .expect("open database");
+        gateway
+            .execute(
+                "CREATE TABLE events (name TEXT NOT NULL)".into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("create table");
+
+        let transaction_id = gateway
+            .begin(TransactionBehavior::Immediate, CLIENT_SESSION.into())
+            .expect("begin transaction");
+        gateway
+            .execute(
+                "INSERT INTO events VALUES ('committed')".into(),
+                Vec::new(),
+                Some(transaction_id),
+                CLIENT_SESSION.into(),
+            )
+            .expect("transaction insert");
+
+        let other_error = gateway
+            .checkpoint("other-renderer-session".into())
+            .expect_err("foreign session checkpoint must fail immediately");
+        assert!(other_error.contains("owned by another renderer session"));
+
+        let queued_gateway = gateway.clone();
+        let (started_sender, started_receiver) = mpsc::channel();
+        let (finished_sender, finished_receiver) = mpsc::channel();
+        let queued_checkpoint = thread::spawn(move || {
+            started_sender.send(()).expect("announce checkpoint");
+            let result = queued_gateway.checkpoint(CLIENT_SESSION.into());
+            finished_sender.send(result).expect("return checkpoint result");
+        });
+
+        started_receiver.recv().expect("checkpoint started");
+        assert!(finished_receiver
+            .recv_timeout(Duration::from_millis(100))
+            .is_err());
+
+        gateway
+            .commit(transaction_id, CLIENT_SESSION.into())
+            .expect("commit transaction");
+        let checkpoint = finished_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .expect("queued checkpoint completed")
+            .expect("queued checkpoint succeeded");
+        assert_eq!(checkpoint.busy, 0);
+        queued_checkpoint.join().expect("checkpoint thread");
     }
 
     #[test]

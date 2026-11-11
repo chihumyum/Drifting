@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { events } from '../lib/events';
 import { AgentChatSyncRuntime } from './agent-chat/runtime';
 import { getDb, type DbClient } from '../lib/db';
-import { flushLocalApplicationPersistence } from '../lib/persistence-lifecycle';
+import { flushLocalSyncDurability } from '../lib/persistence-lifecycle';
 import { reconcileOpenYjsDocumentSessions } from '../services/yjs-document-session';
 import { platform } from '../platform';
 import {
@@ -45,10 +45,11 @@ log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN)
 
 
 /**
- * A cycle drains every local write before it seals change-sets, so a write
- * that failed elsewhere (an entity transaction, an asset file, the session
- * token) surfaces here once. That is not a sync stop: the next attempt no
- * longer sees it, so the cycle is retried with backoff.
+ * A cycle drains pending authored writes before it seals change-sets, so a
+ * write that failed elsewhere (an entity transaction, an asset file, an open
+ * Yjs document) surfaces here once without running close-only lifecycle steps
+ * like WAL `TRUNCATE` checkpoints or keychain writes. That is not a sync stop:
+ * the next attempt no longer sees it, so the cycle is retried with backoff.
  */
 export class SyncLocalFlushError extends Error {
   readonly code = 'LOCAL_FLUSH_FAILED';
@@ -64,7 +65,7 @@ export class SyncLocalFlushError extends Error {
 
 export async function flushLocalDurabilityForSync(): Promise<void> {
   try {
-    await flushLocalApplicationPersistence();
+    await flushLocalSyncDurability();
   } catch (error) {
     throw new SyncLocalFlushError(error);
   }

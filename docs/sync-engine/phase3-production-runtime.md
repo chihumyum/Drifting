@@ -67,10 +67,13 @@ foreground pull rather than push or background realtime. Network I/O never runs
 inside an authored SQLite transaction and provider failure never blocks local
 editing.
 
-Each cycle, and each checkpoint capture, first drains the local durability
-barrier (`flushLocalApplicationPersistence`). A local write that failed
-elsewhere, such as an entity transaction, an asset file or the session token in
-secure storage, surfaces there once. The runtime wraps that failure as
+Each cycle, and each checkpoint capture, first drains pending authored local
+writes (`flushLocalSyncDurability`: the active editor, open Yjs documents,
+pending asset files and atomic sync transactions) without running close-only
+lifecycle steps (`v2-handoff`, WAL `TRUNCATE` checkpoints, Markdown projections
+or keychain writes). A local write that failed elsewhere, such as an entity
+transaction, an asset file or a Yjs persistence batch, surfaces there once. The
+runtime wraps that failure as
 `SyncLocalFlushError` (`LOCAL_FLUSH_FAILED`, retryable), so the coordinator
 retries the cycle with backoff and it is reported as `local-flush-failed` with
 `reason: sync-cycle` rather than as `sync-blocked`. Only non-retryable stops

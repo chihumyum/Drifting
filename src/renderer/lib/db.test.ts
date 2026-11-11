@@ -9,17 +9,25 @@ import type {
   DatabaseTransaction,
   TransactionBehavior,
 } from '../platform/database';
-import { afterDatabaseCommit, createDatabaseClient, type DbTransaction } from './db';
+import {
+  afterDatabaseCommit,
+  checkpointDatabaseClient,
+  createDatabaseClient,
+  type DbTransaction,
+} from './db';
 
 type Call =
   | { type: 'begin'; behavior: TransactionBehavior | undefined; id: string }
   | { type: 'execute'; sql: string; transactionId: string | undefined }
   | { type: 'commit'; id: string }
-  | { type: 'rollback'; id: string };
+  | { type: 'rollback'; id: string }
+  | { type: 'checkpoint' };
 
 class FakeDatabase implements DatabasePlatformApi {
   readonly calls: Call[] = [];
   private nextTransactionId = 1;
+  private activeTransactionId: string | null = null;
+  checkpointGate: Promise<void> | null = null;
 
   async open(_databaseName: string): Promise<DatabaseOpenResult> {
     return { path: '/tmp/fake.db', journalMode: 'wal', migrationsApplied: 0 };
@@ -43,20 +51,31 @@ class FakeDatabase implements DatabasePlatformApi {
   }
 
   async begin(behavior?: TransactionBehavior): Promise<DatabaseTransaction> {
+    if (this.activeTransactionId !== null) {
+      throw new Error('another transaction is already active');
+    }
     const id = String(this.nextTransactionId++);
+    this.activeTransactionId = id;
     this.calls.push({ type: 'begin', behavior, id });
     return { id };
   }
 
   async commit(transactionId: string): Promise<void> {
+    if (this.activeTransactionId === transactionId) this.activeTransactionId = null;
     this.calls.push({ type: 'commit', id: transactionId });
   }
 
   async rollback(transactionId: string): Promise<void> {
+    if (this.activeTransactionId === transactionId) this.activeTransactionId = null;
     this.calls.push({ type: 'rollback', id: transactionId });
   }
 
   async checkpoint(): Promise<DatabaseCheckpointResult> {
+    if (this.activeTransactionId !== null) {
+      throw new Error('cannot checkpoint while a transaction is active');
+    }
+    this.calls.push({ type: 'checkpoint' });
+    if (this.checkpointGate) await this.checkpointGate;
     return { busy: 0, logFrames: 0, checkpointedFrames: 0 };
   }
 
@@ -204,6 +223,67 @@ describe('Drizzle Tauri transaction binding', () => {
       'begin',
       'execute',
       'commit',
+      'begin',
+      'execute',
+      'commit',
+    ]);
+  });
+
+  it('serializes checkpoints on the transaction scheduler so transactions and checkpoints never overlap', async () => {
+    const gateway = new FakeDatabase();
+    const database = createDatabaseClient(gateway);
+    let markFirstExecuting!: () => void;
+    const firstExecuting = new Promise<void>((resolve) => {
+      markFirstExecuting = resolve;
+    });
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let markCheckpointEntered!: () => void;
+    const checkpointEntered = new Promise<void>((resolve) => {
+      markCheckpointEntered = resolve;
+    });
+    let releaseCheckpoint!: () => void;
+    gateway.checkpointGate = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+    const originalCheckpoint = gateway.checkpoint.bind(gateway);
+    gateway.checkpoint = async () => {
+      markCheckpointEntered();
+      return originalCheckpoint();
+    };
+
+    const first = database.transaction(async (transaction) => {
+      await transaction.run(sql.raw("INSERT INTO events VALUES ('before-checkpoint')"));
+      markFirstExecuting();
+      await firstGate;
+    });
+    const checkpoint = checkpointDatabaseClient(database, gateway);
+    const afterCheckpoint = database.transaction(async (transaction) => {
+      await transaction.run(sql.raw("INSERT INTO events VALUES ('after-checkpoint')"));
+    });
+
+    await firstExecuting;
+    expect(gateway.calls.map((call) => call.type)).toEqual(['begin', 'execute']);
+
+    releaseFirst();
+    await first;
+    await checkpointEntered;
+    expect(gateway.calls.map((call) => call.type)).toEqual([
+      'begin',
+      'execute',
+      'commit',
+      'checkpoint',
+    ]);
+
+    releaseCheckpoint();
+    await Promise.all([checkpoint, afterCheckpoint]);
+    expect(gateway.calls.map((call) => call.type)).toEqual([
+      'begin',
+      'execute',
+      'commit',
+      'checkpoint',
       'begin',
       'execute',
       'commit',

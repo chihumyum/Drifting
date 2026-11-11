@@ -15,7 +15,7 @@
       "agent_chat_queue"
     ],
     "sourceSha256": {
-      "crates/drifting-core/src/database.rs": "ca3b059a613770b4c5e248ce6411170a5ef9b477c4f665174cfd9f9c5228eb1d",
+      "crates/drifting-core/src/database.rs": "f38f652818f2e2c914720b1fda61dd301313762d50b66cfe4d1ef925263bf19f",
       "crates/drifting-core/src/file_io.rs": "6fc087da3c633abb0a450aebce976fa750138b5df3db79d797223f7574c52f82",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
@@ -56,7 +56,7 @@
       "src/renderer/sync/agent-chat/runtime.ts": "950bc9fe7b65a078de65761d4baa47cfc7bfb54307ea5315aa38410b4713eac7",
       "src/renderer/sync/agent-chat/seed.ts": "8efc900a0c3c44135d3600c0c7e5e72bfa31ae86d028802ed1bf5e1514d9af45",
       "src/renderer/sync/production-runtime.test.ts": "d336c793719417920fe674aa9b714c95bc29233392877aa500b9b9ce0516aa48",
-      "src/renderer/sync/production-runtime.ts": "20e0a27fc945166179c7b4cad50a4c10eeaf6bde3903a8042507de267ee6f812",
+      "src/renderer/sync/production-runtime.ts": "387b687aa2f5406621732795c03bfb8cbb96b1a8f6793c1e6439fb676b3fff3e",
       "src/renderer/sync/protocol/domain-manifest.ts": "dcdf118ad7e7ad169e4c221f3dba85adefae7b8aca7a311f1015074f15be89a4",
       "src/renderer/sync/providers/hosted/provider.ts": "47bc31084fb90ab174fc5fd3b7b93df16d849ace0afe0d62dc6dba66e0898746",
       "src/renderer/sync/providers/hosted/tauri-transport.ts": "096ba686027e285b03cd83cdd5cf7eec4592f8df5f740afcaac9311414ed58f3"
@@ -336,7 +336,7 @@
       ]
     },
     "sharedDatabase": {
-      "passed": 128,
+      "passed": 129,
       "failed": 0,
       "ignored": 0,
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"

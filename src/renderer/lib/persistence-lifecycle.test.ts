@@ -34,6 +34,7 @@ vi.mock('../services/snapshot-history.service', () => ({
 
 import {
   flushApplicationPersistenceForLifecycle,
+  flushLocalSyncDurability,
   flushRemoteApplicationPersistence,
   installSyncEngineLifecycleHook,
   quiesceApplicationAfterCredentialLoss,
@@ -105,6 +106,31 @@ describe('application persistence lifecycle', () => {
       ]);
       expect(warn).toHaveBeenCalledOnce();
     } finally { release(); warn.mockRestore(); }
+  });
+
+  it('drains only authored sync lanes in flushLocalSyncDurability without running v2-handoff, checkpoints, projections, or keychain flushes', async () => {
+    mocks.saveActiveEditor.mockImplementation(async () => {
+      mocks.order.push('editor');
+    });
+    const releaseHandoff = registerV2HandoffFlush(async () => {
+      mocks.order.push('v2-handoff');
+    });
+    const releaseProjection = registerMarkdownProjectionFlush(async () => {
+      mocks.order.push('projection');
+    });
+    try {
+      await expect(flushLocalSyncDurability()).resolves.toBeUndefined();
+      expect(mocks.order).toEqual([
+        'editor',
+        'yjs',
+        'assets',
+        'atomic-transactions',
+        'assets',
+      ]);
+    } finally {
+      releaseProjection();
+      releaseHandoff();
+    }
   });
 
   it('keeps the remote lane inert until SyncEngine installs its hook', async () => {

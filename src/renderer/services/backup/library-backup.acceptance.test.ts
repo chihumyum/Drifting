@@ -29,7 +29,9 @@ describe('library backup acceptance', () => {
     expect(core).toContain('require_local_authority');
     expect(core).toContain('UPDATE sync_generation_writer_state SET retired_at');
     expect(core).toContain('durable_replace_file(&candidate, database_path)');
-    expect(gateway).toContain('Request::Begin { .. } | Request::SnapshotActiveDatabase { .. } => true');
+    expect(gateway).toContain(
+      'Request::Begin { .. }\n        | Request::Checkpoint { .. }\n        | Request::SnapshotActiveDatabase { .. } => true',
+    );
   });
 
   it('documents the format, restore order and sync boundary', () => {

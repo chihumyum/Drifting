@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../lib/persistence-lifecycle', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/persistence-lifecycle')>(),
-  flushLocalApplicationPersistence: mocks.flushLocal,
+  flushLocalSyncDurability: mocks.flushLocal,
 }));
 vi.mock('../services/diagnostics/crash-reporter', () => ({
   reportDiagnosticLog: vi.fn(),
@@ -40,7 +40,7 @@ it('marks a local write failure met by a sync cycle as retryable', async () => {
 });
 
 it('reports a local write failure as such, not as a sync stop', () => {
-  const failure = new AggregateError([], '1 local persistence step(s) failed: session-token');
+  const failure = new AggregateError([], '1 local persistence step(s) failed: entity-transactions');
 
   reportSyncCycleFailure(new SyncLocalFlushError(failure));
 

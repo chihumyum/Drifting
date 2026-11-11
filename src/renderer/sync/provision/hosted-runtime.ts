@@ -3,7 +3,7 @@ import loglevel from 'loglevel';
 import { canUseHostedService } from '../../lib/config';
 import { getDb } from '../../lib/db';
 import { events } from '../../lib/events';
-import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
+import { flushLocalSyncDurability } from '../../lib/persistence-lifecycle';
 import { platform } from '../../platform';
 import {
   nativeSnapshotAssetCapturePort,
@@ -57,7 +57,7 @@ function createProductSupervisor(): SyncGenerationProvisionSupervisor {
               objectCodec: new NativePlaintextSyncEngineObjectCodec(nativeSyncObjectCodec),
               blobPort: nativeSyncAssetBlobPort,
               assetCapturePort: nativeSnapshotAssetCapturePort,
-              flushLocalDurability: flushLocalApplicationPersistence,
+              flushLocalDurability: flushLocalSyncDurability,
             }),
           emitAuthorityChanged: () => events.emit('sync:authority-changed'),
         });

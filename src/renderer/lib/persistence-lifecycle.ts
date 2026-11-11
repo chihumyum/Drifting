@@ -30,13 +30,25 @@ export function installSyncEngineLifecycleHook(hook: SyncEngineLifecycleHook): (
   };
 }
 
-async function performLocalFlush(): Promise<void> {
+type PersistenceStep = readonly [string, () => Promise<unknown>];
+
+function syncDurabilitySteps(): PersistenceStep[] {
+  return [
+    ['active-editor', () => saveActiveEditor()],
+    ['yjs-documents', () => flushAllOpenYjsDocuments()],
+    ['assets', () => flushPendingAssetPersistence()],
+    ['entity-transactions', () => flushPendingAtomicSyncTransactions()],
+    ['assets-after-transactions', () => flushPendingAssetPersistence()],
+  ];
+}
+
+function lifecyclePersistenceSteps(): PersistenceStep[] {
   // Ordering is intentional. Saving the editor can start Yjs persistence;
   // asset imports may begin before their authored SQLite transaction, while
   // deletes may start file cleanup after it. Drain both sides before the DB
   // checkpoint so the lifecycle barrier covers every local durability lane.
   // The names reach crash reports, so a failure says which lane it came from.
-  const steps: Array<readonly [string, () => Promise<unknown>]> = [
+  return [
     ['active-editor', () => saveActiveEditor()],
     ['yjs-documents', () => flushAllOpenYjsDocuments()],
     ['snapshot-history', () => flushSnapshotHistoryPersistence()],
@@ -50,6 +62,9 @@ async function performLocalFlush(): Promise<void> {
     ['markdown-projections', () => flushMarkdownProjections()],
     ['session-token', () => flushSessionTokenStorage()],
   ];
+}
+
+async function runPersistenceSteps(steps: readonly PersistenceStep[]): Promise<void> {
   const failures: unknown[] = [];
   const failedSteps: string[] = [];
   for (const [name, step] of steps) {
@@ -68,14 +83,29 @@ async function performLocalFlush(): Promise<void> {
   }
 }
 
+function enqueueLocalFlush(task: () => Promise<void>): Promise<void> {
+  const operation = localFlushTail.catch(() => undefined).then(task);
+  localFlushTail = operation.catch(() => undefined);
+  return operation;
+}
+
+/**
+ * Drain authored local writes before a sync cycle or periodic snapshot seals
+ * change-sets. Unlike `flushLocalApplicationPersistence`, this skips the 0.2
+ * handoff pass, WAL `TRUNCATE` checkpoint, Markdown projections, and keychain
+ * writes that SyncEngine does not read and that would otherwise run on every
+ * poll or block sync when an external Windows handle holds `.db-wal`.
+ */
+export function flushLocalSyncDurability(): Promise<void> {
+  return enqueueLocalFlush(() => runPersistenceSteps(syncDurabilitySteps()));
+}
+
 /**
  * Serialize local durability barriers so close + suspend cannot checkpoint
  * over one another. This path never waits for network I/O.
  */
 export function flushLocalApplicationPersistence(): Promise<void> {
-  const operation = localFlushTail.catch(() => undefined).then(performLocalFlush);
-  localFlushTail = operation.catch(() => undefined);
-  return operation;
+  return enqueueLocalFlush(() => runPersistenceSteps(lifecyclePersistenceSteps()));
 }
 
 /**

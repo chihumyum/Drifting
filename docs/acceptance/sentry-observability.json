@@ -39,8 +39,8 @@
       "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
       "scripts/verify-sentry-cloud.mjs": "sha256:8a74bf919a4a6cc99a8317bdc8d303ab6b377697c009257d9f1fea7161e73367",
       "scripts/verify-sentry-packaged.mjs": "sha256:b583b3d71d0b9c1d93073caa1921bf5795de6e72f76b29077ca829ddf7fb963c",
-      "src/renderer/locales/en.json": "sha256:0e4d3820ece58b77a570d4718a17102addbd658b5441063d24ff686dd7fdb20f",
-      "src/renderer/locales/zh-CN.json": "sha256:2f964941fa662ec8ad57a6c54be82a4ff19900a459985d37530536f146fd9062",
+      "src/renderer/locales/en.json": "sha256:bfff726f8ce518c2fdd1527322c25d0f71bd607b2ddb316acb7b77c77cd3106e",
+      "src/renderer/locales/zh-CN.json": "sha256:47c5d0b7f1cf978ee41bb05504de2d9a16f1f980895fc3ff6541606dd6e6202a",
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:36ecd46d7e7d453ab0b4815f81a6c32cbd8e3449bacd4d4acda9df60b58bc7c6",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:6399941c1e0db3691c847d325e4c823b4f2cd5ab1afbb181cbbc0b5885454ce3",
@@ -54,7 +54,7 @@
       "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e",
       "src/renderer/services/update/update-service.test.ts": "sha256:2998d11ba2813e618301bc102d11b3522d7ab5ae7118d94953344877889d584e",
       "src/renderer/services/update/update-service.ts": "sha256:4425c4533f0305c163bfa942ac21044dd3afaf5e770c57c5651e3d34beb087db",
-      "src/renderer/sync/production-runtime.ts": "sha256:584fb7c69a264ea69f81076c8219675cc5fdc0f5d17f54233a17abbf651f2b07",
+      "src/renderer/sync/production-runtime.ts": "sha256:387b687aa2f5406621732795c03bfb8cbb96b1a8f6793c1e6439fb676b3fff3e",
       "src/renderer/vite-env.d.ts": "sha256:45c50b731418801e17d7db2c29ceaaec6c74d66d53216b705ac85cb38b0631ea",
       "vite.renderer.config.ts": "sha256:5ea85df6f0cc54f7ad3d14cb71d8967f6dc8c2ce8e99efd9441dcdb08bce2408"
     }

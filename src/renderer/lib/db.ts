@@ -378,12 +378,26 @@ export async function initDatabase(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Enqueue a WAL checkpoint on the client's transaction scheduler so no new
+ * top-level transaction can begin between draining and `database.checkpoint()`.
+ */
+export async function checkpointDatabaseClient(
+  client: DrizzleDatabase,
+  database: DatabasePlatformApi = databasePlatform,
+): Promise<DatabaseCheckpointResult> {
+  const scheduler = schedulers.get(client);
+  if (!scheduler) return database.checkpoint();
+  return scheduler.enqueue(() => database.checkpoint());
+}
+
 /** Drain top-level transactions and force a WAL checkpoint without closing. */
 export async function checkpointDatabase(): Promise<DatabaseCheckpointResult | null> {
   if (initPromise) await initPromise;
   if (!dbInitialized) return null;
-  await drainTransactions(db);
-  return databasePlatform.checkpoint();
+  const activeClient = db;
+  if (!activeClient) return null;
+  return checkpointDatabaseClient(activeClient, databasePlatform);
 }
 
 /** Drain transactions, checkpoint/close the native connection, and clear the singleton. */
