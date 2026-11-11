@@ -76,6 +76,7 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-view-shelf", Layer::Interface),
     ("dr-view-home", Layer::Interface),
     ("dr-view-elements", Layer::Interface),
+    ("dr-view-shelf-review", Layer::Interface),
     ("dr-view-templates", Layer::Interface),
     ("drifting", Layer::App),
     ("dr-testkit", Layer::Tools),

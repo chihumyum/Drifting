@@ -223,6 +223,11 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
 }
 
 impl Snapshot {
+    /// Built-in generic `comment -> entry` associations on live entries.
+    pub fn associations(&self) -> &[Relation] {
+        &self.associations
+    }
+
     pub(crate) fn cards(&self, filter: Filter, scope: Option<&Target>) -> crate::Listing {
         let listing = self.listing(filter, scope);
         let groups = |groups: Vec<Group>| {

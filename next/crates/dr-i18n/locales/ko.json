@@ -558,6 +558,12 @@
     "card": {
       "addSnippetBody": "이 메모에 쓰기…"
     },
+    "dialog": {
+      "create": "만들기",
+      "newTodo": "새 할 일",
+      "titlePlaceholder": "제목",
+      "todoPlaceholder": "할 일 내용…"
+    },
     "empty": {
       "noRelated": "현재 항목에 연결된 자료가 없습니다."
     },
@@ -583,6 +589,36 @@
       "openPdfFailed": "PDF를 열 수 없습니다",
       "previousPage": "이전",
       "renderPdfFailed": "PDF를 렌더링할 수 없습니다"
+    },
+    "super": {
+      "all": "전체",
+      "clearEntityFilter": "관계 필터 해제",
+      "collapseDrawer": "서랍 접기",
+      "commentEmptyHint": "+로 댓글을 만들거나 편집기에서 텍스트를 선택해 댓글을 남기세요",
+      "comments": "댓글",
+      "entityFilterAll": "관계 · 전체",
+      "expandDrawer": "서랍 펼치기",
+      "hideKind": "눌러서 이 종류 숨기기",
+      "material": "자료",
+      "meta": "할 일 {{todos}}개 · 댓글 {{comments}}개 · 자료 {{materials}}개",
+      "newMaterialButton": "새 자료",
+      "noFilteredMaterials": "현재 필터에 맞는 자료가 없습니다.",
+      "noMaterials": "이 작품에는 아직 자료가 없습니다.",
+      "noOrphans": "모든 자료가 하나 이상의 개체에 연결되어 있습니다.",
+      "noResolved": "아직 해결된 항목이 없습니다.",
+      "orphanHeader": "미분류 · 연결되지 않은 자료",
+      "orphans": "미분류",
+      "reopenShort": "다시 열기",
+      "resizeComments": "댓글 열 너비 조정",
+      "resizeTodos": "할 일 열 너비 조정",
+      "resolved": "해결됨",
+      "resolvedHeader": "해결됨 · 할 일과 댓글 보관함",
+      "searchPlaceholder": "제목 또는 본문 검색…",
+      "showKind": "눌러서 표시",
+      "todoEmptyHint": "+로 할 일을 만들거나 댓글 카드에서 '할 일로 전환'을 누르세요"
+    },
+    "todo": {
+      "empty": "(빈 할 일)"
     },
     "toolbar": {
       "count": "자료 {{count}}개",
@@ -870,6 +906,7 @@
       "deleted": "삭제됨",
       "floating": "연결되지 않음"
     },
+    "newComment": "새 댓글",
     "resolved": "해결됨({{count}}개)",
     "scopes": {
       "current": "현재"

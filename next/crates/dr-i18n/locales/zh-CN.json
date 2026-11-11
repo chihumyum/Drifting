@@ -557,6 +557,12 @@
     "card": {
       "addSnippetBody": "写点什么…"
     },
+    "dialog": {
+      "create": "创建",
+      "newTodo": "新建 TODO",
+      "titlePlaceholder": "标题",
+      "todoPlaceholder": "待办内容…"
+    },
     "empty": {
       "noRelated": "当前条目没有关联的素材。"
     },
@@ -582,6 +588,36 @@
       "openPdfFailed": "无法打开 PDF",
       "previousPage": "上一页",
       "renderPdfFailed": "无法渲染 PDF"
+    },
+    "super": {
+      "all": "全部",
+      "clearEntityFilter": "清除关联过滤",
+      "collapseDrawer": "收起抽屉",
+      "commentEmptyHint": "点击 ＋ 新建批注，或在编辑器里选中文字留批注",
+      "comments": "批注",
+      "entityFilterAll": "关联 · 全部",
+      "expandDrawer": "展开抽屉",
+      "hideKind": "点击隐藏此 kind",
+      "material": "素材",
+      "meta": "{{todos}} TODO · {{comments}} 批注 · {{materials}} 素材",
+      "newMaterialButton": "新建素材",
+      "noFilteredMaterials": "当前过滤条件下没有匹配的素材。",
+      "noMaterials": "项目里还没有素材。",
+      "noOrphans": "所有素材都已关联到至少一个实体。",
+      "noResolved": "暂无已解决的 TODO 或批注。",
+      "orphanHeader": "待整理 · 无关联素材",
+      "orphans": "待整理",
+      "reopenShort": "重开",
+      "resizeComments": "调整批注栏宽度",
+      "resizeTodos": "调整 TODO 栏宽度",
+      "resolved": "已解决",
+      "resolvedHeader": "已解决 · TODO 与批注归档",
+      "searchPlaceholder": "搜索标题或正文…",
+      "showKind": "点击显示",
+      "todoEmptyHint": "点击 ＋ 新建 TODO，或在批注卡上点「转 TODO」"
+    },
+    "todo": {
+      "empty": "(空 TODO)"
     },
     "toolbar": {
       "count": "{{count}} 素材",
@@ -864,6 +900,7 @@
       "deleted": "已删除",
       "floating": "未挂载"
     },
+    "newComment": "新建批注",
     "resolved": "已解决（{{count}}）",
     "scopes": {
       "current": "当前"
