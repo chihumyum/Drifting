@@ -163,43 +163,43 @@ cargo test -p dr-sync --lib --locked
 
 ## 服务端需要提供的
 
-服务端代码位于独立仓库，不在本客户端仓库修改。客户端 `dr-sync` 与生产桌面 App 自动同步已按下列契约完备接线；服务端补齐对应命名空间、表迁移与配额／回收策略后即可直接联调：
+服务端代码位于独立仓库，不在本客户端仓库修改。客户端 `dr-sync` 与生产桌面 App 自动同步已按下列契约完备接线。**2026-11-12 交回核对（见仓库外 `~/Drifting-autopilot-logs/loro-v2-server.md`）：** 独立服务端仓库本地 `main`（`29074bc6`，尚未推送上线）已完成下述第 1–3 项全部接口与配额判定、第 4 项有序表迁移与默认关闭的整书回收任务及第 5 项双命名空间并存实现，并通过 86 项单测、32 项本机 HTTP／PostgreSQL／对象存储验收、11 项账号数据隔离检查（14 张归属表）及与 `next/` 三设备往返＋`book.purge` 墓碑空库恢复联调；仅剩作者确认切换期配额口径并执行推送与生产部署：
 
-1. **命名空间隔离与能力协商（`loro-v2`）**：
-   - 在对象日志路由白名单中新增账号级命名空间 `loro-v2`（与 0.1 客户端使用的 `project-v1` / `agent-chat-v1` 完全隔离，互不读写、互不混流）。
-   - 所有同步请求均携带 `Authorization: Bearer <token>` 与 `X-Drifting-Sync-Capabilities: removals-v1`。若后续在 `loro-v2` 流上启用日志裁剪，对缺少 `removals-v1` 能力头的旧客户端返回 `426 Upgrade Required`。
-   - 服务端只存不透明二进制对象与元数据 JSON，不解析 Loro oplog 或快照内部 schema，单对象上限维持 `64 MiB`（`MAX_OBJECT_BYTES`）。
+1. **命名空间隔离与能力协商（`loro-v2`）【服务端已具备（`29074bc6`，待推送上线）】**：
+   - **【已具备】** 在对象日志路由白名单中新增账号级命名空间 `loro-v2`（与 0.1 客户端使用的 `project-v1` / `agent-chat-v1` 完全隔离，互不读写、互不混流），全程仅凭已验证账号的 Bearer 会话鉴权拦截跨账号访问，CORS `Access-Control-Allow-Headers` 已放行 `X-Drifting-Object-Meta`。
+   - **【已具备】** 所有同步请求均携带 `Authorization: Bearer <token>` 与 `X-Drifting-Sync-Capabilities: removals-v1`。当流发生过物理回收（`pruned_at IS NOT NULL`）时，服务端对缺少 `removals-v1` / `includeRemovals=1` 的旧客户端返回 `426 CLIENT_UPGRADE_REQUIRED`。
+   - **【已具备】** 服务端只存不透明二进制对象与元数据 JSON，不解析 Loro oplog 或快照内部 schema，单对象上限维持 `64 MiB`（`MAX_OBJECT_BYTES`，超限返回 `413 OBJECT_TOO_LARGE`）。
 
-2. **HTTP 接口与头部契约**：
-   - **`PUT /api/sync/v1/loro-v2/objects/<encoded_key>`**：
+2. **HTTP 接口与头部契约【服务端已具备（`29074bc6`，待推送上线）】**：
+   - **`PUT /api/sync/v1/loro-v2/objects/<encoded_key>`【已具备】**：
      - `<encoded_key>` 为逻辑 `object_key`（如 `loro/<doc_id>/<sha256>`、`asset/<book_id>/<asset_id>/<variant>`、`purge/<doc_id>/<purged_ms>`）的 URL-safe 无填充 Base64 编码。
      - 请求头：`X-Content-Sha256: sha256:<64位小写hex>`、`X-Drifting-Object-Meta: <base64url(JSON)>`、`Content-Type: application/octet-stream`。
-     - 服务端须校验实收字节长度（`≤ 64 MiB`）与 `X-Content-Sha256` 一致，不一致返回 `400`；解码并校验 `X-Drifting-Object-Meta` 为合法 `RemoteObjectPayload`（`type` 为 `loroUpdate` / `assetBlob` / `docPurge` 三者之一，字段名 `camelCase`）。
-     - **幂等重放**：同一 `(account_id, object_key)` 重传且 `sha256` 一致时，直接返回原已分配的 `RemoteObjectRecord`（不重复追加 `seq`、不重复计费）；同键不同摘要返回 `409 Conflict`。
+     - 服务端校验实收字节长度（`≤ 64 MiB`）与 `X-Content-Sha256` 一致（不一致返回 `400 DIGEST_MISMATCH`）；解码并校验 `X-Drifting-Object-Meta` 为合法 `RemoteObjectPayload`（`type` 为 `loroUpdate` / `assetBlob` / `docPurge` 三者之一，字段名 `camelCase`）。
+     - **幂等重放【已具备】**：同一 `(account_id, object_key)` 重传且摘要与元数据一致时，直接返回原已分配的 `RemoteObjectRecord`（`200`，不重复追加 `seq`、不重复计费）；同键不同摘要或不同元数据返回 `409 Conflict`（`IMMUTABLE_OBJECT_CONFLICT`）。
      - 成功响应返回 `RemoteObjectRecord` JSON：`{ seq, objectKey, sha256, byteLength, createdAt, payload }`。
-   - **`GET /api/sync/v1/loro-v2/changes?cursor=<u64>&limit=<usize>&includeRemovals=1`**：
-     - 按账号内严格单调递增的整数序号 `seq > cursor` 升序返回分页：`{ changes: RemoteObjectRecord[], nextCursor: u64, hasMore: bool }`。
+   - **`GET /api/sync/v1/loro-v2/changes?cursor=<u64>&limit=<usize>&includeRemovals=1`【已具备】**：
+     - 在流级行锁串行提交保证下按账号内严格单调递增的整数序号 `seq > cursor` 升序返回分页：`{ changes: RemoteObjectRecord[], nextCursor: u64, hasMore: bool }`。
      - 无新记录时返回 `changes: []`、`nextCursor: cursor`、`hasMore: false`。`includeRemovals=1` 时包含 `type: "docPurge"` 墓碑记录，保证离线重连或从 `cursor = 0` 空库恢复的设备不会让已删文档或已删书复活。
-   - **`GET /api/sync/v1/loro-v2/objects/<encoded_key>`**：
-     - 按 `(account_id, object_key)` 鉴权并返回原始 `application/octet-stream` 字节（禁止跨账号读取、禁止 3xx 跨域跳转）；客户端落盘前再次校验字节数与 `sha256`。
-   - **`GET /api/sync/v1/usage`**：
-     - 沿用既有账号配额接口返回 `{ usedBytes, quotaBytes, hardLimitBytes }`（默认软上限 `500 MiB`、硬上限 `1 GiB`），其中 `usedBytes` 应统计该账号当前有效同步对象字节（或与 0.1 共享账号级存储池口径，见下）。
+   - **`GET /api/sync/v1/loro-v2/objects/<encoded_key>`【已具备】**：
+     - 按 `(account_id, object_key)` 鉴权并返回原始 `application/octet-stream` 字节、`Content-Length`、`X-Content-Sha256` 与 `Cache-Control: no-store`（禁止跨账号读取、禁止 3xx 跨域跳转，响应前复核行内 `< 256 KiB` 或外部对象存储 `>= 256 KiB` 字节数与 SHA-256）；客户端落盘前再次校验字节数与 `sha256`。
+   - **`GET /api/sync/v1/usage`（及 `loro-v2/usage`、`?namespace=loro-v2|project-v1`）【已具备】**：
+     - 返回 `{ usedBytes, quotaBytes, hardLimitBytes, metering, namespaces }`（默认软上限 `500 MiB`、硬上限 `1 GiB`），同时兼容 0.1 与 `next/`。
 
-3. **配额判定与 `413 QUOTA_EXCEEDED` 分流**：
+3. **配额判定与 `413 QUOTA_EXCEEDED` 分流【服务端已具备（`29074bc6`，待推送上线）】**：
    - 客户端在导入新素材变体前会按 `usedBytes + pendingUploadBytes + incomingBytes > quotaBytes` 预检软上限（`500 MiB`），但**从不在客户端阻断正文／条目结构更新（`loroUpdate`）或永久删除墓碑（`docPurge`）**。
-   - 服务端侧建议与 0.1 保持同一分层策略：
+   - **【已具备】** 服务端已落地与 0.1 对齐的三档分层策略：
      - `assetBlob` 上传超过 `quotaBytes`（`500 MiB`）即返回 `413` 与 `{ "code": "QUOTA_EXCEEDED", "usedBytes": ..., "quotaBytes": ..., "hardLimitBytes": ... }`；
      - `loroUpdate` 放行至 `hardLimitBytes`（`1 GiB`），避免资源触顶时卡住纯文字写作同步；
-     - **`docPurge` 墓碑即使在配额已满时也应允许写入**，否则作者在存储满后永久删书腾空间的操作无法同步上云。
+     - **`docPurge` 墓碑不计入 `usedBytes`，且即使已达或超过硬上限也始终放行写入**，保证存储满后永久删书腾空间的操作总能同步上云。
 
-4. **数据库迁移、墓碑保留与云端对象回收（GC）**：
-   - **数据库迁移**：需新增（或在现有对象日志表上扩展）按 `(account_id, namespace = 'loro-v2', seq)` 索引的不可变日志表及 `(account_id, namespace, object_key)` 唯一约束，存储 `sha256`、`byte_length`、`payload_json`、对象存储键与 `created_at`。
-   - **整书删除与服务端资源回收**：客户端执行 `book.purge` 时会为该书的 `book:<book_id>` 及全部子文档写入带 `bookId` 的 `docPurge` 墓碑；接收端在看到整书已清除后会自动回收本机已下载的该书物理资源变体并跳过历史 `assetBlob` 下载。服务端可在确认 `doc_id == "book:<book_id>"` 的 `docPurge` 落库（并度过运维保留窗口，如 30 天可恢复期）后，异步回收同一 `(account_id, book_id)` 下已被覆盖的历史 `loroUpdate` 对象与 `assetBlob` 底层块，同时从 `usedBytes` 扣减已清除书占用的容量；**`docPurge` 墓碑元数据本身需保留**（或仅在流最低快照点推进后按 `removals-v1` 规则折叠），防止长期离线的旧副本重连后把旧数据重新推回。
-   - **增量日志折叠（可选后续优化）**：当某个 `doc_id` 上传了 `isSnapshot: true` 的 `loroUpdate`（或后续引入显式快照压缩接口）且度过保留期后，服务端可回收该 `doc_id` 在此 `seq` 之前的旧 `loroUpdate` 对象字节，保持新设备 `restore_library` 下载量可控。
+4. **数据库迁移、墓碑保留与云端对象回收（GC）【迁移与整书按需回收已具备（`29074bc6`）；单文档增量折叠留作可选后续优化】**：
+   - **数据库迁移【已具备】**：已新增有序迁移 `0010_loro_sync_v2.sql`（未修改 `0000`–`0009` 既有迁移），建立不可变递增日志与 `(owner_id, namespace, object_key)` 唯一约束、数据库级 `CHECK` 约束强制 `docPurge` 墓碑行永不可标记回收，并同步接入账号数据归属表目录（14 张表）、管理后台指标、对象存储一致性校验及生产备份恢复验证。
+   - **整书删除与服务端资源回收【已具备，默认关闭】**：客户端执行 `book.purge` 时为该书 `book:<book_id>` 及全部子文档写入带 `bookId` 的 `docPurge` 墓碑；服务端已提供整书回收脚本与开关（默认 `SYNC_LORO_GC_ENABLED=0` 关闭自动物理删除，保留期默认 `30` 天、外部对象延迟释放默认 `35` 天并支持 `--dry-run` 预检），确认度过保留窗口后可按需回收同一 `(account_id, book_id)` 下已被覆盖的历史 `loroUpdate` 与 `assetBlob` 字节并扣减 `usedBytes`，同时**永久保留 `docPurge` 墓碑元数据**。
+   - **增量日志折叠【未实现，留作可选后续优化】**：当某个 `doc_id` 上传了 `isSnapshot: true` 的 `loroUpdate` 且度过保留期后回收该 `doc_id` 旧增量对象的自动折叠暂未启用，不影响当前正确性与上线。
 
-5. **0.1（Yjs）向 `next/`（`loro-v2`）的迁移边界**：
-   - **不做服务端侧 Yjs → Loro 在线自动转换**。0.1 的 SQLite + Yjs 模型与 canonical v3 的 Loro 条目树／多正文模块存在结构映射（含作者在导入向导中的显式确认项），转换权威统一在客户端 M10（`dr-import-v1`）。
-   - 切换期间同一账号下的 `project-v1`（0.1 客户端）与 `loro-v2`（`next/` 客户端）在服务端按命名空间并存、互不覆盖：作者在 `next/` 通过「导入 · Drifting 0.1」将本机 0.1 库导入到 `next/` 账号库后，由 `next/` 自动同步引擎把 canonical v3 文档与素材以 `loro-v2` 对象上传，其他登录同一账号的 `next/` 设备即自动拉取收敛。需作者拍板的唯一运维口径是：**切换期 `usedBytes` 是否将 `project-v1` 与 `loro-v2` 合并计入同一 `500 MiB` 配额，还是给切换期留独立过渡额度**。
+5. **0.1（Yjs）向 `next/`（`loro-v2`）的迁移边界【双命名空间并存与可切换计量已具备（`29074bc6`），待作者确认配额口径并推送上线】**：
+   - **不做服务端侧 Yjs → Loro 在线自动转换**。0.1 的 SQLite + Yjs 模型与 canonical v3 的 Loro 条目树／多正文模块存在结构映射，转换权威统一在客户端 M10（`dr-import-v1`）。
+   - **【已具备】** 切换期间同一账号下的 `project-v1`（0.1 客户端）与 `loro-v2`（`next/` 客户端）在服务端按命名空间并存、互不覆盖。服务端默认启用过渡期独立计量（`SYNC_QUOTA_METERING_MODE=separate`，`loro-v2` 与 `project-v1` 各自享有独立 `500 MiB` 软上限／`1 GiB` 硬上限，避免导入首次同步受 0.1 历史占用触顶），同时已内置 `SYNC_QUOTA_METERING_MODE=combined` 共享池开关（日后切换仅改环境变量，无需改代码或数据库），待作者最终确认是否沿用默认 `separate` 并执行推送部署。
 
 ## 交回（2026-11-11：新版 App 接入自动同步）
 
@@ -231,6 +231,6 @@ cargo test -p dr-sync --lib --locked
 
 ### 待协调
 
-- **Hosted 服务端上线与切换期配额口径（待作者）**：客户端自动同步已完备接线，真实云端联调需另一仓库的 Hosted 服务部署本文「服务端需要提供的」所列 `loro-v2` 命名空间与表迁移，并由作者拍板切换期 `usedBytes` 是否将 0.1 `project-v1` 与 `next/` `loro-v2` 合并计入同一 `500 MiB` 配额或提供过渡额度。
+- **Hosted 服务端上线与切换期配额口径（服务端本地 `29074bc6` 已实现并验收，待作者确认配额口径并推送上线）**：独立服务端仓库已完成本文「服务端需要提供的」所列 `loro-v2` 命名空间、HTTP 接口、三档配额（默认 `SYNC_QUOTA_METERING_MODE=separate` 过渡期独立 `500 MiB / 1 GiB`，内置 `combined` 合并模式开关）、有序迁移 `0010_loro_sync_v2.sql` 与按需整书回收脚本，并通过本机容器栈与 `next/` 三设备往返联调（见 `~/Drifting-autopilot-logs/loro-v2-server.md`）；仅剩作者确认是否沿用默认 `separate` 配额口径并按交回报告五步清单推送部署。
 - **「偏好设置 → 账号」页内退出登录按钮的预排空钩子（已在凌晨追加第 2 项补齐 11-12）**：`dr_shell::sync` 现提供公开入口 `run_before_sign_out(cx)`，`dr_view_account::sign_out(cx)` 统一在发起 `inner.sign_out()` 吊销远端令牌之前先行调用并等待 `run_before_sign_out(cx)` 冲刷待传改动，同时以 `signing_out` 重入保护合并侧栏账号菜单与「偏好设置 → 账号」页两处退出入口，保证无论从哪一处退出均先排空上传一次再吊销令牌并切回本机库（见 `dr-view-account::tests::settings_account_sign_out_drains_before_revoking_token` 与 `drifting::sync::tests::settings_sign_out_drains_pending_uploads_before_token_revocation_and_returns_to_local`）。
 - **顺带记录的既有测试竞态观察（已在凌晨追加第 3 项确定性修复 11-12）**：排查工作区测试时发现 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 偶发与 `dr-view-history::AutomaticHistory` 后台线程的 `entry_snapshot.capture` 竞争同一 `book:<id>` 的 `oplog_frontiers()`（`membership.add`／`undo` 不改条目自有状态哈希或启动基线晚于首笔前台写入，`changed.is_empty()` 分支会将全书条目加入 `dirty` 并在无周期定时器情况下后台立即连续写入首次快照），小概率触发 `WritePreconditions` 的 `stale observation`。已在 `dr-view-history::AutomaticHistory` 补齐订前同步 `loro_head` 基线与 15 分钟 `PERIODIC_INTERVAL` 定时器并移除全书标脏回退，见 [`m09-history.md`](m09-history.md)。
