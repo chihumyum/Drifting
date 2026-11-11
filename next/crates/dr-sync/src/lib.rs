@@ -7,8 +7,11 @@ pub mod engine;
 pub mod fake_server;
 pub mod health;
 pub mod protocol;
+pub mod runtime;
 
-pub use engine::{SyncCycleReport, SyncEngine};
+pub use engine::{
+    AfterRemoteImportHook, AfterRemotePurgeHook, BeforeRemotePurgeHook, SyncCycleReport, SyncEngine,
+};
 pub use fake_server::FakeSyncServer;
 pub use health::{
     PaperSyncMarkPresentation, SYNC_FAILING_CYCLES, SYNC_FAILING_FOR_MS, SYNC_MARK_LINGER_MS,
@@ -23,6 +26,10 @@ pub use protocol::{
     SYNC_CAPABILITIES_HEADER, SYNC_CAPABILITIES_VALUE, SYNC_NAMESPACE_LORO_V2, SyncError,
     SyncHttpClient, check_asset_quota, sha256_digest, validate_staging_path, validate_sync_url,
     verify_payload_integrity, write_verified_file_atomic,
+};
+pub use runtime::{
+    StateChangeCallback, SyncRuntime, SyncRuntimeSnapshot, SyncScheduleConfig, SyncSessionMode,
+    SyncTarget, attach_workspace_target,
 };
 
 #[cfg(test)]

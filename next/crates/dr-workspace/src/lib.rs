@@ -44,6 +44,7 @@ pub mod journal;
 pub mod naming;
 pub mod nav;
 pub mod registry;
+pub mod sync;
 mod workspace;
 
 pub use actor::Actor;
@@ -58,4 +59,7 @@ pub use guard::{Observation, WritePreconditions};
 pub use holder::COMMAND_ORIGIN;
 pub use nav::NavTarget;
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
-pub use workspace::{QuitReport, ShutdownRefused, Workspace, WorkspaceOptions, library_options};
+pub use sync::{SyncController, SyncNowOutput, SyncStatusSnapshot};
+pub use workspace::{
+    QuitReport, ShutdownRefused, WeakWorkspace, Workspace, WorkspaceOptions, library_options,
+};

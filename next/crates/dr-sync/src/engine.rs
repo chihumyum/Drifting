@@ -55,6 +55,10 @@ pub struct SyncCycleReport {
     pub cursor: u64,
 }
 
+pub type BeforeRemotePurgeHook = Arc<dyn Fn(&str) + Send + Sync>;
+pub type AfterRemotePurgeHook = Arc<dyn Fn(&str, Option<&str>) + Send + Sync>;
+pub type AfterRemoteImportHook = Arc<dyn Fn(&str) + Send + Sync>;
+
 /// Hosted Sync v2 engine coordinating incremental upload, download, restore,
 /// quota enforcement and sync health tracking for a [`Library`].
 pub struct SyncEngine {
@@ -63,6 +67,9 @@ pub struct SyncEngine {
     state_path: Option<PathBuf>,
     state: PersistedSyncState,
     cancel: Arc<AtomicBool>,
+    before_remote_purge: Option<BeforeRemotePurgeHook>,
+    after_remote_purge: Option<AfterRemotePurgeHook>,
+    after_remote_import: Option<AfterRemoteImportHook>,
 }
 
 impl SyncEngine {
@@ -81,7 +88,58 @@ impl SyncEngine {
             state_path,
             state,
             cancel: Arc::new(AtomicBool::new(false)),
+            before_remote_purge: None,
+            after_remote_purge: None,
+            after_remote_import: None,
         })
+    }
+
+    pub fn set_before_remote_purge(&mut self, hook: Option<BeforeRemotePurgeHook>) {
+        self.before_remote_purge = hook;
+    }
+
+    pub fn set_after_remote_purge(&mut self, hook: Option<AfterRemotePurgeHook>) {
+        self.after_remote_purge = hook;
+    }
+
+    pub fn set_after_remote_import(&mut self, hook: Option<AfterRemoteImportHook>) {
+        self.after_remote_import = hook;
+    }
+
+    /// Return `(pending_docs, pending_assets, pending_purges)` waiting to be uploaded.
+    pub fn pending_upload_counts(
+        &self,
+        library: &Library,
+    ) -> Result<(usize, usize, usize), SyncError> {
+        let mut changed_docs: BTreeSet<String> =
+            library.docs_with_local_changes()?.into_iter().collect();
+        for info in library.docs(None, None)? {
+            if !self.state.registered_docs.contains(&info.doc_id)
+                && library.remote_vv(&info.doc_id)?.is_empty()
+            {
+                changed_docs.insert(info.doc_id);
+            }
+        }
+        let pending_assets = library.assets_pending_upload()?.len();
+        let pending_purges = library
+            .purged_docs(None)?
+            .into_iter()
+            .filter(|p| {
+                !self
+                    .state
+                    .uploaded_purges
+                    .contains(&format!("{}:{}", p.doc_id, p.purged_ms))
+            })
+            .count();
+        Ok((changed_docs.len(), pending_assets, pending_purges))
+    }
+
+    /// Whether `library` currently has any unsynced local document updates,
+    /// unregistered empty genesis documents, pending asset variants or purge
+    /// tombstones to upload.
+    pub fn has_pending_uploads(&self, library: &Library) -> Result<bool, SyncError> {
+        let (docs, assets, purges) = self.pending_upload_counts(library)?;
+        Ok(docs > 0 || assets > 0 || purges > 0)
     }
 
     pub fn client(&self) -> &SyncHttpClient {
@@ -160,6 +218,32 @@ impl SyncEngine {
         Ok(usage)
     }
 
+    /// Drain pending local changes (documents, assets and purges) to the server
+    /// without pulling remote objects. Used before account switch, library
+    /// switch and application exit so unsynced author work leaves the device
+    /// promptly without opening or mutating documents that are about to close.
+    pub fn drain_local_changes(
+        &mut self,
+        library: &Library,
+        access_token: &str,
+    ) -> Result<SyncCycleReport, SyncError> {
+        let now_ms = current_time_ms();
+        self.health.begin_cycle(None, now_ms);
+        let result = (|| -> Result<SyncCycleReport, SyncError> {
+            let mut report = SyncCycleReport::default();
+            self.push_local_changes(library, access_token, &mut report)?;
+            report.cursor = self.state.cursor;
+            Ok(report)
+        })();
+
+        let done_ms = current_time_ms().max(now_ms);
+        match &result {
+            Ok(_) => self.health.finish_cycle_ok(None, done_ms),
+            Err(err) => self.health.finish_cycle_err(None, err, done_ms),
+        }
+        result
+    }
+
     /// Run one full incremental sync cycle (upload local Loro updates, assets
     /// and purges, then pull and merge remote object-log changes).
     pub fn sync_once(
@@ -167,7 +251,22 @@ impl SyncEngine {
         library: &Library,
         access_token: &str,
     ) -> Result<SyncCycleReport, SyncError> {
-        self.sync_once_at(library, access_token, current_time_ms())
+        let start_ms = current_time_ms();
+        self.health.begin_cycle(None, start_ms);
+        let result = (|| -> Result<SyncCycleReport, SyncError> {
+            let mut report = SyncCycleReport::default();
+            self.push_local_changes(library, access_token, &mut report)?;
+            self.pull_remote_changes(library, access_token, &mut report)?;
+            report.cursor = self.state.cursor;
+            Ok(report)
+        })();
+
+        let done_ms = current_time_ms().max(start_ms);
+        match &result {
+            Ok(_) => self.health.finish_cycle_ok(None, done_ms),
+            Err(err) => self.health.finish_cycle_err(None, err, done_ms),
+        }
+        result
     }
 
     /// Run one incremental sync cycle with an explicit millisecond timestamp
@@ -220,8 +319,12 @@ impl SyncEngine {
             .map(|d| (d.doc_id.clone(), d))
             .collect();
 
-        // 1. Upload incremental Loro updates for all documents with local changes.
-        let changed_ids = library.docs_with_local_changes()?;
+        // 1. Upload incremental Loro updates for all documents with local changes,
+        // always uploading `book:<id>` documents before child documents so an
+        // interrupted pull on another replica never sees orphan `body:`/`material:`
+        // docs ahead of their parent book document.
+        let mut changed_ids = library.docs_with_local_changes()?;
+        changed_ids.sort_by_key(|id| !id.starts_with("book:"));
         for doc_id in changed_ids {
             let Some(info) = doc_map.get(&doc_id) else {
                 continue;
@@ -253,8 +356,12 @@ impl SyncEngine {
         }
 
         // 2. Also ensure documents with an empty genesis (no operations yet)
-        // are registered on the server at least once.
-        for info in &all_docs {
+        // are registered on the server at least once (`book:` documents first).
+        let ordered_docs = all_docs
+            .iter()
+            .filter(|d| d.doc_id.starts_with("book:"))
+            .chain(all_docs.iter().filter(|d| !d.doc_id.starts_with("book:")));
+        for info in ordered_docs {
             if self.state.registered_docs.contains(&info.doc_id) {
                 continue;
             }
@@ -460,6 +567,9 @@ impl SyncEngine {
                 library.mark_uploaded(doc_id, &remote_vv)?;
                 handle.close();
                 let _ = library.reindex_doc(doc_id);
+                if let Some(cb) = &self.after_remote_import {
+                    cb(doc_id);
+                }
                 self.state.registered_docs.insert(doc_id.clone());
                 report.downloaded_docs += 1;
             }
@@ -481,6 +591,11 @@ impl SyncEngine {
                     return Err(SyncError::InvalidPath(
                         "asset extension must be 1..=16 lowercase ASCII letters or digits".into(),
                     ));
+                }
+                // Never download or re-materialize assets belonging to a book
+                // that has already been permanently purged on this device.
+                if is_whole_book_purged(library, book_id)? {
+                    return Ok(());
                 }
                 if let Some(existing) = library.asset(asset_id, parsed_variant)? {
                     // Replaying an already confirmed blob is a no-op, including
@@ -549,6 +664,9 @@ impl SyncEngine {
             } => {
                 validate_document_metadata(library, doc_id, kind, book_id.as_deref())?;
                 if library.purged(doc_id)?.is_none() {
+                    if let Some(cb) = &self.before_remote_purge {
+                        cb(doc_id);
+                    }
                     if library.doc_info(doc_id)?.is_none() {
                         library.register(doc_id, kind, book_id.as_deref())?;
                     }
@@ -558,6 +676,20 @@ impl SyncEngine {
                     library.purge_doc(doc_id)?;
                     report.applied_purges += 1;
                 }
+                let effective_book = match book_id.as_deref() {
+                    Some(b) => Some(b.to_owned()),
+                    None => library.purged(doc_id)?.and_then(|p| p.book_id),
+                };
+                let mut whole_book_purged: Option<String> = None;
+                if let Some(b) = effective_book
+                    && is_whole_book_purged(library, &b)?
+                {
+                    reclaim_purged_book_assets(library, &b)?;
+                    whole_book_purged = Some(b);
+                }
+                if let Some(cb) = &self.after_remote_purge {
+                    cb(doc_id, whole_book_purged.as_deref());
+                }
                 self.state
                     .uploaded_purges
                     .insert(format!("{doc_id}:{purged_ms}"));
@@ -565,6 +697,31 @@ impl SyncEngine {
         }
         Ok(())
     }
+}
+
+/// Returns `true` when the book's catalog document (`book:<book_id>`) has been
+/// purged and no `loro_doc` belonging to `book_id` remains in `library`.
+fn is_whole_book_purged(library: &Library, book_id: &str) -> Result<bool, SyncError> {
+    if !library.book_purged(book_id)? {
+        return Ok(false);
+    }
+    Ok(library.purged(&format!("book:{book_id}"))?.is_some())
+}
+
+/// Remove all local asset variants and SQLite asset rows belonging to a
+/// permanently purged book, without touching any other book's assets.
+fn reclaim_purged_book_assets(library: &Library, book_id: &str) -> Result<usize, SyncError> {
+    let mut asset_ids: Vec<String> = library
+        .assets_of_book(book_id)?
+        .into_iter()
+        .map(|a| a.asset_id)
+        .collect();
+    asset_ids.sort();
+    asset_ids.dedup();
+    for asset_id in &asset_ids {
+        library.remove_asset(asset_id)?;
+    }
+    Ok(asset_ids.len())
 }
 
 /// Require the store's canonical spelling, rather than silently mapping remote

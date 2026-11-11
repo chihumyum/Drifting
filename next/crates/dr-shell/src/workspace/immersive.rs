@@ -94,8 +94,17 @@ impl Workspace {
     }
 
     /// The author wrote in a page on the paper (F4's `WritingTyped`): in,
-    /// when 「打字时自动沉浸」 is on. The caret stays where it is.
+    /// when 「打字时自动沉浸」 is on, and fades any `Syncing` corner mark for
+    /// 2s after the last keystroke. The caret stays where it is.
     pub(crate) fn author_wrote(&mut self, cx: &mut Context<Self>) {
+        self.last_typing_ms = Some(crate::sync::current_time_ms());
+        self.typing_settle_task = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(crate::sync::TYPING_SETTLE)
+                .await;
+            this.update(cx, |_, cx| cx.notify()).ok();
+        }));
+        cx.notify();
         if !self.immersive && Settings::read(cx).bool(r::AUTO_IMMERSIVE) {
             self.immerse(true, true, cx);
         }

@@ -1486,7 +1486,11 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
 
     let expected_docs = ws_a.library().docs(Some(&book_a), None).unwrap();
     let local_files = ws_a.library().assets_of_book(&book_a).unwrap();
-    let remote_cache = book_image(ws_b.library(), &book_a).assets;
+    let remote_files = ws_b.library().assets_of_book(&book_a).unwrap();
+    assert_eq!(remote_files.len(), 2);
+    for asset in &remote_files {
+        assert!(asset.path.exists());
+    }
     let purge_out = call_out(&ws_a, "book.purge", json!({"book":book_a}));
     assert_eq!(
         purge_out["docs"].as_u64().unwrap() as usize,
@@ -1519,10 +1523,17 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         purged(ws.library(), &book_a, &expected_docs);
         unchanged(ws.library(), &book_b, protected, "remote permanent purge");
     }
-    // DocPurge has no asset network tombstone: document removal is real, but
-    // B's existing cache remains. Do not assert counts imply file deletion or
-    // invent cross-book asset cascade / server GC semantics.
-    assert_eq!(book_image(ws_b.library(), &book_a).assets, remote_cache);
+    // Once the whole book (`book:<id>` and all its stored documents) is purged
+    // on B, B's already-downloaded physical asset files and SQLite asset rows
+    // for that book are reclaimed without touching Book B or outside files.
+    assert!(ws_b.library().assets_of_book(&book_a).unwrap().is_empty());
+    for asset in &remote_files {
+        assert!(
+            !asset.path.exists(),
+            "remote book purge left downloaded {} file on disk",
+            asset.variant.as_str()
+        );
+    }
     sentinel(&outside_sentinel, &sentinel_bytes);
 
     // Real offline failure, then reconnect with freshly constructed engines.
@@ -1550,9 +1561,11 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
     let mut engine_b = SyncEngine::new(server.base_url(), ws_b.library()).unwrap();
     engine_a.sync_once(ws_a.library(), TOKEN).unwrap();
     // The public restore path resets B's cursor to zero and replays old Loro
-    // updates, blobs and purges. Existing tombstones must keep documents out.
+    // updates, blobs and purges. Existing tombstones must keep documents and
+    // purged-book assets out.
     let replay = engine_b.restore_library(ws_b.library(), TOKEN).unwrap();
     assert_eq!(replay.downloaded_docs, 0);
+    assert_eq!(replay.downloaded_assets, 0);
     engine_a.sync_once(ws_a.library(), TOKEN).unwrap();
     for (ws, protected) in [(&ws_a, &protected_a), (&ws_b, &protected_b)] {
         purged(ws.library(), &book_a, &expected_docs);
@@ -1564,7 +1577,14 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         );
         assert_eq!(preview(ws, &book_b, &ch_b, &point_b), historical_b);
     }
-    assert_eq!(book_image(ws_b.library(), &book_a).assets, remote_cache);
+    assert!(ws_b.library().assets_of_book(&book_a).unwrap().is_empty());
+    for asset in &remote_files {
+        assert!(
+            !asset.path.exists(),
+            "cursor-0 replay resurrected purged {} file",
+            asset.variant.as_str()
+        );
+    }
     assert!(ws_a.library().assets_of_book(&book_a).unwrap().is_empty());
     sentinel(&outside_sentinel, &sentinel_bytes);
     drop(engine_a);
@@ -1593,7 +1613,7 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         sentinel_modified
     );
     eprintln!(
-        "v3 contract: 2 devices, 2 books, {} purged documents, {} protected documents, 4 source/thumbnail variants; hidden bodies/future fields/checkpoint preview/reopen/offline/replay/sentinel verified; remote deleted-book cache retained",
+        "v3 contract: 2 devices, 2 books, {} purged documents, {} protected documents, 4 source/thumbnail variants; hidden bodies/future fields/checkpoint preview/reopen/offline/replay/sentinel/remote-asset-reclaim verified",
         expected_docs.len(),
         protected_b.docs.len()
     );

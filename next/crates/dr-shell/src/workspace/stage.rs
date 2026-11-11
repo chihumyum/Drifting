@@ -152,6 +152,13 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             );
             let left = side(PageSide::Left, cx)
                 .children(left_rail)
+                .child(crate::sync::paper_corner(
+                    ws,
+                    "split-left",
+                    false,
+                    window,
+                    cx,
+                ))
                 .child(corner::corner(
                     ws,
                     &entity,
@@ -162,6 +169,13 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                 ));
             let right = side(PageSide::Right, cx)
                 .children(right_rail)
+                .child(crate::sync::paper_corner(
+                    ws,
+                    "split-right",
+                    true,
+                    window,
+                    cx,
+                ))
                 .child(corner::corner(
                     ws,
                     &entity,
@@ -193,6 +207,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                 .size_full()
                 .child(page_turn("page-main", target.as_ref(), &entity, look))
                 .children(rail)
+                .child(crate::sync::paper_corner(ws, "main", false, window, cx))
                 .child(corner::corner(
                     ws,
                     &entity,

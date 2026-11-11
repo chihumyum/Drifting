@@ -1464,7 +1464,10 @@ fn account_cell(
                             window.dispatch_action(Box::new(ToggleNotifications), cx)
                         }),
                     cx,
-                )),
+                ))
+                .when(Notifications::has_pinned(cx), |el| {
+                    el.child(crate::sync::bell_danger_seal(*p))
+                }),
         )
         .into_any_element()
 }
@@ -1598,11 +1601,16 @@ pub fn notification_center(
                             )
                         }),
                 )
-                .child(
-                    PanelIconButton::new(SharedString::from(format!("notice-{id}")), Icon::Close)
+                .when(!notice.pinned, |el| {
+                    el.child(
+                        PanelIconButton::new(
+                            SharedString::from(format!("notice-{id}")),
+                            Icon::Close,
+                        )
                         .label(t(cx, keys::notifications::REMOVE))
                         .on_click(move |_, _, cx| Notifications::remove(id, cx)),
-                ),
+                    )
+                }),
         );
     }
     let header = div()
