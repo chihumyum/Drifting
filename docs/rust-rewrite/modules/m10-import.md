@@ -445,7 +445,7 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 | `import_book` | 每本书：状态、各表行数、规整计数、正文数、历史点、资源文件、待办换 id 的数量 |
 | `import_doc` | 每篇正文：新旧文档 id、新鲜度、旧版本号、缓存的 SHA-256（多设备核对要用）、历史版本数、存得是否一致、往返是否一致、规整计数、去掉的行内对象 |
 | `import_anchor` | 每个锚点：怎么找到的、是否成了光标 |
-| `import_original` | 按纯文字导入的批注、补丁、素材描述的原 JSON |
+| `import_original` | 按纯文字导入的批注、补丁、素材描述的原 JSON，以及非内置关系类型的旧端点种类清单（`collection = "relation_types"`，`field = "source_kinds" \| "target_kinds"`） |
 
 `<新库>/import-v1/receipt.sqlite` 存另外两类。它们是从暂存副本用 `ATTACH` 整表复制的，SQLite 不许在库的事务里 `ATTACH`，所以单独一个文件，等各自的模块接手：
 
@@ -722,16 +722,18 @@ cargo xtask check
 20. ~~**F6：请审外壳的三处改动**~~（第五个里程碑，见「导入界面 → 改到的别处」）：通知的按钮（`NoticeAction`）、`with_workspace` 先找活跃窗口、`dialogs::show_in`。**F6 第八轮审过，三处都留下**；外壳又改了两处：对话框在自己窗口的点击里关（窗口正借出去）时以前会悄悄关不掉，现在 `show` / `show_in` / `hide` / `with_workspace` 经 `workspace::update_workspace` 等这次点击结束再做；通知的按钮点了不再连带触发整行的点击。
 21. **dr-index / F2：请审 `TextDeriver::derive` 的一行改动**（第六个里程碑）。模版文档（F3 第七轮）原来按正文建索引，字数算进 `book_stats`、内容进搜索，和 `DocKind::is_book_text` 的约定不符；现在和书目文档一样记空索引。已经建过索引的模版文档要等它下次改动才清空（dr-store 没有「派生器版本」可以逼它重建）；模版今天才有，只影响开发库。改了 dr-index，它的测量证据会报「过期」。
 
-22. **K3 / 作者：幕绑定构想的关系类型、方向。** 方案说「变成一条关系」，没有指定关系类型、端点方向或复用哪种类型。清单用 `act-binding-relation-type-and-direction` 保留两端和数量，不创建新关系类型，也不选方向。
-23. **K3 / 作者：新增「未归属」泳道在树里的住处和模板设置。** 旧版这条轨道是合成界面，没有树上的住处；方案规定要建泳道，但没有说放在哪层、默认叶子模板、允许哪些模板或新条目住在哪。清单用 `synthetic-lane-tree-home-and-template-settings` 保留泳道、成员和位置，住处／默认模板留未定；名称有旧界面的明确来源，不另起名字。
+22. **K3 / 作者：幕绑定构想的关系类型、方向（继续 pending）。** 方案说「变成一条关系」，没有指定关系类型、端点方向或复用哪种类型。清单与导入预检继续用 `act-binding-relation-type-and-direction` 保留两端和数量，不创建「大纲」关系，也不选方向；作者 11-11 说明正在考虑改成「时间线视图里的幕轨道」，等作者确认前保持 `Pending`。
+23. **K3 / 作者：新增「未归属」泳道在树里的住处和模板设置。** 旧版这条轨道是合成界面，没有树上的住处；方案规定要建泳道，但没有说放在哪层、默认叶子模板、允许哪些模板或新条目住在哪。清单最初用 `synthetic-lane-tree-home-and-template-settings` 保留泳道、成员和位置，名称有旧界面的明确来源，不另起名字。
 
-   **文档 id 修正后的接线边界**：当前 `UnaffiliatedChoice.parent` 和模板 `home` 接收真实条目 id，测试选择是根层且不指定住处。若作者决定放到新生成的书稿／故事线入口下，需先约定怎样用模板引用这处住处，再在初始化后绑定到返回的 id；不能在映射 JSON 里恢复 `root-manuscript` 等固定 id。本次不替作者决定这一点。
+   **作者已定 11-11（夜间队列第 6 项已落地默认行为）**：只在旧库存在「有叙事序（`narrative_order IS NOT NULL`）、但不属于任何故事线」的章节或构想时才创建「未归属」泳道；建在小说模板初始化实际返回的故事线入口（`roots.storylines`）之下、排在所有已导入故事线最后，使用和其他导入故事线相同的模板（`TPL_STORYLINE`）和层级设置（`home` 绑定初始化实际返回的书稿入口 `roots.manuscript`，绝不恢复 `root-manuscript` 类固定 id），名字沿用旧界面的「未归属」（`bottomTimeline.synthetic.unaffiliated`）；不设主归属（`primary = None`），位置照现有映射。该规则已是产品默认行为，不再需要 `MappingChoices`。
 24. **K3 / K1：项目级故事线字段模板的去处。** 旧库 `project.storyline_template_kv_json` + `entity_kv_entry(owner_kind=project, namespace=storyline-template)` 是新故事线自己的字段模板，不是故事线的章节正文模板。映射表末行只说项目设定内容照搬，没有指定 v3 层级模板中落在哪个模块。清单用 `project-storyline-field-template-destination`，保留原始行和投影，不误塞进章的叶子模板。
 
    **K1 已回应（`dd39c0bd`）**：项目级故事线字段模板可落在 `TPL_STORYLINE` 的 `MOD_KV.config.initial_kv`，故事线自身键值行落在条目的 `kv:mod-kv`。具体接口见 [F1 的 K1 交回回应](../foundations/f1-model-doc.md)；K3 后半段已在 `d28e911d` 消费该接口并与清单逐项读回，第四十二批整合验收通过。
-25. **K3 / K1 / 作者：关系类型的旧种类约束怎样转成模板约束。** `entity_relation_type_endpoint_kind` 的 `element`、`node` 等在 v3 都变成 `entry`；仅换成 entry 会放宽原来的限制，展开成导入时的模板集合又会影响以后新模板。方案写「可以按模板」，尚未规定导入策略。清单用 `relation-type-template-restrictions` 保留原约束，端点种类的转换意图另列，不擅自放宽或固定模板集合。
+25. **K3 / K1 / 作者：关系类型的旧种类约束怎样转成模板约束。** `entity_relation_type_endpoint_kind` 的 `element`、`node` 等在 v3 都变成 `entry`；仅换成 entry 会放宽原来的限制，展开成导入时的模板集合又会影响以后新模板。清单最初用 `relation-type-template-restrictions` 保留原约束。
 
-   **K1 已回应（`dd39c0bd`）**：现有 v3 关系类型同时支持端点 kinds 与模板约束；接口已有，旧种类是否展开为模板集合仍等作者，不能把统一映射成 entry 当作已保住原限制。
+   **K1 已回应（`dd39c0bd`）**：现有 v3 关系类型同时支持端点 kinds 与模板约束。
+
+   **作者已定 11-11（暂定默认行为，夜间队列第 6 项已落地）**：非内置关系类型的端点种类按 `node`、`element`、`category`、`storyline` → `entry`，`patch` → `patch`，`comment` → `comment`，`library_item` → `material` 映射并去重；`source_templates` 和 `target_templates` 留空，不展开成模板清单；旧的端点种类数组原样保存在导入回执 `import_original`（`collection = "relation_types"`，`field = "source_kinds" | "target_kinds"`）里以便日后还原；内置关系类型（`generic-association`）不动。这是作者重构关系类型前的暂定规则，已改为默认行为，不再需要 `MappingChoices`。
 26. **K3：旧数据无法直接落进 v3 的情况，先报告再协调。** 无分类／分类已缺失的要素（旧列允许 NULL）、找不到住处的分组／归属、分组环、无书序的章节、没有起点或起点重叠的幕、构想残留书序、同名字段模板／同名字段多值、坏的章节模板、悬空关系／批注／时间钉／幕绑定。清单保留原始数据，用 `pending` 报告对应来源；缺分类不新造分类，环不自动拆，重叠边界不替作者选幕，多值不覆盖，坏模板不当成空模板。完整夹具是正常映射数据，异常回归在临时库中修改它；真正导入时的提示／阻止／修复策略留给后半段协调，不改变定稿方案。
 
 27. **K3 / K1：旧层级自己的颜色如何落位。** 幕、构想分组、分类、故事线各行可以有不同颜色；定稿结构列了模板的 `color`，条目 meta 只明确列出层级设置覆盖，没有明确列出颜色覆盖。清单 `Level.color` 保留旧值，尚不宣称它就是 v3 字段。请 K1 确认已有的覆盖接口或其他既定落点；导入不擅自加条目字段，也不为了保色自创一批层级模板。当前只钉住叶子模板数量，不钉层级模板的生成策略。

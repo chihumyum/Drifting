@@ -259,6 +259,9 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(rt.color.as_deref(), Some("#aa5500"));
     assert_eq!(rt.orientation, RelationOrientation::Symmetric);
     assert_eq!(rt.source_kinds, [EntityKind::Entry]);
+    assert_eq!(rt.target_kinds, [EntityKind::Entry]);
+    assert!(rt.source_templates.is_empty());
+    assert!(rt.target_templates.is_empty());
     let generic = v
         .relation_type(&dr_doc::catalog::generic_relation_type_id(
             &BookId::parse(BOOK).unwrap(),
@@ -1246,36 +1249,45 @@ fn original_dangling_source_relation_is_pending_before_any_target_or_identity_wr
 }
 
 #[test]
-fn explicit_new_root_references_resolve_once_and_resume_the_same_allocated_roots() {
+fn default_unaffiliated_lane_binds_allocated_roots_and_resumes_identically() {
     let old = build_v3(true);
     let new = new_library();
     let before = sha_of(&old.db);
-    let mut opts = options(&old, &new, Accept::NOTHING);
-    let alias = EntryId::parse("chosen-manuscript-root").unwrap();
-    opts.v3
-        .root_references
-        .insert(alias.clone(), dr_import_v1::v3::RootReference::Manuscript);
-    let choice = opts.v3.unaffiliated.as_mut().unwrap();
-    choice.parent = None;
-    choice.template.settings.home = Some(Some(alias));
-    let template = choice.template.id.clone();
+    let opts = options(&old, &new, Accept::NOTHING);
     imported(run::import(&old.db, &new.root, &opts).unwrap().0);
     let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
     let b = book_doc(&lib);
     let v = b.view();
-    let root = v
+    let manuscript_root = v
         .root_entry_by_template(&EntryTemplateId::parse(TPL_MANUSCRIPT).unwrap())
         .unwrap()
         .id;
-    let lane = v
-        .entries()
-        .into_iter()
-        .find(|e| e.template.as_ref() == Some(&template))
-        .unwrap();
-    assert_eq!(lane.parent, None);
+    let storylines_root = v
+        .root_entry_by_template(&EntryTemplateId::parse(TPL_STORYLINES).unwrap())
+        .unwrap()
+        .id;
+    assert!(!manuscript_root.as_str().starts_with("root-"));
+    assert!(!storylines_root.as_str().starts_with("root-"));
+    let children = v.children_of(Some(&storylines_root));
+    assert_eq!(children.len(), 2, "authored storyline then 未归属");
+    assert_eq!(children[0].id.as_str(), STORYLINE);
+    let lane = &children[1];
+    assert_eq!(lane.title, "未归属");
+    assert_eq!(lane.parent, Some(storylines_root));
     assert_eq!(
-        v.template(&template).unwrap().settings.home,
-        Some(Some(root))
+        lane.template,
+        Some(EntryTemplateId::parse(TPL_STORYLINE).unwrap())
+    );
+    assert_eq!(
+        v.template(&EntryTemplateId::parse(TPL_STORYLINE).unwrap())
+            .unwrap()
+            .settings
+            .home,
+        Some(Some(manuscript_root))
+    );
+    assert_eq!(
+        v.entry(&EntryId::parse(IDEA).unwrap()).unwrap().primary,
+        None
     );
     drop(b);
     let raw = lib

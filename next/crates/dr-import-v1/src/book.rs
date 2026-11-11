@@ -480,12 +480,29 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         if t.locked || t.system_key.is_some() {
             notes.add("locked-relation-type-imported-unlocked");
         }
-        let kinds = |side: &str| -> Vec<EntityKind> {
+        let raw_kinds = |side: &str| -> Vec<&str> {
             r.endpoints
                 .iter()
                 .filter(|e| e.relation_type == t.id && e.side == side)
-                .map(|e| legacy::entity_kind(&e.kind))
+                .map(|e| e.kind.as_str())
                 .collect()
+        };
+        let raw_source = raw_kinds("source");
+        let raw_target = raw_kinds("target");
+        originals.push((
+            "relation_types",
+            t.id.clone(),
+            "source_kinds",
+            serde_json::to_string(&raw_source).expect("vec<&str> serializes"),
+        ));
+        originals.push((
+            "relation_types",
+            t.id.clone(),
+            "target_kinds",
+            serde_json::to_string(&raw_target).expect("vec<&str> serializes"),
+        ));
+        let kinds = |raw: &[&str]| -> Vec<EntityKind> {
+            raw.iter().map(|k| legacy::entity_kind(k)).collect()
         };
         let w = txn.relation_type(&tid)?;
         w.name(&t.name)?
@@ -493,8 +510,8 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             .orientation(&o)?
             .source_role(&t.source_role)?
             .target_role(&t.target_role)?
-            .source_kinds(&kinds("source"))?
-            .target_kinds(&kinds("target"))?;
+            .source_kinds(&kinds(&raw_source))?
+            .target_kinds(&kinds(&raw_target))?;
         if let Some(c) = colors.and_then(|c| c.get(&t.id)) {
             w.color(Some(c))?;
         }

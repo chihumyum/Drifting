@@ -9,26 +9,12 @@ use std::path::Path;
 
 use dr_samples::{
     ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, Outcome, RECIPE,
-    book_ids,
+    book_ids, ensure_built_in,
 };
 use dr_store::OpenDoc;
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
 
-fn choices() -> &'static dr_samples::v3::MappingChoices {
-    static CHOICES: std::sync::OnceLock<dr_samples::v3::MappingChoices> =
-        std::sync::OnceLock::new();
-    CHOICES.get_or_init(|| {
-        let mut choices = common::test_choices(&dr_samples::a_q().unwrap());
-        choices.relation_templates.extend(
-            common::test_choices(&dr_samples::pride_and_prejudice().unwrap()).relation_templates,
-        );
-        choices
-    })
-}
-fn ensure_built_in(ws: &Workspace) -> Outcome {
-    dr_samples::ensure_built_in_with(ws, choices())
-}
 fn open(dir: &Path) -> Workspace {
     Workspace::open_dir(dir, "test").unwrap()
 }
@@ -201,7 +187,7 @@ fn a_library_with_a_book_is_skipped() {
     let a_q = dr_samples::a_q().unwrap();
     let written = dr_samples::v3::write_book(
         ws.library(),
-        &dr_samples::v3::convert(&a_q, choices()).unwrap(),
+        &dr_samples::v3::convert(&a_q, &dr_samples::v3::MappingChoices::default()).unwrap(),
     )
     .unwrap();
     assert_eq!(ensure_built_in(&ws), skipped);
@@ -283,7 +269,11 @@ fn an_interrupted_attempt_is_cleaned_up_and_attempts_run_out() {
         &ws,
         json!({ "status": "creating", "recipe": RECIPE, "books": books, "attempts": 1 }),
     );
-    dr_samples::v3::write_book(ws.library(), &dr_samples::v3::a_q(choices()).unwrap()).unwrap();
+    dr_samples::v3::write_book(
+        ws.library(),
+        &dr_samples::v3::a_q(&dr_samples::v3::MappingChoices::default()).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
         ensure_built_in(&ws),
         Outcome::Created {
@@ -312,19 +302,9 @@ fn an_interrupted_attempt_is_cleaned_up_and_attempts_run_out() {
 }
 
 #[test]
-fn missing_sample_policy_is_pending_before_claim_and_created_markers_never_resurrect_books() {
+fn created_markers_never_resurrect_books_and_act_drift_remains_pending_without_choice() {
     let dir = tempfile::tempdir().unwrap();
     let ws = open(dir.path());
-    assert!(
-        matches!(dr_samples::ensure_built_in(&ws),Outcome::Pending{items} if !items.is_empty())
-    );
-    assert!(ws.library().docs(None, None).unwrap().is_empty());
-    assert!(
-        ws.library()
-            .local_get(MARKER_SCOPE, MARKER_KEY)
-            .unwrap()
-            .is_none()
-    );
     set_marker(
         &ws,
         json!({"status":"created","recipe":RECIPE,"books":book_ids(),"attempts":1}),
@@ -332,4 +312,38 @@ fn missing_sample_policy_is_pending_before_claim_and_created_markers_never_resur
     assert_eq!(dr_samples::ensure_built_in(&ws), Outcome::AlreadyDone);
     assert!(ws.library().docs(None, None).unwrap().is_empty());
     ws.shutdown().unwrap();
+
+    // Policy #22 (`act_binding`) remains pending when an act binds a drift node.
+    let mut source = dr_samples::a_q().unwrap();
+    let drift_node = source
+        .book
+        .view()
+        .nodes()
+        .into_iter()
+        .find(|n| n.kind == dr_model::kind::NodeKind::Drift)
+        .unwrap()
+        .id;
+    let act_id = dr_model::id::ActId::parse("sample-act-with-drift").unwrap();
+    source
+        .book
+        .edit(dr_model::Origin::Import, |t| {
+            let act = t.act(&act_id)?;
+            act.name("第一幕")?
+                .start_order(Some(0.0))?
+                .drift(Some(&drift_node))?;
+            Ok(())
+        })
+        .0
+        .unwrap();
+    let pending = dr_samples::v3::MappingChoices::default().pending(&source.book.view());
+    assert_eq!(
+        pending,
+        vec![dr_samples::v3::Pending {
+            code: "act-binding-relation-type-and-direction".into(),
+            source: "sample-act-with-drift".into(),
+        }]
+    );
+    assert!(dr_samples::v3::convert(&source, &dr_samples::v3::MappingChoices::default()).is_err());
+    let converted = dr_samples::v3::convert(&source, &common::test_choices(&source)).unwrap();
+    dr_samples::v3::validate(&converted.book.view()).unwrap();
 }

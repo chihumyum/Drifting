@@ -156,7 +156,7 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
         ready
             .pending
             .iter()
-            .any(|p| p.code == "relation-type-template-restrictions")
+            .any(|p| p.code == "act-binding-relation-type-and-direction")
     );
     assert!(!target.exists());
     assert!(!dir.path().join(dr_account::LIBRARIES_FILE).exists());
@@ -514,4 +514,60 @@ fn committed_preferred_target_opens_from_the_registry_after_a_fresh_start() {
     ws.shutdown().unwrap();
     assert_eq!(sha(&old.db), before);
     assert!(original.join("library.sqlite").is_file());
+}
+
+#[gpui::test]
+fn library_without_act_drift_imports_with_default_choices(cx: &mut TestAppContext) {
+    let (_dir, lib) = library();
+    let original = lib.library().paths().root.clone();
+    let (_view, cx) = setup(cx, lib);
+    let old = common::build_v3(true);
+    let conn = rusqlite::Connection::open(&old.db).unwrap();
+    conn.execute(
+        "UPDATE book_act SET drift_node_id = NULL WHERE id = 'act-1'",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+    let before = source_files(&old.root);
+    configure(cx, &old.root);
+    let target = importer(cx).read_with(cx, |i, _| i.destination().unwrap().target());
+    assert_ne!(target, original);
+    start(cx);
+    let State::Done(done) = settled(cx) else {
+        panic!("expected zero-choice import to finish: {:?}", state(cx))
+    };
+    assert!(!done.cancelled);
+    assert_eq!(done.books[0].status, "imported");
+    assert_eq!(source_files(&old.root), before);
+    let current = active(cx);
+    let snapshot = dr_shell::book::Book::load(&current, common::BOOK).unwrap();
+    assert!(snapshot.v3().is_some());
+    let copy = current
+        .library()
+        .load_copy(&format!("book:{}", common::BOOK))
+        .unwrap();
+    let reader = dr_doc::v3::BookReaderV3::from_loro(
+        dr_model::id::BookId::parse(common::BOOK).unwrap(),
+        &copy,
+    )
+    .unwrap();
+    let view = reader.view();
+    let storylines_root = view
+        .root_entry_by_template(
+            &dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_STORYLINES).unwrap(),
+        )
+        .unwrap()
+        .id;
+    let lanes = view.children_of(Some(&storylines_root));
+    assert_eq!(lanes.len(), 2);
+    assert_eq!(lanes[0].id.as_str(), common::STORYLINE);
+    assert_eq!(lanes[1].title, "未归属");
+    let rt = view
+        .relation_type(&dr_model::id::RelationTypeId::parse(common::REL_TYPE).unwrap())
+        .unwrap();
+    assert_eq!(rt.source_kinds, [dr_model::kind::EntityKind::Entry]);
+    assert_eq!(rt.target_kinds, [dr_model::kind::EntityKind::Entry]);
+    assert!(rt.source_templates.is_empty());
+    assert!(rt.target_templates.is_empty());
 }

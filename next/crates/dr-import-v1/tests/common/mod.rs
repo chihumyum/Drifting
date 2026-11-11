@@ -462,39 +462,51 @@ pub fn path_of(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
 
-/// Explicit policy for this synthetic fixture's one symmetric relation type.
+/// Explicit policy for this synthetic fixture's act drift binding (#22).
 /// No author library or product default consumes this choice.
 pub fn v3_choices() -> dr_import_v1::v3::MappingChoices {
-    let mut choices = dr_import_v1::v3::MappingChoices::default();
-    choices.relation_templates.insert(
-        dr_model::id::RelationTypeId::parse(REL_TYPE).unwrap(),
-        dr_import_v1::v3::TemplateRestriction {
-            source: vec![dr_import_v1::v3::category_template(CATEGORY)],
-            target: vec![dr_import_v1::v3::category_template(CATEGORY)],
-        },
-    );
-    let mut lane = dr_doc::v3::novel::novel_project_templates()
-        .into_iter()
-        .find(|t| t.id.as_str() == dr_doc::v3::novel::TPL_STORYLINE)
-        .unwrap();
-    lane.id = dr_model::id::EntryTemplateId::parse("test-fixture-unaffiliated").unwrap();
-    lane.settings.home = Some(None);
-    choices.unaffiliated = Some(dr_import_v1::v3::UnaffiliatedChoice {
-        parent: None,
-        template: lane,
-    });
-    choices
+    dr_import_v1::v3::MappingChoices {
+        act_binding: Some(dr_import_v1::v3::ActBindingChoice {
+            act_is_source: true,
+            relation_type: dr_model::v3::RelationTypeV3 {
+                id: dr_model::id::RelationTypeId::parse("test-fixture-act-binding").unwrap(),
+                name: "测试幕注".into(),
+                normalized_name: "测试幕注".into(),
+                description: String::new(),
+                orientation: dr_model::kind::RelationOrientation::Directed,
+                system_key: None,
+                locked: false,
+                source_role: String::new(),
+                target_role: String::new(),
+                color: None,
+                source_kinds: vec![dr_model::kind::EntityKind::Entry],
+                target_kinds: vec![dr_model::kind::EntityKind::Entry],
+                source_templates: vec![
+                    dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_GROUP).unwrap(),
+                ],
+                target_templates: vec![
+                    dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_IDEA).unwrap(),
+                ],
+            },
+        }),
+    }
 }
 
 /// Positive canonical-import fixture. The original builder deliberately has a
 /// dangling relation; strict v3 import refuses that record rather than hiding it.
-/// Keep `build` unchanged for prewrite rejection coverage and remove only that
-/// known invalid fixture row before this positive fixture becomes an input.
+/// Keep `build` unchanged for prewrite rejection coverage, remove only that
+/// known invalid fixture row, and bind `act-1` to `IDEA` so policy #22 remains
+/// exercised before explicit `MappingChoices` are provided.
 pub fn build_v3(stamped: bool) -> Old {
     let old = build(stamped);
     let c = Connection::open(&old.db).unwrap();
     c.execute("DELETE FROM entity_relation WHERE id='rel-1'", [])
         .unwrap();
+    c.execute(
+        "UPDATE book_act SET drift_node_id = ?1 WHERE id = 'act-1'",
+        [IDEA],
+    )
+    .unwrap();
     drop(c);
     old
 }

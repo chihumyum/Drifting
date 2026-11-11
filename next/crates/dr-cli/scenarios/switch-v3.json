@@ -235,7 +235,7 @@
       "save": "pending",
       "expect": {
         "/import/explicitChoices": false,
-        "/import/pending/[code=relation-type-template-restrictions]/code": "relation-type-template-restrictions"
+        "/import/pending/[code=act-binding-relation-type-and-direction]/code": "act-binding-relation-type-and-direction"
       }
     },
     {

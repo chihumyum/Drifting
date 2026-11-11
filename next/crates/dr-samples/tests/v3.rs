@@ -1,8 +1,5 @@
 //! The v3 sample recipes reuse the original public-domain corpus verbatim.
-//! Policy here is test-only and does not settle m10's author decisions.
 
-mod common;
-use common::test_choices;
 use dr_doc::v3::novel::*;
 use dr_model::id::*;
 use dr_samples::v3::*;
@@ -17,7 +14,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         dr_samples::a_q().unwrap(),
         dr_samples::pride_and_prejudice().unwrap(),
     ] {
-        let choices = test_choices(&source);
+        let choices = MappingChoices::default();
         let before = (source.book.version(), source.book.frontiers());
         let sample = convert(&source, &choices).unwrap();
         validate(&sample.book.view()).unwrap();
@@ -134,7 +131,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
 #[test]
 fn v3_sample_documents_store_body_first_and_reopen_as_v3() {
     let source = dr_samples::a_q().unwrap();
-    let sample = convert(&source, &test_choices(&source)).unwrap();
+    let sample = convert(&source, &MappingChoices::default()).unwrap();
     let temp = tempfile::tempdir().unwrap();
     let lib = dr_store::Library::open(
         temp.path(),
@@ -171,7 +168,7 @@ fn two_samples_in_one_library_survive_permanent_deletion_of_either_book() {
         dr_samples::pride_and_prejudice().unwrap(),
     ]
     .iter()
-    .map(|source| convert(source, &test_choices(source)).unwrap())
+    .map(|source| convert(source, &MappingChoices::default()).unwrap())
     .collect();
     for sample in &mut samples {
         let view = sample.book.view();
@@ -402,7 +399,7 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
         .0
         .unwrap();
 
-    let choices = test_choices(&source);
+    let choices = MappingChoices::default();
     let before = (source.book.version(), source.book.frontiers());
     let converted = convert(&source, &choices).unwrap();
     assert_eq!((source.book.version(), source.book.frontiers()), before);

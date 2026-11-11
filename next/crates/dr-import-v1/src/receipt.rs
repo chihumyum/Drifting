@@ -137,7 +137,8 @@ pub struct Receipt {
     pub books: Vec<BookRecord>,
     pub docs: Vec<DocRecord>,
     pub anchors: Vec<AnchorRecord>,
-    /// (collection, id, field, original JSON) of bodies kept as plain text.
+    /// (collection, id, field, original JSON) of bodies kept as plain text and
+    /// legacy relation-type endpoint kinds preserved for future restoration.
     pub originals: Vec<(String, String, String, String)>,
     pub orphan_yjs_docs: usize,
     pub archived_rows: BTreeMap<String, i64>,

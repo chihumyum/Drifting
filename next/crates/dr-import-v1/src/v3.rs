@@ -21,10 +21,7 @@ use crate::prose::Notes;
 use crate::run::Options;
 use crate::{ImportError, Result};
 
-pub use dr_samples::v3::{
-    ActBindingChoice, MappingChoices, Pending, RootReference, TemplateRestriction,
-    UnaffiliatedChoice, category_template,
-};
+pub use dr_samples::v3::{ActBindingChoice, MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
