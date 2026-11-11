@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FieldDef {
     pub id: String,
     pub name: String,
@@ -14,6 +14,9 @@ pub struct FieldDef {
     /// Optional target template filter when `field_type == "entity_ref"`.
     #[serde(default)]
     pub target_template: Option<String>,
+    /// Optional initial value copied into newly created entries of this template.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<FieldValue>,
     #[serde(default)]
     pub pos: Option<String>,
 }

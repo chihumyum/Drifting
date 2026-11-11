@@ -390,3 +390,119 @@ fn v3_template_copy_preserves_body_and_table_modules_materials_and_unknown_field
     );
     assert_eq!(target.inner.core.doc.get_deep_value(), before);
 }
+
+#[test]
+fn set_table_cell_runs_v3_and_remove_cell_preserve_rich_marks_links_and_preflight() {
+    use crate::prose::Run;
+    use dr_model::prose::{InlineMarks, LINE_BREAK};
+
+    let mut d = doc("body:entry-source/prose", 10);
+    let table = EmbedId::parse("tbl-1").unwrap();
+    let p0 = PosKey::parse("a0").unwrap();
+    let p1 = PosKey::parse("a1").unwrap();
+    user(&mut d, |t| {
+        let w = t.insert_embed(0, &table, &EmbedKind::Table)?;
+        w.add_row("r0", &p0)?;
+        w.add_col("c0", &p0)?;
+        w.add_col("c1", &p1)
+    });
+
+    let mut entry_block = link("entry-a", Some("mod-prose"));
+    entry_block.block = Some(BlockId::parse("b1").unwrap());
+    entry_block.end_block = Some(BlockId::parse("b2").unwrap());
+    let mat = material();
+    let runs = vec![
+        Run {
+            text: "赵太爷".into(),
+            marks: InlineMarks {
+                bold: true,
+                ..InlineMarks::default()
+            },
+        },
+        Run {
+            text: LINE_BREAK.to_string(),
+            marks: InlineMarks::default(),
+        },
+        Run {
+            text: "举人老爷".into(),
+            marks: InlineMarks {
+                italic: true,
+                link: Some("https://example.com".into()),
+                ..InlineMarks::default()
+            },
+        },
+    ];
+    let links = vec![(0..3, entry_block.clone()), (4..6, mat.clone())];
+    user(&mut d, |t| {
+        t.set_table_cell_runs_v3(&table, "r0", "c0", &runs, &links)?;
+        t.table(&table)?.set_cell("r0", "c1", "临时")
+    });
+
+    assert_eq!(
+        d.view().table_cell_entity_links_v3(&table, "r0", "c0"),
+        Some(links.clone())
+    );
+    let read_runs = d.view().table_cell(&table, "r0", "c0").unwrap();
+    assert!(read_runs[0].marks.bold);
+    assert_eq!(read_runs[0].marks.entities[0].target, "entry-a");
+    assert!(read_runs[2].marks.italic);
+    assert_eq!(
+        read_runs[2].marks.link.as_deref(),
+        Some("https://example.com")
+    );
+    assert_eq!(read_runs[2].marks.entities[0].kind, EntityKind::Material);
+
+    // Preflight rejects invalid profile mark, newline, missing cell, or bad link before mutating.
+    let snap_before = d.inner.core.doc.get_deep_value();
+    let ver_before = d.version();
+    let bad_highlight = vec![Run {
+        text: "x".into(),
+        marks: InlineMarks {
+            highlight: Some("#ff0".into()),
+            ..InlineMarks::default()
+        },
+    }];
+    assert!(
+        d.edit(Origin::User, |t| {
+            t.set_table_cell_runs_v3(&table, "r0", "c0", &bad_highlight, &[])
+        })
+        .0
+        .is_err()
+    );
+    let bad_nl = vec![Run {
+        text: "a\nb".into(),
+        marks: InlineMarks::default(),
+    }];
+    assert!(
+        d.edit(Origin::User, |t| {
+            t.set_table_cell_runs_v3(&table, "r0", "c0", &bad_nl, &[])
+        })
+        .0
+        .is_err()
+    );
+    assert!(
+        d.edit(Origin::User, |t| {
+            t.set_table_cell_runs_v3(&table, "missing", "c0", &[], &[])
+        })
+        .0
+        .is_err()
+    );
+    assert_eq!(d.version(), ver_before);
+    assert_eq!(d.inner.core.doc.get_deep_value(), snap_before);
+
+    // Updating to plain text clears stale marks/links, and remove_cell drops unset cells.
+    let plain_runs = vec![Run {
+        text: "素文".into(),
+        marks: InlineMarks::default(),
+    }];
+    user(&mut d, |t| {
+        t.set_table_cell_runs_v3(&table, "r0", "c0", &plain_runs, &[])?;
+        t.table(&table)?.remove_cell("r0", "c1")
+    });
+    assert_eq!(
+        d.view().table_cell_entity_links_v3(&table, "r0", "c0"),
+        Some(vec![])
+    );
+    assert_eq!(d.view().table_cell(&table, "r0", "c0"), Some(plain_runs));
+    assert_eq!(d.view().table_cell(&table, "r0", "c1"), None);
+}

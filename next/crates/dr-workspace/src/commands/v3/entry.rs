@@ -220,7 +220,21 @@ op! {
         };
         if let Some(t) = e.effective_template(&templates) {
             for module in &t.modules {
-                if module.kind == m::ModuleKind::KeyValue {
+                if module.kind == m::ModuleKind::Fields {
+                    let mut defaults = BTreeMap::new();
+                    for def in &module.config.defs {
+                        if let Some(val) = def
+                            .default_value
+                            .as_ref()
+                            .filter(|v| !matches!(v, m::FieldValue::Null))
+                        {
+                            defaults.insert(def.id.clone(), val.clone());
+                        }
+                    }
+                    if !defaults.is_empty() {
+                        e.fields.insert(module.id.clone(), defaults);
+                    }
+                } else if module.kind == m::ModuleKind::KeyValue {
                     let mut rows = module.config.initial_kv.clone();
                     for row in &mut rows {
                         row.id = KvEntryId::new_v7();
@@ -254,6 +268,11 @@ op! {
                 saved.template.as_ref(),
             )?;
             w.created_at(saved.created_at)?.primary(h.as_ref())?;
+            for (module, fields) in &saved.fields {
+                for (field_id, value) in fields {
+                    w.set_field(module, field_id, Some(value))?;
+                }
+            }
             for (module, rows) in &saved.kv {
                 for row in rows {
                     w.put_kv(module, row)?;

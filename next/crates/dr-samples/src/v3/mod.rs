@@ -108,6 +108,53 @@ pub fn map_ref(r: &EntityRef) -> EntityRef {
     EntityRef::new(map_kind(&r.kind), &r.id)
 }
 
+/// Default v3 prose module implied by a legacy entity kind when addressing its
+/// prose body (`Node` / `Element` -> `mod-prose`, `Category` / `Storyline` -> `about`).
+pub fn default_link_module(kind: &EntityKind) -> Option<ModuleId> {
+    match kind {
+        EntityKind::Node | EntityKind::Element => Some(mid(MOD_PROSE)),
+        EntityKind::Storyline | EntityKind::Category => Some(mid(MOD_ABOUT)),
+        _ => None,
+    }
+}
+
+/// Adapt a legacy [`dr_model::prose::EntityLink`] (plus an optional explicit
+/// target module) into a validated [`dr_model::v3::EntityLinkV3`].
+pub fn map_entity_link(
+    link: &dr_model::prose::EntityLink,
+    explicit_module: Option<ModuleId>,
+) -> dr_doc::Result<dr_model::v3::EntityLinkV3> {
+    let kind = map_kind(&link.kind);
+    if !kind.may_be_linked_v3() {
+        return Err(dr_doc::DocError::NotInProfile("invalid v3 entity link"));
+    }
+    if kind == EntityKind::Material && explicit_module.is_some() {
+        return Err(dr_doc::DocError::NotInProfile(
+            "material link cannot carry a module",
+        ));
+    }
+    let valid_target = match kind {
+        EntityKind::Entry => EntryId::parse(&link.target).is_ok(),
+        EntityKind::Material => MaterialId::parse(&link.target).is_ok(),
+        _ => false,
+    };
+    if !valid_target {
+        return Err(dr_doc::DocError::NotInProfile("invalid v3 entity link"));
+    }
+    let module = match explicit_module {
+        Some(m) => Some(m),
+        None if link.block.is_some() || link.end_block.is_some() => default_link_module(&link.kind),
+        None => None,
+    };
+    Ok(dr_model::v3::EntityLinkV3 {
+        target: link.target.clone(),
+        kind,
+        module,
+        block: link.block.clone(),
+        end_block: link.end_block.clone(),
+    })
+}
+
 pub fn body_id(entry: &str, module: &str) -> DocId {
     DocId::Body(BodyDocId::new(eid(entry), mid(module)))
 }

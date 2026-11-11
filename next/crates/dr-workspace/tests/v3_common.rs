@@ -651,3 +651,107 @@ fn observations_ignore_unwritten_getter_roots_and_keep_unknown_authored_values()
     assert_eq!(after.version, before.version);
     assert_eq!(after.value, before.value);
 }
+
+#[test]
+fn entry_template_field_default_values_validate_and_initialize_new_entries() {
+    let mut e = env();
+    let b = project(&e);
+    let before = e.ws().observe(&format!("book:{b}")).unwrap();
+
+    // Mismatched default_value type or invalid select option is rejected prewrite.
+    for bad_def in [
+        json!({"id":"f1","name":"年龄","field_type":"number","default_value":"not-a-number"}),
+        json!({"id":"f2","name":"状态","field_type":"select","options":["甲","乙"],"default_value":"丙"}),
+    ] {
+        assert!(
+            e.try_call(
+                "entry_template.put",
+                json!({
+                    "book": b,
+                    "template": {
+                        "id": "tpl-custom-char",
+                        "name": "人物",
+                        "modules": [{
+                            "id": "mod-fields",
+                            "kind": "fields",
+                            "name": "字段",
+                            "pos": "a0",
+                            "config": { "defs": [bad_def] }
+                        }]
+                    }
+                }),
+            )
+            .is_err()
+        );
+    }
+    assert_eq!(
+        e.ws().observe(&format!("book:{b}")).unwrap().version,
+        before.version
+    );
+
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-custom-char",
+                "name": "人物",
+                "modules": [{
+                    "id": "mod-fields",
+                    "kind": "fields",
+                    "name": "字段",
+                    "pos": "a0",
+                    "config": {
+                        "defs": [
+                            {"id":"origin","name":"出身","field_type":"text","pos":"a0","default_value":"未庄"},
+                            {"id":"age","name":"年龄","field_type":"number","pos":"a1","default_value":25.0},
+                            {"id":"role","name":"身份","field_type":"select","options":["短工","掌柜"],"pos":"a2","default_value":"短工"},
+                            {"id":"aliases","name":"别名","field_type":"aliases","pos":"a3","default_value":["阿贵"]},
+                            {"id":"notes","name":"备注","field_type":"text","pos":"a4"}
+                        ]
+                    }
+                }]
+            }
+        }),
+    );
+
+    // Allow creating tpl-custom-char under the Elements root.
+    let elements_root = e
+        .out("entry.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["template"] == "tpl-elements")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    e.call(
+        "entry.update",
+        json!({
+            "book": b,
+            "id": elements_root,
+            "overrides": {
+                "allow": ["tpl-category", "tpl-group", "tpl-custom-char"],
+                "default_template": "tpl-custom-char"
+            }
+        }),
+    );
+
+    let created = item(e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": elements_root,
+            "template": "tpl-custom-char",
+            "title": "阿Q"
+        }),
+    ));
+    e.reopen();
+    let got = e.out("entry.get", json!({"book": b, "id": created}));
+    assert_eq!(got["fields"]["mod-fields"]["origin"], "未庄");
+    assert_eq!(got["fields"]["mod-fields"]["age"], 25.0);
+    assert_eq!(got["fields"]["mod-fields"]["role"], "短工");
+    assert_eq!(got["fields"]["mod-fields"]["aliases"], json!(["阿贵"]));
+    assert!(got["fields"]["mod-fields"]["notes"].is_null());
+}

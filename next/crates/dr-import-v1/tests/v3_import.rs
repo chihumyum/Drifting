@@ -319,12 +319,16 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert!(actual.is_leaf());
         assert_eq!(actual.name, template.name);
         for field in &template.fields {
+            let want_default =
+                (!field.value.is_empty()).then(|| FieldValue::Text(field.value.clone()));
             assert!(
                 actual
                     .modules
                     .iter()
                     .flat_map(|m| &m.config.defs)
-                    .any(|d| d.name == field.name && d.id == field.old_id)
+                    .any(|d| d.name == field.name
+                        && d.id == field.old_id
+                        && d.default_value == want_default)
             );
         }
     }
@@ -621,6 +625,19 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .collect::<Vec<_>>(),
         [("目标", "")]
     );
+    let mut spans = std::collections::HashMap::new();
+    for body in &expected.prose {
+        if matches!(body.target, manifest::Body::Template(_)) {
+            continue;
+        }
+        let lines = dr_import_v1::prose::pm::parse(body.json.as_deref().unwrap_or("{}")).unwrap();
+        let blocks = dr_import_v1::prose::doc_blocks(&lines);
+        for id in blocks.ranges.keys() {
+            if let Some(s) = blocks.span(id) {
+                spans.entry(id.clone()).or_insert(s);
+            }
+        }
+    }
     for body in &expected.prose {
         if matches!(body.target, manifest::Body::Template(_))
             && body
@@ -635,7 +652,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         let json = body.json.as_deref().unwrap_or("{}");
         let lines = dr_import_v1::prose::pm::parse(json).unwrap();
         let blocks = dr_import_v1::prose::doc_blocks(&lines);
-        let plan = dr_import_v1::prose::plan(
+        let plan = dr_import_v1::prose::plan_v3(
             &lines,
             &blocks,
             &dr_import_v1::prose::Context {
@@ -644,7 +661,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
                 } else {
                     ProseProfile::Prose
                 },
-                span: &|_| None,
+                span: &|old| spans.get(old).cloned(),
                 todo: &|id| Some(comment_id(id)),
             },
         );
@@ -653,20 +670,17 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             plan.body_text().trim_end_matches('\n'),
             "{id}"
         );
-        let actual = dr_import_v1::prose::read::read_paras(&doc.view());
+        let actual = dr_import_v1::prose::read::read_paras_v3(&doc.view());
         assert_eq!(actual.len(), plan.paras.len(), "{id}");
-        for (actual, mut expected) in actual.iter().zip(plan.paras) {
-            for run in &mut expected.runs {
-                for link in &mut run.marks.entities {
-                    link.kind = adapter::map_kind(&link.kind);
-                }
-            }
+        for (actual, expected) in actual.iter().zip(plan.paras) {
             if expected.id.is_some() {
                 assert_eq!(actual.id, expected.id, "{id}");
             }
             assert_eq!(actual.attrs, expected.attrs, "{id}");
             assert_eq!(actual.runs, expected.runs, "{id}");
             assert_eq!(actual.embed, expected.embed, "{id}");
+            assert_eq!(actual.table_cells, expected.table_cells, "{id}");
+            assert_eq!(actual.v3_links, expected.v3_links, "{id}");
         }
     }
 }
@@ -901,10 +915,6 @@ fn ambiguous_or_unsupported_sources_stop_before_v3_writes() {
             "idea-has-legacy-book-order",
         ),
         (
-            "UPDATE entity_kv_entry SET value='default' WHERE id='kv-7'",
-            "field-default-value-interface-missing",
-        ),
-        (
             "UPDATE element SET kv_json='{broken'",
             "unreadable-source-kv-projection",
         ),
@@ -1072,30 +1082,82 @@ fn the_development_cli_exposes_v3_preflight_without_choosing_policy() {
 #[test]
 fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import() {
     use serde_json::json;
-    for (attrs, code) in [
+    for (body, code) in [
         (
-            json!({"targetKind":"library_item","targetId":NOTE}),
-            "v3-prose-link-writer-missing",
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "attrs": {"id": "e-p1"},
+                    "content": [{
+                        "type": "text",
+                        "text": "批注链接",
+                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "comment", "targetId": COMMENT}}]
+                    }]
+                }]
+            }),
+            "unsupported-entity-link-target-kind",
         ),
         (
-            json!({"targetKind":"element","targetId":ELEMENT,"targetBlockId":"e-p1"}),
-            "v3-prose-link-writer-missing",
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "attrs": {"id": "e-p1"},
+                    "content": [{
+                        "type": "text",
+                        "text": "素材错挂模块",
+                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE, "targetModule": MOD_PROSE}}]
+                    }]
+                }]
+            }),
+            "invalid-source-entity-link",
         ),
         (
-            json!({"targetKind":"element","targetId":ELEMENT,"targetModule":MOD_PROSE}),
-            "v3-prose-link-writer-missing",
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "table",
+                    "content": [{
+                        "type": "tableRow",
+                        "content": [{
+                            "type": "tableCell",
+                            "content": [{
+                                "type": "paragraph",
+                                "content": [{
+                                    "type": "text",
+                                    "text": "正文表格禁高亮",
+                                    "marks": [{"type": "highlight", "attrs": {"color": "#ff0"}}]
+                                }]
+                            }]
+                        }]
+                    }]
+                }]
+            }),
+            "unsupported-table-cell-mark",
         ),
-        (serde_json::Value::Null, "legacy-table-cell-format-mapping"),
+        (
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "table",
+                    "content": [{
+                        "type": "tableRow",
+                        "content": [{
+                            "type": "tableCell",
+                            "content": [{
+                                "type": "codeBlock",
+                                "attrs": {"language": "rust"},
+                                "content": [{"type": "text", "text": "fn main() {}"}]
+                            }]
+                        }]
+                    }]
+                }]
+            }),
+            "unsupported-table-cell-content",
+        ),
     ] {
         let old = fixture::build();
-        let mut body: serde_json::Value = serde_json::from_str(ELEMENT_JSON).unwrap();
-        if attrs.is_null() {
-            let paragraph = body["content"][0].clone();
-            body["content"] = json!([{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableCell","content":[paragraph]}]}]}]);
-        } else {
-            body["content"][0]["content"][0]["marks"] =
-                json!([{"type":"entityLink","attrs":attrs}]);
-        }
         let c = rusqlite::Connection::open(&old.db).unwrap();
         c.execute(
             "UPDATE element SET content_json=?1 WHERE id=?2",
@@ -1103,19 +1165,721 @@ fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import(
         )
         .unwrap();
         drop(c);
-        let before = sha256_bytes(&std::fs::read(&old.db).unwrap());
+        let before = source_tree_snapshot(&old.root);
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("library");
         let mut options = options(&old);
         options.accept = dr_import_v1::gate::Accept::EVERYTHING;
         let error = run::import(&old.db, &root, &options).unwrap_err();
         assert!(
-            matches!(&error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
+            matches!(&error, dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
             "{error}"
         );
         assert!(!root.join("library.sqlite").exists());
-        assert_eq!(before, sha256_bytes(&std::fs::read(&old.db).unwrap()));
+        assert_eq!(before, source_tree_snapshot(&old.root));
     }
+}
+
+fn source_tree_snapshot(
+    root: &std::path::Path,
+) -> Vec<(String, u64, std::time::SystemTime, String)> {
+    fn walk(
+        base: &std::path::Path,
+        dir: &std::path::Path,
+        out: &mut Vec<(String, u64, std::time::SystemTime, String)>,
+    ) {
+        let mut entries: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap())
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+        for entry in entries {
+            let path = entry.path();
+            let meta = std::fs::symlink_metadata(&path).unwrap();
+            if meta.is_dir() {
+                walk(base, &path, out);
+            } else {
+                let rel = path
+                    .strip_prefix(base)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                let bytes = std::fs::read(&path).unwrap();
+                out.push((
+                    rel,
+                    meta.len(),
+                    meta.modified().unwrap(),
+                    sha256_bytes(&bytes),
+                ));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, root, &mut out);
+    out
+}
+
+#[test]
+fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_history() {
+    use serde_json::json;
+
+    let old = fixture::build();
+    let rich_element_v1 = json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "attrs": {"id": "e-p1"},
+            "content": [
+                {"type": "text", "text": "旧版参考"},
+                {
+                    "type": "text",
+                    "text": "札记",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE}}]
+                }
+            ]
+        }]
+    });
+    let rich_element_live = json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "attrs": {"id": "e-p1"},
+            "content": [
+                {
+                    "type": "text",
+                    "text": "札记",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE}}]
+                },
+                {"type": "text", "text": "与"},
+                {
+                    "type": "text",
+                    "text": "引文整段",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "node", "targetId": CHAPTER, "targetBlockId": "q", "targetEndBlockId": "q"}}]
+                },
+                {"type": "text", "text": "及"},
+                {
+                    "type": "text",
+                    "text": "主线简介",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "storyline", "targetId": STORYLINE, "targetBlockId": "s-p1"}}]
+                },
+                {"type": "text", "text": "和"},
+                {
+                    "type": "text",
+                    "text": "分类简介",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "category", "targetId": CATEGORY, "module": MOD_ABOUT}}]
+                }
+            ]
+        }]
+    });
+    let rich_category_tpl = json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "attrs": {"id": "tpl-p1"},
+            "content": [
+                {
+                    "type": "text",
+                    "text": "模板参考札记",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "material", "targetId": NOTE}}]
+                },
+                {"type": "text", "text": "："},
+                {
+                    "type": "text",
+                    "text": "第一章首段",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "node", "targetId": CHAPTER, "targetModule": MOD_PROSE, "targetBlockId": "p1"}}]
+                }
+            ]
+        }]
+    });
+
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.execute(
+        "UPDATE entity_snapshot_history SET content_json=?1 WHERE id='h-3'",
+        [rich_element_v1.to_string()],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE element SET content_json=?1 WHERE id=?2",
+        rusqlite::params![rich_element_live.to_string(), ELEMENT],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE element_category SET element_template_json=?1 WHERE id=?2",
+        rusqlite::params![rich_category_tpl.to_string(), CATEGORY],
+    )
+    .unwrap();
+    drop(c);
+
+    let before = source_tree_snapshot(&old.root);
+    assert!(before.len() >= 3);
+    let expected = manifest::read(&old.db, BOOK).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported")
+    };
+    assert_eq!(before, source_tree_snapshot(&old.root));
+    assert!(
+        receipt
+            .docs
+            .iter()
+            .all(|d| d.stored_exactly && d.round_trips)
+    );
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    compare(&book.view(), &expected, &lib);
+
+    let elem_doc_id = adapter::body_id(ELEMENT, MOD_PROSE);
+    let elem_doc = load_prose(&lib, &elem_doc_id);
+    assert_eq!(
+        elem_doc.view().entity_links_v3(),
+        vec![
+            (
+                0..2,
+                EntityLinkV3 {
+                    target: NOTE.into(),
+                    kind: EntityKind::Material,
+                    module: None,
+                    block: None,
+                    end_block: None,
+                }
+            ),
+            (
+                3..7,
+                EntityLinkV3 {
+                    target: CHAPTER.into(),
+                    kind: EntityKind::Entry,
+                    module: Some(mid(MOD_PROSE)),
+                    block: Some(BlockId::parse("q1").unwrap()),
+                    end_block: Some(BlockId::parse("q2").unwrap()),
+                }
+            ),
+            (
+                8..12,
+                EntityLinkV3 {
+                    target: STORYLINE.into(),
+                    kind: EntityKind::Entry,
+                    module: Some(mid(MOD_ABOUT)),
+                    block: Some(BlockId::parse("s-p1").unwrap()),
+                    end_block: None,
+                }
+            ),
+            (
+                13..17,
+                EntityLinkV3 {
+                    target: CATEGORY.into(),
+                    kind: EntityKind::Entry,
+                    module: Some(mid(MOD_ABOUT)),
+                    block: None,
+                    end_block: None,
+                }
+            ),
+        ]
+    );
+
+    // Historical frontier of element body preserves the v1 material link!
+    let elem_hist = lib.history(&elem_doc_id.to_string()).unwrap();
+    let v1_label = elem_hist.iter().find(|h| h.label == "periodic").unwrap();
+    let elem_bytes = vec![
+        lib.load_copy(&elem_doc_id.to_string())
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap(),
+    ];
+    let elem_at_v1 =
+        dr_doc::prose::ProseReader::load_at(elem_doc_id, &elem_bytes, &v1_label.frontiers).unwrap();
+    assert_eq!(
+        elem_at_v1.view().entity_links_v3(),
+        vec![(
+            4..6,
+            EntityLinkV3 {
+                target: NOTE.into(),
+                kind: EntityKind::Material,
+                module: None,
+                block: None,
+                end_block: None,
+            }
+        )]
+    );
+
+    // Category prose template preserves both material and explicit-module block links!
+    let tpl_doc_id = DocId::Template(TemplateId::for_entry_module(
+        book.view().book_id(),
+        &adapter::category_template(CATEGORY),
+        &mid(MOD_PROSE),
+    ));
+    let tpl_doc = load_prose(&lib, &tpl_doc_id);
+    assert_eq!(
+        tpl_doc.view().entity_links_v3(),
+        vec![
+            (
+                0..6,
+                EntityLinkV3 {
+                    target: NOTE.into(),
+                    kind: EntityKind::Material,
+                    module: None,
+                    block: None,
+                    end_block: None,
+                }
+            ),
+            (
+                7..12,
+                EntityLinkV3 {
+                    target: CHAPTER.into(),
+                    kind: EntityKind::Entry,
+                    module: Some(mid(MOD_PROSE)),
+                    block: Some(BlockId::parse("p1").unwrap()),
+                    end_block: None,
+                }
+            ),
+        ]
+    );
+    lib.close().unwrap();
+}
+
+#[test]
+fn non_empty_field_defaults_import_losslessly_in_live_and_historical_catalogs() {
+    use serde_json::json;
+
+    let old = fixture::build();
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.execute(
+        "UPDATE entity_kv_entry SET value='二十五' WHERE id='kv-7'",
+        [],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO entity_kv_entry (id, project_id, owner_kind, owner_id, namespace, key, value) VALUES ('kv-cat-job', ?1, 'element-category', ?2, 'element-template', '职业', '游民')",
+        rusqlite::params![BOOK, CATEGORY],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE element_category SET element_template_kv_json=?1 WHERE id=?2",
+        rusqlite::params![
+            json!([
+                {"key": "年龄", "value": "二十五"},
+                {"key": "职业", "value": "游民"}
+            ])
+            .to_string(),
+            CATEGORY
+        ],
+    )
+    .unwrap();
+    // Replay a historical snapshot on CATEGORY where default values were earlier ("二十" / "").
+    let hist_meta = json!({
+        "name": "人物",
+        "elementTemplateKvJson": json!([
+            {"key": "年龄", "value": "二十"},
+            {"key": "职业", "value": ""}
+        ]).to_string()
+    });
+    c.execute(
+        "INSERT INTO entity_snapshot_history (id, project_id, entity_kind, entity_id, state_blob, content_json, meta_json, created_at) VALUES ('h-cat-1', ?1, 'category', ?2, X'00', ?3, ?4, '2026-09-30T08:00:00.000Z')",
+        rusqlite::params![BOOK, CATEGORY, STORYLINE_JSON, hist_meta.to_string()],
+    )
+    .unwrap();
+    drop(c);
+
+    let before = source_tree_snapshot(&old.root);
+    let expected = manifest::read(&old.db, BOOK).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported")
+    };
+    assert_eq!(before, source_tree_snapshot(&old.root));
+    assert_eq!(receipt.books[0].history_meta_checked, 4);
+    assert!(
+        !receipt.books[0]
+            .notes
+            .0
+            .contains_key("history-meta-differs")
+    );
+
+    let lib = open(&root);
+    let book_copy = lib.load_copy(&format!("book:{BOOK}")).unwrap();
+    let book_bytes = book_copy.export(loro::ExportMode::Snapshot).unwrap();
+    let book = BookDocV3::load(
+        BookId::parse(BOOK).unwrap(),
+        random_device_peer(),
+        std::slice::from_ref(&book_bytes),
+    )
+    .unwrap();
+    compare(&book.view(), &expected, &lib);
+
+    // Live template definitions carry the imported default values.
+    let live_tpl = book
+        .view()
+        .template(&adapter::category_template(CATEGORY))
+        .unwrap();
+    let live_defs: std::collections::BTreeMap<_, _> = live_tpl
+        .modules
+        .iter()
+        .flat_map(|m| &m.config.defs)
+        .map(|d| (d.name.as_str(), d.default_value.clone()))
+        .collect();
+    assert_eq!(
+        live_defs.get("年龄").cloned().flatten(),
+        Some(FieldValue::Text("二十五".into()))
+    );
+    assert_eq!(
+        live_defs.get("职业").cloned().flatten(),
+        Some(FieldValue::Text("游民".into()))
+    );
+
+    // Existing imported elements retain their own authored values rather than template defaults.
+    let elem = book.view().entry(&eid(ELEMENT)).unwrap();
+    assert_eq!(text(&elem, "kv-7").as_deref(), Some("35"));
+    assert_eq!(text(&elem, "kv-cat-job").as_deref(), Some("短工"));
+
+    // Historical book frontier at h-cat-1 carries the historical default ("二十" and None)!
+    let cat_doc_id = adapter::body_id(CATEGORY, MOD_ABOUT);
+    let cat_hist = lib.history(&cat_doc_id.to_string()).unwrap();
+    let cat_label = cat_hist.iter().find(|h| h.label == "periodic").unwrap();
+    let detached = dr_doc::v3::BookReaderV3::load_at(
+        BookId::parse(BOOK).unwrap(),
+        std::slice::from_ref(&book_bytes),
+        cat_label
+            .book_frontiers
+            .as_ref()
+            .expect("labels carry the book's version"),
+    )
+    .unwrap();
+    let hist_tpl = detached
+        .view()
+        .template(&adapter::category_template(CATEGORY))
+        .unwrap();
+    let hist_defs: std::collections::BTreeMap<_, _> = hist_tpl
+        .modules
+        .iter()
+        .flat_map(|m| &m.config.defs)
+        .map(|d| (d.name.as_str(), d.default_value.clone()))
+        .collect();
+    assert_eq!(
+        hist_defs.get("年龄").cloned().flatten(),
+        Some(FieldValue::Text("二十".into()))
+    );
+    assert_eq!(hist_defs.get("职业").cloned().flatten(), None);
+    lib.close().unwrap();
+}
+
+#[test]
+fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templates_and_history() {
+    use dr_model::prose::LINE_BREAK;
+    use serde_json::json;
+
+    let old = fixture::build();
+    let elem_table_v1 = json!({
+        "type": "doc",
+        "content": [{
+            "type": "table",
+            "attrs": {"id": "tbl-elem"},
+            "content": [{
+                "type": "tableRow",
+                "content": [
+                    {
+                        "type": "tableCell",
+                        "content": [{
+                            "type": "paragraph",
+                            "content": [{
+                                "type": "text",
+                                "text": "旧格",
+                                "marks": [{"type": "italic"}]
+                            }]
+                        }]
+                    },
+                    {
+                        "type": "tableCell",
+                        "content": [{
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": "将删列"}]
+                        }]
+                    }
+                ]
+            }]
+        }]
+    });
+    let elem_table_live = json!({
+        "type": "doc",
+        "content": [{
+            "type": "table",
+            "attrs": {"id": "tbl-elem"},
+            "content": [{
+                "type": "tableRow",
+                "content": [{
+                    "type": "tableCell",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "赵太爷",
+                                    "marks": [
+                                        {"type": "bold"},
+                                        {"type": "entityLink", "attrs": {"targetKind": "node", "targetId": CHAPTER, "targetBlockId": "q", "targetEndBlockId": "q"}}
+                                    ]
+                                },
+                                {"type": "hardBreak", "marks": [{"type": "bold"}]},
+                                {
+                                    "type": "text",
+                                    "text": "外链",
+                                    "marks": [{"type": "underline"}, {"type": "link", "attrs": {"href": "https://example.com"}}]
+                                }
+                            ]
+                        },
+                        {
+                            "type": "paragraph",
+                            "content": [{
+                                "type": "text",
+                                "text": "札记链接",
+                                "marks": [{"type": "strike"}, {"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE}}]
+                            }]
+                        }
+                    ]
+                }]
+            }]
+        }]
+    });
+    let note_with_table = json!({
+        "type": "doc",
+        "content": [
+            {
+                "type": "taskList",
+                "attrs": {"id": "tl"},
+                "content": [{
+                    "type": "taskItem",
+                    "attrs": {"id": "ti1", "checked": false, "todoId": NOTE_TODO},
+                    "content": [{"type": "paragraph", "attrs": {"id": "tp1"}, "content": [{"type": "text", "text": "核对称呼"}]}]
+                }]
+            },
+            {
+                "type": "table",
+                "attrs": {"id": "tbl-note"},
+                "content": [{
+                    "type": "tableRow",
+                    "content": [{
+                        "type": "tableCell",
+                        "content": [{
+                            "type": "paragraph",
+                            "content": [
+                                {"type": "text", "text": "高亮", "marks": [{"type": "highlight", "attrs": {"color": "#ff0"}}]},
+                                {"type": "text", "text": "代码", "marks": [{"type": "code"}, {"type": "entityLink", "attrs": {"targetKind": "element", "targetId": ELEMENT, "targetModule": MOD_PROSE}}]}
+                            ]
+                        }]
+                    }]
+                }]
+            }
+        ]
+    });
+    let storyline_tpl_table = json!({
+        "type": "doc",
+        "content": [{
+            "type": "table",
+            "attrs": {"id": "tbl-tpl"},
+            "content": [{
+                "type": "tableRow",
+                "content": [{
+                    "type": "tableCell",
+                    "content": [{
+                        "type": "paragraph",
+                        "content": [{
+                            "type": "text",
+                            "text": "模板人物格",
+                            "marks": [
+                                {"type": "bold"},
+                                {"type": "entityLink", "attrs": {"targetKind": "element", "targetId": ELEMENT, "targetBlockId": "tbl-elem"}}
+                            ]
+                        }]
+                    }]
+                }]
+            }]
+        }]
+    });
+
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.execute(
+        "UPDATE entity_snapshot_history SET content_json=?1 WHERE id='h-3'",
+        [elem_table_v1.to_string()],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE element SET content_json=?1 WHERE id=?2",
+        rusqlite::params![elem_table_live.to_string(), ELEMENT],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE library_item SET body_json=?1 WHERE id=?2",
+        rusqlite::params![note_with_table.to_string(), NOTE],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE storylines SET node_content_template_json=?1 WHERE id=?2",
+        rusqlite::params![storyline_tpl_table.to_string(), STORYLINE],
+    )
+    .unwrap();
+    drop(c);
+
+    let before = source_tree_snapshot(&old.root);
+    let expected = manifest::read(&old.db, BOOK).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported")
+    };
+    assert_eq!(before, source_tree_snapshot(&old.root));
+    assert!(
+        receipt
+            .docs
+            .iter()
+            .all(|d| d.stored_exactly && d.round_trips)
+    );
+    assert!(
+        !receipt.books[0]
+            .notes
+            .0
+            .contains_key("history-version-differs")
+    );
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    compare(&book.view(), &expected, &lib);
+
+    // 1. Live Prose-profile element table cell preserves bold, marked hardBreak, underline+link, joined paragraph break, and strike+material/block links!
+    let elem_doc_id = adapter::body_id(ELEMENT, MOD_PROSE);
+    let elem_doc = load_prose(&lib, &elem_doc_id);
+    let tbl_elem = EmbedId::parse("tbl-elem").unwrap();
+    let runs = elem_doc.view().table_cell(&tbl_elem, "r0", "c0").unwrap();
+    let full_text: String = runs.iter().map(|r| r.text.as_str()).collect();
+    assert_eq!(
+        full_text,
+        format!("赵太爷{LINE_BREAK}外链{LINE_BREAK}札记链接")
+    );
+    assert!(runs[0].marks.bold);
+    assert!(runs.iter().any(|r| {
+        r.text == "外链"
+            && r.marks.underline
+            && r.marks.link.as_deref() == Some("https://example.com")
+    }));
+    assert!(runs.iter().any(|r| r.text == "札记链接" && r.marks.strike));
+    assert_eq!(
+        elem_doc
+            .view()
+            .table_cell_entity_links_v3(&tbl_elem, "r0", "c0"),
+        Some(vec![
+            (
+                0..3,
+                EntityLinkV3 {
+                    target: CHAPTER.into(),
+                    kind: EntityKind::Entry,
+                    module: Some(mid(MOD_PROSE)),
+                    block: Some(BlockId::parse("q1").unwrap()),
+                    end_block: Some(BlockId::parse("q2").unwrap()),
+                }
+            ),
+            (
+                7..11,
+                EntityLinkV3 {
+                    target: NOTE.into(),
+                    kind: EntityKind::Material,
+                    module: None,
+                    block: None,
+                    end_block: None,
+                }
+            ),
+        ])
+    );
+
+    // Historical v1 frontier of element table preserves italic cell and second column c1!
+    let elem_hist = lib.history(&elem_doc_id.to_string()).unwrap();
+    let v1_label = elem_hist.iter().find(|h| h.label == "periodic").unwrap();
+    let elem_bytes = vec![
+        lib.load_copy(&elem_doc_id.to_string())
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap(),
+    ];
+    let elem_v1 =
+        dr_doc::prose::ProseReader::load_at(elem_doc_id, &elem_bytes, &v1_label.frontiers).unwrap();
+    let v1_runs = elem_v1.view().table_cell(&tbl_elem, "r0", "c0").unwrap();
+    assert_eq!(v1_runs[0].text, "旧格");
+    assert!(v1_runs[0].marks.italic);
+    assert_eq!(
+        elem_v1.view().table_cell(&tbl_elem, "r0", "c1").unwrap()[0].text,
+        "将删列"
+    );
+
+    // 2. Note-profile material table cell preserves highlight + code + explicit-module entityLink!
+    let note_doc_id = DocId::Material(MaterialId::parse(NOTE).unwrap());
+    let note_doc = load_prose(&lib, &note_doc_id);
+    let tbl_note = EmbedId::parse("tbl-note").unwrap();
+    let note_runs = note_doc.view().table_cell(&tbl_note, "r0", "c0").unwrap();
+    assert_eq!(note_runs[0].marks.highlight.as_deref(), Some("#ff0"));
+    assert!(note_runs[1].marks.code);
+    assert_eq!(
+        note_doc
+            .view()
+            .table_cell_entity_links_v3(&tbl_note, "r0", "c0"),
+        Some(vec![(
+            2..4,
+            EntityLinkV3 {
+                target: ELEMENT.into(),
+                kind: EntityKind::Entry,
+                module: Some(mid(MOD_PROSE)),
+                block: None,
+                end_block: None,
+            }
+        )])
+    );
+
+    // 3. Storyline template table cell preserves bold + block link!
+    let tpl_doc_id = DocId::Template(TemplateId::for_entry_module(
+        book.view().book_id(),
+        &adapter::storyline_template(STORYLINE),
+        &mid(MOD_PROSE),
+    ));
+    let tpl_doc = load_prose(&lib, &tpl_doc_id);
+    let tbl_tpl = EmbedId::parse("tbl-tpl").unwrap();
+    let tpl_runs = tpl_doc.view().table_cell(&tbl_tpl, "r0", "c0").unwrap();
+    assert!(tpl_runs[0].marks.bold);
+    assert_eq!(
+        tpl_doc
+            .view()
+            .table_cell_entity_links_v3(&tbl_tpl, "r0", "c0"),
+        Some(vec![(
+            0..5,
+            EntityLinkV3 {
+                target: ELEMENT.into(),
+                kind: EntityKind::Entry,
+                module: Some(mid(MOD_PROSE)),
+                block: Some(BlockId::parse("tbl-elem").unwrap()),
+                end_block: None,
+            }
+        )])
+    );
+    lib.close().unwrap();
 }
 
 #[test]

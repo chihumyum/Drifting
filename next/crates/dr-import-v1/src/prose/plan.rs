@@ -29,6 +29,7 @@ use dr_model::pos::{PosKey, keys_between};
 use dr_model::prose::{
     Align, BlockAttrs, EntityLink, Heading, InlineMarks, LINE_BREAK, MAX_INDENT, OBJECT_CHAR,
 };
+use dr_model::v3::EntityLinkV3;
 use serde_json::Value;
 
 use super::pm::{Container, HARD_BREAK, INLINE_OBJECT, Line, Prose};
@@ -54,6 +55,13 @@ impl Notes {
     }
 }
 
+/// Rich contents of one v3 table cell (inline style runs + v3 entity links).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TableCellPlan {
+    pub runs: Vec<Run>,
+    pub v3_links: Vec<(std::ops::Range<usize>, EntityLinkV3)>,
+}
+
 /// One paragraph of a prose document as dr-doc reads it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Para {
@@ -64,6 +72,11 @@ pub struct Para {
     pub runs: Vec<Run>,
     /// The embed a lone U+FFFC paragraph stands for, as read.
     pub embed: Option<EmbedView>,
+    /// Rich table cell plans for v3 table embeds; empty on v2 plans.
+    pub table_cells: BTreeMap<(String, String), TableCellPlan>,
+    /// Version-explicit v3 entity links relative to this paragraph (`0..len()`);
+    /// empty on v2 plans.
+    pub v3_links: Vec<(std::ops::Range<usize>, EntityLinkV3)>,
 }
 
 impl Para {
@@ -85,6 +98,8 @@ impl Para {
             attrs: BlockAttrs::default(),
             runs: Vec::new(),
             embed: None,
+            table_cells: BTreeMap::new(),
+            v3_links: Vec::new(),
         }
     }
 }
@@ -600,6 +615,8 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                     attrs,
                     runs: Vec::new(),
                     embed: None,
+                    table_cells: BTreeMap::new(),
+                    v3_links: Vec::new(),
                 });
             }
             "materialEmbed" => {
@@ -658,6 +675,8 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                     attrs: attrs.clone(),
                     runs: Vec::new(),
                     embed: None,
+                    table_cells: BTreeMap::new(),
+                    v3_links: Vec::new(),
                 };
                 for (c, marks) in chars {
                     if c == '\n' {
@@ -668,6 +687,8 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                                 attrs: attrs.clone(),
                                 runs: Vec::new(),
                                 embed: None,
+                                table_cells: BTreeMap::new(),
+                                v3_links: Vec::new(),
                             },
                         ));
                         notes.add("code-block-line");
@@ -717,6 +738,8 @@ fn embed_para(id: Option<BlockId>, eid: EmbedId, view: EmbedView) -> Para {
             },
         }],
         embed: Some(view),
+        table_cells: BTreeMap::new(),
+        v3_links: Vec::new(),
     }
 }
 
@@ -787,6 +810,464 @@ fn table_para(
             cells: out,
         },
     )
+}
+
+#[derive(Default)]
+struct MarkStateV3 {
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strike: bool,
+    link: Option<String>,
+    highlight: Option<String>,
+    code: bool,
+    entities: Vec<EntityLinkV3>,
+}
+
+fn entity_link_v3(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<EntityLinkV3> {
+    let v: Value = serde_json::from_str(attrs).unwrap_or(Value::Null);
+    let target = v
+        .get("targetId")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty());
+    let Some(target) = target else {
+        notes.add("entity-link-without-target");
+        return None;
+    };
+    let old_kind = dr_model::legacy::entity_kind(
+        v.get("targetKind")
+            .and_then(Value::as_str)
+            .unwrap_or("element"),
+    );
+    let explicit_module = match v
+        .get("targetModule")
+        .filter(|x| !x.is_null())
+        .or_else(|| v.get("module").filter(|x| !x.is_null()))
+    {
+        Some(raw) => match raw
+            .as_str()
+            .and_then(|s| dr_model::id::ModuleId::parse(s).ok())
+        {
+            Some(m) => Some(m),
+            None => {
+                notes.add("entity-link-invalid-module");
+                return None;
+            }
+        },
+        None => None,
+    };
+    let mut block = |key: &str, last: bool| -> Option<BlockId> {
+        let old = v
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())?;
+        match (ctx.span)(old) {
+            Some(span) => {
+                let b = if last { span.last } else { span.first };
+                if b.as_ref().map(|b| b.as_str()) != Some(old) {
+                    notes.add("entity-link-block-remapped");
+                }
+                b.or_else(|| BlockId::parse(old).ok())
+            }
+            None => BlockId::parse(old).ok(),
+        }
+    };
+    let legacy = EntityLink {
+        target: target.to_string(),
+        kind: old_kind.clone(),
+        block: block("targetBlockId", false),
+        end_block: block("targetEndBlockId", true),
+    };
+    match dr_samples::v3::map_entity_link(&legacy, explicit_module) {
+        Ok(mapped) => Some(mapped),
+        Err(_) => {
+            notes.add(format!("entity-link-to-{}", old_kind.as_str()));
+            None
+        }
+    }
+}
+
+type MarkedCharV3 = (char, InlineMarks, Vec<EntityLinkV3>);
+
+fn runs_of_v3(
+    line: &Line,
+    profile: ProseProfile,
+    ctx: &Context<'_>,
+    notes: &mut Notes,
+    dropped_inline: &mut Vec<String>,
+) -> (Vec<MarkedCharV3>, Vec<usize>) {
+    let chars: Vec<char> = line.text.chars().collect();
+    let mut states: Vec<MarkStateV3> = chars.iter().map(|_| MarkStateV3::default()).collect();
+    let mut dropped = Vec::new();
+    for span in &line.marks {
+        let range = span.start.min(chars.len())..span.end.min(chars.len());
+        match span.mark.as_str() {
+            "inline" => {
+                for i in range {
+                    if chars[i] == INLINE_OBJECT {
+                        dropped.push(i);
+                    }
+                }
+                let kind = serde_json::from_str::<Value>(&span.attrs)
+                    .ok()
+                    .and_then(|v| v.get("type").and_then(Value::as_str).map(str::to_string))
+                    .unwrap_or_default();
+                notes.add(format!("unknown-inline:{kind}"));
+                dropped_inline.push(span.attrs.clone());
+            }
+            "bold" => range.for_each(|i| states[i].bold = true),
+            "italic" => range.for_each(|i| states[i].italic = true),
+            "underline" => range.for_each(|i| states[i].underline = true),
+            "strike" => range.for_each(|i| states[i].strike = true),
+            "link" => {
+                let href = serde_json::from_str::<Value>(&span.attrs)
+                    .ok()
+                    .and_then(|v| v.get("href").and_then(Value::as_str).map(str::to_string));
+                match href {
+                    Some(h) => range.for_each(|i| states[i].link = Some(h.clone())),
+                    None => notes.add("link-without-href"),
+                }
+            }
+            "highlight" | "code" if profile == ProseProfile::Prose => {
+                notes.add(format!("{}-in-prose", span.mark));
+            }
+            "highlight" => {
+                let color = serde_json::from_str::<Value>(&span.attrs)
+                    .ok()
+                    .and_then(|v| v.get("color").and_then(Value::as_str).map(str::to_string))
+                    .unwrap_or_default();
+                range.for_each(|i| states[i].highlight = Some(color.clone()));
+            }
+            "code" => range.for_each(|i| states[i].code = true),
+            "entityLink" => {
+                if let Some(link) = entity_link_v3(&span.attrs, ctx, notes) {
+                    for i in range {
+                        let have = &mut states[i].entities;
+                        if let Some(other) = have.iter_mut().find(|l| l.target == link.target) {
+                            if *other != link {
+                                notes.add("entity-link-same-target-overlap");
+                                *other = link.clone();
+                            }
+                        } else {
+                            have.push(link.clone());
+                        }
+                    }
+                }
+            }
+            other => notes.add(format!("unknown-mark:{other}")),
+        }
+    }
+    let mut out = Vec::with_capacity(chars.len());
+    for (i, (c, mut st)) in chars.iter().zip(states).enumerate() {
+        if dropped.contains(&i) {
+            continue;
+        }
+        st.entities.sort_by(|a, b| a.target.cmp(&b.target));
+        let mut entities: Vec<EntityLink> = st
+            .entities
+            .iter()
+            .map(|l| EntityLink {
+                target: l.target.clone(),
+                kind: l.kind.clone(),
+                block: l.block.clone(),
+                end_block: l.end_block.clone(),
+            })
+            .collect();
+        entities.sort();
+        out.push((
+            if *c == HARD_BREAK { LINE_BREAK } else { *c },
+            InlineMarks {
+                bold: st.bold,
+                italic: st.italic,
+                underline: st.underline,
+                strike: st.strike,
+                link: st.link,
+                entities,
+                highlight: st.highlight,
+                code: st.code,
+                embed: None,
+            },
+            st.entities,
+        ));
+    }
+    dropped.sort_unstable();
+    dropped.dedup();
+    (out, dropped)
+}
+
+fn coalesce_v3_links(
+    per_char: &[Vec<EntityLinkV3>],
+) -> Vec<(std::ops::Range<usize>, EntityLinkV3)> {
+    let mut by_target: BTreeMap<String, Vec<(std::ops::Range<usize>, EntityLinkV3)>> =
+        BTreeMap::new();
+    for (idx, links) in per_char.iter().enumerate() {
+        for link in links {
+            let list = by_target.entry(link.target.clone()).or_default();
+            if let Some((prev, last)) = list.last_mut()
+                && prev.end == idx
+                && *last == *link
+            {
+                prev.end = idx + 1;
+            } else {
+                list.push((idx..idx + 1, link.clone()));
+            }
+        }
+    }
+    let mut out: Vec<_> = by_target.into_values().flatten().collect();
+    out.sort_by(|a, b| (a.0.start, &a.1.target).cmp(&(b.0.start, &b.1.target)));
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn table_para_v3(
+    lines: &[Line],
+    depth: usize,
+    id: Option<BlockId>,
+    n: &mut usize,
+    ctx: &Context<'_>,
+    notes: &mut Notes,
+    dropped_inline: &mut Vec<String>,
+) -> Para {
+    type CellChars = Vec<(char, InlineMarks, Vec<EntityLinkV3>)>;
+    let mut cells: BTreeMap<(usize, usize), Vec<CellChars>> = BTreeMap::new();
+    for line in lines {
+        let path = &line.path[depth + 1..];
+        let row = path.first().map_or(0, |c| c.ordinal);
+        let cell = path.get(1);
+        let col = match cell {
+            Some(c) => c.ordinal,
+            None if path.len() == 1
+                && matches!(line.kind.as_str(), "tableCell" | "tableHeader") =>
+            {
+                line.ordinal
+            }
+            None => 0,
+        };
+        if let Some(c) = cell {
+            if c.kind == "tableHeader" {
+                notes.add("table-header-cell");
+            }
+            let span = |k: &str| int(c.attrs.get(k)).is_some_and(|v| v != 1);
+            if span("colspan") || span("rowspan") || c.attrs.contains_key("colwidth") {
+                notes.add("table-cell-span");
+            }
+        } else if line.kind == "tableHeader" {
+            notes.add("table-header-cell");
+        }
+        let (mut chars, _) = runs_of_v3(line, ctx.profile, ctx, notes, dropped_inline);
+        for (ch, _, _) in &mut chars {
+            if *ch == '\n' {
+                *ch = LINE_BREAK;
+            }
+        }
+        cells.entry((row, col)).or_default().push(chars);
+    }
+    let rows_n = cells.keys().map(|k| k.0 + 1).max().unwrap_or(0);
+    let cols_n = cells.keys().map(|k| k.1 + 1).max().unwrap_or(0);
+    let rows = line_ids('r', rows_n);
+    let cols = line_ids('c', cols_n);
+    let mut out_text = BTreeMap::new();
+    let mut out_rich = BTreeMap::new();
+    for ((r, c), cell_paras) in cells {
+        if cell_paras.len() > 1 {
+            notes.add("table-cell-paragraphs-joined");
+        }
+        let mut runs = Vec::new();
+        let mut per_char = Vec::new();
+        for (idx, p_chars) in cell_paras.into_iter().enumerate() {
+            if idx > 0 {
+                push_char(&mut runs, LINE_BREAK, &InlineMarks::default());
+                per_char.push(Vec::new());
+            }
+            for (ch, marks, v3_ents) in p_chars {
+                push_char(&mut runs, ch, &marks);
+                per_char.push(v3_ents);
+            }
+        }
+        let text: String = runs.iter().map(|run| run.text.as_str()).collect();
+        let key = (rows[r].id.clone(), cols[c].id.clone());
+        out_text.insert(key.clone(), text);
+        out_rich.insert(
+            key,
+            TableCellPlan {
+                runs,
+                v3_links: coalesce_v3_links(&per_char),
+            },
+        );
+    }
+    let eid = embed_id(id.as_ref(), n);
+    let mut para = embed_para(
+        id,
+        eid.clone(),
+        EmbedView::Table {
+            id: eid,
+            cols,
+            rows,
+            cells: out_text,
+        },
+    );
+    para.table_cells = out_rich;
+    para
+}
+
+/// Plan one canonical v3 prose document, preserving v3 entity links (material
+/// targets, explicit modules, and block spans) and rich table-cell runs/links.
+pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
+    let mut notes = blocks.notes.clone();
+    let mut dropped_inline = Vec::new();
+    let mut paras: Vec<Para> = Vec::new();
+    let mut lines: Vec<LineAt> = Vec::with_capacity(prose.lines.len());
+    let mut embed_n = 0usize;
+    let mut i = 0;
+    while i < prose.lines.len() {
+        let line = &prose.lines[i];
+        let id = blocks.line_ids[i].clone();
+        if let Some(depth) = table_depth(line) {
+            let key = table_key(line, depth);
+            let mut j = i;
+            while j < prose.lines.len()
+                && table_depth(&prose.lines[j])
+                    .is_some_and(|d| table_key(&prose.lines[j], d) == key)
+            {
+                j += 1;
+            }
+            let para = paras.len();
+            paras.push(table_para_v3(
+                &prose.lines[i..j],
+                depth,
+                id,
+                &mut embed_n,
+                ctx,
+                &mut notes,
+                &mut dropped_inline,
+            ));
+            for _ in i..j {
+                lines.push(LineAt::Embed { para });
+            }
+            i = j;
+            continue;
+        }
+        match line.kind.as_str() {
+            "horizontalRule" => {
+                let mut attrs = line_attrs(
+                    &Line {
+                        kind: "paragraph".into(),
+                        ..line.clone()
+                    },
+                    ctx,
+                    &mut notes,
+                );
+                attrs.rule = true;
+                lines.push(LineAt::Body {
+                    para: paras.len(),
+                    dropped: Vec::new(),
+                });
+                paras.push(Para {
+                    id,
+                    attrs,
+                    runs: Vec::new(),
+                    embed: None,
+                    table_cells: BTreeMap::new(),
+                    v3_links: Vec::new(),
+                });
+            }
+            "materialEmbed" => {
+                let material = line
+                    .attrs
+                    .get("libraryItemId")
+                    .and_then(Value::as_str)
+                    .and_then(|m| MaterialId::parse(m).ok());
+                lines.push(LineAt::Body {
+                    para: paras.len(),
+                    dropped: Vec::new(),
+                });
+                match material {
+                    Some(m) if ctx.profile == ProseProfile::Note => {
+                        let eid = embed_id(id.as_ref(), &mut embed_n);
+                        paras.push(embed_para(
+                            id,
+                            eid.clone(),
+                            EmbedView::Material {
+                                id: eid,
+                                material: Some(m),
+                            },
+                        ));
+                    }
+                    _ => {
+                        notes.add("material-embed-dropped");
+                        paras.push(Para::plain(id));
+                    }
+                }
+            }
+            _ => {
+                if line.atom && !matches!(line.kind.as_str(), "paragraph" | "heading" | "codeBlock")
+                {
+                    notes.add(format!("unknown-atom:{}", line.kind));
+                }
+                let attrs = line_attrs(line, ctx, &mut notes);
+                if line.ordinal > 0
+                    && line
+                        .path
+                        .last()
+                        .is_some_and(|c| matches!(c.kind.as_str(), "listItem" | "taskItem"))
+                {
+                    notes.add("list-item-extra-paragraph");
+                }
+                let (chars, dropped) =
+                    runs_of_v3(line, ctx.profile, ctx, &mut notes, &mut dropped_inline);
+                lines.push(LineAt::Body {
+                    para: paras.len(),
+                    dropped,
+                });
+                let mut current = Para {
+                    id,
+                    attrs: attrs.clone(),
+                    runs: Vec::new(),
+                    embed: None,
+                    table_cells: BTreeMap::new(),
+                    v3_links: Vec::new(),
+                };
+                let mut cur_v3: Vec<Vec<EntityLinkV3>> = Vec::new();
+                for (c, marks, v3_ents) in chars {
+                    if c == '\n' {
+                        current.v3_links = coalesce_v3_links(&cur_v3);
+                        cur_v3.clear();
+                        paras.push(std::mem::replace(
+                            &mut current,
+                            Para {
+                                id: None,
+                                attrs: attrs.clone(),
+                                runs: Vec::new(),
+                                embed: None,
+                                table_cells: BTreeMap::new(),
+                                v3_links: Vec::new(),
+                            },
+                        ));
+                        notes.add("code-block-line");
+                        continue;
+                    }
+                    push_char(&mut current.runs, c, &marks);
+                    cur_v3.push(v3_ents);
+                }
+                current.v3_links = coalesce_v3_links(&cur_v3);
+                paras.push(current);
+            }
+        }
+        i += 1;
+    }
+    if paras.last().is_none_or(|p| p.embed.is_some()) {
+        if !paras.is_empty() {
+            notes.add("paragraph-after-final-embed");
+        }
+        paras.push(Para::plain(None));
+    }
+    Plan {
+        profile: ctx.profile,
+        paras,
+        lines,
+        notes,
+        dropped_inline,
+    }
 }
 
 #[cfg(test)]

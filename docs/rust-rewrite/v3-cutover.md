@@ -93,7 +93,7 @@ GUI 的 `Options.v3` 是非可选 `MappingChoices`，默认空选择也必须过
 
 只保留三个窄产品策略：M10 22 `act_binding` 的关系类型和方向；23 `unaffiliated` 的住处和完整 EntryTemplate（含 home）；25 每种关系类型的 source／target 模板列表。缺项 prewrite 返回对应 structured pending；不把 fixture choices 塞进默认。其余幕转分组、章／构想树和摆放、归属／主归属／时间钉、24 字段模板、27 颜色沿用已定映射。28–31 以真实预检与已有写入能力为准，不笼统扩成新的作者设计。
 
-M10 的技术预检边界继续明确隔离：28 已有 `EntityLinkV3`／`link_entity_v3` typed writer，当前 importer 对旧素材／显式模块／特定正文块链接仍沿用 `v3-prose-link-writer-missing` 拒绝码；待接的是旧表示到该 writer 的无损适配，不是新的作者链接设计。29 非空字段默认值尚无 FieldDef 初值接口；30 旧表格单元带标记／链接仍缺无损转换；两者保留原来源并 prewrite 拒绝。31 的 App v3 样书与索引已接通，但 importer 活动 deriver 拒绝规则保留，通过闭库新目标流程满足。上述限制没有列入三个待作者策略，也没有为完成切换而删除预检。
+M10 的三个技术缺口已补齐（夜间队列第 2 项）：28 旧 `entityLink`（`material`／`library_item`、显式 `module`／`targetModule`、带容器跨度重映射的 `targetBlockId`／`targetEndBlockId`）在当前正文、模板与快照历史中经 `ProseTxn::link_entity_v3` 无损写入 `EntityLinkV3`；29 `FieldDef` 新增可选 `default_value`，经 `entry_template.put` 校验并在 `entry.create` 初始化新条目字段值，导入器在当前书目与历史 `elementTemplateKvJson` 回放中无损保留非空字段默认值；30 带标记与链接的旧表格单元经 `ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell` 在 `Prose`／`Note` 两种 profile、模板与历史版本间无损导入与往返。真正损坏或超出 profile 的链接／单元格内容仍 prewrite 结构化拒绝并保持源库零修改。31 的 App v3 样书与索引已接通，importer 活动 deriver 拒绝规则保留，通过闭库新目标流程满足。22、23、25 三个作者策略保持原样 pending。
 
 v3 Markdown 文件夹、分享链接和界面设计／性能打磨仍按原授权边界暂缓。当前 SyncEngine 没有生产 App 自动调度，loopback 窗口链不覆盖它。源格式或未来表示无法无损迁移时继续 prewrite 拒绝，保留原数据；这不等于完成全部未来表示扩展。
 

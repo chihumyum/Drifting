@@ -253,6 +253,89 @@ impl ProseTxn<'_> {
         marks.apply(&cell(&self.view, table, row, col)?, at)
     }
 
+    /// Replace a table cell's text, inline styles, and v3 entity links in one
+    /// preflighted write. Validates the table/row/col coordinates, profile
+    /// style rules, character ranges, and v3 link targets before mutating Loro.
+    pub fn set_table_cell_runs_v3(
+        &mut self,
+        table: &EmbedId,
+        row: &str,
+        col: &str,
+        runs: &[super::Run],
+        links: &[(Range<usize>, EntityLinkV3)],
+    ) -> Result<()> {
+        match self.view.embed(table) {
+            Some(super::EmbedView::Table { rows, cols, .. })
+                if rows.iter().any(|r| r.id == row) && cols.iter().any(|c| c.id == col) => {}
+            _ => {
+                return Err(DocError::Missing {
+                    collection: "table cell",
+                    id: format!("{table}/{row}/{col}"),
+                });
+            }
+        }
+        let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+        if text.contains(PARAGRAPH_END) {
+            return Err(DocError::NewlineInText);
+        }
+        let len = text.chars().count();
+        for r in runs {
+            for style in super::txn::styles_of(&r.marks) {
+                self.check_style(&style)?;
+            }
+        }
+        for (range, link) in links {
+            if range.start > range.end || range.end > len {
+                return Err(DocError::BadRange {
+                    start: range.start,
+                    end: range.end,
+                    len,
+                });
+            }
+            check(link)?;
+        }
+        let cell = self.table(table)?.cell(row, col)?;
+        let old_len = cell.len_unicode();
+        let old_links = EntityLinkMarksV3::read(&cell, 0..old_len)?;
+        cell.update(&text, Default::default())
+            .map_err(|_| loro::LoroError::ArgErr("cell update timed out".into()))?;
+        if len > 0 {
+            for key in [
+                super::StyleKey::Bold,
+                super::StyleKey::Italic,
+                super::StyleKey::Underline,
+                super::StyleKey::Strike,
+                super::StyleKey::Link,
+                super::StyleKey::Highlight,
+                super::StyleKey::Code,
+            ] {
+                cell.unmark(0..len, key.key())?;
+            }
+            let cur_links = EntityLinkMarksV3::read(&cell, 0..len)?;
+            for (_, key, _) in old_links.marks.into_iter().chain(cur_links.marks) {
+                cell.unmark(0..len, &key)?;
+            }
+            let mut at = 0;
+            for r in runs {
+                let r_range = at..at + r.text.chars().count();
+                at = r_range.end;
+                if r_range.is_empty() {
+                    continue;
+                }
+                for style in super::txn::styles_of(&r.marks) {
+                    let (key, value) = super::txn::style_mark(&style);
+                    cell.mark(r_range.clone(), key, value)?;
+                }
+            }
+            for (range, link) in links {
+                if !range.is_empty() {
+                    link_text(&cell, range.clone(), link)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Replace entity marks only in the already-inserted copied text. Does
     /// not touch surrounding links, styles, text, or any other document.
     pub fn apply_entity_links_v3(&mut self, at: usize, marks: &EntityLinkMarksV3) -> Result<()> {

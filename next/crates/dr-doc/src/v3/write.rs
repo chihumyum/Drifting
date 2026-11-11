@@ -312,6 +312,13 @@ impl TemplateWriterV3 {
                 if let Some(tt) = &f.target_template {
                     pairs.push(("target_template".into(), tt.as_str().into()));
                 }
+                if let Some(dv) = f
+                    .default_value
+                    .as_ref()
+                    .filter(|v| !matches!(v, FieldValue::Null))
+                {
+                    pairs.push(("default_value".into(), encode_field_value(dv)));
+                }
                 if let Some(pos) = &f.pos {
                     pairs.push(("pos".into(), pos.as_str().into()));
                 }

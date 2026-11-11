@@ -526,12 +526,17 @@ impl<'a> BookViewV3<'a> {
                                         .collect(),
                                     _ => Vec::new(),
                                 };
+                                let default_value = ff
+                                    .get("default_value")
+                                    .and_then(decode_field_value)
+                                    .filter(|v| !matches!(v, FieldValue::Null));
                                 Some(FieldDef {
                                     id: fid,
                                     name: ff.string("name"),
                                     field_type: ff.kind("field_type").unwrap_or(FieldType::Text),
                                     options,
                                     target_template: ff.id("target_template"),
+                                    default_value,
                                     pos: ff.pos("pos"),
                                 })
                             })
@@ -553,12 +558,17 @@ impl<'a> BookViewV3<'a> {
                                         .collect(),
                                     _ => Vec::new(),
                                 };
+                                let default_value = ff
+                                    .get("default_value")
+                                    .and_then(decode_field_value)
+                                    .filter(|v| !matches!(v, FieldValue::Null));
                                 Some(FieldDef {
                                     id: fid.clone(),
                                     name: ff.string("name"),
                                     field_type: ff.kind("field_type").unwrap_or(FieldType::Text),
                                     options,
                                     target_template: ff.id("target_template"),
+                                    default_value,
                                     pos: ff.pos("pos"),
                                 })
                             })

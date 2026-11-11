@@ -151,7 +151,7 @@ pub struct FieldIn {
     pub field: String,
     pub value: types::FieldValue,
 }
-fn field_ok(v: &BookViewV3<'_>, def: &m::FieldDef, value: &m::FieldValue) -> Result<()> {
+pub(super) fn field_ok(v: &BookViewV3<'_>, def: &m::FieldDef, value: &m::FieldValue) -> Result<()> {
     use m::{FieldType as T, FieldValue as V};
     if matches!(value, V::Null) {
         return Ok(());
