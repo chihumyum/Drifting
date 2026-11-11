@@ -441,12 +441,55 @@ describe('dynamic Agent tool registry', () => {
     expect(registry.listDefinitions(projectB).map((tool) => tool.name)).toEqual([
       b.providerNames[0],
     ]);
+    expect(registry.resolveAccess(a.providerNames[0]!, 'project-a')).toBe(
+      'read',
+    );
+    expect(registry.resolveAccess(plugin.providerNames[0]!, 'project-a')).toBe(
+      'read',
+    );
     expect(registry.resolveAccess(a.providerNames[0]!, 'project-b')).toBe(
       'write',
     );
     b.unregister();
     expect(registry.listDefinitions(projectA)).toHaveLength(2);
     expect(registry.listDefinitions(projectB)).toEqual([]);
+  });
+
+  it('resolves access across multiple MCP servers in the same project without short-circuiting on earlier sources', () => {
+    const registry = new DynamicAgentToolRegistry();
+    registry.registerSource({
+      sourceId: 'first-empty-server',
+      sourceKind: 'mcp',
+      projectId: 'project-a',
+      tools: [],
+    });
+    const first = registry.registerSource({
+      sourceId: 'server-one',
+      sourceKind: 'mcp',
+      projectId: 'project-a',
+      tools: [{ ...searchTool(), remoteName: 'alpha_lookup' }],
+    });
+    const second = registry.registerSource({
+      sourceId: 'server-two',
+      sourceKind: 'mcp',
+      projectId: 'project-a',
+      tools: [
+        { ...searchTool(), remoteName: 'beta_read', access: 'read', approval: 'automatic' },
+        { ...searchTool(), remoteName: 'beta_write', access: 'write', approval: 'ask' },
+        { ...searchTool(), remoteName: 'beta_denied', access: 'read', approval: 'deny' },
+      ],
+    });
+
+    const betaRead = second.providerNames.find((name) => name.includes('beta_read'))!;
+    const betaWrite = second.providerNames.find((name) => name.includes('beta_write'))!;
+    const betaDenied = second.providerNames.find((name) => name.includes('beta_denied'))!;
+
+    expect(registry.resolveAccess(first.providerNames[0]!, 'project-a')).toBe('read');
+    expect(registry.resolveAccess(betaRead, 'project-a')).toBe('read');
+    expect(registry.resolveAccess(betaWrite, 'project-a')).toBe('write');
+    expect(registry.resolveAccess(betaDenied, 'project-a')).toBeUndefined();
+    expect(registry.resolveAccess(betaRead, 'project-b')).toBeUndefined();
+    expect(registry.resolveAccess('mcp__missing__tool', 'project-a')).toBeUndefined();
   });
 
   it('rejects prototype keys and malformed or unsafe schemas fail closed', async () => {

@@ -40,6 +40,7 @@ import {
   resolveDriftingLongTaskTarget,
   type DriftingAgentProductComposition,
 } from './drifting-product-composition';
+import { dynamicAgentToolProviderName } from './dynamic-tool-runtime';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import { ScriptedFakeDriver, type ScriptedDriverRound, type ScriptedDriverStep } from './testing';
 import type { AgentRuntimeJournalEntry, AgentToolExecutionRequest } from './types';
@@ -2125,6 +2126,82 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(resultOf('after-end')).toContain('已经完成（3/3 已完成），不能再修改');
     expect(resultOf('read-ended')).toContain('当前没有进行中的任务清单。任务清单「整理 Chapter One 新出现的设定」已经完成');
     expect(harness.scalar("SELECT count(*) FROM agent_runtime_task_step")).toBe(3);
+    harness.driver.assertExhausted();
+  });
+
+  it('certifies and executes tools on a non-first MCP server without failing journal persistence or locking the conversation', async () => {
+    const secondServerTool = dynamicAgentToolProviderName('mcp', 'secondary-mcp', 'lookup_lore');
+    const executeSecond = vi.fn(async ({ arguments: args }: { arguments: Record<string, unknown> }) => ({
+      matched: args.query,
+    }));
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'invoke tool on the second MCP server',
+        steps: toolCallSteps('call-second-mcp', secondServerTool, { query: 'blackfin' }),
+      },
+      {
+        name: 'complete first turn after MCP result',
+        steps: finalSteps('已从第二个 MCP 服务器查到黑鳍资料。'),
+      },
+      {
+        name: 'continue conversation on next turn',
+        steps: finalSteps('后续对话正常继续。'),
+      },
+    ]);
+
+    harness.composition.dynamicTools.registerSource({
+      sourceId: 'primary-mcp',
+      sourceKind: 'mcp',
+      projectId: PROJECT_ID,
+      tools: [
+        {
+          remoteName: 'ping',
+          description: 'Primary server health tool.',
+          inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+          access: 'read',
+          approval: 'automatic',
+          execute: async () => ({ ok: true }),
+        },
+      ],
+    });
+    const secondary = harness.composition.dynamicTools.registerSource({
+      sourceId: 'secondary-mcp',
+      sourceKind: 'mcp',
+      projectId: PROJECT_ID,
+      tools: [
+        {
+          remoteName: 'lookup_lore',
+          description: 'Lookup external lore from the second MCP server.',
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+            additionalProperties: false,
+          },
+          access: 'read',
+          approval: 'automatic',
+          execute: executeSecond,
+        },
+      ],
+    });
+    expect(secondary.providerNames).toEqual([secondServerTool]);
+
+    await harness.runTurn('turn-second-mcp', '查一下黑鳍的外部资料。', 1, 'off');
+    await harness.runTurn('turn-second-mcp-followup', '继续聊这个设定。', 2, 'off');
+
+    expect(executeSecond).toHaveBeenCalledTimes(1);
+    expect(
+      harness.rows(
+        "SELECT name, access, status, error_code FROM agent_runtime_tool_call WHERE call_id = 'call-second-mcp'",
+      ),
+    ).toEqual([
+      {
+        name: secondServerTool,
+        access: 'read',
+        status: 'completed',
+        error_code: null,
+      },
+    ]);
     harness.driver.assertExhausted();
   });
 });

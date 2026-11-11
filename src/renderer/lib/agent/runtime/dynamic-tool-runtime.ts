@@ -372,7 +372,8 @@ export class DynamicAgentToolRegistry implements AgentToolRuntime {
     for (const source of this.sources.values()) {
       if (source.projectId !== projectId) continue;
       const record = source.tools.get(name);
-      if (record?.approval !== 'deny') return record?.access;
+      if (!record) continue;
+      return record.approval === 'deny' ? undefined : record.access;
     }
     return undefined;
   }
