@@ -1,0 +1,386 @@
+{
+  "about": "幕轨道（第 22 条，作者已定 11-11）真窗口往返验收：新建幕轨道 → 在里面建条目 → 拖一个外部条目进来 → 拉长短 → 关掉重开，数据都在。",
+  "steps": [
+    {
+      "seed": "v3-tiny"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-idea].id}"
+      },
+      "save": "source"
+    },
+    {
+      "launch": {
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/bottom/pane": "timeline"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add lane",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New act track",
+        "role": "MenuItem"
+      },
+      "note": "1. 新建幕轨道：在树顶层创建 Acts 层级并加入当前视图顶部。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane Acts",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "act_lane"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "after_track",
+      "expect": {
+        "/0/lanes/0/act_track": true
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${after_track.0.lanes.0.entry}"
+      },
+      "expect": {
+        "/title": "Acts",
+        "/template": "tpl-act-track",
+        "/parent": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New entry",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New entry",
+        "role": "MenuItem"
+      },
+      "note": "2. 在幕轨道里新建条目：默认用构想叶子模板住在幕下，并直接赋予区间长度。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Untitled",
+        "role": "Button",
+        "within": {
+          "label": "Lane Acts",
+          "role": "Group"
+        },
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Place entry",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Acts",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Place entry",
+          "role": "Group"
+        }
+      },
+      "save": "pick"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane Acts",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "act_lane_now"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "20",
+        "role": "StaticText"
+      },
+      "save": "tick20"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${pick.nodes.0.center.0}",
+          "${pick.nodes.0.center.1}"
+        ],
+        "to": [
+          "${tick20.nodes.0.center.0}",
+          "${act_lane_now.nodes.0.center.1}"
+        ],
+        "steps": 12
+      },
+      "note": "3. 拖一个外部条目进幕轨道：原住处不变，无 span 先画成短段。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane Acts",
+          "role": "Group"
+        },
+        "count": 1
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${source.id}"
+      },
+      "expect": {
+        "/parent": "${source.parent}",
+        "/pos": "${source.pos}",
+        "/primary": "${source.primary}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Adjust length",
+        "role": "Slider",
+        "within": {
+          "label": "${source.title}",
+          "role": "Group"
+        },
+        "count": 1
+      },
+      "save": "resize_handle"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "40",
+        "role": "StaticText"
+      },
+      "save": "tick40"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${resize_handle.nodes.0.center.0}",
+          "${resize_handle.nodes.0.center.1}"
+        ],
+        "to": [
+          "${tick40.nodes.0.center.0}",
+          "${act_lane_now.nodes.0.center.1}"
+        ],
+        "steps": 12
+      },
+      "note": "4. 拉长短：把外部短段向右拉成带跨度的区间条。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "before_quit_views"
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "before_quit_memberships"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${before_quit_views}"
+        }
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-act-track-before-quit.png"
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "note": "5. 关掉重开：核对幕轨道、新建条目、外部归属条目及拉出的区间长度全部原样在盘。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/bottom/pane": "timeline",
+          "/v3/timeline_views": "${before_quit_views}"
+        }
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "": "${before_quit_views}"
+      }
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "": "${before_quit_memberships}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane Acts",
+        "role": "Group",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Untitled",
+        "role": "Button",
+        "within": {
+          "label": "Lane Acts",
+          "role": "Group"
+        },
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane Acts",
+          "role": "Group"
+        },
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-act-track-after-reopen.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

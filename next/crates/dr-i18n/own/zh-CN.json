@@ -160,7 +160,12 @@
     "detachEntry": "解除条目",
     "colorValue": "颜色值",
     "laneTrack": "泳道 {{name}}",
-    "selectLane": "选择泳道"
+    "selectLane": "选择泳道",
+    "newActTrack": "新建幕轨道",
+    "actLevelName": "幕",
+    "setActTrack": "设为幕轨道 · {{name}}",
+    "unsetActTrack": "取消幕轨道 · {{name}}",
+    "newEntryInLane": "新建条目"
   },
   "templateEditor": {
     "new_template": "新建模板",

@@ -648,3 +648,69 @@ fn a_hidden_empty_parent_does_not_bypass_retained_child_preflight() {
         )
     });
 }
+
+#[test]
+fn set_lane_act_track_round_trips_preserves_siblings_and_undoes() {
+    let f = Fixture::new();
+    let lane = f.lanes[0].clone();
+    let lane_clone = lane.clone();
+    f.edit_raw(move |v| {
+        v.ensure_mergeable_map("lanes")
+            .unwrap()
+            .ensure_mergeable_map(&lane_clone)
+            .unwrap()
+            .insert("future_lane_key", "retained")
+            .unwrap();
+    });
+    let mut before = f.raw();
+    f.call(
+        "timeline_view.set_lane_act_track",
+        json!({"lane": lane, "act_track": true}),
+    );
+    let mut toggled = before.clone();
+    toggled["timeline_views"]["edit-view"]["lanes"][&lane]["act_track"] = json!(true);
+    assert_eq!(toggled, f.raw());
+
+    let listed = f.e.out("timeline_view.list", json!({"book": f.book}));
+    let view = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "edit-view")
+        .unwrap();
+    let dto_lane = view["lanes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|l| l["entry"] == lane)
+        .unwrap();
+    assert_eq!(dto_lane["act_track"], json!(true));
+
+    f.undo();
+    assert_eq!(before, f.raw());
+    f.e.ws().redo(&Actor::User).unwrap().expect("redoable");
+    assert_eq!(toggled, f.raw());
+
+    f.call(
+        "timeline_view.set_lane_act_track",
+        json!({"lane": lane, "act_track": false}),
+    );
+    assert_eq!(before, f.raw());
+
+    // Adding a lane directly as an act track sets `act_track: true` in the same commit.
+    f.call(
+        "timeline_view.add_lane",
+        json!({"lane": f.lanes[3], "place": "first", "act_track": true}),
+    );
+    let after_add = f.raw();
+    assert_eq!(
+        after_add["timeline_views"]["edit-view"]["lanes"][&f.lanes[3]]["act_track"],
+        json!(true)
+    );
+    f.undo();
+    assert_eq!(before, f.raw());
+    before["timeline_views"]["edit-view"]["lanes"][&f.lanes[3]] =
+        after_add["timeline_views"]["edit-view"]["lanes"][&f.lanes[3]].clone();
+    f.e.ws().redo(&Actor::User).unwrap().expect("redoable");
+    assert_eq!(before, f.raw());
+}

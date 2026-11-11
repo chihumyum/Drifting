@@ -6,6 +6,10 @@
       "save": "retired"
     },
     {
+      "legacy": "sample",
+      "save": "bad_source"
+    },
+    {
       "legacy": "sample-v3",
       "save": "source"
     },
@@ -209,7 +213,7 @@
     {
       "app": "import.v3.configure",
       "params": {
-        "source": "${source.root}"
+        "source": "${bad_source.root}"
       },
       "expect": {
         "/phase": "ready"
@@ -235,18 +239,17 @@
       "save": "pending",
       "expect": {
         "/import/explicitChoices": false,
-        "/import/pending/[code=act-binding-relation-type-and-direction]/code": "act-binding-relation-type-and-direction"
+        "/import/pending/[code=invalid-or-duplicate-source-relation]/code": "invalid-or-duplicate-source-relation"
       }
     },
     {
       "app": "import.v3.configure",
       "params": {
-        "source": "${source.root}",
-        "choices": "${source.choices}"
+        "source": "${source.root}"
       },
       "expect": {
         "/phase": "ready",
-        "/explicitChoices": true
+        "/explicitChoices": false
       }
     },
     {
@@ -323,6 +326,16 @@
       },
       "expect": {
         "/id": "${source.chapter}"
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${source.book}",
+        "all": true
+      },
+      "expect": {
+        "/[template=tpl-act-track]/title": "幕"
       }
     },
     {

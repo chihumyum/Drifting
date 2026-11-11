@@ -52,9 +52,18 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         let view = sample.book.view();
         let entries = view.entries_map();
         let templates = view.templates_map();
+        let synthetic_act_leaves = view
+            .root_entry_by_template(&tid(TPL_ACT_TRACK))
+            .map_or(0, |t| view.children_of(Some(&t.id)).len());
+        assert_eq!(
+            !source.book.view().acts().is_empty(),
+            view.root_entry_by_template(&tid(TPL_ACT_TRACK)).is_some()
+        );
         assert_eq!(
             entries.values().filter(|e| e.is_leaf(&templates)).count(),
-            source.book.view().nodes().len() + source.book.view().elements().len()
+            source.book.view().nodes().len()
+                + source.book.view().elements().len()
+                + synthetic_act_leaves
         );
         for node in source.book.view().nodes() {
             let id = EntryId::parse(node.id.as_str()).unwrap();

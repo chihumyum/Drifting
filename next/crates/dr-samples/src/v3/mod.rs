@@ -5,7 +5,7 @@
 
 mod catalog;
 mod samples;
-pub use catalog::{sync_catalog, validate};
+pub use catalog::{act_import_notes, sync_catalog, validate};
 pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 
 use dr_doc::import_v1::BookView;
@@ -13,22 +13,16 @@ use dr_doc::v3::novel::*;
 use dr_model::id::*;
 use dr_model::import_v1::EntityRef;
 use dr_model::kind::EntityKind;
-use dr_model::v3::RelationTypeV3;
 use serde::{Deserialize, Serialize};
 
-/// Policy choice still awaiting the author (m10-import.md 22): `act_binding`.
-/// Items 23 (`未归属`) and 25 (relation-type endpoint kinds) use settled
-/// product defaults (author decision, 2026-11-11).
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// Items 22 (act track), 23 (`未归属`) and 25 (relation-type endpoint kinds)
+/// all use settled product defaults (author decision, 2026-11-11). Optional
+/// `profile` remains available for developer/test resume-policy tags.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MappingChoices {
-    pub act_binding: Option<ActBindingChoice>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ActBindingChoice {
-    pub relation_type: RelationTypeV3,
-    pub act_is_source: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -158,16 +152,7 @@ pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
 impl MappingChoices {
     /// Policy questions only. Source integrity is checked separately by the
     /// importer, before any target or installation identity is written.
-    pub fn pending(&self, source: &BookView<'_>) -> Vec<Pending> {
-        let mut out = Vec::new();
-        for act in source.acts().iter().filter(|a| a.drift.is_some()) {
-            if self.act_binding.is_none() {
-                out.push(Pending {
-                    code: "act-binding-relation-type-and-direction".into(),
-                    source: act.id.to_string(),
-                });
-            }
-        }
-        out
+    pub fn pending(&self, _source: &BookView<'_>) -> Vec<Pending> {
+        Vec::new()
     }
 }

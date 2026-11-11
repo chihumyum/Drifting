@@ -1605,6 +1605,7 @@
     "trash": "최근 삭제 항목으로 이동"
   },
   "v3Timeline": {
+    "actLevelName": "막",
     "addLane": "레인 추가",
     "bindEntry": "항목 연결",
     "colorValue": "색상 값",
@@ -1614,6 +1615,8 @@
     "members": "구성원 {{count}}개",
     "moveDown": "아래로 이동",
     "moveUp": "위로 이동",
+    "newActTrack": "막 트랙 만들기",
+    "newEntryInLane": "새 항목",
     "newView": "새 보기",
     "placeEntry": "항목 배치",
     "placementActions": "배치 작업",
@@ -1624,6 +1627,8 @@
     "resize": "길이 조절",
     "ruler": "시간 눈금",
     "selectLane": "레인 선택",
+    "setActTrack": "막 트랙으로 사용 · {{name}}",
+    "unsetActTrack": "일반 레인으로 전환 · {{name}}",
     "views": "타임라인 보기"
   },
   "voiceAgent": {

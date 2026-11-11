@@ -166,7 +166,12 @@
     "detachEntry": "Desvincular entrada",
     "colorValue": "Valor da cor",
     "laneTrack": "Faixa {{name}}",
-    "selectLane": "Selecionar faixa"
+    "selectLane": "Selecionar faixa",
+    "newActTrack": "Nova faixa de atos",
+    "actLevelName": "Atos",
+    "setActTrack": "Usar como faixa de atos · {{name}}",
+    "unsetActTrack": "Voltar para faixa normal · {{name}}",
+    "newEntryInLane": "Nova entrada"
   },
   "templateEditor": {
     "new_template": "Novo modelo",

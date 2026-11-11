@@ -1265,6 +1265,9 @@ fn write_library(
             timing.book_ms += ms(t4);
             t5 = Instant::now();
             push(&bdoc, final_ts)?;
+            for (code, count) in dr_samples::v3::act_import_notes(&bdoc.view()) {
+                *notes.0.entry(code.to_string()).or_insert(0) += count;
+            }
         }
         if let Some(replay) = &cached {
             if replay.frontiers.len() != replay_frontiers.len() {

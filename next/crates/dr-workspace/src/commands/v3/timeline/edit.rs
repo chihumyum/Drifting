@@ -10,6 +10,7 @@ pub(super) fn register(r: &mut Registry) {
     r.add::<ViewRename>()
         .add::<LaneAdd>()
         .add::<LaneMove>()
+        .add::<LaneSetActTrack>()
         .add::<LaneRemove>()
         .add::<RestoreFields>();
 }
@@ -20,6 +21,7 @@ pub enum Field {
     Name,
     Lane { lane: String },
     LanePosition { lane: String },
+    LaneActTrack { lane: String },
     Placement { entry: String },
 }
 impl Field {
@@ -28,6 +30,7 @@ impl Field {
             Self::Name => TimelineFieldV3::Name,
             Self::Lane { lane } => TimelineFieldV3::Lane(pid("lane", lane)?),
             Self::LanePosition { lane } => TimelineFieldV3::LanePosition(pid("lane", lane)?),
+            Self::LaneActTrack { lane } => TimelineFieldV3::LaneActTrack(pid("lane", lane)?),
             Self::Placement { entry } => TimelineFieldV3::Placement(pid("entry", entry)?),
         })
     }
@@ -51,6 +54,14 @@ pub struct LaneAddIn {
     /// Omit to append after all stored lanes, including hidden lanes.
     #[serde(default)]
     pub place: Option<Order>,
+    #[serde(default)]
+    pub act_track: Option<bool>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LaneActTrackIn {
+    #[serde(flatten)]
+    pub target: LaneIn,
+    pub act_track: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LaneMoveIn {
@@ -122,6 +133,7 @@ fn position(tv: &m::TimelineView, lane: &EntryId, place: &Order) -> Result<PosKe
     result.push(m::TimelineLane {
         entry: lane.clone(),
         pos: Some(pos.clone()),
+        act_track: None,
     });
     result.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.entry), (b.pos.as_ref(), &b.entry)));
     if !result.iter().map(|l| &l.entry).eq(wanted.iter()) {
@@ -169,8 +181,33 @@ op! {
             }
             m::check_timeline_lane(&lane, &v.entries_map(), &v.templates_map())?;
             let pos = position(&tv, &lane, &place)?;
-            tx.timeline_view(&id)?.put_lane(&lane, Some(&pos))?;
+            tx.timeline_view(&id)?
+                .put_lane(&lane, Some(&pos))?
+                .set_lane_act_track(&lane, input.act_track.filter(|b| *b))?;
             Ok((vec![Field::Lane { lane: lane.to_string() }], frontiers_hex(&tx.view().state_frontiers())))
+        })?;
+        finish(cx, &slot, input.target.view, fields, before, expected)
+    }
+}
+op! {
+    LaneSetActTrack = "timeline_view.set_lane_act_track", Write, Book,
+    "Switch whether a stored lane in a v3 view is displayed as a top act track.",
+    fn(cx, input: LaneActTrackIn) -> Done {
+        let slot = cx.book_v3(&input.target.book)?;
+        let id: TimelineViewId = pid("timeline view", &input.target.view)?;
+        let lane: EntryId = pid("lane", &input.target.lane)?;
+        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+            let v = tx.view();
+            let tv = view(&v, id.as_str())?;
+            let old = tv.lanes.iter().find(|l| l.entry == lane)
+                .ok_or_else(|| WsError::not_found("timeline lane", lane.as_str()))?;
+            let key = TimelineFieldV3::LaneActTrack(lane.clone());
+            v.timeline_field_restore_state(&id, &key)?;
+            if old.is_act_track() == input.act_track {
+                return Ok((vec![], frontiers_hex(&tx.view().state_frontiers())));
+            }
+            tx.timeline_view(&id)?.set_lane_act_track(&lane, input.act_track.then_some(true))?;
+            Ok((vec![Field::LaneActTrack { lane: lane.to_string() }], frontiers_hex(&tx.view().state_frontiers())))
         })?;
         finish(cx, &slot, input.target.view, fields, before, expected)
     }
@@ -241,8 +278,15 @@ op! {
         let expected = frontiers_from_hex(&input.expected)?;
         let keys: Vec<_> = input.fields.iter().map(Field::key).collect::<Result<_>>()?;
         let unique: BTreeSet<_> = keys.iter().cloned().collect();
-        if unique.len() != keys.len() || unique.iter().any(|k| matches!(k,
-            TimelineFieldV3::Lane(id) if unique.contains(&TimelineFieldV3::LanePosition(id.clone()))))
+        if unique.len() != keys.len()
+            || unique.iter().any(|k| {
+                matches!(
+                    k,
+                    TimelineFieldV3::Lane(id)
+                        if unique.contains(&TimelineFieldV3::LanePosition(id.clone()))
+                            || unique.contains(&TimelineFieldV3::LaneActTrack(id.clone()))
+                )
+            })
         {
             return Err(WsError::invalid("duplicate or overlapping timeline fields"));
         }

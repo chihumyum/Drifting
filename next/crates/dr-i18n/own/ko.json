@@ -160,7 +160,12 @@
     "detachEntry": "항목 연결 해제",
     "colorValue": "색상 값",
     "laneTrack": "레인 {{name}}",
-    "selectLane": "레인 선택"
+    "selectLane": "레인 선택",
+    "newActTrack": "막 트랙 만들기",
+    "actLevelName": "막",
+    "setActTrack": "막 트랙으로 사용 · {{name}}",
+    "unsetActTrack": "일반 레인으로 전환 · {{name}}",
+    "newEntryInLane": "새 항목"
   },
   "templateEditor": {
     "new_template": "새 템플릿",

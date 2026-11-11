@@ -1621,6 +1621,7 @@
     "trash": "Mover a Eliminados recientemente"
   },
   "v3Timeline": {
+    "actLevelName": "Actos",
     "addLane": "Añadir carril",
     "bindEntry": "Vincular entrada",
     "colorValue": "Valor del color",
@@ -1630,6 +1631,8 @@
     "members": "{{count}} miembros",
     "moveDown": "Bajar",
     "moveUp": "Subir",
+    "newActTrack": "Nueva pista de actos",
+    "newEntryInLane": "Nueva entrada",
     "newView": "Nueva vista",
     "placeEntry": "Colocar entrada",
     "placementActions": "Acciones de colocación",
@@ -1640,6 +1643,8 @@
     "resize": "Ajustar longitud",
     "ruler": "Regla de tiempo",
     "selectLane": "Elegir carril",
+    "setActTrack": "Usar como pista de actos · {{name}}",
+    "unsetActTrack": "Volver a carril normal · {{name}}",
     "views": "Vistas de cronología"
   },
   "voiceAgent": {

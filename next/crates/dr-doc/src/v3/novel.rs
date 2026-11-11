@@ -26,6 +26,7 @@ pub const TPL_CATEGORY: &str = "tpl-category";
 pub const TPL_GROUP: &str = "tpl-group";
 pub const TPL_STORYLINES: &str = "tpl-storylines";
 pub const TPL_STORYLINE: &str = "tpl-storyline";
+pub const TPL_ACT_TRACK: &str = "tpl-act-track";
 
 pub const TPL_CHAPTER: &str = "tpl-chapter";
 pub const TPL_IDEA: &str = "tpl-idea";
@@ -134,6 +135,41 @@ fn color_fields_module() -> ModuleSpec {
             ..ModuleConfig::default()
         },
         agent: agent_instructions("层级的展示颜色。"),
+    }
+}
+
+/// On-demand swimlane level template for an act track (`幕轨道`).
+///
+/// New books have no act track by default; this template is added when
+/// importing legacy acts or when an author creates an act track in a timeline
+/// view (`default_template = tpl-idea`, unrestricted `allow = []`, `home = None`
+/// so new entries reside under the track itself).
+pub fn act_track_level_template() -> EntryTemplate {
+    EntryTemplate {
+        id: tid(TPL_ACT_TRACK),
+        kind: TemplateKind::Level,
+        name: "幕".into(),
+        mark: Some("route".into()),
+        color: None,
+        agent: Some(TemplateAgentConfig {
+            name: "幕轨道".into(),
+            description: "作为时间线幕轨道的泳道层级，里面的条目在视图顶部按区间长度展示。".into(),
+            instructions: "在幕轨道下新建条目默认使用构想模板并住在本层级下，也可把已有条目归属进来赋予区间长度。".into(),
+        }),
+        modules: vec![color_fields_module()],
+        settings: LevelSettingsOverride {
+            default_template: Some(Some(tid(TPL_IDEA))),
+            allow: Some(Vec::new()),
+            display: Some(ChildDisplayMode::List),
+            auto_link: Some(false),
+            accept: Some(true),
+            home: None,
+            is_manuscript: Some(false),
+            format_shortcuts: Some(FormatShortcuts::Notes),
+        },
+        lane: true,
+        verbs: Vec::new(),
+        deleted_at: None,
     }
 }
 

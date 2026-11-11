@@ -1621,6 +1621,7 @@
     "trash": "Mover para Excluídos recentemente"
   },
   "v3Timeline": {
+    "actLevelName": "Atos",
     "addLane": "Adicionar faixa",
     "bindEntry": "Vincular entrada",
     "colorValue": "Valor da cor",
@@ -1630,6 +1631,8 @@
     "members": "{{count}} membros",
     "moveDown": "Mover para baixo",
     "moveUp": "Mover para cima",
+    "newActTrack": "Nova faixa de atos",
+    "newEntryInLane": "Nova entrada",
     "newView": "Nova visualização",
     "placeEntry": "Posicionar entrada",
     "placementActions": "Ações de posicionamento",
@@ -1640,6 +1643,8 @@
     "resize": "Ajustar comprimento",
     "ruler": "Régua de tempo",
     "selectLane": "Selecionar faixa",
+    "setActTrack": "Usar como faixa de atos · {{name}}",
+    "unsetActTrack": "Voltar para faixa normal · {{name}}",
     "views": "Visualizações da linha do tempo"
   },
   "voiceAgent": {

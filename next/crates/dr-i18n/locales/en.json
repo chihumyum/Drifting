@@ -1612,6 +1612,7 @@
     "trash": "Move to Recently Deleted"
   },
   "v3Timeline": {
+    "actLevelName": "Acts",
     "addLane": "Add lane",
     "bindEntry": "Attach entry",
     "colorValue": "Color value",
@@ -1621,6 +1622,8 @@
     "members": "{{count}} members",
     "moveDown": "Move down",
     "moveUp": "Move up",
+    "newActTrack": "New act track",
+    "newEntryInLane": "New entry",
     "newView": "New view",
     "placeEntry": "Place entry",
     "placementActions": "Placement actions",
@@ -1631,6 +1634,8 @@
     "resize": "Adjust length",
     "ruler": "Time ruler",
     "selectLane": "Select lane",
+    "setActTrack": "Use as act track · {{name}}",
+    "unsetActTrack": "Use as regular lane · {{name}}",
     "views": "Timeline views"
   },
   "voiceAgent": {

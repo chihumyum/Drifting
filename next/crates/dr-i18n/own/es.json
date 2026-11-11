@@ -166,7 +166,12 @@
     "detachEntry": "Desvincular entrada",
     "colorValue": "Valor del color",
     "laneTrack": "Carril {{name}}",
-    "selectLane": "Elegir carril"
+    "selectLane": "Elegir carril",
+    "newActTrack": "Nueva pista de actos",
+    "actLevelName": "Actos",
+    "setActTrack": "Usar como pista de actos · {{name}}",
+    "unsetActTrack": "Volver a carril normal · {{name}}",
+    "newEntryInLane": "Nueva entrada"
   },
   "templateEditor": {
     "new_template": "Nueva plantilla",

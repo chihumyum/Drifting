@@ -235,6 +235,134 @@ fn roots(txn: &mut BookTxnV3<'_>) -> Result<Roots> {
     })
 }
 
+enum PlannedActTarget {
+    ReusedIdea {
+        idea_id: NodeId,
+        keep_existing_placement: bool,
+    },
+    SyntheticLeaf {
+        name: String,
+        color: Option<String>,
+        shared_idea_split: bool,
+    },
+}
+
+struct PlannedAct {
+    target: PlannedActTarget,
+    /// `[min_at, max_end]` computed from live placed chapters in this act.
+    interval: Option<(f64, f64)>,
+}
+
+fn plan_act_track(source: &BookView<'_>) -> Option<Vec<PlannedAct>> {
+    let acts = source.acts();
+    if acts.is_empty() {
+        return None;
+    }
+    let live_drifts: BTreeMap<NodeId, _> = source
+        .drifts()
+        .into_iter()
+        .map(|n| (n.id.clone(), n))
+        .collect();
+    let mut intervals: Vec<Option<(f64, f64)>> = vec![None; acts.len()];
+    for ch in source.chapters() {
+        let Some(idx) = acts.iter().rposition(|a| {
+            a.start_order.is_none()
+                || a.start_order
+                    .zip(ch.book_order)
+                    .is_some_and(|(a, n)| a <= n)
+        }) else {
+            continue;
+        };
+        if let Some(at) = ch.narrative_order {
+            let end = at + DEFAULT_PLACEMENT_SPAN;
+            intervals[idx] = Some(match intervals[idx] {
+                Some((min_at, max_end)) => (min_at.min(at), max_end.max(end)),
+                None => (at, end),
+            });
+        }
+    }
+    let mut used_ideas = BTreeSet::new();
+    let mut planned = Vec::with_capacity(acts.len());
+    for (act, interval) in acts.into_iter().zip(intervals) {
+        let target = if let Some(drift_id) = &act.drift
+            && let Some(idea) = live_drifts.get(drift_id)
+        {
+            if used_ideas.insert(drift_id.clone()) {
+                PlannedActTarget::ReusedIdea {
+                    idea_id: drift_id.clone(),
+                    keep_existing_placement: idea.narrative_order.is_some(),
+                }
+            } else {
+                PlannedActTarget::SyntheticLeaf {
+                    name: act.name,
+                    color: act.color,
+                    shared_idea_split: true,
+                }
+            }
+        } else {
+            PlannedActTarget::SyntheticLeaf {
+                name: act.name,
+                color: act.color,
+                shared_idea_split: false,
+            }
+        };
+        planned.push(PlannedAct { target, interval });
+    }
+    Some(planned)
+}
+
+/// Book-level import report notes produced by the act-track mapping (#22).
+pub fn act_import_notes(source: &BookView<'_>) -> BTreeMap<&'static str, usize> {
+    let mut out = BTreeMap::new();
+    let Some(planned) = plan_act_track(source) else {
+        return out;
+    };
+    let mut shared_split = 0usize;
+    let mut kept_placement = 0usize;
+    for act in planned {
+        match act.target {
+            PlannedActTarget::SyntheticLeaf {
+                shared_idea_split: true,
+                ..
+            } => shared_split += 1,
+            PlannedActTarget::ReusedIdea {
+                keep_existing_placement: true,
+                ..
+            } => kept_placement += 1,
+            _ => {}
+        }
+    }
+    if shared_split > 0 {
+        out.insert("act-binding-shared-idea-split", shared_split);
+    }
+    if kept_placement > 0 {
+        out.insert("act-binding-kept-existing-placement", kept_placement);
+    }
+    out
+}
+
+fn apply_act_color_if_supported(
+    w: &dr_doc::v3::write::EntryWriterV3,
+    leaf_template: Option<&EntryTemplate>,
+    color: Option<&str>,
+) -> Result<()> {
+    let Some(color) = color.filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    let Some(tpl) = leaf_template else {
+        return Ok(());
+    };
+    for module in &tpl.modules {
+        if module.kind == ModuleKind::Fields
+            && let Some(field) = module.config.color_field.as_deref()
+        {
+            w.set_field(&module.id, field, Some(&FieldValue::Text(color.into())))?;
+            break;
+        }
+    }
+    Ok(())
+}
+
 /// Copy the source catalog. Anchors must already refer to the target prose
 /// documents (the importer writes there directly; sample conversion remakes
 /// anchors by resolving their exact source ranges).
@@ -243,13 +371,6 @@ pub fn sync_catalog(
     source: &BookView<'_>,
     choices: &MappingChoices,
 ) -> Result<()> {
-    if choices.act_binding.as_ref().is_some_and(|choice| {
-        choice.relation_type.locked || choice.relation_type.system_key.is_some()
-    }) {
-        return Err(invalid(
-            "act binding choice cannot change a locked/system relation type",
-        ));
-    }
     let pending = choices.pending(source);
     if !pending.is_empty() {
         return Err(invalid(format!("unresolved v3 mapping: {pending:?}")));
@@ -270,6 +391,11 @@ pub fn sync_catalog(
     for template in templates(source, &roots.manuscript)? {
         txn.template(&template.id)?.set_full(&template)?;
     }
+    let planned_acts = plan_act_track(source);
+    if planned_acts.is_some() && txn.view().template(&tid(TPL_ACT_TRACK)).is_none() {
+        let act_tpl = act_track_level_template();
+        txn.template(&act_tpl.id)?.set_full(&act_tpl)?;
+    }
 
     let categories = source.categories();
     let nodes = source.nodes();
@@ -278,7 +404,7 @@ pub fn sync_catalog(
     let existing = txn.view().entries_raw();
     let needs_unaffiliated = nodes
         .iter()
-        .any(|n| n.narrative_order.is_some() && n.storylines.is_empty());
+        .any(|n| !n.is_trashed() && n.narrative_order.is_some() && n.storylines.is_empty());
     // Synthetic entries are new entries, too. Reuse them during metadata
     // replay by their source meaning, and generate UUIDv7 on first creation.
     let unaffiliated = needs_unaffiliated.then(|| {
@@ -300,6 +426,38 @@ pub fn sync_catalog(
             })
             .map_or_else(EntryId::new_v7, |e| e.id.clone())
     });
+    let act_track_id = planned_acts.as_ref().map(|_| {
+        existing
+            .iter()
+            .find(|e| {
+                e.parent.is_none()
+                    && e.template.as_ref() == Some(&tid(TPL_ACT_TRACK))
+                    && ![
+                        &roots.manuscript,
+                        &roots.ideas,
+                        &roots.elements,
+                        &roots.storylines,
+                    ]
+                    .contains(&&e.id)
+            })
+            .map_or_else(EntryId::new_v7, |e| e.id.clone())
+    });
+    let existing_act_leaves: Vec<EntryId> = act_track_id
+        .as_ref()
+        .map(|track_id| {
+            existing
+                .iter()
+                .filter(|e| e.parent.as_ref() == Some(track_id))
+                .map(|e| e.id.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+    let act_leaf_tpl = txn
+        .view()
+        .template(&tid(TPL_ACT_TRACK))
+        .and_then(|t| t.settings.default_template.flatten())
+        .unwrap_or_else(|| tid(TPL_IDEA));
+    let act_leaf_tpl_def = txn.view().template(&act_leaf_tpl);
     let mut entries = Entries {
         txn,
         wanted: BTreeSet::new(),
@@ -309,6 +467,44 @@ pub fn sync_catalog(
     entries.put(&roots.ideas, None, "构想", &tid(TPL_IDEAS))?;
     entries.put(&roots.elements, None, "要素", &tid(TPL_ELEMENTS))?;
     entries.put(&roots.storylines, None, "故事线", &tid(TPL_STORYLINES))?;
+    struct ResolvedActEntry {
+        entry_id: EntryId,
+        interval: Option<(f64, f64)>,
+        keep_existing_placement: bool,
+    }
+    let mut resolved_act_entries: Vec<ResolvedActEntry> = Vec::new();
+    if let (Some(track_id), Some(planned)) = (&act_track_id, &planned_acts) {
+        entries.put(track_id, None, "幕", &tid(TPL_ACT_TRACK))?;
+        let mut synth_idx = 0usize;
+        for act in planned {
+            match &act.target {
+                PlannedActTarget::ReusedIdea {
+                    idea_id,
+                    keep_existing_placement,
+                } => {
+                    resolved_act_entries.push(ResolvedActEntry {
+                        entry_id: eid(idea_id.as_str()),
+                        interval: act.interval,
+                        keep_existing_placement: *keep_existing_placement,
+                    });
+                }
+                PlannedActTarget::SyntheticLeaf { name, color, .. } => {
+                    let leaf_id = existing_act_leaves
+                        .get(synth_idx)
+                        .cloned()
+                        .unwrap_or_else(EntryId::new_v7);
+                    synth_idx += 1;
+                    let w = entries.put(&leaf_id, Some(track_id), name, &act_leaf_tpl)?;
+                    apply_act_color_if_supported(&w, act_leaf_tpl_def.as_ref(), color.as_deref())?;
+                    resolved_act_entries.push(ResolvedActEntry {
+                        entry_id: leaf_id,
+                        interval: act.interval,
+                        keep_existing_placement: false,
+                    });
+                }
+            }
+        }
+    }
 
     // Merge act boundaries and root chapters in reading order. Chapters
     // before the first act remain before that act on the manuscript tree.
@@ -519,10 +715,16 @@ pub fn sync_catalog(
             view.remove_pin(&pin.id)?;
         }
     }
-    let positions = crate::build::positions(storylines.len() + usize::from(needs_unaffiliated));
+    let act_offset = usize::from(act_track_id.is_some());
+    let positions =
+        crate::build::positions(act_offset + storylines.len() + usize::from(needs_unaffiliated));
+    if let Some(track_id) = &act_track_id {
+        view.put_lane(track_id, Some(&positions[0]))?
+            .set_lane_act_track(track_id, Some(true))?;
+    }
     for (i, s) in storylines.iter().enumerate() {
         if s.deleted_at.is_none() {
-            view.put_lane(&eid(s.id.as_str()), Some(&positions[i]))?;
+            view.put_lane(&eid(s.id.as_str()), Some(&positions[act_offset + i]))?;
         }
     }
     if needs_unaffiliated {
@@ -530,11 +732,16 @@ pub fn sync_catalog(
     }
     for n in &nodes {
         let id = eid(n.id.as_str());
-        for host in &n.storylines {
-            txn.put_membership(&eid(host.as_str()), &id, None, None)?;
-        }
-        if n.storylines.is_empty() && n.narrative_order.is_some() {
-            txn.put_membership(unaffiliated.as_ref().unwrap(), &id, None, None)?;
+        if !n.is_trashed() {
+            for host in &n.storylines {
+                txn.put_membership(&eid(host.as_str()), &id, None, None)?;
+            }
+            if n.storylines.is_empty() && n.narrative_order.is_some() {
+                txn.put_membership(unaffiliated.as_ref().unwrap(), &id, None, None)?;
+            }
+            if let Some(at) = n.narrative_order {
+                view.put_placement(&id, at, None)?;
+            }
         }
         // Preserve None: a secondary membership never becomes primary.
         txn.entries().entry(&id)?.primary(
@@ -543,9 +750,6 @@ pub fn sync_catalog(
                 .map(|s| eid(s.as_str()))
                 .as_ref(),
         )?;
-        if let Some(at) = n.narrative_order {
-            view.put_placement(&id, at, None)?;
-        }
         if let Some(grid) = source.plot_grid(&n.id) {
             let w = txn.plot_grid(&id, &mid(MOD_PLOT_GRID))?;
             w.cell_w(grid.cell_w)?.cell_h(grid.cell_h)?;
@@ -568,6 +772,17 @@ pub fn sync_catalog(
             }
         }
     }
+    if let Some(track_id) = &act_track_id {
+        let member_pos = crate::build::positions(resolved_act_entries.len());
+        for (act_entry, pos) in resolved_act_entries.iter().zip(&member_pos) {
+            txn.put_membership(track_id, &act_entry.entry_id, Some(pos), None)?;
+            if !act_entry.keep_existing_placement
+                && let Some((min_at, max_end)) = act_entry.interval
+            {
+                view.put_placement(&act_entry.entry_id, min_at, Some(max_end - min_at))?;
+            }
+        }
+    }
     for pin in source.time_pins() {
         view.put_pin(&TimelinePin {
             id: pin.id,
@@ -577,7 +792,7 @@ pub fn sync_catalog(
             entry: pin.drift.as_ref().map(|d| eid(d.as_str())),
         })?;
     }
-    copy_rest(txn, source, choices)?;
+    copy_rest(txn, source)?;
     Ok(())
 }
 
@@ -591,11 +806,7 @@ fn node_fields(
     Ok(())
 }
 
-fn copy_rest(
-    txn: &mut BookTxnV3<'_>,
-    source: &BookView<'_>,
-    choices: &MappingChoices,
-) -> Result<()> {
+fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
     let comment_ids: BTreeMap<_, _> = source
         .comments()
         .iter()
@@ -655,39 +866,6 @@ fn copy_rest(
             .ends(&from, &to)?
             .relation_type(&relation.relation_type)?
             .created_at(relation.created_at)?;
-    }
-    for act in source.acts().into_iter().filter(|a| a.drift.is_some()) {
-        let choice = choices.act_binding.as_ref().unwrap();
-        let rt = &choice.relation_type;
-        txn.relation_type(&rt.id)?
-            .name(&rt.name)?
-            .description(&rt.description)?
-            .orientation(&rt.orientation)?
-            .source_role(&rt.source_role)?
-            .target_role(&rt.target_role)?
-            .color(rt.color.as_deref())?
-            .source_kinds(&rt.source_kinds)?
-            .target_kinds(&rt.target_kinds)?
-            .source_templates(&rt.source_templates)?
-            .target_templates(&rt.target_templates)?;
-        let act_ref = EntityRef::new(EntityKind::Entry, act.id.as_str());
-        let idea_ref = EntityRef::new(EntityKind::Entry, act.drift.as_ref().unwrap().as_str());
-        let (a, b) = if choice.act_is_source {
-            (act_ref, idea_ref)
-        } else {
-            (idea_ref, act_ref)
-        };
-        let (a, b) = if rt.orientation == RelationOrientation::Symmetric {
-            canonical_symmetric(a, b)
-        } else {
-            (a, b)
-        };
-        txn.relation(
-            &RelationId::parse(&format!("import-act-binding-{}", act.id))
-                .map_err(|e| invalid(e.to_string()))?,
-        )?
-        .ends(&a, &b)?
-        .relation_type(&rt.id)?;
     }
     for patch in source.patches() {
         txn.patch(&patch.id)?

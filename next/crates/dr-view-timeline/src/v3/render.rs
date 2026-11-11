@@ -145,10 +145,15 @@ impl Timeline {
             MenuOf::PickLane => {
                 for lane in self.lanes() {
                     let id = lane.id.clone();
+                    let icon = if lane.act_track {
+                        Icon::LanesStagger
+                    } else {
+                        Icon::Branch
+                    };
                     menu = menu.child(
                         MenuItem::new(
                             SharedString::from(format!("v3-pick-lane-{id}")),
-                            Icon::Branch,
+                            icon,
                             lane.title,
                         )
                         .on_click(cx.listener(
@@ -165,14 +170,28 @@ impl Timeline {
             }
             MenuOf::Entries(lane) | MenuOf::Bind(lane) => {
                 let bind = matches!(&popup.of, MenuOf::Bind(_));
+                if !bind {
+                    let target = lane.clone();
+                    menu = menu.child(
+                        MenuItem::new(
+                            "v3-lane-new-entry",
+                            Icon::Plus,
+                            t(cx, keys::v3_timeline::NEW_ENTRY_IN_LANE),
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.create_entry_in_lane(target.clone(), cx);
+                        })),
+                    );
+                }
                 for e in book.entries.iter().filter(|e| e.deleted_at.is_none()) {
                     if !bind
-                        && !book.levels.get(lane).is_some_and(|level| {
-                            level.settings.allow.is_empty()
-                                || e.template
-                                    .as_ref()
-                                    .is_some_and(|t| level.settings.allow.contains(t))
-                        })
+                        && (&e.id == lane
+                            || !book.levels.get(lane).is_some_and(|level| {
+                                level.settings.allow.is_empty()
+                                    || e.template
+                                        .as_ref()
+                                        .is_some_and(|t| level.settings.allow.contains(t))
+                            }))
                     {
                         continue;
                     }
@@ -339,6 +358,14 @@ impl Timeline {
                 );
             }
             MenuOf::Lanes => {
+                menu = menu.child(
+                    MenuItem::new(
+                        "v3-lane-new-act-track",
+                        Icon::Plus,
+                        t(cx, keys::v3_timeline::NEW_ACT_TRACK),
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| this.create_act_track(cx))),
+                );
                 let shown = self.view_scope();
                 for e in &book.entries {
                     if e.deleted_at.is_some()
@@ -348,11 +375,12 @@ impl Timeline {
                     {
                         continue;
                     }
-                    let added = self
+                    let in_view = self
                         .view()
-                        .is_some_and(|v| v.lanes.iter().any(|l| l.entry == e.id));
+                        .and_then(|v| v.lanes.iter().find(|l| l.entry == e.id));
+                    let added = in_view.is_some();
                     let id = e.id.clone();
-                    let shown = shown.clone();
+                    let add_scope = shown.clone();
                     menu = menu.child(
                         MenuItem::new(
                             SharedString::from(format!("v3-lane-add-{}", e.id)),
@@ -362,7 +390,7 @@ impl Timeline {
                         .checked(added)
                         .disabled(added)
                         .on_click(cx.listener(move |this, _, _, cx| {
-                            if let Some(shown) = &shown {
+                            if let Some(shown) = &add_scope {
                                 this.edit_view_at(
                                     shown.clone(),
                                     write::ViewEdit::AddLane(id.clone()),
@@ -371,6 +399,41 @@ impl Timeline {
                             }
                         })),
                     );
+                    if let Some(lane_row) = in_view {
+                        let is_act = lane_row.act_track == Some(true);
+                        let toggle_label = dr_shell::strings::tf(
+                            cx,
+                            if is_act {
+                                keys::v3_timeline::UNSET_ACT_TRACK
+                            } else {
+                                keys::v3_timeline::SET_ACT_TRACK
+                            },
+                            &[("name", &e.title)],
+                        );
+                        let toggle_id = e.id.clone();
+                        let toggle_scope = shown.clone();
+                        menu = menu.child(
+                            MenuItem::new(
+                                SharedString::from(format!("v3-lane-act-{}", e.id)),
+                                Icon::LanesStagger,
+                                toggle_label,
+                            )
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| {
+                                    if let Some(shown) = &toggle_scope {
+                                        this.edit_view_at(
+                                            shown.clone(),
+                                            write::ViewEdit::SetActTrack(
+                                                toggle_id.clone(),
+                                                !is_act,
+                                            ),
+                                            cx,
+                                        );
+                                    }
+                                },
+                            )),
+                        );
+                    }
                 }
             }
         }
@@ -417,6 +480,11 @@ impl Timeline {
             let color = lane.color.as_deref().and_then(color_of);
             let count =
                 dr_shell::strings::tf(cx, keys::v3_timeline::MEMBERS, &[("count", &lane.members)]);
+            let mark = if lane.act_track {
+                sand::Kind::DriftGroup
+            } else {
+                sand::Kind::Storyline
+            };
             let row = div()
                 .min_h(px(model::ROW))
                 .flex_1()
@@ -428,7 +496,7 @@ impl Timeline {
                             SharedString::from(format!("v3-lane-name-{id}")),
                             lane.title.clone(),
                         )
-                        .mark(sand::Kind::Storyline)
+                        .mark(mark)
                         .color_opt(color)
                         .italic(true)
                         .on_click(cx.listener(move |this, e, _, cx| this.open(&id, e, cx))),
@@ -444,7 +512,28 @@ impl Timeline {
                         .child(lane.members.to_string()),
                 );
             let mut actions = div().flex().items_center();
-            if i > 0 {
+            if lane.act_track {
+                let id = lane.id.clone();
+                actions = actions.child(
+                    PanelIconButton::new(
+                        SharedString::from(format!("v3-lane-entries-{id}")),
+                        Icon::Plus,
+                    )
+                    .label(t(cx, keys::v3_timeline::NEW_ENTRY_IN_LANE))
+                    .on_click(cx.listener(
+                        move |this, e: &ClickEvent, _, cx| {
+                            this.popup = Some(Popup {
+                                of: MenuOf::Entries(id.clone()),
+                                at: e.position(),
+                            });
+                            cx.notify();
+                        },
+                    )),
+                );
+            }
+            let can_up = i > 0 && lanes[i - 1].act_track == lane.act_track;
+            let can_down = i + 1 < lanes.len() && lanes[i + 1].act_track == lane.act_track;
+            if can_up {
                 let id = lane.id.clone();
                 let shown = self.view_scope();
                 actions = actions.child(
@@ -464,7 +553,7 @@ impl Timeline {
                     })),
                 );
             }
-            if i + 1 < lanes.len() {
+            if can_down {
                 let id = lane.id.clone();
                 let shown = self.view_scope();
                 actions = actions.child(
@@ -672,8 +761,18 @@ impl Timeline {
                 }
             }
             for clip in &lane.clips {
+                let short_segment = lane.act_track && clip.span.is_none();
+                let effective_span = clip.span.unwrap_or(if lane.act_track {
+                    model::SHORT_ACT_SPAN
+                } else {
+                    model::DEFAULT_SPAN
+                });
                 let x = (clip.at - min) as f32 * unit;
-                let w = (clip.span.unwrap_or(model::DEFAULT_SPAN) as f32 * unit).max(8.);
+                let w = if short_segment {
+                    (effective_span as f32 * unit).clamp(14., 24.)
+                } else {
+                    (effective_span as f32 * unit).max(8.)
+                };
                 if x + w < left || x > left + visible {
                     continue;
                 }
@@ -695,7 +794,7 @@ impl Timeline {
                     entry: id.clone(),
                     at: clip.at,
                     view: view.id.clone(),
-                    end: clip.at + clip.span.unwrap_or(model::DEFAULT_SPAN),
+                    end: clip.at + effective_span,
                 };
                 let entry = id.clone();
                 let lane_id = lane.id.clone();
@@ -717,8 +816,9 @@ impl Timeline {
                 }));
                 let drop_lane = lane.id.clone();
                 let page = self.page_host();
+                let clip_selector = format!("v3-clip-{}-{id}", lane.id);
                 let clip_body = glass::glass_box(
-                    SharedString::from(format!("v3-clip-{}-{id}", lane.id)),
+                    SharedString::from(clip_selector.clone()),
                     Kind::Rest,
                     Mode::default(),
                     false,
@@ -726,12 +826,12 @@ impl Timeline {
                     window,
                     cx,
                 )
+                .debug_selector(move || clip_selector.clone())
                 .absolute()
                 .left_0()
                 .right_0()
                 .top_0()
                 .bottom_0()
-                .px_2()
                 .flex()
                 .items_center()
                 .overflow_hidden()
@@ -740,13 +840,15 @@ impl Timeline {
                 .role(gpui::Role::Button)
                 .aria_label(title.clone())
                 .cursor_grab()
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .text_ellipsis()
-                        .child(title.clone()),
-                )
+                .when(!short_segment, |body| {
+                    body.px_2().child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_ellipsis()
+                            .child(title.clone()),
+                    )
+                })
                 .on_click(cx.listener(move |this, e, _, cx| {
                     cx.stop_propagation();
                     this.open(&id, e, cx);
@@ -767,11 +869,10 @@ impl Timeline {
                         })
                     })
                 });
+                let resize_selector = format!("v3-resize-{}-{}", lane.id, clip.entry);
                 let handle = div()
-                    .id(SharedString::from(format!(
-                        "v3-resize-{}-{}",
-                        lane.id, clip.entry
-                    )))
+                    .id(SharedString::from(resize_selector.clone()))
+                    .debug_selector(move || resize_selector.clone())
                     .absolute()
                     .right_0()
                     .top_0()

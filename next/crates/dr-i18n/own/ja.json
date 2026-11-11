@@ -160,7 +160,12 @@
     "detachEntry": "項目の関連付けを解除",
     "colorValue": "色の値",
     "laneTrack": "レーン {{name}}",
-    "selectLane": "レーンを選択"
+    "selectLane": "レーンを選択",
+    "newActTrack": "幕トラックを作成",
+    "actLevelName": "幕",
+    "setActTrack": "幕トラックにする · {{name}}",
+    "unsetActTrack": "通常のレーンに戻す · {{name}}",
+    "newEntryInLane": "項目を作成"
   },
   "templateEditor": {
     "new_template": "テンプレートを作成",

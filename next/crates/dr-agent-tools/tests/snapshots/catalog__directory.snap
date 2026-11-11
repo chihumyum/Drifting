@@ -158,9 +158,9 @@ relation.create book e7231e605bafd2ca136495446a9ce95019f49e94ae928a8ba61e0901882
 relation.delete book 38e9aeb387fbdc4765e551185d7adf6db563ad874787e3175879ded13e5dd9f2
 relation.list shared 4e47436745c3abd7f993d63828ba8c7a0139d02431c5d65ad8a2817d2a1f26c9
 timeline_view.delete book bd91011d847375d72000e5c53a70e1d84cd46b3eb0382b4c1b5e374657c3270d
-timeline_view.list shared c04a105e1f36074fa299037505d8ef9e486226b7e4cd2d1fb00724aca54366b9
+timeline_view.list shared acc3c413fe26dbfe6ee8e2f279912dadf883025428b30c1faaf65c9390b8a546
 timeline_view.place book abc20d8b9e96fbb7bed797eb27880d2d6ec64b8711a7e3105446f815a9129b5d
-timeline_view.put book c355bebef3ecd431e3cb6b5d2f754cffddb4abe3ebf61c5383978ea5072ffacc
+timeline_view.put book 6978dc6dc4fe0de0509134085b6b45170ce3470833fee2f0ed6c9e423a8a528c
 timeline_view.put_pin book eadaaf7c3a0a080a8d114101603065a4635f2935e27f9a33044f99c54c3ceec7
 timeline_view.remove book 41edb28b3ff5a9d0c140d58fe3faef3b42991323caa8a81263b6258bfdc27a9c
 timeline_view.remove_pin book fb0de8338fcfad57ab9cd2499040beec1868ff9efee3291416c299be49c29bbb
@@ -193,5 +193,6 @@ timeline_view.move_lane: local timeline edits need exact lane, placement, and pi
 timeline_view.remove_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.rename: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.restore_fields: scoped timeline undo is internal until K6 provides a guarded facade
+timeline_view.set_lane_act_track: local timeline edits need exact lane, placement, and pin read coverage
 todo.project: storage, editor, or derived-state maintenance
 writing_day.record: storage, editor, or derived-state maintenance

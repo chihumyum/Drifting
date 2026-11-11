@@ -58,6 +58,9 @@ pub struct EntityLinkV3 {
 /// Reserved module id for a level entry's own description prose (`body:<entry_id>/about`).
 pub const LEVEL_ABOUT_MODULE: &str = "about";
 
+/// Default block width on a timeline axis when a placement omits `span`.
+pub const DEFAULT_PLACEMENT_SPAN: f64 = 4.0;
+
 /// The [`ModuleId`] for a level entry's description prose (`body:<entry_id>/about`).
 pub fn level_about_module_id() -> ModuleId {
     ModuleId::parse(LEVEL_ABOUT_MODULE).expect("valid module id")
@@ -983,6 +986,14 @@ pub struct TimelineLane {
     pub entry: EntryId,
     #[serde(default)]
     pub pos: Option<PosKey>,
+    #[serde(default)]
+    pub act_track: Option<bool>,
+}
+
+impl TimelineLane {
+    pub fn is_act_track(&self) -> bool {
+        self.act_track == Some(true)
+    }
 }
 
 /// Sort timeline lanes by position key, ties by entry id.
@@ -2887,10 +2898,12 @@ mod tests {
                 TimelineLane {
                     entry: eid("line-1"),
                     pos: None,
+                    act_track: None,
                 },
                 TimelineLane {
                     entry: eid("ch-1"), // invalid lane, ignored on read
                     pos: None,
+                    act_track: None,
                 },
             ],
             placements: vec![

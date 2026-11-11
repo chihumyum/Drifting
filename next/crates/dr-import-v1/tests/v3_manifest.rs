@@ -31,15 +31,14 @@ fn every_mapping_row_has_a_nonempty_fixture_and_pinned_totals() {
     assert_eq!(
         m.counts(),
         Counts {
-            levels: 15,
-            leaves: 8,
+            levels: 16,
+            leaves: 9,
             leaf_templates: 5,
-            memberships: 6,
+            memberships: 8,
             primaries: 3,
-            lanes: 3,
-            placements: 4,
+            lanes: 4,
+            placements: 5,
             pins: 2,
-            act_binding_relations: 1,
             patches: 1,
             plot_grids: 1,
             notes: 3,
@@ -70,10 +69,7 @@ fn every_mapping_row_has_a_nonempty_fixture_and_pinned_totals() {
             .iter()
             .map(|p| p.code.as_str())
             .collect::<Vec<_>>(),
-        [
-            "act-binding-relation-type-and-direction",
-            "project-storyline-field-template-destination",
-        ]
+        ["project-storyline-field-template-destination"]
     );
 }
 
@@ -119,13 +115,24 @@ fn manuscript_order_and_nested_homes_do_not_come_from_timeline_positions() {
         leaf(&m, &Entry::Node(IDEA.into())).layout,
         Some(Layout::Board(120.5, -40.))
     );
+    assert_eq!(level(&m, &Entry::ActTrack).title, "幕");
+    assert_eq!(level(&m, &Entry::ActTrack).parent, None);
+    assert!(level(&m, &Entry::ActTrack).lane);
     assert_eq!(
-        m.act_bindings,
-        [ActBinding {
-            act: Entry::Act("act-1".into()),
-            idea: Entry::Node(IDEA.into())
-        }]
+        level(&m, &Entry::ActTrack).default_leaf,
+        Some(LeafTemplate::Idea)
     );
+    assert_eq!(m.default_view.act_tracks, [Entry::ActTrack]);
+    let act2_leaf = leaf(
+        &m,
+        &Entry::ActLeaf {
+            act: "act-2".into(),
+            synthetic_rank: 0,
+        },
+    );
+    assert_eq!(act2_leaf.title, "第二幕");
+    assert_eq!(act2_leaf.home, Some(Entry::ActTrack));
+    assert_eq!(act2_leaf.template, Some(LeafTemplate::Idea));
     assert!(!m.default_view.book_order_view);
     assert!(!m.default_view.act_rail);
     assert_eq!(m.retired_timeline_view.as_deref(), Some("book"));
@@ -225,6 +232,7 @@ fn memberships_keep_primary_and_one_position_per_entry_in_multiple_lanes() {
     assert_eq!(
         m.default_view.lanes,
         [
+            Entry::ActTrack,
             Entry::Storyline(fixture::STORYLINE_OTHER.into()),
             Entry::Storyline(STORYLINE.into()),
             Entry::Unaffiliated
@@ -419,9 +427,19 @@ fn manifest_reads_the_source_instead_of_returning_fixed_fixture_counts() {
     let after = read(&old);
     assert_eq!(after.counts().leaves, before.counts().leaves - 1);
     assert_eq!(after.counts().levels, before.counts().levels - 1);
-    assert_eq!(after.counts().lanes, 2);
-    assert_eq!(after.counts().memberships, 4);
-    assert_eq!(after.counts().placements, 2);
+    assert_eq!(after.counts().lanes, 3);
+    assert_eq!(after.counts().memberships, 6);
+    assert_eq!(after.counts().placements, 3);
+    assert!(after.default_view.placements.contains(&Placement {
+        entry: Entry::Node(IDEA.into()),
+        at: 10.,
+        span: Some(4.),
+    }));
+    assert!(!after.default_view.placements.iter().any(|p| p.entry
+        == Entry::ActLeaf {
+            act: "act-2".into(),
+            synthetic_rank: 0
+        }));
     assert!(
         !after
             .pending
@@ -463,7 +481,7 @@ fn unresolved_data_is_reported_without_inventing_homes_or_dropping_rows() {
             m.pending
         );
     }
-    assert_eq!(m.leaves.len(), 8);
+    assert_eq!(m.leaves.len(), 9);
     assert_eq!(m.source_rows["element"].len(), 2);
     assert!(leaf(&m, &Entry::Element(ELEMENT.into())).home.is_none());
     assert!(leaf(&m, &Entry::Node(CHAPTER.into())).home.is_none());
@@ -501,19 +519,19 @@ fn reading_is_repeatable_book_scoped_and_does_not_write_any_file() {
     let before = files(old.dir.path());
     let m = read(&old);
     assert_eq!(m, read(&old));
-    assert_eq!(m.counts().levels, 15);
-    assert_eq!(m.counts().leaves, 8);
+    assert_eq!(m.counts().levels, 16);
+    assert_eq!(m.counts().leaves, 9);
     assert!(
         !m.source_rows["book_node"]
             .iter()
             .any(|r| r["id"] == "other-node")
     );
     assert_eq!(before, files(old.dir.path()));
-    // Baseline v2 fixture is deliberately still the old, smaller corpus.
+    // Baseline v2 fixture is deliberately still the old, smaller corpus (plus synthetic act leaf).
     let baseline = common::build(true);
     assert_eq!(
         manifest::read(&baseline.db, BOOK).unwrap().counts().leaves,
-        3
+        4
     );
 }
 

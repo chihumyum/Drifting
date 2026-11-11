@@ -272,6 +272,8 @@ pub struct TimelineLane {
     pub entry: String,
     #[serde(default)]
     pub pos: Option<String>,
+    #[serde(default)]
+    pub act_track: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -585,6 +587,7 @@ impl From<&dr_model::v3::TimelineLane> for TimelineLane {
         Self {
             entry: v.entry.to_string(),
             pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+            act_track: v.act_track,
         }
     }
 }
