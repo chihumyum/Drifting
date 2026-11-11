@@ -7,6 +7,11 @@
 
 所以 **Publish 就是推送更新**。草稿、预发布（prerelease）都不会被已安装的 App 看到。
 
+从 0.1.0-alpha.11 起，App 先试 `releases/latest/download/update.json`，拿不到（404）再读
+`latest.json`。`update.json` 只由新版（Rust 客户端 0.2）的 Release 提供，到时候装了
+alpha.11 及以后的 0.1 就会被交给新版。所以 **0.1 的 Release 永远不能带 `update.json`**；
+新版发布以后不再发 0.1。见 [m42-update.md](rust-rewrite/modules/m42-update.md)「旧版那头的交接」。
+
 ## 官方构建的内容
 
 | 项 | 值 |
