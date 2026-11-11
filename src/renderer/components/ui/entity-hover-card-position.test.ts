@@ -50,4 +50,39 @@ describe('computeEntityHoverCardPosition', () => {
     });
     expect(position.top).toBe(48);
   });
+
+  it('steps beside a middle-lane tile on a high-DPI scaled viewport instead of covering it', () => {
+    const midTile = { top: 240, right: 448, bottom: 304, left: 320, width: 128, height: 64 };
+    const card = { width: 248, height: 360 };
+    const rightPos = computeEntityHoverCardPosition({
+      anchor: midTile,
+      card,
+      viewportWidth: 1097,
+      viewportHeight: 569,
+      placement: 'bottom-start',
+    });
+    expect(rightPos.left).toBe(midTile.right + 8);
+
+    const nearRightTile = { ...midTile, left: 900, right: 1028 };
+    const leftPos = computeEntityHoverCardPosition({
+      anchor: nearRightTile,
+      card,
+      viewportWidth: 1097,
+      viewportHeight: 569,
+      placement: 'bottom-start',
+    });
+    expect(leftPos.left + card.width).toBe(nearRightTile.left - 8);
+  });
+
+  it('caps height into the roomier vertical gap when neither vertical nor horizontal side fits', () => {
+    const wideAnchor = { top: 280, right: 360, bottom: 320, left: 20, width: 340, height: 40 };
+    const pos = computeEntityHoverCardPosition({
+      anchor: wideAnchor,
+      card: { width: 248, height: 420 },
+      viewportWidth: 390,
+      viewportHeight: 560,
+      placement: 'bottom-start',
+    });
+    expect(pos.top + pos.maxHeight).toBeLessThanOrEqual(wideAnchor.top);
+  });
 });

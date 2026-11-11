@@ -121,9 +121,6 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, railWidth, til
                 } as React.CSSProperties
               }
             >
-              <div className="graph-tile__num">
-                § {String(node.bookOrder).padStart(2, '0')}
-              </div>
               <div className="graph-tile__title">
                 {node.title || t('common.untitled')}
               </div>

@@ -57,6 +57,13 @@ describe('desktop chapter pointer drag acceptance', () => {
     );
     expect(storyGraph).toContain('{ fromDrawer: true }');
     expect(storyGraph).toContain('chapterLaneGrabOffsetX(event.clientX, sourceRect)');
+    expect(storyGraph).toContain('weighted: fromDrawer');
+    expect(storyGraph).toContain('laneColor: fromDrawer ? undefined : laneTileColor');
+    expect(storyGraph).toContain('startStoryGraphPointerPan({');
+    expect(storyGraph).toContain('applyStoryGraphWheelPan(container, event)');
+    expect(storyGraphLane).not.toContain('graph-tile__num');
+    expect(storyGraphUnplaced).not.toContain('graph-head__unplaced-chip-num');
+    expect(bottomTimeline).not.toContain('btl__unplaced-chip-num');
     expect(storyGraph).not.toContain('initializeChapterDrag');
     expect(storyGraph).not.toContain('handleTileDragStart');
     expect(storyGraph).not.toContain('handleTracksDragOver');

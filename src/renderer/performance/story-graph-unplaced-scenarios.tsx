@@ -77,7 +77,7 @@ export async function runStoryGraphUnplacedScenarios() {
         const originalChips = chips();
         const checks = {
           closedPopoverCycles: closedCycles === 10,
-          orderedChapters: originalChips.every((chip, index) => chip.title === `Synthetic unplaced ${index}` && chip.querySelector('.graph-head__unplaced-chip-num')?.textContent === `§ ${String(index).padStart(2, '0')}`),
+          orderedChapters: originalChips.every((chip, index) => chip.title === `Synthetic unplaced ${index}` && chip.querySelector('.graph-head__unplaced-chip-title')?.textContent === `Synthetic unplaced ${index}` && !chip.querySelector('.graph-head__unplaced-chip-num')),
           bodyPortal: popover()?.parentElement === document.body && getComputedStyle(popover()!).position === 'fixed',
           primaryAndUnassignedColors: chipColor(originalChips[0]) === '#112233' && chipColor(originalChips[1]) === 'hsl(var(--ink-4))',
           openPopoverCycles: false, unchangedDom: false, currentTitleAndPrimary: false, currentStorylineColor: false,

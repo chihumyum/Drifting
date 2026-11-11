@@ -107,13 +107,6 @@
   flex-direction: column;
   gap: 2px;
 }
-.btl__unplaced-chip-num {
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 9.5px);
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
 /* Desktop rows: menu rows edge to edge, no fill; the row under the pointer
    becomes a ring of flowing glass in its chapter's storyline colour, led by
    the chapter's sand seal. Mobile keeps the paper chips above. */
