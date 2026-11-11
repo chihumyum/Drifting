@@ -129,7 +129,9 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 05:34 | 任务 7 暨夜间队列第 0 项完成：第 70 批接 `codex/switch-v3` `b10d7ac1` 整合候选 `2ae27b00` 合入 `main`。整合全套 9 门禁一次通过（Rust 2204 通过／0 失败／20 忽略，含全部 17 条恢复注册的 `release_tests`；`xtask` 13 门禁含 `v3-cutover` 与 `audit`），删掉的 236 个测试函数按内容逐条核对无丢 v3 覆盖，`switchReview.pending` 八条逐一复核通过；副屏真窗口 `g-b70-m3` 15 条主流程、`g-b70-switch-2`、`g-b70-sync-1` 全部通过；`AGENTS.md` 与 `docs/rust-rewrite/` 的 v2.2 并存表述已更新为现状，晨报第一版已写，继续夜间队列第 1 项。 | `140d0775` |
 | 11-11 06:12 | 夜间队列第 1 项完成：在副屏真窗口用 `showcase` v3 样书（《慢钟》《阿Q正传》及六本陈列样书）采集书架、主页、整书通览、章／情节规划／人物字段与下方模块／构想条目页、层级页四种显示（列表文稿序＋按故事线、看板、网格、岛屿）、时间线、模板编辑、全局搜索、审阅、素材、统计、帮手、偏好设定及三类导入导出共 24 组（浅色 24 张＋深色 24 张，共 48 张），拼成外部总览页 `~/Drifting-autopilot-logs/screens/index.html`（未进仓库），逐张目检列出 13 条视觉／设计系统问题清单（只列不改），继续夜间队列第 2 项。 | `8b02dc4c` |
 | 11-11 09:11 | 夜间队列第 2 项完成：`codex/import-v3-gaps`（`b05f19fb`）补齐导入三个技术缺口——28 旧链接到 `EntityLinkV3` 无损适配（含 `material`/`library_item`、显式 `module` 与跨容器 `targetBlockId` 范围重映射）、29 非空字段默认值（`FieldDef.default_value`、Loro 读写、`entry.create` 默认初始化、当前与历史目录快照无损保留且不覆盖条目实填值）、30 带标记或链接的旧表格单元（多段单元、带标记 `hardBreak`、单元格内 `EntityLinkV3` 往返及 `remove_cell`）；22、23、25 保持 `Pending` 不动。全套 2211 通过／0 失败／20 忽略，`xtask check` 与 `public:check` 全绿，合入 `main` `7fe13566`，继续夜间队列第 3 项。 | `d150b0f3` |
-| 11-11 13:45 | 夜间队列第 3 项完成：`codex/heavy-perf-v3`（`b1533b9b`）在空闲 release（`load1m < 4.0`）下用 `heavy` v3 样书量完首屏、开书、长章打字、滚动、切章节、层级页与左栏、搜索、时间线八条路径，按最慢优先分四步逐项修复并每步独立复测（不改格式、不动 Loro `1.17.1`、不改行为）：单章冷／热开由 `2,742.8 / 2,442.5 ms` 降至 `97.6 / 44.4 ms`，切章预览 `p50` 由 `2,377.5 ms` 降至 `38.8–46.0 ms`，末章跳转由 `2,444.6 ms` 降至 `46.7–55.7 ms`，`Book::load` 由 `149.4 ms` 降至 `27.1 ms`，开书到主页由 `159.9 ms` 降至 `48.4–52.6 ms`，层级页四种显示由 `1,721–1,758 ms` 降至 `43.6–56.7 ms`，整书标签由 `2,974.6 ms` 降至 `120.3–137.2 ms`（`book-bench` 冷 `104.4 ms`／热 `37.5 ms`），搜索 3 字／零命中降至 `9.16 / 8.66 ms`。提交三份新鲜里程碑证据并更新 `benchmarks.md`，合入 `main` `139ad7d4`，继续夜间队列第 4 项。 | 本次合入 |
+| 11-11 13:45 | 夜间队列第 3 项完成：`codex/heavy-perf-v3`（`b1533b9b`）在空闲 release（`load1m < 4.0`）下用 `heavy` v3 样书量完首屏、开书、长章打字、滚动、切章节、层级页与左栏、搜索、时间线八条路径，按最慢优先分四步逐项修复并每步独立复测（不改格式、不动 Loro `1.17.1`、不改行为）：单章冷／热开由 `2,742.8 / 2,442.5 ms` 降至 `97.6 / 44.4 ms`，切章预览 `p50` 由 `2,377.5 ms` 降至 `38.8–46.0 ms`，末章跳转由 `2,444.6 ms` 降至 `46.7–55.7 ms`，`Book::load` 由 `149.4 ms` 降至 `27.1 ms`，开书到主页由 `159.9 ms` 降至 `48.4–52.6 ms`，层级页四种显示由 `1,721–1,758 ms` 降至 `43.6–56.7 ms`，整书标签由 `2,974.6 ms` 降至 `120.3–137.2 ms`（`book-bench` 冷 `104.4 ms`／热 `37.5 ms`），搜索 3 字／零命中降至 `9.16 / 8.66 ms`。提交三份新鲜里程碑证据并更新 `benchmarks.md`，合入 `main` `139ad7d4`，继续夜间队列第 4 项。 | `a0cac18f` |
+| 11-11 18:18 | 夜间队列第 4 项完成：Super View 接入 canonical v3。① M23 审阅与素材（`codex/m23-v3` `daab17c0` → 合入 `main` `5ce137a3`）：`dr-view-shelf-review` 接入 `SuperView::ReviewMaterials`（`⌘⌥5`），复用 M18 局部写入与 M19 素材卡片／`v3::{entry_links,related}` 关联筛选，提供拖宽比例与底部抽屉按书 `book_memory` 持久化及释放屏障；② M22 要素全景（`codex/m22-v3` `e390bde5` → 合入 `main` `c22489a1`）：`dr-workspace` 增按 `(book, source_doc, source_block)` 真实同段共现查询，`dr-view-relations` 补图例，`dr-view-element-overview` 接入 `SuperView::Elements`（`⌘⌥4`），支持默认关系图、群岛切换、三档缩放、聚焦、拖点固定（保留 `board`/`grid`）、拖上层级岛（复用 G2 `prepare_drop`）与浮层挂载真实 G1 `EntryPage`；全套 2,227 通过／0 失败／21 忽略，`xtask check` 全绿，副屏真窗口验收全过。③ M21 故事图按指示零代码改动，四项 v3 产品待定写入「待作者」。 | `c22489a1` |
+| 11-11 18:35 | 夜间队列第 5 项暨队列收尾完成：`codex/markdown-v3-plan`（`0731b3c4` → 合入 `main` `5f1ea41c`，零代码改动）撰写 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)（已知 v3 约束、七组拍板矩阵、五步实现顺序、永久验收清单）并补交叉链接；`xtask check` 与公开边界门禁全绿，晨报完成收尾总结后停下等作者。 | 本提交 |
 
 ## 技术待协调
 
@@ -152,6 +154,16 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 - **macOS 辅助功能／键盘注入权限（外部 `CGEvent` 系统拼音探针）：** 守卫宿主 `Antigravity` 当前未获系统授权（`AXIsProcessTrusted() == false`、`CGPreflightPostEventAccess() == false`），因此 `guardian-native-ime.py` 从外部向系统拼音 `SCIM.ITABC` 发送硬件级 `CGEvent.post` 按键时被 macOS TCC 丢弃。按规矩不绕过系统权限、也不拿调试桥 `input.type` 冒充原生输入法组字；进程内 `gpui-ime`／`gpui-prose`／`dr-editor` 组字契约与源会话在已授权终端跑通的 `sv3-ime-10` 原件保留，如需在 `Antigravity` 下复跑外部硬件按键脚本，请作者在「系统设置 → 隐私与安全性 → 辅助功能」勾选 `Antigravity` 后执行一次。
 
 - **100 章重型书「整书标签」冷首开进一步压进 `≤ 100 ms` 发布档的分段挂载交互策略（夜间队列第 3 项）：** 在不改现有整书行为与数据格式的前提下，工作区内打开 100 章（约 165 万字）整书标签已从 `2,974.6 ms` 降到 `120.3–137.2 ms`（独立 `book-bench` 冷开 `104.4 ms`、热开 `37.5–40.7 ms`，滚完全书 3,332 帧 `p95 = 0.704 ms`），已达到 `≤ 200 ms` 探针档且热开远低于 `100 ms`。剩余约 `100 ms` 冷首开时间来自一次性并行加载全部 100 篇正文文档并建立全章编辑器会话以提供真实全书高度、滚动条刻度与跨章查找／跳转；若要把首次冷打开进一步压到 `< 100 ms`，需引入按视口分段／懒挂载章节会话，会涉及未挂载章节的高度估算、滚动条跳变与全书查找何时触发补载等交互表现，按指令留待作者定夺，不自行改动现有交互。
+
+- **M21 故事图（`SuperView::StoryGraph`）在 canonical v3 下的四项产品待定（夜间队列第 4 项，零代码改动）：**
+  1. **文稿树与画布边界（旧书序轴／幕轨／顶部未安放章节列表取消后）：** `kernel-v3.md` 已定文稿顺序只属条目树、时间线无书序轴、无内置幕轨且「只有在泳道里的条目才在视图里」。请作者确认 M21 是否纯粹展示并编辑当前所选 `TimelineView`（不再提供基于「成书」文稿树的切轴或顶部「未安放章节」候选条，且旧库导入为树分组的原「幕」不在故事图画布上另画幕带）。
+  2. **底部托盘存废与「未绑定」筛选口径：** 旧版底部居中托盘专列「未绑定的构想」并支持拖上时间轴建钉；v3 中「构想」已是普通层级与叶子模板、无固定节点身份。请作者拍板：① 底部托盘是保留（例如默认取「构想」层级或允许作者指定任意来源层级），还是取消专用托盘、统一从左栏拖入？② 若保留，「待安放」按**当前所选 `TimelineView`**（不在该视图任何泳道且未挂该视图 `pin.entry`）筛选，还是按**全书所有 `TimelineView`** 乃至显式 `relations`（含旧 `act_binding` 迁入的关系）联合筛选？③ 从托盘拖向泳道区与标尺区分别创建泳道摆放还是挂时间钉？
+  3. **画布 Shift 连线的模块承载与虚实线规则：** v3 的 `module.put_relation` 写入目标条目的 `Relations` 模块，而默认小说模板中「章」与「构想」叶子模板未预配 `Relations` 模块（仅要素模板默认配有）。请作者确认：① 故事图 Shift 点选两张卡建关系时，是要求端点模板先配有 `Relations` 模块，还是提供书级关系承载（或为默认模板补入关联模块）？② 旧版「构想虚线、章节实线」是统一改为按关系类型自身线型绘制，还是按端点模板区分？
+  4. **多 `TimelineView` 选择与视图记忆联动：** M21 顶栏是否独立提供多 `TimelineView` 切换／新建入口并按书记忆上次查看的视图，还是与底部时间线抽屉联动共享同一当前视图？
+
+- **M22 要素全景（`SuperView::Elements`）浮岛小卡是否增加文稿树提及分布摘要（夜间队列第 4 项）：** 本轮已按规范去掉旧版扁平章节出现带，不引入任何书序轴或内置幕假设，浮岛 Peek 小卡当前展示总提及次数、前 5 名常同段同伴与显式关系。若后续希望在小卡上查看该要素在「成书」任意深度文稿树各分组／章中的提及分布，请作者定夺展示形态（如折叠列表或小火花条）。
+
+- **M40 Markdown 文件夹 v3 的七组格式与交互选项（夜间队列第 5 项，零代码改动）：** 已在 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 列出七组拍板矩阵（① 同步范围：仅「成书」叶子／全书含正文叶子／连同层级 `about`；② 多正文模块颗粒度：单正文模块单文件 vs 单条目聚合文件；③ 目录结构：随主住处嵌套 vs 顶层分桶 vs 平铺；④ 文件头元数据：纯只读身份键 vs 白名单标量字段双向同步；⑤ 外部新建／改名／移动／删除文件策略；⑥ 内嵌表格／素材块只读保护与参考摘要尾注；⑦ 蓝色显现、重叠待办与大幅删除快照保护），待作者勾选后按文档五步实现顺序落地。
 
 ## 晨报
 
@@ -232,3 +244,54 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   - 时间线：打开 `3.90 ms`、首帧 CPU `1.80 ms`、横向滚动 `p95 = 2.23–2.82 ms`。
 - **机器可校验里程碑证据与门禁：** 提交新鲜证据 `v3-heavy-v3-heavy-app-bench.json`、`v3-heavy-v3-book-bench.json`、`m05-m1-book-bench.json`（仓库外分步原始对比存于 `~/Drifting-autopilot-logs/heavy-perf/{before,step1,step2,step3a,step3b,step4}-*.json`）；`cargo fmt`、`clippy`、全量 `cargo test --workspace --locked`、`cargo xtask check --skip audit`（`evidence: 3 fresh, 0 invalid`）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check` 全部通过。
 - **当前状态与下一步：** 夜间队列第 3 项已完成；现立即开新工作区进入夜间队列第 4 项（Super View 接到 v3：先做 M23 审阅与素材，再做 M22 要素全景，M21 故事图只写「待作者」）。
+
+### 追加四（2026-11-11 18:18，夜间队列第 4 项：Super View 接到 canonical v3 — M23、M22 合入，M21 列待作者）
+
+- **4a. M23 审阅与素材（`SuperView::ReviewMaterials`，快捷键 `⌘⌥5`）：**
+  - **合入记录：** 分支 `codex/m23-v3`（`daab17c0`）本地 `--no-ff` 合入 `main` 提交 `5ce137a3`；模块文档见 [`m23-shelf-review.md`](../modules/m23-shelf-review.md)。
+  - **实现要点：** `dr-view-review` 暴露 `v3_panel::ensure` 与卡片／局部 guarded 写入口（`Entry { id, module }`、`Material`、浮动批注、失败草稿与原文快照悬停卡与 M18 共用同一套状态机，零重复）；新建 `next/crates/dr-view-shelf-review` 提供页眉实时计数与统一搜索、左一列待办与左二列批注（支持手柄拖宽与键盘微调，比例写入 `Workspace::book_memory("shelf-review")`）、右侧素材架（复用 `dr-view-material` 卡片、笔记／图片／PDF 类型片、`v3::{entry_links,related}` 条目关系筛选与关联开关、素材夹移动及外部文件导入）和底部抽屉（待整理无关联素材＋已解决审阅重开／删除），并接入 `dr_shell::release` 排空屏障。
+  - **验证结果：** 全套门禁（`fmt`、`clippy`、GPUI 契约测试、`xtask check`、`dr-shell` 九语字符串检查）通过；副屏真窗口在《慢钟》走通打开 `SuperView::ReviewMaterials`、展开底部抽屉、拖动调整栏宽及浅／深色重启恢复 `book_memory`。
+- **4b. M22 要素全景（`SuperView::Elements`，快捷键 `⌘⌥4`）：**
+  - **合入记录：** 分支 `codex/m22-v3`（`e390bde5`）本地 `--no-ff` 合入 `main` 提交 `c22489a1`；模块文档与浅／深色关系图＋群岛截图见 [`m22-element-overview.md`](../modules/m22-element-overview.md)。
+  - **实现要点：** 仅提取 ID 中立的力导向／弹簧模拟／装箱纯几何计算，零引入旧估算或扁平章节出现带；`dr-workspace` 新增基于 `Library::entry_module_references_in_book` 的按 `(book, source_doc, source_block)` 真实同段共现与提及次数查询（`Workspace::entry_cooccurrences`，查询前冲刷本机正文索引）；`dr-view-relations` 新增共享 `legend.rs`；新建 `next/crates/dr-view-element-overview` 实现默认关系图与群岛视图切换、三档自动缩放、单要素聚焦、节点拖动固定（经 guarded `entry.update` 写入 `Entry.layout.relation_graph`，原样保留 `board`/`grid` 并支持恢复自动排布与撤销）、群岛拖入层级岛（复用 G2 `dr_view_elements::data::v3::{drop_target,prepare_drop}` 处理 `add`/`move`/`blocked`）、点击浮岛 Peek 小卡与「展开」右侧抽屉直接挂载真实 G1 `EntryPage`（含 `dr_shell::release` 写排空屏障与按书 `book_memory` 隔离）。涉及文稿树提及分布的设计项未自行发挥，已记入「待作者」。
+  - **验证结果：** `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked`（**2,227 通过／0 失败／21 忽略**）、`cargo xtask check --skip audit`（12 道门禁含 `v3-cutover` 扫描 700 个产品 Rust 文件、`licenses` 61 成员／893 包）全部通过；副屏真窗口 68 步验收流程（关系图默认首屏、`沈知微` Peek 小卡、Sheet 挂载真实 `EntryPage`、群岛切换、浅／深色重启恢复、真实鼠标拖动固定节点触发「恢复自动排布」、群岛真实鼠标拖卡入岛并通过 `entry.get` 核实层级归属）**68/68 通过、0 pending**。另在 release 构建下记录 `Preset::Heavy`（300 要素、12,187 对真实共现、约 165 万字）参考耗时：首帧 `387.8 ms`、绘制 `p50 = 27.3 ms`／`p95 = 45.3 ms`、拖点再平衡收敛 `877.0 ms`（注：测量时宿主机有用户外部虚拟机后台负载 `load1m ≈ 10.6–12.0`，按规矩仅作高负载参考，不冒充空闲正式里程碑）。
+- **4c. M21 故事图（`SuperView::StoryGraph`）：** 按指示一行代码未动，已将旧书序轴／内置幕轨取消后的四项产品待定完整写入上文「待作者」。
+
+### 追加五（2026-11-11 18:28，夜间队列第 5 项：Markdown 文件夹 v3 方案文档完成）
+
+- **合入记录：** 分支 `codex/markdown-v3-plan`（`0731b3c4`）本地 `--no-ff` 合入 `main` 提交 `5f1ea41c`（纯文档提交，零代码改动）。
+- **文档内容：** 新建 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)，并在 [`m40-markdown-folder.md`](../modules/m40-markdown-folder.md)、[`modules.md`](../modules.md)、[`k4-ui.md`](../k4-ui.md)、[`v3-cutover.md`](../v3-cutover.md) 补齐交叉引用。方案严格锚定已敲定的 v3 内核不变量（`EntryId + ModuleId` 正文寻址、`H1/H2/H3` 仅作标题层级、本机 SQLite `markdown_mirror` 状态隔离、段落级合并、`EntityLinkV3` 回退与 `Actor::Mirror` 单一撤销步），把需要作者拍板的七组格式与交互分歧整理为对比矩阵，并给出拍板后的五步实现顺序及永久数据安全与双书隔离验收清单。
+- **门禁复核：** `cargo xtask check --skip audit`、仓库根 `pnpm public:check`（5,579 文件）、`pnpm ci:contract:check`（659 测试文件）、`pnpm agent:capabilities:check` 全部通过。
+
+### 夜间队列（11-11）收尾总结
+
+1. **0–5 各项合入提交与最终 `main` 位置：**
+   - **第 0 项（canonical v3 切换完成与全仓表述对齐）：** 产品合入 `ad97a43c` + 文档与晨报第一版 `140d0775`。
+   - **第 1 项（`showcase` v3 副屏浅／深色 48 张截图总览与 13 条视觉问题清单，零代码改动）：** `723e5981` → 合入 `main` `8b02dc4c`。
+   - **第 2 项（导入三个技术缺口 28、29、30 无损闭环，22／23／25 保持 pending）：** `b05f19fb` → 合入 `main` `7fe13566` + 晨报记录 `d150b0f3`。
+   - **第 3 项（`heavy` v3 约 165 万字空闲 release 八条路径逐项性能优化与里程碑证据）：** `b1533b9b` → 合入 `main` `139ad7d4` + 晨报记录 `a0cac18f`（其后完整保留主线既有提交 `1437e669` 与 `f2662713`）。
+   - **第 4 项（Super View 接到 v3）：** M23 审阅与素材 `daab17c0` → 合入 `main` `5ce137a3`；M22 要素全景 `e390bde5` → 合入 `main` `c22489a1`；M21 故事图零代码改动、列清四项产品待定。
+   - **第 5 项（Markdown 文件夹 v3 方案文档，零代码改动）：** `0731b3c4` → 合入 `main` `5f1ea41c`。
+   - **收尾晨报提交：** 本提交（父提交 `5f1ea41c5d28db092c2675c0590245f5e0a57c65`）。本地 `main` 停在本提交，遵守全部禁令：未推送、未开 PR、未发版、未建或移动标签、未删任何分支或 `refs/wip/*`、未触碰 0.1 客户端。
+2. **量到的性能数字总览（`Preset::Heavy` 约 165 万字符、100 章、300 要素、28,468 处实体链接，release 构建）：**
+   - **第 3 项空闲机器（`load1m < 4.0`）前后对比：**
+     - 2 万字长章打开：冷开 `2,742.8 ms → 97.6–108.2 ms`，热开 `2,442.5 ms → 44.4 ms`（预算 `≤ 50 ms`）；单键写入 `p50 = 0.211–0.274 ms`（`≤ 1 ms`），单键帧 CPU `p95 = 1.637–2.544 ms`（`≤ 8.3 ms`）。
+     - 切章节与跳末章：未访问章预览 `p50` `2,377.5 ms → 38.8–46.0 ms`（`≤ 50 ms`），跳末章 `2,444.6 ms → 46.7–55.7 ms`（`≤ 80 ms`），已开标签切换 `p50 = 8.13–8.24 ms`。
+     - 开书与首屏：`Book::load` 冷读 `149.4 ms → 27.1 ms`，点书卡到主页 `159.9 ms → 48.4–52.6 ms`（`≤ 150 ms`），书架首帧 `35.7 ms`、书卡就绪 `165.9–190.5 ms`（`≤ 300 ms`）。
+     - 整书通览与滚动：应用内整书标签冷开 `2,974.6 ms → 120.3–137.2 ms`（`book-bench` 冷开 `104.4 ms`、热开 `37.5–40.7 ms`）；滚完 100 章 3,332 帧 `p95 = 0.704 ms`（工作区内 `p95 = 2.31–2.50 ms`，预算 `≤ 8.3 ms`），滚完后进程物理内存 `150.4–204.5 MB`（预算 `≤ 400 MB`）。
+     - 层级页、左栏、搜索与时间线：层级页四种显示打开 `1,721–1,758 ms → 43.6–56.7 ms`；搜索 3 字 `p50` `14.36 ms → 9.16 ms`（`≤ 15 ms`）、2 字 `28.66 ms`（`≤ 40 ms`）、零命中 `8.66 ms`；时间线打开 `3.90 ms`、横滚 `p95 = 2.23–2.82 ms`。
+   - **第 4b 项 M22 要素全景 `Preset::Heavy` 参考耗时（宿主机有外部虚拟机负载 `load1m ≈ 10.6–12.0`，仅作参考）：** 首帧 `387.8 ms`、绘制 `p50 = 27.3 ms`／`p95 = 45.3 ms`、拖点再平衡收敛 `877.0 ms`。
+3. **还开着的技术问题与已知边界（不冒称已完成）：**
+   - **M36 生产自动同步与远端物理缓存回收：** 离线假服务往返与多窗口重开已通过，但 App 后台自动同步调度／退出冲刷接线及删书后接收端已下载资源文件的物理缓存回收仍属后续技术收口。
+   - **G1／K1 未知未来表示保真扩展：** 当前在首次真实提交前对无法保真表示整批拒绝以保原值与历史点不坏，后续扩展属引擎内部技术协调。
+   - **视觉问题清单与旧模块里程碑证据：** 第 1 项列出的 13 条视觉／设计系统问题按“只列不改”保持原样；`xtask check` 中非本轮套件的历史里程碑证据（22 份 `stale`）按规矩未篡改，留待各模块空闲里程碑重采。
+4. **全部等作者定的事（均已汇总在上方「待作者」）：**
+   1. **M10 导入映射策略 22、23、25**（`act_binding` 关系类型／方向、`unaffiliated` 住处与模板、按关系类型的端点模板列表）。
+   2. **条目页内部布局与第 1 项 13 条视觉／设计系统打磨方向**（双标题与内层嵌套滚动、主页重复新建按钮、层级页空 `about` 高度与看板／网格卡片形态、模板编辑顶栏防撞等）。
+   3. **100 章整书标签冷首开若要压进 `< 100 ms` 的分段／懒挂载交互策略**（未挂载章高度估算、滚动条行为与跨章查找补载时机）。
+   4. **M21 故事图在 canonical v3 下的四项产品设计**（画布是否纯展示当前 `TimelineView`、底部托盘存废与「待安放」筛选口径、Shift 连线的 `Relations` 模块承载与线型、多 `TimelineView` 选择联动）。
+   5. **M22 要素全景浮岛 Peek 小卡是否增加文稿树提及分布摘要及形态**。
+   6. **M40 Markdown 文件夹 v3 的七组格式与交互拍板矩阵**（见 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)）。
+   7. **（可选权限）macOS「辅助功能」勾选 `Antigravity`**（仅当需要在守卫宿主下复跑外部硬件级 `CGEvent` 系统拼音脚本时）。
+
+夜间队列（11-11）第 0–5 项至此全部完成并收尾，整合会话现按指示停下。
