@@ -127,7 +127,8 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 
 | 11-10 17:03 | 任务 6 完成：第 69 批接 `handback/track4` → `dee8634d`。两台独立设备、两本 canonical v3 书与四份资源变体真实往返；删除目标书 26 份文档，另一书 22 份全部文档及全部资源元数据／字节不变，隐藏／未来字段与历史保留，断连重连及 cursor 0 重放不复活。根独立跨书删除探针先红后绿，整合全套 2386／0 失败／22 忽略及全部门禁通过。接着从最新 main 启动任务 7；生产自动同步和远端物理缓存回收不冒称通过。 | `59a9cc45`（产品合入） |
 | 11-11 05:34 | 任务 7 暨夜间队列第 0 项完成：第 70 批接 `codex/switch-v3` `b10d7ac1` 整合候选 `2ae27b00` 合入 `main`。整合全套 9 门禁一次通过（Rust 2204 通过／0 失败／20 忽略，含全部 17 条恢复注册的 `release_tests`；`xtask` 13 门禁含 `v3-cutover` 与 `audit`），删掉的 236 个测试函数按内容逐条核对无丢 v3 覆盖，`switchReview.pending` 八条逐一复核通过；副屏真窗口 `g-b70-m3` 15 条主流程、`g-b70-switch-2`、`g-b70-sync-1` 全部通过；`AGENTS.md` 与 `docs/rust-rewrite/` 的 v2.2 并存表述已更新为现状，晨报第一版已写，继续夜间队列第 1 项。 | `140d0775` |
-| 11-11 06:12 | 夜间队列第 1 项完成：在副屏真窗口用 `showcase` v3 样书（《慢钟》《阿Q正传》及六本陈列样书）采集书架、主页、整书通览、章／情节规划／人物字段与下方模块／构想条目页、层级页四种显示（列表文稿序＋按故事线、看板、网格、岛屿）、时间线、模板编辑、全局搜索、审阅、素材、统计、帮手、偏好设定及三类导入导出共 24 组（浅色 24 张＋深色 24 张，共 48 张），拼成外部总览页 `~/Drifting-autopilot-logs/screens/index.html`（未进仓库），逐张目检列出 13 条视觉／设计系统问题清单（只列不改），继续夜间队列第 2 项。 | 本次合入 |
+| 11-11 06:12 | 夜间队列第 1 项完成：在副屏真窗口用 `showcase` v3 样书（《慢钟》《阿Q正传》及六本陈列样书）采集书架、主页、整书通览、章／情节规划／人物字段与下方模块／构想条目页、层级页四种显示（列表文稿序＋按故事线、看板、网格、岛屿）、时间线、模板编辑、全局搜索、审阅、素材、统计、帮手、偏好设定及三类导入导出共 24 组（浅色 24 张＋深色 24 张，共 48 张），拼成外部总览页 `~/Drifting-autopilot-logs/screens/index.html`（未进仓库），逐张目检列出 13 条视觉／设计系统问题清单（只列不改），继续夜间队列第 2 项。 | `8b02dc4c` |
+| 11-11 09:11 | 夜间队列第 2 项完成：`codex/import-v3-gaps`（`b05f19fb`）补齐导入三个技术缺口——28 旧链接到 `EntityLinkV3` 无损适配（含 `material`/`library_item`、显式 `module` 与跨容器 `targetBlockId` 范围重映射）、29 非空字段默认值（`FieldDef.default_value`、Loro 读写、`entry.create` 默认初始化、当前与历史目录快照无损保留且不覆盖条目实填值）、30 带标记或链接的旧表格单元（多段单元、带标记 `hardBreak`、单元格内 `EntityLinkV3` 往返及 `remove_cell`）；22、23、25 保持 `Pending` 不动。全套 2211 通过／0 失败／20 忽略，`xtask check` 与 `public:check` 全绿，合入 `main` `7fe13566`，继续夜间队列第 3 项。 | 本次合入 |
 
 ## 技术待协调
 
@@ -196,3 +197,15 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   12. **书架空热力图不可见与深色亮白封面反差（`01-shelf`）：** 0 字状态下热力图格点近乎不可见；深色模式下米白底书封与深黑背景反差过强。
   13. **设定与导入导出残留旧术语及工程调试信息（`21`、`23`、`24`）：** 中文设定左侧仍显示英文 `General Agent`；导入文件对话框残留旧术语「主线节点」及中英混排大写小标题；0.1 重新导入对话框直接展示 `app-local-data`、Application Support 原始绝对路径及 `选择 MappingChoices JSON` 调试文案。
 - **当前状态与下一步：** 夜间队列第 1 项已完成（零代码改动）；现立即切新工作区与分支进入夜间队列第 2 项（导入的三个技术缺口：28、29、30）。
+
+### 追加二（2026-11-11 09:11，夜间队列第 2 项：导入的三个技术缺口 28、29、30 完成）
+
+- **合入记录：** 分支 `codex/import-v3-gaps`（`b05f19fb`）本地 `--no-ff` 合入 `main` 产品提交 `7fe13566`。策略项 **22、23、25** 原样保持结构化 `Pending`，零触碰。
+- **三项技术缺口落点：**
+  1. **28 旧链接到 `EntityLinkV3` 写入的无损适配：** `dr-import-v1::prose::{plan_v3, read_paras_v3, sync_v3, export_v3}` 与 `dr-samples::v3` 将旧 `entityLink`（`element`/`chapter`/`idea` 条目及 `material`/`library_item` 素材、显式 `module`/`targetModule`、`targetBlockId`/`targetEndBlockId` 容器范围重映射）经 `ProseTxn::link_entity_v3` 无损写入当前正文、模板正文与全部快照历史点；未知目标种类与失配 ID 在首字节写入前结构化拒绝。
+  2. **29 非空字段默认值：** `FieldDef` 增加可选 `default_value: Option<FieldValue>`，`dr-doc::v3` Loro 往返读写（`Null` 归一化省略），`entry_template.put` 校验默认值类型与选项，`entry.create` 对未显式传入字段按模板默认值初始化；`dr-import-v1` 在当前目录与 `element-category` 历史快照的 `elementTemplateKvJson` 中无损保留非空模板默认值，且绝不覆盖已导入要素条目自身的空值或实填值。
+  3. **30 带标记或链接的旧表格单元：** `dr-doc::prose` 新增 `ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell`；`dr-import-v1` 支持 `Prose` 与 `Note` 两类正文里的多段表格单元、带行内标记的 `hardBreak`、全套文本标记与单元格内 `EntityLinkV3` 在当前正文、模板与历史恢复点之间逐单元无损往返，并拦截不支持的单元格嵌套块或未知标记。
+- **永久测试与门禁：**
+  - `dr-import-v1/tests/v3_import.rs` 新增 3 组「源库字节 SHA-256 与 mtime 不变 ＋ 导入结果与历史点逐项核对」永久契约测试，连同 `dr-doc`、`dr-workspace`、`dr-samples` 新增单测共 +7 条测试。
+  - 全套检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked`（**2211 通过／0 失败／20 忽略**）、`cargo xtask check`（含 `audit`）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check` 全部通过；`dr-testkit` 种子的 `tiny`/`lite`/`heavy` 语料指纹完全不变。
+- **当前状态与下一步：** 夜间队列第 2 项已完成；现立即从最新 `main` 开新工作区与分支 `codex/heavy-perf-v3` 进入夜间队列第 3 项（大书性能）。
