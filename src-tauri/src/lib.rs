@@ -43,6 +43,7 @@ mod sync_object_store;
 mod system_fonts;
 #[cfg(target_os = "macos")]
 mod webview_media;
+mod window_fit;
 #[cfg(target_os = "windows")]
 mod windows_image_codec;
 mod windows_tray;
@@ -452,6 +453,8 @@ pub fn run() {
                 webview_media::enable_media_devices(&window)?;
                 #[cfg(target_os = "windows")]
                 windows_webview::configure(&window)?;
+                #[cfg(desktop)]
+                window_fit::fit_main_window(&window)?;
                 window.show()?;
             }
             #[cfg(target_os = "windows")]

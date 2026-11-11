@@ -37,9 +37,6 @@ function UnplacedChapters({ nodes, primaryStorylineId, storylineById, onNodePoin
         title={node.title || t('common.untitled')}
       >
         <KindMark kind="chapter" seed={node.id} color={sl?.color} />
-        <span className="graph-head__unplaced-chip-num">
-          § {String(node.bookOrder).padStart(2, '0')}
-        </span>
         <span className="graph-head__unplaced-chip-title">
           {node.title || t('common.untitled')}
         </span>

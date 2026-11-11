@@ -201,6 +201,7 @@ export function startChapterLanePointerDrag({
     ? {
         glass: sourceElement.style.getPropertyValue('--glass-cc'),
         clip: sourceElement.style.getPropertyValue('--clip-color'),
+        tile: sourceElement.style.getPropertyValue('--tile-color'),
       }
     : null;
   /** Where the drag would drop now; the ghost takes that lane's colour. */
@@ -213,6 +214,7 @@ export function startChapterLanePointerDrag({
     const color = lane === null ? null : laneColor(lane);
     ghost.style.setProperty('--glass-cc', color ?? ownColor.glass);
     ghost.style.setProperty('--clip-color', color ?? ownColor.clip);
+    if (ownColor.tile) ghost.style.setProperty('--tile-color', color ?? ownColor.tile);
   };
 
   // Weighted slab state: the row it is in, and a spring body per axis.

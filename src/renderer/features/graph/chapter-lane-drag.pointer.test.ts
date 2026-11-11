@@ -240,7 +240,10 @@ describe('chapter lane pointer lifecycle', () => {
       style: {
         visibility: '',
         // The source's own inline colour: its lane's (lane-a).
-        getPropertyValue: (name: string) => (name === '--glass-cc' || name === '--clip-color' ? colors['lane-a'] : ''),
+        getPropertyValue: (name: string) =>
+          name === '--glass-cc' || name === '--clip-color' || name === '--tile-color'
+            ? colors['lane-a']
+            : '',
         setProperty: sourceSet,
       } as unknown as CSSStyleDeclaration,
       cloneNode: () => ghost,
@@ -278,6 +281,7 @@ describe('chapter lane pointer lifecycle', () => {
     move(150, 145);
     expect(worn.get('--glass-cc')).toBe(colors['lane-b']);
     expect(worn.get('--clip-color')).toBe(colors['lane-b']);
+    expect(worn.get('--tile-color')).toBe(colors['lane-b']);
     const writes = vi.mocked(ghostStyle.setProperty).mock.calls.length;
     // Moving within that lane writes nothing more.
     move(170, 150);

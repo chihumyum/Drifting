@@ -71,6 +71,11 @@ import {
   resolveChapterLanePointerTarget,
   startChapterLanePointerDrag,
 } from '../../../features/graph/chapter-lane-drag';
+import {
+  applyStoryGraphWheelPan,
+  isStoryGraphPanBlockedTarget,
+  startStoryGraphPointerPan,
+} from '../../../features/graph/story-graph-scroll-pan';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import '../../../../styles/graph-view.css';
@@ -717,9 +722,58 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
   // one pointer lifecycle. The drag visual is an imperative compositor layer,
   // so moving a chapter never re-renders every lane on every pointer event.
   const canvasRef = useRef<HTMLDivElement>(null);
+  const panCleanupRef = useRef<(() => void) | null>(null);
   const suppressChapterClickRef = useRef(false);
   // No hover cards while a chapter is being carried across lanes.
   const chapterDraggingRef = useRef(false);
+  // A chapter's glass is its lane's storyline colour; synthetic lanes (本书 /
+  // 未归属) fall back to `--story-4` just like StoryGraphLaneRow.
+  const laneTileColor = useCallback(
+    (laneId: string) => storylineById.get(laneId)?.color || 'hsl(var(--story-4))',
+    [storylineById],
+  );
+
+  useEffect(() => () => panCleanupRef.current?.(), []);
+  useEffect(() => {
+    const container = canvasRef.current;
+    if (!container) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      applyStoryGraphWheelPan(container, event);
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const handleCanvasPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (
+        event.pointerType === 'mouse' &&
+        event.button === 1 &&
+        !isStoryGraphPanBlockedTarget(event.target, 1)
+      ) {
+        event.preventDefault();
+      }
+      panCleanupRef.current?.();
+      const handle = startStoryGraphPointerPan({
+        container: event.currentTarget,
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        button: event.button,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        target: event.target,
+        onPanStart: hoverDismiss,
+      });
+      panCleanupRef.current = handle.started ? handle.cancel : null;
+    },
+    [hoverDismiss],
+  );
+
+  const handleCanvasAuxClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button === 1 && !isStoryGraphPanBlockedTarget(event.target, 1)) {
+      event.preventDefault();
+    }
+  }, []);
 
   // Refs into every rendered tile / drift card so the fixed-position drift
   // edge SVG can read live viewport rects via getBoundingClientRect. Tiles
@@ -836,6 +890,19 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
         }
         return target;
       },
+      // A placed chapter is a weighted slab on its lane; a chip pulled out of
+      // the holding popover just follows the hand.
+      weighted: fromDrawer
+        ? undefined
+        : {
+            rows: () =>
+              Array.from(
+                canvasRef.current?.querySelectorAll<HTMLElement>('[data-storyline-row]') ?? [],
+                (row) => row.getBoundingClientRect(),
+              ),
+          },
+      // Over another lane the slab's glass is already that lane's colour.
+      laneColor: fromDrawer ? undefined : laneTileColor,
       onDragStart: () => {
         suppressChapterClickRef.current = true;
         chapterDraggingRef.current = true;
@@ -863,7 +930,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
         }, 0);
       },
     });
-  }, [positionToOrder, primaryStorylineId, orderField, moveChapterOnTimeline, hoverDismiss]);
+  }, [positionToOrder, primaryStorylineId, laneTileColor, orderField, moveChapterOnTimeline, hoverDismiss]);
 
   const toggleUnplacedChapters = useCallback(() => setDrawerOpen(value => !value), []);
   const closeUnplacedChapters = useCallback(() => setDrawerOpen(false), []);
@@ -1250,7 +1317,12 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
             with their tracks at all scroll positions. The narrative
             axis row stickies to the top. No JS sync; no height-spacer
             hacks — the layout is genuinely one surface. */}
-        <div ref={canvasRef} className="graph-scroll">
+        <div
+          ref={canvasRef}
+          className="graph-scroll"
+          onPointerDown={handleCanvasPointerDown}
+          onAuxClick={handleCanvasAuxClick}
+        >
           {/* Act rail (幕) — book mode, only when acts exist. In-flow row
               inside the scroll container (track coordinate space, replaced
               the old FullBookLane sibling) so act bands align with chapter

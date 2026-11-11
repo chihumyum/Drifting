@@ -294,6 +294,7 @@ describe('Super View sand and glass acceptance', () => {
     const css = source('src/styles/graph-view.css');
     const desktopCss = css.slice(css.indexOf('Desktop (砂笔 + 素玻璃)'));
     expect(desktopCss).not.toMatch(/--accent/);
+    expect(desktopCss).toContain('.chapter-lane-pointer-ghost.graph-tile.glass');
     expect(desktopCss).toMatch(/\.graph-drift-edge__halo \{\s*display: none;/);
     expect(desktopCss).toContain('.graph-drift-edge:is(:hover, .is-lit, .is-selected)');
     // The retired drift drawer and header legend are gone.

@@ -161,9 +161,6 @@ export function NodeCardPopover({
     [getContentByNodeId],
   );
 
-  const labelNum =
-    node.bookOrder != null ? `§ ${String(node.bookOrder).padStart(2, '0')}` : '§ —';
-
   const summaryField = (
     <textarea
       ref={summaryRef}
@@ -276,7 +273,6 @@ export function NodeCardPopover({
     >
       <div className="entity-card__head">
         {mark}
-        <span className="entity-card__num">{labelNum}</span>
         <span className="entity-card__title" title={node.title || t('common.untitled')}>
           {node.title || t('common.untitled')}
         </span>

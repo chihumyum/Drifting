@@ -1237,9 +1237,6 @@ export function DesktopBottomTimeline({
                           title={node.title || t('common.untitled')}
                         >
                           <KindMark kind="chapter" seed={node.id} color={sl?.color} />
-                          <span className="btl__unplaced-chip-num">
-                            § {String(node.bookOrder ?? 0).padStart(2, '0')}
-                          </span>
                           <span className="btl__unplaced-chip-title">
                             {node.title || t('common.untitled')}
                           </span>
