@@ -4,12 +4,12 @@
   "milestone": "m05-m1",
   "generatedBy": "cargo run --release -p dr-editor --example book-bench -- --write",
   "inputs": {
-    "crates/dr-doc": "379328868d7efb39d391515b5655ff4438456eb5a8fcffa483425f7ac3598635",
-    "crates/dr-editor": "1b5c624ce375471a2f86c15ef1ce0fc2e2f183087693fd916fcd1b63924d09e1",
-    "crates/dr-store": "691facbf77899ae62a8013e758b0df17a96909ccb6b16e3f2c13660ada41d8ec",
-    "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
-    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a",
-    "crates/gpui-prose": "c997db126cb05dfd816abd3eeaa415291ba12c16ffdbda808b8669ae32ed8f23"
+    "crates/dr-doc": "f073d6f1abb63327a0141270ee240e932a2a76ff34af0274337853dcf22ad8a4",
+    "crates/dr-editor": "2f5bda7806860783382f2e0cc1494cdb412188ef19efbc4a6488cbb69c1fab8d",
+    "crates/dr-store": "5b0539d506c554809a43d8f4972750b27d9ba634d20d18160e43189ff58a4d2c",
+    "crates/dr-testkit/src/seed": "69352248c103e33930f9c2f1338443f0d9b314d5f9fb11d76635664e45cb388b",
+    "crates/dr-workspace": "8cc0609a2e96d307e0ae02ee5eb4171bd7afca64e4eeff3c289b28c9c1ae319b",
+    "crates/gpui-prose": "cda560e909ddeeb93a4fb40bcb414fc92c4b921d89ab87bf24f5414be4d8d48f"
   },
   "corpus": {
     "preset": "heavy",
@@ -111,7 +111,7 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 3.76,
+    "loadAverage1m": 3.72,
     "profile": "release"
   },
   "results": {
@@ -122,8 +122,8 @@
       800.0
     ],
     "load_average_1m": {
-      "start": 3.76,
-      "end": 3.76
+      "start": 3.69,
+      "end": 3.72
     },
     "conditions": {
       "busy_above_load_1m": 2.0,
@@ -131,44 +131,44 @@
     },
     "open_book": {
       "to_first_frame_ms": [
-        88.718,
-        37.954,
-        38.278
+        104.435,
+        40.669,
+        37.507
       ],
-      "cold_ms": 88.718,
+      "cold_ms": 104.435,
       "sessions_and_documents_ms": [
-        77.068,
-        26.23,
-        26.357
+        95.645,
+        32.773,
+        29.69
       ],
       "first_frame_ms": [
-        0.153,
-        0.158,
-        0.184
+        0.176,
+        0.159,
+        0.144
       ],
-      "max_ms": 88.718,
+      "max_ms": 104.435,
       "budget_ms": 200.0
     },
     "jump": {
       "first_frame_ms": [
-        4.288,
-        0.441,
-        2.723,
+        5.507,
         0.44,
-        1.879,
-        2.793,
-        0.442
+        3.207,
+        0.467,
+        1.905,
+        3.341,
+        0.537
       ],
       "settled_ms": [
-        4.442,
-        0.586,
-        2.875,
-        0.602,
-        2.023,
-        2.944,
-        0.594
+        5.656,
+        0.588,
+        3.373,
+        0.611,
+        2.056,
+        3.537,
+        0.684
       ],
-      "to_last_max_ms": 4.288,
+      "to_last_max_ms": 5.507,
       "landed_in_the_chapter": true,
       "budget_ms": 150.0
     },
@@ -176,22 +176,22 @@
       "frames": 3332,
       "reached_end": true,
       "ended_in_last_chapter": true,
-      "seconds": 1.937,
+      "seconds": 2.012,
       "viewport_px": 800.0,
       "step_px": 400.0,
       "frame": {
         "n": 3332,
-        "p50": 0.579,
-        "p95": 0.649,
-        "max": 1.031,
-        "mean": 0.581
+        "p50": 0.598,
+        "p95": 0.704,
+        "max": 1.171,
+        "mean": 0.603
       },
       "frame_cpu": {
         "n": 3332,
-        "p50": 0.579,
-        "p95": 0.649,
-        "max": 0.955,
-        "mean": 0.58
+        "p50": 0.598,
+        "p95": 0.702,
+        "max": 1.09,
+        "mean": 0.602
       },
       "frames_over_16_7_ms": 0,
       "slowest": [],
@@ -199,16 +199,16 @@
         "n": 3333,
         "p50": 0.0,
         "p95": 0.0,
-        "max": 0.0,
+        "max": 0.002,
         "mean": 0.0
       },
       "budget_p95_ms": 16.7
     },
     "memory_mb": {
-      "start": 140.6,
-      "book_open": 185.5,
-      "before_scroll": 186.6,
-      "after_scroll": 189.1,
+      "start": 152.3,
+      "book_open": 201.1,
+      "before_scroll": 202.0,
+      "after_scroll": 204.5,
       "budget_after_scroll": 800.0
     }
   }

@@ -54,18 +54,7 @@ pub fn canonical(lib: &Library, book: &str) -> bool {
 }
 impl Book {
     pub fn load(lib: &Library, book: &str) -> Result<Book, WsError> {
-        let observed = lib.observe(&format!("book:{book}"))?;
-        if observed
-            .value
-            .pointer("/meta/v")
-            .and_then(serde_json::Value::as_i64)
-            == Some(3)
-        {
-            return v3::load(lib, book);
-        }
-        Err(WsError::Invalid(
-            "only canonical v3 books can be opened; reimport into a new library".into(),
-        ))
+        v3::load(lib, book)
     }
     pub fn load_any(lib: &Library, preferred: Option<&str>) -> Result<Option<Book>, WsError> {
         if let Some(id) = preferred {

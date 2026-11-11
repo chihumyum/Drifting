@@ -12,7 +12,7 @@ use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID};
 
 use crate::catalog::EntitySnapshot;
 use crate::catalog::fields::{F, kv_entries};
-use crate::catalog::read::{ForestNode, forest};
+use crate::catalog::read::{ForestNode, forest, forest_entry_status, forest_node};
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::{DocError, Result};
@@ -823,6 +823,13 @@ impl<'a> BookViewV3<'a> {
         self.entries().into_iter().find(|e| &e.id == id)
     }
 
+    /// Single-entry lookup without computing book-wide auto-link name conflicts.
+    pub fn entry_raw(&self, id: &EntryId) -> Option<Entry> {
+        forest_node(&self.tree(book_v3::ENTRIES), id.as_str())
+            .as_ref()
+            .and_then(Self::read_entry_node)
+    }
+
     /// Effective parent of `id` after applying `V3-LEAF-NO-CHILDREN` tolerance
     /// (children placed under a leaf by a concurrent merge are lifted to the
     /// nearest non-leaf ancestor).
@@ -1063,14 +1070,24 @@ impl<'a> BookViewV3<'a> {
             .collect();
         let templates = self.templates_map();
         let memberships = self.memberships_raw();
+        self.timeline_views_with(&entries, &templates, &memberships)
+    }
+
+    /// Read-tolerant timeline views resolved against already-loaded `entries`,
+    /// `templates` and `memberships` from the same book snapshot.
+    pub fn timeline_views_with(
+        &self,
+        entries: &BTreeMap<EntryId, Entry>,
+        templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+        memberships: &[Membership],
+    ) -> Vec<TimelineView> {
         let mut out: Vec<TimelineView> = self
             .timeline_views_raw()
             .into_iter()
             .map(|mut v| {
-                let placements =
-                    effective_timeline_placements(&v, &memberships, &entries, &templates);
-                let lanes = effective_timeline_lanes(&v.lanes, &entries, &templates);
-                let pins = effective_timeline_pins(&v.pins, &entries);
+                let placements = effective_timeline_placements(&v, memberships, entries, templates);
+                let lanes = effective_timeline_lanes(&v.lanes, entries, templates);
+                let pins = effective_timeline_pins(&v.pins, entries);
                 v.lanes = lanes;
                 v.placements = placements;
                 v.pins = pins;
@@ -1137,10 +1154,7 @@ impl<'a> BookViewV3<'a> {
 
     /// Patches of entries that exist, sorted by `(entry, module, pos, id)`.
     pub fn patches(&self) -> Vec<PatchV3> {
-        let entry_ids: HashSet<String> = forest(&self.tree(book_v3::ENTRIES))
-            .into_iter()
-            .map(|n| n.id)
-            .collect();
+        let (_, entry_ids) = forest_entry_status(&self.tree(book_v3::ENTRIES));
         let mut v: Vec<PatchV3> = entities(self.doc, book_v3::PATCHES)
             .iter()
             .filter_map(|(id, v)| {
@@ -1330,24 +1344,41 @@ impl<'a> BookViewV3<'a> {
         }
     }
 
-    /// Whether `r` names an entity that exists and is not in the trash in v3.
-    pub fn entity_exists(&self, r: &EntityRef) -> bool {
+    fn entry_existence_sets(&self) -> (HashSet<String>, HashSet<String>) {
+        forest_entry_status(&self.tree(book_v3::ENTRIES))
+    }
+
+    fn entity_exists_with(
+        &self,
+        r: &EntityRef,
+        entries: Option<&(HashSet<String>, HashSet<String>)>,
+    ) -> bool {
         match r.kind {
-            EntityKind::Entry => forest(&self.tree(book_v3::ENTRIES))
-                .into_iter()
-                .find(|n| n.id == r.id)
-                .is_some_and(|n| F(&n.meta).ts("deleted_at").is_none()),
+            EntityKind::Entry => match entries {
+                Some((live, _)) => live.contains(&r.id),
+                None => forest_node(&self.tree(book_v3::ENTRIES), &r.id)
+                    .is_some_and(|n| F(&n.meta).ts("deleted_at").is_none()),
+            },
             EntityKind::Patch => self.entity_map(book_v3::PATCHES, &r.id).is_some_and(|m| {
                 matches!(
                     m.get("entry"),
                     Some(loro::ValueOrContainer::Value(LoroValue::String(e)))
-                        if forest(&self.tree(book_v3::ENTRIES)).iter().any(|n| n.id == e.as_str())
+                        if match entries {
+                            Some((_, all)) => all.contains(e.as_str()),
+                            None => forest_node(&self.tree(book_v3::ENTRIES), e.as_str())
+                                .is_some(),
+                        }
                 )
             }),
             EntityKind::Comment => self.entity_map(book_v3::COMMENTS, &r.id).is_some(),
             EntityKind::Material => self.entity_map(book_v3::MATERIALS, &r.id).is_some(),
             _ => false,
         }
+    }
+
+    /// Whether `r` names an entity that exists and is not in the trash in v3.
+    pub fn entity_exists(&self, r: &EntityRef) -> bool {
+        self.entity_exists_with(r, None)
     }
 
     pub fn relations(&self) -> Vec<Relation> {
@@ -1432,10 +1463,17 @@ impl<'a> BookViewV3<'a> {
         }
     }
 
-    fn read_comment(&self, id: &str, v: &LoroValue) -> Option<CommentV3> {
+    fn read_comment_with(
+        &self,
+        id: &str,
+        v: &LoroValue,
+        entries: Option<&(HashSet<String>, HashSet<String>)>,
+    ) -> Option<CommentV3> {
         let f = F(v);
         let target = f.entity_ref("target_kind", "target");
-        let target_missing = target.as_ref().is_some_and(|t| !self.entity_exists(t));
+        let target_missing = target
+            .as_ref()
+            .is_some_and(|t| !self.entity_exists_with(t, entries));
         Some(CommentV3 {
             id: CommentId::parse(id).ok()?,
             kind: f.kind("kind").unwrap_or(CommentKind::Note),
@@ -1473,13 +1511,37 @@ impl<'a> BookViewV3<'a> {
 
     pub fn comment(&self, id: &CommentId) -> Option<CommentV3> {
         let v = entity(self.doc, book_v3::COMMENTS, id.as_str())?;
-        self.read_comment(id.as_str(), &v)
+        self.read_comment_with(id.as_str(), &v, None)
     }
 
     pub fn comments(&self) -> Vec<CommentV3> {
+        let raw = entities(self.doc, book_v3::COMMENTS);
+        if raw.is_empty() {
+            return Vec::new();
+        }
+        let needs_entries = raw.iter().any(|(_, v)| {
+            F(v).entity_ref("target_kind", "target")
+                .is_some_and(|t| matches!(t.kind, EntityKind::Entry | EntityKind::Patch))
+        });
+        let entries = needs_entries.then(|| self.entry_existence_sets());
+        raw.iter()
+            .filter_map(|(id, v)| self.read_comment_with(id, v, entries.as_ref()))
+            .collect()
+    }
+
+    /// `(id, target, target_module, anchor)` for every anchored comment without
+    /// scanning the entry tree (`target_missing` is not needed to carry anchors).
+    pub fn anchored_comments(
+        &self,
+    ) -> Vec<(CommentId, EntityRef, Option<ModuleId>, EncodedAnchor)> {
         entities(self.doc, book_v3::COMMENTS)
-            .iter()
-            .filter_map(|(id, v)| self.read_comment(id, v))
+            .into_iter()
+            .filter_map(|(id, v)| {
+                let f = F(&v);
+                let anchor = f.anchor("anchor")?;
+                let target = f.entity_ref("target_kind", "target")?;
+                Some((CommentId::parse(&id).ok()?, target, f.id("module"), anchor))
+            })
             .collect()
     }
 
@@ -1632,9 +1694,9 @@ impl<'a> BookViewV3<'a> {
         match doc {
             DocId::Book(b) => b == self.book,
             DocId::Conversation(_) => true,
-            DocId::Body(b) => forest(&self.tree(book_v3::ENTRIES))
-                .iter()
-                .any(|n| n.id == b.entry().as_str()),
+            DocId::Body(b) => {
+                forest_node(&self.tree(book_v3::ENTRIES), b.entry().as_str()).is_some()
+            }
             DocId::Template(t) => match t.entry_module() {
                 Some((book_id, tpl_id, _)) => {
                     &book_id == self.book

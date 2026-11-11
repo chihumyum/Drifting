@@ -345,3 +345,282 @@ impl Default for ModuleConfig {
         }
     }
 }
+
+impl From<dr_model::shared::KvEntry> for KvEntry {
+    fn from(v: dr_model::shared::KvEntry) -> Self {
+        Self {
+            id: v.id.to_string(),
+            key: v.key,
+            value: v.value,
+            pos: v.pos.map(Into::into),
+        }
+    }
+}
+
+impl From<&dr_model::shared::KvEntry> for KvEntry {
+    fn from(v: &dr_model::shared::KvEntry) -> Self {
+        Self {
+            id: v.id.to_string(),
+            key: v.key.clone(),
+            value: v.value.clone(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+        }
+    }
+}
+
+impl From<dr_model::v3::FieldValue> for FieldValue {
+    fn from(v: dr_model::v3::FieldValue) -> Self {
+        match v {
+            dr_model::v3::FieldValue::Bool(b) => Self::Bool(b),
+            dr_model::v3::FieldValue::Number(n) => Self::Number(n),
+            dr_model::v3::FieldValue::Text(s) => Self::Text(s),
+            dr_model::v3::FieldValue::List(xs) => Self::List(xs),
+            dr_model::v3::FieldValue::Null => Self::Null,
+        }
+    }
+}
+
+impl From<&dr_model::v3::FieldValue> for FieldValue {
+    fn from(v: &dr_model::v3::FieldValue) -> Self {
+        match v {
+            dr_model::v3::FieldValue::Bool(b) => Self::Bool(*b),
+            dr_model::v3::FieldValue::Number(n) => Self::Number(*n),
+            dr_model::v3::FieldValue::Text(s) => Self::Text(s.clone()),
+            dr_model::v3::FieldValue::List(xs) => Self::List(xs.clone()),
+            dr_model::v3::FieldValue::Null => Self::Null,
+        }
+    }
+}
+
+impl From<&dr_model::v3::FieldDef> for FieldDef {
+    fn from(v: &dr_model::v3::FieldDef) -> Self {
+        Self {
+            id: v.id.clone(),
+            name: v.name.clone(),
+            field_type: v.field_type.as_str().to_owned(),
+            options: v.options.clone(),
+            target_template: v.target_template.as_ref().map(ToString::to_string),
+            default_value: v.default_value.as_ref().map(Into::into),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+        }
+    }
+}
+
+impl From<&dr_model::v3::ModuleConfig> for ModuleConfig {
+    fn from(v: &dr_model::v3::ModuleConfig) -> Self {
+        Self {
+            show_outline: v.show_outline,
+            task_todos: v.task_todos,
+            defs: v.defs.iter().map(Into::into).collect(),
+            aliases_field: v.aliases_field.clone(),
+            color_field: v.color_field.clone(),
+            status_field: v.status_field.clone(),
+            summary_field: v.summary_field.clone(),
+            portrait_field: v.portrait_field.clone(),
+            initial_kv: v.initial_kv.iter().map(Into::into).collect(),
+            default_rows: v.default_rows,
+            default_cols: v.default_cols,
+        }
+    }
+}
+
+impl From<&dr_model::v3::ModuleAgentConfig> for ModuleAgentConfig {
+    fn from(v: &dr_model::v3::ModuleAgentConfig) -> Self {
+        Self {
+            writable: v.writable,
+            read_tier: v.read_tier.clone(),
+            instructions: v.instructions.clone(),
+        }
+    }
+}
+
+impl From<&dr_model::v3::ModuleSpec> for ModuleSpec {
+    fn from(v: &dr_model::v3::ModuleSpec) -> Self {
+        Self {
+            id: v.id.to_string(),
+            kind: v.kind.as_str().to_owned(),
+            name: v.name.clone(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+            config: (&v.config).into(),
+            agent: v.agent.as_ref().map(Into::into),
+        }
+    }
+}
+
+impl From<&dr_model::v3::LevelSettings> for LevelSettings {
+    fn from(v: &dr_model::v3::LevelSettings) -> Self {
+        Self {
+            default_template: v.default_template.as_ref().map(ToString::to_string),
+            allow: v.allow.iter().map(ToString::to_string).collect(),
+            display: v.display.as_str().to_owned(),
+            auto_link: v.auto_link,
+            accept: v.accept,
+            home: v.home.as_ref().map(ToString::to_string),
+            is_manuscript: v.is_manuscript,
+            format_shortcuts: v.format_shortcuts.as_str().to_owned(),
+        }
+    }
+}
+
+impl From<&dr_model::v3::LevelSettingsOverride> for LevelSettingsOverride {
+    fn from(v: &dr_model::v3::LevelSettingsOverride) -> Self {
+        Self {
+            default_template: v
+                .default_template
+                .as_ref()
+                .map(|o| o.as_ref().map(ToString::to_string)),
+            allow: v
+                .allow
+                .as_ref()
+                .map(|xs| xs.iter().map(ToString::to_string).collect()),
+            display: v.display.as_ref().map(|d| d.as_str().to_owned()),
+            auto_link: v.auto_link,
+            accept: v.accept,
+            home: v.home.as_ref().map(|o| o.as_ref().map(ToString::to_string)),
+            is_manuscript: v.is_manuscript,
+            format_shortcuts: v.format_shortcuts.as_ref().map(|f| f.as_str().to_owned()),
+        }
+    }
+}
+
+impl From<&dr_model::v3::TemplateAgentConfig> for TemplateAgentConfig {
+    fn from(v: &dr_model::v3::TemplateAgentConfig) -> Self {
+        Self {
+            name: v.name.clone(),
+            description: v.description.clone(),
+            instructions: v.instructions.clone(),
+        }
+    }
+}
+
+impl From<&dr_model::v3::TemplateVerb> for TemplateVerb {
+    fn from(v: &dr_model::v3::TemplateVerb) -> Self {
+        Self {
+            id: v.id.clone(),
+            name: v.name.clone(),
+            description: v.description.clone(),
+            target_template: v.target_template.as_ref().map(ToString::to_string),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+        }
+    }
+}
+
+impl From<&dr_model::v3::EntryTemplate> for EntryTemplate {
+    fn from(v: &dr_model::v3::EntryTemplate) -> Self {
+        Self {
+            id: v.id.to_string(),
+            kind: v.kind.as_str().to_owned(),
+            name: v.name.clone(),
+            mark: v.mark.clone(),
+            color: v.color.clone(),
+            agent: v.agent.as_ref().map(Into::into),
+            modules: v.modules.iter().map(Into::into).collect(),
+            settings: (&v.settings).into(),
+            lane: v.lane,
+            verbs: v.verbs.iter().map(Into::into).collect(),
+            deleted_at: v.deleted_at.map(|t| t.0),
+        }
+    }
+}
+
+impl From<dr_model::v3::EntryLayout> for EntryLayout {
+    fn from(v: dr_model::v3::EntryLayout) -> Self {
+        Self {
+            board: v.board,
+            grid: v.grid,
+            relation_graph: v.relation_graph,
+        }
+    }
+}
+
+impl From<&dr_model::v3::Entry> for Entry {
+    fn from(v: &dr_model::v3::Entry) -> Self {
+        Self {
+            id: v.id.to_string(),
+            parent: v.parent.as_ref().map(ToString::to_string),
+            pos: v.pos.clone(),
+            title: v.title.clone(),
+            template: v.template.as_ref().map(ToString::to_string),
+            overrides: v.overrides.as_ref().map(Into::into),
+            fields: v
+                .fields
+                .iter()
+                .map(|(mid, fmap)| {
+                    (
+                        mid.to_string(),
+                        fmap.iter()
+                            .map(|(k, val)| (k.clone(), val.into()))
+                            .collect(),
+                    )
+                })
+                .collect(),
+            kv: v
+                .kv
+                .iter()
+                .map(|(mid, rows)| (mid.to_string(), rows.iter().map(Into::into).collect()))
+                .collect(),
+            primary: v.primary.as_ref().map(ToString::to_string),
+            layout: v.layout.into(),
+            created_at: v.created_at.map(|t| t.0),
+            updated_at: v.updated_at.map(|t| t.0),
+            deleted_at: v.deleted_at.map(|t| t.0),
+            name_conflict: v.name_conflict.as_ref().map(ToString::to_string),
+        }
+    }
+}
+
+impl From<&dr_model::v3::Membership> for Membership {
+    fn from(v: &dr_model::v3::Membership) -> Self {
+        Self {
+            host: v.host.to_string(),
+            member: v.member.to_string(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+            created_at: v.created_at.map(|t| t.0),
+        }
+    }
+}
+
+impl From<&dr_model::v3::TimelineLane> for TimelineLane {
+    fn from(v: &dr_model::v3::TimelineLane) -> Self {
+        Self {
+            entry: v.entry.to_string(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+        }
+    }
+}
+
+impl From<&dr_model::v3::TimelinePlacement> for TimelinePlacement {
+    fn from(v: &dr_model::v3::TimelinePlacement) -> Self {
+        Self {
+            entry: v.entry.to_string(),
+            at: v.at,
+            span: v.span,
+        }
+    }
+}
+
+impl From<&dr_model::v3::TimelinePin> for TimelinePin {
+    fn from(v: &dr_model::v3::TimelinePin) -> Self {
+        Self {
+            id: v.id.to_string(),
+            at: v.at,
+            label: v.label.clone(),
+            color: v.color.clone(),
+            entry: v.entry.as_ref().map(ToString::to_string),
+        }
+    }
+}
+
+impl From<&dr_model::v3::TimelineView> for TimelineView {
+    fn from(v: &dr_model::v3::TimelineView) -> Self {
+        Self {
+            id: v.id.to_string(),
+            name: v.name.clone(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+            lanes: v.lanes.iter().map(Into::into).collect(),
+            placements: v.placements.iter().map(Into::into).collect(),
+            pins: v.pins.iter().map(Into::into).collect(),
+            deleted_at: v.deleted_at.map(|t| t.0),
+        }
+    }
+}

@@ -79,14 +79,15 @@ op! {
             .map(|s| pid("parent", s))
             .transpose()?;
         let q = input.query.as_deref().unwrap_or("").to_lowercase();
-        convert(
+        Ok(
             v.entries()
                 .filter(|e| {
                     (input.all || v.effective_parent(&e.id) == p.as_ref())
                         && (input.trashed || !e.is_trashed())
                         && e.title.to_lowercase().contains(&q)
                 })
-                .collect::<Vec<_>>(),
+                .map(Into::into)
+                .collect(),
         )
     }
 }
@@ -132,6 +133,25 @@ pub enum SettingSource {
     Template { entry: String, template: String },
     Lane { entry: String, template: String },
 }
+
+impl From<&m::LevelSettingSource> for SettingSource {
+    fn from(s: &m::LevelSettingSource) -> Self {
+        match s {
+            m::LevelSettingSource::Default => Self::Default,
+            m::LevelSettingSource::Override { entry } => Self::Override {
+                entry: entry.to_string(),
+            },
+            m::LevelSettingSource::Template { entry, template } => Self::Template {
+                entry: entry.to_string(),
+                template: template.to_string(),
+            },
+            m::LevelSettingSource::Lane { entry, template } => Self::Lane {
+                entry: entry.to_string(),
+                template: template.to_string(),
+            },
+        }
+    }
+}
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct ResolvedLevelInfo {
     pub id: String,
@@ -156,11 +176,24 @@ op! {
             let bb=dr_doc::v3::BorrowedBookV3::new(doc,&book)?;
             Ok((bb.view().structure_snapshot(),frontiers_hex(&doc.state_frontiers())))
         })??;
-        let levels=v.levels().map(|e| {
-            let settings=v.level_settings(&e.id).expect("live level");
-            Ok(ResolvedLevelInfo { id:e.id.to_string(),settings:convert(&settings.settings)?,sources:convert(&settings.sources)?,children:convert(v.children_of(Some(&e.id)))?,members:convert(v.members_of(&e.id))? })
-        }).collect::<Result<_>>()?;
-        Ok(LevelsInfo { version,levels })
+        let levels = v
+            .levels()
+            .map(|e| {
+                let settings = v.level_settings(&e.id).expect("live level");
+                ResolvedLevelInfo {
+                    id: e.id.to_string(),
+                    settings: (&settings.settings).into(),
+                    sources: settings
+                        .sources
+                        .iter()
+                        .map(|(k, s)| (k.clone(), s.into()))
+                        .collect(),
+                    children: v.children_of(Some(&e.id)).into_iter().map(Into::into).collect(),
+                    members: v.members_of(&e.id).into_iter().map(Into::into).collect(),
+                }
+            })
+            .collect();
+        Ok(LevelsInfo { version, levels })
     }
 }
 

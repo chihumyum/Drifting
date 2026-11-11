@@ -1845,8 +1845,9 @@ pub fn is_autolink_leaf(
     if resolve_level_settings(eff_parent.as_ref(), entries, templates).auto_link {
         return true;
     }
-    for m in filter_valid_memberships(memberships, entries, templates) {
+    for m in memberships {
         if m.member == entry.id
+            && check_membership(&m.host, &m.member, entries, templates).is_ok()
             && resolve_level_settings(Some(&m.host), entries, templates).auto_link
         {
             return true;

@@ -59,7 +59,7 @@ fn live(cx: &Cx<'_>, slot: &BookSlot, target: &Target) -> Result<bool> {
             if slot
                 .reader_v3
                 .view()
-                .entry(&id)
+                .entry_raw(&id)
                 .is_none_or(|e| e.is_trashed())
             {
                 return Ok(false);

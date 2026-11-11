@@ -250,7 +250,7 @@ pub struct Layers {
     marks: Entity<AgentMarks>,
     parts: Vec<Part>,
     index: HashMap<String, usize>,
-    names: Option<Rc<LinkMatcher<LinkTarget>>>,
+    names: Option<std::sync::Arc<LinkMatcher<LinkTarget>>>,
     /// The jump last shown, so a repeated notice does not scroll again.
     shown_jump: u64,
     /// The paragraph last sent as `editing` with `todo.project`, and its
@@ -851,7 +851,7 @@ impl Layers {
                 .await;
             this.update(cx, |this, cx| match found {
                 Ok(matcher) => {
-                    this.names = Some(Rc::new(matcher));
+                    this.names = Some(matcher);
                     for part in &mut this.parts {
                         part.links_dirty = true;
                     }
@@ -1260,25 +1260,23 @@ fn resolve_marks(
 
 /// The names the book's links can go to, for suggestions (the document's own
 /// entity left out).
-fn link_names(ws: &Workspace, book: &str, doc: &str) -> Result<LinkMatcher<LinkTarget>, String> {
+fn link_names(
+    ws: &Workspace,
+    book: &str,
+    doc: &str,
+) -> Result<std::sync::Arc<LinkMatcher<LinkTarget>>, String> {
     let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
-    let own = if doc.is_empty() {
-        dr_model::DocId::Book(book_id.clone())
+    let own_doc = if doc.is_empty() {
+        dr_model::DocId::Book(book_id)
     } else {
         dr_model::DocId::parse(doc).map_err(|e| e.to_string())?
     };
-    let handle = ws
-        .library()
-        .open_doc(&format!("book:{book}"), OpenDoc::Existing)
-        .map_err(|e| e.to_string())?;
-    let names = handle
-        .read(move |d| {
-            dr_doc::v3::BookReaderV3::from_loro(book_id, d)
-                .map(|r| dr_workspace::autolink::matcher(&r.view(), &own))
-        })
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?;
-    Ok(names)
+    let own = match &own_doc {
+        dr_model::DocId::Body(b) => b.entry().as_str(),
+        dr_model::DocId::Book(_) => "",
+        _ => own_doc.entity_id(),
+    };
+    ws.book_link_matcher(book, own).map_err(|e| e.to_string())
 }
 
 /// What the text says about links, suggestions and TODO keywords.

@@ -48,12 +48,43 @@ fn invalid(e: impl ToString) -> WsError {
     WsError::Invalid(e.to_string())
 }
 
+fn is_caseless_singleton(c: char) -> bool {
+    matches!(
+        c,
+        '0'..='9'
+            | '\u{3000}'..='\u{303F}'
+            | '\u{3400}'..='\u{4DBF}'
+            | '\u{4E00}'..='\u{9FFF}'
+            | '\u{F900}'..='\u{FAFF}'
+    )
+}
+
 /// Same simple Unicode fold as the existing search; scalar offsets become
 /// byte ranges only at the rendering boundary.
 pub fn find(text: &str, query: &str) -> Option<Range<usize>> {
+    if query.is_empty() {
+        return None;
+    }
+    if text.is_ascii() && query.is_ascii() {
+        if query.len() > text.len() {
+            return None;
+        }
+        let qb = query.as_bytes();
+        let at = text
+            .as_bytes()
+            .windows(qb.len())
+            .position(|part| part.eq_ignore_ascii_case(qb))?;
+        return Some(at..at + qb.len());
+    }
+    if query.chars().all(is_caseless_singleton) {
+        let byte_at = text.find(query)?;
+        let start = text[..byte_at].chars().count();
+        let len = query.chars().count();
+        return Some(start..start + len);
+    }
     let hay: Vec<char> = text.chars().collect();
     let needle: Vec<char> = query.chars().collect();
-    if needle.is_empty() || needle.len() > hay.len() {
+    if needle.len() > hay.len() {
         return None;
     }
     let fold = |c: char| c.to_lowercase().next().unwrap_or(c);
@@ -65,12 +96,13 @@ pub fn find(text: &str, query: &str) -> Option<Range<usize>> {
 
 fn row(text: &str, query: &str, field: Field, paragraph: Option<u32>) -> Option<Row> {
     let found = find(text, query)?;
-    let chars: Vec<char> = text.chars().collect();
     let start = found.start.saturating_sub(24);
-    let end = (found.end + 24).min(chars.len());
-    let snippet: String = chars[start..end]
-        .iter()
-        .map(|c| if c.is_control() { ' ' } else { *c })
+    let want = found.end + 24 - start;
+    let snippet: String = text
+        .chars()
+        .skip(start)
+        .take(want)
+        .map(|c| if c.is_control() { ' ' } else { c })
         .collect();
     Some(Row {
         field,
@@ -123,7 +155,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
             return Err(invalid("book is in the trash"));
         }
         Ok((
-            v.entries(),
+            v.entries_raw(),
             v.templates_map(),
             v.patches(),
             v.plot_grids(),
@@ -141,6 +173,30 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
                 .or_default()
                 .insert(body.module().to_string());
         }
+    }
+    let mut patches_by_entry: BTreeMap<m::EntryId, BTreeSet<String>> = BTreeMap::new();
+    let mut patches_by_mod: BTreeMap<(m::EntryId, String), Vec<&m::PatchV3>> = BTreeMap::new();
+    for p in &patches {
+        patches_by_entry
+            .entry(p.entry.clone())
+            .or_default()
+            .insert(p.module.to_string());
+        patches_by_mod
+            .entry((p.entry.clone(), p.module.to_string()))
+            .or_default()
+            .push(p);
+    }
+    let mut grids_by_entry: BTreeMap<m::EntryId, BTreeSet<String>> = BTreeMap::new();
+    let mut grids_by_mod: BTreeMap<(m::EntryId, String), Vec<&m::PlotGridV3>> = BTreeMap::new();
+    for g in &grids {
+        grids_by_entry
+            .entry(g.entry.clone())
+            .or_default()
+            .insert(g.module.to_string());
+        grids_by_mod
+            .entry((g.entry.clone(), g.module.to_string()))
+            .or_default()
+            .push(g);
     }
     let live_entries: Vec<_> = entries
         .iter()
@@ -169,18 +225,12 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
                 .chain(entry.kv.keys())
                 .map(ToString::to_string),
         );
-        retained.extend(
-            patches
-                .iter()
-                .filter(|p| p.entry == entry.id)
-                .map(|p| p.module.to_string()),
-        );
-        retained.extend(
-            grids
-                .iter()
-                .filter(|g| g.entry == entry.id)
-                .map(|g| g.module.to_string()),
-        );
+        if let Some(mods) = patches_by_entry.get(&entry.id) {
+            retained.extend(mods.iter().cloned());
+        }
+        if let Some(mods) = grids_by_entry.get(&entry.id) {
+            retained.extend(mods.iter().cloned());
+        }
         for id in retained {
             if !modules.contains(&id) {
                 modules.push(id);
@@ -223,6 +273,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
         remaining: limit,
         groups: Vec::new(),
     };
+    let mut scratch = String::new();
     for entry in live_entries {
         if out.remaining == 0 {
             break;
@@ -281,34 +332,33 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
                 .map(|(_, kv)| kv)
             {
                 for item in kv {
-                    text(&format!("{} {}", item.key, item.value), Field::Description);
+                    scratch.clear();
+                    scratch.push_str(&item.key);
+                    scratch.push(' ');
+                    scratch.push_str(&item.value);
+                    text(&scratch, Field::Description);
                 }
             }
-            for patch in patches
-                .iter()
-                .filter(|p| p.entry == entry.id && p.module.as_str() == module)
-            {
-                text(
-                    &format!(
-                        "{} {}",
-                        patch.title.as_deref().unwrap_or_default(),
-                        patch.body
-                    ),
-                    Field::Patch,
-                );
+            if let Some(mod_patches) = patches_by_mod.get(&(entry.id.clone(), module.clone())) {
+                for patch in mod_patches {
+                    scratch.clear();
+                    scratch.push_str(patch.title.as_deref().unwrap_or_default());
+                    scratch.push(' ');
+                    scratch.push_str(&patch.body);
+                    text(&scratch, Field::Patch);
+                }
             }
-            for grid in grids
-                .iter()
-                .filter(|g| g.entry == entry.id && g.module.as_str() == module)
-            {
-                for s in grid
-                    .rows
-                    .iter()
-                    .map(|l| &l.label)
-                    .chain(grid.cols.iter().map(|l| &l.label))
-                    .chain(grid.cells.values())
-                {
-                    text(s, Field::Description);
+            if let Some(mod_grids) = grids_by_mod.get(&(entry.id.clone(), module.clone())) {
+                for grid in mod_grids {
+                    for s in grid
+                        .rows
+                        .iter()
+                        .map(|l| &l.label)
+                        .chain(grid.cols.iter().map(|l| &l.label))
+                        .chain(grid.cells.values())
+                    {
+                        text(s, Field::Description);
+                    }
                 }
             }
             rows.extend(

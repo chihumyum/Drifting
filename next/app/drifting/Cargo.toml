@@ -59,9 +59,20 @@ serde_json.workspace = true
 [dev-dependencies]
 dr-agent.workspace = true
 dr-agent-providers.workspace = true
+dr-editor.workspace = true
 dr-model.workspace = true
 dr-testkit.workspace = true
+dr-view-search.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui-prose.workspace = true
+gpui_platform = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+libc.workspace = true
+
+[[example]]
+name = "v3-heavy-bench"
 
 [[example]]
 name = "agent-acceptance"

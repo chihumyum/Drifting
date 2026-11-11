@@ -17,7 +17,7 @@
 //! characters per query. Chinese searches are often one or two characters
 //! (人名、地名), so shorter queries fall back to `LIKE` over the same rows.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use loro::{Frontiers, LoroDoc};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -1155,8 +1155,11 @@ impl Library {
             return Ok(Vec::new());
         }
         let fts = needle.len() >= TRIGRAM_MIN_CHARS;
+        let exact_sub = !fts && !query.bytes().any(|b| b.is_ascii_alphabetic() || b == 0);
         let pattern = if fts {
             fts_phrase(query)
+        } else if exact_sub {
+            query.to_string()
         } else {
             like_pattern(query)
         };
@@ -1167,6 +1170,10 @@ impl Library {
                  FROM block_fts JOIN block_index b ON b.id = block_fts.rowid
                  WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)
                  ORDER BY b.doc_id, b.ord LIMIT ?3"
+            } else if exact_sub {
+                "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
+                 WHERE (?2 IS NULL OR b.book_id = ?2) AND instr(b.text, ?1) > 0
+                 ORDER BY b.doc_id, b.ord LIMIT ?3"
             } else {
                 "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
                  WHERE (?2 IS NULL OR b.book_id = ?2) AND b.text LIKE ?1 ESCAPE '\\'
@@ -1176,42 +1183,54 @@ impl Library {
                 .query_map(params![pattern, book_id, limit as i64], hit_row)?
                 .collect::<rusqlite::Result<_>>()?
         } else if !fts {
-            // `LIKE` reads every row anyway: go document by document in the
-            // given order on the (doc_id, ord) index and stop once there are
-            // `limit` hits (a common character fills them from the first
-            // chapters), then the documents not listed.
+            // `LIKE` / `instr` reads every row anyway: go document by document
+            // in the given order on the (doc_id, ord) index and stop once there
+            // are `limit` hits (a common character fills them from the first
+            // chapters), then only the indexed documents not listed in `order`.
             let mut rows: Vec<HitRow> = Vec::new();
-            let mut listed: Vec<&str> = Vec::with_capacity(order.len());
-            let mut in_doc = conn.prepare_cached(
+            let mut listed: HashSet<&str> = HashSet::with_capacity(order.len());
+            let in_doc_sql = if exact_sub {
+                "SELECT doc_id, block_id, ord, text FROM block_index
+                 WHERE doc_id = ?1 AND (?2 IS NULL OR book_id = ?2) AND instr(text, ?3) > 0
+                 ORDER BY ord LIMIT ?4"
+            } else {
                 "SELECT doc_id, block_id, ord, text FROM block_index
                  WHERE doc_id = ?1 AND (?2 IS NULL OR book_id = ?2) AND text LIKE ?3 ESCAPE '\\'
-                 ORDER BY ord LIMIT ?4",
-            )?;
+                 ORDER BY ord LIMIT ?4"
+            };
+            let mut in_doc = conn.prepare_cached(in_doc_sql)?;
             for doc in order {
                 if rows.len() >= limit {
                     break;
                 }
-                if listed.contains(doc) {
+                if !listed.insert(*doc) {
                     continue;
                 }
-                listed.push(doc);
                 let left = (limit - rows.len()) as i64;
                 for row in in_doc.query_map(params![doc, book_id, pattern, left], hit_row)? {
                     rows.push(row?);
                 }
             }
             if rows.len() < limit {
-                let left = (limit - rows.len()) as i64;
-                let listed = serde_json::to_string(&listed)
-                    .map_err(|e| StoreError::invalid("search", e.to_string()))?;
-                let mut rest = conn.prepare_cached(
-                    "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
-                     WHERE (?2 IS NULL OR b.book_id = ?2) AND b.text LIKE ?1 ESCAPE '\\'
-                       AND b.doc_id NOT IN (SELECT value FROM json_each(?3))
-                     ORDER BY b.doc_id, b.ord LIMIT ?4",
-                )?;
-                for row in rest.query_map(params![pattern, book_id, listed, left], hit_row)? {
-                    rows.push(row?);
+                let unlisted: Vec<String> = conn
+                    .prepare_cached(
+                        "SELECT doc_id FROM index_state
+                         WHERE (?1 IS NULL OR book_id = ?1)
+                         ORDER BY doc_id",
+                    )?
+                    .query_map(params![book_id], |r| r.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?
+                    .into_iter()
+                    .filter(|doc| !listed.contains(doc.as_str()))
+                    .collect();
+                for doc in &unlisted {
+                    if rows.len() >= limit {
+                        break;
+                    }
+                    let left = (limit - rows.len()) as i64;
+                    for row in in_doc.query_map(params![doc, book_id, pattern, left], hit_row)? {
+                        rows.push(row?);
+                    }
                 }
             }
             rows
