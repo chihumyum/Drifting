@@ -62,6 +62,7 @@ pub struct ReviewView {
     book_epoch: u64,
     v3: Option<crate::v3_panel::State>,
     v3_load: u64,
+    data_rev: u64,
     i18n: I18n,
     items: Vec<CommentInfo>,
     /// Only the built-in generic associations, never custom relation types.
@@ -111,6 +112,7 @@ impl ReviewView {
                 marks: Rc::new(|_| None),
             }),
             v3_load: 0,
+            data_rev: 0,
             i18n: I18n::new(Locale::default(), Platform::current()),
             items: Vec::new(),
             filter: Filter::All,
@@ -172,6 +174,7 @@ impl ReviewView {
         state.scope = target;
         state.open = open;
         state.marks = marks;
+        self.data_rev += 1;
         if self.i18n.locale() != locale {
             self.i18n = I18n::new(locale, platform);
         }
@@ -195,6 +198,7 @@ impl ReviewView {
             self.book_epoch += 1;
             self.book = book.to_owned();
             self.items.clear();
+            self.data_rev += 1;
             if let Some(state) = &mut self.v3 {
                 self.editing = None;
                 self.writing.clear();
@@ -315,6 +319,7 @@ impl ReviewView {
                             this.items.push(card);
                         }
                         state.snapshot = snapshot;
+                        this.data_rev += 1;
                         this.loaded = true;
                         this.originals.clear();
                         this.apply_reveal();
@@ -325,6 +330,7 @@ impl ReviewView {
                             this.items.clear();
                             state.snapshot = crate::v3::Snapshot::default();
                         }
+                        this.data_rev += 1;
                         this.loaded = false;
                         if let Some(reveal) = this.reveal.take() {
                             let _ = reveal.reply.send(false);
@@ -340,6 +346,12 @@ impl ReviewView {
     /// Whether the first v3 snapshot load for the current book has completed.
     pub fn is_loaded(&self) -> bool {
         self.loaded
+    }
+
+    /// Monotonic counter incremented whenever loaded snapshot, items, inline
+    /// edit state or locale/marks bindings change.
+    pub fn data_revision(&self) -> u64 {
+        self.data_rev
     }
 
     /// Current v3 snapshot (comments, targets and built-in entry associations).
@@ -518,6 +530,7 @@ impl ReviewView {
                     Ok(_) => {
                         if close_editor && v.editing.as_ref().is_some_and(|(e, _, _)| e == &id) {
                             v.editing = None;
+                            v.data_rev += 1;
                         }
                         v.reload(cx);
                     }
@@ -584,6 +597,7 @@ impl ReviewView {
         let handle = gpui::Focusable::focus_handle(field.read(cx), cx);
         window.focus(&handle, cx);
         self.editing = Some((id.to_owned(), field, sub));
+        self.data_rev += 1;
         cx.notify();
     }
 
@@ -611,6 +625,7 @@ impl ReviewView {
             .is_some_and(|(editing, _, _)| editing == id)
         {
             self.editing = None;
+            self.data_rev += 1;
             self.reload(cx);
         }
         cx.notify();
@@ -637,6 +652,18 @@ impl ReviewView {
     /// What the source card of comment `id` says: where it is, and the
     /// passage it is anchored to.
     pub fn source_summary(&self, id: &str) -> Option<(SharedString, Option<SharedString>)> {
+        if let Some(state) = &self.v3
+            && let Some(item) = state.snapshot.item(id)
+        {
+            let title = match &item.place {
+                crate::v3::Place::On(_) => self.v3_title(item),
+                crate::v3::Place::Gone => self.i18n.t(keys::review_panel::groups::DELETED).into(),
+                crate::v3::Place::Floating => {
+                    self.i18n.t(keys::review_panel::SOURCE_FLOATING).into()
+                }
+            };
+            return Some((title, item.comment.quote.clone().map(Into::into)));
+        }
         let item = self.items.iter().find(|i| i.id == id)?;
         let source = self.source_of(item);
         Some((source.title, source.quote))
@@ -698,12 +725,12 @@ impl ReviewView {
 
     /// What a card's source card shows: the thing it is on and the passage.
     fn source_of(&self, item: &CommentInfo) -> Source {
+        self.source_of_id(&item.id, item.quote.as_deref())
+    }
+
+    fn source_of_id(&self, id: &str, quote: Option<&str>) -> Source {
         if let Some(state) = &self.v3 {
-            let source = state
-                .snapshot
-                .items
-                .iter()
-                .find(|i| i.comment.id.as_str() == item.id);
+            let source = state.snapshot.item(id);
             let title = source
                 .map(|i| match &i.place {
                     crate::v3::Place::On(_) => self.v3_title(i),
@@ -720,7 +747,7 @@ impl ReviewView {
                 mark: source
                     .and_then(|i| i.target.as_ref())
                     .and_then(|t| (state.marks)(t)),
-                quote: item.quote.clone().map(Into::into),
+                quote: quote.map(|q| q.to_owned().into()),
             };
         }
         Source {
@@ -737,11 +764,7 @@ impl ReviewView {
             && let Some(crate::v3::Item {
                 place: crate::v3::Place::On(target),
                 ..
-            }) = state
-                .snapshot
-                .items
-                .iter()
-                .find(|i| i.comment.id.as_str() == id)
+            }) = state.snapshot.item(id)
         {
             ReviewFocus::jump(id, cx);
             (state.open)(target.clone(), window, cx);
@@ -753,12 +776,7 @@ impl ReviewView {
             Place::V3(target) => self
                 .v3
                 .as_ref()
-                .and_then(|s| {
-                    s.snapshot
-                        .items
-                        .iter()
-                        .find(|i| i.target.as_ref() == Some(target))
-                })
+                .and_then(|s| s.snapshot.item_for_target(target))
                 .map(|i| self.v3_title(i))
                 .unwrap_or_default(),
             Place::Gone => self.i18n.t(keys::review_panel::groups::DELETED).into(),
@@ -941,36 +959,9 @@ impl ReviewView {
             }
         }
         let pointed = comment.clone();
-        let source = self.source_of(item);
-        let labels = Labels {
-            edit: self.i18n.t(keys::common::EDIT).to_owned().into(),
-            status: self
-                .i18n
-                .t(if done {
-                    keys::comment_rail::actions::REOPEN
-                } else {
-                    keys::comment_rail::actions::RESOLVE
-                })
-                .to_owned()
-                .into(),
-            convert: self
-                .i18n
-                .t(if todo {
-                    keys::comment_rail::actions::TO_NOTE
-                } else {
-                    keys::comment_rail::actions::TO_TODO
-                })
-                .to_owned()
-                .into(),
-            delete: self.i18n.t(keys::common::DELETE).to_owned().into(),
-            changed: self
-                .i18n
-                .t(keys::comment_rail::snapshot::CHANGED)
-                .to_owned()
-                .into(),
-        };
         let card_id = format!("{}-src-{}", self.id, item.id);
         let (card_entity, card_comment) = (entity.clone(), comment.clone());
+        let card_quote = item.quote.clone();
         let readonly = self.writing.contains(&item.id);
         let source_card = move |window: &mut Window, cx: &mut gpui::App| {
             // The passage is read when the card opens (and again once it is
@@ -979,7 +970,39 @@ impl ReviewView {
             window.defer(cx, move |_, cx| {
                 view.update(cx, |v, cx| v.want_original(&id, cx));
             });
-            let original = card_entity.read(cx).original_of(&card_comment).cloned();
+            let (source, labels, original) = {
+                let rv = card_entity.read(cx);
+                let source = rv.source_of_id(&card_comment, card_quote.as_deref());
+                let labels = Labels {
+                    edit: rv.i18n.t(keys::common::EDIT).to_owned().into(),
+                    status: rv
+                        .i18n
+                        .t(if done {
+                            keys::comment_rail::actions::REOPEN
+                        } else {
+                            keys::comment_rail::actions::RESOLVE
+                        })
+                        .to_owned()
+                        .into(),
+                    convert: rv
+                        .i18n
+                        .t(if todo {
+                            keys::comment_rail::actions::TO_NOTE
+                        } else {
+                            keys::comment_rail::actions::TO_TODO
+                        })
+                        .to_owned()
+                        .into(),
+                    delete: rv.i18n.t(keys::common::DELETE).to_owned().into(),
+                    changed: rv
+                        .i18n
+                        .t(keys::comment_rail::snapshot::CHANGED)
+                        .to_owned()
+                        .into(),
+                };
+                let original = rv.original_of(&card_comment).cloned();
+                (source, labels, original)
+            };
             source_card(
                 &card_id,
                 &source,

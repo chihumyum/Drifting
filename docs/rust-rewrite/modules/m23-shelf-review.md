@@ -23,3 +23,8 @@
 - 纯模型与 GPUI 契约测试：`next/crates/dr-view-shelf-review/tests/shelf_review.rs`（覆盖列宽比例与夹紧、统一搜索、类型片与 `Entry` 关系筛选、关联／解除关联驱动待整理抽屉、完成与重开驱动已解决抽屉、多书隔离与按书记忆恢复、以及 `dr_shell::library::replace` 释放屏障）。
 - 调试桥副屏真窗口验收：在 `showcase` 种子的《慢钟》上以独立临时 profile 走通打开 `SuperView::ReviewMaterials`、展开底部抽屉、拖动调整待办栏宽度、浅色与深色双轮重启并验证 `book_memory` 恢复。
 - 字符串门禁：`dr-i18n/keys.txt` 新增的 `memoMaterial.super.*`、`memoMaterial.todo.empty`、`memoMaterial.dialog.*` 与 `reviewPanel.newComment` 九语种对齐并由 `dr-shell` 字符串测试校验。
+- **`Preset::Heavy` release 空闲实测与优化对比**（100 章约 165 万字符、96 条待办、64 条批注、60 篇素材；`cargo test --release --locked -p dr-view-shelf-review --test shelf_review heavy_seed_reference_timings -- --ignored --nocapture`，机器空闲 `load1m < 4.0`）：
+  - **不改格式与行为的热路径优化**：待办栏、批注栏、右侧素材网格以及底部抽屉「待整理／已解决」全部五个滚动区由全量立即树切换为 `gpui::list(ListState)` 按视口虚拟化挂载，并按修订号缓存行扁平化快照（`CachedReview`、`CachedMaterials`、`ShelfRowsCache`）；`dr-ui::glass::paint_rim` 对滚出遮罩的玻璃框提前裁剪；`dr-doc` 新增标量头扫描 `entry_headers` 与 `material_titles` 供 `dr-view-review::v3::load` 与 `dr-view-material::v3::shelf_relations` 复用，消除打开时的 4 次全树 `get_deep_value()` 重扫。
+  - **首开首帧（`first_frame_ms`）**：优化前（`load1m 3.44 → 3.40`）`3.95 ms` → 优化后（`load1m 3.71 → 3.57`）**`2.35 ms`**（满足 `benchmarks.md` Super View 首开 `≤ 100 ms` 发布档预算）。
+  - **异步数据就绪（`ready_ms`，含审阅分组、60 篇素材与关联加载）**：优化前 `326.80 ms` → 优化后 **`136.06 ms`**（提速 **2.4×**）。
+  - **单帧绘制与滚动（20 帧，底部抽屉展开态）**：优化前 `p50 = 43.37 ms`、`p95 = 48.34 ms` → 优化后 **`p50 = 3.96 ms`、`p95 = 4.70 ms`**（提速 **10.3–11.0×**，远优于 120 Hz 发布档 `≤ 8.3 ms` 与 Super View 最差帧 `≤ 100 ms`）。

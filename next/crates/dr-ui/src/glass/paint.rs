@@ -83,7 +83,11 @@ pub fn paint_rim(
     window: &mut Window,
     cx: &App,
 ) {
-    if look.opacity <= 0.003 || bounds.size.width <= px(0.0) {
+    if look.opacity <= 0.003
+        || bounds.size.width <= px(0.0)
+        || bounds.size.height <= px(0.0)
+        || bounds.intersect(&window.content_mask().bounds).is_empty()
+    {
         return;
     }
     match ground {

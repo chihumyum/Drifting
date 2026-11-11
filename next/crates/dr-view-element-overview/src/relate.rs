@@ -257,6 +257,7 @@ pub struct RelateSimulation {
     alpha_decay: f64,
     alpha_target: f64,
     rng: Lcg,
+    buckets: HashMap<i64, Vec<usize>>,
 }
 
 pub fn create_relate_simulation(input: RelateSimulationInput<'_>) -> RelateSimulation {
@@ -361,6 +362,7 @@ pub fn create_relate_simulation(input: RelateSimulationInput<'_>) -> RelateSimul
         alpha_decay,
         alpha_target: 0.0,
         rng: Lcg::new(0x2d5e),
+        buckets: HashMap::new(),
     }
 }
 
@@ -516,48 +518,41 @@ impl RelateSimulation {
         let next_x = |node: &RelateSimNode| -> f64 { node.x + node.vx * keep };
         let next_y = |node: &RelateSimNode| -> f64 { node.y + node.vy * keep };
 
-        let mut buckets: HashMap<i64, Vec<usize>> = HashMap::new();
-        for (idx, node) in self.nodes.iter().enumerate() {
+        let Self { nodes, buckets, .. } = self;
+        for bucket in buckets.values_mut() {
+            bucket.clear();
+        }
+        for (idx, node) in nodes.iter().enumerate() {
             let gx = (next_x(node) / cell_w).floor() as i64;
             let gy = (next_y(node) / cell_h).floor() as i64;
             buckets.entry(key_of(gx, gy)).or_default().push(idx);
         }
 
-        let n = self.nodes.len();
+        let n = nodes.len();
         for p_idx in 0..n {
-            let gx = (next_x(&self.nodes[p_idx]) / cell_w).floor() as i64;
-            let gy = (next_y(&self.nodes[p_idx]) / cell_h).floor() as i64;
+            let gx = (next_x(&nodes[p_idx]) / cell_w).floor() as i64;
+            let gy = (next_y(&nodes[p_idx]) / cell_h).floor() as i64;
             for ix in (gx - 1)..=(gx + 1) {
                 for iy in (gy - 1)..=(gy + 1) {
-                    let Some(bucket) = buckets.get(&key_of(ix, iy)).cloned() else {
+                    let Some(bucket) = buckets.get(&key_of(ix, iy)) else {
                         continue;
                     };
-                    for q_idx in bucket {
+                    for &q_idx in bucket {
                         if q_idx <= p_idx {
                             continue;
                         }
-                        let wp = if self.nodes[p_idx].fx.is_none() {
-                            1.0
-                        } else {
-                            0.0
-                        };
-                        let wq = if self.nodes[q_idx].fx.is_none() {
-                            1.0
-                        } else {
-                            0.0
-                        };
+                        let wp = if nodes[p_idx].fx.is_none() { 1.0 } else { 0.0 };
+                        let wq = if nodes[q_idx].fx.is_none() { 1.0 } else { 0.0 };
                         if wp + wq == 0.0 {
                             continue;
                         }
-                        let dx = next_x(&self.nodes[q_idx]) - next_x(&self.nodes[p_idx]);
-                        let dy = next_y(&self.nodes[q_idx]) - next_y(&self.nodes[p_idx]);
-                        let ox = self.nodes[p_idx].hw + self.nodes[q_idx].hw + COLLIDE_MARGIN_X
-                            - dx.abs();
+                        let dx = next_x(&nodes[q_idx]) - next_x(&nodes[p_idx]);
+                        let dy = next_y(&nodes[q_idx]) - next_y(&nodes[p_idx]);
+                        let ox = nodes[p_idx].hw + nodes[q_idx].hw + COLLIDE_MARGIN_X - dx.abs();
                         if ox <= 0.0 {
                             continue;
                         }
-                        let oy = self.nodes[p_idx].hh + self.nodes[q_idx].hh + COLLIDE_MARGIN_Y
-                            - dy.abs();
+                        let oy = nodes[p_idx].hh + nodes[q_idx].hh + COLLIDE_MARGIN_Y - dy.abs();
                         if oy <= 0.0 {
                             continue;
                         }
@@ -571,18 +566,18 @@ impl RelateSimulation {
                         let push = ((if along_x { ox } else { oy }) / (wp + wq)) * sign * factor;
                         if along_x {
                             if outright {
-                                self.nodes[p_idx].x -= push * wp;
-                                self.nodes[q_idx].x += push * wq;
+                                nodes[p_idx].x -= push * wp;
+                                nodes[q_idx].x += push * wq;
                             } else {
-                                self.nodes[p_idx].vx -= push * wp;
-                                self.nodes[q_idx].vx += push * wq;
+                                nodes[p_idx].vx -= push * wp;
+                                nodes[q_idx].vx += push * wq;
                             }
                         } else if outright {
-                            self.nodes[p_idx].y -= push * wp;
-                            self.nodes[q_idx].y += push * wq;
+                            nodes[p_idx].y -= push * wp;
+                            nodes[q_idx].y += push * wq;
                         } else {
-                            self.nodes[p_idx].vy -= push * wp;
-                            self.nodes[q_idx].vy += push * wq;
+                            nodes[p_idx].vy -= push * wp;
+                            nodes[q_idx].vy += push * wq;
                         }
                     }
                 }

@@ -1,7 +1,7 @@
 //! Read-only review of v3 books. A source is an entry AND its prose module;
 //! neither grouping nor navigation passes through the legacy NavTarget.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use dr_doc::v3::BorrowedBookV3;
 use dr_editor::decor::Original;
@@ -104,6 +104,8 @@ pub struct Snapshot {
     pub items: Vec<Item>,
     /// Read projections are never offered back as a replacement write.
     associations: Vec<Relation>,
+    by_id: HashMap<String, usize>,
+    by_target: HashMap<Target, usize>,
 }
 
 fn invalid(e: impl ToString) -> WsError {
@@ -126,13 +128,8 @@ fn target(comment: &CommentV3) -> Option<Target> {
 /// creating any prose document. Ancestor trash hides navigation, not comments.
 pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
     let id = BookId::parse(book).map_err(invalid)?;
-    let stored: HashSet<_> = ws
+    let (mut items, associations, pending_retained) = ws
         .library()
-        .docs(Some(book), None)?
-        .into_iter()
-        .map(|d| d.doc_id)
-        .collect();
-    ws.library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
             if !dr_doc::v3::is_v3_doc(doc) {
@@ -143,50 +140,84 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
             if v.meta().deleted_at.is_some() {
                 return Err(invalid("book is in the trash"));
             }
+            let entries = v.entry_headers();
+            let mut node_live = HashSet::with_capacity(entries.len());
+            let mut node_all = HashSet::with_capacity(entries.len());
+            for (eid, e) in &entries {
+                node_all.insert(eid.to_string());
+                if !e.is_trashed() {
+                    node_live.insert(eid.to_string());
+                }
+            }
+            let entry_sets = (node_live, node_all);
+            let comments = v.comments_with_entries(&entry_sets);
+            let generic = dr_doc::catalog::generic_relation_type_id(&id);
+            if comments.is_empty() {
+                let associations = v.relations_matching_with_entries(&entry_sets, |r| {
+                    r.relation_type == generic
+                        && r.from.kind == EntityKind::Comment
+                        && r.to.kind == EntityKind::Entry
+                });
+                return Ok((Vec::new(), associations, Vec::new()));
+            }
             let templates = v.templates_map();
-            let entries: BTreeMap<_, _> = v
-                .entries_raw()
-                .into_iter()
-                .map(|e| (e.id.clone(), e))
-                .collect();
-            let live = |id: &str| {
-                entries.get(id).filter(|e| {
+            let live_ids: HashSet<String> = entries
+                .values()
+                .filter(|e| {
                     !e.is_trashed()
                         && m::effective_ancestors(&entries, &templates, &e.id)
                             .iter()
                             .all(|a| entries.get(a).is_some_and(|a| !a.is_trashed()))
                 })
-            };
-            let materials = v.materials();
-            let items = v
-                .comments()
+                .map(|e| e.id.to_string())
+                .collect();
+            let material_titles = v.material_titles();
+            let mut pending_retained: Vec<(usize, String)> = Vec::new();
+            let items: Vec<Item> = comments
                 .into_iter()
-                .map(|comment| {
+                .enumerate()
+                .map(|(idx, comment)| {
                     let target = target(&comment);
                     let mut title = String::new();
                     let mut module_name = None;
-                    let mut retained = false;
                     let found = match &target {
-                        Some(Target::Entry { id, module }) => live(id).is_some_and(|entry| {
-                            title = entry.title.clone();
-                            let Some(module) = module else { return true };
-                            let definition = entry
-                                .effective_template(&templates)
-                                .and_then(|t| t.modules.iter().find(|m| m.id.as_str() == module));
-                            module_name = definition.map(|m| m.name.clone());
-                            let stored = stored.contains(&format!("body:{id}/{module}"));
-                            let prose = definition.is_some_and(|m| m.kind == m::ModuleKind::Prose)
-                                || (module == "about" && entry.is_level(&templates));
-                            retained = !prose && stored;
-                            prose || stored
-                        }),
-                        Some(Target::Material(id)) => materials
-                            .iter()
-                            .find(|m| m.id.as_str() == id)
-                            .is_some_and(|m| {
-                                title = m.title.clone();
+                        Some(Target::Entry { id, module }) => {
+                            if live_ids.contains(id.as_str())
+                                && let Some(entry) = entries.get(id.as_str())
+                            {
+                                title = entry.title.clone();
+                                match module {
+                                    None => true,
+                                    Some(module) => {
+                                        let definition =
+                                            entry.effective_template(&templates).and_then(|t| {
+                                                t.modules.iter().find(|m| m.id.as_str() == module)
+                                            });
+                                        module_name = definition.map(|m| m.name.clone());
+                                        let prose = definition
+                                            .is_some_and(|m| m.kind == m::ModuleKind::Prose)
+                                            || (module == "about" && entry.is_level(&templates));
+                                        if prose {
+                                            true
+                                        } else {
+                                            pending_retained
+                                                .push((idx, format!("body:{id}/{module}")));
+                                            false
+                                        }
+                                    }
+                                }
+                            } else {
+                                false
+                            }
+                        }
+                        Some(Target::Material(id)) => {
+                            if let Some(mat_title) = material_titles.get(id.as_str()) {
+                                title = mat_title.clone();
                                 true
-                            }),
+                            } else {
+                                false
+                            }
+                        }
                         None => false,
                     };
                     let place = match &target {
@@ -199,33 +230,69 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                         target,
                         title,
                         module_name,
-                        retained,
+                        retained: false,
                         place,
                     }
                 })
                 .collect();
-            let generic = dr_doc::catalog::generic_relation_type_id(&id);
             let associations = v
-                .relations()
-                .into_iter()
-                .filter(|r| {
+                .relations_matching_with_entries(&entry_sets, |r| {
                     r.relation_type == generic
                         && r.from.kind == EntityKind::Comment
                         && r.to.kind == EntityKind::Entry
-                        && live(&r.to.id).is_some()
                 })
+                .into_iter()
+                .filter(|r| live_ids.contains(&r.to.id))
                 .collect();
-            Ok(Snapshot {
-                items,
-                associations,
-            })
-        })?
+            Ok((items, associations, pending_retained))
+        })??;
+    if !pending_retained.is_empty() {
+        let stored: HashSet<String> = ws
+            .library()
+            .docs(Some(book), None)?
+            .into_iter()
+            .map(|d| d.doc_id)
+            .collect();
+        for (idx, doc_id) in pending_retained {
+            if stored.contains(&doc_id)
+                && let Some(item) = items.get_mut(idx)
+                && let Some(target) = item.target.clone()
+            {
+                item.retained = true;
+                item.place = Place::On(target);
+            }
+        }
+    }
+    let mut by_id = HashMap::with_capacity(items.len());
+    let mut by_target = HashMap::with_capacity(items.len());
+    for (idx, item) in items.iter().enumerate() {
+        by_id.entry(item.comment.id.to_string()).or_insert(idx);
+        if let Some(target) = &item.target {
+            by_target.entry(target.clone()).or_insert(idx);
+        }
+    }
+    Ok(Snapshot {
+        items,
+        associations,
+        by_id,
+        by_target,
+    })
 }
 
 impl Snapshot {
     /// Built-in generic `comment -> entry` associations on live entries.
     pub fn associations(&self) -> &[Relation] {
         &self.associations
+    }
+
+    pub(crate) fn item(&self, id: &str) -> Option<&Item> {
+        self.by_id.get(id).and_then(|&idx| self.items.get(idx))
+    }
+
+    pub(crate) fn item_for_target(&self, target: &Target) -> Option<&Item> {
+        self.by_target
+            .get(target)
+            .and_then(|&idx| self.items.get(idx))
     }
 
     pub(crate) fn cards(&self, filter: Filter, scope: Option<&Target>) -> crate::Listing {

@@ -486,3 +486,96 @@ fn shelf_review_isolates_books_and_drains_on_release(cx: &mut TestAppContext) {
         dr_view_review::release(cx);
     });
 }
+
+#[gpui::test]
+#[ignore = "release reference benchmark over Preset::Heavy (100 chapters, 200 review items, 96 materials)"]
+fn heavy_seed_reference_timings(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store =
+        dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).expect("store");
+    let seed = dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Heavy,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .expect("seed heavy");
+    let book_id = seed.books[0].book_id().to_string();
+    seed.write_to(&store).expect("write seed");
+    store.rebuild_stale_indexes().expect("rebuild indexes");
+    let lib = Library::open(store, WorkspaceOptions::default()).expect("open workspace");
+
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(Appearance::Light),
+            },
+            Services {
+                library: Some(lib),
+                book: Some(book_id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_material::init(cx);
+        dr_view_shelf_review::init(cx);
+    });
+
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| {
+            ws.book_id == book_id && ws.book.v3().is_some() && ws.book_memory_ready()
+        })
+    });
+
+    let t_open = Instant::now();
+    vcx.update(|window, cx| {
+        shell.update(cx, |ws, cx| {
+            ws.super_view = Some(SuperView::ReviewMaterials);
+            cx.notify();
+        });
+        window.draw(cx).clear(cx);
+    });
+    let first_frame_ms = t_open.elapsed().as_secs_f64() * 1000.0;
+
+    wait(vcx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_shelf_review::current(cx).is_some_and(|v| v.read(cx).is_ready(cx))
+        })
+    });
+    let ready_ms = t_open.elapsed().as_secs_f64() * 1000.0;
+
+    let view =
+        vcx.update(|_, cx| dr_view_shelf_review::current(cx).expect("mounted ShelfReviewView"));
+    let counts = vcx.update(|_, cx| view.update(cx, |v, cx| v.counts(cx)));
+
+    let mut frame_ms = Vec::with_capacity(20);
+    for step in 0..20 {
+        let t_f = Instant::now();
+        vcx.update(|window, cx| {
+            view.update(cx, |v, cx| {
+                v.set_drawer_open(step >= 10, cx);
+                v.resize_rail(Rail::Todos, 280.0 + (step as f32) * 4.0, Some(1440.0), cx);
+            });
+            window.draw(cx).clear(cx);
+        });
+        frame_ms.push(t_f.elapsed().as_secs_f64() * 1000.0);
+    }
+    frame_ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let p50_draw_ms = frame_ms[frame_ms.len() / 2];
+    let p95_draw_ms = frame_ms[(frame_ms.len() * 95) / 100];
+
+    vcx.update(|_, cx| {
+        dr_view_review::release(cx);
+    });
+
+    eprintln!(
+        "[m23-heavy-reference] todos={} comments={} materials={} first_frame_ms={first_frame_ms:.2} ready_ms={ready_ms:.2} draw_p50_ms={p50_draw_ms:.2} draw_p95_ms={p95_draw_ms:.2}",
+        counts.open_todos, counts.open_comments, counts.materials,
+    );
+}

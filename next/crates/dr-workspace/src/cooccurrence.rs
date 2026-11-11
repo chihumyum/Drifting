@@ -7,7 +7,7 @@
 //! without a `source_block` contribute to mention totals only and never form a
 //! synthetic paragraph.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use dr_model::id::BookId;
 use dr_store::index::RefKind;
@@ -30,13 +30,20 @@ impl Workspace {
     pub fn entry_cooccurrences(&self, book: &str) -> Result<EntryCooccurrenceGraph> {
         let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
         let slot = self.book_slot(&book_id)?;
-        let live_entries: HashSet<String> = slot
+        let mut live_vec: Vec<String> = slot
             .reader_v3
             .view()
             .entries_raw()
             .into_iter()
             .filter(|e| !e.is_trashed())
             .map(|e| e.id.to_string())
+            .collect();
+        live_vec.sort();
+        live_vec.dedup();
+        let live_idx: HashMap<&str, u32> = live_vec
+            .iter()
+            .enumerate()
+            .map(|(idx, id)| (id.as_str(), idx as u32))
             .collect();
 
         self.flush_book_prose_indices(&book_id)?;
@@ -45,8 +52,8 @@ impl Workspace {
             .lib
             .entry_module_references_in_book(book_id.as_str())?;
 
-        let mut mentions: BTreeMap<String, u32> = BTreeMap::new();
-        let mut by_paragraph: BTreeMap<(&str, &str), BTreeSet<&str>> = BTreeMap::new();
+        let mut mention_counts: Vec<u32> = vec![0; live_vec.len()];
+        let mut by_paragraph: HashMap<(&str, &str), Vec<u32>> = HashMap::new();
 
         for r in &rows {
             if r.count == 0 {
@@ -58,32 +65,52 @@ impl Workspace {
             if r.source_entry == r.target_id {
                 continue;
             }
-            if !live_entries.contains(r.source_entry.as_str())
-                || !live_entries.contains(r.target_id.as_str())
-            {
+            if !live_idx.contains_key(r.source_entry.as_str()) {
                 continue;
             }
-            *mentions.entry(r.target_id.clone()).or_insert(0) += r.count;
+            let Some(&target_idx) = live_idx.get(r.target_id.as_str()) else {
+                continue;
+            };
+            mention_counts[target_idx as usize] += r.count;
             if let Some(block_id) = r.source_block.as_deref().filter(|b| !b.is_empty()) {
                 by_paragraph
                     .entry((r.source_doc.as_str(), block_id))
                     .or_default()
-                    .insert(r.target_id.as_str());
+                    .push(target_idx);
+            }
+        }
+
+        let mut pair_counts: HashMap<u64, u32> = HashMap::new();
+        for targets in by_paragraph.values_mut() {
+            if targets.len() < 2 {
+                continue;
+            }
+            targets.sort_unstable();
+            targets.dedup();
+            if targets.len() < 2 {
+                continue;
+            }
+            for i in 0..targets.len() {
+                let a = u64::from(targets[i]);
+                for &b in &targets[(i + 1)..] {
+                    let key = (a << 32) | u64::from(b);
+                    *pair_counts.entry(key).or_insert(0) += 1;
+                }
+            }
+        }
+
+        let mut mentions: BTreeMap<String, u32> = BTreeMap::new();
+        for (idx, count) in mention_counts.into_iter().enumerate() {
+            if count > 0 {
+                mentions.insert(live_vec[idx].clone(), count);
             }
         }
 
         let mut pairs: BTreeMap<(String, String), u32> = BTreeMap::new();
-        for targets in by_paragraph.values() {
-            if targets.len() < 2 {
-                continue;
-            }
-            let sorted: Vec<&str> = targets.iter().copied().collect();
-            for i in 0..sorted.len() {
-                for j in (i + 1)..sorted.len() {
-                    let key = (sorted[i].to_owned(), sorted[j].to_owned());
-                    *pairs.entry(key).or_insert(0) += 1;
-                }
-            }
+        for (packed, count) in pair_counts {
+            let a = (packed >> 32) as usize;
+            let b = (packed & 0xffff_ffff) as usize;
+            pairs.insert((live_vec[a].clone(), live_vec[b].clone()), count);
         }
 
         Ok(EntryCooccurrenceGraph { mentions, pairs })

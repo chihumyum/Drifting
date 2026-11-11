@@ -13,17 +13,16 @@ use dr_ui::{
     tokens::{Story, radius},
 };
 use dr_view_material::card;
-use dr_view_review::Filter;
 use dr_workspace::dto::CommentInfo;
 use gpui::{
     AnyElement, AppContext as _, Context, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled,
-    Window, div, px,
+    Window, div, list, px,
 };
 
 use crate::{
-    model::{DRAWER_HEADER_HEIGHT, filter_listing},
-    view::ShelfReviewView,
+    model::DRAWER_HEADER_HEIGHT,
+    view::{ShelfReviewView, sync_list_state},
 };
 
 #[derive(Clone, Copy)]
@@ -39,25 +38,7 @@ impl Render for EmptyDragGhost {
 
 impl ShelfReviewView {
     pub fn resolved_items(&self, cx: &gpui::App) -> Vec<(CommentInfo, SharedString)> {
-        let Some(review) = &self.review else {
-            return Vec::new();
-        };
-        let query = self.query_text(cx);
-        let rv = review.read(cx);
-        let listing = rv.cards_for(Filter::All, None);
-        let filtered = filter_listing(listing, &query, |item| {
-            rv.source_summary(&item.id)
-                .map(|(title, _)| title.to_string())
-                .unwrap_or_default()
-        });
-        let mut out = Vec::new();
-        for group in filtered.resolved {
-            let (_, group_title, _) = rv.group_header(&group);
-            for item in group.items {
-                out.push((item, group_title.clone()));
-            }
-        }
-        out
+        self.review_snapshot(cx).resolved_items.to_vec()
     }
 
     pub(crate) fn render_bottom_drawer(
@@ -70,8 +51,12 @@ impl ShelfReviewView {
         let (p, s) = (theme.palette, theme.scale);
         let entity = cx.entity();
 
-        let orphans = self.orphan_materials(cx);
-        let resolved = self.resolved_items(cx);
+        let mats = self.materials_snapshot(cx);
+        let orphans = mats.orphans;
+        let orphan_keys = mats.orphan_keys;
+        let rev = self.review_snapshot(cx);
+        let resolved = rev.resolved_items;
+        let resolved_keys = rev.resolved_keys;
         let open = self.memory.drawer_open;
         let open_height =
             crate::model::clamp_drawer_height(self.memory.drawer_height, container_height);
@@ -175,69 +160,85 @@ impl ShelfReviewView {
                 )
                 .into_any_element()
         } else {
-            let mut rows = div()
+            sync_list_state(&self.orphan_list, &self.orphan_list_sig, &orphan_keys, 0);
+            let weak = cx.weak_entity();
+            let orphan_len = orphans.len();
+            div()
                 .id("shelf-drawer-orphans-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .px(px(12.0))
-                .py(px(8.0))
-                .flex()
-                .flex_col()
-                .gap(px(4.0));
-
-            for mat in &orphans {
-                let open_id = mat.id.clone();
-                let open_ent = entity.clone();
-                let title: SharedString = if mat.title.trim().is_empty() {
-                    t(cx, keys::material_folders::UNTITLED)
-                } else {
-                    mat.title.clone().into()
-                };
-                let sub = card::subline(mat, cx);
-                let row = div()
-                    .id(SharedString::from(format!("drawer-orphan-row-{}", mat.id)))
-                    .px(px(8.0))
-                    .py(px(6.0))
-                    .rounded(px(radius::SM))
-                    .border(px(0.5))
-                    .border_color(p.subtle_hairline())
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .gap(px(8.0))
-                    .cursor_pointer()
-                    .on_click(move |_, _, cx| {
-                        open_ent.update(cx, |this, cx| this.open_material(&open_id, cx));
-                    })
-                    .child(card::thumb(mat, 28.0, window, cx))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
+                .overflow_hidden()
+                .child(
+                    list(self.orphan_list.clone(), move |ix, window, cx| {
+                        let Some(mat) = orphans.get(ix) else {
+                            return div().into_any_element();
+                        };
+                        let Some(ent) = weak.upgrade() else {
+                            return div().into_any_element();
+                        };
+                        let theme = Theme::of(window, cx);
+                        let (p, s) = (theme.palette, theme.scale);
+                        let open_id = mat.id.clone();
+                        let open_ent = ent.clone();
+                        let title: SharedString = if mat.title.trim().is_empty() {
+                            t(cx, keys::material_folders::UNTITLED)
+                        } else {
+                            mat.title.clone().into()
+                        };
+                        let sub = card::subline(mat, cx);
+                        let row = div()
+                            .id(SharedString::from(format!("drawer-orphan-row-{}", mat.id)))
+                            .px(px(8.0))
+                            .py(px(6.0))
+                            .rounded(px(radius::SM))
+                            .border(px(0.5))
+                            .border_color(p.subtle_hairline())
                             .flex()
-                            .flex_col()
-                            .gap(px(1.0))
+                            .flex_row()
+                            .items_center()
+                            .gap(px(8.0))
+                            .cursor_pointer()
+                            .on_click(move |_, _, cx| {
+                                open_ent.update(cx, |this, cx| this.open_material(&open_id, cx));
+                            })
+                            .child(card::thumb(mat, 28.0, window, cx))
                             .child(
                                 div()
-                                    .font_role(Role::Ui)
-                                    .type_px(s.secondary, s.line_body)
-                                    .text_color(p.ink(1).solid())
-                                    .truncate()
-                                    .child(title),
-                            )
-                            .child(
-                                div()
-                                    .font_role(Role::Ui)
-                                    .type_px(s.caption, s.line_caption)
-                                    .text_color(p.ink(3).solid())
-                                    .truncate()
-                                    .child(sub),
-                            ),
-                    );
-                rows = rows.child(self.render_material_hover_card("drawer-mat", mat, row, cx));
-            }
-            rows.into_any_element()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(1.0))
+                                    .child(
+                                        div()
+                                            .font_role(Role::Ui)
+                                            .type_px(s.secondary, s.line_body)
+                                            .text_color(p.ink(1).solid())
+                                            .truncate()
+                                            .child(title),
+                                    )
+                                    .child(
+                                        div()
+                                            .font_role(Role::Ui)
+                                            .type_px(s.caption, s.line_caption)
+                                            .text_color(p.ink(3).solid())
+                                            .truncate()
+                                            .child(sub),
+                                    ),
+                            );
+                        let hover_el = ent.update(cx, |this, cx| {
+                            this.render_material_hover_card("drawer-mat", mat, row, cx)
+                        });
+                        div()
+                            .px(px(12.0))
+                            .pt(px(if ix == 0 { 8.0 } else { 0.0 }))
+                            .pb(px(if ix + 1 == orphan_len { 8.0 } else { 4.0 }))
+                            .child(hover_el)
+                            .into_any_element()
+                    })
+                    .size_full(),
+                )
+                .into_any_element()
         };
 
         let left_col = div()
@@ -281,120 +282,137 @@ impl ShelfReviewView {
                 )
                 .into_any_element()
         } else {
-            let mut rows = div()
+            sync_list_state(
+                &self.resolved_list,
+                &self.resolved_list_sig,
+                &resolved_keys,
+                0,
+            );
+            let weak = cx.weak_entity();
+            let rv_opt = self.review.clone();
+            let resolved_len = resolved.len();
+            div()
                 .id("shelf-drawer-resolved-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .px(px(12.0))
-                .py(px(8.0))
-                .flex()
-                .flex_col()
-                .gap(px(4.0));
+                .overflow_hidden()
+                .child(
+                    list(self.resolved_list.clone(), move |ix, window, cx| {
+                        let Some((item, source_title)) = resolved.get(ix) else {
+                            return div().into_any_element();
+                        };
+                        let Some(ent) = weak.upgrade() else {
+                            return div().into_any_element();
+                        };
+                        let theme = Theme::of(window, cx);
+                        let (p, s) = (theme.palette, theme.scale);
+                        let todo = item.kind == "todo";
+                        let badge_color = if todo {
+                            p.story(Story::S4).mix(p.ink(1), 0.16)
+                        } else {
+                            p.comment
+                        };
+                        let badge_word = if todo {
+                            t(cx, keys::review_panel::filters::TODO)
+                        } else {
+                            t(cx, keys::review_panel::filters::COMMENT)
+                        };
+                        let body_text: SharedString = if item.body.trim().is_empty() {
+                            t(cx, keys::memo_material::todo::EMPTY)
+                        } else {
+                            item.body.clone().into()
+                        };
+                        let writing = rv_opt
+                            .as_ref()
+                            .is_some_and(|rv| rv.read(cx).is_writing(&item.id));
+                        let reopen_id = item.id.clone();
+                        let del_id = item.id.clone();
+                        let reopen_ent = ent.clone();
+                        let del_ent = ent;
 
-            for (item, source_title) in &resolved {
-                let todo = item.kind == "todo";
-                let badge_color = if todo {
-                    p.story(Story::S4).mix(p.ink(1), 0.16)
-                } else {
-                    p.comment
-                };
-                let badge_word = if todo {
-                    t(cx, keys::review_panel::filters::TODO)
-                } else {
-                    t(cx, keys::review_panel::filters::COMMENT)
-                };
-                let body_text: SharedString = if item.body.trim().is_empty() {
-                    t(cx, keys::memo_material::todo::EMPTY)
-                } else {
-                    item.body.clone().into()
-                };
-                let writing = self
-                    .review
-                    .as_ref()
-                    .is_some_and(|rv| rv.read(cx).is_writing(&item.id));
-                let reopen_id = item.id.clone();
-                let del_id = item.id.clone();
-                let reopen_ent = entity.clone();
-                let del_ent = entity.clone();
-
-                rows = rows.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "drawer-resolved-row-{}",
-                            item.id
-                        )))
-                        .px(px(8.0))
-                        .py(px(6.0))
-                        .rounded(px(radius::SM))
-                        .border(px(0.5))
-                        .border_color(p.subtle_hairline())
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(8.0))
-                        .child(
-                            div()
-                                .flex_none()
-                                .font_role(Role::Index)
-                                .type_px(s.caption, s.line_caption)
-                                .text_color(badge_color.solid())
-                                .child(badge_word),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .flex()
-                                .flex_col()
-                                .gap(px(1.0))
-                                .child(
-                                    div()
-                                        .font_role(Role::Ui)
-                                        .type_px(s.secondary, s.line_body)
-                                        .text_color(p.ink(2).solid())
-                                        .truncate()
-                                        .child(body_text),
+                        let row = div()
+                            .id(SharedString::from(format!(
+                                "drawer-resolved-row-{}",
+                                item.id
+                            )))
+                            .px(px(8.0))
+                            .py(px(6.0))
+                            .rounded(px(radius::SM))
+                            .border(px(0.5))
+                            .border_color(p.subtle_hairline())
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap(px(8.0))
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(badge_color.solid())
+                                    .child(badge_word),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(1.0))
+                                    .child(
+                                        div()
+                                            .font_role(Role::Ui)
+                                            .type_px(s.secondary, s.line_body)
+                                            .text_color(p.ink(2).solid())
+                                            .truncate()
+                                            .child(body_text),
+                                    )
+                                    .child(
+                                        div()
+                                            .font_role(Role::Ui)
+                                            .type_px(s.caption, s.line_caption)
+                                            .text_color(p.ink(4).solid())
+                                            .truncate()
+                                            .child(source_title.clone()),
+                                    ),
+                            )
+                            .child(
+                                Button::new(
+                                    SharedString::from(format!("drawer-reopen-{}", item.id)),
+                                    t(cx, keys::memo_material::super_::REOPEN_SHORT),
                                 )
-                                .child(
-                                    div()
-                                        .font_role(Role::Ui)
-                                        .type_px(s.caption, s.line_caption)
-                                        .text_color(p.ink(4).solid())
-                                        .truncate()
-                                        .child(source_title.clone()),
-                                ),
-                        )
-                        .child(
-                            Button::new(
-                                SharedString::from(format!("drawer-reopen-{}", item.id)),
-                                t(cx, keys::memo_material::super_::REOPEN_SHORT),
+                                .text()
+                                .small()
+                                .disabled(writing || crate::is_frozen(cx))
+                                .on_click(move |_, _, cx| {
+                                    reopen_ent.update(cx, |this, cx| {
+                                        this.reopen_review_item(&reopen_id, cx);
+                                    });
+                                }),
                             )
-                            .text()
-                            .small()
-                            .disabled(writing || crate::is_frozen(cx))
-                            .on_click(move |_, _, cx| {
-                                reopen_ent.update(cx, |this, cx| {
-                                    this.reopen_review_item(&reopen_id, cx);
-                                });
-                            }),
-                        )
-                        .child(
-                            PanelIconButton::new(
-                                SharedString::from(format!("drawer-delete-{}", item.id)),
-                                Icon::Trash,
-                            )
-                            .label(t(cx, keys::common::DELETE))
-                            .danger()
-                            .on_click(move |_, _, cx| {
-                                del_ent.update(cx, |this, cx| {
-                                    this.delete_review_item(&del_id, cx);
-                                });
-                            }),
-                        ),
-                );
-            }
-            rows.into_any_element()
+                            .child(
+                                PanelIconButton::new(
+                                    SharedString::from(format!("drawer-delete-{}", item.id)),
+                                    Icon::Trash,
+                                )
+                                .label(t(cx, keys::common::DELETE))
+                                .danger()
+                                .on_click(move |_, _, cx| {
+                                    del_ent.update(cx, |this, cx| {
+                                        this.delete_review_item(&del_id, cx);
+                                    });
+                                }),
+                            );
+                        div()
+                            .px(px(12.0))
+                            .pt(px(if ix == 0 { 8.0 } else { 0.0 }))
+                            .pb(px(if ix + 1 == resolved_len { 8.0 } else { 4.0 }))
+                            .child(row)
+                            .into_any_element()
+                    })
+                    .size_full(),
+                )
+                .into_any_element()
         };
 
         let right_col = div()

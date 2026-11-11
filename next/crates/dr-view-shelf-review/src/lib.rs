@@ -30,6 +30,15 @@ pub(crate) fn is_frozen(cx: &App) -> bool {
     cx.try_global::<Registry>().is_some_and(|r| r.frozen) || dr_shell::release::is_releasing(cx)
 }
 
+/// Returns the most recently mounted live [`ShelfReviewView`] in `cx`, if any.
+pub fn current(cx: &App) -> Option<gpui::Entity<ShelfReviewView>> {
+    cx.try_global::<Registry>()?
+        .views
+        .iter()
+        .rev()
+        .find_map(|w| w.upgrade())
+}
+
 /// Registers `SuperView::ReviewMaterials` and library-release barriers.
 pub fn init(cx: &mut App) {
     if !cx.has_global::<Registry>() {
