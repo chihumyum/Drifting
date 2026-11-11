@@ -114,7 +114,7 @@ M31 接入换库与退出后补充了资源释放边界：只读 future 可取�
 - `dr-agent/tests/controls.rs`：提问及过期回答、权限拒绝及过期许可、插件 revision 改变、插话、当前写工具后停止、中止等待写结算、读工具并发与写屏障、结束后的控制拒绝；与完成竞态的插话只有持久确认或明确拒绝两种结果。
 - `dr-view-agent/tests/control_delivery.rs`：阻塞真实 Completed 追加调用中的 F2 存储通知时，控制与 close 立即返回，窗口快捷键仍响应；关闭 future 继续等待，放行后真实换库成功。
 - `dr-agent/tests/settlement.rs`：写入后重开、按来源撤销；删除直接执行，按 F3 的界面语义让批注暂时浮置，撤销恢复原绑定。
-- `dr-agent/tests/crash.rs`：F8 子进程试验台，F2 更新行已插入、结算还没插入的事务中途强杀六次，核对正文、更新行、结算的 before/after frontiers 及重开结果。
+- `dr-agent/tests/crash.rs`：F8 子进程试验台，含六轮随机时序强杀与续写首步确定性强杀回归（覆盖 F2 更新行已插入而结算未插入时强杀回滚、续写子进程尚未报告首条 `durable` 即在事务中途被杀回滚、以及事务刚提交而未及报告 `durable` 时强杀前移一步），逐项核对正文、更新行、结算的 before/after frontiers 及重开结果。
 - `dr-agent/tests/failure.rs`：日志写入失败与正在进行的写入同时发生，终态必须等真实写入结算。
 - `dr-agent/tests/errors.rs`：协议错误与驱动 panic 后保留已落盘输出、关闭未执行调用、释放活动登记；同库单 Runtime、跨书误用对话无副作用、丢弃 run 自动中止。
 - `dr-agent/tests/protocol.rs`：未知或缺失协议版本、断裂序号在投影前拒绝；只读库可以读取已有对话。
