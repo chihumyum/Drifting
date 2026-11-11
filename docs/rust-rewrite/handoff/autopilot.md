@@ -158,6 +158,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 20:08 | 晚间队列第 1 项完成：记录作者 11-11 晚最终指令与四项产品决定——① 整书视图冷首开分段／懒挂载暂不做（120 ms 保持不动，未来新层级结构方向已记）；② 视觉打磨暂不做（13 条留作清单，M22 浮岛小卡提及分布并入一起暂缓）；③ M21 故事图四个待定问题标为「暂缓」（等新层级结构落地）；④ M40 Markdown 文件夹七组规则写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节（代码等新层级结构落地再写，本轮不实现），同步更新「待作者」，立即进入晚间队列第 2 项（重跑输入法外部测试）。 | `8f5bf493` |
 | 11-11 20:27 | 晚间队列第 2 项完成：核验 `Antigravity` 宿主 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，在冻结候选 `8f5bf493` 上跑通完整 `guardian-native-ime.py`（`g-evening-ime-3`，副屏真窗口）：真实系统 `Control-Space` 切到 Apple 拼音（`SCIM.ITABC`），硬件级 `CGEvent` 输入 `nihao` 观察到真实平台预编辑 `ni hao` 且持久正文与 frontier 未提前提交，空格提交恰好一次「你好」并推进 frontier，退出重开读回与提交版本逐字一致，原输入源恢复无误。立即进入晚间队列第 3 项（第 22 条「幕轨道」）。 | `61c80bbd` |
 | 11-11 23:33 | GitHub `next/` CI 追补完成（`main` `e8dad601`，run `43024370854`）：① `codex/ci-crash-fix`（`dcd6dc09` → 合入 `main` `5ded0501`）：核实 `DocInner::append` 单一 SQLite WAL 事务保证正文与 `agent_settlement` 原子一致，修复 `dr_testkit::crash::Harness` 续写子进程首步未打印 `durable` 即被 `SIGKILL` 时丢掉前序已核实落盘基线 `floor` 的缺陷（同时补齐前序步骤丢失检测），并新增 3 轮强杀确定性永久回归测试 `killing_resumed_agent_writer_on_first_step_recovers_book_and_settlement`（零重试、零放宽断言、零 `ignore`）；② `codex/ci-win-fix`（`6731d34a` → 合入 `main` `8d980c7c`）：修复 `dr-ui/src/components/color.rs:431` Windows 取色器 `cx.background_executor().spawn(...)`，并通过本机 `--target x86_64-pc-windows-msvc --keep-going` 全工作区排查修掉 `spikes/prose-spike` 无条件依赖 `objc2`／Apple 框架的阻塞，记录 5 个需 MSVC／`llvm-rc` 的第三方原生 build script（未装系统组件）。全套门禁通过，详记晨报。 | `8d980c7c` |
+| 11-11 23:45 | 晚间队列第 3 项完成：第 22 条「幕轨道」默认落地（`codex/act-track-v3` `0c4a189c` → 合入 `main` `bd9c3748`）。`TimelineLane` 新增可选 `act_track`（旧文档缺省读为 `false`，新书默认无幕轨道），`dr-import-v1` 在旧库含幕时按需在树顶层建「幕」层级（允许任意模板、新条目默认构想叶子模板、住处取初始化返回实际 id）并导入绑构想／新建同名条目／多幕复用提示／跨度计算／已有位置保留，8 类情形永久测试（含源库字节与 `mtime_ns` 零改动核对）全绿；`dr-view-timeline` 支持多条幕轨置顶在标尺正下方带分隔线、新建幕轨道与已有泳道切换幕轨道、泳道内首条新建落回视图起点、拖入与拉宽跨度及九语文案；副屏真窗口 `act-track-v3`（44/44）、`k4-g3-views-lanes`（40/40）、`switch-v3`（49/49）全部 0 pending 通过。立即进入晚间队列第 4 项。 | `bd9c3748` |
 
 ## 技术待协调
 
@@ -173,7 +174,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 
 （这里只保留实际产品设计；已定功能及引擎能力留在技术待协调。）
 
-- **M10 切换映射第 22 条「幕轨道」（作者已定 11-11，由晚间队列第 3 项落地；第 23、25 条作者已定 11-11 并已落地默认行为）。** 第 23 条「未归属」泳道与第 25 条关系类型端点去重／留空模板列表＋`import_original` 保留原种类已在夜间队列第 6 项落地默认行为。第 22 条作者已定 11-11：不建「大纲」关系，改为时间线视图里的「幕轨道」（带长度的泳道，每个时间线视图可含零到多条，新书默认无；旧库有幕时按需在树顶层建「幕」层级并导入对应条目与跨度，保留书稿下的幕分组），由晚间队列第 3 项紧接实现。见 [切换记录](../v3-cutover.md) 与 [M10 文档](../modules/m10-import.md)。
+- **M10 切换映射第 22 条「幕轨道」（作者已定并已落地 11-11；第 23、25 条作者已定 11-11 并已落地默认行为）。** 第 22 条「幕轨道」、第 23 条「未归属」泳道与第 25 条关系类型端点去重／留空模板列表＋`import_original` 保留原种类均已落地默认行为，旧库迁移不再需要任何人工 `MappingChoices` 选项。见 [切换记录](../v3-cutover.md) 与 [M10 文档](../modules/m10-import.md)，不再待办。
 
 - **视觉打磨与 M22 浮岛小卡提及分布（作者已定 11-11：暂缓）：** 视觉打磨暂不做，截图总览列出的 13 条问题留作清单；条目页空间、重复标题等布局设计及样式／流畅度打磨，连同 M22 要素全景（`SuperView::Elements`）浮岛 Peek 小卡的提及分布展示一并并入视觉打磨，一起暂缓。
 
@@ -382,3 +383,13 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
    - `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo check --locked -p drifting --features debug-bridge`、`cargo check -p prose-spike --lib --no-default-features --locked`：全部通过。
    - `cargo test -p dr-testkit -p dr-agent -p dr-ui -p prose-spike -p dr-platform --locked` 及全工作区测试套件（+3 条新增永久测试）：通过（注：全量跑时顺带观察到既有 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 在 `SEED=1` 或特定异步通知时序下会与外壳 `Workspace` 后台重载产生快照竞态，与本轮改动的 crate 无依赖交集，按分轨范围未越界改动 M22）。
    - `cargo xtask check`（12 道门禁含 `v3-cutover` 与 `audit` 974 包 0 漏洞）、仓库根 `pnpm public:check`（5,583 文件）、`pnpm ci:contract:check`（660 测试文件）：全部通过。
+
+### 晚间队列追加四（2026-11-11 23:45，晚间最终指令第 3 项：第 22 条「幕轨道」落地完成）
+
+- **合入记录：** `codex/act-track-v3`（产品候选 `0c4a189c`）本地 `--no-ff` 合入 `main` `bd9c3748`。
+- **落地内容：**
+  1. **数据模型与兼容（`dr-model`、`dr-doc`、`dr-workspace`、`dr-mcp`、`loro-schema.md`）：** `TimelineLane` 新增可选布尔字段 `act_track`（缺省为 `false`，旧文档与未知字段往返无损，不升 `format_version`；新书初始化默认不建幕轨道）；暴露 `timeline.set_act_track` 与 `timeline.create_act_track`（自动在树顶层创建允许任意模板、默认构想叶子模板的层级泳道并置顶加入当前视图）。
+  2. **0.1 旧幕默认无损导入（`dr-import-v1`）：** 彻底移除 `act_binding` 待决门禁（`V3Pending` 归零，无需 `MappingChoices`）。仅在旧库存在幕时于树顶层建「幕」层级（允许任意模板、新条目默认用初始化实际返回的构想叶子模板 id、住处用初始化实际返回的根 id），按书序映射每幕条目（绑在册构想则保持原住处只加「幕」归属；无绑／悬空绑则在「幕」下建同名条目并在模板含颜色字段时带过幕色；同一构想绑多幕仅最早一幕复用，其余建同名条目并记入 `ImportNotice`），跨度取该幕章节在默认视图最早 `at` 至最晚 `at + span`（无 `span` 取默认块宽 `8.0`；无位置章或空幕只加归属不落位置；首幕前章节不生条目；重叠幕照实写；构想在默认视图已有位置则保留原位置不覆盖并记入报告），书稿下的幕分组照旧保留。新增覆盖全部 8 种情形及源库字节＋`mtime_ns` 不变的永久测试。
+  3. **时间线界面与九语文案（`dr-view-timeline`、`dr-i18n`）：** 多条幕轨置顶渲染在标尺正下方并以底部分隔线与普通泳道区隔；支持「新建幕轨道」、已有泳道切换幕轨开关、泳道内首条新建自动对齐视图起点（修复空幕轨新建落到全视图最末章外侧的越界问题）、拖入已有条目、拖拽改跨度与双击进条目页；补齐九语文案。
+- **全套门禁与副屏真窗口验收：** `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、全工作区 `cargo test --workspace --locked`（0 失败）、`cargo xtask check`（13 门禁含 `v3-cutover` 700 文件与 `audit`）、仓库根 `pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check` 全绿；副屏真窗口 `act-track-v3.json`（44/44）、`k4-g3-views-lanes.json`（40/40）、`switch-v3.json`（49/49）全部 `0 pending` 通过（外部证据 `~/Drifting-autopilot-logs/act-track-smoke-3/`）。
+- **下一步：** 立即开新工作区进入晚间队列第 4 项（文案和调试残留）。
