@@ -54,13 +54,16 @@ pub enum MarkVisual {
     DangerExclamation,
 }
 
+/// Click handler for a sync hover-card action row.
+pub type MarkActionCallback = Rc<dyn Fn(&mut Window, &mut App)>;
+
 /// One action button at the foot of the sync hover card (`Retry`, `Sign in`, `Open Settings`).
 #[derive(Clone)]
 pub struct MarkAction {
     pub id: &'static str,
     pub icon: Icon,
     pub label: SharedString,
-    pub run: Rc<dyn Fn(&mut Window, &mut App)>,
+    pub run: MarkActionCallback,
 }
 
 /// Presentation of the paper corner mark and its hover card for the current frame.

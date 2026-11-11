@@ -20,7 +20,7 @@ use dr_platform::{Channel, Identity, SecretStore};
 use dr_shell::notifications::{Notifications, Source};
 use dr_shell::settings::{self, registry::Section};
 use dr_shell::strings::Strings;
-use dr_shell::sync::{MarkAction, MarkSpec, MarkVisual};
+use dr_shell::sync::{MarkAction, MarkActionCallback, MarkSpec, MarkVisual};
 use dr_sync::{
     SYNC_FAILING_FOR_MS, SYNC_MARK_SHOW_AFTER_MS, SYNC_RETRY_SHOW_AFTER_MS, SyncCornerState,
     SyncRuntime, SyncRuntimeSnapshot, SyncScheduleConfig, SyncSessionMode, SyncStatusAction,
@@ -32,7 +32,7 @@ use dr_view_account::{
     reconcile_sync_problem_notifications, sync_action_label, sync_status_copy,
 };
 use futures::FutureExt as _;
-use gpui::{App, BorrowAppContext as _, Global, SharedString, Subscription, Task, Window};
+use gpui::{App, BorrowAppContext as _, Global, SharedString, Subscription, Task};
 
 /// Development-only switch (`Channel::Development`): `1` keeps secrets in memory
 /// so automated multi-window smoke tests never read or write the OS keychain.
@@ -193,7 +193,7 @@ pub fn init(platform: &Identity, cx: &mut App) {
                     log::warn!("sync drain before sign-out finished best-effort: {err}");
                 }
             });
-            Some(async move { bg.await }.boxed_local())
+            Some(bg.boxed_local())
         }
     });
 
@@ -250,7 +250,7 @@ pub fn register_final_drain(cx: &mut App) {
     });
 }
 
-fn retry_action_callback() -> Rc<dyn Fn(&mut Window, &mut App)> {
+fn retry_action_callback() -> MarkActionCallback {
     Rc::new(|_window, cx| {
         trigger_manual_retry(cx);
     })
