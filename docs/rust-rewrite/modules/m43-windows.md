@@ -75,6 +75,7 @@
 
 - `CARGO_BUILD_JOBS=3 cargo test -p dr-platform --locked`：通过（含新增的 `tray::tests` 3 项与 `fonts::tests` 3 项）。
 - `CARGO_BUILD_JOBS=3 cargo clippy -p dr-platform --no-default-features --target x86_64-pc-windows-msvc --locked -- -D warnings`：在 macOS 上对 Windows x64 目标交叉类型检查与 Clippy 零警告通过（覆盖 `#[cfg(windows)]` 下的 Win32 `Shell_NotifyIconW`、隐藏消息窗口与右键弹出菜单实现）。
+- 2026-11-11 Windows 编译修复与全工作区交叉排查：`dr-ui/src/components/color.rs` 的 `#[cfg(windows)] mod system::pick` 改用 `cx.background_executor().spawn(...)`（钉选 GPUI `v1.27.0` 的 `gpui::App` 无 `background_spawn`）；`spikes/prose-spike` 将 `libc`、`objc2`、`raw-window-handle` 移入 `[target.'cfg(target_os = "macos")'.dependencies]` 并为 `src/bin/prose-spike` 加 `#[cfg(target_os = "macos")]` 守卫，使 `--target x86_64-pc-windows-msvc` 依赖图彻底不含 `objc2`／Apple 框架。macOS 本机在不安装 MSVC／Windows SDK／`llvm-rc` 的前提下运行 `cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc --locked --keep-going -- -D warnings`，纯 Rust 成员（`dr-model`、`prose-metrics`、`prose-linebreak`、`gpui-ime`、`dr-debug-protocol`、`dr-corpus`、`dr-platform --no-default-features`）零警告通过，仅剩 5 个第三方原生 C／汇编／RC 构建脚本依赖 Windows 工具链（`stacker`、`psm`、`libsqlite3-sys`、`ring`、`gpui` 的 `embed-resource`/`llvm-rc`），待推送后由 GitHub Actions Windows runner 跑完。
 
 ## 交回
 

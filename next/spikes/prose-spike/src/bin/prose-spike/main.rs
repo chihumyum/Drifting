@@ -13,15 +13,22 @@
 //!
 //! Measure with `cargo run --release -p prose-spike -- …`.
 
+#[cfg(target_os = "macos")]
 mod bench;
+#[cfg(target_os = "macos")]
 mod platform;
+#[cfg(target_os = "macos")]
 mod report;
+#[cfg(target_os = "macos")]
 mod shell;
+#[cfg(target_os = "macos")]
 mod synth;
 
 /// Prints GPUI's warnings and errors to stderr (it logs through `log`).
+#[cfg(target_os = "macos")]
 struct StderrLog;
 
+#[cfg(target_os = "macos")]
 impl log::Log for StderrLog {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.level() <= log::Level::Warn
@@ -39,6 +46,7 @@ impl log::Log for StderrLog {
     fn flush(&self) {}
 }
 
+#[cfg(target_os = "macos")]
 fn main() {
     let _ = log::set_logger(&StderrLog).map(|()| log::set_max_level(log::LevelFilter::Warn));
     if std::env::var_os("PROSE_SPIKE_PRESENT_NOW").is_some() {
@@ -74,4 +82,9 @@ fn main() {
         Some("chapter") => shell::run(false, flag("--builtin"), flag("--on-top")),
         _ => shell::run(true, flag("--builtin"), flag("--on-top")),
     }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    eprintln!("prose-spike measures on macOS only (the reference machine)");
 }
