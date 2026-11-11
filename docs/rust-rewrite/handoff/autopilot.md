@@ -152,7 +152,8 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-11 18:18 | 夜间队列第 4 项完成：Super View 接入 canonical v3。① M23 审阅与素材（`codex/m23-v3` `daab17c0` → 合入 `main` `5ce137a3`）：`dr-view-shelf-review` 接入 `SuperView::ReviewMaterials`（`⌘⌥5`），复用 M18 局部写入与 M19 素材卡片／`v3::{entry_links,related}` 关联筛选，提供拖宽比例与底部抽屉按书 `book_memory` 持久化及释放屏障；② M22 要素全景（`codex/m22-v3` `e390bde5` → 合入 `main` `c22489a1`）：`dr-workspace` 增按 `(book, source_doc, source_block)` 真实同段共现查询，`dr-view-relations` 补图例，`dr-view-element-overview` 接入 `SuperView::Elements`（`⌘⌥4`），支持默认关系图、群岛切换、三档缩放、聚焦、拖点固定（保留 `board`/`grid`）、拖上层级岛（复用 G2 `prepare_drop`）与浮层挂载真实 G1 `EntryPage`；全套 2,227 通过／0 失败／21 忽略，`xtask check` 全绿，副屏真窗口验收全过。③ M21 故事图按指示零代码改动，四项 v3 产品待定写入「待作者」。 | `c22489a1` |
 | 11-11 18:35 | 夜间队列第 5 项完成：`codex/markdown-v3-plan`（`0731b3c4` → 合入 `main` `5f1ea41c`，零代码改动）撰写 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md)（已知 v3 约束、七组拍板矩阵、五步实现顺序、永久验收清单）并补交叉链接；`xtask check` 与公开边界门禁全绿。 | `3cc69c03` |
 | 11-11 19:40 | 夜间队列第 6 项暨全部队列收尾完成：`codex/import-v3-23-25`（`e25b56e4` → 合入 `main` `78a9df97`）落地作者 11-11 新定的导入第 23 条（「未归属」默认按需建在初始化返回的实际故事线入口末位，沿用 `TPL_STORYLINE`、层级设置与实际书稿入口 `home`，无主归属、不再要 `MappingChoices`）与第 25 条（非内置关系类型端点转 `entry`/`patch`/`comment`/`material` 去重、模板列表留空，原种类写入 `import_original`，内置关系类型不动）；第 22 条 `act_binding` 继续 `Pending`（等作者确认幕轨道，不建「大纲」关系）。全套 2,230 通过／0 失败／21 忽略、含 `audit` 的 `xtask check`、副屏 `switch-v3.json` 47/47 真窗口验收与根门禁全绿，写完最终晨报后停下。 | `b202e4f2` |
-| 11-11 20:08 | 晚间队列第 1 项完成：记录作者 11-11 晚最终指令与四项产品决定——① 整书视图冷首开分段／懒挂载暂不做（120 ms 保持不动，未来新层级结构方向已记）；② 视觉打磨暂不做（13 条留作清单，M22 浮岛小卡提及分布并入一起暂缓）；③ M21 故事图四个待定问题标为「暂缓」（等新层级结构落地）；④ M40 Markdown 文件夹七组规则写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节（代码等新层级结构落地再写，本轮不实现），同步更新「待作者」，立即进入晚间队列第 2 项（重跑输入法外部测试）。 | 本提交 |
+| 11-11 20:08 | 晚间队列第 1 项完成：记录作者 11-11 晚最终指令与四项产品决定——① 整书视图冷首开分段／懒挂载暂不做（120 ms 保持不动，未来新层级结构方向已记）；② 视觉打磨暂不做（13 条留作清单，M22 浮岛小卡提及分布并入一起暂缓）；③ M21 故事图四个待定问题标为「暂缓」（等新层级结构落地）；④ M40 Markdown 文件夹七组规则写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节（代码等新层级结构落地再写，本轮不实现），同步更新「待作者」，立即进入晚间队列第 2 项（重跑输入法外部测试）。 | `8f5bf493` |
+| 11-11 20:27 | 晚间队列第 2 项完成：核验 `Antigravity` 宿主 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，在冻结候选 `8f5bf493` 上跑通完整 `guardian-native-ime.py`（`g-evening-ime-3`，副屏真窗口）：真实系统 `Control-Space` 切到 Apple 拼音（`SCIM.ITABC`），硬件级 `CGEvent` 输入 `nihao` 观察到真实平台预编辑 `ni hao` 且持久正文与 frontier 未提前提交，空格提交恰好一次「你好」并推进 frontier，退出重开读回与提交版本逐字一致，原输入源恢复无误。立即进入晚间队列第 3 项（第 22 条「幕轨道」）。 | 本提交 |
 
 ## 技术待协调
 
@@ -172,7 +173,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 
 - **视觉打磨与 M22 浮岛小卡提及分布（作者已定 11-11：暂缓）：** 视觉打磨暂不做，截图总览列出的 13 条问题留作清单；条目页空间、重复标题等布局设计及样式／流畅度打磨，连同 M22 要素全景（`SuperView::Elements`）浮岛 Peek 小卡的提及分布展示一并并入视觉打磨，一起暂缓。
 
-- **macOS 辅助功能／键盘注入权限（外部 `CGEvent` 系统拼音探针）：** 作者已为 `Antigravity` 开启辅助功能权限，晚间队列第 2 项紧接核验 `AXIsProcessTrusted` 与 `CGPreflightPostEventAccess` 并重跑完整 `guardian-native-ime.py`。
+- **macOS 辅助功能／键盘注入权限（作者已定并已验 11-11）：** 作者已为 `Antigravity` 开启辅助功能权限；守卫已核验 `AXIsProcessTrusted == true`、`CGPreflightPostEventAccess == true`，并在副屏真窗口跑通完整 `guardian-native-ime.py`（外部证据 `g-evening-ime-3`，见下方晨报追加二），不再待办。
 
 - **100 章重型书「整书视图」冷首开分段／懒挂载（作者已定 11-11：暂不做，保持现有 ~120 ms 不动）：** 工作区内打开 100 章（约 165 万字）整书视图当前冷首开 `120.3–137.2 ms`（独立 `book-bench` 冷开 `104.4 ms`、热开 `37.5–40.7 ms`，滚完全书 3,332 帧 `p95 = 0.704 ms`）保持不动，本轮不做分段／懒挂载。方向记录：以后新的层级结构也许让任意层级都能开整书视图，顺序可自定义，不再绑死在固定的故事线上。
 
@@ -336,3 +337,13 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
   3. **M21 故事图（作者已定 11-11）：** 等新的层级结构落地再说，四个待定问题全部标为「暂缓」。
   4. **M40 Markdown 文件夹七组规则（作者已定 11-11）：** 已将七组定稿规则完整写入 [`m40-markdown-folder-v3.md`](../modules/m40-markdown-folder-v3.md) 第 3 节（① 全书所有叶子正文模块、不含层级说明；② 一篇正文一文件，多篇用「标题 · 模块名.md」；③ 目录随树嵌套不加序号，书稿文件夹另放只读「目录.md」按书序列出链接；④ 文件头含身份键加单行文字／长文字／单选／数字简单字段按字段名双向同步，重名或复杂类型只读，外部未知键原样保留；⑤ 第一期不支持外部新建／改名／移动／删除；⑥ 嵌入占位行受保护、外部删了也放回原处并在通知中心提示，不导出只读摘要；⑦ 外部改动蓝色墨色、同处并发挂待办、一次删超半数先存条目快照）；代码等新的层级结构落地再写，这一轮不实现。
 - **下一步：** 立即开新工作区进入晚间队列第 2 项（重跑输入法外部测试 `guardian-native-ime.py`）。
+
+### 晚间队列追加二（2026-11-11 20:27，晚间最终指令第 2 项：重跑输入法外部测试通过）
+
+- **权限预检：** 经 `ApplicationServices`／`CoreGraphics` 实查当前 `Antigravity` 宿主进程：`AXIsProcessTrusted() == true`、`CGPreflightPostEventAccess() == true`。
+- **完整 `guardian-native-ime.py` 验收结果（冻结源码 `8f5bf493f9e6271a40d6366dd104d7ff6acbeb21`，独立 profile `g-ev-ime-3`，外部完整证据 `g-evening-ime-3/{events.ndjson,preedit.json,committed.json,reopened.json,manual-result.json}`）：**
+  1. **窗口与输入源切换：** 未打包真实 `target/debug/drifting` 在副屏打开 `v3-tiny` 第 1 章，经 `TISSelectInputSource` 与真实 `Control-Space` 系统快捷键切到已启用的 Apple 简体拼音（`com.apple.inputmethod.SCIM.ITABC`），前台焦点守卫全程核对目标 PID。
+  2. **平台预编辑（Marked Text）隔离：** 经 `cghidEventTap` 发送真实按键 `nihao`，`state.get()` 读到真实平台组字状态 `ime = {"chapter": 0, "text": "ni hao", "range": {"start": 0, "end": 0}, "selected": {"start": 6, "end": 6}}`，同时 `module.read_prose` 核实持久正文（首段仍为 `"潮声与记录"`）与文档 frontier（`0195e1ba8eefb7f28d18ba05`）均未提前落盘。
+  3. **提交与重开持久化：** 发送真实空格键提交后，`ime` 归 `null`，首段精确变为 `"你好潮声与记录"`（恰好提交一次），frontier 推进至 `01b8ddceecc8dc9cae5702`；恢复系统原输入源（`cleanupErrors: []`）并正常退出 App，重新启动打开同一本书读回正文与 frontier（`01b8ddceecc8dc9cae5702`）完全一致（`passed: true`）。
+  - *附注：* 前两次尝试（`g-evening-ime-1`、`g-evening-ime-2`）因探针每次临时 JIT 编译 Swift 且 `NSRunningApplication.activate(options: [])` 未置顶副屏窗口，被前台焦点守卫捕获到浏览器／编辑器切走焦点而安全中止、未向其他应用误发按键；将守卫探针预编译为二进制并改用标准 `activateIgnoringOtherApps` 置顶目标窗口后，`g-evening-ime-3` 一次完整通过。
+- **下一步：** 立即开新工作区进入晚间队列第 3 项（第 22 条「幕轨道」）。
