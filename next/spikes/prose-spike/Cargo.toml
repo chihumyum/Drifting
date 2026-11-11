@@ -32,11 +32,13 @@ loro.workspace = true
 
 # Without `font-kit`, gpui_macos renders no text at all (it logs a warning).
 gpui_platform = { workspace = true, optional = true, features = ["font-kit"] }
-libc = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = { workspace = true, optional = true }
 objc2 = { workspace = true, optional = true }
 raw-window-handle = { workspace = true, optional = true }
-rusqlite = { workspace = true, optional = true }
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

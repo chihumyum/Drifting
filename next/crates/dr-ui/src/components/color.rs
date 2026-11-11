@@ -428,7 +428,9 @@ mod system {
         };
         let owner = win32.hwnd.get();
         let me = next_turn();
-        let task = cx.background_spawn(async move { choose(owner, current) });
+        let task = cx
+            .background_executor()
+            .spawn(async move { choose(owner, current) });
         window
             .spawn(cx, async move |cx| {
                 if let Some(color) = task.await
