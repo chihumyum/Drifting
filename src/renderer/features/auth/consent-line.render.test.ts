@@ -37,4 +37,11 @@ describe('what signing in agrees to', () => {
     expect(html).not.toContain('preAlphaGuide.crashReports');
     expect(html).not.toContain('hover-card');
   });
+
+  it('takes the place it is put in: the last line of the first-run welcome', () => {
+    language.legal = catalog('zh-CN').auth.legal;
+    expect(renderToStaticMarkup(createElement(ConsentLine, { className: 'first-run-welcome__note' }))).toBe(
+      '<p class="first-run-welcome__note">继续即视为同意<button type="button" class="auth-flow__consent" aria-expanded="false">相关条款</button></p>',
+    );
+  });
 });

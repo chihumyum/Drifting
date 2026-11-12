@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { AuthFlow } from '../../features/auth/AuthFlow';
+import { ConsentLine } from '../../features/auth/ConsentLine';
 import { cancelNativeOAuth, startNativeOAuth } from '../../features/auth/native-oauth';
 import { GoogleIcon } from '../auth/OAuthIcon';
 import { FirstRunArrival } from '../first-run/first-run-shelf';
@@ -158,10 +159,12 @@ const reducedMotion = () =>
   typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
 
 /**
- * The welcome: how to go on, and nothing else. Google shows when the service
- * offers it; signing in with it moves straight to the sign-in step, which
- * waits for the browser. What signing in agrees to is said there, in the
- * sign-in step's one line (`features/auth/ConsentLine.tsx`).
+ * The welcome: how to go on, and one line saying what going on agrees to.
+ * Google shows when the service offers it; signing in with it moves straight
+ * to the sign-in step, which waits for the browser. The line is here because
+ * every way on passes it, the local one too: a Hosted build sends fault
+ * reports without a session as well. Its items wait in its hover card, which
+ * opens downward, clear of the ways on above the line.
  */
 function FirstRunWelcome({
   onGoogle,
@@ -190,6 +193,7 @@ function FirstRunWelcome({
       <Button className="first-run-welcome__local" variant="ghost" onClick={onLocal}>
         {t('firstRun.local')}
       </Button>
+      <ConsentLine className="first-run-welcome__note" placement="bottom-start" />
     </div>
   );
 }
@@ -359,6 +363,8 @@ export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
     ) : name === 'account' ? (
       <AuthFlow
         initialMode="signin"
+        // The welcome before this step has already said it.
+        consent={false}
         onBack={() => {
           cancelNativeOAuth();
           setSigningIn(false);

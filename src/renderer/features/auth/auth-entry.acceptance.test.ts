@@ -48,11 +48,18 @@ describe('account sign-in entry', () => {
     expect(guide).toContain("void startNativeOAuth('google')");
     expect(guide).toContain('onLocal={dismiss}');
     expect(guide).toContain("const google = !isAppClosedForPublic && providers.includes('google');");
-    // The welcome only offers the ways on. What signing in agrees to is one line of
-    // the sign-in step; its items (docs/crash-reports.md) wait in that line's hover card.
+    // The welcome ends with one line saying what going on agrees to, since every way on
+    // passes it, the local one too; its items (docs/crash-reports.md) wait in the line's
+    // hover card, never spelled out on the card itself.
+    expect(guide).toMatch(/\{t\('firstRun\.local'\)\}\s*<\/Button>\s*<ConsentLine className="first-run-welcome__note" placement="bottom-start" \/>\s*<\/div>/);
     expect(guide).not.toContain('preAlphaGuide.crashReports');
-    expect(css).not.toContain('first-run-welcome__note');
-    expect(read('src/renderer/features/auth/AuthFlow.tsx')).toMatch(/<ConsentLine \/>\s*<\/form>/);
+    expect(css).toContain('.first-run-welcome__note {');
+    // The sign-in step that follows in the same card does not say it again; the
+    // sign-in dialog opened anywhere else still ends with the line.
+    expect(guide).toMatch(/<AuthFlow\s+initialMode="signin"[\s\S]*?consent=\{false\}/);
+    const flow = read('src/renderer/features/auth/AuthFlow.tsx');
+    expect(flow).toContain('consent = true,');
+    expect(flow).toMatch(/\{consent && <ConsentLine \/>\}\s*<\/form>/);
     const consent = read('src/renderer/features/auth/ConsentLine.tsx');
     expect(consent).toContain("t('auth.legal.consent', { terms: CONSENT_TERMS_SLOT })");
     expect(consent).toMatch(/<HoverCardShell[\s\S]*?actions=\{documents\}[\s\S]*?<div className="hover-card__text">\{t\('preAlphaGuide\.crashReports'\)\}<\/div>/);

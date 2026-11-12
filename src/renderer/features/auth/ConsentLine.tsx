@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { EntityHoverCardPlacement } from '../../components/ui/entity-hover-card-position';
 import { HoverCardShell, type HoverActionGroup } from '../../components/ui/HoverCard';
 import { APP_CONFIG } from '../../lib/config';
 import { platform } from '../../platform';
@@ -9,13 +10,22 @@ import { useHoverPreview } from '../entities/hover/entity-hover-card-model';
 const CONSENT_TERMS_SLOT = '\u0000';
 
 /**
- * What continuing agrees to, in one line under the sign-in and sign-up forms.
- * The line only names it; the items wait in a hover card on those words: the
- * fault reports this build sends (docs/crash-reports.md), and the service's
- * terms and privacy policy as rows that open them. A press opens the card
- * too, for a finger or the keyboard.
+ * What continuing agrees to, in one line: the last line of the first-run
+ * welcome, which every author passes whether they sign in or go on locally,
+ * and of the sign-in and sign-up forms opened anywhere else. The line only
+ * names it; the items wait in a hover card on those words: the fault reports
+ * this build sends (docs/crash-reports.md), and the service's terms and
+ * privacy policy as rows that open them. A press opens the card too, for a
+ * finger or the keyboard.
  */
-export function ConsentLine() {
+export function ConsentLine({
+  className = 'auth-flow__legal',
+  placement = 'top-center',
+}: {
+  className?: string;
+  /** Where the card opens: away from what the author goes on to press. */
+  placement?: EntityHoverCardPlacement;
+}) {
   const { t } = useTranslation();
   const hover = useHoverPreview<null>();
   const cardId = useId();
@@ -36,7 +46,7 @@ export function ConsentLine() {
     ],
   }];
   return (
-    <p className="auth-flow__legal">
+    <p className={className}>
       {before}
       <button
         type="button"
@@ -58,7 +68,7 @@ export function ConsentLine() {
         <HoverCardShell
           id={cardId}
           anchor={hover.preview.anchor}
-          placement="top-center"
+          placement={placement}
           width={280}
           label={t('auth.legal.consentTerms')}
           pointer={hover.card}
