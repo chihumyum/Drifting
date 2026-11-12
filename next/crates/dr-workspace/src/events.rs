@@ -170,6 +170,27 @@ pub enum WsEvent {
     Local(LocalChange),
 }
 
+/// Whether a local-table change says that the derived index of a document
+/// with text was written: its words, outline, references or search rows may
+/// be different now.
+///
+/// The index also keeps a row for every document that holds none of the
+/// book's text (the book document, a body template, a conversation). That
+/// row is always empty: it only records that the document was looked at, so
+/// it does not count as behind, and it is written again after every commit
+/// to the document. A listener for words or search results has nothing to
+/// read again for it; without this, each commit to the book document would
+/// reach those listeners a second time through its index row, a writing day
+/// and a saved checkpoint included. A key that names no document of ours
+/// counts as text.
+pub fn is_text_index(change: &LocalChange) -> bool {
+    change.table == "index"
+        && match DocId::parse(&change.key) {
+            Ok(doc) => doc.kind().is_book_text(),
+            Err(_) => true,
+        }
+}
+
 fn root_name(id: &ContainerID) -> Option<&str> {
     match id {
         ContainerID::Root { name, .. } => Some(name.as_str()),
@@ -452,6 +473,32 @@ mod tests {
                 .collect(),
             diff: Diff::Unknown,
         }
+    }
+
+    #[test]
+    fn only_the_index_of_a_document_with_text_is_news_for_words_and_search() {
+        use dr_store::LocalChangeKind::Update;
+        let index = |key: &str| is_text_index(&LocalChange::new("index", key, Update));
+        // The book's text: an entry's prose, a level's page, a material note.
+        for key in ["body:e1/mod-prose", "body:e1/about", "material:m1"] {
+            assert!(index(key), "{key}");
+        }
+        // The always-empty rows.
+        for key in [
+            "book:b1",
+            "template:b1/tpl-chapter/mod-prose",
+            "conversation:c1",
+        ] {
+            assert!(!index(key), "{key}");
+        }
+        // A document this build cannot name is not ruled out.
+        assert!(index("synthetic-future:x"));
+        // And only the index table is the index.
+        assert!(!is_text_index(&LocalChange::new(
+            "recent",
+            "body:e1/mod-prose",
+            Update
+        )));
     }
 
     #[test]

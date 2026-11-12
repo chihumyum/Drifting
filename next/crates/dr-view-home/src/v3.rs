@@ -211,7 +211,11 @@ impl Home {
             this._events = Some(lib.subscribe(move |event| {
                 let book = match event {
                     dr_workspace::WsEvent::Prose(p) => p.book.as_ref().map(ToString::to_string),
-                    dr_workspace::WsEvent::Local(c) if c.table == "index" => Some(String::new()),
+                    // The words of a document that has text (not the book
+                    // document's own, always empty, index row).
+                    dr_workspace::WsEvent::Local(c) if dr_workspace::is_text_index(c) => {
+                        Some(String::new())
+                    }
                     dr_workspace::WsEvent::Local(c) if c.table == "recent" => Some(c.key.clone()),
                     // Another device's words for today. The shell reads the
                     // book again only when its content changed (and this

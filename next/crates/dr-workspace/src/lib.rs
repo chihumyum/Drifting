@@ -54,7 +54,7 @@ pub use editor::ProseSession;
 pub use error::{Result, WsError};
 pub use events::{
     BookChanged, BookTouched, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
-    WsEvent,
+    WsEvent, is_text_index,
 };
 pub use guard::{
     Expected, Observation, RecordKey, RecordObservation, RecordPrecondition, WritePreconditions,

@@ -109,3 +109,89 @@ fn the_tab_follows_a_writing_day(cx: &mut gpui::TestAppContext) {
     });
     cx.update(|_, cx| dr_view_stats::release(cx));
 }
+
+/// Lets everything asked of the tab so far finish: the index rows behind
+/// the last commits, the tab's 300 ms wait and its read.
+fn settle(cx: &mut VisualTestContext, ws: &Workspace) {
+    wait(cx, "every index row catches up", |_| {
+        ws.library().stale_index_docs().unwrap().is_empty()
+    });
+    for _ in 0..12 {
+        cx.executor().advance_clock(Duration::from_millis(100));
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn a_saved_checkpoint_does_not_make_the_tab_read_again(cx: &mut gpui::TestAppContext) {
+    let (_dir, ws, book) = fixture();
+    let doc = format!("book:{book}");
+    let entry = dr_view_stats::v3::load(&ws, &book, Scope::Book)
+        .unwrap()
+        .documents[0]
+        .entry
+        .clone()
+        .unwrap();
+    cx.executor().allow_parking();
+    cx.update(|cx| dr_view_stats::init(Some(ws.clone()), cx));
+    let shown = book.clone();
+    let (_root, cx) = cx.add_window_view(move |_, _| Root { book: shown });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let view = cx
+        .update(|_, cx| dr_view_stats::v3_panel::view(TAB, cx))
+        .unwrap();
+    let reads = |cx: &mut VisualTestContext| view.read_with(cx, |v, _| v.reads());
+    wait(cx, "the tab reads the book", |cx| {
+        view.read_with(cx, |v, _| v.loaded().is_some())
+    });
+    // An entry's first point also creates the bodies its template gives it
+    // and it has not written yet: prose documents, which this tab counts.
+    // Save that one first.
+    let save = || {
+        let before = (
+            ws.version(&doc).unwrap(),
+            ws.library().docs(Some(&book), None).unwrap(),
+        );
+        call(
+            &ws,
+            "entry_snapshot.create",
+            json!({"book": book, "entry": entry}),
+        );
+        let after = (
+            ws.version(&doc).unwrap(),
+            ws.library().docs(Some(&book), None).unwrap(),
+        );
+        (before.0 != after.0, before.1 == after.1)
+    };
+    save();
+    settle(cx, &ws);
+    let before = reads(cx);
+
+    // From here a point is one manifest in the book document and nothing
+    // else: a commit to the book, its index row written again after it.
+    for _ in 0..3 {
+        assert_eq!(save(), (true, true), "a commit to the book and no document");
+        settle(cx, &ws);
+    }
+    assert_eq!(
+        reads(cx),
+        before,
+        "a saved checkpoint is nothing this tab shows"
+    );
+
+    // The book's content still is.
+    call(
+        &ws,
+        "book.update",
+        json!({"book": book, "word_target": 54_321}),
+    );
+    wait(cx, "a new target reaches the tab", |cx| {
+        view.read_with(cx, |v, _| {
+            v.loaded().is_some_and(|d| d.word_target == Some(54_321))
+        })
+    });
+    assert!(reads(cx) > before);
+    cx.update(|_, cx| dr_view_stats::release(cx));
+}

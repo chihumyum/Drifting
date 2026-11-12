@@ -348,7 +348,10 @@ impl Shelf {
                 // heat map, the last thirty); a saved checkpoint is neither.
                 WsEvent::Book(b) => b.touched.content || b.touched.writing_days,
                 WsEvent::Removed(_) | WsEvent::Prose(_) => true,
-                WsEvent::Local(change) => change.table == "index",
+                // The words of a document that has text. (The book document
+                // has an index row too, always empty and written after every
+                // commit to it, a saved checkpoint included.)
+                WsEvent::Local(change) => dr_workspace::is_text_index(change),
             };
             if counts {
                 let _ = tx.unbounded_send(());

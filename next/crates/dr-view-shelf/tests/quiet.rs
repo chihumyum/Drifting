@@ -8,7 +8,10 @@ use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_view_shelf::Shelf;
 use dr_workspace::{
     Actor, Workspace as Library,
-    commands::stats::{WritingDayIn, WritingDayRecord},
+    commands::{
+        stats::{WritingDayIn, WritingDayRecord},
+        v3::snapshots,
+    },
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
@@ -142,5 +145,106 @@ fn a_writing_day_reaches_the_heat_map_and_the_card(cx: &mut TestAppContext) {
     record(54_400);
     wait_for(cx, "the next minute's count reaches the card", |cx| {
         today_on_card(&shelf, cx, &book) == Some(54_400)
+    });
+}
+
+/// Lets everything asked of the shelf so far finish: the index rows behind
+/// the last commits, then any read of the shelf and its pictures.
+fn settle(cx: &mut VisualTestContext, lib: &Library) {
+    wait_for(cx, "every index row catches up", |_| {
+        lib.library().stale_index_docs().unwrap().is_empty()
+    });
+    for _ in 0..60 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn a_saved_checkpoint_does_not_make_the_shelf_read_again(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    cx.update(|window, _| window.activate_window());
+    let shelf = shelf_of(&view, cx);
+    let book = slow_clock(&lib);
+    let doc = format!("book:{book}");
+    wait_for(cx, "the shelf's pictures are read", |cx| {
+        shelf.read_with(cx, |s, _| {
+            s.art.as_ref().is_some_and(|a| a.books.len() == 2)
+        })
+    });
+    let entry = dr_shell::book::Book::load(&lib, &book)
+        .unwrap()
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .expect("a chapter")
+        .id
+        .to_string();
+    // An entry's first point also creates the bodies its template gives it
+    // and it has not written yet: prose documents, which the shelf counts.
+    // Save that one first.
+    let save = || {
+        let before = (
+            lib.version(&doc).unwrap(),
+            lib.library().docs(Some(&book), None).unwrap(),
+        );
+        lib.run::<snapshots::Create>(
+            &Actor::User,
+            snapshots::EntryIn {
+                book: book.clone(),
+                entry: entry.clone(),
+            },
+        )
+        .unwrap();
+        let after = (
+            lib.version(&doc).unwrap(),
+            lib.library().docs(Some(&book), None).unwrap(),
+        );
+        (before.0 != after.0, before.1 == after.1)
+    };
+    save();
+    settle(cx, &lib);
+    let read = shelf.read_with(cx, |s, _| s.data.clone().unwrap());
+
+    // From here a point is one manifest in the book document and nothing
+    // else: a commit to the book, its index row written again after it.
+    for _ in 0..3 {
+        assert_eq!(save(), (true, true), "a commit to the book and no document");
+        settle(cx, &lib);
+    }
+    assert!(
+        shelf.read_with(cx, |s, _| std::rc::Rc::ptr_eq(
+            s.data.as_ref().unwrap(),
+            &read
+        )),
+        "a saved checkpoint is nothing the shelf shows"
+    );
+
+    // The book's content still is.
+    lib.run::<dr_workspace::commands::v3::book::BookUpdate>(
+        &Actor::User,
+        dr_workspace::commands::v3::book::BookUpdateIn {
+            book: book.clone(),
+            name: None,
+            summary: Some("Synthetic summary".into()),
+            word_target: None,
+            daily_word_target: None,
+        },
+    )
+    .unwrap();
+    wait_for(cx, "a new summary reaches the shelf", |cx| {
+        shelf.read_with(cx, |s, _| {
+            s.data.as_ref().is_some_and(|d| {
+                d.books
+                    .iter()
+                    .any(|b| b.id == book && b.summary == "Synthetic summary")
+            })
+        })
     });
 }
