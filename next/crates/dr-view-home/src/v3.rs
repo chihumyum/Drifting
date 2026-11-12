@@ -213,6 +213,14 @@ impl Home {
                     dr_workspace::WsEvent::Prose(p) => p.book.as_ref().map(ToString::to_string),
                     dr_workspace::WsEvent::Local(c) if c.table == "index" => Some(String::new()),
                     dr_workspace::WsEvent::Local(c) if c.table == "recent" => Some(c.key.clone()),
+                    // Another device's words for today. The shell reads the
+                    // book again only when its content changed (and this
+                    // page with it); a writing day alone comes here.
+                    dr_workspace::WsEvent::Book(b)
+                        if b.touched.writing_days && !b.touched.content =>
+                    {
+                        Some(b.book.to_string())
+                    }
                     _ => None,
                 };
                 if let Some(book) = book {

@@ -344,7 +344,10 @@ impl Shelf {
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
         self._events = Some(lib.subscribe(move |event| {
             let counts = match event {
-                WsEvent::Book(_) | WsEvent::Removed(_) | WsEvent::Prose(_) => true,
+                // A card shows the book's content and its writing days (the
+                // heat map, the last thirty); a saved checkpoint is neither.
+                WsEvent::Book(b) => b.touched.content || b.touched.writing_days,
+                WsEvent::Removed(_) | WsEvent::Prose(_) => true,
                 WsEvent::Local(change) => change.table == "index",
             };
             if counts {

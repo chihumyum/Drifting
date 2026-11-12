@@ -30,7 +30,6 @@ use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use dr_doc::v3::CollectionV3 as Collection;
 use dr_model::Day;
 use dr_store::Origin;
 use dr_workspace::commands::stats::{self as ops, day_number};
@@ -300,11 +299,9 @@ impl<S: Source> Tracker<S> {
                 self.prose(&p.doc.to_string(), book, writes_here(&p.origin), today, now)
             }
             WsEvent::Local(c) if c.table == "index" => self.indexed(&c.key, today, now),
-            WsEvent::Book(b)
-                if b.changes
-                    .iter()
-                    .any(|c| c.collection != Collection::WritingDays) =>
-            {
+            // Which chapters there are is the book's content: neither the
+            // recorder's own writes nor a saved checkpoint change it.
+            WsEvent::Book(b) if b.touched.content => {
                 self.chapters_changed(b.book.as_str(), today, now)
             }
             _ => {}

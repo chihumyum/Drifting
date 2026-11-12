@@ -48,7 +48,10 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
         lib.subscribe(move |e| {
             let relevant = match e {
                 WsEvent::Local(c) => c.table == "index",
-                WsEvent::Book(_) => true,
+                // The tab shows the book's content (which entries are
+                // counted, the targets) and its writing days; a saved
+                // checkpoint changes neither.
+                WsEvent::Book(b) => b.touched.content || b.touched.writing_days,
                 _ => false,
             };
             if relevant {
