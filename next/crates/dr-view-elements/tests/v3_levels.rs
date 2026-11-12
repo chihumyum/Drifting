@@ -455,7 +455,7 @@ fn board_page_separates_members_without_changing_the_navigation_canvas() {
     call(
         &ws,
         "entry.update",
-        json!({"book":book,"id":root,"overrides":{"accept":true,"display":"board","allow":[]}}),
+        json!({"book":book,"id":root,"overrides":{"accept":true,"display":"board"}}),
     );
     call(
         &ws,

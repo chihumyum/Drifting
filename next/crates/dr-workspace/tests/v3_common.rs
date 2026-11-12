@@ -716,7 +716,7 @@ fn entry_template_field_default_values_validate_and_initialize_new_entries() {
         }),
     );
 
-    // Allow creating tpl-custom-char under the Elements root.
+    // Make tpl-custom-char the default under the Elements root.
     let elements_root = e
         .out("entry.list", json!({"book": b}))
         .as_array()
@@ -733,7 +733,6 @@ fn entry_template_field_default_values_validate_and_initialize_new_entries() {
             "book": b,
             "id": elements_root,
             "overrides": {
-                "allow": ["tpl-category", "tpl-group", "tpl-custom-char"],
                 "default_template": "tpl-custom-char"
             }
         }),

@@ -129,11 +129,6 @@ fn v3_creation_obeys_home_template_and_retains_module_data() {
     custom["id"] = json!("alternate");
     custom["modules"] = json!([]);
     e.call("entry_template.put", json!({"book":b,"template":custom}));
-    // Permit the alternate template on the manuscript before switching.
-    e.call(
-        "entry.update",
-        json!({"book":b,"id":ms,"overrides":{"allow":[]}}),
-    );
     e.call(
         "entry.update",
         json!({"book":b,"id":id,"template":"alternate"}),

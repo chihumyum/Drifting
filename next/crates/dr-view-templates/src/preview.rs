@@ -446,7 +446,6 @@ mod tests {
         let mut unused_level = model::blank("level", "Synthetic unused level".into());
         unused_level.settings.default_template = Some(None);
         unused_level.settings.home = Some(None);
-        unused_level.settings.allow = Some(Vec::new());
         model::add_module(
             &mut unused_level,
             model::module("kv", "Synthetic level fields".into()),
@@ -459,7 +458,7 @@ mod tests {
         };
         let projected = project(&workspace, &request).unwrap();
         assert_eq!(projected.template.id, unused_level.id);
-        assert_eq!(projected.template.kind, "level");
+        assert!(projected.template.level);
         assert_eq!(
             projected.level_defaults.as_ref(),
             Some(&unused_level.settings)
@@ -495,7 +494,7 @@ mod tests {
         let mut draft = template(&workspace, &book, "tpl-storyline");
         draft.settings.accept = Some(false);
         draft.settings.home = Some(None);
-        draft.lane = true;
+        draft.settings.lane = Some(true);
         draft.verbs = vec![TemplateVerb {
             id: dr_model::id::new_uuid_v7(),
             name: "Synthetic preview action".into(),

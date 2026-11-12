@@ -78,45 +78,44 @@ fn measure(mode: Mode, legacy: bool) -> Result<Bench, String> {
             json!({"book":book,"all":true,"trashed":true}),
         )
     })?;
-    let templates = timed(case, "templates", || {
+    timed(case, "templates", || {
         out(&ws, "entry_template.list", json!({"book":book}))
     })?;
-    let level_templates: std::collections::BTreeSet<_> = templates
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|t| t["kind"] == "level" && t["deleted_at"].is_null())
-        .filter_map(|t| t["id"].as_str())
-        .collect();
     let level_ids: Vec<_> = entries
         .as_array()
         .unwrap()
         .iter()
-        .filter(|e| {
-            e["deleted_at"].is_null()
-                && e["template"]
-                    .as_str()
-                    .is_none_or(|t| level_templates.contains(t))
-        })
+        .filter(|e| e["deleted_at"].is_null() && e["level"] == true)
         .filter_map(|e| e["id"].as_str())
         .collect();
+    let complete = |below: &Value| {
+        below["sources"].as_object().is_some_and(|s| s.len() == 8)
+            && below["children"].is_array()
+            && below["members"].is_array()
+    };
     timed(case, "levels", || {
         if legacy {
             for (i, id) in level_ids.iter().enumerate() {
-                out(&ws, "level.get", json!({"book":book,"id":id}))?;
+                let entry = out(&ws, "entry.get", json!({"book":book,"id":id}))?;
+                if !complete(&entry["below"]) {
+                    return Err(format!("entry {id} lacks what lies below it"));
+                }
                 eprintln!("v3 book: level {}/{} complete", i + 1, level_ids.len());
             }
         } else {
-            let batch = out(&ws, "level.list", json!({"book":book}))?;
-            let rows = batch["levels"].as_array().ok_or("missing batch levels")?;
+            let batch = out(
+                &ws,
+                "entry.list",
+                json!({"book":book,"all":true,"below":true}),
+            )?;
+            let rows: Vec<_> = batch
+                .as_array()
+                .ok_or("missing entry rows")?
+                .iter()
+                .filter(|r| r.get("below").is_some())
+                .collect();
             let actual: Vec<_> = rows.iter().filter_map(|r| r["id"].as_str()).collect();
-            if actual != level_ids
-                || rows.iter().any(|r| {
-                    r["sources"].as_object().is_none_or(|s| s.len() != 8)
-                        || !r["children"].is_array()
-                        || !r["members"].is_array()
-                })
-            {
+            if actual != level_ids || rows.iter().any(|r| !complete(&r["below"])) {
                 return Err("batch omitted levels or resolved structure".into());
             }
         }

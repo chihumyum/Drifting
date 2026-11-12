@@ -51,7 +51,6 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         }
         let view = sample.book.view();
         let entries = view.entries_map();
-        let templates = view.templates_map();
         let synthetic_act_leaves = view
             .root_entry_by_template(&tid(TPL_ACT_TRACK))
             .map_or(0, |t| view.children_of(Some(&t.id)).len());
@@ -60,7 +59,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
             view.root_entry_by_template(&tid(TPL_ACT_TRACK)).is_some()
         );
         assert_eq!(
-            entries.values().filter(|e| e.is_leaf(&templates)).count(),
+            entries.values().filter(|e| !e.is_level()).count(),
             source.book.view().nodes().len()
                 + source.book.view().elements().len()
                 + synthetic_act_leaves
@@ -190,7 +189,7 @@ fn two_samples_in_one_library_survive_permanent_deletion_of_either_book() {
         // Exercise both previously colliding document forms with actual
         // stored bytes. Reuse this sample's licensed prose, no new corpus.
         for id in [
-            body_id(root.as_str(), MOD_ABOUT),
+            body_id(root.as_str(), MOD_DESCRIPTION),
             DocId::Template(TemplateId::for_entry_module(
                 sample.book_id(),
                 &tid(TPL_CHAPTER),

@@ -193,18 +193,7 @@ fn check_v3_invariants(book: &seed::SeededBookV3) {
     let templates = view.templates_map();
     let memberships = view.memberships_raw();
     for e in entries.values().filter(|e| !e.is_trashed()) {
-        assert!(
-            dr_model::v3::check_parent_is_level(e.parent.as_ref(), &entries, &templates).is_ok()
-        );
-        assert!(
-            dr_model::v3::check_level_allows_template(
-                e.parent.as_ref(),
-                e.template.as_ref(),
-                &entries,
-                &templates,
-            )
-            .is_ok()
-        );
+        assert!(dr_model::v3::check_parent_is_level(e.parent.as_ref(), &entries).is_ok());
     }
     for m in &memberships {
         assert!(dr_model::v3::check_membership(&m.host, &m.member, &entries, &templates).is_ok());
@@ -276,7 +265,15 @@ fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
     let ms = view
         .root_entry_by_template(&tpl_ms)
         .expect("manuscript root entry");
-    let leaves = view.manuscript_leaves(&ms.id);
+    let structure = view.structure_snapshot();
+    let leaves: Vec<_> = structure
+        .manuscript()
+        .into_iter()
+        .filter(|p| p.root.id == ms.id)
+        .flat_map(|p| p.entries)
+        .filter(|e| e.ordinal.is_some())
+        .map(|e| e.entry.clone())
+        .collect();
     assert_eq!(leaves.len(), spec.chapters.count);
     assert!(
         leaves
@@ -355,7 +352,15 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
     let ms = view
         .root_entry_by_template(&tpl_ms)
         .expect("manuscript root entry");
-    let chapters = view.manuscript_leaves(&ms.id);
+    let structure = view.structure_snapshot();
+    let chapters: Vec<_> = structure
+        .manuscript()
+        .into_iter()
+        .filter(|p| p.root.id == ms.id)
+        .flat_map(|p| p.entries)
+        .filter(|e| e.ordinal.is_some())
+        .map(|e| e.entry.clone())
+        .collect();
     let pairs: Vec<(&str, &str)> = chapters
         .iter()
         .map(|c| (c.id.as_str(), dr_doc::v3::novel::MOD_PROSE))
@@ -376,7 +381,7 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
     let d2 = seed::digest_v3(&lib2, id).unwrap();
     assert_eq!(d1, d2);
 
-    // Also verify template:<book>/<tid>/<mid> skips text indexing while body:<eid>/about is indexed.
+    // Also verify template:<book>/<tid>/<mid> skips text indexing while body: documents are indexed.
     let tpl_doc_id =
         dr_model::id::DocId::parse(&format!("template:{id}/tpl-chapter/mod-prose")).unwrap();
     let mut tpl_doc = ProseDoc::create(tpl_doc_id, 1).unwrap();
@@ -414,7 +419,9 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
 fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_the_other() {
     use dr_doc::v3::{
         BookDocV3,
-        novel::{MOD_ABOUT, MOD_PROSE, TPL_CHAPTER, TPL_CHARACTER, apply_novel_project_template},
+        novel::{
+            MOD_DESCRIPTION, MOD_PROSE, TPL_CHAPTER, TPL_CHARACTER, apply_novel_project_template,
+        },
     };
     use dr_model::{
         DocId, Origin,
@@ -441,6 +448,7 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
                 Some(&roots.manuscript),
                 &format!("{title} 第一章"),
                 Some(&ch_tpl),
+                false,
             )?;
             let char_id = EntryId::new_v7();
             let char_tpl = EntryTemplateId::parse(TPL_CHARACTER).unwrap();
@@ -449,6 +457,7 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
                 Some(&roots.cat_character),
                 &format!("{title} 主角"),
                 Some(&char_tpl),
+                false,
             )?;
             Ok(roots)
         });
@@ -457,7 +466,7 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
         let view = book_doc.view();
         let entries = view.entries_map();
         let templates = view.templates_map();
-        let about = ModuleId::parse(MOD_ABOUT).unwrap();
+        let description = ModuleId::parse(MOD_DESCRIPTION).unwrap();
 
         let book_doc_id = DocId::Book(book_id.clone()).to_string();
         let h_book = lib
@@ -504,16 +513,16 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
             drop(h);
             prose_doc_ids.push(doc_id);
         }
-        // Write every entry module prose doc (including level `about` on roots/categories
-        // and `mod-prose` on chapters/characters).
+        // Write every entry module prose doc (the 「说明」 of roots and
+        // categories, `mod-prose` of chapters and characters).
         for entry in entries.values() {
             if let Some(tpl) = entry.effective_template(&templates) {
-                if tpl.is_level() {
-                    let doc_id = DocId::Body(BodyDocId::new(entry.id.clone(), about.clone()));
+                for m in tpl.prose_modules() {
+                    let doc_id = DocId::Body(BodyDocId::new(entry.id.clone(), m.id.clone()));
                     assert!(view.owns_prose(&doc_id));
                     let mut p = ProseDoc::create(doc_id.clone(), peer_seed + 1).unwrap();
                     let (r, _) = p.edit(Origin::User, |t| {
-                        t.insert_paragraphs(0, &format!("{title} {} about", entry.title))
+                        t.insert_paragraphs(0, &format!("{title} {} {}", entry.title, m.id))
                     });
                     r.unwrap();
                     let id_str = doc_id.to_string();
@@ -531,31 +540,6 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
                         .unwrap();
                     drop(h);
                     prose_doc_ids.push(doc_id);
-                } else {
-                    for m in tpl.prose_modules() {
-                        let doc_id = DocId::Body(BodyDocId::new(entry.id.clone(), m.id.clone()));
-                        assert!(view.owns_prose(&doc_id));
-                        let mut p = ProseDoc::create(doc_id.clone(), peer_seed + 1).unwrap();
-                        let (r, _) = p.edit(Origin::User, |t| {
-                            t.insert_paragraphs(0, &format!("{title} {} {}", entry.title, m.id))
-                        });
-                        r.unwrap();
-                        let id_str = doc_id.to_string();
-                        let h = lib
-                            .open_doc(
-                                &id_str,
-                                dr_store::OpenDoc::CreateIfMissing {
-                                    kind: dr_store::index::DOC_KIND_BODY,
-                                    book_id: Some(book_id.as_str()),
-                                    genesis: &|d| {
-                                        d.import(&p.export_snapshot().unwrap()).unwrap();
-                                    },
-                                },
-                            )
-                            .unwrap();
-                        drop(h);
-                        prose_doc_ids.push(doc_id);
-                    }
                 }
             }
         }
@@ -588,9 +572,9 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
             prose_doc_ids.push(doc_id);
         }
 
-        // Verify level root `about` body doc exists for manuscript root.
-        let ms_about = DocId::Body(BodyDocId::new(roots.manuscript.clone(), about));
-        assert!(prose_doc_ids.contains(&ms_about));
+        // The manuscript root's 「说明」 is one of them.
+        let ms_description = DocId::Body(BodyDocId::new(roots.manuscript.clone(), description));
+        assert!(prose_doc_ids.contains(&ms_description));
 
         (book_id, book_doc, prose_doc_ids)
     };

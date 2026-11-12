@@ -1231,9 +1231,9 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
     assert_eq!(act1_entry["template"], "tpl-act-track");
     let tpl =
         lib.observe(&format!("book:{id}")).unwrap().value["templates"]["tpl-act-track"].clone();
-    assert_eq!(tpl["lane"], true);
+    assert_eq!(tpl["settings"]["lane"], true);
     assert_eq!(tpl["settings"]["default_template"], "tpl-idea");
-    assert_eq!(tpl["settings"]["allow"], json!([]));
+    assert!(tpl["settings"].get("allow").is_none());
     assert!(tpl["settings"]["home"].is_null());
 
     // 2. Create second act track -> auto-numbered "Acts 2", placed right after "Acts" and above normal lanes.

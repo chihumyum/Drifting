@@ -295,6 +295,17 @@ impl BookStructureV3 {
             .collect()
     }
 
+    /// The entries of the manuscript sequence that carry book prose (the
+    /// numbered ones: chapters, in the default structure), in order.
+    pub fn manuscript_entries(&self) -> Vec<Entry> {
+        self.manuscript()
+            .into_iter()
+            .flat_map(|p| p.entries)
+            .filter(|e| e.ordinal.is_some())
+            .map(|e| e.entry.clone())
+            .collect()
+    }
+
     /// Every document of the manuscript sequence, in order.
     pub fn manuscript_docs(&self) -> Vec<DocId> {
         self.manuscript()

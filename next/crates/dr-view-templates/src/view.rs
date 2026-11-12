@@ -1044,7 +1044,7 @@ mod tests {
             );
             let mut level = editor.host.book.v3().unwrap().template("tpl-storyline").unwrap().clone();
             level.settings.accept = Some(false);
-            level.lane = true;
+            level.settings.lane = Some(true);
             let request = crate::preview::Request { draft: level.clone(), ..editor.preview_request().unwrap() };
             let preview = crate::preview::project(&lib, &request).unwrap();
             assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));

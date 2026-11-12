@@ -90,7 +90,9 @@ fn template_id(template: &manifest::LeafTemplate) -> EntryTemplateId {
 fn body_id(view: &BookViewV3<'_>, body: &manifest::Body) -> DocId {
     match body {
         manifest::Body::Leaf(entry) => adapter::body_id(entry_id(view, entry).as_str(), MOD_PROSE),
-        manifest::Body::About(entry) => adapter::body_id(entry_id(view, entry).as_str(), MOD_ABOUT),
+        manifest::Body::About(entry) => {
+            adapter::body_id(entry_id(view, entry).as_str(), MOD_DESCRIPTION)
+        }
         manifest::Body::Material(id) => DocId::Material(MaterialId::parse(id).unwrap()),
         manifest::Body::Template(template) => DocId::Template(TemplateId::for_entry_module(
             view.book_id(),
@@ -184,7 +186,14 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         dr_doc::schema::BOOK_SCHEMA_VERSION
     );
     assert_eq!(
-        view.manuscript_leaves(&entry_id(view, &manifest::Entry::Manuscript))
+        view.structure_snapshot()
+            .manuscript()
+            .into_iter()
+            .filter(|p| p.root.id == entry_id(view, &manifest::Entry::Manuscript))
+            .flat_map(|p| p.entries)
+            .filter(|e| e.ordinal.is_some())
+            .map(|e| e.entry.clone())
+            .collect::<Vec<_>>()
             .iter()
             .map(|e| e.id.as_str())
             .collect::<Vec<_>>(),
@@ -216,8 +225,8 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             "{:?}",
             level.entry
         );
-        assert!(actual.is_level(&view.templates_map()));
-        assert_eq!(actual.is_lane_level(&view.templates_map()), level.lane);
+        assert!(actual.is_level());
+        assert_eq!(actual.is_lane(&view.templates_map()), level.lane);
         if let Some(template) = &level.default_leaf {
             assert_eq!(
                 view.level_settings(Some(&actual.id)).default_template,
@@ -236,7 +245,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert!(!act_track_id.as_str().starts_with("root-"));
         let act_settings = view.level_settings(Some(&act_track_id));
         assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
-        assert!(act_settings.allow.is_empty());
+        assert!(act_settings.lane);
         assert_eq!(act_settings.home, None);
         assert!(act_settings.accept);
     }
@@ -332,7 +341,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     }
     for template in &expected.leaf_templates {
         let actual = view.template(&template_id(&template.template)).unwrap();
-        assert!(actual.is_leaf());
+        assert!(!actual.level);
         assert_eq!(actual.name, template.name);
         for field in &template.fields {
             let want_default =
@@ -1344,7 +1353,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 {
                     "type": "text",
                     "text": "分类简介",
-                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "category", "targetId": CATEGORY, "module": MOD_ABOUT}}]
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "category", "targetId": CATEGORY, "module": MOD_DESCRIPTION}}]
                 }
             ]
         }]
@@ -1447,7 +1456,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 EntityLinkV3 {
                     target: STORYLINE.into(),
                     kind: EntityKind::Entry,
-                    module: Some(mid(MOD_ABOUT)),
+                    module: Some(mid(MOD_DESCRIPTION)),
                     block: Some(BlockId::parse("s-p1").unwrap()),
                     end_block: None,
                 }
@@ -1457,7 +1466,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 EntityLinkV3 {
                     target: CATEGORY.into(),
                     kind: EntityKind::Entry,
-                    module: Some(mid(MOD_ABOUT)),
+                    module: Some(mid(MOD_DESCRIPTION)),
                     block: None,
                     end_block: None,
                 }
@@ -1624,7 +1633,7 @@ fn non_empty_field_defaults_import_losslessly_in_live_and_historical_catalogs() 
     assert_eq!(text(&elem, "kv-cat-job").as_deref(), Some("短工"));
 
     // Historical book frontier at h-cat-1 carries the historical default ("二十" and None)!
-    let cat_doc_id = adapter::body_id(CATEGORY, MOD_ABOUT);
+    let cat_doc_id = adapter::body_id(CATEGORY, MOD_DESCRIPTION);
     let cat_hist = lib.history(&cat_doc_id.to_string()).unwrap();
     let cat_label = cat_hist.iter().find(|h| h.label == "periodic").unwrap();
     let detached = dr_doc::v3::BookReaderV3::load_at(
@@ -2473,7 +2482,8 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     .unwrap();
     let view_no_acts = book_no_acts.view();
     adapter::validate(&view_no_acts).unwrap();
-    assert!(view_no_acts.template(&tid(TPL_ACT_TRACK)).is_none());
+    // The 幕 template comes with every book; no act track is created.
+    assert!(view_no_acts.template(&tid(TPL_ACT_TRACK)).is_some());
     assert!(
         view_no_acts
             .root_entry_by_template(&tid(TPL_ACT_TRACK))
@@ -2756,10 +2766,10 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     assert_eq!(act_track.title, "幕");
     assert_eq!(act_track.parent, None);
     assert!(!act_track.id.as_str().starts_with("root-"));
-    assert!(act_track.is_lane_level(&view.templates_map()));
+    assert!(act_track.is_lane(&view.templates_map()));
     let act_settings = view.level_settings(Some(&act_track.id));
     assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
-    assert!(act_settings.allow.is_empty());
+    assert!(act_settings.lane);
     assert_eq!(act_settings.home, None);
     assert!(act_settings.accept);
 
@@ -2930,7 +2940,7 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
             fields_mod.config.color_field = Some("act_color".into());
             t.template(&colored_leaf.id)?.set_full(&colored_leaf)?;
 
-            let mut custom_track = dr_doc::v3::act_track_level_template();
+            let mut custom_track = dr_doc::v3::act_track_template();
             custom_track.settings.default_template = Some(Some(colored_leaf.id.clone()));
             t.template(&custom_track.id)?.set_full(&custom_track)?;
 
