@@ -43,6 +43,14 @@ pub mod v3 {
         let v = book
             .v3()
             .ok_or_else(|| WsError::Invalid("v3 book required".into()))?;
+        // Held to the records of this snapshot that the command replaces,
+        // and to the entries, levels and templates its input names: what
+        // the author was shown when choosing it. A change elsewhere in the
+        // book is not a conflict.
+        let preconditions = WritePreconditions {
+            require_all: false,
+            ..v.guard_for(&input)
+        };
         input
             .as_object_mut()
             .ok_or_else(|| WsError::Invalid("object input required".into()))?
@@ -50,12 +58,7 @@ pub mod v3 {
         Ok(Mutation {
             command,
             input,
-            // Held to the records of this snapshot that the command
-            // replaces; a change elsewhere in the book is not a conflict.
-            preconditions: WritePreconditions {
-                require_all: false,
-                ..v.guard()
-            },
+            preconditions,
         })
     }
     pub fn prepare_edit(book: &Book, id: &str, mut changes: Value) -> Result<Mutation, WsError> {

@@ -83,6 +83,8 @@ pub struct BookV3 {
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
+    #[serde(skip)]
+    shown_index: std::collections::HashMap<RecordKey, usize>,
 }
 
 impl BookV3 {
@@ -94,6 +96,55 @@ impl BookV3 {
     /// an older draft.
     pub fn guard(&self) -> WritePreconditions {
         WritePreconditions::default().with_shown(self.shown.iter().cloned())
+    }
+
+    /// The guard of a command a view built from this snapshot with `input`:
+    /// [`Self::guard`], and held as well to every entry and template the
+    /// input names, to the levels above those entries and to the templates
+    /// of all of them. That is where what a dialog showed came from (where
+    /// a new entry will live, what a level accepts, which template applies),
+    /// whether or not the command replaces any of it.
+    pub fn guard_for(&self, input: &serde_json::Value) -> WritePreconditions {
+        let mut named = BTreeSet::new();
+        let mut values = vec![input];
+        while let Some(value) = values.pop() {
+            match value {
+                serde_json::Value::String(s) => {
+                    named.insert(s.as_str());
+                }
+                serde_json::Value::Array(items) => values.extend(items),
+                serde_json::Value::Object(fields) => values.extend(fields.values()),
+                _ => {}
+            }
+        }
+        let mut keys = BTreeSet::new();
+        for id in named {
+            if self.template_index.contains_key(id) {
+                keys.insert(("templates", id));
+            }
+            let mut level = self.entry(id);
+            while let Some(entry) = level {
+                if !keys.insert(("entries", entry.id.as_str())) {
+                    break;
+                }
+                if let Some(template) = entry.template.as_deref() {
+                    keys.insert(("templates", template));
+                }
+                level = entry
+                    .parent
+                    .as_deref()
+                    .and_then(|parent| self.entry(parent));
+            }
+        }
+        let mut guard = self.guard();
+        guard.records.extend(
+            keys.into_iter()
+                .filter_map(|(collection, id)| {
+                    self.shown_index.get(&RecordKey::record(collection, id))
+                })
+                .map(|&i| self.shown[i].clone()),
+        );
+        guard
     }
     pub fn entry(&self, id: &str) -> Option<&types::Entry> {
         self.entry_index.get(id).map(|&i| &self.entries[i])
@@ -354,6 +405,12 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         .iter()
         .enumerate()
         .map(|(i, t)| (t.id.clone(), i))
+        .collect();
+    v3.shown_index = v3
+        .shown
+        .iter()
+        .enumerate()
+        .map(|(i, record)| (record.key.clone(), i))
         .collect();
     for m in &v3.memberships {
         v3.hosts_by_member
