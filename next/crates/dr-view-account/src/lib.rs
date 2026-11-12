@@ -1,6 +1,7 @@
 //! Hosted account sign-in, first-run welcome step, profile editor, password change,
 //! and per-account library switching (M35, `dr-view-account`).
 
+pub mod consent;
 pub mod dialog;
 pub mod settings_view;
 pub mod sync_mark;
@@ -37,6 +38,7 @@ use gpui::{
 use image::{Frame, RgbaImage};
 use smallvec::SmallVec;
 
+pub use consent::consent_line;
 pub use dialog::{AuthDialog, AuthMode};
 pub use settings_view::AccountSettingsView;
 pub use sync_mark::{
@@ -648,7 +650,12 @@ fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut 
     );
 }
 
-/// First-run welcome step (`PreAlphaFirstRunGate`): offers Email sign-in or continuing locally.
+/// First-run welcome step (`PreAlphaFirstRunGate`): offers Email sign-in or
+/// continuing locally, and ends with the consent line (2026-11-13): every
+/// way on passes this page, the local one too, and a Hosted build sends
+/// fault reports without a session as well. What is agreed to waits in the
+/// line's hover card, which opens downward, clear of the ways on above it.
+/// The sign-in dialog has no copy of the line, wherever it is opened from.
 pub struct WelcomeStep;
 
 impl Step for WelcomeStep {
@@ -686,16 +693,6 @@ impl Step for WelcomeStep {
             )
             .child(
                 div()
-                    .font_role(Role::Ui)
-                    .type_px(s.body, s.line_body)
-                    .text_color(p.ink(2).solid())
-                    .child(dr_ui::text::wrapped(t(
-                        cx,
-                        keys::pre_alpha_guide::CRASH_REPORTS,
-                    ))),
-            )
-            .child(
-                div()
                     .flex()
                     .flex_row()
                     .items_center()
@@ -727,6 +724,7 @@ impl Step for WelcomeStep {
                             }),
                     ),
             )
+            .child(consent_line("first-run-consent", window, cx))
             .into_any_element()
     }
 }
@@ -830,6 +828,71 @@ mod tests {
                 let _ = cx;
             })
             .expect("update window");
+    }
+
+    /// The welcome step draws with its consent line (2026-11-13) and the
+    /// line's hover card in place of the old paragraph.
+    #[gpui::test]
+    fn the_welcome_draws_with_its_consent_line(cx: &mut TestAppContext) {
+        let server = FakeAuthServer::start();
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = Arc::new(
+            AccountService::new(
+                server.config(),
+                tmp.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service"),
+        );
+        cx.update(|cx| {
+            let _ = dr_ui::init(cx);
+            dr_shell::init(
+                shell_info(),
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+            init(Service::with_service(svc), cx);
+        });
+
+        struct Welcome;
+        impl gpui::Render for Welcome {
+            fn render(
+                &mut self,
+                window: &mut Window,
+                cx: &mut gpui::Context<Self>,
+            ) -> impl IntoElement {
+                div()
+                    .w(px(380.0))
+                    .child(WelcomeStep.render(Rc::new(|_, _| {}), window, cx))
+            }
+        }
+        let draw = |cx: &mut TestAppContext, window: gpui::AnyWindowHandle| {
+            cx.run_until_parked();
+            cx.update_window(window, |_, window, cx| window.draw(cx).clear(cx))
+                .expect("draw");
+        };
+        let welcome = cx.add_window(|_, _| Welcome);
+        draw(cx, welcome.into());
+
+        // A press on 「相关条款」 opens its card at once, below the line.
+        let cx = &mut gpui::VisualTestContext::from_window(welcome.into(), cx);
+        let terms = cx.debug_bounds("consent-terms").expect("the consent words");
+        assert!(
+            cx.debug_bounds("consent-card").is_none(),
+            "card shown unasked"
+        );
+        cx.simulate_click(terms.center(), gpui::Modifiers::default());
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx)
+        });
+        let card = cx
+            .debug_bounds("consent-card")
+            .expect("a press opens the card");
+        assert!(card.top() >= terms.bottom(), "the card opens downward");
     }
 
     #[gpui::test]

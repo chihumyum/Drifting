@@ -141,6 +141,21 @@ pub const REPO_URL: &str = "https://github.com/chihumyum/Drifting";
 pub const SUPPORT_URL: &str = "https://drifting.cc/support";
 pub const SUPPORT_EMAIL: &str = "support@drifting.cc";
 
+/// The service's consumer terms (0.1's `VITE_TERMS_URL`), given only by the
+/// build that turns Hosted on (`DRIFTING_TERMS_URL`): a build without them
+/// has no terms row on the consent line's card.
+pub fn terms_url() -> Option<&'static str> {
+    option_env!("DRIFTING_TERMS_URL").filter(|url| !url.trim().is_empty())
+}
+
+/// The privacy policy (0.1's `VITE_PRIVACY_URL`): the build's
+/// `DRIFTING_PRIVACY_URL`, or the repository's `PRIVACY.md`.
+pub fn privacy_url() -> &'static str {
+    option_env!("DRIFTING_PRIVACY_URL")
+        .filter(|url| !url.trim().is_empty())
+        .unwrap_or("https://github.com/chihumyum/Drifting/blob/main/PRIVACY.md")
+}
+
 /// Every [`InfoRow`], in panel order.
 pub static INFO_ROWS: &[InfoRow] = &[
     InfoRow {
