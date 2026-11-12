@@ -217,7 +217,10 @@ fn import_one(
     let book_id = book
         .parse()
         .map_err(|e: dr_model::id::IdError| ExportError::Invalid(e.to_string()))?;
-    let observed = ws.observe(&format!("book:{book}"))?;
+    // The copy below is read between two equal versions; the new entry is
+    // then held to the level and the template it was resolved from.
+    let doc = format!("book:{book}");
+    let before = ws.version(&doc)?;
     let copy = ws
         .library()
         .load_copy(&format!("book:{book}"))
@@ -270,7 +273,14 @@ fn import_one(
         ));
     };
     let module = module.id.to_string();
-    if ws.observe(&format!("book:{book}"))?.version != observed.version {
+    let resolved = ws.observe_records(
+        &doc,
+        &[
+            dr_workspace::RecordKey::entry(&parent),
+            dr_workspace::RecordKey::template(template_id.as_str()),
+        ],
+    )?;
+    if ws.version(&doc)? != before {
         return Err(ExportError::Invalid(
             "import target changed; select it again".into(),
         ));
@@ -283,9 +293,8 @@ fn import_one(
             "title": title, "bodies": {module.clone(): text.unwrap_or_default()}
         }),
         dr_workspace::WritePreconditions {
-            versions: std::collections::HashMap::from([(observed.doc, observed.version)]),
-            records: Vec::new(),
             require_all: false,
+            ..dr_workspace::WritePreconditions::from_records(resolved)
         },
     )?;
     let entity = &created["output"];

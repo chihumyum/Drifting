@@ -75,7 +75,7 @@ struct CheckinProject {
 fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, String> {
     let doc = format!("book:{book}");
     for _ in 0..3 {
-        let before = ws.observe(&doc).map_err(string)?;
+        let before = ws.version(&doc).map_err(string)?;
         let copy = ws.library().load_copy(&doc).map_err(string)?;
         if dr_doc::v3::is_v3_doc(&copy) {
             let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book).map_err(string)?;
@@ -86,7 +86,7 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
             let structure = dr_agent_tools::StructureContext::from_v3_view(
                 Some(ws.library()),
                 &view,
-                &before.version,
+                &before,
                 None,
             )
             .map_err(string)?;
@@ -105,7 +105,7 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
                     .collect(),
                 guidance: Some(structure.to_contribution().map_err(string)?),
             };
-            if before.version == ws.observe(&doc).map_err(string)?.version {
+            if before == ws.version(&doc).map_err(string)? {
                 return Ok(result);
             }
         } else {

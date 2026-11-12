@@ -12,7 +12,7 @@ use dr_ui::{
     input::{FieldEvent, TextArea},
     style::DrStyled,
 };
-use dr_workspace::{Actor, WritePreconditions, WsEvent};
+use dr_workspace::{Actor, RecordKey, WritePreconditions, WsEvent};
 use futures::{
     StreamExt as _,
     channel::{mpsc, oneshot},
@@ -24,11 +24,11 @@ use gpui::{
 };
 use keys::project_memory as k;
 use serde_json::json;
-use std::collections::HashMap;
 
 struct Draft {
     id: Option<MemoryId>,
-    version: String,
+    /// The guard of the snapshot the author inspected.
+    guard: WritePreconditions,
 }
 struct Reveal {
     id: MemoryId,
@@ -51,7 +51,7 @@ pub struct ProjectMemoryView {
     next_reveal: u64,
     reveal: Option<Reveal>,
     error: Option<String>,
-    confirm: Option<(MemoryId, String)>,
+    confirm: Option<(MemoryId, WritePreconditions)>,
     scroll: ScrollHandle,
     _input: Subscription,
     subscription: Option<dr_workspace::Subscription>,
@@ -265,7 +265,7 @@ impl ProjectMemoryView {
             .update(cx, |editor, cx| editor.set_text(text, cx));
         self.draft = Some(Draft {
             id,
-            version: snapshot.version.clone(),
+            guard: snapshot.guard.clone(),
         });
         self.error = None;
         window.focus(&self.editor.focus_handle(cx), cx);
@@ -290,13 +290,13 @@ impl ProjectMemoryView {
         } else {
             ("memory.add", json!({"book":self.book,"body":body}))
         };
-        self.mutate(name, args, draft.version.clone(), cx);
+        self.mutate(name, args, draft.guard.clone(), cx);
     }
     fn mutate(
         &mut self,
         name: &'static str,
         args: serde_json::Value,
-        version: String,
+        guard: WritePreconditions,
         cx: &mut Context<Self>,
     ) {
         if self.blocked(cx) {
@@ -304,18 +304,19 @@ impl ProjectMemoryView {
         }
         let book = self.book.clone();
         let job = self.controller.workspace_job(move |ws| {
-            // Confirm this book is still live. The guard uses the exact version
-            // the author inspected, so a concurrent trash/edit fails atomically.
+            // Confirm this book is still live. The guard holds the write to
+            // the entry as the author inspected it and to the book not being
+            // in the trash, so a concurrent trash/edit fails atomically.
             memory::project(ws, &book).map_err(|e| e.to_string())?;
             ws.call_guarded(
                 &Actor::User,
                 name,
                 args,
-                WritePreconditions {
-                    versions: HashMap::from([(format!("book:{book}"), version)]),
-                    records: Vec::new(),
-                    require_all: true,
-                },
+                guard.with_value(
+                    format!("book:{book}"),
+                    RecordKey::record("meta", "deleted_at"),
+                    [serde_json::Value::Null],
+                ),
             )
             .map_err(|e| e.to_string())?;
             Ok(())
@@ -359,7 +360,7 @@ impl Render for ProjectMemoryView {
             for entry in snapshot.entries.iter().filter(|e| e.active()) {
                 let id = entry.id.clone();
                 let remove_id = id.clone();
-                let version = snapshot.version.clone();
+                let guard = snapshot.guard.clone();
                 let editing = self
                     .draft
                     .as_ref()
@@ -394,7 +395,7 @@ impl Render for ProjectMemoryView {
                                     .text()
                                     .disabled(blocked)
                                     .on_click(cx.listener(move |view, _, _, cx| {
-                                        view.confirm = Some((remove_id.clone(), version.clone()));
+                                        view.confirm = Some((remove_id.clone(), guard.clone()));
                                         cx.notify();
                                     })),
                             ),
@@ -515,7 +516,7 @@ impl Render for ProjectMemoryView {
                     .child(format!("{}: {error}", t(cx, keys::common::SAVE_FAILED))),
             );
         }
-        if let Some((id, version)) = self.confirm.clone() {
+        if let Some((id, guard)) = self.confirm.clone() {
             let cancel = cx.entity();
             let close = cx.entity();
             let confirm = cx.entity();
@@ -543,7 +544,7 @@ impl Render for ProjectMemoryView {
                                     view.mutate(
                                         "memory.remove",
                                         json!({"book":book,"id":id}),
-                                        version.clone(),
+                                        guard.clone(),
                                         cx,
                                     )
                                 })

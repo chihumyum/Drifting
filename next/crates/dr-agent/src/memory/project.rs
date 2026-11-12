@@ -26,13 +26,16 @@ pub struct ProjectSnapshot {
     pub entries: Vec<ProjectEntry>,
     pub markdown: String,
     pub version: String,
+    /// The guard of a change made from this snapshot: held to the entries it
+    /// replaces as they were read here.
+    pub guard: dr_workspace::WritePreconditions,
 }
 
 pub fn project(ws: &Workspace, book: &BookId) -> MemoryResult<ProjectSnapshot> {
     let doc = format!("book:{book}");
     let error = |e: dr_workspace::WsError| MemoryError::Invalid(e.to_string());
     for _ in 0..3 {
-        let before = ws.observe(&doc).map_err(error)?;
+        let before = ws.version(&doc).map_err(error)?;
         let copy = ws
             .library()
             .load_copy(&doc)
@@ -56,8 +59,15 @@ pub fn project(ws: &Workspace, book: &BookId) -> MemoryResult<ProjectSnapshot> {
                 })
                 .collect()
         };
-        let after = ws.observe(&doc).map_err(error)?;
-        if before.version != after.version {
+        // The digest of each entry, in the same state as the copy: a change
+        // made from this snapshot is held to the entry it changes.
+        let keys: Vec<dr_workspace::RecordKey> = entries
+            .iter()
+            .map(|e| dr_workspace::RecordKey::record("memory", e.id.as_str()))
+            .collect();
+        let shown = ws.observe_records(&doc, &keys).map_err(error)?;
+        let after = ws.version(&doc).map_err(error)?;
+        if before != after {
             continue;
         }
         entries.retain(|e| !e.removed);
@@ -75,7 +85,9 @@ pub fn project(ws: &Workspace, book: &BookId) -> MemoryResult<ProjectSnapshot> {
         return Ok(ProjectSnapshot {
             entries,
             markdown,
-            version: after.version,
+            version: after,
+            guard: dr_workspace::WritePreconditions::default()
+                .with_shown(shown.into_iter().map(Into::into)),
         });
     }
     Err(MemoryError::Invalid(

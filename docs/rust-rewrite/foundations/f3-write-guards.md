@@ -2,7 +2,7 @@
 
 2026-11-12。接着 [f3-workspace.md](f3-workspace.md) 的「写入顺序与补偿」，讲受守卫的写入（`Workspace::call_guarded`）到底守什么。
 
-状态：**第 1、2 步已落地**（内核原语、每条写命令的声明；帮手工具按记录记账和守卫）。界面还在用整本书的版本号，行为和改造前一样，在第 3 步换过来。
+状态：**第 1、2、3 步已落地**（内核原语、每条写命令的声明；帮手工具按记录记账和守卫；界面的保存路径不再观察整本书）。
 
 ## 大白话
 
@@ -25,7 +25,8 @@
 - **观察**：`Workspace::observe_records(书目文档 id, 键列表)`，在持有者的一次读任务里算出每个键的摘要和它的普通值。不导出、不导入、不解码书里其余部分。
 - **前置条件**：调用方交给 `call_guarded` 的 `WritePreconditions.records`，每条是「这个键现在应该是什么样」，有两种说法：
   - **摘要**（`Expected::Digest`）：和我观察时一模一样。整条写、帮手的写入用它。
-  - **取值**（`Expected::AnyOf`）：这个键是单独一个值（普通值或一段文字，没存就是 `null`），而且等于我给出的几个值之一。界面改一个字段时说「`[我显示过的旧值, 作者改成的新值]`」：现在是旧值就写，已经是新值也算数（别处做了同样的改动），是第三个值说明别人改过，拒绝。它不需要先观察，界面手里本来就有显示过的值。给整条记录或者任何容器用取值永远不成立。
+  - **取值**（`Expected::AnyOf`）：这个键是单独一个普通值（没存就是 `null`），而且等于我给出的几个值之一。界面改一个字段时说「`[我显示过的旧值, 作者改成的新值]`」：现在是旧值就写，已经是新值也算数（别处做了同样的改动），是第三个值说明别人改过，拒绝。它不需要先观察，界面手里本来就有显示过的值。给任何容器用取值永远不成立：整条记录、列表、富文本（补丁正文），以及藏在一个普通映射值里面或者非映射容器底下的值。字段要是换了一种这个界面没显示过的存法，就不该由它盖掉。
+  - 一条前置条件可以标成**只在被替换时比对**（`if_replaced`）：只有这次调用替换了这条记录、它的一部分、或者包含它的记录时才比对。界面把快照里所有显示内容的摘要一股脑交上来，不用知道每条命令替换什么，内核只拿其中被写到的那几条来比。
   - 比对都在持有者的**写任务里、任何改动之前**做，所以读和写之间插不进别的写入。
 - **正文文档照旧按整篇的版本守卫**（`WritePreconditions.versions`）：一篇正文只属于一个条目的一个模块，粒度已经够细。批注锚定对来源正文的检查也不变。
 - 书目文档也还可以按整篇版本守卫。只有真的需要整本书不动的调用才这样用：完整条目快照的原子恢复（`entry_snapshot.*`）。
@@ -143,27 +144,41 @@
 
 每次调用的其他整本读取也换掉了：工具目录缓存的失效判断、结构说明的前后比对改用 `Workspace::version`；`is_v3_book` 对已经打开的书不再拷贝整本（`Workspace::is_v3_book`）；`prose.read` 取批注锚点改在持有者读任务里读。名字解析（`resolve_v3`）每次调用仍拷贝一份书目文档，见「还没做的」。
 
-**界面（第 3 步）**
+**界面（第 3 步，已做）**
 
-- 只是为了拿版本号的 `observe("book:…")`，换成记录观察；确实只要一个版本号的地方（比较新旧快照）用 `Workspace::version`，它不读内容。
-- 整条写的保存（模板编辑、整份时间线、情节格）：显示的内容是哪次读出来的，就留那次的记录摘要，保存时交给 `call_guarded`。**不能在保存前重新观察**再拿旧的界面值去写，这一条和以前一样。
-- 字段保存不再观察、不再在界面里合并：只写作者改过的那个字段，带一条取值前置条件 `[显示过的旧值, 新值]`。三方比对由内核在写任务里做，所有界面是同一套规则。作者明确选择覆盖（现在的「重试」）就不带这条前置条件。例：
+界面的保存有三种写法，都不再观察整本书：
 
-  ```rust
-  ws.call_guarded(&Actor::User, "entry.update", json!({"book": book, "id": entry, "title": edited}),
-      WritePreconditions::default().with_value(doc, RecordKey::entry(entry).at(["title"]), [json!(shown), json!(edited)]))
-  ```
+1. **从显示的快照直接改**（要素与分类、岛屿、时间线上的拖放和泳道、项目记忆）。外壳读书目快照的那次读任务里，顺手取了它显示的每条记录的摘要：每个条目、每层的子条目顺序、每个模板、归属、时间线视图、素材和素材夹（`dr_shell::book::v3::BookV3::guard()`）。保存时把这组摘要全部交上去，都标成「只在被替换时比对」。草稿是从哪个快照开始的，就一直带那个快照的摘要；失败后重试才换成新的。
+2. **保存前读一次要改的那条记录**（补丁、键值行、时间钉、模板、情节格、新建时间线视图、主页的新建动作、导入）。用 `observe_records` 读这一条：读到的值用来和草稿合并或核对完整性，读到的摘要交给写入。读在合并之前，所以读之后这条记录再变，写入照旧被拒。
+3. **只改一个值**（页面头部的标题和字段）。不观察，带取值前置条件 `[显示过的旧值, 新值]`；作者明确重试时先读一次当前值，改成 `[当前值, 新值]`。
 
-- 这要求命令只写点了名的字段。`entry.update`、`module.set_field`、`book.update`、`comment.update`、`material.update` 已经是；补丁和键值行现在是整条写，要加字段级的写法：
+各处用的是哪一种：
 
-  | 现在 | 第 3 步 |
-  | --- | --- |
-  | 补丁改标题或正文：`observe` 全书 + `module.read` + 界面合并 + `module.put_patch` 整条写回 | 新增 `module.edit_patch {id, title?, body?}`，只写给出的字段，各自声明 `patches/<补丁>/title`、`body` |
-  | 键值行：同上 + `module.put_kv` | 新增 `module.edit_kv {row, key?, value?}`；新建行仍用 `module.put_kv` |
-  | 删补丁 / 删键值行前在界面里比对旧值 | 命令不变。界面带它显示过的两个字段的取值前置条件，并设 `require_all: false`：两个字段合起来不算读过整条记录，界面只担保作者看到的那两样没变 |
-  | 条目标题、字段值 | 命令不变，带取值前置条件 |
+| 界面 | 写法 | 守的记录 |
+| --- | --- | --- |
+| 要素页的补丁（`dr-view-elements/src/fields/guarded.rs`） | 2 | `patches/<补丁>`；写入改用 `module.edit_patch`，只写改过的字段 |
+| 要素页的键值行（同上） | 2 | `entries/<条目>/kv:<模块>/<行>`；改已有行用 `module.edit_kv`，新建行守「这一行还不存在」 |
+| 要素、分类、岛屿、关系上的各种改动（`dr-view-elements/src/data.rs` 的 `Mutation`） | 1 | 快照里被这条命令替换的记录 |
+| 页面头部的标题、字段（`dr-view-page`） | 3 | `entries/<条目>/title`、`entries/<条目>/fields/<模块>/<字段>` |
+| 模板编辑（`dr-view-templates/src/model.rs`） | 2 | `templates/<模板>`（新建时守它还不存在） |
+| 情节格（`dr-view-plot/src/v3.rs`） | 2 | `plot_grids/<条目>/<模块>` |
+| 主页的新建动作（`dr-view-home/src/v3.rs`） | 2 | 声明这个动作的层级条目，加模板集合 |
+| 时间线：摆放、拉长、泳道增删改序、视图改名（`dr-view-timeline`） | 1 | 快照里的那个视图 |
+| 时间线：时间钉增改 | 2 | `timeline_views/<视图>/pins/<时间钉>`；完整性核对用这一条时间钉存着的值 |
+| 时间线：新建视图、幕轨道模板 | 2 | `timeline_views/<视图>`、`templates/tpl-act-track` |
+| 项目记忆（`dr-view-agent/src/project_memory.rs`） | 1 | 快照里被改的那条记忆，另加「这本书没进回收站」（`meta/deleted_at` 取值为空） |
+| 导入一篇文档（`dr-export/src/import/write.rs`） | 2 | 解析出来的目标层级和模板 |
 
-  这两条新命令不进帮手的工具目录（帮手照旧整条写，由执行器带记录摘要）。
+读一份前后一致的拷贝时用来括住它的两次整本观察（项目记忆、主动建议的签到、导入、帮手的结构说明），都换成了 `Workspace::version`。
+
+新增的两条字段级命令：
+
+| 命令 | 入参 | 说明 |
+| --- | --- | --- |
+| `module.edit_patch` | `{book, entry, module, id, title?, body?}`，`title: null` 清空标题 | 只写给出的字段，返回改完的补丁。读和写在同一个写任务里，没给的字段保持当时存着的值；补丁已被删掉时返回 `not_found`，不会建出一条空的 |
+| `module.edit_kv` | `{book, entry, module, row, key?, value?}` | 同上，行的位置不动 |
+
+它们不进帮手的工具目录（帮手照旧整条写，由执行器带记录摘要）。`module.put_patch`、`module.put_kv` 不变。
 
 ## 变了的行为
 
@@ -171,9 +186,10 @@
 - `entry.update` 只写入参点了名的字段。以前会把另外几个字段按命令读到的值重写一遍，租约外同步进来的改动有可能被写回旧值。
 - `WritePreconditions` 多了 `records` 字段（默认空）。用结构体字面量构造它的 10 处补了 `records: Vec::new()`，其中 3 处在测试里，属于机械改动，断言没动。
 - 冲突信息里记录级的两种多了 `record <键>` 后缀；`code()` 还是 `conflict`。
-- 新接口：`Workspace::observe_records`、`Workspace::version`、`Workspace::is_v3_book`，类型 `RecordKey`、`RecordObservation`、`RecordPrecondition`、`Expected`；dr-doc 新增 `v3::RecordKeyV3`、`RecordReaderV3`、`RecordStateV3` 和 `BookViewV3::record_state`（只加不改）。
+- 新接口：`Workspace::observe_records`、`Workspace::version`、`Workspace::is_v3_book`、`dr_workspace::observe_records_in`（给自己在读任务里读快照的调用方），类型 `RecordKey`、`RecordObservation`、`RecordPrecondition`、`Expected`；dr-doc 新增 `v3::RecordKeyV3`、`RecordReaderV3`、`RecordStateV3` 和 `BookViewV3::record_state`（只加不改）。
 - 摘要只在内存里用（一轮对话、一个界面的草稿），不落盘、不同步，所以以后换哈希或者 Loro 升级改了序列化都不影响已有数据。
-- 命令注册表、能力清单、帮手目录都没有变化。
+- 命令面：新增 `module.edit_patch`、`module.edit_kv`（注册表和能力清单各多两条；帮手目录的排除表多这两条，可调用的工具没变）。其余命令的入参和输出没变。
+- 界面这边（第 3 步）：保存只在它替换的那条记录变了的时候冲突。以前是同一本书里任何变化都冲突，要素页的 `Mutation`、时间线的各种编辑、项目记忆都是这样。
 - 帮手这边（第 2 步）：同一本书里无关的改动（包括帮手自己对别的记录的写入）不再让它重读；冲突信息里是记录不是整本书；上面「比以前严的两处」。
 
 ## 测试
@@ -182,10 +198,12 @@
 - `dr-doc` `v3::record` 的 4 条单元测试：记录状态只含自己；条目记录含住处、不含兄弟；同 id 的两个树节点都算，另一台设备上同内容同状态；不存在的读作缺失，键的包含关系。
 - `dr-agent-tools/tests/record_coverage.rs`（6 条）：读过之后书里无关的改动不要求重读，写前快照照常；被改过的记录只拒绝照着它写的那一次，另一条记录照写，被拒的写入不算读，同一条记录冲突两次停手而别的记录不受影响；帮手自己写过一条记录后，读过的其他记录不用重读；只看过模块清单不能整条替换补丁，读过模块后条目标题和别的模块变了不冲突，补丁本身变了冲突；取消归属、给已有归属改顺序要读过那条归属，新加不用，别的归属变了不冲突；整份替换时间线视图只和那一个视图比，别处新建同 id 的视图不被盖掉。
 - 改了一条既有测试：`barriers.rs` 的 `a_new_book_version_read_does_not_refresh_old_chapter_coverage`，原来断言「作者改了书的简介之后，帮手读过的章节全部作废」，这正是整本一把锁的行为。改成 `a_later_read_does_not_refresh_the_coverage_of_a_chapter_that_changed`：无关改动之后不用重读；章节本身被改之后，再读别的东西也不能让旧读取重新生效，写入被拒、不落任何东西，重读后才能写。
+- 第 3 步在 `v3_record_guards.rs` 里加了两条：界面交上整个快照的摘要时，只和被替换的记录比对（别的显示内容变了不冲突、被替换的变了冲突、只显示了一部分的记录被整条替换时这一部分也要比、快照没显示过的不算读过）；字段级命令只写点名的字段、撤销一步退一个字段、不存在的补丁和行不会被建出来。取值前置条件不匹配富文本改成了断言。
+- 界面 crate 的内联测试和集成测试断言没有改。`dr-view-timeline/src/v3/write.rs` 的一条内联测试因为 `ViewScope` 的字段从版本号换成了守卫，构造方式跟着改了，断言原样。
 - 原有的守卫回归（`workspace_guarded`、`v3_comment_read_guard`、`v3_membership_retention`、`v3_timeline_edits`、`v3_membership`、`kernel_v3`、`entry_snapshots`、`timeline_coverage`、`checkpoints_v3` 和各界面 crate 的内联测试）断言一条没改。
 
 ## 还没做的
 
-- 第 3 步（界面）、第 4 步（Heavy 上的前后耗时）。
-- `Workspace::observe` 整本书的导出再导入还在，等界面也换走以后只留给真正需要整本内容的工具。
+- 第 4 步（新书目和用了三年的书目上的前后耗时）、第 5 步（导入校验的整份拷贝）。
+- `Workspace::observe` 整本书的导出再导入还在，产品代码里已经没有调用方，只有测试和需要整本内容的工具在用。
 - 帮手的名字解析（`resolve_v3`）和写前快照选条目（`checkpoints::entries`）每次调用各拷贝一份书目文档（`Library::load_copy`），代价也随书变大。它们要的是一份前后一致的只读快照，不是守卫；换成在持有者读任务里解析要先理清解析过程中对工作区的回调，留作单独一项。
