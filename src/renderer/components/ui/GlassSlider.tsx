@@ -10,6 +10,7 @@ import {
 import { trackGlassFlow } from '../../lib/glass-flow';
 import { OPTIONS_CLOSE_MS, SPRING_MS, weightedEasing } from '../../lib/motion';
 import { AnchoredPopover } from './AnchoredPopover';
+import { shouldReportNaturalWidth } from './glass-slider-fold';
 import { leaveSliderGlass, takeSliderGlass, type SliderGlassRect } from './glass-slider-handoff';
 
 export interface GlassSliderOption<T extends string> {
@@ -69,11 +70,18 @@ export function GlassSlider<T extends string>({
   // A hidden copy of the options measures their natural width in either state,
   // so a collapsed slider can tell when there is room to open out again.
   const measureRef = useRef<HTMLSpanElement | null>(null);
+  const lastReported = useRef<{ fn?: (width: number) => void; width: number }>({ width: 0 });
   const optionsKey = optionValuesKey(props.options);
   useLayoutEffect(() => {
     const measure = measureRef.current;
     if (!measure || !onNaturalWidth) return undefined;
-    const report = () => onNaturalWidth(measure.getBoundingClientRect().width);
+    const report = () => {
+      const width = measure.getBoundingClientRect().width;
+      const previous = lastReported.current.fn === onNaturalWidth ? lastReported.current.width : 0;
+      if (!shouldReportNaturalWidth(previous, width)) return;
+      lastReported.current = { fn: onNaturalWidth, width };
+      onNaturalWidth(width);
+    };
     report();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(report);

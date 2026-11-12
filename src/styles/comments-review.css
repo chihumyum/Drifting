@@ -1374,7 +1374,7 @@ html[data-shell-mode] .editor__toc-rail[data-fit='hidden'] .editor__toc-labels {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   min-width: 0;
   background: var(--workspace-ui-bg);

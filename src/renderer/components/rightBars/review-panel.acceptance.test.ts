@@ -84,9 +84,11 @@ describe('unified Review surface acceptance', () => {
     // is a lock-like toggle whose word never changes.
     expect(panel).toContain('<GlassSlider\n          className="review-panel__type-filters"');
     // The header never wraps: when the three types don't fit beside the scope
-    // toggle and the actions, they fold into one tab that opens on hover.
+    // toggle and the actions, they fold into one tab that opens on hover, with
+    // hysteresis so fractional-DPI rounding cannot bounce between states.
     expect(panel).toContain('collapsed={collapseTypeFilters}\n          onNaturalWidth={setTypeFiltersWidth}');
-    expect(panel).toContain('setCollapseTypeFilters(typeFiltersWidth > room + 0.5);');
+    expect(panel).toContain('nextSliderCollapsed(collapsed, typeFiltersWidth, room)');
+    expect(unifiedSurface).toMatch(/\.review-panel__toolbar \{[\s\S]*?flex-wrap: nowrap;/);
     expect(panel).toContain('<ScopeToggle\n          className="review-panel__scope-toggle"');
     expect(panel).not.toContain("t(`reviewPanel.scopes.${effectiveScope}`)");
     expect(panel).toContain('className="review-panel__list scroll-no-bar workspace-list"');

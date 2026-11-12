@@ -5,6 +5,12 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import '../../lib/i18n';
 import { GlassSlider } from './GlassSlider';
+import {
+  SLIDER_FOLD_SLACK,
+  SLIDER_UNFOLD_SLACK,
+  nextSliderCollapsed,
+  shouldReportNaturalWidth,
+} from './glass-slider-fold';
 import { ScopeToggle } from './ScopeToggle';
 
 const css = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
@@ -86,6 +92,7 @@ describe('glass slider', () => {
     const controls = css('src/styles/ui-controls.css');
     expect(controls).toContain('.glass-slider--vertical {\n  flex-direction: column;');
     expect(controls).toContain('.glass-slider__measure {\n  position: absolute;');
+    expect(controls).toContain('width: max-content;');
     expect(controls).toContain('visibility: hidden;');
     // The opened list sits on body yet keeps the panel header's size and voice.
     expect(controls).toContain(":is(.workspace-panel-header-row, .glass-slider-popover) :is(.glass-slider__option, .scope-toggle)");
@@ -96,6 +103,45 @@ describe('glass slider', () => {
     // Choosing slides the same heavy slab and leaves the list open; only the
     // pointer leaving closes it.
     expect(source).toContain('orientation="vertical"\n            onChange={onChange}\n          />');
+  });
+
+  it('prevents fractional-DPI subpixel jitter from looping between folded and side-by-side states', () => {
+    expect(shouldReportNaturalWidth(0, 0)).toBe(false);
+    expect(shouldReportNaturalWidth(144, 0)).toBe(false);
+    expect(shouldReportNaturalWidth(0, 144.2)).toBe(true);
+    // Remounting the measure span on fractional Windows DPI can round by 1/64px..0.3px.
+    expect(shouldReportNaturalWidth(144.2, 144.2 + 0.015625)).toBe(false);
+    expect(shouldReportNaturalWidth(144.2, 143.9)).toBe(false);
+    // Genuine label or font-size changes still report immediately.
+    expect(shouldReportNaturalWidth(144.2, 144.8)).toBe(true);
+    expect(shouldReportNaturalWidth(144.2, 112)).toBe(true);
+
+    // Simulate a narrow toolbar right at the fold cutoff where folding shifts
+    // sibling subpixel widths (`room` grows by ~1.6px when collapsed) and
+    // natural-width reads jitter slightly: must settle in 1 fold, never React #185.
+    let collapsed = false;
+    let reportedWidth = 144;
+    let transitions = 0;
+    for (let step = 0; step < 60; step += 1) {
+      const measured = collapsed ? 143.85 : 144.15;
+      if (shouldReportNaturalWidth(reportedWidth, measured)) {
+        reportedWidth = measured;
+      }
+      const room = collapsed ? 144.6 : 143;
+      const next = nextSliderCollapsed(collapsed, reportedWidth, room);
+      if (next !== collapsed) {
+        collapsed = next;
+        transitions += 1;
+      }
+    }
+    expect(collapsed).toBe(true);
+    expect(transitions).toBe(1);
+
+    // Stays folded through minor room jitter, then unfolds once spare room returns.
+    expect(nextSliderCollapsed(true, 144, 144 + SLIDER_UNFOLD_SLACK - 0.5)).toBe(true);
+    expect(nextSliderCollapsed(true, 144, 144 + SLIDER_UNFOLD_SLACK)).toBe(false);
+    expect(nextSliderCollapsed(false, 144, 144 - SLIDER_FOLD_SLACK)).toBe(false);
+    expect(nextSliderCollapsed(false, 144, 144 - SLIDER_FOLD_SLACK - 0.1)).toBe(true);
   });
 });
 

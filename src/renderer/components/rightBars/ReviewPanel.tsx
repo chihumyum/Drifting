@@ -32,6 +32,7 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
 import { useEmptyStateHints } from '../../hooks/useEmptyStateHints';
 import { GlassSlider } from '../ui/GlassSlider';
+import { nextSliderCollapsed } from '../ui/glass-slider-fold';
 import { ScopeToggle } from '../ui/ScopeToggle';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
@@ -102,26 +103,33 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
   // The header never breaks onto a second line: once the type filters no
   // longer fit beside the scope toggle and the actions, they fold into one
   // tab that opens on hover. The room is what the row has left after the
-  // other controls and the gaps; the filters report their full width.
+  // other controls and the gaps; the filters report their full width, and
+  // unfolding waits for a few spare pixels so subpixel rounding never loops.
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar || !typeFiltersWidth) return undefined;
+    const isFixedToolbarItem = (item: Element) =>
+      !item.matches('.review-panel__type-filters, .review-panel__toolbar-spacer');
     const update = () => {
       const style = getComputedStyle(toolbar);
       const items = [...toolbar.children];
       const others = items
-        .filter((item) => !item.matches('.review-panel__type-filters, .review-panel__toolbar-spacer'))
+        .filter(isFixedToolbarItem)
         .reduce((width, item) => width + item.getBoundingClientRect().width, 0);
       const room = toolbar.clientWidth
         - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
         - (parseFloat(style.columnGap) || 0) * (items.length - 1)
         - others;
-      setCollapseTypeFilters(typeFiltersWidth > room + 0.5);
+      setCollapseTypeFilters((collapsed) =>
+        nextSliderCollapsed(collapsed, typeFiltersWidth, room),
+      );
     };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(toolbar);
-    for (const item of toolbar.children) observer.observe(item);
+    for (const item of toolbar.children) {
+      if (isFixedToolbarItem(item)) observer.observe(item);
+    }
     return () => observer.disconnect();
   }, [typeFiltersWidth]);
 
