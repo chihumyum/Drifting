@@ -86,6 +86,29 @@ pub fn checkpoint_history_fingerprint(
     }
     content_hash(documents, target)
 }
+
+/// Whether a checkpoint's historical book and body copies are the content
+/// its manifest's `content_hash` was taken of. Preview, restore and archive
+/// import all ask this before trusting a manifest.
+///
+/// Two fingerprints are recognised: the one checkpoints are saved with now
+/// (`checkpoint_history_fingerprint`), and the one they were saved with
+/// until 2026-11-12, which also covered the list of the entry's siblings.
+/// Libraries hold checkpoints of both kinds, and a checkpoint is never
+/// rewritten in place, so the old kind stays readable for good. A build
+/// from before the change does not recognise the new kind: with two devices
+/// on different builds, the older one cannot preview what the newer one
+/// saved. That is accepted.
+pub fn checkpoint_history_matches(
+    documents: &BTreeMap<String, LoroDoc>,
+    target: &EntryIn,
+    content_hash: &str,
+) -> Result<bool> {
+    Ok(
+        checkpoint_history_fingerprint(documents, target)? == content_hash
+            || content_hash_with_siblings(documents, target)? == content_hash,
+    )
+}
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct BodyPreview {
     pub doc: String,
@@ -328,12 +351,29 @@ fn content_hash(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn) -> Result<Str
     let state = v
         .entry_change_state(&id)
         .ok_or_else(|| WsError::not_found("entry", &input.entry))?;
-    let versions: BTreeMap<_, _> = docs
-        .iter()
-        .filter(|(doc, _)| matches!(DocId::parse(doc),Ok(DocId::Body(b)) if b.entry()==&id))
+    fingerprint(&state, &body_states(docs, &id))
+}
+/// The content hash of checkpoints saved until 2026-11-12, byte for byte:
+/// the entry's owned raw state with the list of its siblings
+/// (`BookViewV3::entry_owned_raw_state`) and the versions of its bodies.
+/// Only `checkpoint_history_matches` reads it, to recognise those
+/// checkpoints; nothing is saved or compared for a capture with it.
+fn content_hash_with_siblings(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn) -> Result<String> {
+    let book: BookId = pid("book", &input.book)?;
+    let b = BorrowedBookV3::new(&docs[&book_doc(&input.book)], &book)?;
+    let v = b.view();
+    let id: EntryId = pid("entry", &input.entry)?;
+    let state = v
+        .entry_owned_raw_state(&id)
+        .ok_or_else(|| WsError::not_found("entry", &input.entry))?;
+    fingerprint(&state, &body_states(docs, &id))
+}
+/// The version of each of the entry's bodies among `docs`.
+fn body_states(docs: &BTreeMap<String, LoroDoc>, entry: &EntryId) -> BTreeMap<String, String> {
+    docs.iter()
+        .filter(|(doc, _)| matches!(DocId::parse(doc),Ok(DocId::Body(b)) if b.entry()==entry))
         .map(|(doc, state)| (doc.clone(), frontiers_hex(&state.state_frontiers())))
-        .collect();
-    fingerprint(&state, &versions)
+        .collect()
 }
 fn fingerprint(state: &Value, bodies: &BTreeMap<String, String>) -> Result<String> {
     let mut value = serde_json::json!({"state":state,"bodies":bodies});
@@ -657,14 +697,11 @@ fn load_point(cx: &Cx<'_>, p: &Point) -> Result<BTreeMap<String, LoroDoc>> {
             lib.load_copy_at(&id, &frontiers_from_hex(&version)?)?,
         );
     }
-    if content_hash(
-        &out,
-        &EntryIn {
-            book: p.book.clone(),
-            entry: p.entry.clone(),
-        },
-    )? != p.content_hash
-    {
+    let target = EntryIn {
+        book: p.book.clone(),
+        entry: p.entry.clone(),
+    };
+    if !checkpoint_history_matches(&out, &target, &p.content_hash)? {
         return Err(WsError::invalid(
             "checkpoint content does not match its manifest",
         ));
@@ -933,6 +970,87 @@ mod tests {
             input["expected"] = preview["expected"].clone();
             self.out("entry_snapshot.restore", input);
         }
+        fn point(&self, name: &str, point: &str) -> Value {
+            json!({"book":self.book,"entry":self.id(name),"point":point})
+        }
+        /// A checkpoint of chapter `name` as it is stored.
+        fn stored(&self, name: &str, point: &str) -> Point {
+            let all: Vec<Point> = serde_json::from_value(self.out(
+                "entry_snapshot.list",
+                json!({"book":self.book,"entry":self.id(name)}),
+            ))
+            .unwrap();
+            all.into_iter().find(|p| p.id == point).expect("the point")
+        }
+        /// Put `p` where the manifest of that id is stored, with the checksum
+        /// its fields give. A raw write: no command rewrites a checkpoint.
+        fn store(&self, mut p: Point) -> Point {
+            p.checksum = checksum(&p).unwrap();
+            let (id, manifest) = (p.id.clone(), serde_json::to_string(&p).unwrap());
+            self.ws
+                .library()
+                .open_doc(&book_doc(&self.book), dr_store::OpenDoc::Existing)
+                .unwrap()
+                .write(dr_store::Origin::User, move |d| {
+                    d.get_map("entry_checkpoints")
+                        .insert(&id, manifest)
+                        .unwrap();
+                })
+                .unwrap();
+            p
+        }
+        /// The checkpoint as a build before 2026-11-12 saved it: the same
+        /// manifest, its content hash the one that covered the siblings.
+        fn save_with_old_fingerprint(&self, name: &str, point: &str) -> Point {
+            let mut p = self.stored(name, point);
+            let lib = self.ws.library();
+            let docs: BTreeMap<String, LoroDoc> =
+                std::iter::once((book_doc(&p.book), p.book_version.clone()))
+                    .chain(p.bodies.clone())
+                    .map(|(id, version)| {
+                        let at = frontiers_from_hex(&version).unwrap();
+                        let doc = lib.load_copy_at(&id, &at).unwrap();
+                        (id, doc)
+                    })
+                    .collect();
+            let target = EntryIn {
+                book: p.book.clone(),
+                entry: p.entry.clone(),
+            };
+            let current = std::mem::replace(
+                &mut p.content_hash,
+                content_hash_with_siblings(&docs, &target).unwrap(),
+            );
+            assert_eq!(content_hash(&docs, &target).unwrap(), current);
+            assert_ne!(p.content_hash, current, "the two fingerprints differ");
+            self.store(p)
+        }
+        /// What a restore of chapter `b` puts back: its place, title and text.
+        fn b(&self) -> (String, Value, Value) {
+            let entry = self.out("entry.get", json!({"book":self.book,"id":self.id("b")}));
+            let text = self.out(
+                "module.read_prose",
+                json!({"book":self.book,"owner":self.id("b"),"module":"mod-prose"}),
+            )["paragraphs"]
+                .clone();
+            (
+                self.order(Some(&self.manuscript)),
+                json!([entry["title"], entry["parent"]]),
+                text,
+            )
+        }
+        /// Chapter `b` renamed, rewritten and moved to the end.
+        fn change_b(&self, text: &str) {
+            self.out(
+                "entry.update",
+                json!({"book":self.book,"id":self.id("b"),"title":text}),
+            );
+            self.out(
+                "module.set_prose",
+                json!({"book":self.book,"owner":self.id("b"),"module":"mod-prose","paragraphs":[{"text":text}]}),
+            );
+            self.move_to("b", Some(&self.manuscript), 3);
+        }
     }
 
     #[test]
@@ -1061,5 +1179,113 @@ mod tests {
         s.restore("b", &point);
         assert_eq!(s.order(Some(&s.manuscript)), "b c d e");
         assert_eq!(s.order(None), "a");
+    }
+
+    #[test]
+    fn a_checkpoint_saved_with_the_old_fingerprint_is_previewed_and_restored_like_any_other() {
+        let s = shelf();
+        s.out(
+            "module.set_prose",
+            json!({"book":s.book,"owner":s.id("b"),"module":"mod-prose","paragraphs":[{"text":"first text"}]}),
+        );
+        // Three checkpoints of the same content. One stays as it is saved
+        // now; one is stored as a build before 2026-11-12 saved it; one
+        // claims a content that is neither.
+        let create = || {
+            s.out(
+                "entry_snapshot.create",
+                json!({"book":s.book,"entry":s.id("b")}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        };
+        let (new, old, neither) = (create(), create(), create());
+        let saved = s.save_with_old_fingerprint("b", &old);
+        let mut wrong = s.stored("b", &neither);
+        wrong.content_hash = dr_store::digest::sha256_hex(b"neither fingerprint");
+        s.store(wrong);
+        let before = s.b();
+        assert_eq!(before.0, "a b c d");
+        s.change_b("later");
+        assert_ne!(s.b(), before);
+
+        // The same preview, whichever fingerprint the manifest carries.
+        let as_new = s.out("entry_snapshot.preview", s.point("b", &new));
+        let as_old = s.out("entry_snapshot.preview", s.point("b", &old));
+        assert_eq!(as_old["point"]["content_hash"], saved.content_hash);
+        assert_ne!(
+            as_old["point"]["content_hash"],
+            as_new["point"]["content_hash"]
+        );
+        for part in [
+            "metadata",
+            "raw_state",
+            "records",
+            "template",
+            "template_metadata",
+            "bodies",
+            "expected",
+        ] {
+            assert_eq!(as_old[part], as_new[part], "{part}");
+        }
+        assert_eq!(as_old["metadata"]["title"], "b");
+
+        // And the same restore.
+        s.restore("b", &old);
+        assert_eq!(s.b(), before);
+        s.change_b("later again");
+        s.restore("b", &new);
+        assert_eq!(s.b(), before);
+
+        // A manifest whose content hash is neither fingerprint of its
+        // history is still refused, before anything is written.
+        s.change_b("kept");
+        let kept = s.b();
+        let mut restore = s.point("b", &neither);
+        restore["expected"] = json!({});
+        for (name, input) in [
+            ("entry_snapshot.preview", s.point("b", &neither)),
+            ("entry_snapshot.restore", restore),
+        ] {
+            let refused = s.ws.call(&Actor::User, name, input).unwrap_err();
+            assert!(
+                refused
+                    .to_string()
+                    .contains("checkpoint content does not match its manifest"),
+                "{name}: {refused}"
+            );
+        }
+        assert_eq!(s.b(), kept);
+    }
+
+    #[test]
+    fn an_old_fingerprint_costs_an_entry_one_more_automatic_checkpoint_and_no_second() {
+        let s = shelf();
+        let due = || {
+            entries_due_for_capture(&s.ws, &s.book)
+                .unwrap()
+                .iter()
+                .any(|entry| entry == s.id("b"))
+        };
+        let first = s.close(s.id("b"));
+        assert_eq!(s.close(s.id("b")), first);
+        assert!(!due());
+        // The library as an earlier build left it: the entry's latest
+        // checkpoint carries the old fingerprint.
+        s.save_with_old_fingerprint("b", &first);
+        assert!(due(), "the old fingerprint is not compared when capturing");
+        let second = s.close(s.id("b"));
+        assert_ne!(
+            second, first,
+            "one more checkpoint, with the new fingerprint"
+        );
+        assert_eq!(s.points(s.id("b")), 2);
+        assert!(!due());
+        assert_eq!(s.close(s.id("b")), second, "and no second");
+        assert_eq!(s.points(s.id("b")), 2);
+        // The old one is still there, and readable.
+        let old = s.out("entry_snapshot.preview", s.point("b", &first));
+        assert_eq!(old["metadata"]["title"], "b");
     }
 }
