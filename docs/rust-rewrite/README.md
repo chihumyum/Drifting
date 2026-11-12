@@ -96,7 +96,7 @@ next/
 
 - **依赖方向只能自上而下**：界面 → 应用服务 → 数据；平台和工具在旁边。数据、服务、平台、工具都不编 GPUI，命令行、MCP 和测试不开窗口也能跑。`gpui-prose` 不依赖任何 `dr-*`。这张表由 `cargo xtask check` 的依赖层门禁照着查（`next/xtask/src/gates/layers.rs`），新 crate 要在那里登记。
 - **`dr-` 是并存期的临时前缀**，避免和旧的 `drifting-core` 等 crate 混淆。旧代码删掉后可以统一改名。
-- **0.1 源格式只在适配边界里**：`dr_model::import_v1`、`dr_doc::import_v1`、`dr-import-v1`、`dr-samples` 的源构造和 `dr-testkit` 的源夹具。产品代码导入它们会被 `v3-cutover` 门禁拦下，见 [v3-cutover.md](v3-cutover.md#仍保留的源格式边界)。
+- **0.1 源格式只在适配边界里**：`dr_model::import_v1`、`dr_doc::import_v1`、`dr-import-v1`、`dr-samples` 的源构造和 `dr-testkit` 的源夹具。产品代码导入它们会被 `cutover` 门禁拦下（书目格式 4 前叫 `v3-cutover`），见 [v3-cutover.md](v3-cutover.md#仍保留的源格式边界)。
 
 ### 最大的一处简化
 

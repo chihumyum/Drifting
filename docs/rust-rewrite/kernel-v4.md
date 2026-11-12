@@ -2,7 +2,7 @@
 
 2026-11-13 起草，同日监管会话审查通过（补了第 5 节「命令层的预防」一段）；第 13 节的问题等作者白天定，实现先按各条「不等答复时」的做法。
 
-实现进度：第 12 节的 2a（写作日和快照点清单挪进两篇小文档、书目格式 4、书文件格式 4）已在分支 `chihumyum/next-unified-entry-7d55f5` 实现，待审；2b（只有一种条目）未开工。它取代 [kernel-v3.md](kernel-v3.md) 的「概念」「数据结构」「不变量」三节；v3 那页的其余部分（小说项目模板的样子、帮手、旧库导入的映射、不做的）照旧有效，下文写明了哪些地方跟着变。现在到哪一步见 [progress.md](progress.md)。
+实现进度：第 12 节的 2a（写作日和快照点清单挪进两篇小文档、书目格式 4、书文件格式 4）已合进 `main`；2b（只有一种条目）已在分支 `chihumyum/next-unified-entry-7d55f5` 实现，待审。数据层留给各轨道的缺口和最终的接口名字见第 14 节；正文里的接口名字已经和实现对齐。它取代 [kernel-v3.md](kernel-v3.md) 的「概念」「数据结构」「不变量」三节；v3 那页的其余部分（小说项目模板的样子、帮手、旧库导入的映射、不做的）照旧有效，下文写明了哪些地方跟着变。现在到哪一步见 [progress.md](progress.md)。
 
 输入是作者 2026-11-13 的决定（九条）和监管会话替作者定下的几条，原文在本页末尾「输入」一节。设计里凡是和输入不一样的地方，都在「和输入不一样的地方」一节单列。
 
@@ -160,7 +160,7 @@
 
 ### 命令 `entry.set_level`
 
-一条命令管开和关：`{book, id, level: bool}`。
+一条命令管开和关：输入 `{book, id, level: bool}`，输出 `{id, level, moved}`（`moved`：关开关时挪到根层级的直接子条目，按原来的先后）。开关已经是要的值时什么都不写、不登记撤销。数据层的原语是 `EntriesTreeWriterV3::switch_level_off(&id) -> Vec<EntryId>`；打开只写 `EntryWriterV3::level(true)`。
 
 **打开**：只写这个条目的 `level = true`。之前存着的覆盖、归属、泳道身份、视图里的位置都重新起作用；合并时偶然挂在它下面的条目（第 5 节）回到它下面。
 
@@ -183,9 +183,11 @@
 
 声明子条目顺序，是为了让「提示里说要挪的那几个」和「真挪的那几个」一致：调用方读完以后别处又往下面加了一个条目，这次写入就冲突、什么都不做，界面重读再问一次。被挪的子条目自己的记录（住处变了）是命令按当前文档规划出来的连带改动，照守卫规则第 3 条不用声明；它们落到根层级是追加，不替换根层级已有的顺序。
 
-**撤销**：命令登记一条 `entry_history.restore`，目标是这个条目和每个被挪的子条目，时间点是提交之前。恢复时先恢复这个条目（开关回到开），再恢复子条目的住处和位置（`restore_entry_with_parent` 按幸存的邻居把位置放回去），最终的树校验在同一次写入里做。所以作者撤销一步，开关和子条目一起回到原样。
+调用方读的是 `RecordKey::entry(<条目>)` 和 `RecordKey::children_of(Some(<条目>))`。子条目顺序这种键只被同一个键的读覆盖（`RecordKeyV3::contains`，2b 改的：以前它不被任何读覆盖，声明了它的写入在 `require_all` 守卫下永远过不去）。
 
-**写前快照**：作者的操作照旧由自动快照点在之后捕获。帮手调用时，执行器对这个条目和每个直接子条目各存一个写前快照（它们的「变没变」都包括住处，见 [m09-history.md](modules/m09-history.md)）；更深的后代父级没变，不用存。
+**撤销**：命令登记一条 `entry_history.restore`，目标是这个条目和每个被挪的子条目，时间点是提交之前。恢复时先恢复这个条目（开关回到开：`restore_entry` 恢复的标量里有 `level`），再恢复子条目的住处和位置（`restore_entry_with_parent` 按幸存的邻居把位置放回去），最终的树校验在同一次写入里做。所以作者撤销一步，开关和子条目一起回到原样。恢复时拒绝「把一个条目恢复成开关关着、而它下面还留着活的条目」。
+
+**写前快照**：作者的操作照旧由自动快照点在之后捕获。帮手调用时，执行器应对这个条目和每个直接子条目各存一个写前快照（它们的「变没变」都包括住处，见 [m09-history.md](modules/m09-history.md)）；更深的后代父级没变，不用存。2b 只做了条目自己那一份（`dr-agent-tools/src/checkpoints.rs` 的 `Named` 把 `entry.set_level` 归入按 `id` 选条目的一组），直接子条目那几份留给 T3（第 14 节）。
 
 **事件与效果**：一次 `Book` 事件；效果是这个条目「更新」、每个子条目「移动」。不发 `Removed`。
 
@@ -330,6 +332,12 @@ v4 的做法：
 
 一次影响一批条目的写入（换模板、改模板的 `linkable` 或「下面」的设置、改条目的自动链接覆盖、移动、恢复、关开关）走同一套改前改后比较，不另写规则。
 
+实现的名字（2b）：
+
+- `dr_model::v3::check_new_violations(before: BookGraph<'_>, after: BookGraph<'_>) -> Result<(), Violation>`；`BookGraph { entries, templates, memberships }` 是借用。名字表是 `AutolinkNames::of(entries, memberships, templates)`（`is_linked`、`linked`、`owners(key)`、`names()`），嵌套对是 `manuscript_nest_pairs(entries, templates)`。
+- `dr_doc::v3::BookViewV3::graph() -> BookGraphV3`（`entries`、`templates`、`memberships` 三项，自有，可克隆后改），`BookGraphV3::check_against(&before)`；条目部分是 `entry_headers_with(&templates)`：只读结构要的那几样。
+- 命令层是 `dr-workspace` `commands/v3/mod.rs` 的 `changes_ok(&before, &after)`：每条命令先 `v.graph()`，克隆一份应用自己要做的改动，再比。只改布局的 `entry.update`、改非别名字段的 `module.set_field` 不读也不比。
+
 怎么做才便宜：
 
 - 名字表一遍扫出：自动链接的资格按层级各解析一次设置、归属按宿主各扫一次，再走一遍条目；不在循环里对每一对条目重算。
@@ -337,7 +345,7 @@ v4 的做法：
 - 写任务里按 id 找树节点，不再为一个 `TreeID` 深读全树每个节点的元数据（现在 `EntriesTxn::node` → `tree_index` → `forest`，4 / 9 ms，还占着持有者线程）：只读每个节点的 `id`，或用一张随文档版本失效的索引；重复 id、成环的读法照旧。
 - `BookViewV3::entry(id)` 不再先读全书再挑一条：读这一条，名字冲突标记从名字表里取。
 
-目标：`entry.update`、`module.set_field` 这两条命令本身在重型种子和三年的书上都回到个位数毫秒（对照组 `module.put_patch` 现在是 1.3 / 2.1 ms）。改完以后用诊断报告末尾的测量程序和两本书重量，结果写进交回报告和本页。
+目标：`entry.update`、`module.set_field` 这两条命令本身在重型种子和三年的书上都回到个位数毫秒（对照组 `module.put_patch` 现在是 1.3 / 2.1 ms）。改完以后用诊断报告末尾的测量程序和两本书重量，结果写进交回报告和本页（第 14 节「量到的」）。
 
 回归测试（2b 里加）：同步合入的重名不挡无关写入，也不挡用改名消解它；同步合出的嵌套成书同理；这次写入新造成的重名、嵌套成书、不合规的归属照旧被拒；换模板、改 `linkable`、改自动链接设置、移动、恢复各有一条「新造成的才拒，旧的放行」的测试。
 
@@ -375,10 +383,10 @@ v4 的做法：
 
 | 命令 | 变化 |
 | --- | --- |
-| `project.create` | 照旧用小说模板建书；给每个建出来的条目按模板初始化正文（和 `entry.create` 同一段代码，不再单独建 `about`）；同时建 `stats:<书>`、`checkpoints:<书>` 两篇小文档（第 8 节） |
-| `entry.list` | 每个条目多 `level`；入参加 `below: bool`，为真时给每个开着开关的条目带上 `below`（见下）。吸收 `level.list` |
-| `entry.get` | 多 `level`；开关开着时多 `below = {settings, sources, children, members}`（解析后的设置、每项设置来自哪里、住在下面的条目、归属进来的条目）。吸收 `level.get` |
-| `level.get`、`level.list` | **删**。门禁把它们列进退役命令 |
+| `project.create` | 照旧用小说模板建书；给每个建出来的条目登记它模板里的每篇正文（新书里还没有模板正文可抄，所以只登记、不打开；不再单独建 `about`）；同时建 `stats:<书>`、`checkpoints:<书>` 两篇小文档（第 8 节） |
+| `entry.list` | 每个条目多 `level`；入参加 `below: bool`，为真时给每个开着开关的活条目带上 `below`（见下），全部出自同一次读。吸收 `level.list`；`level.list` 带的书目 `version` 没有了，要守卫的版本用 `entry_history.version` 或 `Workspace::observe` |
+| `entry.get` | 多 `level`；开关开着的活条目多 `below = {settings, sources, children, members}`（解析后的设置、每项设置来自哪里、住在下面的条目、归属进来的条目），DTO 是 `types::Below`，`sources` 的值是 `types::SettingSource`（泳道强制收别处条目时是 `{"kind":"lane","entry":…}`，不再带模板）。吸收 `level.get` |
+| `level.get`、`level.list` | **删**。门禁 `cutover` 把它们列进退役命令 |
 | `entry.create` | 住处（`parent`，或 `home` 解析出的住处）必须是根或开着开关的活条目；不再查允许的模板；开关取模板的默认值，入参可加 `level` 覆盖；按模板初始化全部正文模块 |
 | `entry.set_level` | **新**，第 3 节 |
 | `entry.update` | `title`、`template`、`overrides`、`layout` 照旧，只写点了名的字段；`overrides` 只接受开关开着的条目；换模板不再查子条目；不管开关 |
@@ -406,7 +414,7 @@ v4 的做法：
 | --- | --- | --- |
 | `entry.set_level` | — | 第 3 节的两种 |
 | `entry.update` | 点了名的 `title`、`template`、`overrides`、`layout` | 不变 |
-| `level.get` 的记录（帮手的 `level:<id>`） | `entries/<id>` 加子条目顺序 | 并进 `entry:<id>`：读了 `below` 的，背后是 `entries/<id>` 加 `children_of(<id>)` |
+| `level.get` 的记录（帮手的 `level:<id>`） | `entries/<id>` 加子条目顺序 | 并进 `entry:<id>`：读了 `below` 的，背后是 `entries/<id>` 加 `children_of(<id>)`（帮手记账这一半留给 T3） |
 | `writing_day.record` | 无（书目） | 不写书目；调用方带来的书目前置条件在写统计文档之前比对 |
 | `entry_snapshot.*` | 整篇版本，走 `check_atomic_guards` | 同左；存点不再推进书目版本，清单文档不参加守卫 |
 
@@ -449,6 +457,7 @@ pub struct FlatProse {
     pub doc: DocId,
     pub in_book: bool,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Flatten {
     /// 只给 `in_book` 开着的正文。
     pub in_book_only: bool,
@@ -462,12 +471,22 @@ impl BookStructureV3 {
     /// 每个最外层成书层级一份，按它们在树里的先后；`in_book_only` 恒为真，
     /// 不带归属（`include_members` 恒为假），带编号。
     pub fn manuscript(&self) -> Vec<ManuscriptPart<'_>>;
+    /// 成书序列里全部正文文档，按顺序。
+    pub fn manuscript_docs(&self) -> Vec<DocId>;
+    /// 成书序列里带成书正文（有编号）的条目，按顺序，自有拷贝。
+    pub fn manuscript_entries(&self) -> Vec<Entry>;
+    /// 一个条目在成书序列里的编号。
+    pub fn ordinal(&self, id: &EntryId) -> Option<u32>;
 }
 pub struct ManuscriptPart<'a> {
     pub root: &'a Entry,
     pub entries: Vec<FlatEntry<'a>>,
 }
+/// `flatten` 的出发点不是开着开关的活条目。
+pub struct NotALevel(pub EntryId);
 ```
+
+这些类型都在 `dr_doc::v3` 下导出（`BookStructureV3`、`FlatEntry`、`FlatProse`、`Flatten`、`ManuscriptPart`、`NotALevel`）；结构快照从 `BookViewV3::structure_snapshot()` 取。
 
 **语义：**
 
@@ -484,14 +503,14 @@ pub struct ManuscriptPart<'a> {
 
 | 用处 | 怎么用 | 现在的代码 |
 | --- | --- | --- |
-| 全书字数、字数目标、书架上的字数 | `manuscript()` 里所有正文的字数之和 | `dr-view-stats/src/v3.rs`、`dr-workspace/src/commands/book.rs`、`dr-cli/src/inspect.rs` 各自算「成书层级下的叶子」 |
-| 导出 | 选一个成书部分（有几个时作者选），有成书正文的条目各成一章，标题是条目标题，内容按模块顺序接起来；没有成书正文的条目不出现（第 13 节问题 2） | `dr-export/src/v3.rs` 的 `outline` |
-| 章节编号、页眉 | `ordinal`；有编号的条目页显示「第 N 章」，没有的显示模板名 | `dr-editor/src/v3.rs` 的 `page_infos`（现在按 `tpl-chapter`/`tpl-idea` 认） |
-| 整书视图 | `flatten(从哪个层级出发, Flatten { in_book_only: true, include_members: true })`；从一条故事线出发能读到挂在线上的章节，顺序是线上的顺序。出发点是成书层级时，住在下面的部分和导出看到的一样（书稿通常不收别处的条目，就完全一样）。要不要给视图一个「也显示说明」的开关，留给视图那一路 | `dr-editor/src/v3.rs` 的 `manuscript_docs` |
-| 帮手的长任务 | 「书的正文」= `manuscript()` | `dr-agent/src/long_task/store.rs` |
-| 书架封面 | 同全书字数 | `dr-view-shelf-art/src/cover.rs` 自己走层级找叶子 |
+| 全书字数、字数目标、书架上的字数 | `manuscript()` 里所有正文的字数之和 | 2b 已改：`dr-view-stats/src/v3.rs`、`dr-workspace/src/commands/book.rs`（`book.shelf`）、`dr-cli/src/inspect.rs` |
+| 导出 | 选一个成书部分（有几个时作者选），有成书正文的条目各成一章，标题是条目标题，内容按模块顺序接起来；没有成书正文的条目不出现（第 13 节问题 2） | 2b 已改 `dr-export/src/v3.rs` 的 `outline`（几个部分接在一起，「作者选」留给 T5） |
+| 章节编号、页眉 | `ordinal`；有编号的条目页显示「第 N 章」，没有的显示模板名 | `dr-editor/src/v3.rs` 的 `page_infos`：编号已改用成书序列，页面种类还按 `tpl-chapter`/`tpl-idea` 认（T1、T7） |
+| 整书视图 | `flatten(从哪个层级出发, Flatten { in_book_only: true, include_members: true })`；从一条故事线出发能读到挂在线上的章节，顺序是线上的顺序。出发点是成书层级时，住在下面的部分和导出看到的一样（书稿通常不收别处的条目，就完全一样）。要不要给视图一个「也显示说明」的开关，留给视图那一路 | `dr-editor/src/v3.rs` 的 `manuscript_docs`：2b 改成 `manuscript()`，换成 `flatten` 是 T7 |
+| 帮手的长任务 | 「书的正文」= `manuscript()` | 2b 已改 `dr-agent/src/long_task/store.rs` |
+| 书架封面 | 同全书字数 | 2b 已改 `dr-view-shelf-art/src/cover.rs`（读外壳的 `manuscript`） |
 
-各处现在各写了一遍「成书层级下的叶子」；改完以后只有这一个接口算成书序列（契约 `MANUSCRIPT-OWN-PROSE-FIRST` 守它）。带归属的摊平由契约 `FLATTEN-MEMBERS-ONCE` 守：故事线上摊平读到挂在线上的章节、顺序是线上的顺序；环和重复不出现两次；`manuscript()` 不受归属影响。
+原来各处各写了一遍「成书层级下的叶子」；2b 以后只有这一个接口算成书序列（契约 `MANUSCRIPT-OWN-PROSE-FIRST` 守它），`BookViewV3::manuscript_leaves` 删了。带归属的摊平由契约 `FLATTEN-MEMBERS-ONCE` 守：故事线上摊平读到挂在线上的章节、顺序是线上的顺序；环和重复不出现两次；`manuscript()` 不受归属影响。
 
 ## 8. 写作日和快照点清单外移
 
@@ -709,6 +728,124 @@ pub struct ManuscriptPart<'a> {
 **还没定：**
 
 4. **「下面的条目」是一个可以在模板里摆位置的模块，还是固定排在条目页最后；它要不要更多的显示方式。** 作者说先不动：显示照旧是列表、网格、看板、岛屿四种，不加新的取值。不等答复：做成模块（`children`），模板里没有它而开关开着时排在最后。
+
+## 14. 数据层交回：留给各轨道的缺口
+
+2b 交回时写（2026-11-14）。数据层（`dr-model`、`dr-doc`、`dr-workspace`、`dr-testkit`）的接口到此定下；界面、帮手、导入、导出只做了「能编译、测试能过」的最小改动，下面按轨道列出每一处：在哪个文件、现在的最小改动是什么、轨道要把它做成什么、该用数据层的哪个接口。和 [handoff/v4-tracks.md](handoff/v4-tracks.md) 说法不一致时以本节为准。
+
+### 最终的接口名字
+
+**`dr_model::v3`（条目模型）**
+
+- `Entry { level: bool, … }`；`Entry::is_level(&self) -> bool`、`Entry::is_lane(&self, templates) -> bool`（开关开着，`lane` 取条目自己的覆盖、没有再取模板，不往下继承）、`Entry::is_linkable(&self, templates) -> bool`。
+- `EntryTemplate { level: bool, linkable: bool /* 缺省 true */, settings: LevelSettingsOverride, verbs, … }`；`EntryTemplate::prose_modules()`、`book_prose_modules()`（`in_book` 开着的）。没有 `kind`、`lane` 字段了。
+- `ModuleKind::Children`（`"children"`）；`ModuleConfig { in_book: bool /* 缺省 true */, … }`；`ModuleSpec::children(id, name)`、`ModuleSpec::in_book(self, bool)`。
+- `LevelSettings { …, lane: bool }`、`LevelSettingsOverride { …, lane: Option<bool> }`，都没有 `allow`；`LevelSettingSource::Lane { entry }`；`LEVEL_SETTING_KEYS` 里 `lane` 替了 `allow`（仍是 8 项）。`resolve_level_settings` 对开关关着的条目给默认值。
+- 检查和读取容错：`effective_parent_id(entry, entries)`、`effective_ancestors(entries, start)`、`check_parent_is_level(parent, entries)`、`check_membership(host, member, entries, templates)`（不看成员模板）、`check_timeline_lane`、`filter_valid_memberships`（每个宿主只解析一次）。
+- 自动链接：`is_autolinked(entry, memberships, entries, templates)`（单条）、`AutolinkNames::of(entries, memberships, templates)`（一遍扫出：`is_linked`、`linked`、`owners`、`names`）。
+- 命令层预防：`BookGraph<'a> { entries, templates, memberships }`、`check_new_violations(before, after)`、`manuscript_nest_pairs(entries, templates)`。
+- 删掉的：`TemplateKind`、`ModuleKind::allowed_on_level`、`LEVEL_ABOUT_MODULE`、`level_about_module_id`、`ChildSettings*`、`resolve_child_settings_for_parent`、`check_template_modules`、`check_level_allows_template`、`check_template_switch`、`is_autolink_leaf`、`check_autolink_name_unique`、`check_manuscript_no_nest`、`LevelSettings::allows_template`、`Entry::is_leaf`、`Entry::is_lane_level`、`EntryTemplate::is_level/is_leaf/is_lane_level`。
+
+**`dr_doc::v3`（文档）**
+
+- 写：`EntriesTreeWriterV3::create(id, parent, title, template, level)`、`create_at(id, parent, index, title, template, level)`、`switch_level_off(id) -> Vec<EntryId>`；`EntryWriterV3::level(bool)`；`TemplateWriterV3::level(bool)`、`linkable(bool)`（没有 `kind`、`lane` 了）；`restore_entry` 恢复 `level`。
+- 读：`BookViewV3::graph() -> BookGraphV3`、`BookGraphV3::{as_graph, check_against}`、`entry_headers_with(&templates)`、`entry(id)`（一条加名字表，不读全书）；`structure_snapshot()` 上的 `flatten`、`manuscript`、`manuscript_docs`、`manuscript_entries`、`ordinal`（第 7 节）。`manuscript_leaves` 删了。
+- 小说模板：版本 2；`novel::MOD_DESCRIPTION`（`mod-description`，「说明」，`in_book = false`）替了 `MOD_ABOUT`；`act_track_template()`（原 `act_track_level_template`），「幕」随小说模板建。内置模板里没有放 `children` 模块（作者第 13 节问题 4 未定：没有时排在最后）。
+- 守卫：`RecordKeyV3::contains` 对子条目顺序键只认同一个键。
+
+**`dr-workspace` 命令和 DTO**
+
+- `entry.set_level { book, id, level } -> { id, level, moved }`（第 3 节）。
+- `entry.get` 的输出 `types::Entry { level, below: Option<Box<Below>>, … }`；`types::Below { settings, sources, children, members }`；`types::SettingSource`（原 `entry::SettingSource`，仍从 `commands::v3::entry` 重新导出）。
+- `entry.list { …, below: bool }`；`entry.create { …, level: Option<bool> }`；`module.read` 读 `children` 模块时带 `below`。
+- `types::EntryTemplate { level, linkable, settings: { …, lane } }`，`types::ModuleConfig { in_book }`，`types::LevelSettings { lane }`，都没有 `kind`、`allow`。
+- 事件：2a 加的 `WsEvent::Stats(StatsChanged { book, seq, origin, days })`、`WsEvent::Checkpoints(CheckpointsChanged { book, seq, origin, points })`；书目的 `WsEvent::Book` 都是内容变了。
+- `level.get`、`level.list` 退役（门禁 `cutover` 拦）。
+
+### T1 外壳与条目页
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-shell/src/book/v3.rs` | 加了 `Book::is_lane(id)`；条目颜色改成「自己的颜色字段有值就用，没有再取主归属泳道的」；`manuscript` 改从 `structure.manuscript()` 取；`SettingSource::Lane` 去掉 `template` | 左栏树和大纲按开关显示（`levels` 只含开着开关的活条目）；条目页、左栏的开关入口 | `Entry::level`、`Book::is_lane`、`entry.set_level` |
+| `dr-view-page`（没动） | 无 | 条目页上的「层级」开关和关开关的确认（文案照第 3 节），带 `RecordKey::entry` 和 `RecordKey::children_of(Some(id))` 的读；「下面的条目」模块（模板里没有就排最后，显示照 `below.settings.display` 的四种）；页眉按编号显示「第 N 章」，`PageKind` 收成两种 | `entry.set_level`、`entry.get` 的 `below`、`module.read`、`BookStructureV3::ordinal` |
+| `dr-editor/src/v3.rs` `page_infos`（页面种类部分） | 编号已从成书序列来；页面种类仍按 `tpl-chapter`/`tpl-idea` 认 | 有编号的条目是「成书里的条目」，其余显示模板名（第 9 节表） | `ordinal`、`FlatEntry::ordinal` |
+| `dr-view-elements`（`category.rs`、`dialogs.rs`、`data.rs`） | 设置面板删了「允许的模板」一行和选项，`v3Levels.allowedTemplates`、`allTemplates` 两个文案键也删了；新建、换模板、拖放只查住处是否开着开关（拖到开关关着的条目上是放在它旁边）；`panel.rs`、`storyline.rs` 用 `Book::is_lane` | 面板只在开关开着时出现；要不要露出 `lane` 一行由这一路定 | `check_parent_is_level`、`types::LevelSettings::lane` |
+| `dr-cli/scenarios/k4-g2-levels.json`、`k4-g2-actions.json`、`k4-g2-review-drag.json` | 删了驱动「允许的模板」的步骤和只写 `allow` 的准备步骤；场景说明里的种子名改成 `lite` | 真窗口跑一遍 | — |
+| `dr-view-element-overview/src/isles.rs` | 泳道判断换成 `Book::is_lane` | 无 | — |
+
+### T2 模板编辑器
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-templates/src/model.rs` | `blank(kind, name)` 把 `"level"` 映射成 `level: true`；动作目标不再查 `allow` | 不再先选种类：新建只有一种模板，`level` 是一个开关 | `types::EntryTemplate::level` |
+| `dr-view-templates/src/view.rs` | 模块选择器给出全部种类；「下面」的设置和动作只在 `draft.level` 时显示；类型标签仍用「层级模板/叶子模板」的词；没有代码引用的 `templateEditor.allow`、`all_templates`、`add_field` 三个键删了 | 去掉种类标签和这两个词（`templateEditor.leaf_template`、`level_template` 两个键；之后在门禁 `terms` 里加「叶子模板」「层级模板」「leaf template」「level template」的禁用，第 11 节）；加 `linkable` 开关；每篇正文模块露出 `in_book` 开关；`children` 模块可以摆位置 | `ModuleConfig::in_book`、`EntryTemplate::linkable`、`ModuleKind::Children` |
+| `dr-view-templates/src/view/levels.rs` | 删了「允许的模板」一节；泳道开关读写 `settings.lane` | 泳道并进「下面」的设置 | `LevelSettingsOverride::lane` |
+| `dr-view-templates/src/preview.rs` | 预览按 `draft.level`、`settings.lane` | 跟着上面变 | — |
+| `dr-cli/scenarios/k5-level.json`（没动） | 仍按「Level template」菜单、模板的 `kind`、「Allowed templates」勾选和模板顶层的 `lane` 写，真窗口跑会失败 | 按新的编辑器重写这个场景 | — |
+
+### T3 帮手工具与 MCP
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-agent-tools/src/catalog.rs` | 动作只绑在开着开关的条目上；删了诊断 `leaf_template_verb`、`invalid_membership_binding` 的模板限制；条目表只读一次，层级设置用 `resolve_level_settings`。没有了允许列表，`invalid_residence_binding`、`invalid_membership_binding` 两个诊断现在碰不到（`resolve_new_entry_residence` 只在收别处条目时用 `home`，`home` 不是开着开关的活条目就退回动作自己的层级），代码留着当防线；家被关掉时动作改绑到自己的层级、修订号跟着变（测试 `v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions` 第 4 步） | 目录缓存不按整书版本失效（只在模板、开关、动作变时重建）；不再整本拷贝（`catalog_for_book`）；那两个诊断删不删由这一路定 | `Entry::is_level`、`resolve_level_settings` |
+| `dr-agent-tools/src/structure.rs` | 结构说明：根摘要 `level: bool`，模板摘要 `level`、`linkable`、`lane`，没有 `kind`/`allow`；修订号前缀 `k6-structure-v4`；去掉 `about` | 写给帮手的结构说明文字（`STRUCTURE_CONTEXT_SOURCE` 以外的说明）按新模型过一遍；`dr-agent`、`dr-agent-tools`、`dr-view-agent` 的产品代码里已经没有「叶子」字样，小说模板写给帮手的说明在 dr-doc 已改 | — |
+| `dr-agent-tools/src/resolve_v3.rs` | 去掉 `about`；删了 `level.get` 的解析和记账分支；带着 `below` 读到的 `entry.get`、`entry.list {below}` 记 `level:<id>`（背后是条目加 `children_of(<id>)`）和下面每个条目；`entry.set_level` 按 `id` 解析，要求读过这个条目 | 名字解析不再整本拷贝 | `entry.get` 的 `below` |
+| `dr-agent-tools/src/records.rs` | `below.members` 里的每一个记成那条归属（原来是 `level.get` 的成员） | 无 | `RecordKey::children_of` |
+| `dr-agent-tools/src/checkpoints.rs` | `entry.set_level` 归入按 `id` 选条目（只存条目自己的写前快照） | 关开关时再加每个直接子条目的写前快照 | `entry.get` 的 `below.children`（只含活的；回收站里的子条目要另读） |
+| `dr-agent-tools/src/executor.rs` | 没动：`call_tool` 的说明里还写着 "level template action" | 改成 "template action"，重新生成目录快照 | — |
+| `dr-agent/src/long_task/store.rs` | 「书的正文」= 成书序列里的正文文档，成书序列编了号的条目另带前一个模板留下的正文（按原模块）；没有成书层级时退回「开关关着的条目」 | 无 | `structure.manuscript()` |
+| `dr-view-agent/src/speech/context.rs` | 自动链接的名字用 `AutolinkNames` | 无 | — |
+
+### T4 导入 0.1 收尾
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-samples/src/v3/catalog.rs` | 每个条目的开关取模板默认；分类、故事线的说明写进 `mod-description`；去掉 `allow`；「幕」模板随小说模板（书里已有的幕模板不覆盖，和以前一样）；导入后的校验按开关，并用 `check_new_violations` 拿整本书和空书比（不许有任何重名、嵌套成书） | 导入报告的说法跟着新模型改（`dr-view-import`） | `check_parent_is_level`、`check_new_violations` |
+| `dr-import-v1` | 测试期望跟着改（`MOD_DESCRIPTION`、`is_lane`、`level`） | 真窗口用合成库导入一遍 | — |
+| `dr-view-import/src/reimport.rs` | 2a 已改 `reimport-v4-` | 无 | — |
+
+### T5 导出与书文件
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-export/src/v3.rs` `outline` | 改用成书序列：只有带成书正文的条目、只收 `in_book` 的正文；几个成书部分接在一起 | 有几个成书部分时让作者选 | `structure.manuscript()`、`ManuscriptPart` |
+| `dr-export/src/import/write.rs` | 没动：导入文档的落点仍按 `TPL_MANUSCRIPT`、`TPL_IDEAS`、`TPL_ELEMENTS` 找 | `ImportTarget` 直接给一个层级条目 id；新条目用它解析出的默认模板 | `resolve_level_settings(...).default_template` |
+| `dr-view-transfer/src/documents.rs` | 没动：目标列表按 `tpl-storyline`、`tpl-category` 收 | 列出所有开着开关的条目（按树显示路径） | `structure.levels()` |
+
+### T6 统计与小文档的界面
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-stats/src/v3.rs` | 全书字数、章节数（`leaves`）改从成书序列来，只算 `in_book` 的正文；层级不再有 `about` | 无 | `structure.manuscript()` |
+| `dr-view-shelf-art/src/cover.rs` | 章节和字数改读外壳 `Book.manuscript`；故事线用 `Book::is_lane` | 无 | — |
+| `dr-workspace/src/commands/book.rs` `book.shelf` | 字数、章节数从成书序列来；故事线按 `is_lane`；「要素」数是开关关着、不在成书序列里有编号的活条目 | 无 | — |
+| `dr-view-history`（没动） | 对话框还不订阅 `WsEvent::Checkpoints`（2a 起就是） | 订阅，存点后自动刷新 | `WsEvent::Checkpoints` |
+| `dr-view-home/src/v3.rs` | `CreateIn` 带 `level: None` | 无 | — |
+
+### T7 整书视图
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-editor/src/v3.rs` `manuscript_docs` | 改成成书序列（每个条目自己的成书正文在前，标题照旧：第一篇用条目标题，其余用模块名） | 从任意开着开关的条目打开：`flatten(from, Flatten { in_book_only: true, include_members: true })`；没有正文的条目也画标题和层次；退役旧「纵览全书」入口 | `BookStructureV3::flatten`、`FlatEntry`、`NotALevel` |
+
+### T8 时间线与模板 id 收尾
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-timeline/src/v3/model.rs`、`render.rs` | 泳道判断换成 `Book::is_lane`；拖进泳道的候选不再按 `allow` 过滤（泳道总是收） | 泳道条目的开关关掉时它不画、成员位置不显示（数据层已经这样读） | `Entry::is_lane`、`check_timeline_lane` |
+| `dr-view-timeline/src/v3/write.rs`（337、371 行） | 没动：新建幕轨道仍按 id 找 `tpl-act-track`，找不到才建 | 「幕」模板现在随书就有：在「新条目默认开着泳道的模板」里选，建在根上、加进视图、标为幕轨道 | `EntryTemplate::level`、`settings.lane` |
+| 门禁 `cutover` | 已改名、已拦 `level.get`/`level.list` | 所有轨道合完以后打开「产品代码不按内置模板 id 认东西」 | — |
+
+### 量到的
+
+2026-11-13，release 构建，以作者身份调用、不带守卫，各 7 次取中位数（先各热身一次），单位毫秒。「重型」是 `dr_testkit::seed` 的 Heavy 种子（633 个条目，书目文档 0.8 MB）；「三年」是同一本书用 `dr_testkit::aging::book` 写了三年（1197 个条目，书目文档 3.1 MB）。量的时候机器负载 11–15，只看量级。「改前」是 2026-11-13 改动前诊断时量的（诊断记录在监管会话的笔记里，当时三年的书目文档 26.2 MB，因为快照点清单还在里面）；改前改后的书目文档不一样大，下降里也有 2a 的份。测量程序是临时的，没有提交。
+
+| | 重型 改前 | 重型 改后 | 三年 改前 | 三年 改后 |
+| --- | ---: | ---: | ---: | ---: |
+| `entry.update`（改标题） | 219 | 6.95 | 406 | 12.21 |
+| `module.set_field` | 246 | 1.95 | 402 | 2.07 |
+
+省下的主要是写入前的检查：改前每次把全书重验一遍（名字唯一那一步约占 94%），改后只读条目头、一遍扫出名字表、比较改前改后。
 
 ## 和输入不一样的地方
 

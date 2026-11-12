@@ -19,7 +19,7 @@
   - 一段：一条记录（映射的键，或者条目 / 素材夹的 id）。例：`timeline_views/<视图>`、`patches/<补丁>`、`entries/<条目>`、`plot_grids/<条目>/<模块>`（这个键本身带斜杠，所以键在接口里是数组，不是拼好的字符串）。
   - 更多段：记录里面的一个值。例：`entries/<条目>/title`、`entries/<条目>/fields/<模块>/<字段>`、`entries/<条目>/kv:<模块>/<行>`、`timeline_views/<视图>/pins/<时间钉>`。
   - 条目树另有一种键：**某一层的子条目顺序**（`children_of`，不给父级就是顶层）。
-  - 短路径包含以它开头的长路径：读过整条记录，就算读过它的每个字段。
+  - 短路径包含以它开头的长路径：读过整条记录，就算读过它的每个字段。子条目顺序的键例外，只包含它自己：读过 `entries/<id>` 或整个 `entries` 不算读过 `children_of(<id>)`，反过来也一样（书目格式 4 起；关开关搬走子条目要单独守住这一层的顺序）。
 - **记录状态**：这块内容**自己存着的全部东西**，包括查询不显示的（回收站里的泳道名下的位置、换模板后留下的旧模块值）。取的是它的深层取值，每条记录读一次。条目记录是它的元数据加住处（父级）；同一个 id 有两个树节点时（两台设备各建了一个），两个都算。它不单独记两样东西：嵌在记录里面的值是用容器还是普通值存的，以及嵌在里面的富文本的格式。
 - **摘要**：记录状态的 SHA-256。两次读到的摘要相同，就是这条记录一点没变。它只看内容，不看是谁、分几次写成的，重开库、换一台设备读出来都一样。这一点是按构造保证的：记录状态里每个对象的键都按字典序排好再取哈希。Loro 把一个映射交出来时用的是哈希表，键的先后取决于那张表是怎么建起来的，不取决于内容；dr-doc 取值时就排好序，算摘要的地方再核对一遍，不靠上游碰巧稳定。
 - **观察**：`Workspace::observe_records(书目文档 id, 键列表)`，在持有者的一次读任务里算出每个键的摘要和它的普通值。不导出、不导入、不解码书里其余部分。
@@ -51,6 +51,7 @@
 | `entry.create`、`project.create` | 无（新 id） |
 | `entry.update` | `entries/<条目>/` 下点了名的 `title`、`template`、`overrides`、`layout`；现在也只写这几个 |
 | `entry.move` | `entries/<条目>`（住处是条目记录的一部分） |
+| `entry.set_level` | `entries/<条目>/level`；关掉开关而下面有条目时再加 `children_of(<条目>)`（直接子条目连同已删的搬到顶层祖先后面，各带子树，由命令规划） |
 | `entry.trash`、`entry.restore` | `entries/<条目>/deleted_at`；跟着走的子树由命令规划 |
 | `module.set_field` | `entries/<条目>/fields/<模块>/<字段>` |
 | `module.put_kv`、`module.remove_kv` | `entries/<条目>/kv:<模块>/<行>` |
@@ -117,12 +118,12 @@
   | subject | 背后的记录 |
   | --- | --- |
   | `entry:<id>` | `entries/<id>` |
-  | `level:<id>` | `entries/<id>` 加这一层的子条目顺序 |
+  | `level:<id>`（带着 `below` 读到的 `entry.get`／`entry.list {below}`，或 `entry.list {parent}`） | `entries/<id>` 加这一层的子条目顺序 |
   | `entry:*`、`entry:all`、`entry:roots` | 顶层的子条目顺序；列出来的每个条目另有自己的 `entry:<id>` |
   | `module:<条目>:<模块>`（来自 `module.read`） | `entries/<条目>/fields/<模块>`、`entries/<条目>/kv:<模块>`、`plot_grids/<条目>/<模块>`，以及读到的每条补丁和关系 |
   | `module:<条目>:<模块>`（来自模块清单或模块正文）、`module:<条目>:*` | `entries/<条目>` |
   | `entry_template:<id>`、`timeline_view:<id>`、`entry_relation_type:<id>` | 那一条记录；`:*` 是整个集合 |
-  | `membership:<层级>\|<成员>`（`membership.list` 的每一行、`level.get` 的每个成员） | `memberships/<层级>\|<成员>`；`membership:*` 是整个集合 |
+  | `membership:<层级>\|<成员>`（`membership.list` 的每一行、`entry.get`／`entry.list {below}` 里 `below.members` 的每一个） | `memberships/<层级>\|<成员>`；`membership:*` 是整个集合 |
   | `fact`、`memory`、`material`、`material_folder`、`comment`、`relation`、`asset`、`book` | 同名集合里的那一条；`:*` 是整个集合（`book` 是 `meta`） |
   | `prose:<文档>` | 正文文档，按版本，不变 |
   | `entry_history:<书>` | 没有按记录的依据：整本书的版本 |
@@ -141,7 +142,7 @@
 比以前严的两处（都是内核按声明拒绝的，不是执行器另加的规则）：
 
 - 只看过模块清单（`module.list`）就整条替换补丁或情节格、删关系，以前放行，现在要先 `module.read`。清单里没有这些内容，这本来就不满足「整条替换前完整读过」。
-- 取消归属、给已有的归属改顺序，要读过那条归属（`membership.list`，或它所在层级的 `level.get`）。以前只要求读过两头的条目。新加一条归属不替换任何东西，照旧只要两头的条目。
+- 取消归属、给已有的归属改顺序，要读过那条归属（`membership.list`，或带着 `below` 读到它所在层级的 `entry.get`／`entry.list {below}`；书目格式 4 之前是 `level.get`）。以前只要求读过两头的条目。新加一条归属不替换任何东西，照旧只要两头的条目。
 
 每次调用的其他整本读取也换掉了：工具目录缓存的失效判断、结构说明的前后比对改用 `Workspace::version`；`is_v3_book` 对已经打开的书不再拷贝整本（`Workspace::is_v3_book`）；`prose.read` 取批注锚点改在持有者读任务里读。名字解析（`resolve_v3`）每次调用仍拷贝一份书目文档，见「还没做的」。
 
@@ -217,7 +218,7 @@ release 构建，中位数，单位毫秒；同一台机器上同时有别的会
 | | 新书 之前 | 新书 之后 | 三年 之前 | 三年 之后 |
 | --- | ---: | ---: | ---: | ---: |
 | 帮手读一个条目（`entry.get`） | 90.7 | 16.4 | 963.6 | 51.8 |
-| 帮手读一个层级（`level.get`，文稿） | 98.3 | 22.6 | 1030.2 | 84.4 |
+| 帮手读一个层级（`level.get`，文稿；格式 4 起并进 `entry.get`） | 98.3 | 22.6 | 1030.2 | 84.4 |
 | 帮手列出全部条目（`entry.list`） | 100.1 | 34.8 | 1077.6 | 111.9 |
 | 帮手读过之后改标题 | 646.6 | 502.7 | 5016.9 | 1845.8 |
 | 界面保存标题 | 245.8 | 234.4 | 677.2 | 428.3 |

@@ -18,7 +18,7 @@
 5. **左栏**：每个顶层层级是一个标签。小说模板默认是书稿、构想、要素、故事线四个。标签里的内容按那一层的「显示」设置交给显示渲染器。左栏底部是模板集合。
 6. **条目的悬停卡**：公用的头部和操作行（打开、新建、编辑模板、换模板、归属到、放进最近删除）；各模块用 `add_entry_action`（`EntryAction::{New, ChangeTemplate, BelongTo}`）和 `add_entry_card_rows` 往里加自己的行。
 7. **其他注册口**：`add_template_creator`（模板编辑器）、`add_v3_bottom_panel`（底部时间线）。
-8. **开发手段**：种子 `seed:v3-tiny` / `v3-lite` / `v3-heavy` / `v3-showcase`（普通的 `seed:<preset>` 现在也生成 v3）；调试桥能打开书、读出页面的状态。
+8. **开发手段**：种子 `seed:tiny` / `lite` / `heavy` / `showcase`，生成当前格式的书（`seed:v3-<preset>` 别名在书目格式 4 时删掉）；调试桥能打开书、读出页面的状态。
 
 ## 四组各管哪里
 

@@ -75,7 +75,9 @@ Guidance for coding agents working in this standalone Drifting client repository
 
   `cargo xtask check` runs the new workspace's gates: privacy and
   credentials, large files, retired products, terms (H1/H2/H3 are never
-  scenes or beats), canonical v3 cutover (`v3-cutover`), pinned migrations,
+  scenes or beats), the current-format cutover and retired commands
+  (`cutover`; once the v4 tracks are in, it also keeps product code from
+  recognizing built-in template ids), pinned migrations,
   licences, dependency direction, debug-bridge / hot-reload isolation,
   measured evidence and `cargo audit` (`--skip audit` offline). See
   `docs/rust-rewrite/foundations/f8-testkit.md`.
@@ -163,9 +165,13 @@ Guidance for coding agents working in this standalone Drifting client repository
   own navigation and top/bottom-bar behavior.
 - Avoid inset-left vertical accent bars; use wash, spacing, or typography.
 - Dropdowns and popovers portal to `body` with `position: fixed`.
-- `next/` runs canonical v3 only (`docs/rust-rewrite/v3-cutover.md`); the
-  default outline is manuscript / chapter / H1 / H2 / H3. Acts are not built
-  in; authors name any additional levels they create. H1, H2 and H3 are three
+- `next/` runs the current book format only: format 4, one kind of entry
+  whose own switch (shown as 「层级」) says whether entries can live under it
+  (`docs/rust-rewrite/kernel-v4.md`); older books are refused as they are
+  (`docs/rust-rewrite/v3-cutover.md`). The default outline is manuscript /
+  chapter / H1 / H2 / H3. Acts are not built in (the 幕 template comes with
+  every book, no act track is created); authors name any additional levels
+  they create. H1, H2 and H3 are three
   heading levels whose meaning the author decides. Call them H1/H2/H3 only:
   never scene, beat, note or any other fixed role, in UI copy, Agent prompts,
   export or docs, and treat the three levels alike. Existing 0.1 behavior stays

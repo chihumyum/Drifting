@@ -73,7 +73,7 @@ cargo drifting workspace scenario seed:lite --library <目录> --yes
   - 写作日和时间钉：F3 还没有写这两样的命令，所以走命令的种子里没有它们，见「待协调」。
 - **只能直写的**：showcase 和两本样书暂时只有直写。
 
-切换后命令行只提供 canonical v3 的 `scenario seed:<预设>`（兼容显式 `seed:v3-<预设>`）；旧命令种子已退役。以下对拍结果是切换前的历史证据。
+切换后命令行只提供当前格式的 `scenario seed:<预设>`（显式的 `seed:v3-<预设>` 别名 2026-11-13 书目格式 4 时删掉）；旧命令种子已退役。以下对拍结果是切换前的历史证据。
 
 ### 预设
 
@@ -726,9 +726,9 @@ next/.cargo/config.toml   cargo xtask、cargo drifting 两个别名
 
 ## K4-0 的 v3 外壳场景
 
-`dr-cli` 的离线 `seed:v3-tiny` / `seed:v3-lite` / `seed:v3-heavy` /
-`seed:v3-showcase` 与场景的 `{"seed":"v3-lite"}` 共用入口，仍从
-`dr_testkit::seed::generate_v3` 取全部语料，保留原四档 v2.2 写法。
+`dr-cli` 的离线 `seed:tiny` / `seed:lite` / `seed:heavy` / `seed:showcase` 与场景的
+`{"seed":"lite"}` 共用入口，从 `dr_testkit::seed::generate_v3` 取全部语料（书目格式 4
+起删掉了 `seed:v3-<预设>` 别名，场景一并改名）。
 
 `crates/dr-cli/scenarios/k4-0-interface.json` 驱动真窗口：快照逐项与 F3 查询对比、
 叶子模块顺序、层级的三块组合、主归属颜色、条目／模块／模板目标与历史、设置
