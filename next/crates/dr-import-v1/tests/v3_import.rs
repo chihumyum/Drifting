@@ -15,6 +15,7 @@ use dr_doc::v3::{BookDocV3, BookViewV3};
 use dr_import_v1::run::{self, Options, Outcome};
 use dr_import_v1::v3::*;
 use dr_model::id::*;
+use dr_model::import_v1::ActId;
 use dr_model::kind::*;
 use dr_model::v3::*;
 use dr_model::{DocId, ProseProfile};

@@ -9,7 +9,7 @@
 //!   columns keep their 0.1 `position_key` verbatim;
 //! - key/value entries (`entity_kv_entry`) have no order column: the order
 //!   is their owner's `*_kv_json` projection;
-//! - retired values go through `dr_model::legacy`; projected TODOs get
+//! - retired values go through `dr_model::import_v1::legacy`; projected TODOs get
 //!   their deterministic ids (computed by the caller, [`Inputs::projected`]);
 //! - comment, patch and material-description bodies are plain text in
 //!   schema v2 (F1 待协调 4): their formatting is counted and their JSON
@@ -19,11 +19,15 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use dr_doc::Anchor;
 use dr_doc::import_v1::{BookTxn, generic_relation_type_id};
+use dr_model::Day;
 use dr_model::id::*;
-use dr_model::import_v1::{Asset, EntityRef, KvEntry, canonical_symmetric};
+use dr_model::import_v1::legacy;
+use dr_model::import_v1::{
+    ActId, Asset, CategoryId, CategoryLayout, DriftGroupId, ElementId, EntityRef, KvEntry, NodeId,
+    NodeKind, NodeStatus, StorylineId, canonical_symmetric,
+};
 use dr_model::kind::*;
 use dr_model::pos::{PosKey, keys_between};
-use dr_model::{Day, legacy};
 use serde_json::Value;
 
 use crate::anchors;

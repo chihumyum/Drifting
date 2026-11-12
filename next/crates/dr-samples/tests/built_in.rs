@@ -321,10 +321,10 @@ fn created_markers_never_resurrect_books_and_act_drift_imports_into_act_track_by
         .view()
         .nodes()
         .into_iter()
-        .find(|n| n.kind == dr_model::kind::NodeKind::Drift)
+        .find(|n| n.kind == dr_model::import_v1::NodeKind::Drift)
         .unwrap()
         .id;
-    let act_id = dr_model::id::ActId::parse("sample-act-with-drift").unwrap();
+    let act_id = dr_model::import_v1::ActId::parse("sample-act-with-drift").unwrap();
     source
         .book
         .edit(dr_model::Origin::Import, |t| {

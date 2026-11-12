@@ -389,7 +389,7 @@ v2.1 起，设备自己投出的待办写成种子变更（`BookTxn::project_tod
 
 v3 条目树、模块保留、归属、时间线和全库文档 id 的约束见 [kernel-v3.md 的不变量](kernel-v3.md#不变量)及上方 v3 书目一节；以下保留共用及 v2.2 的摘要。
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；逐条对过旧版 70 条领域不变量和 126 个仍生效的触发器之后的完整清单（82 条，加 16 条写明不再需要的、9 条界面和 Agent 做法不一样、已由 F3 统一的）在 `dr_model::invariant`，由测试当场断言：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，加 3 条界面和 Agent 做法不一样、已由 F3 统一的）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |
@@ -527,7 +527,7 @@ sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到
    - 素材描述 `materials.description`；批注的原文 `quote` 和各段快照 `snapshots`（「查看原文」「原文已改」靠它们）；素材上的区域批注 `region`。
 3. **待办只有一份真相**（不兼容）：链接了待办的任务行不存 `checked`；从正文生成的待办 id 由文档和块算出，来源是正式字段 `projection` / `projection_block`；`comment_action` 不再单列，唯一在用的「开 Agent 任务」改成待办上的 `agent_conversation`。
 4. **删掉不该在书目文档里的**（不兼容）：`materials.preview_image`（迁移 0011 后一直为空）；`nodes.updated_at`（随打字高频变化，会让每阵打字都同步一次书目文档）。
-5. **退役的取值不进新结构**：批注来源 `copilot`、作者种类 `copilot`、状态 `converted`、动作 `accept_suggestion` / `reject_suggestion`。导入时规整（`dr_model::legacy`）：`copilot` 来源 → `api`，`copilot` 作者 → `ai`，`converted` → `resolved`，采纳 / 拒绝的记录丢弃。
+5. **退役的取值不进新结构**：批注来源 `copilot`、作者种类 `copilot`、状态 `converted`、动作 `accept_suggestion` / `reject_suggestion`。导入时规整（`dr_model::import_v1::legacy`）：`copilot` 来源 → `api`，`copilot` 作者 → `ai`，`converted` → `resolved`，采纳 / 拒绝的记录丢弃。
 6. 写作日的设备键写明了：`device-` 加 SHA-256(`"drifting.writing-day.v1\n" + 安装身份`) 前 12 字节的十六进制，和旧版一样（`DeviceKey::from_installation_id`）；安装身份文件归 F2 管。
 
 **旧文档怎么读**：v1 的文档也只在测试里出现过，不做迁移。v2 的读取端遇到 v1 的 `order` 数字会当作「没有位置键」排到最后，不报错。

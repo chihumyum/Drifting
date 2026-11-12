@@ -9,7 +9,8 @@ use crate::seed::{self, DEFAULT_SEED};
 use dr_doc::Unit;
 use dr_doc::import_v1::BookDoc;
 use dr_doc::prose::ProseDoc;
-use dr_model::kind::{EntityKind, NodeKind};
+use dr_model::import_v1::NodeKind;
+use dr_model::kind::EntityKind;
 use dr_model::shared::EntityRef;
 use dr_model::{DocId, Origin};
 

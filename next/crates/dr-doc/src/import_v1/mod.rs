@@ -11,6 +11,20 @@ pub mod read;
 mod seed;
 pub mod write;
 
+// Field codecs for the source format's ids and vocabularies. The shared
+// codecs (`catalog::fields`) know the canonical types only.
+fields::str_like!(
+    dr_model::import_v1::NodeId,
+    dr_model::import_v1::ActId,
+    dr_model::import_v1::StorylineId,
+    dr_model::import_v1::CategoryId,
+    dr_model::import_v1::ElementId,
+    dr_model::import_v1::DriftGroupId,
+    dr_model::import_v1::NodeKind,
+    dr_model::import_v1::NodeStatus,
+    dr_model::import_v1::CategoryLayout,
+);
+
 use std::collections::BTreeSet;
 use std::sync::Arc;
 

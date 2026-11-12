@@ -1,106 +1,83 @@
-# 交给外部代理的模块任务书
+# 在 next/ 里开一路工作、交回、整合
 
-> **2026-11-11 切换完成**：第 70 批（`ad97a43c`）已完成 canonical v3 切换并合入 `main`，`next/` 已移除 v2.2 页面与命令、仅运行 canonical v3。切换范围与当前推进见 [../v3-cutover.md](../v3-cutover.md) 和 [autopilot.md](autopilot.md)。
+这个目录原来放的是 2026-11-08 到 11-12 交给各路会话的任务书、队列和整合流水。那些都是已经结束的过程记录，2026-11-12 删掉了，最后一版在 `git show f272963e8:docs/rust-rewrite/handoff/`。里面还开着的事项搬进了 [progress.md](../progress.md)。
 
-> **2026-11-08 晚，分轨**：作者暂停了重写的推进，改为「通用内核 v3 + 小说模板」。哪些继续、哪些冻结、停掉的会话留下的改动在哪，见 [kernel-v3-split.md](kernel-v3-split.md)。它比下面的说明和各队列文件优先。
+这一页只留下现在仍然有效、而且别处没写的规矩。别处已经写了的不重复：
 
-> **2026-11-08 更新**：Claude 的用量快用完了，仓库里的 Claude 会话停下，后面的活全交给外部代理。
->
-> - Codex：帮手那一条，见 [codex-queue.md](codex-queue.md)。
-> - Super View、账号、Windows：作者已另开 Codex 接续会话承接原 Antigravity 队列，见 [antigravity-queue.md](antigravity-queue.md)；原文件名保留。
-> - 基座和已开工模块的剩余：见 [remaining.md](remaining.md)。
-> - 合并 `main` 的整合者：照 [integration.md](integration.md) 做。
->
-> 下面「谁管哪里」的分工不再适用，以 remaining.md 为准。
+- 钉住的版本、检查命令、种子、`cargo xtask dev`、调试桥：仓库根 `AGENTS.md` 的「New workspace (`next/`)」。
+- 一路工作怎么开、怎么交：[README.md 的「怎么推进」](../README.md#怎么推进)。
+- 界面公共接口只加不改、写入不能拿读到的整份去替换：[k4-ui.md 的「仍然有效的规矩」](../k4-ui.md#仍然有效的规矩)。
 
-2026-11-08。`next/` 重写里还没人做的独立模块，一个文件一个任务，给 Codex 这类外部编码代理做。仓库里另有一组 Claude 会话在做基座和别的模块，由监管会话统一审、统一合进 `main`。这一页是所有任务共用的约定，每份任务书只写自己的那部分。
+## 做的时候
 
-## 先读
+- **每个 worktree 用自己的 `next/target`，不借别的树的。** `build.rs` 生成的文件和编译期的 `CARGO_MANIFEST_DIR` 会带着另一棵树的内容或路径；跨树共用曾经让一路读到旧的语言键，还让 xtask 指向已经删掉的 worktree。真遇到这种缓存对不上，只清这个工作区自己的包的构建产物再重建，第三方依赖留着，不手改生成的文件。
+- **字体是构建产物**（`next/.cache/fonts`）。新 worktree 第一次要从别的 worktree 拷过来，或者构建一次，否则画字的测试会失败。
+- **机器上同时有几路在编译时限制并发**：每路 `CARGO_BUILD_JOBS=3` 到 `4`，整合者 `6`（机器 12 核）。测试单线程：`RUST_TEST_THREADS=1`。
+- **按文档工作的代码不写死文档种类**（同步、导出、Markdown 文件夹）：文档 id 当不透明的字符串处理。
+- **不读作者的日常库和真实书稿。** 测试数据只用 `dr_testkit::seed`、`dr_testkit::samples`，合成的图片和 PDF 用 `dr_testkit::media`。
+- **日志和验收证据放仓库外**（现在都在 `~/Drifting-autopilot-logs/`），不放进任何工作区，免得被公开检查扫到。
+- **每个模块一份结论文档** `modules/<编号>-<名字>.md`，照已有的写：做了什么（大白话）、定下的事、接口、外壳里的挂接点、测试、待协调、代码位置。
+- **新模块接进 App**：`next/app/drifting/src/main.rs` 里每个模块一行 `init`。
+- **界面文字**：旧版有的键写进 `next/crates/dr-i18n/keys.txt`，再跑 `python3 crates/dr-i18n/script/sync-locales.py`；旧版没有的写进 `next/crates/dr-i18n/own/<语言>.json`，九种语言都写。
+- **删测试要按内容核对有没有丢覆盖**，不能只看文件名或函数名里带旧种类的词。删了哪些在交回里列出来。
+- **改导入的代码要带永久测试**：源库的字节和修改时间不变，导入结果逐项核对。
+- **凡是要用到书序或幕的地方**（v3 里已经没有了），停下来写进「等作者的事」，不自己设计替代品。
+- **量性能**只在 release 构建、机器空闲（一分钟负载小于 4）时量才算数；从最慢的一项开始，修一项量一次；不为了快去改数据格式、已有行为或 Loro 的版本；要改交互才能快的，写进「等作者的事」。
+- **`DRIFTING_PROFILE` 的名字只能是小写字母、数字和 `-`，1 到 32 个字符；不合规矩的名字会被整个忽略**（`dr-platform/src/identity.rs`）。忽略以后 App 回到默认的开发实例，命令行等不到调试桥，验收脚本可能落到别的开发库上。`cargo xtask dev` 自己推出来的名字会截断加哈希，手写的名字要自己数。
 
-1. 仓库根的 `AGENTS.md`，尤其是「New workspace (`next/`)」一节：钉住的版本、检查命令、`dr_testkit` 的种子、`cargo xtask dev`、调试桥。
-2. [`docs/rust-rewrite/README.md`](../README.md)：阶段、决定 D1–D10。
-3. [`progress.md`](../progress.md)：每个基座和模块现在做到哪、接口在哪。
-4. [`modules.md`](../modules.md) 里自己那个模块的一行：旧版功能、旧版代码位置、依赖。
-5. 依赖的基座和模块的结论文档（`foundations/`、`modules/` 下）。写法照它们来。
+## 真窗口验收
 
-旧版（0.1，Tauri + React）的代码在仓库里：`src/`、`src-tauri/`。它是功能和交互的标准答案，新版照它的行为做，但**不逐行搬 TypeScript**：数据模型已经换成 Loro（F1），命令走 F3 的注册表，界面走 GPUI 和 F5 的 `dr-ui`。
+- 验收窗口一律放副屏；重启或新开以后要确认位置。没有副屏或者定不了位置就报告，**不动作者日常用的窗口**。每个实例用自己的 profile。
+- 往真窗口发真实的系统按键（比如验输入法）之前，先核对前台进程就是要测的那个；焦点被别的应用抢走就中止，**不能把按键发到别的应用里**。同一时间只让一个验收占用前台。
+- 真窗口失败先看 `app.info` 和结果里的 environment。确实是被遮挡、窗口失活、不在前台，才原样重跑一次，第一轮的记录留着；不是这几种原因就当真失败处理。
+- 机器很忙时，等画完、等后台补建索引的测试偶尔会超时：单独重跑一次，过了就算过，在交回里记一句。这两种情况以外不重跑，更不给断言加重试。
+- 调试桥的鼠标事件现在不带修饰键（`Modifiers::none()`）。要验按住 Shift 点这类操作，得先给调试桥加上：默认语义不变，修饰键贯穿真实的按下、移动、抬起，补上默认、指定、无效参数三种契约测试。
 
-## 怎么做、怎么交
+## 整合
 
-- 从当前 `main` 开一个自己的分支和 worktree（比如 `codex/m21-story-graph`），只在上面提交。**不合进 `main`，不推送，不开 PR。** 做完把分支名和提交列表交给作者，作者转给监管会话合。
-- 做的过程中需要新的 `main`，就 `git merge main`，不要 rebase 已经交出去的提交。
-- 每个模块写一份结论文档 `docs/rust-rewrite/modules/mNN-<名字>.md`，结构照已有的（比如 [m40-markdown-folder.md](../modules/m40-markdown-folder.md)）：做了什么（大白话）、定下的事、接口、外壳里的挂接点、测试、待协调、代码位置。
-- **不要改 `progress.md`**，那一页只由监管会话维护。
-- 别的会话负责的 crate（见下面「谁管哪里」），只在任务书写明的挂接点上动，改动尽量小。改不动、或者需要对方加接口的，写进自己文档的「待协调」，不要自己大改别人的 crate。
-- 交之前在 `next/` 下跑全套检查：
+监管会话把各路的分支合进 `main` 时照这些做。
+
+- **收件只核三样**：改动有没有出自己的范围、全套检查过没过、有没有确定会丢作者数据的问题。别的意见写进那个模块结论文档的「待协调」，不反复复审。整合者不写功能，只修合并时对不上的地方。
+- **检查在合并后的树上自己跑一遍**，不拿源分支报的测试数当结果；中途停掉的检查不记成通过。除了 `AGENTS.md` 列的四条 cargo 命令和 `pnpm public:check`、`pnpm ci:contract:check`，合进 `main` 前再跑：
 
   ```bash
-  cargo fmt --all --check
-  cargo clippy --workspace --all-targets --locked -- -D warnings
-  cargo test --workspace --locked
-  cargo xtask check
+  pnpm agent:capabilities:check
+  pnpm exec vitest run src/renderer/architecture/retired-client-integrations.acceptance.test.ts \
+    src/renderer/lib/agent/runtime/acceptance/retired-shadow-arc-evolve.acceptance.test.ts \
+    src/renderer/lib/ai/retired-copilot.acceptance.test.ts \
+    src/renderer/locales/drift-terminology.acceptance.test.ts
   ```
 
-  再在仓库根跑 `pnpm public:check`。字体是构建产物（`next/.cache/fonts`），缺了会让一两个画字的测试失败：先构建一次，或者在交回时注明。
+  cargo 的测试加 `--no-fail-fast`，一次看全失败的。
+- **`cargo xtask check` 报测量证据「过期」只是提示**，不挡合并。只在机器空闲时重测。
+- **怀疑会丢数据时**：用 `dr_testkit` 的种子写一个临时探针复现，写清复现命令再退回。探针和日志放在公共 Git 目录的 `integration-evidence/` 下，不进 `main`；永久的回归测试由负责那块的会话补。
+- **常见冲突怎么解**：
+  - `next/crates/dr-i18n/locales/*.json` 是生成的：取 `main` 的一边，再重新生成。
 
-## 共用的规矩
+    ```bash
+    git checkout --ours next/crates/dr-i18n/locales/
+    cd next && python3 crates/dr-i18n/script/sync-locales.py && python3 crates/dr-i18n/script/sync-locales.py --check
+    ```
 
-- **共享文件只加不改**：
-  - `next/Cargo.toml` 的 `members` 一行一个、按字母排；新依赖进 `[workspace.dependencies]`，至少钉到次版本。
-  - `next/app/drifting/src/main.rs` 里每个模块一行 `init`。
-  - 界面文字：旧版有的键写进 `next/crates/dr-i18n/keys.txt`，再跑 `python3 crates/dr-i18n/script/sync-locales.py`；旧版没有的写进 `next/crates/dr-i18n/own/<语言>.json`，九种语言都要写。
-  - `cargo xtask check` 的许可、依赖层等表在 `next/xtask/src/gates/`，新 crate 要登记的就登记。
-- **测试数据**只用 `dr_testkit::seed`（tiny / lite / heavy / showcase）和 `dr_testkit::samples`，不另写语料。合成图片、PDF 在 `dr_testkit::media`。
-- **不碰真服务。** 账号、同步、分享、模型接入这些，测试一律对着本机起的假服务或录好的合成响应；不连 `api.drifting.cc`，不调真的模型 API，不用真密钥。真服务上的手测留给作者。
-- 不往仓库提交凭据、`.env`、个人路径、数据库、签名材料，也不提交从官方服务拷来的数据。
-- **界面规矩**（AGENTS.md「UI rules」，新版照旧）：
-  - 没有自定义右键菜单，操作放在悬停卡底部一行；
-  - 不用左边竖条做强调；
-  - 弹出层走 `dr-ui` 的浮层；
-  - H1/H2/H3 只叫 H1/H2/H3；
-  - 不自编说明文字和提示句，旧版有的照搬，没有的不加。
-- **证据**：契约用测试断言，不提交 JSON；性能数字只在机器空闲时量，写进文档当参考。
-- 真窗口验收用 F8 的调试桥：`cargo xtask dev --debug-bridge`，再用 `cargo drifting app …` 驱动。没有截图权限时，用 `state` 读界面状态。
+  - `next/crates/dr-i18n/keys.txt`、`own/*.json`：两边都留；`keys.txt` 去掉重复的键，`own/*.json` 按键合并。
+  - `next/Cargo.lock`：取 `main` 的一边，再让 cargo 补：`git checkout --ours next/Cargo.lock && cd next && cargo check --workspace --all-targets`。
+  - 两边在同一处各加了一个函数或测试：两边都留。git 常把两边共有的收尾 `}` 提到冲突外面，都留以后前一个函数会少一个 `}`，合完先 `cargo check`。
+  - 接口被别的分支改了：在整合分支上把调用改到新接口，提交说明写清是整合修补。
 
-## 谁管哪里
+## 不能替作者做的
 
-下面这些由仓库里的会话负责，只在任务书写明的地方动：
+- 推送 `main`、发版、打或移动标签、对外发帖、开上游 PR、在别人的 issue 里表态。上游 issue 有长期许可，但要先复现、查重、确认不是用错了接口。
+- 装系统组件（Xcode 的 Metal Toolchain、Windows 工具链等）；建远端仓库（比如 GPUI 的 fork）；连真服务、用真密钥、调真的模型 API、花钱；往真 Sentry 传符号。
+- 删 0.1 客户端（`src/`、`src-tauri/` 等）的任何东西。
+- 视觉和交互的取舍、产品设计，以及 D7。
+- 需要真人做的手测。
 
-- `dr-model`、`dr-doc`：F1
-- `dr-store`：F2
-- `dr-workspace`：F3。新的命令和查询要登记进注册表，改它就是改能力清单快照
-- `gpui-prose`、`dr-editor`：F4
-- `dr-ui`、`dr-view-sea`、`dr-view-shelf-art`：F5
-- `dr-shell`、`dr-i18n`：F6
-- `dr-platform`、`dr-view-feedback`：F7
-- `dr-testkit`、`dr-cli`、`dr-debug-*`、`xtask`：F8
-- 各个 `dr-view-*`：负责它的那一路，写在 `progress.md` 对应那行
+## 仓库里看不见的三样东西
 
-需要别人加接口时，在「待协调」里写清：要什么、为什么、你那边先怎么绕。
+都在 Git 里但不在任何分支的工作树上，`git status` 看不到。没有作者的话不删、不 rebase。
 
-## 任务和先后
+- **`refs/wip/<日期>/<名字>`**（15 个）：被停掉的会话当时没提交的改动，原样存成了引用。以后要停掉一路没做完的会话，也先这样把它没提交的改动存下来，不在别人还在动的工作区里改。看某一份：`git diff <原分支> refs/wip/<日期>/<名字>`；要接着做：`git switch -c <新分支> refs/wip/<日期>/<名字>`。其中多数属于切换时已经删掉的 v2.2 按种类代码，只有参考价值。
+- **`handback/*` 分支**（18 个）：各路交回时用的指针，指向的提交都已经在 `main` 里。
+- **公共 Git 目录下的 `integration-evidence/`**（34 个目录）：整合者的探针原件和失败日志。
 
-**连续做的顺序见 [codex-queue.md](codex-queue.md)**：一个做完接着做下一个，不用等合并。下表是每个模块的依赖。
-
-| 任务书 | 模块 | 什么时候能开工 |
-| --- | --- | --- |
-| [m21-story-graph.md](m21-story-graph.md) | M21 故事图 | F6 的 `add_super_view` 进 `main` 后接上；模块本身现在就能写 |
-| [m22-element-overview.md](m22-element-overview.md) | M22 要素全景 | 同上 |
-| [m23-review-materials.md](m23-review-materials.md) | M23 审阅与素材 | 同上 |
-| [m27-agent-runtime.md](m27-agent-runtime.md) | M27 帮手运行时核心 | 现在 |
-| [m28-model-providers.md](m28-model-providers.md) | M28 模型接入 | M27 的驱动接口定下来以后（可以和 M27 同一个任务连着做） |
-| [m29-agent-tools.md](m29-agent-tools.md) | M29 工具 | M27 之后 |
-| [m31-agent-panel.md](m31-agent-panel.md) | M31 帮手面板与改动显现 | M27 之后；F6 的帮手栏挂接点进 `main` 后接上 |
-| [m32-mcp.md](m32-mcp.md) | M32 MCP | M29 之后 |
-| [m30-long-tasks-memory.md](m30-long-tasks-memory.md) | M30 长任务、记忆与主动建议 | M29、M31 之后 |
-| [m33-image-generation.md](m33-image-generation.md) | M33 生图（实验） | M28 之后 |
-| [m34-dictation.md](m34-dictation.md) | M34 语音口述（可以放最后） | M31 之后 |
-| [m35-account.md](m35-account.md) | M35 账号与登录 | 现在 |
-| [m36-sync-v2.md](m36-sync-v2.md) | M36 Hosted 同步 v2 | M35 之后（会话令牌）；协议层现在就能写 |
-| [m37-preference-sync.md](m37-preference-sync.md) | M37 偏好同步 | M35 之后 |
-| [m38-share-links.md](m38-share-links.md) | M38 分享链接（发布端） | M35 之后 |
-| [m43-windows.md](m43-windows.md) | M43 Windows 版 | 现在 |
-
-帮手这一组（M27–M34）彼此依赖最紧：最好按表里的顺序，一次只开一两个，等前一个合进 `main` 再开下一个。账号这一组（M35–M38）也是先 M35。Super View 三个彼此独立，可以同时开。
-
-不在这里的：M16 构想、M17 关系、M26 沉浸写作、M42 自动更新，以及 M19、M24 的收尾，都已经有会话在做。
+两条从没合进 `main` 的冻结分支带着已知的数据缺陷，谁再捡起来要先读当时的记录（`git show f272963e8:docs/rust-rewrite/handoff/integration.md`）：M24 样书认领会覆盖用户的书；M19 笔记任务投射有三项数据问题。

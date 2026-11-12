@@ -27,7 +27,8 @@ use dr_doc::import_v1::BookDoc;
 use dr_doc::loro_types::{Frontiers, VersionVector};
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
-use dr_model::id::{BlockId, BookId, CategoryId, CommentId, StorylineId, TemplateOwner};
+use dr_model::id::{BlockId, BookId, CommentId};
+use dr_model::import_v1::{CategoryId, StorylineId, TemplateOwner};
 use dr_model::kind::ProjectionKind;
 use dr_model::{DocId, Origin, ProseProfile};
 use dr_store::history::{LabelRetention, NewLabel};
@@ -243,7 +244,7 @@ fn fill_titles(legacy: &Legacy, gate: &mut Gate) -> Result<()> {
         }) {
             d.title = title;
             d.drift = node_kind.is_some_and(|k| {
-                dr_model::kind::NodeKind::parse(&k) == dr_model::kind::NodeKind::Drift
+                dr_model::import_v1::NodeKind::parse(&k) == dr_model::import_v1::NodeKind::Drift
             });
         }
     }

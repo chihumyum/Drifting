@@ -20,6 +20,7 @@ use dr_doc::v3::novel::{
 use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, genesis_v3};
 use dr_doc::{DocError, Result};
 use dr_model::id::*;
+use dr_model::import_v1::StorylineId;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, InlineStyle};

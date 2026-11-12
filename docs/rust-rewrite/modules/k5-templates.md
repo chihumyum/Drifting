@@ -1,7 +1,7 @@
 # K5 模板编辑器
 
-范围按 [K4 开工细则](../k4-ui.md#k5-模板编辑器)，交回按
-[overnight.md](../handoff/overnight.md#交回协议)。原型为
+范围按当时 K4 的开工细则（[k4-ui.md](../k4-ui.md) 改写前的版本，在 git 历史里），交回按当时的
+夜间队列协议（`handoff/overnight.md`，已随过程文档清理删除，在 git 历史里）。原型为
 [第 2 版](https://claude.ai/artifact/Q9cfuRn9u5T5vZ38qG1JU7)。
 
 ## 叶子模板

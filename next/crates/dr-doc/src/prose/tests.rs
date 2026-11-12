@@ -1218,8 +1218,9 @@ fn reading_paragraphs_from_the_middle_needs_nothing_before() {
 }
 
 fn template(peer: u64) -> ProseDoc {
-    let c = dr_model::id::CategoryId::parse("cat-1").unwrap();
-    ProseDoc::create(dr_model::id::TemplateOwner::Category(c).doc_id(), peer).unwrap()
+    // A source-format template id (`TemplateOwner::Category("cat-1")`); the
+    // shared prose rules for templates do not depend on the id's form.
+    ProseDoc::create(DocId::parse("template:category:cat-1").unwrap(), peer).unwrap()
 }
 
 /// A body template is an ordinary prose document under a derived id: two

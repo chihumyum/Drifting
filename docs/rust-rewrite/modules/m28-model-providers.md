@@ -2,7 +2,7 @@
 
 交回状态：分支 `codex/m28-model-providers`；最后实现提交 `ded56ed8`（本行交回记录单独提交）；真实账号验收由作者进行，界面接线交 M31。
 
-2026-11-08。实现 [M28 任务书](../handoff/m28-model-providers.md)，接在 [M27](m27-agent-runtime.md) 的进程内驱动接口上。没有新增运行时类型，也不经过旧版 Tauri。
+2026-11-08。实现 M28 任务书（`handoff/m28-model-providers.md`，已随过程文档清理删除，在 git 历史里），接在 [M27](m27-agent-runtime.md) 的进程内驱动接口上。没有新增运行时类型，也不经过旧版 Tauri。
 
 ## 做了什么（大白话）
 

@@ -4,7 +4,10 @@
 use std::sync::{Arc, Mutex};
 
 use dr_model::id::*;
-use dr_model::import_v1::{Asset, EntityRef, KvEntry, canonical_symmetric};
+use dr_model::import_v1::{
+    ActId, Asset, CategoryId, DriftGroupId, ElementId, EntityRef, KvEntry, NodeId, NodeKind,
+    NodeStatus, StorylineId, TemplateOwner, canonical_symmetric, default_plot_row,
+};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::{Day, DocId, Origin, Timestamp};
@@ -1113,7 +1116,7 @@ fn a_grid_created_on_two_devices_is_three_by_three_and_keeps_its_labels() {
     let mut a = book(1);
     let mut b = book(2);
     busy(&mut b);
-    let r1 = PlotRowId::default_for(&c, 1);
+    let r1 = default_plot_row(&c, 1);
     // A creates the grid, labels its first row and moves it to the end.
     user(&mut a, |t| {
         t.create_plot_grid(&c)?.row(&r1, "a3", "开端")?;
