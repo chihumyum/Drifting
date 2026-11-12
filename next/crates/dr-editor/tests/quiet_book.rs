@@ -260,3 +260,105 @@ fn the_whole_book_editor_reads_its_names_again_for_content_only(cx: &mut TestApp
     settle(cx);
     assert_eq!(names(cx), (before.0 + 1, before.1 + 1));
 }
+
+/// The commits one working day makes to the book document, at the rates of
+/// the aging model (docs/rust-rewrite/spikes/history-aging.md: three years,
+/// two devices, per working day): 62 of the writing-day recorder, 16 saved
+/// checkpoints, 17 changes to the book's content. They come minutes apart,
+/// so each is let through before the next.
+#[gpui::test]
+fn a_day_of_writing_reads_the_names_once_for_each_change_to_the_content(cx: &mut TestAppContext) {
+    let e = env();
+    let (ws, book, doc) = (e.ws.clone(), e.book.clone(), e.chapters[0].1.clone());
+    cx.executor().allow_parking();
+    let (view, cx) = cx.add_window_view(move |window, cx| {
+        ChapterEditor::open(ws, &book, &doc, EditorSettings::default(), window, cx).unwrap()
+    });
+    let names = |cx: &mut VisualTestContext| -> Names {
+        view.read_with(cx, |v, cx| {
+            (
+                v.assist().read(cx).names_dropped,
+                v.decor_layers().read(cx).name_reads,
+            )
+        })
+    };
+    wait_for(cx, "the names are read when the editor opens", |cx| {
+        names(cx).1 == 1
+    });
+    // The other chapter is the one written in and saved (its first point
+    // may create bodies it has not written yet).
+    let (other, _) = &e.chapters[1];
+    out(
+        &e.ws,
+        "entry_snapshot.create",
+        json!({"book": e.book, "entry": other}),
+    );
+    settle(cx);
+    let before = names(cx);
+
+    let (mut days, mut points, mut content) = (0, 0, 0);
+    let commit = |cx: &mut VisualTestContext, counted: &mut usize, name: &str, input: Value| {
+        let version = e.version();
+        out(&e.ws, name, input);
+        assert_ne!(e.version(), version, "{name} commits to the book");
+        *counted += 1;
+        // Minutes pass before the next: whatever this one asked for is done.
+        for _ in 0..4 {
+            cx.run_until_parked();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        cx.run_until_parked();
+    };
+    for minute in 0..62 {
+        commit(
+            cx,
+            &mut days,
+            "writing_day.record",
+            json!({"book": e.book, "device": "device-000000000000000000000001",
+                "day": "2026-11-12", "words": 40 * (minute + 1)}),
+        );
+        if minute % 4 == 1 {
+            // The chapter's text moved on (another document), then its point.
+            out(
+                &e.ws,
+                "module.set_prose",
+                json!({"book": e.book, "owner": other, "module": "mod-prose",
+                    "paragraphs": [{"text": format!("Synthetic text {minute}")}]}),
+            );
+            commit(
+                cx,
+                &mut points,
+                "entry_snapshot.capture",
+                json!({"book": e.book, "entry": other, "reason": "close"}),
+            );
+        }
+        if minute % 4 == 3 || minute >= 60 {
+            let (name, input) = match content % 3 {
+                0 => (
+                    "entry.update",
+                    json!({"book": e.book, "id": other, "title": format!("Synthetic title {content}")}),
+                ),
+                1 => (
+                    "fact.put",
+                    json!({"book": e.book, "key": format!("Synthetic fact {content}"), "value": "Synthetic"}),
+                ),
+                _ => (
+                    "book.update",
+                    json!({"book": e.book, "summary": format!("Synthetic summary {content}")}),
+                ),
+            };
+            commit(cx, &mut content, name, input);
+            let want = (before.0 + content, before.1 + content);
+            wait_for(cx, "a change to the content reaches the editor", |cx| {
+                names(cx) == want
+            });
+        }
+    }
+    assert_eq!((days, points, content), (62, 16, 17));
+    settle(cx);
+    assert_eq!(
+        names(cx),
+        (before.0 + 17, before.1 + 17),
+        "95 commits to the book document, 17 of them to its content"
+    );
+}
