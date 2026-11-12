@@ -108,7 +108,9 @@ impl Named {
         }
         let args = &call.arguments;
         let keys: &[&str] = match call.name.as_str() {
-            "entry.update" | "entry.move" | "entry.trash" | "entry.restore" => &["id"],
+            "entry.update" | "entry.move" | "entry.trash" | "entry.restore" | "entry.set_level" => {
+                &["id"]
+            }
             "membership.add" | "membership.remove" => &["host", "member"],
             "membership.primary" => &["member"],
             "timeline_view.place" | "timeline_view.remove" => &["lane", "entry"],

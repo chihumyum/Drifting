@@ -481,7 +481,7 @@ impl AgentTools {
             };
             let output = value.get("output").cloned().unwrap_or(Value::Null);
             let mut subjects = resolve::coverage(&call.name, &call.arguments, &output);
-            subjects.extend(records::also_read(&call.name, &call.arguments, &output));
+            subjects.extend(records::also_read(&call.name, &output));
             let backed: Vec<(String, Backing)> = subjects
                 .iter()
                 .map(|subject| {

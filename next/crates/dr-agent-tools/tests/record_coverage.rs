@@ -288,17 +288,19 @@ fn removing_a_membership_needs_a_read_of_that_membership() {
             .any(|m| m["host"] == lane.as_str() && m["member"] == member.as_str())
     };
     let remove = || f.agent("membership.remove", json!({"host": lane, "member": member}));
+    // Both entries, without what lies below the lane: reading the lane by
+    // itself (`entry.get`) shows its members, and that is a read of them.
+    let entries = || f.read("entry.list", json!({"all": true}));
 
     // Both entries and the timeline were read, the membership was not.
-    f.read("entry.get", json!({"id": lane}));
-    f.read("entry.get", json!({"id": member}));
+    entries();
     f.read("timeline_view.list", json!({}));
     read_required(remove(), "membership:");
     assert!(stored());
 
     // The members of its level are a read of it. An unrelated membership
     // added meanwhile is not a change of this one.
-    f.read("level.get", json!({"id": lane}));
+    f.read("entry.get", json!({"id": lane}));
     f.author(
         "membership.add",
         json!({"host": lane, "member": f.chapters[1]}),
@@ -307,8 +309,7 @@ fn removing_a_membership_needs_a_read_of_that_membership() {
     assert!(!stored());
 
     // Adding a membership replaces nothing: the two entries are enough.
-    f.read("entry.get", json!({"id": lane}));
-    f.read("entry.get", json!({"id": member}));
+    entries();
     f.agent("membership.add", json!({"host": lane, "member": member}))
         .unwrap();
     assert!(stored());
@@ -320,11 +321,9 @@ fn removing_a_membership_needs_a_read_of_that_membership() {
             json!({"host": lane, "member": member, "pos": "a5"}),
         )
     };
-    f.read("entry.get", json!({"id": lane}));
-    f.read("entry.get", json!({"id": member}));
+    entries();
     read_required(order(), "memberships/");
-    f.read("entry.get", json!({"id": lane}));
-    f.read("entry.get", json!({"id": member}));
+    entries();
     f.read("membership.list", json!({}));
     order().unwrap();
     assert!(

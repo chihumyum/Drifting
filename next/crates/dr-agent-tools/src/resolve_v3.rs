@@ -233,7 +233,7 @@ pub(crate) fn resolve_v3(
                 let kind = target["kind"].as_str().unwrap_or_default().to_owned();
                 let id = target["id"].as_str().unwrap_or_default().to_owned();
                 if !matches!(kind.as_str(), "entry" | "material") {
-                    return Err(invalid("v3 comment target must be an entry or material"));
+                    return Err(invalid("comment target must be an entry or material"));
                 }
                 if name == "comment.create"
                     && !anchored
@@ -318,9 +318,8 @@ pub(crate) fn resolve_v3(
                 *parent = pid.to_string().into();
             }
         }
-        "entry.get" | "entry.trash" | "entry.restore" | "level.get" | "module.list" => {
+        "entry.get" | "entry.trash" | "entry.restore" | "entry.set_level" | "module.list" => {
             let include_trashed = matches!(name, "entry.get" | "entry.trash" | "entry.restore");
-            let levels_only = name == "level.get";
             if let Some(id_val) = obj.get_mut("id") {
                 let eid = resolve_entry_id(
                     &view,
@@ -329,7 +328,7 @@ pub(crate) fn resolve_v3(
                     id_val,
                     None,
                     include_trashed,
-                    levels_only,
+                    false,
                 )?;
                 *id_val = eid.to_string().into();
             }
@@ -999,6 +998,27 @@ fn resolve_action(ws: &Workspace, book: &BookId, name: &str, args: Value) -> Res
     })
 }
 
+/// An entry read with what lies below it covers that level and the
+/// entries living under and belonging to it.
+fn read_below(read: &mut BTreeSet<String>, entry: &Value) {
+    let (Some(id), Some(below)) = (entry["id"].as_str(), entry["below"].as_object()) else {
+        return;
+    };
+    read.insert(format!("level:{id}"));
+    for list_key in ["children", "members"] {
+        for row in below
+            .get(list_key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(id) = row["id"].as_str() {
+                read.insert(format!("entry:{id}"));
+            }
+        }
+    }
+}
+
 pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Vec<String>> {
     let mut read = BTreeSet::new();
     match name {
@@ -1008,6 +1028,7 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
                     if let Some(id) = row["id"].as_str() {
                         read.insert(format!("entry:{id}"));
                     }
+                    read_below(&mut read, row);
                 }
             }
             let unfiltered_query = args
@@ -1031,21 +1052,7 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
             if let Some(id) = output["id"].as_str() {
                 read.insert(format!("entry:{id}"));
             }
-        }
-        "level.get" => {
-            if let Some(id) = args["id"].as_str() {
-                read.insert(format!("level:{id}"));
-                read.insert(format!("entry:{id}"));
-            }
-            for list_key in ["children", "members"] {
-                if let Some(rows) = output[list_key].as_array() {
-                    for row in rows {
-                        if let Some(id) = row["id"].as_str() {
-                            read.insert(format!("entry:{id}"));
-                        }
-                    }
-                }
-            }
+            read_below(&mut read, output);
         }
         "entry_template.list" => {
             read.insert("entry_template:*".into());
@@ -1141,7 +1148,7 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert("entry:*".into());
             }
         }
-        "entry.update" | "entry.trash" | "entry.restore" => {
+        "entry.update" | "entry.trash" | "entry.restore" | "entry.set_level" => {
             if let Some(id) = args.get("id").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{id}"));
             }

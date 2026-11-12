@@ -233,6 +233,14 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
         .flat_map(|p| &p.entries)
         .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
         .collect();
+    // Entries the sequence numbers also keep the prose an earlier template
+    // left them, under its own module, as before the one kind of entry.
+    let numbered: BTreeSet<&dr_model::id::EntryId> = manuscript
+        .iter()
+        .flat_map(|p| &p.entries)
+        .filter(|e| e.ordinal.is_some())
+        .map(|e| &e.entry.id)
+        .collect();
     let mut manifest = Vec::new();
     let mut targets = Vec::new();
     for entry in ordered_entries.iter().filter(|e| !e.is_trashed()) {
@@ -246,11 +254,18 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
                 .then(|| modules[0].doc.clone())
                 .flatten(),
         });
+        let defined: BTreeSet<String> = entry
+            .effective_template(&templates)
+            .into_iter()
+            .flat_map(|t| t.modules.iter())
+            .map(|m| format!("{}/{}", entry.id, m.id))
+            .collect();
         for target in modules.iter().filter(|t| {
             if manuscript.is_empty() {
                 !entry.is_level()
             } else {
                 t.doc.as_ref().is_some_and(|d| book_docs.contains(d))
+                    || (numbered.contains(&entry.id) && !defined.contains(&t.id))
             }
         }) {
             manifest.push(ManifestEntry {

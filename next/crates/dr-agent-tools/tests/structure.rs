@@ -190,13 +190,13 @@ fn empty_manuscript_keeps_default_guidance_and_level_sources_are_canonical() {
         .unwrap();
     assert!(context.templates.iter().any(|t| t.id == TPL_CHAPTER));
     for level in &context.levels {
-        let canonical = f.out("level.get", json!({"book":f.book,"id":level.id}));
+        let canonical = f.out("entry.get", json!({"book":f.book,"id":level.id}));
         assert_eq!(
             serde_json::to_value(&level.effective_settings.values).unwrap(),
-            canonical["settings"]
+            canonical["below"]["settings"]
         );
-        let batch = f.out("level.list", json!({"book":f.book}));
-        let resolved = batch["levels"]
+        let batch = f.out("entry.list", json!({"book":f.book,"all":true,"below":true}));
+        let resolved = batch
             .as_array()
             .unwrap()
             .iter()
@@ -204,7 +204,7 @@ fn empty_manuscript_keeps_default_guidance_and_level_sources_are_canonical() {
             .unwrap();
         assert_eq!(
             serde_json::to_value(&level.effective_settings.sources).unwrap(),
-            resolved["sources"],
+            resolved["below"]["sources"],
         );
     }
 }
