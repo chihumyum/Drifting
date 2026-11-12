@@ -19,7 +19,7 @@
 | 本机 macOS，`main` 的 `9ae09a41`（2026-11-12 凌晨，流水里最后一次全套记录） | `cargo fmt`、Clippy、`cargo xtask check`（13 道门禁加漏洞审计）、根目录三条 `pnpm` 检查全过；测试 2252 通过、0 失败、22 忽略 |
 | 本机 macOS，`main` 的 `f272963e8` 加 2026-11-12 的切换遗留清理（这一页改写时重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：974 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check` 全过；测试 2256 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | 本机 macOS，合入切换遗留清理和老化实测两路之后的 `main`（2026-11-12 晚，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：975 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check` 全过；测试 2263 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
-| GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。都还没人修 |
+| GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。原因和修法见「技术上还开着的事」的第一条 |
 
 本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上当天合进来的切换遗留清理和老化实测两路，都没推。
 
@@ -151,7 +151,13 @@
 
 坏着的：
 
-- **Windows 的 CI 是红的**，0.1 客户端的 `pnpm locales:check` 也是红的。具体哪几处见本页开头的表，都还没查原因。
+- **Windows 的 CI 还没绿过。** `next` 工作流从 11-07 起 12 次运行全红：前 11 次 Windows 连 `cargo build` 都没过，`d0e516e9` 是头一回编过、真正跑到测试的。那次的五处失败 11-12 已查清并修掉，Windows 上的结果要等下一次推送：
+  - `pnpm locales:check`：`ade4437af` 改了 `BasicPreferencePanels.tsx`（指纹的来源之一）没重新生成证据。已重新生成，只有指纹变。
+  - Clippy 的三处：`panel.rs` 里只有 macOS 用到的两个 `to_json` 和 `Request` 没加条件编译。已加。
+  - `dr-import-v1` 的那条测试：夹具故意漏掉一个数据库连接来留住 WAL；Windows 上判断「别处开着」的办法分不清是谁的句柄，把测试进程自己的也算上了。夹具改成不做检查点地关闭连接，WAL 照样留下。
+  - `dr-cli` 的那条测试：用 `drop` 模拟应用退出后马上要求锁已放开。库打开时启动的索引重建线程干活时会短暂攥着库，`drop` 不等它，`close` 才等。测试改用 `close`。命令行自己的代码一直用的是 `close`。
+  - 安装包检查：卸载程序原地运行删不掉自己和所在目录，脚本事后去删；目录里还有东西时 `Remove-Item` 要弹确认，CI 上没人应答就报了空引用。改成先查「除了卸载程序自己什么都没剩」，再递归清理。那次目录里剩的到底是什么，日志里看不出来；如果不是卸载程序自己，新的检查会点名。
+  - 那次 Clippy 和测试都停在第一处失败：二十来个 crate 没在 Windows 上检查过，`dr-import-v1` 之后的测试没在 Windows 上跑过。工作流已加 `--keep-going` 和 `--no-fail-fast`，下一次会一次报全，多半还有新的。
 
 没接上或没做的：
 
