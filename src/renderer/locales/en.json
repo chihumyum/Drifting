@@ -1737,10 +1737,9 @@
       "or": "or"
     },
     "legal": {
-      "agree": "By signing up, you agree to the",
+      "consent": "By continuing, you agree to {{terms}}.",
+      "consentTerms": "the terms",
       "terms": "Terms",
-      "termsUnavailable": "The service operator has not configured Terms of Service.",
-      "and": "and",
       "privacy": "Privacy Policy"
     },
     "forgot": {

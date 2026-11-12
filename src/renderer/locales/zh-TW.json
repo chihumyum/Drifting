@@ -1737,10 +1737,9 @@
       "or": "或"
     },
     "legal": {
-      "agree": "註冊即表示同意",
+      "consent": "繼續即視為同意{{terms}}",
+      "consentTerms": "相關條款",
       "terms": "服務條款",
-      "termsUnavailable": "服務營運者尚未設定服務條款。",
-      "and": "與",
       "privacy": "隱私權政策"
     },
     "forgot": {

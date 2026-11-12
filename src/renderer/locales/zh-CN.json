@@ -1735,10 +1735,9 @@
       "or": "或"
     },
     "legal": {
-      "agree": "注册即表示同意",
+      "consent": "继续即视为同意{{terms}}",
+      "consentTerms": "相关条款",
       "terms": "服务条款",
-      "termsUnavailable": "服务运营方尚未配置服务条款。",
-      "and": "与",
       "privacy": "隐私政策"
     },
     "forgot": {

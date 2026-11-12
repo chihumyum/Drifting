@@ -160,7 +160,8 @@ const reducedMotion = () =>
 /**
  * The welcome: how to go on, and nothing else. Google shows when the service
  * offers it; signing in with it moves straight to the sign-in step, which
- * waits for the browser. Hosted builds say there that crash reports are sent.
+ * waits for the browser. What signing in agrees to is said there, in the
+ * sign-in step's one line (`features/auth/ConsentLine.tsx`).
  */
 function FirstRunWelcome({
   onGoogle,
@@ -189,7 +190,6 @@ function FirstRunWelcome({
       <Button className="first-run-welcome__local" variant="ghost" onClick={onLocal}>
         {t('firstRun.local')}
       </Button>
-      <p className="first-run-welcome__note">{t('preAlphaGuide.crashReports')}</p>
     </div>
   );
 }
