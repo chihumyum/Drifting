@@ -15,7 +15,9 @@
 
 公共地方只追加 `dr-workspace::commands::v3::snapshots` 的
 `checkpoint_manifest_checksum` 与 `checkpoint_history_fingerprint` 两个纯数据
-帮手，复用现有私有算法；后者缺少书副本时返回错误。未改现有命令、注册表或
+帮手，复用现有私有算法；后者缺少书副本时返回错误。2026-11-12 起导入对原始文档的
+校验改用同一处的 `checkpoint_history_matches`：指纹算法那天换过，它新旧两种都认，
+所以带旧指纹快照点的书文件照样能导入（[m09](m09-history.md)）。未改现有命令、注册表或
 恢复行为；未删 v2.2 测试，无新增产品文案。三条永久契约已通过：两正文检查点
 导入／预览／有守卫恢复／重开且原书和第三书不动；genesis-only 正文版本、
 连续两次搬运、字面标题和未知字段保留、close capture 复用新指纹；六类损坏
