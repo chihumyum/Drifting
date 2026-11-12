@@ -834,6 +834,10 @@ auth.errors.oauthFailed
 auth.errors.oauthExpired
 auth.errors.sendCodeFailed
 auth.errors.verifyFailed
+auth.legal.consent
+auth.legal.consentTerms
+auth.legal.terms
+auth.legal.privacy
 settings.hosted.title
 settings.hosted.description
 settings.hosted.no_account

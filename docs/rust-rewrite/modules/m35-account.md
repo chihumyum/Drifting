@@ -6,6 +6,10 @@
 
 1. **没有配官方服务地址的构建默认纯本地运行**：启动、读书架、打开设置都不发任何网络请求，欢迎页账号步骤、用户菜单的登录项和「设置 → 账号」的云端登录区都不显示，侧栏和书架左下角永远显示「本地」。
 2. **首次启动欢迎选择**：配了 Hosted 服务地址且设备尚未选择过时，在首次运行流程（`dr_view_sea::first_run`）的选 Markdown 文件夹之前先出欢迎卡片，提供「邮箱登录」和「先在本机使用」。选「先在本机使用」直接进入本地书库；选「邮箱登录」打开登录弹窗。
+   - **同意条款只占一行**（2026-11-13，与 0.1 的 `ConsentLine` 一致）：欢迎卡最下面一行淡字「继续即视为同意相关条款」，不再整段写故障报告说明。这一行放在欢迎卡上，是因为选本地继续的人也会经过这一页，而官方版没登录也会发故障报告。「相关条款」带下划线、比周围的字深一档；指着它，或者按它（鼠标、Enter / 空格、读屏的「按下」都行），浮出 dr-ui 的悬停卡：卡里一句话是故障报告说明（`preAlphaGuide.crashReports`），卡底两行「服务条款」「隐私政策」带外链记号，按了在系统浏览器里打开；构建没给服务条款链接时没有那一行。卡朝下展开，不盖住上面的继续方式。
+   - 这一行只在欢迎卡上：登录弹窗不管从哪里打开（欢迎卡的「邮箱登录」、账户菜单、设置）都没有它。0.1 当天试过把它也放进登录流程，随即退回（`2e4ae6fbd`），新版照最后的定法。
+   - 句子按 `{{terms}}` 占位拆成前后两段，中间放可悬停的词，九种语言占位位置各不相同（`auth.legal.consent`、`auth.legal.consentTerms`、`auth.legal.terms`、`auth.legal.privacy`）。
+   - 链接在构建时给：`DRIFTING_TERMS_URL`（不给就没有服务条款那一行）、`DRIFTING_PRIVACY_URL`（不给就指仓库的 `PRIVACY.md`），对应 0.1 的 `VITE_TERMS_URL` / `VITE_PRIVACY_URL`。正式版的发布工作流（M42）要和 `DRIFTING_API_BASE_URL` 一起设成 `https://drifting.cc/terms`、`https://drifting.cc/privacy`。
 3. **四种登录、注册与找回方式**：
    - **邮箱 + 密码登录**：未验证邮箱返回 `EMAIL_NOT_VERIFIED` 时直接跳到 6 位验证码核验页；
    - **邮箱注册 + 6 位验证码验证**：支持重发验证码及 30 秒倒计时；邮件配额用尽或投递失败时明确提示作者仍可先在本机写作；
@@ -59,6 +63,8 @@ dr_view_account::apply_account_state(state, cx);
 - `account_library_isolation_preserves_local_and_each_account_separately`：本地书库 → 账号 A → 本地书库 → 账号 B → 账号 A 往返切换，各库 Loro 文档互不污染。
 - `session_expiry_and_offline_startup_keep_account_library_open`：离线启动为 `Offline`、令牌过期为 `NeedsReauth`，均保持当前账号书库打开。
 - `profile_update_avatar_crop_and_password_change_rotate_token`：显示名校验、头像裁切为 256×256 JPEG Data URL、移除头像、改密轮换令牌。
+- `the_welcome_draws_with_its_consent_line`：欢迎卡画得出同意那一行；按「相关条款」立刻出卡，卡在这一行下面。
+- `consent::tests::every_language_splits_round_the_terms`：九种语言的同意句都恰好含一个占位，拆开再拼回与原句一致。
 
 ## 待协调
 
@@ -81,6 +87,7 @@ dr_view_account::apply_account_state(state, cx);
 ## 代码位置
 
 - `next/crates/dr-account/src/`：`endpoint.rs`（服务源配置）、`profile.rs`（资料、头像裁切、密码规则）、`session.rs`（令牌存储、并发代数、脱敏资料缓存）、`oauth.rs`（PKCE S256 与深链解析）、`library_registry.rs`（多账号书库目录与隔离）、`client.rs`（HTTP 客户端与 `AccountService`）、`fake_server.rs`（本机回环假服务）、`lib.rs`（集成测试）。
-- `next/crates/dr-view-account/src/`：`lib.rs`（全局服务、`WelcomeStep`、深链与实时换库）、`dialog.rs`（`AuthDialog` 四种认证流）、`settings_view.rs`（`AccountSettingsView` 资料、头像与改密）。
+- `next/crates/dr-view-account/src/`：`lib.rs`（全局服务、`WelcomeStep`、深链与实时换库）、`dialog.rs`（`AuthDialog` 四种认证流）、`consent.rs`（同意条款那一行和它的悬停卡）、`settings_view.rs`（`AccountSettingsView` 资料、头像与改密）。
+- `next/crates/dr-shell/src/settings/registry.rs`：`terms_url()`、`privacy_url()`（构建时的条款链接）。
 - `next/crates/dr-platform/src/deep_link.rs`：`auth/` 深链同时接受构建 scheme 与 `drifting://`。
 - `next/app/drifting/src/`：`library.rs`（`open_active` 按 `libraries.json` 打开当前书库）、`main.rs`（接入 `dr_view_account::init`）。
