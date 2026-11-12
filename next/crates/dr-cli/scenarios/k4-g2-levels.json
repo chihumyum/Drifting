@@ -1,8 +1,8 @@
 {
-  "about": "K4 G2 第二批：v3-lite 层级页八项设置、有效值与来源、逐项还原、接收开关往返保留归属、住处与归属看板分节。",
+  "about": "K4 G2 第二批：lite 层级页八项设置、有效值与来源、逐项还原、接收开关往返保留归属、住处与归属看板分节。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",
@@ -50,8 +50,7 @@
         "book": "${books.0.id}",
         "id": "${level.id}",
         "overrides": {
-          "accept": true,
-          "allow": []
+          "accept": true
         }
       }
     },
@@ -293,13 +292,13 @@
       "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
-      "call": "level.get",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
         "id": "${level.id}"
       },
       "expect": {
-        "/settings/default_template": null
+        "/below/settings/default_template": null
       }
     },
     {
@@ -327,104 +326,13 @@
       }
     },
     {
-      "call": "level.get",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${level.id}"
-      },
-      "expect": {
-        "/settings/default_template": "tpl-chapter"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "All templates",
-        "role": "Button",
-        "within": {
-          "label": "Allowed templates",
-          "role": "Group"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "章",
-        "role": "MenuItem"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 450
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Close",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "章",
-        "role": "Button",
-        "within": {
-          "label": "Allowed templates",
-          "role": "Group"
-        },
-        "timeout_ms": 15000
-      },
-      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
-    },
-    {
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
         "id": "${level.id}"
       },
       "expect": {
-        "/overrides/allow": [
-          "tpl-chapter"
-        ]
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore Allowed templates",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Restore Allowed templates",
-        "role": "Button",
-        "absent": true,
-        "timeout_ms": 15000
-      },
-      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 450
-      }
-    },
-    {
-      "call": "entry.get",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${level.id}"
-      },
-      "expect": {
-        "/overrides/allow": null
+        "/below/settings/default_template": "tpl-chapter"
       }
     },
     {
@@ -664,13 +572,13 @@
       }
     },
     {
-      "call": "level.get",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
         "id": "${level.id}"
       },
       "expect": {
-        "/members": []
+        "/below/members": []
       }
     },
     {
@@ -705,13 +613,13 @@
       "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
-      "call": "level.get",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
         "id": "${level.id}"
       },
       "expect": {
-        "/members/0/id": "${entries.[template=tpl-chapter].id}"
+        "/below/members/0/id": "${entries.[template=tpl-chapter].id}"
       }
     },
     {

@@ -4,7 +4,7 @@ use crate::dto::BookInfo;
 
 op! {
     BookGet = "book.get", Read, Shared,
-    "Read v3 book metadata and word targets; aggregate counts use the v3 statistics adapter.",
+    "Read book metadata and word targets; aggregate counts use the statistics adapter.",
     fn(cx, input: BookIn) -> BookInfo {
         let slot = cx.book_v3(&input.book)?;
         let m = slot.reader_v3.view().meta();
@@ -46,7 +46,7 @@ pub struct BookUpdateIn {
 
 op! {
     BookUpdate = "book.update", Write, Book,
-    "Update selected v3 book metadata fields without replacing other book data.",
+    "Update selected book metadata fields without replacing other book data.",
     fn(cx, input: BookUpdateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         if let Some(n) = &input.name { name_ok(n)?; }

@@ -125,22 +125,6 @@ pub(crate) fn write_level_settings_override(
             }
         }
     }
-    match &ov.allow {
-        Some(list) => {
-            let lv = LoroValue::List(
-                list.iter()
-                    .map(|t| LoroValue::from(t.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-            );
-            map.insert("allow", lv)?;
-        }
-        None => {
-            if map.get("allow").is_some() {
-                map.delete("allow")?;
-            }
-        }
-    }
     set(map, "display", ov.display.as_ref())?;
     set(map, "auto_link", ov.auto_link)?;
     set(map, "accept", ov.accept)?;
@@ -159,6 +143,7 @@ pub(crate) fn write_level_settings_override(
     }
     set(map, "is_manuscript", ov.is_manuscript)?;
     set(map, "format_shortcuts", ov.format_shortcuts.as_ref())?;
+    set(map, "lane", ov.lane)?;
     Ok(())
 }
 
@@ -221,8 +206,15 @@ pub struct TemplateWriterV3 {
 }
 
 impl TemplateWriterV3 {
-    pub fn kind(&self, v: &TemplateKind) -> Result<&Self> {
-        set(&self.map, "kind", v)?;
+    /// The switch a new entry of this template starts with.
+    pub fn level(&self, v: bool) -> Result<&Self> {
+        set(&self.map, "level", v)?;
+        Ok(self)
+    }
+
+    /// Whether entries of this template take part in auto-linking.
+    pub fn linkable(&self, v: bool) -> Result<&Self> {
+        set(&self.map, "linkable", v)?;
         Ok(self)
     }
 
@@ -280,6 +272,7 @@ impl TemplateWriterV3 {
         let cfg = m.ensure_mergeable_map("config")?;
         set(&cfg, "show_outline", spec.config.show_outline)?;
         set(&cfg, "task_todos", spec.config.task_todos)?;
+        set(&cfg, "in_book", spec.config.in_book)?;
         set(&cfg, "aliases_field", spec.config.aliases_field.as_deref())?;
         set(&cfg, "color_field", spec.config.color_field.as_deref())?;
         set(&cfg, "status_field", spec.config.status_field.as_deref())?;
@@ -350,11 +343,6 @@ impl TemplateWriterV3 {
         Ok(self)
     }
 
-    pub fn lane(&self, v: bool) -> Result<&Self> {
-        set(&self.map, "lane", v)?;
-        Ok(self)
-    }
-
     pub fn put_verb(&self, verb: &TemplateVerb) -> Result<&Self> {
         let verbs = self.map.ensure_mergeable_map("verbs")?;
         let v = verbs.ensure_mergeable_map(&verb.id)?;
@@ -380,13 +368,13 @@ impl TemplateWriterV3 {
 
     /// Write all fields of `tpl` into this template map.
     pub fn set_full(&self, tpl: &EntryTemplate) -> Result<&Self> {
-        self.kind(&tpl.kind)?
-            .name(&tpl.name)?
+        self.name(&tpl.name)?
             .mark(tpl.mark.as_deref())?
             .color(tpl.color.as_deref())?
             .agent(tpl.agent.as_ref())?
+            .level(tpl.level)?
+            .linkable(tpl.linkable)?
             .settings(&tpl.settings)?
-            .lane(tpl.lane)?
             .deleted_at(tpl.deleted_at)?;
         let modules = self.map.ensure_mergeable_map("modules")?;
         let want_mods: std::collections::HashSet<&str> =
@@ -433,6 +421,13 @@ impl EntryWriterV3 {
 
     pub fn template(&self, v: Option<&EntryTemplateId>) -> Result<&Self> {
         set(&self.map, "template", v)?;
+        Ok(self)
+    }
+
+    /// The entry's own switch (`层级`). Turning it off while entries live
+    /// under it goes through [`EntriesTreeWriterV3::switch_level_off`].
+    pub fn level(&self, v: bool) -> Result<&Self> {
+        set(&self.map, "level", v)?;
         Ok(self)
     }
 
@@ -572,13 +567,15 @@ impl EntriesTreeWriterV3<'_> {
         })
     }
 
-    /// Create a new entry at the end of `parent`'s children.
+    /// Create a new entry at the end of `parent`'s children, with its switch
+    /// set to `level`.
     pub fn create(
         &self,
         id: &EntryId,
         parent: Option<&EntryId>,
         title: &str,
         template: Option<&EntryTemplateId>,
+        level: bool,
     ) -> Result<EntryWriterV3> {
         if self
             .view
@@ -597,10 +594,13 @@ impl EntriesTreeWriterV3<'_> {
         meta.insert("id", id.as_str())?;
         meta.insert("title", title)?;
         set(&meta, "template", template)?;
+        set(&meta, "level", level)?;
         Ok(EntryWriterV3 { map: meta })
     }
 
-    /// Create a new entry at `index` among `parent`'s children.
+    /// Create a new entry at `index` among `parent`'s children, with its
+    /// switch set to `level`.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_at(
         &self,
         id: &EntryId,
@@ -608,6 +608,7 @@ impl EntriesTreeWriterV3<'_> {
         index: usize,
         title: &str,
         template: Option<&EntryTemplateId>,
+        level: bool,
     ) -> Result<EntryWriterV3> {
         if self
             .view
@@ -626,7 +627,61 @@ impl EntriesTreeWriterV3<'_> {
         meta.insert("id", id.as_str())?;
         meta.insert("title", title)?;
         set(&meta, "template", template)?;
+        set(&meta, "level", level)?;
         Ok(EntryWriterV3 { map: meta })
+    }
+
+    /// Turn `id`'s switch off (`kernel-v4.md` "关开关"). Its direct children,
+    /// trashed ones included, move to the root in their order, right after
+    /// the top-level entry `id` lives under (after `id` itself when it is at
+    /// the root), each with its subtree; then `level` is written false.
+    /// Returns the moved children's ids in their order. Nothing else stored
+    /// on `id` changes.
+    pub fn switch_level_off(&self, id: &EntryId) -> Result<Vec<EntryId>> {
+        let copies = self
+            .view
+            .tree_index(book_v3::ENTRIES)
+            .remove(id.as_str())
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| DocError::Missing {
+                collection: book_v3::ENTRIES,
+                id: id.to_string(),
+            })?;
+        let mut top = copies[0];
+        let mut seen = std::collections::HashSet::from([top]);
+        while let Some(TreeParentId::Node(p)) = self.tree.parent(top) {
+            if !seen.insert(p) {
+                break;
+            }
+            top = p;
+        }
+        let mut children = Vec::new();
+        for copy in &copies {
+            for c in self
+                .tree
+                .children(TreeParentId::Node(*copy))
+                .unwrap_or_default()
+            {
+                if !copies.contains(&c) && !children.contains(&c) {
+                    children.push(c);
+                }
+            }
+        }
+        self.tree.enable_fractional_index(0);
+        let mut moved = Vec::with_capacity(children.len());
+        let mut after = top;
+        for c in children {
+            self.tree.mov_after(c, after)?;
+            after = c;
+            if let Some(loro::ValueOrContainer::Value(LoroValue::String(child))) =
+                self.tree.get_meta(c)?.get("id")
+                && let Ok(child) = EntryId::parse(&child)
+            {
+                moved.push(child);
+            }
+        }
+        self.entry(id)?.level(false)?;
+        Ok(moved)
     }
 
     /// Open a writer on an existing entry's metadata.
@@ -1467,19 +1522,20 @@ impl<'a> BookTxnV3<'a> {
         .delete_material_folder(id)
     }
 
-    /// Restore an entry's metadata (`title`, `template`, `primary`, timestamps,
+    /// Restore an entry's metadata (`title`, `template`, `level`, `primary`, timestamps,
     /// `layout`, `overrides`, `fields`, and all `kv:<module_id>` tables) from
     /// `old` (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
         let w = match self.entries().entry(id) {
             Ok(w) => w,
-            Err(_) => self.entries().create(id, None, "", None)?,
+            Err(_) => self.entries().create(id, None, "", None, false)?,
         };
         let map = &w.map;
 
         for scalar_key in [
             "title",
             "template",
+            "level",
             "primary",
             "created_at",
             "updated_at",
@@ -1759,7 +1815,7 @@ impl<'a> BookTxnV3<'a> {
                 self.entries().move_to(id, target_parent)?;
             }
         } else {
-            self.entries().create(id, target_parent, "", None)?;
+            self.entries().create(id, target_parent, "", None, false)?;
         }
         self.restore_entry(id, old)
     }

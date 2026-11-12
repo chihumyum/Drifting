@@ -153,7 +153,7 @@ fn position(tv: &m::TimelineView, lane: &EntryId, place: &Order) -> Result<PosKe
 
 op! {
     ViewRename = "timeline_view.rename", Write, Book,
-    "Rename a v3 timeline view without changing its lanes, positions or pins.",
+    "Rename a timeline view without changing its lanes, positions or pins.",
     fn(cx, input: RenameIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         name_ok(&input.name)?;
@@ -172,7 +172,7 @@ op! {
 }
 op! {
     LaneAdd = "timeline_view.add_lane", Write, Book,
-    "Add one live lane to a v3 view without replacing existing lane records or changing memberships.",
+    "Add one live lane to a view without replacing existing lane records or changing memberships.",
     fn(cx, input: LaneAddIn) -> Done {
         let slot = cx.book_v3(&input.target.book)?;
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
@@ -200,7 +200,7 @@ op! {
 }
 op! {
     LaneSetActTrack = "timeline_view.set_lane_act_track", Write, Book,
-    "Switch whether a stored lane in a v3 view is displayed as a top act track.",
+    "Switch whether a stored lane in a view is displayed as a top act track.",
     fn(cx, input: LaneActTrackIn) -> Done {
         let slot = cx.book_v3(&input.target.book)?;
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
@@ -224,7 +224,7 @@ op! {
 }
 op! {
     LaneMove = "timeline_view.move_lane", Write, Book,
-    "Change only one stored lane's order in a v3 view, preserving hidden data and other lane positions.",
+    "Change only one stored lane's order in a view, preserving hidden data and other lane positions.",
     fn(cx, input: LaneMoveIn) -> Done {
         let slot = cx.book_v3(&input.target.book)?;
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
@@ -247,7 +247,7 @@ op! {
 }
 op! {
     LaneRemove = "timeline_view.remove_lane", Write, Book,
-    "Remove one v3 view lane and newly orphaned visible positions, retaining hidden records and all memberships.",
+    "Remove one view lane and newly orphaned visible positions, retaining hidden records and all memberships.",
     fn(cx, input: LaneIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: TimelineViewId = pid("timeline view", &input.view)?;
@@ -280,7 +280,7 @@ op! {
 }
 op! {
     RestoreFields = "timeline_view.restore_fields", Write, Book,
-    "Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view.",
+    "Restore selected stored timeline fields for undo or redo without replacing the rest of a view.",
     fn(cx, input: RestoreFieldsIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: TimelineViewId = pid("timeline view", &input.view)?;

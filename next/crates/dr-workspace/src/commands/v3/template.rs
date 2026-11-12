@@ -7,7 +7,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ModuleRemove>();
 }
 op! {
-    TemplateList="entry_template.list",Read,Shared,"List the templates and module definitions of a v3 book.",fn(cx,input:BookIn)->Vec<types::EntryTemplate> {
+    TemplateList="entry_template.list",Read,Shared,"List the templates of a book: modules, the switch's default, linkable, settings and actions.",fn(cx,input:BookIn)->Vec<types::EntryTemplate> {
         let s = cx.book_v3(&input.book)?;
         convert(s.reader_v3.view().templates())
     }
@@ -22,11 +22,11 @@ pub struct PutIn {
 fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -> Result<Done> {
     let slot = cx.book_v3(book)?;
     let v = slot.reader_v3.view();
-    let entries = v.entries_map();
-    let mut templates = v.templates_map();
+    let before = v.graph();
+    let mut templates = before.templates.clone();
     name_ok(&t.name)?;
-    if !t.kind.is_known() || t.deleted_at.is_some() {
-        return Err(WsError::invalid("use a known live template kind"));
+    if t.deleted_at.is_some() {
+        return Err(WsError::invalid("use a live template"));
     }
     for module in &mut t.modules {
         for field in &mut module.config.defs {
@@ -35,7 +35,6 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
             }
         }
     }
-    m::check_template_modules(&t.kind, &t.modules)?;
     if t.settings.display.as_ref().is_some_and(|d| !d.is_known())
         || t.settings
             .format_shortcuts
@@ -44,20 +43,12 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
     {
         return Err(WsError::invalid("unknown level display or formatting mode"));
     }
-    if t.is_leaf() && (t.lane || !t.settings.is_empty() || !t.verbs.is_empty()) {
-        return Err(WsError::invalid(
-            "leaf templates cannot declare level settings, lanes or actions",
-        ));
-    }
     templates.insert(t.id.clone(), t.clone());
     let mut ids = BTreeSet::new();
     for module in &t.modules {
         name_ok(&module.name)?;
-        if !module.kind.is_known()
-            || module.id.as_str() == m::LEVEL_ABOUT_MODULE
-            || !ids.insert(&module.id)
-        {
-            return Err(WsError::invalid("unknown, duplicate or reserved module"));
+        if !module.kind.is_known() || !ids.insert(&module.id) {
+            return Err(WsError::invalid("unknown or duplicate module"));
         }
         if module.kind == m::ModuleKind::Prose {
             template_doc(&slot.book, &t.id, &module.id)?;
@@ -97,31 +88,17 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
         }
     }
     templates.insert(t.id.clone(), t.clone());
-    // Changing the kind of an in-use template must obey the same rule as switching an entry.
-    for e in entries
-        .values()
-        .filter(|e| e.template.as_ref() == Some(&t.id) && !e.is_trashed())
-    {
-        if t.is_leaf() && entries.values().any(|c| c.parent.as_ref() == Some(&e.id)) {
-            return Err(WsError::invalid(
-                "a leaf cannot have children, including trashed children",
-            ));
-        }
-    }
-    // References may point to the template being created.
-    for id in t
-        .settings
-        .allow
-        .iter()
-        .flatten()
-        .chain(t.settings.default_template.iter().flatten())
-    {
+    // References may point to the template being created. The template's
+    // switch default never changes an existing entry's switch.
+    for id in t.settings.default_template.iter().flatten() {
         m::check_entry_template(&templates, Some(id))?;
     }
     if let Some(Some(home)) = &t.settings.home {
         let e = live(&v, home.as_str())?;
-        if !e.is_level(&templates) {
-            return Err(WsError::invalid("home must be a level"));
+        if !e.is_level() {
+            return Err(WsError::invalid(
+                "home must be a live entry with its switch on",
+            ));
         }
     }
     let mut verbs = BTreeSet::new();
@@ -132,7 +109,11 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
         }
         m::check_entry_template(&templates, verb.target_template.as_ref())?;
     }
-    graph_ok(&entries, &templates, &v.memberships_raw())?;
+    let after = BookGraphV3 {
+        templates,
+        ..before.clone()
+    };
+    changes_ok(&before, &after)?;
     let id = t.id.clone();
     let title = t.name.clone();
     let template = rec(CollectionV3::Templates, &id);
@@ -154,16 +135,16 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
     Ok(Done { id: id.to_string() })
 }
 op! {
-    TemplatePut="entry_template.put",Write,Book,"Create or replace a v3 template definition while retaining existing entry content.",fn(cx,input:PutIn)->Done {
+    TemplatePut="entry_template.put",Write,Book,"Create or replace a template definition (any modules, the switch's default, linkable, settings, actions) while retaining existing entry content and switches.",fn(cx,input:PutIn)->Done {
         put(cx, &input.book, convert(input.template)?, None)
     }
 }
 op! {
-    TemplateDelete="entry_template.delete",Write,Book,"Delete an unused v3 template without deleting its retained prose documents.",fn(cx,input:EntityIn)->Done {
+    TemplateDelete="entry_template.delete",Write,Book,"Delete an unused template without deleting its retained prose documents.",fn(cx,input:EntityIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let t = template_of(&v, &input.id)?;
-        m::check_template_delete(&t.id, &v.entries_map())?;
+        m::check_template_delete(&t.id, &v.entry_headers())?;
         let id = t.id.clone();
         let trashed = rec(CollectionV3::Templates, &id).at(["deleted_at"]);
         let (_, at) = cx.write_book_v3(&s, Replaces::records([trashed]), move |tx| {
@@ -182,7 +163,7 @@ pub struct ModulePutIn {
     pub module: types::ModuleSpec,
 }
 op! {
-    ModulePut="entry_template.put_module",Write,Book,"Add or update a module definition on a v3 template.",fn(cx,input:ModulePutIn)->Done {
+    ModulePut="entry_template.put_module",Write,Book,"Add or update a module definition of any kind on a template.",fn(cx,input:ModulePutIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let mut t = template_of(&s.reader_v3.view(), &input.template)?;
         let module: m::ModuleSpec = convert(input.module)?;
@@ -199,7 +180,7 @@ pub struct ModuleRemoveIn {
     pub module: String,
 }
 op! {
-    ModuleRemove="entry_template.remove_module",Write,Book,"Remove a v3 module definition while retaining values and prose on existing entries.",fn(cx,input:ModuleRemoveIn)->Done {
+    ModuleRemove="entry_template.remove_module",Write,Book,"Remove a module definition while retaining values and prose on existing entries.",fn(cx,input:ModuleRemoveIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let mut t = template_of(&s.reader_v3.view(), &input.template)?;
         t.modules.retain(|m| m.id.as_str() != input.module);

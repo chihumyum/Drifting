@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare real-window template open/scroll round trips on one v3-heavy library.
+"""Compare real-window template open/scroll round trips on one heavy library.
 
 Run from next/, after building dr-cli and drifting with debug-bridge:
   python3 crates/dr-view-templates/script/window-bench.py leaf
@@ -48,7 +48,7 @@ def measure(phase):
         if data.exists():
             raise RuntimeError("benchmark profile already exists")
         seed_file = OUT / "seed.json"
-        seed_file.write_text(json.dumps({"steps": [{"seed": "v3-heavy"}, {"call": "book.list", "save": "books"}]}))
+        seed_file.write_text(json.dumps({"steps": [{"seed": "heavy"}, {"call": "book.list", "save": "books"}]}))
         # The live scenario's seed also rebuilds indexes, as required for
         # comparisons against an already-opened library.
         seed = cli("workspace", "scenario", str(seed_file), "--app", str(APP), "--profile", profile,
@@ -166,7 +166,7 @@ def measure(phase):
             call("input.scroll", {"x": x, "y": y, "dy": -10000})
             call("ui.wait", {"until": "time", "ms": 100})
         summary = lambda values: {"samples_ms": values, "median_ms": statistics.median(values), "max_ms": max(values)}
-        result = {"phase": phase, "seed": "v3-heavy", "build": os.environ.get("DRIFTING_BENCH_BUILD", "debug-bridge"), "samples": 7,
+        result = {"phase": phase, "seed": "heavy", "build": os.environ.get("DRIFTING_BENCH_BUILD", "debug-bridge"), "samples": 7,
                   "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                   "machine": {"architecture": os.uname().machine, "cpus": os.cpu_count(), "load_average": os.getloadavg()},
                   "includes": "bridge and PNG readback; open waits 200 ms for navigation animation; scroll waits 50 ms for layout", "open": summary(opened), "scroll": summary(scrolls)}

@@ -1,9 +1,12 @@
-//! Built-in novel project template (`小说项目模板`, `docs/rust-rewrite/kernel-v3.md`).
+//! Built-in novel project template (`小说项目模板`, `docs/rust-rewrite/kernel-v4.md`).
 //!
 //! Built-in template IDs and module IDs are stable constants. Every entry ID
 //! (including default root levels `书稿`/`构想`/`要素`/`故事线` and default categories
 //! `人物`/`地点`/`道具`/`组织`) is generated fresh per book so `body:<entry_id>/*`
 //! document IDs are unique across books in a library (`V3-DOCID-LIBRARY-UNIQUE`).
+//!
+//! The templates are copied into a new book and go their own way there: a
+//! later change here never reaches an existing book (author, 2026-11-13).
 
 use dr_model::id::{EntryId, EntryTemplateId, ModuleId, TimelineViewId};
 use dr_model::pos::PosKey;
@@ -14,7 +17,7 @@ use crate::v3::read::BookViewV3;
 use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
-pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 1;
+pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 2;
 
 // ---- Stable built-in template IDs ----------------------------------------
 
@@ -38,8 +41,8 @@ pub const TPL_ELEMENT: &str = "tpl-element";
 
 // ---- Stable built-in module IDs ------------------------------------------
 
-/// Level description prose document module (`body:<entry_id>/about`).
-pub const MOD_ABOUT: &str = "about";
+/// The 「说明」 prose module of the organizing templates (`in_book = false`).
+pub const MOD_DESCRIPTION: &str = "mod-description";
 pub const MOD_FIELDS: &str = "mod-fields";
 pub const MOD_KV: &str = "mod-kv";
 pub const MOD_PROSE: &str = "mod-prose";
@@ -50,7 +53,7 @@ pub const MOD_RELATIONS: &str = "mod-relations";
 /// Root and default category entry IDs created by [`apply_novel_project_template`].
 ///
 /// Generated fresh per book (`EntryId::new_v7()`, `TimelineViewId::new_v7()`) so
-/// two books in the same library never share `body:<entry_id>/about` document IDs.
+/// two books in the same library never share `body:<entry_id>/*` document IDs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NovelRootEntries {
     pub manuscript: EntryId,
@@ -138,16 +141,42 @@ fn color_fields_module() -> ModuleSpec {
     }
 }
 
-/// On-demand swimlane level template for an act track (`幕轨道`).
-///
-/// New books have no act track by default; this template is added when
-/// importing legacy acts or when an author creates an act track in a timeline
-/// view (`default_template = tpl-idea`, unrestricted `allow = []`, `home = None`
-/// so new entries reside under the track itself).
-pub fn act_track_level_template() -> EntryTemplate {
+/// The 「说明」 prose module an organizing template carries at `pos`: not part
+/// of the book (`in_book = false`).
+fn description_module(pos: PosKey) -> ModuleSpec {
+    ModuleSpec {
+        id: mid(MOD_DESCRIPTION),
+        kind: ModuleKind::Prose,
+        name: "说明".into(),
+        pos: Some(pos),
+        config: ModuleConfig {
+            show_outline: false,
+            task_todos: true,
+            in_book: false,
+            ..ModuleConfig::default()
+        },
+        agent: agent_instructions("这一层的说明，不进成书、导出和全书字数。"),
+    }
+}
+
+/// `modules` followed by the 「说明」 module.
+fn with_description(mut modules: Vec<ModuleSpec>) -> Vec<ModuleSpec> {
+    let pos = modules
+        .iter()
+        .filter_map(|m| m.pos.clone())
+        .max()
+        .map(|p| p.after())
+        .unwrap_or_else(PosKey::first);
+    modules.push(description_module(pos));
+    modules
+}
+
+/// The swimlane template for an act track (`幕轨道`): part of the novel
+/// project template, so every new book has it (`default_template = tpl-idea`,
+/// `home = None` so new entries reside under the track itself).
+pub fn act_track_template() -> EntryTemplate {
     EntryTemplate {
         id: tid(TPL_ACT_TRACK),
-        kind: TemplateKind::Level,
         name: "幕".into(),
         mark: Some("route".into()),
         color: None,
@@ -156,29 +185,29 @@ pub fn act_track_level_template() -> EntryTemplate {
             description: "作为时间线幕轨道的泳道层级，里面的条目在视图顶部按区间长度展示。".into(),
             instructions: "在幕轨道下新建条目默认使用构想模板并住在本层级下，也可把已有条目归属进来赋予区间长度。".into(),
         }),
-        modules: vec![color_fields_module()],
+        modules: with_description(vec![color_fields_module()]),
+        level: true,
+        linkable: false,
         settings: LevelSettingsOverride {
             default_template: Some(Some(tid(TPL_IDEA))),
-            allow: Some(Vec::new()),
             display: Some(ChildDisplayMode::List),
             auto_link: Some(false),
             accept: Some(true),
             home: None,
             is_manuscript: Some(false),
             format_shortcuts: Some(FormatShortcuts::Notes),
+            lane: Some(true),
         },
-        lane: true,
         verbs: Vec::new(),
         deleted_at: None,
     }
 }
 
-fn element_leaf_template(id_str: &str, name: &str, description: &str) -> EntryTemplate {
+fn element_template(id_str: &str, name: &str, description: &str) -> EntryTemplate {
     let p = pos_chain(5);
     let fp = pos_chain(3);
     EntryTemplate {
         id: tid(id_str),
-        kind: TemplateKind::Leaf,
         name: name.into(),
         mark: None,
         color: None,
@@ -267,8 +296,9 @@ fn element_leaf_template(id_str: &str, name: &str, description: &str) -> EntryTe
                 agent: agent_instructions("读双方记录及原文证据后维护有向或对称关系，沿用已有关系类型，避免重复；需要作者决定的关系只作建议。"),
             },
         ],
+        level: false,
+        linkable: true,
         settings: LevelSettingsOverride::default(),
-        lane: false,
         verbs: Vec::new(),
         deleted_at: None,
     }
@@ -285,10 +315,9 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
     let sl_field_pos = pos_chain(2);
 
     let mut templates = vec![
-        // 1. 书稿 (Level, manuscript = true)
+        // 1. 书稿 (switch on, manuscript = true)
         EntryTemplate {
             id: tid(TPL_MANUSCRIPT),
-            kind: TemplateKind::Level,
             name: "书稿".into(),
             mark: Some("book".into()),
             color: None,
@@ -297,18 +326,19 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 description: "小说成书所在的顶层层级，下面的章按文稿顺序组成成书。".into(),
                 instructions: "这是一部小说。默认大纲是书稿 / 章 / H1 / H2 / H3；幕不内置，作者添加的层级由作者命名。书稿下的章按树上顺序组成书，H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有书稿、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复开放待办或重提已定事项；帮手或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
             }),
-            modules: Vec::new(),
+            modules: with_description(Vec::new()),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_CHAPTER))),
-                allow: Some(vec![tid(TPL_CHAPTER), tid(TPL_GROUP)]),
                 display: Some(ChildDisplayMode::List),
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
                 is_manuscript: Some(true),
                 format_shortcuts: Some(FormatShortcuts::Plain),
+                lane: None,
             },
-            lane: false,
             verbs: vec![TemplateVerb {
                 id: "new-chapter".into(),
                 name: "新建章节".into(),
@@ -318,10 +348,9 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             }],
             deleted_at: None,
         },
-        // 2. 构想 (Level, board display)
+        // 2. 构想 (switch on, board display)
         EntryTemplate {
             id: tid(TPL_IDEAS),
-            kind: TemplateKind::Level,
             name: "构想".into(),
             mark: Some("sparkles".into()),
             color: None,
@@ -330,18 +359,19 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 description: "存放尚未合入书稿的构想与构想分组的看板层级。".into(),
                 instructions: "管理尚未纳入成书的构想和分组，支持作者讨论大纲、接受访谈或发展想法；未确认的构想不自动成为小说事实。纳入成书需要作者明确要求，并通过实际可用的移动住处与换模板命令执行，保留旧模块内容。".into(),
             }),
-            modules: Vec::new(),
+            modules: with_description(Vec::new()),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_IDEA))),
-                allow: Some(vec![tid(TPL_IDEA), tid(TPL_IDEA_GROUP)]),
                 display: Some(ChildDisplayMode::Board),
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
                 is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
+                lane: None,
             },
-            lane: false,
             verbs: vec![TemplateVerb {
                 id: "new-idea".into(),
                 name: "新建构想".into(),
@@ -351,52 +381,51 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             }],
             deleted_at: None,
         },
-        // 3. 构想分组 (Level)
+        // 3. 构想分组 (switch on)
         EntryTemplate {
             id: tid(TPL_IDEA_GROUP),
-            kind: TemplateKind::Level,
             name: "构想分组".into(),
             mark: Some("folder".into()),
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "构想分组".into(),
                 description: "在构想看板中归类构想的层级，支持嵌套。".into(),
-                instructions: "构想分组继承上层看板设置，可单独指定颜色与说明（body:<条目 id>/about）。".into(),
+                instructions: "构想分组继承上层看板设置，可单独指定颜色，说明写在本条目的「说明」正文里。".into(),
             }),
-            modules: vec![color_fields_module()],
+            modules: with_description(vec![color_fields_module()]),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_IDEA))),
-                allow: Some(vec![tid(TPL_IDEA), tid(TPL_IDEA_GROUP)]),
                 ..LevelSettingsOverride::default()
             },
-            lane: false,
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 4. 要素 (Level, island display)
+        // 4. 要素 (switch on, island display)
         EntryTemplate {
             id: tid(TPL_ELEMENTS),
-            kind: TemplateKind::Level,
             name: "要素".into(),
             mark: Some("compass".into()),
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "要素库".into(),
                 description: "按分类组织人物、地点、道具、组织等设定要素的顶层层级。".into(),
-                instructions: "要素下按「分类」层级划分，每个分类开启自动链接并指定自己的默认要素叶子模板。".into(),
+                instructions: "要素下按「分类」层级划分，每个分类开启自动链接并指定自己的默认要素模板。".into(),
             }),
-            modules: Vec::new(),
+            modules: with_description(Vec::new()),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_CATEGORY))),
-                allow: Some(vec![tid(TPL_CATEGORY)]),
                 display: Some(ChildDisplayMode::Island),
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
                 is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
+                lane: None,
             },
-            lane: false,
             verbs: vec![TemplateVerb {
                 id: "new-category".into(),
                 name: "新建分类".into(),
@@ -406,55 +435,54 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             }],
             deleted_at: None,
         },
-        // 5. 分类 (Level, auto_link = true, accept = true)
+        // 5. 分类 (switch on, auto_link = true, accept = true)
         EntryTemplate {
             id: tid(TPL_CATEGORY),
-            kind: TemplateKind::Level,
             name: "分类".into(),
             mark: Some("tag".into()),
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "分类".into(),
-                description: "要素分类层级，开启自动链接，说明正文保存在 body:<条目 id>/about。".into(),
-                instructions: "分类下的叶子要素（及子分组里的叶子要素）名字与别名在全书正文中自动链接且唯一。".into(),
+                description: "要素分类层级，开启自动链接，说明写在本条目的「说明」正文里。".into(),
+                instructions: "分类下的要素（及子分组里的要素）名字与别名在全书正文中自动链接且唯一。".into(),
             }),
-            modules: vec![color_fields_module()],
+            modules: with_description(vec![color_fields_module()]),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_CHARACTER))),
-                allow: Some(Vec::new()),
                 display: Some(ChildDisplayMode::Grid),
                 auto_link: Some(true),
                 accept: Some(true),
                 home: None,
                 is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
+                lane: None,
             },
-            lane: false,
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 6. 分组 (Level, inherits parent settings)
+        // 6. 分组 (switch on, inherits parent settings)
         EntryTemplate {
             id: tid(TPL_GROUP),
-            kind: TemplateKind::Level,
             name: "分组".into(),
             mark: Some("folder".into()),
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "分组".into(),
                 description: "通用分组层级，继承上一层的默认模板、自动链接和成书等设置。".into(),
-                instructions: "可用于书稿分卷或分类内要素分组，说明正文保存在 body:<条目 id>/about。".into(),
+                instructions: "可用于书稿分卷或分类内要素分组，说明写在本条目的「说明」正文里。".into(),
             }),
-            modules: vec![color_fields_module()],
+            modules: with_description(vec![color_fields_module()]),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride::default(),
-            lane: false,
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 7. 故事线列表 (Level, container of storyline lanes)
+        // 7. 故事线列表 (switch on, container of storyline lanes)
         EntryTemplate {
             id: tid(TPL_STORYLINES),
-            kind: TemplateKind::Level,
             name: "故事线列表".into(),
             mark: Some("git-branch".into()),
             color: None,
@@ -463,18 +491,19 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 description: "收纳全书各条故事线泳道层级的顶层层级。".into(),
                 instructions: "下面每条故事线都是一个开启了泳道开关的层级。".into(),
             }),
-            modules: Vec::new(),
+            modules: with_description(Vec::new()),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_STORYLINE))),
-                allow: Some(vec![tid(TPL_STORYLINE)]),
                 display: Some(ChildDisplayMode::List),
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
                 is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
+                lane: None,
             },
-            lane: false,
             verbs: vec![TemplateVerb {
                 id: "new-storyline".into(),
                 name: "新建故事线".into(),
@@ -484,19 +513,18 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             }],
             deleted_at: None,
         },
-        // 8. 故事线 (Level, lane = true, home = root-manuscript)
+        // 8. 故事线 (switch on, lane = true, home = root-manuscript)
         EntryTemplate {
             id: tid(TPL_STORYLINE),
-            kind: TemplateKind::Level,
             name: "故事线".into(),
             mark: Some("route".into()),
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "故事线".into(),
-                description: "作为时间线泳道的层级，说明写在 body:<条目 id>/about，成员来自归属。".into(),
+                description: "作为时间线泳道的层级，说明写在本条目的「说明」正文里，成员来自归属。".into(),
                 instructions: "在此故事线上新建章节时，新章节住在「书稿」并归属到本故事线。".into(),
             }),
-            modules: vec![
+            modules: with_description(vec![
                 ModuleSpec {
                     id: mid(MOD_FIELDS),
                     kind: ModuleKind::Fields,
@@ -537,18 +565,19 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     config: ModuleConfig::default(),
                     agent: agent_instructions("故事线键值设定表。"),
                 },
-            ],
+            ]),
+            level: true,
+            linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_CHAPTER))),
-                allow: Some(vec![tid(TPL_CHAPTER), tid(TPL_IDEA)]),
                 display: Some(ChildDisplayMode::List),
                 auto_link: None,
                 accept: Some(true),
                 home: None,
                 is_manuscript: Some(false),
                 format_shortcuts: None,
+                lane: Some(true),
             },
-            lane: true,
             verbs: vec![TemplateVerb {
                 id: "new-chapter".into(),
                 name: "新建章节".into(),
@@ -558,10 +587,9 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             }],
             deleted_at: None,
         },
-        // 9. 章 (Leaf)
+        // 9. 章 (switch off)
         EntryTemplate {
             id: tid(TPL_CHAPTER),
-            kind: TemplateKind::Leaf,
             name: "章".into(),
             mark: Some("file-text".into()),
             color: None,
@@ -628,21 +656,21 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     agent: agent_instructions("本章的二维情节规划网格。"),
                 },
             ],
+            level: false,
+            linkable: true,
             settings: LevelSettingsOverride::default(),
-            lane: false,
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 10. 构想 (Leaf)
+        // 10. 构想 (switch off)
         EntryTemplate {
             id: tid(TPL_IDEA),
-            kind: TemplateKind::Leaf,
             name: "构想".into(),
             mark: Some("lightbulb".into()),
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "构想".into(),
-                description: "尚未定稿入书的构想叶子，包含梗概、状态和正文。".into(),
+                description: "尚未定稿入书的构想，包含梗概、状态和正文。".into(),
                 instructions: "这里保存尚未定稿的想法，不能自动当作小说已定事实。作者要扩展、访谈或讨论大纲时，以已有想法和作者意图为起点；整理设定时先读证据，只维护有依据的记录，不改原文、不删除。作者明确要求纳入成书时，发现并使用现有移动住处和换模板能力，保留原来的内容，不声称两次命令是一个原子转换。".into(),
             }),
             modules: vec![
@@ -691,17 +719,20 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     agent: agent_instructions("构想草稿正文。区分未定想法和已确认内容；访谈时让作者决定，创作或改写时遵循本轮要求。"),
                 },
             ],
+            level: false,
+            linkable: true,
             settings: LevelSettingsOverride::default(),
-            lane: false,
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 11–15. Element leaf templates (人物, 地点, 道具, 组织, 要素)
-        element_leaf_template(TPL_CHARACTER, "人物", "小说中的角色与人物要素。"),
-        element_leaf_template(TPL_LOCATION, "地点", "小说中的地理空间、建筑与地点要素。"),
-        element_leaf_template(TPL_ITEM, "道具", "小说中的器物、线索物与道具要素。"),
-        element_leaf_template(TPL_ORGANIZATION, "组织", "小说中的势力、家族、机构与组织要素。"),
-        element_leaf_template(TPL_ELEMENT, "要素", "通用设定要素叶子模板。"),
+        // 11–15. Element templates (人物, 地点, 道具, 组织, 要素)
+        element_template(TPL_CHARACTER, "人物", "小说中的角色与人物要素。"),
+        element_template(TPL_LOCATION, "地点", "小说中的地理空间、建筑与地点要素。"),
+        element_template(TPL_ITEM, "道具", "小说中的器物、线索物与道具要素。"),
+        element_template(TPL_ORGANIZATION, "组织", "小说中的势力、家族、机构与组织要素。"),
+        element_template(TPL_ELEMENT, "要素", "通用设定要素模板。"),
+        // 16. 幕 (switch on, a swimlane for act tracks)
+        act_track_template(),
     ];
     templates.sort_by(|a, b| a.id.cmp(&b.id));
     templates
@@ -801,7 +832,8 @@ pub fn apply_novel_project_template_with(
      -> Result<()> {
         let tpl_id = tid(tpl);
         if !existing_entries.contains(id) {
-            txn.entries().create(id, parent, title, Some(&tpl_id))?;
+            txn.entries()
+                .create(id, parent, title, Some(&tpl_id), true)?;
         }
         Ok(())
     };
@@ -812,7 +844,7 @@ pub fn apply_novel_project_template_with(
     ensure_level(txn, &ids.storylines, None, "故事线", TPL_STORYLINES)?;
 
     let fmod = mid(MOD_FIELDS);
-    for (cat_id, title, leaf_tpl, color) in [
+    for (cat_id, title, element_tpl, color) in [
         (&ids.cat_character, "人物", TPL_CHARACTER, "#C86D51"),
         (&ids.cat_location, "地点", TPL_LOCATION, "#4F7C6B"),
         (&ids.cat_item, "道具", TPL_ITEM, "#B38B45"),
@@ -820,13 +852,12 @@ pub fn apply_novel_project_template_with(
     ] {
         if !existing_entries.contains(cat_id) {
             let cat_tpl = tid(TPL_CATEGORY);
-            let leaf_tid = tid(leaf_tpl);
-            let w = txn
-                .entries()
-                .create(cat_id, Some(&ids.elements), title, Some(&cat_tpl))?;
+            let element_tid = tid(element_tpl);
+            let w =
+                txn.entries()
+                    .create(cat_id, Some(&ids.elements), title, Some(&cat_tpl), true)?;
             w.overrides(Some(&LevelSettingsOverride {
-                default_template: Some(Some(leaf_tid.clone())),
-                allow: Some(vec![leaf_tid, tid(TPL_GROUP)]),
+                default_template: Some(Some(element_tid)),
                 ..LevelSettingsOverride::default()
             }))?
             .set_field(

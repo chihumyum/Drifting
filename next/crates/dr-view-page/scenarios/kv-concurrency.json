@@ -2,7 +2,7 @@
   "about": "G1 kv: v3-lite real controls preserve external edits and require explicit conflict retry.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

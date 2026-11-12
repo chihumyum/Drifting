@@ -1,4 +1,4 @@
-//! Creates an unused acceptance profile's library from testkit v3-lite and media.
+//! Creates an unused acceptance profile's library from testkit lite and media.
 //! Usage: cargo run -p dr-view-material --example v3-media-fixture -- <new-library>
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::env::args_os()

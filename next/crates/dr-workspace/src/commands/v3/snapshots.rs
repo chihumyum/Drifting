@@ -345,7 +345,7 @@ pub struct CaptureIn {
     pub reason: CaptureReason,
 }
 op! {
-    Create="entry_snapshot.create",Write,Book,"Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.",fn(cx,input:EntryIn)->Point {
+    Create="entry_snapshot.create",Write,Book,"Save a complete entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.",fn(cx,input:EntryIn)->Point {
         create(cx, input, None)
     }
 }
@@ -355,7 +355,7 @@ op! {
     }
 }
 op! {
-    Capture="entry_snapshot.capture",Write,Book,"Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.",fn(cx,input:CaptureIn)->Point {
+    Capture="entry_snapshot.capture",Write,Book,"Capture changed entry content periodically or on close using the existing history interval; unchanged content is skipped.",fn(cx,input:CaptureIn)->Point {
         create(cx, input.target, Some(input.reason))
     }
 }
@@ -389,20 +389,16 @@ fn fingerprint(state: &Value, bodies: &BTreeMap<String, String>) -> Result<Strin
         &serde_json::to_vec(&value).map_err(|e| WsError::Internal(e.to_string()))?,
     ))
 }
-/// The prose modules an entry has by its template (a level: its own page).
-/// A checkpoint creates the bodies of those that have none yet.
+/// The prose modules an entry has by its template. A checkpoint creates
+/// the bodies of those that have none yet.
 fn prose_modules(
     e: &m::Entry,
     templates: &BTreeMap<EntryTemplateId, m::EntryTemplate>,
 ) -> Vec<ModuleId> {
-    if e.is_level(templates) {
-        vec![m::level_about_module_id()]
-    } else {
-        e.effective_template(templates)
-            .into_iter()
-            .flat_map(|t| t.prose_modules().map(|m| m.id.clone()))
-            .collect()
-    }
+    e.effective_template(templates)
+        .into_iter()
+        .flat_map(|t| t.prose_modules().map(|m| m.id.clone()))
+        .collect()
 }
 
 /// The entries of `book` an automatic capture has something to do for, in
@@ -579,7 +575,6 @@ fn create_with_receipt(
             continue;
         }
         let source = template
-            .filter(|t| t.is_leaf())
             .map(|t| template_doc(&s.book, &t.id, &mid))
             .transpose()?;
         let source = match source {
@@ -676,7 +671,7 @@ fn create_with_receipt(
     Ok(p)
 }
 op! {
-    List="entry_snapshot.list",Read,Shared,"List complete checkpoints of one v3 entry, newest first.",fn(cx,input:EntryIn)->Vec<Point> {
+    List="entry_snapshot.list",Read,Shared,"List complete checkpoints of one entry, newest first.",fn(cx,input:EntryIn)->Vec<Point> {
         let s = cx.book_v3(&input.book)?;
         let mut out = Vec::new();
         for (id, value) in manifests(cx.workspace(), &s.book)? {
@@ -838,13 +833,19 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     if current.entry(&id).is_none() {
         return Err(WsError::not_found("entry", entry));
     }
-    let mut entries = current.entries_map();
-    let templates = current.templates_map();
+    let before = current.graph();
+    let mut entries = before.entries.clone();
     m::check_entry_move(&entries, &id, e.parent.as_ref())?;
-    m::check_parent_is_level(e.parent.as_ref(), &entries, &templates)?;
+    m::check_parent_is_level(e.parent.as_ref(), &entries)?;
     entries.insert(id.clone(), e.clone());
-    if e.is_leaf(&templates) && entries.values().any(|c| c.parent.as_ref() == Some(&id)) {
-        return Err(WsError::invalid("restoration would give a leaf children"));
+    if !e.is_level()
+        && entries
+            .values()
+            .any(|c| !c.is_trashed() && c.parent.as_ref() == Some(&id))
+    {
+        return Err(WsError::invalid(
+            "restoration would leave entries under an entry whose switch is off",
+        ));
     }
     let want = ov.entry_owned_records(&id);
     let have = current.entry_owned_records(&id);
@@ -885,7 +886,7 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
         .unwrap_or(pos.min(siblings.len()));
     txn.entries().move_to_at(&id, e.parent.as_ref(), index)?;
     let view = txn.view();
-    graph_ok(&view.entries_map(), &templates, &view.memberships_raw())?;
+    changes_ok(&before, &view.graph())?;
     let mut want = ov.entry_owned_raw_state(&id).expect("historical entry");
     let mut got = view.entry_owned_raw_state(&id).expect("restored entry");
     // Other entries keep their current positions. Their ids in the sibling

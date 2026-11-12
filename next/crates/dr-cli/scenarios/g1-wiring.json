@@ -2,7 +2,7 @@
   "about": "G1 real mounted editor, versioned module URL, OS rich clipboard, global find, selected comment save, final accepted head write and fallible close checkpoint, guarded restore and reopen. Synthetic isolated secondary-window correctness flow; no heavy or visual/performance acceptance.",
   "steps": [
     {
-      "seed": "v3-tiny"
+      "seed": "tiny"
     },
     {
       "call": "book.list",

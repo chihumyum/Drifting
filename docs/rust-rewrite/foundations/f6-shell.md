@@ -729,7 +729,9 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 - `Book::v3()` 返回 `book::v3::BookV3`：`entries`、`templates`、`roots`、`levels`、
   `memberships`、`timeline_views` 和书目 `revision`。数据经 `entry.list`、
   `entry_template.list`、`level.list`、`membership.list`、`timeline_view.list` 读取
-  （`level.list` 在下文结构读取交回中替换最初的逐层 `level.get`）。
+  （`level.list` 在下文结构读取交回中替换最初的逐层 `level.get`）。现在外壳在持有者
+  的一次读任务里直接读 `structure_snapshot()`；书目格式 4 起 `level.list`、`level.get`
+  已退役，命令层的同一份数据在 `entry.get`、`entry.list {below}` 的 `below` 里。
   `WsEvent::Book` 触发重新读取；前后 frontier 不同的批次不发布。
 - `levels[id]` 的 `settings` 是 F3 的有效值；`sources` 逐项标注 `Default`、
   `Override { entry }`、`Template { entry, template }` 或强制接收成员的

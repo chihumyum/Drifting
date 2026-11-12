@@ -212,23 +212,93 @@ pub(crate) struct ForestEntryHeader {
     pub(crate) parent: Option<String>,
     pub(crate) title: String,
     pub(crate) template: Option<String>,
+    pub(crate) level: bool,
+    pub(crate) created_at: Option<dr_model::Timestamp>,
     pub(crate) deleted_at: Option<dr_model::Timestamp>,
+    /// The `overrides` map, read deep (it is small).
+    pub(crate) overrides: Option<LoroValue>,
+    /// The asked-for `fields` values: `(module, field, value)`.
+    pub(crate) fields: Vec<(String, String, LoroValue)>,
 }
 
-/// Scalar-only entry headers matching [`forest`]'s duplicate-ID selection and
-/// cycle-of-copies exclusion without decoding nested `fields:*`, `kv:*`,
-/// `overrides` or `layout` containers.
-pub(crate) fn forest_entry_headers(tree: &LoroTree) -> Vec<ForestEntryHeader> {
+fn scalar_ts(v: Option<loro::ValueOrContainer>) -> Option<dr_model::Timestamp> {
+    match v {
+        Some(loro::ValueOrContainer::Value(LoroValue::I64(i))) => Some(dr_model::Timestamp(i)),
+        Some(loro::ValueOrContainer::Value(LoroValue::Double(d)))
+            if d.is_finite() && d.fract() == 0.0 =>
+        {
+            Some(dr_model::Timestamp(d as i64))
+        }
+        _ => None,
+    }
+}
+
+/// Every reachable domain id of `tree` with its tree nodes (the kept one
+/// first), by [`forest`]'s duplicate-ID selection and cycle-of-copies
+/// exclusion, reading only each node's `id`.
+pub(crate) fn forest_ids(tree: &LoroTree) -> HashMap<String, Vec<TreeID>> {
     let mut raw = tree.get_nodes(false);
     raw.sort_by_key(|n| n.id);
     let mut dom: HashMap<TreeID, String> = HashMap::new();
-    type KeptMeta = (
-        TreeParentId,
-        String,
-        Option<String>,
-        Option<dr_model::Timestamp>,
-    );
-    let mut kept: HashMap<String, KeptMeta> = HashMap::new();
+    let mut kept: HashMap<String, TreeParentId> = HashMap::new();
+    let mut copies: HashMap<String, Vec<TreeID>> = HashMap::new();
+    for n in raw {
+        let Some(loro::ValueOrContainer::Value(LoroValue::String(id))) =
+            tree.get_meta(n.id).ok().and_then(|m| m.get("id"))
+        else {
+            continue;
+        };
+        let id = id.to_string();
+        if id.is_empty() {
+            continue;
+        }
+        dom.insert(n.id, id.clone());
+        copies.entry(id.clone()).or_default().push(n.id);
+        kept.entry(id).or_insert(n.parent);
+    }
+    let parent_of = |id: &str| -> Option<&str> {
+        match kept.get(id)? {
+            TreeParentId::Node(p) => dom.get(p).map(String::as_str).filter(|&d| d != id),
+            _ => None,
+        }
+    };
+    let mut seen = HashSet::new();
+    let reachable: Vec<String> = kept
+        .keys()
+        .filter(|id| {
+            seen.clear();
+            let mut cur = id.as_str();
+            while let Some(p) = parent_of(cur) {
+                if !seen.insert(cur) {
+                    return false;
+                }
+                cur = p;
+            }
+            true
+        })
+        .cloned()
+        .collect();
+    reachable
+        .into_iter()
+        .map(|id| {
+            let ids = copies.remove(&id).unwrap_or_default();
+            (id, ids)
+        })
+        .collect()
+}
+
+/// Entry headers matching [`forest`]'s duplicate-ID selection and
+/// cycle-of-copies exclusion: the scalars, the `overrides` map, and only the
+/// `fields` values named in `fields` (`(module, field)`), without decoding
+/// the other `fields:*`, `kv:*` or `layout` containers.
+pub(crate) fn forest_entry_headers(
+    tree: &LoroTree,
+    fields: &[(String, String)],
+) -> Vec<ForestEntryHeader> {
+    let mut raw = tree.get_nodes(false);
+    raw.sort_by_key(|n| n.id);
+    let mut dom: HashMap<TreeID, String> = HashMap::new();
+    let mut kept: HashMap<String, (TreeParentId, ForestEntryHeader)> = HashMap::new();
     let mut order: Vec<String> = Vec::with_capacity(raw.len());
     for n in raw {
         let Ok(meta) = tree.get_meta(n.id) else {
@@ -240,66 +310,79 @@ pub(crate) fn forest_entry_headers(tree: &LoroTree) -> Vec<ForestEntryHeader> {
         let id = id.to_string();
         dom.insert(n.id, id.clone());
         if let std::collections::hash_map::Entry::Vacant(slot) = kept.entry(id.clone()) {
-            let title = match meta.get("title") {
-                Some(loro::ValueOrContainer::Value(LoroValue::String(s))) => s.to_string(),
-                _ => String::new(),
-            };
-            let template = match meta.get("template") {
-                Some(loro::ValueOrContainer::Value(LoroValue::String(s))) if !s.is_empty() => {
-                    Some(s.to_string())
-                }
+            let string = |key: &str| match meta.get(key) {
+                Some(loro::ValueOrContainer::Value(LoroValue::String(s))) => Some(s.to_string()),
                 _ => None,
             };
-            let deleted_at = match meta.get("deleted_at") {
-                Some(loro::ValueOrContainer::Value(LoroValue::I64(i))) => {
-                    Some(dr_model::Timestamp(i))
-                }
-                Some(loro::ValueOrContainer::Value(LoroValue::Double(d)))
-                    if d.is_finite() && d.fract() == 0.0 =>
-                {
-                    Some(dr_model::Timestamp(d as i64))
-                }
+            let level = matches!(
+                meta.get("level"),
+                Some(loro::ValueOrContainer::Value(LoroValue::Bool(true)))
+            );
+            let overrides = match meta.get("overrides") {
+                Some(v @ loro::ValueOrContainer::Container(_)) => Some(v.get_deep_value()),
                 _ => None,
             };
-            slot.insert((n.parent, title, template, deleted_at));
+            let mut values = Vec::new();
+            if !fields.is_empty()
+                && let Some(loro::ValueOrContainer::Container(loro::Container::Map(fmods))) =
+                    meta.get("fields")
+            {
+                for (module, field) in fields {
+                    if let Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) =
+                        fmods.get(module)
+                        && let Some(v) = m.get(field)
+                    {
+                        values.push((module.clone(), field.clone(), v.get_deep_value()));
+                    }
+                }
+            }
+            slot.insert((
+                n.parent,
+                ForestEntryHeader {
+                    id: id.clone(),
+                    parent: None,
+                    title: string("title").unwrap_or_default(),
+                    template: string("template").filter(|s| !s.is_empty()),
+                    level,
+                    created_at: scalar_ts(meta.get("created_at")),
+                    deleted_at: scalar_ts(meta.get("deleted_at")),
+                    overrides,
+                    fields: values,
+                },
+            ));
             order.push(id);
         }
     }
-    let parent_of = |id: &str| -> Option<&str> {
-        let &(parent, _, _, _) = kept.get(id)?;
-        match parent {
-            TreeParentId::Node(p) => dom.get(&p).map(String::as_str).filter(|&d| d != id),
+    let parent_of = |id: &str| -> Option<String> {
+        match kept.get(id)?.0 {
+            TreeParentId::Node(p) => dom.get(&p).filter(|d| d.as_str() != id).cloned(),
             _ => None,
         }
     };
     let mut seen = HashSet::new();
-    let mut out = Vec::with_capacity(order.len());
-    for id in &order {
-        seen.clear();
-        let mut cur = id.as_str();
-        let mut reachable = true;
-        while let Some(p) = parent_of(cur) {
-            if !seen.insert(cur) {
-                reachable = false;
-                break;
+    let placed: Vec<(String, Option<String>)> = order
+        .into_iter()
+        .filter_map(|id| {
+            seen.clear();
+            let mut cur = id.clone();
+            while let Some(p) = parent_of(&cur) {
+                if !seen.insert(cur.clone()) {
+                    return None;
+                }
+                cur = p;
             }
-            cur = p;
-        }
-        if !reachable {
-            continue;
-        }
-        let parent = parent_of(id).map(str::to_owned);
-        if let Some((_, title, template, deleted_at)) = kept.get(id) {
-            out.push(ForestEntryHeader {
-                id: id.clone(),
-                parent,
-                title: title.clone(),
-                template: template.clone(),
-                deleted_at: *deleted_at,
-            });
-        }
-    }
-    out
+            let parent = parent_of(&id);
+            Some((id, parent))
+        })
+        .collect();
+    placed
+        .into_iter()
+        .filter_map(|(id, parent)| {
+            let (_, mut header) = kept.remove(&id)?;
+            header.parent = parent;
+            Some(header)
+        })
+        .collect()
 }
 /// The exact same duplicate-ID and ordering rules, over an atomic deep-value
 /// snapshot rather than repeated reads of an internally mutable LoroTree.

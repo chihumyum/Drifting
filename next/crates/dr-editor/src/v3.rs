@@ -64,58 +64,29 @@ pub fn prepare_body(
     crate::SessionSource::open_verified_v3(ws, doc)
 }
 
-fn manuscript_docs_from(
-    ordered: &[dr_model::v3::Entry],
-    entries: &std::collections::BTreeMap<dr_model::id::EntryId, dr_model::v3::Entry>,
-    templates: &std::collections::BTreeMap<
-        dr_model::id::EntryTemplateId,
-        dr_model::v3::EntryTemplate,
-    >,
-) -> Vec<(String, String)> {
-    let levels = dr_model::v3::effective_manuscript_levels(entries, templates);
-    ordered
-        .iter()
-        .filter(|e| levels.contains(&e.id))
-        .flat_map(|level| {
-            ordered.iter().filter(|e| {
-                if e.is_trashed() || !e.is_leaf(templates) {
-                    return false;
-                }
-                let anc = dr_model::v3::effective_ancestors(entries, templates, &e.id);
-                anc.contains(&level.id)
-                    && anc
-                        .iter()
-                        .all(|a| entries.get(a).is_some_and(|ae| !ae.is_trashed()))
+/// The manuscript sequence's documents with their labels: an entry's first
+/// book prose carries the entry's title, later ones their module's name.
+fn manuscript_docs_of(s: &dr_doc::v3::BookStructureV3) -> Vec<(String, String)> {
+    s.manuscript()
+        .into_iter()
+        .flat_map(|p| p.entries)
+        .flat_map(|e| {
+            let title = e.entry.title.clone();
+            e.prose.into_iter().enumerate().map(move |(i, p)| {
+                (
+                    p.doc.to_string(),
+                    if i == 0 { title.clone() } else { p.name },
+                )
             })
-        })
-        .flat_map(|entry| {
-            entry
-                .effective_template(templates)
-                .into_iter()
-                .flat_map(|t| t.prose_modules())
-                .enumerate()
-                .map(|(i, m)| {
-                    (
-                        format!("body:{}/{}", entry.id, m.id),
-                        if i == 0 {
-                            entry.title.clone()
-                        } else {
-                            m.name.clone()
-                        },
-                    )
-                })
-                .collect::<Vec<_>>()
         })
         .collect()
 }
 
-/// One visit, in manuscript tree order; every prose module keeps its own document.
+/// One visit of the manuscript sequence (`BookStructureV3::manuscript`):
+/// each entry's own book prose before what lives under it; every prose
+/// module keeps its own document.
 pub fn manuscript_docs(view: &BookViewV3<'_>) -> Vec<(String, String)> {
-    let ordered = view.entries_raw();
-    let entries: std::collections::BTreeMap<_, _> =
-        ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-    let templates = view.templates_map();
-    manuscript_docs_from(&ordered, &entries, &templates)
+    manuscript_docs_of(&view.structure_snapshot())
 }
 
 pub(crate) fn page_infos(
@@ -125,11 +96,10 @@ pub(crate) fn page_infos(
 ) -> Result<Vec<crate::page::PageInfo>, WsError> {
     let docs = docs.to_vec();
     read(ws, book, move |view| {
-        let ordered = view.entries_raw();
-        let entries: std::collections::BTreeMap<_, _> =
-            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        let templates = view.templates_map();
-        let manuscript = manuscript_docs_from(&ordered, &entries, &templates);
+        let structure = view.structure_snapshot();
+        let entries = structure.entries_map();
+        let templates = structure.templates_map();
+        let manuscript = manuscript_docs_of(&structure);
         let mut numbered = Vec::new();
         let mut number_by_id = std::collections::HashMap::new();
         for (doc, _) in manuscript {
@@ -153,7 +123,7 @@ pub(crate) fn page_infos(
                     return info;
                 };
                 info.title = entry.title.clone();
-                let template = entry.effective_template(&templates);
+                let template = entry.effective_template(templates);
                 // The familiar folio is only for the built-in novel templates.
                 info.kind = match template.map(|t| t.id.as_str()) {
                     Some("tpl-chapter") => crate::page::PageKind::Chapter,
@@ -195,7 +165,7 @@ pub(crate) fn page_infos(
                 if let Some(primary) = &entry.primary
                     && let Some(lane) = entries.get(primary)
                 {
-                    let template = lane.effective_template(&templates);
+                    let template = lane.effective_template(templates);
                     let color = template
                         .and_then(|t| {
                             t.modules.iter().find_map(|m| {

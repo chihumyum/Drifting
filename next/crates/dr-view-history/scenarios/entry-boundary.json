@@ -2,7 +2,7 @@
   "about": "K4 G1 boundary evidence, NOT complete entry snapshot restoration: current entry_history.restore restores metadata while both independently edited prose modules remain changed. Uses the public command in a v3-lite real window.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

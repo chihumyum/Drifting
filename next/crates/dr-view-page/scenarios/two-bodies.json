@@ -2,7 +2,7 @@
   "about": "K4 G1: two prose modules in one v3-lite entry, real typing and independent undo.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

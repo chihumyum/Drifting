@@ -1,8 +1,8 @@
 {
-  "about": "K4 G2 最终批：v3-lite 真窗口，树上移动／排序／非法循环／拖进接收层级，公共悬停卡新建／换模板／归属与主归属；保留待提交标题和显式重试；看板坐标写入；旧版隔离。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
+  "about": "K4 G2 最终批：lite 真窗口，树上移动／排序／非法循环／拖进接收层级，公共悬停卡新建／换模板／归属与主归属；保留待提交标题和显式重试；看板坐标写入；旧版隔离。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",
@@ -35,16 +35,6 @@
       "save": "a"
     },
     {
-      "call": "entry.update",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${a.id}",
-        "overrides": {
-          "allow": []
-        }
-      }
-    },
-    {
       "call": "entry.create",
       "input": {
         "book": "${books.0.id}",
@@ -53,16 +43,6 @@
         "title": "Synthetic tree B"
       },
       "save": "b"
-    },
-    {
-      "call": "entry.update",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${b.id}",
-        "overrides": {
-          "allow": []
-        }
-      }
     },
     {
       "call": "entry.move",
@@ -118,10 +98,7 @@
         "book": "${books.0.id}",
         "id": "${host.id}",
         "overrides": {
-          "accept": true,
-          "allow": [
-            "tpl-chapter"
-          ]
+          "accept": true
         }
       }
     },

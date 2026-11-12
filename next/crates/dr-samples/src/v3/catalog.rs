@@ -127,7 +127,9 @@ impl Entries<'_, '_> {
             return Err(invalid(format!("v3 entry id collision: {id}")));
         }
         let index = self.sibling.entry(parent.cloned()).or_default();
-        let old = self.txn.view().entry(id);
+        // The switch starts from the template, as for a new entry.
+        let level = self.txn.view().template(template).is_some_and(|t| t.level);
+        let old = self.txn.view().entry_raw(id);
         let w = if let Some(old) = old {
             self.txn.entries().move_to_at(id, parent, *index)?;
             let w = self.txn.entries().entry(id)?;
@@ -143,6 +145,7 @@ impl Entries<'_, '_> {
             }
             w.title(title)?
                 .template(Some(template))?
+                .level(level)?
                 .overrides(None)?
                 .primary(None)?
                 .layout(&EntryLayout::default())?
@@ -153,7 +156,7 @@ impl Entries<'_, '_> {
         } else {
             self.txn
                 .entries()
-                .create_at(id, parent, *index, title, Some(template))?
+                .create_at(id, parent, *index, title, Some(template), level)?
         };
         *index += 1;
         Ok(w)
@@ -389,13 +392,14 @@ pub fn sync_catalog(
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
         }))?;
     for template in templates(source, &roots.manuscript)? {
+        // The 幕 template comes with the novel templates; one the book
+        // already has is kept as it is, as before it came with them.
+        if template.id.as_str() == TPL_ACT_TRACK && txn.view().template(&template.id).is_some() {
+            continue;
+        }
         txn.template(&template.id)?.set_full(&template)?;
     }
     let planned_acts = plan_act_track(source);
-    if planned_acts.is_some() && txn.view().template(&tid(TPL_ACT_TRACK)).is_none() {
-        let act_tpl = act_track_level_template();
-        txn.template(&act_tpl.id)?.set_full(&act_tpl)?;
-    }
 
     let categories = source.categories();
     let nodes = source.nodes();
@@ -603,8 +607,7 @@ pub fn sync_catalog(
         w.grid_pos(category.grid_x.zip(category.grid_y))?
             .deleted_at(category.deleted_at)?
             .overrides(Some(&LevelSettingsOverride {
-                default_template: Some(Some(template.clone())),
-                allow: Some(vec![template, tid(TPL_GROUP)]),
+                default_template: Some(Some(template)),
                 ..Default::default()
             }))?;
         let members: Vec<_> = source
@@ -675,8 +678,7 @@ pub fn sync_catalog(
         if has_body(storyline.chapter_template.as_deref()) {
             let default = storyline_template(storyline.id.as_str());
             w.overrides(Some(&LevelSettingsOverride {
-                default_template: Some(Some(default.clone())),
-                allow: Some(vec![tid(TPL_CHAPTER), tid(TPL_IDEA), default]),
+                default_template: Some(Some(default)),
                 ..Default::default()
             }))?;
         }
@@ -1019,12 +1021,10 @@ fn target_module(target: &EntityRef) -> Option<ModuleId> {
 pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
     let entries = view.entries_map();
     let templates = view.templates_map();
+    let memberships = view.memberships_raw();
     let check = |result: std::result::Result<(), dr_model::check::Violation>| {
         result.map_err(|v| format!("{v:?}"))
     };
-    for template in templates.values() {
-        check(check_template_modules(&template.kind, &template.modules))?;
-    }
     for relation_type in view.relation_types() {
         for template in relation_type
             .source_templates
@@ -1057,68 +1057,36 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
         check(check_entry_move(&entries, &entry.id, entry.parent.as_ref()))?;
         check(check_entry_template(&templates, entry.template.as_ref()))?;
         if !entry.is_trashed() {
-            check(check_level_allows_template(
-                entry.parent.as_ref(),
-                entry.template.as_ref(),
-                &entries,
-                &templates,
-            ))?;
-            let hosts: Vec<_> = view
-                .memberships_raw()
-                .iter()
-                .filter(|m| m.member == entry.id)
-                .map(|m| m.host.clone())
-                .collect();
-            check(check_autolink_name_unique(
-                Some(&entry.id),
-                entry.parent.as_ref(),
-                &hosts,
-                entry.is_leaf(&templates),
-                &entry.title,
-                &entry.aliases(&templates).into_iter().collect::<Vec<_>>(),
-                &view.memberships_raw(),
-                &entries,
-                &templates,
-            ))?;
-            let declared_manuscript = entry
-                .overrides
-                .as_ref()
-                .and_then(|s| s.is_manuscript)
-                .or_else(|| {
-                    entry
-                        .effective_template(&templates)
-                        .and_then(|t| t.settings.is_manuscript)
-                })
-                .unwrap_or(false);
-            check(check_manuscript_no_nest(
-                &entry.id,
-                declared_manuscript,
-                &entries,
-                &templates,
-            ))?;
-            if entry.is_level(&templates) {
-                let settings = view.level_settings(Some(&entry.id));
+            // A live entry lives at the root or under a live entry whose
+            // switch is on.
+            check(check_parent_is_level(entry.parent.as_ref(), &entries))?;
+            if entry.is_level() {
+                let settings = resolve_level_settings(Some(&entry.id), &entries, &templates);
                 check(check_entry_template(
                     &templates,
                     settings.default_template.as_ref(),
                 ))?;
-                if settings.default_template.is_some()
-                    && !settings.allows_template(settings.default_template.as_ref())
-                {
-                    return Err(format!(
-                        "level {} rejects its own default template",
-                        entry.id
-                    ));
-                }
-                for template in &settings.allow {
-                    check(check_entry_template(&templates, Some(template)))?;
-                }
                 if let Some(home) = &settings.home {
-                    check(check_parent_is_level(Some(home), &entries, &templates))?;
+                    check(check_parent_is_level(Some(home), &entries))?;
                 }
             }
         }
     }
+    // The whole book against an empty one: no duplicate auto-link name and
+    // no nested manuscript at all.
+    let none = BTreeMap::new();
+    check(check_new_violations(
+        BookGraph {
+            entries: &none,
+            templates: &templates,
+            memberships: &[],
+        },
+        BookGraph {
+            entries: &entries,
+            templates: &templates,
+            memberships: &memberships,
+        },
+    ))?;
     for membership in view.memberships_raw() {
         check(check_membership(
             &membership.host,

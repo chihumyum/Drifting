@@ -31,7 +31,6 @@ pub mod v3 {
             cx,
             match key {
                 "default_template" => keys::v3_levels::DEFAULT_TEMPLATE,
-                "allow" => keys::v3_levels::ALLOWED_TEMPLATES,
                 "display" => keys::v3_levels::DISPLAY,
                 "auto_link" => keys::v3_levels::AUTO_LINK,
                 "accept" => keys::v3_levels::ACCEPT,
@@ -44,7 +43,6 @@ pub mod v3 {
     pub fn overridden(s: Option<&LevelSettingsOverride>, key: &str) -> bool {
         s.is_some_and(|s| match key {
             "default_template" => s.default_template.is_some(),
-            "allow" => s.allow.is_some(),
             "display" => s.display.is_some(),
             "auto_link" => s.auto_link.is_some(),
             "accept" => s.accept.is_some(),
@@ -116,18 +114,6 @@ pub mod v3 {
         };
         match key {
             "default_template" => template(s.default_template.as_deref()),
-            "allow" => {
-                if s.allow.is_empty() {
-                    t(cx, keys::v3_levels::ALL_TEMPLATES)
-                } else {
-                    s.allow
-                        .iter()
-                        .map(|id| template(Some(id)).to_string())
-                        .collect::<Vec<_>>()
-                        .join(" · ")
-                        .into()
-                }
-            }
             "display" => dr_shell::v3::page::display_name(&s.display, cx),
             "auto_link" => on(s.auto_link),
             "accept" => on(s.accept),
@@ -164,7 +150,6 @@ pub mod v3 {
             let mut settings = div().flex().flex_col().gap_3();
             for key in [
                 "default_template",
-                "allow",
                 "display",
                 "auto_link",
                 "accept",
@@ -175,8 +160,7 @@ pub mod v3 {
                 let label = label(key, cx);
                 let host = self.host.page.clone();
                 let id = self.host.level.clone();
-                let lane =
-                    key == "accept" && v.template_of(&self.host.level).is_some_and(|t| t.lane);
+                let lane = key == "accept" && v.is_lane(&self.host.level);
                 let mut row = div()
                     .id(SharedString::from(format!("g2-setting-row-{key}")))
                     .role(gpui::Role::Group)

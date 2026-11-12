@@ -26,7 +26,7 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
             if !dr_doc::v3::is_book_doc(doc) {
-                return Err(invalid("v3 materials require a v3 book"));
+                return Err(invalid("materials require a book of the current format"));
             }
             let book = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
             let view = book.view();
@@ -43,13 +43,12 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
                 })
                 .map(|r| r.to.id)
                 .collect();
-            let templates = view.templates_map();
             let entries = view.entry_headers();
             let mut choices: Vec<_> = entries
                 .values()
                 .filter(|e| {
                     !e.is_trashed()
-                        && model::effective_ancestors(&entries, &templates, &e.id)
+                        && model::effective_ancestors(&entries, &e.id)
                             .iter()
                             .all(|id| entries.get(id).is_some_and(|e| !e.is_trashed()))
                 })
@@ -74,18 +73,17 @@ pub fn related(ws: &Workspace, book: &str, entry: &str) -> Result<HashSet<String
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
             if !dr_doc::v3::is_book_doc(doc) {
-                return Err(invalid("v3 materials require a v3 book"));
+                return Err(invalid("materials require a book of the current format"));
             }
             let b = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
             let v = b.view();
             if v.meta().deleted_at.is_some() {
                 return Err(invalid("book is in the trash"));
             }
-            let templates = v.templates_map();
             let entries = v.entry_headers();
             let Some(selected) = entries.get(entry.as_str()).filter(|e| {
                 !e.is_trashed()
-                    && model::effective_ancestors(&entries, &templates, &e.id)
+                    && model::effective_ancestors(&entries, &e.id)
                         .iter()
                         .all(|a| entries.get(a).is_some_and(|a| !a.is_trashed()))
             }) else {
@@ -115,7 +113,7 @@ pub fn shelf_relations(
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
             if !dr_doc::v3::is_book_doc(doc) {
-                return Err(invalid("v3 materials require a v3 book"));
+                return Err(invalid("materials require a book of the current format"));
             }
             let b = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
             let v = b.view();
@@ -137,11 +135,10 @@ pub fn shelf_relations(
             let entry_related = match selected_entry {
                 None => None,
                 Some(entry) => {
-                    let templates = v.templates_map();
                     let entries = v.entry_headers();
                     let is_live = entries.get(entry.as_str()).is_some_and(|e| {
                         !e.is_trashed()
-                            && model::effective_ancestors(&entries, &templates, &e.id)
+                            && model::effective_ancestors(&entries, &e.id)
                                 .iter()
                                 .all(|a| entries.get(a).is_some_and(|a| !a.is_trashed()))
                     });

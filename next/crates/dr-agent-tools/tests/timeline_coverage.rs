@@ -274,28 +274,33 @@ fn unreadable_seed_pin_is_retained_when_the_query_omits_it() {
 }
 
 #[test]
-fn changed_allow_rules_hide_members_without_authorizing_placement_deletion() {
+fn switched_off_lanes_hide_their_members_without_authorizing_placement_deletion() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let actor = Actor::agent("timeline-hidden-membership", 1, "rename");
-    let templates = f.author("entry_template.list", json!({}));
-    let original = templates
+    let lanes: Vec<Value> = f.original["lanes"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|t| t["id"] == TPL_STORYLINE)
-        .unwrap()
-        .clone();
-    let mut changed = original.clone();
-    changed["settings"]["allow"] = json!([TPL_CHARACTER]);
+        .map(|l| l["entry"].clone())
+        .collect();
+    assert!(!lanes.is_empty());
+    assert!(!f.original["placements"].as_array().unwrap().is_empty());
     let memberships = f.raw()["memberships"].clone();
-    f.author("entry_template.put", json!({"template":changed}));
+    // An entry whose switch is off keeps its memberships and its place in
+    // the view; both read as absent until the switch is back on.
+    for lane in &lanes {
+        let off = f.author("entry.set_level", json!({"id":lane,"level":false}));
+        assert_eq!(off["moved"], json!([]));
+    }
     let shown = f.listed(&tools, &actor);
-    assert_eq!(shown["lanes"], f.original["lanes"]);
+    assert!(shown["lanes"].as_array().unwrap().is_empty());
     assert!(shown["placements"].as_array().unwrap().is_empty());
     assert_eq!(f.raw()["memberships"], memberships);
     f.reject_rename(&tools, &actor);
-    f.author("entry_template.put", json!({"template":original}));
+    for lane in &lanes {
+        f.author("entry.set_level", json!({"id":lane,"level":true}));
+    }
     assert_eq!(f.raw()["memberships"], memberships);
     f.restored_rename(&tools, &actor);
 }

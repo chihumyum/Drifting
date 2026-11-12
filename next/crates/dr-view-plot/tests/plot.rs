@@ -55,9 +55,9 @@ fn seeded() -> Setup {
     let borrowed = dr_doc::v3::BorrowedBookV3::new(&raw, &id).unwrap();
     let chapters = borrowed
         .view()
-        .manuscript_levels()
-        .iter()
-        .flat_map(|r| borrowed.view().manuscript_leaves(r))
+        .structure_snapshot()
+        .manuscript_entries()
+        .into_iter()
         .map(|e| e.id.to_string())
         .collect();
     Setup {

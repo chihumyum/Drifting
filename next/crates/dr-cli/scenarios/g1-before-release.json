@@ -2,7 +2,7 @@
   "about": "G1 mounted v3 Fields/KV/Patches/Planner writes: real inputs, navigation blur, focused-field quit, final checkpoint and reopen. Secondary display and synthetic isolated profile; correctness only, no heavy or visual/style acceptance.",
   "steps": [
     {
-      "seed": "v3-tiny"
+      "seed": "tiny"
     },
     {
       "call": "book.list",

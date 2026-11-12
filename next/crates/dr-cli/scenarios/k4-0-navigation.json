@@ -2,7 +2,7 @@
   "about": "F6 canonical v3 导航：Book/Material 目标、重排刷新保留标签与真实全书输入撤销、关开恢复。旧产品路由已退役；旧书拒开由切换验收覆盖。正文来自共享种子。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

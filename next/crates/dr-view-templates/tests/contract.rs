@@ -224,15 +224,14 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
     }
     template.settings = LevelSettingsOverride {
         default_template: Some(Some("tpl-chapter".into())),
-        allow: Some(vec!["tpl-chapter".into()]),
         display: Some("board".into()),
         auto_link: Some(true),
         accept: Some(false),
         home: Some(Some(home["id"].as_str().unwrap().into())),
         is_manuscript: Some(false),
         format_shortcuts: Some("notes".into()),
+        lane: Some(true),
     };
-    template.lane = true;
     let template = model::save(&ws, &book, None, &template).unwrap();
     assert_eq!(
         templates(&ws, &book)
@@ -245,8 +244,9 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
         "entry.create",
         json!({"book":book,"title":"Synthetic lane","template":template.id}),
     );
-    let level = call(&ws, "level.get", json!({"book":book,"id":lane["id"]}));
+    let level = call(&ws, "entry.get", json!({"book":book,"id":lane["id"]}))["below"].clone();
     assert_eq!(level["settings"]["accept"], true);
+    assert_eq!(level["settings"]["lane"], true);
     assert_eq!(level["settings"]["format_shortcuts"], "notes");
     assert_eq!(level["settings"]["home"], home["id"]);
     let entry = call(
@@ -257,7 +257,7 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
     assert_eq!(entry["template"], "tpl-chapter");
     assert_eq!(entry["parent"], home["id"]);
     assert_eq!(entry["primary"], lane["id"]);
-    let level = call(&ws, "level.get", json!({"book":book,"id":lane["id"]}));
+    let level = call(&ws, "entry.get", json!({"book":book,"id":lane["id"]}))["below"].clone();
     assert!(
         level["members"]
             .as_array()
@@ -266,18 +266,19 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
             .any(|m| m["id"] == entry["id"])
     );
     let mut disabled = template.clone();
-    disabled.lane = false;
+    disabled.settings.lane = Some(false);
     model::save(&ws, &book, Some(&template), &disabled).unwrap();
-    let level = call(&ws, "level.get", json!({"book":book,"id":lane["id"]}));
+    let level = call(&ws, "entry.get", json!({"book":book,"id":lane["id"]}))["below"].clone();
     assert_eq!(level["settings"]["accept"], false);
     // The editor never replaces a stored false value with the lane's forced true.
     assert_eq!(disabled.settings.accept, Some(false));
-    let mut forbidden = disabled.clone();
+    // Any template takes any module: a level template's own prose too.
+    let mut with_prose = disabled.clone();
     model::add_module(
-        &mut forbidden,
-        model::module("prose", "Synthetic forbidden body".into()),
+        &mut with_prose,
+        model::module("prose", "Synthetic level body".into()),
     );
-    assert!(model::save(&ws, &book, Some(&disabled), &forbidden).is_err());
+    model::save(&ws, &book, Some(&disabled), &with_prose).unwrap();
     ws.shutdown().unwrap();
 }
 
@@ -285,7 +286,6 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
 fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write() {
     let (_dir, ws, book) = seed();
     let mut template = model::blank("level", "Synthetic actions".into());
-    template.settings.allow = Some(vec!["tpl-chapter".into()]);
     let saved = model::save(&ws, &book, None, &template).unwrap();
     let action = TemplateVerb {
         id: dr_model::id::new_uuid_v7(),
@@ -294,7 +294,7 @@ fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write()
         target_template: Some("tpl-chapter".into()),
         pos: Some("a0".into()),
     };
-    for target in [None, Some("tpl-character"), Some("missing-template")] {
+    for target in [None, Some("missing-template")] {
         let mut invalid = saved.clone();
         let mut verb = action.clone();
         verb.target_template = target.map(str::to_owned);
@@ -316,7 +316,6 @@ fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write()
     assert_eq!(saved.verbs[0].description, action.description);
     let target = model::blank("leaf", "Synthetic action target".into());
     let target = model::save(&ws, &book, None, &target).unwrap();
-    template.settings.allow = Some(vec![]);
     template.verbs[0].target_template = Some(target.id.clone());
     let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
     call(

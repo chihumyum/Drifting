@@ -4,8 +4,8 @@ use dr_model::id::BookId;
 use dr_shell::book::Book;
 use dr_store::OpenDoc;
 use dr_view_elements::data::v3::{
-    creation, drop_target, membership_hosts, prepare, prepare_board, prepare_drop, prepare_edit,
-    switch_templates,
+    Drop, creation, drop_target, membership_hosts, prepare, prepare_board, prepare_drop,
+    prepare_edit, switch_templates,
 };
 use dr_workspace::{Actor, Workspace, WsError};
 use serde_json::{Value, json};
@@ -228,7 +228,7 @@ fn creation_uses_home_and_atomic_membership_without_inventing_a_default() {
     call(
         &ws,
         "entry.update",
-        json!({"book":book,"id":group,"overrides":{"default_template":null,"allow":[]}}),
+        json!({"book":book,"id":group,"overrides":{"default_template":null}}),
     );
     let snapshot = Book::load(&ws, &book).unwrap();
     let context = creation(&snapshot, &group).unwrap();
@@ -252,7 +252,9 @@ fn template_choices_preserve_active_relationships_children_and_retained_content(
     let manuscript = root(&initial, "tpl-manuscript");
     let lane = root(&initial, "tpl-storyline");
     let chapter = root(&initial, "tpl-chapter");
-    assert!(!switch_templates(&initial, &chapter).contains(&"tpl-idea".into()));
+    // No level restricts templates any more; a swimlane in a view is only
+    // offered templates that keep it a swimlane.
+    assert!(switch_templates(&initial, &chapter).contains(&"tpl-idea".into()));
     assert!(!switch_templates(&initial, &lane).contains(&"tpl-group".into()));
     let parent = entry(
         &ws,
@@ -261,11 +263,6 @@ fn template_choices_preserve_active_relationships_children_and_retained_content(
         "tpl-group",
         "Synthetic retained modules",
     );
-    call(
-        &ws,
-        "entry.update",
-        json!({"book":book,"id":parent,"overrides":{"allow":[]}}),
-    );
     let character = root(&initial, "tpl-character");
     call(
         &ws,
@@ -273,7 +270,9 @@ fn template_choices_preserve_active_relationships_children_and_retained_content(
         json!({"book":book,"id":character,"parent":parent}),
     );
     let before = Book::load(&ws, &book).unwrap();
-    assert!(!switch_templates(&before, &parent).contains(&"tpl-chapter".into()));
+    // The template does not decide what lives below: an entry with
+    // children may take a template whose default switch is off.
+    assert!(switch_templates(&before, &parent).contains(&"tpl-chapter".into()));
     assert!(switch_templates(&before, &character).contains(&"tpl-idea".into()));
     let prose = call(
         &ws,
@@ -310,10 +309,26 @@ fn template_choices_preserve_active_relationships_children_and_retained_content(
         ),
         prose
     );
+    // Switching the parent's template keeps its switch and its children.
+    prepare_edit(&after, &parent, json!({"template":"tpl-chapter"}))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let switched = Book::load(&ws, &book).unwrap();
+    let v = switched.v3().unwrap();
+    assert_eq!(
+        v.entry(&parent).unwrap().template.as_deref(),
+        Some("tpl-chapter")
+    );
+    assert!(v.entry(&parent).unwrap().level);
+    assert_eq!(
+        v.entry(&character).unwrap().parent.as_deref(),
+        Some(parent.as_str())
+    );
     ws.shutdown().unwrap();
 }
 #[test]
-fn tree_drop_checks_allowance_cycles_and_membership_without_moving_the_original() {
+fn tree_drop_checks_the_switch_cycles_and_membership_without_moving_the_original() {
     let (_dir, ws, book) = seed();
     let initial = Book::load(&ws, &book).unwrap();
     let manuscript = root(&initial, "tpl-manuscript");
@@ -327,16 +342,24 @@ fn tree_drop_checks_allowance_cycles_and_membership_without_moving_the_original(
         &book,
         &manuscript,
         "tpl-group",
-        "Synthetic restricted destination",
+        "Synthetic switched-off destination",
     );
     call(
         &ws,
-        "entry.update",
-        json!({"book":book,"id":category,"overrides":{"allow":["tpl-character"]}}),
+        "entry.set_level",
+        json!({"book":book,"id":category,"level":false}),
     );
     let snapshot = Book::load(&ws, &book).unwrap();
     assert!(drop_target(&snapshot, &a, &nested, false).is_none());
-    assert!(drop_target(&snapshot, &child, &category, false).is_none());
+    // Nothing lives below an entry whose switch is off: a drop onto it
+    // places the entry beside it.
+    assert_eq!(
+        drop_target(&snapshot, &child, &category, false),
+        Some(Drop::Residence {
+            parent: Some(manuscript.clone()),
+            anchor: Some((category.clone(), false)),
+        })
+    );
     prepare_drop(&snapshot, &child, &b, false)
         .unwrap()
         .commit(&ws)
@@ -522,7 +545,7 @@ fn template_and_layout_edits_preserve_memberships_hidden_by_a_trashed_host() {
         call(
             &ws,
             "entry.update",
-            json!({"book":book,"id":id,"overrides":{"allow":[],"accept":true}}),
+            json!({"book":book,"id":id,"overrides":{"accept":true}}),
         );
     }
     call(

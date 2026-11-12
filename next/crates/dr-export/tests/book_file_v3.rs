@@ -91,7 +91,7 @@ fn v3_archive_keeps_retained_bodies_hidden_bindings_and_literal_ids() {
         .view()
         .entries()
         .into_iter()
-        .find(|e| e.id != entry.id && e.is_leaf(&b.book.view().templates_map()))
+        .find(|e| e.id != entry.id && !e.is_level())
         .unwrap();
     let template = entry.template.clone().unwrap();
     let fields = ModuleId::parse("archive-fields").unwrap();

@@ -5,9 +5,10 @@ pub use edit::{
     LaneSetActTrack, RenameIn, RestoreFields, RestoreFieldsIn, ViewRename,
 };
 
-/// Built-in swimlane level template for an act track (`tpl-act-track`).
+/// The built-in swimlane template for an act track (`tpl-act-track`), which
+/// every new book has from the novel template.
 pub fn act_track_template(name: String) -> types::EntryTemplate {
-    let mut tpl = dr_doc::v3::act_track_level_template();
+    let mut tpl = dr_doc::v3::act_track_template();
     tpl.name = name;
     convert(tpl).expect("valid built-in act track template")
 }
@@ -28,7 +29,7 @@ fn view(v: &BookViewV3<'_>, id: &str) -> Result<m::TimelineView> {
         .ok_or_else(|| WsError::not_found("timeline view", id))
 }
 op! {
-    ViewList="timeline_view.list",Read,Shared,"List v3 timeline views with their effective lanes, placements and time pins.",fn(cx,input:BookIn)->Vec<types::TimelineView> {
+    ViewList="timeline_view.list",Read,Shared,"List timeline views with their effective lanes, placements and time pins.",fn(cx,input:BookIn)->Vec<types::TimelineView> {
         let s = cx.book_v3(&input.book)?;
         convert(s.reader_v3.view().timeline_views())
     }
@@ -39,7 +40,7 @@ pub struct PutIn {
     pub view: types::TimelineView,
 }
 op! {
-    ViewPut="timeline_view.put",Write,Book,"Create or edit a v3 timeline view, including its independent lane order.",fn(cx,input:PutIn)->Done {
+    ViewPut="timeline_view.put",Write,Book,"Create or edit a timeline view, including its independent lane order.",fn(cx,input:PutIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let tv: m::TimelineView = convert(input.view)?;
@@ -113,7 +114,7 @@ op! {
     }
 }
 op! {
-    ViewDelete="timeline_view.delete",Write,Book,"Delete a v3 timeline view while retaining lane entries and memberships.",fn(cx,input:EntityIn)->Done {
+    ViewDelete="timeline_view.delete",Write,Book,"Delete a timeline view while retaining lane entries and memberships.",fn(cx,input:EntityIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let tv = view(&s.reader_v3.view(), &input.id)?;
         let id = tv.id.clone();
@@ -149,22 +150,22 @@ pub struct PlaceIn {
     pub span: Option<f64>,
 }
 op! {
-    Place="timeline_view.place",Write,Book,"Place or move a v3 entry in a timeline, optionally joining a lane in the same commit.",fn(cx,input:PlaceIn)->Done {
+    Place="timeline_view.place",Write,Book,"Place or move an entry in a timeline, optionally joining a lane in the same commit.",fn(cx,input:PlaceIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let tv = view(&v, &input.view)?;
         let e = live(&v, &input.entry)?;
-        let entries = v.entries_map();
-        let templates = v.templates_map();
-        let mut ms = v.memberships_raw();
+        let before = v.graph();
+        let (entries, templates) = (&before.entries, &before.templates);
+        let mut ms = before.memberships.clone();
         finite(input.at, input.span)?;
         let lane: Option<EntryId> = input.lane.as_deref().map(|s| pid("lane", s)).transpose()?;
         if let Some(lane) = &lane {
             if !tv.lanes.iter().any(|l| &l.entry == lane) {
                 return Err(WsError::invalid("lane is not in this view"));
             }
-            m::check_timeline_lane(lane, &entries, &templates)?;
-            m::check_membership(lane, &e.id, &entries, &templates)?;
+            m::check_timeline_lane(lane, entries, templates)?;
+            m::check_membership(lane, &e.id, entries, templates)?;
             ms.push(m::Membership {
                 host: lane.clone(),
                 member: e.id.clone(),
@@ -172,8 +173,12 @@ op! {
                 created_at: Some(now()),
             });
         }
-        m::check_timeline_placement_in_lane(&tv, &e.id, &ms, &entries, &templates)?;
-        graph_ok(&entries, &templates, &ms)?;
+        m::check_timeline_placement_in_lane(&tv, &e.id, &ms, entries, templates)?;
+        let after = BookGraphV3 {
+            memberships: ms,
+            ..before.clone()
+        };
+        changes_ok(&before, &after)?;
         let join = lane.as_ref().is_some_and(|lane| {
             !v.memberships_raw()
                 .iter()
@@ -239,7 +244,7 @@ pub struct PinIn {
     pub pin: types::TimelinePin,
 }
 op! {
-    PinPut="timeline_view.put_pin",Write,Book,"Add or edit a v3 time pin, optionally bound to any live entry.",fn(cx,input:PinIn)->Done {
+    PinPut="timeline_view.put_pin",Write,Book,"Add or edit a time pin, optionally bound to any live entry.",fn(cx,input:PinIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let tv = view(&v, &input.view)?;
@@ -264,7 +269,7 @@ pub struct PinRemoveIn {
     pub pin: String,
 }
 op! {
-    PinRemove="timeline_view.remove_pin",Write,Book,"Remove a time pin from a v3 timeline view.",fn(cx,input:PinRemoveIn)->Done {
+    PinRemove="timeline_view.remove_pin",Write,Book,"Remove a time pin from a timeline view.",fn(cx,input:PinRemoveIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let tv = view(&s.reader_v3.view(), &input.view)?;
         let pin: TimePinId = pid("pin", &input.pin)?;

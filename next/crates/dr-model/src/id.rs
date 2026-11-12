@@ -566,7 +566,7 @@ pub enum ProseProfile {
 /// (`dr-workspace/tests/cutover.rs`), and so that the source replay can
 /// build its in-memory documents. Their ids are [`crate::import_v1`] types,
 /// which product code may not import (`cargo xtask check`, gate
-/// `v3-cutover`).
+/// `cutover`).
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub enum DocId {

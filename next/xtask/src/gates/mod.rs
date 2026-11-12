@@ -68,8 +68,8 @@ pub fn all() -> Vec<Gate> {
             run: terms::run,
         },
         Gate {
-            name: "v3-cutover",
-            about: "canonical App runtime; old formats are isolated source replay adapters",
+            name: "cutover",
+            about: "the App runs the current format only; old formats are isolated source replay adapters; retired commands stay retired",
             run: cutover::run,
         },
         Gate {

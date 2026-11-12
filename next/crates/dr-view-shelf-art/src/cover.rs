@@ -86,50 +86,30 @@ pub fn cover_request(ws: &Workspace, book: &str, title: &str) -> CoverRequest {
     let Some(v) = snapshot.v3() else {
         return empty();
     };
-    let mut pending: Vec<_> = v
-        .levels
-        .iter()
-        .filter(|(_, l)| l.settings.is_manuscript)
-        .map(|(id, _)| id.clone())
-        .collect();
-    let mut visited = std::collections::BTreeSet::new();
-    let mut leaves = std::collections::BTreeSet::new();
-    while let Some(id) = pending.pop() {
-        if !visited.insert(id.clone()) {
-            continue;
-        }
-        if v.template_of(&id).is_some_and(|t| t.kind == "leaf") {
-            leaves.insert(id);
-        } else if let Some(level) = v.levels.get(&id) {
-            pending.extend(level.children.clone());
+    // The manuscript sequence: each entry with book prose, in order, and the
+    // words of that prose.
+    let mut chapters: Vec<&dr_workspace::commands::v3::types::Entry> = Vec::new();
+    let mut words: Vec<u64> = Vec::new();
+    for body in &v.manuscript {
+        let count = ws
+            .library()
+            .doc_stats(&format!("body:{}/{}", body.entry, body.module))
+            .ok()
+            .flatten()
+            .map_or(0, |s| s.words);
+        if chapters.last().is_some_and(|c| c.id == body.entry) {
+            if let Some(last) = words.last_mut() {
+                *last += count;
+            }
+        } else if let Some(entry) = v.entry(&body.entry) {
+            chapters.push(entry);
+            words.push(count);
         }
     }
-    let chapters: Vec<_> = v
-        .entries
-        .iter()
-        .filter(|e| leaves.contains(&e.id))
-        .collect();
-    let words = chapters
-        .iter()
-        .map(|e| {
-            v.template_of(&e.id)
-                .into_iter()
-                .flat_map(|t| &t.modules)
-                .filter(|m| m.kind == "prose")
-                .map(|m| {
-                    ws.library()
-                        .doc_stats(&format!("body:{}/{}", e.id, m.id))
-                        .ok()
-                        .flatten()
-                        .map_or(0, |s| s.words)
-                })
-                .sum()
-        })
-        .collect();
     let storylines = v
         .entries
         .iter()
-        .filter(|e| v.template_of(&e.id).is_some_and(|t| t.lane))
+        .filter(|e| v.is_lane(&e.id))
         .take(MAX_STORYLINES)
         .map(|lane| StorylineCover {
             color: v

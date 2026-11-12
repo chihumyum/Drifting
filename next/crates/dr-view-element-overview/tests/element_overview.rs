@@ -302,6 +302,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
                 title: "阵营".into(),
                 parent: elements_root.clone(),
                 template: level_tpl.clone(),
+                level: None,
                 bodies: BTreeMap::new(),
             },
         )
@@ -312,10 +313,6 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
     g2_data::prepare_override(&book_snap, &accept_level, "accept", Some(json!(true)))
         .and_then(|m| m.commit(&lib))
         .expect("set accept=true");
-    let book_snap = dr_shell::book::Book::load(&lib, &book_id).expect("book snap");
-    g2_data::prepare_override(&book_snap, &accept_level, "allow", Some(json!([])))
-        .and_then(|m| m.commit(&lib))
-        .expect("set allow=[] on accept_level");
 
     let move_level = lib
         .run::<EntryCreate>(
@@ -325,6 +322,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
                 title: "器物归档".into(),
                 parent: elements_root,
                 template: level_tpl,
+                level: None,
                 bodies: BTreeMap::new(),
             },
         )
@@ -335,10 +333,6 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
     g2_data::prepare_override(&book_snap, &move_level, "accept", Some(json!(false)))
         .and_then(|m| m.commit(&lib))
         .expect("set accept=false");
-    let book_snap = dr_shell::book::Book::load(&lib, &book_id).expect("book snap");
-    g2_data::prepare_override(&book_snap, &move_level, "allow", Some(json!([])))
-        .and_then(|m| m.commit(&lib))
-        .expect("set allow=[]");
 
     let ov = mount_overview(&shell, vcx);
     vcx.update(|_, cx| {

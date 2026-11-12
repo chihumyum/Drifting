@@ -194,15 +194,10 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
     let module_targets = |entry: &dr_model::v3::Entry| -> Vec<Target> {
         let template = entry.effective_template(&templates);
         let mut modules = Vec::new();
-        if entry.is_level(&templates) {
-            modules.push((dr_model::v3::level_about_module_id(), "about".to_owned()));
-        }
         if let Some(template) = template {
             modules.extend(
                 template
-                    .modules
-                    .iter()
-                    .filter(|m| m.kind == dr_model::v3::ModuleKind::Prose && !template.is_level())
+                    .prose_modules()
                     .map(|m| (m.id.clone(), m.name.clone())),
             );
         }
@@ -229,11 +224,22 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
             })
             .collect()
     };
-    let manuscript_levels = view.manuscript_levels();
-    let manuscript_entries: BTreeSet<_> = manuscript_levels
+    // The book's text is the manuscript sequence: each entry's own book
+    // prose before what lives under it (`BookStructureV3::manuscript`).
+    let structure = view.structure_snapshot();
+    let manuscript = structure.manuscript();
+    let book_docs: BTreeSet<String> = manuscript
         .iter()
-        .flat_map(|root| view.manuscript_leaves(root))
-        .map(|entry| entry.id)
+        .flat_map(|p| &p.entries)
+        .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
+        .collect();
+    // Entries the sequence numbers also keep the prose an earlier template
+    // left them, under its own module, as before the one kind of entry.
+    let numbered: BTreeSet<&dr_model::id::EntryId> = manuscript
+        .iter()
+        .flat_map(|p| &p.entries)
+        .filter(|e| e.ordinal.is_some())
+        .map(|e| &e.entry.id)
         .collect();
     let mut manifest = Vec::new();
     let mut targets = Vec::new();
@@ -248,15 +254,24 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
                 .then(|| modules[0].doc.clone())
                 .flatten(),
         });
-        if manuscript_entries.contains(&entry.id)
-            || (manuscript_levels.is_empty() && entry.is_leaf(&templates))
-        {
-            for target in &modules {
-                manifest.push(ManifestEntry {
-                    target: target.clone(),
-                    ordinal: manifest.len(),
-                });
+        let defined: BTreeSet<String> = entry
+            .effective_template(&templates)
+            .into_iter()
+            .flat_map(|t| t.modules.iter())
+            .map(|m| format!("{}/{}", entry.id, m.id))
+            .collect();
+        for target in modules.iter().filter(|t| {
+            if manuscript.is_empty() {
+                !entry.is_level()
+            } else {
+                t.doc.as_ref().is_some_and(|d| book_docs.contains(d))
+                    || (numbered.contains(&entry.id) && !defined.contains(&t.id))
             }
+        }) {
+            manifest.push(ManifestEntry {
+                target: target.clone(),
+                ordinal: manifest.len(),
+            });
         }
         targets.extend(modules);
     }

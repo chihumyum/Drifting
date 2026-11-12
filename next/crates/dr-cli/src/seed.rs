@@ -11,7 +11,6 @@ pub struct Report {
 }
 impl Choice {
     pub fn parse(name: &str) -> Option<Self> {
-        let name = name.strip_prefix("v3-").unwrap_or(name);
         Some(Self {
             preset: Preset::parse(name)?,
         })

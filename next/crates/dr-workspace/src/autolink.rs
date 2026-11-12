@@ -80,11 +80,10 @@ fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget
         ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
     let templates = v.templates_map();
     let memberships = v.memberships_raw();
+    let names = dr_model::v3::AutolinkNames::of(&entries, &memberships, &templates);
     let mut out = Vec::new();
     for e in ordered {
-        if e.name_conflict.is_some()
-            || !dr_model::v3::is_autolink_leaf(&e, &memberships, &entries, &templates)
-        {
+        if e.name_conflict.is_some() || !names.is_linked(&e.id) {
             continue;
         }
         let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());

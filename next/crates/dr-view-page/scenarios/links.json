@@ -2,7 +2,7 @@
   "about": "K4 G1: v3-lite automatic-link leaf mention picker and entry link navigation in a real module editor.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

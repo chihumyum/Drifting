@@ -19,7 +19,7 @@ pub struct VersionInfo {
     pub version: String,
 }
 op! {
-    Version="entry_history.version",Read,Shared,"Read the current v3 book version for per-entry snapshot restoration.",fn(cx,input:BookIn)->VersionInfo {
+    Version="entry_history.version",Read,Shared,"Read the current book version for per-entry snapshot restoration.",fn(cx,input:BookIn)->VersionInfo {
         let s = cx.book_v3(&input.book)?;
         let version = s.handle.read(|d| frontiers_hex(&d.oplog_frontiers()))?;
         Ok(VersionInfo { version })
@@ -37,7 +37,7 @@ enum Plan {
     SharedMap(CollectionV3, String),
 }
 op! {
-    Restore="entry_history.restore",Write,Book,"Restore selected v3 entry metadata or structural records from a snapshot as a new undoable commit.",fn(cx,input:RestoreIn)->Vec<Done> {
+    Restore="entry_history.restore",Write,Book,"Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit.",fn(cx,input:RestoreIn)->Vec<Done> {
         restore(cx, input)
     }
 }
@@ -56,6 +56,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
     let old = old.view();
     let current = s.reader_v3.view();
     let folders = super::history_folders::plan(&old, &current, &input.targets)?;
+    let before = current.graph();
     let mut entries = current.entries_map();
     let mut templates = current.templates_map();
     let mut ms = current.memberships_raw();
@@ -148,13 +149,26 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                     );
                 }
             }
-            _ => return Err(WsError::invalid("unsupported v3 history collection")),
+            _ => return Err(WsError::invalid("unsupported history collection")),
         }
     }
     for p in &plans {
         if let Plan::Entry(id, parent, _, _) = p {
             m::check_entry_move(&entries, id, parent.as_ref())?;
-            m::check_parent_is_level(parent.as_ref(), &entries, &templates)?;
+            m::check_parent_is_level(parent.as_ref(), &entries)?;
+            // An entry restored with its switch off may not keep live
+            // entries under it that this restore does not move elsewhere.
+            if entries
+                .get(id)
+                .is_some_and(|e| !e.is_trashed() && !e.is_level())
+                && entries
+                    .values()
+                    .any(|c| !c.is_trashed() && c.parent.as_ref() == Some(id))
+            {
+                return Err(WsError::invalid(
+                    "restoration would leave entries under an entry whose switch is off",
+                ));
+            }
         }
         if let Plan::Map(CollectionV3::Templates, id, _) = p {
             let id = pid("template", id)?;
@@ -163,15 +177,14 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
             }
         }
     }
-    for e in entries
-        .values()
-        .filter(|e| !e.is_trashed() && e.is_leaf(&templates))
-    {
-        if entries.values().any(|c| c.parent.as_ref() == Some(&e.id)) {
-            return Err(WsError::invalid("restoration would give a leaf children"));
-        }
-    }
-    graph_ok(&entries, &templates, &ms)?;
+    changes_ok(
+        &before,
+        &BookGraphV3 {
+            entries: entries.clone(),
+            templates: templates.clone(),
+            memberships: ms.clone(),
+        },
+    )?;
     // The desired final graph is acyclic. Order its ancestors before their children.
     let depth = |id: &EntryId| {
         let mut n = 0;

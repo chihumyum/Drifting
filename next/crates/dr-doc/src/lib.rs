@@ -26,7 +26,7 @@
 //! shares with the source replay. [`import_v1`] is that replay: the 0.1 book
 //! model, built in memory by the importer and the source fixtures only. It
 //! is not an App runtime, and product code may not import it (`cargo xtask
-//! check`, gate `v3-cutover`).
+//! check`, gate `cutover`).
 //!
 //! Positions are Unicode scalars (Loro's unit); [`pos::TextPos`] converts to
 //! and from GPUI's UTF-8 bytes and the input method's UTF-16.

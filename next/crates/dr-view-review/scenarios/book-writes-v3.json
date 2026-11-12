@@ -2,7 +2,7 @@
   "about": "G4 v3-lite 主流程：主页保存书名，打开素材笔记，在原文选区新建批注并读回持久记录。仅副屏隔离 profile；无 heavy 或截图验收。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

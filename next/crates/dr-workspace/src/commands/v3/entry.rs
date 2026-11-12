@@ -9,28 +9,38 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<EntryMove>()
         .add::<EntryTrash>()
         .add::<EntryRestore>()
-        .add::<LevelGet>()
-        .add::<LevelList>();
+        .add::<EntrySetLevel>();
 }
 
 op! {
-    ProjectCreate = "project.create", Write, Library, "Create a v3 project using the novel template.",
+    ProjectCreate = "project.create", Write, Library, "Create a project using the novel template.",
     fn(cx, input: super::super::book::BookCreateIn) -> Named {
         name_ok(&input.name)?;
         let id = BookId::new_v7();
         let slot = cx.workspace().book_slot_or_create_v3(&id)?;
         let roots = dr_doc::v3::NovelRootEntries::new();
-        for entry in [
-            &roots.manuscript,
-            &roots.ideas,
-            &roots.elements,
-            &roots.storylines,
-            &roots.cat_character,
-            &roots.cat_location,
-            &roots.cat_item,
-            &roots.cat_organization,
+        // Every entry the template creates has a body for each prose module
+        // of its template, registered before the book is written (there is
+        // no template prose to copy yet in a new book).
+        let templates: BTreeMap<EntryTemplateId, m::EntryTemplate> =
+            dr_doc::v3::novel_project_templates()
+                .into_iter()
+                .map(|t| (t.id.clone(), t))
+                .collect();
+        let tpl = |s: &str| EntryTemplateId::parse(s).expect("built-in template id");
+        for (entry, template) in [
+            (&roots.manuscript, dr_doc::v3::novel::TPL_MANUSCRIPT),
+            (&roots.ideas, dr_doc::v3::novel::TPL_IDEAS),
+            (&roots.elements, dr_doc::v3::novel::TPL_ELEMENTS),
+            (&roots.storylines, dr_doc::v3::novel::TPL_STORYLINES),
+            (&roots.cat_character, dr_doc::v3::novel::TPL_CATEGORY),
+            (&roots.cat_location, dr_doc::v3::novel::TPL_CATEGORY),
+            (&roots.cat_item, dr_doc::v3::novel::TPL_CATEGORY),
+            (&roots.cat_organization, dr_doc::v3::novel::TPL_CATEGORY),
         ] {
-            cx.create_prose(&id, &body_id(entry, &m::level_about_module_id()))?;
+            for module in templates[&tpl(template)].prose_modules() {
+                cx.create_prose(&id, &body_id(entry, &module.id))?;
+            }
         }
         // The two documents beside the book, from their genesis, so a first
         // writing day or checkpoint never has to create one.
@@ -61,6 +71,52 @@ op! {
     }
 }
 
+/// A new, empty entry: no fields, rows or layout yet.
+pub(super) fn new_entry(
+    id: EntryId,
+    parent: Option<EntryId>,
+    title: String,
+    template: Option<EntryTemplateId>,
+    level: bool,
+) -> m::Entry {
+    m::Entry {
+        id,
+        parent,
+        pos: String::new(),
+        title,
+        template,
+        level,
+        overrides: None,
+        fields: BTreeMap::new(),
+        kv: BTreeMap::new(),
+        primary: None,
+        layout: Default::default(),
+        created_at: Some(now()),
+        updated_at: None,
+        deleted_at: None,
+        name_conflict: None,
+    }
+}
+
+/// What lies below `id` in `v`, if it is a live entry whose switch is on.
+pub(super) fn below(v: &dr_doc::v3::BookStructureV3, id: &EntryId) -> Option<Box<types::Below>> {
+    let settings = v.level_settings(id)?;
+    Some(Box::new(types::Below {
+        settings: (&settings.settings).into(),
+        sources: settings
+            .sources
+            .iter()
+            .map(|(k, s)| (k.clone(), s.into()))
+            .collect(),
+        children: v
+            .children_of(Some(id))
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        members: v.members_of(id).into_iter().map(Into::into).collect(),
+    }))
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ListIn {
     pub book: String,
@@ -72,9 +128,14 @@ pub struct ListIn {
     pub trashed: bool,
     #[serde(default)]
     pub query: Option<String>,
+    /// Give every listed entry whose switch is on what lies below it
+    /// (resolved settings and their sources, children, members), all from
+    /// one consistent read of the book.
+    #[serde(default)]
+    pub below: bool,
 }
 op! {
-    EntryList = "entry.list", Read, Shared, "Find v3 entries or list the children of a level in manuscript order.",
+    EntryList = "entry.list", Read, Shared, "Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.",
     fn(cx, input: ListIn) -> Vec<types::Entry> {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view().structure_snapshot();
@@ -91,116 +152,37 @@ op! {
                         && (input.trashed || !e.is_trashed())
                         && e.title.to_lowercase().contains(&q)
                 })
-                .map(Into::into)
+                .map(|e| {
+                    let mut out: types::Entry = e.into();
+                    if input.below {
+                        out.below = below(&v, &e.id);
+                    }
+                    out
+                })
                 .collect(),
         )
     }
 }
 op! {
-    EntryGet = "entry.get", Read, Shared, "Read a v3 entry including retained module values.",
+    EntryGet = "entry.get", Read, Shared, "Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).",
     fn(cx,input:EntityIn)->types::Entry {
         let slot = cx.book_v3(&input.book)?;
-        convert(
-            slot.reader_v3
-                .view()
-                .entry(&pid("entry", &input.id)?)
-                .ok_or_else(|| WsError::not_found("entry", &input.id))?,
-        )
-    }
-}
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct LevelInfo {
-    pub settings: types::LevelSettings,
-    pub children: Vec<types::Entry>,
-    pub members: Vec<types::Entry>,
-}
-op! {
-    LevelGet = "level.get", Read, Shared, "Read resolved v3 level settings, resident children and accepted members.",
-    fn(cx,input:EntityIn)->LevelInfo {
-        let slot = cx.book_v3(&input.book)?;
-        let v = slot.reader_v3.view().structure_snapshot();
-        let e = v.entry(&pid("entry", &input.id)?).filter(|e|!e.is_trashed()).ok_or_else(||WsError::not_found("entry",&input.id))?;
-        let settings=v.level_settings(&e.id).ok_or_else(||WsError::invalid("entry is not a level"))?;
-        Ok(LevelInfo {
-            settings: convert(&settings.settings)?,
-            children: convert(v.children_of(Some(&e.id)))?,
-            members: convert(v.members_of(&e.id))?,
-        })
-    }
-}
-
-/// Identical provenance vocabulary to the shell's existing read-only tracing.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum SettingSource {
-    Default,
-    Override { entry: String },
-    Template { entry: String, template: String },
-    Lane { entry: String, template: String },
-}
-
-impl From<&m::LevelSettingSource> for SettingSource {
-    fn from(s: &m::LevelSettingSource) -> Self {
-        match s {
-            m::LevelSettingSource::Default => Self::Default,
-            m::LevelSettingSource::Override { entry } => Self::Override {
-                entry: entry.to_string(),
-            },
-            m::LevelSettingSource::Template { entry, template } => Self::Template {
-                entry: entry.to_string(),
-                template: template.to_string(),
-            },
-            m::LevelSettingSource::Lane { entry, template } => Self::Lane {
-                entry: entry.to_string(),
-                template: template.to_string(),
-            },
+        let view = slot.reader_v3.view();
+        let id = pid("entry", &input.id)?;
+        let e = view
+            .entry(&id)
+            .ok_or_else(|| WsError::not_found("entry", &input.id))?;
+        let mut out: types::Entry = (&e).into();
+        if e.is_level() && !e.is_trashed() {
+            out.below = below(&view.structure_snapshot(), &id);
         }
+        Ok(out)
     }
 }
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct ResolvedLevelInfo {
-    pub id: String,
-    pub settings: types::LevelSettings,
-    pub sources: BTreeMap<String, SettingSource>,
-    pub children: Vec<types::Entry>,
-    pub members: Vec<types::Entry>,
-}
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct LevelsInfo {
-    /// The book frontier shared by every row, usable with Workspace guards.
-    pub version: String,
-    /// Live levels in the same manuscript order as entry.list.
-    pub levels: Vec<ResolvedLevelInfo>,
-}
-op! {
-    LevelList = "level.list", Read, Shared, "Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot.",
-    fn(cx,input:BookIn)->LevelsInfo {
-        let slot=cx.book_v3(&input.book)?;
-        let book=slot.book.clone();
-        let (v,version)=slot.handle.read(move |doc| -> Result<_> {
-            let bb=dr_doc::v3::BorrowedBookV3::new(doc,&book)?;
-            Ok((bb.view().structure_snapshot(),frontiers_hex(&doc.state_frontiers())))
-        })??;
-        let levels = v
-            .levels()
-            .map(|e| {
-                let settings = v.level_settings(&e.id).expect("live level");
-                ResolvedLevelInfo {
-                    id: e.id.to_string(),
-                    settings: (&settings.settings).into(),
-                    sources: settings
-                        .sources
-                        .iter()
-                        .map(|(k, s)| (k.clone(), s.into()))
-                        .collect(),
-                    children: v.children_of(Some(&e.id)).into_iter().map(Into::into).collect(),
-                    members: v.members_of(&e.id).into_iter().map(Into::into).collect(),
-                }
-            })
-            .collect();
-        Ok(LevelsInfo { version, levels })
-    }
-}
+
+/// Where a resolved setting comes from (kept here for callers that name it
+/// through this module).
+pub use super::types::SettingSource;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct CreateIn {
@@ -211,52 +193,54 @@ pub struct CreateIn {
     pub parent: Option<String>,
     #[serde(default)]
     pub template: Option<String>,
+    /// The new entry's switch; the template's default when omitted.
+    #[serde(default)]
+    pub level: Option<bool>,
     /// Optional explicit initial text by prose module ID; omitted modules copy template prose.
     #[serde(default)]
     pub bodies: BTreeMap<String, String>,
 }
 op! {
-    EntryCreate = "entry.create", Write, Book, "Create a v3 entry with its template, residence, membership and initial module content.",
+    EntryCreate = "entry.create", Write, Book, "Create an entry with its template, switch, residence, membership and initial module content.",
     fn(cx,input:CreateIn)->types::Entry {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
-        let mut entries = v.entries_map();
-        let templates = v.templates_map();
-        let mut memberships = v.memberships_raw();
+        let before = v.graph();
         let context: Option<EntryId> = input
             .parent
             .as_deref()
             .map(|s| pid("parent", s))
             .transpose()?;
-        m::check_parent_is_level(context.as_ref(), &entries, &templates)?;
+        m::check_parent_is_level(context.as_ref(), &before.entries)?;
         let template = input
             .template
             .as_deref()
             .map(|s| pid("template", s))
             .transpose()?
-            .or_else(|| v.level_settings(context.as_ref()).default_template);
-        m::check_entry_template(&templates, template.as_ref())?;
-        let parent = m::resolve_new_entry_residence(context.as_ref(), &entries, &templates);
-        m::check_level_allows_template(parent.as_ref(), template.as_ref(), &entries, &templates)?;
+            .or_else(|| {
+                m::resolve_level_settings(context.as_ref(), &before.entries, &before.templates)
+                    .default_template
+            });
+        m::check_entry_template(&before.templates, template.as_ref())?;
+        let parent =
+            m::resolve_new_entry_residence(context.as_ref(), &before.entries, &before.templates);
+        m::check_parent_is_level(parent.as_ref(), &before.entries)?;
         let id = EntryId::new_v7();
         name_ok(&input.title)?;
-        let mut e = m::Entry {
-            id: id.clone(),
-            parent: parent.clone(),
-            pos: String::new(),
-            title: input.title.trim().into(),
-            template: template.clone(),
-            overrides: None,
-            fields: BTreeMap::new(),
-            kv: BTreeMap::new(),
-            primary: None,
-            layout: Default::default(),
-            created_at: Some(now()),
-            updated_at: None,
-            deleted_at: None,
-            name_conflict: None,
-        };
-        if let Some(t) = e.effective_template(&templates) {
+        let level = input.level.unwrap_or_else(|| {
+            template
+                .as_ref()
+                .and_then(|t| before.templates.get(t))
+                .is_some_and(|t| t.level)
+        });
+        let mut e = new_entry(
+            id.clone(),
+            parent.clone(),
+            input.title.trim().into(),
+            template.clone(),
+            level,
+        );
+        if let Some(t) = e.effective_template(&before.templates) {
             for module in &t.modules {
                 if module.kind == m::ModuleKind::Fields {
                     let mut defaults = BTreeMap::new();
@@ -281,21 +265,21 @@ op! {
                 }
             }
         }
-        entries.insert(id.clone(), e.clone());
+        let mut after = before.clone();
+        after.entries.insert(id.clone(), e.clone());
         let host = context.filter(|c| Some(c) != parent.as_ref());
         if let Some(h) = &host {
-            m::check_membership(h, &id, &entries, &templates)?;
-            memberships.push(m::Membership {
+            m::check_membership(h, &id, &after.entries, &after.templates)?;
+            after.memberships.push(m::Membership {
                 host: h.clone(),
                 member: id.clone(),
                 pos: None,
                 created_at: Some(now()),
             });
             e.primary = Some(h.clone());
-            entries.insert(id.clone(), e.clone());
         }
-        graph_ok(&entries, &templates, &memberships)?;
-        module::initialize(cx, &slot, &e, &templates, &input.bodies)?;
+        changes_ok(&before, &after)?;
+        module::initialize(cx, &slot, &e, &before.templates, &input.bodies)?;
         let saved = e.clone();
         let h = host.clone();
         let (_, at) = cx.write_book_v3(&slot, Replaces::nothing(), move |t| {
@@ -304,6 +288,7 @@ op! {
                 saved.parent.as_ref(),
                 &saved.title,
                 saved.template.as_ref(),
+                saved.level,
             )?;
             w.created_at(saved.created_at)?.primary(h.as_ref())?;
             for (module, fields) in &saved.fields {
@@ -352,12 +337,11 @@ pub struct UpdateIn {
     pub layout: Option<types::EntryLayout>,
 }
 op! {
-    EntryUpdate = "entry.update", Write, Book, "Rename a v3 entry, switch its template or change level overrides without deleting retained content.",
+    EntryUpdate = "entry.update", Write, Book, "Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.",
     fn(cx,input:UpdateIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
         let mut e = live(&v, &input.id)?;
-        let mut entries = v.entries_map();
         let templates = v.templates_map();
         let set = (
             input.title.is_some(),
@@ -374,12 +358,14 @@ op! {
                 .as_deref()
                 .map(|s| pid("template", s))
                 .transpose()?;
-            m::check_template_switch(&e.id, template.as_ref(), &entries, &templates)?;
+            m::check_entry_template(&templates, template.as_ref())?;
             e.template = template;
         }
         if let Some(overrides) = input.overrides {
-            if !e.is_level(&templates) {
-                return Err(WsError::invalid("only levels have overrides"));
+            if !e.is_level() {
+                return Err(WsError::invalid(
+                    "only an entry with its switch on has overrides; turn it on first",
+                ));
             }
             e.overrides = overrides.map(convert).transpose()?;
             if let Some(s) = &e.overrides {
@@ -392,9 +378,20 @@ op! {
                 return Err(WsError::invalid("layout coordinates must be finite"));
             }
         }
-        entries.insert(e.id.clone(), e.clone());
-        graph_ok(&entries, &templates, &v.memberships_raw())?;
-        module::initialize(cx, &slot, &e, &templates, &BTreeMap::new())?;
+        // A layout change alone touches nothing the structural checks read.
+        if set.0 || set.1 || set.2 {
+            let before = v.graph();
+            let mut after = before.clone();
+            if let Some(h) = after.entries.get_mut(&e.id) {
+                h.title = e.title.clone();
+                h.template = e.template.clone();
+                h.overrides = e.overrides.clone();
+            }
+            changes_ok(&before, &after)?;
+        }
+        if set.1 {
+            module::initialize(cx, &slot, &e, &templates, &BTreeMap::new())?;
+        }
         let id = e.id.clone();
         let name = e.title.clone();
         // Only the fields this call names are written, so a concurrent
@@ -440,32 +437,33 @@ pub struct MoveIn {
     pub index: Option<usize>,
 }
 op! {
-    EntryMove = "entry.move", Write, Book, "Move a v3 entry's residence and manuscript position.",
+    EntryMove = "entry.move", Write, Book, "Move an entry's residence and manuscript position; the new residence is the root or a live entry whose switch is on.",
     fn(cx,input:MoveIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
-        let mut e = live(&v, &input.id)?;
-        let mut entries = v.entries_map();
-        let templates = v.templates_map();
+        let e = live(&v, &input.id)?;
+        let before = v.graph();
         let parent: Option<EntryId> = input
             .parent
             .as_deref()
             .map(|s| pid("parent", s))
             .transpose()?;
-        m::check_entry_move(&entries, &e.id, parent.as_ref())?;
-        m::check_level_allows_template(parent.as_ref(), e.template.as_ref(), &entries, &templates)?;
-        let count = v
-            .entries_raw()
-            .iter()
+        m::check_entry_move(&before.entries, &e.id, parent.as_ref())?;
+        m::check_parent_is_level(parent.as_ref(), &before.entries)?;
+        let count = before
+            .entries
+            .values()
             .filter(|x| x.parent == parent && x.id != e.id)
             .count();
         let index = input.index.unwrap_or(count);
         if index > count {
             return Err(WsError::invalid("index exceeds sibling count"));
         }
-        e.parent = parent.clone();
-        entries.insert(e.id.clone(), e.clone());
-        graph_ok(&entries, &templates, &v.memberships_raw())?;
+        let mut after = before.clone();
+        if let Some(h) = after.entries.get_mut(&e.id) {
+            h.parent = parent.clone();
+        }
+        changes_ok(&before, &after)?;
         let id = e.id.clone();
         // The residence is part of the entry's own record.
         let moved = Replaces::record(CollectionV3::Entries, &e.id);
@@ -482,7 +480,8 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     let slot = cx.book_v3(&input.book)?;
     let v = slot.reader_v3.view();
     let id: EntryId = pid("entry", &input.id)?;
-    let mut entries = v.entries_map();
+    let before = v.graph();
+    let mut entries = before.entries.clone();
     if !entries.contains_key(&id) {
         return Err(WsError::not_found("entry", &input.id));
     }
@@ -508,7 +507,11 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
         entries.get_mut(id).unwrap().deleted_at = stamp;
     }
     if !trashed {
-        graph_ok(&entries, &v.templates_map(), &v.memberships_raw())?;
+        let after = BookGraphV3 {
+            entries,
+            ..before.clone()
+        };
+        changes_ok(&before, &after)?;
     }
     let changed = ids.clone();
     // The named entry; the subtree that follows it is planned above.
@@ -540,12 +543,95 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     Ok(Done { id: input.id })
 }
 op! {
-    EntryTrash="entry.trash",Write,Book,"Trash a v3 resident subtree while keeping entries that only belong to its levels.",fn(cx,input:EntityIn)->Done {
+    EntryTrash="entry.trash",Write,Book,"Trash an entry with what lives under it, keeping entries that only belong to it.",fn(cx,input:EntityIn)->Done {
         trash(cx, input, true)
     }
 }
 op! {
-    EntryRestore="entry.restore",Write,Book,"Restore a v3 resident subtree from trash.",fn(cx,input:EntityIn)->Done {
+    EntryRestore="entry.restore",Write,Book,"Restore an entry and what lives under it from trash.",fn(cx,input:EntityIn)->Done {
         trash(cx, input, false)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetLevelIn {
+    pub book: String,
+    pub id: String,
+    /// The switch (`层级`): whether entries can live under this one.
+    pub level: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetLevelOut {
+    pub id: String,
+    pub level: bool,
+    /// The direct children moved to the root when the switch went off, in
+    /// their order (trashed ones included).
+    pub moved: Vec<String>,
+}
+op! {
+    EntrySetLevel = "entry.set_level", Write, Book, "Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on.",
+    fn(cx, input: SetLevelIn) -> SetLevelOut {
+        let slot = cx.book_v3(&input.book)?;
+        let v = slot.reader_v3.view();
+        let e = live(&v, &input.id)?;
+        if e.level == input.level {
+            cx.undo_nothing();
+            return Ok(SetLevelOut {
+                id: input.id,
+                level: input.level,
+                moved: Vec::new(),
+            });
+        }
+        let before = v.graph();
+        // Direct children by stored residence, trashed ones included.
+        let children: Vec<EntryId> = before
+            .entries
+            .values()
+            .filter(|c| c.parent.as_ref() == Some(&e.id))
+            .map(|c| c.id.clone())
+            .collect();
+        let mut after = before.clone();
+        if !input.level {
+            for c in &children {
+                if let Some(h) = after.entries.get_mut(c) {
+                    h.parent = None;
+                }
+            }
+        }
+        if let Some(h) = after.entries.get_mut(&e.id) {
+            h.level = input.level;
+        }
+        changes_ok(&before, &after)?;
+        // The switch, and when it goes off with entries below, the order of
+        // those entries: a caller that read them is held to what it read.
+        let mut replaced = vec![rec(CollectionV3::Entries, &e.id).at(["level"])];
+        if !input.level && !children.is_empty() {
+            replaced.push(dr_doc::v3::RecordKeyV3::children(
+                CollectionV3::Entries,
+                Some(e.id.as_str()),
+            ));
+        }
+        let id = e.id.clone();
+        let level = input.level;
+        let (moved, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |t| {
+            if level {
+                t.entries().entry(&id)?.level(true)?;
+                Ok(Vec::new())
+            } else {
+                Ok(t.entries().switch_level_off(&id)?)
+            }
+        })?;
+        let mut keys = vec![key("entries", &e.id)];
+        keys.extend(moved.iter().map(|c| key("entries", c)));
+        undo(cx, &slot, &at, keys);
+        cx.effect(EffectAction::Updated, "entry", e.id.as_str(), Some(&e.title));
+        for c in &moved {
+            cx.effect(EffectAction::Moved, "entry", c.as_str(), None);
+        }
+        Ok(SetLevelOut {
+            id: input.id,
+            level: input.level,
+            moved: moved.iter().map(ToString::to_string).collect(),
+        })
     }
 }

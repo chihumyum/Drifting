@@ -38,7 +38,7 @@ pub struct RecentTouchIn {
 }
 fn decode(raw: Option<String>, book: &str) -> dr_store::Result<Vec<RecentEntry>> {
     let invalid = || StoreError::Invalid {
-        what: "v3 recent pages",
+        what: "recent pages",
         value: "unreadable state; left unchanged".into(),
     };
     let entries: Vec<RecentEntry> = raw
@@ -89,12 +89,12 @@ fn live(cx: &Cx<'_>, slot: &BookSlot, target: &Target) -> Result<bool> {
 }
 op! {
     RecentTouch = "recent.touch", Write, Book,
-    "Record a v3 entry and optional module, or a material, on this device without an undo step.",
+    "Record an entry and optional module, or a material, on this device without an undo step.",
     fn(cx, input: RecentTouchIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         if let Some(module) = &input.target.module { let _: ModuleId = pid("module", module)?; }
         if !live(cx, &slot, &input.target)? {
-            return Err(WsError::invalid("recent target is not a live v3 page or retained module"));
+            return Err(WsError::invalid("recent target is not a live page or retained module"));
         }
         let used_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -118,7 +118,7 @@ op! {
 }
 op! {
     RecentList = "recent.list", Read, Shared,
-    "List this device's live v3 pages, retaining each entry's selected module.",
+    "List this device's live pages, retaining each entry's selected module.",
     fn(cx, input: RecentListIn) -> Vec<RecentEntry> {
         let slot = cx.book_v3(&input.book)?;
         let all = decode(cx.workspace().library().local_get(SCOPE, &input.book)?, &input.book)?;

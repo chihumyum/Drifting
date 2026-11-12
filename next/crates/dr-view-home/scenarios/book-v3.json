@@ -2,7 +2,7 @@
   "about": "G4 v3-lite 主流程冒烟：主页按模板动作新建，成稿导出，单本书导出并作为新书导入。运行器须把此隔离窗口放在副屏；本场景不做截图或 heavy 测量。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

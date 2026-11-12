@@ -1,5 +1,5 @@
 use super::*;
-use dr_ui::components::{Chip, Switch};
+use dr_ui::components::Switch;
 
 pub(super) fn display_label(value: &str, cx: &App) -> SharedString {
     t(
@@ -28,7 +28,6 @@ impl TemplateEditor {
         let settings = &mut self.draft.settings;
         match key {
             "default_template" => settings.default_template = None,
-            "allow" => settings.allow = None,
             "display" => settings.display = None,
             "auto_link" => settings.auto_link = None,
             "accept" => settings.accept = None,
@@ -89,7 +88,7 @@ impl TemplateEditor {
             "accept" => settings.accept,
             _ => settings.is_manuscript,
         };
-        let forced = key == "accept" && self.draft.lane;
+        let forced = key == "accept" && self.draft.settings.lane == Some(true);
         let entity = cx.entity();
         let control = div()
             .flex()
@@ -182,63 +181,6 @@ impl TemplateEditor {
             k::DEFAULT_TEMPLATE,
             select.into_any_element(),
             self.draft.settings.default_template.is_some(),
-            cx,
-        ));
-        let mut allow = div().flex().flex_wrap().gap(px(6.)).child(
-            Button::new("k5-allow-all", t(cx, k::ALL_TEMPLATES))
-                .small()
-                .text()
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.draft.settings.allow = Some(Vec::new());
-                    cx.notify();
-                })),
-        );
-        for (id, name) in &options {
-            let id = id.clone();
-            let selected = self
-                .draft
-                .settings
-                .allow
-                .as_ref()
-                .is_some_and(|allow| allow.contains(&id));
-            let entity = cx.entity();
-            allow = allow.child(
-                div()
-                    .id(SharedString::from(format!("k5-allow-toggle-{id}")))
-                    .role(gpui::Role::CheckBox)
-                    .aria_label(name.clone())
-                    .aria_toggled(if selected {
-                        gpui::Toggled::True
-                    } else {
-                        gpui::Toggled::False
-                    })
-                    .child(
-                        Chip::new(
-                            SharedString::from(format!("k5-allow-{id}")),
-                            name.clone(),
-                            selected,
-                        )
-                        .on_change(move |value, _, cx| {
-                            entity.update(cx, |this, cx| {
-                                let allow = this.draft.settings.allow.get_or_insert_with(Vec::new);
-                                allow.retain(|tid| tid != &id);
-                                if value {
-                                    allow.push(id.clone());
-                                }
-                                cx.notify();
-                            })
-                        }),
-                    ),
-            );
-        }
-        if self.draft.settings.allow.is_none() {
-            allow = allow.child(t(cx, k::INHERIT));
-        }
-        section = section.child(self.setting_row(
-            "allow",
-            k::ALLOW,
-            allow.into_any_element(),
-            self.draft.settings.allow.is_some(),
             cx,
         ));
         let displays = ["list", "grid", "board", "island"];
@@ -353,19 +295,20 @@ impl TemplateEditor {
                         .id("k5-lane-toggle")
                         .role(gpui::Role::CheckBox)
                         .aria_label(t(cx, k::LANE))
-                        .aria_toggled(if self.draft.lane {
+                        .aria_toggled(if self.draft.settings.lane == Some(true) {
                             gpui::Toggled::True
                         } else {
                             gpui::Toggled::False
                         })
-                        .child(Switch::new("k5-lane-switch", self.draft.lane).on_change(
-                            move |value, _, cx| {
-                                entity.update(cx, |this, cx| {
-                                    this.draft.lane = value;
-                                    cx.notify();
-                                })
-                            },
-                        )),
+                        .child(
+                            Switch::new("k5-lane-switch", self.draft.settings.lane == Some(true))
+                                .on_change(move |value, _, cx| {
+                                    entity.update(cx, |this, cx| {
+                                        this.draft.settings.lane = Some(value);
+                                        cx.notify();
+                                    })
+                                }),
+                        ),
                 ),
         );
         section.into_any_element()
@@ -387,17 +330,7 @@ impl TemplateEditor {
                 window,
                 cx,
             );
-            let allowed = self
-                .draft
-                .settings
-                .allow
-                .as_ref()
-                .filter(|allow| !allow.is_empty());
-            let targets: Vec<_> = options
-                .iter()
-                .filter(|(id, _)| allowed.is_none_or(|allow| allow.contains(id)))
-                .cloned()
-                .collect();
+            let targets: Vec<_> = options.to_vec();
             let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::CHOOSE_TEMPLATE))];
             choices.extend(
                 targets

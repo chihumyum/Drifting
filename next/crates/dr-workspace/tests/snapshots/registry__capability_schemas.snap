@@ -210,7 +210,7 @@ expression: json
       "title": "BookInfo",
       "type": "object"
     },
-    "summary": "Read v3 book metadata and word targets; aggregate counts use the v3 statistics adapter."
+    "summary": "Read book metadata and word targets; aggregate counts use the statistics adapter."
   },
   {
     "access": "read",
@@ -643,7 +643,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Update selected v3 book metadata fields without replacing other book data."
+    "summary": "Update selected book metadata fields without replacing other book data."
   },
   {
     "access": "read",
@@ -772,7 +772,7 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -890,7 +890,7 @@ expression: json
           "type": "object"
         },
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -1109,7 +1109,7 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -1308,7 +1308,7 @@ expression: json
           "type": "object"
         },
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -1524,6 +1524,14 @@ expression: json
         "book": {
           "type": "string"
         },
+        "level": {
+          "default": null,
+          "description": "The new entry's switch; the template's default when omitted.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "parent": {
           "default": null,
           "description": "The level from which creation is requested; its default template and home apply.",
@@ -1554,6 +1562,42 @@ expression: json
     "name": "entry.create",
     "output": {
       "$defs": {
+        "Below": {
+          "description": "What lies below a level (`下面`).",
+          "properties": {
+            "children": {
+              "description": "Live entries living under it, in manuscript order.",
+              "items": {
+                "$ref": "#"
+              },
+              "type": "array"
+            },
+            "members": {
+              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "items": {
+                "$ref": "#"
+              },
+              "type": "array"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettings"
+            },
+            "sources": {
+              "additionalProperties": {
+                "$ref": "#/$defs/SettingSource"
+              },
+              "description": "Where each resolved setting comes from.",
+              "type": "object"
+            }
+          },
+          "required": [
+            "settings",
+            "sources",
+            "children",
+            "members"
+          ],
+          "type": "object"
+        },
         "EntryLayout": {
           "properties": {
             "board": {
@@ -1674,23 +1718,73 @@ expression: json
           ],
           "type": "object"
         },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": false,
+              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
+              "type": "boolean"
+            },
+            "lane": {
+              "default": false,
+              "description": "Whether this level is a timeline swimlane (never inherited).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "is_manuscript",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
         "LevelSettingsOverride": {
           "properties": {
             "accept": {
               "default": null,
               "type": [
                 "boolean",
-                "null"
-              ]
-            },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
                 "null"
               ]
             },
@@ -1735,20 +1829,109 @@ expression: json
                 "boolean",
                 "null"
               ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "required": [
-            "allow",
             "display",
             "auto_link",
             "accept",
             "is_manuscript",
-            "format_shortcuts"
+            "format_shortcuts",
+            "lane"
           ],
           "type": "object"
+        },
+        "SettingSource": {
+          "description": "Where one resolved setting comes from (the same precedence as its value).",
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "default",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "override",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "template",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "`accept` is on because the level is a swimlane.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
         }
       },
       "properties": {
+        "below": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Below"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What lies below an entry whose switch is on (`entry.get`, and\n`entry.list` with `below`): resolved settings with where each comes\nfrom, resident children and accepted members. Absent otherwise."
+        },
         "created_at": {
           "format": "int64",
           "type": [
@@ -1789,9 +1972,14 @@ expression: json
         "layout": {
           "$ref": "#/$defs/EntryLayout"
         },
+        "level": {
+          "default": false,
+          "description": "The entry's own switch (`层级`): whether entries can live under it.",
+          "type": "boolean"
+        },
         "name_conflict": {
           "default": null,
-          "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+          "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
           "type": [
             "string",
             "null"
@@ -1806,10 +1994,10 @@ expression: json
               "type": "null"
             }
           ],
-          "description": "Per-entry level setting overrides (only meaningful on level entries)."
+          "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
         },
         "parent": {
-          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
           "type": [
             "string",
             "null"
@@ -1850,6 +2038,7 @@ expression: json
         "pos",
         "title",
         "template",
+        "level",
         "overrides",
         "fields",
         "kv",
@@ -1863,7 +2052,7 @@ expression: json
       "title": "Entry",
       "type": "object"
     },
-    "summary": "Create a v3 entry with its template, residence, membership and initial module content."
+    "summary": "Create an entry with its template, switch, residence, membership and initial module content."
   },
   {
     "access": "read",
@@ -1890,6 +2079,42 @@ expression: json
     "name": "entry.get",
     "output": {
       "$defs": {
+        "Below": {
+          "description": "What lies below a level (`下面`).",
+          "properties": {
+            "children": {
+              "description": "Live entries living under it, in manuscript order.",
+              "items": {
+                "$ref": "#"
+              },
+              "type": "array"
+            },
+            "members": {
+              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "items": {
+                "$ref": "#"
+              },
+              "type": "array"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettings"
+            },
+            "sources": {
+              "additionalProperties": {
+                "$ref": "#/$defs/SettingSource"
+              },
+              "description": "Where each resolved setting comes from.",
+              "type": "object"
+            }
+          },
+          "required": [
+            "settings",
+            "sources",
+            "children",
+            "members"
+          ],
+          "type": "object"
+        },
         "EntryLayout": {
           "properties": {
             "board": {
@@ -2010,23 +2235,73 @@ expression: json
           ],
           "type": "object"
         },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": false,
+              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
+              "type": "boolean"
+            },
+            "lane": {
+              "default": false,
+              "description": "Whether this level is a timeline swimlane (never inherited).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "is_manuscript",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
         "LevelSettingsOverride": {
           "properties": {
             "accept": {
               "default": null,
               "type": [
                 "boolean",
-                "null"
-              ]
-            },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
                 "null"
               ]
             },
@@ -2071,20 +2346,109 @@ expression: json
                 "boolean",
                 "null"
               ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "required": [
-            "allow",
             "display",
             "auto_link",
             "accept",
             "is_manuscript",
-            "format_shortcuts"
+            "format_shortcuts",
+            "lane"
           ],
           "type": "object"
+        },
+        "SettingSource": {
+          "description": "Where one resolved setting comes from (the same precedence as its value).",
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "default",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "override",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "template",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "`accept` is on because the level is a swimlane.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
         }
       },
       "properties": {
+        "below": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Below"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What lies below an entry whose switch is on (`entry.get`, and\n`entry.list` with `below`): resolved settings with where each comes\nfrom, resident children and accepted members. Absent otherwise."
+        },
         "created_at": {
           "format": "int64",
           "type": [
@@ -2125,9 +2489,14 @@ expression: json
         "layout": {
           "$ref": "#/$defs/EntryLayout"
         },
+        "level": {
+          "default": false,
+          "description": "The entry's own switch (`层级`): whether entries can live under it.",
+          "type": "boolean"
+        },
         "name_conflict": {
           "default": null,
-          "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+          "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
           "type": [
             "string",
             "null"
@@ -2142,10 +2511,10 @@ expression: json
               "type": "null"
             }
           ],
-          "description": "Per-entry level setting overrides (only meaningful on level entries)."
+          "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
         },
         "parent": {
-          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
           "type": [
             "string",
             "null"
@@ -2186,6 +2555,7 @@ expression: json
         "pos",
         "title",
         "template",
+        "level",
         "overrides",
         "fields",
         "kv",
@@ -2199,7 +2569,7 @@ expression: json
       "title": "Entry",
       "type": "object"
     },
-    "summary": "Read a v3 entry including retained module values."
+    "summary": "Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members)."
   },
   {
     "access": "read",
@@ -2209,6 +2579,11 @@ expression: json
       "properties": {
         "all": {
           "default": false,
+          "type": "boolean"
+        },
+        "below": {
+          "default": false,
+          "description": "Give every listed entry whose switch is on what lies below it\n(resolved settings and their sources, children, members), all from\none consistent read of the book.",
           "type": "boolean"
         },
         "book": {
@@ -2243,8 +2618,55 @@ expression: json
     "name": "entry.list",
     "output": {
       "$defs": {
+        "Below": {
+          "description": "What lies below a level (`下面`).",
+          "properties": {
+            "children": {
+              "description": "Live entries living under it, in manuscript order.",
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "members": {
+              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettings"
+            },
+            "sources": {
+              "additionalProperties": {
+                "$ref": "#/$defs/SettingSource"
+              },
+              "description": "Where each resolved setting comes from.",
+              "type": "object"
+            }
+          },
+          "required": [
+            "settings",
+            "sources",
+            "children",
+            "members"
+          ],
+          "type": "object"
+        },
         "Entry": {
           "properties": {
+            "below": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Below"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What lies below an entry whose switch is on (`entry.get`, and\n`entry.list` with `below`): resolved settings with where each comes\nfrom, resident children and accepted members. Absent otherwise."
+            },
             "created_at": {
               "format": "int64",
               "type": [
@@ -2285,9 +2707,14 @@ expression: json
             "layout": {
               "$ref": "#/$defs/EntryLayout"
             },
+            "level": {
+              "default": false,
+              "description": "The entry's own switch (`层级`): whether entries can live under it.",
+              "type": "boolean"
+            },
             "name_conflict": {
               "default": null,
-              "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+              "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
               "type": [
                 "string",
                 "null"
@@ -2302,10 +2729,10 @@ expression: json
                   "type": "null"
                 }
               ],
-              "description": "Per-entry level setting overrides (only meaningful on level entries)."
+              "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
             },
             "parent": {
-              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
               "type": [
                 "string",
                 "null"
@@ -2346,6 +2773,7 @@ expression: json
             "pos",
             "title",
             "template",
+            "level",
             "overrides",
             "fields",
             "kv",
@@ -2478,23 +2906,73 @@ expression: json
           ],
           "type": "object"
         },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": false,
+              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
+              "type": "boolean"
+            },
+            "lane": {
+              "default": false,
+              "description": "Whether this level is a timeline swimlane (never inherited).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "is_manuscript",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
         "LevelSettingsOverride": {
           "properties": {
             "accept": {
               "default": null,
               "type": [
                 "boolean",
-                "null"
-              ]
-            },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
                 "null"
               ]
             },
@@ -2539,17 +3017,95 @@ expression: json
                 "boolean",
                 "null"
               ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "required": [
-            "allow",
             "display",
             "auto_link",
             "accept",
             "is_manuscript",
-            "format_shortcuts"
+            "format_shortcuts",
+            "lane"
           ],
           "type": "object"
+        },
+        "SettingSource": {
+          "description": "Where one resolved setting comes from (the same precedence as its value).",
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "default",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "override",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "template",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "`accept` is on because the level is a swimlane.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
         }
       },
       "items": {
@@ -2558,7 +3114,7 @@ expression: json
       "title": "Array_of_Entry",
       "type": "array"
     },
-    "summary": "Find v3 entries or list the children of a level in manuscript order."
+    "summary": "Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members."
   },
   {
     "access": "write",
@@ -2611,7 +3167,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Move a v3 entry's residence and manuscript position."
+    "summary": "Move an entry's residence and manuscript position; the new residence is the root or a live entry whose switch is on."
   },
   {
     "access": "write",
@@ -2649,7 +3205,60 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Restore a v3 resident subtree from trash."
+    "summary": "Restore an entry and what lives under it from trash."
+  },
+  {
+    "access": "write",
+    "book_version": 4,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "level": {
+          "description": "The switch (`层级`): whether entries can live under this one.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "level"
+      ],
+      "title": "SetLevelIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.set_level",
+    "output": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "level": {
+          "type": "boolean"
+        },
+        "moved": {
+          "description": "The direct children moved to the root when the switch went off, in\ntheir order (trashed ones included).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "level",
+        "moved"
+      ],
+      "title": "SetLevelOut",
+      "type": "object"
+    },
+    "summary": "Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on."
   },
   {
     "access": "write",
@@ -2687,7 +3296,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Trash a v3 resident subtree while keeping entries that only belong to its levels."
+    "summary": "Trash an entry with what lives under it, keeping entries that only belong to it."
   },
   {
     "access": "write",
@@ -2769,17 +3378,6 @@ expression: json
                 "null"
               ]
             },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
             "auto_link": {
               "default": null,
               "type": [
@@ -2817,6 +3415,14 @@ expression: json
             },
             "is_manuscript": {
               "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
               "type": [
                 "boolean",
                 "null"
@@ -2890,7 +3496,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Rename a v3 entry, switch its template or change level overrides without deleting retained content."
+    "summary": "Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch."
   },
   {
     "access": "write",
@@ -2960,7 +3566,7 @@ expression: json
       "title": "Array_of_Done",
       "type": "array"
     },
-    "summary": "Restore selected v3 entry metadata or structural records from a snapshot as a new undoable commit."
+    "summary": "Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit."
   },
   {
     "access": "read",
@@ -2993,7 +3599,7 @@ expression: json
       "title": "VersionInfo",
       "type": "object"
     },
-    "summary": "Read the current v3 book version for per-entry snapshot restoration."
+    "summary": "Read the current book version for per-entry snapshot restoration."
   },
   {
     "access": "write",
@@ -3031,7 +3637,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete an unused unlocked v3 relation type."
+    "summary": "Delete an unused unlocked relation type."
   },
   {
     "access": "read",
@@ -3151,7 +3757,7 @@ expression: json
       "title": "Array_of_RelationTypeInfo",
       "type": "array"
     },
-    "summary": "List relation types available to v3 entry modules."
+    "summary": "List relation types available to entry modules."
   },
   {
     "access": "write",
@@ -3256,7 +3862,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Create or edit a v3 relation type with endpoint and template restrictions."
+    "summary": "Create or edit a relation type with endpoint and template restrictions."
   },
   {
     "access": "write",
@@ -3352,7 +3958,7 @@ expression: json
       "title": "Point",
       "type": "object"
     },
-    "summary": "Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped."
+    "summary": "Capture changed entry content periodically or on close using the existing history interval; unchanged content is skipped."
   },
   {
     "access": "write",
@@ -3435,7 +4041,7 @@ expression: json
       "title": "Point",
       "type": "object"
     },
-    "summary": "Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry."
+    "summary": "Save a complete entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry."
   },
   {
     "access": "write",
@@ -3630,7 +4236,7 @@ expression: json
       "title": "Array_of_Point",
       "type": "array"
     },
-    "summary": "List complete checkpoints of one v3 entry, newest first."
+    "summary": "List complete checkpoints of one entry, newest first."
   },
   {
     "access": "read",
@@ -3712,14 +4318,14 @@ expression: json
             "id": {
               "type": "string"
             },
-            "kind": {
-              "default": "leaf",
-              "description": "`level` (层级模板) or `leaf` (叶子模板).",
-              "type": "string"
-            },
-            "lane": {
+            "level": {
               "default": false,
-              "description": "Swimlane toggle (`lane`, only used when `kind == String::Level`).",
+              "description": "Whether a new entry of this template starts with its switch on.\nChanging it never touches existing entries.",
+              "type": "boolean"
+            },
+            "linkable": {
+              "default": true,
+              "description": "Whether entries of this template take part in auto-linking.",
               "type": "boolean"
             },
             "mark": {
@@ -3732,7 +4338,7 @@ expression: json
             },
             "modules": {
               "default": [],
-              "description": "Ordered module manifest (`modules`).\nFor `\"level\"`, only `fields` and `kv` modules are allowed.",
+              "description": "Ordered module manifest (`modules`), any kinds.",
               "items": {
                 "$ref": "#/$defs/ModuleSpec"
               },
@@ -3745,17 +4351,17 @@ expression: json
               "$ref": "#/$defs/LevelSettingsOverride",
               "default": {
                 "accept": null,
-                "allow": null,
                 "auto_link": null,
                 "display": null,
                 "format_shortcuts": null,
-                "is_manuscript": null
+                "is_manuscript": null,
+                "lane": null
               },
-              "description": "Level settings (`settings`, only used when `kind == String::Level`)."
+              "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
             "verbs": {
               "default": [],
-              "description": "Declared actions (`verbs`, only used when `kind == String::Level`).",
+              "description": "Declared actions, shown on entries of this template whose switch is on.",
               "items": {
                 "$ref": "#/$defs/TemplateVerb"
               },
@@ -3764,14 +4370,14 @@ expression: json
           },
           "required": [
             "id",
-            "kind",
             "name",
             "mark",
             "color",
             "agent",
             "modules",
+            "level",
+            "linkable",
             "settings",
-            "lane",
             "verbs",
             "deleted_at"
           ],
@@ -3892,17 +4498,6 @@ expression: json
                 "null"
               ]
             },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
             "auto_link": {
               "default": null,
               "type": [
@@ -3944,15 +4539,23 @@ expression: json
                 "boolean",
                 "null"
               ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "required": [
-            "allow",
             "display",
             "auto_link",
             "accept",
             "is_manuscript",
-            "format_shortcuts"
+            "format_shortcuts",
+            "lane"
           ],
           "type": "object"
         },
@@ -4024,6 +4627,11 @@ expression: json
               },
               "type": "array"
             },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
             "initial_kv": {
               "default": [],
               "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
@@ -4070,6 +4678,7 @@ expression: json
           "required": [
             "show_outline",
             "task_todos",
+            "in_book",
             "defs",
             "aliases_field",
             "color_field",
@@ -4103,6 +4712,7 @@ expression: json
                 "default_cols": 3,
                 "default_rows": 3,
                 "defs": [],
+                "in_book": true,
                 "initial_kv": [],
                 "portrait_field": null,
                 "show_outline": false,
@@ -4419,7 +5029,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete an unused v3 template without deleting its retained prose documents."
+    "summary": "Delete an unused template without deleting its retained prose documents."
   },
   {
     "access": "read",
@@ -4475,14 +5085,14 @@ expression: json
             "id": {
               "type": "string"
             },
-            "kind": {
-              "default": "leaf",
-              "description": "`level` (层级模板) or `leaf` (叶子模板).",
-              "type": "string"
-            },
-            "lane": {
+            "level": {
               "default": false,
-              "description": "Swimlane toggle (`lane`, only used when `kind == String::Level`).",
+              "description": "Whether a new entry of this template starts with its switch on.\nChanging it never touches existing entries.",
+              "type": "boolean"
+            },
+            "linkable": {
+              "default": true,
+              "description": "Whether entries of this template take part in auto-linking.",
               "type": "boolean"
             },
             "mark": {
@@ -4495,7 +5105,7 @@ expression: json
             },
             "modules": {
               "default": [],
-              "description": "Ordered module manifest (`modules`).\nFor `\"level\"`, only `fields` and `kv` modules are allowed.",
+              "description": "Ordered module manifest (`modules`), any kinds.",
               "items": {
                 "$ref": "#/$defs/ModuleSpec"
               },
@@ -4508,17 +5118,17 @@ expression: json
               "$ref": "#/$defs/LevelSettingsOverride",
               "default": {
                 "accept": null,
-                "allow": null,
                 "auto_link": null,
                 "display": null,
                 "format_shortcuts": null,
-                "is_manuscript": null
+                "is_manuscript": null,
+                "lane": null
               },
-              "description": "Level settings (`settings`, only used when `kind == String::Level`)."
+              "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
             "verbs": {
               "default": [],
-              "description": "Declared actions (`verbs`, only used when `kind == String::Level`).",
+              "description": "Declared actions, shown on entries of this template whose switch is on.",
               "items": {
                 "$ref": "#/$defs/TemplateVerb"
               },
@@ -4527,14 +5137,14 @@ expression: json
           },
           "required": [
             "id",
-            "kind",
             "name",
             "mark",
             "color",
             "agent",
             "modules",
+            "level",
+            "linkable",
             "settings",
-            "lane",
             "verbs",
             "deleted_at"
           ],
@@ -4655,17 +5265,6 @@ expression: json
                 "null"
               ]
             },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
             "auto_link": {
               "default": null,
               "type": [
@@ -4707,15 +5306,23 @@ expression: json
                 "boolean",
                 "null"
               ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "required": [
-            "allow",
             "display",
             "auto_link",
             "accept",
             "is_manuscript",
-            "format_shortcuts"
+            "format_shortcuts",
+            "lane"
           ],
           "type": "object"
         },
@@ -4787,6 +5394,11 @@ expression: json
               },
               "type": "array"
             },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
             "initial_kv": {
               "default": [],
               "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
@@ -4833,6 +5445,7 @@ expression: json
           "required": [
             "show_outline",
             "task_todos",
+            "in_book",
             "defs",
             "aliases_field",
             "color_field",
@@ -4866,6 +5479,7 @@ expression: json
                 "default_cols": 3,
                 "default_rows": 3,
                 "defs": [],
+                "in_book": true,
                 "initial_kv": [],
                 "portrait_field": null,
                 "show_outline": false,
@@ -4970,7 +5584,7 @@ expression: json
       "title": "Array_of_EntryTemplate",
       "type": "array"
     },
-    "summary": "List the templates and module definitions of a v3 book."
+    "summary": "List the templates of a book: modules, the switch's default, linkable, settings and actions."
   },
   {
     "access": "write",
@@ -5011,14 +5625,14 @@ expression: json
             "id": {
               "type": "string"
             },
-            "kind": {
-              "default": "leaf",
-              "description": "`level` (层级模板) or `leaf` (叶子模板).",
-              "type": "string"
-            },
-            "lane": {
+            "level": {
               "default": false,
-              "description": "Swimlane toggle (`lane`, only used when `kind == String::Level`).",
+              "description": "Whether a new entry of this template starts with its switch on.\nChanging it never touches existing entries.",
+              "type": "boolean"
+            },
+            "linkable": {
+              "default": true,
+              "description": "Whether entries of this template take part in auto-linking.",
               "type": "boolean"
             },
             "mark": {
@@ -5031,7 +5645,7 @@ expression: json
             },
             "modules": {
               "default": [],
-              "description": "Ordered module manifest (`modules`).\nFor `\"level\"`, only `fields` and `kv` modules are allowed.",
+              "description": "Ordered module manifest (`modules`), any kinds.",
               "items": {
                 "$ref": "#/$defs/ModuleSpec"
               },
@@ -5044,17 +5658,17 @@ expression: json
               "$ref": "#/$defs/LevelSettingsOverride",
               "default": {
                 "accept": null,
-                "allow": null,
                 "auto_link": null,
                 "display": null,
                 "format_shortcuts": null,
-                "is_manuscript": null
+                "is_manuscript": null,
+                "lane": null
               },
-              "description": "Level settings (`settings`, only used when `kind == String::Level`)."
+              "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
             "verbs": {
               "default": [],
-              "description": "Declared actions (`verbs`, only used when `kind == String::Level`).",
+              "description": "Declared actions, shown on entries of this template whose switch is on.",
               "items": {
                 "$ref": "#/$defs/TemplateVerb"
               },
@@ -5178,17 +5792,6 @@ expression: json
                 "null"
               ]
             },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
             "auto_link": {
               "default": null,
               "type": [
@@ -5226,6 +5829,14 @@ expression: json
             },
             "is_manuscript": {
               "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
               "type": [
                 "boolean",
                 "null"
@@ -5297,6 +5908,11 @@ expression: json
               },
               "type": "array"
             },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
             "initial_kv": {
               "default": [],
               "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
@@ -5363,6 +5979,7 @@ expression: json
                 "default_cols": 3,
                 "default_rows": 3,
                 "defs": [],
+                "in_book": true,
                 "initial_kv": [],
                 "portrait_field": null,
                 "show_outline": false,
@@ -5480,7 +6097,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Create or replace a v3 template definition while retaining existing entry content."
+    "summary": "Create or replace a template definition (any modules, the switch's default, linkable, settings, actions) while retaining existing entry content and switches."
   },
   {
     "access": "write",
@@ -5653,6 +6270,11 @@ expression: json
               },
               "type": "array"
             },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
             "initial_kv": {
               "default": [],
               "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
@@ -5719,6 +6341,7 @@ expression: json
                 "default_cols": 3,
                 "default_rows": 3,
                 "defs": [],
+                "in_book": true,
                 "initial_kv": [],
                 "portrait_field": null,
                 "show_outline": false,
@@ -5786,7 +6409,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add or update a module definition on a v3 template."
+    "summary": "Add or update a module definition of any kind on a template."
   },
   {
     "access": "write",
@@ -5827,7 +6450,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove a v3 module definition while retaining values and prose on existing entries."
+    "summary": "Remove a module definition while retaining values and prose on existing entries."
   },
   {
     "access": "read",
@@ -6360,956 +6983,6 @@ expression: json
     "summary": "Restore one material note and its metadata from history; entry bodies require complete-entry snapshots."
   },
   {
-    "access": "read",
-    "book_version": 4,
-    "concurrency": "shared",
-    "input": {
-      "description": "One entity of a book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "EntityIn",
-      "type": "object"
-    },
-    "kind": "query",
-    "name": "level.get",
-    "output": {
-      "$defs": {
-        "Entry": {
-          "properties": {
-            "created_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "deleted_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fields": {
-              "additionalProperties": {
-                "additionalProperties": {
-                  "$ref": "#/$defs/FieldValue"
-                },
-                "type": "object"
-              },
-              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
-              "type": "object"
-            },
-            "id": {
-              "type": "string"
-            },
-            "kv": {
-              "additionalProperties": {
-                "items": {
-                  "$ref": "#/$defs/KvEntry"
-                },
-                "type": "array"
-              },
-              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
-              "type": "object"
-            },
-            "layout": {
-              "$ref": "#/$defs/EntryLayout"
-            },
-            "name_conflict": {
-              "default": null,
-              "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "overrides": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/LevelSettingsOverride"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Per-entry level setting overrides (only meaningful on level entries)."
-            },
-            "parent": {
-              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pos": {
-              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
-              "type": "string"
-            },
-            "primary": {
-              "description": "Stored primary membership host; membership queries filter invalid records.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "template": {
-              "description": "The template shaping this entry (`None` = untemplated entry).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "title": {
-              "type": "string"
-            },
-            "updated_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "parent",
-            "pos",
-            "title",
-            "template",
-            "overrides",
-            "fields",
-            "kv",
-            "primary",
-            "layout",
-            "created_at",
-            "updated_at",
-            "deleted_at",
-            "name_conflict"
-          ],
-          "type": "object"
-        },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
-          ],
-          "type": "object"
-        },
-        "FieldValue": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "format": "double",
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "KvEntry": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "key": {
-              "type": "string"
-            },
-            "pos": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "key",
-            "value",
-            "pos"
-          ],
-          "type": "object"
-        },
-        "LevelSettings": {
-          "properties": {
-            "accept": {
-              "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
-              "type": "boolean"
-            },
-            "allow": {
-              "default": [],
-              "description": "Allowed templates for entries placed or accepted into this level.\nEmpty means all templates are allowed.",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "auto_link": {
-              "default": false,
-              "description": "Whether leaf entries residing in or belonging to this level participate in auto-linking.",
-              "type": "boolean"
-            },
-            "default_template": {
-              "default": null,
-              "description": "Default template when creating a new entry under this level (`None` = blank).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "display": {
-              "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
-              "type": "string"
-            },
-            "format_shortcuts": {
-              "default": "",
-              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
-              "type": "string"
-            },
-            "home": {
-              "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "is_manuscript": {
-              "default": false,
-              "description": "Whether leaf entries under this level in tree order form a manuscript (`成书`).",
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "default_template",
-            "allow",
-            "display",
-            "auto_link",
-            "accept",
-            "home",
-            "is_manuscript",
-            "format_shortcuts"
-          ],
-          "type": "object"
-        },
-        "LevelSettingsOverride": {
-          "properties": {
-            "accept": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "auto_link": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "default_template": {
-              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "display": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "format_shortcuts": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "allow",
-            "display",
-            "auto_link",
-            "accept",
-            "is_manuscript",
-            "format_shortcuts"
-          ],
-          "type": "object"
-        }
-      },
-      "properties": {
-        "children": {
-          "items": {
-            "$ref": "#/$defs/Entry"
-          },
-          "type": "array"
-        },
-        "members": {
-          "items": {
-            "$ref": "#/$defs/Entry"
-          },
-          "type": "array"
-        },
-        "settings": {
-          "$ref": "#/$defs/LevelSettings"
-        }
-      },
-      "required": [
-        "settings",
-        "children",
-        "members"
-      ],
-      "title": "LevelInfo",
-      "type": "object"
-    },
-    "summary": "Read resolved v3 level settings, resident children and accepted members."
-  },
-  {
-    "access": "read",
-    "book_version": 4,
-    "concurrency": "shared",
-    "input": {
-      "description": "A book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book"
-      ],
-      "title": "BookIn",
-      "type": "object"
-    },
-    "kind": "query",
-    "name": "level.list",
-    "output": {
-      "$defs": {
-        "Entry": {
-          "properties": {
-            "created_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "deleted_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fields": {
-              "additionalProperties": {
-                "additionalProperties": {
-                  "$ref": "#/$defs/FieldValue"
-                },
-                "type": "object"
-              },
-              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
-              "type": "object"
-            },
-            "id": {
-              "type": "string"
-            },
-            "kv": {
-              "additionalProperties": {
-                "items": {
-                  "$ref": "#/$defs/KvEntry"
-                },
-                "type": "array"
-              },
-              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
-              "type": "object"
-            },
-            "layout": {
-              "$ref": "#/$defs/EntryLayout"
-            },
-            "name_conflict": {
-              "default": null,
-              "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "overrides": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/LevelSettingsOverride"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Per-entry level setting overrides (only meaningful on level entries)."
-            },
-            "parent": {
-              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pos": {
-              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
-              "type": "string"
-            },
-            "primary": {
-              "description": "Stored primary membership host; membership queries filter invalid records.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "template": {
-              "description": "The template shaping this entry (`None` = untemplated entry).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "title": {
-              "type": "string"
-            },
-            "updated_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "parent",
-            "pos",
-            "title",
-            "template",
-            "overrides",
-            "fields",
-            "kv",
-            "primary",
-            "layout",
-            "created_at",
-            "updated_at",
-            "deleted_at",
-            "name_conflict"
-          ],
-          "type": "object"
-        },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
-          ],
-          "type": "object"
-        },
-        "FieldValue": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "format": "double",
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "KvEntry": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "key": {
-              "type": "string"
-            },
-            "pos": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "key",
-            "value",
-            "pos"
-          ],
-          "type": "object"
-        },
-        "LevelSettings": {
-          "properties": {
-            "accept": {
-              "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
-              "type": "boolean"
-            },
-            "allow": {
-              "default": [],
-              "description": "Allowed templates for entries placed or accepted into this level.\nEmpty means all templates are allowed.",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "auto_link": {
-              "default": false,
-              "description": "Whether leaf entries residing in or belonging to this level participate in auto-linking.",
-              "type": "boolean"
-            },
-            "default_template": {
-              "default": null,
-              "description": "Default template when creating a new entry under this level (`None` = blank).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "display": {
-              "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
-              "type": "string"
-            },
-            "format_shortcuts": {
-              "default": "",
-              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
-              "type": "string"
-            },
-            "home": {
-              "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "is_manuscript": {
-              "default": false,
-              "description": "Whether leaf entries under this level in tree order form a manuscript (`成书`).",
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "default_template",
-            "allow",
-            "display",
-            "auto_link",
-            "accept",
-            "home",
-            "is_manuscript",
-            "format_shortcuts"
-          ],
-          "type": "object"
-        },
-        "LevelSettingsOverride": {
-          "properties": {
-            "accept": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "allow": {
-              "default": null,
-              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "auto_link": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "default_template": {
-              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "display": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "format_shortcuts": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "allow",
-            "display",
-            "auto_link",
-            "accept",
-            "is_manuscript",
-            "format_shortcuts"
-          ],
-          "type": "object"
-        },
-        "ResolvedLevelInfo": {
-          "properties": {
-            "children": {
-              "items": {
-                "$ref": "#/$defs/Entry"
-              },
-              "type": "array"
-            },
-            "id": {
-              "type": "string"
-            },
-            "members": {
-              "items": {
-                "$ref": "#/$defs/Entry"
-              },
-              "type": "array"
-            },
-            "settings": {
-              "$ref": "#/$defs/LevelSettings"
-            },
-            "sources": {
-              "additionalProperties": {
-                "$ref": "#/$defs/SettingSource"
-              },
-              "type": "object"
-            }
-          },
-          "required": [
-            "id",
-            "settings",
-            "sources",
-            "children",
-            "members"
-          ],
-          "type": "object"
-        },
-        "SettingSource": {
-          "description": "Identical provenance vocabulary to the shell's existing read-only tracing.",
-          "oneOf": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "default",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "override",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "template",
-                  "type": "string"
-                },
-                "template": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry",
-                "template"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                },
-                "template": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry",
-                "template"
-              ],
-              "type": "object"
-            }
-          ]
-        }
-      },
-      "properties": {
-        "levels": {
-          "description": "Live levels in the same manuscript order as entry.list.",
-          "items": {
-            "$ref": "#/$defs/ResolvedLevelInfo"
-          },
-          "type": "array"
-        },
-        "version": {
-          "description": "The book frontier shared by every row, usable with Workspace guards.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "version",
-        "levels"
-      ],
-      "title": "LevelsInfo",
-      "type": "object"
-    },
-    "summary": "Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot."
-  },
-  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -7691,7 +7364,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add or remove one built-in association from a material to a live v3 entry, preserving every other relation."
+    "summary": "Add or remove one built-in association from a material to a live entry, preserving every other relation."
   },
   {
     "access": "write",
@@ -7998,7 +7671,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add or order a v3 membership without moving its residence."
+    "summary": "Add or order a membership without moving its residence."
   },
   {
     "access": "read",
@@ -8060,7 +7733,7 @@ expression: json
       "title": "Array_of_Membership",
       "type": "array"
     },
-    "summary": "List valid v3 memberships in a book."
+    "summary": "List valid memberships in a book."
   },
   {
     "access": "write",
@@ -8103,7 +7776,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Choose an existing v3 membership as primary, or clear the primary membership."
+    "summary": "Choose an existing membership as primary, or clear the primary membership."
   },
   {
     "access": "write",
@@ -8144,7 +7817,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove a v3 membership and any timeline placements left without a lane."
+    "summary": "Remove a membership and any timeline placements left without a lane."
   },
   {
     "access": "write",
@@ -8212,7 +7885,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views."
+    "summary": "Restore the selected effects of a membership cancellation without replacing entries or timeline views."
   },
   {
     "access": "write",
@@ -8599,7 +8272,7 @@ expression: json
       "title": "KvEntry",
       "type": "object"
     },
-    "summary": "Change the key or the value of one key/value row of a v3 module, leaving what is not named as it is."
+    "summary": "Change the key or the value of one key/value row of a module, leaving what is not named as it is."
   },
   {
     "access": "write",
@@ -8719,7 +8392,7 @@ expression: json
       "title": "Patch",
       "type": "object"
     },
-    "summary": "Change the title or the body of one v3 patch record, leaving what is not named as it is."
+    "summary": "Change the title or the body of one patch record, leaving what is not named as it is."
   },
   {
     "access": "read",
@@ -8920,6 +8593,11 @@ expression: json
               },
               "type": "array"
             },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
             "initial_kv": {
               "default": [],
               "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
@@ -8966,6 +8644,7 @@ expression: json
           "required": [
             "show_outline",
             "task_todos",
+            "in_book",
             "defs",
             "aliases_field",
             "color_field",
@@ -8999,6 +8678,7 @@ expression: json
                 "default_cols": 3,
                 "default_rows": 3,
                 "defs": [],
+                "in_book": true,
                 "initial_kv": [],
                 "portrait_field": null,
                 "show_outline": false,
@@ -9074,7 +8754,7 @@ expression: json
       "title": "Array_of_Summary",
       "type": "array"
     },
-    "summary": "List current and retained v3 modules and their registered prose documents."
+    "summary": "List an entry's current and retained modules and their registered prose documents."
   },
   {
     "access": "write",
@@ -9120,7 +8800,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Initialize a v3 prose module or level description and return its document ID."
+    "summary": "Initialize an entry's or a template's prose module and return its document ID."
   },
   {
     "access": "write",
@@ -9243,7 +8923,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Replace the rows, columns, cells and size of one v3 plot module."
+    "summary": "Replace the rows, columns, cells and size of one plot module."
   },
   {
     "access": "write",
@@ -9316,7 +8996,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add or update an ordered key/value row in a v3 module."
+    "summary": "Add or update an ordered key/value row in a module."
   },
   {
     "access": "write",
@@ -9381,7 +9061,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Create or edit the text of a v3 patch module record, preserving its source reference."
+    "summary": "Create or edit the text of a patch module record, preserving its source reference."
   },
   {
     "access": "write",
@@ -9451,7 +9131,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Associate a v3 entry with a live endpoint through its relations module."
+    "summary": "Associate an entry with a live endpoint through its relations module."
   },
   {
     "access": "read",
@@ -9481,6 +9161,42 @@ expression: json
     "name": "module.read",
     "output": {
       "$defs": {
+        "Below": {
+          "description": "What lies below a level (`下面`).",
+          "properties": {
+            "children": {
+              "description": "Live entries living under it, in manuscript order.",
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "members": {
+              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettings"
+            },
+            "sources": {
+              "additionalProperties": {
+                "$ref": "#/$defs/SettingSource"
+              },
+              "description": "Where each resolved setting comes from.",
+              "type": "object"
+            }
+          },
+          "required": [
+            "settings",
+            "sources",
+            "children",
+            "members"
+          ],
+          "type": "object"
+        },
         "Cell": {
           "properties": {
             "column": {
@@ -9497,6 +9213,208 @@ expression: json
             "row",
             "column",
             "text"
+          ],
+          "type": "object"
+        },
+        "Entry": {
+          "properties": {
+            "below": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Below"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What lies below an entry whose switch is on (`entry.get`, and\n`entry.list` with `below`): resolved settings with where each comes\nfrom, resident children and accepted members. Absent otherwise."
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fields": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                "type": "object"
+              },
+              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kv": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/KvEntry"
+                },
+                "type": "array"
+              },
+              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+              "type": "object"
+            },
+            "layout": {
+              "$ref": "#/$defs/EntryLayout"
+            },
+            "level": {
+              "default": false,
+              "description": "The entry's own switch (`层级`): whether entries can live under it.",
+              "type": "boolean"
+            },
+            "name_conflict": {
+              "default": null,
+              "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "overrides": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LevelSettingsOverride"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
+            },
+            "parent": {
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pos": {
+              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+              "type": "string"
+            },
+            "primary": {
+              "description": "Stored primary membership host; membership queries filter invalid records.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "description": "The template shaping this entry (`None` = untemplated entry).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "parent",
+            "pos",
+            "title",
+            "template",
+            "level",
+            "overrides",
+            "fields",
+            "kv",
+            "primary",
+            "layout",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "name_conflict"
+          ],
+          "type": "object"
+        },
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
           ],
           "type": "object"
         },
@@ -9644,6 +9562,137 @@ expression: json
           ],
           "type": "object"
         },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": false,
+              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
+              "type": "boolean"
+            },
+            "lane": {
+              "default": false,
+              "description": "Whether this level is a timeline swimlane (never inherited).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "is_manuscript",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
         "Line": {
           "properties": {
             "id": {
@@ -9731,6 +9780,11 @@ expression: json
               },
               "type": "array"
             },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
             "initial_kv": {
               "default": [],
               "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
@@ -9777,6 +9831,7 @@ expression: json
           "required": [
             "show_outline",
             "task_todos",
+            "in_book",
             "defs",
             "aliases_field",
             "color_field",
@@ -9810,6 +9865,7 @@ expression: json
                 "default_cols": 3,
                 "default_rows": 3,
                 "defs": [],
+                "in_book": true,
                 "initial_kv": [],
                 "portrait_field": null,
                 "show_outline": false,
@@ -9964,6 +10020,76 @@ expression: json
           ],
           "type": "object"
         },
+        "SettingSource": {
+          "description": "Where one resolved setting comes from (the same precedence as its value).",
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "default",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "override",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "template",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "`accept` is on because the level is a swimlane.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        },
         "Summary": {
           "properties": {
             "definition": {
@@ -9999,6 +10125,17 @@ expression: json
         }
       },
       "properties": {
+        "below": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Below"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A `children` module (`下面的条目`) of an entry whose switch is on:\nwhat lies below it, as `entry.get` gives it."
+        },
         "fields": {
           "additionalProperties": {
             "$ref": "#/$defs/FieldValue"
@@ -10048,7 +10185,7 @@ expression: json
       "title": "Data",
       "type": "object"
     },
-    "summary": "Read a current or retained v3 module and its structured content."
+    "summary": "Read a current or retained module and its structured content; a children module reads what lies below the entry."
   },
   {
     "access": "read",
@@ -10141,7 +10278,7 @@ expression: json
       "title": "ProseText",
       "type": "object"
     },
-    "summary": "Read a v3 prose module, level description or template prose with block IDs and version."
+    "summary": "Read an entry's or a template's prose module with block IDs and version."
   },
   {
     "access": "write",
@@ -10186,7 +10323,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove a key/value row from a v3 module."
+    "summary": "Remove a key/value row from a module."
   },
   {
     "access": "write",
@@ -10231,7 +10368,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove one v3 patch record without deleting relations or other entries."
+    "summary": "Remove one patch record without deleting relations or other entries."
   },
   {
     "access": "write",
@@ -10276,7 +10413,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove one relation projected in a v3 entry's relations module."
+    "summary": "Remove one relation projected in an entry's relations module."
   },
   {
     "access": "write",
@@ -10350,7 +10487,7 @@ expression: json
       "title": "Replaced",
       "type": "object"
     },
-    "summary": "Replace an exact passage in a v3 module or level description, addressed by block ID."
+    "summary": "Replace an exact passage in an entry's prose module, addressed by block ID."
   },
   {
     "access": "write",
@@ -10424,7 +10561,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Set or clear a typed field value in a v3 entry module."
+    "summary": "Set or clear a typed field value in an entry's fields module."
   },
   {
     "access": "write",
@@ -10499,7 +10636,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Write paragraphs of a v3 prose module, level description or template prose."
+    "summary": "Write paragraphs of an entry's or a template's prose module."
   },
   {
     "access": "write",
@@ -10540,7 +10677,7 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Create a v3 project using the novel template."
+    "summary": "Create a project using the novel template."
   },
   {
     "access": "write",
@@ -11095,7 +11232,7 @@ expression: json
       "title": "Array_of_RecentEntryV3",
       "type": "array"
     },
-    "summary": "List this device's live v3 pages, retaining each entry's selected module."
+    "summary": "List this device's live pages, retaining each entry's selected module."
   },
   {
     "access": "write",
@@ -11157,7 +11294,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Record a v3 entry and optional module, or a material, on this device without an undo step."
+    "summary": "Record an entry and optional module, or a material, on this device without an undo step."
   },
   {
     "access": "write",
@@ -11482,7 +11619,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add one live lane to a v3 view without replacing existing lane records or changing memberships."
+    "summary": "Add one live lane to a view without replacing existing lane records or changing memberships."
   },
   {
     "access": "write",
@@ -11520,7 +11657,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a v3 timeline view while retaining lane entries and memberships."
+    "summary": "Delete a timeline view while retaining lane entries and memberships."
   },
   {
     "access": "read",
@@ -11695,7 +11832,7 @@ expression: json
       "title": "Array_of_TimelineView",
       "type": "array"
     },
-    "summary": "List v3 timeline views with their effective lanes, placements and time pins."
+    "summary": "List timeline views with their effective lanes, placements and time pins."
   },
   {
     "access": "write",
@@ -11784,7 +11921,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change only one stored lane's order in a v3 view, preserving hidden data and other lane positions."
+    "summary": "Change only one stored lane's order in a view, preserving hidden data and other lane positions."
   },
   {
     "access": "write",
@@ -11846,7 +11983,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Place or move a v3 entry in a timeline, optionally joining a lane in the same commit."
+    "summary": "Place or move an entry in a timeline, optionally joining a lane in the same commit."
   },
   {
     "access": "write",
@@ -12020,7 +12157,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Create or edit a v3 timeline view, including its independent lane order."
+    "summary": "Create or edit a timeline view, including its independent lane order."
   },
   {
     "access": "write",
@@ -12098,7 +12235,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add or edit a v3 time pin, optionally bound to any live entry."
+    "summary": "Add or edit a time pin, optionally bound to any live entry."
   },
   {
     "access": "write",
@@ -12184,7 +12321,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove one v3 view lane and newly orphaned visible positions, retaining hidden records and all memberships."
+    "summary": "Remove one view lane and newly orphaned visible positions, retaining hidden records and all memberships."
   },
   {
     "access": "write",
@@ -12225,7 +12362,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove a time pin from a v3 timeline view."
+    "summary": "Remove a time pin from a timeline view."
   },
   {
     "access": "write",
@@ -12266,7 +12403,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Rename a v3 timeline view without changing its lanes, positions or pins."
+    "summary": "Rename a timeline view without changing its lanes, positions or pins."
   },
   {
     "access": "write",
@@ -12402,7 +12539,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view."
+    "summary": "Restore selected stored timeline fields for undo or redo without replacing the rest of a view."
   },
   {
     "access": "write",
@@ -12447,7 +12584,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Switch whether a stored lane in a v3 view is displayed as a top act track."
+    "summary": "Switch whether a stored lane in a view is displayed as a top act track."
   },
   {
     "access": "write",
@@ -12475,7 +12612,7 @@ expression: json
       },
       "properties": {
         "doc": {
-          "description": "`body:<entry>/<module>` (including level `about`) or `material:<id>` of a v3 book.",
+          "description": "`body:<entry>/<module>` or `material:<id>` of a book.",
           "type": "string"
         },
         "editing": {

@@ -891,8 +891,8 @@ docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 
 | 命令族 | 当前接口 |
 | --- | --- |
-| 条目与层级 | `entry.list/get/create/update/move/trash/restore`、`level.get`；住处与兄弟顺序在条目树，设置使用模板继承和当前条目覆盖 |
-| 模板与模块定义 | `entry_template.list/put/delete/put_module/remove_module`；层级仅能声明字段／键值模块，固有说明固定为 `about`，叶子可有多篇正文 |
+| 条目与层级 | `entry.list/get/create/update/move/trash/restore/set_level`；住处与兄弟顺序在条目树，条目自己的开关（「层级」）决定下面能不能放条目，下面的设置使用模板继承和当前条目覆盖；`entry.get` 和 `entry.list {below}` 带「下面」（书目格式 4 起，`level.get`／`level.list` 并入，见 [kernel-v4.md](../kernel-v4.md) 第 6 节） |
+| 模板与模块定义 | `entry_template.list/put/delete/put_module/remove_module`；任何模板可以声明任何模块，可有多篇正文；说明是模板里的普通正文模块（小说模板的「说明」不进成书），没有固有的 `about` |
 | 模块数据 | `module.list/read/set_field/put_kv/remove_kv/put_patch/remove_patch/put_grid/put_relation/remove_relation`；保留内容可查；关系类型由 `entry_relation_type.list/put/delete` 维护 |
 | 正文和层级说明 | `module.prose_document/read_prose/set_prose/replace_prose`；owner 是条目或模板，模板正文包含书 id，替换按 block id 精确定位；正文历史沿用 `prose.restore` |
 | 归属 | `membership.list/add/remove/primary`；新增或调整归属顺序不搬住处；重复加入保留已有记录，移除最后有效泳道时清理所有受影响视图的位置 |
@@ -901,13 +901,13 @@ docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 
 输入／输出以生成的 `registry__capability_schemas.snap` 为准；类型 id 在 JSON 中仍是字符串。正文初始化先于书目提交，书目一次提交，最后写日志；沿用 `Cx` 的书租约、来源、guard 与失败边界。`after_prose` 故障只留下无人拥有的正文，不落一个指向缺正文的新条目。撤销／重做的逆操作存进原日志，关闭重开后仍可执行。
 
-层级覆盖中 `default_template`／`home` 缺键表示继承，显式 `null` 清空，空 `allow` 不限制。模板正文初值只在新建时复制；模块定义改名／删除／换模板不删条目已有正文和字段。`module.list` 同时列出当前定义和有持久数据的旧模块；查询按 id 定位，同名模块不混用。
+层级覆盖中 `default_template`／`home` 缺键表示继承，显式 `null` 清空。（书目格式 4 去掉了 `allow`。）模板正文初值只在新建时复制；模块定义改名／删除／换模板不删条目已有正文和字段。`module.list` 同时列出当前定义和有持久数据的旧模块；查询按 id 定位，同名模块不混用。
 
 本批边界、检查及帮手排除的作者授权见 [F1 第 5 步交回](f1-model-doc.md)。界面和帮手的后续接回不包含在这 44 个注册项的完成结论里。
 
 ### K1+K2 第 6 步：版本与消费边界
 
-持久结构见 [Loro schema 的 v3 书目](../loro-schema.md#书目文档-v3通用条目内核)及 [v2.2 → v3](../loro-schema.md#版本)。只有书目切换到 `meta.v = 3`，正文、对话和来源／日志机制仍共用。`entry_history.restore` 用书目 frontier 恢复选定记录，正文 frontier 交给 `prose.restore`，不把两个版本混用。
+持久结构见 [Loro schema 的 v3 书目](../loro-schema.md#书目文档格式-4通用条目内核)及 [v2.2 → v3](../loro-schema.md#版本)。只有书目切换到 `meta.v = 3`，正文、对话和来源／日志机制仍共用。`entry_history.restore` 用书目 frontier 恢复选定记录，正文 frontier 交给 `prose.restore`，不把两个版本混用。
 
 注册表已有版本边界，旧 136 个命令的 schema 不变。帮手在 K6 前仍明确排除全部 44 个 v3 注册项；完整影响读取、继承来源和模板动作目录仍按 K6 实施。指定正文模块的行内链接，以及模块导出／Markdown 的未定约定，见 [F1 第 6 步待协调](f1-model-doc.md)，不由命令层补出另一套产品方案。默认大纲与作者命名层级遵循更新后的根目录 `AGENTS.md`。
 
@@ -924,6 +924,8 @@ v2.2 分支保持原 reader／事务。两者共用既有按设备／日期键�
 共用日期入口先拒绝非 ASCII，防止按字节切片解析非法日期时 panic；有效 v2.2 日期行为不变。
 
 ## K2 大书结构读取：批量层级与一致快照（2026-11-10）
+
+> 2026-11-13（书目格式 4）：`level.list`、`level.get` 已退役，并进 `entry.list {all, below}` 和 `entry.get` 的 `below = {settings, sources, children, members}`；`level.list` 带的 `version` 没有了，要版本用 `entry_history.version`。基准 `v3-book-legacy` 现在逐条调 `entry.get`，`v3-book` 调一次 `entry.list {below}`。下文是当时的记录。
 
 `level.list {book}` 只接受 v3，返回 `{version, levels}`。`version` 是读取书目时的
 frontier；`levels` 按书稿顺序列出全部存活层级，每项有 `id`、`settings`、`sources`、
@@ -1027,7 +1029,7 @@ G4 接面板和 G1 接模块锚点读取时使用上述类型，再做各自的�
 | --- | --- |
 | `commands::v3::book::BookGet`／`book.get` | 输入仍为 `BookIn`，输出 `BookInfo`：书名、简介、回收状态、字数目标、每日目标和创建时间。不返回旧版章节／构想／要素数量或旧索引字数；统计继续由 G4 的成书范围适配器提供 |
 | `commands::v3::book::BookUpdate`／`book.update` | 只写输入给出的字段。两个目标缺键表示不改，0 表示关闭，null 表示恢复默认；显式 v3 typed 输入使用 `Option<Option<i64>>`。原 typed `commands::book::BookUpdate` 也按实际版本转入 v3，沿用其已有输入范围 |
-| `commands::v3::recent::RecentTouch`／`recent.touch` | `target: {kind: "entry", id, module?}` 或 `{kind: "material", id}`。模块属于目标身份，同一条目的两篇正文分别保留；层级说明为 `module: "about"`，换模板后仍有内容的旧模块可继续导航 |
+| `commands::v3::recent::RecentTouch`／`recent.touch` | `target: {kind: "entry", id, module?}` 或 `{kind: "material", id}`。模块属于目标身份，同一条目的两篇正文分别保留；说明是普通正文模块（书目格式 4 起没有 `about`），换模板后仍有内容的旧模块可继续导航 |
 | `commands::v3::recent::RecentList`／`recent.list` | 输入 `RecentListIn`，返回 `Vec<RecentEntry>`，每项保留上述完整目标和 `used_ms`；每书最多 10 项，最近访问排最前，回收或已不存在的目标不显示 |
 
 旧 typed `BookGet` 的返回类型强制带旧计数，旧 typed `RecentTouch/List` 又不能携带模块，

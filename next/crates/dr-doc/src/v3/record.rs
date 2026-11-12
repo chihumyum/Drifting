@@ -61,12 +61,14 @@ impl RecordKeyV3 {
         self
     }
 
-    /// Whether a fresh read of `self` is also a fresh read of `other`.
+    /// Whether a fresh read of `self` is also a fresh read of `other`. A
+    /// level's child order is read only as itself: it contains no record
+    /// and no record contains it.
     pub fn contains(&self, other: &RecordKeyV3) -> bool {
-        self.collection == other.collection
-            && !self.children
-            && !other.children
-            && other.path.starts_with(&self.path)
+        if self.children || other.children {
+            return self == other;
+        }
+        self.collection == other.collection && other.path.starts_with(&self.path)
     }
 
     /// Whether this key names something a v3 book document can hold.
@@ -370,7 +372,7 @@ mod tests {
         let template = EntryTemplateId::parse(TPL_CHAPTER).unwrap();
         let (r, _) = doc.edit(Origin::User, |t| {
             t.entries()
-                .create(&id, Some(parent), title, Some(&template))?;
+                .create(&id, Some(parent), title, Some(&template), false)?;
             Ok(())
         });
         r.unwrap();
@@ -753,6 +755,12 @@ mod tests {
         assert!(
             !RecordKeyV3::collection(C::Entries).contains(&RecordKeyV3::children(C::Entries, None))
         );
+        // A level's child order is read only as itself.
+        let order = RecordKeyV3::children(C::Entries, Some("a"));
+        assert!(order.contains(&order));
+        assert!(!order.contains(&RecordKeyV3::children(C::Entries, Some("b"))));
+        assert!(!order.contains(&RecordKeyV3::record(C::Entries, "a")));
+        assert!(!RecordKeyV3::record(C::Entries, "a").contains(&order));
         assert_eq!(
             record.at(["lanes", "e"]).to_string(),
             "timeline_views/v/lanes/e"

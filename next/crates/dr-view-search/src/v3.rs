@@ -202,7 +202,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
         .iter()
         .filter(|e| {
             !e.is_trashed()
-                && m::effective_ancestors(&map, &templates, &e.id)
+                && m::effective_ancestors(&map, &e.id)
                     .iter()
                     .all(|a| map.get(a).is_some_and(|a| !a.is_trashed()))
         })
@@ -214,9 +214,6 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
         let mut modules: Vec<String> = template
             .map(|t| t.modules.iter().map(|m| m.id.to_string()).collect())
             .unwrap_or_default();
-        if entry.is_level(&templates) {
-            modules.insert(0, "about".into());
-        }
         let mut retained = bodies.get(entry.id.as_str()).cloned().unwrap_or_default();
         retained.extend(
             entry

@@ -81,22 +81,43 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
     let handle = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
-    let (meta, entries, templates, materials) = handle.read(move |doc| {
+    let (meta, entries, templates, materials, sequence) = handle.read(move |doc| {
         if !dr_doc::v3::is_book_doc(doc) {
-            return Err(invalid("v3 statistics require a v3 book"));
+            return Err(invalid("statistics require a book of the current format"));
         }
         let b = BorrowedBookV3::new(doc, &id)?;
         let v = b.view();
         if v.meta().deleted_at.is_some() {
             return Err(invalid("book is in the trash"));
         }
-        Ok((v.meta(), v.entries(), v.templates_map(), v.materials()))
+        // The manuscript sequence: each entry's own book prose, in order.
+        let structure = v.structure_snapshot();
+        let sequence: Vec<(m::EntryId, Vec<(String, String)>)> = structure
+            .manuscript()
+            .into_iter()
+            .flat_map(|p| p.entries)
+            .filter(|e| !e.prose.is_empty())
+            .map(|e| {
+                let prose = e
+                    .prose
+                    .iter()
+                    .map(|p| (p.module.to_string(), p.name.clone()))
+                    .collect();
+                (e.entry.id.clone(), prose)
+            })
+            .collect();
+        Ok((
+            v.meta(),
+            v.entries(),
+            v.templates_map(),
+            v.materials(),
+            sequence,
+        ))
     })??;
     let map: BTreeMap<_, _> = entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
-    let levels = m::effective_manuscript_levels(&map, &templates);
     let live = |e: &m::Entry| {
         !e.is_trashed()
-            && m::effective_ancestors(&map, &templates, &e.id)
+            && m::effective_ancestors(&map, &e.id)
                 .iter()
                 .all(|a| map.get(a).is_some_and(|e| !e.is_trashed()))
     };
@@ -129,9 +150,6 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         };
     let docs_for = |entry: &m::Entry, retained: bool| -> Result<Vec<Document>> {
         let mut docs = Vec::new();
-        if entry.is_level(&templates) {
-            docs.push(document(entry, "about", &entry.title, false)?);
-        }
         if let Some(template) = entry.effective_template(&templates) {
             for module in template.prose_modules() {
                 docs.push(document(entry, module.id.as_str(), &module.name, false)?);
@@ -154,23 +172,13 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         }
         Ok(docs)
     };
-    let leaves: Vec<_> = entries
-        .iter()
-        .filter(|e| {
-            live(e)
-                && e.is_leaf(&templates)
-                && m::effective_ancestors(&map, &templates, &e.id)
-                    .iter()
-                    .any(|a| levels.contains(a))
-        })
-        .collect();
-    let manuscript = leaves
-        .iter()
-        .map(|e| docs_for(e, false))
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+    let mut manuscript = Vec::new();
+    for (id, prose) in &sequence {
+        let entry = &map[id];
+        for (module, name) in prose {
+            manuscript.push(document(entry, module, name, false)?);
+        }
+    }
     let (title, documents) = match &scope {
         Scope::Book => (meta.name.clone(), manuscript.clone()),
         Scope::Entry { id, module } => {
@@ -241,7 +249,7 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         summary: meta.summary.clone(),
         documents,
         manuscript,
-        leaves: leaves.len(),
+        leaves: sequence.len(),
         word_target: meta.word_target(),
         daily_word_target: meta.daily_word_target(),
         shape,

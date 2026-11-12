@@ -6,8 +6,8 @@ use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_book_doc};
 use dr_model::{
     id::{BookId, EntryId},
     v3::{
-        Entry as V3Entry, EntryTemplate, EntryTemplateId, TemplateKind,
-        check_level_allows_template, check_parent_is_level, resolve_new_entry_residence,
+        Entry as V3Entry, EntryTemplate, EntryTemplateId, check_parent_is_level,
+        effective_parent_id, resolve_level_settings, resolve_new_entry_residence,
     },
 };
 use dr_workspace::{Access, Concurrency, Spec, Workspace, registry};
@@ -614,30 +614,13 @@ fn build_v3_actions(
     create_entry: &Entry,
 ) -> (Vec<Entry>, Vec<ActionDiagnostic>) {
     let entries_list = view.entries();
-    let entries_map: BTreeMap<EntryId, V3Entry> = view.entries_map();
+    let entries_map: BTreeMap<EntryId, V3Entry> = entries_list
+        .iter()
+        .map(|e| (e.id.clone(), e.clone()))
+        .collect();
     let templates_map: BTreeMap<EntryTemplateId, EntryTemplate> = view.templates_map();
     let mut actions = Vec::new();
     let mut diagnostics = Vec::new();
-
-    for tpl in view.templates() {
-        if tpl.is_trashed() {
-            continue;
-        }
-        if tpl.kind == TemplateKind::Leaf {
-            for verb in &tpl.verbs {
-                diagnostics.push(ActionDiagnostic {
-                    code: "leaf_template_verb".into(),
-                    level: None,
-                    template: tpl.id.to_string(),
-                    verb: verb.id.clone(),
-                    message: format!(
-                        "leaf template {:?} ({}) cannot declare level actions",
-                        tpl.name, tpl.id
-                    ),
-                });
-            }
-        }
-    }
 
     let action_input_schema =
         crate::resolve::action_input_schema_v3(create_entry.input_schema.clone());
@@ -653,14 +636,12 @@ fn build_v3_actions(
         let Some(tpl) = templates_map.get(tpl_id).filter(|t| !t.is_trashed()) else {
             continue;
         };
-        if tpl.kind != TemplateKind::Level {
+        // A template's actions show on its entries whose switch is on.
+        if !level.is_level() || tpl.verbs.is_empty() {
             continue;
         }
-        if tpl.verbs.is_empty() {
-            continue;
-        }
-        let path = entry_path(view, &entries_map, &level.id);
-        let effective = view.level_settings(Some(&level.id));
+        let path = entry_path(&entries_map, &level.id);
+        let effective = resolve_level_settings(Some(&level.id), &entries_map, &templates_map);
         for verb in &tpl.verbs {
             if verb.id.trim().is_empty() || verb.name.trim().is_empty() {
                 diagnostics.push(ActionDiagnostic {
@@ -692,10 +673,7 @@ fn build_v3_actions(
                 });
                 continue;
             };
-            let Some(target_tpl) = templates_map
-                .get(&target_id)
-                .filter(|t| !t.is_trashed() && t.kind.is_known())
-            else {
+            let Some(target_tpl) = templates_map.get(&target_id).filter(|t| !t.is_trashed()) else {
                 diagnostics.push(ActionDiagnostic {
                     code: "missing_target_template".into(),
                     level: Some(level.id.to_string()),
@@ -710,18 +688,7 @@ fn build_v3_actions(
             };
             let residence =
                 resolve_new_entry_residence(Some(&level.id), &entries_map, &templates_map);
-            if let Err(err) =
-                check_parent_is_level(residence.as_ref(), &entries_map, &templates_map).and_then(
-                    |()| {
-                        check_level_allows_template(
-                            residence.as_ref(),
-                            Some(&target_id),
-                            &entries_map,
-                            &templates_map,
-                        )
-                    },
-                )
-            {
+            if let Err(err) = check_parent_is_level(residence.as_ref(), &entries_map) {
                 diagnostics.push(ActionDiagnostic {
                     code: "invalid_residence_binding".into(),
                     level: Some(level.id.to_string()),
@@ -734,23 +701,18 @@ fn build_v3_actions(
                 });
                 continue;
             }
-            if residence.as_ref() != Some(&level.id) {
-                let host_allows = effective.accept
-                    && effective.allows_template(Some(&target_id))
-                    && (!tpl.lane || target_tpl.is_leaf());
-                if !host_allows {
-                    diagnostics.push(ActionDiagnostic {
-                        code: "invalid_membership_binding".into(),
-                        level: Some(level.id.to_string()),
-                        template: tpl.id.to_string(),
-                        verb: verb.id.clone(),
-                        message: format!(
-                            "action {:?} on level {:?} ({}) resides in {:?} but level cannot accept target template {}",
-                            verb.name, level.title, level.id, residence, target_id
-                        ),
-                    });
-                    continue;
-                }
+            if residence.as_ref() != Some(&level.id) && !effective.accept {
+                diagnostics.push(ActionDiagnostic {
+                    code: "invalid_membership_binding".into(),
+                    level: Some(level.id.to_string()),
+                    template: tpl.id.to_string(),
+                    verb: verb.id.clone(),
+                    message: format!(
+                        "action {:?} on level {:?} ({}) resides in {:?} but level cannot accept target template {}",
+                        verb.name, level.title, level.id, residence, target_id
+                    ),
+                });
+                continue;
             }
 
             let reference = ActionRef {
@@ -773,7 +735,9 @@ fn build_v3_actions(
                     verb.name, target_tpl.name, verb.description
                 )
             };
-            let home_settings = residence.as_ref().map(|h| view.level_settings(Some(h)));
+            let home_settings = residence
+                .as_ref()
+                .map(|h| resolve_level_settings(Some(h), &entries_map, &templates_map));
             let revision = digest(&json!({
                 "facade": FACADE_REVISION_V3,
                 "command": "entry.create",
@@ -784,7 +748,8 @@ fn build_v3_actions(
                 "verb_target_template": verb.target_template.as_ref().map(ToString::to_string),
                 "target_template": {
                     "id": target_tpl.id.to_string(),
-                    "kind": format!("{:?}", target_tpl.kind),
+                    "level": target_tpl.level,
+                    "linkable": target_tpl.linkable,
                     "name": target_tpl.name,
                     "agent": target_tpl.agent.as_ref().map(|a| json!({
                         "name": a.name,
@@ -835,11 +800,7 @@ fn build_v3_actions(
     (actions, diagnostics)
 }
 
-fn entry_path(
-    view: &BookViewV3<'_>,
-    entries: &BTreeMap<EntryId, V3Entry>,
-    id: &EntryId,
-) -> Vec<ActionPathSegment> {
+fn entry_path(entries: &BTreeMap<EntryId, V3Entry>, id: &EntryId) -> Vec<ActionPathSegment> {
     let mut chain = Vec::new();
     let mut current = Some(id.clone());
     let mut visited = std::collections::BTreeSet::new();
@@ -852,7 +813,7 @@ fn entry_path(
                 entry: entry.id.to_string(),
                 title: entry.title.clone(),
             });
-            current = view.effective_parent(&cur);
+            current = effective_parent_id(entry, entries);
         } else {
             break;
         }
@@ -864,13 +825,13 @@ fn entry_path(
 fn settings_digest_value(s: &dr_model::v3::LevelSettings) -> Value {
     json!({
         "default_template": s.default_template.as_ref().map(ToString::to_string),
-        "allow": s.allow.iter().map(ToString::to_string).collect::<Vec<_>>(),
         "display": format!("{:?}", s.display),
         "auto_link": s.auto_link,
         "accept": s.accept,
         "home": s.home.as_ref().map(ToString::to_string),
         "is_manuscript": s.is_manuscript,
         "format_shortcuts": format!("{:?}", s.format_shortcuts),
+        "lane": s.lane,
     })
 }
 

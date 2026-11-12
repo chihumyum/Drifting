@@ -92,7 +92,15 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
         let ms = v
             .root_entry_by_template(&tpl_ms)
             .expect("manuscript root entry");
-        assert_eq!(v.manuscript_leaves(&ms.id).len(), chapters, "{name}");
+        let numbered = v
+            .structure_snapshot()
+            .manuscript()
+            .into_iter()
+            .filter(|p| p.root.id == ms.id)
+            .flat_map(|p| p.entries)
+            .filter(|e| e.ordinal.is_some())
+            .count();
+        assert_eq!(numbered, chapters, "{name}");
         let tpl_char =
             dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_CHARACTER).unwrap();
         let elem_count = v
@@ -107,23 +115,7 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
         let entries_map = v.entries_map();
         let templates_map = v.templates_map();
         for e in entries_map.values().filter(|e| !e.is_trashed()) {
-            assert!(
-                dr_model::v3::check_parent_is_level(
-                    e.parent.as_ref(),
-                    &entries_map,
-                    &templates_map
-                )
-                .is_ok()
-            );
-            assert!(
-                dr_model::v3::check_level_allows_template(
-                    e.parent.as_ref(),
-                    e.template.as_ref(),
-                    &entries_map,
-                    &templates_map,
-                )
-                .is_ok()
-            );
+            assert!(dr_model::v3::check_parent_is_level(e.parent.as_ref(), &entries_map).is_ok());
         }
         for m in v.memberships_raw() {
             assert!(

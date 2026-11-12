@@ -2,7 +2,7 @@
   "about": "K4 G3 第二交回：v3-lite 的真实拖入、跨泳道、长短、移出，标尺双击、时间钉改名改色挂条目，以及泳道颜色与通用成员页。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

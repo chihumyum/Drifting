@@ -1,4 +1,4 @@
-//! The shell consumes the kernel's complete level rows without resolving them again.
+//! The shell consumes what the kernel says lies below each level without resolving it again.
 use std::collections::BTreeMap;
 
 use dr_shell::book::Book;
@@ -30,18 +30,27 @@ fn checked_load(ws: &Workspace, id: &str) -> Book {
     let before = ws.observe(&format!("book:{id}")).unwrap();
     let book = Book::load(ws, id).unwrap();
     let v3 = book.v3().unwrap();
-    let batch = call(ws, "level.list", json!({"book":id}));
+    let batch = call(ws, "entry.list", json!({"book":id,"all":true,"below":true}));
     assert_eq!(v3.revision, before.version);
-    assert_eq!(batch["version"], v3.revision);
-    let rows = batch["levels"].as_array().unwrap();
+    assert_eq!(
+        call(ws, "entry_history.version", json!({"book":id}))["version"],
+        v3.revision
+    );
+    let rows: Vec<_> = batch
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row.get("below").is_some())
+        .collect();
     assert_eq!(v3.levels.len(), rows.len());
     for row in rows {
         let level = &v3.levels[row["id"].as_str().unwrap()];
-        assert_eq!(json!(level.settings), row["settings"]);
-        assert_eq!(json!(level.sources), row["sources"]);
+        let below = &row["below"];
+        assert_eq!(json!(level.settings), below["settings"]);
+        assert_eq!(json!(level.sources), below["sources"]);
         assert_eq!(level.sources.len(), 8);
         for (actual, field) in [(&level.children, "children"), (&level.members, "members")] {
-            let expected: Vec<_> = row[field]
+            let expected: Vec<_> = below[field]
                 .as_array()
                 .unwrap()
                 .iter()
@@ -90,7 +99,7 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
         &ws,
         "entry.update",
         json!({"book":id,"id":manuscript,"overrides":{
-            "default_template":"tpl-chapter","allow":[],"display":"board",
+            "default_template":"tpl-chapter","display":"board",
             "auto_link":true,"accept":true,"home":manuscript,
             "is_manuscript":true,"format_shortcuts":"plain"
         }}),
@@ -100,13 +109,18 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
     assert_eq!(
         json!(level.settings),
         json!({
-            "default_template":"tpl-chapter","allow":[],"display":"board",
+            "default_template":"tpl-chapter","display":"board",
             "auto_link":true,"accept":true,"home":manuscript,
-            "is_manuscript":true,"format_shortcuts":"plain"
+            "is_manuscript":true,"format_shortcuts":"plain","lane":false
         })
     );
-    for source in level.sources.values() {
-        assert_eq!(json!(source), json!({"kind":"override","entry":manuscript}));
+    for (key, source) in &level.sources {
+        if key == "lane" {
+            // `lane` never passes down from an ancestor.
+            assert_eq!(json!(source), json!({"kind":"default"}));
+        } else {
+            assert_eq!(json!(source), json!({"kind":"override","entry":manuscript}));
+        }
     }
     assert_ne!(
         initial.v3().unwrap().revision,
@@ -235,6 +249,7 @@ fn kernel_tolerance_order_trash_and_lane_memberships_reach_the_shell_unchanged()
                 Some(&leaf),
                 "Synthetic lifted level",
                 Some(&"tpl-group".parse().unwrap()),
+                true,
             )?;
             Ok::<_, dr_doc::DocError>(())
         })
@@ -278,7 +293,7 @@ fn kernel_tolerance_order_trash_and_lane_memberships_reach_the_shell_unchanged()
     assert!(level.settings.accept);
     assert_eq!(
         json!(level.sources["accept"]),
-        json!({"kind":"lane","entry":lane,"template":"tpl-storyline"})
+        json!({"kind":"lane","entry":lane})
     );
     assert!(level.members.contains(&leaf));
     assert!(!level.children.contains(&leaf));

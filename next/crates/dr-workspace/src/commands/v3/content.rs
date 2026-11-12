@@ -178,7 +178,7 @@ pub struct PatchIn {
     pub pos: Option<String>,
 }
 op! {
-    PatchPut="module.put_patch",Write,Book,"Create or edit the text of a v3 patch module record, preserving its source reference.",fn(cx,input:PatchIn)->Done {
+    PatchPut="module.put_patch",Write,Book,"Create or edit the text of a patch module record, preserving its source reference.",fn(cx,input:PatchIn)->Done {
         put_patch(cx, input)
     }
 }
@@ -239,7 +239,7 @@ pub struct PatchEditIn {
     pub body: Option<String>,
 }
 op! {
-    PatchEdit="module.edit_patch",Write,Book,"Change the title or the body of one v3 patch record, leaving what is not named as it is.",fn(cx,input:PatchEditIn)->Patch {
+    PatchEdit="module.edit_patch",Write,Book,"Change the title or the body of one patch record, leaving what is not named as it is.",fn(cx,input:PatchEditIn)->Patch {
         edit_patch(cx, input)
     }
 }
@@ -292,7 +292,7 @@ pub struct RecordIn {
     pub id: String,
 }
 op! {
-    PatchRemove="module.remove_patch",Write,Book,"Remove one v3 patch record without deleting relations or other entries.",fn(cx,input:RecordIn)->Done {
+    PatchRemove="module.remove_patch",Write,Book,"Remove one patch record without deleting relations or other entries.",fn(cx,input:RecordIn)->Done {
         let (s, e, m) = selected(cx, &input.target, m::ModuleKind::Patches)?;
         if !s
             .reader_v3
@@ -321,7 +321,7 @@ pub struct GridIn {
     pub grid: Grid,
 }
 op! {
-    GridPut="module.put_grid",Write,Book,"Replace the rows, columns, cells and size of one v3 plot module.",fn(cx,input:GridIn)->Done {
+    GridPut="module.put_grid",Write,Book,"Replace the rows, columns, cells and size of one plot module.",fn(cx,input:GridIn)->Done {
         put_grid(cx, input)
     }
 }
@@ -401,7 +401,7 @@ fn put_grid(cx: &Cx<'_>, input: GridIn) -> Result<Done> {
     Ok(Done { id })
 }
 op! {
-    RelationTypes="entry_relation_type.list",Read,Shared,"List relation types available to v3 entry modules.",fn(cx,input:BookIn)->Vec<RelationTypeInfo> {
+    RelationTypes="entry_relation_type.list",Read,Shared,"List relation types available to entry modules.",fn(cx,input:BookIn)->Vec<RelationTypeInfo> {
         let s = cx.book_v3(&input.book)?;
         convert(s.reader_v3.view().relation_types())
     }
@@ -412,7 +412,7 @@ pub struct TypeIn {
     pub definition: RelationType,
 }
 op! {
-    RelationTypePut="entry_relation_type.put",Write,Book,"Create or edit a v3 relation type with endpoint and template restrictions.",fn(cx,input:TypeIn)->Done {
+    RelationTypePut="entry_relation_type.put",Write,Book,"Create or edit a relation type with endpoint and template restrictions.",fn(cx,input:TypeIn)->Done {
         put_type(cx, input)
     }
 }
@@ -452,7 +452,7 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
                 ) {
                     Ok(k)
                 } else {
-                    Err(WsError::invalid("invalid v3 endpoint kind"))
+                    Err(WsError::invalid("invalid endpoint kind"))
                 }
             })
             .collect()
@@ -487,7 +487,7 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
     Ok(Done { id: id.to_string() })
 }
 op! {
-    RelationTypeDelete="entry_relation_type.delete",Write,Book,"Delete an unused unlocked v3 relation type.",fn(cx,input:EntityIn)->Done {
+    RelationTypeDelete="entry_relation_type.delete",Write,Book,"Delete an unused unlocked relation type.",fn(cx,input:EntityIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let id: RelationTypeId = pid("relation type", &input.id)?;
@@ -520,7 +520,7 @@ pub struct RelationIn {
     pub incoming: bool,
 }
 op! {
-    RelationPut="module.put_relation",Write,Book,"Associate a v3 entry with a live endpoint through its relations module.",fn(cx,input:RelationIn)->Done {
+    RelationPut="module.put_relation",Write,Book,"Associate an entry with a live endpoint through its relations module.",fn(cx,input:RelationIn)->Done {
         put_relation(cx, input)
     }
 }
@@ -586,7 +586,7 @@ fn put_relation(cx: &Cx<'_>, input: RelationIn) -> Result<Done> {
     Ok(Done { id: id.to_string() })
 }
 op! {
-    RelationRemove="module.remove_relation",Write,Book,"Remove one relation projected in a v3 entry's relations module.",fn(cx,input:RecordIn)->Done {
+    RelationRemove="module.remove_relation",Write,Book,"Remove one relation projected in an entry's relations module.",fn(cx,input:RecordIn)->Done {
         let (s, e, _) = selected(cx, &input.target, m::ModuleKind::Relations)?;
         let own = EntityRef {
             kind: EntityKind::Entry,

@@ -5,7 +5,7 @@
 //! vocabularies, its records, its ordering rules and the mapping of retired
 //! values ([`legacy`]). Only the source replay may import this module
 //! (`dr-doc::import_v1`, `dr-import-v1`, `dr-samples`' source builders and
-//! `dr-testkit`'s source fixtures); `cargo xtask check` (gate `v3-cutover`)
+//! `dr-testkit`'s source fixtures); `cargo xtask check` (gate `cutover`)
 //! refuses the import anywhere else.
 mod ids;
 mod kinds;

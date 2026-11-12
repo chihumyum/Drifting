@@ -165,7 +165,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                 .values()
                 .filter(|e| {
                     !e.is_trashed()
-                        && m::effective_ancestors(&entries, &templates, &e.id)
+                        && m::effective_ancestors(&entries, &e.id)
                             .iter()
                             .all(|a| entries.get(a).is_some_and(|a| !a.is_trashed()))
                 })
@@ -195,8 +195,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                             });
                                         module_name = definition.map(|m| m.name.clone());
                                         let prose = definition
-                                            .is_some_and(|m| m.kind == m::ModuleKind::Prose)
-                                            || (module == "about" && entry.is_level(&templates));
+                                            .is_some_and(|m| m.kind == m::ModuleKind::Prose);
                                         if prose {
                                             true
                                         } else {

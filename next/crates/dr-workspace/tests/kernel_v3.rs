@@ -129,11 +129,6 @@ fn v3_creation_obeys_home_template_and_retains_module_data() {
     custom["id"] = json!("alternate");
     custom["modules"] = json!([]);
     e.call("entry_template.put", json!({"book":b,"template":custom}));
-    // Permit the alternate template on the manuscript before switching.
-    e.call(
-        "entry.update",
-        json!({"book":b,"id":ms,"overrides":{"allow":[]}}),
-    );
     e.call(
         "entry.update",
         json!({"book":b,"id":id,"template":"alternate"}),
@@ -182,17 +177,25 @@ fn v3_template_prose_is_book_scoped_and_copied_once() {
         )["total"],
         0
     );
-    // A level always has a description, independent of declared modules.
+    // A level's description is an ordinary prose module of its template
+    // (「说明」); there is no built-in `about` any more.
     e.call(
         "module.set_prose",
-        json!({"book":b,"owner":ms,"module":"about","paragraphs":[{"text":"Folder description"}]}),
+        json!({"book":b,"owner":ms,"module":"mod-description","paragraphs":[{"text":"Folder description"}]}),
     );
     assert_eq!(
         e.out(
             "module.read_prose",
-            json!({"book":b,"owner":ms,"module":"about"})
+            json!({"book":b,"owner":ms,"module":"mod-description"})
         )["paragraphs"][0]["text"],
         "Folder description"
+    );
+    assert!(
+        e.try_call(
+            "module.set_prose",
+            json!({"book":b,"owner":ms,"module":"about","paragraphs":[{"text":"No"}]}),
+        )
+        .is_err()
     );
 }
 #[test]
@@ -365,21 +368,15 @@ fn v3_null_clears_inherited_defaults_and_template_undo_keeps_nested_maps_writabl
     let b = project(&e);
     let ms = root(&e, &b, "tpl-manuscript");
     let group = create(&e, &b, &ms, "Group", "tpl-group");
-    assert_eq!(
-        e.out("level.get", json!({"book":b,"id":group}))["settings"]["default_template"],
-        "tpl-chapter"
-    );
+    let below = |e: &Env| get(e, &b, &group)["below"]["settings"].clone();
+    assert_eq!(below(&e)["default_template"], "tpl-chapter");
     e.call(
         "entry.update",
-        json!({"book":b,"id":group,"overrides":{"default_template":null,"home":null,"allow":[]}}),
+        json!({"book":b,"id":group,"overrides":{"default_template":null,"home":null}}),
     );
-    let settings = e.out("level.get", json!({"book":b,"id":group}));
-    assert!(settings["settings"]["default_template"].is_null());
+    assert!(below(&e)["default_template"].is_null());
     e.call("entry.update", json!({"book":b,"id":group,"overrides":{}}));
-    assert_eq!(
-        e.out("level.get", json!({"book":b,"id":group}))["settings"]["default_template"],
-        "tpl-chapter"
-    );
+    assert_eq!(below(&e)["default_template"], "tpl-chapter");
     let original = tpl(&e, &b, "tpl-chapter");
     let mut changed = original.clone();
     changed["modules"][0]["name"] = json!("Changed");
@@ -889,7 +886,7 @@ fn v3_restore_primary_pins_and_record_deletion_have_real_inverses() {
 }
 
 #[test]
-fn v3_level_batch_matches_individual_queries_and_reports_canonical_sources() {
+fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
     let e = env();
     let b = project(&e);
     let other = project(&e);
@@ -902,76 +899,68 @@ fn v3_level_batch_matches_individual_queries_and_reports_canonical_sources() {
         "entry.update",
         json!({"book":b,"id":group,"overrides":{"home":null,"auto_link":false}}),
     );
-    let batch = e.out("level.list", json!({"book":b}));
-    assert_eq!(batch["version"], version(&e, &b));
-    let levels = batch["levels"].as_array().unwrap();
-    let templates = e.out("entry_template.list", json!({"book":b}));
-    let level_templates: Vec<_> = templates
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|t| t["kind"] == "level")
-        .map(|t| t["id"].clone())
-        .collect();
+    let batch = e.out("entry.list", json!({"book":b,"all":true,"below":true}));
+    let rows = batch.as_array().unwrap();
+    // Exactly the live entries whose switch is on carry `below`.
     let expected: Vec<_> = entries(&e, &b)
         .as_array()
         .unwrap()
         .iter()
-        .filter(|e| {
-            e["deleted_at"].is_null()
-                && (e["template"].is_null() || level_templates.contains(&e["template"]))
-        })
+        .filter(|e| e["deleted_at"].is_null() && e["level"] == true)
         .map(|e| e["id"].clone())
         .collect();
+    let levels: Vec<_> = rows.iter().filter(|r| !r["below"].is_null()).collect();
     assert_eq!(
         levels.iter().map(|r| r["id"].clone()).collect::<Vec<_>>(),
         expected
     );
-    for row in levels {
-        let single = e.out("level.get", json!({"book":b,"id":row["id"]}));
-        for field in ["settings", "children", "members"] {
-            assert_eq!(row[field], single[field]);
-        }
-        assert_eq!(row["sources"].as_object().unwrap().len(), 8);
+    assert!(levels.iter().any(|r| r["id"] == group));
+    for row in &levels {
+        let single = get(&e, &b, row["id"].as_str().unwrap());
+        assert_eq!(row["below"], single["below"]);
+        assert_eq!(row["below"]["sources"].as_object().unwrap().len(), 8);
     }
+    // Without `below`, nothing below.
+    assert!(
+        entries(&e, &b)
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["below"].is_null())
+    );
     let g = levels.iter().find(|r| r["id"] == group).unwrap();
-    assert_eq!(g["settings"]["home"], Value::Null);
+    assert_eq!(g["below"]["settings"]["home"], Value::Null);
     assert_eq!(
-        g["sources"]["home"],
+        g["below"]["sources"]["home"],
         json!({"kind":"override","entry":group})
     );
     assert_eq!(
-        g["sources"]["is_manuscript"],
+        g["below"]["sources"]["is_manuscript"],
         json!({"kind":"template","entry":ms,"template":"tpl-manuscript"})
     );
+    assert_eq!(g["below"]["children"][0]["title"], "One");
     let l = levels.iter().find(|r| r["id"] == lane).unwrap();
     assert_eq!(
-        l["sources"]["accept"],
-        json!({"kind":"lane","entry":lane,"template":"tpl-storyline"})
+        l["below"]["sources"]["accept"],
+        json!({"kind":"lane","entry":lane})
     );
-    assert_eq!(l["settings"]["accept"], true);
-    let second = e.out("level.list", json!({"book":other}));
-    assert!(
-        !second["levels"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|r| r["id"] == group)
+    assert_eq!(
+        l["below"]["sources"]["lane"],
+        json!({"kind":"template","entry":lane,"template":"tpl-storyline"})
     );
+    assert_eq!(l["below"]["settings"]["accept"], true);
+    assert_eq!(l["below"]["settings"]["lane"], true);
+    let second = e.out("entry.list", json!({"book":other,"all":true,"below":true}));
+    assert!(!second.as_array().unwrap().iter().any(|r| r["id"] == group));
+    let before = version(&e, &b);
     e.call("entry.trash", json!({"book":b,"id":group}));
-    let after = e.out("level.list", json!({"book":b}));
-    assert_ne!(batch["version"], after["version"]);
-    assert!(
-        !after["levels"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|r| r["id"] == group)
-    );
+    assert_ne!(before, version(&e, &b));
+    let after = e.out("entry.list", json!({"book":b,"all":true,"below":true}));
+    assert!(!after.as_array().unwrap().iter().any(|r| r["id"] == group));
     assert!(
         e.try_call(
-            "level.list",
-            json!({"book":common::acceptance::empty_source(e.ws().library())})
+            "entry.list",
+            json!({"book":common::acceptance::empty_source(e.ws().library()),"below":true})
         )
         .is_err()
     );

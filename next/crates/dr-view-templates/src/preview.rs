@@ -43,13 +43,13 @@ pub fn project(workspace: &Workspace, request: &Request) -> Result<Projection, W
             .ok_or_else(|| WsError::Conflict("preview template is unavailable".into()))?;
         let structure = StructureContext::from_v3_view(None, view, frontier, None)
             .map_err(|e| WsError::Internal(e.to_string()))?;
-        let level = request.draft.kind == "level";
+        let level = request.draft.level;
         Ok(Projection {
             source_frontier: request.frontier.clone(),
             draft_frontier: frontier.into(),
             template: TemplateSummary::from_v3_template(&template),
             level_defaults: level.then(|| request.draft.settings.clone()),
-            lane: level.then_some(request.draft.lane),
+            lane: level.then_some(request.draft.settings.lane == Some(true)),
             declared_actions: level.then(|| request.draft.verbs.clone()),
             structure,
         })
@@ -446,7 +446,6 @@ mod tests {
         let mut unused_level = model::blank("level", "Synthetic unused level".into());
         unused_level.settings.default_template = Some(None);
         unused_level.settings.home = Some(None);
-        unused_level.settings.allow = Some(Vec::new());
         model::add_module(
             &mut unused_level,
             model::module("kv", "Synthetic level fields".into()),
@@ -459,7 +458,7 @@ mod tests {
         };
         let projected = project(&workspace, &request).unwrap();
         assert_eq!(projected.template.id, unused_level.id);
-        assert_eq!(projected.template.kind, "level");
+        assert!(projected.template.level);
         assert_eq!(
             projected.level_defaults.as_ref(),
             Some(&unused_level.settings)
@@ -495,7 +494,7 @@ mod tests {
         let mut draft = template(&workspace, &book, "tpl-storyline");
         draft.settings.accept = Some(false);
         draft.settings.home = Some(None);
-        draft.lane = true;
+        draft.settings.lane = Some(true);
         draft.verbs = vec![TemplateVerb {
             id: dr_model::id::new_uuid_v7(),
             name: "Synthetic preview action".into(),

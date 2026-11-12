@@ -31,10 +31,7 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
         .iter()
         .filter_map(|l| {
             let e = book.entry(&l.entry).filter(|e| e.deleted_at.is_none())?;
-            if !book
-                .template_of(&l.entry)
-                .is_some_and(|t| t.kind == "level" && t.lane)
-            {
+            if !book.is_lane(&l.entry) {
                 return None;
             }
             let members = membership.get(l.entry.as_str());

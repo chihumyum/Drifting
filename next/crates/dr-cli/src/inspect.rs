@@ -73,26 +73,28 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
         let book = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(err)?;
         let v = book.view();
         let templates = v.templates_map();
-        let chapters = v
-            .manuscript_levels()
-            .iter()
-            .flat_map(|id| v.manuscript_leaves(id))
-            .collect::<Vec<_>>();
+        // The manuscript sequence: the entries with book prose, and that prose.
+        let structure = v.structure_snapshot();
+        let manuscript: Vec<_> = structure
+            .manuscript()
+            .into_iter()
+            .flat_map(|p| p.entries)
+            .filter(|e| !e.prose.is_empty())
+            .collect();
+        let chapters = manuscript.len();
         let mut chapter_chars = 0usize;
-        for entry in &chapters {
-            if let Some(template) = entry.effective_template(&templates) {
-                for module in template.prose_modules() {
-                    let key = format!("body:{}/{}", entry.id, module.id);
-                    if let Some(_info) = lib.doc_info(&key).map_err(err)? {
-                        let d = lib.load_copy(&key).map_err(err)?;
-                        chapter_chars += d
-                            .get_text(dr_doc::schema::prose::BODY)
-                            .to_string()
-                            .chars()
-                            .filter(|c| *c != '\n')
-                            .count();
-                    }
-                }
+        for key in manuscript
+            .iter()
+            .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
+        {
+            if let Some(_info) = lib.doc_info(&key).map_err(err)? {
+                let d = lib.load_copy(&key).map_err(err)?;
+                chapter_chars += d
+                    .get_text(dr_doc::schema::prose::BODY)
+                    .to_string()
+                    .chars()
+                    .filter(|c| *c != '\n')
+                    .count();
             }
         }
         // Writing days live beside the book, in `stats:<book>`.
@@ -108,7 +110,7 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
             }
             None => 0,
         };
-        books.push(json!({"id":id,"version":dr_doc::schema::BOOK_SCHEMA_VERSION,"name":v.meta().name,"chapters":chapters.len(),"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"materials":v.materials().len(),"writingDays":writing_days,"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
+        books.push(json!({"id":id,"version":dr_doc::schema::BOOK_SCHEMA_VERSION,"name":v.meta().name,"chapters":chapters,"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"materials":v.materials().len(),"writingDays":writing_days,"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
     }
     Ok(json!({
         "libraryId": lib.library_id(),

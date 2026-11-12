@@ -90,7 +90,7 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
 /// Subjects a read shows beyond those its coverage names: each membership
 /// it listed, so removing one is held to that membership and not to every
 /// membership of the book.
-pub(super) fn also_read(name: &str, args: &Value, output: &Value) -> Vec<String> {
+pub(super) fn also_read(name: &str, output: &Value) -> Vec<String> {
     let rows = |rows: &Value, host: Option<&str>| -> Vec<String> {
         rows.as_array()
             .into_iter()
@@ -107,7 +107,14 @@ pub(super) fn also_read(name: &str, args: &Value, output: &Value) -> Vec<String>
     };
     match name {
         "membership.list" => rows(output, None),
-        "level.get" => rows(&output["members"], args["id"].as_str()),
+        // An entry read with what lies below it shows its members.
+        "entry.get" => rows(&output["below"]["members"], output["id"].as_str()),
+        "entry.list" => output
+            .as_array()
+            .into_iter()
+            .flatten()
+            .flat_map(|row| rows(&row["below"]["members"], row["id"].as_str()))
+            .collect(),
         _ => Vec::new(),
     }
 }

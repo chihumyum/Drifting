@@ -383,7 +383,7 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "entry.move",
         "entry.trash",
         "entry.restore",
-        "level.get",
+        "entry.set_level",
         "entry_template.list",
         "entry_template.put",
         "entry_template.delete",
@@ -603,7 +603,7 @@ fn v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions() {
     let action_req = CallRequest::for_action(
         &first_storyline_action.reference,
         json!({"title": "风雪夜归人"}),
-        Some(first_revision),
+        Some(first_revision.clone()),
     );
     let unread_err = tools
         .invoke(&f.ws, &f.book, &actor, action_req.clone())
@@ -654,43 +654,53 @@ fn v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions() {
             .any(|m| m["member"].as_str() == Some(new_chapter_id.as_str()))
     );
 
-    // 4. Changing the residence level's allowed templates invalidates the action and records a diagnostic.
+    // 4. With its home level switched off, the action falls back to creating
+    // under its own level, as `entry.create` does (no level restricts
+    // templates any more, so the binding stays valid): its revision changes,
+    // and a call made against the old one is refused without a write.
     let residence_level = first_storyline_action.home.as_ref().unwrap();
     f.out(
-        "entry.update",
-        json!({
-            "book": f.book,
-            "id": residence_level,
-            "overrides": {
-                "allow": [first_storyline_action.reference.template]
-            }
-        }),
+        "entry.set_level",
+        json!({"book": f.book, "id": residence_level, "level": false}),
     );
     let updated_catalog = tools.catalog_for_book(&f.ws, &f.book).unwrap();
     assert!(
-        updated_catalog.action_diagnostics().iter().any(|d| {
-            d.level.as_deref() == Some(first_storyline_action.reference.level.as_str())
-                && d.code == "invalid_residence_binding"
-        }),
-        "expected diagnostic on disabled verb: {:?}",
+        updated_catalog.action_diagnostics().is_empty(),
+        "{:?}",
         updated_catalog.action_diagnostics()
     );
-    let disabled_err = tools
+    let rebound = updated_catalog
+        .actions()
+        .into_iter()
+        .find(|a| a.reference == first_storyline_action.reference)
+        .unwrap()
+        .clone();
+    assert_eq!(
+        rebound.home.as_deref(),
+        Some(first_storyline_action.reference.level.as_str())
+    );
+    assert_ne!(
+        updated_catalog.descriptor(&rebound.id).unwrap().revision,
+        first_revision
+    );
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap();
+    let stale_err = tools
         .invoke(
             &f.ws,
             &f.book,
             &actor,
             CallRequest::for_action(
                 &first_storyline_action.reference,
-                json!({"title": "被禁用的章节"}),
-                None,
+                json!({"title": "不会创建的章节"}),
+                Some(first_revision),
             ),
         )
         .unwrap_err();
     assert!(
-        matches!(&disabled_err, Error::Invalid(msg) if msg.contains("invalid_residence_binding")),
-        "expected diagnostic error, got: {disabled_err:?}"
+        matches!(&stale_err, Error::Invalid(msg) if msg.contains("tool definition changed")),
+        "expected a stale revision, got: {stale_err:?}"
     );
+    assert_eq!(f.ws.observe(&before.doc).unwrap().version, before.version);
 }
 
 #[test]

@@ -589,7 +589,7 @@ impl Workspace {
         };
         let slot = self.book_slot(&book)?;
         if !slot.is_v3() {
-            return Err(WsError::invalid("records belong to a v3 book document"));
+            return Err(WsError::invalid("records belong to a book document"));
         }
         let keys = keys
             .iter()

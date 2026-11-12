@@ -2,7 +2,7 @@
   "about": "G1 complete-entry snapshot smoke: real-window save, preview, confirmation, two-body restore, pre-restore recovery and reopen. Secondary display and isolated synthetic profile. Screenshots are records, not visual acceptance.",
   "steps": [
     {
-      "seed": "v3-tiny"
+      "seed": "tiny"
     },
     {
       "call": "book.list",

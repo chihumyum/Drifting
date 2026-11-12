@@ -29,7 +29,7 @@ fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
             .view()
             .entity_exists(&EntityRef::new(kind, id))
     {
-        return Err(WsError::not_found("v3 comment target", id));
+        return Err(WsError::not_found("comment target", id));
     }
     Ok(())
 }
@@ -83,7 +83,7 @@ fn target_module(
     module.map(|m| pid("module", m)).transpose()
 }
 
-/// A v3 comment target. Old structural kinds are not accepted by v3 writes.
+/// A comment target. Old structural kinds are not accepted.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CommentTargetV3")]
 pub struct Target {
@@ -108,7 +108,7 @@ impl From<&EntityRef> for Target {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "TodoProjectInV3")]
 pub struct TodoProjectIn {
-    /// `body:<entry>/<module>` (including level `about`) or `material:<id>` of a v3 book.
+    /// `body:<entry>/<module>` or `material:<id>` of a book.
     pub doc: String,
     pub markers: Vec<crate::commands::comment_shared::TodoMarkerIn>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -503,7 +503,7 @@ op! {
         let (owner, module) = match &doc {
             DocId::Body(b) => (EntityRef::new(EntityKind::Entry, b.entry().as_str()), Some(b.module().clone())),
             DocId::Material(id) => (EntityRef::new(EntityKind::Material, id.as_str()), None),
-            _ => return Err(WsError::invalid("v3 TODO markers require entry prose or a material note")),
+            _ => return Err(WsError::invalid("TODO markers require entry prose or a material note")),
         };
         let ps = cx.prose(&doc)?;
         let book = ps.book.clone().ok_or_else(|| WsError::invalid(format!("{} belongs to no book", input.doc)))?;

@@ -2,7 +2,7 @@
   "about": "G1 v3 whole-book ordinary cross-chapter Cut and internal Copy/Paste through the real Assist/native key path; per-body durable reads, one grouped Undo, final accepted paste and quit/reopen. Canonical Tiny plus F4c text. Secondary isolated correctness flow only; no heavy, visual or performance acceptance. Includes a zero-length first selected fragment: Undo at the unchanged start chapter must still restore the changed group without consuming older source history. Starts with actual typed text inside the cut range: the first Undo restores the cut group and the next Undo removes only the older typing.",
   "steps": [
     {
-      "seed": "v3-tiny"
+      "seed": "tiny"
     },
     {
       "call": "book.list",

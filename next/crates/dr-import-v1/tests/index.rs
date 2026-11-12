@@ -112,7 +112,7 @@ fn an_imported_library_is_indexed_when_it_opens() {
         hits,
         vec![
             (
-                format!("body:{}/about", old::STORYLINE),
+                format!("body:{}/mod-description", old::STORYLINE),
                 Some("s-p1".into())
             ),
             (chapter.clone(), Some("p1".into())),

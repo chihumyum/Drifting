@@ -2,7 +2,7 @@
   "about": "G4 v3-lite 快照随书搬运：保留原主页/Word/单本书33步，增加两正文检查点、修改、格式3导回、预览/有守卫恢复、新书正文显示及原书隔离。隔离窗口放副屏，不做截图或heavy。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

@@ -203,7 +203,7 @@ fn v3_recent_preserves_modules_retained_pages_locality_and_cross_book_purge() {
     let second = json!({"kind":"entry","id":entry,"module":"second-prose"});
     let whole = json!({"kind":"entry","id":entry});
     let note = json!({"kind":"material","id":material});
-    let about = json!({"kind":"entry","id":parent,"module":"about"});
+    let about = json!({"kind":"entry","id":parent,"module":"mod-description"});
     for target in [&first, &second, &whole, &note, &about, &first] {
         touch(&e, &a, target.clone());
     }

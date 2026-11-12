@@ -1,8 +1,8 @@
 {
-  "about": "F8 native panel boundary: authenticated state reads, cancel/save/open system panel answers, v3-lite backup and restore, then native writing and undo. Test-platform isolation and socket token rejection are permanent bridge contracts.",
+  "about": "F8 native panel boundary: authenticated state reads, cancel/save/open system panel answers, lite backup and restore, then native writing and undo. Test-platform isolation and socket token rejection are permanent bridge contracts.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

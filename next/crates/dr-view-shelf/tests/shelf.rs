@@ -126,19 +126,10 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
         let id = book.parse().unwrap();
         let borrowed = dr_doc::v3::BorrowedBookV3::new(&raw, &id).unwrap();
         let view = borrowed.view();
-        let templates = view.templates_map();
-        view.manuscript_levels()
-            .iter()
-            .flat_map(|level| view.manuscript_leaves(level))
-            .flat_map(|e| {
-                e.effective_template(&templates)
-                    .map(|t| {
-                        t.prose_modules()
-                            .map(|m| format!("body:{}/{}", e.id, m.id))
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default()
-            })
+        view.structure_snapshot()
+            .manuscript_docs()
+            .into_iter()
+            .map(|doc| doc.to_string())
             .map(|doc| {
                 lib.library()
                     .doc_stats(&doc)

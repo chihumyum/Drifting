@@ -1,8 +1,8 @@
 {
-  "about": "K4-0 第一次交回：在 v3-lite 真窗口验收快照、导航、组合、记号、种子和调试桥；最后切回 v2.2。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
+  "about": "K4-0 第一次交回：在 lite 真窗口验收快照、导航、组合、记号、种子和调试桥；最后切回 v2.2。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",
@@ -38,7 +38,7 @@
       "save": "views"
     },
     {
-      "call": "level.get",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
         "id": "${entries.[template=tpl-manuscript].id}"
@@ -102,7 +102,7 @@
         "/v3/templates": "${templates}",
         "/v3/memberships": "${memberships}",
         "/v3/timeline_views": "${views}",
-        "/v3/levels/${entries.[template=tpl-manuscript].id}/settings": "${level.settings}",
+        "/v3/levels/${entries.[template=tpl-manuscript].id}/settings": "${level.below.settings}",
         "/v3/levels/${entries.[template=tpl-manuscript].id}/sources/is_manuscript/kind": "template",
         "/bottom/pane": "timeline"
       },
