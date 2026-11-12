@@ -392,9 +392,13 @@ pub fn sync_catalog(
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
         }))?;
     for template in templates(source, &roots.manuscript)? {
+        // The 幕 template comes with the novel templates; one the book
+        // already has is kept as it is, as before it came with them.
+        if template.id.as_str() == TPL_ACT_TRACK && txn.view().template(&template.id).is_some() {
+            continue;
+        }
         txn.template(&template.id)?.set_full(&template)?;
     }
-    // The 幕 template comes with the novel templates above.
     let planned_acts = plan_act_track(source);
 
     let categories = source.categories();
