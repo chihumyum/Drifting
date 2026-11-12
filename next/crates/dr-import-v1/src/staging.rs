@@ -257,6 +257,8 @@ pub fn stage_with(
 
 #[cfg(test)]
 mod tests {
+    use rusqlite::config::DbConfig;
+
     use super::*;
 
     fn old_library(dir: &Path, upto: usize) -> PathBuf {
@@ -271,8 +273,17 @@ mod tests {
             [],
         )
         .ok();
-        // Leave the WAL in place, as a crashed app would.
-        std::mem::forget(conn);
+        // Leave the WAL in place, as a crashed app would: close without the
+        // checkpoint that folds it into the database. Closed, not leaked: a
+        // handle this process still held would be "open elsewhere" on
+        // Windows, where the check cannot tell whose handle it is.
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+            .unwrap();
+        conn.close().map_err(|(_, e)| e).unwrap();
+        assert!(
+            std::fs::metadata(sidecar(&path, "-wal")).unwrap().len() > 0,
+            "the WAL is left behind"
+        );
         path
     }
 
@@ -283,6 +294,7 @@ mod tests {
         let bytes_before = std::fs::read(&path).unwrap();
         let staging = tempfile::tempdir().unwrap();
         let staged = stage(&path, staging.path(), "local").unwrap();
+        assert!(staged.source.wal_bytes > 0, "the WAL was copied too");
         assert_eq!(staged.level_before.applied, 13);
         assert_eq!(
             std::fs::read(&path).unwrap(),

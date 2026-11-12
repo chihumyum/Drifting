@@ -34,6 +34,9 @@ pub enum Answer {
     Cancel,
 }
 
+// Only `panel.state` on macOS reports an answer or a request; elsewhere
+// there is no panel to report, and these would be dead code.
+#[cfg(target_os = "macos")]
 impl Answer {
     fn to_json(&self) -> Value {
         match self {
@@ -44,6 +47,7 @@ impl Answer {
 }
 
 /// A panel the app asked for.
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
     /// `open` or `save`.
@@ -58,6 +62,7 @@ pub struct Request {
     pub answer: Option<Answer>,
 }
 
+#[cfg(target_os = "macos")]
 impl Request {
     fn to_json(&self) -> Value {
         json!({

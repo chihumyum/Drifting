@@ -87,10 +87,13 @@ jobs:
           python -m pip install fonttools==4.60.1
           python crates/dr-ui/script/build-fonts.py
       - run: cargo fmt --all --check
+      # --keep-going and --no-fail-fast: a run reports every crate and every
+      # test binary that fails, not only the first. A Windows run takes over
+      # an hour, and what stops there often passes on macOS.
       - if: ${{ !cancelled() }}
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked --keep-going -- -D warnings
       - if: ${{ !cancelled() }}
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked --no-fail-fast
       - if: ${{ !cancelled() }}
         run: cargo build --workspace --locked
       # The gates (simplifications.md §6): privacy, large files, retired

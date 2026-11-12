@@ -68,12 +68,25 @@ function Assert-Installed([string]$Dir) {
 function Invoke-Uninstall([string]$Dir) {
   $process = Start-Process -FilePath "$Dir\uninstall.exe" -ArgumentList @('/S', "_?=$Dir") -Wait -PassThru
   if ($process.ExitCode -ne 0) { throw "uninstaller exited with $($process.ExitCode)" }
-  Remove-Item -Force "$Dir\uninstall.exe" -ErrorAction SilentlyContinue
-  Remove-Item -Force $Dir -ErrorAction SilentlyContinue
+  # Run in place (_?=, so that -Wait covers the whole uninstall) the
+  # uninstaller can remove neither itself nor its folder. Nothing else may
+  # be left.
+  $left = @()
+  if (Test-Path -LiteralPath $Dir) {
+    $left = @(Get-ChildItem -Force -LiteralPath $Dir |
+        ForEach-Object { $_.Name } |
+        Where-Object { $_ -ne 'uninstall.exe' })
+  }
+  if ($left.Count -gt 0) { throw "check failed: uninstall left $($left -join ', ') in $Dir" }
+  Write-Output 'ok: uninstall leaves nothing but itself in the folder'
   Assert (-not (Test-Path "$Dir\drifting.exe")) 'uninstall removes the executable'
   Assert (-not (Test-Path $uninstallKey)) 'uninstall removes the Add/Remove Programs entry'
   Assert (-not (Test-Path $vendorKey)) 'uninstall removes the vendor key'
   Assert (-not (Test-Path $schemeKey)) "uninstall removes $scheme`:"
+  # Housekeeping, not a check: Windows may keep a program's file busy for a
+  # moment after it exits. -Recurse because Remove-Item asks before removing
+  # a folder that still has something in it, and a runner cannot answer.
+  Remove-Item -Force -Recurse -LiteralPath $Dir -ErrorAction SilentlyContinue
 }
 
 # A first install goes where Tauri put Drifting: %LOCALAPPDATA%\<product>.
