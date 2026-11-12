@@ -2,7 +2,7 @@
 use std::collections::BTreeSet;
 
 use dr_workspace::{
-    Actor, Workspace, WritePreconditions, WsError,
+    Actor, RecordKey, Workspace, WritePreconditions, WsError,
     commands::{
         BookIn,
         v3::{template::TemplateList, types::*},
@@ -269,7 +269,13 @@ pub fn save(
     base: Option<&EntryTemplate>,
     draft: &EntryTemplate,
 ) -> Result<EntryTemplate, WsError> {
-    let observed = lib.observe(&format!("book:{book}"))?;
+    // Observe the stored template before reading the list it is merged
+    // from: the replacement is held to exactly that template (or to its
+    // absence, for a new one). Other templates and the rest of the book are
+    // not part of what it replaces.
+    let stored = lib
+        .observe_records(&format!("book:{book}"), &[RecordKey::template(&draft.id)])?
+        .remove(0);
     let templates = lib
         .run::<TemplateList>(&Actor::User, BookIn { book: book.into() })?
         .output;
@@ -286,7 +292,7 @@ pub fn save(
         &Actor::User,
         "entry_template.put",
         json!({"book": book, "template": merged}),
-        WritePreconditions::from_observations([observed]),
+        WritePreconditions::from_records([stored]),
     )?;
     Ok(merged)
 }

@@ -3,7 +3,7 @@
 use super::*;
 use crate::settlement::{self, Drafts, Drain};
 use dr_workspace::{
-    Actor, WritePreconditions, WsError,
+    Actor, RecordKey, WsError,
     commands::v3::{module::In, types::FieldValue},
 };
 
@@ -322,22 +322,21 @@ fn save_title(
     }
     let (entry, _) =
         dr_editor::v3::body(doc).ok_or_else(|| WsError::Invalid("not a body document".into()))?;
-    let observation = ws.observe(&format!("book:{book}"))?;
-    let id = dr_model::id::EntryId::parse(&entry).map_err(|e| WsError::Invalid(e.to_string()))?;
-    let raw = dr_editor::v3::read(ws, book, move |v| v.entry_owned_raw_state(&id))?
-        .ok_or_else(|| WsError::Conflict("title owner was removed".into()))?;
-    let current = raw["metadata"]["map"]["title"]
-        .get("value")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| WsError::Conflict("title representation changed".into()))?;
-    if !retry && current != base && current != value {
-        return Err(WsError::Conflict("title changed while editing".into()));
-    }
+    // Held to the title this head showed: a title someone else set meanwhile
+    // is not overwritten, and nothing else in the book matters.
+    let guard = settlement::held_to(
+        ws,
+        book,
+        RecordKey::entry(&entry).at(["title"]),
+        serde_json::json!(base),
+        serde_json::json!(value),
+        retry,
+    )?;
     ws.call_guarded(
         &Actor::User,
         "entry.update",
         serde_json::json!({"book":book,"id":entry,"title":value}),
-        WritePreconditions::from_observations([observation]),
+        guard,
     )?;
     Ok(())
 }

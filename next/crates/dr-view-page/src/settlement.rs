@@ -240,7 +240,10 @@ pub fn write<T: 'static, R: Send + 'static, E: ToString + Send + 'static>(
 }
 
 /// A single field is still a read/modify/write when a draft can outlive its
-/// displayed value. Compare that original value before taking the new CAS.
+/// displayed value. The write says the value the draft was made from; the
+/// workspace compares it in the write itself, so a value someone else set
+/// meanwhile is not overwritten, a field stored in a form this view does not
+/// edit is not replaced, and nothing else in the book matters.
 pub fn field(
     lib: &dr_workspace::Workspace,
     target: dr_workspace::commands::v3::module::In,
@@ -249,49 +252,48 @@ pub fn field(
     value: dr_workspace::commands::v3::types::FieldValue,
     retry: bool,
 ) -> Result<(), dr_workspace::WsError> {
-    use dr_workspace::{Actor, WritePreconditions, WsError};
-    use serde_json::{Value, json};
-    let observation = lib.observe(&format!("book:{}", target.book))?;
-    let entry =
-        dr_model::id::EntryId::parse(&target.entry).map_err(|e| WsError::Invalid(e.to_string()))?;
-    let raw = dr_editor::v3::read(lib, &target.book, move |view| {
-        view.entry_owned_raw_state(&entry)
-    })?
-    .ok_or_else(|| WsError::Conflict("field owner was removed".into()))?;
-    fn map(value: Option<&Value>) -> Result<Option<&serde_json::Map<String, Value>>, WsError> {
-        value
-            .map(|v| {
-                v.get("map").and_then(Value::as_object).ok_or_else(|| {
-                    WsError::Conflict("field representation is not editable by this view".into())
-                })
-            })
-            .transpose()
-    }
-    let fields = map(raw["metadata"]["map"].get("fields"))?;
-    let module = map(fields.and_then(|f| f.get(&target.module)))?;
-    let current = match module.and_then(|m| m.get(&field)) {
-        None => Value::Null,
-        Some(v) => v
-            .as_object()
-            .filter(|v| v.len() == 1)
-            .and_then(|v| v.get("value"))
-            .cloned()
-            .ok_or_else(|| WsError::Conflict("field representation changed".into()))?,
-    };
-    let edited = serde_json::to_value(value).map_err(|e| WsError::Internal(e.to_string()))?;
-    if !retry
-        && current != serde_json::to_value(base).map_err(|e| WsError::Internal(e.to_string()))?
-        && current != edited
-    {
-        return Err(WsError::Conflict("field changed while editing".into()));
-    }
+    use dr_workspace::{Actor, RecordKey, WsError};
+    use serde_json::json;
+    let json_of = |value| serde_json::to_value(value).map_err(|e| WsError::Internal(e.to_string()));
+    let edited = json_of(value)?;
+    let key =
+        RecordKey::entry(&target.entry).at(["fields", target.module.as_str(), field.as_str()]);
+    let guard = held_to(
+        lib,
+        &target.book,
+        key,
+        json_of(base)?,
+        edited.clone(),
+        retry,
+    )?;
     lib.call_guarded(
         &Actor::User,
         "module.set_field",
         json!({"book":target.book,"entry":target.entry,"module":target.module,"field":field,"value":edited}),
-        WritePreconditions::from_observations([observation]),
+        guard,
     )?;
     Ok(())
+}
+
+/// The guard of a one-value edit from `shown` to `edited`. An explicit retry
+/// overwrites the value stored now, whatever it is, and still only that one.
+pub fn held_to(
+    lib: &dr_workspace::Workspace,
+    book: &str,
+    key: dr_workspace::RecordKey,
+    shown: serde_json::Value,
+    edited: serde_json::Value,
+    retry: bool,
+) -> Result<dr_workspace::WritePreconditions, dr_workspace::WsError> {
+    let doc = format!("book:{book}");
+    let from = if retry {
+        lib.observe_records(&doc, std::slice::from_ref(&key))?
+            .remove(0)
+            .value
+    } else {
+        shown
+    };
+    Ok(dr_workspace::WritePreconditions::default().with_value(doc, key, [from, edited]))
 }
 
 /// Delay a real accepted write before storage starts. A deterministic GPUI
