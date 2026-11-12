@@ -437,7 +437,8 @@ struct Supplied {
 }
 
 impl Supplied {
-    /// Whether this expectation applies to a write that replaces `replaces`.
+    /// Whether this expectation applies to a write that replaces `replaces`
+    /// (`None`: a check that comes before the write and replaces nothing).
     fn applies(&self, replaces: Option<&Replaces>) -> bool {
         if !self.if_replaced {
             return true;
@@ -446,7 +447,10 @@ impl Supplied {
             Some(Replaces::Records(keys)) => keys
                 .iter()
                 .any(|key| self.key.contains(key) || key.contains(&self.key)),
-            _ => false,
+            // A write that may replace anything in the document replaces
+            // this record too.
+            Some(Replaces::Document) => true,
+            None => false,
         }
     }
 }
@@ -653,5 +657,72 @@ mod tests {
         // The order of a list is content.
         assert_ne!(digest(&json!({"a": [1, 2]})), digest(&json!({"a": [2, 1]})));
         assert_ne!(digest(&one), digest(&json!({"a": {"x": 2}, "b": 1})));
+    }
+
+    /// A v3 book document and guards over what a view showed of it: the
+    /// digests of `meta` and of the relation types, compared only when a
+    /// write replaces them.
+    fn shown(require_all: bool) -> (String, BookId, LoroDoc, Guards) {
+        let book = BookId::new_v7();
+        let id = DocId::Book(book.clone()).to_string();
+        let doc = LoroDoc::new();
+        dr_doc::schema::configure(&doc);
+        doc.import(&dr_doc::v3::genesis_v3(&book)).unwrap();
+        let keys = [
+            RecordKey::collection("meta"),
+            RecordKey::collection("relation_types"),
+        ];
+        let observed = observe_records_in(&id, &doc, &book, &keys).unwrap();
+        let preconditions = WritePreconditions {
+            require_all,
+            ..WritePreconditions::default()
+        }
+        .with_shown(observed.into_iter().map(Into::into));
+        let guards = Guards::parse(preconditions).unwrap();
+        (id, book, doc, guards)
+    }
+
+    #[test]
+    fn a_write_that_replaces_the_whole_document_is_held_to_everything_shown() {
+        for require_all in [false, true] {
+            let (id, book, doc, guards) = shown(require_all);
+            let check = |replaces: Replaces| guards.check_book(&id, &doc, &book, &replaces);
+            let meta = Replaces::records([RecordKeyV3::collection(CollectionV3::Meta)]);
+            let unrelated = Replaces::record(CollectionV3::Facts, "synthetic-fact");
+
+            // Nothing shown has changed. Replacing a shown record is covered
+            // by its digest; the whole document still needs its version.
+            check(Replaces::nothing()).unwrap();
+            check(meta).unwrap();
+            match check(Replaces::Document) {
+                Ok(()) => assert!(!require_all),
+                Err(e) => {
+                    assert!(require_all);
+                    assert_eq!(e.to_string(), Guards::missing(&id).to_string());
+                }
+            }
+
+            // One shown record changes.
+            doc.get_map("meta").insert("name", "Synthetic").unwrap();
+            doc.commit();
+            let stale = |result: Result<()>| {
+                let message = result.unwrap_err().to_string();
+                assert!(
+                    message.contains("stale observation") && message.contains("record meta"),
+                    "{message}"
+                );
+            };
+            let meta = Replaces::records([RecordKeyV3::collection(CollectionV3::Meta)]);
+            stale(check(meta));
+            // The whole document includes it, whatever else was asked.
+            stale(check(Replaces::Document));
+            // A write that replaces something else, or nothing, is not held
+            // to it, and neither is a check that comes before any write.
+            check(Replaces::nothing()).unwrap();
+            if !require_all {
+                check(unrelated).unwrap();
+            }
+            guards.check_parent(&id, &doc, &book).unwrap();
+        }
     }
 }
