@@ -2211,7 +2211,11 @@ pub fn book_doc_ids_v3(
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> Vec<DocId> {
-    let mut out = vec![DocId::Book(book_id.clone())];
+    let mut out = vec![
+        DocId::Book(book_id.clone()),
+        DocId::Stats(book_id.clone()),
+        DocId::Checkpoints(book_id.clone()),
+    ];
     for t in templates.values() {
         for m in t.prose_modules() {
             out.push(DocId::Template(TemplateId::for_entry_module(

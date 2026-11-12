@@ -25,7 +25,7 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
     ws.library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
-            if !dr_doc::v3::is_v3_doc(doc) {
+            if !dr_doc::v3::is_book_doc(doc) {
                 return Err(invalid("v3 materials require a v3 book"));
             }
             let book = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
@@ -73,7 +73,7 @@ pub fn related(ws: &Workspace, book: &str, entry: &str) -> Result<HashSet<String
     ws.library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
-            if !dr_doc::v3::is_v3_doc(doc) {
+            if !dr_doc::v3::is_book_doc(doc) {
                 return Err(invalid("v3 materials require a v3 book"));
             }
             let b = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
@@ -114,7 +114,7 @@ pub fn shelf_relations(
     ws.library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
-            if !dr_doc::v3::is_v3_doc(doc) {
+            if !dr_doc::v3::is_book_doc(doc) {
                 return Err(invalid("v3 materials require a v3 book"));
             }
             let b = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;

@@ -65,7 +65,8 @@ pub struct Shape {
     pub preset: String,
     pub seed: String,
     pub books: usize,
-    /// Prose documents plus one book document per book.
+    /// Prose documents plus one book document per book (and, for a v3 seed,
+    /// the two documents beside each book: `stats:`, `checkpoints:`).
     pub documents: usize,
     pub bodies: BTreeMap<String, GroupShape>,
     pub chapters: usize,
@@ -173,7 +174,7 @@ impl Shape {
                         && e.parent == ms_root
                 })
                 .count();
-            days += v.writing_days().len();
+            days += b.stats.view().writing_days().len();
         }
         let bodies: BTreeMap<String, GroupShape> = groups
             .iter()
@@ -187,7 +188,7 @@ impl Shape {
             preset: preset.into(),
             seed: format!("{seed:#x}"),
             books: books.len(),
-            documents: books.iter().map(|b| b.prose.len() + 1).sum(),
+            documents: books.iter().map(|b| b.prose.len() + 3).sum(),
             bodies,
             chapters,
             elements,

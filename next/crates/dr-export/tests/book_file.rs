@@ -89,18 +89,24 @@ fn bad_files_are_refused_and_nothing_is_written() {
         Err(BookFileError::Legacy)
     ));
 
-    // From a newer Drifting.
-    let newer = e.dir.path().join("newer.driftingbook");
-    let mut w = zip::ZipWriter::new(std::fs::File::create(&newer).unwrap());
-    w.start_file("manifest.json", zip::write::SimpleFileOptions::default())
+    // From a newer Drifting, and from an earlier development build (format
+    // 3, before the documents beside the book).
+    for (version, name) in [(5, "newer"), (3, "older")] {
+        let file = e.dir.path().join(format!("{name}.driftingbook"));
+        let mut w = zip::ZipWriter::new(std::fs::File::create(&file).unwrap());
+        w.start_file("manifest.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        w.write_all(
+            format!(r#"{{"format":"drifting.book","formatVersion":{version}}}"#).as_bytes(),
+        )
         .unwrap();
-    w.write_all(br#"{"format":"drifting.book","formatVersion":4}"#)
-        .unwrap();
-    w.finish().unwrap();
-    assert!(matches!(
-        book_file::import_book(&e.ws, &newer, &|_| {}),
-        Err(BookFileError::Newer)
-    ));
+        w.finish().unwrap();
+        let refused = book_file::import_book(&e.ws, &file, &|_| {});
+        match version {
+            5 => assert!(matches!(refused, Err(BookFileError::Newer)), "{refused:?}"),
+            _ => assert!(matches!(refused, Err(BookFileError::Older)), "{refused:?}"),
+        }
+    }
 
     assert_eq!(ids(&out(&e.ws, "book.list", json!({}))), vec![original]);
     assert_eq!((docs(), assets()), (docs_before, assets_before));

@@ -2,7 +2,7 @@
 //! list of operations. Only book-scoped author operations are exposed.
 
 use dr_agent::{ToolAccess, ToolDescriptor, ToolPolicy};
-use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_v3_doc};
+use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_book_doc};
 use dr_model::{
     id::{BookId, EntryId},
     v3::{
@@ -237,7 +237,7 @@ impl Catalog {
             .library()
             .load_copy(&format!("book:{book}"))
             .map_err(dr_workspace::WsError::from)?;
-        if !is_v3_doc(&doc) {
+        if !is_book_doc(&doc) {
             return Err(crate::Error::Invalid(
                 "only canonical v3 books have a tool catalog".into(),
             ));

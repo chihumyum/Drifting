@@ -496,7 +496,7 @@ fn a_late_worker_preserves_the_completed_target_and_the_authors_new_selection(
     assert!(target.join("library.sqlite").is_file());
     let target = dr_store::Library::open(&target, dr_workspace::library_options(VERSION)).unwrap();
     let book = target.load_copy(&format!("book:{}", common::BOOK)).unwrap();
-    assert!(dr_doc::v3::is_v3_doc(&book));
+    assert!(dr_doc::v3::is_book_doc(&book));
     target.close().unwrap();
 }
 
@@ -615,7 +615,7 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
                 key.name()
             );
             assert!(
-                !text.contains("reimport-v3-"),
+                !text.contains("reimport-v4-"),
                 "{locale:?} {} leaked internal target folder: {text}",
                 key.name()
             );

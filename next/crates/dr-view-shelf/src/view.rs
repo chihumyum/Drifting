@@ -346,7 +346,8 @@ impl Shelf {
             let counts = match event {
                 // A card shows the book's content and its writing days (the
                 // heat map, the last thirty); a saved checkpoint is neither.
-                WsEvent::Book(b) => b.touched.content || b.touched.writing_days,
+                WsEvent::Book(_) | WsEvent::Stats(_) => true,
+                WsEvent::Checkpoints(_) => false,
                 WsEvent::Removed(_) | WsEvent::Prose(_) => true,
                 // The words of a document that has text. (The book document
                 // has an index row too, always empty and written after every

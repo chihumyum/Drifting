@@ -3,11 +3,11 @@ use super::fields::{IntoField, set};
 use super::read::CatalogView;
 use crate::error::{DocError, Result};
 use crate::schema::book_v3 as book;
+use dr_model::Timestamp;
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::shared::{Asset, EntityRef, KvEntry};
-use dr_model::{Day, Timestamp};
 use loro::{LoroMap, LoroTree, LoroValue, TreeParentId};
 pub(crate) struct CatalogTxn<'a> {
     pub(crate) view: CatalogView<'a>,
@@ -300,14 +300,6 @@ impl<'a> CatalogTxn<'a> {
         if m.get(id.as_str()).is_some() {
             m.delete(id.as_str())?;
         }
-        Ok(())
-    }
-    pub fn writing_day(&mut self, device: &DeviceKey, day: &Day, words: i64) -> Result<()> {
-        let key = dr_model::shared::WritingDay::key(device, day);
-        self.view
-            .doc
-            .get_map(book::WRITING_DAYS)
-            .insert(&key, words.max(0))?;
         Ok(())
     }
     pub fn material_folders(&mut self) -> TreeWriter<'a> {

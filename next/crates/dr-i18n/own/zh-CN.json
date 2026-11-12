@@ -86,7 +86,8 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。"
+      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",
+      "older": "这本书是 Drifting 以前的开发版导出的，这一版已经不读那种格式。"
     }
   },
   "settings": {

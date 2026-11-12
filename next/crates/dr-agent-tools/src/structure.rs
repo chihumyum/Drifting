@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_v3_doc};
+use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_book_doc};
 use dr_model::{
     DocId,
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
@@ -217,7 +217,7 @@ impl StructureContext {
         for _ in 0..3 {
             let before = ws.version(&book_doc)?;
             let copy = ws.library().load_copy(&book_doc)?;
-            if !is_v3_doc(&copy) {
+            if !is_book_doc(&copy) {
                 return Ok(None);
             }
             let borrowed =

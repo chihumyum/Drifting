@@ -171,6 +171,7 @@ fn a_saved_checkpoint_does_not_make_the_shelf_read_again(cx: &mut TestAppContext
     let shelf = shelf_of(&view, cx);
     let book = slow_clock(&lib);
     let doc = format!("book:{book}");
+    let points = format!("checkpoints:{book}");
     wait_for(cx, "the shelf's pictures are read", |cx| {
         shelf.read_with(cx, |s, _| {
             s.art.as_ref().is_some_and(|a| a.books.len() == 2)
@@ -192,6 +193,7 @@ fn a_saved_checkpoint_does_not_make_the_shelf_read_again(cx: &mut TestAppContext
     let save = || {
         let before = (
             lib.version(&doc).unwrap(),
+            lib.version(&points).unwrap(),
             lib.library().docs(Some(&book), None).unwrap(),
         );
         lib.run::<snapshots::Create>(
@@ -204,18 +206,28 @@ fn a_saved_checkpoint_does_not_make_the_shelf_read_again(cx: &mut TestAppContext
         .unwrap();
         let after = (
             lib.version(&doc).unwrap(),
+            lib.version(&points).unwrap(),
             lib.library().docs(Some(&book), None).unwrap(),
         );
-        (before.0 != after.0, before.1 == after.1)
+        (
+            before.0 != after.0,
+            before.1 != after.1,
+            before.2 == after.2,
+        )
     };
     save();
     settle(cx, &lib);
     let read = shelf.read_with(cx, |s, _| s.data.clone().unwrap());
 
-    // From here a point is one manifest in the book document and nothing
-    // else: a commit to the book, its index row written again after it.
+    // From here a point is one manifest in the checkpoints document beside
+    // the book and nothing else: no commit to the book, a commit to that
+    // document, its index row written again after it, and no new document.
     for _ in 0..3 {
-        assert_eq!(save(), (true, true), "a commit to the book and no document");
+        assert_eq!(
+            save(),
+            (false, true, true),
+            "a commit to the checkpoints document, none to the book, no new document"
+        );
         settle(cx, &lib);
     }
     assert!(

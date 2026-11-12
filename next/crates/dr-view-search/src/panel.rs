@@ -177,7 +177,7 @@ impl SearchPanel {
                 // neither as a book event nor through the book document's
                 // own (always empty) index row.
                 if matches!(event, WsEvent::Local(c) if dr_workspace::is_text_index(c))
-                    || matches!(event, WsEvent::Book(b) if b.book.as_str() == watched_book && b.touched.content)
+                    || matches!(event, WsEvent::Book(b) if b.book.as_str() == watched_book)
                 {
                     let _ = tx.unbounded_send(event.clone());
                 }

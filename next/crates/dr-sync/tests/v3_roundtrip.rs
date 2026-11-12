@@ -644,7 +644,7 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
     );
     assert_eq!(
         ws_a.observe(&format!("book:{book_a}")).unwrap().value["meta"]["v"],
-        3
+        dr_doc::schema::BOOK_SCHEMA_VERSION
     );
     assert_eq!(
         call_out(&ws_a, "book.get", json!({ "book": &book_b }))["id"],

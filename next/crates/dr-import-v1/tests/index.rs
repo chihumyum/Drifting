@@ -40,8 +40,8 @@ fn an_imported_library_is_indexed_when_it_opens() {
     let stale = lib.stale_index_docs().unwrap();
     assert_eq!(
         stale.len(),
-        9,
-        "six bodies, the two body templates and the book: {stale:?}"
+        11,
+        "six bodies, the two body templates, the book and the two documents beside it: {stale:?}"
     );
     assert_eq!(lib.rebuild_stale_indexes().unwrap(), 9);
     assert!(lib.stale_index_docs().unwrap().is_empty());

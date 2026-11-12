@@ -1,18 +1,21 @@
 //! Drifting's Loro documents, typed (`docs/rust-rewrite/loro-schema.md`).
 //!
-//! The only way modules read and write books and prose. Three kinds of
+//! The only way modules read and write books and prose. Four kinds of
 //! document:
 //!
 //! - the **book document** ([`v3::BookDocV3`]), one per book: the entry
 //!   tree, templates, memberships, timeline views, relations, comments,
-//!   materials, facts, memory and writing days (`kernel-v3.md`);
+//!   materials, facts and memory (`kernel-v3.md`, format 4 per
+//!   `kernel-v4.md`);
+//! - the two **documents beside a book** ([`side`]): `stats:<book>` with its
+//!   writing days, `checkpoints:<book>` with its checkpoint manifests;
 //! - **prose documents** ([`prose::ProseDoc`]), one per body: a prose module
 //!   of an entry, a level's description, a template's prose module, a
 //!   material note;
 //! - append-only **conversation documents** ([`conversation::ConversationDoc`]),
 //!   one per Agent conversation, projected from its durable runtime journal.
 //!
-//! All three start from a deterministic genesis change, are written by
+//! All of them start from a deterministic genesis change, are written by
 //! exactly one writer through typed transactions that commit with an
 //! [`dr_model::Origin`], hand every commit back as a [`Committed`] for
 //! storage, and expose read-only views and readers that never copy a whole
@@ -41,6 +44,7 @@ pub mod peer;
 pub mod pos;
 pub mod prose;
 pub mod schema;
+pub mod side;
 pub mod undo;
 pub mod v3;
 

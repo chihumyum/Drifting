@@ -31,6 +31,7 @@ pub fn import_reason(e: &BookFileError) -> Key {
         BookFileError::NotABook => reason::NOT_ABOOK,
         BookFileError::Legacy => reason::LEGACY,
         BookFileError::Newer => reason::NEWER,
+        BookFileError::Older => reason::OLDER,
         BookFileError::TooLarge => reason::TOO_LARGE,
         BookFileError::Damaged(_) => reason::INVALID,
         _ => reason::IMPORT_FAILED,

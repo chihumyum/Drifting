@@ -420,7 +420,7 @@ impl ChapterEditor {
                 WsEvent::Prose(p) if p.doc.to_string() == watched => Some(Notice::Prose),
                 // Names, link targets and the page's facts are the book's
                 // content: a writing day or a saved checkpoint changes none.
-                WsEvent::Book(b) if b.touched.content => Some(Notice::Book),
+                WsEvent::Book(_) => Some(Notice::Book),
                 WsEvent::Removed(_) => Some(Notice::Book),
                 _ => None,
             };

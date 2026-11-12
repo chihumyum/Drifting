@@ -8,7 +8,7 @@ use dr_model::shared::{
     normalize_relation_type_name,
 };
 use dr_model::v3::*;
-use dr_model::{Day, DocId, Timestamp};
+use dr_model::{DocId, Timestamp};
 use loro::{
     CommitOptions, ContainerID, ContainerType, ExportMode, LoroDoc, LoroMap, LoroTree, LoroValue,
     TreeID, TreeParentId,
@@ -1453,13 +1453,6 @@ impl<'a> BookTxnV3<'a> {
         .remove_fact(id)
     }
 
-    pub fn writing_day(&mut self, device: &DeviceKey, day: &Day, words: i64) -> Result<()> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .writing_day(device, day, words)
-    }
-
     pub fn material_folders(&mut self) -> crate::catalog::write::TreeWriter<'a> {
         crate::catalog::write::CatalogTxn {
             view: crate::catalog::read::CatalogView { doc: self.view.doc },
@@ -1748,27 +1741,6 @@ impl<'a> BookTxnV3<'a> {
             }
         }
         self.view.doc.apply_diff(scoped)?;
-        Ok(())
-    }
-
-    /// Append an immutable complete-entry checkpoint. The manifest is versioned
-    /// by its owner in dr-workspace and references durable Loro frontiers.
-    pub fn put_entry_checkpoint(&mut self, id: &str, manifest: &str) -> Result<()> {
-        let root = self.view.doc.get_map(book_v3::ENTRY_CHECKPOINTS);
-        if root.get(id).is_some() {
-            return Err(DocError::NotInProfile("checkpoint already exists"));
-        }
-        root.insert(id, manifest)?;
-        Ok(())
-    }
-
-    /// Remove a checkpoint selected by the owner's retention plan. Manifests
-    /// are never replaced; complete history remains in the Loro log.
-    pub fn remove_entry_checkpoint(&mut self, id: &str) -> Result<()> {
-        self.view
-            .doc
-            .get_map(book_v3::ENTRY_CHECKPOINTS)
-            .delete(id)?;
         Ok(())
     }
 

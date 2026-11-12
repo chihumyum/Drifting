@@ -37,7 +37,7 @@ op! {
         for d in cx.workspace().library().docs(None, Some("book"))? {
             let Some(id) = d.doc_id.strip_prefix("book:") else { continue };
             let raw = cx.workspace().library().load_copy(&d.doc_id)?;
-            if !dr_doc::v3::is_v3_doc(&raw) { continue; }
+            if !dr_doc::v3::is_book_doc(&raw) { continue; }
             let slot = cx.workspace().book_slot(&super::pid("book", id)?)?;
             let m = slot.reader_v3.view().meta();
             if m.deleted_at.is_none() || input.trashed {

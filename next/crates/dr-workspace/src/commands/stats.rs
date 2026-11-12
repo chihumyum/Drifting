@@ -9,11 +9,14 @@
 //!   the 0.1 client's in-book rules (`deriveWritingStats`).
 //! - `writing_day.record`: one device's words for one day (the recorder in
 //!   `dr-view-stats` calls it; each device writes only its own key).
+//!
+//! The writing days live in `stats:<book>`, beside the book document
+//! (`kernel-v4.md` §8): recording one never changes the book document.
 
 use std::collections::BTreeMap;
 
-use dr_model::Day;
-use dr_model::id::DeviceKey;
+use dr_model::id::{BookId, DeviceKey};
+use dr_model::{Day, DocId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -124,6 +127,23 @@ pub fn summarize(by_day: &BTreeMap<i64, i64>, today: i64) -> (i64, u32, u32) {
     (week, active, before)
 }
 
+/// Every writing day of `book`, from `stats:<book>`; none when nothing has
+/// been recorded there yet.
+fn writing_days(cx: &Cx<'_>, book: &BookId) -> Result<Vec<dr_model::shared::WritingDay>> {
+    let Some(side) = cx
+        .workspace()
+        .side_slot(&DocId::Stats(book.clone()), book, false)?
+    else {
+        return Ok(Vec::new());
+    };
+    let id = book.clone();
+    side.handle.read(move |doc| -> Result<_> {
+        Ok(dr_doc::side::BorrowedStats::new(doc, &id)?
+            .view()
+            .writing_days())
+    })?
+}
+
 fn day_in(s: &str) -> Result<Day> {
     // Day uses byte offsets; reject non-ASCII input before it slices the date.
     s.is_ascii()
@@ -146,7 +166,7 @@ op! {
         let device = input.device.as_deref().map(device_in).transpose()?;
         let mut by_day: BTreeMap<i64, i64> = BTreeMap::new();
         let mut mine_today = 0;
-        let days = slot.reader_v3.view().writing_days();
+        let days = writing_days(cx, &slot.book)?;
         for w in days {
             let n = day_number(&w.day);
             *by_day.entry(n).or_default() += w.words;
@@ -192,15 +212,20 @@ op! {
             return Err(WsError::invalid("words cannot be negative"));
         }
         let key = dr_model::shared::WritingDay::key(&device, &day);
-        let days = slot.reader_v3.view().writing_days();
-        let same = days.iter()
-            .any(|w| w.device == device && w.day == day && w.words == input.words);
-        if !same {
+        let stored = match cx.workspace().side_slot(&DocId::Stats(slot.book.clone()), &slot.book, false)? {
+            Some(side) => {
+                let (book, d, y) = (slot.book.clone(), device.clone(), day.clone());
+                side.handle.read(move |doc| -> Result<Option<i64>> {
+                    Ok(dr_doc::side::BorrowedStats::new(doc, &book)?.view().stored(&d, &y))
+                })??
+            }
+            None => None,
+        };
+        if stored != Some(input.words) {
             let words = input.words;
-
-                // This device's own counter for the day: no other writer sets it.
-                cx.write_book_v3(&slot, Replaces::nothing(), move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
-
+            // This device's own counter for the day: no other writer sets
+            // it. It goes to `stats:<book>`; the book document is untouched.
+            cx.write_stats(&slot.book, move |txn| Ok(txn.writing_day(&device, &day, words)?))?;
         }
         // No effect and no inverse: the recorder's writes leave no journal
         // row, so they never sit between the author and their undo.

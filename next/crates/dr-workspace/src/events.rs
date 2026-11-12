@@ -45,6 +45,11 @@ pub struct EntityChange {
 /// a category with `element_template`), since its `has_chapter_template` /
 /// `has_element_template` in the lists changed, and `seq` and `origin` are
 /// the template document's.
+///
+/// Every change to a book document is a change to the book's content: the
+/// writing days and the checkpoint manifests live beside it, in
+/// `stats:<book>` and `checkpoints:<book>`, and have events of their own
+/// ([`StatsChanged`], [`CheckpointsChanged`]).
 #[derive(Clone, Debug)]
 pub struct BookChanged {
     pub book: BookId,
@@ -52,72 +57,45 @@ pub struct BookChanged {
     pub seq: i64,
     pub origin: Origin,
     pub changes: Vec<EntityChange>,
-    /// Which parts of the document the change touched. A listener that only
-    /// shows the book's content acts when `touched.content` is set and lets
-    /// every other change pass: the writing-day recorder commits once a
-    /// minute and every saved entry checkpoint commits once, and neither
-    /// changes anything such a listener shows.
-    pub touched: BookTouched,
 }
 
-/// The parts of a book document one persisted change touched, by root
-/// container. A change may touch several (a batch from another device).
-///
-/// Two roots are bookkeeping about the book and not its content: the
-/// writing days (how many words each device wrote each day) and the entry
-/// checkpoint manifests (which versions a saved checkpoint names). They are
-/// also the two most frequently written. Everything else is content,
-/// including any root this build does not know: `content` is false only when
-/// every container the change touched lies under one of those two roots.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BookTouched {
-    /// Anything of the book but its writing days and checkpoint manifests:
-    /// the entry tree, templates, memberships, timeline views, patches,
-    /// grids, relations, comments, materials, facts, memory, `meta`, and
-    /// whatever else there is.
-    pub content: bool,
-    /// The `writing_days` root.
-    pub writing_days: bool,
-    /// The `entry_checkpoints` root (a manifest saved or thinned).
-    pub checkpoints: bool,
+/// A persisted change to a book's `stats:<book>` document: some device's
+/// words for some day. Recorded about once a minute while the author writes.
+#[derive(Clone, Debug)]
+pub struct StatsChanged {
+    pub book: BookId,
+    pub seq: i64,
+    pub origin: Origin,
+    /// The `"<device>|<day>"` keys the change wrote; empty when it could not
+    /// be narrowed.
+    pub days: Vec<String>,
 }
 
-impl BookTouched {
-    /// A change that cannot be told apart: all of the book.
-    pub const EVERYTHING: BookTouched = BookTouched {
-        content: true,
-        writing_days: true,
-        checkpoints: true,
-    };
+/// A persisted change to a book's `checkpoints:<book>` document: a
+/// checkpoint manifest saved or thinned.
+#[derive(Clone, Debug)]
+pub struct CheckpointsChanged {
+    pub book: BookId,
+    pub seq: i64,
+    pub origin: Origin,
+    /// The checkpoint ids added or removed; empty when it could not be
+    /// narrowed.
+    pub points: Vec<String>,
 }
 
-/// Which parts of a book document a persisted change touched, read from the
-/// root each changed container hangs under (the first step of its path, or
-/// the container itself when it is a root). Only a map root named exactly
-/// `writing_days` or `entry_checkpoints` is not content; a container whose
-/// root cannot be read counts as content, and so does a change that names no
-/// container at all.
-pub(crate) fn book_touched(changes: &[ContainerChange]) -> BookTouched {
-    use dr_doc::schema::book_v3::{ENTRY_CHECKPOINTS, WRITING_DAYS};
-    if changes.is_empty() {
-        return BookTouched::EVERYTHING;
-    }
-    let mut touched = BookTouched::default();
+/// The keys of root map `root` that a persisted change to one of the
+/// documents beside a book wrote, sorted and without repeats.
+pub(crate) fn side_keys(changes: &[ContainerChange], root: &str) -> Vec<String> {
+    let mut keys = BTreeSet::new();
     for c in changes {
-        let root = c.path.first().map(|(id, _)| id).unwrap_or(&c.target);
-        match root {
-            ContainerID::Root {
-                name,
-                container_type: loro::ContainerType::Map,
-            } if name.as_str() == WRITING_DAYS => touched.writing_days = true,
-            ContainerID::Root {
-                name,
-                container_type: loro::ContainerType::Map,
-            } if name.as_str() == ENTRY_CHECKPOINTS => touched.checkpoints = true,
-            _ => touched.content = true,
+        // The root map itself; a container nested under it is not one of its
+        // keys.
+        let at_root = root_name(&c.target) == Some(root);
+        if let (true, Diff::Map(m)) = (at_root, &c.diff) {
+            keys.extend(m.updated.keys().map(|k| k.to_string()));
         }
     }
-    touched
+    keys.into_iter().collect()
 }
 
 /// A persisted change to a prose document.
@@ -161,6 +139,10 @@ pub struct RemovedEntity {
 #[derive(Clone, Debug)]
 pub enum WsEvent {
     Book(BookChanged),
+    /// A book's writing days changed (`stats:<book>`).
+    Stats(StatsChanged),
+    /// A book's checkpoint manifests changed (`checkpoints:<book>`).
+    Checkpoints(CheckpointsChanged),
     /// After a `Book` event whose change trashed or purged something a tab
     /// can show.
     Removed(Removed),
@@ -175,13 +157,14 @@ pub enum WsEvent {
 /// be different now.
 ///
 /// The index also keeps a row for every document that holds none of the
-/// book's text (the book document, a body template, a conversation). That
+/// book's text (the book document, a body template, a conversation, the
+/// documents beside a book). That
 /// row is always empty: it only records that the document was looked at, so
 /// it does not count as behind, and it is written again after every commit
 /// to the document. A listener for words or search results has nothing to
-/// read again for it; without this, each commit to the book document would
-/// reach those listeners a second time through its index row, a writing day
-/// and a saved checkpoint included. A key that names no document of ours
+/// read again for it; without this, each commit to one of those documents
+/// would reach those listeners a second time through its index row, a
+/// writing day and a saved checkpoint included. A key that names no document of ours
 /// counts as text.
 pub fn is_text_index(change: &LocalChange) -> bool {
     change.table == "index"
@@ -463,18 +446,6 @@ mod tests {
         }
     }
 
-    /// A change to `target`, reached through `path`.
-    fn change(target: ContainerID, path: &[ContainerID]) -> ContainerChange {
-        ContainerChange {
-            target,
-            path: path
-                .iter()
-                .map(|id| (id.clone(), Index::Key("synthetic".into())))
-                .collect(),
-            diff: Diff::Unknown,
-        }
-    }
-
     #[test]
     fn only_the_index_of_a_document_with_text_is_news_for_words_and_search() {
         use dr_store::LocalChangeKind::Update;
@@ -499,57 +470,6 @@ mod tests {
             "body:e1/mod-prose",
             Update
         )));
-    }
-
-    #[test]
-    fn a_change_is_content_unless_every_container_lies_under_the_two_roots() {
-        use loro::ContainerType::{List, Map};
-        let root = |name: &str, kind| ContainerID::new_root(name, kind);
-        let nested = ContainerID::new_normal(loro::ID::new(7, 0), Map);
-        let (days, points, entries) = (
-            root("writing_days", Map),
-            root("entry_checkpoints", Map),
-            root("entries", loro::ContainerType::Tree),
-        );
-        let only = |writing_days, checkpoints| BookTouched {
-            content: false,
-            writing_days,
-            checkpoints,
-        };
-        // The root itself, and a container below it.
-        assert_eq!(
-            book_touched(&[change(days.clone(), &[])]),
-            only(true, false)
-        );
-        assert_eq!(
-            book_touched(&[change(nested.clone(), std::slice::from_ref(&days))]),
-            only(true, false)
-        );
-        assert_eq!(
-            book_touched(&[change(points.clone(), &[]), change(days.clone(), &[])]),
-            only(true, true)
-        );
-        // One container anywhere else makes the whole change content.
-        let content = book_touched(&[
-            change(days.clone(), &[]),
-            change(nested.clone(), std::slice::from_ref(&entries)),
-        ]);
-        assert!(content.content && content.writing_days && !content.checkpoints);
-        // What cannot be placed is content: a container reached through no
-        // root, a root of the same name and another type, no container at
-        // all.
-        for unplaced in [
-            change(nested.clone(), &[]),
-            change(days.clone(), std::slice::from_ref(&nested)),
-            change(root("writing_days", List), &[]),
-            change(root("entry_checkpoints", List), &[]),
-        ] {
-            assert!(
-                book_touched(std::slice::from_ref(&unplaced)).content,
-                "{unplaced:?}"
-            );
-        }
-        assert_eq!(book_touched(&[]), BookTouched::EVERYTHING);
     }
 
     #[test]

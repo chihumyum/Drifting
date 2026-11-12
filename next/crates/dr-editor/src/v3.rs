@@ -274,7 +274,7 @@ pub fn is_book(ws: &Workspace, book: &str) -> Result<bool, WsError> {
     Ok(ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
-        .read(dr_doc::v3::is_v3_doc)?)
+        .read(dr_doc::v3::is_book_doc)?)
 }
 
 pub struct LinkTargets {

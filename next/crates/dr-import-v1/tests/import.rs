@@ -363,7 +363,14 @@ fn a_handed_off_library_imports_completely() {
         v.memory()[0].target_block.as_ref().map(|b| b.as_str()),
         Some("q1")
     );
-    let wd = v.writing_days();
+    // Writing days live beside the book document, in `stats:<book>`.
+    let stats = dr_doc::side::StatsDoc::load(
+        BookId::parse(BOOK).unwrap(),
+        1,
+        &[snapshot(&lib, &format!("stats:{BOOK}"))],
+    )
+    .unwrap();
+    let wd = stats.view().writing_days();
     assert_eq!((wd[0].device.as_str(), wd[0].words), (DEVICE_KEY, 1234));
     let view = v.timeline_views_raw().into_iter().next().unwrap();
     assert_eq!(
@@ -719,8 +726,8 @@ fn the_import_reports_its_progress() {
         .unwrap();
     assert_eq!(
         (indexing.done, indexing.total),
-        (9, 9),
-        "six bodies, two templates and the book"
+        (11, 11),
+        "six bodies, two templates, the book and the two documents beside it"
     );
 }
 
@@ -732,8 +739,8 @@ fn an_imported_library_has_its_indexes() {
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
     imported(outcome);
     assert_eq!(
-        timing.indexed_docs, 9,
-        "six bodies, two templates, the book"
+        timing.indexed_docs, 11,
+        "six bodies, two templates, the book and the two documents beside it"
     );
     let mut o = LibraryOptions::new("0.2.0-test");
     dr_index::attach(&mut o);

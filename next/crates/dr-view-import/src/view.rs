@@ -582,7 +582,7 @@ mod tests {
     fn ready_dialog_lines_never_expose_raw_target_path_or_mapping_json(cx: &mut TestAppContext) {
         let ready = Ready {
             folder: "synthetic-0.1".into(),
-            target: PathBuf::from("synthetic-root/reimport-v3-secret-target"),
+            target: PathBuf::from("synthetic-root/reimport-v4-secret-target"),
             explicit_choices: true,
             pending: Vec::new(),
         };
@@ -591,7 +591,7 @@ mod tests {
                 dr_shell::Strings::install(locale, cx);
                 let (dest, pending) = ready_body_lines(&ready, cx);
                 assert!(
-                    !dest.contains("reimport-v3-secret-target"),
+                    !dest.contains("reimport-v4-secret-target"),
                     "{locale:?}: {dest}"
                 );
                 assert!(!dest.contains("MappingChoices"), "{locale:?}: {dest}");

@@ -1058,6 +1058,7 @@ impl<'a> BookView<'a> {
         match doc {
             DocId::Book(b) => b == self.book,
             DocId::Conversation(_) => true,
+            DocId::Stats(_) | DocId::Checkpoints(_) => false,
             DocId::Node(id) => has(book::NODES, id.as_str()),
             DocId::Element(id) => has(book::ELEMENTS, id.as_str()),
             DocId::Storyline(id) => has(book::STORYLINES, id.as_str()),

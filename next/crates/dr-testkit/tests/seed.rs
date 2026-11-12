@@ -461,7 +461,36 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
             .unwrap();
         drop(h_book);
 
+        // The two documents beside the book, each named by the book's id.
         let mut prose_doc_ids = Vec::new();
+        let device = dr_model::id::DeviceKey::from_installation_id(title);
+        let mut stats = dr_doc::side::StatsDoc::create(book_id.clone(), peer_seed + 3).unwrap();
+        let day = dr_model::Day::parse("2026-11-13").unwrap();
+        stats
+            .edit(Origin::User, |t| t.writing_day(&device, &day, 42))
+            .0
+            .unwrap();
+        let points = dr_doc::side::CheckpointsDoc::create(book_id.clone(), peer_seed + 4).unwrap();
+        for (doc_id, snapshot) in [
+            (stats.doc_id().clone(), stats.export_snapshot().unwrap()),
+            (points.doc_id().clone(), points.export_snapshot().unwrap()),
+        ] {
+            assert!(view.owns_prose(&doc_id));
+            let h = lib
+                .open_doc(
+                    &doc_id.to_string(),
+                    dr_store::OpenDoc::CreateIfMissing {
+                        kind: doc_id.kind().prefix(),
+                        book_id: Some(book_id.as_str()),
+                        genesis: &|d| {
+                            d.import(&snapshot).unwrap();
+                        },
+                    },
+                )
+                .unwrap();
+            drop(h);
+            prose_doc_ids.push(doc_id);
+        }
         // Write every entry module prose doc (including level `about` on roots/categories
         // and `mod-prose` on chapters/characters).
         for entry in entries.values() {

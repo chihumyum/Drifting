@@ -200,7 +200,7 @@ fn production_final_checkpoint_fault_keeps_original_library_and_retries(cx: &mut
                 lib.call(&Actor::User,"module.set_prose",json!({"book":t.book,"owner":t.entry,"module":"mod-prose","paragraphs":[{"text":"last accepted author write"}]})).map_err(|e|e.to_string())?;
                 assert!(lib.observe(&d).is_ok());
                 lib.library().local_transaction(|tx| {
-                    tx.execute_batch("CREATE TRIGGER final_checkpoint_fault BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'book:%' BEGIN SELECT RAISE(ABORT,'final checkpoint fault'); END;")?;Ok(())
+                    tx.execute_batch("CREATE TRIGGER final_checkpoint_fault BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'checkpoints:%' BEGIN SELECT RAISE(ABORT,'final checkpoint fault'); END;")?;Ok(())
                 }).map_err(|e|e.to_string())?;
                 Ok(())
             }.boxed_local()

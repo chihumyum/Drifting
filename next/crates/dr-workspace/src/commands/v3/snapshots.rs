@@ -1,8 +1,11 @@
-//! Complete entry checkpoints. Manifests live in the book document; all
-//! versions refer to durable history, including every retained body document.
-//! Restore is an opt-in atomic holder operation, never successive prose writes.
+//! Complete entry checkpoints. Manifests live in `checkpoints:<book>`, beside
+//! the book document (`kernel-v4.md` §8): saving or thinning one never
+//! changes the book document. All versions refer to durable history,
+//! including every retained body document. Restore is an opt-in atomic
+//! holder operation, never successive prose writes.
 use super::*;
 use crate::Actor;
+use dr_doc::side::BorrowedCheckpoints;
 use dr_doc::{prose::ProseReader, v3::BorrowedBookV3};
 use dr_store::{AtomicNewDocument, AtomicScope, DocHandle, Origin};
 use loro::LoroDoc;
@@ -90,24 +93,12 @@ pub fn checkpoint_history_fingerprint(
 /// Whether a checkpoint's historical book and body copies are the content
 /// its manifest's `content_hash` was taken of. Preview, restore and archive
 /// import all ask this before trusting a manifest.
-///
-/// Two fingerprints are recognised: the one checkpoints are saved with now
-/// (`checkpoint_history_fingerprint`), and the one they were saved with
-/// until 2026-11-12, which also covered the list of the entry's siblings.
-/// Libraries hold checkpoints of both kinds, and a checkpoint is never
-/// rewritten in place, so the old kind stays readable for good. A build
-/// from before the change does not recognise the new kind: with two devices
-/// on different builds, the older one cannot preview what the newer one
-/// saved. That is accepted.
 pub fn checkpoint_history_matches(
     documents: &BTreeMap<String, LoroDoc>,
     target: &EntryIn,
     content_hash: &str,
 ) -> Result<bool> {
-    Ok(
-        checkpoint_history_fingerprint(documents, target)? == content_hash
-            || content_hash_with_siblings(documents, target)? == content_hash,
-    )
+    Ok(checkpoint_history_fingerprint(documents, target)? == content_hash)
 }
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct BodyPreview {
@@ -141,9 +132,31 @@ pub struct Restored {
 fn book_doc(book: &str) -> String {
     format!("book:{book}")
 }
-fn point(v: &BookViewV3<'_>, input: &PointIn) -> Result<Point> {
-    let value = v
-        .entry_checkpoints()
+fn checkpoints_doc(book: &str) -> String {
+    format!("checkpoints:{book}")
+}
+/// The open `checkpoints:<book>` document; `create` makes it from its
+/// genesis when the library has none (every book is created with one; a book
+/// synced in before it arrives is the exception).
+fn checkpoints_slot(
+    ws: &crate::Workspace,
+    book: &BookId,
+    create: bool,
+) -> Result<Option<Arc<crate::workspace::SideSlot>>> {
+    ws.side_slot(&DocId::Checkpoints(book.clone()), book, create)
+}
+/// Every stored manifest of `book`; none when it has no checkpoints document.
+fn manifests(ws: &crate::Workspace, book: &BookId) -> Result<Vec<(String, String)>> {
+    let Some(slot) = checkpoints_slot(ws, book, false)? else {
+        return Ok(Vec::new());
+    };
+    let id = book.clone();
+    slot.handle.read(move |d| -> Result<_> {
+        Ok(BorrowedCheckpoints::new(d, &id)?.view().entry_checkpoints())
+    })?
+}
+fn point(cx: &Cx<'_>, s: &BookSlot, input: &PointIn) -> Result<Point> {
+    let value = manifests(cx.workspace(), &s.book)?
         .into_iter()
         .find(|(id, _)| *id == input.point)
         .ok_or_else(|| WsError::not_found("entry checkpoint", &input.point))?
@@ -169,8 +182,11 @@ fn checked_point(value: &str, target: &EntryIn, id: &str) -> Result<Point> {
     Ok(p)
 }
 /// Every sound checkpoint of `target`, each manifest read once.
-fn points_of<'a>(v: &BookViewV3<'_>, target: &'a EntryIn) -> impl Iterator<Item = Point> + use<'a> {
-    v.entry_checkpoints()
+fn points_of<'a>(
+    manifests: Vec<(String, String)>,
+    target: &'a EntryIn,
+) -> impl Iterator<Item = Point> + use<'a> {
+    manifests
         .into_iter()
         .filter_map(move |(id, value)| checked_point(&value, target, &id).ok())
 }
@@ -223,8 +239,12 @@ fn initialized_handles(cx: &Cx<'_>, s: &BookSlot, entry: &str) -> Result<Vec<Doc
     }
     Ok(handles)
 }
+/// The versions a caller guards on: the book and the entry's prose. The
+/// checkpoints document is reserved alongside them but is bookkeeping, not
+/// something a caller reads or depends on, so it is never among them.
 fn versions(docs: &BTreeMap<String, LoroDoc>) -> BTreeMap<String, String> {
     docs.iter()
+        .filter(|(id, _)| !matches!(DocId::parse(id), Ok(DocId::Checkpoints(_))))
         .map(|(id, d)| (id.clone(), frontiers_hex(&d.oplog_frontiers())))
         .collect()
 }
@@ -281,8 +301,10 @@ fn make_point(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn, reason: String)
     p.checksum = checksum(&p)?;
     Ok(p)
 }
+/// Write `p` into the reserved `checkpoints:<book>` copy `doc` and thin the
+/// entry's automatic points there. The book document is not written.
 fn save(doc: &LoroDoc, book: &BookId, p: &Point) -> Result<()> {
-    let b = BorrowedBookV3::new(doc, book)?;
+    let b = BorrowedCheckpoints::new(doc, book)?;
     b.txn().put_entry_checkpoint(
         &p.id,
         &serde_json::to_string(p).map_err(|e| WsError::Internal(e.to_string()))?,
@@ -293,7 +315,7 @@ fn save(doc: &LoroDoc, book: &BookId, p: &Point) -> Result<()> {
         book: p.book.clone(),
         entry: p.entry.clone(),
     };
-    let automatic: Vec<_> = points_of(&b.view(), &target)
+    let automatic: Vec<_> = points_of(b.view().entry_checkpoints(), &target)
         .filter(|p| matches!(p.reason.as_str(), "periodic" | "close"))
         .collect();
     let rows: Vec<_> = automatic
@@ -350,21 +372,6 @@ fn content_hash(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn) -> Result<Str
     let id: EntryId = pid("entry", &input.entry)?;
     let state = v
         .entry_change_state(&id)
-        .ok_or_else(|| WsError::not_found("entry", &input.entry))?;
-    fingerprint(&state, &body_states(docs, &id))
-}
-/// The content hash of checkpoints saved until 2026-11-12, byte for byte:
-/// the entry's owned raw state with the list of its siblings
-/// (`BookViewV3::entry_owned_raw_state`) and the versions of its bodies.
-/// Only `checkpoint_history_matches` reads it, to recognise those
-/// checkpoints; nothing is saved or compared for a capture with it.
-fn content_hash_with_siblings(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn) -> Result<String> {
-    let book: BookId = pid("book", &input.book)?;
-    let b = BorrowedBookV3::new(&docs[&book_doc(&input.book)], &book)?;
-    let v = b.view();
-    let id: EntryId = pid("entry", &input.entry)?;
-    let state = v
-        .entry_owned_raw_state(&id)
         .ok_or_else(|| WsError::not_found("entry", &input.entry))?;
     fingerprint(&state, &body_states(docs, &id))
 }
@@ -426,18 +433,22 @@ pub fn entries_due_for_capture(ws: &crate::Workspace, book: &str) -> Result<Vec<
         Ok(slot) => slot,
         Err(e) => {
             return match lib.load_copy(&book_doc(book)) {
-                Ok(d) if !dr_doc::v3::is_v3_doc(&d) => Ok(Vec::new()),
+                Ok(d) if !dr_doc::v3::is_book_doc(&d) => Ok(Vec::new()),
                 _ => Err(e),
             };
         }
     };
+    // A second read beside the book's: a manifest saved in between makes
+    // this skip or add one call at most, and the command compares again on
+    // its own reserved copies.
+    let manifests = manifests(ws, &id)?;
     let (book_id, owner) = (id.clone(), book.to_owned());
     let (live, rows) = slot.handle.read(move |d| -> Result<_> {
         let b = BorrowedBookV3::new(d, &book_id)?;
         let v = b.view();
         let (entries, templates) = (v.entries_map(), v.templates_map());
         let mut latest: BTreeMap<String, Point> = BTreeMap::new();
-        for (point, value) in v.entry_checkpoints() {
+        for (point, value) in manifests {
             // Sound for the entry it names, or not a checkpoint of any.
             let Ok(p) = serde_json::from_str::<Point>(&value) else {
                 continue;
@@ -551,6 +562,15 @@ fn create_with_receipt(
     })??;
     let (mut hs, mut fresh) = handles(cx, &s, &input.entry)?;
     let existing: BTreeSet<_> = hs.iter().map(|h| h.doc_id().to_owned()).collect();
+    // Reserved with the others, so the manifest lands in the same SQLite
+    // transaction as any default body this creates; not among `existing`:
+    // no caller reads it or guards on it.
+    hs.push(
+        checkpoints_slot(cx.workspace(), &s.book, true)?
+            .ok_or_else(|| WsError::Internal("checkpoints document was not created".into()))?
+            .handle
+            .clone(),
+    );
     let mut defaults = Vec::new();
     let template = e.effective_template(&templates);
     for mid in prose_modules(&e, &templates) {
@@ -611,8 +631,8 @@ fn create_with_receipt(
                     "entry changed while preparing checkpoint".into(),
                 ));
             }
-            let current = BorrowedBookV3::new(&docs[&book_doc(&input.book)], &s.book)?;
-            let latest = points_of(&current.view(), &input).max_by(newer);
+            let current = BorrowedCheckpoints::new(&docs[&checkpoints_doc(&input.book)], &s.book)?;
+            let latest = points_of(current.view().entry_checkpoints(), &input).max_by(newer);
             if fresh.is_empty()
                 && matches!(automatic, Some(CaptureReason::Periodic))
                 && latest.as_ref().is_some_and(|p| {
@@ -645,7 +665,7 @@ fn create_with_receipt(
             {
                 return Ok(created(docs, latest.expect("checked")));
             }
-            save(&docs[&book_doc(&input.book)], &s.book, &p)?;
+            save(&docs[&checkpoints_doc(&input.book)], &s.book, &p)?;
             cx.faults().check("snapshot_create_after_manifest")?;
             Ok(created(docs, p))
         },
@@ -659,10 +679,10 @@ op! {
     List="entry_snapshot.list",Read,Shared,"List complete checkpoints of one v3 entry, newest first.",fn(cx,input:EntryIn)->Vec<Point> {
         let s = cx.book_v3(&input.book)?;
         let mut out = Vec::new();
-        for (id, value) in s.reader_v3.view().entry_checkpoints() {
+        for (id, value) in manifests(cx.workspace(), &s.book)? {
             let owner:Value=serde_json::from_str(&value).map_err(|e|WsError::invalid(format!("damaged checkpoint {id}: {e}")))?;
             let entry=owner.get("entry").and_then(Value::as_str).ok_or_else(||WsError::invalid(format!("checkpoint {id} has no owner")))?;
-            if entry==input.entry {out.push(point(&s.reader_v3.view(), &PointIn { target: input.clone(), point: id })?);}
+            if entry==input.entry {out.push(checked_point(&value, &input, &id)?);}
         }
         out.sort_by(|a, b| b.ts.cmp(&a.ts).then(b.id.cmp(&a.id)));
         Ok(out)
@@ -711,7 +731,7 @@ fn load_point(cx: &Cx<'_>, p: &Point) -> Result<BTreeMap<String, LoroDoc>> {
 op! {
     Preview="entry_snapshot.preview",Read,Shared,"Read all historical entry content and current version guards for an atomic restore.",fn(cx,input:PointIn)->PreviewOut {
         let s = cx.book_v3(&input.target.book)?;
-        let p = point(&s.reader_v3.view(), &input)?;
+        let p = point(cx, &s, &input)?;
         let old = load_point(cx, &p)?;
         let b = BorrowedBookV3::new(&old[&book_doc(&p.book)], &s.book)?;
         let view = b.view();
@@ -742,21 +762,35 @@ op! {
     Restore="entry_snapshot.restore",Write,Book,"Atomically restore all owned content of one entry with required version guards, preserving a complete pre-restore checkpoint.",fn(cx,input:RestoreIn)->Restored {
         if *cx.actor() != Actor::User { return Err(WsError::invalid("entry snapshot restoration is an author operation")); }
         let s = cx.book_v3(&input.point.target.book)?;
-        let p = point(&s.reader_v3.view(), &input.point)?;
+        let p = point(cx, &s, &input.point)?;
         let old = load_point(cx, &p)?; // Validate every historical frontier before any write.
-        let hs = initialized_handles(cx, &s, &p.entry)?;
+        let mut hs = initialized_handles(cx, &s, &p.entry)?;
+        let points = checkpoints_doc(&p.book);
+        hs.push(
+            checkpoints_slot(cx.workspace(), &s.book, true)?
+                .ok_or_else(|| WsError::Internal("checkpoints document was not created".into()))?
+                .handle
+                .clone(),
+        );
         let faults = cx.faults();
         let prefix = format!("body:{}/", p.entry);
         let result = DocHandle::atomic_scoped(&hs, Origin::Command, scope(&p.book, &prefix), &[], |docs| -> Result<Restored> {
-            cx.check_atomic_guards(docs)?;
+            let guarded: BTreeMap<_, _> = docs.iter().filter(|(id, _)| **id != points).map(|(id, d)| (id.clone(), d.clone())).collect();
+            cx.check_atomic_guards(&guarded)?;
             if versions(docs) != input.expected { return Err(WsError::Conflict("entry changed since preview; read a new preview".into())); }
+            // The point itself must still be there, as it was read: the book's
+            // version no longer says so now that manifests live beside it.
+            let stored = BorrowedCheckpoints::new(&docs[&points], &s.book)?.view().entry_checkpoints();
+            if !stored.iter().any(|(id, value)| *id == input.point.point && checked_point(value, &input.point.target, id).is_ok_and(|q| q.checksum == p.checksum)) {
+                return Err(WsError::Conflict("checkpoint was removed or changed since preview".into()));
+            }
             // Every historic body must still be present; a purged document is
             // not silently recreated with another identity/history.
             if p.bodies.keys().any(|id| !docs.contains_key(id)) { return Err(WsError::invalid("checkpoint body is missing")); }
             let before = make_point(docs, &input.point.target, "restore".into())?;
             restore_book(&docs[&book_doc(&p.book)], &old[&book_doc(&p.book)], &s.book, &p.entry)?;
             faults.check("snapshot_after_book")?;
-            for (id, d) in docs.iter().filter(|(id, _)| *id != &book_doc(&p.book)) {
+            for (id, d) in docs.iter().filter(|(id, _)| matches!(DocId::parse(id), Ok(DocId::Body(_)))) {
                 if let Some(at) = p.bodies.get(id) {
                     let doc = DocId::parse(id).map_err(|e| WsError::invalid(e.to_string()))?;
                     // Both readers materialize the same known empty `embeds`
@@ -781,7 +815,7 @@ op! {
                 }
                 faults.check("snapshot_after_body")?;
             }
-            save(&docs[&book_doc(&p.book)], &s.book, &before)?;
+            save(&docs[&points], &s.book, &before)?;
             for d in docs.values() { d.commit(); }
             Ok(Restored { before: before.id, versions: versions(docs) })
         }).map_err(inventory_error)?;
@@ -989,7 +1023,7 @@ mod tests {
             let (id, manifest) = (p.id.clone(), serde_json::to_string(&p).unwrap());
             self.ws
                 .library()
-                .open_doc(&book_doc(&self.book), dr_store::OpenDoc::Existing)
+                .open_doc(&checkpoints_doc(&self.book), dr_store::OpenDoc::Existing)
                 .unwrap()
                 .write(dr_store::Origin::User, move |d| {
                     d.get_map("entry_checkpoints")
@@ -998,32 +1032,6 @@ mod tests {
                 })
                 .unwrap();
             p
-        }
-        /// The checkpoint as a build before 2026-11-12 saved it: the same
-        /// manifest, its content hash the one that covered the siblings.
-        fn save_with_old_fingerprint(&self, name: &str, point: &str) -> Point {
-            let mut p = self.stored(name, point);
-            let lib = self.ws.library();
-            let docs: BTreeMap<String, LoroDoc> =
-                std::iter::once((book_doc(&p.book), p.book_version.clone()))
-                    .chain(p.bodies.clone())
-                    .map(|(id, version)| {
-                        let at = frontiers_from_hex(&version).unwrap();
-                        let doc = lib.load_copy_at(&id, &at).unwrap();
-                        (id, doc)
-                    })
-                    .collect();
-            let target = EntryIn {
-                book: p.book.clone(),
-                entry: p.entry.clone(),
-            };
-            let current = std::mem::replace(
-                &mut p.content_hash,
-                content_hash_with_siblings(&docs, &target).unwrap(),
-            );
-            assert_eq!(content_hash(&docs, &target).unwrap(), current);
-            assert_ne!(p.content_hash, current, "the two fingerprints differ");
-            self.store(p)
         }
         /// What a restore of chapter `b` puts back: its place, title and text.
         fn b(&self) -> (String, Value, Value) {
@@ -1182,15 +1190,12 @@ mod tests {
     }
 
     #[test]
-    fn a_checkpoint_saved_with_the_old_fingerprint_is_previewed_and_restored_like_any_other() {
+    fn a_manifest_whose_content_hash_is_not_its_history_is_refused_before_any_write() {
         let s = shelf();
         s.out(
             "module.set_prose",
             json!({"book":s.book,"owner":s.id("b"),"module":"mod-prose","paragraphs":[{"text":"first text"}]}),
         );
-        // Three checkpoints of the same content. One stays as it is saved
-        // now; one is stored as a build before 2026-11-12 saved it; one
-        // claims a content that is neither.
         let create = || {
             s.out(
                 "entry_snapshot.create",
@@ -1200,52 +1205,22 @@ mod tests {
                 .unwrap()
                 .to_owned()
         };
-        let (new, old, neither) = (create(), create(), create());
-        let saved = s.save_with_old_fingerprint("b", &old);
-        let mut wrong = s.stored("b", &neither);
-        wrong.content_hash = dr_store::digest::sha256_hex(b"neither fingerprint");
-        s.store(wrong);
+        let (sound, wrong) = (create(), create());
+        let mut claimed = s.stored("b", &wrong);
+        claimed.content_hash = dr_store::digest::sha256_hex(b"not this history");
+        s.store(claimed);
         let before = s.b();
-        assert_eq!(before.0, "a b c d");
         s.change_b("later");
-        assert_ne!(s.b(), before);
-
-        // The same preview, whichever fingerprint the manifest carries.
-        let as_new = s.out("entry_snapshot.preview", s.point("b", &new));
-        let as_old = s.out("entry_snapshot.preview", s.point("b", &old));
-        assert_eq!(as_old["point"]["content_hash"], saved.content_hash);
-        assert_ne!(
-            as_old["point"]["content_hash"],
-            as_new["point"]["content_hash"]
-        );
-        for part in [
-            "metadata",
-            "raw_state",
-            "records",
-            "template",
-            "template_metadata",
-            "bodies",
-            "expected",
-        ] {
-            assert_eq!(as_old[part], as_new[part], "{part}");
-        }
-        assert_eq!(as_old["metadata"]["title"], "b");
-
-        // And the same restore.
-        s.restore("b", &old);
+        // The sound one restores; the one whose content hash is not its
+        // history is refused by preview and restore, and nothing is written.
+        s.restore("b", &sound);
         assert_eq!(s.b(), before);
-        s.change_b("later again");
-        s.restore("b", &new);
-        assert_eq!(s.b(), before);
-
-        // A manifest whose content hash is neither fingerprint of its
-        // history is still refused, before anything is written.
         s.change_b("kept");
         let kept = s.b();
-        let mut restore = s.point("b", &neither);
+        let mut restore = s.point("b", &wrong);
         restore["expected"] = json!({});
         for (name, input) in [
-            ("entry_snapshot.preview", s.point("b", &neither)),
+            ("entry_snapshot.preview", s.point("b", &wrong)),
             ("entry_snapshot.restore", restore),
         ] {
             let refused = s.ws.call(&Actor::User, name, input).unwrap_err();
@@ -1257,35 +1232,5 @@ mod tests {
             );
         }
         assert_eq!(s.b(), kept);
-    }
-
-    #[test]
-    fn an_old_fingerprint_costs_an_entry_one_more_automatic_checkpoint_and_no_second() {
-        let s = shelf();
-        let due = || {
-            entries_due_for_capture(&s.ws, &s.book)
-                .unwrap()
-                .iter()
-                .any(|entry| entry == s.id("b"))
-        };
-        let first = s.close(s.id("b"));
-        assert_eq!(s.close(s.id("b")), first);
-        assert!(!due());
-        // The library as an earlier build left it: the entry's latest
-        // checkpoint carries the old fingerprint.
-        s.save_with_old_fingerprint("b", &first);
-        assert!(due(), "the old fingerprint is not compared when capturing");
-        let second = s.close(s.id("b"));
-        assert_ne!(
-            second, first,
-            "one more checkpoint, with the new fingerprint"
-        );
-        assert_eq!(s.points(s.id("b")), 2);
-        assert!(!due());
-        assert_eq!(s.close(s.id("b")), second, "and no second");
-        assert_eq!(s.points(s.id("b")), 2);
-        // The old one is still there, and readable.
-        let old = s.out("entry_snapshot.preview", s.point("b", &first));
-        assert_eq!(old["metadata"]["title"], "b");
     }
 }

@@ -146,7 +146,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
     let (entries, templates, patches, grids, materials) = handle.read(move |doc| {
-        if !dr_doc::v3::is_v3_doc(doc) {
+        if !dr_doc::v3::is_book_doc(doc) {
             return Err(invalid("v3 search requires a v3 book"));
         }
         let b = BorrowedBookV3::new(doc, &id).map_err(invalid)?;

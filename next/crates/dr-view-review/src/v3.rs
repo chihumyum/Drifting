@@ -132,7 +132,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
-            if !dr_doc::v3::is_v3_doc(doc) {
+            if !dr_doc::v3::is_book_doc(doc) {
                 return Err(invalid("v3 review requires a v3 book"));
             }
             let b = BorrowedBookV3::new(doc, &id).map_err(invalid)?;
@@ -404,7 +404,7 @@ pub fn original(ws: &Workspace, book: &str, comment: &str) -> Result<Option<Orig
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
-            if !dr_doc::v3::is_v3_doc(doc) {
+            if !dr_doc::v3::is_book_doc(doc) {
                 return Err(invalid("v3 review requires a v3 book"));
             }
             let b = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;

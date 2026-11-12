@@ -299,11 +299,9 @@ impl<S: Source> Tracker<S> {
                 self.prose(&p.doc.to_string(), book, writes_here(&p.origin), today, now)
             }
             WsEvent::Local(c) if c.table == "index" => self.indexed(&c.key, today, now),
-            // Which chapters there are is the book's content: neither the
-            // recorder's own writes nor a saved checkpoint change it.
-            WsEvent::Book(b) if b.touched.content => {
-                self.chapters_changed(b.book.as_str(), today, now)
-            }
+            // Which chapters there are is the book's content. The
+            // recorder's own writes go to `stats:<book>` (`WsEvent::Stats`).
+            WsEvent::Book(b) => self.chapters_changed(b.book.as_str(), today, now),
             _ => {}
         }
     }

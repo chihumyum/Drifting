@@ -48,8 +48,7 @@ impl Associations {
         let events = lib.subscribe(move |event| {
             // A material's entries are the book's content; a writing day or
             // a saved checkpoint is not.
-            if matches!(event, dr_workspace::WsEvent::Book(b) if b.book.as_str() == watched && b.touched.content)
-            {
+            if matches!(event, dr_workspace::WsEvent::Book(b) if b.book.as_str() == watched) {
                 let _ = tx.unbounded_send(());
             }
         });

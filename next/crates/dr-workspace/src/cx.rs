@@ -311,12 +311,13 @@ impl<'a> Cx<'a> {
         Ok(slot)
     }
 
-    /// Open a v3 book (`is_v3_doc` is true); refuses v2.2 books with `WsError::Invalid`.
+    /// Open a book of the current format (`is_book_doc` is true); any other
+    /// format is refused with `WsError::Invalid`.
     pub(crate) fn book_v3(&self, id: &str) -> Result<Arc<BookSlot>> {
         let slot = self.book(id)?;
         if !slot.is_v3() {
             return Err(WsError::invalid(format!(
-                "book {id:?} is a v2.2 book; v3 commands only apply to v3 books"
+                "book {id:?} is in an older format; reimport it into a new library"
             )));
         }
         Ok(slot)
@@ -490,6 +491,43 @@ impl<'a> Cx<'a> {
                 f(&mut txn)?
             };
             Ok((r, before))
+        })
+    }
+
+    /// One commit on `stats:<book>` (made from its genesis when missing).
+    /// The book document is not written: a writing day is no change to the
+    /// book. It stands for the command's book commit, so the command writes
+    /// neither prose nor the book document as well. A guarded caller's
+    /// preconditions about the book are compared first, in a read of the
+    /// book document (as before a guarded creation registers new prose).
+    pub(crate) fn write_stats<R, F>(&self, book: &BookId, f: F) -> Result<R>
+    where
+        F: FnOnce(&mut dr_doc::side::StatsTxn<'_>) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        self.check_phase(Phase::Book)?;
+        if !self.st.borrow_mut().books_written.insert(book.clone()) {
+            return Err(WsError::Internal(format!(
+                "{}: a second book commit in one command",
+                self.spec.name
+            )));
+        }
+        if let Some(guards) = self.guards.clone() {
+            let slot = self.book(book.as_str())?;
+            let (parent, id) = (format!("book:{book}"), book.clone());
+            slot.handle
+                .read(move |doc| guards.check_parent(&parent, doc, &id))??;
+        }
+        let side = self
+            .ws
+            .side_slot(&DocId::Stats(book.clone()), book, true)?
+            .ok_or_else(|| WsError::Internal("stats document was not created".into()))?;
+        let agent = self.actor.agent_write(&self.summary());
+        let id = book.clone();
+        holder::write(&side.handle, self.actor.store_origin(), agent, move |doc| {
+            let stats = dr_doc::side::BorrowedStats::new(doc, &id)?;
+            let mut txn = stats.txn();
+            f(&mut txn)
         })
     }
 

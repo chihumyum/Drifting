@@ -51,7 +51,7 @@ fn edit(e: &Env, b: &str, id: &str) {
     }
 }
 fn data(e: &Env, b: &str, id: &str) -> Vec<Value> {
-    [
+    let mut out: Vec<Value> = [
         format!("book:{b}"),
         format!("body:{id}/mod-prose"),
         format!("body:{id}/second"),
@@ -61,7 +61,19 @@ fn data(e: &Env, b: &str, id: &str) -> Vec<Value> {
         let o = e.ws().observe(d).unwrap();
         json!({"version":o.version,"value":o.value})
     })
-    .collect()
+    .collect();
+    // The checkpoint manifests, beside the book: a checkpoint that leaked
+    // out of a failed command would show here.
+    let points = e
+        .ws()
+        .library()
+        .load_copy(&format!("checkpoints:{b}"))
+        .unwrap();
+    out.push(json!({
+        "version": format!("{:?}", points.oplog_frontiers()),
+        "value": serde_json::to_value(points.get_deep_value()).unwrap(),
+    }));
+    out
 }
 #[test]
 fn complete_restore_and_pre_restore_checkpoint_survive_reopen_and_preserve_other_entries() {
@@ -141,21 +153,27 @@ fn sql_failure_rolls_back_bodies_book_and_pre_restore_checkpoint() {
     let p = capture(&e, &b, &id);
     edit(&e, &b, &id);
     let before = data(&e, &b, &id);
-    e.ws().library().local_transaction(|tx| { tx.execute_batch("CREATE TRIGGER reject_restore BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'book:%' BEGIN SELECT RAISE(ABORT, 'atomic fault'); END;")?; Ok(()) }).unwrap();
-    assert!(
-        e.try_call("entry_snapshot.restore", input(&e, &b, &id, &p))
-            .is_err()
-    );
-    same(&data(&e, &b, &id), &before);
-    e.ws()
-        .library()
-        .local_transaction(|tx| {
-            tx.execute_batch("DROP TRIGGER reject_restore")?;
-            Ok(())
-        })
-        .unwrap();
-    e.reopen();
-    same(&data(&e, &b, &id), &before);
+    // The restore writes the book and the bodies, and its pre-restore point
+    // goes to `checkpoints:<book>`: a failure storing either leaves all of
+    // them as they were.
+    for prefix in ["book:%", "checkpoints:%"] {
+        e.ws().library().local_transaction(|tx| { tx.execute_batch(&format!("CREATE TRIGGER reject_restore BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE '{prefix}' BEGIN SELECT RAISE(ABORT, 'atomic fault'); END;"))?; Ok(()) }).unwrap();
+        assert!(
+            e.try_call("entry_snapshot.restore", input(&e, &b, &id, &p))
+                .is_err(),
+            "{prefix}"
+        );
+        same(&data(&e, &b, &id), &before);
+        e.ws()
+            .library()
+            .local_transaction(|tx| {
+                tx.execute_batch("DROP TRIGGER reject_restore")?;
+                Ok(())
+            })
+            .unwrap();
+        e.reopen();
+        same(&data(&e, &b, &id), &before);
+    }
 }
 #[test]
 fn removed_module_is_previewed_from_history_and_restored_as_retained_content() {
@@ -526,7 +544,7 @@ fn missing_default_bodies_and_checkpoint_commit_together_and_respect_caller_guar
         Err(dr_store::StoreError::NotFound(_))
     ));
     same(&data(&e, &b, &id), &before);
-    e.ws().library().local_transaction(|tx| { tx.execute_batch("CREATE TRIGGER reject_checkpoint BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'book:%' BEGIN SELECT RAISE(ABORT, 'checkpoint fault'); END;")?; Ok(()) }).unwrap();
+    e.ws().library().local_transaction(|tx| { tx.execute_batch("CREATE TRIGGER reject_checkpoint BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'checkpoints:%' BEGIN SELECT RAISE(ABORT, 'checkpoint fault'); END;")?; Ok(()) }).unwrap();
     assert!(
         e.try_call("entry_snapshot.create", json!({"book":b,"entry":id}))
             .is_err()
@@ -621,7 +639,7 @@ fn replace_manifest(e: &Env, b: &str, p: &str, mutate: impl FnOnce(&mut Value)) 
     let h = e
         .ws()
         .library()
-        .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
+        .open_doc(&format!("checkpoints:{b}"), dr_store::OpenDoc::Existing)
         .unwrap();
     let id = p.to_owned();
     // Read and edit a stored manifest to model damage, never via the immutable API.

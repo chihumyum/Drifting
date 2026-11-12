@@ -131,9 +131,10 @@ fn before_quit_indexes_and_closes_what_is_open() {
         .prose_session(&format!("body:{d}/mod-prose"))
         .unwrap();
     let report = e.ws().before_quit();
-    // The book and chapter One close; chapter Two has an editing session.
+    // The book, the two documents beside it (opened when the book was
+    // created) and chapter One close; chapter Two has an editing session.
     assert_eq!(report.in_use, 1, "{report:?}");
-    assert_eq!(report.closed, 2, "{report:?}");
+    assert_eq!(report.closed, 4, "{report:?}");
     assert!(e.ws().library().stale_index_docs().unwrap().is_empty());
     // Still usable afterwards.
     assert_eq!(

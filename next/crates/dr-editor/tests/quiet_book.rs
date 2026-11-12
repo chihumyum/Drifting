@@ -1,7 +1,8 @@
-//! The editors follow the book's content, not every commit to its document.
-//! The writing-day recorder commits to the book document once a minute and
-//! every saved entry checkpoint commits once; neither changes a name, a link
-//! target or a chapter, so neither makes an open editor read its names again.
+//! The editors follow the book's content. The writing-day recorder writes
+//! once a minute and every saved entry checkpoint once, both to documents
+//! beside the book (`stats:<book>`, `checkpoints:<book>`); neither changes
+//! the book document, a name, a link target or a chapter, so neither makes an
+//! open editor read its names again.
 
 use std::time::{Duration, Instant};
 
@@ -63,15 +64,15 @@ impl Env {
         self.ws.version(&format!("book:{}", self.book)).unwrap()
     }
 
-    /// Commits to the book document that change none of its content: this
-    /// device's writing day (twice), another device's arriving by sync, and
-    /// a checkpoint of each chapter. Every one of them moves the document's
-    /// version on.
+    /// Writes that change none of the book's content: this device's writing
+    /// day (twice), another device's arriving by sync, and a checkpoint of
+    /// each chapter. None of them is a commit to the book document: its
+    /// version stays where it was.
     fn commits_that_are_not_content(&self) -> usize {
-        let doc = format!("book:{}", self.book);
+        let stats = format!("stats:{}", self.book);
         let mut commits = 0;
         let mut moved = |what: &str, before: String| {
-            assert_ne!(self.version(), before, "{what} is a commit to the book");
+            assert_eq!(self.version(), before, "{what} is no commit to the book");
             commits += 1;
         };
         for words in [40, 95] {
@@ -84,7 +85,7 @@ impl Env {
             );
             moved("a writing day", before);
         }
-        let other = self.ws.library().load_copy(&doc).unwrap();
+        let other = self.ws.library().load_copy(&stats).unwrap();
         let from = other.oplog_vv();
         other
             .get_map("writing_days")
@@ -95,8 +96,8 @@ impl Env {
         assert!(
             self.ws
                 .import_remote(
-                    &doc,
-                    Some(("book", self.book.as_str())),
+                    &stats,
+                    Some(("stats", self.book.as_str())),
                     other.export(loro::ExportMode::updates(&from)).unwrap(),
                     &Actor::Sync,
                 )
@@ -189,7 +190,8 @@ fn a_chapter_editor_reads_its_names_again_for_content_only(cx: &mut TestAppConte
     );
     settle(cx);
     assert_eq!(names(cx), (before.0 + 1, before.1 + 1));
-    // And a change that carries a writing day with the content is content.
+    // And a change written straight on the book document's holder (another
+    // writer's) is content too.
     let title = e.chapters[1].0.clone();
     e.ws.library()
         .open_doc(&format!("book:{}", e.book), dr_store::OpenDoc::Existing)
@@ -209,14 +211,13 @@ fn a_chapter_editor_reads_its_names_again_for_content_only(cx: &mut TestAppConte
                 })
                 .unwrap();
             meta.insert("title", "Two, renamed").unwrap();
-            d.get_map("writing_days")
-                .insert("device-000000000000000000000001|2026-11-12", 130)
-                .unwrap();
         })
         .unwrap();
-    wait_for(cx, "content with a writing day reaches the editor", |cx| {
-        names(cx) == (before.0 + 2, before.1 + 2)
-    });
+    wait_for(
+        cx,
+        "a change written on the holder reaches the editor",
+        |cx| names(cx) == (before.0 + 2, before.1 + 2),
+    );
 }
 
 #[gpui::test]
@@ -261,11 +262,11 @@ fn the_whole_book_editor_reads_its_names_again_for_content_only(cx: &mut TestApp
     assert_eq!(names(cx), (before.0 + 1, before.1 + 1));
 }
 
-/// The commits one working day makes to the book document, at the rates of
-/// the aging model (docs/rust-rewrite/spikes/history-aging.md: three years,
-/// two devices, per working day): 62 of the writing-day recorder, 16 saved
-/// checkpoints, 17 changes to the book's content. They come minutes apart,
-/// so each is let through before the next.
+/// The writes one working day makes, at the rates of the aging model
+/// (docs/rust-rewrite/spikes/history-aging.md: three years, two devices, per
+/// working day): 62 of the writing-day recorder and 16 saved checkpoints,
+/// beside the book document, and 17 changes to the book's content, in it.
+/// They come minutes apart, so each is let through before the next.
 #[gpui::test]
 fn a_day_of_writing_reads_the_names_once_for_each_change_to_the_content(cx: &mut TestAppContext) {
     let e = env();
@@ -300,7 +301,12 @@ fn a_day_of_writing_reads_the_names_once_for_each_change_to_the_content(cx: &mut
     let commit = |cx: &mut VisualTestContext, counted: &mut usize, name: &str, input: Value| {
         let version = e.version();
         out(&e.ws, name, input);
-        assert_ne!(e.version(), version, "{name} commits to the book");
+        let content = !matches!(name, "writing_day.record" | "entry_snapshot.capture");
+        assert_eq!(
+            e.version() != version,
+            content,
+            "{name}: only the book's content commits to the book document"
+        );
         *counted += 1;
         // Minutes pass before the next: whatever this one asked for is done.
         for _ in 0..4 {
@@ -359,6 +365,6 @@ fn a_day_of_writing_reads_the_names_once_for_each_change_to_the_content(cx: &mut
     assert_eq!(
         names(cx),
         (before.0 + 17, before.1 + 17),
-        "95 commits to the book document, 17 of them to its content"
+        "95 writes, 17 of them to the book's content"
     );
 }

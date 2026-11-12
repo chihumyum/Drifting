@@ -93,7 +93,8 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version."
+      "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version.",
+      "older": "Dieses Buch wurde von einer früheren Entwicklungsversion von Drifting in einem Format exportiert, das diese Version nicht mehr liest."
     }
   },
   "settings": {

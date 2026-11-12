@@ -32,6 +32,11 @@ op! {
         ] {
             cx.create_prose(&id, &body_id(entry, &m::level_about_module_id()))?;
         }
+        // The two documents beside the book, from their genesis, so a first
+        // writing day or checkpoint never has to create one.
+        for side in [DocId::Stats(id.clone()), DocId::Checkpoints(id.clone())] {
+            cx.workspace().side_slot(&side, &id, true)?;
+        }
         let name = input.name.trim().to_string();
         let n = name.clone();
         cx.write_book_v3(&slot, Replaces::nothing(), move |t| {

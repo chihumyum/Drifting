@@ -49,7 +49,7 @@ pub fn seal_of(id: &str) -> u8 {
 pub fn canonical(lib: &Library, book: &str) -> bool {
     lib.library()
         .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
-        .and_then(|handle| handle.read(dr_doc::v3::is_v3_doc))
+        .and_then(|handle| handle.read(dr_doc::v3::is_book_doc))
         .unwrap_or(false)
 }
 impl Book {

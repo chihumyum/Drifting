@@ -61,7 +61,7 @@ pub fn is_book(ws: &Workspace, book: &str) -> Result<bool> {
     ws.library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(invalid)?
-        .read(dr_doc::v3::is_v3_doc)
+        .read(dr_doc::v3::is_book_doc)
         .map_err(invalid)
 }
 
@@ -71,7 +71,7 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(invalid)?
         .read(move |doc| {
-            if !dr_doc::v3::is_v3_doc(doc) {
+            if !dr_doc::v3::is_book_doc(doc) {
                 return Err(invalid("v3 manuscript requires a v3 book"));
             }
             let borrowed = BorrowedBookV3::new(doc, &id).map_err(invalid)?;

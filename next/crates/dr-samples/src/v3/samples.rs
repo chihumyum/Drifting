@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
-use dr_doc::v3::{BookDocV3, genesis_v3};
+use dr_doc::v3::{BookDocV3, book_genesis};
 use dr_doc::{Anchor, Result};
 use dr_model::id::BookId;
 use dr_model::{DocId, Origin};
@@ -15,6 +15,10 @@ use super::*;
 pub struct SampleBookV3 {
     pub book: BookDocV3,
     pub prose: Vec<ProseDoc>,
+    /// `stats:<book>`: the sample's writing days.
+    pub stats: dr_doc::side::StatsDoc,
+    /// `checkpoints:<book>`: empty.
+    pub checkpoints: dr_doc::side::CheckpointsDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: crate::build::Counters,
 }
@@ -183,9 +187,13 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     });
     r?;
     validate(&book.view()).map_err(super::catalog::invalid)?;
+    let (stats, checkpoints) =
+        super::catalog::side_documents(&id, &source.book.view(), crate::build::T0 + 10_002)?;
     Ok(SampleBookV3 {
         book,
         prose,
+        stats,
+        checkpoints,
         groups: source.groups().clone(),
         counters: source.counters(),
     })
@@ -226,12 +234,11 @@ pub fn write_book(
         Ok(())
     };
     // Check all ids before any writes, including the unchanged book id.
-    for id in sample
-        .prose
-        .iter()
-        .map(|p| p.doc_id())
-        .chain([sample.book.doc_id()])
-    {
+    for id in sample.prose.iter().map(|p| p.doc_id()).chain([
+        sample.stats.doc_id(),
+        sample.checkpoints.doc_id(),
+        sample.book.doc_id(),
+    ]) {
         if lib.doc_info(&id.to_string())?.is_some() {
             return Err(
                 super::catalog::invalid(format!("sample document already exists: {id}")).into(),
@@ -246,8 +253,18 @@ pub fn write_book(
         )?;
     }
     store(
+        sample.stats.doc_id(),
+        dr_doc::side::stats_genesis(sample.book_id()),
+        sample.stats.export_updates_since(&all)?,
+    )?;
+    store(
+        sample.checkpoints.doc_id(),
+        dr_doc::side::checkpoints_genesis(sample.book_id()),
+        sample.checkpoints.export_updates_since(&all)?,
+    )?;
+    store(
         sample.book.doc_id(),
-        genesis_v3(sample.book_id()),
+        book_genesis(sample.book_id()),
         sample.book.export_updates_since(&all)?,
     )?;
     Ok(count)

@@ -305,7 +305,7 @@ fn failed_final_checkpoint_retains_real_head_input_and_resumes_typing(cx: &mut T
             async move {
                 wait.await.unwrap();
                 lib.call(&Actor::User,"module.set_prose",json!({"book":t.book,"owner":t.entry,"module":"mod-prose","paragraphs":[{"text":"last producer after G1 baseline"}]})).map_err(|e|e.to_string())?;
-                lib.library().local_transaction(|tx| {tx.execute_batch("CREATE TRIGGER mounted_final_fault BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'book:%' BEGIN SELECT RAISE(ABORT,'mounted final fault'); END;")?;Ok(())}).map_err(|e|e.to_string())?;
+                lib.library().local_transaction(|tx| {tx.execute_batch("CREATE TRIGGER mounted_final_fault BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'checkpoints:%' BEGIN SELECT RAISE(ABORT,'mounted final fault'); END;")?;Ok(())}).map_err(|e|e.to_string())?;
                 Ok(())
             }.boxed_local()
         });
