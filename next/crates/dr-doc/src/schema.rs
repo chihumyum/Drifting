@@ -103,6 +103,10 @@ pub mod book_v3 {
     pub const FACTS: &str = "facts";
     pub const MEMORY: &str = "memory";
     pub const WRITING_DAYS: &str = "writing_days";
+    /// Complete-entry checkpoint manifests: checkpoint id → manifest. Not a
+    /// [`crate::v3::CollectionV3`]: the manifests are bookkeeping about the
+    /// book, opaque to dr-doc, and no part of what the book says.
+    pub const ENTRY_CHECKPOINTS: &str = "entry_checkpoints";
 
     /// Root maps of the form "id → entity map" in v3.
     pub const ENTITY_MAPS: &[&str] = &[

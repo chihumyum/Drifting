@@ -2122,7 +2122,7 @@ impl<'a> BookViewV3<'a> {
 
     /// Versioned complete-entry checkpoint manifests. Opaque to dr-doc.
     pub fn entry_checkpoints(&self) -> Vec<(String, String)> {
-        entities(self.doc, "entry_checkpoints")
+        entities(self.doc, book_v3::ENTRY_CHECKPOINTS)
             .into_iter()
             .filter_map(|(id, v)| {
                 if let LoroValue::String(s) = v {

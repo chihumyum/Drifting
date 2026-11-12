@@ -19,7 +19,7 @@ use crate::cx::{Cx, Faults, Gate, Invocation, Outcome};
 use crate::error::{Result, WsError};
 use crate::events::{
     self, BookChanged, Bus, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
-    WsEvent, book_changes, prose_ranges, touched_blocks_near,
+    WsEvent, book_changes, book_touched, prose_ranges, touched_blocks_near,
 };
 use crate::guard::{Guards, Observation, RecordKey, RecordObservation, WritePreconditions};
 use crate::holder::{self, lock};
@@ -1491,6 +1491,7 @@ impl Inner {
                                 seq: ev.seq,
                                 origin: ev.origin.clone(),
                                 changes,
+                                touched: book_touched(&ev.changes),
                             }),
                         );
                         if !removed.is_empty() {
