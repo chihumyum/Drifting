@@ -48,6 +48,10 @@ impl View {
     pub fn loaded(&self) -> Option<&Loaded> {
         self.loaded.as_ref()
     }
+    /// How many times the tab asked for its numbers (for tests).
+    pub fn reads(&self) -> u64 {
+        self.revision
+    }
     pub(crate) fn set_mine(&mut self, mine: Option<i64>, cx: &mut Context<Self>) {
         if self.mine != mine {
             self.mine = mine;

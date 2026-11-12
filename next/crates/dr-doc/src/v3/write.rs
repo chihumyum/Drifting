@@ -1754,7 +1754,7 @@ impl<'a> BookTxnV3<'a> {
     /// Append an immutable complete-entry checkpoint. The manifest is versioned
     /// by its owner in dr-workspace and references durable Loro frontiers.
     pub fn put_entry_checkpoint(&mut self, id: &str, manifest: &str) -> Result<()> {
-        let root = self.view.doc.get_map("entry_checkpoints");
+        let root = self.view.doc.get_map(book_v3::ENTRY_CHECKPOINTS);
         if root.get(id).is_some() {
             return Err(DocError::NotInProfile("checkpoint already exists"));
         }
@@ -1765,7 +1765,10 @@ impl<'a> BookTxnV3<'a> {
     /// Remove a checkpoint selected by the owner's retention plan. Manifests
     /// are never replaced; complete history remains in the Loro log.
     pub fn remove_entry_checkpoint(&mut self, id: &str) -> Result<()> {
-        self.view.doc.get_map("entry_checkpoints").delete(id)?;
+        self.view
+            .doc
+            .get_map(book_v3::ENTRY_CHECKPOINTS)
+            .delete(id)?;
         Ok(())
     }
 

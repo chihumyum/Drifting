@@ -86,7 +86,9 @@ impl WorkingMemoryView {
             Ok(ws.subscribe(move |event| {
                 let changed = match event {
                     WsEvent::Local(change) => change.table == "local_state" && change.key == prefix,
-                    WsEvent::Book(change) => change.book == book,
+                    // The book itself (whether it is in the trash); a writing
+                    // day or a saved checkpoint is no change to it.
+                    WsEvent::Book(change) => change.book == book && change.touched.content,
                     _ => false,
                 };
                 if changed {

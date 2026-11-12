@@ -389,7 +389,10 @@ impl BookEditor {
         let sub = ws.subscribe(move |e| {
             let notice = match e {
                 WsEvent::Prose(p) => Some(Notice::Prose(p.doc.to_string())),
-                WsEvent::Book(_) | WsEvent::Removed(_) => Some(Notice::Book),
+                // The chapters, their titles and the names are the book's
+                // content: a writing day or a saved checkpoint changes none.
+                WsEvent::Book(b) if b.touched.content => Some(Notice::Book),
+                WsEvent::Removed(_) => Some(Notice::Book),
                 _ => None,
             };
             if let Some(n) = notice {

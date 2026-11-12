@@ -251,6 +251,8 @@ pub struct Layers {
     parts: Vec<Part>,
     index: HashMap<String, usize>,
     names: Option<std::sync::Arc<LinkMatcher<LinkTarget>>>,
+    /// How many times the book's names were read (for tests).
+    pub name_reads: usize,
     /// The jump last shown, so a repeated notice does not scroll again.
     shown_jump: u64,
     /// The paragraph last sent as `editing` with `todo.project`, and its
@@ -341,6 +343,7 @@ impl Layers {
             parts: docs.into_iter().map(Part::new).collect(),
             index,
             names: None,
+            name_reads: 0,
             shown_jump: 0,
             editing: None,
             focused: false,
@@ -367,7 +370,9 @@ impl Layers {
         let docs: HashSet<String> = docs.iter().cloned().collect();
         let sub = ws.subscribe(move |e| {
             let notice = match e {
-                WsEvent::Book(b) if b.book.to_string() == book => {
+                // Comments and names are the book's content: a writing day
+                // or a saved checkpoint changes neither.
+                WsEvent::Book(b) if b.book.to_string() == book && b.touched.content => {
                     if b.changes
                         .iter()
                         .any(|c| c.collection == Collection::Comments)
@@ -838,6 +843,7 @@ impl Layers {
     // ----- links, suggestions, TODO keywords ---------------------------------------------
 
     fn load_names(&mut self, cx: &mut Context<Layers>) {
+        self.name_reads += 1;
         let (ws, book) = (self.ws.clone(), self.book.clone());
         // A single document's own entity is not suggested in its own text.
         let own = match self.parts.as_slice() {

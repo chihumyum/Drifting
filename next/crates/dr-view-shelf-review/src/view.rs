@@ -918,7 +918,9 @@ impl ShelfReviewView {
         }
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
         self._lib_sub = Some(lib.subscribe(move |ev| {
-            if matches!(ev, WsEvent::Book(b) if b.book.as_str() == watched) {
+            // Relations and entry links are the book's content; a writing
+            // day or a saved checkpoint changes none of them.
+            if matches!(ev, WsEvent::Book(b) if b.book.as_str() == watched && b.touched.content) {
                 let _ = tx.unbounded_send(());
             }
         }));

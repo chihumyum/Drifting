@@ -391,6 +391,8 @@ pub struct Workspace {
     book_task: Option<Task<()>>,
     /// The book changed while it was being read: read it again after.
     book_stale: bool,
+    /// How many times the book's lists were read (for tests).
+    pub book_reads: usize,
     /// Every open tab's editor (by target key), once its page was shown.
     pub editors: HashMap<String, PageEditor>,
     /// What new editors are opened with; kept in step by
@@ -560,6 +562,7 @@ impl Workspace {
             v3_sidebar: None,
             book_task: None,
             book_stale: false,
+            book_reads: 0,
             editors: HashMap::new(),
             editor_settings,
             editor_base,
@@ -693,6 +696,7 @@ impl Workspace {
             Some(self.book_id.clone())
         };
         let explicit = !self.book_id.is_empty();
+        self.book_reads += 1;
         self.book_task = Some(cx.spawn(async move |this, cx| {
             let started = Instant::now();
             let loaded = cx
@@ -833,7 +837,12 @@ impl Workspace {
         let mut gone = Vec::new();
         for event in events {
             match event {
-                WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
+                // The lists are the book's content. A writing day or a saved
+                // checkpoint is a commit to the same document and changes
+                // none of them: nothing is read again for those.
+                WsEvent::Book(b) if b.book.as_str() == self.book_id && b.touched.content => {
+                    reload_book = true
+                }
                 WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
                     for entity in r.entities {
                         if entity.target == dr_workspace::NavTarget::Book && entity.purged {

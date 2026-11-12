@@ -96,6 +96,36 @@ fn capture(
         Err(e) => Err(e.to_string()),
     }
 }
+/// Whether a persisted change can have changed what some entry owns: an
+/// entry's prose, or a commit to the book document that touched the entry
+/// tree or a collection of entry-owned records. Only then does the worker
+/// look at the book's entries (one pass over all of them).
+///
+/// Book counters (the writing days, once a minute), saved checkpoints,
+/// comments and shared templates do not change entry-owned content. In
+/// particular they must not materialize every entry's lazy body as a side
+/// effect.
+fn concerns_entries(e: &dr_store::DocEvent) -> bool {
+    if !dr_store::history::records_periodic(&e.origin) {
+        return false;
+    }
+    match DocId::parse(&e.doc_id) {
+        Ok(DocId::Body(_)) => true,
+        Ok(DocId::Book(_)) => e.changes.iter().any(|c| {
+            let root = c.path.first().map(|(id, _)| id).unwrap_or(&c.target);
+            matches!(
+                root,
+                loro::ContainerID::Root { name, .. }
+                    if matches!(
+                        name.as_str(),
+                        "entries" | "patches" | "plot_grids" | "memberships" | "relations"
+                    )
+            )
+        }),
+        _ => false,
+    }
+}
+
 impl AutomaticHistory {
     pub fn start(ws: Workspace) -> Self {
         Self::start_with_interval(ws, PERIODIC_INTERVAL)
@@ -109,28 +139,10 @@ impl AutomaticHistory {
         let (send, rx) = mpsc::channel();
         let events = send.clone();
         let subscription = ws.library().subscribe(move |event| {
-            if let StoreEvent::Doc(e) = event && dr_store::history::records_periodic(&e.origin) {
-                // Book counters, comments, shared templates and checkpoints
-                // do not change entry-owned content. In particular they must
-                // not materialize every entry's lazy body as a side effect.
-                let relevant = match DocId::parse(&e.doc_id) {
-                    Ok(DocId::Body(_)) => true,
-                    Ok(DocId::Book(_)) => e.changes.iter().any(|c| {
-                        let root = c.path.first().map(|(id, _)| id).unwrap_or(&c.target);
-                        matches!(
-                            root,
-                            loro::ContainerID::Root { name, .. }
-                                if matches!(
-                                    name.as_str(),
-                                    "entries" | "patches" | "plot_grids" | "memberships" | "relations"
-                                )
-                        )
-                    }),
-                    _ => false,
-                };
-                if relevant {
-                    let _ = events.send(Message::Changed(e.doc_id.to_string()));
-                }
+            if let StoreEvent::Doc(e) = event
+                && concerns_entries(e)
+            {
+                let _ = events.send(Message::Changed(e.doc_id.to_string()));
             }
         });
         let worker = thread::spawn(move || {
@@ -406,6 +418,74 @@ mod tests {
         let points = ws.run::<api::List>(&Actor::User, t).unwrap().output;
         assert!(!points.is_empty());
         assert!(points.iter().all(|p| p.reason == "close"));
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn a_writing_day_or_a_saved_checkpoint_asks_for_no_look_at_the_entries() {
+        let (_dir, ws, t) = setup();
+        let book_doc = format!("book:{}", t.book);
+        // Every persisted change, and whether the worker would be told.
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<(String, bool)>>> = Default::default();
+        let sink = seen.clone();
+        let _subscription = ws.library().subscribe(move |event| {
+            if let StoreEvent::Doc(e) = event {
+                sink.lock()
+                    .unwrap()
+                    .push((e.doc_id.to_string(), concerns_entries(e)));
+            }
+        });
+        let changes = || std::mem::take(&mut *seen.lock().unwrap());
+
+        // The recorder's minute.
+        call(
+            &ws,
+            "writing_day.record",
+            json!({"book": t.book, "device": "device-000000000000000000000001",
+                "day": "2026-11-12", "words": 120}),
+        );
+        assert_eq!(changes(), [(book_doc.clone(), false)]);
+
+        // A saved checkpoint: the manifest is a commit to the book document
+        // and no change to any entry. (The entry's first point may also
+        // create bodies it has not written yet: prose, which is.)
+        for _ in 0..2 {
+            call(
+                &ws,
+                "entry_snapshot.create",
+                json!({"book": t.book, "entry": t.entry}),
+            );
+            let saved = changes();
+            assert!(
+                saved.contains(&(book_doc.clone(), false)),
+                "the manifest: {saved:?}"
+            );
+            assert!(
+                saved
+                    .iter()
+                    .all(|(doc, told)| *told == doc.starts_with("body:")),
+                "{saved:?}"
+            );
+        }
+        assert_eq!(
+            changes(),
+            [],
+            "and the second point wrote nothing but its manifest"
+        );
+
+        // A book-level setting is none either; an entry's own change is.
+        call(
+            &ws,
+            "book.update",
+            json!({"book": t.book, "summary": "Synthetic book-level setting"}),
+        );
+        assert_eq!(changes(), [(book_doc.clone(), false)]);
+        call(
+            &ws,
+            "entry.update",
+            json!({"book": t.book, "id": t.entry, "title": "Synthetic renamed"}),
+        );
+        assert_eq!(changes(), [(book_doc, true)]);
         ws.shutdown().unwrap();
     }
 
