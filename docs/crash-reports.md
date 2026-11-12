@@ -32,10 +32,9 @@ locally, ends with one line, "By continuing, you agree to the terms", and the
 hover card on "the terms" says that fault reports are sent and where to turn
 them off, above rows that open the terms and the privacy policy
 (`features/auth/ConsentLine.tsx`, 2026-11-13; before that the sentence itself
-was the card's last line). The sign-in step that follows in the same card does
-not repeat the line; the sign-in dialog opened later from the account menu or
-Settings ends with it. With reports off, recorded native panics are still taken
-and discarded.
+was the card's last line). The sign-in flow carries no such line: its sign-up
+form names the terms and the privacy policy in its own sentence. With reports
+off, recorded native panics are still taken and discarded.
 
 ## What a report contains
 

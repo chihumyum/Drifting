@@ -1741,10 +1741,13 @@
       "or": "ou"
     },
     "legal": {
-      "consent": "Ao continuar, você concorda com {{terms}}.",
-      "consentTerms": "os termos",
+      "agree": "Ao se cadastrar, você concorda com os",
       "terms": "Termos",
-      "privacy": "Política de privacidade"
+      "termsUnavailable": "O operador não configurou os termos de serviço.",
+      "and": "e",
+      "privacy": "Política de privacidade",
+      "consent": "Ao continuar, você concorda com {{terms}}.",
+      "consentTerms": "os termos"
     },
     "forgot": {
       "sub": "Digite o e-mail da conta para receber um código.",

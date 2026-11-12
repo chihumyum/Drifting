@@ -1737,10 +1737,13 @@
       "or": "or"
     },
     "legal": {
-      "consent": "By continuing, you agree to {{terms}}.",
-      "consentTerms": "the terms",
+      "agree": "By signing up, you agree to the",
       "terms": "Terms",
-      "privacy": "Privacy Policy"
+      "termsUnavailable": "The service operator has not configured Terms of Service.",
+      "and": "and",
+      "privacy": "Privacy Policy",
+      "consent": "By continuing, you agree to {{terms}}.",
+      "consentTerms": "the terms"
     },
     "forgot": {
       "sub": "Enter your account email and we'll send a verification code.",

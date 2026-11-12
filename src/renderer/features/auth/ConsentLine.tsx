@@ -1,6 +1,5 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EntityHoverCardPlacement } from '../../components/ui/entity-hover-card-position';
 import { HoverCardShell, type HoverActionGroup } from '../../components/ui/HoverCard';
 import { APP_CONFIG } from '../../lib/config';
 import { platform } from '../../platform';
@@ -10,22 +9,16 @@ import { useHoverPreview } from '../entities/hover/entity-hover-card-model';
 const CONSENT_TERMS_SLOT = '\u0000';
 
 /**
- * What continuing agrees to, in one line: the last line of the first-run
- * welcome, which every author passes whether they sign in or go on locally,
- * and of the sign-in and sign-up forms opened anywhere else. The line only
- * names it; the items wait in a hover card on those words: the fault reports
- * this build sends (docs/crash-reports.md), and the service's terms and
- * privacy policy as rows that open them. A press opens the card too, for a
- * finger or the keyboard.
+ * What going on agrees to, in one line: the last line of the first-run
+ * welcome, which every author passes whether they sign in or go on locally.
+ * The line only names it; the items wait in a hover card on those words: the
+ * fault reports this build sends (docs/crash-reports.md), and the service's
+ * terms and privacy policy as rows that open them. The card opens downward,
+ * clear of the ways on above the line. A press opens it too, for a finger or
+ * the keyboard. The sign-in flow has no such line: its sign-up form names the
+ * terms in its own sentence, as it always has.
  */
-export function ConsentLine({
-  className = 'auth-flow__legal',
-  placement = 'top-center',
-}: {
-  className?: string;
-  /** Where the card opens: away from what the author goes on to press. */
-  placement?: EntityHoverCardPlacement;
-}) {
+export function ConsentLine() {
   const { t } = useTranslation();
   const hover = useHoverPreview<null>();
   const cardId = useId();
@@ -46,11 +39,11 @@ export function ConsentLine({
     ],
   }];
   return (
-    <p className={className}>
+    <p className="first-run-welcome__note">
       {before}
       <button
         type="button"
-        className="auth-flow__consent"
+        className="first-run-welcome__terms"
         aria-expanded={hover.preview !== null}
         aria-describedby={hover.preview ? cardId : undefined}
         onMouseEnter={(event) => hover.onEnter(null, event.currentTarget)}
@@ -68,7 +61,7 @@ export function ConsentLine({
         <HoverCardShell
           id={cardId}
           anchor={hover.preview.anchor}
-          placement={placement}
+          placement="bottom-start"
           width={280}
           label={t('auth.legal.consentTerms')}
           pointer={hover.card}

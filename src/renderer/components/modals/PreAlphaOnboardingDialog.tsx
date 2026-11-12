@@ -193,7 +193,7 @@ function FirstRunWelcome({
       <Button className="first-run-welcome__local" variant="ghost" onClick={onLocal}>
         {t('firstRun.local')}
       </Button>
-      <ConsentLine className="first-run-welcome__note" placement="bottom-start" />
+      <ConsentLine />
     </div>
   );
 }
@@ -363,8 +363,6 @@ export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
     ) : name === 'account' ? (
       <AuthFlow
         initialMode="signin"
-        // The welcome before this step has already said it.
-        consent={false}
         onBack={() => {
           cancelNativeOAuth();
           setSigningIn(false);

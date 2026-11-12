@@ -1737,10 +1737,13 @@
       "or": "또는"
     },
     "legal": {
-      "consent": "계속하면 {{terms}}에 동의하는 것으로 봅니다",
-      "consentTerms": "관련 약관",
+      "agree": "가입하면 다음에 동의합니다:",
       "terms": "이용약관",
-      "privacy": "개인정보 처리방침"
+      "termsUnavailable": "서비스 운영자가 이용약관을 설정하지 않았습니다.",
+      "and": "및",
+      "privacy": "개인정보 처리방침",
+      "consent": "계속하면 {{terms}}에 동의하는 것으로 봅니다",
+      "consentTerms": "관련 약관"
     },
     "forgot": {
       "sub": "계정 이메일을 입력하면 인증 코드를 보내드립니다.",
