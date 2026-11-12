@@ -13,14 +13,23 @@ use loro::{ExpandType, LoroDoc, StyleConfig, StyleConfigMap};
 /// comments and materials. See `loro-schema.md` "版本".
 pub const SCHEMA_VERSION: i64 = 2;
 
-/// `meta.v` of universal kernel v3 book documents (`docs/rust-rewrite/kernel-v3.md`).
-pub const SCHEMA_VERSION_V3: i64 = 3;
+/// `meta.v` of book documents (`docs/rust-rewrite/kernel-v4.md`). Only a
+/// book document of this version opens; any other is refused as it is.
+pub const BOOK_SCHEMA_VERSION: i64 = 4;
+
+/// `meta.v` of the documents beside a book (`stats:<book>`,
+/// `checkpoints:<book>`).
+pub const SIDE_SCHEMA_VERSION: i64 = 1;
 
 /// Version of the genesis content; part of the genesis peer's hash.
 pub const GENESIS_VERSION: u32 = 2;
 
-/// Version of the v3 book document genesis content.
-pub const GENESIS_VERSION_V3: u32 = 3;
+/// Version of the book document genesis content. Part of the genesis
+/// peer's hash, so a version 4 book's genesis is not a version 3 book's.
+pub const BOOK_GENESIS_VERSION: u32 = 4;
+
+/// Version of the genesis content of the documents beside a book.
+pub const SIDE_GENESIS_VERSION: u32 = 1;
 
 /// Keys every document's `meta` map has.
 pub mod meta {
@@ -102,11 +111,6 @@ pub mod book_v3 {
     pub const MATERIAL_FOLDERS: &str = "material_folders";
     pub const FACTS: &str = "facts";
     pub const MEMORY: &str = "memory";
-    pub const WRITING_DAYS: &str = "writing_days";
-    /// Complete-entry checkpoint manifests: checkpoint id → manifest. Not a
-    /// [`crate::v3::CollectionV3`]: the manifests are bookkeeping about the
-    /// book, opaque to dr-doc, and no part of what the book says.
-    pub const ENTRY_CHECKPOINTS: &str = "entry_checkpoints";
 
     /// Root maps of the form "id → entity map" in v3.
     pub const ENTITY_MAPS: &[&str] = &[
@@ -122,6 +126,18 @@ pub mod book_v3 {
         ASSETS,
         MEMORY,
     ];
+}
+
+/// Root containers of the documents beside a book: `stats:<book>` has
+/// `meta` and `writing_days`, `checkpoints:<book>` has `meta` and
+/// `entry_checkpoints`.
+pub mod side {
+    pub const META: &str = "meta";
+    /// `"<device>|<day>"` → words that device wrote in the book that day.
+    pub const WRITING_DAYS: &str = "writing_days";
+    /// Complete-entry checkpoint manifests: checkpoint id → manifest, opaque
+    /// to dr-doc.
+    pub const ENTRY_CHECKPOINTS: &str = "entry_checkpoints";
 }
 
 /// Paragraph attributes: marks on the paragraph's terminating `\n`, always

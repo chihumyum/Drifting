@@ -92,7 +92,7 @@ fn shared_comment_commands_have_one_canonical_v3_signature() {
                 .is_some(),
             "{name}"
         );
-        assert_eq!(spec.book_version, Some(3));
+        assert_eq!(spec.book_version, Some(dr_doc::schema::BOOK_SCHEMA_VERSION));
     }
     for spec in registry().iter() {
         assert!(

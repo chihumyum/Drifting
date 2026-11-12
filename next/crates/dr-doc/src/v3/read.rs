@@ -1835,33 +1835,6 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
-    pub fn writing_days(&self) -> Vec<WritingDay> {
-        let LoroValue::Map(m) = self.doc.get_map(book_v3::WRITING_DAYS).get_deep_value() else {
-            return Vec::new();
-        };
-        let mut v: Vec<WritingDay> = m
-            .iter()
-            .filter_map(|(k, w)| {
-                let (device, day) = WritingDay::parse_key(k)?;
-                let words = match w {
-                    LoroValue::I64(i) if *i >= 0 => *i,
-                    _ => return None,
-                };
-                Some(WritingDay { device, day, words })
-            })
-            .collect();
-        v.sort_by(|a, b| (&a.day, &a.device).cmp(&(&b.day, &b.device)));
-        v
-    }
-
-    pub fn words_on(&self, day: &dr_model::Day) -> i64 {
-        self.writing_days()
-            .iter()
-            .filter(|w| &w.day == day)
-            .map(|w| w.words)
-            .sum()
-    }
-
     // ---- prose ownership, snapshots and repairs --------------------------
 
     /// Whether the prose document `doc` belongs to a live or trashed owner in
@@ -1874,7 +1847,7 @@ impl<'a> BookViewV3<'a> {
     /// or its template was deleted).
     pub fn owns_prose(&self, doc: &DocId) -> bool {
         match doc {
-            DocId::Book(b) => b == self.book,
+            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) => b == self.book,
             DocId::Conversation(_) => true,
             DocId::Body(b) => {
                 forest_node(&self.tree(book_v3::ENTRIES), b.entry().as_str()).is_some()
@@ -2116,20 +2089,6 @@ impl<'a> BookViewV3<'a> {
                 let mut value = serde_json::json!({"metadata":metadata,"records":records,"parent":parent,"position":n.pos});
                 value.sort_all_objects();
                 Some((id.clone(), value))
-            })
-            .collect()
-    }
-
-    /// Versioned complete-entry checkpoint manifests. Opaque to dr-doc.
-    pub fn entry_checkpoints(&self) -> Vec<(String, String)> {
-        entities(self.doc, book_v3::ENTRY_CHECKPOINTS)
-            .into_iter()
-            .filter_map(|(id, v)| {
-                if let LoroValue::String(s) = v {
-                    Some((id, s.to_string()))
-                } else {
-                    None
-                }
             })
             .collect()
     }

@@ -43,7 +43,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use dr_doc::prose::ProseDoc as StoredProse;
-use dr_doc::v3::{BookDocV3, genesis_v3};
+use dr_doc::v3::{BookDocV3, book_genesis};
 use dr_editor::SessionSource;
 use dr_shell::book::Book;
 use dr_testkit::aging::book::BookAging;
@@ -116,7 +116,7 @@ fn editor(mode: Mode, dir: &Path, book: &BookDocV3, chapter: &StoredProse) -> Re
         ws.library(),
         book.book_id(),
         book.doc_id(),
-        genesis_v3(book.book_id()),
+        book_genesis(book.book_id()),
         book.export_updates_since(&all).map_err(err)?,
     )
     .map_err(err)?;
@@ -169,7 +169,7 @@ fn shell(mode: Mode, dir: &Path, doc: &BookDocV3) -> Result<(), String> {
         ws.library(),
         doc.book_id(),
         doc.doc_id(),
-        genesis_v3(doc.book_id()),
+        book_genesis(doc.book_id()),
         doc.export_updates_since(&Default::default()).map_err(err)?,
     )
     .map_err(err)?;
@@ -341,9 +341,9 @@ fn close_sweep(dir: &Path, seeded: &seed::SeededV3) -> Result<(), String> {
     let points = || -> Result<usize, String> {
         let doc = ws
             .library()
-            .load_copy(&format!("book:{book}"))
+            .load_copy(&format!("checkpoints:{book}"))
             .map_err(err)?;
-        Ok(dr_doc::v3::BorrowedBookV3::new(&doc, &book)
+        Ok(dr_doc::side::BorrowedCheckpoints::new(&doc, &book)
             .map_err(err)?
             .view()
             .entry_checkpoints()
@@ -462,7 +462,7 @@ fn main() -> Result<(), String> {
         let doc = if *days == 0 {
             &seeded_book.book
         } else {
-            aged = book::age(&seeded_book.book, &BookAging::days(*days)).map_err(err)?;
+            aged = book::age(seeded_book, &BookAging::days(*days)).map_err(err)?;
             &aged.doc
         };
         if wanted("shell") {

@@ -772,6 +772,7 @@
       "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
       "newer": "此作品由較新的 Drifting 匯出，請先更新。",
       "notABook": "這不是從 Drifting 匯出的作品。",
+      "older": "這本書是 Drifting 以前的開發版匯出的，這一版已經不讀那種格式。",
       "tooLarge": "作品過大，無法匯入。"
     },
     "delete": {

@@ -66,8 +66,8 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
         };
         let book_id = BookId::parse(id).map_err(err)?;
         let copy = lib.load_copy(&d.doc_id).map_err(err)?;
-        if !dr_doc::v3::is_v3_doc(&copy) {
-            books.push(json!({"id":id,"available":false,"reason":"canonical v3 reimport into a new library required"}));
+        if !dr_doc::v3::is_book_doc(&copy) {
+            books.push(json!({"id":id,"available":false,"reason":"an older format: reimport into a new library"}));
             continue;
         }
         let book = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(err)?;
@@ -95,7 +95,20 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
                 }
             }
         }
-        books.push(json!({"id":id,"version":3,"name":v.meta().name,"chapters":chapters.len(),"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"materials":v.materials().len(),"writingDays":v.writing_days().len(),"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
+        // Writing days live beside the book, in `stats:<book>`.
+        let stats_id = format!("stats:{id}");
+        let writing_days = match lib.doc_info(&stats_id).map_err(err)? {
+            Some(_) => {
+                let d = lib.load_copy(&stats_id).map_err(err)?;
+                dr_doc::side::BorrowedStats::new(&d, &book_id)
+                    .map_err(err)?
+                    .view()
+                    .writing_days()
+                    .len()
+            }
+            None => 0,
+        };
+        books.push(json!({"id":id,"version":dr_doc::schema::BOOK_SCHEMA_VERSION,"name":v.meta().name,"chapters":chapters.len(),"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"materials":v.materials().len(),"writingDays":writing_days,"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
     }
     Ok(json!({
         "libraryId": lib.library_id(),

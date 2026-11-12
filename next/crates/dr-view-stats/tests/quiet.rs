@@ -1,6 +1,6 @@
-//! The Stats tab and the commits to the book document that are not its
-//! content: a writing day (this tab shows them) and a saved entry checkpoint
-//! (it does not).
+//! The Stats tab and the writes beside the book that are not its content: a
+//! writing day in `stats:<book>` (this tab shows them) and a saved entry
+//! checkpoint in `checkpoints:<book>` (it does not).
 
 use std::time::{Duration, Instant};
 
@@ -128,6 +128,7 @@ fn settle(cx: &mut VisualTestContext, ws: &Workspace) {
 fn a_saved_checkpoint_does_not_make_the_tab_read_again(cx: &mut gpui::TestAppContext) {
     let (_dir, ws, book) = fixture();
     let doc = format!("book:{book}");
+    let points = format!("checkpoints:{book}");
     let entry = dr_view_stats::v3::load(&ws, &book, Scope::Book)
         .unwrap()
         .documents[0]
@@ -152,6 +153,7 @@ fn a_saved_checkpoint_does_not_make_the_tab_read_again(cx: &mut gpui::TestAppCon
     let save = || {
         let before = (
             ws.version(&doc).unwrap(),
+            ws.version(&points).unwrap(),
             ws.library().docs(Some(&book), None).unwrap(),
         );
         call(
@@ -161,18 +163,28 @@ fn a_saved_checkpoint_does_not_make_the_tab_read_again(cx: &mut gpui::TestAppCon
         );
         let after = (
             ws.version(&doc).unwrap(),
+            ws.version(&points).unwrap(),
             ws.library().docs(Some(&book), None).unwrap(),
         );
-        (before.0 != after.0, before.1 == after.1)
+        (
+            before.0 != after.0,
+            before.1 != after.1,
+            before.2 == after.2,
+        )
     };
     save();
     settle(cx, &ws);
     let before = reads(cx);
 
-    // From here a point is one manifest in the book document and nothing
-    // else: a commit to the book, its index row written again after it.
+    // From here a point is one manifest in the checkpoints document beside
+    // the book and nothing else: no commit to the book, a commit to that
+    // document, its index row written again after it, and no new document.
     for _ in 0..3 {
-        assert_eq!(save(), (true, true), "a commit to the book and no document");
+        assert_eq!(
+            save(),
+            (false, true, true),
+            "a commit to the checkpoints document, none to the book, no new document"
+        );
         settle(cx, &ws);
     }
     assert_eq!(

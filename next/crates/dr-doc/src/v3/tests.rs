@@ -30,10 +30,10 @@ fn mid(s: &str) -> ModuleId {
 }
 
 #[test]
-fn genesis_v3_sets_version_3_and_locked_generic_relation_type() {
+fn book_genesis_sets_version_4_and_locked_generic_relation_type() {
     let doc = BookDocV3::create(bid(), 1).unwrap();
     let v = doc.view();
-    assert_eq!(v.meta().schema_version, 3);
+    assert_eq!(v.meta().schema_version, 4);
     assert_eq!(v.book_id(), &bid());
     let rts = v.relation_types();
     assert_eq!(rts.len(), 1);

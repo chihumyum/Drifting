@@ -138,7 +138,14 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
 
     let s_v2 = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
     let s_v3 = seed::generate_v3(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
-    assert_eq!(s_v3.shape(), s_v2.shape());
+    // A v3 seed writes the two documents beside each book (`stats:`,
+    // `checkpoints:`) on top of what a v2 seed writes; everything else
+    // matches.
+    let mut shape = s_v3.shape();
+    let beside = 2 * s_v3.books.len();
+    assert_eq!(shape.documents, s_v2.shape().documents + beside);
+    shape.documents -= beside;
+    assert_eq!(shape, s_v2.shape());
     // The conversion uses deterministic IDs scoped by book, including all roots.
     let mut ids = std::collections::BTreeSet::new();
     for book in &s_v3.books {

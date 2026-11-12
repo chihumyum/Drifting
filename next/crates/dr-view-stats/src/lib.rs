@@ -53,7 +53,7 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
                 // The tab shows the book's content (which entries are
                 // counted, the targets) and its writing days; a saved
                 // checkpoint changes neither.
-                WsEvent::Book(b) => b.touched.content || b.touched.writing_days,
+                WsEvent::Book(_) | WsEvent::Stats(_) => true,
                 _ => false,
             };
             if relevant {
@@ -115,6 +115,11 @@ fn route(batch: Vec<Msg>, cx: &mut App) {
                 }
                 Msg::Event(WsEvent::Book(b)) => view.update(cx, |v, cx| {
                     if v.book == b.book.as_str() {
+                        v.reload(cx);
+                    }
+                }),
+                Msg::Event(WsEvent::Stats(s)) => view.update(cx, |v, cx| {
+                    if v.book == s.book.as_str() {
                         v.reload(cx);
                     }
                 }),

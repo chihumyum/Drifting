@@ -48,7 +48,7 @@ fn initial_book_heads(ws: &Workspace) -> BTreeMap<BookId, loro::Frontiers> {
 /// pass. An entry's fingerprint names no other entry but its parent, so a
 /// sibling created, deleted or moved leaves it as it was.
 fn owners_from_doc(doc: &loro::LoroDoc, book: &BookId) -> Result<BookOwners, String> {
-    if !dr_doc::v3::is_v3_doc(doc) {
+    if !dr_doc::v3::is_book_doc(doc) {
         return Ok(BTreeMap::new());
     }
     let b = BorrowedBookV3::new(doc, book).map_err(|e| e.to_string())?;
@@ -101,8 +101,9 @@ fn capture(
 /// tree or a collection of entry-owned records. Only then does the worker
 /// look at the book's entries (one pass over all of them).
 ///
-/// Book counters (the writing days, once a minute), saved checkpoints,
-/// comments and shared templates do not change entry-owned content. In
+/// The writing days (once a minute) and saved checkpoints, in the two
+/// documents beside the book, comments and shared templates do not change
+/// entry-owned content. In
 /// particular they must not materialize every entry's lazy body as a side
 /// effect.
 fn concerns_entries(e: &dr_store::DocEvent) -> bool {
@@ -363,7 +364,7 @@ mod tests {
     fn failed_close_preserves_current_text_and_restarted_worker_can_retry() {
         let (_dir, ws, t) = setup();
         let service = AutomaticHistory::start(ws.clone());
-        ws.library().local_transaction(|tx| {tx.execute_batch("CREATE TRIGGER reject_checkpoint BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'book:%' BEGIN SELECT RAISE(ABORT,'checkpoint fault'); END;")?;Ok(())}).unwrap();
+        ws.library().local_transaction(|tx| {tx.execute_batch("CREATE TRIGGER reject_checkpoint BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'checkpoints:%' BEGIN SELECT RAISE(ABORT,'checkpoint fault'); END;")?;Ok(())}).unwrap();
         call(
             &ws,
             "module.set_prose",
@@ -425,6 +426,10 @@ mod tests {
     fn a_writing_day_or_a_saved_checkpoint_asks_for_no_look_at_the_entries() {
         let (_dir, ws, t) = setup();
         let book_doc = format!("book:{}", t.book);
+        let (stats_doc, points_doc) = (
+            format!("stats:{}", t.book),
+            format!("checkpoints:{}", t.book),
+        );
         // Every persisted change, and whether the worker would be told.
         let seen: std::sync::Arc<std::sync::Mutex<Vec<(String, bool)>>> = Default::default();
         let sink = seen.clone();
@@ -444,11 +449,12 @@ mod tests {
             json!({"book": t.book, "device": "device-000000000000000000000001",
                 "day": "2026-11-12", "words": 120}),
         );
-        assert_eq!(changes(), [(book_doc.clone(), false)]);
+        assert_eq!(changes(), [(stats_doc, false)]);
 
-        // A saved checkpoint: the manifest is a commit to the book document
-        // and no change to any entry. (The entry's first point may also
-        // create bodies it has not written yet: prose, which is.)
+        // A saved checkpoint: the manifest is a commit to the checkpoints
+        // document beside the book and no change to any entry. (The entry's
+        // first point may also create bodies it has not written yet: prose,
+        // which is.)
         for _ in 0..2 {
             call(
                 &ws,
@@ -457,8 +463,12 @@ mod tests {
             );
             let saved = changes();
             assert!(
-                saved.contains(&(book_doc.clone(), false)),
+                saved.contains(&(points_doc.clone(), false)),
                 "the manifest: {saved:?}"
+            );
+            assert!(
+                !saved.iter().any(|(doc, _)| *doc == book_doc),
+                "no commit to the book document: {saved:?}"
             );
             assert!(
                 saved

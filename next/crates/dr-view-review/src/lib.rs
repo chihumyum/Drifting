@@ -73,10 +73,9 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
     let subscription = lib.as_ref().map(|lib| {
         lib.subscribe(move |e| {
             // Comments, their targets and the entries they hang on are the
-            // book's content: a writing day or a saved checkpoint is not.
-            if let WsEvent::Book(b) = e
-                && b.touched.content
-            {
+            // book's content. (Writing days and saved checkpoints live beside
+            // the book document and have events of their own.)
+            if let WsEvent::Book(b) = e {
                 let _ = tx.unbounded_send((b.book.to_string(), true));
             }
         })

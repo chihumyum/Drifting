@@ -840,9 +840,7 @@ impl Workspace {
                 // The lists are the book's content. A writing day or a saved
                 // checkpoint is a commit to the same document and changes
                 // none of them: nothing is read again for those.
-                WsEvent::Book(b) if b.book.as_str() == self.book_id && b.touched.content => {
-                    reload_book = true
-                }
+                WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
                 WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
                     for entity in r.entities {
                         if entity.target == dr_workspace::NavTarget::Book && entity.purged {

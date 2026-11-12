@@ -120,7 +120,7 @@ impl Paths {
 }
 
 fn plain_identity(path: &[String]) -> bool {
-    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts" | "entry_checkpoints"))
+    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts"))
         || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
 }
 
@@ -192,7 +192,34 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
             map_grid_lines(&mut rw, key);
         }
     });
-    // Only the book uses genesis v3; prose/conversation keep their own version.
+    // The checkpoint manifests' history, in `checkpoints:<book>`: every id a
+    // manifest was ever stored under, the thinned ones included.
+    let points = read
+        .docs
+        .iter()
+        .find(|(entry, _)| entry.id == DocId::Checkpoints(book_id.clone()).to_string())
+        .map(|(_, bytes)| -> Result<_> {
+            let doc = LoroDoc::new();
+            doc.import(bytes).map_err(damaged)?;
+            let json = doc
+                .export_json_updates_without_peer_compression(
+                    &VersionVector::default(),
+                    &doc.oplog_vv(),
+                )
+                .map_err(damaged)?;
+            let paths = Paths::of(&json.changes);
+            Ok((json, paths))
+        })
+        .transpose()?;
+    if let Some((json, paths)) = &points {
+        each_key(&json.changes, paths, |path, key| {
+            if path == ["entry_checkpoints"] {
+                fresh(&mut rw, key);
+            }
+        });
+    }
+    // Each kind of document keeps its own genesis version: the book its
+    // format's, the documents beside it theirs, prose and conversations theirs.
     let mut seen = std::collections::HashSet::new();
     for (entry, bytes) in &read.docs {
         if !seen.insert(&entry.id) {
@@ -200,9 +227,13 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         }
         let doc = LoroDoc::new();
         doc.import(bytes).map_err(damaged)?;
+        let kind = DocId::parse(&entry.id).map_err(damaged)?.kind();
         match DocId::parse(&entry.id).map_err(damaged)? {
             DocId::Book(id) if id == book_id => {}
             DocId::Book(_) => return Err(damaged("foreign book document")),
+            DocId::Stats(id) | DocId::Checkpoints(id) if id != book_id => {
+                return Err(damaged("foreign document beside the book"));
+            }
             DocId::Template(t) if t.entry_module().is_some_and(|(b, _, _)| b != book_id) => {
                 return Err(damaged("foreign template document"));
             }
@@ -214,15 +245,15 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         {
             return Err(damaged("document identity does not match the manifest"));
         }
-        let version = if dr_doc::v3::is_v3_doc(&doc) {
-            schema::GENESIS_VERSION_V3
-        } else {
-            GENESIS_VERSION
+        let newest = match kind {
+            DocKind::Book => schema::BOOK_GENESIS_VERSION,
+            DocKind::Stats | DocKind::Checkpoints => schema::SIDE_GENESIS_VERSION,
+            _ => GENESIS_VERSION,
         };
-        let old = (1..=version)
+        let (version, old) = (1..=newest)
             .rev()
-            .map(|v| genesis_peer(&entry.id, v))
-            .find(|p| doc.oplog_vv().get(p).is_some())
+            .map(|v| (v, genesis_peer(&entry.id, v)))
+            .find(|(_, p)| doc.oplog_vv().get(p).is_some())
             .ok_or_else(|| damaged(format!("{}: missing genesis", entry.id)))?;
         let id = rw
             .doc_id(&entry.id)
@@ -241,7 +272,9 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
                 .insert(key.into(), format!("todo:{kind}:{doc}#{}", rw.text(block)));
         }
     });
-    checkpoints::prepare(read, &mut rw, &json.changes, &paths)?;
+    if let Some((json, paths)) = &points {
+        checkpoints::prepare(read, &mut rw, &json.changes, paths)?;
+    }
     Ok(rw)
 }
 
@@ -290,8 +323,12 @@ fn map_grid_lines(rw: &mut Rewrite, key: &str) {
 struct Rewriter<'a> {
     rw: &'a Rewrite,
     paths: Paths,
+    /// The book document: its entities' ids and references move.
     book: bool,
+    /// A conversation: its payloads are immutable.
     conversation: bool,
+    /// `checkpoints:<book>`: the manifests' ids and contents move.
+    points: bool,
     source: &'a LoroDoc,
 }
 
@@ -353,6 +390,9 @@ impl Rewriter<'_> {
     }
 
     fn key(&self, path: &[String], key: &str) -> String {
+        if self.points && path == ["entry_checkpoints"] {
+            return self.rw.text(key);
+        }
         if !self.book {
             return key.into();
         }
@@ -428,7 +468,7 @@ impl Rewriter<'_> {
         if let LoroValue::Container(c) = value {
             return LoroValue::Container(self.container(c));
         }
-        if self.book
+        if self.points
             && path == ["entry_checkpoints"]
             && let LoroValue::String(encoded) = value
             && let Some(mapped) = self.rw.checkpoints.get(encoded.as_str())
@@ -599,7 +639,8 @@ impl Rewriter<'_> {
     }
 }
 
-pub(super) fn rewrite_doc(rw: &Rewrite, bytes: &[u8]) -> Result<LoroDoc> {
+pub(super) fn rewrite_doc(rw: &Rewrite, id: &str, bytes: &[u8]) -> Result<LoroDoc> {
+    let kind = DocId::parse(id).map_err(damaged)?.kind();
     let source = LoroDoc::new();
     source.import(bytes).map_err(damaged)?;
     let mut json = source
@@ -610,8 +651,9 @@ pub(super) fn rewrite_doc(rw: &Rewrite, bytes: &[u8]) -> Result<LoroDoc> {
         rw,
         paths,
         source: &source,
-        book: dr_doc::v3::is_v3_doc(&source),
-        conversation: source.get_map("meta").get("doc").is_some_and(|v| matches!(v, ValueOrContainer::Value(LoroValue::String(s)) if s.starts_with("conversation:"))),
+        book: kind == DocKind::Book,
+        conversation: kind == DocKind::Conversation,
+        points: kind == DocKind::Checkpoints,
     };
     for change in &mut json.changes {
         writer.change(change)?;

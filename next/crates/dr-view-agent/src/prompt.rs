@@ -33,7 +33,7 @@ pub(crate) fn refresh_v3(
         .library()
         .load_copy(&format!("book:{book}"))
         .map_err(|e| e.to_string())?;
-    if !dr_doc::v3::is_v3_doc(&copy) {
+    if !dr_doc::v3::is_book_doc(&copy) {
         return Err("only canonical v3 books support the Agent".into());
     }
     {

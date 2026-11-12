@@ -779,6 +779,7 @@
       "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
       "newer": "This book was exported by a newer Drifting. Update Drifting first.",
       "notABook": "This is not a book exported from Drifting.",
+      "older": "This book was exported by an earlier development build of Drifting, in a format this version no longer reads.",
       "tooLarge": "This book is too large to import."
     },
     "delete": {

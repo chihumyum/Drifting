@@ -301,7 +301,10 @@ fn v3_import_rolls_back_prose_if_the_book_genesis_is_damaged() {
         files.insert(name, bytes);
     }
     let mut manifest: serde_json::Value = serde_json::from_slice(&files["manifest.json"]).unwrap();
-    assert_eq!(manifest["formatVersion"], 3);
+    assert_eq!(
+        manifest["formatVersion"],
+        dr_export::book_file::FORMAT_VERSION
+    );
     let entry = manifest["documents"]
         .as_array_mut()
         .unwrap()
@@ -313,8 +316,10 @@ fn v3_import_rolls_back_prose_if_the_book_genesis_is_damaged() {
     let mut changes = doc
         .export_json_updates_without_peer_compression(&VersionVector::default(), &doc.oplog_vv())
         .unwrap();
-    let genesis =
-        dr_doc::peer::genesis_peer(&format!("book:{book}"), dr_doc::schema::GENESIS_VERSION_V3);
+    let genesis = dr_doc::peer::genesis_peer(
+        &format!("book:{book}"),
+        dr_doc::schema::BOOK_GENESIS_VERSION,
+    );
     let change = changes
         .changes
         .iter_mut()

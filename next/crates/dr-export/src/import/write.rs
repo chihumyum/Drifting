@@ -225,7 +225,7 @@ fn import_one(
         .library()
         .load_copy(&format!("book:{book}"))
         .map_err(dr_workspace::WsError::from)?;
-    if !dr_doc::v3::is_v3_doc(&copy) {
+    if !dr_doc::v3::is_book_doc(&copy) {
         return Err(ExportError::Invalid("canonical v3 book required".into()));
     }
     let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id)

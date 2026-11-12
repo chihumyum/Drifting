@@ -40,18 +40,19 @@ fn an_imported_library_is_indexed_when_it_opens() {
     let stale = lib.stale_index_docs().unwrap();
     assert_eq!(
         stale.len(),
-        9,
-        "six bodies, the two body templates and the book: {stale:?}"
+        11,
+        "six bodies, the two body templates, the book and the two documents beside it: {stale:?}"
     );
-    assert_eq!(lib.rebuild_stale_indexes().unwrap(), 9);
+    assert_eq!(lib.rebuild_stale_indexes().unwrap(), 11);
     assert!(lib.stale_index_docs().unwrap().is_empty());
 
-    // Every body's counts are what dr-doc reads from it; a template is not
-    // the book's text (`DocKind::is_book_text`).
+    // Every body's counts are what dr-doc reads from it; a template and the
+    // two documents beside the book are not the book's text
+    // (`DocKind::is_book_text`).
     let mut total = 0;
     for id in stale
         .iter()
-        .filter(|d| !d.starts_with("book:") && !d.starts_with("template:"))
+        .filter(|d| DocId::parse(d).unwrap().kind().is_book_text())
     {
         let doc_id = DocId::parse(id).unwrap();
         let snap = lib
@@ -66,8 +67,20 @@ fn an_imported_library_is_indexed_when_it_opens() {
         total += got.words;
     }
     assert_eq!(lib.book_stats(old::BOOK).unwrap().words, total);
-    // The templates are indexed empty: their words are not the book's.
-    for id in stale.iter().filter(|d| d.starts_with("template:")) {
+    // The templates and the two documents beside the book are indexed
+    // empty: their words are not the book's.
+    let not_text = ["template:", "stats:", "checkpoints:"];
+    assert_eq!(
+        stale
+            .iter()
+            .filter(|d| not_text.iter().any(|p| d.starts_with(p)))
+            .count(),
+        4
+    );
+    for id in stale
+        .iter()
+        .filter(|d| not_text.iter().any(|p| d.starts_with(p)))
+    {
         assert_eq!(lib.doc_stats(id).unwrap().unwrap().words, 0, "{id}");
     }
     assert!(lib.search(Some(old::BOOK), "外貌", 10).unwrap().is_empty());

@@ -140,11 +140,19 @@ fn several_devices_meet_on_one_text() {
 fn a_book_ages_the_same_way_twice_and_says_what_it_did() {
     let seeded = tiny();
     let plan = BookAging::days(40);
-    let aged = book::age(&seeded.book, &plan).unwrap();
-    let again = book::age(&seeded.book, &plan).unwrap();
+    let aged = book::age(&seeded, &plan).unwrap();
+    let again = book::age(&seeded, &plan).unwrap();
     assert_eq!(
         aged.doc.export_snapshot().unwrap(),
         again.doc.export_snapshot().unwrap()
+    );
+    assert_eq!(
+        aged.writing.export_snapshot().unwrap(),
+        again.writing.export_snapshot().unwrap()
+    );
+    assert_eq!(
+        aged.points.export_snapshot().unwrap(),
+        again.points.export_snapshot().unwrap()
     );
     let s = aged.stats;
     assert_eq!(s.commits, aged.commits.len());
@@ -159,12 +167,12 @@ fn a_book_ages_the_same_way_twice_and_says_what_it_did() {
     );
 
     let view = aged.doc.view();
-    // One key per device and day, each device's own.
-    let days = view.writing_days();
+    // One key per device and day, each device's own, and the seed's five.
+    let days = aged.writing.view().writing_days();
     assert!(days.len() as u32 >= s.working_days, "{s:?}");
     assert!(days.len() as u32 <= 2 * s.working_days + 5, "{s:?}");
     assert_eq!(
-        view.entry_checkpoints().len(),
+        aged.points.view().entry_checkpoints().len(),
         s.checkpoints_saved - s.checkpoints_thinned
     );
     assert!(view.comments().len() >= s.comments);
@@ -172,45 +180,40 @@ fn a_book_ages_the_same_way_twice_and_says_what_it_did() {
 }
 
 #[test]
-fn leaving_one_kind_out_leaves_the_rest_alone() {
+fn writing_days_and_checkpoints_live_beside_the_book_document() {
     let seeded = tiny();
-    let all = book::age(&seeded.book, &BookAging::days(25)).unwrap();
-    let without = book::age(
-        &seeded.book,
-        &BookAging {
-            without_writing_days: true,
-            without_checkpoints: true,
-            ..BookAging::days(25)
-        },
-    )
-    .unwrap();
-    assert!(without.doc.view().entry_checkpoints().is_empty());
-    assert_eq!(
-        without.doc.view().writing_days(),
-        seeded.book.view().writing_days(),
-        "only the seed's own writing days"
-    );
-    let rest = |commits: &[Commit]| -> Vec<(i64, u8, Kind)> {
-        commits
-            .iter()
-            .filter(|c| !matches!(c.kind, Kind::WritingDay | Kind::Checkpoint))
-            .map(|c| (c.ts, c.device, c.kind))
-            .collect()
+    let aged = book::age(&seeded, &BookAging::days(25)).unwrap();
+    let s = aged.stats;
+    assert!(s.writing_day_writes > 0 && s.checkpoints_saved > 0, "{s:?}");
+    // Each kind of commit names the document it went to.
+    for c in &aged.commits {
+        let want = match c.kind {
+            Kind::WritingDay => "stats",
+            Kind::Checkpoint => "checkpoints",
+            _ => "book",
+        };
+        assert_eq!(c.kind.document(), want, "{c:?}");
+    }
+    // The book document has neither root: nothing the aging recorded about
+    // words or checkpoints went into it.
+    let book = loro::LoroDoc::new();
+    book.import(&aged.doc.export_snapshot().unwrap()).unwrap();
+    let loro::LoroValue::Map(roots) = book.get_deep_value() else {
+        panic!("a document's value is a map of its roots");
     };
-    assert_eq!(rest(&all.commits), rest(&without.commits));
-    assert_eq!(without.stats.writing_day_writes, 0);
-    assert_eq!(without.stats.checkpoints_saved, 0);
-    assert!(
-        without.doc.export_snapshot().unwrap().len() < all.doc.export_snapshot().unwrap().len()
-    );
+    for root in ["writing_days", "entry_checkpoints"] {
+        assert!(!roots.contains_key(root), "{root} in the book document");
+    }
+    assert!(!aged.writing.view().writing_days().is_empty());
+    assert!(!aged.points.view().entry_checkpoints().is_empty());
 }
 
 #[test]
 fn siblings_earn_no_checkpoint_unless_the_plan_asks_for_the_old_rule() {
     let seeded = tiny();
-    let now = book::age(&seeded.book, &BookAging::days(40)).unwrap();
+    let now = book::age(&seeded, &BookAging::days(40)).unwrap();
     let before = book::age(
-        &seeded.book,
+        &seeded,
         &BookAging {
             sibling_checkpoints: true,
             ..BookAging::days(40)
@@ -233,7 +236,9 @@ fn siblings_earn_no_checkpoint_unless_the_plan_asks_for_the_old_rule() {
     // A created idea and a moved chapter still earn theirs.
     assert!(now.stats.entries_created > 0, "{:?}", now.stats);
     let view = now.doc.view();
-    let pointed: std::collections::BTreeSet<String> = view
+    let pointed: std::collections::BTreeSet<String> = now
+        .points
+        .view()
         .entry_checkpoints()
         .iter()
         .map(|(_, manifest)| {
@@ -273,13 +278,22 @@ fn siblings_earn_no_checkpoint_unless_the_plan_asks_for_the_old_rule() {
         ..s
     };
     assert_eq!(stats(now.stats), stats(before.stats));
-    assert!(now.doc.export_snapshot().unwrap().len() < before.doc.export_snapshot().unwrap().len());
+    // The siblings' checkpoints only ever made the checkpoint list bigger;
+    // the book document is the same either way.
+    assert!(
+        now.points.export_snapshot().unwrap().len()
+            < before.points.export_snapshot().unwrap().len()
+    );
+    assert_eq!(
+        now.doc.export_snapshot().unwrap(),
+        before.doc.export_snapshot().unwrap()
+    );
 }
 
 #[test]
 fn every_entry_fingerprint_read_at_once_is_the_one_read_by_itself() {
     let seeded = tiny();
-    let aged = book::age(&seeded.book, &BookAging::days(40)).unwrap();
+    let aged = book::age(&seeded, &BookAging::days(40)).unwrap();
     for doc in [&seeded.book, &aged.doc] {
         let view = doc.view();
         let entries = view.entries_raw();
@@ -327,15 +341,22 @@ fn uploads_group_commits_by_device_and_cycle() {
         c(1_000 + 86_400, 0, Kind::WritingDay),
     ];
     let each = book::uploads(&commits, 0);
-    assert_eq!((each.batches, each.writing_day_only), (5, 4));
-    assert_eq!((each.bytes, each.writing_day_bytes), (500, 400));
-    assert_eq!(each.per_working_day, 2.5);
-    // Cycles of 8 s: the first device's field edit shares one with its
-    // writing day; the other device has its own.
+    assert_eq!(
+        (each.batches, each.book, each.stats, each.checkpoints),
+        (5, 1, 4, 0)
+    );
+    assert_eq!((each.bytes, each.book_bytes), (500, 100));
+    assert_eq!(
+        (each.per_working_day, each.book_per_working_day),
+        (2.5, 0.5)
+    );
+    // Cycles of 8 s: each document goes in its own batch, so the first
+    // device's field edit does not share one with its writing day; the
+    // other device has its own.
     let cycles = book::uploads(&commits, 8);
-    assert_eq!((cycles.batches, cycles.writing_day_only), (4, 3));
+    assert_eq!((cycles.batches, cycles.book, cycles.stats), (5, 1, 4));
     let slow = book::uploads(&commits, 300);
-    assert_eq!((slow.batches, slow.writing_day_only), (3, 2));
+    assert_eq!((slow.batches, slow.book, slow.stats), (4, 1, 3));
 }
 
 #[test]
@@ -359,7 +380,7 @@ fn an_aged_document_is_stored_like_a_seeded_one() {
         ws.library(),
         seeded.book.book_id(),
         seeded.book.doc_id(),
-        dr_doc::v3::genesis_v3(seeded.book.book_id()),
+        dr_doc::v3::book_genesis(seeded.book.book_id()),
         seeded.book.export_updates_since(&all).unwrap(),
     )
     .unwrap();

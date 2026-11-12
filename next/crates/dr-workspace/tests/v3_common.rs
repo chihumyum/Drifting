@@ -31,10 +31,11 @@ fn writing_days_dispatch_by_version_preserve_other_books_and_do_not_enter_undo()
         assert!(out["journal"].is_null());
         assert!(out["undo"].is_null());
     }
+    // The book documents are untouched: the writing days live in
+    // `stats:<book>`, beside them.
     let after_a = e.ws().observe(&format!("book:{a}")).unwrap();
-    let mut expected = before_a.value.clone();
-    expected["writing_days"] = after_a.value["writing_days"].clone();
-    assert_eq!(expected, after_a.value);
+    assert_eq!(before_a.value, after_a.value);
+    assert_eq!(before_a.version, after_a.version);
     let args = json!({"book":a,"device":device,"day":"2026-11-10","words":12});
     e.call("writing_day.record", args);
     assert_eq!(
@@ -370,7 +371,7 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
     );
     assert_eq!(
         <legacy::CommentCreate as dr_workspace::Op>::BOOK_VERSION,
-        Some(3)
+        Some(dr_doc::schema::BOOK_SCHEMA_VERSION)
     );
     let reanchor: legacy::CommentReanchorIn =
         serde_json::from_value(json!({"book":b,"id":a,"anchor":null})).unwrap();

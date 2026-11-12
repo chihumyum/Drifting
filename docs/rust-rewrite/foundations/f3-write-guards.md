@@ -86,11 +86,11 @@
 | `memory.add` | 无 |
 | `memory.update` | `memory/<记忆>` |
 | `memory.remove`、`memory.restore` | `memory/<记忆>/deleted_at` |
-| `writing_day.record` | 无（本机这一天自己的计数，没有别的写入方） |
+| `writing_day.record` | 无：它不写书目文档，只写 `stats:<书>`（本机这一天自己的计数，没有别的写入方）；调用方带来的书目前置条件在写之前用一次书目读任务比对 |
 | `entry_history.restore` | 每个目标的 `<集合>/<id>` |
 | `membership.restore`、`timeline_view.restore_fields` | 无（撤销 / 重做的逆操作，自己在写任务里逐字段比对 `expected`） |
 | `history.restore_point` 的书目部分 | 整篇版本（受守卫的调用本来就拒绝这条命令） |
-| `entry_snapshot.*`（原子建点和恢复） | 整篇版本，走原来的 `check_atomic_guards`；带来的记录前置条件一并比对 |
+| `entry_snapshot.*`（原子建点和恢复） | 整篇版本，走原来的 `check_atomic_guards`；带来的记录前置条件一并比对。清单在 `checkpoints:<书>`，和书目、正文一起预留但不参加守卫；存点时书目只读，所以不再推进书目的版本 |
 
 正文命令（`prose.*`、`module.set_prose`、`module.replace_prose`）和批注对来源正文的读取，照旧按正文文档的版本。
 

@@ -147,7 +147,8 @@ fn v3_sample_documents_store_body_first_and_reopen_as_v3() {
         dr_store::LibraryOptions::new("k3-v3-sample-test"),
     )
     .unwrap();
-    assert_eq!(write_book(&lib, &sample).unwrap(), sample.prose.len() + 1);
+    // Prose, the two documents beside the book, the book.
+    assert_eq!(write_book(&lib, &sample).unwrap(), sample.prose.len() + 3);
     let id = sample.book.doc_id().to_string();
     let copy = lib.load_copy(&id).unwrap();
     let bytes = copy.export(loro::ExportMode::Snapshot).unwrap();
@@ -233,8 +234,8 @@ fn two_samples_in_one_library_survive_permanent_deletion_of_either_book() {
         };
         let removed = documents(samples[deleted].book_id());
         let kept = documents(survivor.book_id());
-        assert_eq!(removed.len(), samples[deleted].prose.len() + 1);
-        assert_eq!(kept.len(), survivor.prose.len() + 1);
+        assert_eq!(removed.len(), samples[deleted].prose.len() + 3);
+        assert_eq!(kept.len(), survivor.prose.len() + 3);
         assert!(removed.is_disjoint(&kept));
         let before: BTreeMap<_, _> = kept
             .iter()

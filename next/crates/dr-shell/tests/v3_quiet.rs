@@ -1,7 +1,8 @@
-//! The window reads the book's lists again when the book's content changed,
-//! not for every commit to its document: the writing-day recorder commits
-//! once a minute and every saved entry checkpoint commits once, and neither
-//! changes anything the lists hold.
+//! The window reads the book's lists again when the book's content changed.
+//! The writing-day recorder writes once a minute and every saved entry
+//! checkpoint once, both to documents beside the book (`stats:<book>`,
+//! `checkpoints:<book>`): neither is a commit to the book document, and
+//! neither changes anything the lists hold.
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -96,14 +97,14 @@ fn a_writing_day_or_a_saved_checkpoint_does_not_read_the_book_again(cx: &mut gpu
     });
     assert_eq!(lib.version(&doc).unwrap(), revision);
 
-    // Commits to the book document that are none of its content: this
-    // device's writing day, an automatic checkpoint of a chapter, one the
-    // author saved. Each moves the document's version on. (What arrives
-    // from another device is told apart the same way: dr-workspace's
-    // `changes_from_another_device_are_told_apart_the_same_way`.)
+    // Writes that are none of the book's content: this device's writing
+    // day, an automatic checkpoint of a chapter, one the author saved. None
+    // of them is a commit to the book document. (What arrives from another
+    // device goes to the same documents: dr-workspace's
+    // `changes_from_another_device_reach_the_document_they_belong_to`.)
     let mut commits = 0;
     let mut moved = |what: &str, before: String| {
-        assert_ne!(lib.version(&doc).unwrap(), before, "{what}");
+        assert_eq!(lib.version(&doc).unwrap(), before, "{what}");
         commits += 1;
     };
     for words in [40, 95, 130] {
@@ -141,10 +142,10 @@ fn a_writing_day_or_a_saved_checkpoint_does_not_read_the_book_again(cx: &mut gpu
         assert!(Rc::ptr_eq(&ws.book, &snapshot), "the lists were replaced");
         assert_eq!(ws.book.v3().unwrap().revision, revision);
     });
-    assert_ne!(lib.version(&doc).unwrap(), revision);
+    assert_eq!(lib.version(&doc).unwrap(), revision);
 
     // The book's content: read again, once, and the lists carry the change
-    // (and are as new as the document, writing days and checkpoint included).
+    // (and are as new as the document).
     call(
         &lib,
         "entry.update",
@@ -169,10 +170,10 @@ fn a_writing_day_or_a_saved_checkpoint_does_not_read_the_book_again(cx: &mut gpu
     });
 }
 
-/// The commits one working day makes to the book document, at the rates of
-/// the aging model (docs/rust-rewrite/spikes/history-aging.md: three years,
-/// two devices, per working day): 62 of the writing-day recorder, 16 saved
-/// checkpoints, 17 changes to the book's content. They come minutes apart,
+/// The writes one working day makes, at the rates of the aging model
+/// (docs/rust-rewrite/spikes/history-aging.md: three years, two devices, per
+/// working day): 62 of the writing-day recorder and 16 saved checkpoints,
+/// beside the book document, and 17 changes to the book's content, in it. They come minutes apart,
 /// so each is let through before the next.
 #[gpui::test]
 fn a_day_of_writing_reads_the_book_once_for_each_change_to_its_content(
@@ -241,10 +242,11 @@ fn a_day_of_writing_reads_the_book_once_for_each_change_to_its_content(
     let commit = |cx: &mut VisualTestContext, counted: &mut usize, name: &str, input: Value| {
         let before = lib.version(&doc).unwrap();
         call(&lib, name, input);
-        assert_ne!(
-            lib.version(&doc).unwrap(),
-            before,
-            "{name} commits to the book"
+        let content = !matches!(name, "writing_day.record" | "entry_snapshot.capture");
+        assert_eq!(
+            lib.version(&doc).unwrap() != before,
+            content,
+            "{name}: only the book's content commits to the book document"
         );
         *counted += 1;
         // Minutes pass before the next: whatever this one asked for is done.
@@ -304,6 +306,6 @@ fn a_day_of_writing_reads_the_book_once_for_each_change_to_its_content(
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book_reads) - reads,
         17,
-        "95 commits to the book document, 17 of them to its content"
+        "95 writes, 17 of them to the book's content"
     );
 }

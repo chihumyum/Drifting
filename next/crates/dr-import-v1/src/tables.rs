@@ -11,6 +11,9 @@ use serde::Serialize;
 pub enum Fate {
     /// Authored rows: become entries of the book document (F1 书目文档).
     BookDoc,
+    /// Writing days: the book's `stats:<book>` document, beside the book
+    /// document (`kernel-v4.md` §8).
+    StatsDoc,
     /// Prose bodies: one prose document each (F1 正文文档).
     ProseDoc,
     /// Read to decide how fresh the `contentJson` cache is; not imported.
@@ -321,7 +324,11 @@ pub const TABLES: &[TableFate] = &[
     t("timeline_marker", BookDoc, "书目文档：时间钉"),
     t("workspace_projection_change", Drop, "界面失效提示"),
     t("workspace_projection_clock", Drop, "界面失效提示"),
-    t("writing_day", BookDoc, "书目文档：写作日，按（设备，日期）"),
+    t(
+        "writing_day",
+        StatsDoc,
+        "统计文档 stats:<书>：写作日，按（设备，日期）",
+    ),
     t(
         "yjs_document_revision",
         ProseEvidence,

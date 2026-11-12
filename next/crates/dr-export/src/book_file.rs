@@ -54,7 +54,10 @@ use crate::files::readable_stem;
 mod v3;
 
 pub const FORMAT: &str = "drifting.book";
-pub const FORMAT_VERSION: u32 = 3;
+/// 4 from `kernel-v4.md`: the book's writing days and checkpoint manifests
+/// travel in `stats:<book>` and `checkpoints:<book>`. Only this version is
+/// read; 3 was written only by development builds before it.
+pub const FORMAT_VERSION: u32 = 4;
 pub const EXTENSION: &str = "driftingbook";
 /// The largest book file read or written (the 0.1 limit).
 pub const MAX_BYTES: u64 = 1024 * 1024 * 1024;
@@ -74,6 +77,10 @@ pub enum BookFileError {
     /// Made by a newer Drifting.
     #[error("the book was exported by a newer Drifting")]
     Newer,
+    /// Exported by an earlier development build of this client, in a format
+    /// this build no longer reads (format 3 and before).
+    #[error("the book was exported by an earlier build, in a format no longer read")]
+    Older,
     #[error("the book is larger than a book file can hold")]
     TooLarge,
     /// Damaged: a checksum, a document or the manifest does not hold up.
@@ -382,6 +389,10 @@ fn read_file(path: &Path) -> Result<Contents> {
     if header.format_version > FORMAT_VERSION {
         return Err(BookFileError::Newer);
     }
+    // 3: written by development builds of this client before `kernel-v4.md`.
+    if header.format_version == 3 {
+        return Err(BookFileError::Older);
+    }
     if header.format_version < FORMAT_VERSION {
         return Err(BookFileError::Legacy);
     }
@@ -539,10 +550,10 @@ impl Rewrite {
         self.string(s).unwrap_or_else(|| s.to_owned())
     }
 
-    /// A document's changes with the ids and the genesis peer moved, as a
-    /// new document.
-    fn doc(&self, bytes: &[u8]) -> Result<LoroDoc> {
-        v3::rewrite_doc(self, bytes)
+    /// Document `id`'s changes with the ids and the genesis peer moved, as a
+    /// new document. How its contents are rewritten follows its kind.
+    fn doc(&self, id: &str, bytes: &[u8]) -> Result<LoroDoc> {
+        v3::rewrite_doc(self, id, bytes)
     }
 }
 
@@ -565,9 +576,9 @@ fn rewrite_for(read: &Contents) -> Result<Rewrite> {
     let book = LoroDoc::new();
     book.import(bytes)
         .map_err(|e| BookFileError::Damaged(e.to_string()))?;
-    if read.manifest.format_version != FORMAT_VERSION || !dr_doc::v3::is_v3_doc(&book) {
+    if read.manifest.format_version != FORMAT_VERSION || !dr_doc::v3::is_book_doc(&book) {
         return Err(BookFileError::Damaged(
-            "archive must contain a canonical v3 book".into(),
+            "archive must contain a current-format book".into(),
         ));
     }
     v3::rewrite_for(read, &book)
@@ -645,12 +656,12 @@ pub fn import_book(
             let new_id = rw.doc_id(&d.id).expect("mapped");
             let doc_id =
                 DocId::parse(&new_id).map_err(|e| BookFileError::Damaged(e.to_string()))?;
-            let doc = rw.doc(bytes)?;
+            let doc = rw.doc(&d.id, bytes)?;
             let update = doc
                 .export(ExportMode::all_updates())
                 .map_err(|e| BookFileError::Damaged(e.to_string()))?;
             let genesis = match doc_id.kind() {
-                DocKind::Book => dr_doc::v3::genesis_v3(match &doc_id {
+                DocKind::Book => dr_doc::v3::book_genesis(match &doc_id {
                     DocId::Book(b) => b,
                     _ => unreachable!(),
                 }),
@@ -658,6 +669,9 @@ pub fn import_book(
                     DocId::Conversation(id) => id,
                     _ => unreachable!(),
                 }),
+                DocKind::Stats | DocKind::Checkpoints => {
+                    dr_doc::side::genesis(&doc_id).expect("a document beside the book")
+                }
                 _ => dr_doc::prose::genesis(&doc_id),
             };
             let h = lib.open_doc(

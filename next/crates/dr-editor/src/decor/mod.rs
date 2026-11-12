@@ -372,7 +372,7 @@ impl Layers {
             let notice = match e {
                 // Comments and names are the book's content: a writing day
                 // or a saved checkpoint changes neither.
-                WsEvent::Book(b) if b.book.to_string() == book && b.touched.content => {
+                WsEvent::Book(b) if b.book.to_string() == book => {
                     if b.changes
                         .iter()
                         .any(|c| c.collection == Collection::Comments)

@@ -179,7 +179,10 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     adapter::validate(view).unwrap();
     let counts = expected.counts();
     assert_eq!(view.entries_raw().len(), counts.levels + counts.leaves);
-    assert_eq!(view.meta().schema_version, 3);
+    assert_eq!(
+        view.meta().schema_version,
+        dr_doc::schema::BOOK_SCHEMA_VERSION
+    );
     assert_eq!(
         view.manuscript_leaves(&entry_id(view, &manifest::Entry::Manuscript))
             .iter()
@@ -551,8 +554,26 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         view.memory().len(),
         expected.source_rows["agent_memory"].len()
     );
+    // Writing days live beside the book document, in `stats:<book>`.
+    let stats_id = format!("stats:{}", view.book_id());
+    let writing_days = {
+        let h = lib
+            .open_doc(&stats_id, dr_store::OpenDoc::Existing)
+            .unwrap();
+        let book = view.book_id().clone();
+        let days = h
+            .read(move |d| {
+                dr_doc::side::BorrowedStats::new(d, &book)
+                    .unwrap()
+                    .view()
+                    .writing_days()
+            })
+            .unwrap();
+        h.close();
+        days
+    };
     assert_eq!(
-        view.writing_days().len(),
+        writing_days.len(),
         expected.source_rows["writing_day"].len()
     );
     for row in &expected.source_rows["library_item"] {
@@ -617,7 +638,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     }
     for row in &expected.source_rows["writing_day"] {
         assert!(
-            view.writing_days()
+            writing_days
                 .iter()
                 .any(|d| d.device.as_str() == row["device_key"].as_str().unwrap()
                     && d.day.to_string() == row["day"].as_str().unwrap()

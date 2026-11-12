@@ -451,7 +451,7 @@ impl PlotPlanner {
         self._events = Some(self.host.library.subscribe(move |event| {
             // The grid is the book's content; a writing day or a saved
             // checkpoint is not.
-            if matches!(event, WsEvent::Book(b) if b.book.as_str() == book && b.touched.content) {
+            if matches!(event, WsEvent::Book(b) if b.book.as_str() == book) {
                 let _ = tx.unbounded_send(());
             }
         }));

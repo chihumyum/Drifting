@@ -920,7 +920,7 @@ impl ShelfReviewView {
         self._lib_sub = Some(lib.subscribe(move |ev| {
             // Relations and entry links are the book's content; a writing
             // day or a saved checkpoint changes none of them.
-            if matches!(ev, WsEvent::Book(b) if b.book.as_str() == watched && b.touched.content) {
+            if matches!(ev, WsEvent::Book(b) if b.book.as_str() == watched) {
                 let _ = tx.unbounded_send(());
             }
         }));

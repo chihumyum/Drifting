@@ -363,3 +363,9 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 本轮真实窗口验收（`f5ca535b` 基线，2026-11-08）：`restore.json` 64 步通过、0 跳过；恢复确认、恢复后书架、无效备份的截图在 `next/target/acceptance/legacy-m41-restore/`，结果与截图只留作本机产物，不提交。
 
 交回前检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`（1675 通过、22 忽略）、`cargo xtask check`、`pnpm public:check` 全部通过。审计 0 漏洞，既有 12 条依赖提示及过期测量提示保留；本轮没有重测性能。
+
+## 书文件格式 4（2026-11-13，[kernel-v4.md](../kernel-v4.md) §8）
+
+- `.driftingbook` 的 `formatVersion` 升到 4，只读 4。3 是这个客户端以前的开发版写的，报「以前开发版的格式，这一版不读」（`BookFileError::Older`，界面文案 `projectPicker.bookTransfer.older`）；更早的照旧报 0.1 的书。
+- 书旁边的两篇文档 `stats:<书>`、`checkpoints:<书>` 登记在书名下，导出时自动各占一个 `docs/<n>.loro`，书目文档仍排最后。导入时按文档 id 的种类选创世（两篇小文档用它们自己的创世版本 1）和改写方式，不再靠 `meta.v`、`meta.doc` 嗅探：清单文档里每次写过的快照点 id 都换新 id、清单内容按新 id 改写并重算指纹（核对规则照旧）；统计文档只换 `meta.doc`。小文档的 id 里的书不是这本书就拒绝，什么都不写。
+

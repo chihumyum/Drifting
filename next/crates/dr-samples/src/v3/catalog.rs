@@ -967,10 +967,35 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .supersedes(memory.supersedes.as_ref())?
             .deleted_at(memory.deleted_at)?;
     }
-    for day in source.writing_days() {
-        txn.writing_day(&day.device, &day.day, day.words)?;
-    }
     Ok(())
+}
+
+/// The two documents beside a converted book (`kernel-v4.md` §8): its writing
+/// days copied from the source catalog, written once at `ts`, and an empty
+/// checkpoints document (a 0.1 library has no entry checkpoints). Both are
+/// written by the deterministic import peer of their own id, so the same
+/// source gives the same bytes on every device and on a resumed import.
+pub fn side_documents(
+    book: &BookId,
+    source: &BookView<'_>,
+    ts: i64,
+) -> Result<(dr_doc::side::StatsDoc, dr_doc::side::CheckpointsDoc)> {
+    use dr_doc::peer::import_peer;
+    let stats_id = dr_model::DocId::Stats(book.clone()).to_string();
+    let mut stats = dr_doc::side::StatsDoc::create(book.clone(), import_peer(&stats_id))?;
+    let days = source.writing_days();
+    if !days.is_empty() {
+        let (r, _) = stats.edit_at(dr_model::Origin::Import, Some(ts), |t| {
+            for day in &days {
+                t.writing_day(&day.device, &day.day, day.words)?;
+            }
+            Ok(())
+        });
+        r?;
+    }
+    let points_id = dr_model::DocId::Checkpoints(book.clone()).to_string();
+    let checkpoints = dr_doc::side::CheckpointsDoc::create(book.clone(), import_peer(&points_id))?;
+    Ok((stats, checkpoints))
 }
 
 pub(crate) fn target_doc(target: &EntityRef) -> Option<DocId> {

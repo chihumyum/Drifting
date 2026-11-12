@@ -280,6 +280,10 @@ pub const DOC_KIND_CHAT: &str = "chat";
 pub const DOC_KIND_CHAPTER: &str = "chapter";
 pub const DOC_KIND_ELEMENT: &str = "element";
 pub const DOC_KIND_DRIFT: &str = "drift";
+/// A book's writing days, beside its book document.
+pub const DOC_KIND_STATS: &str = "stats";
+/// A book's complete-entry checkpoint manifests, beside its book document.
+pub const DOC_KIND_CHECKPOINTS: &str = "checkpoints";
 
 pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_BOOK,
@@ -290,6 +294,8 @@ pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_CHAPTER,
     DOC_KIND_ELEMENT,
     DOC_KIND_DRIFT,
+    DOC_KIND_STATS,
+    DOC_KIND_CHECKPOINTS,
 ];
 
 /// Whether `kind` is a known document kind in schema v3 or v2.2.

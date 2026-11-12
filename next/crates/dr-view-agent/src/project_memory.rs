@@ -118,8 +118,7 @@ impl ProjectMemoryView {
             Ok(ws.subscribe(move |event| {
                 // Project Memory is the book's content; a writing day or a
                 // saved checkpoint is not.
-                if matches!(event,WsEvent::Book(change) if change.book==book && change.touched.content)
-                {
+                if matches!(event,WsEvent::Book(change) if change.book==book) {
                     let _ = send.unbounded_send(());
                 }
             }))

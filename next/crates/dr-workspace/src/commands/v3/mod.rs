@@ -23,7 +23,7 @@ macro_rules! op {
         $(#[$m])*
         pub struct $ty;
         impl $crate::registry::Op for $ty {
-            const BOOK_VERSION: Option<i64> = Some(3);
+            const BOOK_VERSION: Option<i64> = Some(dr_doc::schema::BOOK_SCHEMA_VERSION);
             const NAME: &'static str = $name;
             const ACCESS: $crate::registry::Access = $crate::registry::Access::$access;
             const CONCURRENCY: $crate::registry::Concurrency =

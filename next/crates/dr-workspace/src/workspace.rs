@@ -18,8 +18,9 @@ use crate::actor::Actor;
 use crate::cx::{Cx, Faults, Gate, Invocation, Outcome};
 use crate::error::{Result, WsError};
 use crate::events::{
-    self, BookChanged, Bus, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
-    WsEvent, book_changes, book_touched, prose_ranges, touched_blocks_near,
+    self, BookChanged, Bus, CheckpointsChanged, EntityChange, ProseChanged, Removed, RemovedEntity,
+    StatsChanged, Subscription, WsEvent, book_changes, prose_ranges, side_keys,
+    touched_blocks_near,
 };
 use crate::guard::{Guards, Observation, RecordKey, RecordObservation, WritePreconditions};
 use crate::holder::{self, lock};
@@ -67,10 +68,10 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
                 merged.import(&waiting)?;
             }
             merged.import(bytes)?;
-            if !dr_doc::v3::is_v3_doc(&merged) {
+            if !dr_doc::v3::is_book_doc(&merged) {
                 return Err(StoreError::Invalid {
                     what: "book import",
-                    value: "canonical v3 book required".into(),
+                    value: "a current-format book is required".into(),
                 });
             }
         }
@@ -94,15 +95,16 @@ fn validate_book_header(book: &BookId, bytes: &[u8]) -> dr_store::Result<()> {
     incoming.import(bytes)?;
     let meta = incoming.get_map("meta");
     if let Some(version) = meta.get("v") {
+        let current = dr_doc::schema::BOOK_SCHEMA_VERSION;
         let valid = match version {
-            loro::ValueOrContainer::Value(loro::LoroValue::I64(3)) => true,
-            loro::ValueOrContainer::Value(loro::LoroValue::Double(v)) => v == 3.,
+            loro::ValueOrContainer::Value(loro::LoroValue::I64(v)) => v == current,
+            loro::ValueOrContainer::Value(loro::LoroValue::Double(v)) => v == current as f64,
             _ => false,
         };
         if !valid {
             return Err(StoreError::Invalid {
                 what: "book import",
-                value: "canonical v3 book required; reimport into a new library".into(),
+                value: "a current-format book is required; reimport into a new library".into(),
             });
         }
     }
@@ -128,8 +130,15 @@ pub(crate) struct BookSlot {
 
 impl BookSlot {
     pub(crate) fn is_v3(&self) -> bool {
-        self.handle.doc().with_doc(dr_doc::v3::is_v3_doc)
+        self.handle.doc().with_doc(dr_doc::v3::is_book_doc)
     }
+}
+
+/// An open `stats:<book>` or `checkpoints:<book>` document (`kernel-v4.md`
+/// §8). Kept open like the book document, closed with it.
+pub(crate) struct SideSlot {
+    pub book: BookId,
+    pub handle: DocHandle,
 }
 
 /// An open prose document: its holder and a reader sharing its document.
@@ -185,6 +194,8 @@ pub(crate) struct Inner {
     books: Mutex<HashMap<BookId, Arc<BookSlot>>>,
     gates: Mutex<HashMap<BookId, Arc<Gate>>>,
     prose: Mutex<ProseSlots>,
+    /// The open documents beside each book (`stats:`, `checkpoints:`).
+    side: Mutex<HashMap<DocId, Arc<SideSlot>>>,
     pub bus: Bus,
     pub journal: Journal,
     pub library_gate: Arc<Gate>,
@@ -262,6 +273,7 @@ impl Workspace {
             books: Mutex::default(),
             gates: Mutex::default(),
             prose: Mutex::default(),
+            side: Mutex::default(),
             bus: Bus::default(),
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
@@ -338,6 +350,7 @@ impl Workspace {
             .drain()
             .map(|(_, (_, s))| s)
             .collect();
+        let side: Vec<Arc<SideSlot>> = lock(&self.inner.side).drain().map(|(_, s)| s).collect();
         let (mut closed, mut kept) = (0, 0);
         let handles = books
             .into_iter()
@@ -345,6 +358,10 @@ impl Workspace {
             .chain(
                 prose
                     .into_iter()
+                    .map(|s| Arc::try_unwrap(s).map(|s| s.handle).map_err(drop)),
+            )
+            .chain(
+                side.into_iter()
                     .map(|s| Arc::try_unwrap(s).map(|s| s.handle).map_err(drop)),
             );
         for h in handles {
@@ -373,10 +390,12 @@ impl Workspace {
         let handles: Vec<DocHandle> = {
             let books = lock(&self.inner.books);
             let prose = lock(&self.inner.prose);
+            let side = lock(&self.inner.side);
             books
                 .values()
                 .map(|s| s.handle.clone())
                 .chain(prose.map.values().map(|(_, s)| s.handle.clone()))
+                .chain(side.values().map(|s| s.handle.clone()))
                 .collect()
         };
         for h in &handles {
@@ -494,10 +513,11 @@ impl Workspace {
         let doc = DocId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
         let handle = match &doc {
             DocId::Book(book) => self.book_slot(book)?.handle.clone(),
+            DocId::Stats(book) | DocId::Checkpoints(book) => self.side_handle(&doc, book)?,
             _ if doc.profile().is_some() => self.prose_slot(&doc)?.handle.clone(),
             _ => {
                 return Err(WsError::Invalid(
-                    "observe requires a book or prose document".into(),
+                    "observe requires a book, prose or side document".into(),
                 ));
             }
         };
@@ -531,10 +551,11 @@ impl Workspace {
         let doc = DocId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
         let handle = match &doc {
             DocId::Book(book) => self.book_slot(book)?.handle.clone(),
+            DocId::Stats(book) | DocId::Checkpoints(book) => self.side_handle(&doc, book)?,
             _ if doc.profile().is_some() => self.prose_slot(&doc)?.handle.clone(),
             _ => {
                 return Err(WsError::Invalid(
-                    "a version belongs to a book or prose document".into(),
+                    "a version belongs to a book, prose or side document".into(),
                 ));
             }
         };
@@ -552,7 +573,7 @@ impl Workspace {
             .inner
             .lib
             .load_copy(&DocId::Book(book.clone()).to_string())?;
-        Ok(dr_doc::v3::is_v3_doc(&copy))
+        Ok(dr_doc::v3::is_book_doc(&copy))
     }
 
     /// Read the stored state of some records of v3 book document `doc`
@@ -751,6 +772,27 @@ impl Workspace {
                         books.remove(&book)
                     } else {
                         None
+                    }
+                };
+                if let Some(slot) = removed
+                    && let Ok(slot) = Arc::try_unwrap(slot)
+                {
+                    slot.handle.close();
+                    return true;
+                }
+                false
+            }
+            side @ (DocId::Stats(_) | DocId::Checkpoints(_)) => {
+                let removed = {
+                    let mut map = lock(&self.inner.side);
+                    match map.get(&side) {
+                        Some(slot)
+                            if Some(&slot.book) != active_book.as_ref()
+                                && Arc::strong_count(slot) == 1 =>
+                        {
+                            map.remove(&side)
+                        }
+                        _ => None,
                     }
                 };
                 if let Some(slot) = removed
@@ -974,6 +1016,12 @@ impl Workspace {
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
             }
+            DocId::Stats(book) | DocId::Checkpoints(book) => {
+                self.side_slot(&doc, book, true)?
+                    .expect("created on demand")
+                    .handle
+                    .import(bytes, origin)?;
+            }
             DocId::Conversation(id) => {
                 let genesis = dr_doc::conversation::genesis(id);
                 let info = self.inner.lib.doc_info(doc_id)?;
@@ -1024,10 +1072,22 @@ impl Workspace {
             }
         }
         let book_slot = lock(&self.inner.books).remove(book);
+        let side_slots: Vec<Arc<SideSlot>> = {
+            let mut map = lock(&self.inner.side);
+            let ids: Vec<DocId> = map
+                .iter()
+                .filter(|(_, s)| &s.book == book)
+                .map(|(d, _)| d.clone())
+                .collect();
+            ids.into_iter().filter_map(|d| map.remove(&d)).collect()
+        };
         // Readers finishing a query may hold a slot for a moment.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         let mut handles = Vec::new();
         for s in slots {
+            handles.push(unwrap_slot(s, deadline, |s| s.handle)?);
+        }
+        for s in side_slots {
             handles.push(unwrap_slot(s, deadline, |s| s.handle)?);
         }
         if let Some(s) = book_slot {
@@ -1107,6 +1167,69 @@ impl Workspace {
         Ok(())
     }
 
+    /// The open `stats:<book>` or `checkpoints:<book>` document `doc`.
+    /// `create`: make it from its deterministic genesis when the library has
+    /// none (a write, an import); otherwise a document the library has never
+    /// stored is `None` (a read: nothing recorded yet). Registered under the
+    /// book, so listing, exporting and purging the book take it along; a
+    /// purged book refuses it (`dr-store`'s `check_creatable`).
+    pub(crate) fn side_slot(
+        &self,
+        doc: &DocId,
+        book: &BookId,
+        create: bool,
+    ) -> Result<Option<Arc<SideSlot>>> {
+        if doc.named_book() != Some(book) || dr_doc::side::genesis(doc).is_none() {
+            return Err(WsError::invalid(format!("{doc} is not beside book {book}")));
+        }
+        if let Some(s) = lock(&self.inner.side).get(doc).cloned() {
+            return Ok(Some(s));
+        }
+        let id = doc.to_string();
+        let lib = &self.inner.lib;
+        let handle = if create {
+            let g = dr_doc::side::genesis(doc).expect("checked above");
+            let genesis = move |d: &loro::LoroDoc| {
+                if let Err(e) = d.import(&g) {
+                    log::error!("side document genesis: {e}");
+                }
+            };
+            lib.open_doc(
+                &id,
+                OpenDoc::CreateIfMissing {
+                    kind: doc.kind().prefix(),
+                    book_id: Some(book.as_str()),
+                    genesis: &genesis,
+                },
+            )?
+        } else {
+            match lib.open_doc(&id, OpenDoc::Existing) {
+                Ok(h) => h,
+                Err(StoreError::NotFound(_)) => return Ok(None),
+                Err(e) => return Err(e.into()),
+            }
+        };
+        let slot = Arc::new(SideSlot {
+            book: book.clone(),
+            handle,
+        });
+        Ok(Some(
+            lock(&self.inner.side)
+                .entry(doc.clone())
+                .or_insert(slot)
+                .clone(),
+        ))
+    }
+
+    /// The holder of an existing document beside `book`, for reading.
+    fn side_handle(&self, doc: &DocId, book: &BookId) -> Result<DocHandle> {
+        Ok(self
+            .side_slot(doc, book, false)?
+            .ok_or_else(|| WsError::not_found("document", doc.to_string()))?
+            .handle
+            .clone())
+    }
+
     pub(crate) fn book_slot_or_create_v3(&self, book: &BookId) -> Result<Arc<BookSlot>> {
         self.book_slot_with(book, true)
     }
@@ -1118,7 +1241,7 @@ impl Workspace {
         let doc_id = DocId::Book(book.clone()).to_string();
         let lib = &self.inner.lib;
         let handle = if create {
-            let g = dr_doc::v3::genesis_v3(book);
+            let g = dr_doc::v3::book_genesis(book);
             let genesis = move |d: &loro::LoroDoc| {
                 if let Err(e) = d.import(&g) {
                     log::error!("book genesis: {e}");
@@ -1139,9 +1262,9 @@ impl Workspace {
                     e => e.into(),
                 })?
         };
-        if !handle.doc().with_doc(dr_doc::v3::is_v3_doc) {
+        if !handle.doc().with_doc(dr_doc::v3::is_book_doc) {
             return Err(WsError::invalid(
-                "only canonical v3 books are supported; reimport to a new library",
+                "only current-format books are supported; reimport to a new library",
             ));
         }
         let reader_v3 = handle
@@ -1491,7 +1614,6 @@ impl Inner {
                                 seq: ev.seq,
                                 origin: ev.origin.clone(),
                                 changes,
-                                touched: book_touched(&ev.changes),
                             }),
                         );
                         if !removed.is_empty() {
@@ -1506,6 +1628,24 @@ impl Inner {
                             );
                         }
                     }
+                    DocId::Stats(book) => events::publish(
+                        &self.bus,
+                        &WsEvent::Stats(StatsChanged {
+                            book: book.clone(),
+                            seq: ev.seq,
+                            origin: ev.origin.clone(),
+                            days: side_keys(&ev.changes, dr_doc::schema::side::WRITING_DAYS),
+                        }),
+                    ),
+                    DocId::Checkpoints(book) => events::publish(
+                        &self.bus,
+                        &WsEvent::Checkpoints(CheckpointsChanged {
+                            book: book.clone(),
+                            seq: ev.seq,
+                            origin: ev.origin.clone(),
+                            points: side_keys(&ev.changes, dr_doc::schema::side::ENTRY_CHECKPOINTS),
+                        }),
+                    ),
                     // Conversation observers subscribe to their journal or
                     // store document events; they are never prose events.
                     DocId::Conversation(_) => {}

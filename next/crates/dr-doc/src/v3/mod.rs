@@ -1,8 +1,10 @@
-//! Universal kernel v3 book document (`docs/rust-rewrite/kernel-v3.md`).
+//! The book document (`docs/rust-rewrite/kernel-v3.md`, format version 4 per
+//! `kernel-v4.md`).
 //!
 //! This is the only App book runtime. [`crate::import_v1`] is an isolated
 //! in-memory source replay adapter for importing previous formats.
-//! Every v3 book document starts from [`genesis_v3`] with `meta.v = 3`.
+//! Every book document starts from [`book_genesis`] with `meta.v = 4`; its
+//! writing days and checkpoint manifests live beside it ([`crate::side`]).
 
 pub mod novel;
 mod raw;
@@ -28,7 +30,7 @@ use crate::core::{Committed, Core, Imported, check_borrowed, configured};
 use crate::error::Result;
 use crate::peer::{PeerId, genesis_peer};
 use crate::prose::Trigger;
-use crate::schema::{self, GENESIS_VERSION_V3, SCHEMA_VERSION_V3, book_v3};
+use crate::schema::{self, BOOK_GENESIS_VERSION, BOOK_SCHEMA_VERSION, book_v3};
 
 pub use novel::{
     NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_ACT_TRACK,
@@ -41,25 +43,26 @@ pub use record::{RecordKeyV3, RecordReaderV3, RecordStateV3};
 pub use structure::BookStructureV3;
 pub use write::BookTxnV3;
 
-/// Whether `doc` is a universal kernel v3 book document (`meta.v == 3`).
-pub fn is_v3_doc(doc: &LoroDoc) -> bool {
+/// Whether `doc` is a book document of the current format
+/// (`meta.v == BOOK_SCHEMA_VERSION`). Any other version is refused as it is.
+pub fn is_book_doc(doc: &LoroDoc) -> bool {
     match doc.get_map(book_v3::META).get(schema::meta::VERSION) {
-        Some(ValueOrContainer::Value(LoroValue::I64(v))) => v == SCHEMA_VERSION_V3,
-        Some(ValueOrContainer::Value(LoroValue::Double(d))) => d == SCHEMA_VERSION_V3 as f64,
+        Some(ValueOrContainer::Value(LoroValue::I64(v))) => v == BOOK_SCHEMA_VERSION,
+        Some(ValueOrContainer::Value(LoroValue::Double(d))) => d == BOOK_SCHEMA_VERSION as f64,
         _ => false,
     }
 }
 
-/// Deterministic genesis of a v3 book document (`meta.v = 3` and the built-in
+/// Deterministic genesis of a book document (`meta.v = 4` and the built-in
 /// locked relation type whose target kinds are `entry` and `patch`).
-pub fn genesis_v3(book_id: &BookId) -> Vec<u8> {
+pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
     let doc = LoroDoc::new();
     doc.config_text_style(schema::style_config());
     let doc_id = DocId::Book(book_id.clone()).to_string();
-    doc.set_peer_id(genesis_peer(&doc_id, GENESIS_VERSION_V3))
+    doc.set_peer_id(genesis_peer(&doc_id, BOOK_GENESIS_VERSION))
         .expect("genesis peer");
     let meta = doc.get_map(book_v3::META);
-    meta.insert(schema::meta::VERSION, SCHEMA_VERSION_V3)
+    meta.insert(schema::meta::VERSION, BOOK_SCHEMA_VERSION)
         .expect("meta");
     meta.insert(schema::meta::BOOK, book_id.as_str())
         .expect("meta");
@@ -121,11 +124,10 @@ pub enum CollectionV3 {
     MaterialFolders,
     Facts,
     Memory,
-    WritingDays,
 }
 
 impl CollectionV3 {
-    pub const ALL: [CollectionV3; 16] = [
+    pub const ALL: [CollectionV3; 15] = [
         CollectionV3::Meta,
         CollectionV3::Entries,
         CollectionV3::Templates,
@@ -141,7 +143,6 @@ impl CollectionV3 {
         CollectionV3::MaterialFolders,
         CollectionV3::Facts,
         CollectionV3::Memory,
-        CollectionV3::WritingDays,
     ];
 
     pub fn root(self) -> &'static str {
@@ -161,7 +162,6 @@ impl CollectionV3 {
             CollectionV3::MaterialFolders => book_v3::MATERIAL_FOLDERS,
             CollectionV3::Facts => book_v3::FACTS,
             CollectionV3::Memory => book_v3::MEMORY,
-            CollectionV3::WritingDays => book_v3::WRITING_DAYS,
         }
     }
 
@@ -267,7 +267,7 @@ impl BookDocV3 {
     }
 
     pub fn load(book: BookId, peer: PeerId, blobs: &[Vec<u8>]) -> Result<Self> {
-        let g = genesis_v3(&book);
+        let g = book_genesis(&book);
         let core = Core::load(
             DocId::Book(book.clone()),
             &g,
@@ -450,7 +450,7 @@ impl BookReaderV3 {
             LoroDoc::decode_import_blob_meta(b, true)?;
         }
         let mut all = blobs.to_vec();
-        all.push(genesis_v3(&book));
+        all.push(book_genesis(&book));
         doc.import_batch(&all)?;
         doc.checkout(frontiers)?;
         Ok(BookReaderV3 {

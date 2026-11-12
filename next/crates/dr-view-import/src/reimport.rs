@@ -13,7 +13,11 @@ use dr_import_v1::{
 };
 use serde::{Deserialize, Serialize};
 
-const PENDING: &str = "reimport-v3-pending.json";
+/// A development reimport writes book format 4 (`kernel-v4.md`). A target or
+/// a pending record of an earlier format (`reimport-v3-…`) is left as it is
+/// and never resumed.
+const PREFIX: &str = "reimport-v4-";
+const PENDING: &str = "reimport-v4-pending.json";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -35,13 +39,13 @@ impl Destination {
         self.data.join(format!("{}.json", self.id))
     }
     fn validate(&self) -> Result<(), String> {
-        if !self.id.starts_with("reimport-v3-")
+        if !self.id.starts_with(PREFIX)
             || !self
                 .id
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
         {
-            return Err("invalid v3 import destination identity".into());
+            return Err("invalid import destination identity".into());
         }
         let data = self.data.canonicalize().map_err(|e| e.to_string())?;
         let original = self.original.canonicalize().map_err(|e| e.to_string())?;
@@ -73,7 +77,7 @@ impl Destination {
             let id: String =
                 serde_json::from_slice(&std::fs::read(&pointer).map_err(|e| e.to_string())?)
                     .map_err(|e| e.to_string())?;
-            if !id.starts_with("reimport-v3-")
+            if !id.starts_with(PREFIX)
                 || !id
                     .bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
@@ -100,7 +104,7 @@ impl Destination {
         }
         let job = Self {
             data,
-            id: format!("reimport-v3-{}", dr_model::id::new_uuid_v7()),
+            id: format!("{PREFIX}{}", dr_model::id::new_uuid_v7()),
             original: original.to_path_buf(),
             database: picked.database.clone(),
             source_root: picked.root.clone(),
@@ -125,7 +129,7 @@ impl Destination {
         let id: String =
             serde_json::from_slice(&std::fs::read(pointer).map_err(|e| e.to_string())?)
                 .map_err(|e| e.to_string())?;
-        if !id.starts_with("reimport-v3-")
+        if !id.starts_with(PREFIX)
             || !id
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')

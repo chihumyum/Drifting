@@ -221,7 +221,7 @@ fn real_checkpoint_failure_blocks_replacement_and_a_retry_preserves_author_text(
             .local_transaction(|tx| {
                 tx.execute_batch(
                     "CREATE TRIGGER reject_checkpoint BEFORE INSERT ON loro_update \
-                 WHEN NEW.doc_id LIKE 'book:%' \
+                 WHEN NEW.doc_id LIKE 'checkpoints:%' \
                  BEGIN SELECT RAISE(ABORT,'checkpoint fault'); END;",
                 )?;
                 Ok(())

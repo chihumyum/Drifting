@@ -11,13 +11,14 @@ use dr_corpus::para::{self, Para};
 use dr_doc::loro_types::VersionVector;
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
+use dr_doc::side::{CheckpointsDoc, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
     MOD_ABOUT, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
     NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_CATEGORY,
     TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA, TPL_IDEA_GROUP, TPL_IDEAS,
     TPL_MANUSCRIPT, TPL_STORYLINE, TPL_STORYLINES, novel_project_templates,
 };
-use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, genesis_v3};
+use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, book_genesis};
 use dr_doc::{DocError, Result};
 use dr_model::id::*;
 use dr_model::import_v1::StorylineId;
@@ -73,12 +74,17 @@ fn map_entity_ref_v3(r: &EntityRef) -> EntityRef {
     EntityRef::new(map_entity_kind_v3(&r.kind), r.id.clone())
 }
 
-/// One written v3 book: its v3 book document and its prose documents.
+/// One written v3 book: its v3 book document, its prose documents and the
+/// two documents beside it.
 pub struct SeededBookV3 {
     pub book: BookDocV3,
     /// Every prose document (`body:<entry>/<module>`, `body:<entry>/about`,
     /// `material:<id>`), in creation order.
     pub prose: Vec<ProseDoc>,
+    /// `stats:<book>`: the writing days.
+    pub stats: StatsDoc,
+    /// `checkpoints:<book>`: no seed saves a checkpoint.
+    pub checkpoints: CheckpointsDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: Counters,
 }
@@ -157,8 +163,22 @@ pub fn write_book_v3(
     written += store_doc(
         lib,
         b.book_id(),
+        b.stats.doc_id(),
+        dr_doc::side::stats_genesis(b.book_id()),
+        b.stats.export_updates_since(&all)?,
+    )?;
+    written += store_doc(
+        lib,
+        b.book_id(),
+        b.checkpoints.doc_id(),
+        dr_doc::side::checkpoints_genesis(b.book_id()),
+        b.checkpoints.export_updates_since(&all)?,
+    )?;
+    written += store_doc(
+        lib,
+        b.book_id(),
         b.book.doc_id(),
-        genesis_v3(b.book_id()),
+        book_genesis(b.book_id()),
         b.book.export_updates_since(&all)?,
     )?;
     Ok(written)
@@ -196,6 +216,8 @@ fn store_doc(
 pub struct BuilderV3 {
     pub book: BookDocV3,
     pub prose: Vec<ProseDoc>,
+    pub stats: StatsDoc,
+    pub checkpoints: CheckpointsDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: Counters,
     clock: i64,
@@ -204,7 +226,11 @@ pub struct BuilderV3 {
 impl BuilderV3 {
     pub fn new(book_id: BookId) -> Result<Self> {
         let doc_id = DocId::Book(book_id.clone()).to_string();
+        let stats_id = DocId::Stats(book_id.clone()).to_string();
+        let points_id = DocId::Checkpoints(book_id.clone()).to_string();
         Ok(Self {
+            stats: StatsDoc::create(book_id.clone(), import_peer(&stats_id))?,
+            checkpoints: CheckpointsDoc::create(book_id.clone(), import_peer(&points_id))?,
             book: BookDocV3::create(book_id, import_peer(&doc_id))?,
             prose: Vec::new(),
             groups: BTreeMap::new(),
@@ -250,10 +276,19 @@ impl BuilderV3 {
         self.groups.entry(group).or_default().push(body);
     }
 
+    /// One commit on `stats:<book>` at the next tick.
+    pub fn edit_stats(&mut self, f: impl FnOnce(&mut StatsTxn<'_>) -> Result<()>) -> Result<()> {
+        let ts = self.tick();
+        let (r, _) = self.stats.edit_at(Origin::Import, Some(ts), f);
+        r
+    }
+
     pub fn finish(self) -> SeededBookV3 {
         SeededBookV3 {
             book: self.book,
             prose: self.prose,
+            stats: self.stats,
+            checkpoints: self.checkpoints,
             groups: self.groups,
             counters: self.counters,
         }
@@ -650,15 +685,19 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     }
 
     b.edit_book(|t| {
-        for (day, words) in &p.writing_days {
-            t.writing_day(&p.device, day, *words)?;
-        }
         for (id, body) in &p.memory {
             t.memory(id)?
                 .kind(&MemoryKind::Preference)?
                 .body(body)?
                 .source(&MemorySource::Author)?
                 .status(&MemoryStatus::Active)?;
+        }
+        Ok(())
+    })?;
+
+    b.edit_stats(|t| {
+        for (day, words) in &p.writing_days {
+            t.writing_day(&p.device, day, *words)?;
         }
         Ok(())
     })?;
@@ -956,9 +995,6 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 w.asset(Some(asset))?;
             }
         }
-        for wd in &writing_days {
-            t.writing_day(&wd.device, &wd.day, wd.words)?;
-        }
         for mem in &memory {
             let w = t.memory(&mem.id)?;
             w.kind(&mem.kind)?
@@ -1087,6 +1123,12 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
 
     b.groups = src.groups().clone();
     b.counters = src.counters();
+    b.edit_stats(|t| {
+        for wd in &writing_days {
+            t.writing_day(&wd.device, &wd.day, wd.words)?;
+        }
+        Ok(())
+    })?;
     Ok(b.finish())
 }
 

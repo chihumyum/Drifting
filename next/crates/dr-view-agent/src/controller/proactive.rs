@@ -77,7 +77,7 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
     for _ in 0..3 {
         let before = ws.version(&doc).map_err(string)?;
         let copy = ws.library().load_copy(&doc).map_err(string)?;
-        if dr_doc::v3::is_v3_doc(&copy) {
+        if dr_doc::v3::is_book_doc(&copy) {
             let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book).map_err(string)?;
             let view = borrowed.view();
             if view.trashed_at().is_some() {

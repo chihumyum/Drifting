@@ -326,7 +326,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "关系类型的方向是 directed/symmetric，system_key 只有 generic-association，锁定的才有 system_key",
         [Read, Structure],
         "开放枚举；system_key 和 locked 只由创世写",
-        ["genesis_v3_sets_version_3_and_locked_generic_relation_type"]
+        ["book_genesis_sets_version_4_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-DEFINITION",
@@ -354,7 +354,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "每本书有且只有一个内置关系类型，id 是 system:generic-association:<书 id>",
         [Structure],
         "书目文档的创世写它；所有设备的创世字节相同，Loro 去重",
-        ["genesis_v3_sets_version_3_and_locked_generic_relation_type"]
+        ["book_genesis_sets_version_4_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-LOCKED",
@@ -495,11 +495,12 @@ pub const INVARIANTS: &[Invariant] = &[
         "WRITING-DAY",
         "写作日是（设备，日期）一条，日期 YYYY-MM-DD，字数不为负；一天的字数是各设备之和",
         [Structure, Command, Read],
-        "键就是 设备|日期；写入时负数记成 0；读取时坏键、负数跳过",
+        "键就是 设备|日期，存在这本书的 stats:<书>（kernel-v4.md §8；0.1 源格式的书目文档里另有一份，只在导入时读）；写入时负数记成 0；读取时坏键、负数跳过",
         [
             "writing_day_keys",
             "days_validate",
-            "writing_days_sum_over_devices"
+            "writing_days_sum_over_devices",
+            "two_devices_create_one_stats_document_and_keep_each_others_days"
         ]
     ),
     inv!(
@@ -630,8 +631,11 @@ pub const INVARIANTS: &[Invariant] = &[
         "NO-HOT-FIELDS",
         "书目文档里不放随打字高频变化的字段",
         [Structure],
-        "节点没有 updated_at（旧版每次正文投影都刷新它）；「最近编辑」从本机索引（F2）取；写作日每设备每天一个键",
-        ["writing_days_sum_over_devices"]
+        "节点没有 updated_at（旧版每次正文投影都刷新它）；「最近编辑」从本机索引（F2）取；写作日和快照点清单不在书目文档里，在 stats:<书>、checkpoints:<书>",
+        [
+            "writing_days_sum_over_devices",
+            "writing_days_and_checkpoints_leave_the_book_document_alone"
+        ]
     ),
     inv!(
         "ENTITY-RESTORE",
@@ -807,12 +811,44 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-DOCID-LIBRARY-UNIQUE",
-        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），彻底删除一本书不会删掉另一本书的文档",
+        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），书旁边的两篇文档是 stats:<书 id>、checkpoints:<书 id>，彻底删除一本书不会删掉另一本书的文档",
         [Structure, Command],
-        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
+        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，DocId::Stats / DocId::Checkpoints 就是书 id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
         [
             "v3_doc_ids_are_unique_across_books_in_library",
             "two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_the_other"
+        ]
+    ),
+    inv!(
+        "SIDE-DOC-NOT-PROSE",
+        "书旁边的两篇文档（stats:<书> 写作日、checkpoints:<书> 快照点清单）不是正文也不是书目：不编辑、不计字数、不搜索、不导出成书稿、不投待办；属于 id 里的那本书，跟着它导出和彻底删除",
+        [Structure, Read],
+        "DocKind::Stats / Checkpoints 没有 ProseProfile、is_book_text 为假；创世确定（meta.v = 1、meta.doc），两台设备各建一篇合并后是同一篇；owns_prose 认它们属于 id 里的书；登记在书名下，按书列文档的导出和清除自动带上",
+        [
+            "stats_and_checkpoints_are_neither_prose_nor_the_book",
+            "a_side_document_refuses_the_bytes_of_another",
+            "two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_the_other"
+        ]
+    ),
+    inv!(
+        "SIDE-DOC-QUIET",
+        "记写作日、存快照点、修剪快照点都不写书目文档：书目版本不变，不发书目事件",
+        [Command],
+        "writing_day.record 经 Cx::write_stats 只写 stats:<书>；entry_snapshot.* 在原子事务里只把清单写进 checkpoints:<书>，书目只读；工作区给两篇文档各发自己的事件（WsEvent::Stats / Checkpoints）",
+        [
+            "writing_days_and_checkpoints_leave_the_book_document_alone",
+            "writing_days_dispatch_by_version_preserve_other_books_and_do_not_enter_undo"
+        ]
+    ),
+    inv!(
+        "BOOK-FORMAT-4-ONLY",
+        "只开 meta.v == 4 的书；别的版本（v3 和更早）原样拒开，不改不删，也不经同步进来",
+        [Command, Read],
+        "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 4 的书目更新；书文件只读格式 4",
+        [
+            "a_book_of_format_3_is_refused_as_it_is_and_cannot_arrive_by_sync",
+            "old_catalog_and_old_prose_are_refused_without_repair_or_mutation",
+            "a_marker_change_that_arrives_before_its_dependency_is_refused_with_it"
         ]
     ),
 ];
@@ -868,7 +904,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 76;
+pub const ACTIVE_CONTRACTS: usize = 79;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

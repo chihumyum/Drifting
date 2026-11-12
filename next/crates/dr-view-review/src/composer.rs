@@ -235,7 +235,7 @@ impl CommentComposer {
                 && ws
                     .library()
                     .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
-                    .and_then(|h| h.read(dr_doc::v3::is_v3_doc))
+                    .and_then(|h| h.read(dr_doc::v3::is_book_doc))
                     .unwrap_or(false));
         let source_anchor = match anchor {
             Anchor::Range(start, end) if v3_prose => {

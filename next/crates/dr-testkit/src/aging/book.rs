@@ -30,13 +30,17 @@
 //!
 //! Every write is one commit made through dr-doc's typed transaction, with
 //! the timestamp the session clock gives it, so Loro cuts its changes where
-//! a real library would. [`AgedBook::commits`] lists each commit (when, on
-//! which device, of which kind, how many update bytes), which is what a sync
-//! cadence is judged on ([`uploads`]).
+//! a real library would. Writing days go to the book's `stats:<book>`
+//! document and checkpoint manifests to its `checkpoints:<book>` document
+//! (`kernel-v4.md` §8); everything else to the book document.
+//! [`AgedBook::commits`] lists each commit (when, on which device, of which
+//! kind and so to which document, how many update bytes), which is what a
+//! sync cadence is judged on ([`uploads`]).
 
 use std::collections::BTreeMap;
 
 use dr_doc::Result;
+use dr_doc::side::{CheckpointsDoc, CheckpointsTxn, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
     MOD_FIELDS, MOD_KV, MOD_PROSE, TPL_CHAPTER, TPL_CHARACTER, TPL_IDEA, TPL_IDEA_GROUP, TPL_IDEAS,
 };
@@ -54,6 +58,7 @@ use dr_workspace::commands::v3::snapshots::{Point, checkpoint_manifest_checksum}
 
 use super::{DAY_S, device_peer, ops};
 use crate::rng::Rng;
+use crate::seed::SeededBookV3;
 use crate::seed::T0;
 use crate::text;
 
@@ -66,12 +71,6 @@ pub struct BookAging {
     pub days: u32,
     /// Devices the author writes on (1 or 2).
     pub devices: usize,
-    /// Leave the writing-day recorder's writes out (everything else stays
-    /// exactly the same): what the book document would hold if writing days
-    /// lived elsewhere.
-    pub without_writing_days: bool,
-    /// Leave the entry checkpoints out, likewise.
-    pub without_checkpoints: bool,
     /// Also save a checkpoint for every sibling of an entry created or
     /// moved among them, as the product did until 2026-11-12 (its
     /// fingerprint of an entry listed the entry's siblings). Off, the
@@ -86,14 +85,13 @@ impl BookAging {
             seed: crate::seed::DEFAULT_SEED,
             days,
             devices: 2,
-            without_writing_days: false,
-            without_checkpoints: false,
             sibling_checkpoints: false,
         }
     }
 }
 
-/// What a commit to the book document was for.
+/// What a commit was for. The kind says which document it went to
+/// ([`Kind::document`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Kind {
@@ -124,6 +122,16 @@ impl Kind {
         Kind::Structure,
     ];
 
+    /// The document a commit of this kind goes to: `stats` (`stats:<book>`),
+    /// `checkpoints` (`checkpoints:<book>`) or `book`.
+    pub fn document(self) -> &'static str {
+        match self {
+            Kind::WritingDay => "stats",
+            Kind::Checkpoint => "checkpoints",
+            _ => "book",
+        }
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Kind::WritingDay => "writingDay",
@@ -137,7 +145,7 @@ impl Kind {
     }
 }
 
-/// One commit to the book document.
+/// One commit to one of the book's documents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Commit {
     /// Seconds since the epoch.
@@ -176,9 +184,15 @@ pub struct BookStats {
     pub ops: usize,
 }
 
-/// An aged book document: the first device's replica, level with the other.
+/// An aged book: the first device's replicas, level with the other's.
 pub struct AgedBook {
+    /// The book document.
     pub doc: BookDocV3,
+    /// `stats:<book>`: the seed's writing days and those the aging recorded.
+    pub writing: StatsDoc,
+    /// `checkpoints:<book>`: the seed's manifests and those the aging saved
+    /// and kept.
+    pub points: CheckpointsDoc,
     pub stats: BookStats,
     /// Every commit of the aging, oldest first.
     pub commits: Vec<Commit>,
@@ -210,6 +224,13 @@ struct World {
     commits: Vec<Commit>,
 }
 
+/// One device's replicas of the book's three documents.
+struct Replica {
+    book: BookDocV3,
+    writing: StatsDoc,
+    points: CheckpointsDoc,
+}
+
 fn tid(s: &str) -> EntryTemplateId {
     EntryTemplateId::parse(s).expect("valid id")
 }
@@ -219,16 +240,51 @@ fn mid(s: &str) -> ModuleId {
 }
 
 impl World {
+    /// One commit to the book document.
     fn commit(
         &mut self,
-        doc: &mut BookDocV3,
+        doc: &mut Replica,
         device: usize,
         ts: i64,
         kind: Kind,
         f: impl FnOnce(&mut BookTxnV3<'_>) -> Result<()>,
     ) -> Result<()> {
-        let (r, c) = doc.edit_at(Origin::User, Some(ts), f);
+        debug_assert_eq!(kind.document(), "book");
+        let (r, c) = doc.book.edit_at(Origin::User, Some(ts), f);
         r?;
+        self.committed(c, ts, device, kind);
+        Ok(())
+    }
+
+    /// One commit to `stats:<book>`.
+    fn commit_writing(
+        &mut self,
+        doc: &mut Replica,
+        device: usize,
+        ts: i64,
+        f: impl FnOnce(&mut StatsTxn<'_>) -> Result<()>,
+    ) -> Result<()> {
+        let (r, c) = doc.writing.edit_at(Origin::User, Some(ts), f);
+        r?;
+        self.committed(c, ts, device, Kind::WritingDay);
+        Ok(())
+    }
+
+    /// One commit to `checkpoints:<book>`.
+    fn commit_points(
+        &mut self,
+        doc: &mut Replica,
+        device: usize,
+        ts: i64,
+        f: impl FnOnce(&mut CheckpointsTxn<'_>) -> Result<()>,
+    ) -> Result<()> {
+        let (r, c) = doc.points.edit_at(Origin::User, Some(ts), f);
+        r?;
+        self.committed(c, ts, device, Kind::Checkpoint);
+        Ok(())
+    }
+
+    fn committed(&mut self, c: Option<dr_doc::Committed>, ts: i64, device: usize, kind: Kind) {
         if let Some(c) = c {
             self.commits.push(Commit {
                 ts,
@@ -238,7 +294,6 @@ impl World {
             });
             self.stats.commits += 1;
         }
-        Ok(())
     }
 
     fn new_id(&mut self, kind: &str, ts: i64) -> String {
@@ -273,7 +328,7 @@ impl World {
     /// plan are the same with and without these checkpoints.
     fn sibling_checkpoint(
         &mut self,
-        doc: &mut BookDocV3,
+        doc: &mut Replica,
         device: usize,
         ts: i64,
         entry: &EntryId,
@@ -283,7 +338,7 @@ impl World {
             self.checkpoint_draw(ts);
             return Ok(());
         }
-        self.stats.checkpoints_for_siblings += usize::from(!self.plan.without_checkpoints);
+        self.stats.checkpoints_for_siblings += 1;
         self.checkpoint(doc, device, ts, entry, reason)
     }
 
@@ -291,7 +346,7 @@ impl World {
     /// the manifest, then the thinning of that entry's automatic points.
     fn checkpoint(
         &mut self,
-        doc: &mut BookDocV3,
+        doc: &mut Replica,
         device: usize,
         ts: i64,
         entry: &EntryId,
@@ -299,11 +354,12 @@ impl World {
     ) -> Result<()> {
         let (id, content_hash) = self.checkpoint_draw(ts);
         let title = doc
+            .book
             .view()
             .entry_raw(entry)
             .map(|e| e.title)
             .unwrap_or_default();
-        let version = dr_workspace::naming::frontiers_hex(&doc.frontiers());
+        let version = dr_workspace::naming::frontiers_hex(&doc.book.frontiers());
         let mut point = Point {
             id: id.clone(),
             format: 1,
@@ -319,9 +375,6 @@ impl World {
             checksum: String::new(),
             content_hash,
         };
-        if self.plan.without_checkpoints {
-            return Ok(());
-        }
         point.checksum =
             checkpoint_manifest_checksum(&point).expect("a checkpoint manifest serializes");
         let manifest = serde_json::to_string(&point).expect("a checkpoint manifest serializes");
@@ -351,7 +404,7 @@ impl World {
         self.known[device].insert(id.clone());
         self.stats.checkpoints_saved += 1;
         self.stats.checkpoints_thinned += removed.len();
-        self.commit(doc, device, ts, Kind::Checkpoint, |t| {
+        self.commit_points(doc, device, ts, |t| {
             t.put_entry_checkpoint(&id, &manifest)?;
             for old in &removed {
                 t.remove_entry_checkpoint(old)?;
@@ -363,7 +416,7 @@ impl World {
     /// A writing session on calendar day `day`, the `n`th day of the aging.
     fn writing(
         &mut self,
-        doc: &mut BookDocV3,
+        doc: &mut Replica,
         device: usize,
         (day, n): (i64, usize),
         start: i64,
@@ -391,12 +444,10 @@ impl World {
                 *words += self.rng.range(10, 45) as i64;
                 let (words, device_key, date) =
                     (*words, self.devices[device].clone(), day_of_number(day));
-                if !self.plan.without_writing_days {
-                    self.stats.writing_day_writes += 1;
-                    self.commit(doc, device, ts, Kind::WritingDay, |t| {
-                        t.writing_day(&device_key, &date, words)
-                    })?;
-                }
+                self.stats.writing_day_writes += 1;
+                self.commit_writing(doc, device, ts, |t| {
+                    t.writing_day(&device_key, &date, words)
+                })?;
                 typed_since_checkpoint = true;
             }
             if self.rng.below(40) == 0 {
@@ -507,7 +558,7 @@ impl World {
                 self.ideas.push(id.clone());
                 // The new idea changed; the siblings it now stands among
                 // did not.
-                for sibling in doc.view().children_of(Some(&parent)) {
+                for sibling in doc.book.view().children_of(Some(&parent)) {
                     if sibling.id != id
                         && !dirty.contains(&sibling.id)
                         && !siblings.contains(&sibling.id)
@@ -547,7 +598,7 @@ impl World {
         Ok(())
     }
 
-    fn planning(&mut self, doc: &mut BookDocV3, device: usize, start: i64) -> Result<()> {
+    fn planning(&mut self, doc: &mut Replica, device: usize, start: i64) -> Result<()> {
         let drags = self.rng.range(30, 120);
         let minutes = self.rng.range(20, 90) as i64;
         let mut dirty: Vec<EntryId> = Vec::new();
@@ -589,8 +640,9 @@ impl World {
                 let entry = self.rng.pick(&self.chapters).clone();
                 let index = self.rng.range(0, 3);
                 self.stats.layout_moves += 1;
-                let parent = doc.view().entry_raw(&entry).and_then(|e| e.parent);
+                let parent = doc.book.view().entry_raw(&entry).and_then(|e| e.parent);
                 let siblings: Vec<EntryId> = doc
+                    .book
                     .view()
                     .children_of(parent.as_ref())
                     .into_iter()
@@ -640,7 +692,7 @@ impl World {
     /// that is not also dirty itself; both lists are emptied.
     fn checkpoint_all(
         &mut self,
-        doc: &mut BookDocV3,
+        doc: &mut Replica,
         device: usize,
         ts: i64,
         dirty: &mut Vec<EntryId>,
@@ -663,23 +715,45 @@ impl World {
     }
 }
 
-fn sync(from: &BookDocV3, to: &mut BookDocV3) -> Result<()> {
-    let bytes = from.export_updates_since(&to.version())?;
-    to.import(&bytes, Origin::Sync)?;
+fn sync(from: &Replica, to: &mut Replica) -> Result<()> {
+    let bytes = from.book.export_updates_since(&to.book.version())?;
+    to.book.import(&bytes, Origin::Sync)?;
+    let bytes = from.writing.export_updates_since(&to.writing.version())?;
+    to.writing.import(&bytes, Origin::Sync)?;
+    let bytes = from.points.export_updates_since(&to.points.version())?;
+    to.points.import(&bytes, Origin::Sync)?;
     Ok(())
 }
 
-/// Age `base` (a seeded v3 book document) by `plan`. `base` is not changed.
-pub fn age(base: &BookDocV3, plan: &BookAging) -> Result<AgedBook> {
+/// Age `seeded` (a seeded v3 book: its book document and the two beside it)
+/// by `plan`. `seeded` is not changed.
+pub fn age(seeded: &SeededBookV3, plan: &BookAging) -> Result<AgedBook> {
     assert!((1..=2).contains(&plan.devices), "one or two devices");
+    let base = &seeded.book;
     let book = base.book_id().clone();
     let id = base.doc_id().to_string();
     let history = base.export_updates_since(&Default::default())?;
+    let writing_history = seeded.stats.export_updates_since(&Default::default())?;
+    let points_history = seeded
+        .checkpoints
+        .export_updates_since(&Default::default())?;
     let mut replicas = Vec::with_capacity(plan.devices);
+    let (writing_id, points_id) = (
+        dr_model::DocId::Stats(book.clone()).to_string(),
+        dr_model::DocId::Checkpoints(book.clone()).to_string(),
+    );
     for device in 0..plan.devices {
         let mut doc = BookDocV3::create(book.clone(), device_peer(&id, device))?;
         doc.import(&history, Origin::Import)?;
-        replicas.push(doc);
+        let mut writing = StatsDoc::create(book.clone(), device_peer(&writing_id, device))?;
+        writing.import(&writing_history, Origin::Import)?;
+        let mut points = CheckpointsDoc::create(book.clone(), device_peer(&points_id, device))?;
+        points.import(&points_history, Origin::Import)?;
+        replicas.push(Replica {
+            book: doc,
+            writing,
+            points,
+        });
     }
     let view = base.view();
     let by_template = |template: &str| -> Vec<EntryId> {
@@ -713,7 +787,16 @@ pub fn age(base: &BookDocV3, plan: &BookAging) -> Result<AgedBook> {
         open_comments: Vec::new(),
         words: BTreeMap::new(),
         auto: BTreeMap::new(),
-        known: vec![Default::default(); plan.devices],
+        known: vec![
+            seeded
+                .checkpoints
+                .view()
+                .entry_checkpoints()
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect();
+            plan.devices
+        ],
         created: 0,
         stats: BookStats {
             days: plan.days,
@@ -769,19 +852,21 @@ pub fn age(base: &BookDocV3, plan: &BookAging) -> Result<AgedBook> {
         let (a, b) = pair(&mut replicas, 1, 0);
         sync(a, b)?;
     }
-    let doc = replicas.swap_remove(0);
+    let replica = replicas.swap_remove(0);
     let mut stats = world.stats;
-    stats.ops = ops(&doc.version());
+    stats.ops = ops(&replica.book.version());
     let mut commits = world.commits;
     commits.sort_by_key(|c| (c.ts, c.device));
     Ok(AgedBook {
-        doc,
+        doc: replica.book,
+        writing: replica.writing,
+        points: replica.points,
         stats,
         commits,
     })
 }
 
-fn pair(v: &mut [BookDocV3], from: usize, to: usize) -> (&BookDocV3, &mut BookDocV3) {
+fn pair(v: &mut [Replica], from: usize, to: usize) -> (&Replica, &mut Replica) {
     assert_ne!(from, to);
     if from < to {
         let (a, b) = v.split_at_mut(to);
@@ -792,29 +877,35 @@ fn pair(v: &mut [BookDocV3], from: usize, to: usize) -> (&BookDocV3, &mut BookDo
     }
 }
 
-/// What a sync that uploads a device's pending book changes every
-/// `cadence_s` seconds would send.
+/// What a sync that uploads a device's pending changes every `cadence_s`
+/// seconds would send. Each of the book's three documents goes in batches
+/// of its own: a cycle in which a device changed the book and recorded a
+/// writing day uploads two.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Uploads {
     pub cadence_s: i64,
-    /// Upload batches of the book document, all devices, whole period.
+    /// Upload batches of all three documents, all devices, whole period.
     pub batches: usize,
-    /// Of those, batches holding nothing but writing-day writes.
-    pub writing_day_only: usize,
-    /// Batches per working day (a day with at least one commit).
+    /// Of those, the book document's, `stats:<book>`'s and
+    /// `checkpoints:<book>`'s.
+    pub book: usize,
+    pub stats: usize,
+    pub checkpoints: usize,
+    /// Batches per working day (a day with at least one commit), all
+    /// documents and the book document's.
     pub per_working_day: f64,
-    pub writing_day_only_per_working_day: f64,
-    /// Sum of the commits' update bytes, and the writing-day share.
+    pub book_per_working_day: f64,
+    /// Sum of the commits' update bytes, and the book document's share.
     pub bytes: u64,
-    pub writing_day_bytes: u64,
+    pub book_bytes: u64,
 }
 
 /// Group `commits` into the batches a sync cycle of `cadence_s` seconds
-/// would upload: one per device per cycle in which that device committed.
-/// `cadence_s` 0 uploads every commit by itself.
+/// would upload: one per document per device per cycle in which that device
+/// committed to it. `cadence_s` 0 uploads every commit by itself.
 pub fn uploads(commits: &[Commit], cadence_s: i64) -> Uploads {
-    let mut batches: BTreeMap<(u8, i64, usize), bool> = BTreeMap::new();
+    let mut batches: BTreeMap<(&'static str, u8, i64, usize), ()> = BTreeMap::new();
     let mut days = std::collections::BTreeSet::new();
     let mut out = Uploads {
         cadence_s,
@@ -822,22 +913,25 @@ pub fn uploads(commits: &[Commit], cadence_s: i64) -> Uploads {
     };
     for (i, c) in commits.iter().enumerate() {
         days.insert(c.ts.div_euclid(DAY_S));
+        let doc = c.kind.document();
         let key = if cadence_s == 0 {
-            (c.device, c.ts, i)
+            (doc, c.device, c.ts, i)
         } else {
-            (c.device, c.ts.div_euclid(cadence_s), 0)
+            (doc, c.device, c.ts.div_euclid(cadence_s), 0)
         };
-        let only = batches.entry(key).or_insert(true);
-        *only &= c.kind == Kind::WritingDay;
+        batches.insert(key, ());
         out.bytes += c.bytes as u64;
-        if c.kind == Kind::WritingDay {
-            out.writing_day_bytes += c.bytes as u64;
+        if doc == "book" {
+            out.book_bytes += c.bytes as u64;
         }
     }
     out.batches = batches.len();
-    out.writing_day_only = batches.values().filter(|only| **only).count();
+    let of = |name: &str| batches.keys().filter(|k| k.0 == name).count();
+    out.book = of("book");
+    out.stats = of("stats");
+    out.checkpoints = of("checkpoints");
     let working = days.len().max(1) as f64;
     out.per_working_day = out.batches as f64 / working;
-    out.writing_day_only_per_working_day = out.writing_day_only as f64 / working;
+    out.book_per_working_day = out.book as f64 / working;
     out
 }

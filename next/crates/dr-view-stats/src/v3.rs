@@ -82,7 +82,7 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
     let (meta, entries, templates, materials) = handle.read(move |doc| {
-        if !dr_doc::v3::is_v3_doc(doc) {
+        if !dr_doc::v3::is_book_doc(doc) {
             return Err(invalid("v3 statistics require a v3 book"));
         }
         let b = BorrowedBookV3::new(doc, &id)?;

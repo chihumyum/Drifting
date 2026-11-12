@@ -667,7 +667,7 @@ mod tests {
         let id = DocId::Book(book.clone()).to_string();
         let doc = LoroDoc::new();
         dr_doc::schema::configure(&doc);
-        doc.import(&dr_doc::v3::genesis_v3(&book)).unwrap();
+        doc.import(&dr_doc::v3::book_genesis(&book)).unwrap();
         let keys = [
             RecordKey::collection("meta"),
             RecordKey::collection("relation_types"),

@@ -38,7 +38,7 @@ fn document<'a>(
             .find(|(entry, _)| entry.id == id)
             .ok_or_else(|| damaged(format!("checkpoint document is missing: {id}")))?;
         let doc = if let Some(rw) = rewrite {
-            rw.doc(bytes)?
+            rw.doc(id, bytes)?
         } else {
             let doc = LoroDoc::new();
             schema::configure(&doc);
@@ -50,6 +50,8 @@ fn document<'a>(
     Ok(&cache[id])
 }
 
+/// Check and rebase every manifest ever stored in `checkpoints:<book>`
+/// (`changes`, `paths`: that document's history), the thinned ones included.
 pub(super) fn prepare(
     read: &Contents,
     rw: &mut Rewrite,
@@ -130,8 +132,6 @@ pub(super) fn prepare(
                     new,
                 );
             }
-            // Either fingerprint a manifest may carry: the current one, or
-            // the one saved until 2026-11-12 (the workspace knows both).
             if !api::checkpoint_history_matches(
                 &original,
                 &api::EntryIn {
@@ -146,10 +146,9 @@ pub(super) fn prepare(
                     "checkpoint historical content does not match its manifest",
                 ));
             }
-            // Cached book copies still contain the original checkpoint strings.
-            // The shared fingerprint deliberately covers entry-owned state and
-            // body versions, not this independent checkpoint root. The
-            // rewritten manifest always carries the current fingerprint.
+            // The fingerprint covers entry-owned state and body versions; the
+            // manifests themselves live in another document. A rewritten
+            // manifest carries the fingerprint of its rewritten history.
             mapped.content_hash = api::checkpoint_history_fingerprint(
                 &rewritten,
                 &api::EntryIn {

@@ -88,7 +88,7 @@ impl WorkingMemoryView {
                     WsEvent::Local(change) => change.table == "local_state" && change.key == prefix,
                     // The book itself (whether it is in the trash); a writing
                     // day or a saved checkpoint is no change to it.
-                    WsEvent::Book(change) => change.book == book && change.touched.content,
+                    WsEvent::Book(change) => change.book == book,
                     _ => false,
                 };
                 if changed {
