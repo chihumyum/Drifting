@@ -727,17 +727,10 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-LEAF-NO-CHILDREN",
-        "叶子没有子条目；合并后出现时，读取时把这些子条目当作住在叶子的上一层，数据不动",
+        "开关关着的条目下面没有条目；合并后出现时，读取时把这些条目当作住在最近一个开着开关的祖先下面（没有就是根），数据不动，开关再打开就回来",
         [Command, Read],
-        "命令层用 dr_model::v3::check_parent_is_level 和 check_template_switch 拒绝在叶子下放子条目或把仍有子条目的层级换成叶子；读取时 effective_parent_id 把叶子下的子条目提升到最近的非叶子祖先（或根），底层数据不动",
-        ["v3_leaves_cannot_have_children_and_merge_lifts_to_ancestor_level"]
-    ),
-    inv!(
-        "V3-LEVEL-ALLOWS-TEMPLATE",
-        "条目放进的层级允许它的模板；合并后不满足时照常显示，只是不能再往里放新的",
-        [Command, Read],
-        "命令层用 dr_model::v3::check_level_allows_template 检查目标层级解析后的 settings.allow 是否允许该模板；读取时不对已存在的子条目按 allow 过滤",
-        ["v3_level_allow_list_filters_new_entries"]
+        "命令层用 dr_model::v3::check_parent_is_level 只接受根或开着开关的活条目做新建、移动、恢复的住处，关开关的命令把直接子条目一次挪走；读取时 effective_parent_id 跳过开关关着的祖先，底层数据不动",
+        ["entries_with_the_switch_off_hold_nothing_and_merge_lifts_to_the_nearest_level"]
     ),
     inv!(
         "V3-ENTRY-TEMPLATE-EXISTS",
@@ -748,10 +741,10 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-TEMPLATE-SWITCH-KEEPS-DATA",
-        "换模板不删数据：新模板没有的模块数据原样留着，换回来就回来；层级换成叶子之前要先没有子条目",
+        "换模板不删数据、不动开关：新模板没有的模块数据原样留着，换回来就回来",
         [Structure, Command, Read],
-        "Entry::switch_template 只改 template 字段，orphaned_fields 暴露不在当前模板里的原内容；check_template_switch 拒绝把仍有子条目的层级改成叶子",
-        ["v3_switching_template_preserves_module_data_and_checks_children"]
+        "Entry::switch_template 只改 template 字段，开关存在条目上不跟模板走，orphaned_fields 暴露不在当前模板里的原内容；命令层只用 check_entry_template 查新模板存在",
+        ["switching_template_keeps_module_data_and_the_switch"]
     ),
     inv!(
         "V3-TEMPLATE-DELETE-UNUSED",
@@ -762,16 +755,16 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-MEMBERSHIP-RULES",
-        "归属到的层级收别处的条目、允许这个模板；读取时不满足就忽略这条归属，数据留着",
+        "归属到的层级活着、开关开着、解析后收别处的条目；读取时不满足就忽略这条归属，数据留着",
         [Command, Read],
-        "归属只看要挂去的层级：check_membership 校验宿主是存活层级、解析后的 settings.accept 为真（泳道层级恒为真）且 settings.allow 允许成员模板；filter_valid_memberships 过滤不满足的归属，Entry::effective_primary 只认仍在有效归属里的宿主",
-        ["v3_membership_governed_by_target_level_accept_and_allow"]
+        "归属只看要挂去的层级，不看成员的模板：check_membership 校验两端活着、宿主开关开着、解析后的 settings.accept 为真（泳道恒为真）；filter_valid_memberships 过滤不满足的归属（宿主关掉开关的也在内），Entry::effective_primary 只认仍在有效归属里的宿主",
+        ["membership_is_governed_by_the_hosts_switch_and_accept"]
     ),
     inv!(
         "V3-TIMELINE-LANE-ENABLED",
-        "视图里的泳道必须是泳道层级",
+        "视图里的泳道是开关开着、解析后 lane 为真的条目；lane 不往下继承",
         [Command, Read],
-        "命令层用 dr_model::v3::check_timeline_lane 校验条目是存活的泳道层级（kind == Level && lane == true）；读取时 effective_timeline_lanes 忽略不满足的条目",
+        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::is_lane（开关开着，lane 取条目自己的覆盖、没有再取模板）；读取时 effective_timeline_lanes 忽略不满足的条目",
         ["v3_timeline_lanes_and_placements_require_lane_membership"]
     ),
     inv!(
@@ -783,10 +776,13 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-AUTOLINK-NAME-UNIQUE",
-        "自动链接的名字和别名唯一（范围：自动链接的叶子，即住处层级或任一归属层级开了自动链接的叶子）",
+        "自动链接的名字和别名唯一（范围：自动链接的条目，即模板 linkable、住处层级或任一归属层级开了自动链接的条目，不看它自己的开关）",
         [Command, Read],
-        "命令层用 dr_model::v3::check_autolink_name_unique 拒绝重名；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict",
-        ["v3_autolink_names_and_aliases_are_unique_across_autolink_leaves"]
+        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出），只拒绝这次写入新造成的重名；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
+        [
+            "autolink_names_are_unique_across_autolinked_entries_whatever_their_switch",
+            "a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves_it"
+        ]
     ),
     inv!(
         "V3-TIMELINE-TARGETS-LIVE",
@@ -797,10 +793,13 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-MANUSCRIPT-NO-NEST",
-        "成书的层级不嵌套：命令层预防；读取时只认最外层",
+        "成书的层级（开着开关的条目）不嵌套：命令层预防；读取时只认最外层",
         [Command, Read],
-        "命令层用 dr_model::v3::check_manuscript_no_nest 拒绝在已开启成书层级的祖先或后代上重复开启；合并冲突下 effective_manuscript_levels 只认最外层",
-        ["v3_manuscript_levels_never_nest_and_read_outermost"]
+        "命令层用 dr_model::v3::check_new_violations 比较改前改后的嵌套对（manuscript_nest_pairs），只拒绝这次写入新造成的嵌套；合并冲突下 effective_manuscript_levels 只认最外层，旧的嵌套不挡无关的写入",
+        [
+            "v3_manuscript_levels_never_nest_and_read_outermost",
+            "a_nested_manuscript_a_merge_left_blocks_no_unrelated_write"
+        ]
     ),
     inv!(
         "V3-CROSS-DOC-ORDER",
@@ -850,6 +849,41 @@ pub const INVARIANTS: &[Invariant] = &[
             "old_catalog_and_old_prose_are_refused_without_repair_or_mutation",
             "a_marker_change_that_arrives_before_its_dependency_is_refused_with_it"
         ]
+    ),
+    inv!(
+        "LEVEL-OFF-KEEPS-BELOW",
+        "关开关不删「下面」的东西：覆盖、泳道身份、归属、主归属、视图里的位置都留着，开关关着时读作不存在，再打开就回来",
+        [Structure, Read],
+        "开关存在条目上（Entry::level）；resolve_level_settings 对开关关着的条目给默认值，filter_valid_memberships、Entry::is_lane、effective_timeline_placements 都按开关过滤，数据不动",
+        ["switching_off_keeps_overrides_memberships_lanes_and_placements_for_when_it_is_back"]
+    ),
+    inv!(
+        "LEVEL-SWITCH-OFF-MOVES-CHILDREN",
+        "下面还有条目时关开关：一次书目提交把直接子条目（含回收站里的）按原顺序挪到这个条目所在的顶层条目后面，子树跟着走，守卫按子条目顺序，一步撤销",
+        [Command],
+        "entry.set_level 关开关时声明 entries/<id>/level 和 children_of(<id>)，在一次写入里调 EntriesTreeWriterV3::switch_level_off，登记 entry_history.restore 撤销这个条目和每个被挪的子条目",
+        ["switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoable_commit"]
+    ),
+    inv!(
+        "LEVEL-DEFAULT-FROM-TEMPLATE",
+        "新条目的开关取模板的默认值；之后模板怎么改、条目换什么模板，都不动已有条目的开关",
+        [Structure, Command],
+        "开关存在条目上；只有 entry.create（取 EntryTemplate::level，可显式覆盖）和 entry.set_level 写它",
+        ["the_switch_starts_from_the_template_and_never_follows_it_afterwards"]
+    ),
+    inv!(
+        "MANUSCRIPT-OWN-PROSE-FIRST",
+        "成书序列：从最外层成书层级按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；回收站里的连同下面都不算",
+        [Structure, Read],
+        "只有 BookStructureV3::manuscript 算成书序列（导出、全书字数、章节编号都用它），ordinal 只编给有成书正文的条目",
+        ["the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it"]
+    ),
+    inv!(
+        "FLATTEN-MEMBERS-ONCE",
+        "整书视图带归属摊平：每个层级先住在下面的、再归属进来的（按归属自己的顺序），每个条目只出现一次；成书序列不带归属",
+        [Structure, Read],
+        "BookStructureV3::flatten 的 include_members 用已访问集合挡住重复和环；manuscript() 恒不带归属",
+        ["flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone"]
     ),
 ];
 
@@ -904,7 +938,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 79;
+pub const ACTIVE_CONTRACTS: usize = 83;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

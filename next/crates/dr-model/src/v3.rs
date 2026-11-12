@@ -1,16 +1,16 @@
-//! Universal kernel v3 domain types, without Loro (`docs/rust-rewrite/kernel-v3.md`).
+//! Universal kernel domain types, without Loro (`docs/rust-rewrite/kernel-v4.md`).
 //!
-//! In v3, a book's structured content lives in a single entry tree (`entries`).
-//! Entries come in two kinds determined by their [`EntryTemplate`]:
-//! - **Levels (`TemplateKind::Level`)**: hold child entries, carry a description
-//!   prose document (`body:<entry_id>/about`), fields, and key/value rows, and
-//!   configure level settings (`LevelSettings`, inherited down the tree), a
-//!   swimlane toggle (`lane`), and domain actions (`verbs`).
-//! - **Leaves (`TemplateKind::Leaf`)**: hold content modules (`prose`, `fields`,
-//!   `kv`, `patches`, `plot_grid`, `relations`) and cannot have child entries.
+//! A book's structured content lives in a single entry tree (`entries`). There
+//! is one kind of entry: its [`EntryTemplate`] composes any modules (`prose`,
+//! `fields`, `kv`, `patches`, `plot_grid`, `relations`, `children`), and the
+//! entry's own switch ([`Entry::level`], shown as 「层级」) says whether entries
+//! can live under it. An entry with the switch on is called a level: its
+//! settings for what lives below ([`LevelSettings`], inherited down the tree),
+//! its swimlane setting (`lane`, not inherited) and its template's actions
+//! (`verbs`) apply. With the switch off they are kept and read as absent.
 //!
-//! Cross-cutting memberships (`memberships`) are governed by the target level's
-//! `accept` and `allow` settings, and timeline views (`timeline_views`) place
+//! Cross-cutting memberships (`memberships`) are governed by the host level's
+//! switch and `accept` setting, and timeline views (`timeline_views`) place
 //! entries that belong to at least one swimlane in the view.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -18,7 +18,7 @@ use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::check::{Violation, non_empty_name};
+use crate::check::Violation;
 pub use crate::id::{
     AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EntryId, EntryTemplateId, KvEntryId,
     MaterialFolderId, MaterialId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
@@ -55,16 +55,8 @@ pub struct EntityLinkV3 {
     pub end_block: Option<BlockId>,
 }
 
-/// Reserved module id for a level entry's own description prose (`body:<entry_id>/about`).
-pub const LEVEL_ABOUT_MODULE: &str = "about";
-
 /// Default block width on a timeline axis when a placement omits `span`.
 pub const DEFAULT_PLACEMENT_SPAN: f64 = 4.0;
-
-/// The [`ModuleId`] for a level entry's description prose (`body:<entry_id>/about`).
-pub fn level_about_module_id() -> ModuleId {
-    ModuleId::parse(LEVEL_ABOUT_MODULE).expect("valid module id")
-}
 
 macro_rules! v3_open_enum {
     (
@@ -140,22 +132,10 @@ macro_rules! v3_open_enum {
 }
 
 v3_open_enum!(
-    /// Whether an [`EntryTemplate`] defines a level (`层级模板`) or a leaf (`叶子模板`).
-    #[derive(Default)]
-    TemplateKind {
-        /// A level entry that can hold child entries and level settings.
-        Level = "level",
-        /// A leaf entry that holds content modules and cannot have child entries.
-        #[default]
-        Leaf = "leaf",
-    }
-);
-
-v3_open_enum!(
-    /// Which kind of module a [`ModuleSpec`] declares (`kernel-v3.md` "模块").
+    /// Which kind of module a [`ModuleSpec`] declares (`kernel-v4.md` "模块").
+    /// Any template may declare any kind, any number of times.
     ModuleKind {
-        /// Rich text (`body:<entry_id>/<module_id>`). Leaf templates only
-        /// (levels always have their built-in `body:<entry_id>/about`).
+        /// Rich text (`body:<entry_id>/<module_id>`).
         Prose = "prose",
         /// Structured fields (`fields.<module_id>` on the entry).
         Fields = "fields",
@@ -167,16 +147,12 @@ v3_open_enum!(
         Relations = "relations",
         /// A 2D plot grid keyed by `<entry_id>/<module_id>` in `plot_grids`.
         PlotGrid = "plot_grid",
+        /// What lives below the entry (`下面的条目`): its resident children and
+        /// accepted members, drawn by the level's `display`. Stores no data
+        /// and shows only while the entry's switch is on.
+        Children = "children",
     }
 );
-
-impl ModuleKind {
-    /// Level templates may only declare `fields` and `kv` modules (`kernel-v3.md`
-    /// "数据结构": "层级模板只能有字段和键值表").
-    pub fn allowed_on_level(&self) -> bool {
-        matches!(self, ModuleKind::Fields | ModuleKind::KeyValue)
-    }
-}
 
 v3_open_enum!(
     /// How a level displays its child and member entries in the workspace.
@@ -315,6 +291,11 @@ pub struct ModuleConfig {
     /// For `prose` modules: whether checklist items project into TODOs.
     #[serde(default)]
     pub task_todos: bool,
+    /// For `prose` modules: whether this prose is part of the book (`成书`):
+    /// export, the book's word count and chapter numbering, one switch for
+    /// all three. On unless a template says otherwise.
+    #[serde(default = "default_true")]
+    pub in_book: bool,
     /// For `fields` modules: ordered field definitions.
     #[serde(default)]
     pub defs: Vec<FieldDef>,
@@ -353,6 +334,7 @@ impl Default for ModuleConfig {
         Self {
             show_outline: false,
             task_todos: false,
+            in_book: true,
             defs: Vec::new(),
             aliases_field: None,
             color_field: None,
@@ -469,6 +451,24 @@ impl ModuleSpec {
         }
     }
 
+    /// A `children` module (`下面的条目`): no data, no configuration.
+    pub fn children(id: ModuleId, name: impl Into<String>) -> Self {
+        Self {
+            id,
+            kind: ModuleKind::Children,
+            name: name.into(),
+            pos: None,
+            config: ModuleConfig::default(),
+            agent: None,
+        }
+    }
+
+    /// This prose module with its `in_book` switch set.
+    pub fn in_book(mut self, in_book: bool) -> Self {
+        self.config.in_book = in_book;
+        self
+    }
+
     pub fn plot_grid(id: ModuleId, name: impl Into<String>, rows: u32, cols: u32) -> Self {
         Self {
             id,
@@ -490,23 +490,21 @@ pub fn sort_modules(modules: &mut [ModuleSpec]) {
     modules.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
 }
 
-/// Effective level settings (`层级的设置`, `kernel-v3.md`).
+/// Effective settings for what lives below a level (`「下面」的设置`, `kernel-v4.md`).
 ///
-/// Resolved by walking from the level entry up its ancestor chain:
-/// `entry.overrides > template.settings > nearest ancestor specifying the field > default`.
+/// Resolved by walking from the level entry up its chain of levels:
+/// `entry.overrides > template.settings > nearest ancestor level specifying the field > default`.
+/// `lane` is the exception: it never inherits.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelSettings {
     /// Default template when creating a new entry under this level (`None` = blank).
     #[serde(default)]
     pub default_template: Option<EntryTemplateId>,
-    /// Allowed templates for entries placed or accepted into this level.
-    /// Empty means all templates are allowed.
-    #[serde(default)]
-    pub allow: Vec<EntryTemplateId>,
     /// Default workspace presentation mode for entries in this level.
     #[serde(default)]
     pub display: ChildDisplayMode,
-    /// Whether leaf entries residing in or belonging to this level participate in auto-linking.
+    /// Whether entries residing in or belonging to this level participate in
+    /// auto-linking (when their template is `linkable`).
     #[serde(default)]
     pub auto_link: bool,
     /// Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).
@@ -517,25 +515,17 @@ pub struct LevelSettings {
     /// `None` means they reside under this level itself.
     #[serde(default)]
     pub home: Option<EntryId>,
-    /// Whether leaf entries under this level in tree order form a manuscript (`成书`).
+    /// Whether what lives under this level in tree order forms a manuscript (`成书`).
     #[serde(default)]
     pub is_manuscript: bool,
     /// Editor formatting shortcut profile for prose under this level (`格式快捷输入`).
     #[serde(default)]
     pub format_shortcuts: FormatShortcuts,
-}
-
-impl LevelSettings {
-    /// Whether `template` is allowed in this level (`allow` empty means any template is allowed).
-    pub fn allows_template(&self, template: Option<&EntryTemplateId>) -> bool {
-        if self.allow.is_empty() {
-            return true;
-        }
-        match template {
-            Some(t) => self.allow.contains(t),
-            None => false,
-        }
-    }
+    /// Whether this level can be a timeline swimlane (`泳道`). A swimlane
+    /// always accepts entries from elsewhere. Read from the entry's own
+    /// override, else its template; never inherited.
+    #[serde(default)]
+    pub lane: bool,
 }
 
 // A missing key inherits; an explicit JSON null clears the inherited value.
@@ -545,9 +535,10 @@ fn nullable_override<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
     Option::<T>::deserialize(d).map(Some)
 }
 
-/// Sparse level settings stored on a level [`EntryTemplate`] (`settings`) or a
-/// level [`Entry`] (`overrides`). Any `None` field inherits from the template or
-/// the nearest ancestor level that specifies it (`kernel-v3.md` "层级的设置").
+/// Sparse level settings stored on an [`EntryTemplate`] (`settings`) or an
+/// [`Entry`] (`overrides`). Any `None` field inherits from the template or the
+/// nearest ancestor level that specifies it (`kernel-v4.md` "「下面」的设置与继承");
+/// `lane` comes from the entry and its template only.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelSettingsOverride {
     /// `None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.
@@ -557,9 +548,6 @@ pub struct LevelSettingsOverride {
         deserialize_with = "nullable_override"
     )]
     pub default_template: Option<Option<EntryTemplateId>>,
-    /// `None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).
-    #[serde(default)]
-    pub allow: Option<Vec<EntryTemplateId>>,
     #[serde(default)]
     pub display: Option<ChildDisplayMode>,
     #[serde(default)]
@@ -577,22 +565,21 @@ pub struct LevelSettingsOverride {
     pub is_manuscript: Option<bool>,
     #[serde(default)]
     pub format_shortcuts: Option<FormatShortcuts>,
+    /// `None` leaves it to the template (an entry's override) or off (a template).
+    #[serde(default)]
+    pub lane: Option<bool>,
 }
-
-/// Alias kept for callers that refer to child settings overrides.
-pub type ChildSettings = LevelSettings;
-pub type ChildSettingsOverride = LevelSettingsOverride;
 
 impl LevelSettingsOverride {
     pub fn is_empty(&self) -> bool {
         self.default_template.is_none()
-            && self.allow.is_none()
             && self.display.is_none()
             && self.auto_link.is_none()
             && self.accept.is_none()
             && self.home.is_none()
             && self.is_manuscript.is_none()
             && self.format_shortcuts.is_none()
+            && self.lane.is_none()
     }
 
     /// Layer `higher` (e.g. an entry's `overrides`) on top of `lower` (e.g. its
@@ -603,7 +590,6 @@ impl LevelSettingsOverride {
                 .default_template
                 .clone()
                 .or_else(|| lower.default_template.clone()),
-            allow: self.allow.clone().or_else(|| lower.allow.clone()),
             display: self.display.clone().or_else(|| lower.display.clone()),
             auto_link: self.auto_link.or(lower.auto_link),
             accept: self.accept.or(lower.accept),
@@ -613,29 +599,30 @@ impl LevelSettingsOverride {
                 .format_shortcuts
                 .clone()
                 .or_else(|| lower.format_shortcuts.clone()),
+            lane: self.lane.or(lower.lane),
         }
     }
 
     /// Materialize concrete [`LevelSettings`] by filling any remaining `None`
-    /// fields with system defaults. If `is_lane` is true, `accept` is always `true`
-    /// (`kernel-v3.md`: "泳道层级总是收别处的条目").
-    pub fn finish(&self, is_lane: bool) -> LevelSettings {
+    /// fields with system defaults. `lane` is passed in, since it never
+    /// inherits; a swimlane always accepts (`泳道总是收别处的条目`).
+    pub fn finish(&self, lane: bool) -> LevelSettings {
         let def = LevelSettings::default();
         LevelSettings {
             default_template: self
                 .default_template
                 .clone()
                 .unwrap_or(def.default_template),
-            allow: self.allow.clone().unwrap_or(def.allow),
             display: self.display.clone().unwrap_or(def.display),
             auto_link: self.auto_link.unwrap_or(def.auto_link),
-            accept: is_lane || self.accept.unwrap_or(def.accept),
+            accept: lane || self.accept.unwrap_or(def.accept),
             home: self.home.clone().unwrap_or(def.home),
             is_manuscript: self.is_manuscript.unwrap_or(def.is_manuscript),
             format_shortcuts: self
                 .format_shortcuts
                 .clone()
                 .unwrap_or(def.format_shortcuts),
+            lane,
         }
     }
 }
@@ -649,7 +636,8 @@ impl LevelSettings {
         let empty = LevelSettingsOverride::default();
         let tpl = template_settings.unwrap_or(&empty);
         let ov = entry_overrides.unwrap_or(&empty);
-        ov.overlay(tpl).finish(false)
+        let both = ov.overlay(tpl);
+        both.finish(both.lane.unwrap_or(false))
     }
 }
 
@@ -668,7 +656,8 @@ pub struct TemplateAgentConfig {
     pub instructions: String,
 }
 
-/// An action declared by a level [`EntryTemplate`] (e.g. "新建章节").
+/// An action declared by an [`EntryTemplate`] (e.g. "新建章节"); it shows on
+/// entries of that template whose switch is on.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TemplateVerb {
     pub id: String,
@@ -687,13 +676,10 @@ pub fn sort_verbs(verbs: &mut [TemplateVerb]) {
     verbs.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
 }
 
-/// An entry template (`templates` map in the v3 book document).
+/// An entry template (`templates` map in the book document).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EntryTemplate {
     pub id: EntryTemplateId,
-    /// `level` (层级模板) or `leaf` (叶子模板).
-    #[serde(default)]
-    pub kind: TemplateKind,
     pub name: String,
     /// Optional badge/icon mark (`记号`).
     #[serde(default)]
@@ -704,17 +690,23 @@ pub struct EntryTemplate {
     /// Skill-style Agent instructions (`写给帮手的说明`).
     #[serde(default)]
     pub agent: Option<TemplateAgentConfig>,
-    /// Ordered module manifest (`modules`).
-    /// For `TemplateKind::Level`, only `fields` and `kv` modules are allowed.
+    /// Ordered module manifest (`modules`), any kinds.
     #[serde(default)]
     pub modules: Vec<ModuleSpec>,
-    /// Level settings (`settings`, only used when `kind == TemplateKind::Level`).
+    /// Whether a new entry of this template starts with its switch on (`level`).
+    /// Only [`Entry::level`] decides afterwards: changing this never touches
+    /// existing entries.
+    #[serde(default)]
+    pub level: bool,
+    /// Whether entries of this template take part in auto-linking where the
+    /// level they live in or belong to turns it on (`linkable`, on by default).
+    #[serde(default = "default_true")]
+    pub linkable: bool,
+    /// Settings for what lives below entries of this template whose switch is
+    /// on (`settings`, including `lane`). Kept whatever `level` says.
     #[serde(default)]
     pub settings: LevelSettingsOverride,
-    /// Swimlane toggle (`lane`, only used when `kind == TemplateKind::Level`).
-    #[serde(default)]
-    pub lane: bool,
-    /// Declared actions (`verbs`, only used when `kind == TemplateKind::Level`).
+    /// Declared actions (`verbs`), shown on entries whose switch is on.
     #[serde(default)]
     pub verbs: Vec<TemplateVerb>,
     #[serde(default)]
@@ -726,24 +718,17 @@ impl EntryTemplate {
         self.deleted_at.is_some()
     }
 
-    pub fn is_level(&self) -> bool {
-        self.kind == TemplateKind::Level
-    }
-
-    pub fn is_leaf(&self) -> bool {
-        self.kind == TemplateKind::Leaf
-    }
-
-    pub fn is_lane_level(&self) -> bool {
-        self.is_level() && self.lane
-    }
-
     pub fn module(&self, id: &ModuleId) -> Option<&ModuleSpec> {
         self.modules.iter().find(|m| &m.id == id)
     }
 
     pub fn prose_modules(&self) -> impl Iterator<Item = &ModuleSpec> {
         self.modules.iter().filter(|m| m.kind == ModuleKind::Prose)
+    }
+
+    /// The prose modules that are part of the book (`in_book`), in order.
+    pub fn book_prose_modules(&self) -> impl Iterator<Item = &ModuleSpec> {
+        self.prose_modules().filter(|m| m.config.in_book)
     }
 }
 
@@ -773,7 +758,7 @@ impl EntryLayout {
     }
 }
 
-/// An entry in the book's unified `entries` `LoroTree` (`kernel-v3.md` "条目").
+/// An entry in the book's unified `entries` `LoroTree` (`kernel-v4.md` "条目").
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub id: EntryId,
@@ -785,7 +770,13 @@ pub struct Entry {
     pub title: String,
     /// The template shaping this entry (`None` = untemplated entry).
     pub template: Option<EntryTemplateId>,
-    /// Per-entry level setting overrides (only meaningful on level entries).
+    /// The entry's own switch (`层级`): whether entries can live under it.
+    /// Set from the template's default when the entry is created; only
+    /// `entry.create` and `entry.set_level` write it afterwards.
+    #[serde(default)]
+    pub level: bool,
+    /// Per-entry overrides of the settings for what lives below (kept, but
+    /// read as absent, while the switch is off).
     pub overrides: Option<LevelSettingsOverride>,
     /// Values of `fields` modules: `module_id -> (field_id -> value)`.
     pub fields: BTreeMap<ModuleId, BTreeMap<String, FieldValue>>,
@@ -797,8 +788,8 @@ pub struct Entry {
     pub created_at: Option<Timestamp>,
     pub updated_at: Option<Timestamp>,
     pub deleted_at: Option<Timestamp>,
-    /// Set by readers when this leaf participates in auto-linking and its
-    /// title or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).
+    /// Set by readers when this entry participates in auto-linking and its
+    /// title or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).
     #[serde(default)]
     pub name_conflict: Option<EntryId>,
 }
@@ -818,22 +809,23 @@ impl Entry {
         templates.get(tid).filter(|t| !t.is_trashed())
     }
 
-    /// Whether this entry's active template is a level template (`TemplateKind::Level`).
-    pub fn is_level(&self, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
-        self.effective_template(templates)
-            .is_some_and(EntryTemplate::is_level)
+    /// Whether this entry's switch is on (`层级`): entries can live under it.
+    pub fn is_level(&self) -> bool {
+        self.level
     }
 
-    /// Whether this entry's active template is a leaf template (`TemplateKind::Leaf`).
-    pub fn is_leaf(&self, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
-        self.effective_template(templates)
-            .is_some_and(EntryTemplate::is_leaf)
+    /// Whether this entry is a timeline swimlane: its switch is on and `lane`
+    /// is set on its own overrides, else on its template's settings. `lane`
+    /// never inherits from an ancestor.
+    pub fn is_lane(&self, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
+        self.level && own_lane(self, templates).is_some_and(|(lane, _)| lane)
     }
 
-    /// Whether this entry is a swimlane level (`kind == Level && lane == true`).
-    pub fn is_lane_level(&self, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
+    /// Whether this entry's names may auto-link (`linkable`): its template
+    /// says so, or it has no active template.
+    pub fn is_linkable(&self, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
         self.effective_template(templates)
-            .is_some_and(EntryTemplate::is_lane_level)
+            .is_none_or(|t| t.linkable)
     }
 
     /// Switch this entry's template without discarding any stored `fields`,
@@ -1256,7 +1248,7 @@ impl BookMetaV3 {
 }
 
 // ============================================================================
-// Invariant checks & read-tolerance helpers (`kernel-v3.md` "不变量")
+// Invariant checks & read-tolerance helpers (`kernel-v4.md` "不变量")
 // ============================================================================
 
 fn fail<T>(invariant: &'static str, detail: impl Into<String>) -> Result<T, Violation> {
@@ -1289,34 +1281,23 @@ pub fn ancestors_without_cycle(
     out
 }
 
-/// Invariant 2 (`V3-LEAF-NO-CHILDREN`) read tolerance: if a concurrent merge
-/// places `entry` under a leaf entry, readers treat `entry` as residing under
-/// the nearest non-leaf ancestor above that leaf (or root `None`), without
-/// mutating stored data.
-pub fn effective_parent_id(
-    entry: &Entry,
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> Option<EntryId> {
-    for anc_id in ancestors_without_cycle(entries, &entry.id) {
-        if let Some(anc) = entries.get(&anc_id)
-            && !anc.is_leaf(templates)
-        {
-            return Some(anc_id);
-        }
-    }
-    None
+/// Read tolerance for `V3-LEAF-NO-CHILDREN` (an entry whose switch is off
+/// holds nothing): if a concurrent merge places `entry` under an entry whose
+/// switch is off, readers treat `entry` as residing under the nearest
+/// ancestor whose switch is on (or the root `None`), without changing stored
+/// data. Turning the switch back on brings it back.
+pub fn effective_parent_id(entry: &Entry, entries: &BTreeMap<EntryId, Entry>) -> Option<EntryId> {
+    ancestors_without_cycle(entries, &entry.id)
+        .into_iter()
+        .find(|id| entries.get(id).is_some_and(Entry::is_level))
 }
 
-/// Effective ancestor chain of `start` skipping any leaf ancestors (`V3-LEAF-NO-CHILDREN`).
-pub fn effective_ancestors(
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-    start: &EntryId,
-) -> Vec<EntryId> {
+/// Effective ancestor chain of `start`: its ancestors whose switch is on
+/// (`V3-LEAF-NO-CHILDREN`), nearest first.
+pub fn effective_ancestors(entries: &BTreeMap<EntryId, Entry>, start: &EntryId) -> Vec<EntryId> {
     ancestors_without_cycle(entries, start)
         .into_iter()
-        .filter(|id| entries.get(id).is_some_and(|e| !e.is_leaf(templates)))
+        .filter(|id| entries.get(id).is_some_and(Entry::is_level))
         .collect()
 }
 
@@ -1332,9 +1313,9 @@ pub enum LevelSettingSource {
         entry: EntryId,
         template: EntryTemplateId,
     },
+    /// `accept` is on because the level is a swimlane.
     Lane {
         entry: EntryId,
-        template: EntryTemplateId,
     },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1344,14 +1325,40 @@ pub struct ResolvedLevelSettings {
 }
 pub const LEVEL_SETTING_KEYS: [&str; 8] = [
     "default_template",
-    "allow",
     "display",
     "auto_link",
     "accept",
     "home",
     "is_manuscript",
     "format_shortcuts",
+    "lane",
 ];
+
+/// `lane` as set on `entry` itself or, failing that, on its template: the
+/// value and where it came from. `None` when neither says.
+fn own_lane(
+    entry: &Entry,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> Option<(bool, LevelSettingSource)> {
+    if let Some(lane) = entry.overrides.as_ref().and_then(|o| o.lane) {
+        return Some((
+            lane,
+            LevelSettingSource::Override {
+                entry: entry.id.clone(),
+            },
+        ));
+    }
+    let tpl = entry.effective_template(templates)?;
+    tpl.settings.lane.map(|lane| {
+        (
+            lane,
+            LevelSettingSource::Template {
+                entry: entry.id.clone(),
+                template: tpl.id.clone(),
+            },
+        )
+    })
+}
 
 /// Resolve values and provenance together; callers must not independently
 /// reconstruct inheritance from a different read of the book.
@@ -1382,7 +1389,6 @@ fn inherit_settings(
         )* }; }
         provenance!(
             default_template,
-            allow,
             display,
             auto_link,
             accept,
@@ -1394,9 +1400,12 @@ fn inherit_settings(
     *acc = acc.overlay(from);
 }
 
-/// Resolve the effective [`LevelSettings`] of `level_id` by inheriting down the
-/// ancestor chain (`kernel-v3.md` "层级的设置":
-/// `entry.overrides > template.settings > nearest ancestor specifying the field > default`).
+/// Resolve the effective [`LevelSettings`] of `level_id` by inheriting down
+/// its chain of levels (`kernel-v4.md` "「下面」的设置与继承":
+/// `entry.overrides > template.settings > nearest ancestor level specifying the field > default`).
+/// An entry whose switch is off, the root (`None`) and a missing entry read
+/// as the defaults: what is stored on an entry whose switch is off is kept
+/// and not used.
 pub fn resolve_level_settings(
     level_id: Option<&EntryId>,
     entries: &BTreeMap<EntryId, Entry>,
@@ -1414,12 +1423,11 @@ fn resolve_level_settings_inner(
     let Some(lid) = level_id else {
         return LevelSettings::default();
     };
-    let Some(level_entry) = entries.get(lid) else {
+    let Some(level_entry) = entries.get(lid).filter(|e| e.is_level()) else {
         return LevelSettings::default();
     };
-    let is_lane = level_entry.is_lane_level(templates);
     let mut chain = vec![lid.clone()];
-    chain.extend(effective_ancestors(entries, templates, lid));
+    chain.extend(effective_ancestors(entries, lid));
 
     let mut acc = LevelSettingsOverride::default();
     for id in &chain {
@@ -1434,9 +1442,7 @@ fn resolve_level_settings_inner(
                 &mut sources,
             );
         }
-        if let Some(tpl) = e.effective_template(templates)
-            && tpl.is_level()
-        {
+        if let Some(tpl) = e.effective_template(templates) {
             inherit_settings(
                 &mut acc,
                 &tpl.settings,
@@ -1448,34 +1454,26 @@ fn resolve_level_settings_inner(
             );
         }
     }
-    if is_lane && let Some(sources) = sources {
-        sources.insert(
-            "accept".into(),
-            LevelSettingSource::Lane {
-                entry: lid.clone(),
-                template: level_entry
-                    .template
-                    .clone()
-                    .expect("lane has an effective template"),
-            },
-        );
+    let lane = own_lane(level_entry, templates);
+    let is_lane = lane.as_ref().is_some_and(|(lane, _)| *lane);
+    if let Some(sources) = sources {
+        if let Some((_, source)) = lane {
+            sources.insert("lane".into(), source);
+        }
+        if is_lane {
+            sources.insert(
+                "accept".into(),
+                LevelSettingSource::Lane { entry: lid.clone() },
+            );
+        }
     }
     acc.finish(is_lane)
 }
 
-/// Alias kept for callers that resolve settings for a parent entry.
-pub fn resolve_child_settings_for_parent(
-    parent_id: Option<&EntryId>,
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> LevelSettings {
-    resolve_level_settings(parent_id, entries, templates)
-}
-
-/// Resolve where a new child created from `context_level_id` should actually
-/// reside in the tree (`LevelSettings::home`: if the level has `accept == true`
-/// and specifies a valid live level `home`, the new entry resides under `home`
-/// and is added as a member of `context_level_id`).
+/// Resolve where a new entry created from `context_level_id` resides in the
+/// tree (`LevelSettings::home`: if the level accepts entries from elsewhere
+/// and names a live level as `home`, the new entry resides under `home` and
+/// is added as a member of `context_level_id`; otherwise under the level).
 pub fn resolve_new_entry_residence(
     context_level_id: Option<&EntryId>,
     entries: &BTreeMap<EntryId, Entry>,
@@ -1487,33 +1485,11 @@ pub fn resolve_new_entry_residence(
         && let Some(home_id) = settings.home
         && let Some(home_entry) = entries.get(&home_id)
         && !home_entry.is_trashed()
-        && !home_entry.is_leaf(templates)
+        && home_entry.is_level()
     {
         return Some(home_id);
     }
     Some(lid.clone())
-}
-
-/// Check that a template's module manifest obeys `TemplateKind` rules:
-/// level templates may only contain `fields` and `kv` modules.
-pub fn check_template_modules(
-    kind: &TemplateKind,
-    modules: &[ModuleSpec],
-) -> Result<(), Violation> {
-    if *kind == TemplateKind::Level {
-        for m in modules {
-            if !m.kind.allowed_on_level() {
-                return fail(
-                    "V3-LEAF-NO-CHILDREN",
-                    format!(
-                        "level template cannot contain module {} of kind {}",
-                        m.id, m.kind
-                    ),
-                );
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Invariant 1 (`V3-TREE-NO-CYCLE`): moving `entry` under `new_parent` must not
@@ -1548,11 +1524,12 @@ pub fn check_entry_move(
     Ok(())
 }
 
-/// Invariant 2 (`V3-LEAF-NO-CHILDREN`): leaf entries cannot have child entries.
+/// Invariant 2 (`V3-LEAF-NO-CHILDREN`: an entry whose switch is off holds
+/// nothing): a residence given to a new, moved or restored entry is the root
+/// or a live entry whose switch is on.
 pub fn check_parent_is_level(
     parent_id: Option<&EntryId>,
     entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> Result<(), Violation> {
     let Some(pid) = parent_id else {
         return Ok(());
@@ -1563,40 +1540,19 @@ pub fn check_parent_is_level(
             format!("parent entry {pid} does not exist or is trashed"),
         );
     };
-    if parent.is_leaf(templates) {
+    if !parent.is_level() {
         return fail(
             "V3-LEAF-NO-CHILDREN",
-            format!("leaf entry {pid} cannot have child entries"),
-        );
-    }
-    Ok(())
-}
-
-/// Invariant 3 (`V3-LEVEL-ALLOWS-TEMPLATE`): when placing or creating an entry
-/// under `parent_id`, the parent level's resolved `allow` list (if non-empty)
-/// must permit `child_template`.
-pub fn check_level_allows_template(
-    parent_id: Option<&EntryId>,
-    child_template: Option<&EntryTemplateId>,
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> Result<(), Violation> {
-    check_parent_is_level(parent_id, entries, templates)?;
-    let Some(pid) = parent_id else {
-        return Ok(());
-    };
-    let settings = resolve_level_settings(Some(pid), entries, templates);
-    if !settings.allows_template(child_template) {
-        return fail(
-            "V3-LEVEL-ALLOWS-TEMPLATE",
-            format!("level {pid} does not allow template {child_template:?}"),
+            format!("entry {pid} has its switch off and cannot hold entries"),
         );
     }
     Ok(())
 }
 
 /// Invariant 4 (`V3-ENTRY-TEMPLATE-EXISTS`): when assigning a template to an
-/// entry, the template must exist and not be trashed.
+/// entry, the template must exist and not be trashed. Switching an entry's
+/// template only needs this: it keeps the entry's data and its switch
+/// (`V3-TEMPLATE-SWITCH-KEEPS-DATA`).
 pub fn check_entry_template(
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
     template: Option<&EntryTemplateId>,
@@ -1611,47 +1567,6 @@ pub fn check_entry_template(
             format!("template {tid} does not exist"),
         ),
     }
-}
-
-/// Invariant 5 (`V3-TEMPLATE-SWITCH-KEEPS-DATA` & `V3-LEAF-NO-CHILDREN`):
-/// switching a level entry to a leaf template is refused while the entry still
-/// has live child entries; switching templates never deletes existing module data.
-pub fn check_template_switch(
-    entry_id: &EntryId,
-    new_template: Option<&EntryTemplateId>,
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> Result<(), Violation> {
-    check_entry_template(templates, new_template)?;
-    let Some(entry) = entries.get(entry_id) else {
-        return fail(
-            "V3-ENTRY-TEMPLATE-EXISTS",
-            format!("entry {entry_id} does not exist"),
-        );
-    };
-    let becoming_leaf = new_template
-        .and_then(|t| templates.get(t))
-        .is_some_and(EntryTemplate::is_leaf);
-    if becoming_leaf {
-        let has_children = entries
-            .values()
-            .any(|c| !c.is_trashed() && c.parent.as_ref() == Some(entry_id));
-        if has_children {
-            return fail(
-                "V3-LEAF-NO-CHILDREN",
-                format!(
-                    "cannot switch entry {entry_id} to a leaf template while it has child entries"
-                ),
-            );
-        }
-    }
-    // Also verify parent level allows the new template if parent exists.
-    if let Some(pid) = entry.parent.as_ref()
-        && entries.get(pid).is_some_and(|p| !p.is_leaf(templates))
-    {
-        check_level_allows_template(Some(pid), new_template, entries, templates)?;
-    }
-    Ok(())
 }
 
 /// Invariant 6 (`V3-TEMPLATE-DELETE-UNUSED`): a template cannot be deleted
@@ -1678,11 +1593,9 @@ pub fn check_template_delete(
 }
 
 /// Invariant 7 (`V3-MEMBERSHIP-RULES`): whether `member_id` can belong to
-/// `host_id` is determined solely by the target level `host_id` (`归属由层级决定，叶子不管`):
-/// - both `host` and `member` must be live;
-/// - `host` must be a level entry (`!host.is_leaf(templates)`) whose resolved
-///   `LevelSettings::accept` is `true` (swimlane levels always have `accept == true`);
-/// - `host`'s resolved `LevelSettings::allow` (if non-empty) must allow `member`'s template.
+/// `host_id` is decided by the host alone: both ends live, the host's switch
+/// on and its resolved `accept` on (a swimlane always accepts). The member's
+/// template does not matter.
 pub fn check_membership(
     host_id: &EntryId,
     member_id: &EntryId,
@@ -1698,52 +1611,54 @@ pub fn check_membership(
     let Some(host) = entries.get(host_id).filter(|e| !e.is_trashed()) else {
         return fail("V3-MEMBERSHIP-RULES", format!("host {host_id} is not live"));
     };
-    let Some(member) = entries.get(member_id).filter(|e| !e.is_trashed()) else {
+    if entries.get(member_id).filter(|e| !e.is_trashed()).is_none() {
         return fail(
             "V3-MEMBERSHIP-RULES",
             format!("member {member_id} is not live"),
         );
-    };
-    if !host.is_level(templates) {
+    }
+    if !host.is_level() {
         return fail(
             "V3-MEMBERSHIP-RULES",
-            format!("host {host_id} is not a level entry"),
+            format!("host {host_id} has its switch off"),
         );
     }
-    let host_settings = resolve_level_settings(Some(host_id), entries, templates);
-    if !host_settings.accept {
+    if !resolve_level_settings(Some(host_id), entries, templates).accept {
         return fail(
             "V3-MEMBERSHIP-RULES",
             format!("level {host_id} does not accept entries from elsewhere"),
         );
     }
-    let member_tpl = member.effective_template(templates).map(|t| &t.id);
-    if !host_settings.allows_template(member_tpl) {
-        return fail(
-            "V3-MEMBERSHIP-RULES",
-            format!("level {host_id} does not allow member {member_id}'s template"),
-        );
-    }
     Ok(())
 }
 
-/// Read-side filter for Invariant 7 (`V3-MEMBERSHIP-RULES`): returns only valid
-/// memberships where the host is a live level with `accept == true` and allows
-/// the member's template.
+/// Read-side filter for Invariant 7 (`V3-MEMBERSHIP-RULES`): only the
+/// memberships whose two ends are live and whose host has its switch on and
+/// accepts. Each host's settings are resolved once.
 pub fn filter_valid_memberships(
     memberships: &[Membership],
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> Vec<Membership> {
+    let mut hosts: BTreeMap<&EntryId, bool> = BTreeMap::new();
     memberships
         .iter()
-        .filter(|m| check_membership(&m.host, &m.member, entries, templates).is_ok())
+        .filter(|m| {
+            m.host != m.member
+                && entries.get(&m.member).is_some_and(|e| !e.is_trashed())
+                && *hosts.entry(&m.host).or_insert_with(|| {
+                    entries
+                        .get(&m.host)
+                        .is_some_and(|h| !h.is_trashed() && h.is_level())
+                        && resolve_level_settings(Some(&m.host), entries, templates).accept
+                })
+        })
         .cloned()
         .collect()
 }
 
 /// Invariant 8 (`V3-TIMELINE-LANE-ENABLED`): a timeline swimlane must point to
-/// a live level entry whose active template has `lane == true`.
+/// a live entry whose switch is on and whose `lane` resolves true.
 pub fn check_timeline_lane(
     entry_id: &EntryId,
     entries: &BTreeMap<EntryId, Entry>,
@@ -1755,17 +1670,17 @@ pub fn check_timeline_lane(
             format!("lane entry {entry_id} is not live"),
         );
     };
-    if !entry.is_lane_level(templates) {
+    if !entry.is_lane(templates) {
         return fail(
             "V3-TIMELINE-LANE-ENABLED",
-            format!("entry {entry_id} is not a swimlane level"),
+            format!("entry {entry_id} is not a swimlane"),
         );
     }
     Ok(())
 }
 
 /// Read-side filter for Invariant 8 (`V3-TIMELINE-LANE-ENABLED`): ignores lanes
-/// whose target entry is missing, trashed, or not a swimlane level.
+/// whose target entry is missing, trashed, or not a swimlane.
 pub fn effective_timeline_lanes(
     lanes: &[TimelineLane],
     entries: &BTreeMap<EntryId, Entry>,
@@ -1796,9 +1711,10 @@ pub fn is_entry_in_view_lanes(
     if lane_ids.is_empty() {
         return false;
     }
-    filter_valid_memberships(memberships, entries, templates)
+    memberships
         .iter()
-        .any(|m| &m.member == entry_id && lane_ids.contains(&m.host))
+        .filter(|m| &m.member == entry_id && lane_ids.contains(&m.host))
+        .any(|m| check_membership(&m.host, &m.member, entries, templates).is_ok())
 }
 
 /// Invariant 9 (`V3-TIMELINE-PLACEMENT-IN-LANE`) & Invariant 11 (`V3-TIMELINE-TARGETS-LIVE`):
@@ -1841,30 +1757,29 @@ pub fn prune_placement_if_not_in_view_lanes(
     false
 }
 
-/// Whether `entry` is a live auto-link leaf (`kernel-v3.md`:
-/// "叶子的住处所在的层级，或者它归属的任何一层，只要开了自动链接，它就自动链接").
-pub fn is_autolink_leaf(
+/// Whether `entry` auto-links (`kernel-v4.md` "自动链接"): it is live, its
+/// template is `linkable` (an entry without an active template is), and the
+/// level it resides in, or any level it validly belongs to, resolves
+/// `auto_link` on. Its own switch does not matter. For many entries at once
+/// use [`AutolinkNames`], which resolves each level once.
+pub fn is_autolinked(
     entry: &Entry,
     memberships: &[Membership],
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> bool {
-    if entry.is_trashed() || !entry.is_leaf(templates) {
+    if entry.is_trashed() || !entry.is_linkable(templates) {
         return false;
     }
-    let eff_parent = effective_parent_id(entry, entries, templates);
-    if resolve_level_settings(eff_parent.as_ref(), entries, templates).auto_link {
+    let parent = effective_parent_id(entry, entries);
+    if resolve_level_settings(parent.as_ref(), entries, templates).auto_link {
         return true;
     }
-    for m in memberships {
-        if m.member == entry.id
+    memberships.iter().any(|m| {
+        m.member == entry.id
             && check_membership(&m.host, &m.member, entries, templates).is_ok()
             && resolve_level_settings(Some(&m.host), entries, templates).auto_link
-        {
-            return true;
-        }
-    }
-    false
+    })
 }
 
 /// All normalized name keys (`element_name_key`) claimed by `entry` (its title
@@ -1887,114 +1802,109 @@ pub fn entry_autolink_keys(
     keys
 }
 
-/// Invariant 10 (`V3-AUTOLINK-NAME-UNIQUE`): among live auto-link leaf entries,
-/// titles and aliases (trimmed, case-insensitive) must be unique.
-#[allow(clippy::too_many_arguments)]
-pub fn check_autolink_name_unique(
-    candidate_id: Option<&EntryId>,
-    parent_id: Option<&EntryId>,
-    host_ids: &[EntryId],
-    is_leaf_candidate: bool,
-    title: &str,
-    aliases: &[String],
-    memberships: &[Membership],
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> Result<(), Violation> {
-    non_empty_name(title)?;
-    if !is_leaf_candidate {
-        return Ok(());
-    }
-    let autolink_enabled = resolve_level_settings(parent_id, entries, templates).auto_link
-        || host_ids
-            .iter()
-            .any(|h| resolve_level_settings(Some(h), entries, templates).auto_link);
-    if !autolink_enabled {
-        return Ok(());
-    }
-    let mut wanted = BTreeSet::new();
-    let tk = element_name_key(title);
-    if !tk.is_empty() {
-        wanted.insert(tk);
-    }
-    for a in aliases {
-        let ak = element_name_key(a);
-        if !ak.is_empty() {
-            wanted.insert(ak);
-        }
-    }
-    for e in entries.values() {
-        if Some(&e.id) == candidate_id || !is_autolink_leaf(e, memberships, entries, templates) {
-            continue;
-        }
-        let existing = entry_autolink_keys(e, templates);
-        if let Some(dup) = wanted.intersection(&existing).next() {
-            return fail(
-                "V3-AUTOLINK-NAME-UNIQUE",
-                format!("auto-link name {dup:?} is already used by entry {}", e.id),
-            );
-        }
-    }
-    Ok(())
+/// The auto-link names of one read of a book (`V3-AUTOLINK-NAME-UNIQUE`):
+/// which entries auto-link, and every name key with the auto-linked entries
+/// that claim it. Built in one pass: each level's settings are resolved once,
+/// each membership is read once, then every entry is visited once.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AutolinkNames {
+    linked: BTreeSet<EntryId>,
+    owners: BTreeMap<String, BTreeSet<EntryId>>,
 }
 
-/// Read-side resolution for Invariant 10 (`V3-AUTOLINK-NAME-UNIQUE`): orders live
-/// auto-link leaf entries by `(created_at, id)` and marks later colliding
-/// entries with `name_conflict = Some(winner_id)`.
+impl AutolinkNames {
+    pub fn of(
+        entries: &BTreeMap<EntryId, Entry>,
+        memberships: &[Membership],
+        templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    ) -> Self {
+        let mut levels: BTreeMap<Option<EntryId>, LevelSettings> = BTreeMap::new();
+        let mut settings_of = |id: Option<&EntryId>| -> LevelSettings {
+            levels
+                .entry(id.cloned())
+                .or_insert_with(|| resolve_level_settings(id, entries, templates))
+                .clone()
+        };
+        let mut members: BTreeSet<&EntryId> = BTreeSet::new();
+        let mut hosts: BTreeMap<&EntryId, bool> = BTreeMap::new();
+        for m in memberships {
+            if m.host == m.member || !entries.get(&m.member).is_some_and(|e| !e.is_trashed()) {
+                continue;
+            }
+            let links = *hosts.entry(&m.host).or_insert_with(|| {
+                let live_level = entries
+                    .get(&m.host)
+                    .is_some_and(|h| !h.is_trashed() && h.is_level());
+                let s = settings_of(Some(&m.host));
+                live_level && s.accept && s.auto_link
+            });
+            if links {
+                members.insert(&m.member);
+            }
+        }
+        let mut out = Self::default();
+        for e in entries.values() {
+            if e.is_trashed() || !e.is_linkable(templates) {
+                continue;
+            }
+            let linked = members.contains(&e.id)
+                || settings_of(effective_parent_id(e, entries).as_ref()).auto_link;
+            if !linked {
+                continue;
+            }
+            out.linked.insert(e.id.clone());
+            for key in entry_autolink_keys(e, templates) {
+                out.owners.entry(key).or_default().insert(e.id.clone());
+            }
+        }
+        out
+    }
+
+    /// Whether `id` auto-links in this read.
+    pub fn is_linked(&self, id: &EntryId) -> bool {
+        self.linked.contains(id)
+    }
+
+    /// The auto-linked entries.
+    pub fn linked(&self) -> &BTreeSet<EntryId> {
+        &self.linked
+    }
+
+    /// The auto-linked entries claiming the normalized name `key`.
+    pub fn owners(&self, key: &str) -> Option<&BTreeSet<EntryId>> {
+        self.owners.get(key)
+    }
+
+    /// Every name key with the auto-linked entries claiming it.
+    pub fn names(&self) -> &BTreeMap<String, BTreeSet<EntryId>> {
+        &self.owners
+    }
+}
+
+/// Read-side resolution for Invariant 10 (`V3-AUTOLINK-NAME-UNIQUE`): orders
+/// the auto-linked entries by `(created_at, id)` and marks each later entry
+/// whose title or alias is already claimed with `name_conflict = Some(winner)`.
 pub fn resolve_autolink_name_conflicts(
     entries: &mut BTreeMap<EntryId, Entry>,
     memberships: &[Membership],
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> BTreeMap<EntryId, EntryId> {
-    // Eligibility is independent of the resolved conflict flag. Validate the
-    // memberships once for this complete read, instead of once per leaf.
     let snapshot = &*entries;
-    let mut host_autolink = BTreeMap::new();
-    let linked_members: BTreeSet<_> = filter_valid_memberships(memberships, snapshot, templates)
-        .into_iter()
-        .filter(|m| {
-            *host_autolink.entry(m.host.clone()).or_insert_with(|| {
-                resolve_level_settings(Some(&m.host), snapshot, templates).auto_link
-            })
-        })
-        .map(|m| m.member)
-        .collect();
-    let mut parent_autolink = BTreeMap::new();
-    let mut order: Vec<EntryId> = snapshot
-        .values()
-        .filter(|e| {
-            if e.is_trashed() || !e.is_leaf(templates) {
-                return false;
-            }
-            let parent = effective_parent_id(e, snapshot, templates);
-            *parent_autolink.entry(parent.clone()).or_insert_with(|| {
-                resolve_level_settings(parent.as_ref(), snapshot, templates).auto_link
-            }) || linked_members.contains(&e.id)
-        })
-        .map(|e| e.id.clone())
-        .collect();
+    let names = AutolinkNames::of(snapshot, memberships, templates);
+    let mut order: Vec<&EntryId> = names.linked().iter().collect();
     order.sort_by(|a, b| {
-        let ea = &snapshot[a];
-        let eb = &snapshot[b];
-        let ca = ea.created_at.unwrap_or(Timestamp(i64::MAX));
-        let cb = eb.created_at.unwrap_or(Timestamp(i64::MAX));
+        let ca = snapshot[*a].created_at.unwrap_or(Timestamp(i64::MAX));
+        let cb = snapshot[*b].created_at.unwrap_or(Timestamp(i64::MAX));
         (ca, a).cmp(&(cb, b))
     });
 
     let mut owner_by_key: BTreeMap<String, EntryId> = BTreeMap::new();
     let mut conflicts: BTreeMap<EntryId, EntryId> = BTreeMap::new();
     for id in order {
-        let e = &snapshot[&id];
-        let keys = entry_autolink_keys(e, templates);
-        let mut conflict = None;
-        for k in &keys {
-            if let Some(winner) = owner_by_key.get(k)
-                && winner != &id
-            {
-                conflict = Some(winner.clone());
-                break;
-            }
-        }
+        let keys = entry_autolink_keys(&snapshot[id], templates);
+        let conflict = keys
+            .iter()
+            .find_map(|k| owner_by_key.get(k).filter(|w| *w != id).cloned());
         if let Some(winner) = conflict {
             conflicts.insert(id.clone(), winner);
         } else {
@@ -2078,8 +1988,8 @@ pub fn effective_timeline_pins(
 }
 
 /// Whether `level_id` directly declares `is_manuscript == true` in its own
-/// `overrides` or its own `EntryTemplate.settings` (before inheritance/outermost
-/// deduplication).
+/// `overrides` or its own `EntryTemplate.settings` (before inheritance and
+/// outermost deduplication). Only a live entry whose switch is on can.
 pub fn directly_declares_manuscript(
     level_id: &EntryId,
     entries: &BTreeMap<EntryId, Entry>,
@@ -2088,7 +1998,7 @@ pub fn directly_declares_manuscript(
     let Some(entry) = entries.get(level_id) else {
         return false;
     };
-    if entry.is_trashed() || entry.is_leaf(templates) {
+    if entry.is_trashed() || !entry.is_level() {
         return false;
     }
     if let Some(ov) = entry.overrides.as_ref()
@@ -2102,45 +2012,26 @@ pub fn directly_declares_manuscript(
         .unwrap_or(false)
 }
 
-/// Invariant 12 (`V3-MANUSCRIPT-NO-NEST`): manuscript levels (`成书`) cannot
-/// nest inside an ancestor or above a descendant that already declares `is_manuscript`.
-pub fn check_manuscript_no_nest(
-    target_level: &EntryId,
-    want_manuscript: bool,
+/// Invariant 12 (`V3-MANUSCRIPT-NO-NEST`): every pair `(outer, inner)` of
+/// levels that both declare `is_manuscript`, the outer one an effective
+/// ancestor of the inner one. A book with no violation has none.
+pub fn manuscript_nest_pairs(
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> Result<(), Violation> {
-    if !want_manuscript {
-        return Ok(());
-    }
-    for anc in effective_ancestors(entries, templates, target_level) {
-        if directly_declares_manuscript(&anc, entries, templates) {
-            return fail(
-                "V3-MANUSCRIPT-NO-NEST",
-                format!(
-                    "cannot enable is_manuscript on {target_level}: ancestor {anc} already enables it"
-                ),
-            );
-        }
-    }
-    for candidate in entries.values() {
-        if candidate.id == *target_level || candidate.is_trashed() {
-            continue;
-        }
-        if directly_declares_manuscript(&candidate.id, entries, templates) {
-            let anc = effective_ancestors(entries, templates, &candidate.id);
-            if anc.contains(target_level) {
-                return fail(
-                    "V3-MANUSCRIPT-NO-NEST",
-                    format!(
-                        "cannot enable is_manuscript on {target_level}: descendant {} already enables it",
-                        candidate.id
-                    ),
-                );
+) -> BTreeSet<(EntryId, EntryId)> {
+    let declared: BTreeSet<&EntryId> = entries
+        .keys()
+        .filter(|id| directly_declares_manuscript(id, entries, templates))
+        .collect();
+    let mut pairs = BTreeSet::new();
+    for inner in &declared {
+        for outer in effective_ancestors(entries, inner) {
+            if declared.contains(&outer) {
+                pairs.insert((outer, (*inner).clone()));
             }
         }
     }
-    Ok(())
+    pairs
 }
 
 /// Read-side resolution for Invariant 12 (`V3-MANUSCRIPT-NO-NEST`): if a remote
@@ -2157,12 +2048,68 @@ pub fn effective_manuscript_levels(
         .collect();
     raw.iter()
         .filter(|id| {
-            let anc = effective_ancestors(entries, templates, id);
+            let anc = effective_ancestors(entries, id);
             !anc.iter()
                 .any(|a| entries.get(a).is_some_and(Entry::is_trashed) || raw.contains(a))
         })
         .cloned()
         .collect()
+}
+
+/// What the structural invariants look at in one read of a book: its
+/// entries (structural parts are enough: ids, parents, titles, templates,
+/// switches, overrides, alias fields, created and deleted times), its
+/// templates and its stored memberships.
+#[derive(Clone, Copy, Debug)]
+pub struct BookGraph<'a> {
+    pub entries: &'a BTreeMap<EntryId, Entry>,
+    pub templates: &'a BTreeMap<EntryTemplateId, EntryTemplate>,
+    pub memberships: &'a [Membership],
+}
+
+/// The command layer's check of a write (`kernel-v4.md` "命令层的预防：只拒绝这次
+/// 写入新造成的违规"): `after` is refused only for a violation `before` did not
+/// have. A duplicate auto-link name or a nested manuscript a merge left behind
+/// is tolerated by readers and blocks no unrelated write; a write that
+/// resolves it (a rename, a move, turning a manuscript off) passes.
+///
+/// - `V3-AUTOLINK-NAME-UNIQUE`: a name claimed by more than one auto-linked
+///   entry after the write, at least one of which did not claim it before.
+/// - `V3-MANUSCRIPT-NO-NEST`: a nested pair of manuscripts after the write
+///   that was not there before.
+///
+/// Writes that change many entries at once (a template switch, a template's
+/// `linkable` or settings, an entry's overrides, a move, a restore, turning a
+/// switch off) go through the same comparison.
+pub fn check_new_violations(before: BookGraph<'_>, after: BookGraph<'_>) -> Result<(), Violation> {
+    let was = AutolinkNames::of(before.entries, before.memberships, before.templates);
+    let now = AutolinkNames::of(after.entries, after.memberships, after.templates);
+    for (key, owners) in now.names() {
+        if owners.len() < 2 {
+            continue;
+        }
+        let had = was.owners(key);
+        if let Some(newcomer) = owners.iter().find(|o| !had.is_some_and(|h| h.contains(*o))) {
+            let other = owners.iter().find(|o| *o != newcomer).expect("two owners");
+            return fail(
+                "V3-AUTOLINK-NAME-UNIQUE",
+                format!(
+                    "auto-link name {key:?} of entry {newcomer} is already used by entry {other}"
+                ),
+            );
+        }
+    }
+    let was = manuscript_nest_pairs(before.entries, before.templates);
+    if let Some((outer, inner)) = manuscript_nest_pairs(after.entries, after.templates)
+        .into_iter()
+        .find(|pair| !was.contains(pair))
+    {
+        return fail(
+            "V3-MANUSCRIPT-NO-NEST",
+            format!("manuscript {inner} would nest inside manuscript {outer}"),
+        );
+    }
+    Ok(())
 }
 
 /// Invariant 13 (`V3-CROSS-DOC-ORDER`): when a command writes both prose
@@ -2223,18 +2170,11 @@ pub fn book_doc_ids_v3(
             )));
         }
     }
-    let about = level_about_module_id();
     for e in entries.values() {
-        match e.effective_template(templates) {
-            Some(tpl) if tpl.is_level() => {
-                out.push(DocId::Body(BodyDocId::new(e.id.clone(), about.clone())));
+        if let Some(tpl) = e.effective_template(templates) {
+            for m in tpl.prose_modules() {
+                out.push(DocId::Body(BodyDocId::new(e.id.clone(), m.id.clone())));
             }
-            Some(tpl) => {
-                for m in tpl.prose_modules() {
-                    out.push(DocId::Body(BodyDocId::new(e.id.clone(), m.id.clone())));
-                }
-            }
-            None => {}
         }
     }
     out
@@ -2277,6 +2217,7 @@ mod tests {
         ModuleId::parse(s).unwrap()
     }
 
+    /// An entry with its switch off.
     fn entry_with(id: &str, parent: Option<&str>, title: &str, tpl: Option<&str>) -> Entry {
         Entry {
             id: eid(id),
@@ -2284,6 +2225,7 @@ mod tests {
             pos: "a0".into(),
             title: title.into(),
             template: tpl.map(tid),
+            level: false,
             overrides: None,
             fields: BTreeMap::new(),
             kv: BTreeMap::new(),
@@ -2296,36 +2238,78 @@ mod tests {
         }
     }
 
-    fn level_template(id: &str, name: &str, lane: bool) -> EntryTemplate {
+    /// An entry with its switch on.
+    fn level_with(id: &str, parent: Option<&str>, title: &str, tpl: Option<&str>) -> Entry {
+        Entry {
+            level: true,
+            ..entry_with(id, parent, title, tpl)
+        }
+    }
+
+    fn template(id: &str, name: &str) -> EntryTemplate {
         EntryTemplate {
             id: tid(id),
-            kind: TemplateKind::Level,
             name: name.into(),
             mark: None,
             color: None,
             agent: None,
             modules: Vec::new(),
+            level: false,
+            linkable: true,
             settings: LevelSettingsOverride::default(),
-            lane,
             verbs: Vec::new(),
             deleted_at: None,
         }
     }
 
-    fn leaf_template(id: &str, name: &str) -> EntryTemplate {
-        EntryTemplate {
-            id: tid(id),
-            kind: TemplateKind::Leaf,
-            name: name.into(),
-            mark: None,
-            color: None,
-            agent: None,
-            modules: Vec::new(),
-            settings: LevelSettingsOverride::default(),
-            lane: false,
-            verbs: Vec::new(),
-            deleted_at: None,
+    /// A template whose new entries start with the switch on; `lane` in its settings.
+    fn level_template(id: &str, name: &str, lane: bool) -> EntryTemplate {
+        let mut t = template(id, name);
+        t.level = true;
+        t.linkable = false;
+        if lane {
+            t.settings.lane = Some(true);
         }
+        t
+    }
+
+    fn membership(host: &str, member: &str) -> Membership {
+        Membership {
+            host: eid(host),
+            member: eid(member),
+            pos: None,
+            created_at: None,
+        }
+    }
+
+    fn graph<'a>(
+        entries: &'a BTreeMap<EntryId, Entry>,
+        templates: &'a BTreeMap<EntryTemplateId, EntryTemplate>,
+        memberships: &'a [Membership],
+    ) -> BookGraph<'a> {
+        BookGraph {
+            entries,
+            templates,
+            memberships,
+        }
+    }
+
+    fn aliases_template(id: &str) -> EntryTemplate {
+        let mut t = template(id, "人物");
+        t.modules.push(ModuleSpec::fields(
+            mid("mod-fields"),
+            "人物字段",
+            vec![FieldDef {
+                id: "aliases".into(),
+                name: "别名".into(),
+                field_type: FieldType::Aliases,
+                options: Vec::new(),
+                target_template: None,
+                default_value: None,
+                pos: None,
+            }],
+        ));
+        t
     }
 
     #[test]
@@ -2341,15 +2325,15 @@ mod tests {
             (tid("tpl-group"), tpl_group),
         ]);
 
-        let root = entry_with("elements", None, "要素", Some("tpl-elements"));
+        let root = level_with("elements", None, "要素", Some("tpl-elements"));
         let mut cat_person =
-            entry_with("cat-person", Some("elements"), "人物", Some("tpl-category"));
+            level_with("cat-person", Some("elements"), "人物", Some("tpl-category"));
         cat_person.overrides = Some(LevelSettingsOverride {
             default_template: Some(Some(tid("tpl-person"))),
             auto_link: Some(true),
             ..LevelSettingsOverride::default()
         });
-        let grp_heroes = entry_with(
+        let grp_heroes = level_with(
             "grp-heroes",
             Some("cat-person"),
             "主角们",
@@ -2363,7 +2347,7 @@ mod tests {
         ]);
 
         // `grp-heroes` inherits `default_template` and `auto_link` from `cat-person`,
-        // and `display: Island` from `elements`!
+        // and `display: Island` from `elements`.
         let inherited = resolve_level_settings(Some(&eid("grp-heroes")), &entries, &templates);
         assert_eq!(inherited.default_template, Some(tid("tpl-person")));
         assert!(inherited.auto_link);
@@ -2377,6 +2361,19 @@ mod tests {
         let overridden = resolve_level_settings(Some(&eid("grp-heroes")), &entries, &templates);
         assert!(!overridden.auto_link);
         assert_eq!(overridden.default_template, Some(tid("tpl-person")));
+
+        // An ancestor whose switch is off passes nothing down: its stored
+        // overrides are kept and not used.
+        entries.get_mut(&eid("cat-person")).unwrap().level = false;
+        let skipped = resolve_level_settings(Some(&eid("grp-heroes")), &entries, &templates);
+        assert_eq!(skipped.default_template, None);
+        assert_eq!(skipped.display, ChildDisplayMode::Island);
+        assert!(
+            entries[&eid("cat-person")]
+                .overrides
+                .as_ref()
+                .is_some_and(|o| o.auto_link == Some(true))
+        );
     }
 
     #[test]
@@ -2384,24 +2381,33 @@ mod tests {
         let mut parent_tpl = level_template("parent-tpl", "Parent", false);
         parent_tpl.settings.display = Some(ChildDisplayMode::Island);
         parent_tpl.settings.home = Some(Some(eid("home")));
+        // `lane` on the parent's template does not inherit.
+        parent_tpl.settings.lane = Some(true);
         let mut lane_tpl = level_template("lane-tpl", "Lane", true);
         lane_tpl.settings.auto_link = Some(false);
         lane_tpl.settings.accept = Some(false);
+        let plain_tpl = level_template("plain-tpl", "Plain", false);
         let templates = BTreeMap::from([
             (parent_tpl.id.clone(), parent_tpl),
             (lane_tpl.id.clone(), lane_tpl),
+            (plain_tpl.id.clone(), plain_tpl),
         ]);
-        let mut parent = entry_with("parent", None, "Parent", Some("parent-tpl"));
+        let mut parent = level_with("parent", None, "Parent", Some("parent-tpl"));
         parent.overrides = Some(LevelSettingsOverride {
             auto_link: Some(true),
             ..Default::default()
         });
-        let mut lane = entry_with("lane", Some("parent"), "Lane", Some("lane-tpl"));
+        let mut lane = level_with("lane", Some("parent"), "Lane", Some("lane-tpl"));
         lane.overrides = Some(LevelSettingsOverride {
             home: Some(None),
             ..Default::default()
         });
-        let entries = BTreeMap::from([(parent.id.clone(), parent), (lane.id.clone(), lane)]);
+        let plain = level_with("plain", Some("parent"), "Plain", Some("plain-tpl"));
+        let entries = BTreeMap::from([
+            (parent.id.clone(), parent),
+            (lane.id.clone(), lane),
+            (plain.id.clone(), plain),
+        ]);
         let resolved =
             resolve_level_settings_with_sources(Some(&eid("lane")), &entries, &templates);
         assert_eq!(
@@ -2410,6 +2416,7 @@ mod tests {
         );
         assert_eq!(resolved.sources.len(), 8);
         assert!(resolved.settings.accept);
+        assert!(resolved.settings.lane);
         assert!(!resolved.settings.auto_link);
         assert_eq!(resolved.settings.home, None);
         assert_eq!(resolved.settings.display, ChildDisplayMode::Island);
@@ -2419,7 +2426,11 @@ mod tests {
         );
         assert_eq!(
             resolved.sources["accept"],
-            LevelSettingSource::Lane {
+            LevelSettingSource::Lane { entry: eid("lane") }
+        );
+        assert_eq!(
+            resolved.sources["lane"],
+            LevelSettingSource::Template {
                 entry: eid("lane"),
                 template: tid("lane-tpl")
             }
@@ -2442,6 +2453,11 @@ mod tests {
             resolved.sources["default_template"],
             LevelSettingSource::Default
         );
+        // The parent's `lane` stays with the parent.
+        let plain = resolve_level_settings_with_sources(Some(&eid("plain")), &entries, &templates);
+        assert!(!plain.settings.lane);
+        assert_eq!(plain.sources["lane"], LevelSettingSource::Default);
+        assert!(resolve_level_settings(Some(&eid("parent")), &entries, &templates).lane);
         for missing in [None, Some(eid("missing"))] {
             let resolved =
                 resolve_level_settings_with_sources(missing.as_ref(), &entries, &templates);
@@ -2462,16 +2478,17 @@ mod tests {
         host_tpl.settings.accept = Some(true);
         let templates = BTreeMap::from([
             (host_tpl.id.clone(), host_tpl),
-            (tid("leaf"), leaf_template("leaf", "Leaf")),
+            (tid("leaf"), template("leaf", "Leaf")),
         ]);
         let mut entries = BTreeMap::new();
         for e in [
-            entry_with("host", None, "Host", Some("host-tpl")),
-            entry_with("closed", None, "Closed", None),
+            level_with("host", None, "Host", Some("host-tpl")),
+            level_with("closed", None, "Closed", None),
             entry_with("a", Some("host"), "Same", Some("leaf")),
             entry_with("b", None, "Same", Some("leaf")),
             entry_with("c", None, "Same", Some("leaf")),
             entry_with("d", Some("host"), "Same", Some("leaf")),
+            // Under `a`, whose switch is off: it reads as living under `host`.
             entry_with("e", Some("a"), "Same", Some("leaf")),
             entry_with("f", None, "Same", Some("leaf")),
         ] {
@@ -2479,32 +2496,23 @@ mod tests {
         }
         entries.get_mut(&eid("d")).unwrap().deleted_at = Some(Timestamp(2));
         let memberships = vec![
-            Membership {
-                host: eid("host"),
-                member: eid("b"),
-                pos: None,
-                created_at: None,
-            },
-            Membership {
-                host: eid("closed"),
-                member: eid("c"),
-                pos: None,
-                created_at: None,
-            },
-            Membership {
-                host: eid("missing"),
-                member: eid("f"),
-                pos: None,
-                created_at: None,
-            },
+            membership("host", "b"),
+            membership("closed", "c"),
+            membership("missing", "f"),
         ];
-        // Independent eligibility helper still uses the per-entry rule.
+        // The single-entry rule and the one-pass table agree.
         let eligible: Vec<_> = entries
             .values()
-            .filter(|e| is_autolink_leaf(e, &memberships, &entries, &templates))
+            .filter(|e| is_autolinked(e, &memberships, &entries, &templates))
             .map(|e| e.id.clone())
             .collect();
         assert_eq!(eligible, vec![eid("a"), eid("b"), eid("e")]);
+        let names = AutolinkNames::of(&entries, &memberships, &templates);
+        assert_eq!(names.linked().iter().cloned().collect::<Vec<_>>(), eligible);
+        assert_eq!(
+            names.owners("same"),
+            Some(&BTreeSet::from([eid("a"), eid("b"), eid("e")]))
+        );
         let conflicts = resolve_autolink_name_conflicts(&mut entries, &memberships, &templates);
         assert_eq!(
             conflicts,
@@ -2519,10 +2527,10 @@ mod tests {
     #[test]
     fn v3_entry_tree_never_cycles() {
         let mut entries = BTreeMap::new();
-        entries.insert(eid("root"), entry_with("root", None, "书稿", None));
+        entries.insert(eid("root"), level_with("root", None, "书稿", None));
         entries.insert(
             eid("vol-1"),
-            entry_with("vol-1", Some("root"), "第一卷", None),
+            level_with("vol-1", Some("root"), "第一卷", None),
         );
         entries.insert(
             eid("ch-1"),
@@ -2551,103 +2559,134 @@ mod tests {
     }
 
     #[test]
-    fn v3_leaves_cannot_have_children_and_merge_lifts_to_ancestor_level() {
-        let templates = BTreeMap::from([
-            (
-                tid("tpl-manuscript"),
-                level_template("tpl-manuscript", "书稿", false),
-            ),
-            (tid("tpl-chapter"), leaf_template("tpl-chapter", "章")),
-        ]);
-
-        let entries = BTreeMap::from([
+    fn entries_with_the_switch_off_hold_nothing_and_merge_lifts_to_the_nearest_level() {
+        // The switch is the entry's own: a chapter template's entry can have
+        // it on, a manuscript template's entry can have it off.
+        let mut entries = BTreeMap::from([
             (
                 eid("ms"),
-                entry_with("ms", None, "书稿", Some("tpl-manuscript")),
+                level_with("ms", None, "书稿", Some("tpl-manuscript")),
+            ),
+            (
+                eid("vol"),
+                entry_with("vol", Some("ms"), "第一卷", Some("tpl-manuscript")),
             ),
             (
                 eid("ch-1"),
-                entry_with("ch-1", Some("ms"), "第一章", Some("tpl-chapter")),
+                entry_with("ch-1", Some("vol"), "第一章", Some("tpl-chapter")),
             ),
-            // Simulate a remote merge that placed `ch-2` under leaf `ch-1`.
+            // A remote merge placed `ch-2` under `ch-1`, whose switch is off.
             (
                 eid("ch-2"),
                 entry_with("ch-2", Some("ch-1"), "第二章", Some("tpl-chapter")),
             ),
         ]);
 
-        // Command layer refuses adding a child under leaf `ch-1`.
-        assert_eq!(
-            check_parent_is_level(Some(&eid("ch-1")), &entries, &templates)
-                .unwrap_err()
-                .invariant,
-            "V3-LEAF-NO-CHILDREN"
-        );
-        assert!(check_parent_is_level(Some(&eid("ms")), &entries, &templates).is_ok());
+        // Command layer: only the root or a live entry whose switch is on.
+        for off in ["ch-1", "vol"] {
+            assert_eq!(
+                check_parent_is_level(Some(&eid(off)), &entries)
+                    .unwrap_err()
+                    .invariant,
+                "V3-LEAF-NO-CHILDREN"
+            );
+        }
+        assert!(check_parent_is_level(Some(&eid("ms")), &entries).is_ok());
+        assert!(check_parent_is_level(None, &entries).is_ok());
 
-        // Read layer treats `ch-2` as residing under `ms` (the leaf's parent level),
-        // without modifying `ch-2.parent`.
+        // Read layer: `ch-2` and `ch-1` read as living under `ms`, the nearest
+        // entry whose switch is on, without changing what is stored.
         assert_eq!(
-            effective_parent_id(&entries[&eid("ch-2")], &entries, &templates),
+            effective_parent_id(&entries[&eid("ch-2")], &entries),
             Some(eid("ms"))
         );
+        assert_eq!(
+            effective_parent_id(&entries[&eid("ch-1")], &entries),
+            Some(eid("ms"))
+        );
+        assert_eq!(entries[&eid("ch-2")].parent, Some(eid("ch-1")));
+        assert_eq!(effective_ancestors(&entries, &eid("ch-2")), vec![eid("ms")]);
 
-        // Level templates cannot declare prose/patches/plot_grid modules.
-        assert!(
-            check_template_modules(
-                &TemplateKind::Level,
-                &[ModuleSpec::prose(mid("p"), "正文", true, false)]
-            )
-            .is_err()
+        // Turning a switch on brings what lives under it back.
+        entries.get_mut(&eid("ch-1")).unwrap().level = true;
+        assert_eq!(
+            effective_parent_id(&entries[&eid("ch-2")], &entries),
+            Some(eid("ch-1"))
         );
-        assert!(
-            check_template_modules(
-                &TemplateKind::Level,
-                &[ModuleSpec::fields(mid("f"), "字段", Vec::new())]
-            )
-            .is_ok()
-        );
+        assert!(check_parent_is_level(Some(&eid("ch-1")), &entries).is_ok());
+        // A trashed level holds nothing new either.
+        entries.get_mut(&eid("ms")).unwrap().deleted_at = Some(Timestamp(5));
+        assert!(check_parent_is_level(Some(&eid("ms")), &entries).is_err());
     }
 
     #[test]
-    fn v3_level_allow_list_filters_new_entries() {
-        let mut tpl_ms = level_template("tpl-ms", "书稿", false);
-        tpl_ms.settings.allow = Some(vec![tid("tpl-chapter"), tid("tpl-volume")]);
-
+    fn switching_off_keeps_overrides_memberships_lanes_and_placements_for_when_it_is_back() {
+        let line_tpl = level_template("tpl-storyline", "故事线", true);
         let templates = BTreeMap::from([
-            (tid("tpl-ms"), tpl_ms),
-            (tid("tpl-chapter"), leaf_template("tpl-chapter", "章")),
-            (tid("tpl-volume"), level_template("tpl-volume", "卷", false)),
-            (tid("tpl-person"), leaf_template("tpl-person", "人物")),
+            (tid("tpl-storyline"), line_tpl),
+            (tid("tpl-chapter"), template("tpl-chapter", "章")),
         ]);
-        let entries = BTreeMap::from([(eid("ms"), entry_with("ms", None, "书稿", Some("tpl-ms")))]);
+        let mut line = level_with("line", None, "主线", Some("tpl-storyline"));
+        line.overrides = Some(LevelSettingsOverride {
+            auto_link: Some(true),
+            ..Default::default()
+        });
+        let mut chapter = entry_with("ch", None, "第一章", Some("tpl-chapter"));
+        chapter.primary = Some(eid("line"));
+        let mut entries = BTreeMap::from([(eid("line"), line), (eid("ch"), chapter)]);
+        let memberships = vec![membership("line", "ch")];
+        let view = TimelineView {
+            id: TimelineViewId::parse("view").unwrap(),
+            name: "时间线".into(),
+            pos: None,
+            lanes: vec![TimelineLane {
+                entry: eid("line"),
+                pos: None,
+                act_track: None,
+            }],
+            placements: vec![TimelinePlacement {
+                entry: eid("ch"),
+                at: 1.0,
+                span: None,
+            }],
+            pins: Vec::new(),
+            deleted_at: None,
+        };
+        let read = |entries: &BTreeMap<EntryId, Entry>| {
+            let valid = filter_valid_memberships(&memberships, entries, &templates);
+            let hosts: BTreeSet<EntryId> = valid.iter().map(|m| m.host.clone()).collect();
+            (
+                resolve_level_settings(Some(&eid("line")), entries, &templates).auto_link,
+                valid.len(),
+                entries[&eid("ch")].effective_primary(&hosts).cloned(),
+                effective_timeline_lanes(&view.lanes, entries, &templates).len(),
+                effective_timeline_placements(&view, &memberships, entries, &templates).len(),
+                is_autolinked(&entries[&eid("ch")], &memberships, entries, &templates),
+            )
+        };
+        let on = read(&entries);
+        assert_eq!(on, (true, 1, Some(eid("line")), 1, 1, true));
 
-        assert!(
-            check_level_allows_template(
-                Some(&eid("ms")),
-                Some(&tid("tpl-chapter")),
-                &entries,
-                &templates
-            )
-            .is_ok()
-        );
+        // Off: everything below reads as absent; nothing stored changes.
+        let stored = entries.clone();
+        entries.get_mut(&eid("line")).unwrap().level = false;
+        assert_eq!(read(&entries), (false, 0, None, 0, 0, false));
+        assert!(!entries[&eid("line")].is_lane(&templates));
         assert_eq!(
-            check_level_allows_template(
-                Some(&eid("ms")),
-                Some(&tid("tpl-person")),
-                &entries,
-                &templates
-            )
-            .unwrap_err()
-            .invariant,
-            "V3-LEVEL-ALLOWS-TEMPLATE"
+            entries[&eid("line")].overrides,
+            stored[&eid("line")].overrides
         );
+        assert_eq!(entries[&eid("ch")], stored[&eid("ch")]);
+
+        // On again: all of it is back.
+        entries.get_mut(&eid("line")).unwrap().level = true;
+        assert_eq!(read(&entries), on);
     }
 
     #[test]
     fn v3_entry_template_exists_or_degrades_to_blank() {
         let mut templates = BTreeMap::new();
-        templates.insert(tid("tpl-person"), leaf_template("tpl-person", "人物"));
+        templates.insert(tid("tpl-person"), template("tpl-person", "人物"));
 
         assert!(check_entry_template(&templates, None).is_ok());
         assert!(check_entry_template(&templates, Some(&tid("tpl-person"))).is_ok());
@@ -2672,8 +2711,8 @@ mod tests {
     }
 
     #[test]
-    fn v3_switching_template_preserves_module_data_and_checks_children() {
-        let mut tpl_a = leaf_template("tpl-a", "人物");
+    fn switching_template_keeps_module_data_and_the_switch() {
+        let mut tpl_a = template("tpl-a", "人物");
         tpl_a.modules.push(ModuleSpec::fields(
             mid("mod-bio"),
             "生平字段",
@@ -2691,12 +2730,18 @@ mod tests {
             .modules
             .push(ModuleSpec::kv(mid("mod-kv"), "设定表", Vec::new()));
 
-        let mut tpl_b = leaf_template("tpl-b", "地点");
+        let mut tpl_b = template("tpl-b", "地点");
         tpl_b
             .modules
             .push(ModuleSpec::fields(mid("mod-geo"), "地理字段", Vec::new()));
 
-        let tpl_level = level_template("tpl-level", "分组", false);
+        // Any module kind on any template; a template says only the default.
+        let mut tpl_level = level_template("tpl-level", "分组", false);
+        tpl_level.modules.extend([
+            ModuleSpec::prose(mid("mod-description"), "说明", false, false).in_book(false),
+            ModuleSpec::patches(mid("mod-patches"), "补丁"),
+            ModuleSpec::children(mid("mod-children"), "下面的条目"),
+        ]);
 
         let templates = BTreeMap::from([
             (tid("tpl-a"), tpl_a),
@@ -2744,23 +2789,20 @@ mod tests {
                 .contains_key(&mid("mod-bio"))
         );
 
-        // Switching a level entry to a leaf template is refused while it has children.
-        let entries = BTreeMap::from([
-            (
-                eid("lvl"),
-                entry_with("lvl", None, "第一卷", Some("tpl-level")),
-            ),
-            (
-                eid("child"),
-                entry_with("child", Some("lvl"), "第一章", Some("tpl-a")),
-            ),
-        ]);
-        assert_eq!(
-            check_template_switch(&eid("lvl"), Some(&tid("tpl-a")), &entries, &templates)
-                .unwrap_err()
-                .invariant,
-            "V3-LEAF-NO-CHILDREN"
-        );
+        // The switch does not follow the template either way: an entry with
+        // children keeps them when it takes a template whose default is off,
+        // and an entry without the switch does not gain it from a level template.
+        let mut lvl = level_with("lvl", None, "第一卷", Some("tpl-level"));
+        lvl.switch_template(Some(tid("tpl-a")));
+        assert!(lvl.is_level());
+        assert!(check_entry_template(&templates, Some(&tid("tpl-a"))).is_ok());
+        entry.switch_template(Some(tid("tpl-level")));
+        assert!(!entry.is_level());
+        let description = templates[&tid("tpl-level")]
+            .module(&mid("mod-description"))
+            .unwrap();
+        assert!(!description.config.in_book);
+        assert_eq!(templates[&tid("tpl-level")].book_prose_modules().count(), 0);
     }
 
     #[test]
@@ -2784,14 +2826,13 @@ mod tests {
     }
 
     #[test]
-    fn v3_membership_governed_by_target_level_accept_and_allow() {
+    fn membership_is_governed_by_the_hosts_switch_and_accept() {
         let mut tpl_storyline = level_template("tpl-storyline", "故事线", true);
-        tpl_storyline.settings.allow = Some(vec![tid("tpl-chapter")]);
         tpl_storyline.settings.home = Some(Some(eid("ms")));
 
         let tpl_folder = level_template("tpl-folder", "普通分组", false);
-        let tpl_chapter = leaf_template("tpl-chapter", "章");
-        let tpl_person = leaf_template("tpl-person", "人物");
+        let tpl_chapter = template("tpl-chapter", "章");
+        let tpl_person = template("tpl-person", "人物");
 
         let templates = BTreeMap::from([
             (tid("tpl-storyline"), tpl_storyline),
@@ -2800,18 +2841,18 @@ mod tests {
             (tid("tpl-person"), tpl_person),
         ]);
 
-        let entries = BTreeMap::from([
+        let mut entries = BTreeMap::from([
             (
                 eid("ms"),
-                entry_with("ms", None, "书稿", Some("tpl-folder")),
+                level_with("ms", None, "书稿", Some("tpl-folder")),
             ),
             (
                 eid("line-1"),
-                entry_with("line-1", None, "主线", Some("tpl-storyline")),
+                level_with("line-1", None, "主线", Some("tpl-storyline")),
             ),
             (
                 eid("folder-1"),
-                entry_with("folder-1", None, "普通分组", Some("tpl-folder")),
+                level_with("folder-1", None, "普通分组", Some("tpl-folder")),
             ),
             (
                 eid("ch-1"),
@@ -2823,9 +2864,9 @@ mod tests {
             ),
         ]);
 
-        // Swimlane level `line-1` has `accept == true` (automatically via `lane == true`)
-        // and allows `tpl-chapter`, regardless of `ms`'s settings (`归属由层级决定，叶子不管`).
+        // Swimlane `line-1` accepts (always, as a swimlane) whatever the member's template.
         assert!(check_membership(&eid("line-1"), &eid("ch-1"), &entries, &templates).is_ok());
+        assert!(check_membership(&eid("line-1"), &eid("p-1"), &entries, &templates).is_ok());
 
         // Creating a new entry from `line-1` resolves its residence to `ms` (`home`).
         assert_eq!(
@@ -2833,15 +2874,7 @@ mod tests {
             Some(eid("ms"))
         );
 
-        // `line-1` does not allow `tpl-person` in its `allow` list.
-        assert_eq!(
-            check_membership(&eid("line-1"), &eid("p-1"), &entries, &templates)
-                .unwrap_err()
-                .invariant,
-            "V3-MEMBERSHIP-RULES"
-        );
-
-        // `folder-1` does not have `accept == true`.
+        // `folder-1` does not accept entries from elsewhere.
         assert_eq!(
             check_membership(&eid("folder-1"), &eid("ch-1"), &entries, &templates)
                 .unwrap_err()
@@ -2849,12 +2882,28 @@ mod tests {
             "V3-MEMBERSHIP-RULES"
         );
 
-        // Leaf `ch-1` cannot host memberships.
+        // `ch-1` has its switch off and hosts nothing; with the switch on and
+        // `accept` set it can.
         assert_eq!(
             check_membership(&eid("ch-1"), &eid("p-1"), &entries, &templates)
                 .unwrap_err()
                 .invariant,
             "V3-MEMBERSHIP-RULES"
+        );
+        let ch = entries.get_mut(&eid("ch-1")).unwrap();
+        ch.level = true;
+        ch.overrides = Some(LevelSettingsOverride {
+            accept: Some(true),
+            ..Default::default()
+        });
+        assert!(check_membership(&eid("ch-1"), &eid("p-1"), &entries, &templates).is_ok());
+
+        // `home` must be a level: with `ms`'s switch off, new entries from
+        // `line-1` live under `line-1` itself.
+        entries.get_mut(&eid("ms")).unwrap().level = false;
+        assert_eq!(
+            resolve_new_entry_residence(Some(&eid("line-1")), &entries, &templates),
+            Some(eid("line-1"))
         );
     }
 
@@ -2865,16 +2914,21 @@ mod tests {
                 tid("tpl-storyline"),
                 level_template("tpl-storyline", "故事线", true),
             ),
-            (tid("tpl-chapter"), leaf_template("tpl-chapter", "章")),
+            (tid("tpl-group"), level_template("tpl-group", "分组", false)),
+            (tid("tpl-chapter"), template("tpl-chapter", "章")),
         ]);
-        let entries = BTreeMap::from([
+        let mut entries = BTreeMap::from([
             (
                 eid("line-1"),
-                entry_with("line-1", None, "主线", Some("tpl-storyline")),
+                level_with("line-1", None, "主线", Some("tpl-storyline")),
             ),
             (
                 eid("line-2"),
-                entry_with("line-2", None, "支线", Some("tpl-storyline")),
+                level_with("line-2", None, "支线", Some("tpl-storyline")),
+            ),
+            (
+                eid("sub"),
+                level_with("sub", Some("line-1"), "分组", Some("tpl-group")),
             ),
             (
                 eid("ch-1"),
@@ -2893,6 +2947,19 @@ mod tests {
                 .invariant,
             "V3-TIMELINE-LANE-ENABLED"
         );
+        // `lane` does not inherit: a level under a swimlane is not one.
+        assert!(check_timeline_lane(&eid("sub"), &entries, &templates).is_err());
+        // An entry can make itself a swimlane, and can opt out of its template's.
+        entries.get_mut(&eid("sub")).unwrap().overrides = Some(LevelSettingsOverride {
+            lane: Some(true),
+            ..Default::default()
+        });
+        assert!(check_timeline_lane(&eid("sub"), &entries, &templates).is_ok());
+        entries.get_mut(&eid("line-2")).unwrap().overrides = Some(LevelSettingsOverride {
+            lane: Some(false),
+            ..Default::default()
+        });
+        assert!(check_timeline_lane(&eid("line-2"), &entries, &templates).is_err());
 
         let mut view = TimelineView {
             id: TimelineViewId::parse("view-1").unwrap(),
@@ -2927,12 +2994,7 @@ mod tests {
         };
 
         // Only `ch-1` is a member of `line-1`; `ch-2` is not in any lane of `view`.
-        let memberships = vec![Membership {
-            host: eid("line-1"),
-            member: eid("ch-1"),
-            pos: None,
-            created_at: None,
-        }];
+        let memberships = vec![membership("line-1", "ch-1")];
 
         assert!(
             check_timeline_placement_in_lane(
@@ -2974,30 +3036,20 @@ mod tests {
     }
 
     #[test]
-    fn v3_autolink_names_and_aliases_are_unique_across_autolink_leaves() {
+    fn autolink_names_are_unique_across_autolinked_entries_whatever_their_switch() {
         let mut tpl_cat = level_template("tpl-cat", "分类", false);
         tpl_cat.settings.auto_link = Some(true);
         tpl_cat.settings.accept = Some(true);
+        // A grouping template: not linkable even where auto-link is on.
+        let tpl_group = level_template("tpl-group", "分组", false);
+        let templates = BTreeMap::from([
+            (tid("tpl-cat"), tpl_cat),
+            (tid("tpl-group"), tpl_group),
+            (tid("tpl-person"), aliases_template("tpl-person")),
+        ]);
 
-        let mut tpl_person = leaf_template("tpl-person", "人物");
-        tpl_person.modules.push(ModuleSpec::fields(
-            mid("mod-fields"),
-            "人物字段",
-            vec![FieldDef {
-                id: "aliases".into(),
-                name: "别名".into(),
-                field_type: FieldType::Aliases,
-                options: Vec::new(),
-                target_template: None,
-                default_value: None,
-                pos: None,
-            }],
-        ));
-
-        let templates =
-            BTreeMap::from([(tid("tpl-cat"), tpl_cat), (tid("tpl-person"), tpl_person)]);
-
-        let mut e1 = entry_with("e1", Some("cat-1"), "林凯", Some("tpl-person"));
+        // `e1` has entries under it (its switch is on): it still auto-links.
+        let mut e1 = level_with("e1", Some("cat-1"), "林凯", Some("tpl-person"));
         e1.created_at = Some(Timestamp(1000));
         e1.fields.insert(
             mid("mod-fields"),
@@ -3006,49 +3058,100 @@ mod tests {
                 FieldValue::List(vec!["凯哥".into(), "Captain Lin".into()]),
             )]),
         );
-
-        // `e2` resides elsewhere (`None`), but belongs to `cat-1` via `memberships`,
-        // so it also participates in auto-linking!
-        let mut e2 = entry_with("e2", None, "captain lin", Some("tpl-person"));
-        e2.created_at = Some(Timestamp(2000));
-
-        let memberships = vec![Membership {
-            host: eid("cat-1"),
-            member: eid("e2"),
-            pos: None,
-            created_at: None,
-        }];
-
-        let mut entries = BTreeMap::from([
+        let past = entry_with("past", Some("e1"), "林凯的过去", Some("tpl-person"));
+        let group = level_with("grp", Some("cat-1"), "主要人物", Some("tpl-group"));
+        let memberships = vec![membership("cat-1", "e2")];
+        let before = BTreeMap::from([
             (
                 eid("cat-1"),
-                entry_with("cat-1", None, "人物", Some("tpl-cat")),
+                level_with("cat-1", None, "人物", Some("tpl-cat")),
             ),
             (eid("e1"), e1),
+            (eid("past"), past),
+            (eid("grp"), group),
         ]);
+        let names = AutolinkNames::of(&before, &memberships, &templates);
+        assert!(names.is_linked(&eid("e1")));
+        // `past` lives under `e1`, which inherits auto-link from the category.
+        assert!(names.is_linked(&eid("past")));
+        assert!(!names.is_linked(&eid("grp")));
 
+        // `e2` resides elsewhere but belongs to `cat-1`, so it auto-links,
+        // and its title is `e1`'s alias (trimmed, case-insensitive): refused.
+        let mut after = before.clone();
+        let mut e2 = entry_with("e2", None, "  CAPTAIN LIN ", Some("tpl-person"));
+        e2.created_at = Some(Timestamp(2000));
+        after.insert(eid("e2"), e2);
         assert_eq!(
-            check_autolink_name_unique(
-                None,
-                Some(&eid("cat-1")),
-                &[],
-                true,
-                "  CAPTAIN LIN ",
-                &[],
-                &memberships,
-                &entries,
-                &templates,
+            check_new_violations(
+                graph(&before, &templates, &memberships),
+                graph(&after, &templates, &memberships)
             )
             .unwrap_err()
             .invariant,
             "V3-AUTOLINK-NAME-UNIQUE"
         );
+        // A group named like a person claims nothing: it is not linkable.
+        let mut renamed = before.clone();
+        renamed.get_mut(&eid("grp")).unwrap().title = "林凯".into();
+        assert!(
+            check_new_violations(
+                graph(&before, &templates, &memberships),
+                graph(&renamed, &templates, &memberships)
+            )
+            .is_ok()
+        );
 
-        entries.insert(eid("e2"), e2);
-        let conflicts = resolve_autolink_name_conflicts(&mut entries, &memberships, &templates);
+        // A merge brought `e2` in anyway: readers mark the later one.
+        let mut merged = after.clone();
+        let conflicts = resolve_autolink_name_conflicts(&mut merged, &memberships, &templates);
         assert_eq!(conflicts.get(&eid("e2")), Some(&eid("e1")));
-        assert_eq!(entries[&eid("e1")].name_conflict, None);
-        assert_eq!(entries[&eid("e2")].name_conflict, Some(eid("e1")));
+        assert_eq!(merged[&eid("e1")].name_conflict, None);
+        assert_eq!(merged[&eid("e2")].name_conflict, Some(eid("e1")));
+        // That old duplicate blocks no unrelated write...
+        let mut unrelated = after.clone();
+        unrelated.get_mut(&eid("past")).unwrap().title = "另一段过去".into();
+        assert!(
+            check_new_violations(
+                graph(&after, &templates, &memberships),
+                graph(&unrelated, &templates, &memberships)
+            )
+            .is_ok()
+        );
+        // ...and renaming one of the pair resolves it.
+        let mut resolved = after.clone();
+        resolved.get_mut(&eid("e2")).unwrap().title = "林二".into();
+        assert!(
+            check_new_violations(
+                graph(&after, &templates, &memberships),
+                graph(&resolved, &templates, &memberships)
+            )
+            .is_ok()
+        );
+        // A third entry joining the old duplicate is refused.
+        let mut third = after.clone();
+        third.insert(
+            eid("e3"),
+            entry_with("e3", Some("cat-1"), "captain lin", Some("tpl-person")),
+        );
+        assert!(
+            check_new_violations(
+                graph(&after, &templates, &memberships),
+                graph(&third, &templates, &memberships)
+            )
+            .is_err()
+        );
+        // A batch change counts the same way: turning `linkable` on for the
+        // group template makes `grp` claim a name already taken.
+        let mut linkable = templates.clone();
+        linkable.get_mut(&tid("tpl-group")).unwrap().linkable = true;
+        assert!(
+            check_new_violations(
+                graph(&renamed, &templates, &memberships),
+                graph(&renamed, &linkable, &memberships)
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -3089,28 +3192,51 @@ mod tests {
         let templates = BTreeMap::from([(tid("tpl-ms"), tpl_ms), (tid("tpl-vol"), tpl_vol)]);
 
         let mut entries = BTreeMap::new();
-        entries.insert(eid("ms"), entry_with("ms", None, "书稿", Some("tpl-ms")));
+        entries.insert(eid("ms"), level_with("ms", None, "书稿", Some("tpl-ms")));
         entries.insert(
             eid("vol-1"),
-            entry_with("vol-1", Some("ms"), "第一卷", Some("tpl-vol")),
+            level_with("vol-1", Some("ms"), "第一卷", Some("tpl-vol")),
         );
+        let none = Vec::new();
 
-        // `ms` already has `is_manuscript == true`, so enabling it on descendant `vol-1` is rejected.
-        assert_eq!(
-            check_manuscript_no_nest(&eid("vol-1"), true, &entries, &templates)
-                .unwrap_err()
-                .invariant,
-            "V3-MANUSCRIPT-NO-NEST"
-        );
-
-        // If a merge leaves both `ms` and `vol-1` with `is_manuscript == true`,
-        // `effective_manuscript_levels` recognizes only the outermost one (`ms`).
-        entries.get_mut(&eid("vol-1")).unwrap().overrides = Some(LevelSettingsOverride {
+        // `ms` already declares `is_manuscript`, so declaring it on descendant `vol-1` is refused.
+        let mut nested = entries.clone();
+        nested.get_mut(&eid("vol-1")).unwrap().overrides = Some(LevelSettingsOverride {
             is_manuscript: Some(true),
             ..LevelSettingsOverride::default()
         });
-        let eff = effective_manuscript_levels(&entries, &templates);
+        assert_eq!(
+            check_new_violations(
+                graph(&entries, &templates, &none),
+                graph(&nested, &templates, &none)
+            )
+            .unwrap_err()
+            .invariant,
+            "V3-MANUSCRIPT-NO-NEST"
+        );
+        assert_eq!(
+            manuscript_nest_pairs(&nested, &templates),
+            BTreeSet::from([(eid("ms"), eid("vol-1"))])
+        );
+
+        // If a merge leaves both with `is_manuscript == true`,
+        // `effective_manuscript_levels` recognizes only the outermost one (`ms`),
+        // and the old pair blocks no unrelated write.
+        let eff = effective_manuscript_levels(&nested, &templates);
         assert_eq!(eff, BTreeSet::from([eid("ms")]));
+        let mut renamed = nested.clone();
+        renamed.get_mut(&eid("vol-1")).unwrap().title = "卷一".into();
+        assert!(
+            check_new_violations(
+                graph(&nested, &templates, &none),
+                graph(&renamed, &templates, &none)
+            )
+            .is_ok()
+        );
+        // A level whose switch is off declares nothing.
+        let mut off = nested.clone();
+        off.get_mut(&eid("vol-1")).unwrap().level = false;
+        assert!(manuscript_nest_pairs(&off, &templates).is_empty());
     }
 
     #[test]
@@ -3132,8 +3258,11 @@ mod tests {
     fn v3_doc_ids_are_unique_across_books_in_library() {
         let b1 = BookId::parse("b1").unwrap();
         let b2 = BookId::parse("b2").unwrap();
-        let tpl_ms = level_template("tpl-manuscript", "书稿", false);
-        let mut tpl_ch = leaf_template("tpl-chapter", "章");
+        let mut tpl_ms = level_template("tpl-manuscript", "书稿", false);
+        tpl_ms
+            .modules
+            .push(ModuleSpec::prose(mid("mod-description"), "说明", false, false).in_book(false));
+        let mut tpl_ch = template("tpl-chapter", "章");
         tpl_ch
             .modules
             .push(ModuleSpec::prose(mid("mod-prose"), "正文", true, false));
@@ -3144,13 +3273,14 @@ mod tests {
 
         // Two books share fixed template IDs (`tpl-manuscript`, `tpl-chapter`),
         // but generate distinct entry IDs (`EntryId::new_v7()`): all document IDs
-        // (`book:`, `body:`, `template:<book>/<tpl>/<mod>`) are disjoint.
+        // (`book:`, `stats:`, `checkpoints:`, `body:`, `template:<book>/<tpl>/<mod>`)
+        // are disjoint.
         let mut entries_b1 = BTreeMap::new();
         let ms_b1 = EntryId::new_v7();
         let ch_b1 = EntryId::new_v7();
         entries_b1.insert(
             ms_b1.clone(),
-            entry_with(ms_b1.as_str(), None, "书稿", Some("tpl-manuscript")),
+            level_with(ms_b1.as_str(), None, "书稿", Some("tpl-manuscript")),
         );
         entries_b1.insert(
             ch_b1.clone(),
@@ -3167,7 +3297,7 @@ mod tests {
         let ch_b2 = EntryId::new_v7();
         entries_b2.insert(
             ms_b2.clone(),
-            entry_with(ms_b2.as_str(), None, "书稿", Some("tpl-manuscript")),
+            level_with(ms_b2.as_str(), None, "书稿", Some("tpl-manuscript")),
         );
         entries_b2.insert(
             ch_b2.clone(),
@@ -3183,6 +3313,13 @@ mod tests {
         let docs_b2 = book_doc_ids_v3(&b2, &entries_b2, &templates);
         assert!(docs_b1.contains(&DocId::parse("template:b1/tpl-chapter/mod-prose").unwrap()));
         assert!(docs_b2.contains(&DocId::parse("template:b2/tpl-chapter/mod-prose").unwrap()));
+        // The level's description is an ordinary prose module; no `about`.
+        assert!(docs_b1.contains(&DocId::Body(BodyDocId::new(
+            ms_b1.clone(),
+            mid("mod-description")
+        ))));
+        assert!(docs_b1.iter().all(|d| !d.to_string().ends_with("/about")));
+        assert!(docs_b1.contains(&DocId::Stats(b1.clone())));
         assert!(
             check_doc_ids_unique_across_books(&[
                 (b1.clone(), docs_b1.clone()),
@@ -3208,7 +3345,6 @@ mod tests {
         let k = Membership::key(&a, &b);
         assert_eq!(k, "host-1|member-1");
         assert_eq!(Membership::parse_key(&k), Some((a.clone(), b)));
-        assert_eq!(level_about_module_id().as_str(), "about");
 
         let m = mid("grid-1");
         let gk = PlotGridV3::key(&a, &m);
@@ -3240,5 +3376,23 @@ mod tests {
         ];
         sort_kv(&mut kv);
         assert_eq!(kv[0].id.as_str(), "1");
+    }
+
+    #[test]
+    fn missing_keys_read_as_off_linkable_and_in_book() {
+        let t: EntryTemplate =
+            serde_json::from_value(serde_json::json!({"id": "t", "name": "T"})).unwrap();
+        assert!(!t.level);
+        assert!(t.linkable);
+        let e: Entry = serde_json::from_value(serde_json::json!({
+            "id": "e", "parent": null, "pos": "a0", "title": "E", "template": null,
+            "overrides": null, "fields": {}, "kv": {}, "primary": null,
+            "layout": {}, "created_at": null, "updated_at": null, "deleted_at": null
+        }))
+        .unwrap();
+        assert!(!e.is_level());
+        let c: ModuleConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(c.in_book);
+        assert_eq!(ModuleKind::parse("children"), ModuleKind::Children);
     }
 }
