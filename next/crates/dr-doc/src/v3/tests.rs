@@ -1082,6 +1082,78 @@ fn an_entry_made_on_two_devices_reads_its_change_state_from_the_kept_node() {
 }
 
 #[test]
+fn siblings_holding_one_position_key_get_new_keys_when_an_entry_goes_between_them() {
+    // The one case in which an entry's position changes without the entry
+    // being moved by anyone: two devices each put an entry at the end of the
+    // same level, so the two hold the same key; when a third goes between
+    // them Loro has no key to give it and re-keys the neighbours.
+    let (first, roots) = book_with_owned_records();
+    let mut one = BookDocV3::load(bid(), 71, &[first.export_snapshot().unwrap()]).unwrap();
+    let mut two = BookDocV3::load(bid(), 72, &[first.export_snapshot().unwrap()]).unwrap();
+    for (doc, id) in [(&mut one, "ch-east"), (&mut two, "ch-west")] {
+        doc.edit(Origin::User, |t| {
+            t.entries().create(
+                &eid(id),
+                Some(&roots.manuscript),
+                id,
+                Some(&tid(TPL_CHAPTER)),
+            )?;
+            Ok(())
+        })
+        .0
+        .unwrap();
+    }
+    let from_two = two.export_updates_since(&one.version()).unwrap();
+    one.import(&from_two, Origin::Sync).unwrap();
+    let state = |doc: &BookDocV3, id: &str| doc.view().entry_change_state(&eid(id)).unwrap();
+    let (east, west, third) = (
+        state(&one, "ch-east"),
+        state(&one, "ch-west"),
+        state(&one, "ch-3"),
+    );
+    assert_eq!(east["position"], west["position"], "one key for both");
+    let order = |doc: &BookDocV3| -> Vec<String> {
+        doc.view()
+            .children_of(Some(&roots.manuscript))
+            .into_iter()
+            .map(|e| e.id.to_string())
+            .collect()
+    };
+    assert_eq!(order(&one), ["ch-1", "ch-2", "ch-3", "ch-east", "ch-west"]);
+
+    one.edit(Origin::User, |t| {
+        t.entries().create_at(
+            &eid("ch-between"),
+            Some(&roots.manuscript),
+            4,
+            "夹在中间",
+            Some(&tid(TPL_CHAPTER)),
+        )?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    assert_eq!(
+        order(&one),
+        ["ch-1", "ch-2", "ch-3", "ch-east", "ch-between", "ch-west"]
+    );
+    let (east_after, west_after) = (state(&one, "ch-east"), state(&one, "ch-west"));
+    assert_ne!(east_after["position"], west_after["position"]);
+    assert!(
+        east_after["position"] != east["position"] || west_after["position"] != west["position"],
+        "a neighbour was given a new key"
+    );
+    // Nothing but the key: what they own and where they live is as it was.
+    for (before, after) in [(&east, &east_after), (&west, &west_after)] {
+        for key in ["metadata", "records", "parent"] {
+            assert_eq!(before[key], after[key]);
+        }
+    }
+    // And only the neighbours that shared the key: nobody further away.
+    assert_eq!(state(&one, "ch-3"), third);
+}
+
+#[test]
 fn entry_change_states_leave_out_what_the_tree_readers_leave_out() {
     // The duplicate and cyclic shapes of
     // `structure_snapshot_keeps_duplicate_tree_ids_and_domain_cycle_tolerance`.
