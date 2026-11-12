@@ -89,7 +89,7 @@ cargo xtask check
 CI 是 [`.github/workflows/next.yml`](../.github/workflows/next.yml)：
 
 - **什么时候跑**：`next/`、`docs/rust-rewrite/`、`next/` 还在引用的旧目录资源，或这个工作流本身变化时；
-- **两个平台**：macOS 和 Windows 各一条，跑上面前三项和 `cargo build`；
+- **两个平台**：macOS 和 Windows 各一条，跑上面前三项和 `cargo build`。CI 里 Clippy 带 `--keep-going`、测试带 `--no-fail-fast`，一次报出所有失败的 crate 和测试，不停在第一个；
 - **macOS 上再加**：`cargo xtask check`、仓库的公开边界检查，再打一次 dev 包。
 
 ## 测试数据、证据、基准
