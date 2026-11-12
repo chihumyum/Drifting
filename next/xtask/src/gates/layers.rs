@@ -31,7 +31,7 @@ pub enum Layer {
     Spike,
 }
 
-/// Members by name (`docs/rust-rewrite/README.md` "目标架构"). `dr-view-*`
+/// Members by name (`docs/rust-rewrite/README.md` "架构"). `dr-view-*`
 /// crates are interface crates.
 pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-model", Layer::Data),

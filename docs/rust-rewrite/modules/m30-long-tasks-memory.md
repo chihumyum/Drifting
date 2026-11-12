@@ -3,7 +3,7 @@
 交回状态：分支 `codex/m30-long-tasks-memory`；本节对应 M30 机制提交（`git log --oneline --grep="finish M30"` 可定位）。冻结的工具接入、主页插槽及真实供应商验收见下文。
 
 2026-11-09，轨道 3。接续 11-08 的未提交工作，按
-[通用内核分轨](../handoff/kernel-v3-split.md) 收窄为运行时机制。
+通用内核分轨（`handoff/kernel-v3-split.md`，已随过程文档清理删除，在 git 历史里）收窄为运行时机制。
 
 ## 做了什么
 

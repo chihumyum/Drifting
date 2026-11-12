@@ -80,7 +80,7 @@
 ## 交回
 
 - **包含段落**：M43 Windows 补齐（`dr-platform::tray` 通知区驻留／菜单／单实例唤醒、`dr-platform::fonts` Windows 字体回退顺序、`bundle-windows.ps1` + `drifting.nsi` + `check-windows-installer.ps1` + `.github/workflows/next.yml` 的 arm64 安装包与内置字体打包、Windows 实机／虚拟机验收清单）。连同已就绪的 M37 偏好同步与 M36 同步 v2 一起交回。
-- **改动 `dr-shell`、`dr-view-shelf`、`dr-ui` 的地方**：**无**（`git diff main -- next/crates/dr-shell next/crates/dr-view-shelf next/crates/dr-ui` 为空；严格遵守 `overnight.md` 与 `kernel-v3-split.md` 的分轨范围，外壳与 `dr-ui` 的两处极小挂接点列于下方「待协调」）。
+- **改动 `dr-shell`、`dr-view-shelf`、`dr-ui` 的地方**：**无**（`git diff main -- next/crates/dr-shell next/crates/dr-view-shelf next/crates/dr-ui` 为空；严格遵守当时的分轨文档 `handoff/overnight.md` 与 `handoff/kernel-v3-split.md`（都已随过程文档清理删除，在 git 历史里）的分轨范围，外壳与 `dr-ui` 的两处极小挂接点列于下方「待协调」）。
 - **全套检查结果**：
   - `cargo fmt --all --check`：通过
   - `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
@@ -93,8 +93,8 @@
 ## 待协调
 
 1. **外壳窗口关闭与托盘命令挂接（F6 `dr-shell`）**：
-   - 按 `overnight.md` 轨道 4 规则，本分支不直接修改 `dr-shell`。合流后在 `dr-shell` 启动时调用 `dr_platform::tray::TrayController::install(&identity, TrayLabels::for_locale(locale.code()))`，把 `single_instance` 回调接到 `tray.notify_second_instance()`，在窗口关闭请求处按 `tray.handle_window_close(context)` 区分 `ReturnToShelf`、`HideToTray` 与 `QuitProcess`，并在界面语言变更时调用 `tray.set_labels(open, quit)`。
+   - 按当时 `handoff/overnight.md`（已删）的轨道 4 规则，本分支不直接修改 `dr-shell`。合流后在 `dr-shell` 启动时调用 `dr_platform::tray::TrayController::install(&identity, TrayLabels::for_locale(locale.code()))`，把 `single_instance` 回调接到 `tray.notify_second_instance()`，在窗口关闭请求处按 `tray.handle_window_close(context)` 区分 `ReturnToShelf`、`HideToTray` 与 `QuitProcess`，并在界面语言变更时调用 `tray.set_labels(open, quit)`。
 2. **`dr-ui` 角色字体挂载平台回退链（F5 `dr-ui`）**：
-   - 按 `kernel-v3-split.md`，`dr-ui` 归轨道 2，本分支不直接修改 `next/crates/dr-ui/src/fonts.rs`。合流后可在 `dr_ui::fonts::Role::font` 中加一行 `f.fallbacks = Some(gpui::FontFallbacks::from_fonts(dr_platform::fonts::fallbacks_for(role).iter().map(|s| (*s).to_owned()).collect()));` 将 `dr_platform::fonts` 的 Windows/macOS 回退顺序挂入 GPUI `Font`。
+   - 按当时的 `handoff/kernel-v3-split.md`（已删），`dr-ui` 归轨道 2，本分支不直接修改 `next/crates/dr-ui/src/fonts.rs`。合流后可在 `dr_ui::fonts::Role::font` 中加一行 `f.fallbacks = Some(gpui::FontFallbacks::from_fonts(dr_platform::fonts::fallbacks_for(role).iter().map(|s| (*s).to_owned()).collect()));` 将 `dr_platform::fonts` 的 Windows/macOS 回退顺序挂入 GPUI `Font`。
 3. **本机 `aarch64-pc-windows-msvc` rustup target 组件**：
    - 本机已安装 `x86_64-pc-windows-msvc` 并通过 `--target x86_64-pc-windows-msvc` 交叉编译检查；`aarch64-pc-windows-msvc` 组件本机未预装，遵照 `m43-windows.md`「缺工具链组件、要装东西时先问作者，不要自己装」未在本机自动安装，如需本机跑 arm64 交叉检查可执行 `rustup target add aarch64-pc-windows-msvc`。
