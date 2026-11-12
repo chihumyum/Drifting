@@ -965,7 +965,6 @@
       "draft": "Entwurf"
     },
     "tabs": {
-      "companion": "Agent",
       "library": "Materialsammlung",
       "review": "Prüfung",
       "stats": "Statistik"
@@ -1451,7 +1450,7 @@
     "add_action": "Aktion hinzufügen",
     "add_field": "Feld hinzufügen",
     "add_module": "Modul hinzufügen",
-    "agent_preview": "Was der Assistent sieht",
+    "agent_preview": "Was der Agent sieht",
     "aliases": "Aliasse",
     "all_templates": "Beliebige Vorlage",
     "allow": "Erlaubte Vorlagen",
@@ -1467,7 +1466,7 @@
     "entity_ref": "Eintragsverweis",
     "field_name": "Feldname",
     "fields": "Felder",
-    "for_agent": "Für den Assistenten",
+    "for_agent": "Für den Agent",
     "format_full": "Alle",
     "format_notes": "Notizen",
     "format_plain": "Keine",
@@ -1585,11 +1584,13 @@
     "unassigned": "Nicht zugeordnet"
   },
   "v3Settings": {
-    "providerAnthropic": "Vom allgemeinen Agent verwendet.",
-    "providerDeepseek": "Vom allgemeinen Agent verwendet.",
-    "providerOpenai": "Vom allgemeinen Agent verwendet.",
-    "providerOpenaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif.",
-    "railAgent": "Allgemeiner Agent"
+    "codeCopied": "Kopiert",
+    "copyCode": "Code kopieren",
+    "providerAnthropic": "Von Agent verwendet.",
+    "providerDeepseek": "Von Agent verwendet.",
+    "providerOpenai": "Von Agent verwendet.",
+    "providerOpenaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif.",
+    "railAgent": "Agent"
   },
   "v3Shell": {
     "about": "Beschreibung",

@@ -644,3 +644,65 @@ fn dropping_connections_during_native_save_still_clears_the_completed_write(
     server.join();
     assert!(store.get("oauth.openai-codex").unwrap().is_none());
 }
+
+#[gpui::test]
+fn chatgpt_device_login_copy_code_button_writes_user_code_to_clipboard(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            dr_shell::ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "test",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            dr_shell::Services::default(),
+            SettingsFile::in_memory(),
+            cx,
+        );
+    });
+    let store = Arc::new(SecretStore::in_memory());
+    let credentials = Credentials::new(store);
+    let mut server = Service::sequence(vec![(
+        200,
+        json!({
+            "device_auth_id": "synthetic-device",
+            "user_code": "COPY-9876",
+            "interval": 60
+        })
+        .to_string(),
+    )]);
+    let service = ConnectionService::new(server.driver(credentials))
+        .with_catalog_endpoint(Provider::Chatgpt, "http://127.0.0.1:1/models".into());
+    let connections = cx.new(|cx| Connections::with_service(service, cx));
+    let shared = connections.clone();
+    let (view, vcx) = cx.add_window_view(move |window, cx| ConnectionView::new(shared, window, cx));
+    view.update(vcx, |v, cx| v.start_login(cx));
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while connections.read_with(vcx, |c, _| c.login.is_none()) {
+        vcx.run_until_parked();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "device code did not arrive"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    vcx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    let copy_bounds = vcx
+        .debug_bounds("chatgpt-copy-code")
+        .expect("chatgpt-copy-code button bounds");
+    vcx.simulate_click(copy_bounds.center(), gpui::Modifiers::none());
+    vcx.run_until_parked();
+    assert_eq!(
+        vcx.read_from_clipboard().and_then(|item| item.text()),
+        Some("COPY-9876".to_owned())
+    );
+    connections.update(vcx, |c, cx| c.cancel_login(cx));
+    vcx.run_until_parked();
+    server.join();
+}

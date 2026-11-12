@@ -252,6 +252,7 @@
 - 第六十九批 `59a9cc45`（协调 `93a43a3f`）：接收 `handback/track4` → `dee8634d`，两台设备、两本 canonical v3 书与四份资源变体经 FakeSyncServer 往返，跨书身份矛盾在 purge／covered-update／import 前共同拦截，根探针先红后绿；全套 2386／0 失败／22 忽略及全部门禁通过。
 - 第七十批 `ad97a43c`：接收 `codex/switch-v3` `b10d7ac1` 整合候选 `2ae27b00`，完成 `next/` canonical v3 切换。新建书与打开路径仅 canonical v3，保留旧库文件不就地删除或篡改；GUI/CLI 显式 choices 独立目录重新导入、源库哈希与 mtime 不变；移除 v2.2 页面、按种类命令、旧缓存、旧 Markdown watcher 激活和旧固定域测试，新增 `v3-cutover` 门禁与字海开书模块就绪等待门。独立 9 门禁全过（2204 通过／0 失败／20 忽略，含全部 17 条恢复注册的 `release_tests`），删测 236 个函数按内容核对无丢 v3 覆盖，副屏真窗口 15 条主流程、`g-b70-switch-2` 与 `g-b70-sync-1` 全部通过。
 - 第七十一批 `c9905be9`（`handback/app-sync` → `2dabeb40`，整合候选 `0c7610aa`）及紧接退登排空补齐：接收生产 App 自动同步接线。`dr-sync` 新增 `SyncRuntime`（本地编辑尾部防抖合并上传、定时拉取、401→`Reauth`／413→`Quota` 自动暂停、整书 `DocPurge` 后接收端自动回收物理资源变体、打开文档持有者释放唤醒）；`next/app/drifting/src/sync.rs` 新增 `Supervisor` 接通登录／登出自动切换账号隔离库与本机库、两阶段 `before_release`＋`after_drain` 退出换库排空、稿纸左下角同步角标／悬停卡与通知中心告警钉住；紧接在 `dr-shell::sync` 暴露 `run_before_sign_out` 并接入 `dr_view_account::sign_out`，使侧栏菜单与「设置 › 账号」页退出登录均先排空上传再吊销令牌。全套检查与副屏双 profile 真窗口往返、关窗排空及重开收敛全部通过。
+- 第一轮手测直接修复（11-12）：统一九语 v3 界面文案将 `帮手`／`Helper`／`General Agent` 改为 `Agent`（含右栏标签、设置分组与供应商说明、模板编辑的 Agent 说明与预览标题）；修复书架页账号菜单下拉切语言时外层浮层提前 `mouse_down_out` 关闭与 `Shelf` 未订阅语言／设置全局通知；修复 `CardBody` 内部 `.occlude()` 遮挡 `HoverCard` 悬停命中框导致鼠标移入浮卡即自动隐藏（同步修复正文链接浮卡与书架热力图日卡）；修复沉浸模式显隐红绿灯与切外观后 AppKit 重排 `NSTitlebarContainerView` 导致进入设置页或恢复窗口控制时红绿灯向上偏移 10pt，并使打开设置自动退出沉浸写作；取消条目页 `BodyModule` 的 `720px` 高度钳制，使正文模块随外层条目页自然摊平展开并保留章头／章末插槽；为右栏及设置中的 ChatGPT Codex 设备登录授权码补齐点击复制与「复制代码／已复制」按钮。六项均补齐永久回归测试。
 
 ## 对外
 

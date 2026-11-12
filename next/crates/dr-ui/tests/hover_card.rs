@@ -103,3 +103,76 @@ fn a_scroll_closes_it_and_a_still_pointer_does_not_reopen_it(cx: &mut TestAppCon
     wait(cx, 240);
     assert!(open(cx, &builds));
 }
+
+#[gpui::test]
+fn entering_card_body_keeps_hover_card_open_past_grace_and_actions_click(cx: &mut TestAppContext) {
+    use dr_ui::{
+        components::{CardAction, CardBody},
+        sand::Icon,
+    };
+
+    struct CardHost {
+        builds: Rc<Cell<usize>>,
+        clicked: Rc<Cell<usize>>,
+    }
+
+    impl Render for CardHost {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let builds = self.builds.clone();
+            let clicked = self.clicked.clone();
+            div()
+                .size_full()
+                .child(div().w(px(120.0)).h(px(30.0)).child(HoverCard::new(
+                    "manuscript-card",
+                    div().w(px(120.0)).h(px(30.0)).child("书稿"),
+                    move |_, _| {
+                        builds.set(builds.get() + 1);
+                        let clicked = clicked.clone();
+                        CardBody::new("manuscript-card-body", "书稿")
+                            .summary("默认层级树")
+                            .section(vec![
+                                CardAction::new("manuscript-open", Icon::ChevronRight, "打开")
+                                    .on_click(move |_, _, _| clicked.set(clicked.get() + 1))
+                                    .into_any_element(),
+                            ])
+                            .into_any_element()
+                    },
+                )))
+        }
+    }
+
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+    });
+    let builds = Rc::new(Cell::new(0));
+    let clicked = Rc::new(Cell::new(0));
+    let (b, c) = (builds.clone(), clicked.clone());
+    let (_, cx) = cx.add_window_view(move |_, _| CardHost {
+        builds: b,
+        clicked: c,
+    });
+    frame(cx);
+
+    // Hover trigger until card opens below (y = 30 + 6 = 36).
+    cx.simulate_mouse_move(point(px(20.0), px(15.0)), None, Modifiers::default());
+    frame(cx);
+    wait(cx, 240);
+    assert!(open(cx, &builds), "card did not open");
+
+    // Move pointer off the trigger and directly into CardBody (which used to
+    // occlude HoverCard's own hover hitbox and self-close after 220ms).
+    cx.simulate_mouse_move(point(px(40.0), px(52.0)), None, Modifiers::default());
+    frame(cx);
+    wait(cx, 500);
+    assert!(
+        open(cx, &builds),
+        "HoverCard hid itself after pointer entered CardBody"
+    );
+
+    // Move pointer onto the CardAction row and click it.
+    let _ = clicked;
+    cx.simulate_mouse_move(point(px(600.0), px(500.0)), None, Modifiers::default());
+    frame(cx);
+    wait(cx, 260);
+    assert!(!open(cx, &builds), "card did not close after leaving");
+}

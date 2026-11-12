@@ -965,7 +965,6 @@
       "draft": "Draft"
     },
     "tabs": {
-      "companion": "Agent",
       "library": "Library",
       "review": "Review",
       "stats": "Stats"
@@ -1451,7 +1450,7 @@
     "add_action": "Add action",
     "add_field": "Add field",
     "add_module": "Add module",
-    "agent_preview": "What the helper sees",
+    "agent_preview": "What the Agent sees",
     "aliases": "Aliases",
     "all_templates": "Any template",
     "allow": "Allowed templates",
@@ -1467,7 +1466,7 @@
     "entity_ref": "Entry reference",
     "field_name": "Field name",
     "fields": "Fields",
-    "for_agent": "For the helper",
+    "for_agent": "For the Agent",
     "format_full": "Full",
     "format_notes": "Notes",
     "format_plain": "None",
@@ -1585,11 +1584,13 @@
     "unassigned": "Unassigned"
   },
   "v3Settings": {
-    "providerAnthropic": "Used by General Agent.",
-    "providerDeepseek": "Used by General Agent.",
-    "providerOpenai": "Used by General Agent.",
-    "providerOpenaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
-    "railAgent": "General Agent"
+    "codeCopied": "Copied",
+    "copyCode": "Copy code",
+    "providerAnthropic": "Used by Agent.",
+    "providerDeepseek": "Used by Agent.",
+    "providerOpenai": "Used by Agent.",
+    "providerOpenaiCodex": "Sign in through OpenAI's Codex device flow to run Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
+    "railAgent": "Agent"
   },
   "v3Shell": {
     "about": "Description",

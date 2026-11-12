@@ -1802,6 +1802,7 @@ impl Render for Assist {
                 let this = cx.entity();
                 let body = div()
                     .id("dr-editor-link-card")
+                    .occlude()
                     .on_hover(move |on, _, cx| {
                         let on = *on;
                         this.update(cx, |a, cx| {
@@ -1835,20 +1836,28 @@ impl Render for Assist {
 /// The view's editor element with the assist around it: its overlay beside
 /// the editor, and ↑ ↓ Enter Esc going to the open picker first.
 pub fn wrap(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoElement {
-    wrap_at(assist, editor, false)
+    wrap_at(assist, editor, false, false)
 }
 
 /// Module pages sit in a scrolling composition. Read the preceding frame's
 /// text geometry before the accessibility-enabled editor clears it for paint.
 /// The assist's deferred overlays still paint above the text.
 pub fn wrap_module(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoElement {
-    wrap_at(assist, editor, true)
+    wrap_at(assist, editor, true, false)
+}
+
+/// [`wrap_module`] for a natural-height (`fit_content`) prose module inside an
+/// outer scrolling page (`EntryPage`), sizing horizontally (`w_full`) without
+/// clamping height.
+pub fn wrap_flat_module(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoElement {
+    wrap_at(assist, editor, true, true)
 }
 
 fn wrap_at(
     assist: &Entity<Assist>,
     editor: impl IntoElement,
     assist_first: bool,
+    fit_content: bool,
 ) -> impl IntoElement {
     let (up, down, enter, esc) = (
         assist.clone(),
@@ -1860,7 +1869,8 @@ fn wrap_at(
     let cut = assist.clone();
     let paste = assist.clone();
     div()
-        .size_full()
+        .when(fit_content, |d| d.w_full())
+        .when(!fit_content, |d| d.size_full())
         .relative()
         .capture_action(move |_: &gpui_prose::input::actions::Copy, window, cx| {
             if crate::clipboard::copy(&copy.read(cx).editor.clone(), false, window, cx) {

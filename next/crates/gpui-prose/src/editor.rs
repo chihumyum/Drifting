@@ -901,6 +901,9 @@ impl ProseEditor {
 
     pub(crate) fn reveal_cursor(&mut self) {
         self.autoscroll = true;
+        if self.options.fit_content {
+            return;
+        }
         let sel = self.selection;
         let line = self.book.chapters[sel.chapter].doc.locate(sel.head).0;
         if self.frame.borrow().get(sel.chapter, line).is_none() {

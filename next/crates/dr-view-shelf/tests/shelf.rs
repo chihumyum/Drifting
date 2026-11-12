@@ -622,6 +622,82 @@ fn on_the_sea_the_desk_rings_and_a_sample_lands_until_opened(cx: &mut TestAppCon
     drop(hold);
 }
 
+#[gpui::test]
+fn switching_language_from_shelf_account_menu_updates_locale_and_repaints(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let (view, cx) = setup(cx, library);
+    let shelf = shelf_of(&view, cx);
+    shelf_until(&shelf, cx, |d| d.books.len() == 2);
+
+    cx.update(|_, cx| {
+        dr_shell::Settings::update(cx, |file| {
+            file.set(
+                dr_shell::settings::registry::UI_LOCALE,
+                "zh-CN".into(),
+                None,
+            )
+            .unwrap();
+        });
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert_eq!(
+        cx.update(|_, cx| dr_shell::Settings::locale(cx)),
+        dr_i18n::Locale::ZhCn
+    );
+
+    // Open the shelf's account menu.
+    let account_btn = cx
+        .debug_bounds("shelf-account")
+        .expect("shelf account button");
+    cx.simulate_click(account_btn.center(), Modifiers::none());
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    // Draw a second frame so overlay::probe populates Select's trigger bounds.
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+
+    // Open the language Select inside the account menu.
+    let lang_select = cx
+        .debug_bounds("shelf-account-language")
+        .expect("language select in shelf account menu");
+    cx.simulate_click(lang_select.center(), Modifiers::none());
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+
+    // Locale::ALL[2] is English; its floating choice row sits outside the
+    // account menu's own card rect and previously dismissed the menu on
+    // mouse-down before the choice click could fire.
+    let choice_sel: &'static str = Box::leak(
+        dr_ui::style::child_id(&"shelf-account-language".into(), "choice-2")
+            .to_string()
+            .into_boxed_str(),
+    );
+    let en_choice = cx
+        .debug_bounds(choice_sel)
+        .expect("English choice in language select");
+    cx.simulate_click(en_choice.center(), Modifiers::none());
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+
+    assert_eq!(
+        cx.update(|_, cx| dr_shell::Settings::locale(cx)),
+        dr_i18n::Locale::En
+    );
+    assert_eq!(
+        cx.update(|_, cx| {
+            dr_shell::t(cx, dr_i18n::keys::project_picker::header::TITLE_EM).to_string()
+        }),
+        "Bookshelf"
+    );
+}
+
 /// The sea under the whole window, the workspace over it (what the shell's
 /// backdrop will do, M24).
 struct OnSeaRoot {

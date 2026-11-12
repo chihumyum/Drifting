@@ -124,7 +124,7 @@
     "add_action": "添加动作",
     "add_field": "添加字段",
     "add_module": "添加模块",
-    "agent_preview": "帮手看到的",
+    "agent_preview": "Agent 看到的",
     "aliases": "别名",
     "all_templates": "不限",
     "allow": "允许的模板",
@@ -140,7 +140,7 @@
     "entity_ref": "条目引用",
     "field_name": "字段名",
     "fields": "字段",
-    "for_agent": "写给帮手",
+    "for_agent": "写给 Agent",
     "format_full": "全部",
     "format_notes": "笔记",
     "format_plain": "无",
@@ -227,11 +227,13 @@
     "unassigned": "未归属"
   },
   "v3Settings": {
-    "providerAnthropic": "供帮手使用。",
-    "providerDeepseek": "供帮手使用。",
-    "providerOpenai": "供帮手使用。",
-    "providerOpenaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行帮手，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
-    "railAgent": "帮手"
+    "codeCopied": "已复制",
+    "copyCode": "复制代码",
+    "providerAnthropic": "供 Agent 使用。",
+    "providerDeepseek": "供 Agent 使用。",
+    "providerOpenai": "供 Agent 使用。",
+    "providerOpenaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
+    "railAgent": "Agent"
   },
   "v3Shell": {
     "about": "说明",

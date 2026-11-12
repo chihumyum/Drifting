@@ -396,6 +396,7 @@ pub fn menu(
         },
         None => Place::Center,
     };
+    let language_id = child("language");
     overlay::float(
         place,
         Layer::Popover,
@@ -403,8 +404,11 @@ pub fn menu(
             .id(child("float"))
             .occlude()
             .on_mouse_down_out(move |e, window, cx| {
-                // The cell that owns the menu toggles it itself.
-                if anchor.is_some_and(|b| b.contains(&e.position)) {
+                // The cell that owns the menu toggles it itself; an open
+                // language dropdown floats in its own popover layer.
+                if anchor.is_some_and(|b| b.contains(&e.position))
+                    || Select::open_list_contains(language_id.clone(), e.position, window, cx)
+                {
                     return;
                 }
                 close(window, cx);

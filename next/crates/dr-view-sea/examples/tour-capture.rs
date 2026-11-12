@@ -248,7 +248,7 @@ impl Render for Desk {
                 tab(t(cx, keys::right_sidebar::tabs::STATS), false).into_any_element(),
                 anchor(
                     ids::AGENT_TAB,
-                    tab(t(cx, keys::right_sidebar::tabs::COMPANION), true),
+                    tab(t(cx, keys::v3_settings::RAIL_AGENT), true),
                 )
                 .into_any_element(),
             ]));

@@ -487,7 +487,11 @@ impl RenderOnce for WritingHeatmap {
                     gap: 6.0,
                 },
                 overlay::Layer::Popover,
-                div().debug_selector(|| "heat-day-card".into()).child(body),
+                div()
+                    .id(ElementId::Name(format!("{}-day-card", self.id).into()))
+                    .occlude()
+                    .debug_selector(|| "heat-day-card".into())
+                    .child(body),
             )
         });
 

@@ -165,6 +165,7 @@ impl RenderOnce for MenuItem {
         };
         let interactive = !self.disabled;
         let id = self.id.clone();
+        let dbg = self.id.clone();
         let label = self.label.clone();
         glass::glass_box(
             self.id,
@@ -178,6 +179,7 @@ impl RenderOnce for MenuItem {
             window,
             cx,
         )
+        .debug_selector(move || dbg.to_string())
         .mx(px(m::ROW_INSET))
         .min_h(px(s.menu_row))
         .px(px(m::ROW_PAD_X))

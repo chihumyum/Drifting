@@ -829,12 +829,15 @@ mod tests {
         use dr_i18n::{I18n, Locale, Platform};
         let zh = I18n::new(Locale::ZhCn, Platform::Mac);
         let en = I18n::new(Locale::En, Platform::Mac);
-        assert_eq!(zh.t(Section::Agent.label()), "帮手");
-        assert_eq!(en.t(Section::Agent.label()), "General Agent");
+        assert_eq!(zh.t(Section::Agent.label()), "Agent");
+        assert_eq!(en.t(Section::Agent.label()), "Agent");
+        assert_eq!(zh.t(crate::workspace::RightTab::Companion.label()), "Agent");
+        assert_eq!(en.t(crate::workspace::RightTab::Companion.label()), "Agent");
         for section in Section::ALL {
             assert!(
-                !zh.t(section.label()).contains("General Agent"),
-                "section {:?} leaked General Agent in zh-CN",
+                !zh.t(section.label()).contains("General Agent")
+                    && !zh.t(section.label()).contains("帮手"),
+                "section {:?} leaked legacy Agent label in zh-CN",
                 section
             );
             assert!(

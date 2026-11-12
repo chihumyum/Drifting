@@ -12,6 +12,13 @@ use gpui::App;
 pub fn apply(forced: Option<Appearance>, cx: &mut App) {
     dr_ui::theme::force_appearance(forced, cx);
     apply_natively(forced);
+    for handle in cx.windows() {
+        if let Some(ws) = handle.downcast::<crate::Workspace>() {
+            let _ = ws.update(cx, |_, window, _| {
+                window.set_traffic_light_position(crate::workspace::TRAFFIC_LIGHT_POSITION);
+            });
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]

@@ -37,14 +37,14 @@ impl ProseEditor {
         }
         match self.book.item(ix) {
             Item::Title(chapter) => {
-                // A small editor that fits its text has no title rows.
-                if self.options.fit_content {
-                    return crate::slots::slot_item(ix, self.heights.clone(), None);
-                }
                 if let Some(slots) = self.slots.clone()
                     && let Some(head) = slots.head(chapter, window, cx)
                 {
                     return crate::slots::slot_item(ix, self.heights.clone(), Some(head));
+                }
+                // A small editor that fits its text without slots has no title rows.
+                if self.options.fit_content {
+                    return crate::slots::slot_item(ix, self.heights.clone(), None);
                 }
                 let title = self.book.chapters[chapter].title.clone();
                 let top = if chapter == 0 { px(56.) } else { px(96.) };

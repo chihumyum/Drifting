@@ -186,7 +186,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "What the helper sees"
+        "label": "What the Agent sees"
       }
     },
     {
@@ -203,7 +203,7 @@
         "contains": "Synthetic unsaved shared projection",
         "within": {
           "role": "Group",
-          "label": "What the helper sees"
+          "label": "What the Agent sees"
         },
         "timeout_ms": 15000
       },
@@ -215,7 +215,7 @@
         "contains": "draft_frontier",
         "within": {
           "role": "Group",
-          "label": "What the helper sees"
+          "label": "What the Agent sees"
         }
       },
       "save": "draft_identity"
@@ -286,7 +286,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "What the helper sees"
+        "label": "What the Agent sees"
       }
     },
     {
@@ -303,7 +303,7 @@
         "contains": "Synthetic unsaved shared projection",
         "within": {
           "role": "Group",
-          "label": "What the helper sees"
+          "label": "What the Agent sees"
         },
         "timeout_ms": 15000
       },

@@ -331,8 +331,18 @@ impl ChapterEditor {
         let ext = extension.clone();
         // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
         // lists (material notes); never in chapters.
+        let fit_content = crate::v3::body(doc_id).is_some();
         let editor = cx.new(|cx| {
-            let mut editor = ProseEditor::new(prose, body_style, window, cx);
+            let mut editor = ProseEditor::with_options(
+                prose,
+                body_style,
+                gpui_prose::EditorOptions {
+                    fit_content,
+                    ..Default::default()
+                },
+                window,
+                cx,
+            );
             editor.set_extension(ext);
             editor.set_list_shortcuts(note);
             editor
@@ -849,8 +859,9 @@ enum Notice {
 
 impl Render for ChapterEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let inner = if crate::v3::body(&self.doc_id).is_some() {
-            crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
+        let flat = crate::v3::body(&self.doc_id).is_some();
+        let inner = if flat {
+            crate::assist::wrap_flat_module(&self.assist, ProseEditor::element(&self.editor, cx))
                 .into_any_element()
         } else {
             crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
@@ -859,11 +870,14 @@ impl Render for ChapterEditor {
         if self.embeds.is_none() {
             return inner.into_any_element();
         }
-        // A material note: tables on the clipboard and the highlight key.
-        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _};
+        // A material note or v3 body with embeds: tables on the clipboard and the highlight key.
+        use gpui::{
+            InteractiveElement as _, ParentElement as _, Styled as _, prelude::FluentBuilder as _,
+        };
         use gpui_prose::input::actions::{Copy, Cut, Paste};
         gpui::div()
-            .size_full()
+            .when(flat, |d| d.w_full())
+            .when(!flat, |d| d.size_full())
             .capture_action(cx.listener(|this, _: &Copy, window, cx| {
                 if this.note_copy(false, window, cx) {
                     cx.stop_propagation();

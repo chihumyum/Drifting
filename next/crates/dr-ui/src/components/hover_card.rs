@@ -288,6 +288,7 @@ impl RenderOnce for HoverCard {
                 Layer::Popover,
                 div()
                     .id(crate::style::child_id(&self.id.clone(), "card"))
+                    .occlude()
                     .on_hover(move |on, _, cx| {
                         if *on {
                             on_card.update(cx, |s, cx| {
@@ -590,7 +591,6 @@ impl RenderOnce for CardBody {
                 .w(px(m::HOVER_CARD_WIDTH))
                 .rounded(px(radius::SHEET))
                 .shadow(float_shadow(p))
-                .occlude()
                 .child(slab_edge(p, radius::SHEET))
                 .child(body),
         )

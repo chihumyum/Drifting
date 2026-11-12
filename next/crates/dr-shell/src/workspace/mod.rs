@@ -1420,6 +1420,9 @@ impl Workspace {
             return;
         }
         self.notifications_open = false;
+        // Settings leaves immersive writing so the window controls stay visible.
+        self.set_immersive(false, cx);
+        window.set_traffic_light_position(chrome::TRAFFIC_LIGHT_POSITION);
         if self.settings.is_none() {
             let panel = cx.new(|cx| SettingsPanel::new(window, cx));
             cx.subscribe_in(&panel, window, |ws, _, event, window, cx| match event {
@@ -1690,6 +1693,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let p = Theme::of(window, cx).palette;
+        self.sync_traffic_lights(window, cx);
         if let Some(bell) = shelf.bell.as_ref().and_then(|b| *b.read(cx)) {
             dr_ui::components::overlay::use_bounds("bell-bounds", window, cx)
                 .update(cx, |b, _| *b = Some(bell));

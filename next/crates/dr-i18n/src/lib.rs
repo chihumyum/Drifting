@@ -329,7 +329,8 @@ mod tests {
             }
         }
         let zh = I18n::new(Locale::ZhCn, Platform::Mac);
-        assert_eq!(zh.t(keys::right_sidebar::tabs::COMPANION), "帮手");
+        assert_eq!(zh.t(keys::v3_settings::RAIL_AGENT), "Agent");
+        assert_eq!(zh.t(keys::right_sidebar::tabs::REVIEW), "审阅");
         assert_eq!(zh.t(keys::common::CLOSE), "关闭");
         let tw = I18n::new(Locale::ZhTw, Platform::Mac);
         assert_eq!(tw.t(keys::right_sidebar::tabs::REVIEW), "審閱");

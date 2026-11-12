@@ -47,6 +47,15 @@ pub struct SelectState {
     bounds: Option<Bounds<Pixels>>,
 }
 
+type SelectHandles = (
+    gpui::WeakEntity<SelectState>,
+    gpui::WeakEntity<Option<Bounds<Pixels>>>,
+);
+
+#[derive(Default)]
+struct OpenSelectLists(std::collections::HashMap<(gpui::WindowId, ElementId), SelectHandles>);
+impl gpui::Global for OpenSelectLists {}
+
 #[derive(IntoElement)]
 pub struct Select {
     id: ElementId,
@@ -94,6 +103,31 @@ impl Select {
         self.on_change = Some(Rc::new(f));
         self
     }
+
+    /// Whether this select's open choice list contains `point`, so an
+    /// enclosing popover's `on_mouse_down_out` does not close before a
+    /// choice click finishes.
+    pub fn open_list_contains(
+        id: impl Into<ElementId>,
+        point: gpui::Point<Pixels>,
+        window: &Window,
+        cx: &App,
+    ) -> bool {
+        let Some((state, list_bounds)) = cx.try_global::<OpenSelectLists>().and_then(|lists| {
+            lists
+                .0
+                .get(&(window.window_handle().window_id(), id.into()))
+        }) else {
+            return false;
+        };
+        let Some(state) = state.upgrade() else {
+            return false;
+        };
+        let Some(list_bounds) = list_bounds.upgrade() else {
+            return false;
+        };
+        state.read(cx).open && list_bounds.read(cx).is_some_and(|b| b.contains(&point))
+    }
 }
 
 impl RenderOnce for Select {
@@ -119,6 +153,7 @@ impl RenderOnce for Select {
             state.update(cx, |st, _| st.open = false);
         }
         let open = open && !disabled;
+        let sel_dbg = self.id.clone();
         let trigger = glass::glass_box(
             self.id.clone(),
             Kind::Rest,
@@ -131,6 +166,7 @@ impl RenderOnce for Select {
             window,
             cx,
         )
+        .debug_selector(move || sel_dbg.to_string())
         .h(px(s.control_height))
         .min_w(px(160.0))
         .px(px(10.0))
@@ -163,6 +199,14 @@ impl RenderOnce for Select {
             })
         });
         let bounds = *bounds_cell.read(cx);
+        let list_bounds_cell = overlay::use_bounds(child_id(&self.id, "list-bounds"), window, cx);
+        if !open {
+            list_bounds_cell.update(cx, |b, _| *b = None);
+        }
+        cx.default_global::<OpenSelectLists>().0.insert(
+            (window.window_handle().window_id(), self.id.clone()),
+            (state.downgrade(), list_bounds_cell.downgrade()),
+        );
         state.update(cx, |st, _| st.bounds = bounds);
         let list = (open && bounds.is_some()).then(|| {
             let b = bounds.expect("checked");
@@ -212,6 +256,8 @@ impl RenderOnce for Select {
                 Place::below(b, 4.0),
                 Layer::Popover,
                 div()
+                    .relative()
+                    .child(overlay::probe(list_bounds_cell.clone()))
                     .on_mouse_down_out(move |_, _, cx| {
                         dismiss.update(cx, |st, cx| {
                             st.open = false;

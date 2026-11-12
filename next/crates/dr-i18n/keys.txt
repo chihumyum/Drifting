@@ -9,7 +9,6 @@ rightSidebar.top.close
 rightSidebar.tabs.review
 rightSidebar.tabs.library
 rightSidebar.tabs.stats
-rightSidebar.tabs.companion
 rightSidebar.kickers.review
 rightSidebar.kickers.library
 rightSidebar.kickers.stats.all-chapters
