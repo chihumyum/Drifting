@@ -8,7 +8,7 @@
 
 - `next/` 是 Rust + GPUI + Loro 的桌面客户端：54 个 crate 加可执行程序和 `xtask`，约 39 万行。结构见 [README.md 的「架构」](README.md#架构)。
 - **只运行 canonical v3**（2026-11-11 切换）：书里所有东西都是条目，放在一棵树里，长什么样由模板定；小说是第一个项目模板。新建、打开、书架、同步都只认 v3 的书；旧书原样拒开，不修、不删。方案见 [kernel-v3.md](kernel-v3.md)，切换的范围和证据见 [v3-cutover.md](v3-cutover.md)。
-- **书目格式已经是 4（2026-11-13），条目模型正在换成「只有一种条目」。** 作者 11-13 推翻了层级/叶子两分：任何条目都可以由模板随意拼模块，「下面能不能放东西」是条目上的一个开关（[kernel-v4.md](kernel-v4.md)）。数据层第一段已合进 `main`：写作日和快照点清单各挪进每本书旁边的小文档（`stats:<书>`、`checkpoints:<书>`），格式 3 的书原样拒开，开发库要从 0.1 重新导入。第二段（一种条目）在做；它合进来之前，代码里条目仍分层级和叶子。之后的八条轨道见 [handoff/v4-tracks.md](handoff/v4-tracks.md)。
+- **书目格式是 4，只有一种条目（2026-11-13）。** 作者 11-13 推翻了层级/叶子两分：任何条目都可以由模板随意拼模块，「下面能不能放东西」是条目自己的开关，界面上叫「层级」（[kernel-v4.md](kernel-v4.md)）。数据层两段都已合进 `main`：写作日和快照点清单在每本书旁边的小文档里（`stats:<书>`、`checkpoints:<书>`）；`TemplateKind`、「允许的模板」、固定的 `about` 说明都删了；`level.get`、`level.list` 并进 `entry.get`、`entry.list {below}`，新增 `entry.set_level`。格式 3 的书原样拒开，开发库要从 0.1 重新导入。**界面、帮手、导入、导出现在只做了能编译、测试能过的最小改动**，剩下的缺口按八条轨道写在 kernel-v4.md 第 14 节，任务书是 [handoff/v4-tracks.md](handoff/v4-tracks.md)，各轨道的开工信号是本地分支指针 `ready/kernel-v4-data-layer`。模板编辑器的真窗口场景 `k5-level` 在 T2 重写之前会失败。
 - **还没发给任何人。** 开发构建用自己的身份 `cc.drifting.next.dev`，不碰装着的正式版。作者日常写作仍然用 0.1 客户端；开发库随时可以从 0.1 重新导入到一个新目录。
 - GPUI 钉在 Zed `v1.27.0`，工具链 1.98.1，Loro `=1.17.1`。开发构建开着 GPUI 的 `runtime_shaders`（本机没装 Xcode 的 Metal Toolchain）；正式打包要预编译着色器，得先装那个组件，装之前问作者。
 - 0.1 客户端（`src/`、`src-tauri/`、`crates/`、`drizzle/`）照常维护到 F7 的交接，和 `next/` 互不依赖。
@@ -23,9 +23,10 @@
 | 本机 macOS，再合入 CI 修复、写入守卫、自动快照点修复三路之后的 `main`（2026-11-12 夜，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：975 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check` 全过；测试 2310 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | 本机 macOS，再合入「书目事件说明碰了什么」之后的 `main`（2026-11-13 凌晨，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check` 全过；测试 2327 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | 本机 macOS，合入内核 v4 数据层第一段（两篇小文档、书目格式 4）之后的 `main`（2026-11-13，监管会话在合并后的树上用自己的构建目录重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 和四份退役验收的 vitest 全过；测试 2336 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
+| 本机 macOS，合入内核 v4 数据层第二段（一种条目）之后的 `main`（2026-11-13，监管会话在合并后的树上用自己的构建目录重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`sync-locales.py --check`、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 和四份退役验收的 vitest 全过；测试 2347 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。原因和修法见「技术上还开着的事」的第一条 |
 
-本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上 11-12 到 11-13 合进来的各路（切换遗留清理、老化实测、CI 修复、写入守卫、自动快照点修复、书目事件、帮手拷贝开销、内核 v4 数据层第一段，以及别的会话合进来的公告和欢迎页改动），都没推。
+本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上 11-12 到 11-13 合进来的各路（切换遗留清理、老化实测、CI 修复、写入守卫、自动快照点修复、书目事件、帮手拷贝开销、内核 v4 数据层两段，以及别的会话合进来的公告和欢迎页改动），都没推。
 
 ## 状态怎么读
 
@@ -188,7 +189,7 @@
   - 外移的设计和上一条在同一份文档里，同样暂缓。
 - **书目的导入校验每次整份导出再导入**（`dr-workspace` 的 `library_options`）：新书目一次 13 ms，三年后 268 ms，在书目的存储线程上。写入守卫那一路查过，判断方法没改：试过的五种做法里没有既安全又不带来新代价的（[f3-write-guards.md](foundations/f3-write-guards.md) 的「导入校验」）。代价跟着书目文档的大小走，等书目瘦身以后再量；还不够，再做「把校验用的拷贝留着」这个缓存。
 - **导入校验补了一个漏洞，留下一个已接受的后果。** 改 `meta.v` 的更新先到、它依赖的更新后到时，原来能绕过校验把书存成非 v3、重开后打不开；现在校验用的拷贝也并入还在等依赖的更新，三种到达顺序都进不来。后果：被拒以后那份挂起的更新还留在内存里，带着它依赖的更新会一直被拒，这本书的同步停到重启为止，书本身完好。
-- **`entry.update`、`module.set_field` 自己在大书上要几百毫秒：原因查清了（2026-11-13），还没修。** 约 94% 花在写入前的 `graph_ok`（`dr-workspace/src/commands/v3/mod.rs`）里的「自动链接名字唯一」检查（`dr_model::v3::check_autolink_name_unique`）：不管改的是哪一条，都拿每个自动链接的条目去和全书每个条目比一遍，每比一次还重算对方的层级设置、扫一遍全部归属；重型种子 300 × 633 约 205 ms，三年的书 300 × 1197 约 380 ms。凡走 `graph_ok` 的命令都付这笔钱（新建、移动、恢复、加归属、时间线摆放、改模板、历史恢复……）。一遍扫出名字表只要 0.65 / 0.85 ms。**同一处还有一个正确性问题**：整本重验会把读取时本来容忍的旧冲突当成新错误。Tiny 种子上实测：另一台设备同步进来一个同名人物之后，这本书里所有走 `graph_ok` 的写入都被拒（改无关章节的标题也被拒）。修法是「只拒绝这次写入新造成的违规」，交给统一条目那一路在重写数据层时一起做。写任务里按 id 找树节点要深读全树（4 / 9 ms，占着持有者线程）、`BookViewV3::entry(id)` 先读全书再查一条（7 / 13 ms），同样随重写改。
+- **`entry.update`、`module.set_field` 自己在大书上要几百毫秒：已修（2026-11-13，随一种条目的数据层）。** 原因是写入前的 `graph_ok` 每次把全书的自动链接名字两两比一遍（约占 94%），而且整本重验会把读取时容忍的旧冲突当成新错误：另一台设备同步进来一个同名人物之后，这本书里所有写入都被拒。现在写入前只比改前和改后、只拒绝这次写入新造成的违规，名字表一遍扫出。改标题在重型种子上 219 → 7 ms，三年的书上 406 → 12 ms；改一个字段 246 → 2 ms、402 → 2 ms（三年那一列里也有书目文档变小的份）。回归：`a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves_it`、`a_nested_manuscript_a_merge_left_blocks_no_unrelated_write`、`writes_that_change_many_entries_refuse_only_the_duplicates_they_make`。
 - **帮手每次工具调用把书目文档整本拷贝 3–4 份，而且拷贝特别贵**（2026-11-13 量的，三年的书）：名字解析 `resolve_v3` 两次共 567 ms，写后工具目录重建 662 ms（每次写都让缓存失效，重建时又反复解码全书），写前快照选条目 `checkpoints::entries` 250 ms（`entry.update` 这类调用根本用不到那份拷贝）。拷贝贵在 `dr-store` 的 `load_into` 把快照和之后的更新一起交给 `import_batch`：只有快照时 18–23 ms，多一条小更新就是 224–235 ms，先导快照再导更新是 85 ms。`load_into` 和 `checkpoints::entries` 这两处已修（2026-11-13）：载入改成先导快照、再逐条导更新，三年的书每份拷贝降到 90–100 ms；写前快照选条目只在要查关系、归属、补丁时才拷贝。三年的书上帮手「读后改标题」从约 2.2 秒降到约 1.3 秒。名字解析和工具目录带着层级语义，等统一条目的数据层落地后再改。
 - **历史不裁剪。** 载入、打字、体积都没有量出逼我们裁的东西；浅快照解决不了撤销，还会让历史点、同步、批注锚点失效。
 
