@@ -646,8 +646,7 @@ fn a_field_edit_is_held_to_the_value_it_was_made_from() {
         "stale observation:",
     );
 
-    // A typed field that was never set is `null`; a text (a patch body) is
-    // its string.
+    // A typed field that was never set is `null`.
     let entries = e.out("entry.list", json!({"book": e.book, "all": true}));
     let character = entries
         .as_array()
@@ -682,6 +681,8 @@ fn a_field_edit_is_held_to_the_value_it_was_made_from() {
     conflict(set(&before, "Synthetic lost summary"), "stale observation:");
     assert_eq!(e.one(summary).value, "Synthetic summary");
 
+    // A text (a patch body) is not one plain value: an expected value never
+    // matches it, so a caller that did not read the text cannot replace it.
     let patches = json!({"book": e.book, "entry": character, "module": "mod-patches"});
     let mut create = patches.clone();
     create["title"] = json!("Synthetic patch");
@@ -690,43 +691,263 @@ fn a_field_edit_is_held_to_the_value_it_was_made_from() {
         .as_str()
         .unwrap()
         .to_owned();
-    let put = |title: &str, from: &str, to: &str| {
+    let body = RecordKey::patch(&patch).at(["body"]);
+    let edit = |guards: WritePreconditions| {
         let mut input = patches.clone();
         input["id"] = json!(patch);
-        input["title"] = json!(title);
-        input["body"] = json!(to);
-        e.guarded(
-            "module.put_patch",
-            input,
-            WritePreconditions::default()
-                .with_value(
-                    &e.doc,
-                    RecordKey::patch(&patch).at(["title"]),
-                    [json!(title)],
-                )
-                .with_value(
-                    &e.doc,
-                    RecordKey::patch(&patch).at(["body"]),
-                    [json!(from), json!(to)],
-                ),
+        input["body"] = json!("Synthetic patch body, edited");
+        e.guarded("module.edit_patch", input, guards)
+    };
+    conflict(
+        edit(WritePreconditions::default().with_value(
+            &e.doc,
+            body.clone(),
+            [json!("Synthetic patch body")],
+        )),
+        "stale observation:",
+    );
+    assert_eq!(e.one(body.clone()).value, "Synthetic patch body");
+    // Its digest does, and the title the edit did not name is left alone.
+    let edited = edit(e.read(std::slice::from_ref(&body))).unwrap();
+    assert_eq!(edited["output"]["title"], "Synthetic patch");
+    assert_eq!(e.one(body).value, "Synthetic patch body, edited");
+}
+
+#[test]
+fn a_view_is_held_to_the_shown_records_it_replaces_and_to_no_others() {
+    let e = Env::new();
+    let (lane, a) = e.lane_and_chapter("shown a");
+    let (_, b) = e.lane_and_chapter("shown b");
+    let view = "synthetic-shown-view";
+    e.out(
+        "timeline_view.put",
+        json!({"book": e.book, "view": {"id": view, "name": "Synthetic shown", "lanes": [{"entry": lane}]}}),
+    );
+    // Everything a snapshot shows, read once; no command is known yet.
+    let shown = || {
+        WritePreconditions::default().with_shown(
+            e.observe(&[
+                RecordKey::entry(&a),
+                RecordKey::entry(&b),
+                RecordKey::timeline_view(view),
+                RecordKey::children_of(Some(&e.root("tpl-manuscript"))),
+            ])
+            .into_iter()
+            .map(Into::into),
         )
     };
-    put(
-        "Synthetic patch",
-        "Synthetic patch body",
-        "Synthetic patch body, edited",
+    let rename = |id: &str, title: &str| json!({"book": e.book, "id": id, "title": title});
+
+    // Another shown record changed: the write does not replace it.
+    let snapshot = shown();
+    e.out("entry.update", rename(&b, "Synthetic b elsewhere"));
+    e.out(
+        "timeline_view.rename",
+        json!({"book": e.book, "view": view, "name": "Synthetic renamed elsewhere"}),
+    );
+    e.guarded(
+        "entry.update",
+        rename(&a, "Synthetic a from the view"),
+        snapshot,
     )
     .unwrap();
+
+    // The record it replaces changed.
+    let snapshot = shown();
+    e.out("entry.update", rename(&a, "Synthetic a elsewhere"));
     conflict(
-        put(
-            "Synthetic patch",
-            "Synthetic patch body",
-            "Synthetic lost body",
-        ),
+        e.guarded("entry.update", rename(&a, "Synthetic lost"), snapshot),
         "stale observation:",
     );
     assert_eq!(
-        e.one(RecordKey::patch(&patch).at(["body"])).value,
-        "Synthetic patch body, edited"
+        e.out("entry.get", json!({"book": e.book, "id": a}))["title"],
+        "Synthetic a elsewhere"
+    );
+
+    // A shown part of a record that is replaced whole counts too, and a
+    // snapshot that does not show what a write replaces is not a read of it.
+    let name = RecordKey::timeline_view(view).at(["name"]);
+    let part =
+        WritePreconditions::default().with_shown(e.observe(&[name]).into_iter().map(Into::into));
+    e.out(
+        "timeline_view.rename",
+        json!({"book": e.book, "view": view, "name": "Synthetic renamed again"}),
+    );
+    let put = json!({"book": e.book, "view": {"id": view, "name": "Synthetic put", "lanes": [{"entry": lane}]}});
+    conflict(
+        e.guarded("timeline_view.put", put.clone(), part),
+        "stale observation:",
+    );
+    let unrelated = WritePreconditions::default().with_shown(
+        e.observe(&[RecordKey::entry(&a)])
+            .into_iter()
+            .map(Into::into),
+    );
+    conflict(
+        e.guarded("timeline_view.put", put, unrelated),
+        "read required:",
+    );
+    assert_eq!(e.view_row(view)["name"], "Synthetic renamed again");
+}
+
+#[test]
+fn a_field_edit_writes_only_what_it_names() {
+    let e = Env::new();
+    let character = e
+        .out("entry.list", json!({"book": e.book, "all": true}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["template"] == "tpl-character")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let target = |module: &str| json!({"book": e.book, "entry": character, "module": module});
+    let with = |module: &str, extra: Value| {
+        let mut input = target(module);
+        for (key, value) in extra.as_object().unwrap() {
+            input[key] = value.clone();
+        }
+        input
+    };
+
+    let patch = e.out(
+        "module.put_patch",
+        with(
+            "mod-patches",
+            json!({"title": "Synthetic title", "body": "Synthetic body"}),
+        ),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let stored = || {
+        let patch_key = RecordKey::patch(&patch);
+        let read = e.one(patch_key).value;
+        (read["title"].clone(), read["body"].clone())
+    };
+    // The title only: the body is whatever is stored when the edit runs,
+    // not what a caller read earlier.
+    e.out(
+        "module.put_patch",
+        with(
+            "mod-patches",
+            json!({"id": patch, "title": "Synthetic title", "body": "Synthetic body elsewhere"}),
+        ),
+    );
+    let edited = e.out(
+        "module.edit_patch",
+        with(
+            "mod-patches",
+            json!({"id": patch, "title": "Synthetic edited title"}),
+        ),
+    );
+    assert_eq!(edited["title"], "Synthetic edited title");
+    assert_eq!(edited["body"], "Synthetic body elsewhere");
+    e.out(
+        "module.edit_patch",
+        with(
+            "mod-patches",
+            json!({"id": patch, "body": "Synthetic edited body"}),
+        ),
+    );
+    assert_eq!(
+        stored(),
+        (
+            json!("Synthetic edited title"),
+            json!("Synthetic edited body")
+        )
+    );
+    e.out(
+        "module.edit_patch",
+        with("mod-patches", json!({"id": patch, "title": null})),
+    );
+    assert_eq!(stored(), (Value::Null, json!("Synthetic edited body")));
+    // One step back is one field back.
+    e.ws.undo(&Actor::User).unwrap();
+    assert_eq!(
+        stored(),
+        (
+            json!("Synthetic edited title"),
+            json!("Synthetic edited body")
+        )
+    );
+    // A patch that is not there is not made.
+    let missing = e.ws.call(
+        &Actor::User,
+        "module.edit_patch",
+        with(
+            "mod-patches",
+            json!({"id": "synthetic-missing", "title": "Synthetic"}),
+        ),
+    );
+    assert_eq!(missing.unwrap_err().code(), "not_found");
+    assert!(e.one(RecordKey::patch("synthetic-missing")).value.is_null());
+
+    let row = "synthetic-row";
+    e.out(
+        "module.put_kv",
+        with("mod-kv", json!({"row": {"id": row, "key": "Synthetic key", "value": "Synthetic value", "pos": "a3"}})),
+    );
+    let kv = || {
+        e.out("module.read", target("mod-kv"))["kv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == row)
+            .cloned()
+    };
+    let edited = e.out(
+        "module.edit_kv",
+        with(
+            "mod-kv",
+            json!({"row": row, "value": "Synthetic edited value"}),
+        ),
+    );
+    assert_eq!(
+        edited,
+        json!({"id": row, "key": "Synthetic key", "value": "Synthetic edited value", "pos": "a3"})
+    );
+    e.out(
+        "module.edit_kv",
+        with("mod-kv", json!({"row": row, "key": "Synthetic edited key"})),
+    );
+    assert_eq!(
+        kv().unwrap(),
+        json!({"id": row, "key": "Synthetic edited key", "value": "Synthetic edited value", "pos": "a3"})
+    );
+    let missing = e.ws.call(
+        &Actor::User,
+        "module.edit_kv",
+        with(
+            "mod-kv",
+            json!({"row": "synthetic-missing-row", "key": "Synthetic"}),
+        ),
+    );
+    assert_eq!(missing.unwrap_err().code(), "not_found");
+
+    // Guarded, a field edit needs a read of the field it names only.
+    let value = RecordKey::entry(&character).at(["kv:mod-kv", row, "value"]);
+    let guards = e.read(std::slice::from_ref(&value));
+    e.out(
+        "module.edit_kv",
+        with(
+            "mod-kv",
+            json!({"row": row, "key": "Synthetic key elsewhere"}),
+        ),
+    );
+    e.guarded(
+        "module.edit_kv",
+        with(
+            "mod-kv",
+            json!({"row": row, "value": "Synthetic guarded value"}),
+        ),
+        guards,
+    )
+    .unwrap();
+    assert_eq!(
+        kv().unwrap(),
+        json!({"id": row, "key": "Synthetic key elsewhere", "value": "Synthetic guarded value", "pos": "a3"})
     );
 }

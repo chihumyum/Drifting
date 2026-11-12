@@ -931,6 +931,9 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "timeline_view.restore_fields" {
         return Some("scoped timeline undo is internal until K6 provides a guarded facade");
     }
+    if matches!(spec.name, "module.edit_patch" | "module.edit_kv") {
+        return Some("field edits belong to a view that showed the field; use the record commands");
+    }
     if spec.name == "membership.restore" {
         return Some("scoped membership undo is internal until K6 provides a guarded facade");
     }

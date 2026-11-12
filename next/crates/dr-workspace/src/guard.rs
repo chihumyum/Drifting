@@ -177,11 +177,11 @@ pub struct RecordObservation {
 pub enum Expected {
     /// The digest of an observation: nothing stored in the record changed.
     Digest(String),
-    /// The record is one stored value (a plain value or a text; `null`: not
-    /// stored) and equals one of these. An edit of a field from the value its
-    /// author was shown says `[shown, edited]`: a third value means someone
-    /// else changed the field. Never matches a whole record or any other
-    /// container.
+    /// The record is one plain stored value (`null`: not stored) and equals
+    /// one of these. An edit of a field from the value its author was shown
+    /// says `[shown, edited]`: a third value means someone else changed the
+    /// field. Never matches a container (a record, a list, a text): a field
+    /// stored in a form this caller did not show is not its to overwrite.
     AnyOf(Vec<Value>),
 }
 
@@ -192,6 +192,20 @@ pub struct RecordPrecondition {
     pub key: RecordKey,
     #[serde(flatten)]
     pub expected: Expected,
+    /// Compared only when the call replaces this record, a part of it or a
+    /// record that contains it. A view hands over every digest of the
+    /// snapshot it shows, without knowing what each command replaces; the
+    /// call is then held to the ones it writes over, and to no others.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub if_replaced: bool,
+}
+
+impl RecordPrecondition {
+    /// The same expectation, compared only where the call replaces it.
+    pub fn if_replaced(mut self) -> Self {
+        self.if_replaced = true;
+        self
+    }
 }
 
 impl From<RecordObservation> for RecordPrecondition {
@@ -200,6 +214,7 @@ impl From<RecordObservation> for RecordPrecondition {
             doc: o.doc,
             key: o.key,
             expected: Expected::Digest(o.digest),
+            if_replaced: false,
         }
     }
 }
@@ -267,7 +282,16 @@ impl WritePreconditions {
             doc: doc.into(),
             key,
             expected: Expected::AnyOf(values.into_iter().collect()),
+            if_replaced: false,
         });
+        self
+    }
+
+    /// Hold the call to those of `shown` it replaces
+    /// ([`RecordPrecondition::if_replaced`]).
+    pub fn with_shown(mut self, shown: impl IntoIterator<Item = RecordPrecondition>) -> Self {
+        self.records
+            .extend(shown.into_iter().map(RecordPrecondition::if_replaced));
         self
     }
 }
@@ -334,6 +358,23 @@ fn holds(expected: &Expected, state: &RecordStateV3) -> bool {
     }
 }
 
+/// Observe `keys` of the v3 book document `doc` (`id`: `book:<book>`) from
+/// inside a holder read job, for a caller that reads a snapshot of the book
+/// there ([`crate::Workspace::read_book_v3`]) and keeps the digests of what
+/// it shows.
+pub fn observe_records_in(
+    id: &str,
+    doc: &LoroDoc,
+    book: &BookId,
+    keys: &[RecordKey],
+) -> Result<Vec<RecordObservation>> {
+    let keys = keys
+        .iter()
+        .map(|key| Ok((key.clone(), key.parse()?)))
+        .collect::<Result<Vec<_>>>()?;
+    observe_records(id, doc, book, &keys)
+}
+
 /// Observe `keys` of the v3 book document `doc`. Call inside a holder job.
 pub(crate) fn observe_records(
     id: &str,
@@ -358,12 +399,33 @@ pub(crate) fn observe_records(
         .collect())
 }
 
+struct Supplied {
+    key: RecordKeyV3,
+    expected: Expected,
+    if_replaced: bool,
+}
+
+impl Supplied {
+    /// Whether this expectation applies to a write that replaces `replaces`.
+    fn applies(&self, replaces: Option<&Replaces>) -> bool {
+        if !self.if_replaced {
+            return true;
+        }
+        match replaces {
+            Some(Replaces::Records(keys)) => keys
+                .iter()
+                .any(|key| self.key.contains(key) || key.contains(&self.key)),
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Guards(Arc<Parsed>);
 
 struct Parsed {
     versions: Mutex<HashMap<String, Frontiers>>,
-    records: HashMap<String, Vec<(RecordKeyV3, Expected)>>,
+    records: HashMap<String, Vec<Supplied>>,
     require_all: bool,
 }
 
@@ -384,7 +446,7 @@ impl Guards {
             }
             versions.insert(id, frontiers_from_hex(&encoded)?);
         }
-        let mut records: HashMap<String, Vec<(RecordKeyV3, Expected)>> = HashMap::new();
+        let mut records: HashMap<String, Vec<Supplied>> = HashMap::new();
         for record in preconditions.records {
             if !matches!(canonical(&record.doc)?, DocId::Book(_)) {
                 return Err(WsError::Invalid(
@@ -402,10 +464,11 @@ impl Guards {
                 }
                 _ => {}
             }
-            records
-                .entry(record.doc)
-                .or_default()
-                .push((record.key.parse()?, record.expected));
+            records.entry(record.doc).or_default().push(Supplied {
+                key: record.key.parse()?,
+                expected: record.expected,
+                if_replaced: record.if_replaced,
+            });
         }
         Ok(Self(Arc::new(Parsed {
             versions: Mutex::new(versions),
@@ -442,9 +505,16 @@ impl Guards {
     }
 
     /// Everything the caller said about book document `id` still holds: its
-    /// version if it gave one, and every record it named. Returns whether the
-    /// whole document was guarded.
-    fn check_supplied(&self, id: &str, doc: &LoroDoc, book: &BookId) -> Result<bool> {
+    /// version if it gave one, and every record it named (those named only
+    /// for what a write replaces, when this is that write). Returns whether
+    /// the whole document was guarded.
+    fn check_supplied(
+        &self,
+        id: &str,
+        doc: &LoroDoc,
+        book: &BookId,
+        replaces: Option<&Replaces>,
+    ) -> Result<bool> {
         let version = crate::holder::lock(&self.0.versions).get(id).cloned();
         if let Some(expected) = &version
             && *expected != doc.oplog_frontiers()
@@ -455,10 +525,11 @@ impl Guards {
             let borrowed = BorrowedBookV3::new(doc, book)?;
             let view = borrowed.view();
             let mut reader = RecordReaderV3::new(&view);
-            for (key, expected) in records {
-                if !holds(expected, &reader.state(key)) {
+            for record in records.iter().filter(|r| r.applies(replaces)) {
+                if !holds(&record.expected, &reader.state(&record.key)) {
                     return Err(WsError::Conflict(format!(
-                        "stale observation: {id} record {key}"
+                        "stale observation: {id} record {}",
+                        record.key
                     )));
                 }
             }
@@ -475,7 +546,7 @@ impl Guards {
         book: &BookId,
         replaces: &Replaces,
     ) -> Result<()> {
-        if self.check_supplied(id, doc, book)? || !self.0.require_all {
+        if self.check_supplied(id, doc, book, Some(replaces))? || !self.0.require_all {
             return Ok(());
         }
         let supplied = self.0.records.get(id).map(Vec::as_slice).unwrap_or(&[]);
@@ -484,7 +555,7 @@ impl Guards {
         };
         match keys
             .iter()
-            .find(|key| !supplied.iter().any(|(read, _)| read.contains(key)))
+            .find(|key| !supplied.iter().any(|read| read.key.contains(key)))
         {
             // Nothing is replaced, or every replaced value was read.
             None => Ok(()),
@@ -499,7 +570,7 @@ impl Guards {
     /// what the caller said about that book still holds, so a stale call
     /// leaves no document nobody owns.
     pub(crate) fn check_parent(&self, id: &str, doc: &LoroDoc, book: &BookId) -> Result<()> {
-        self.check_supplied(id, doc, book).map(drop)
+        self.check_supplied(id, doc, book, None).map(drop)
     }
 
     /// The guard of an atomic multi-document command on one of its reserved
@@ -509,7 +580,7 @@ impl Guards {
         if self.0.records.contains_key(id)
             && let Ok(DocId::Book(book)) = DocId::parse(id)
         {
-            return if self.check_supplied(id, doc, &book)? || !self.0.require_all {
+            return if self.check_supplied(id, doc, &book, None)? || !self.0.require_all {
                 Ok(())
             } else {
                 Err(Self::missing(id))

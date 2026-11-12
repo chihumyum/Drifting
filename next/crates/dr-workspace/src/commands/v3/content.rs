@@ -6,6 +6,7 @@ use dr_model::shared::{EntityRef, PLOT_CELL_H, PLOT_CELL_W, PlotLine};
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<PatchPut>()
+        .add::<PatchEdit>()
         .add::<PatchRemove>()
         .add::<GridPut>()
         .add::<RelationPut>()
@@ -220,6 +221,69 @@ fn put_patch(cx: &Cx<'_>, input: PatchIn) -> Result<Done> {
     undo(cx, &s, &at, vec![key("patches", &id)]);
     cx.effect(EffectAction::Updated, "patch", id.as_str(), None);
     Ok(Done { id: id.to_string() })
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PatchEditIn {
+    #[serde(flatten)]
+    pub target: module::In,
+    pub id: String,
+    /// Omit to leave the title as it is; `null` clears it.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
+    pub title: Option<Option<String>>,
+    /// Omit to leave the body as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+}
+op! {
+    PatchEdit="module.edit_patch",Write,Book,"Change the title or the body of one v3 patch record, leaving what is not named as it is.",fn(cx,input:PatchEditIn)->Patch {
+        edit_patch(cx, input)
+    }
+}
+fn edit_patch(cx: &Cx<'_>, input: PatchEditIn) -> Result<Patch> {
+    let (s, e, m) = selected(cx, &input.target, m::ModuleKind::Patches)?;
+    let id: PatchId = pid("patch", &input.id)?;
+    let named = [
+        ("title", input.title.is_some()),
+        ("body", input.body.is_some()),
+    ];
+    let replaced = Replaces::records(
+        named
+            .iter()
+            .filter(|(_, named)| *named)
+            .map(|(field, _)| rec(CollectionV3::Patches, &id).at([*field])),
+    );
+    let saved = id.clone();
+    let (patch, at) = cx.write_book_v3(&s, replaced, move |t| {
+        // Read and written in one job: what is not named keeps whatever it
+        // holds now, and a patch removed meanwhile is not brought back empty.
+        let stored = |t: &dr_doc::v3::BookTxnV3<'_>| {
+            t.view()
+                .patches_of(&e.id, &m.id)
+                .into_iter()
+                .find(|p| p.id == saved)
+                .ok_or_else(|| WsError::not_found("patch", saved.as_str()))
+        };
+        stored(t)?;
+        let w = t.patch(&saved)?;
+        if let Some(title) = &input.title {
+            w.title(title.as_deref())?;
+        }
+        if let Some(body) = &input.body {
+            w.body(body)?;
+        }
+        stored(t)
+    })?;
+    if named.iter().any(|(_, named)| *named) {
+        undo(cx, &s, &at, vec![key("patches", &id)]);
+        cx.effect(EffectAction::Updated, "patch", id.as_str(), None);
+    } else {
+        cx.undo_nothing();
+    }
+    convert(patch)
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct RecordIn {

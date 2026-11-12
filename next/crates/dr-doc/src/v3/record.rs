@@ -105,16 +105,13 @@ pub struct RecordStateV3 {
 }
 
 impl RecordStateV3 {
-    /// The value, when this state is one stored value: a plain value, a text
-    /// (its string), or nothing stored (`null`). `None` for a record, a list
-    /// or any other container, and for an entry id with more than one node.
+    /// The value, when this state is one plain stored value, or nothing
+    /// stored (`null`). `None` for every container (a record, a list, a
+    /// text), and for an entry id with more than one node.
     pub fn single(&self) -> Option<&Value> {
         let one = |raw: &Value| {
             raw.as_object().is_some_and(|map| {
-                map.len() == 1
-                    && ["absent", "value", "text"]
-                        .iter()
-                        .any(|k| map.contains_key(*k))
+                map.len() == 1 && (map.contains_key("absent") || map.contains_key("value"))
             })
         };
         let single = match self.raw.as_object() {
@@ -157,24 +154,27 @@ fn walk(map: &LoroMap, path: &[String]) -> RecordStateV3 {
         None => absent(),
         Some(found) if rest.is_empty() => of(found),
         Some(loro::ValueOrContainer::Container(Container::Map(inner))) => walk(&inner, rest),
+        // Inside a plain value: not a stored value of its own. Writing it
+        // would replace the whole plain value it is part of.
         Some(loro::ValueOrContainer::Value(value)) => {
-            let mut current = &value;
+            let mut current = Some(&value);
             for segment in rest {
-                match current {
-                    LoroValue::Map(m) => match m.get(segment.as_str()) {
-                        Some(next) => current = next,
-                        None => return absent(),
-                    },
-                    _ => return absent(),
-                }
+                current = match current {
+                    Some(LoroValue::Map(m)) => m.get(segment.as_str()),
+                    _ => None,
+                };
             }
             RecordStateV3 {
-                raw: json!({"value": current}),
-                value: plain(current),
+                raw: json!({"within": current}),
+                value: current.map_or(Value::Null, plain),
             }
         }
-        // A text, list or tree has no keyed children to select.
-        Some(loro::ValueOrContainer::Container(_)) => absent(),
+        // A text, list or tree has no keyed children to select, and a write
+        // below it would replace it.
+        Some(loro::ValueOrContainer::Container(_)) => RecordStateV3 {
+            raw: json!({"blocked": true}),
+            value: Value::Null,
+        },
     }
 }
 
@@ -506,12 +506,24 @@ mod tests {
             assert!(state.value.is_null(), "{key}");
         }
         // An entry that exists, without the value: the node is there.
-        for path in [vec!["no-such-field"], vec!["title", "deeper"]] {
-            let key = RecordKeyV3::record(C::Entries, roots.manuscript.as_str()).at(path);
-            let state = doc.view().record_state(&key);
-            assert_eq!(state.raw, json!({"nodes": [absent]}), "{key}");
-            assert!(state.value.is_null(), "{key}");
-        }
+        let key = RecordKeyV3::record(C::Entries, roots.manuscript.as_str()).at(["no-such-field"]);
+        let state = doc.view().record_state(&key);
+        assert_eq!(state.raw, json!({"nodes": [absent]}), "{key}");
+        assert_eq!(state.single(), Some(&Value::Null));
+        // Below a plain value there is nothing stored on its own: not a
+        // single value, so an expected value never matches it.
+        let key =
+            RecordKeyV3::record(C::Entries, roots.manuscript.as_str()).at(["title", "deeper"]);
+        let state = doc.view().record_state(&key);
+        assert_eq!(state.raw, json!({"nodes": [{"within": null}]}), "{key}");
+        assert!(state.value.is_null() && state.single().is_none(), "{key}");
+        let title = RecordKeyV3::record(C::Entries, roots.manuscript.as_str()).at(["title"]);
+        assert!(
+            doc.view()
+                .record_state(&title)
+                .single()
+                .is_some_and(Value::is_string)
+        );
         // A collection nothing was ever written to is empty, read or not.
         let empty = raw(&doc, &RecordKeyV3::collection(C::Patches));
         doc.view().patches();

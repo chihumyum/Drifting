@@ -48,9 +48,10 @@ mod source_tests;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Effect {
     pub action: EffectAction,
-    /// Entity kind: `book`, `node`, `act`, `storyline`, `category`,
-    /// `element`, `relation`, `relation_type`, `comment`, `material`,
-    /// `material_folder`, `idea_group`, `fact`, `memory`, `asset`, `prose`.
+    /// Entity kind: `book`, `entry`, `entry_template`, `membership`,
+    /// `timeline_view`, `time_pin`, `patch`, `plot_grid`, `relation`,
+    /// `relation_type`, `comment`, `material`, `material_folder`, `fact`,
+    /// `memory`, `asset`, `prose`.
     pub kind: String,
     pub id: String,
     /// The entity's (final) name or title, when it has one.

@@ -5,6 +5,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ModuleRead>()
         .add::<FieldSet>()
         .add::<KvPut>()
+        .add::<KvEdit>()
         .add::<KvRemove>()
         .add::<ProseRead>()
         .add::<ProseSet>()
@@ -255,6 +256,69 @@ op! {
         cx.effect(EffectAction::Updated, "entry", id.as_str(), None);
         Ok(Done { id: id.to_string() })
     }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct KvEditIn {
+    #[serde(flatten)]
+    pub target: In,
+    pub row: String,
+    /// Omit to leave the key as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// Omit to leave the value as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+op! {
+    KvEdit="module.edit_kv",Write,Book,"Change the key or the value of one key/value row of a v3 module, leaving what is not named as it is.",fn(cx,input:KvEditIn)->types::KvEntry {
+        edit_kv(cx, input)
+    }
+}
+fn edit_kv(cx: &Cx<'_>, input: KvEditIn) -> Result<types::KvEntry> {
+    let s = cx.book_v3(&input.target.book)?;
+    let (e, module) = selected(&s.reader_v3.view(), &input.target)?;
+    if module.kind != m::ModuleKind::KeyValue {
+        return Err(WsError::invalid("module is not key/value"));
+    }
+    let row: KvEntryId = pid("row", &input.row)?;
+    let id = e.id.clone();
+    let named = [
+        ("key", input.key.is_some()),
+        ("value", input.value.is_some()),
+    ];
+    let replaced = Replaces::records(
+        named
+            .iter()
+            .filter(|(_, named)| *named)
+            .map(|(field, _)| kv_row(&id, &module.id, row.as_str()).at([*field])),
+    );
+    let (saved, at) = cx.write_book_v3(&s, replaced, move |t| {
+        // Read and written in one job: what is not named, and the row's
+        // place, keep whatever they hold now.
+        let mut stored = t
+            .view()
+            .entry_raw(&e.id)
+            .and_then(|e| e.kv.get(&module.id).cloned())
+            .unwrap_or_default()
+            .into_iter()
+            .find(|r| r.id == row)
+            .ok_or_else(|| WsError::not_found("row", row.as_str()))?;
+        if let Some(key) = input.key {
+            stored.key = key;
+        }
+        if let Some(value) = input.value {
+            stored.value = value;
+        }
+        t.entries().entry(&e.id)?.put_kv(&module.id, &stored)?;
+        Ok(stored)
+    })?;
+    if named.iter().any(|(_, named)| *named) {
+        undo(cx, &s, &at, vec![key("entries", &id)]);
+        cx.effect(EffectAction::Updated, "entry", id.as_str(), None);
+    } else {
+        cx.undo_nothing();
+    }
+    convert(saved)
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct KvRemoveIn {

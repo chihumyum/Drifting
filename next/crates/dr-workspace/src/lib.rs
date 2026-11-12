@@ -57,6 +57,7 @@ pub use events::{
 };
 pub use guard::{
     Expected, Observation, RecordKey, RecordObservation, RecordPrecondition, WritePreconditions,
+    observe_records_in,
 };
 pub use holder::COMMAND_ORIGIN;
 pub use nav::NavTarget;
