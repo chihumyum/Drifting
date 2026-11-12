@@ -127,6 +127,12 @@
     },
     "forgotPassword": "¿Olvidaste la contraseña?",
     "hasAccount": "¿Ya tienes cuenta?",
+    "legal": {
+      "consent": "Al continuar, aceptas {{terms}}.",
+      "consentTerms": "las condiciones",
+      "privacy": "Política de privacidad",
+      "terms": "Términos"
+    },
     "noAccount": "¿Aún no tienes cuenta?",
     "otp": {
       "codeSub": "Enviado a {{email}}. Válido durante 10 minutos.",

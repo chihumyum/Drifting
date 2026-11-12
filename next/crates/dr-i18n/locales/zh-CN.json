@@ -127,6 +127,12 @@
     },
     "forgotPassword": "忘记密码？",
     "hasAccount": "已经有账号？",
+    "legal": {
+      "consent": "继续即视为同意{{terms}}",
+      "consentTerms": "相关条款",
+      "privacy": "隐私政策",
+      "terms": "服务条款"
+    },
     "noAccount": "还没有账号？",
     "otp": {
       "codeSub": "验证码已发送到 {{email}}，10 分钟内有效。",

@@ -8,6 +8,11 @@
 //! pointer only counts once the list has been still for 180ms and the
 //! pointer really moves.
 //!
+//! A thing that is only words with a card behind them (the consent line's
+//! 「相关条款」) is [`HoverCard::pressable`]: a press opens its card at once,
+//! for a finger, the keyboard (Enter or Space) or a screen reader, and a
+//! press anywhere else or Escape closes it.
+//!
 //! Every hover card is one card: 248px, the desk's colour, a 16px corner, a
 //! resting line of glass and the floating shadow. One font size; only the
 //! title is heavier. What can be pressed sits at the bottom, one row each,
@@ -164,6 +169,7 @@ pub struct HoverCard {
     card: super::Build,
     open: Option<bool>,
     beside: bool,
+    press: Option<SharedString>,
 }
 
 impl HoverCard {
@@ -178,7 +184,17 @@ impl HoverCard {
             card: Rc::new(card),
             open: None,
             beside: false,
+            press: None,
         }
+    }
+
+    /// A press opens the card instead of closing it: the thing is a button
+    /// named `label` and a stop for the keyboard's focus, Enter or Space
+    /// opens the card, and a press outside the thing and its card or Escape
+    /// closes it (the 0.1 client's `ConsentLine`).
+    pub fn pressable(mut self, label: impl Into<SharedString>) -> Self {
+        self.press = Some(label.into());
+        self
     }
 
     /// Holds the card open (or closed) regardless of the pointer.
@@ -234,11 +250,63 @@ impl RenderOnce for HoverCard {
         .size_full();
         let (hover, moved, scrolled, clicked) =
             (state.clone(), state.clone(), state.clone(), state.clone());
+        let pressable = self.press.is_some();
+        let expanded = matches!(state.read(cx).phase, Phase::Open | Phase::Leaving);
         let target = div()
             .id(self.id.clone())
             .relative()
             .child(probe)
             .child(self.target)
+            .when_some(self.press, |el, label| {
+                let focus: Entity<gpui::FocusHandle> = window.use_keyed_state(
+                    crate::style::child_id(&self.id, "focus"),
+                    cx,
+                    |_, cx| cx.focus_handle(),
+                );
+                let focus = focus.read(cx).clone();
+                let (keyed, spoken, outside) = (state.clone(), state.clone(), state.clone());
+                el.role(gpui::Role::Button)
+                    .aria_label(label)
+                    .aria_expanded(expanded)
+                    .track_focus(&focus)
+                    .tab_index(0)
+                    .cursor_pointer()
+                    .on_key_down(move |e: &gpui::KeyDownEvent, _, cx| {
+                        let m = &e.keystroke.modifiers;
+                        if m.control || m.alt || m.platform || m.function || m.shift {
+                            return;
+                        }
+                        let open = match e.keystroke.key.as_str() {
+                            "enter" | "space" => true,
+                            "escape" => false,
+                            _ => return,
+                        };
+                        cx.stop_propagation();
+                        keyed.update(cx, |s, cx| {
+                            if open {
+                                s.open_now();
+                            } else {
+                                s.dismiss();
+                            }
+                            cx.notify();
+                        });
+                    })
+                    .on_a11y_action(gpui::AccessibleAction::Click, move |_, _, cx| {
+                        spoken.update(cx, |s, cx| {
+                            s.open_now();
+                            cx.notify();
+                        });
+                    })
+                    // A press elsewhere closes it; one on the card is the card's.
+                    .on_mouse_down_out(move |_, _, cx| {
+                        outside.update(cx, |s, cx| {
+                            if s.phase != Phase::Idle && !s.over_card {
+                                s.dismiss();
+                                cx.notify();
+                            }
+                        });
+                    })
+            })
             .on_hover(move |on, _, cx| {
                 if *on {
                     pointer_on_target(&hover, cx);
@@ -265,7 +333,11 @@ impl RenderOnce for HoverCard {
             })
             .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
                 clicked.update(cx, |s, cx| {
-                    s.dismiss();
+                    if pressable {
+                        s.open_now();
+                    } else {
+                        s.dismiss();
+                    }
                     cx.notify();
                 });
             });
@@ -440,6 +512,12 @@ impl CardBody {
         }
     }
 
+    /// A card with no title: a sentence ([`CardBody::summary`]) and its
+    /// rows, for words that only explain themselves (the consent line's).
+    pub fn untitled(id: impl Into<ElementId>) -> CardBody {
+        CardBody::new(id, SharedString::default())
+    }
+
     pub fn mark(mut self, kind: sand::Kind, color: Option<Rgb>) -> Self {
         self.mark = Some((kind, color));
         self
@@ -490,6 +568,7 @@ impl RenderOnce for CardBody {
                 .bg(p.hairline())
         };
         let id = self.id.clone();
+        let titled = !self.title.is_empty();
         let head = div()
             .px(px(pad))
             .pt(px(12.0))
@@ -528,7 +607,7 @@ impl RenderOnce for CardBody {
             .font_role(Role::Ui)
             .type_px(s.secondary, s.line_body)
             .text_color(p.ink(2).solid())
-            .child(head)
+            .when(titled, |el| el.child(head))
             .when(!self.meta.is_empty(), |el| {
                 el.child(
                     div()
@@ -547,7 +626,7 @@ impl RenderOnce for CardBody {
                 el.child(
                     div()
                         .px(px(pad))
-                        .pt(px(6.0))
+                        .pt(px(if titled { 6.0 } else { 12.0 }))
                         .pb(px(4.0))
                         .child(crate::text::wrapped(t)),
                 )

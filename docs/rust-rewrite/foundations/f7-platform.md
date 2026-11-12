@@ -108,7 +108,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 
 1. **构建时带了 DSN**：`DRIFTING_SENTRY_DSN` 只在构建时读（`option_env!`），仓库和 CI 都不设，所以现在所有构建都不发。发布工作流从 `vars.DRIFTING_SENTRY_DSN` 传进来。
 2. **是正式版**：开发版要再设 `DRIFTING_CRASH_REPORTS_IN_DEV=1`（运行时），和旧版一样。
-3. **作者同意了**：开关和首次说明归 F6；现在 `main.rs` 传 `false`。旧版是默认开、首次启动在欢迎卡最后一行说明（`preAlphaGuide.crashReports`），F6 照做时说明里要加一句「原生崩溃会带上崩溃时程序内存里的一小段」（见下）。
+3. **作者同意了**：开关和首次说明归 F6；现在 `main.rs` 传 `false`。旧版是默认开，说明（`preAlphaGuide.crashReports`）收在欢迎卡最后一行「继续即视为同意相关条款」的悬停卡里（2026-11-13；新版欢迎卡已照做，见 `modules/m35-account.md`），F6 照做时说明里要加一句「原生崩溃会带上崩溃时程序内存里的一小段」（见下）。
 
 作者中途关掉：立刻生效，连旁路进程正在送的原生崩溃也拦下（给它的作用域打一个 `drifting.consent=off` 的标签，`before_send` 看到就丢）。中途打开：下次启动生效，因为旁路进程只能在启动时起。
 
