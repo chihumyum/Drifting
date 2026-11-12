@@ -663,6 +663,9 @@
       "preserved_other": "編集済みファイル{{count}}件を.drifting/preservedに保存",
       "source": "Markdownフォルダ"
     },
+    "notice": {
+      "source": "お知らせ"
+    },
     "organize": {
       "source": "Agent"
     },

@@ -2,7 +2,8 @@
 //!
 //! One list, many sources (the 0.1 client's `notifications.*`): sync, reader
 //! comments on a shared link, the Agent's tidying, the Markdown folder, app
-//! updates and the follow-up after a crash. The sources other than the crash
+//! updates, the follow-up after a crash and the service operator's notices
+//! (`docs/hosted-sync/notices.md`). The sources other than the crash
 //! follow-up are placeholders until their modules post here.
 //!
 //! The crash follow-up comes from `dr_platform`: once the app has settled
@@ -33,6 +34,10 @@ pub enum Source {
     MarkdownFolder,
     Update,
     CrashFollowUp,
+    /// What the Hosted service's operator tells signed-in authors (account
+    /// notices v1). Nothing posts it yet: the account module reads the same
+    /// routes as the 0.1 client when it takes this over.
+    Notice,
     /// The 0.1 library import (M10): a book it left unfinished.
     Import,
 }
@@ -47,6 +52,7 @@ impl Source {
             Source::MarkdownFolder => n::markdown_folder::SOURCE,
             Source::Update => n::app_update::SOURCE,
             Source::CrashFollowUp => n::crash_follow_up::SOURCE,
+            Source::Notice => n::notice::SOURCE,
             Source::Import => keys::user_menu::IMPORT,
         }
     }
