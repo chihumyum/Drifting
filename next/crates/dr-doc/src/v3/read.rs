@@ -1955,6 +1955,11 @@ impl<'a> BookViewV3<'a> {
     /// Raw owned content with explicit container kinds and rich-text deltas.
     /// Unlike deep JSON, this also distinguishes a text/list/map container
     /// from a plain value and retains future nested text attributes.
+    ///
+    /// For previews and for checking a restoration. Its `siblings` list every
+    /// entry beside this one, so it is not what decides whether the entry
+    /// changed ([`Self::entry_change_state`] is), and it reads the whole
+    /// book: ask for one entry, never for each in turn.
     pub fn entry_owned_raw_state(&self, id: &EntryId) -> Option<serde_json::Value> {
         use super::raw::raw_value as raw;
         use loro::{Container, ValueOrContainer};
@@ -1987,6 +1992,132 @@ impl<'a> BookViewV3<'a> {
         let mut value = serde_json::json!({"metadata":metadata,"records":records,"parent":e.parent,"siblings":siblings});
         value.sort_all_objects();
         Some(value)
+    }
+
+    /// What decides whether an entry changed (the automatic checkpoints'
+    /// fingerprint): its raw metadata and the raw records it owns, exactly as
+    /// in [`Self::entry_owned_raw_state`], where it lives (`parent`) and its
+    /// own place among its siblings (`position`).
+    ///
+    /// It names no entry but this one and its parent. The place is the
+    /// entry's own position key (the fractional index of its tree node), not
+    /// the list of its siblings: moving the entry among its siblings or to
+    /// another parent changes the state, and another entry created, deleted
+    /// or moved beside it does not. Loro gives a neighbour a new key only
+    /// when two siblings hold the same key and a third goes between them;
+    /// those neighbours' own keys then did change.
+    ///
+    /// When two devices each made a tree node for one entry id, metadata,
+    /// parent and position are those of the node every reader keeps (the
+    /// first by tree id), whose key is also the one that orders the entry.
+    /// Tree ids themselves are left out, so a second node arriving with the
+    /// same content is no change.
+    pub fn entry_change_state(&self, id: &EntryId) -> Option<serde_json::Value> {
+        self.change_states(Some(id)).pop().map(|(_, state)| state)
+    }
+
+    /// [`Self::entry_change_state`] of every entry, in tree order, from one
+    /// pass over the tree and the four record collections: linear in the
+    /// book, where asking entry by entry reads the whole book for each.
+    pub fn entry_change_states(&self) -> Vec<(EntryId, serde_json::Value)> {
+        self.change_states(None)
+    }
+
+    fn change_states(&self, only: Option<&EntryId>) -> Vec<(EntryId, serde_json::Value)> {
+        use super::raw::raw_value as raw;
+        use loro::{Container, ValueOrContainer};
+        // The collections of `entry_owned_records`, in its order.
+        const OWNED: [CollectionV3; 4] = [
+            CollectionV3::Patches,
+            CollectionV3::PlotGrids,
+            CollectionV3::Memberships,
+            CollectionV3::Relations,
+        ];
+        let tree = self.tree(book_v3::ENTRIES);
+        let nodes = match only {
+            Some(id) => forest_node(&tree, id.as_str()).into_iter().collect(),
+            None => forest(&tree),
+        };
+        let entries: Vec<(EntryId, &ForestNode, TreeID)> = nodes
+            .iter()
+            .filter_map(|n| Some((EntryId::parse(&n.id).ok()?, n, *n.tree_ids.first()?)))
+            .collect();
+        let slot: HashMap<&str, usize> = entries
+            .iter()
+            .enumerate()
+            .map(|(i, (_, n, _))| (n.id.as_str(), i))
+            .collect();
+        // Every record's owners, by the rules of `entry_owned_records` read
+        // from the record's side.
+        let mut owned: Vec<[BTreeSet<String>; 4]> = vec![Default::default(); entries.len()];
+        let mut own = |collection: usize, owner: &str, key: &str| {
+            if let Some(&i) = slot.get(owner) {
+                owned[i][collection].insert(key.to_owned());
+            }
+        };
+        let patches = entities(self.doc, book_v3::PATCHES);
+        let mut patch_owner: HashMap<&str, &str> = HashMap::new();
+        for (key, value) in &patches {
+            if let Some(owner) = F(value).str("entry") {
+                patch_owner.insert(key, owner);
+                own(0, owner, key);
+            }
+        }
+        for (key, _) in entities(self.doc, OWNED[1].root()) {
+            // `<entry>/<module>`: every prefix that ends before a slash.
+            for (at, _) in key.match_indices('/') {
+                own(1, &key[..at], &key);
+            }
+        }
+        for (key, value) in entities(self.doc, OWNED[2].root()) {
+            let f = F(&value);
+            let (host, member) = key.split_once('|').unzip();
+            for owner in [f.str("member"), f.str("host"), host, member]
+                .into_iter()
+                .flatten()
+            {
+                own(2, owner, &key);
+            }
+        }
+        for (key, value) in entities(self.doc, OWNED[3].root()) {
+            let f = F(&value);
+            for (kind, end) in [("from_kind", "from"), ("to_kind", "to")] {
+                let owner = match (f.str(kind), f.str(end)) {
+                    (Some("entry"), Some(entry)) => Some(entry),
+                    (Some("patch"), Some(patch)) => patch_owner.get(patch).copied(),
+                    _ => None,
+                };
+                if let Some(owner) = owner {
+                    own(3, owner, &key);
+                }
+            }
+        }
+        let roots = OWNED.map(|c| self.doc.get_map(c.root()));
+        entries
+            .iter()
+            .zip(owned)
+            .filter_map(|((id, n, node), owned)| {
+                let metadata = raw(ValueOrContainer::Container(Container::Map(
+                    tree.get_meta(*node).ok()?,
+                )));
+                let records: BTreeMap<_, _> = OWNED
+                    .iter()
+                    .zip(&roots)
+                    .zip(owned)
+                    .map(|((c, map), keys)| {
+                        let rows: BTreeMap<_, _> = keys
+                            .into_iter()
+                            .filter_map(|key| map.get(&key).map(|v| (key, raw(v))))
+                            .collect();
+                        (c.root().to_owned(), rows)
+                    })
+                    .collect();
+                let parent = n.parent.as_deref().and_then(|p| EntryId::parse(p).ok());
+                let mut value = serde_json::json!({"metadata":metadata,"records":records,"parent":parent,"position":n.pos});
+                value.sort_all_objects();
+                Some((id.clone(), value))
+            })
+            .collect()
     }
 
     /// Versioned complete-entry checkpoint manifests. Opaque to dr-doc.
