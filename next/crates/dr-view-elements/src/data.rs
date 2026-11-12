@@ -50,10 +50,11 @@ pub mod v3 {
         Ok(Mutation {
             command,
             input,
+            // Held to the records of this snapshot that the command
+            // replaces; a change elsewhere in the book is not a conflict.
             preconditions: WritePreconditions {
-                versions: [(format!("book:{}", book.id), v.revision.clone())].into(),
-                records: Vec::new(),
                 require_all: false,
+                ..v.guard()
             },
         })
     }

@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use dr_doc::v3::BorrowedBookV3;
 use dr_ui::sand;
 use dr_workspace::{
-    Workspace, WsError,
+    RecordKey, RecordPrecondition, Workspace, WritePreconditions, WsError,
     commands::v3::{entry, types},
     dto::GroupInfo,
 };
@@ -80,9 +80,21 @@ pub struct BookV3 {
     template_index: BTreeMap<String, usize>,
     #[serde(skip)]
     hosts_by_member: BTreeMap<String, BTreeSet<String>>,
+    /// The digest of every record this snapshot shows, from the same read.
+    #[serde(skip)]
+    shown: Vec<RecordPrecondition>,
 }
 
 impl BookV3 {
+    /// The guard of a write made from this snapshot: the workspace holds it
+    /// to the shown records the write replaces, so an edit made from a
+    /// snapshot that has since fallen behind is refused only when what it
+    /// writes over changed (f3-write-guards.md). Keep the guard of the
+    /// snapshot a draft was started from; never take a newer one to submit
+    /// an older draft.
+    pub fn guard(&self) -> WritePreconditions {
+        WritePreconditions::default().with_shown(self.shown.iter().cloned())
+    }
     pub fn entry(&self, id: &str) -> Option<&types::Entry> {
         self.entry_index.get(id).map(|&i| &self.entries[i])
     }
@@ -276,10 +288,47 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             })
             .collect();
 
+        // What a view can write over from this snapshot: every entry and its
+        // place among its siblings, every template, membership, timeline
+        // view, material and material folder.
+        let keys: Vec<RecordKey> = entries
+            .iter()
+            .map(|e| RecordKey::entry(&e.id))
+            .chain(templates.iter().map(|t| RecordKey::template(&t.id)))
+            .chain(
+                memberships
+                    .iter()
+                    .map(|m| RecordKey::membership(&m.host, &m.member)),
+            )
+            .chain(
+                timeline_views
+                    .iter()
+                    .map(|v| RecordKey::timeline_view(&v.id)),
+            )
+            .chain(
+                materials
+                    .iter()
+                    .map(|m| RecordKey::record("materials", &m.id)),
+            )
+            .chain(
+                material_folders
+                    .iter()
+                    .map(|f| RecordKey::record("material_folders", &f.id)),
+            )
+            .chain([RecordKey::children_of(None)])
+            .chain(levels.keys().map(|id| RecordKey::children_of(Some(id))))
+            .collect();
+        let shown =
+            dr_workspace::observe_records_in(&format!("book:{book_id}"), doc, &book_id, &keys)?
+                .into_iter()
+                .map(RecordPrecondition::from)
+                .collect();
+
         Ok((
             meta.name,
             BookV3 {
                 revision: version,
+                shown,
                 manuscript,
                 entries,
                 templates,
