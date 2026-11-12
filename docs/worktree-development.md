@@ -68,6 +68,11 @@ includes that origin in the profile identity and CSP. Another service gets a
 different library and credential service; the default local profile is not uploaded.
 Allow the manifest's exact development origin in the operator's service CORS
 configuration when testing remote authentication. Do not enable wildcard CORS.
+On macOS, signing in to a loopback service has to be done twice in such an
+instance: the session token of a loopback service is kept in WebView storage,
+which these instances keep in memory, so the relaunch onto the
+[account's library](hosted-sync/account-libraries.md) starts signed out; the
+second sign-in finds that library already open and stays.
 
 Use only synthetic data in these profiles. A fresh profile starts without cloud
 bindings. The launcher does not seed fixtures, grant MCP access or

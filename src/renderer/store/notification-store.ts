@@ -135,6 +135,9 @@ interface NotificationStore {
   clear: () => void;
 }
 
+const readAll = (items: AppNotification[]): AppNotification[] =>
+  items.some((n) => !n.read) ? items.map((n) => (n.read ? n : { ...n, read: true })) : items;
+
 export const useNotificationStore = create<NotificationStore>((set) => ({
   items: [],
   centerOpen: false,
@@ -201,7 +204,8 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
     set((s) => ({
       centerOpen: open,
       centerOwner: open ? s.centerOwner : null,
-      items: open ? s.items.map((n) => (n.read ? n : { ...n, read: true })) : s.items,
+      // Opening reads what is listed; closing reads what arrived while it was open.
+      items: open || s.centerOpen ? readAll(s.items) : s.items,
     })),
 
   toggleCenter: (owner) =>
@@ -210,7 +214,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       return {
         centerOpen: open,
         centerOwner: open ? owner ?? null : null,
-        items: open ? s.items.map((n) => (n.read ? n : { ...n, read: true })) : s.items,
+        items: readAll(s.items),
       };
     }),
 

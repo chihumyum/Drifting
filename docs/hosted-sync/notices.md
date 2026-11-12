@@ -27,7 +27,8 @@ for notices and show none.
   without a link is a row that does nothing when clicked.
 - Opening the center reads its notices for the whole account: the other Macs
   of the account show them as read at their next read, without moving them in
-  the list.
+  the list. A notice that arrives while the center is open is read when the
+  center closes (this holds for every row of the center, whatever its source).
 - The center's list is not kept across launches. After a restart the notices
   that are still active are listed again, already read if the account has seen
   them. A notice the author removed (the row's remove button, or 清空) stays
@@ -106,3 +107,33 @@ client shows both, opening the center raises the account's mark as seen from a
 second session, and a withdrawn notice leaves. It needs the local service's
 operator account in `HOSTED_TEST_OPERATOR_EMAIL` and
 `HOSTED_TEST_OPERATOR_PASSWORD`; all five are part of `pnpm hosted:acceptance`.
+`store/notification-store.test.ts` covers reading on open and on close.
+
+On 2026-11-13 one native Mac instance (`pnpm dev:worktree --online
+--frontend-debug` against the local service, English interface) was checked
+through the debug bridge with a synthetic account, while a synthetic operator
+published through the console's routes:
+
+- A notice to every account (both languages, a link) and one to the account
+  alone (Chinese only) turned the bell into the name seal at the next read. The
+  center listed them as Announcement, in English, and Message, in Chinese, with
+  the body's line break kept; only the row with a link was clickable.
+- Opening the center put the bell back and the console counted the account as
+  a reader of both.
+- The withdrawn notice left the list at the next read, and the removed one did
+  not come back; its id was in the device's stored removals.
+- A notice that arrived while the center was open stayed unread with the seal
+  on the bell until the center closed, then counted as read at the service.
+- After the page was loaded again, the notice already read was listed as read
+  and left the bell alone.
+- Clicking the row with a link closed the center and asked the system for the
+  page; the browser itself was not watched.
+
+The window was hidden behind others throughout, so reads followed the
+background interval and were brought forward with a focus event; the one-minute
+interval in front is covered by `notice-runtime.test.ts` only. Signing in had
+to be done twice: the development instance keeps its WebView storage in memory,
+so the relaunch onto the account's library starts signed out. A packaged
+build, two native windows side by side and physical devices remain unchecked,
+and so does the production service, which does not have the routes until it is
+deployed.

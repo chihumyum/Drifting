@@ -162,6 +162,15 @@ describe('account notices in the notification center', () => {
     expect(rows()[0]).toEqual({ id: 'notice:n3', title: '三', read: false });
     await openCenter();
     expect(remote.state.marked).toEqual([2, 3]);
+
+    // One that arrives while the center is open is read when the center closes.
+    remote.publish({ zh: zh('四') });
+    await refresh();
+    expect(rows()[0]).toEqual({ id: 'notice:n4', title: '四', read: false });
+    expect(remote.state.marked).toEqual([2, 3]);
+    useNotificationStore.getState().setCenterOpen(false);
+    await settle();
+    expect(remote.state.marked).toEqual([2, 3, 4]);
   });
 
   it('marks a notice read here once another device has read it, without moving it', async () => {
