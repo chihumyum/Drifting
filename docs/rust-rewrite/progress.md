@@ -19,9 +19,10 @@
 | 本机 macOS，`main` 的 `9ae09a41`（2026-11-12 凌晨，流水里最后一次全套记录） | `cargo fmt`、Clippy、`cargo xtask check`（13 道门禁加漏洞审计）、根目录三条 `pnpm` 检查全过；测试 2252 通过、0 失败、22 忽略 |
 | 本机 macOS，`main` 的 `f272963e8` 加 2026-11-12 的切换遗留清理（这一页改写时重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：974 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check` 全过；测试 2256 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | 本机 macOS，合入切换遗留清理和老化实测两路之后的 `main`（2026-11-12 晚，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：975 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check` 全过；测试 2263 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
+| 本机 macOS，再合入 CI 修复、写入守卫、自动快照点修复三路之后的 `main`（2026-11-12 夜，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：975 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check` 全过；测试 2310 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。原因和修法见「技术上还开着的事」的第一条 |
 
-本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上当天合进来的切换遗留清理和老化实测两路，都没推。
+本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上当天合进来的五路（切换遗留清理、老化实测、CI 修复、写入守卫、自动快照点修复），都没推。
 
 ## 状态怎么读
 
