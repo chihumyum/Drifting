@@ -307,7 +307,7 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 ## 书目文档：逐表怎么落
 
-字段名以 [loro-schema.md](../loro-schema.md) v2 和 `dr-doc` 的写入器为准。时间：旧版的 ISO 文本换成秒（`time.rs`，带测试）。退役取值一律经 `dr_model::legacy` 规整。
+字段名以 [loro-schema.md](../loro-schema.md) v2 和 `dr-doc` 的写入器为准。时间：旧版的 ISO 文本换成秒（`time.rs`，带测试）。退役取值一律经 `dr_model::import_v1::legacy` 规整。
 
 | 旧表 | 新版 | 不能照抄的地方 |
 | --- | --- | --- |

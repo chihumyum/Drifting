@@ -26,14 +26,17 @@ JSON 中的空 choices 只要源库预检全部通过即可直接导入（M10 �
 
 ## 仍保留的源格式边界
 
-- `dr-model::import_v1`、`dr-doc::import_v1`：0.1 历史回放和源快照适配，只在内存中供 importer／source builder 使用；不在 App 入口注册旧命令或提供旧页面。
+- `dr-model::import_v1`、`dr-doc::import_v1`：0.1 历史回放和源快照适配，只在内存中供 importer／source builder 使用；不在 App 入口注册旧命令或提供旧页面。2026-11-12 起，旧的按种类类型也都收在 `dr_model::import_v1` 里：id（`NodeId`、`ActId`、`StorylineId`、`CategoryId`、`ElementId`、`DriftGroupId`、`TemplateOwner`）、枚举（`NodeKind`、`NodeStatus`、`CategoryLayout`）、旧情节规划默认行列的 id（`default_plot_row`／`default_plot_col`）和退役取值的映射（`import_v1::legacy`，原 `dr_model::legacy`）；`dr-doc` 里这些类型的字段编解码跟着搬进 `dr-doc::import_v1`。`dr-model` 的 canonical 文件不再定义或使用它们。
+- 仍留在 canonical 类型里的两处旧取值，都是为了拒绝和读取，不是运行时：
+  - `DocId`／`DocKind` 的 `Node`、`Element`、`Storyline`、`Category` 四个变体（以及 `template:category:<id>`、`template:storyline:<id>` 两种模板 id）照旧能解析。磁盘上的旧库和旧同步载荷要先被认出来才能原样拒绝（`dr-workspace/tests/cutover.rs`），源回放也要用它们在内存里建文档。变体里装的 id 是 `import_v1` 的类型，产品代码拿不到名字。
+  - `EntityKind` 的 `node`、`element`、`category`、`storyline` 四个取值留在共享词表里：没写种类的人物链接照旧读成 `element`（正文编解码和编辑器都在用），关系、批注的端点判断也按这张表决定接受哪些已存的引用。canonical 写入只认 `entry`、`material`（`may_be_linked_v3`）。
 - `dr-samples::{build,layout}`：有再分发许可的既有语料来源和源格式内存构造，转成 v3 后才写进 App。旧格式持久 fixture writer 已移到 `dr-testkit::seed::source_store`，产品 `dr-samples` 不再提供旧 `write_book`。
 - `dr-testkit` 的 source fixture、历史基准和负向兼容探针保留旧源编码；普通 `seed:<preset>` 和明确 `seed:v3-<preset>` 都生成 canonical v3，退役 `seed-commands`。`legacy:sample-v3` 的 choices 只供显式合成验收，不是产品默认。
 - 共享素材、资源、批注、关系、事实、Project Memory、历史／receipt DTO 和正文 codec 不因原来与旧模型同文件就删除。未知原值、并发和失败恢复仍由 canonical 契约约束。
 
 ## 机器可检查的证据
 
-`cargo xtask check` 新增 `v3-cutover`：扫描产品 Rust 不能调用退役固定域命令、不能从非适配边界导入旧模型；检查退役路径不再出现；检查所有 crate 的场景不调用旧命令。registry 和 Agent catalog／Schema 快照由原测试生成器更新。
+`cargo xtask check` 新增 `v3-cutover`：扫描产品 Rust 不能调用退役固定域命令、不能从非适配边界导入旧模型；检查退役路径不再出现；检查所有 crate 的场景不调用旧命令。2026-11-12 加一条：`dr-model` 里除 `import_v1` 和 `id.rs`（`DocId` 那四个被拒绝的种类）以外的文件，不得使用 `crate::import_v1` 的类型；`dr-model/src/legacy.rs` 列入不得回来的路径。registry 和 Agent catalog／Schema 快照由原测试生成器更新。
 
 `dr-workspace/tests/cutover.rs` 验证默认 canonical 创建、共享能力还在且旧命令不可达、旧目录／正文拒开且原操作不变、旧 sync 载荷不能藏进新 v3 genesis。共享原子快照、内核、原子恢复、IME、跨书资源安全、新归档和 fake sync 契约保留。
 
@@ -88,6 +91,8 @@ JSON 中的空 choices 只要源库预检全部通过即可直接导入（M10 �
 - `crates/dr-view-page/scenarios/v2-chrome.json`
 
 不变量清单同步切换：共享规则改指实际 canonical 契约，完整快照指向原子恢复／并发拒绝测试；以下固定产品规则只列为明确退役，不计成通过中的运行契约：NODE-KIND-STATUS、CHAPTER-HAS-ORDER、DRIFT-NO-ORDER、CHAPTER-NO-GROUP、GROUP-EXISTS、ORDERS-FINITE、ORDER-TIES、MEMBERSHIP-SET、MEMBERSHIP-LIVE、PRIMARY-IS-MEMBER、ALIASES-SET、ELEMENT-CATEGORY、PORTRAIT、ELEMENT-NAME-UNIQUE、TITLE-SUFFIX、CATEGORY-LAYOUT、PATCH-BLOCK-NEEDS-NODE、PATCH-OWNER、TREE-DEPTH、ACT-PIN-DRIFT、DIV-DRIFT-BINDINGS、DIV-CATEGORY-ELEMENTS、DIV-STORYLINE-MEMBERSHIP、DIV-DUP-TITLE、DIV-DUP-CATEGORY、DIV-DUP-ELEMENT。清单仍逐项检查每个活动契约的测试函数存在，未跳过该门禁。
+
+2026-11-12 起，`dr_model::invariant` 只列活动契约（76 条，加 3 条界面与 Agent 已统一的做法）：上面这 26 条退役规则以本页为准，不再在代码里各占一条；审计 0.1 客户端时记下的旧出处（每条规则在旧客户端哪里把关、16 条写明不搬的旧规则、触发器计数）也从代码里拿掉，留在该文件的 git 历史里。守卫没变：`every_named_test_exists` 照旧逐条核对清单点名的测试真的存在，`contracts_leave_only_by_a_recorded_retirement` 把契约条数钉住，少一条就失败。
 
 ## 待作者／待协调
 
