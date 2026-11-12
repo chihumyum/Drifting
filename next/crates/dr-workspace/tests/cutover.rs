@@ -155,12 +155,17 @@ fn a_marker_change_that_arrives_before_its_dependency_is_refused_with_it() {
     assert_eq!(ws.version(&id).unwrap(), before);
     ws.shutdown().unwrap();
 
-    // Still a v3 book after a restart, in whichever order they come again.
+    // A waiting update is held in memory only: after a restart it has to
+    // come again. Its dependency now lands on its own, and with the
+    // dependency in the book the marker change is refused outright.
     let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
     assert_eq!(marker(&ws), json!(3));
-    if import(&ws, &harmless).is_ok() {
-        assert!(import(&ws, &change).is_err());
-    }
+    assert!(import(&ws, &harmless).unwrap());
+    assert_eq!(
+        ws.observe(&id).unwrap().value["writing_days"]["synthetic-device/2026-12-02"],
+        json!(1)
+    );
+    assert!(import(&ws, &change).is_err());
     assert_eq!(marker(&ws), json!(3));
     ws.shutdown().unwrap();
 }
