@@ -75,7 +75,8 @@ describe('hosted settings boundary', () => {
     // v6 discloses content-free crash reports, which default on in Hosted builds.
     expect(read('src/renderer/lib/alpha-guide-key.ts')).toContain("ALPHA_GUIDE_VERSION = 'v6'");
     expect(onboarding).toContain('alphaGuideStorageKey(userId)');
-    expect(onboarding).toContain("<p className=\"first-run-welcome__note\">{t('preAlphaGuide.crashReports')}</p>");
+    expect(onboarding).toContain('<ConsentLine className="first-run-welcome__note" placement="bottom-start" />');
+    expect(read('src/renderer/features/auth/ConsentLine.tsx')).toContain("{t('preAlphaGuide.crashReports')}");
     expect(onboarding).toContain("{t('firstRun.local')}");
     expect(mobileShelf).toContain('<PreAlphaFirstRunGate>');
     expect(onboarding).not.toContain('export function PreAlphaOnboardingDialog');

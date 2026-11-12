@@ -1232,6 +1232,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "Aviso",
+      "personal": "Mensaje"
     }
   },
   "paperSync": {
@@ -1737,10 +1741,9 @@
       "or": "o"
     },
     "legal": {
-      "agree": "Al registrarte, aceptas los",
+      "consent": "Al continuar, aceptas {{terms}}.",
+      "consentTerms": "las condiciones",
       "terms": "Términos",
-      "termsUnavailable": "El operador no ha configurado los términos del servicio.",
-      "and": "y",
       "privacy": "Política de privacidad"
     },
     "forgot": {

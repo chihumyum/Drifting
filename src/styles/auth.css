@@ -212,16 +212,22 @@
   text-align: center;
 }
 
-.auth-flow__legal a {
+/* The words that hold what is agreed to: text in the line, a card on hover. */
+.auth-flow__consent {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   color: hsl(var(--ink-3));
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
 }
 
-.auth-flow__legal a[aria-disabled='true'] {
-  cursor: default;
-  text-decoration: none;
+.auth-flow__consent:hover,
+.auth-flow__consent:focus-visible,
+.auth-flow__consent[aria-expanded='true'] {
+  color: hsl(var(--ink-2));
 }
 
 .auth-flow__social {
@@ -500,7 +506,7 @@ html[data-shell-mode] .auth-flow--dialog .auth-flow__glass-button--foot.ui-butto
   animation: first-run-card-out var(--motion-glass-bleed) ease-out both;
 }
 
-/* The welcome: the ways on and the crash-report note, nothing else. */
+/* The welcome: the ways on and the one line of what going on agrees to. */
 .first-run-welcome {
   display: flex;
   flex-direction: column;
@@ -524,6 +530,17 @@ html[data-shell-mode] .auth-flow--dialog .auth-flow__glass-button--foot.ui-butto
   font-size: var(--ui-font-caption, 12px);
   line-height: 1.5;
   text-align: center;
+}
+
+/* One step darker than the sentence round them, as in the sign-in form. */
+.first-run-welcome__note .auth-flow__consent {
+  color: hsl(var(--ink-2));
+}
+
+.first-run-welcome__note .auth-flow__consent:hover,
+.first-run-welcome__note .auth-flow__consent:focus-visible,
+.first-run-welcome__note .auth-flow__consent[aria-expanded='true'] {
+  color: hsl(var(--ink-1));
 }
 
 /* The shelf comes up from the first run as a whole. */

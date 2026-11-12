@@ -1228,6 +1228,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "お知らせ",
+      "personal": "メッセージ"
     }
   },
   "paperSync": {
@@ -1733,10 +1737,9 @@
       "or": "または"
     },
     "legal": {
-      "agree": "登録により、次に同意します：",
+      "consent": "続行すると、{{terms}}に同意したものとみなされます",
+      "consentTerms": "利用条件",
       "terms": "利用規約",
-      "termsUnavailable": "運営者が利用規約を設定していません。",
-      "and": "と",
       "privacy": "プライバシーポリシー"
     },
     "forgot": {

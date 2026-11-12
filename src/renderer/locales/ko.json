@@ -1228,6 +1228,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "공지",
+      "personal": "메시지"
     }
   },
   "paperSync": {
@@ -1733,10 +1737,9 @@
       "or": "또는"
     },
     "legal": {
-      "agree": "가입하면 다음에 동의합니다:",
+      "consent": "계속하면 {{terms}}에 동의하는 것으로 봅니다",
+      "consentTerms": "관련 약관",
       "terms": "이용약관",
-      "termsUnavailable": "서비스 운영자가 이용약관을 설정하지 않았습니다.",
-      "and": "및",
       "privacy": "개인정보 처리방침"
     },
     "forgot": {

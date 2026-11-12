@@ -1228,6 +1228,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "Mitteilung",
+      "personal": "Nachricht"
     }
   },
   "paperSync": {
@@ -1733,10 +1737,9 @@
       "or": "oder"
     },
     "legal": {
-      "agree": "Mit der Registrierung akzeptierst du die",
+      "consent": "Wenn du fortfährst, akzeptierst du {{terms}}.",
+      "consentTerms": "die Bedingungen",
       "terms": "Nutzungsbedingungen",
-      "termsUnavailable": "Der Betreiber hat keine Nutzungsbedingungen hinterlegt.",
-      "and": "und",
       "privacy": "Datenschutzerklärung"
     },
     "forgot": {

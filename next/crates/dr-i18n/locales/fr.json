@@ -673,6 +673,9 @@
       "preserved_other": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
       "source": "Dossier Markdown"
     },
+    "notice": {
+      "source": "Annonce"
+    },
     "organize": {
       "source": "Agent"
     },

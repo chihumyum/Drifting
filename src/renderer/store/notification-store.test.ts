@@ -89,6 +89,28 @@ describe('notification store', () => {
     expect(useNotificationStore.getState().items).toEqual([]);
   });
 
+  it('reads what is listed when the center opens, and what arrived meanwhile when it closes', () => {
+    const { ingest } = useNotificationStore.getState();
+    const unread = () => useNotificationStore.getState().items.filter((item) => !item.read).map((item) => item.id);
+    ingest({ id: 'first', source: 'notice', state: 'completed', title: 'First', at: 1 });
+    // Closing a center that was never open reads nothing.
+    useNotificationStore.getState().setCenterOpen(false);
+    expect(unread()).toEqual(['first']);
+    useNotificationStore.getState().toggleCenter();
+    expect(unread()).toEqual([]);
+
+    ingest({ id: 'second', source: 'notice', state: 'completed', title: 'Second', at: 2 });
+    expect(unread()).toEqual(['second']);
+    useNotificationStore.getState().setCenterOpen(false);
+    expect(unread()).toEqual([]);
+
+    useNotificationStore.getState().toggleCenter();
+    ingest({ id: 'third', source: 'notice', state: 'completed', title: 'Third', at: 3 });
+    useNotificationStore.getState().toggleCenter();
+    expect(useNotificationStore.getState().centerOpen).toBe(false);
+    expect(unread()).toEqual([]);
+  });
+
   it('remembers which bell opened the center', () => {
     useNotificationStore.getState().toggleCenter('bell-a');
     expect(useNotificationStore.getState()).toMatchObject({ centerOpen: true, centerOwner: 'bell-a' });

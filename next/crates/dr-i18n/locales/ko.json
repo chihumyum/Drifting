@@ -663,6 +663,9 @@
       "preserved_other": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "source": "Markdown 폴더"
     },
+    "notice": {
+      "source": "공지"
+    },
     "organize": {
       "source": "Agent"
     },

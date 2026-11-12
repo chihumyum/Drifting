@@ -1,0 +1,84 @@
+import { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { EntityHoverCardPlacement } from '../../components/ui/entity-hover-card-position';
+import { HoverCardShell, type HoverActionGroup } from '../../components/ui/HoverCard';
+import { APP_CONFIG } from '../../lib/config';
+import { platform } from '../../platform';
+import { useHoverPreview } from '../entities/hover/entity-hover-card-model';
+
+/** Stands where the sentence names what is agreed to; never part of a translation. */
+const CONSENT_TERMS_SLOT = '\u0000';
+
+/**
+ * What continuing agrees to, in one line: the last line of the first-run
+ * welcome, which every author passes whether they sign in or go on locally,
+ * and of the sign-in and sign-up forms opened anywhere else. The line only
+ * names it; the items wait in a hover card on those words: the fault reports
+ * this build sends (docs/crash-reports.md), and the service's terms and
+ * privacy policy as rows that open them. A press opens the card too, for a
+ * finger or the keyboard.
+ */
+export function ConsentLine({
+  className = 'auth-flow__legal',
+  placement = 'top-center',
+}: {
+  className?: string;
+  /** Where the card opens: away from what the author goes on to press. */
+  placement?: EntityHoverCardPlacement;
+}) {
+  const { t } = useTranslation();
+  const hover = useHoverPreview<null>();
+  const cardId = useId();
+  const [fromKeyboard, setFromKeyboard] = useState(false);
+  const [before, after = ''] = t('auth.legal.consent', { terms: CONSENT_TERMS_SLOT }).split(CONSENT_TERMS_SLOT);
+  const opens = (key: 'terms' | 'privacy', url: string) => ({
+    key,
+    label: t(`auth.legal.${key}`),
+    icon: { brush: 'arrow-out' as const },
+    onSelect: () => void platform.material.openExternal(url),
+  });
+  const documents: HoverActionGroup[] = [{
+    key: 'documents',
+    actions: [
+      // A service without published terms has no row for them.
+      ...(APP_CONFIG.TERMS_URL ? [opens('terms', APP_CONFIG.TERMS_URL)] : []),
+      opens('privacy', APP_CONFIG.PRIVACY_URL),
+    ],
+  }];
+  return (
+    <p className={className}>
+      {before}
+      <button
+        type="button"
+        className="auth-flow__consent"
+        aria-expanded={hover.preview !== null}
+        aria-describedby={hover.preview ? cardId : undefined}
+        onMouseEnter={(event) => hover.onEnter(null, event.currentTarget)}
+        onMouseLeave={hover.onLeave}
+        onClick={(event) => {
+          // A click without a pointer came from the keyboard: its rows take focus.
+          setFromKeyboard(event.detail === 0);
+          hover.open(null, event.currentTarget);
+        }}
+      >
+        {t('auth.legal.consentTerms')}
+      </button>
+      {after}
+      {hover.preview && (
+        <HoverCardShell
+          id={cardId}
+          anchor={hover.preview.anchor}
+          placement={placement}
+          width={280}
+          label={t('auth.legal.consentTerms')}
+          pointer={hover.card}
+          actions={documents}
+          autoFocus={fromKeyboard}
+          onDismiss={hover.dismiss}
+        >
+          <div className="hover-card__text">{t('preAlphaGuide.crashReports')}</div>
+        </HoverCardShell>
+      )}
+    </p>
+  );
+}

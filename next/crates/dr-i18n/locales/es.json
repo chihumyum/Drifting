@@ -673,6 +673,9 @@
       "preserved_other": "{{count}} archivos editados conservados en .drifting/preserved",
       "source": "Carpeta Markdown"
     },
+    "notice": {
+      "source": "Aviso"
+    },
     "organize": {
       "source": "Agent"
     },
