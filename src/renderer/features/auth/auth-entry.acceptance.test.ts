@@ -50,21 +50,23 @@ describe('account sign-in entry', () => {
     expect(guide).toContain("const google = !isAppClosedForPublic && providers.includes('google');");
     // The welcome ends with one line saying what going on agrees to, since every way on
     // passes it, the local one too; its items (docs/crash-reports.md) wait in the line's
-    // hover card, never spelled out on the card itself.
-    expect(guide).toMatch(/\{t\('firstRun\.local'\)\}\s*<\/Button>\s*<ConsentLine className="first-run-welcome__note" placement="bottom-start" \/>\s*<\/div>/);
+    // hover card, which opens downward, and are never spelled out on the card itself.
+    expect(guide).toMatch(/\{t\('firstRun\.local'\)\}\s*<\/Button>\s*<ConsentLine \/>\s*<\/div>/);
     expect(guide).not.toContain('preAlphaGuide.crashReports');
     expect(css).toContain('.first-run-welcome__note {');
-    // The sign-in step that follows in the same card does not say it again; the
-    // sign-in dialog opened anywhere else still ends with the line.
-    expect(guide).toMatch(/<AuthFlow\s+initialMode="signin"[\s\S]*?consent=\{false\}/);
-    const flow = read('src/renderer/features/auth/AuthFlow.tsx');
-    expect(flow).toContain('consent = true,');
-    expect(flow).toMatch(/\{consent && <ConsentLine \/>\}\s*<\/form>/);
     const consent = read('src/renderer/features/auth/ConsentLine.tsx');
+    expect(consent).toContain('<p className="first-run-welcome__note">');
     expect(consent).toContain("t('auth.legal.consent', { terms: CONSENT_TERMS_SLOT })");
-    expect(consent).toMatch(/<HoverCardShell[\s\S]*?actions=\{documents\}[\s\S]*?<div className="hover-card__text">\{t\('preAlphaGuide\.crashReports'\)\}<\/div>/);
+    expect(consent).toMatch(/<HoverCardShell[\s\S]*?placement="bottom-start"[\s\S]*?actions=\{documents\}[\s\S]*?<div className="hover-card__text">\{t\('preAlphaGuide\.crashReports'\)\}<\/div>/);
     expect(consent).toContain("...(APP_CONFIG.TERMS_URL ? [opens('terms', APP_CONFIG.TERMS_URL)] : []),");
     expect(consent).toContain("opens('privacy', APP_CONFIG.PRIVACY_URL),");
+    // The line is the welcome's alone: the sign-in flow is not told about it, and its
+    // sign-up form names the terms in its own sentence.
+    const flow = read('src/renderer/features/auth/AuthFlow.tsx');
+    expect(flow).not.toContain('ConsentLine');
+    expect(flow).not.toContain('consent');
+    expect(guide).not.toContain('consent=');
+    expect(flow).toMatch(/\{!signin && \(\s*<p className="auth-flow__legal">\s*\{t\('auth\.legal\.agree'\)\}/);
     // The phone's old overlay guide is gone: one gate asks on every platform.
     expect(guide).not.toContain('export function PreAlphaOnboardingDialog');
     expect(guide).not.toContain('isMobileShell');

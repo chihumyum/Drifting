@@ -1737,10 +1737,13 @@
       "or": "或"
     },
     "legal": {
-      "consent": "繼續即視為同意{{terms}}",
-      "consentTerms": "相關條款",
+      "agree": "註冊即表示同意",
       "terms": "服務條款",
-      "privacy": "隱私權政策"
+      "termsUnavailable": "服務營運者尚未設定服務條款。",
+      "and": "與",
+      "privacy": "隱私權政策",
+      "consent": "繼續即視為同意{{terms}}",
+      "consentTerms": "相關條款"
     },
     "forgot": {
       "sub": "輸入帳號的電子郵件，我們會寄送驗證碼。",
