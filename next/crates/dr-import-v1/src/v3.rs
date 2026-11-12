@@ -46,7 +46,7 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         for node in &rows.nodes {
             node_kinds.insert(
                 (project.id.clone(), node.id.clone()),
-                dr_model::kind::NodeKind::parse(&node.kind),
+                dr_model::import_v1::NodeKind::parse(&node.kind),
             );
         }
         for element in &rows.elements {
@@ -225,8 +225,8 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             if node.kind == "drift" && node.book_order.is_some() {
                 add("idea-has-legacy-book-order", &node.id);
             }
-            if !dr_model::kind::NodeStatus::parse(&node.status)
-                .fits(&dr_model::kind::NodeKind::parse(&node.kind))
+            if !dr_model::import_v1::NodeStatus::parse(&node.status)
+                .fits(&dr_model::import_v1::NodeKind::parse(&node.kind))
             {
                 add("incompatible-source-node-status", &node.id);
             }
@@ -415,7 +415,7 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         }
         if let Some(status) = meta.writing_status
             && let Some(kind) = node_kinds.get(&(row.project_id.clone(), row.entity_id.clone()))
-            && !dr_model::kind::NodeStatus::parse(&status).fits(kind)
+            && !dr_model::import_v1::NodeStatus::parse(&status).fits(kind)
         {
             add("incompatible-history-node-status");
         }
@@ -520,7 +520,7 @@ fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pe
         .get("targetKind")
         .and_then(Value::as_str)
         .unwrap_or("element");
-    let old_kind = dr_model::legacy::entity_kind(raw_kind);
+    let old_kind = dr_model::import_v1::legacy::entity_kind(raw_kind);
     let mapped_kind = dr_samples::v3::map_kind(&old_kind);
     if !mapped_kind.may_be_linked_v3() {
         pending.push(Pending {
@@ -691,8 +691,9 @@ pub(crate) fn catalog_projections(
                 .iter()
                 .find(|r| &r.id == old)
                 .expect("projection source");
-            let target_kind =
-                dr_model::legacy::entity_kind(row.target_kind.as_deref().unwrap_or_default());
+            let target_kind = dr_model::import_v1::legacy::entity_kind(
+                row.target_kind.as_deref().unwrap_or_default(),
+            );
             let prefix = target_kind.as_str();
             let doc = DocId::parse(&format!(
                 "{prefix}:{}",

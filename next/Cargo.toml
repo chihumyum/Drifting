@@ -60,6 +60,7 @@ members = [
     "crates/gpui-prose",
     "crates/prose-linebreak",
     "crates/prose-metrics",
+    "spikes/history-aging",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/loro-undo-quadratic",

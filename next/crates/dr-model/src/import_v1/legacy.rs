@@ -1,9 +1,10 @@
-//! Mapping retired 0.1.x values onto schema v2, for the library import (M10).
+//! Mapping retired 0.1.x values onto the current schema, for the library
+//! import (M10).
 //!
-//! v2 does not carry the retired Copilot's vocabulary. Importing an old
-//! library turns those values into their nearest current meaning instead of
-//! storing them; readers that meet one anyway (written by something else)
-//! keep it as `Other`.
+//! The current schema does not carry the retired Copilot's vocabulary.
+//! Importing an old library turns those values into their nearest current
+//! meaning instead of storing them; readers that meet one anyway (written by
+//! something else) keep it as `Other`.
 
 use crate::kind::{CommentAuthorKind, CommentSource, CommentStatus, EntityKind};
 

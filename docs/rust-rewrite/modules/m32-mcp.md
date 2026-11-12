@@ -2,7 +2,7 @@
 
 交回状态：分支 `codex/m32-mcp`，实现提交 `0f3a1dc6`，本提交补记交回。入站、出站及设置验收已完成；全量检查中的书架超时与通过的串行复验见「验收」，真实客户端和 Windows 原生运行仍见「待协调」。
 
-2026-11-08。实现 [任务书](../handoff/m32-mcp.md)，复用 [M27](m27-agent-runtime.md) 的调度与结算、[M29](m29-agent-tools.md) 的唯一作者工具目录，以及 [M31](m31-agent-panel.md) 的库级 Controller。没有另建 CRUD 注册表或模型驱动。
+2026-11-08。实现任务书（`handoff/m32-mcp.md`，已随过程文档清理删除，在 git 历史里），复用 [M27](m27-agent-runtime.md) 的调度与结算、[M29](m29-agent-tools.md) 的唯一作者工具目录，以及 [M31](m31-agent-panel.md) 的库级 Controller。没有另建 CRUD 注册表或模型驱动。
 
 ## 做了什么（大白话）
 

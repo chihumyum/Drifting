@@ -155,6 +155,8 @@ pub struct Suite {
 /// Every suite. A module's benchmark joins by adding one here.
 pub fn suites() -> Vec<Suite> {
     vec![
+        aging::book_suite::suite(),
+        aging::chapter_suite::suite(),
         doc::suite(),
         index::suite(),
         store::suite(),
@@ -163,6 +165,7 @@ pub fn suites() -> Vec<Suite> {
     ]
 }
 
+pub mod aging;
 pub mod doc;
 pub mod index;
 pub mod v3_levels;
@@ -418,7 +421,7 @@ pub mod store {
                 .book
                 .view()
                 .node(n)
-                .is_some_and(|n| n.kind == dr_model::kind::NodeKind::Chapter),
+                .is_some_and(|n| n.kind == dr_model::import_v1::NodeKind::Chapter),
             _ => false,
         }
     }

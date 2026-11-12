@@ -13,6 +13,14 @@ fn source_adapter(path: &str) -> bool {
     .iter()
     .any(|prefix| path.starts_with(prefix))
 }
+/// Inside `dr-model` the source-format types live in `import_v1`. Only that
+/// module and `id.rs` (whose `DocId` names the source documents the
+/// canonical readers refuse) may use them; the canonical records may not.
+fn canonical_model(path: &str) -> bool {
+    path.starts_with("next/crates/dr-model/src/")
+        && !path.starts_with("next/crates/dr-model/src/import_v1")
+        && path != "next/crates/dr-model/src/id.rs"
+}
 fn old_command() -> Regex {
     Regex::new(r#"\"(?:book\.create|history\.(?:agent_changes|undo_agent)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin)\.[a-z_]+)\""#).expect("cutover pattern")
 }
@@ -20,6 +28,7 @@ pub fn run(repo: &Repo) -> Result<Outcome, String> {
     let mut out = Outcome::default();
     let commands = old_command();
     let imports = Regex::new(r"dr_(?:doc|model)::(?:\{[^}]*\b)?import_v1\b").unwrap();
+    let model_uses = Regex::new(r"\bcrate::import_v1\b").unwrap();
     let mut checked = 0;
     for f in repo.files(&["next/crates", "next/app"])? {
         if !f.path.ends_with(".rs") || is_test_path(&f.path) || source_adapter(&f.path) {
@@ -44,10 +53,23 @@ pub fn run(repo: &Repo) -> Result<Outcome, String> {
                 ));
             }
         }
+        if canonical_model(&f.path) {
+            for (n, line) in product.lines().enumerate() {
+                if !line.trim_start().starts_with("//") && model_uses.is_match(line) {
+                    out.fail(format!(
+                        "{}:{}: canonical model uses a source-format type: {}",
+                        f.path,
+                        n + 1,
+                        line.trim()
+                    ));
+                }
+            }
+        }
         checked += 1;
     }
     for file in [
         "next/crates/dr-model/src/book.rs",
+        "next/crates/dr-model/src/legacy.rs",
         "next/crates/dr-doc/src/book/mod.rs",
         "next/crates/dr-workspace/src/cache.rs",
         "next/crates/dr-workspace/src/commands/chapter.rs",
@@ -108,5 +130,13 @@ mod tests {
         }
         assert!(source_adapter("next/crates/dr-import-v1/src/run.rs"));
         assert!(!source_adapter("next/crates/dr-shell/src/book.rs"));
+        assert!(canonical_model("next/crates/dr-model/src/v3.rs"));
+        assert!(canonical_model("next/crates/dr-model/src/kind.rs"));
+        assert!(!canonical_model("next/crates/dr-model/src/id.rs"));
+        assert!(!canonical_model("next/crates/dr-model/src/import_v1.rs"));
+        assert!(!canonical_model(
+            "next/crates/dr-model/src/import_v1/ids.rs"
+        ));
+        assert!(!canonical_model("next/crates/dr-doc/src/catalog/fields.rs"));
     }
 }

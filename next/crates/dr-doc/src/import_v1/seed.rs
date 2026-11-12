@@ -37,8 +37,10 @@
 //! `BookDoc::edit` does; otherwise seed before writing anything else.
 
 use dr_model::DocId;
-use dr_model::id::{BlockId, CommentId, NodeId, PlotColId, PlotRowId};
-use dr_model::import_v1::{EntityRef, PLOT_DEFAULT_LINES};
+use dr_model::id::{BlockId, CommentId};
+use dr_model::import_v1::{
+    EntityRef, NodeId, PLOT_DEFAULT_LINES, default_plot_col, default_plot_row,
+};
 use dr_model::kind::{CommentKind, CommentStatus, EntityKind, ProjectionKind};
 use dr_model::pos::PosKey;
 use loro::{CommitOptions, ContainerID, ContainerType, ExportMode, LoroDoc, LoroMap};
@@ -109,13 +111,13 @@ fn write_default_lines(grid: &LoroMap, chapter: &NodeId) -> Result<()> {
         (
             "rows",
             (1..=PLOT_DEFAULT_LINES)
-                .map(|n| PlotRowId::default_for(chapter, n).to_string())
+                .map(|n| default_plot_row(chapter, n).to_string())
                 .collect::<Vec<_>>(),
         ),
         (
             "cols",
             (1..=PLOT_DEFAULT_LINES)
-                .map(|n| PlotColId::default_for(chapter, n).to_string())
+                .map(|n| default_plot_col(chapter, n).to_string())
                 .collect(),
         ),
     ] {

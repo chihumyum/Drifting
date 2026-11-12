@@ -71,7 +71,7 @@ pub trait ActBoundary {
 }
 
 impl ActBoundary for crate::import_v1::Act {
-    type Id = crate::id::ActId;
+    type Id = crate::import_v1::ActId;
     fn act_id(&self) -> &Self::Id {
         &self.id
     }

@@ -316,7 +316,7 @@ fn entity_link(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<Enti
         notes.add("entity-link-without-target");
         return None;
     };
-    let kind = dr_model::legacy::entity_kind(
+    let kind = dr_model::import_v1::legacy::entity_kind(
         v.get("targetKind")
             .and_then(Value::as_str)
             .unwrap_or("element"),
@@ -834,7 +834,7 @@ fn entity_link_v3(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<E
         notes.add("entity-link-without-target");
         return None;
     };
-    let old_kind = dr_model::legacy::entity_kind(
+    let old_kind = dr_model::import_v1::legacy::entity_kind(
         v.get("targetKind")
             .and_then(Value::as_str)
             .unwrap_or("element"),

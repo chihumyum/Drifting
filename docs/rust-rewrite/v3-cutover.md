@@ -2,6 +2,14 @@
 
 2026-11-10 实施、11-11 完成源验收与守卫独立复核，任务 7，从 `main` 的 `93a43a3f` 实施（源 `codex/switch-v3` `b10d7ac1`，整合 `codex/batch-70` `2ae27b00`，本地产品合入 `main` `ad97a43c`）。本文记录最终切换范围；历史模块文档中“v2.2 不动／两套并存”的叙述只描述切换前阶段，以本页和当前源码为准。不推送、不发版。
 
+> **切换之后变了的三处**（2026-11-12 补记；下文其余部分是切换当时的记录，保留原样）：
+>
+> - **生产 App 的自动同步已经接上**（第 71 批，`c9905be9`）：本地编辑防抖上传、定时拉取、登录登出时切换账号隔离库、退出和登出前排空。下文凡是说「没有生产 App 自动调度」的地方，指的是切换那一刻。现状见 [m36-sync-v2.md](modules/m36-sync-v2.md)。
+> - **「选择 MappingChoices JSON」已经移出普通界面**（2026-11-11 晚），只留给开发者和调试桥；三条导入策略都落地成了默认行为，普通导入不再需要手选映射。
+> - **旧的按种类类型收进了 `dr_model::import_v1`，不变量清单只剩活动契约**（2026-11-12），见「仍保留的源格式边界」和「删除与迁移清单」末尾。
+>
+> 现在到哪一步、还开着什么，看 [progress.md](progress.md)。
+
 ## 做了什么
 
 普通书架新建直接调用 `project.create`，生成真实 canonical v3 文档、小说模板和根；没有 `book.create` 注册别名。普通、preferred、直接打开和系统／正文链接都只接受真实 v3。旧书不做就地补版本、修复或删除，首选旧书可以略过并选择有效 v3 书；显式旧书打开被拒。书架编辑读取同一 v3 元数据，字数来自真实文稿树的正文模块；已有正文索引未就绪显示 pending，尚未创建的空正文为 0。
@@ -26,14 +34,17 @@ JSON 中的空 choices 只要源库预检全部通过即可直接导入（M10 �
 
 ## 仍保留的源格式边界
 
-- `dr-model::import_v1`、`dr-doc::import_v1`：0.1 历史回放和源快照适配，只在内存中供 importer／source builder 使用；不在 App 入口注册旧命令或提供旧页面。
+- `dr-model::import_v1`、`dr-doc::import_v1`：0.1 历史回放和源快照适配，只在内存中供 importer／source builder 使用；不在 App 入口注册旧命令或提供旧页面。2026-11-12 起，旧的按种类类型也都收在 `dr_model::import_v1` 里：id（`NodeId`、`ActId`、`StorylineId`、`CategoryId`、`ElementId`、`DriftGroupId`、`TemplateOwner`）、枚举（`NodeKind`、`NodeStatus`、`CategoryLayout`）、旧情节规划默认行列的 id（`default_plot_row`／`default_plot_col`）和退役取值的映射（`import_v1::legacy`，原 `dr_model::legacy`）；`dr-doc` 里这些类型的字段编解码跟着搬进 `dr-doc::import_v1`。`dr-model` 的 canonical 文件不再定义或使用它们。
+- 仍留在 canonical 类型里的两处旧取值，都是为了拒绝和读取，不是运行时：
+  - `DocId`／`DocKind` 的 `Node`、`Element`、`Storyline`、`Category` 四个变体（以及 `template:category:<id>`、`template:storyline:<id>` 两种模板 id）照旧能解析。磁盘上的旧库和旧同步载荷要先被认出来才能原样拒绝（`dr-workspace/tests/cutover.rs`），源回放也要用它们在内存里建文档。变体里装的 id 是 `import_v1` 的类型，产品代码拿不到名字。
+  - `EntityKind` 的 `node`、`element`、`category`、`storyline` 四个取值留在共享词表里：没写种类的人物链接照旧读成 `element`（正文编解码和编辑器都在用），关系、批注的端点判断也按这张表决定接受哪些已存的引用。canonical 写入只认 `entry`、`material`（`may_be_linked_v3`）。
 - `dr-samples::{build,layout}`：有再分发许可的既有语料来源和源格式内存构造，转成 v3 后才写进 App。旧格式持久 fixture writer 已移到 `dr-testkit::seed::source_store`，产品 `dr-samples` 不再提供旧 `write_book`。
 - `dr-testkit` 的 source fixture、历史基准和负向兼容探针保留旧源编码；普通 `seed:<preset>` 和明确 `seed:v3-<preset>` 都生成 canonical v3，退役 `seed-commands`。`legacy:sample-v3` 的 choices 只供显式合成验收，不是产品默认。
 - 共享素材、资源、批注、关系、事实、Project Memory、历史／receipt DTO 和正文 codec 不因原来与旧模型同文件就删除。未知原值、并发和失败恢复仍由 canonical 契约约束。
 
 ## 机器可检查的证据
 
-`cargo xtask check` 新增 `v3-cutover`：扫描产品 Rust 不能调用退役固定域命令、不能从非适配边界导入旧模型；检查退役路径不再出现；检查所有 crate 的场景不调用旧命令。registry 和 Agent catalog／Schema 快照由原测试生成器更新。
+`cargo xtask check` 新增 `v3-cutover`：扫描产品 Rust 不能调用退役固定域命令、不能从非适配边界导入旧模型；检查退役路径不再出现；检查所有 crate 的场景不调用旧命令。2026-11-12 加一条：`dr-model` 里除 `import_v1` 和 `id.rs`（`DocId` 那四个被拒绝的种类）以外的文件，不得使用 `crate::import_v1` 的类型；`dr-model/src/legacy.rs` 列入不得回来的路径。registry 和 Agent catalog／Schema 快照由原测试生成器更新。
 
 `dr-workspace/tests/cutover.rs` 验证默认 canonical 创建、共享能力还在且旧命令不可达、旧目录／正文拒开且原操作不变、旧 sync 载荷不能藏进新 v3 genesis。共享原子快照、内核、原子恢复、IME、跨书资源安全、新归档和 fake sync 契约保留。
 
@@ -89,7 +100,11 @@ JSON 中的空 choices 只要源库预检全部通过即可直接导入（M10 �
 
 不变量清单同步切换：共享规则改指实际 canonical 契约，完整快照指向原子恢复／并发拒绝测试；以下固定产品规则只列为明确退役，不计成通过中的运行契约：NODE-KIND-STATUS、CHAPTER-HAS-ORDER、DRIFT-NO-ORDER、CHAPTER-NO-GROUP、GROUP-EXISTS、ORDERS-FINITE、ORDER-TIES、MEMBERSHIP-SET、MEMBERSHIP-LIVE、PRIMARY-IS-MEMBER、ALIASES-SET、ELEMENT-CATEGORY、PORTRAIT、ELEMENT-NAME-UNIQUE、TITLE-SUFFIX、CATEGORY-LAYOUT、PATCH-BLOCK-NEEDS-NODE、PATCH-OWNER、TREE-DEPTH、ACT-PIN-DRIFT、DIV-DRIFT-BINDINGS、DIV-CATEGORY-ELEMENTS、DIV-STORYLINE-MEMBERSHIP、DIV-DUP-TITLE、DIV-DUP-CATEGORY、DIV-DUP-ELEMENT。清单仍逐项检查每个活动契约的测试函数存在，未跳过该门禁。
 
+2026-11-12 起，`dr_model::invariant` 只列活动契约（76 条，加 3 条界面与 Agent 已统一的做法）：上面这 26 条退役规则以本页为准，不再在代码里各占一条；审计 0.1 客户端时记下的旧出处（每条规则在旧客户端哪里把关、16 条写明不搬的旧规则、触发器计数）也从代码里拿掉，留在该文件的 git 历史里。守卫没变：`every_named_test_exists` 照旧逐条核对清单点名的测试真的存在，`contracts_leave_only_by_a_recorded_retirement` 把契约条数钉住，少一条就失败。
+
 ## 待作者／待协调
+
+这一节里的事项都已经定了或者做了；仍然暂缓的（M40 的代码、M21 故事图、分享链接、界面和性能打磨）和别的开着的事，统一记在 [progress.md 的「等作者的事」](progress.md#等作者的事)。下面保留当时定下的细则。
 
 M10 的三条导入策略**作者已定 11-11**（均已落地为默认行为，不再需要 `MappingChoices`）：
 - **22「幕轨道」（作者已定 11-11：幕导入为幕轨道）：** 不建「大纲」关系。幕轨道是时间线视图里的泳道，条目带区间长度（`span`）；每个视图可有零到多条，新书默认没有。仅当旧库有幕时，导入在树顶层创建泳道层级「幕」（`TPL_ACT_TRACK`，默认模板 `TPL_IDEA`，允许模板不限，使用运行时实际生成的 id）并加入默认视图顶部标为幕轨道（`act_track = true`）。每个旧幕对应一条目：绑了存活构想则复用（住处不动、只加归属），未绑或构想已删则在「幕」下新建同名条目（模板有颜色字段时带入旧幕颜色），多幕共用同一构想时书序最早一幕复用、其余新建同名条目并记入导入报告；长度取该幕有位置章节从最早 `at` 到最晚 `at + span`（无 `span` 取默认块宽 `4.0`），无位置章节或空幕只加归属不给位置，首幕前章节不生成条目，重叠照实写，复用构想已有位置保留不覆盖并记入导入报告；书稿下的幕分组照旧保留。
@@ -100,7 +115,7 @@ M10 的三条导入策略**作者已定 11-11**（均已落地为默认行为，
 
 M10 的三个技术缺口已补齐（夜间队列第 2 项）：28 旧 `entityLink`（`material`／`library_item`、显式 `module`／`targetModule`、带容器跨度重映射的 `targetBlockId`／`targetEndBlockId`）在当前正文、模板与快照历史中经 `ProseTxn::link_entity_v3` 无损写入 `EntityLinkV3`；29 `FieldDef` 新增可选 `default_value`，经 `entry_template.put` 校验并在 `entry.create` 初始化新条目字段值，导入器在当前书目与历史 `elementTemplateKvJson` 回放中无损保留非空字段默认值；30 带标记与链接的旧表格单元经 `ProseTxn::set_table_cell_runs_v3` 与 `TableWriter::remove_cell` 在 `Prose`／`Note` 两种 profile、模板与历史版本间无损导入与往返。真正损坏或超出 profile 的链接／单元格内容仍 prewrite 结构化拒绝并保持源库零修改。31 的 App v3 样书与索引已接通，importer 活动 deriver 拒绝规则保留，通过闭库新目标流程满足。
 
-v3 Markdown 文件夹（七组规则作者已定 11-11，代码等新的层级结构落地再写，见 [m40-markdown-folder-v3.md](modules/m40-markdown-folder-v3.md)）、M21 故事图（等新的层级结构落地再说）、分享链接和界面设计／性能打磨仍按作者决定暂缓。当前 SyncEngine 没有生产 App 自动调度，loopback 窗口链不覆盖它。源格式或未来表示无法无损迁移时继续 prewrite 拒绝，保留原数据；这不等于完成全部未来表示扩展。
+v3 Markdown 文件夹（七组规则作者已定 11-11，代码等新的层级结构落地再写，见 [m40-markdown-folder-v3.md](modules/m40-markdown-folder-v3.md)）、M21 故事图（等新的层级结构落地再说）、分享链接和界面设计／性能打磨仍按作者决定暂缓。切换时 SyncEngine 还没有生产 App 自动调度，loopback 窗口链不覆盖它（之后已在第 71 批接上，见本页开头）。源格式或未来表示无法无损迁移时继续 prewrite 拒绝，保留原数据；这不等于完成全部未来表示扩展。
 
 ## 检查结果
 

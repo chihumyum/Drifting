@@ -15,6 +15,7 @@ use dr_import_v1::progress::{Progress, Step};
 use dr_import_v1::receipt::{self, Receipt};
 use dr_import_v1::run::{self, Options, Outcome};
 use dr_model::id::*;
+use dr_model::import_v1::{CategoryId, StorylineId, TemplateOwner};
 use dr_model::kind::*;
 use dr_model::prose::Heading;
 use dr_model::{DocId, Timestamp};
@@ -200,9 +201,7 @@ fn a_handed_off_library_imports_completely() {
         &lib,
         &dr_samples::v3::prose_id(
             &BookId::parse(BOOK).unwrap(),
-            &DocId::Template(TemplateId::for_category(
-                &CategoryId::parse(CATEGORY).unwrap(),
-            )),
+            &TemplateOwner::Category(CategoryId::parse(CATEGORY).unwrap()).doc_id(),
         )
         .to_string(),
     );
@@ -222,9 +221,7 @@ fn a_handed_off_library_imports_completely() {
         &lib,
         &dr_samples::v3::prose_id(
             &BookId::parse(BOOK).unwrap(),
-            &DocId::Template(TemplateId::for_storyline(
-                &StorylineId::parse(STORYLINE).unwrap(),
-            )),
+            &TemplateOwner::Storyline(StorylineId::parse(STORYLINE).unwrap()).doc_id(),
         )
         .to_string(),
     );
@@ -241,9 +238,7 @@ fn a_handed_off_library_imports_completely() {
         lib.doc_info(
             &dr_samples::v3::prose_id(
                 &BookId::parse(BOOK).unwrap(),
-                &DocId::Template(TemplateId::for_storyline(
-                    &StorylineId::parse(STORYLINE).unwrap()
-                ))
+                &TemplateOwner::Storyline(StorylineId::parse(STORYLINE).unwrap()).doc_id()
             )
             .to_string()
         )

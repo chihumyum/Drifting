@@ -1,0 +1,17 @@
+[package]
+name = "history-aging-spike"
+version = "0.0.0"
+description = "History aging through the interface layer: the editor's undo step on an aged chapter (dr-editor's SessionSource under gpui-prose's text layer, no window) and dr-shell's Book::load on an aged book"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dr-doc.workspace = true
+dr-editor.workspace = true
+dr-shell.workspace = true
+dr-testkit.workspace = true
+dr-workspace.workspace = true
+gpui-prose.workspace = true
+serde_json.workspace = true

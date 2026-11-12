@@ -1065,7 +1065,7 @@ impl<'a> BookView<'a> {
             DocId::Material(id) => entity(self.doc, book::MATERIALS, id.as_str())
                 .is_some_and(|v| F(&v).str("kind").is_none_or(|k| k == "text")),
             DocId::Body(_) => false,
-            DocId::Template(id) => match id.owner() {
+            DocId::Template(id) => match TemplateOwner::of(id) {
                 Some(TemplateOwner::Category(c)) => has(book::CATEGORIES, c.as_str()),
                 Some(TemplateOwner::Storyline(s)) => has(book::STORYLINES, s.as_str()),
                 None => false,

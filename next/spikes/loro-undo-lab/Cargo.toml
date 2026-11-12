@@ -1,0 +1,29 @@
+# A lab of its own, outside the product workspace: it builds four Loros side
+# by side (the release the product pins; upstream main just before and just
+# after loro-dev/loro#1217; upstream main as of 2026-11-12), which the
+# product's lockfile must never see.
+# docs/rust-rewrite/spikes/history-aging.md
+[package]
+name = "loro-undo-lab"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-or-later"
+publish = false
+description = "History aging: what undo costs on a chapter with a long history, under four Loros and four ways of undoing"
+
+# Not a member of next/: its own workspace root and its own lockfile.
+[workspace]
+
+[dependencies]
+# What next/ pins (next/Cargo.toml).
+loro-released = { package = "loro", version = "=1.17.1" }
+# Upstream main one commit before loro-dev/loro#1217 was merged (2026-11-11).
+loro-before = { package = "loro", git = "https://github.com/loro-dev/loro", rev = "7cb0c860c121ae7bffd3cc3cea38aa9e77257129" }
+# The merge commit of loro-dev/loro#1217.
+loro-after = { package = "loro", git = "https://github.com/loro-dev/loro", rev = "ff514287e5c3739a87967a92f374c506237be94b" }
+# Upstream main on 2026-11-12 (version 1.18.0, not released yet).
+loro-head = { package = "loro", git = "https://github.com/loro-dev/loro", rev = "62fb36f99d4abc0d9e2fcd7ef3351e2e4b40ba9d" }
+
+[profile.release]
+debug = 1

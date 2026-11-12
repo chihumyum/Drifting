@@ -66,7 +66,10 @@ pub fn patterns() -> Vec<(&'static str, Regex)> {
 /// values readable (AGENTS.md "Retired Agent Products").
 const RECORDS: &[(&str, &str)] = &[
     ("next/xtask/src/gates/retired.rs", "*"),
-    ("next/crates/dr-model/src/legacy.rs", "retired Copilot"),
+    (
+        "next/crates/dr-model/src/import_v1/legacy.rs",
+        "retired Copilot",
+    ),
     ("next/crates/dr-model/src/kind.rs", "retired Copilot"),
     ("next/crates/dr-model/src/invariant.rs", "retired Copilot"),
     (

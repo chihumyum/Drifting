@@ -2,7 +2,7 @@
 
 交回状态：`codex/m31-agent-panel`；首次实现 `ef63d4f9`，生命周期与登录修复 `f6840cc7`；第二十三批反馈修复 `21ad1134`；第二十七批关系导航、可见卡片确认及取消边界修复 `925597e4`；已合入 M29 `44357606`；全套检查与真实窗口验收通过；F4 逐字覆盖接口与真模型手测仍待后续。
 
-2026-11-08。实现 [M31 任务书](../handoff/m31-agent-panel.md)，接在
+2026-11-08。实现 M31 任务书（`handoff/m31-agent-panel.md`，已随过程文档清理删除，在 git 历史里），接在
 [M27 运行时](m27-agent-runtime.md)、[M28 模型接入](m28-model-providers.md)、
 [M29 工具](m29-agent-tools.md) 和 F6 右栏登记口上。首次引导沿用
 [旧版「就地连接」约定](../../agent-runtime/agent-onboarding.md)。

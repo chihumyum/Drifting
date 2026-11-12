@@ -6,7 +6,7 @@
 
 ## 目标与范围
 
-对应 `docs/rust-rewrite/handoff/m36-sync-v2.md`、`docs/hosted-sync/README.md` 与 `docs/hosted-sync/sync-status.md`，在 `next/` 工作区实现 Hosted 同步 v2（`dr-sync` 服务层 crate 与 `dr-view-account::sync_mark` 界面层记号视图）：
+对应当时的任务书（`handoff/m36-sync-v2.md`，已随过程文档清理删除，在 git 历史里）、`docs/hosted-sync/README.md` 与 `docs/hosted-sync/sync-status.md`，在 `next/` 工作区实现 Hosted 同步 v2（`dr-sync` 服务层 crate 与 `dr-view-account::sync_mark` 界面层记号视图）：
 
 1. **对象日志 HTTP 协议（决定 D6，`loro-v2` 命名空间）**：
    - 沿用不可变对象日志 HTTP 协议，通过 `/api/sync/v1/loro-v2/objects/<key>`、`/api/sync/v1/loro-v2/changes?cursor=<seq>&includeRemovals=1` 与 `/api/sync/v1/usage` 承载 Loro 增量更新批次、快照、文档清除墓碑（`removals-v1`）以及不可变资源变体文件。

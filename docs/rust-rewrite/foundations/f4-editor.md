@@ -360,7 +360,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 
 ## 测量
 
-机器：M3 Pro（12 核，36 GB），macOS 27.0.1，窗口在 120 Hz 内建屏上，release 构建，GPUI = Zed 官方 `v1.27.0`（另注明的除外）。测法见 [benchmarks.md 的「编辑器档的测法（F4）」](../benchmarks.md#编辑器档的测法f4gpui-prose)。
+机器：M3 Pro（12 核，36 GB），macOS 27.0.1，窗口在 120 Hz 内建屏上，release 构建，GPUI = Zed 官方 `v1.27.0`（另注明的除外）。测法见 [benchmarks.md 的「编辑器档的测法（F4）」](../benchmarks.md#编辑器档的测法f4dr-editor-的-prose-bench)。
 
 | 项 | 预算 | P0-B | 第一轮 | 第二轮（仅供参考） | 说明 |
 | --- | --- | ---: | ---: | ---: | --- |

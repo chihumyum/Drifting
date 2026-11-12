@@ -2,6 +2,8 @@
 
 > 2026-11-10 切换实施更新：共享 catalog 和源格式内存回放已拆分，App 不再调用旧书运行时。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
+> 2026-11-12 更新：旧的按种类 id、枚举和退役取值映射（下文的 `NodeId`、`NodeKind`、`legacy` 等）已收进 `dr_model::import_v1`；`dr_model::invariant` 只剩活动契约，下文提到的 `NOT_CARRIED`、旧出处和条数是当时的记录。现状见 [v3-cutover.md 的「仍保留的源格式边界」](../v3-cutover.md#仍保留的源格式边界)。
+
 2026-11-07 至 11-08，七轮：第一轮把结构做成库（结构改成 v1）；第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）；第三轮按 F3、dr-text、F8 的反馈，让视图和事务能套在存储持有的文档上，读取按对象变便宜，证据换成新做法；第四轮按 F4 的建议让插入事件带上新字的标记，并对照 F4 的待协调核对了样式表、锚点和打开文档的分工；第五轮按 F3 的待协调做了作者命令不进编辑器撤销、待办和情节规划表的确定写法（「种子变更」）、正文模板文档，并评估了 Agent 改动「看过」怎么跨设备（结构记成 v2.1，向后兼容）；第六轮让 `insert_copy` 连表格格子里的标记一起抄，清单里没测试的三条都挂上了测试；第七轮审了 M27（帮手运行时）加的对话文档，改了读取容错、导入校验和两处分派（结构记成 v2.2）。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
 
 ## 做了什么（大白话）
@@ -399,7 +401,7 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 - **回应 K3（`m10-import.md` 待协调 24、25、27）**：
   1. **待协调 24（项目级故事线字段模板）**：在内置小说项目模板（`dr_doc::v3::novel`）中，`TPL_STORYLINE`（`"tpl-storyline"`，泳道层级模板）自带两个模块：`MOD_FIELDS`（`"mod-fields"`，含 `color` 与 `summary` 字段）和 `MOD_KV`（`"mod-kv"`，`ModuleKind::KeyValue`）。旧版项目级的 `project.storyline_template_kv_json` + `entity_kv_entry(owner_kind=project, namespace=storyline-template)` 对应 `TPL_STORYLINE` 模板里 `MOD_KV` 模块的 `config.initial_kv`（通过 `TemplateWriterV3::put_module` 写入 `initial_kv`），各条故事线自己的键值行写进该故事线条目的 `kv:mod-kv`（`EntryWriterV3::put_kv(&mid(MOD_KV), &entry)`），无需新加结构。
-  2. **待协调 25（旧关系类型端点种类约束）**：`RelationTypeV3` 与 `RelationTypeWriterV3` 同时提供 `source_kinds` / `target_kinds`（`Vec<EntityKind>`）与 `source_templates` / `target_templates`（`Vec<EntryTemplateId>`）。旧 `material`、`comment`、`patch` 原样保留对应 `EntityKind`；旧 `element`、`node`、`storyline`、`category` 在 `source_kinds` / `target_kinds` 上统一映射为 `EntityKind::Entry`。是否同时把旧种类收窄进 `source_templates` / `target_templates` 属于语义取舍，照 `overnight.md` 留给作者拍板。
+  2. **待协调 25（旧关系类型端点种类约束）**：`RelationTypeV3` 与 `RelationTypeWriterV3` 同时提供 `source_kinds` / `target_kinds`（`Vec<EntityKind>`）与 `source_templates` / `target_templates`（`Vec<EntryTemplateId>`）。旧 `material`、`comment`、`patch` 原样保留对应 `EntityKind`；旧 `element`、`node`、`storyline`、`category` 在 `source_kinds` / `target_kinds` 上统一映射为 `EntityKind::Entry`。是否同时把旧种类收窄进 `source_templates` / `target_templates` 属于语义取舍，照当时的夜间队列（`handoff/overnight.md`，已删，在 git 历史里）留给作者拍板。
   3. **待协调 27（旧层级颜色）**：在 `dr_doc::v3::novel` 中，需要各自颜色的层级模板——`TPL_IDEA_GROUP`（`"tpl-idea-group"`）、`TPL_CATEGORY`（`"tpl-category"`）、`TPL_GROUP`（`"tpl-group"`）和 `TPL_STORYLINE`（`"tpl-storyline"`）——都已经声明了 `MOD_FIELDS`（`"mod-fields"`，`ModuleKind::Fields`），内含 `"color"` 字段（`FieldType::Text`）并设 `color_field = Some("color")`。因此每个分类、构想分组、故事线、分组条目各自的颜色直接写在该条目的 `fields.mod-fields.color`（`EntryWriterV3::set_field(&mid(MOD_FIELDS), "color", Some(&FieldValue::Text(color)))`），既不混进模板公用颜色，也不用为每个分类复制层级模板。
 
 ## 交回（K1+K2 第三批：第 4 步 `dr_testkit::seed` v3 四档，`handback/k1`）

@@ -75,22 +75,18 @@ impl IntoField for &[EntityKind] {
 
 macro_rules! str_like {
     ($($t:ty),* $(,)?) => {$(
-        impl IntoField for &$t {
-            fn into_field(self) -> Option<LoroValue> {
+        impl $crate::catalog::fields::IntoField for &$t {
+            fn into_field(self) -> Option<::loro::LoroValue> {
                 Some(self.as_str().into())
             }
         }
     )*};
 }
+pub(crate) use str_like;
 
 str_like!(
     ProjectionKind,
     BookId,
-    NodeId,
-    ActId,
-    StorylineId,
-    CategoryId,
-    ElementId,
     PatchId,
     RelationTypeId,
     RelationId,
@@ -98,7 +94,6 @@ str_like!(
     CommentId,
     MaterialId,
     AssetId,
-    DriftGroupId,
     MaterialFolderId,
     KvEntryId,
     MemoryId,
@@ -108,12 +103,9 @@ str_like!(
     PlotColId,
     DeviceKey,
     Day,
-    NodeKind,
-    NodeStatus,
     EntityKind,
     RelationOrientation,
     SystemRelationKey,
-    CategoryLayout,
     CommentKind,
     CommentStatus,
     CommentAuthorKind,
