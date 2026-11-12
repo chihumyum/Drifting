@@ -16,10 +16,13 @@
 //!   an Agent turn leaves a checkpoint that is never thinned.
 //!
 //!   An entry's content, as the checkpoints see it
-//!   (`BookViewV3::entry_owned_raw_state`), includes the ordered list of its
-//!   siblings. So a new idea, or a chapter moved among its siblings, changes
-//!   every sibling, and each of them earns a checkpoint too (the spike
-//!   `history-aging-spike` probes this through the real commands).
+//!   (`BookViewV3::entry_change_state`), is what the entry owns and where it
+//!   is: a new idea, or a chapter moved among its siblings, earns a
+//!   checkpoint itself and leaves its siblings alone (the spike
+//!   `history-aging-spike` probes this through the real commands). Until
+//!   2026-11-12 that content listed the entry's siblings, so every sibling
+//!   earned a checkpoint too; [`BookAging::sibling_checkpoints`] ages a book
+//!   that way, for comparison.
 //! - **Planning** (one session in eight): 30–120 drags (idea cards on the
 //!   board, chapters on the timeline, elements in the relation view, the
 //!   manuscript order) and a time pin or two, with the checkpoints the
@@ -69,6 +72,12 @@ pub struct BookAging {
     pub without_writing_days: bool,
     /// Leave the entry checkpoints out, likewise.
     pub without_checkpoints: bool,
+    /// Also save a checkpoint for every sibling of an entry created or
+    /// moved among them, as the product did until 2026-11-12 (its
+    /// fingerprint of an entry listed the entry's siblings). Off, the
+    /// product's behaviour now, those are not saved; everything else stays
+    /// exactly the same, so the two can be compared.
+    pub sibling_checkpoints: bool,
 }
 
 impl BookAging {
@@ -79,6 +88,7 @@ impl BookAging {
             devices: 2,
             without_writing_days: false,
             without_checkpoints: false,
+            sibling_checkpoints: false,
         }
     }
 }
@@ -154,7 +164,8 @@ pub struct BookStats {
     pub checkpoints_thinned: usize,
     pub checkpoints_kept: usize,
     /// Of the saved, checkpoints of entries whose only change was a sibling
-    /// created or moved.
+    /// created or moved: none unless the plan asks for them
+    /// ([`BookAging::sibling_checkpoints`]).
     pub checkpoints_for_siblings: usize,
     pub field_edits: usize,
     pub layout_moves: usize,
@@ -246,6 +257,36 @@ impl World {
             .collect()
     }
 
+    /// The id and the content hash of the next checkpoint: everything a
+    /// checkpoint takes from the random stream.
+    fn checkpoint_draw(&mut self, ts: i64) -> (String, String) {
+        let id = self.new_id("checkpoint", ts);
+        let hash = dr_store::digest::sha256_hex(&self.rng.next_u64().to_le_bytes());
+        (id, hash)
+    }
+
+    /// The checkpoint of an entry that did not change itself: a sibling was
+    /// created or moved beside it. Saved only when the plan asks for the
+    /// product's behaviour before 2026-11-12
+    /// ([`BookAging::sibling_checkpoints`]); otherwise it draws what it would
+    /// have drawn and saves nothing, so the days, sessions and edits of a
+    /// plan are the same with and without these checkpoints.
+    fn sibling_checkpoint(
+        &mut self,
+        doc: &mut BookDocV3,
+        device: usize,
+        ts: i64,
+        entry: &EntryId,
+        reason: &str,
+    ) -> Result<()> {
+        if !self.plan.sibling_checkpoints {
+            self.checkpoint_draw(ts);
+            return Ok(());
+        }
+        self.stats.checkpoints_for_siblings += usize::from(!self.plan.without_checkpoints);
+        self.checkpoint(doc, device, ts, entry, reason)
+    }
+
     /// Save a checkpoint of `entry` the way `entry_snapshot.capture` does:
     /// the manifest, then the thinning of that entry's automatic points.
     fn checkpoint(
@@ -256,14 +297,13 @@ impl World {
         entry: &EntryId,
         reason: &str,
     ) -> Result<()> {
-        let id = self.new_id("checkpoint", ts);
+        let (id, content_hash) = self.checkpoint_draw(ts);
         let title = doc
             .view()
             .entry_raw(entry)
             .map(|e| e.title)
             .unwrap_or_default();
         let version = dr_workspace::naming::frontiers_hex(&doc.frontiers());
-        let hash = |rng: &mut Rng| dr_store::digest::sha256_hex(&rng.next_u64().to_le_bytes());
         let mut point = Point {
             id: id.clone(),
             format: 1,
@@ -277,7 +317,7 @@ impl World {
             // frontiers encode like the book's.
             bodies: BTreeMap::from([(format!("body:{entry}/{MOD_PROSE}"), version)]),
             checksum: String::new(),
-            content_hash: hash(&mut self.rng),
+            content_hash,
         };
         if self.plan.without_checkpoints {
             return Ok(());
@@ -334,7 +374,7 @@ impl World {
         let through = (n * self.chapters.len()) / self.stats.days.max(1) as usize;
         let chapter = self.chapters[(through + self.rng.range(0, 2)) % self.chapters.len()].clone();
         let mut dirty: Vec<EntryId> = Vec::new();
-        // Entries changed only by a sibling's arrival.
+        // Entries a new sibling arrived beside: not changed themselves.
         let mut siblings: Vec<EntryId> = Vec::new();
         let mut typed_since_checkpoint = false;
         let agent = self.rng.chance(2.0 / 5.0 / 1.3);
@@ -464,13 +504,18 @@ impl World {
                         .board_pos(Some(at))?;
                     Ok(())
                 })?;
-                self.ideas.push(id);
-                // The new idea and every sibling it now stands among.
+                self.ideas.push(id.clone());
+                // The new idea changed; the siblings it now stands among
+                // did not.
                 for sibling in doc.view().children_of(Some(&parent)) {
-                    if !dirty.contains(&sibling.id) && !siblings.contains(&sibling.id) {
+                    if sibling.id != id
+                        && !dirty.contains(&sibling.id)
+                        && !siblings.contains(&sibling.id)
+                    {
                         siblings.push(sibling.id);
                     }
                 }
+                dirty.push(id);
             }
             if minute % 15 == 14 {
                 if typed_since_checkpoint && !dirty.contains(&chapter) {
@@ -478,9 +523,7 @@ impl World {
                 }
                 for entry in std::mem::take(&mut siblings) {
                     if !dirty.contains(&entry) {
-                        self.stats.checkpoints_for_siblings +=
-                            usize::from(!self.plan.without_checkpoints);
-                        self.checkpoint(doc, device, ts + 5, &entry, "periodic")?;
+                        self.sibling_checkpoint(doc, device, ts + 5, &entry, "periodic")?;
                     }
                 }
                 for entry in std::mem::take(&mut dirty) {
@@ -495,8 +538,7 @@ impl World {
         }
         for entry in siblings {
             if !dirty.contains(&entry) {
-                self.stats.checkpoints_for_siblings += usize::from(!self.plan.without_checkpoints);
-                self.checkpoint(doc, device, end, &entry, "close")?;
+                self.sibling_checkpoint(doc, device, end, &entry, "close")?;
             }
         }
         for entry in dirty {
@@ -509,7 +551,7 @@ impl World {
         let drags = self.rng.range(30, 120);
         let minutes = self.rng.range(20, 90) as i64;
         let mut dirty: Vec<EntryId> = Vec::new();
-        // Entries changed only by a sibling's move.
+        // Entries a sibling moved beside: not changed themselves.
         let mut moved: Vec<EntryId> = Vec::new();
         let mut quarter = 0;
         for k in 0..drags {
@@ -562,10 +604,11 @@ impl World {
                         index.min(siblings.len().saturating_sub(1)),
                     )
                 })?;
-                // The order changed (not when the chapter was already there):
-                // every sibling's content did.
+                // The chapter moved (not when it was already there): its own
+                // position changed, its siblings' did not.
                 if self.stats.commits > commits {
-                    moved.extend(siblings);
+                    moved.extend(siblings.into_iter().filter(|s| *s != entry));
+                    dirty.push(entry);
                 }
             } else if let Some(view) = self.view.clone() {
                 let pin = TimelinePin {
@@ -592,8 +635,9 @@ impl World {
         self.checkpoint_all(doc, device, end, &mut dirty, &mut moved, "close")
     }
 
-    /// A checkpoint for every entry in `dirty`, then for every entry in
-    /// `siblings` that is not also dirty itself; both lists are emptied.
+    /// A checkpoint for every entry in `dirty`, and what a sibling's change
+    /// earns ([`World::sibling_checkpoint`]) for every entry in `siblings`
+    /// that is not also dirty itself; both lists are emptied.
     fn checkpoint_all(
         &mut self,
         doc: &mut BookDocV3,
@@ -609,8 +653,7 @@ impl World {
         siblings.dedup();
         for entry in std::mem::take(siblings) {
             if dirty.binary_search(&entry).is_err() {
-                self.stats.checkpoints_for_siblings += usize::from(!self.plan.without_checkpoints);
-                self.checkpoint(doc, device, ts, &entry, reason)?;
+                self.sibling_checkpoint(doc, device, ts, &entry, reason)?;
             }
         }
         for entry in std::mem::take(dirty) {
