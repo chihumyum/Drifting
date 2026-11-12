@@ -490,6 +490,7 @@
     "format": "格式",
     "loadFailed": "未能读取章节，请重试。",
     "loading": "正在读取章节…",
+    "manuscript": "成书",
     "menu": "导出成稿",
     "removeCover": "移除",
     "retry": "重试",

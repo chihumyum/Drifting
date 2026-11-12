@@ -498,6 +498,7 @@
     "format": "Format",
     "loadFailed": "Die Kapitel konnten nicht gelesen werden. Bitte erneut versuchen.",
     "loading": "Kapitel werden gelesen…",
+    "manuscript": "Manuskript",
     "menu": "Manuskript exportieren",
     "removeCover": "Entfernen",
     "retry": "Erneut versuchen",

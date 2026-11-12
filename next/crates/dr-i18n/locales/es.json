@@ -500,6 +500,7 @@
     "format": "Formato",
     "loadFailed": "No se pudieron leer los capítulos. Vuelve a intentarlo.",
     "loading": "Leyendo capítulos…",
+    "manuscript": "Manuscrito",
     "menu": "Exportar manuscrito",
     "removeCover": "Quitar",
     "retry": "Reintentar",

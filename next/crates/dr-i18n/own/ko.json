@@ -81,6 +81,9 @@
     "title": "제목",
     "unset": "설정 안 됨"
   },
+  "manuscriptExport": {
+    "manuscript": "원고"
+  },
   "positionLink": {
     "copied": "위치 링크를 복사했습니다"
   },

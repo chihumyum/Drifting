@@ -491,6 +491,7 @@
     "format": "格式",
     "loadFailed": "無法讀取章節，請重試。",
     "loading": "正在讀取章節…",
+    "manuscript": "成書",
     "menu": "匯出書稿",
     "removeCover": "移除",
     "retry": "重試",

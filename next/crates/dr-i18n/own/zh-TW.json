@@ -81,6 +81,9 @@
     "title": "標題",
     "unset": "未設定"
   },
+  "manuscriptExport": {
+    "manuscript": "成書"
+  },
   "positionLink": {
     "copied": "已複製位置連結"
   },

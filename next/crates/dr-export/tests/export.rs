@@ -247,6 +247,7 @@ fn chapter_prose_becomes_manuscript_blocks() {
         &e.ws,
         &b.id,
         &Options {
+            manuscript: None,
             chapters: None,
             act_titles: true,
             chapter_titles: true,
@@ -368,6 +369,7 @@ fn a_chosen_set_keeps_book_order_and_the_title_switches() {
         &e.ws,
         &b.id,
         &Options {
+            manuscript: None,
             chapters: Some(vec![b.voyage.clone(), b.cut.clone(), b.prologue.clone()]),
             act_titles: false,
             chapter_titles: false,
@@ -475,6 +477,7 @@ fn the_lite_seed_exports_in_every_format() {
         &ws,
         &book,
         &Options {
+            manuscript: None,
             chapters: None,
             act_titles: true,
             chapter_titles: true,

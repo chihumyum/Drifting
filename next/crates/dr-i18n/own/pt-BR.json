@@ -88,6 +88,9 @@
     "title": "Título",
     "unset": "Não definido"
   },
+  "manuscriptExport": {
+    "manuscript": "Manuscrito"
+  },
   "positionLink": {
     "copied": "Link de posição copiado"
   },
