@@ -1,6 +1,6 @@
-//! The Stats tab and the commits to the book document that are not its
-//! content: a writing day (this tab shows them) and a saved entry checkpoint
-//! (it does not).
+//! The Stats tab and the writes beside the book that are not its content: a
+//! writing day in `stats:<book>` (this tab shows them) and a saved entry
+//! checkpoint in `checkpoints:<book>` (it does not).
 
 use std::time::{Duration, Instant};
 

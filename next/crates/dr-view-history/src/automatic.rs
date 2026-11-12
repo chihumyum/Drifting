@@ -101,8 +101,9 @@ fn capture(
 /// tree or a collection of entry-owned records. Only then does the worker
 /// look at the book's entries (one pass over all of them).
 ///
-/// Book counters (the writing days, once a minute), saved checkpoints,
-/// comments and shared templates do not change entry-owned content. In
+/// The writing days (once a minute) and saved checkpoints, in the two
+/// documents beside the book, comments and shared templates do not change
+/// entry-owned content. In
 /// particular they must not materialize every entry's lazy body as a side
 /// effect.
 fn concerns_entries(e: &dr_store::DocEvent) -> bool {

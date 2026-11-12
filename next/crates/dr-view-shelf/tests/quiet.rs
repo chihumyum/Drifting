@@ -1,6 +1,7 @@
-//! The bookshelf and the commits to a book's document that are not its
-//! content: a writing day (the heat map and each card's last thirty days
-//! show them) and a saved entry checkpoint (nothing on the shelf does).
+//! The bookshelf and the writes beside a book that are not its content: a
+//! writing day in `stats:<book>` (the heat map and each card's last thirty
+//! days show them) and a saved entry checkpoint in `checkpoints:<book>`
+//! (nothing on the shelf does).
 
 use std::time::{Duration, Instant};
 
