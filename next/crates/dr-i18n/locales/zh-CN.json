@@ -662,6 +662,9 @@
       "preserved_other": "{{count}} 个改过的文件另存到了 .drifting/preserved",
       "source": "Markdown 文件夹"
     },
+    "notice": {
+      "source": "公告"
+    },
     "organize": {
       "source": "Agent"
     },

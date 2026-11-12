@@ -1228,6 +1228,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "공지",
+      "personal": "메시지"
     }
   },
   "paperSync": {
