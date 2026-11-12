@@ -4,14 +4,14 @@ expression: registry().table()
 ---
 asset.get                    query    shared   Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).
 asset.put                    command  book     Record an imported asset's metadata in the book (written once; the bytes are in storage).
-book.get                     query    shared   Read v3 book metadata and word targets; aggregate counts use the v3 statistics adapter.
+book.get                     query    shared   Read book metadata and word targets; aggregate counts use the statistics adapter.
 book.list                    query    shared   List the library's books (trashed ones when asked).
 book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.
 book.purge_expired           command  library  Delete for good every book whose 30 days in Recently Deleted are over (the shelf runs it a while after it opens, so a restore made on another device can arrive first). Cannot be undone.
 book.restore                 command  book     Bring a book back from the trash.
 book.shelf                   query    shared   Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.
 book.trash                   command  book     Move a book to the trash (restorable; storage deletes it for good later).
-book.update                  command  book     Update selected v3 book metadata fields without replacing other book data.
+book.update                  command  book     Update selected book metadata fields without replacing other book data.
 book.writing_days            query    shared   A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
 comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.
@@ -19,97 +19,96 @@ comment.delete               command  book     Delete a comment or TODO (its rel
 comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.update               command  book     Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
-entry.create                 command  book     Create a v3 entry with its template, residence, membership and initial module content.
-entry.get                    query    shared   Read a v3 entry including retained module values.
-entry.list                   query    shared   Find v3 entries or list the children of a level in manuscript order.
-entry.move                   command  book     Move a v3 entry's residence and manuscript position.
-entry.restore                command  book     Restore a v3 resident subtree from trash.
-entry.trash                  command  book     Trash a v3 resident subtree while keeping entries that only belong to its levels.
-entry.update                 command  book     Rename a v3 entry, switch its template or change level overrides without deleting retained content.
-entry_history.restore        command  book     Restore selected v3 entry metadata or structural records from a snapshot as a new undoable commit.
-entry_history.version        query    shared   Read the current v3 book version for per-entry snapshot restoration.
-entry_relation_type.delete   command  book     Delete an unused unlocked v3 relation type.
-entry_relation_type.list     query    shared   List relation types available to v3 entry modules.
-entry_relation_type.put      command  book     Create or edit a v3 relation type with endpoint and template restrictions.
-entry_snapshot.capture       command  book     Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.
-entry_snapshot.create        command  book     Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.
+entry.create                 command  book     Create an entry with its template, switch, residence, membership and initial module content.
+entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
+entry.list                   query    shared   Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
+entry.move                   command  book     Move an entry's residence and manuscript position; the new residence is the root or a live entry whose switch is on.
+entry.restore                command  book     Restore an entry and what lives under it from trash.
+entry.set_level              command  book     Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on.
+entry.trash                  command  book     Trash an entry with what lives under it, keeping entries that only belong to it.
+entry.update                 command  book     Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
+entry_history.restore        command  book     Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit.
+entry_history.version        query    shared   Read the current book version for per-entry snapshot restoration.
+entry_relation_type.delete   command  book     Delete an unused unlocked relation type.
+entry_relation_type.list     query    shared   List relation types available to entry modules.
+entry_relation_type.put      command  book     Create or edit a relation type with endpoint and template restrictions.
+entry_snapshot.capture       command  book     Capture changed entry content periodically or on close using the existing history interval; unchanged content is skipped.
+entry_snapshot.create        command  book     Save a complete entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.
 entry_snapshot.create_with_receipt command  book     Save a complete entry checkpoint and return its exact committed versions for a guarded host write. Never infer these versions from a later observation.
-entry_snapshot.list          query    shared   List complete checkpoints of one v3 entry, newest first.
+entry_snapshot.list          query    shared   List complete checkpoints of one entry, newest first.
 entry_snapshot.preview       query    shared   Read all historical entry content and current version guards for an atomic restore.
 entry_snapshot.restore       command  book     Atomically restore all owned content of one entry with required version guards, preserving a complete pre-restore checkpoint.
-entry_template.delete        command  book     Delete an unused v3 template without deleting its retained prose documents.
-entry_template.list          query    shared   List the templates and module definitions of a v3 book.
-entry_template.put           command  book     Create or replace a v3 template definition while retaining existing entry content.
-entry_template.put_module    command  book     Add or update a module definition on a v3 template.
-entry_template.remove_module command  book     Remove a v3 module definition while retaining values and prose on existing entries.
+entry_template.delete        command  book     Delete an unused template without deleting its retained prose documents.
+entry_template.list          query    shared   List the templates of a book: modules, the switch's default, linkable, settings and actions.
+entry_template.put           command  book     Create or replace a template definition (any modules, the switch's default, linkable, settings, actions) while retaining existing entry content and switches.
+entry_template.put_module    command  book     Add or update a module definition of any kind on a template.
+entry_template.remove_module command  book     Remove a module definition while retaining values and prose on existing entries.
 fact.list                    query    shared   List the book's project facts (项目设定), in order.
 fact.put                     command  book     Add a project fact or change one (key, value, position).
 fact.remove                  command  book     Remove a project fact.
 history.points               query    shared   List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
 history.preview              query    shared   Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
 history.restore_point        command  book     Restore one material note and its metadata from history; entry bodies require complete-entry snapshots.
-level.get                    query    shared   Read resolved v3 level settings, resident children and accepted members.
-level.list                   query    shared   Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot.
 material.create              command  book     Add a material: a text note, or an image or PDF whose asset is registered.
 material.delete              command  book     Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it).
 material.list                query    shared   List materials in order, optionally of one folder.
 material.move                command  book     Move a material in the list (only its own position changes).
-material.set_entry_link      command  book     Add or remove one built-in association from a material to a live v3 entry, preserving every other relation.
+material.set_entry_link      command  book     Add or remove one built-in association from a material to a live entry, preserving every other relation.
 material.update              command  book     Change a material's title, description, folder or TODO projection.
 material_folder.create       command  book     Create a material folder.
 material_folder.delete       command  book     Delete a material folder: its sub-folders and materials move up to its parent.
 material_folder.list         query    shared   List material folders (素材夹), parents before children.
 material_folder.update       command  book     Rename or move a material folder.
-membership.add               command  book     Add or order a v3 membership without moving its residence.
-membership.list              query    shared   List valid v3 memberships in a book.
-membership.primary           command  book     Choose an existing v3 membership as primary, or clear the primary membership.
-membership.remove            command  book     Remove a v3 membership and any timeline placements left without a lane.
-membership.restore           command  book     Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views.
+membership.add               command  book     Add or order a membership without moving its residence.
+membership.list              query    shared   List valid memberships in a book.
+membership.primary           command  book     Choose an existing membership as primary, or clear the primary membership.
+membership.remove            command  book     Remove a membership and any timeline placements left without a lane.
+membership.restore           command  book     Restore the selected effects of a membership cancellation without replacing entries or timeline views.
 memory.add                   command  book     Add a Project Memory entry (plain text; takes effect at once).
 memory.list                  query    shared   List the book's Project Memory entries.
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
-module.edit_kv               command  book     Change the key or the value of one key/value row of a v3 module, leaving what is not named as it is.
-module.edit_patch            command  book     Change the title or the body of one v3 patch record, leaving what is not named as it is.
-module.list                  query    shared   List current and retained v3 modules and their registered prose documents.
-module.prose_document        command  book     Initialize a v3 prose module or level description and return its document ID.
-module.put_grid              command  book     Replace the rows, columns, cells and size of one v3 plot module.
-module.put_kv                command  book     Add or update an ordered key/value row in a v3 module.
-module.put_patch             command  book     Create or edit the text of a v3 patch module record, preserving its source reference.
-module.put_relation          command  book     Associate a v3 entry with a live endpoint through its relations module.
-module.read                  query    shared   Read a current or retained v3 module and its structured content.
-module.read_prose            query    shared   Read a v3 prose module, level description or template prose with block IDs and version.
-module.remove_kv             command  book     Remove a key/value row from a v3 module.
-module.remove_patch          command  book     Remove one v3 patch record without deleting relations or other entries.
-module.remove_relation       command  book     Remove one relation projected in a v3 entry's relations module.
-module.replace_prose         command  book     Replace an exact passage in a v3 module or level description, addressed by block ID.
-module.set_field             command  book     Set or clear a typed field value in a v3 entry module.
-module.set_prose             command  book     Write paragraphs of a v3 prose module, level description or template prose.
-project.create               command  library  Create a v3 project using the novel template.
+module.edit_kv               command  book     Change the key or the value of one key/value row of a module, leaving what is not named as it is.
+module.edit_patch            command  book     Change the title or the body of one patch record, leaving what is not named as it is.
+module.list                  query    shared   List an entry's current and retained modules and their registered prose documents.
+module.prose_document        command  book     Initialize an entry's or a template's prose module and return its document ID.
+module.put_grid              command  book     Replace the rows, columns, cells and size of one plot module.
+module.put_kv                command  book     Add or update an ordered key/value row in a module.
+module.put_patch             command  book     Create or edit the text of a patch module record, preserving its source reference.
+module.put_relation          command  book     Associate an entry with a live endpoint through its relations module.
+module.read                  query    shared   Read a current or retained module and its structured content; a children module reads what lies below the entry.
+module.read_prose            query    shared   Read an entry's or a template's prose module with block IDs and version.
+module.remove_kv             command  book     Remove a key/value row from a module.
+module.remove_patch          command  book     Remove one patch record without deleting relations or other entries.
+module.remove_relation       command  book     Remove one relation projected in an entry's relations module.
+module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
+module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
+module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module.
+project.create               command  library  Create a project using the novel template.
 prose.link                   command  book     Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
 prose.unlink                 command  book     Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
-recent.list                  query    shared   List this device's live v3 pages, retaining each entry's selected module.
-recent.touch                 command  book     Record a v3 entry and optional module, or a material, on this device without an undo step.
+recent.list                  query    shared   List this device's live pages, retaining each entry's selected module.
+recent.touch                 command  book     Record an entry and optional module, or a material, on this device without an undo step.
 relation.create              command  book     Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
 relation.delete              command  book     Delete one canonical relation without deleting either endpoint.
 relation.list                query    shared   List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
-timeline_view.add_lane       command  book     Add one live lane to a v3 view without replacing existing lane records or changing memberships.
-timeline_view.delete         command  book     Delete a v3 timeline view while retaining lane entries and memberships.
-timeline_view.list           query    shared   List v3 timeline views with their effective lanes, placements and time pins.
-timeline_view.move_lane      command  book     Change only one stored lane's order in a v3 view, preserving hidden data and other lane positions.
-timeline_view.place          command  book     Place or move a v3 entry in a timeline, optionally joining a lane in the same commit.
-timeline_view.put            command  book     Create or edit a v3 timeline view, including its independent lane order.
-timeline_view.put_pin        command  book     Add or edit a v3 time pin, optionally bound to any live entry.
+timeline_view.add_lane       command  book     Add one live lane to a view without replacing existing lane records or changing memberships.
+timeline_view.delete         command  book     Delete a timeline view while retaining lane entries and memberships.
+timeline_view.list           query    shared   List timeline views with their effective lanes, placements and time pins.
+timeline_view.move_lane      command  book     Change only one stored lane's order in a view, preserving hidden data and other lane positions.
+timeline_view.place          command  book     Place or move an entry in a timeline, optionally joining a lane in the same commit.
+timeline_view.put            command  book     Create or edit a timeline view, including its independent lane order.
+timeline_view.put_pin        command  book     Add or edit a time pin, optionally bound to any live entry.
 timeline_view.remove         command  book     Remove an entry from a timeline lane and prune positions where it has no remaining lane.
-timeline_view.remove_lane    command  book     Remove one v3 view lane and newly orphaned visible positions, retaining hidden records and all memberships.
-timeline_view.remove_pin     command  book     Remove a time pin from a v3 timeline view.
-timeline_view.rename         command  book     Rename a v3 timeline view without changing its lanes, positions or pins.
-timeline_view.restore_fields command  book     Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view.
-timeline_view.set_lane_act_track command  book     Switch whether a stored lane in a v3 view is displayed as a top act track.
+timeline_view.remove_lane    command  book     Remove one view lane and newly orphaned visible positions, retaining hidden records and all memberships.
+timeline_view.remove_pin     command  book     Remove a time pin from a timeline view.
+timeline_view.rename         command  book     Rename a timeline view without changing its lanes, positions or pins.
+timeline_view.restore_fields command  book     Restore selected stored timeline fields for undo or redo without replacing the rest of a view.
+timeline_view.set_lane_act_track command  book     Switch whether a stored lane in a view is displayed as a top act track.
 todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.
 writing_day.record           command  book     Set this device's words for one day of a book (the writing-day recorder; not undoable).

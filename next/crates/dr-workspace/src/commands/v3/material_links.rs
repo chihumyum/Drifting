@@ -16,7 +16,7 @@ pub(crate) fn register(r: &mut Registry) {
 
 op! {
     SetEntryLink = "material.set_entry_link", Write, Book,
-    "Add or remove one built-in association from a material to a live v3 entry, preserving every other relation.",
+    "Add or remove one built-in association from a material to a live entry, preserving every other relation.",
     fn(cx, input: SetEntryLinkIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let view = slot.reader_v3.view();
@@ -28,10 +28,9 @@ op! {
             return Err(WsError::not_found("material", &input.material));
         }
         let entry_id: EntryId = pid("entry", &input.entry)?;
-        let templates = view.templates_map();
-        let entries: BTreeMap<_, _> = view.entries_raw().into_iter().map(|e| (e.id.clone(), e)).collect();
+        let entries = view.entry_headers_with(&BTreeMap::new());
         if entries.get(&entry_id).is_none_or(|e| e.is_trashed())
-            || m::effective_ancestors(&entries, &templates, &entry_id).iter()
+            || m::effective_ancestors(&entries, &entry_id).iter()
                 .any(|id| entries.get(id).is_none_or(|e| e.is_trashed())) {
             return Err(WsError::not_found("live entry", &input.entry));
         }

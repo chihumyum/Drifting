@@ -21,7 +21,7 @@ pub struct RestoreIn {
 
 op! {
     MembershipRestore="membership.restore",Write,Book,
-    "Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views.",
+    "Restore the selected effects of a membership cancellation without replacing entries or timeline views.",
     fn(cx,input:RestoreIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let host: EntryId = pid("host", &input.host)?;
@@ -84,10 +84,11 @@ op! {
                 return Err(WsError::Conflict("membership cancellation fields changed after the recorded write".into()));
             }
             if old_membership.is_some() {
-                let mut memberships = v.memberships_raw();
+                let before = v.graph();
+                let mut memberships = before.memberships.clone();
                 memberships.retain(|m| m.host != host || m.member != member);
                 memberships.extend(restored_memberships);
-                graph_ok(&v.entries_map(), &v.templates_map(), &memberships)?;
+                changes_ok(&before, &BookGraphV3 { memberships, ..before.clone() })?;
             }
             if let Some(old) = &old_membership {
                 tx.restore_membership_snapshot(&host, &member, old.as_ref())?;

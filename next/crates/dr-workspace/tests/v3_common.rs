@@ -438,12 +438,12 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
         .find(|v| v["template"] == "tpl-manuscript")
         .unwrap()["id"]
         .clone();
-    e.call("module.set_prose",json!({"book":b,"owner":root,"module":"about","paragraphs":[{"text":"Synthetic description"}]}));
-    e.call("comment.create",json!({"book":b,"target":{"kind":"entry","id":root},"module":"about","range":[0,9],"body":"Level comment"}));
+    e.call("module.set_prose",json!({"book":b,"owner":root,"module":"mod-description","paragraphs":[{"text":"Synthetic description"}]}));
+    e.call("comment.create",json!({"book":b,"target":{"kind":"entry","id":root},"module":"mod-description","range":[0,9],"body":"Level comment"}));
     assert_eq!(
         e.out(
             "comment.list",
-            json!({"book":b,"target":{"kind":"entry","id":root},"module":"about"})
+            json!({"book":b,"target":{"kind":"entry","id":root},"module":"mod-description"})
         )[0]["quote"],
         "Synthetic"
     );

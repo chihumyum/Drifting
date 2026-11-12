@@ -123,32 +123,32 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
     let m = slot.reader_v3.view().meta();
     let lib = cx.workspace().library();
     let v = slot.reader_v3.view();
-    let entries = v.entries_map();
-    let templates = v.templates_map();
-    let levels = dr_model::v3::effective_manuscript_levels(&entries, &templates);
+    let structure = v.structure_snapshot();
+    let entries = structure.entries_map();
+    let templates = structure.templates_map();
     let live = |e: &&dr_model::v3::Entry| {
         !e.is_trashed()
-            && dr_model::v3::effective_ancestors(&entries, &templates, &e.id)
+            && dr_model::v3::effective_ancestors(entries, &e.id)
                 .iter()
                 .all(|id| entries.get(id).is_some_and(|a| !a.is_trashed()))
     };
-    let leaves: Vec<_> = entries
-        .values()
-        .filter(live)
-        .filter(|e| {
-            e.is_leaf(&templates)
-                && dr_model::v3::effective_ancestors(&entries, &templates, &e.id)
-                    .iter()
-                    .any(|id| levels.contains(id))
-        })
+    // The manuscript sequence: the book's words are its book prose, its
+    // chapters the entries it numbers.
+    let manuscript: Vec<_> = structure
+        .manuscript()
+        .into_iter()
+        .flat_map(|p| p.entries)
+        .collect();
+    let numbered: std::collections::BTreeSet<_> = manuscript
+        .iter()
+        .filter(|e| e.ordinal.is_some())
+        .map(|e| e.entry.id.clone())
         .collect();
     let mut words = Some(0u64);
-    for doc in leaves.iter().flat_map(|e| {
-        e.effective_template(&templates)
-            .into_iter()
-            .flat_map(|t| t.prose_modules())
-            .map(|m| format!("body:{}/{}", e.id, m.id))
-    }) {
+    for doc in manuscript
+        .iter()
+        .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
+    {
         let count = if lib.doc_info(&doc)?.is_none() {
             Some(0)
         } else {
@@ -185,16 +185,16 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
             .find(|f| f.key.trim() == "副标题")
             .map(|f| f.value.trim().to_owned())
             .filter(|v| !v.is_empty()),
-        chapters: leaves.len() as u32,
+        chapters: numbered.len() as u32,
         storylines: entries
             .values()
             .filter(live)
-            .filter(|e| e.effective_template(&templates).is_some_and(|t| t.lane))
+            .filter(|e| e.is_lane(templates))
             .count() as u32,
         elements: entries
             .values()
             .filter(live)
-            .filter(|e| e.is_leaf(&templates) && !leaves.iter().any(|leaf| leaf.id == e.id))
+            .filter(|e| !e.is_level() && !numbered.contains(&e.id))
             .count() as u32,
         words,
         updated_at,

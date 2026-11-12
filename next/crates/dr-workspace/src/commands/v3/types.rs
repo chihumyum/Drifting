@@ -39,6 +39,10 @@ pub struct ModuleConfig {
     /// For `prose` modules: whether checklist items project into TODOs.
     #[serde(default)]
     pub task_todos: bool,
+    /// For `prose` modules: whether this prose is part of the book (`成书`:
+    /// export, the book's word count, chapter numbering). On by default.
+    #[serde(default = "default_true")]
+    pub in_book: bool,
     /// For `fields` modules: ordered field definitions.
     #[serde(default)]
     pub defs: Vec<FieldDef>,
@@ -99,14 +103,11 @@ pub struct LevelSettings {
     /// Default template when creating a new entry under this level (`None` = blank).
     #[serde(default)]
     pub default_template: Option<String>,
-    /// Allowed templates for entries placed or accepted into this level.
-    /// Empty means all templates are allowed.
-    #[serde(default)]
-    pub allow: Vec<String>,
     /// Default workspace presentation mode for entries in this level.
     #[serde(default)]
     pub display: String,
-    /// Whether leaf entries residing in or belonging to this level participate in auto-linking.
+    /// Whether entries residing in or belonging to this level participate in
+    /// auto-linking (when their template is `linkable`).
     #[serde(default)]
     pub auto_link: bool,
     /// Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).
@@ -117,12 +118,15 @@ pub struct LevelSettings {
     /// `None` means they reside under this level itself.
     #[serde(default)]
     pub home: Option<String>,
-    /// Whether leaf entries under this level in tree order form a manuscript (`成书`).
+    /// Whether what lives under this level in tree order forms a manuscript (`成书`).
     #[serde(default)]
     pub is_manuscript: bool,
     /// Editor formatting shortcut profile for prose under this level (`格式快捷输入`).
     #[serde(default)]
     pub format_shortcuts: String,
+    /// Whether this level is a timeline swimlane (never inherited).
+    #[serde(default)]
+    pub lane: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -134,9 +138,6 @@ pub struct LevelSettingsOverride {
         deserialize_with = "crate::commands::double_option"
     )]
     pub default_template: Option<Option<String>>,
-    /// `None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).
-    #[serde(default)]
-    pub allow: Option<Vec<String>>,
     #[serde(default)]
     pub display: Option<String>,
     #[serde(default)]
@@ -154,6 +155,9 @@ pub struct LevelSettingsOverride {
     pub is_manuscript: Option<bool>,
     #[serde(default)]
     pub format_shortcuts: Option<String>,
+    /// `None` leaves it to the template (on an entry) or off (on a template).
+    #[serde(default)]
+    pub lane: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -185,9 +189,6 @@ pub struct TemplateVerb {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct EntryTemplate {
     pub id: String,
-    /// `level` (层级模板) or `leaf` (叶子模板).
-    #[serde(default = "leaf_kind")]
-    pub kind: String,
     pub name: String,
     /// Optional badge/icon mark (`记号`).
     #[serde(default)]
@@ -198,17 +199,21 @@ pub struct EntryTemplate {
     /// Skill-style Agent instructions (`写给帮手的说明`).
     #[serde(default)]
     pub agent: Option<TemplateAgentConfig>,
-    /// Ordered module manifest (`modules`).
-    /// For `"level"`, only `fields` and `kv` modules are allowed.
+    /// Ordered module manifest (`modules`), any kinds.
     #[serde(default)]
     pub modules: Vec<ModuleSpec>,
-    /// Level settings (`settings`, only used when `kind == String::Level`).
+    /// Whether a new entry of this template starts with its switch on.
+    /// Changing it never touches existing entries.
+    #[serde(default)]
+    pub level: bool,
+    /// Whether entries of this template take part in auto-linking.
+    #[serde(default = "default_true")]
+    pub linkable: bool,
+    /// Settings for what lives below entries of this template whose switch
+    /// is on (`lane` included); kept whatever `level` says.
     #[serde(default)]
     pub settings: LevelSettingsOverride,
-    /// Swimlane toggle (`lane`, only used when `kind == String::Level`).
-    #[serde(default)]
-    pub lane: bool,
-    /// Declared actions (`verbs`, only used when `kind == String::Level`).
+    /// Declared actions, shown on entries of this template whose switch is on.
     #[serde(default)]
     pub verbs: Vec<TemplateVerb>,
     #[serde(default)]
@@ -239,7 +244,11 @@ pub struct Entry {
     pub title: String,
     /// The template shaping this entry (`None` = untemplated entry).
     pub template: Option<String>,
-    /// Per-entry level setting overrides (only meaningful on level entries).
+    /// The entry's own switch (`层级`): whether entries can live under it.
+    #[serde(default)]
+    pub level: bool,
+    /// Overrides of the settings for what lives below (kept, but not used,
+    /// while the switch is off).
     pub overrides: Option<LevelSettingsOverride>,
     /// Values of `fields` modules: `module_id -> (field_id -> value)`.
     pub fields: BTreeMap<String, BTreeMap<String, FieldValue>>,
@@ -251,10 +260,63 @@ pub struct Entry {
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
     pub deleted_at: Option<i64>,
-    /// Set by readers when this leaf participates in auto-linking and its
-    /// title or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).
+    /// Set by readers when this entry participates in auto-linking and its
+    /// title or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).
     #[serde(default)]
     pub name_conflict: Option<String>,
+    /// What lies below an entry whose switch is on (`entry.get`, and
+    /// `entry.list` with `below`): resolved settings with where each comes
+    /// from, resident children and accepted members. Absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub below: Option<Box<Below>>,
+}
+
+/// What lies below a level (`下面`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Below {
+    pub settings: LevelSettings,
+    /// Where each resolved setting comes from.
+    pub sources: BTreeMap<String, SettingSource>,
+    /// Live entries living under it, in manuscript order.
+    pub children: Vec<Entry>,
+    /// Live entries validly belonging to it, in the memberships' order.
+    pub members: Vec<Entry>,
+}
+
+/// Where one resolved setting comes from (the same precedence as its value).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SettingSource {
+    Default,
+    Override {
+        entry: String,
+    },
+    Template {
+        entry: String,
+        template: String,
+    },
+    /// `accept` is on because the level is a swimlane.
+    Lane {
+        entry: String,
+    },
+}
+
+impl From<&dr_model::v3::LevelSettingSource> for SettingSource {
+    fn from(s: &dr_model::v3::LevelSettingSource) -> Self {
+        match s {
+            dr_model::v3::LevelSettingSource::Default => Self::Default,
+            dr_model::v3::LevelSettingSource::Override { entry } => Self::Override {
+                entry: entry.to_string(),
+            },
+            dr_model::v3::LevelSettingSource::Template { entry, template } => Self::Template {
+                entry: entry.to_string(),
+                template: template.to_string(),
+            },
+            dr_model::v3::LevelSettingSource::Lane { entry } => Self::Lane {
+                entry: entry.to_string(),
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -326,15 +388,13 @@ fn default_true() -> bool {
 fn default_plot_lines_u32() -> u32 {
     3
 }
-fn leaf_kind() -> String {
-    "leaf".into()
-}
 
 impl Default for ModuleConfig {
     fn default() -> Self {
         Self {
             show_outline: false,
             task_todos: false,
+            in_book: true,
             defs: Vec::new(),
             aliases_field: None,
             color_field: None,
@@ -413,6 +473,7 @@ impl From<&dr_model::v3::ModuleConfig> for ModuleConfig {
         Self {
             show_outline: v.show_outline,
             task_todos: v.task_todos,
+            in_book: v.in_book,
             defs: v.defs.iter().map(Into::into).collect(),
             aliases_field: v.aliases_field.clone(),
             color_field: v.color_field.clone(),
@@ -453,13 +514,13 @@ impl From<&dr_model::v3::LevelSettings> for LevelSettings {
     fn from(v: &dr_model::v3::LevelSettings) -> Self {
         Self {
             default_template: v.default_template.as_ref().map(ToString::to_string),
-            allow: v.allow.iter().map(ToString::to_string).collect(),
             display: v.display.as_str().to_owned(),
             auto_link: v.auto_link,
             accept: v.accept,
             home: v.home.as_ref().map(ToString::to_string),
             is_manuscript: v.is_manuscript,
             format_shortcuts: v.format_shortcuts.as_str().to_owned(),
+            lane: v.lane,
         }
     }
 }
@@ -471,16 +532,13 @@ impl From<&dr_model::v3::LevelSettingsOverride> for LevelSettingsOverride {
                 .default_template
                 .as_ref()
                 .map(|o| o.as_ref().map(ToString::to_string)),
-            allow: v
-                .allow
-                .as_ref()
-                .map(|xs| xs.iter().map(ToString::to_string).collect()),
             display: v.display.as_ref().map(|d| d.as_str().to_owned()),
             auto_link: v.auto_link,
             accept: v.accept,
             home: v.home.as_ref().map(|o| o.as_ref().map(ToString::to_string)),
             is_manuscript: v.is_manuscript,
             format_shortcuts: v.format_shortcuts.as_ref().map(|f| f.as_str().to_owned()),
+            lane: v.lane,
         }
     }
 }
@@ -511,14 +569,14 @@ impl From<&dr_model::v3::EntryTemplate> for EntryTemplate {
     fn from(v: &dr_model::v3::EntryTemplate) -> Self {
         Self {
             id: v.id.to_string(),
-            kind: v.kind.as_str().to_owned(),
             name: v.name.clone(),
             mark: v.mark.clone(),
             color: v.color.clone(),
             agent: v.agent.as_ref().map(Into::into),
             modules: v.modules.iter().map(Into::into).collect(),
+            level: v.level,
+            linkable: v.linkable,
             settings: (&v.settings).into(),
-            lane: v.lane,
             verbs: v.verbs.iter().map(Into::into).collect(),
             deleted_at: v.deleted_at.map(|t| t.0),
         }
@@ -543,6 +601,7 @@ impl From<&dr_model::v3::Entry> for Entry {
             pos: v.pos.clone(),
             title: v.title.clone(),
             template: v.template.as_ref().map(ToString::to_string),
+            level: v.level,
             overrides: v.overrides.as_ref().map(Into::into),
             fields: v
                 .fields
@@ -567,6 +626,7 @@ impl From<&dr_model::v3::Entry> for Entry {
             updated_at: v.updated_at.map(|t| t.0),
             deleted_at: v.deleted_at.map(|t| t.0),
             name_conflict: v.name_conflict.as_ref().map(ToString::to_string),
+            below: None,
         }
     }
 }

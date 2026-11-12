@@ -355,7 +355,8 @@ fn every_registered_entry_is_exercised_here() {
     // Keep this list in step with the registry: a new command needs a test
     // (here, in editor.rs for what the editor calls, in shelf.rs for the
     // shelf, recent pages and time pins, in points.rs for snapshot history,
-    // in workshop.rs for plot grids, patches and templates).
+    // in workshop.rs for plot grids, patches and templates, in levels.rs for
+    // the switch).
     let srcs = [
         include_str!("commands.rs"),
         include_str!("project_shared.rs"),
@@ -366,6 +367,7 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("autolink.rs"),
         include_str!("workshop.rs"),
         include_str!("kernel_v3.rs"),
+        include_str!("levels.rs"),
         include_str!("entry_snapshots.rs"),
         include_str!("v3_common.rs"),
         include_str!("v3_home.rs"),

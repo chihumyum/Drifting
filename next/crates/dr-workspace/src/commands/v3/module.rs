@@ -51,9 +51,6 @@ fn modules(cx: &Cx<'_>, s: &BookSlot, e: &m::Entry) -> Result<Vec<Summary>> {
         .chain(e.fields.keys().cloned())
         .chain(e.kv.keys().cloned())
         .collect();
-    if e.is_level(&templates) {
-        ids.insert(m::level_about_module_id());
-    }
     ids.extend(
         v.patches()
             .iter()
@@ -78,8 +75,7 @@ fn modules(cx: &Cx<'_>, s: &BookSlot, e: &m::Entry) -> Result<Vec<Summary>> {
     ids.into_iter()
         .map(|id| {
             let definition = active.iter().find(|m| m.id == id).cloned();
-            let retained = definition.is_none()
-                && !(e.is_level(&templates) && id == m::level_about_module_id());
+            let retained = definition.is_none();
             Ok(Summary {
                 id: id.to_string(),
                 definition: definition.map(convert).transpose()?,
@@ -90,7 +86,7 @@ fn modules(cx: &Cx<'_>, s: &BookSlot, e: &m::Entry) -> Result<Vec<Summary>> {
         .collect()
 }
 op! {
-    ModuleList="module.list",Read,Shared,"List current and retained v3 modules and their registered prose documents.",fn(cx,input:EntityIn)->Vec<Summary> {
+    ModuleList="module.list",Read,Shared,"List an entry's current and retained modules and their registered prose documents.",fn(cx,input:EntityIn)->Vec<Summary> {
         let s = cx.book_v3(&input.book)?;
         let e = live(&s.reader_v3.view(), &input.id)?;
         modules(cx, &s, &e)
@@ -104,9 +100,13 @@ pub struct Data {
     pub patches: Vec<content::Patch>,
     pub grid: Option<content::Grid>,
     pub relations: Vec<content::Relation>,
+    /// A `children` module (`下面的条目`) of an entry whose switch is on:
+    /// what lies below it, as `entry.get` gives it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub below: Option<Box<types::Below>>,
 }
 op! {
-    ModuleRead="module.read",Read,Shared,"Read a current or retained v3 module and its structured content.",fn(cx,input:In)->Data {
+    ModuleRead="module.read",Read,Shared,"Read a current or retained module and its structured content; a children module reads what lies below the entry.",fn(cx,input:In)->Data {
         read(cx, input)
     }
 }
@@ -128,6 +128,15 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
             .filter(|m| m.kind == m::ModuleKind::PlotGrid)
             .map(|m| content::grid(&v, &e.id, m))
     };
+    let below = if definition
+        .as_ref()
+        .is_some_and(|m| m.kind == m::ModuleKind::Children)
+        && e.is_level()
+    {
+        super::entry::below(&v.structure_snapshot(), &e.id)
+    } else {
+        None
+    };
     let relations = if definition.is_some_and(|m| m.kind == m::ModuleKind::Relations) {
         convert(v.relations_of(&dr_model::shared::EntityRef {
             kind: dr_model::kind::EntityKind::Entry,
@@ -143,6 +152,7 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
         patches: convert(v.patches_of(&e.id, &id))?,
         grid,
         relations,
+        below,
     })
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -165,7 +175,7 @@ pub(super) fn field_ok(v: &BookViewV3<'_>, def: &m::FieldDef, value: &m::FieldVa
         (T::Select, V::Text(s)) => def.options.contains(s),
         (T::MultiSelect, V::List(xs)) => xs.iter().all(|s| def.options.contains(s)),
         (T::Aliases, V::List(_)) => true,
-        (T::EntityRef, V::Text(s)) => v.entry(&pid("entry", s)?).is_some_and(|e| {
+        (T::EntityRef, V::Text(s)) => v.entry_raw(&pid("entry", s)?).is_some_and(|e| {
             !e.is_trashed()
                 && def
                     .target_template
@@ -185,7 +195,7 @@ pub(super) fn field_ok(v: &BookViewV3<'_>, def: &m::FieldDef, value: &m::FieldVa
     }
 }
 op! {
-    FieldSet="module.set_field",Write,Book,"Set or clear a typed field value in a v3 entry module.",fn(cx,input:FieldIn)->Done {
+    FieldSet="module.set_field",Write,Book,"Set or clear a typed field value in an entry's fields module.",fn(cx,input:FieldIn)->Done {
         let s = cx.book_v3(&input.target.book)?;
         let v = s.reader_v3.view();
         let (mut e, module) = selected(&v, &input.target)?;
@@ -206,9 +216,17 @@ op! {
         } else {
             fields.insert(input.field.clone(), value.clone());
         }
-        let mut entries = v.entries_map();
-        entries.insert(e.id.clone(), e.clone());
-        graph_ok(&entries, &v.templates_map(), &v.memberships_raw())?;
+        // Only an alias field is a name the structural checks read.
+        if def.field_type == m::FieldType::Aliases
+            || module.config.aliases_field.as_deref() == Some(input.field.as_str())
+        {
+            let before = v.graph();
+            let mut after = before.clone();
+            if let Some(h) = after.entries.get_mut(&e.id) {
+                h.fields = e.fields.clone();
+            }
+            changes_ok(&before, &after)?;
+        }
         let id = e.id.clone();
         let field = rec(CollectionV3::Entries, &id).at(["fields", module.id.as_str(), &input.field]);
         let (_, at) = cx.write_book_v3(&s, Replaces::records([field]), move |t| {
@@ -239,7 +257,7 @@ pub struct KvPutIn {
     pub row: types::KvEntry,
 }
 op! {
-    KvPut="module.put_kv",Write,Book,"Add or update an ordered key/value row in a v3 module.",fn(cx,input:KvPutIn)->Done {
+    KvPut="module.put_kv",Write,Book,"Add or update an ordered key/value row in a module.",fn(cx,input:KvPutIn)->Done {
         let s = cx.book_v3(&input.target.book)?;
         let (e, module) = selected(&s.reader_v3.view(), &input.target)?;
         if module.kind != m::ModuleKind::KeyValue {
@@ -270,7 +288,7 @@ pub struct KvEditIn {
     pub value: Option<String>,
 }
 op! {
-    KvEdit="module.edit_kv",Write,Book,"Change the key or the value of one key/value row of a v3 module, leaving what is not named as it is.",fn(cx,input:KvEditIn)->types::KvEntry {
+    KvEdit="module.edit_kv",Write,Book,"Change the key or the value of one key/value row of a module, leaving what is not named as it is.",fn(cx,input:KvEditIn)->types::KvEntry {
         edit_kv(cx, input)
     }
 }
@@ -327,7 +345,7 @@ pub struct KvRemoveIn {
     pub row: String,
 }
 op! {
-    KvRemove="module.remove_kv",Write,Book,"Remove a key/value row from a v3 module.",fn(cx,input:KvRemoveIn)->Done {
+    KvRemove="module.remove_kv",Write,Book,"Remove a key/value row from a module.",fn(cx,input:KvRemoveIn)->Done {
         let s = cx.book_v3(&input.target.book)?;
         let (e, module) = selected(&s.reader_v3.view(), &input.target)?;
         if module.kind != m::ModuleKind::KeyValue {
@@ -369,10 +387,9 @@ pub(super) fn document(cx: &Cx<'_>, i: &ProseIn) -> Result<(Arc<BookSlot>, DocId
         let t = template_of(&v, &i.owner)?;
         let doc = template_doc(&s.book, &t.id, &mid)?;
         if !retained(&doc)?
-            && (!t.is_leaf()
-                || !t
-                    .module(&mid)
-                    .is_some_and(|m| m.kind == m::ModuleKind::Prose))
+            && !t
+                .module(&mid)
+                .is_some_and(|m| m.kind == m::ModuleKind::Prose)
         {
             return Err(WsError::invalid("template module is not prose"));
         }
@@ -382,15 +399,12 @@ pub(super) fn document(cx: &Cx<'_>, i: &ProseIn) -> Result<(Arc<BookSlot>, DocId
         let templates = v.templates_map();
         let doc = body_id(&e.id, &mid);
         if !retained(&doc)?
-            && !(e.is_level(&templates) && mid == m::level_about_module_id()
-                || e.effective_template(&templates).is_some_and(|t| {
-                    t.module(&mid)
-                        .is_some_and(|m| m.kind == m::ModuleKind::Prose)
-                }))
+            && !e.effective_template(&templates).is_some_and(|t| {
+                t.module(&mid)
+                    .is_some_and(|m| m.kind == m::ModuleKind::Prose)
+            })
         {
-            return Err(WsError::invalid(
-                "entry module is not prose or level description",
-            ));
+            return Err(WsError::invalid("entry module is not prose"));
         }
         doc
     };
@@ -399,7 +413,7 @@ pub(super) fn document(cx: &Cx<'_>, i: &ProseIn) -> Result<(Arc<BookSlot>, DocId
     Ok((s, doc))
 }
 op! {
-    ProseDocument="module.prose_document",Write,Book,"Initialize a v3 prose module or level description and return its document ID.",fn(cx,input:ProseIn)->Done {
+    ProseDocument="module.prose_document",Write,Book,"Initialize an entry's or a template's prose module and return its document ID.",fn(cx,input:ProseIn)->Done {
         let (s, doc) = document(cx, &input)?;
         if let DocId::Body(body)=&doc {
             let v=s.reader_v3.view();let e=live(&v,body.entry().as_str())?;
@@ -413,7 +427,7 @@ op! {
     }
 }
 op! {
-    ProseRead="module.read_prose",Read,Shared,"Read a v3 prose module, level description or template prose with block IDs and version.",fn(cx,input:ProseIn)->super::super::prose::ProseText {
+    ProseRead="module.read_prose",Read,Shared,"Read an entry's or a template's prose module with block IDs and version.",fn(cx,input:ProseIn)->super::super::prose::ProseText {
         let (_, doc) = document(cx, &input)?;
         if cx
             .workspace()
@@ -444,7 +458,7 @@ pub struct SetIn {
     pub paragraphs: Vec<super::super::prose_template::TemplateParagraph>,
 }
 op! {
-    ProseSet="module.set_prose",Write,Book,"Write paragraphs of a v3 prose module, level description or template prose.",fn(cx,input:SetIn)->Done {
+    ProseSet="module.set_prose",Write,Book,"Write paragraphs of an entry's or a template's prose module.",fn(cx,input:SetIn)->Done {
         let (s, doc) = document(cx, &input.target)?;
         for p in &input.paragraphs {
             if p.heading.is_some_and(|h| !(1..=3).contains(&h))
@@ -487,7 +501,7 @@ pub struct ReplaceIn {
     pub replace: String,
 }
 op! {
-    ProseReplace="module.replace_prose",Write,Book,"Replace an exact passage in a v3 module or level description, addressed by block ID.",fn(cx,input:ReplaceIn)->super::super::prose::Replaced {
+    ProseReplace="module.replace_prose",Write,Book,"Replace an exact passage in an entry's prose module, addressed by block ID.",fn(cx,input:ReplaceIn)->super::super::prose::Replaced {
         let (_, doc) = document(cx, &input.target)?;
         super::super::prose::ProseReplace::run(
             cx,
@@ -530,13 +544,10 @@ fn initialize_selected(
     only: Option<&ModuleId>,
 ) -> Result<()> {
     let t = e.effective_template(templates);
-    let mids: Vec<ModuleId> = if e.is_level(templates) {
-        vec![m::level_about_module_id()]
-    } else {
-        t.into_iter()
-            .flat_map(|t| t.prose_modules().map(|m| m.id.clone()))
-            .collect()
-    };
+    let mids: Vec<ModuleId> = t
+        .into_iter()
+        .flat_map(|t| t.prose_modules().map(|m| m.id.clone()))
+        .collect();
     for mid in bodies.keys() {
         if !mids.iter().any(|m| m.as_str() == mid) {
             return Err(WsError::invalid("initial body names a non-prose module"));
@@ -564,7 +575,7 @@ fn initialize_selected(
             continue;
         }
         let source = if !bodies.contains_key(mid.as_str()) {
-            if let Some(t) = t.filter(|t| t.is_leaf()) {
+            if let Some(t) = t {
                 let id = template_doc(&slot.book, &t.id, &mid)?;
                 if cx
                     .workspace()

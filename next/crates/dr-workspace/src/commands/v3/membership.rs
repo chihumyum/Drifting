@@ -15,7 +15,7 @@ pub struct In {
     pub member: String,
 }
 op! {
-    MembershipList="membership.list",Read,Shared,"List valid v3 memberships in a book.",fn(cx,input:BookIn)->Vec<types::Membership> {
+    MembershipList="membership.list",Read,Shared,"List valid memberships in a book.",fn(cx,input:BookIn)->Vec<types::Membership> {
         let s = cx.book_v3(&input.book)?;
         convert(s.reader_v3.view().memberships())
     }
@@ -28,7 +28,7 @@ pub struct AddIn {
     pub pos: Option<String>,
 }
 op! {
-    MembershipAdd="membership.add",Write,Book,"Add or order a v3 membership without moving its residence.",fn(cx,input:AddIn)->Done {
+    MembershipAdd="membership.add",Write,Book,"Add or order a membership without moving its residence.",fn(cx,input:AddIn)->Done {
         add(cx, input)
     }
 }
@@ -37,10 +37,9 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
     let v = s.reader_v3.view();
     let host = live(&v, &input.target.host)?.id;
     let member = live(&v, &input.target.member)?.id;
-    let entries = v.entries_map();
-    let templates = v.templates_map();
-    m::check_membership(&host, &member, &entries, &templates)?;
-    let mut ms = v.memberships_raw();
+    let before = v.graph();
+    m::check_membership(&host, &member, &before.entries, &before.templates)?;
+    let mut ms = before.memberships.clone();
     let existing = ms
         .iter()
         .find(|m| m.host == host && m.member == member)
@@ -62,7 +61,11 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
         pos: pos.clone(),
         created_at: created,
     });
-    graph_ok(&entries, &templates, &ms)?;
+    let after = BookGraphV3 {
+        memberships: ms,
+        ..before.clone()
+    };
+    changes_ok(&before, &after)?;
     let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         t.put_membership(&host, &member, pos.as_ref(), created)?;
         Ok(())
@@ -102,7 +105,7 @@ pub(super) fn removals(
         .collect()
 }
 op! {
-    MembershipRemove="membership.remove",Write,Book,"Remove a v3 membership and any timeline placements left without a lane.",fn(cx,input:In)->Done {
+    MembershipRemove="membership.remove",Write,Book,"Remove a membership and any timeline placements left without a lane.",fn(cx,input:In)->Done {
         let s = cx.book_v3(&input.book)?;
         let host: EntryId = pid("host", &input.host)?;
         let k = m::Membership::key(&host, &pid("member", &input.member)?);
@@ -151,7 +154,7 @@ pub struct PrimaryIn {
     pub host: Option<String>,
 }
 op! {
-    MembershipPrimary="membership.primary",Write,Book,"Choose an existing v3 membership as primary, or clear the primary membership.",fn(cx,input:PrimaryIn)->Done {
+    MembershipPrimary="membership.primary",Write,Book,"Choose an existing membership as primary, or clear the primary membership.",fn(cx,input:PrimaryIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let member = live(&v, &input.member)?.id;

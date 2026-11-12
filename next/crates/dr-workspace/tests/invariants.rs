@@ -26,7 +26,7 @@ fn check(e: &Env, b: &str) {
     }
     // No damaged template/module/structure read may panic after a merge.
     e.out("entry_template.list", json!({"book":b}));
-    e.out("level.list", json!({"book":b}));
+    e.out("entry.list", json!({"book":b,"all":true,"below":true}));
     e.out("comment.list", json!({"book":b}));
 }
 fn run(e: &mut Env, b: &str, op: (u8, u8)) {
@@ -39,7 +39,7 @@ fn run(e: &mut Env, b: &str, op: (u8, u8)) {
         .filter(|e| e["template"] == "tpl-chapter")
         .collect();
     let id = (!leaves.is_empty()).then(|| leaves[n as usize % leaves.len()]["id"].clone());
-    match kind % 10 {
+    match kind % 11 {
         0 | 1 => {
             acceptance::novel_entry(
                 e.ws(),
@@ -82,6 +82,22 @@ fn run(e: &mut Env, b: &str, op: (u8, u8)) {
             let before = snapshot(e, b);
             e.reopen();
             assert_eq!(snapshot(e, b), before);
+        }
+        9 => {
+            // A chapter's switch: on, with an entry put under it; or off,
+            // which moves what lives under it to the root.
+            if let Some(id) = id {
+                let on = n % 2 == 0;
+                if e.try_call("entry.set_level", json!({"book":b,"id":id,"level":on}))
+                    .is_ok()
+                    && on
+                {
+                    let _ = e.try_call(
+                        "entry.create",
+                        json!({"book":b,"parent":id,"template":"tpl-chapter","title":format!("Under {n}")}),
+                    );
+                }
+            }
         }
         _ => {
             let before = snapshot(e, b);

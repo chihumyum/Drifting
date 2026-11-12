@@ -6,7 +6,7 @@ use crate::error::{Result, WsError};
 use crate::naming::{frontiers_from_hex, frontiers_hex};
 use crate::registry::Registry;
 use crate::workspace::BookSlot;
-use dr_doc::v3::{BookViewV3, CollectionV3};
+use dr_doc::v3::{BookGraphV3, BookViewV3, CollectionV3};
 use dr_model::id::*;
 use dr_model::v3 as m;
 use schemars::JsonSchema;
@@ -85,43 +85,12 @@ fn template_of(v: &BookViewV3<'_>, id: &str) -> Result<m::EntryTemplate> {
         .filter(|t| !t.is_trashed())
         .ok_or_else(|| WsError::not_found("template", id))
 }
-fn graph_ok(
-    entries: &BTreeMap<EntryId, m::Entry>,
-    templates: &BTreeMap<EntryTemplateId, m::EntryTemplate>,
-    memberships: &[m::Membership],
-) -> Result<()> {
-    for e in entries.values().filter(|e| !e.is_trashed()) {
-        let declares = e
-            .overrides
-            .as_ref()
-            .and_then(|o| o.is_manuscript)
-            .or_else(|| {
-                e.effective_template(templates)
-                    .and_then(|t| t.settings.is_manuscript)
-            })
-            .unwrap_or(false);
-        m::check_manuscript_no_nest(&e.id, declares, entries, templates)?;
-        let hosts = memberships
-            .iter()
-            .filter(|r| {
-                r.member == e.id
-                    && m::check_membership(&r.host, &r.member, entries, templates).is_ok()
-            })
-            .map(|r| r.host.clone())
-            .collect::<Vec<_>>();
-        m::check_autolink_name_unique(
-            Some(&e.id),
-            e.parent.as_ref(),
-            &hosts,
-            e.is_leaf(templates),
-            &e.title,
-            &e.aliases(templates).into_iter().collect::<Vec<_>>(),
-            memberships,
-            entries,
-            templates,
-        )?;
-    }
-    Ok(())
+/// The command layer's structural check (`kernel-v4.md` §5): `after` is the
+/// book's structural read with the planned write applied to `before`, and
+/// only a duplicate auto-link name or a nested manuscript the write itself
+/// creates is refused. What a merge left behind blocks no unrelated write.
+fn changes_ok(before: &BookGraphV3, after: &BookGraphV3) -> Result<()> {
+    Ok(after.check_against(before)?)
 }
 fn settings_ok(settings: &m::LevelSettingsOverride, v: &BookViewV3<'_>) -> Result<()> {
     let templates = v.templates_map();
@@ -136,15 +105,12 @@ fn settings_ok(settings: &m::LevelSettingsOverride, v: &BookViewV3<'_>) -> Resul
     if let Some(Some(id)) = &settings.default_template {
         m::check_entry_template(&templates, Some(id))?;
     }
-    if let Some(ids) = &settings.allow {
-        for id in ids {
-            m::check_entry_template(&templates, Some(id))?;
-        }
-    }
     if let Some(Some(id)) = &settings.home {
         let e = live(v, id.as_str())?;
-        if !e.is_level(&templates) {
-            return Err(WsError::invalid("home must be a level"));
+        if !e.is_level() {
+            return Err(WsError::invalid(
+                "home must be a live entry with its switch on",
+            ));
         }
     }
     Ok(())
