@@ -487,18 +487,26 @@ fn a_guarded_create_checks_its_reads_before_it_registers_prose() {
     let docs = || e.ws.library().docs(Some(&e.book), None).unwrap().len();
     let before = docs();
 
-    // Nothing read of this book: refused, as before.
+    // A create replaces nothing stored, so it needs no read of the book …
+    e.guarded(
+        "entry.create",
+        create("Synthetic unread"),
+        WritePreconditions::default(),
+    )
+    .unwrap();
+    assert!(docs() > before);
+    // … but a write that does replace something still does.
     conflict(
         e.guarded(
-            "entry.create",
-            create("Synthetic unread"),
+            "entry.update",
+            json!({"book": e.book, "id": manuscript, "title": "Synthetic unread rename"}),
             WritePreconditions::default(),
         ),
         "read required:",
     );
-    assert_eq!(docs(), before);
-    // The level it was created under changed since it was read: refused
-    // before any prose document is registered for the entry.
+    // What a create did read still has to hold. The level it was created
+    // under changed since it was read: refused before any prose document is
+    // registered for the entry.
     let parent = e.read(&[RecordKey::entry(&manuscript)]);
     e.out(
         "entry.update",

@@ -252,32 +252,53 @@ fn observations_belong_to_one_session_and_turn_but_not_one_call() {
 }
 
 #[test]
-fn a_new_book_version_read_does_not_refresh_old_chapter_coverage() {
+fn a_later_read_does_not_refresh_the_coverage_of_a_chapter_that_changed() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let actor = Actor::agent("new-version", 1, "write");
-    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
-        .unwrap();
-    let version = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let list = || {
+        f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+            .unwrap()
+    };
+    let version = || f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+
+    // A change to another record of the book moves the book's version, but
+    // it is not a change to the chapters this turn read: no reread is needed.
+    list();
+    let before = version();
     author(
         &f.ws,
         "book.update",
         json!({"book":f.book,"summary":f.text()}),
     );
-    assert_ne!(
-        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
-        version
+    assert_ne!(version(), before);
+    f.invoke(&tools, &actor, "comment.list", json!({})).unwrap();
+    let receipts = f.receipts();
+    f.invoke(&tools, &actor, "entry.update", f.chapter_update(0))
+        .unwrap();
+    assert_eq!(f.receipts(), receipts + 1);
+
+    // A change to the chapter itself is. Reading something else afterwards,
+    // at the book's newer version, must not make the old read current again.
+    list();
+    author(
+        &f.ws,
+        "entry.update",
+        json!({"book":f.book,"id":f.chapters[1]["id"],"title":f.text()}),
     );
     f.invoke(&tools, &actor, "comment.list", json!({})).unwrap();
     let before = f.book_bytes();
     let receipts = f.receipts();
-    assert_read_required(f.invoke(&tools, &actor, "entry.update", f.chapter_update(0)));
+    let result = f.invoke(&tools, &actor, "entry.update", f.chapter_update(1));
+    assert!(matches!(result, Err(Error::Conflict(_))), "{result:?}");
     assert_eq!(f.book_bytes(), before);
     assert_eq!(f.receipts(), receipts);
+    // Nor is the refused write a read: the chapter has to be read again.
+    assert_read_required(f.invoke(&tools, &actor, "entry.update", f.chapter_update(1)));
+    assert_eq!(f.book_bytes(), before);
 
-    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
-        .unwrap();
-    f.invoke(&tools, &actor, "entry.update", f.chapter_update(0))
+    list();
+    f.invoke(&tools, &actor, "entry.update", f.chapter_update(1))
         .unwrap();
     assert_eq!(f.receipts(), receipts + 1);
 }

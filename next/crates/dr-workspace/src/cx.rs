@@ -359,7 +359,7 @@ impl<'a> Cx<'a> {
     ) -> Result<()> {
         if let Some(guards) = &self.guards {
             for (id, doc) in docs {
-                guards.check(id, doc)?;
+                guards.check_atomic(id, doc)?;
             }
         }
         Ok(())

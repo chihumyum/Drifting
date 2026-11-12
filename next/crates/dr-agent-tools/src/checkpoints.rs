@@ -136,21 +136,14 @@ impl AgentTools {
                 if turn.checkpointed.contains(&entry) {
                     continue;
                 }
-                if !guards.versions.contains_key(&book_doc) {
-                    let read = turn
-                        .reads
-                        .get(&book_doc)
-                        .ok_or_else(|| Error::ReadRequired(book_doc.clone()))?;
-                    guards
-                        .versions
-                        .insert(book_doc.clone(), read.version.clone());
-                }
             }
             // Unread retained bodies are captured, not authorized for editing.
-            // Every supplied write/source guard is checked in the reservation.
+            // Every supplied write/source guard is checked in the reservation:
+            // the versions of prose, and the records this write read of the
+            // book, so a write that is already stale leaves no checkpoint.
             let capture_guards = dr_workspace::WritePreconditions {
                 versions: guards.versions.clone(),
-                records: Vec::new(),
+                records: guards.records.clone(),
                 require_all: false,
             };
             let value = ws.call_guarded(
@@ -165,9 +158,14 @@ impl AgentTools {
                 .versions
                 .get(&book_doc)
                 .ok_or_else(|| Error::Invalid("checkpoint receipt has no book version".into()))?;
-            // This exact frontier contains only the guarded checkpoint commit.
-            // Never observe-and-rebase: an author may already have typed again.
-            guards.versions.insert(book_doc.clone(), version.clone());
+            // A checkpoint commits to the book, but to none of the records a
+            // write is held to. Only a write held to the whole book has to
+            // step past it, and then to this exact frontier, which contains
+            // only the guarded checkpoint commit. Never observe-and-rebase:
+            // an author may already have typed again.
+            if guards.versions.contains_key(&book_doc) {
+                guards.versions.insert(book_doc.clone(), version.clone());
+            }
             captured.push(entry);
         }
         Ok(())

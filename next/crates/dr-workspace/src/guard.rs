@@ -126,6 +126,27 @@ impl RecordKey {
     }
 }
 
+impl std::fmt::Display for RecordKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.collection)?;
+        for segment in &self.path {
+            write!(f, "/{segment}")?;
+        }
+        if self.children {
+            f.write_str("/*")?;
+        }
+        Ok(())
+    }
+}
+
+impl RecordPrecondition {
+    /// How a refusal names this record: `<doc> record <key>`, the text after
+    /// `stale observation:` and `read required:` in a conflict.
+    pub fn subject(&self) -> String {
+        format!("{} record {}", self.doc, self.key)
+    }
+}
+
 impl From<&RecordKeyV3> for RecordKey {
     fn from(key: &RecordKeyV3) -> Self {
         Self {
@@ -194,10 +215,12 @@ pub struct WritePreconditions {
     /// Records of book documents the call replaces or was derived from.
     #[serde(default)]
     pub records: Vec<RecordPrecondition>,
-    /// Refuse a write to a document this call does not address (no version
-    /// and no record of it), and a replacement of a record it has not read.
-    /// Explicit source dependencies (v3 comment prose) remain required even
-    /// when this is false.
+    /// Refuse a write to a prose document absent from `versions`, and a
+    /// replacement in a book document of anything this call has not read (no
+    /// record at or above it, and no version of the book). A write that
+    /// replaces nothing in a book needs no read of it. Explicit source
+    /// dependencies (v3 comment prose) remain required even when this is
+    /// false.
     pub require_all: bool,
 }
 
@@ -456,30 +479,43 @@ impl Guards {
             return Ok(());
         }
         let supplied = self.0.records.get(id).map(Vec::as_slice).unwrap_or(&[]);
-        match replaces {
-            Replaces::Records(keys) if !supplied.is_empty() => {
-                match keys
-                    .iter()
-                    .find(|key| !supplied.iter().any(|(read, _)| read.contains(key)))
-                {
-                    Some(key) => Err(WsError::Conflict(format!(
-                        "read required: {id} record {key}"
-                    ))),
-                    None => Ok(()),
-                }
-            }
-            _ => Err(Self::missing(id)),
+        let Replaces::Records(keys) = replaces else {
+            return Err(Self::missing(id));
+        };
+        match keys
+            .iter()
+            .find(|key| !supplied.iter().any(|(read, _)| read.contains(key)))
+        {
+            // Nothing is replaced, or every replaced value was read.
+            None => Ok(()),
+            Some(_) if supplied.is_empty() => Err(Self::missing(id)),
+            Some(key) => Err(WsError::Conflict(format!(
+                "read required: {id} record {key}"
+            ))),
         }
     }
 
     /// Before a guarded call registers a new prose document under book `id`:
-    /// the caller addressed that book, and what it said about it still holds.
+    /// what the caller said about that book still holds, so a stale call
+    /// leaves no document nobody owns.
     pub(crate) fn check_parent(&self, id: &str, doc: &LoroDoc, book: &BookId) -> Result<()> {
-        if self.check_supplied(id, doc, book)? || self.0.records.contains_key(id) {
-            Ok(())
-        } else {
-            Err(Self::missing(id))
+        self.check_supplied(id, doc, book).map(drop)
+    }
+
+    /// The guard of an atomic multi-document command on one of its reserved
+    /// documents. These commands have no per-record contract, but records the
+    /// caller named are still compared.
+    pub(crate) fn check_atomic(&self, id: &str, doc: &LoroDoc) -> Result<()> {
+        if self.0.records.contains_key(id)
+            && let Ok(DocId::Book(book)) = DocId::parse(id)
+        {
+            return if self.check_supplied(id, doc, &book)? || !self.0.require_all {
+                Ok(())
+            } else {
+                Err(Self::missing(id))
+            };
         }
+        self.check(id, doc)
     }
 
     /// Only for a document this invocation has just registered. Its first

@@ -51,6 +51,9 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
         return Ok(Done { id: k });
     }
     let pos = input.pos.map(convert).transpose()?;
+    // An existing membership has its order replaced; a new one replaces
+    // nothing.
+    let replaced = Replaces::records(existing.iter().map(|_| rec(CollectionV3::Memberships, &k)));
     let created = existing.and_then(|m| m.created_at).or_else(|| Some(now()));
     ms.retain(|m| m.host != host || m.member != member);
     ms.push(m::Membership {
@@ -60,7 +63,6 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
         created_at: created,
     });
     graph_ok(&entries, &templates, &ms)?;
-    let replaced = Replaces::record(CollectionV3::Memberships, &k);
     let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         t.put_membership(&host, &member, pos.as_ref(), created)?;
         Ok(())

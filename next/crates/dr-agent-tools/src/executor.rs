@@ -8,7 +8,9 @@ use dr_agent::{
     ToolAccess, ToolCall, ToolContext, ToolDescriptor, ToolExecutor, ToolPolicy, tools::ToolOutput,
 };
 use dr_model::id::BookId;
-use dr_workspace::{Actor, Workspace, WritePreconditions, WsError};
+use dr_workspace::{
+    Actor, RecordKey, RecordObservation, RecordPrecondition, Workspace, WritePreconditions, WsError,
+};
 use futures::{FutureExt, channel::oneshot, future::BoxFuture};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -25,8 +27,12 @@ use crate::{
 mod checkpoints;
 #[path = "evidence.rs"]
 mod evidence;
+#[path = "records.rs"]
+mod records;
 #[path = "timeline.rs"]
 mod timeline;
+
+use records::{Backing, BookReads};
 
 #[derive(Clone, Debug)]
 pub struct CallRequest {
@@ -174,6 +180,7 @@ struct TurnKey {
     turn: u32,
 }
 
+/// What a turn has read of one prose document, bound to that version.
 #[derive(Default)]
 struct ReadState {
     version: String,
@@ -181,16 +188,27 @@ struct ReadState {
     blocks: HashMap<String, String>,
     full_prose: bool,
     projection: Option<Projection>,
-    // Bound to this exact version, like prose coverage. A filtered list is
-    // useful for local edits but does not authorize whole-view replacement.
-    timeline_views: Option<timeline::Coverage>,
 }
 
 #[derive(Default)]
 struct TurnState {
+    /// Prose documents, each held to the version it was read at.
     reads: HashMap<String, ReadState>,
+    /// The book document, held record by record.
+    book: BookReads,
+    /// By document, or by `<book document> record <key>`.
     conflicts: HashMap<String, u32>,
     checkpointed: HashSet<String>,
+}
+
+impl TurnState {
+    fn has(&self, subject: &str) -> bool {
+        self.book.has(subject)
+            || self
+                .reads
+                .values()
+                .any(|read| read.subjects.contains(subject))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -254,7 +272,7 @@ impl AgentTools {
             ));
         }
         let book_doc = format!("book:{book}");
-        let version = ws.observe(&book_doc)?.version;
+        let version = ws.version(&book_doc)?;
         let cache_key = CatalogCacheKey {
             book: book.to_string(),
         };
@@ -269,7 +287,7 @@ impl AgentTools {
             return Ok(cached);
         }
         let catalog = Arc::new(Catalog::for_book(ws, book)?);
-        let after = ws.observe(&book_doc)?.version;
+        let after = ws.version(&book_doc)?;
         if after == version {
             self.v3_cache
                 .lock()
@@ -398,7 +416,7 @@ impl AgentTools {
                 .and_then(|read| read.projection.clone())
                 .ok_or_else(|| Error::ReadRequired(doc.into()))?;
             let Some(replacement) = prose::plan(&projection, &edited)? else {
-                if ws.observe(doc)?.version != projection.version {
+                if ws.version(doc)? != projection.version {
                     let mut turns = self.turns.lock().expect("tool observations");
                     let turn = turns.entry(key.clone()).or_default();
                     turn.reads.remove(doc);
@@ -426,14 +444,7 @@ impl AgentTools {
         call: &ResolvedCall,
         lease: &AtomicBool,
     ) -> Result<Value> {
-        // Holder delivery invalidates F3's canonical book cache synchronously.
-        // Two equal observations bracket a coherent canonical metadata query.
-        // Derived search/count projections never establish entity coverage.
-        let mut targets = call.targets.clone();
         let book_doc = format!("book:{}", key.book);
-        if call.name == "prose.read" && !targets.contains(&book_doc) {
-            targets.push(book_doc.clone());
-        }
         let book_id = BookId::parse(&key.book)
             .map_err(|e| Error::Invalid(format!("invalid book id: {e}")))?;
         if !is_v3_book(ws, &book_id)? {
@@ -441,36 +452,62 @@ impl AgentTools {
                 "only canonical v3 books support tools".into(),
             ));
         }
-        for _ in 0..3 {
-            let before = targets
+        // Equal versions before and after mean the query, the comments and
+        // the record observation below all saw one state of these documents.
+        // The bracket lasts this one call. Afterwards a prose document is held
+        // to its version, and the book only to the records this read showed:
+        // any other change to the book costs the turn nothing it has read.
+        // Derived search/count projections never establish entity coverage.
+        let mut bracket = call.targets.clone();
+        if !bracket.contains(&book_doc) {
+            bracket.push(book_doc.clone());
+        }
+        let versions = || {
+            bracket
                 .iter()
-                .map(|doc| ws.observe(doc))
-                .collect::<dr_workspace::Result<Vec<_>>>()?;
+                .map(|doc| ws.version(doc))
+                .collect::<dr_workspace::Result<Vec<_>>>()
+        };
+        for _ in 0..3 {
+            let before = versions()?;
             let mut value = ws.call(actor, &call.name, call.arguments.clone())?;
             let comments_v3 = if call.name == "prose.read" {
-                let doc = ws
-                    .library()
-                    .load_copy(&book_doc)
-                    .map_err(dr_workspace::WsError::from)?;
-                let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, &book_id)
-                    .map_err(|e| Error::Invalid(e.to_string()))?;
-                Some(borrowed.view().comments())
+                let id = book_id.clone();
+                Some(ws.read_book_v3(&key.book, move |doc, _| {
+                    Ok(dr_doc::v3::BorrowedBookV3::new(doc, &id)?.view().comments())
+                })?)
             } else {
                 None
             };
-            let after = targets
+            let output = value.get("output").cloned().unwrap_or(Value::Null);
+            let mut subjects = resolve::coverage(&call.name, &call.arguments, &output);
+            subjects.extend(records::also_read(&call.name, &call.arguments, &output));
+            let backed: Vec<(String, Backing)> = subjects
                 .iter()
-                .map(|doc| ws.observe(doc))
-                .collect::<dr_workspace::Result<Vec<_>>>()?;
-            if before
-                .iter()
-                .zip(&after)
-                .any(|(a, b)| a.version != b.version)
-            {
+                .map(|subject| {
+                    (
+                        subject.clone(),
+                        records::backing(subject, &call.name, &output),
+                    )
+                })
+                .collect();
+            let mut keys: Vec<RecordKey> = Vec::new();
+            let mut seen = HashSet::new();
+            for (_, backing) in &backed {
+                if let Backing::Records(read) = backing {
+                    keys.extend(read.iter().filter(|key| seen.insert(*key)).cloned());
+                }
+            }
+            let observed = if keys.is_empty() {
+                Vec::new()
+            } else {
+                ws.observe_records(&book_doc, &keys)?
+            };
+            if before != versions()? {
                 continue;
             }
-            let output = value.get("output").cloned().unwrap_or(Value::Null);
-            let subjects = resolve::coverage(&call.name, &call.arguments, &output);
+            let observed: HashMap<&RecordKey, &RecordObservation> =
+                observed.iter().map(|o| (&o.key, o)).collect();
             let projection = if call.name == "prose.read" {
                 let doc = call.arguments["doc"]
                     .as_str()
@@ -491,70 +528,91 @@ impl AgentTools {
                 return Err(Error::Invalid("the tool session ended".into()));
             }
             let turn = turns.entry(key.clone()).or_default();
-            for observation in &after {
-                let read = turn.reads.entry(observation.doc.clone()).or_default();
-                if read.version != observation.version {
+            let paragraphs = |read: &mut ReadState| {
+                for block in output["paragraphs"].as_array().into_iter().flatten() {
+                    if let (Some(id), Some(text)) =
+                        (block["block_id"].as_str(), block["text"].as_str())
+                    {
+                        read.blocks.insert(id.into(), text.into());
+                    }
+                }
+            };
+            for (doc, version) in bracket.iter().zip(&before) {
+                if *doc == book_doc {
+                    continue;
+                }
+                let read = turn.reads.entry(doc.clone()).or_default();
+                if read.version != *version {
                     *read = ReadState {
-                        version: observation.version.clone(),
+                        version: version.clone(),
                         ..Default::default()
                     };
-                }
-                if call.name == "timeline_view.list" && observation.doc == book_doc {
-                    read.timeline_views =
-                        Some(timeline::Coverage::from_read(&observation.value, &output)?);
                 }
                 read.subjects.extend(
                     subjects
                         .iter()
                         .filter(|subject| {
-                            if let Some(doc) = subject.strip_prefix("prose:") {
-                                doc == observation.doc
-                                    || (!after.iter().any(|o| o.doc == doc)
-                                        && observation.doc == book_doc)
-                            } else if subject.starts_with("history:") {
-                                true
-                            } else {
-                                observation.doc == book_doc
-                            }
+                            subject.strip_prefix("prose:") == Some(doc.as_str())
+                                || subject.starts_with("history:")
                         })
                         .cloned(),
                 );
-                if let Some(projection) = &projection {
-                    if projection.doc != observation.doc
-                        || projection.version != observation.version
-                    {
-                        continue;
-                    }
-                    for block in output["paragraphs"].as_array().into_iter().flatten() {
-                        if let (Some(id), Some(text)) =
-                            (block["block_id"].as_str(), block["text"].as_str())
-                        {
-                            read.blocks.insert(id.into(), text.into());
-                        }
-                    }
+                if let Some(projection) = &projection
+                    && projection.doc == *doc
+                    && projection.version == *version
+                {
+                    paragraphs(read);
                     read.full_prose |= output["paragraphs"].as_array().is_some_and(|blocks| {
                         Some(blocks.len() as u64) == output["total"].as_u64()
                     });
                     read.projection = Some(projection.clone());
                 }
-                if let Some(prose_doc) = &module_prose_doc {
-                    if observation.doc == *prose_doc
-                        && output["version"].as_str() == Some(observation.version.as_str())
-                    {
-                        for block in output["paragraphs"].as_array().into_iter().flatten() {
-                            if let (Some(id), Some(text)) =
-                                (block["block_id"].as_str(), block["text"].as_str())
-                            {
-                                read.blocks.insert(id.into(), text.into());
-                            }
-                        }
-                        read.full_prose = true;
-                    } else if observation.doc == book_doc
-                        && !after.iter().any(|o| o.doc == *prose_doc)
-                    {
-                        read.full_prose = true;
-                    }
+                if module_prose_doc.as_ref() == Some(doc)
+                    && output["version"].as_str() == Some(version.as_str())
+                {
+                    paragraphs(read);
+                    read.full_prose = true;
                 }
+            }
+            let book_version = bracket
+                .iter()
+                .zip(&before)
+                .find(|(doc, _)| **doc == book_doc)
+                .map(|(_, version)| version.as_str())
+                .expect("the book is bracketed");
+            for (subject, backing) in &backed {
+                match backing {
+                    // A prose document that is not stored yet has no version
+                    // to hold; a write to it needs its owner's record instead.
+                    Backing::Outside => {
+                        let stored = subject
+                            .strip_prefix("prose:")
+                            .is_some_and(|doc| bracket.iter().any(|d| d == doc));
+                        if !stored {
+                            turn.book.read_records(subject, &[]);
+                        }
+                    }
+                    Backing::Records(read) => {
+                        let read: Vec<RecordObservation> = read
+                            .iter()
+                            .filter_map(|key| observed.get(key).copied().cloned())
+                            .collect();
+                        turn.book.read_records(subject, &read);
+                    }
+                    Backing::Document => turn.book.read_whole(subject, book_version),
+                }
+            }
+            if call.name == "timeline_view.list" {
+                // Completeness is judged against what is stored, at the same
+                // state the list was read at.
+                let stored = observed
+                    .get(&RecordKey::collection("timeline_views"))
+                    .map(|o| o.value.clone())
+                    .unwrap_or(Value::Null);
+                turn.book.timeline_views = Some(timeline::Coverage::from_read(
+                    &json!({"timeline_views": stored}),
+                    &output,
+                )?);
             }
             if let Some(projection) = projection {
                 value["output"]["projection"] =
@@ -606,6 +664,10 @@ impl AgentTools {
             ws,
             &BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?,
         )?;
+        let book_doc = format!("book:{}", key.book);
+        // What this write has to have read: the subjects of the call, each as
+        // the read that covers it. Those reads are forgotten once it ran.
+        let mut used: Vec<String> = Vec::new();
         let mut guards = {
             let turns = self.turns.lock().expect("tool observations");
             let turn = turns
@@ -618,26 +680,53 @@ impl AgentTools {
             {
                 return Err(Error::ConflictLimit(doc.clone()));
             }
-            for subject in &call.subjects {
-                if !subject_covered(&turn.reads, subject) {
-                    return Err(Error::ReadRequired(subject.clone()));
-                }
+            for subject in needed(&call) {
+                let read = covering(turn, &call, &subject).ok_or(Error::ReadRequired(subject))?;
+                used.push(read);
             }
+            used.extend(
+                offered(&call)
+                    .iter()
+                    .filter_map(|subject| covering(turn, &call, subject)),
+            );
+            // A prose document is held to the version it was read at. The
+            // book is held to the records behind the subjects above, so a
+            // change elsewhere in it neither refuses this write nor stops the
+            // turn; only a subject with no records of its own (history) still
+            // asks for the whole book to be as it was.
             let mut versions = HashMap::new();
-            for doc in &call.targets {
+            for doc in call.targets.iter().filter(|doc| **doc != book_doc) {
                 let read = turn
                     .reads
                     .get(doc)
                     .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
                 versions.insert(doc.clone(), read.version.clone());
             }
+            let mut records: Vec<RecordPrecondition> = Vec::new();
+            for subject in &used {
+                if let Some(version) = turn.book.version_of(subject) {
+                    versions.insert(book_doc.clone(), version.to_owned());
+                }
+                for record in turn.book.records_of(subject) {
+                    if !records.contains(&record) {
+                        records.push(record);
+                    }
+                }
+            }
+            if let Some(record) = records
+                .iter()
+                .map(RecordPrecondition::subject)
+                .find(|record| turn.conflicts.get(record).copied().unwrap_or(0) >= 2)
+            {
+                return Err(Error::ConflictLimit(record));
+            }
             if matches!(
                 call.name.as_str(),
                 "membership.remove" | "timeline_view.remove"
             ) {
-                turn.reads
-                    .get(&format!("book:{}", key.book))
-                    .and_then(|read| read.timeline_views.as_ref())
+                turn.book
+                    .timeline_views
+                    .as_ref()
                     .ok_or_else(|| Error::ReadRequired("timeline_view:*".into()))?
                     .require_membership_removal()?;
             }
@@ -646,9 +735,9 @@ impl AgentTools {
                 "timeline_view.put" | "timeline_view.put_pin" | "timeline_view.remove_pin"
             ) {
                 let coverage = turn
-                    .reads
-                    .get(&format!("book:{}", key.book))
-                    .and_then(|read| read.timeline_views.as_ref())
+                    .book
+                    .timeline_views
+                    .as_ref()
                     .ok_or_else(|| Error::ReadRequired("timeline_view:*".into()))?;
                 if call.name == "timeline_view.put" {
                     let id = call.arguments["view"]["id"]
@@ -734,7 +823,7 @@ impl AgentTools {
             }
             WritePreconditions {
                 versions,
-                records: Vec::new(),
+                records,
                 require_all: true,
             }
         };
@@ -746,15 +835,24 @@ impl AgentTools {
                 Ok(ws.call_guarded(actor, &call.name, call.arguments.clone(), guards)?)
             });
         // A later observation could contain unseen concurrent author changes;
-        // never refresh an observation implicitly after a write. Read again.
+        // never refresh an observation implicitly after a write. What this
+        // write was made from has to be read again; what the turn read of
+        // other records still stands. (A checkpoint changes the book too, but
+        // none of the records a read is held to.)
         let mut turns = self.turns.lock().expect("tool observations");
         let turn = turns.entry(key.clone()).or_default();
-        for target in &call.targets {
+        for target in call.targets.iter().filter(|doc| **doc != book_doc) {
             turn.reads.remove(target);
         }
-        // A checkpoint itself changes this book, even for a prose-only call.
-        if !captured.is_empty() {
-            turn.reads.remove(&format!("book:{}", key.book));
+        for subject in call.subjects.iter().chain(&used) {
+            turn.book.forget(subject);
+            // The list a written record belongs to was read with it in it.
+            if let Some((domain, id)) = subject.split_once(':')
+                && !matches!(id, "*" | "all")
+            {
+                turn.book.forget(&format!("{domain}:*"));
+                turn.book.forget(&format!("{domain}:all"));
+            }
         }
         match result {
             Ok(value) => {
@@ -764,9 +862,10 @@ impl AgentTools {
             Err(Error::Workspace(WsError::Conflict(message)))
                 if message.starts_with("stale observation:") =>
             {
-                // Count by the holder's actual document, including the later
-                // document of a multi-document call. Changing tool names or
-                // input shapes must not reset the same target's CAS budget.
+                // Count by what the holder refused: the prose document, or
+                // the record of the book, including the later document of a
+                // multi-document call. Changing tool names or input shapes
+                // must not reset the same target's CAS budget.
                 let target = message
                     .trim_start_matches("stale observation:")
                     .trim()
@@ -791,33 +890,100 @@ impl AgentTools {
     }
 }
 
-fn subject_covered(reads: &HashMap<String, ReadState>, subject: &str) -> bool {
-    let has = |candidate: &str| reads.values().any(|read| read.subjects.contains(candidate));
-    if has(subject) {
-        return true;
+/// The subjects a write needs read, beyond those its resolution names.
+fn needed(call: &ResolvedCall) -> Vec<String> {
+    let mut subjects = call.subjects.clone();
+    let removed = match call.name.as_str() {
+        "membership.remove" => Some(("host", "member")),
+        "timeline_view.remove" => Some(("lane", "entry")),
+        _ => None,
+    };
+    if let Some((host, member)) = removed {
+        // The membership it removes has to have been read (in a list of
+        // memberships, or among the members of its level).
+        if let (Some(host), Some(member)) = (
+            call.arguments[host].as_str(),
+            call.arguments[member].as_str(),
+        ) {
+            subjects.push(format!("membership:{host}|{member}"));
+        }
+        // The removal is only allowed while every stored view was shown
+        // whole: that evidence is the read of the views, and has to be
+        // current.
+        if !subjects.iter().any(|subject| subject == "timeline_view:*") {
+            subjects.push("timeline_view:*".into());
+        }
+    }
+    subjects
+}
+
+/// Reads a write is held to when the turn has them. Whether it needs them
+/// depends on what is stored, which the command decides: adding a membership
+/// replaces nothing, ordering one that exists replaces its order, and
+/// without a read of it the workspace refuses that replacement.
+fn offered(call: &ResolvedCall) -> Vec<String> {
+    match (
+        call.name.as_str(),
+        call.arguments["host"].as_str(),
+        call.arguments["member"].as_str(),
+    ) {
+        ("membership.add", Some(host), Some(member)) => {
+            vec![format!("membership:{host}|{member}")]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The read of this turn that covers `subject` for `call`, by its subject.
+fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<String> {
+    let has = |candidate: String| turn.has(&candidate).then_some(candidate);
+    // A replacement that names an existing record is held to that record,
+    // not to every record of its list.
+    let named = match (call.name.as_str(), subject) {
+        ("timeline_view.put", "timeline_view:*") => call.arguments["view"]["id"].as_str(),
+        ("entry_template.put", "entry_template:*") => call.arguments["template"]["id"].as_str(),
+        ("entry_relation_type.put", "entry_relation_type:*") => {
+            call.arguments["definition"]["id"].as_str()
+        }
+        _ => None,
+    };
+    if let Some(id) = named
+        && let Some(read) = has(format!("{}{id}", subject.trim_end_matches('*')))
+    {
+        return Some(read);
+    }
+    if let Some(read) = has(subject.to_owned()) {
+        return Some(read);
     }
     if let Some(id) = subject.strip_prefix("entry:")
         && id != "*"
         && id != "all"
     {
-        return has(&format!("level:{id}")) || has("entry:*") || has("entry:all");
+        return has(format!("level:{id}"))
+            .or_else(|| has("entry:*".into()))
+            .or_else(|| has("entry:all".into()));
     }
     if let Some(rest) = subject.strip_prefix("module_inline:") {
-        if has(&format!("module:{rest}")) {
-            return true;
+        if let Some(read) = has(format!("module:{rest}")) {
+            return Some(read);
         }
         if let Some((entry, _)) = rest.split_once(':') {
-            return has(&format!("module:{entry}:*"));
+            return has(format!("module:{entry}:*"));
         }
     }
-    for prefix in ["entry_template:", "timeline_view:", "entry_relation_type:"] {
+    for prefix in [
+        "entry_template:",
+        "timeline_view:",
+        "entry_relation_type:",
+        "membership:",
+    ] {
         if let Some(id) = subject.strip_prefix(prefix)
             && id != "*"
         {
-            return has(&format!("{prefix}*"));
+            return has(format!("{prefix}*"));
         }
     }
-    false
+    None
 }
 
 impl ToolExecutor for AgentTools {

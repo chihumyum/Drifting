@@ -535,6 +535,20 @@ impl Workspace {
         Ok(handle.read(|doc| crate::naming::frontiers_hex(&doc.oplog_frontiers()))?)
     }
 
+    /// Whether `book` is a canonical v3 book. A book this workspace has open
+    /// is one; otherwise its stored document is looked at without opening
+    /// it, so a book in an older format is left untouched.
+    pub fn is_v3_book(&self, book: &BookId) -> Result<bool> {
+        if lock(&self.inner.books).contains_key(book) {
+            return Ok(true);
+        }
+        let copy = self
+            .inner
+            .lib
+            .load_copy(&DocId::Book(book.clone()).to_string())?;
+        Ok(dr_doc::v3::is_v3_doc(&copy))
+    }
+
     /// Read the stored state of some records of v3 book document `doc`
     /// (`book:<id>`) in one holder read job: hidden and retained data
     /// included, nothing exported or imported, the rest of the book not

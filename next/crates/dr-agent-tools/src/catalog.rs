@@ -605,11 +605,7 @@ impl Catalog {
 }
 
 pub fn is_v3_book(ws: &Workspace, book: &BookId) -> crate::Result<bool> {
-    let doc = ws
-        .library()
-        .load_copy(&format!("book:{book}"))
-        .map_err(dr_workspace::WsError::from)?;
-    Ok(is_v3_doc(&doc))
+    Ok(ws.is_v3_book(book)?)
 }
 
 fn build_v3_actions(
