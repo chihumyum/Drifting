@@ -59,6 +59,11 @@ interface AuthFlowProps {
   /** True while the library connection runs and the flow must stay open. */
   onLockedChange?: (locked: boolean) => void;
   presentation?: 'dialog' | 'page';
+  /**
+   * Whether the forms end with the line saying what continuing agrees to.
+   * Off where the step before the flow already said it (the first-run welcome).
+   */
+  consent?: boolean;
 }
 
 export function AuthFlow({
@@ -68,6 +73,7 @@ export function AuthFlow({
   onClose,
   onLockedChange,
   presentation = 'dialog',
+  consent = true,
 }: AuthFlowProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -355,7 +361,7 @@ export function AuthFlow({
             {t('auth.useOtp')}
           </FlowButton>
         )}
-        <ConsentLine />
+        {consent && <ConsentLine />}
       </form>
     );
   }
