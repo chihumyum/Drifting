@@ -86,9 +86,26 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             "missing built-in template {id}"
         );
     }
-    assert!(tpls[&tid(TPL_MANUSCRIPT)].is_level());
-    assert!(tpls[&tid(TPL_STORYLINE)].is_lane_level());
-    assert!(tpls[&tid(TPL_CHAPTER)].is_leaf());
+    // One kind of template: the switch's default, `linkable`, `lane` in the
+    // settings, and a 「说明」 that is not part of the book on every
+    // organizing template (the 幕 template included).
+    assert!(tpls[&tid(TPL_MANUSCRIPT)].level);
+    assert_eq!(tpls[&tid(TPL_STORYLINE)].settings.lane, Some(true));
+    assert_eq!(tpls[&tid(TPL_ACT_TRACK)].settings.lane, Some(true));
+    assert!(!tpls[&tid(TPL_CHAPTER)].level);
+    for t in tpls.values() {
+        let description = t.module(&mid(MOD_DESCRIPTION));
+        assert_eq!(t.level, description.is_some(), "{}", t.id);
+        assert_eq!(t.linkable, !t.level, "{}", t.id);
+        assert!(description.is_none_or(|d| !d.config.in_book), "{}", t.id);
+    }
+    assert_eq!(
+        tpls[&tid(TPL_CHAPTER)]
+            .book_prose_modules()
+            .map(|m| m.id.as_str())
+            .collect::<Vec<_>>(),
+        [MOD_PROSE]
+    );
 
     // Root entries in manuscript order: 书稿, 构想, 要素, 故事线 (all fresh UUIDv7).
     for id in [
@@ -150,12 +167,14 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
             Some(&roots.cat_character),
             "主角们",
             Some(&tid(TPL_GROUP)),
+            true,
         )?;
         let c1 = t.entries().create(
             &eid("char-1"),
             Some(&eid("grp-protagonists")),
             "林凯",
             Some(&tid(TPL_CHARACTER)),
+            false,
         )?;
         c1.created_at(Some(Timestamp(100)))?
             .set_field(
@@ -185,6 +204,7 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
             Some(&eid("grp-protagonists")),
             "阿凯",
             Some(&tid(TPL_CHARACTER)),
+            false,
         )?;
         c2.created_at(Some(Timestamp(200)))?;
 
@@ -194,12 +214,14 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
             Some(&roots.manuscript),
             "第一章",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         t.entries().create(
             &eid("ch-2"),
             Some(&roots.manuscript),
             "第二章",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         t.entries().move_before(&eid("ch-2"), &eid("ch-1"))?;
         Ok(())
@@ -218,13 +240,23 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
         vec![(eid("char-2"), eid("char-1"))]
     );
 
-    // Chapters under 书稿 reflect move_before order.
-    let leaves: Vec<EntryId> = v
-        .manuscript_leaves(&roots.manuscript)
+    // Chapters under 书稿 reflect move_before order, numbered in the
+    // manuscript sequence; 书稿 itself has no book prose.
+    let structure = v.structure_snapshot();
+    let numbered: Vec<(EntryId, Option<u32>)> = structure
+        .manuscript()
         .into_iter()
-        .map(|e| e.id)
+        .flat_map(|p| p.entries)
+        .map(|e| (e.entry.id.clone(), e.ordinal))
         .collect();
-    assert_eq!(leaves, vec![eid("ch-2"), eid("ch-1")]);
+    assert_eq!(
+        numbered,
+        vec![
+            (roots.manuscript.clone(), None),
+            (eid("ch-2"), Some(1)),
+            (eid("ch-1"), Some(2))
+        ]
+    );
 
     // Field values, kv rows and layout round-trip.
     let char1 = v.entry(&eid("char-1")).unwrap();
@@ -248,18 +280,21 @@ fn timeline_view_requires_lane_membership_and_prose_ownership_works() {
             Some(&roots.storylines),
             "主线",
             Some(&tid(TPL_STORYLINE)),
+            true,
         )?;
         t.entries().create(
             &eid("ch-1"),
             Some(&roots.manuscript),
             "第一章",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         t.entries().create(
             &eid("ch-2"),
             Some(&roots.manuscript),
             "第二章",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         // Add sl-main to narrative view and place both ch-1 and ch-2,
         // but only give ch-1 membership in sl-main.
@@ -292,9 +327,9 @@ fn timeline_view_requires_lane_membership_and_prose_ownership_works() {
     assert_eq!(tv.placements[0].entry, eid("ch-1"));
     assert_eq!(tv.pins.len(), 1);
 
-    // Prose ownership: body:<entry>/<module>, body:<entry>/about, template:<book>/<tpl>/<mod>.
+    // Prose ownership: body:<entry>/<module>, template:<book>/<tpl>/<mod>.
     let ch_body = DocId::parse("body:ch-1/mod-prose").unwrap();
-    let sl_about = DocId::parse("body:sl-main/about").unwrap();
+    let sl_about = DocId::parse("body:sl-main/mod-description").unwrap();
     let orphan_body = DocId::parse("body:missing/mod-prose").unwrap();
     let tpl_doc = DocId::parse("template:b-v3/tpl-chapter/mod-prose").unwrap();
     let other_book_tpl = DocId::parse("template:other-book/tpl-chapter/mod-prose").unwrap();
@@ -323,6 +358,7 @@ fn entry_snapshot_and_restore_round_trip() {
             Some(&roots.manuscript),
             "初稿标题",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         w.set_field(
             &mid(MOD_FIELDS),
@@ -397,6 +433,7 @@ fn structure_snapshot_is_explicit_and_fresh_after_pending_writes_import_and_chec
             Some(&roots.manuscript),
             "Before",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         let pending = view.doc.get_pending_txn_len();
         assert!(pending > 0);
@@ -475,6 +512,7 @@ fn structure_snapshot_matches_live_read_tolerances_and_order() {
                 Some(&roots.cat_character),
                 "Same",
                 Some(&tid(TPL_CHARACTER)),
+                false,
             )?
             .created_at(Some(Timestamp(1)))?;
         t.entries()
@@ -483,6 +521,7 @@ fn structure_snapshot_matches_live_read_tolerances_and_order() {
                 Some(&roots.cat_character),
                 "Same",
                 Some(&tid(TPL_CHARACTER)),
+                false,
             )?
             .created_at(Some(Timestamp(2)))?;
         t.entries()
@@ -491,16 +530,18 @@ fn structure_snapshot_matches_live_read_tolerances_and_order() {
                 Some(&roots.cat_character),
                 "Hidden",
                 Some(&tid(TPL_CHARACTER)),
+                false,
             )?
             .deleted_at(Some(Timestamp(3)))?;
         // A merged child under a leaf is lifted, retaining the stored tree parent.
         t.entries()
-            .create(&eid("lifted"), Some(&eid("a")), "Lifted", None)?;
+            .create(&eid("lifted"), Some(&eid("a")), "Lifted", None, false)?;
         t.entries().create(
             &eid("unknown"),
             None,
             "Unknown",
             Some(&tid("missing-template")),
+            false,
         )?;
         t.entries().move_before(&eid("b"), &eid("a"))?;
         t.put_membership(
@@ -588,6 +629,10 @@ fn structure_snapshot_keeps_duplicate_tree_ids_and_domain_cycle_tolerance() {
     };
     let kept = node("shared", None);
     let copy = node("shared", None);
+    // `shared` holds entries: its switch is on (on both copies).
+    for n in [kept, copy] {
+        tree.get_meta(n).unwrap().insert("level", true).unwrap();
+    }
     node("child-one", Some(kept));
     node("child-two", Some(copy));
     // Loro's tree is acyclic, but canonical domain IDs can form a cycle.
@@ -622,7 +667,6 @@ fn field_def_default_value_round_trips_through_loro_and_omits_null() {
     let p4 = PosKey::parse("a4").unwrap();
     let tpl = EntryTemplate {
         id: tid("tpl-char"),
-        kind: TemplateKind::Leaf,
         name: "人物".into(),
         mark: None,
         color: None,
@@ -684,8 +728,9 @@ fn field_def_default_value_round_trips_through_loro_and_omits_null() {
             },
             agent: None,
         }],
+        level: false,
+        linkable: true,
         settings: LevelSettingsOverride::default(),
-        lane: false,
         verbs: Vec::new(),
         deleted_at: None,
     };
@@ -728,6 +773,7 @@ fn book_with_owned_records() -> (BookDocV3, NovelRootEntries) {
             Some(&roots.cat_character),
             "主角们",
             Some(&tid(TPL_GROUP)),
+            true,
         )?;
         for (id, title) in [("char-a", "林凯"), ("char-b", "苏晚")] {
             t.entries()
@@ -736,6 +782,7 @@ fn book_with_owned_records() -> (BookDocV3, NovelRootEntries) {
                     Some(&eid("grp")),
                     title,
                     Some(&tid(TPL_CHARACTER)),
+                    false,
                 )?
                 .created_at(Some(Timestamp(100)))?
                 .set_field(
@@ -750,6 +797,7 @@ fn book_with_owned_records() -> (BookDocV3, NovelRootEntries) {
                 Some(&roots.manuscript),
                 title,
                 Some(&tid(TPL_CHAPTER)),
+                false,
             )?;
         }
         t.patch(&patch("patch-a"))?
@@ -891,6 +939,7 @@ fn an_entry_change_state_follows_the_entry_and_not_its_siblings() {
             Some(&roots.manuscript),
             "新的一章",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         t.entries().create_at(
             &eid("ch-first"),
@@ -898,6 +947,7 @@ fn an_entry_change_state_follows_the_entry_and_not_its_siblings() {
             0,
             "序",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         Ok(())
     });
@@ -934,8 +984,13 @@ fn an_entry_change_state_follows_the_entry_and_not_its_siblings() {
         t.entries().move_to(&eid("ch-3"), Some(&roots.ideas))
     });
     edit(&mut doc, &|t| {
-        t.entries()
-            .create(&eid("under-first"), Some(&eid("ch-first")), "子条目", None)?;
+        t.entries().create(
+            &eid("under-first"),
+            Some(&eid("ch-first")),
+            "子条目",
+            None,
+            false,
+        )?;
         Ok(())
     });
     edit(&mut doc, &|t| t.entries().purge_subtree(&eid("ch-new")));
@@ -1005,6 +1060,7 @@ fn an_entry_made_on_two_devices_reads_its_change_state_from_the_kept_node() {
                     Some(&roots.ideas),
                     "两台设备各建了一个",
                     Some(&tid(TPL_IDEA_GROUP)),
+                    true,
                 )?
                 .created_at(Some(Timestamp(5)))?;
             t.entries().create(
@@ -1012,6 +1068,7 @@ fn an_entry_made_on_two_devices_reads_its_change_state_from_the_kept_node() {
                 Some(&eid("twice")),
                 child,
                 Some(&tid(TPL_IDEA)),
+                false,
             )?;
             Ok(())
         })
@@ -1064,6 +1121,7 @@ fn an_entry_made_on_two_devices_reads_its_change_state_from_the_kept_node() {
             Some(&roots.ideas),
             "旁边的",
             Some(&tid(TPL_IDEA)),
+            false,
         )?;
         t.entries().move_before(&eid("beside"), &eid("twice"))
     })
@@ -1097,6 +1155,7 @@ fn siblings_holding_one_position_key_get_new_keys_when_an_entry_goes_between_the
                 Some(&roots.manuscript),
                 id,
                 Some(&tid(TPL_CHAPTER)),
+                false,
             )?;
             Ok(())
         })
@@ -1128,6 +1187,7 @@ fn siblings_holding_one_position_key_get_new_keys_when_an_entry_goes_between_the
             4,
             "夹在中间",
             Some(&tid(TPL_CHAPTER)),
+            false,
         )?;
         Ok(())
     })
@@ -1169,6 +1229,10 @@ fn entry_change_states_leave_out_what_the_tree_readers_leave_out() {
     };
     let kept = node("shared", None);
     let copy = node("shared", None);
+    // `shared` holds entries: its switch is on (on both copies).
+    for n in [kept, copy] {
+        tree.get_meta(n).unwrap().insert("level", true).unwrap();
+    }
     node("child-one", Some(kept));
     node("child-two", Some(copy));
     let x = node("x", None);
@@ -1200,4 +1264,394 @@ fn entry_change_states_leave_out_what_the_tree_readers_leave_out() {
     assert_eq!(all[2].1["parent"], "shared");
     assert!(v.entry_change_state(&eid("x")).is_none());
     assert!(v.entry_change_state(&eid("y")).is_none());
+}
+
+/// A novel book with entries added by `f`.
+fn novel_book(
+    peer: u64,
+    f: impl FnOnce(&mut BookTxnV3<'_>, &NovelRootEntries) -> Result<()>,
+) -> (BookDocV3, NovelRootEntries) {
+    let mut doc = BookDocV3::create(bid(), peer).unwrap();
+    let (roots, _) = doc.edit(Origin::User, apply_novel_project_template);
+    let roots = roots.unwrap();
+    let (r, _) = doc.edit(Origin::User, |t| f(t, &roots));
+    r.unwrap();
+    (doc, roots)
+}
+
+#[test]
+fn the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it() {
+    let chapter = tid(TPL_CHAPTER);
+    let group = tid(TPL_GROUP);
+    let (doc, roots) = novel_book(70, |t, roots| {
+        let ms = Some(&roots.manuscript);
+        // A chapter with entries under it: its own prose comes first.
+        t.entries()
+            .create(&eid("vol"), ms, "第一卷", Some(&chapter), true)?;
+        t.entries()
+            .create(&eid("ch-a"), Some(&eid("vol")), "甲", Some(&chapter), false)?;
+        // A group: its 「说明」 is not part of the book, so it has no number.
+        t.entries()
+            .create(&eid("grp"), ms, "分组", Some(&group), true)?;
+        t.entries()
+            .create(&eid("ch-c"), Some(&eid("grp")), "丙", Some(&chapter), false)?;
+        t.entries()
+            .create(&eid("ch-b"), ms, "乙", Some(&chapter), false)?;
+        // A merge left `lifted` under `ch-b`, whose switch is off.
+        t.entries().create(
+            &eid("lifted"),
+            Some(&eid("ch-b")),
+            "丁",
+            Some(&chapter),
+            false,
+        )?;
+        // Trashed: neither it nor what lives under it counts.
+        t.entries()
+            .create(&eid("gone"), ms, "删", Some(&chapter), true)?
+            .deleted_at(Some(Timestamp(9)))?;
+        t.entries().create(
+            &eid("gone-child"),
+            Some(&eid("gone")),
+            "删下",
+            Some(&chapter),
+            false,
+        )?;
+        // A second, separate manuscript: numbering continues there.
+        t.entries()
+            .create(&eid("appendix"), None, "附录", Some(&group), true)?
+            .overrides(Some(&LevelSettingsOverride {
+                is_manuscript: Some(true),
+                ..LevelSettingsOverride::default()
+            }))?;
+        t.entries().create(
+            &eid("ch-z"),
+            Some(&eid("appendix")),
+            "戊",
+            Some(&chapter),
+            false,
+        )?;
+        Ok(())
+    });
+    let s = doc.view().structure_snapshot();
+    let parts = s.manuscript();
+    let read = |part: &ManuscriptPart<'_>| -> Vec<(String, u32, Option<u32>, Vec<String>)> {
+        part.entries
+            .iter()
+            .map(|e| {
+                (
+                    e.entry.title.clone(),
+                    e.depth,
+                    e.ordinal,
+                    e.prose.iter().map(|p| p.module.to_string()).collect(),
+                )
+            })
+            .collect()
+    };
+    assert_eq!(parts.len(), 2);
+    assert_eq!(parts[0].root.id, roots.manuscript);
+    let prose = || vec![MOD_PROSE.to_string()];
+    assert_eq!(
+        read(&parts[0]),
+        vec![
+            ("书稿".into(), 0, None, vec![]),
+            ("第一卷".into(), 1, Some(1), prose()),
+            ("甲".into(), 2, Some(2), prose()),
+            ("分组".into(), 1, None, vec![]),
+            ("丙".into(), 2, Some(3), prose()),
+            ("乙".into(), 1, Some(4), prose()),
+            ("丁".into(), 1, Some(5), prose()),
+        ]
+    );
+    assert_eq!(parts[1].root.id, eid("appendix"));
+    assert_eq!(
+        read(&parts[1]),
+        vec![
+            ("附录".into(), 0, None, vec![]),
+            ("戊".into(), 1, Some(6), prose())
+        ]
+    );
+    assert_eq!(s.ordinal(&eid("ch-c")), Some(3));
+    assert_eq!(s.ordinal(&eid("grp")), None);
+    assert_eq!(s.ordinal(&eid("gone")), None);
+    assert_eq!(
+        s.manuscript_docs().first(),
+        Some(&DocId::Body(BodyDocId::new(eid("vol"), mid(MOD_PROSE))))
+    );
+    // The same walk with every prose: the 「说明」 shows, still not in the book.
+    let all = s
+        .flatten(
+            &roots.manuscript,
+            Flatten {
+                in_book_only: false,
+                include_members: false,
+            },
+        )
+        .unwrap();
+    let description = &all[0].prose;
+    assert_eq!(description.len(), 1);
+    assert_eq!(description[0].module, mid(MOD_DESCRIPTION));
+    assert!(!description[0].in_book);
+    assert_eq!(description[0].name, "说明");
+}
+
+#[test]
+fn flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone() {
+    let chapter = tid(TPL_CHAPTER);
+    let (doc, _) = novel_book(71, |t, roots| {
+        // `holder` lives at the root and accepts; the storyline lives under it
+        // and has `holder` as a member: a cycle through a membership.
+        t.entries()
+            .create(&eid("holder"), None, "容器", Some(&tid(TPL_GROUP)), true)?
+            .overrides(Some(&LevelSettingsOverride {
+                accept: Some(true),
+                ..LevelSettingsOverride::default()
+            }))?;
+        t.entries().create(
+            &eid("sl"),
+            Some(&eid("holder")),
+            "主线",
+            Some(&tid(TPL_STORYLINE)),
+            true,
+        )?;
+        t.entries().create(
+            &eid("own"),
+            Some(&eid("sl")),
+            "线上的构想",
+            Some(&tid(TPL_IDEA)),
+            false,
+        )?;
+        for (id, title) in [("ch-a", "甲"), ("ch-b", "乙"), ("ch-t", "删")] {
+            t.entries().create(
+                &eid(id),
+                Some(&roots.manuscript),
+                title,
+                Some(&chapter),
+                false,
+            )?;
+        }
+        t.entries()
+            .entry(&eid("ch-t"))?
+            .deleted_at(Some(Timestamp(3)))?;
+        let p = |s: &str| PosKey::parse(s).unwrap();
+        // The lane's own order: `ch-b` after `ch-a` although created later.
+        t.put_membership(&eid("sl"), &eid("ch-b"), Some(&p("a1")), None)?;
+        t.put_membership(&eid("sl"), &eid("ch-a"), Some(&p("a0")), None)?;
+        t.put_membership(&eid("sl"), &eid("holder"), Some(&p("a2")), None)?;
+        t.put_membership(&eid("sl"), &eid("ch-t"), Some(&p("a3")), None)?;
+        // `ch-a` belongs to `holder` too: still once.
+        t.put_membership(&eid("holder"), &eid("ch-a"), None, None)?;
+        Ok(())
+    });
+    let s = doc.view().structure_snapshot();
+    let titles = |from: &str, include_members: bool| -> Vec<(String, u32)> {
+        s.flatten(
+            &eid(from),
+            Flatten {
+                in_book_only: true,
+                include_members,
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|e| (e.entry.title.clone(), e.depth))
+        .collect()
+    };
+    // Residents first, then members by the lane's order; each entry once;
+    // the trashed member not at all.
+    assert_eq!(
+        titles("sl", true),
+        vec![
+            ("主线".into(), 0),
+            ("线上的构想".into(), 1),
+            ("甲".into(), 1),
+            ("乙".into(), 1),
+            ("容器".into(), 1),
+        ]
+    );
+    assert_eq!(
+        titles("holder", true),
+        vec![
+            ("容器".into(), 0),
+            ("主线".into(), 1),
+            ("线上的构想".into(), 2),
+            ("甲".into(), 2),
+            ("乙".into(), 2),
+        ]
+    );
+    assert_eq!(
+        titles("sl", false),
+        vec![("主线".into(), 0), ("线上的构想".into(), 1)]
+    );
+    // The manuscript takes residents only.
+    let manuscript: Vec<String> = s
+        .manuscript()
+        .into_iter()
+        .flat_map(|p| p.entries)
+        .map(|e| e.entry.title.clone())
+        .collect();
+    assert_eq!(manuscript, vec!["书稿", "甲", "乙"]);
+    // Only a live entry whose switch is on can be a starting point.
+    assert_eq!(
+        s.flatten(&eid("ch-a"), Flatten::default()).unwrap_err(),
+        NotALevel(eid("ch-a"))
+    );
+}
+
+#[test]
+fn switching_off_moves_direct_children_after_the_top_level_entry_with_their_subtrees() {
+    let chapter = tid(TPL_CHAPTER);
+    let (mut doc, roots) = novel_book(72, |t, roots| {
+        t.entries().create(
+            &eid("vol"),
+            Some(&roots.manuscript),
+            "卷",
+            Some(&tid(TPL_GROUP)),
+            true,
+        )?;
+        t.entries()
+            .entry(&eid("vol"))?
+            .overrides(Some(&LevelSettingsOverride {
+                auto_link: Some(true),
+                ..LevelSettingsOverride::default()
+            }))?;
+        for id in ["c1", "c2", "c3"] {
+            t.entries()
+                .create(&eid(id), Some(&eid("vol")), id, Some(&chapter), id == "c3")?;
+        }
+        t.entries()
+            .entry(&eid("c2"))?
+            .deleted_at(Some(Timestamp(4)))?;
+        t.entries()
+            .create(&eid("c3a"), Some(&eid("c3")), "c3a", Some(&chapter), false)?;
+        Ok(())
+    });
+    let (moved, _) = doc.edit(Origin::User, |t| t.entries().switch_level_off(&eid("vol")));
+    assert_eq!(moved.unwrap(), vec![eid("c1"), eid("c2"), eid("c3")]);
+    let v = doc.view();
+    let raw = v.entries_raw();
+    let at = |id: &str| raw.iter().find(|e| e.id == eid(id)).unwrap();
+    // Right after the top-level entry `vol` lives under, in their order,
+    // the trashed one included; subtrees go along.
+    let roots_order: Vec<EntryId> = raw
+        .iter()
+        .filter(|e| e.parent.is_none())
+        .map(|e| e.id.clone())
+        .collect();
+    assert_eq!(
+        roots_order,
+        vec![
+            roots.manuscript.clone(),
+            eid("c1"),
+            eid("c2"),
+            eid("c3"),
+            roots.ideas.clone(),
+            roots.elements.clone(),
+            roots.storylines.clone(),
+        ]
+    );
+    assert_eq!(at("c3a").parent, Some(eid("c3")));
+    assert!(at("c2").is_trashed());
+    // `vol` keeps its place and its overrides; only its switch changed.
+    assert_eq!(at("vol").parent, Some(roots.manuscript.clone()));
+    assert!(!at("vol").level);
+    assert!(
+        at("vol")
+            .overrides
+            .as_ref()
+            .is_some_and(|o| o.auto_link == Some(true))
+    );
+
+    // An entry at the root: its children go right after itself.
+    let (r, _) = doc.edit(Origin::User, |t| {
+        t.entries().create(
+            &eid("idea"),
+            Some(&roots.ideas),
+            "构想甲",
+            Some(&tid(TPL_IDEA)),
+            false,
+        )?;
+        Ok(())
+    });
+    r.unwrap();
+    let (moved, _) = doc.edit(Origin::User, |t| t.entries().switch_level_off(&roots.ideas));
+    assert_eq!(moved.unwrap(), vec![eid("idea")]);
+    let after: Vec<EntryId> = doc
+        .view()
+        .entries_raw()
+        .into_iter()
+        .filter(|e| e.parent.is_none())
+        .map(|e| e.id)
+        .collect();
+    let i = after.iter().position(|e| e == &roots.ideas).unwrap();
+    assert_eq!(after[i + 1], eid("idea"));
+}
+
+#[test]
+fn entry_headers_read_what_the_checks_read_like_a_full_read() {
+    let (doc, _) = novel_book(73, |t, roots| {
+        let fmod = mid(MOD_FIELDS);
+        for (id, title, alias) in [("p1", "林凯", "凯哥"), ("p2", "凯哥", "阿凯")] {
+            t.entries()
+                .create(
+                    &eid(id),
+                    Some(&roots.cat_character),
+                    title,
+                    Some(&tid(TPL_CHARACTER)),
+                    false,
+                )?
+                .created_at(Some(Timestamp(if id == "p1" { 1 } else { 2 })))?
+                .set_field(
+                    &fmod,
+                    "aliases",
+                    Some(&FieldValue::List(vec![alias.into()])),
+                )?
+                .set_field(&fmod, "summary", Some(&FieldValue::Text("长摘要".into())))?;
+        }
+        t.entries()
+            .entry(&eid("p2"))?
+            .deleted_at(Some(Timestamp(3)))?;
+        Ok(())
+    });
+    let v = doc.view();
+    let templates = v.templates_map();
+    let full = v.entries_map();
+    let headers = v.entry_headers();
+    assert_eq!(full.len(), headers.len());
+    for (id, e) in &full {
+        let h = &headers[id];
+        assert_eq!(
+            (&h.parent, &h.title, &h.template, h.level, &h.overrides),
+            (&e.parent, &e.title, &e.template, e.level, &e.overrides),
+            "{id}"
+        );
+        assert_eq!((h.created_at, h.deleted_at), (e.created_at, e.deleted_at));
+        assert_eq!(h.aliases(&templates), e.aliases(&templates), "{id}");
+    }
+    // Only alias fields are read.
+    assert!(!headers[&eid("p1")].fields[&mid(MOD_FIELDS)].contains_key("summary"));
+    let memberships = v.memberships_raw();
+    assert_eq!(
+        AutolinkNames::of(&headers, &memberships, &templates),
+        AutolinkNames::of(&full, &memberships, &templates)
+    );
+    // One entry with its conflict, as the full read marks it.
+    let (doc, _) = novel_book(74, |t, roots| {
+        for (id, title) in [("q1", "同名"), ("q2", "同名")] {
+            t.entries()
+                .create(
+                    &eid(id),
+                    Some(&roots.cat_character),
+                    title,
+                    Some(&tid(TPL_CHARACTER)),
+                    false,
+                )?
+                .created_at(Some(Timestamp(if id == "q1" { 1 } else { 2 })))?;
+        }
+        Ok(())
+    });
+    let v = doc.view();
+    for e in v.entries() {
+        assert_eq!(v.entry(&e.id).unwrap(), e, "{}", e.id);
+    }
+    assert_eq!(v.entry(&eid("q2")).unwrap().name_conflict, Some(eid("q1")));
 }

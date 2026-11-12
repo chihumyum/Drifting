@@ -1,4 +1,4 @@
-//! Read-tolerant views of a universal kernel v3 book document (`kernel-v3.md`).
+//! Read-tolerant views of a book document (`kernel-v4.md`).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -13,7 +13,7 @@ use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID};
 use crate::catalog::EntitySnapshot;
 use crate::catalog::fields::{F, kv_entries};
 use crate::catalog::read::{
-    ForestNode, forest, forest_entry_headers, forest_entry_status, forest_node,
+    ForestNode, forest, forest_entry_headers, forest_entry_status, forest_ids, forest_node,
 };
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
@@ -126,17 +126,6 @@ pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride 
         Some(LoroValue::String(s)) => EntryTemplateId::parse(s).ok().map(Some),
         _ => None,
     };
-    let allow = match f.get("allow") {
-        Some(LoroValue::List(l)) => Some(
-            l.iter()
-                .filter_map(|v| match v {
-                    LoroValue::String(s) => EntryTemplateId::parse(s).ok(),
-                    _ => None,
-                })
-                .collect(),
-        ),
-        _ => None,
-    };
     let home = match raw("home") {
         Some(LoroValue::Null) => Some(None),
         Some(LoroValue::String(s)) => EntryId::parse(s).ok().map(Some),
@@ -144,13 +133,13 @@ pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride 
     };
     LevelSettingsOverride {
         default_template,
-        allow,
         display: f.kind("display"),
         auto_link: f.bool("auto_link"),
         accept: f.bool("accept"),
         home,
         is_manuscript: f.bool("is_manuscript"),
         format_shortcuts: f.kind("format_shortcuts"),
+        lane: f.bool("lane"),
     }
 }
 
@@ -178,6 +167,35 @@ pub(crate) fn decode_field_value(v: &LoroValue) -> Option<FieldValue> {
             }
         }
         _ => None,
+    }
+}
+
+/// One structural read of a book ([`BookViewV3::graph`]): entry headers,
+/// templates and stored memberships. Clone it, apply a planned write, and
+/// compare with [`dr_model::v3::check_new_violations`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct BookGraphV3 {
+    pub entries: BTreeMap<EntryId, Entry>,
+    pub templates: BTreeMap<EntryTemplateId, EntryTemplate>,
+    pub memberships: Vec<Membership>,
+}
+
+impl BookGraphV3 {
+    pub fn as_graph(&self) -> BookGraph<'_> {
+        BookGraph {
+            entries: &self.entries,
+            templates: &self.templates,
+            memberships: &self.memberships,
+        }
+    }
+
+    /// Refuse `self` (the book after a planned write) only for a violation
+    /// `before` did not have.
+    pub fn check_against(
+        &self,
+        before: &BookGraphV3,
+    ) -> std::result::Result<(), dr_model::check::Violation> {
+        check_new_violations(before.as_graph(), self.as_graph())
     }
 }
 
@@ -485,7 +503,6 @@ impl<'a> BookViewV3<'a> {
     pub(super) fn read_template(id: &str, v: &LoroValue) -> Option<EntryTemplate> {
         let f = F(v);
         let tid = EntryTemplateId::parse(id).ok()?;
-        let kind = f.kind::<TemplateKind>("kind").unwrap_or(TemplateKind::Leaf);
         let agent = f.sub("agent").and_then(|a| {
             let cfg = TemplateAgentConfig {
                 name: a.string("name"),
@@ -505,9 +522,6 @@ impl<'a> BookViewV3<'a> {
                     let mf = F(mv);
                     let module_id = ModuleId::parse(mid).ok()?;
                     let mkind = mf.kind::<ModuleKind>("kind")?;
-                    if kind == TemplateKind::Level && !mkind.allowed_on_level() {
-                        return None;
-                    }
                     let magent = mf.sub("agent").and_then(|a| {
                         let writable = a.bool("writable").unwrap_or(true);
                         let read_tier = a.opt_string("read_tier");
@@ -603,6 +617,7 @@ impl<'a> BookViewV3<'a> {
                                 .bool("show_outline")
                                 .unwrap_or(default_cfg.show_outline),
                             task_todos: c.bool("task_todos").unwrap_or(default_cfg.task_todos),
+                            in_book: c.bool("in_book").unwrap_or(default_cfg.in_book),
                             defs,
                             aliases_field: c.opt_string("aliases_field"),
                             color_field: c.opt_string("color_field"),
@@ -638,49 +653,43 @@ impl<'a> BookViewV3<'a> {
         };
         sort_modules(&mut modules);
 
-        let settings = if kind == TemplateKind::Level {
-            f.sub("settings")
-                .map(decode_level_settings_override)
-                .unwrap_or_default()
-        } else {
-            LevelSettingsOverride::default()
-        };
-        let lane = kind == TemplateKind::Level && f.bool("lane").unwrap_or(false);
-        let mut verbs: Vec<TemplateVerb> = if kind == TemplateKind::Level {
-            match f.get("verbs") {
-                Some(LoroValue::Map(vm)) => vm
-                    .iter()
-                    .filter_map(|(vid, vv)| {
-                        if vid.is_empty() {
-                            return None;
-                        }
-                        let vf = F(vv);
-                        Some(TemplateVerb {
-                            id: vid.clone(),
-                            name: vf.string("name"),
-                            description: vf.string("description"),
-                            target_template: vf.id("target_template"),
-                            pos: vf.pos("pos"),
-                        })
+        // Settings and actions are kept whatever the default switch says:
+        // they apply to entries of this template whose switch is on.
+        let settings = f
+            .sub("settings")
+            .map(decode_level_settings_override)
+            .unwrap_or_default();
+        let mut verbs: Vec<TemplateVerb> = match f.get("verbs") {
+            Some(LoroValue::Map(vm)) => vm
+                .iter()
+                .filter_map(|(vid, vv)| {
+                    if vid.is_empty() {
+                        return None;
+                    }
+                    let vf = F(vv);
+                    Some(TemplateVerb {
+                        id: vid.clone(),
+                        name: vf.string("name"),
+                        description: vf.string("description"),
+                        target_template: vf.id("target_template"),
+                        pos: vf.pos("pos"),
                     })
-                    .collect(),
-                _ => Vec::new(),
-            }
-        } else {
-            Vec::new()
+                })
+                .collect(),
+            _ => Vec::new(),
         };
         sort_verbs(&mut verbs);
 
         Some(EntryTemplate {
             id: tid,
-            kind,
             name: f.string("name"),
             mark: f.opt_string("mark"),
             color: f.opt_string("color"),
             agent,
             modules,
+            level: f.bool("level").unwrap_or(false),
+            linkable: f.bool("linkable").unwrap_or(true),
             settings,
-            lane,
             verbs,
             deleted_at: f.ts("deleted_at"),
         })
@@ -712,11 +721,10 @@ impl<'a> BookViewV3<'a> {
         self.doc.get_tree(root)
     }
 
+    /// Every reachable domain id of the tree at `root` with its tree nodes
+    /// (the kept one first), reading only each node's `id`.
     pub(crate) fn tree_index(&self, root: &str) -> HashMap<String, Vec<TreeID>> {
-        forest(&self.tree(root))
-            .into_iter()
-            .map(|n| (n.id, n.tree_ids))
-            .collect()
+        forest_ids(&self.tree(root))
     }
 
     pub(super) fn read_entry_node(n: &ForestNode) -> Option<Entry> {
@@ -791,6 +799,7 @@ impl<'a> BookViewV3<'a> {
             pos,
             title: f.string("title"),
             template: f.id("template"),
+            level: f.bool("level").unwrap_or(false),
             overrides,
             fields,
             kv,
@@ -839,8 +848,15 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
+    /// One entry with its auto-link name conflict, without reading every
+    /// entry in full: the conflict comes from the book's name table over the
+    /// structural [`Self::graph`].
     pub fn entry(&self, id: &EntryId) -> Option<Entry> {
-        self.entries().into_iter().find(|e| &e.id == id)
+        let mut e = self.entry_raw(id)?;
+        let mut g = self.graph();
+        resolve_autolink_name_conflicts(&mut g.entries, &g.memberships, &g.templates);
+        e.name_conflict = g.entries.get(id).and_then(|h| h.name_conflict.clone());
+        Some(e)
     }
 
     /// Single-entry lookup without computing book-wide auto-link name conflicts.
@@ -850,19 +866,40 @@ impl<'a> BookViewV3<'a> {
             .and_then(Self::read_entry_node)
     }
 
-    /// Scalar-only entry headers (`id`, `parent`, `title`, `template`, `deleted_at`)
-    /// keyed by `EntryId`, without decoding nested `fields:*`, `kv:*`, `overrides`
-    /// or `layout` containers. Preserves exact `is_trashed`, `effective_template`,
-    /// `is_level`, `is_leaf` and `effective_ancestors` semantics.
-    pub fn entry_headers(&self) -> BTreeMap<EntryId, Entry> {
-        let headers = forest_entry_headers(&self.tree(book_v3::ENTRIES));
-        let valid_ids: HashSet<String> = headers
+    /// Structural entry headers keyed by `EntryId`: `id`, `parent`, `title`,
+    /// `template`, `level`, `overrides`, `created_at`, `deleted_at`, and the
+    /// alias fields `templates` declare (the only `fields` values decoded);
+    /// no `kv:*` or `layout`. Exact for the switch, settings inheritance,
+    /// memberships, auto-linking and name keys (`entry_autolink_keys`).
+    pub fn entry_headers_with(
+        &self,
+        templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    ) -> BTreeMap<EntryId, Entry> {
+        let mut alias_fields: BTreeSet<(String, String)> = BTreeSet::new();
+        for t in templates.values() {
+            for m in t.modules.iter().filter(|m| m.kind == ModuleKind::Fields) {
+                if let Some(f) = &m.config.aliases_field {
+                    alias_fields.insert((m.id.to_string(), f.clone()));
+                }
+                for d in m
+                    .config
+                    .defs
+                    .iter()
+                    .filter(|d| d.field_type == FieldType::Aliases)
+                {
+                    alias_fields.insert((m.id.to_string(), d.id.clone()));
+                }
+            }
+        }
+        let alias_fields: Vec<_> = alias_fields.into_iter().collect();
+        let headers = forest_entry_headers(&self.tree(book_v3::ENTRIES), &alias_fields);
+        let valid_ids: HashSet<&str> = headers
             .iter()
             .filter(|h| EntryId::parse(&h.id).is_ok())
-            .map(|h| h.id.clone())
+            .map(|h| h.id.as_str())
             .collect();
         let mut out = BTreeMap::new();
-        for h in headers {
+        for h in &headers {
             let Ok(id) = EntryId::parse(&h.id) else {
                 continue;
             };
@@ -875,20 +912,37 @@ impl<'a> BookViewV3<'a> {
                 .template
                 .as_deref()
                 .and_then(|t| EntryTemplateId::parse(t).ok());
+            let overrides = h
+                .overrides
+                .as_ref()
+                .map(|v| decode_level_settings_override(F(v)))
+                .filter(|o| !o.is_empty());
+            let mut fields: BTreeMap<ModuleId, BTreeMap<String, FieldValue>> = BTreeMap::new();
+            for (module, field, value) in &h.fields {
+                if let (Ok(module), Some(value)) =
+                    (ModuleId::parse(module), decode_field_value(value))
+                {
+                    fields
+                        .entry(module)
+                        .or_default()
+                        .insert(field.clone(), value);
+                }
+            }
             out.insert(
                 id.clone(),
                 Entry {
                     id,
                     parent,
                     pos: String::new(),
-                    title: h.title,
+                    title: h.title.clone(),
                     template,
-                    overrides: None,
-                    fields: BTreeMap::new(),
+                    level: h.level,
+                    overrides,
+                    fields,
                     kv: BTreeMap::new(),
                     primary: None,
                     layout: EntryLayout::default(),
-                    created_at: None,
+                    created_at: h.created_at,
                     updated_at: None,
                     deleted_at: h.deleted_at,
                     name_conflict: None,
@@ -898,14 +952,30 @@ impl<'a> BookViewV3<'a> {
         out
     }
 
+    /// [`Self::entry_headers_with`] this book's own templates.
+    pub fn entry_headers(&self) -> BTreeMap<EntryId, Entry> {
+        self.entry_headers_with(&self.templates_map())
+    }
+
+    /// What the structural invariants look at, in one read: the entry
+    /// headers ([`Self::entry_headers_with`]), every template and every stored
+    /// membership. Compare two with [`dr_model::v3::check_new_violations`].
+    pub fn graph(&self) -> BookGraphV3 {
+        let templates = self.templates_map();
+        BookGraphV3 {
+            entries: self.entry_headers_with(&templates),
+            templates,
+            memberships: self.memberships_raw(),
+        }
+    }
+
     /// Effective parent of `id` after applying `V3-LEAF-NO-CHILDREN` tolerance
     /// (children placed under a leaf by a concurrent merge are lifted to the
     /// nearest non-leaf ancestor).
     pub fn effective_parent(&self, id: &EntryId) -> Option<EntryId> {
-        let entries = self.entries_map();
-        let templates = self.templates_map();
+        let entries = self.entry_headers_with(&BTreeMap::new());
         let e = entries.get(id)?;
-        effective_parent_id(e, &entries, &templates)
+        effective_parent_id(e, &entries)
     }
 
     /// Live child entries whose effective parent is `parent`, in manuscript
@@ -914,59 +984,32 @@ impl<'a> BookViewV3<'a> {
         let ordered = self.entries();
         let entries: BTreeMap<EntryId, Entry> =
             ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        let templates = self.templates_map();
         ordered
             .into_iter()
-            .filter(|e| {
-                !e.is_trashed() && effective_parent_id(e, &entries, &templates).as_ref() == parent
-            })
+            .filter(|e| !e.is_trashed() && effective_parent_id(e, &entries).as_ref() == parent)
             .collect()
     }
 
     ///Resolved level settings for `level_id` (`entry.overrides > template.settings > nearest ancestor > default`).
     pub fn level_settings(&self, level_id: Option<&EntryId>) -> LevelSettings {
-        let entries = self.entries_map();
         let templates = self.templates_map();
+        let entries = self.entry_headers_with(&templates);
         resolve_level_settings(level_id, &entries, &templates)
     }
 
     /// Outermost live manuscript levels (`V3-MANUSCRIPT-NO-NEST`).
     pub fn manuscript_levels(&self) -> BTreeSet<EntryId> {
-        let entries = self.entries_map();
         let templates = self.templates_map();
+        let entries = self.entry_headers_with(&templates);
         effective_manuscript_levels(&entries, &templates)
     }
 
-    /// Live leaf entries inside `manuscript_level` in depth-first manuscript order.
-    pub fn manuscript_leaves(&self, manuscript_level: &EntryId) -> Vec<Entry> {
-        let ordered = self.entries();
-        let entries: BTreeMap<EntryId, Entry> =
-            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        let templates = self.templates_map();
-        if !effective_manuscript_levels(&entries, &templates).contains(manuscript_level) {
-            return Vec::new();
-        }
-        ordered
-            .into_iter()
-            .filter(|e| {
-                if e.is_trashed() || !e.is_leaf(&templates) {
-                    return false;
-                }
-                let anc = effective_ancestors(&entries, &templates, &e.id);
-                anc.contains(manuscript_level)
-                    && anc
-                        .iter()
-                        .all(|a| entries.get(a).is_some_and(|ae| !ae.is_trashed()))
-            })
-            .collect()
-    }
-
-    /// Auto-link leaf entries whose title or alias collides with an earlier
-    /// auto-link leaf: `(colliding_entry, winner_entry)`.
+    /// Auto-linked entries whose title or alias collides with an earlier
+    /// auto-linked entry: `(colliding_entry, winner_entry)`.
     pub fn autolink_name_conflicts(&self) -> Vec<(EntryId, EntryId)> {
-        self.entries()
+        let mut g = self.graph();
+        resolve_autolink_name_conflicts(&mut g.entries, &g.memberships, &g.templates)
             .into_iter()
-            .filter_map(|e| e.name_conflict.map(|w| (e.id, w)))
             .collect()
     }
 
@@ -1019,17 +1062,11 @@ impl<'a> BookViewV3<'a> {
         out
     }
 
-    /// Valid memberships (`V3-MEMBERSHIP-RULES`: both ends live, host is a
-    /// level with `accept == true` and allows member's template).
+    /// Valid memberships (`V3-MEMBERSHIP-RULES`: both ends live, the host's
+    /// switch on and its `accept` resolved on).
     pub fn memberships(&self) -> Vec<Membership> {
-        let raw = self.memberships_raw();
-        let entries: BTreeMap<EntryId, Entry> = self
-            .entries_raw()
-            .into_iter()
-            .map(|e| (e.id.clone(), e))
-            .collect();
-        let templates = self.templates_map();
-        filter_valid_memberships(&raw, &entries, &templates)
+        let g = self.graph();
+        filter_valid_memberships(&g.memberships, &g.entries, &g.templates)
     }
 
     pub fn memberships_of_host(&self, host: &EntryId) -> Vec<Membership> {
@@ -1838,8 +1875,8 @@ impl<'a> BookViewV3<'a> {
     // ---- prose ownership, snapshots and repairs --------------------------
 
     /// Whether the prose document `doc` belongs to a live or trashed owner in
-    /// this v3 book (`body:<entry>/<module>`, `body:<entry>/about`,
-    /// `template:<book>/<template>/<module>`, `material:<id>`, `conversation:<id>`).
+    /// this book (`body:<entry>/<module>`, `template:<book>/<template>/<module>`,
+    /// `material:<id>`, `conversation:<id>`, and the two documents beside the book).
     ///
     /// Note that per `V3-TEMPLATE-SWITCH-KEEPS-DATA` and `V3-ENTRY-TEMPLATE-EXISTS`,
     /// any `body:<entry>/<module>` document remains owned as long as `<entry>`

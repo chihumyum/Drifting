@@ -121,7 +121,6 @@ str_like!(
     EntryTemplateId,
     TimelineViewId,
     BodyDocId,
-    dr_model::v3::TemplateKind,
     dr_model::v3::ModuleKind,
     dr_model::v3::ChildDisplayMode,
     dr_model::v3::FormatShortcuts,

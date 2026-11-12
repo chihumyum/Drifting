@@ -370,7 +370,7 @@ mod tests {
         let template = EntryTemplateId::parse(TPL_CHAPTER).unwrap();
         let (r, _) = doc.edit(Origin::User, |t| {
             t.entries()
-                .create(&id, Some(parent), title, Some(&template))?;
+                .create(&id, Some(parent), title, Some(&template), false)?;
             Ok(())
         });
         r.unwrap();
