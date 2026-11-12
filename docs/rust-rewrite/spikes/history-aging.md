@@ -636,7 +636,7 @@ checkpoint probe (the real commands, tiny seed)
 
 - **负载**：这一轮同样没有一项是在负载低于 2 时量的。体积和个数是确定的；毫秒数里，同一轮内的对比（旧规则重跑对修复之后、逐条目对一遍读完）可以信，跨轮的绝对值不要比。
 - **第一次退出的 6.8 秒**没有解决，见上。周期捕获（15 分钟一次）对每个脏条目同样各付一次命令；兄弟连带去掉以后脏条目只剩真正动过的那几个，没有单独量。
-- **旧算法存下的快照点**：`next/` 没有真实数据，没有做迁移。修之前存的点，清单里的内容指纹和新算法对不上，预览和恢复它会被拒绝；带这种点的 `.driftingbook` 导入也会被拒绝；每个条目下一次自动捕获会多存一个点。
+- **旧算法存下的快照点照样能用**：已有的库里每个快照点存的都是旧指纹（内容里带兄弟列表）。预览、恢复和 `.driftingbook` 导入核对「历史内容与清单相符」时两种指纹都认，清单不改写；导入时改写后的点写现在的指纹。捕获时只比现在的指纹，所以最近一个点是旧指纹的条目，下一次自动捕获会多存一个点（一本书一次，之后照新规则走）；上面三年模型的数字是从没有快照点的书目起步的，不含这一次。反过来，旧版本的构建不认新指纹的点：两台设备版本不一致时，旧的那台预览不了新的那台存的点。这是有意接受的。
 - **两个兄弟的位置键相同时**（两台设备各自在同一层的末尾新建了一个条目），往它们中间插入会让 Loro 给邻居重新发键，被重新发键的邻居算变了一次、存一个点。这是位置键这个表示唯一的边角，有测试钉住（`siblings_holding_one_position_key_get_new_keys_when_an_entry_goes_between_them`）；模型里没有这种情形，所以上面的数字不含它。
 - **Windows 没量**。
 
@@ -654,6 +654,7 @@ cargo run --release -p dr-testkit --example aging-bench -- book
 # 永久测试
 cargo test -p dr-doc --lib v3::tests
 cargo test -p dr-workspace --lib snapshots::tests
+cargo test -p dr-export --test book_file_v3_snapshots
 cargo test -p dr-view-history --lib automatic
 cargo test -p dr-testkit --test aging
 ```
