@@ -18,16 +18,15 @@ import { finishHostedSignIn } from '../../sync/hosted/sign-in';
 import { describeSyncConnectError } from '../../sync/hosted/connect-error-text';
 import { authClient } from '../../lib/auth-client';
 import { setSessionToken } from '../../lib/session-token';
-import { platform } from '../../platform';
 import { events } from '../../lib/events';
 import { OAUTH_PROVIDER_CONFIG, useOAuthProviders, type SupportedOAuthProvider } from '../../lib/oauth-providers';
 import { isAppClosedForPublic } from '../../utils/appAccess';
-import { APP_CONFIG } from '../../lib/config';
 import { Button } from '../../components/ui/Button';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { LoadingStatus } from '../../components/ui/LoadingStatus';
 import type { AuthEntryMode } from './auth-dialog-store';
 import { authErrorMessage } from './auth-errors';
+import { ConsentLine } from './ConsentLine';
 import {
   cancelNativeOAuth,
   nativeOAuthErrorKey,
@@ -356,24 +355,7 @@ export function AuthFlow({
             {t('auth.useOtp')}
           </FlowButton>
         )}
-        {!signin && (
-          <p className="auth-flow__legal">
-            {t('auth.legal.agree')}{' '}
-            <a
-              onClick={() =>
-                APP_CONFIG.TERMS_URL ? void platform.material.openExternal(APP_CONFIG.TERMS_URL) : undefined
-              }
-              aria-disabled={!APP_CONFIG.TERMS_URL}
-              title={APP_CONFIG.TERMS_URL ? undefined : t('auth.legal.termsUnavailable')}
-            >
-              {t('auth.legal.terms')}
-            </a>{' '}
-            {t('auth.legal.and')}{' '}
-            <a onClick={() => void platform.material.openExternal(APP_CONFIG.PRIVACY_URL)}>
-              {t('auth.legal.privacy')}
-            </a>
-          </p>
-        )}
+        <ConsentLine />
       </form>
     );
   }

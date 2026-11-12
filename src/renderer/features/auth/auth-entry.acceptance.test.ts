@@ -48,8 +48,16 @@ describe('account sign-in entry', () => {
     expect(guide).toContain("void startNativeOAuth('google')");
     expect(guide).toContain('onLocal={dismiss}');
     expect(guide).toContain("const google = !isAppClosedForPublic && providers.includes('google');");
-    // Hosted builds still say there that crash reports are sent (docs/crash-reports.md).
-    expect(guide).toContain("<p className=\"first-run-welcome__note\">{t('preAlphaGuide.crashReports')}</p>");
+    // The welcome only offers the ways on. What signing in agrees to is one line of
+    // the sign-in step; its items (docs/crash-reports.md) wait in that line's hover card.
+    expect(guide).not.toContain('preAlphaGuide.crashReports');
+    expect(css).not.toContain('first-run-welcome__note');
+    expect(read('src/renderer/features/auth/AuthFlow.tsx')).toMatch(/<ConsentLine \/>\s*<\/form>/);
+    const consent = read('src/renderer/features/auth/ConsentLine.tsx');
+    expect(consent).toContain("t('auth.legal.consent', { terms: CONSENT_TERMS_SLOT })");
+    expect(consent).toMatch(/<HoverCardShell[\s\S]*?actions=\{documents\}[\s\S]*?<div className="hover-card__text">\{t\('preAlphaGuide\.crashReports'\)\}<\/div>/);
+    expect(consent).toContain("...(APP_CONFIG.TERMS_URL ? [opens('terms', APP_CONFIG.TERMS_URL)] : []),");
+    expect(consent).toContain("opens('privacy', APP_CONFIG.PRIVACY_URL),");
     // The phone's old overlay guide is gone: one gate asks on every platform.
     expect(guide).not.toContain('export function PreAlphaOnboardingDialog');
     expect(guide).not.toContain('isMobileShell');

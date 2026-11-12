@@ -1737,10 +1737,9 @@
       "or": "ou"
     },
     "legal": {
-      "agree": "Ao se cadastrar, você concorda com os",
+      "consent": "Ao continuar, você concorda com {{terms}}.",
+      "consentTerms": "os termos",
       "terms": "Termos",
-      "termsUnavailable": "O operador não configurou os termos de serviço.",
-      "and": "e",
       "privacy": "Política de privacidade"
     },
     "forgot": {
