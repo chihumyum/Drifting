@@ -25,7 +25,6 @@ pub struct AutomaticHistory {
     worker: Option<thread::JoinHandle<()>>,
     subscription: Option<LibrarySubscription>,
 }
-type Owners = BTreeMap<(String, String), String>;
 type BookOwners = BTreeMap<String, String>;
 
 fn initial_book_heads(ws: &Workspace) -> BTreeMap<BookId, loro::Frontiers> {
@@ -44,34 +43,19 @@ fn initial_book_heads(ws: &Workspace) -> BTreeMap<BookId, loro::Frontiers> {
     heads
 }
 
-fn owners(ws: &Workspace) -> Result<Owners, String> {
-    let mut out = BTreeMap::new();
-    for info in ws
-        .library()
-        .docs(None, Some("book"))
-        .map_err(|e| e.to_string())?
-    {
-        let Ok(DocId::Book(id)) = DocId::parse(&info.doc_id) else {
-            continue;
-        };
-        for (entry, hash) in book_owners(ws, &id)? {
-            out.insert((id.to_string(), entry), hash);
-        }
-    }
-    Ok(out)
-}
+/// The fingerprint of every entry of a book: what the entry owns and where
+/// it is (`BookViewV3::entry_change_state`), read for all of them in one
+/// pass. An entry's fingerprint names no other entry but its parent, so a
+/// sibling created, deleted or moved leaves it as it was.
 fn owners_from_doc(doc: &loro::LoroDoc, book: &BookId) -> Result<BookOwners, String> {
     if !dr_doc::v3::is_v3_doc(doc) {
         return Ok(BTreeMap::new());
     }
     let b = BorrowedBookV3::new(doc, book).map_err(|e| e.to_string())?;
-    let v = b.view();
-    let entries = v.entries_raw();
     let mut out = BTreeMap::new();
-    for e in &entries {
-        let value = v.entry_owned_raw_state(&e.id).expect("entry exists");
-        let bytes = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
-        out.insert(e.id.to_string(), dr_store::digest::sha256_hex(&bytes));
+    for (entry, state) in b.view().entry_change_states() {
+        let bytes = serde_json::to_vec(&state).map_err(|e| e.to_string())?;
+        out.insert(entry.to_string(), dr_store::digest::sha256_hex(&bytes));
     }
     Ok(out)
 }
@@ -294,9 +278,25 @@ impl Drop for AutomaticHistory {
 /// Last sweep after all ordinary release services have settled. The command
 /// compares entry-owned content, so checkpoint metadata and other books do not
 /// manufacture new versions. Also usable by a host's explicit close flow.
+///
+/// The command is called only for the entries it has something to do for
+/// (`entries_due_for_capture`: the same comparison, made once for the whole
+/// book), so a quit costs what changed and not one copy of the book document
+/// per entry. Which entries earn a checkpoint is the same either way.
 pub fn capture_on_close(ws: &Workspace) -> Result<(), String> {
-    for key in owners(ws)?.keys() {
-        capture(ws, key, api::CaptureReason::Close)?;
+    for info in ws
+        .library()
+        .docs(None, Some("book"))
+        .map_err(|e| e.to_string())?
+    {
+        let Ok(DocId::Book(book)) = DocId::parse(&info.doc_id) else {
+            continue;
+        };
+        let due = api::entries_due_for_capture(ws, book.as_str()).map_err(|e| e.to_string())?;
+        for entry in due {
+            let key = (book.to_string(), entry);
+            capture(ws, &key, api::CaptureReason::Close)?;
+        }
     }
     Ok(())
 }
@@ -420,11 +420,6 @@ mod tests {
             entries.len() > 10,
             "Preset::Tiny should contain dozens of entries"
         );
-        let root_ids: Vec<String> = entries
-            .iter()
-            .filter(|e| e["parent"].is_null())
-            .map(|e| e["id"].as_str().unwrap().to_owned())
-            .collect();
         let untouched = entries
             .iter()
             .find(|e| !e["parent"].is_null() && e["id"].as_str() != Some(t.entry.as_str()))
@@ -455,13 +450,12 @@ mod tests {
             .expect("book head")
             .frontiers;
 
-        let mut expected_dirty = BTreeSet::from([
+        // The entry created and the entry edited, and nothing else: the new
+        // entry's siblings at the top level did not change.
+        let expected_dirty = BTreeSet::from([
             (t.book.clone(), created_id),
             (t.book.clone(), t.entry.clone()),
         ]);
-        for root_id in &root_ids {
-            expected_dirty.insert((t.book.clone(), root_id.clone()));
-        }
 
         let dirty = service.dirty_for_test();
         assert_eq!(dirty, expected_dirty);
@@ -582,6 +576,325 @@ mod tests {
         );
 
         service.finish().unwrap();
+        ws.shutdown().unwrap();
+    }
+
+    /// Every entry of the book, trashed ones too, as `entry.list` gives them.
+    fn entries(ws: &Workspace, book: &str) -> Vec<serde_json::Value> {
+        call(
+            ws,
+            "entry.list",
+            json!({"book": book, "all": true, "trashed": true}),
+        )
+        .as_array()
+        .unwrap()
+        .clone()
+    }
+    fn ids(entries: &[serde_json::Value]) -> BTreeSet<String> {
+        entries
+            .iter()
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .collect()
+    }
+    /// The checkpoints of every entry: `(id, reason)`, newest first.
+    fn checkpoints(ws: &Workspace, book: &str) -> BTreeMap<String, Vec<(String, String)>> {
+        ids(&entries(ws, book))
+            .into_iter()
+            .map(|entry| {
+                let points = ws
+                    .run::<api::List>(
+                        &Actor::User,
+                        api::EntryIn {
+                            book: book.to_owned(),
+                            entry: entry.clone(),
+                        },
+                    )
+                    .unwrap()
+                    .output
+                    .into_iter()
+                    .map(|p| (p.id, p.reason))
+                    .collect();
+                (entry, points)
+            })
+            .collect()
+    }
+    /// The chapter of `setup`, with its parent and the titles beside it.
+    fn family(ws: &Workspace, t: &api::EntryIn) -> (serde_json::Value, Vec<String>) {
+        let all = entries(ws, &t.book);
+        let parent = all.iter().find(|e| e["id"] == t.entry.as_str()).unwrap()["parent"].clone();
+        assert!(parent.is_string(), "the seed keeps its chapters in a level");
+        let siblings = all
+            .iter()
+            .filter(|e| e["parent"] == parent)
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .collect();
+        (parent, siblings)
+    }
+
+    #[test]
+    fn a_sibling_created_moved_trashed_or_restored_dirties_and_checkpoints_no_other_entry() {
+        let (_dir, ws, t) = setup();
+        // Every entry has its first checkpoint: from here on only a change
+        // earns another.
+        capture_on_close(&ws).unwrap();
+        let before = checkpoints(&ws, &t.book);
+        assert!(before.len() > 10 && before.values().all(|points| points.len() == 1));
+        let (parent, siblings) = family(&ws, &t);
+        assert!(siblings.len() > 1, "the chapter has siblings");
+
+        let service = AutomaticHistory::start(ws.clone());
+        let sibling = call(
+            &ws,
+            "entry.create",
+            json!({"book": t.book, "parent": parent, "template": "tpl-chapter", "title": "A sibling arrives"}),
+        );
+        assert_eq!(sibling["parent"], parent);
+        let sibling = sibling["id"].as_str().unwrap().to_owned();
+        let only_the_sibling = BTreeSet::from([(t.book.clone(), sibling.clone())]);
+        assert_eq!(service.dirty_for_test(), only_the_sibling, "created");
+        call(
+            &ws,
+            "entry.move",
+            json!({"book": t.book, "id": sibling, "parent": parent, "index": 0}),
+        );
+        assert_eq!(
+            family(&ws, &t).1[0],
+            sibling,
+            "it moved in front of them all"
+        );
+        assert_eq!(service.dirty_for_test(), only_the_sibling, "moved");
+        call(&ws, "entry.trash", json!({"book": t.book, "id": sibling}));
+        assert_eq!(service.dirty_for_test(), only_the_sibling, "trashed");
+        call(&ws, "entry.restore", json!({"book": t.book, "id": sibling}));
+        assert_eq!(service.dirty_for_test(), only_the_sibling, "restored");
+
+        service.finish().unwrap();
+        let mut after = checkpoints(&ws, &t.book);
+        let own = after.remove(&sibling).expect("the sibling's checkpoints");
+        assert_eq!(own.len(), 1);
+        assert_eq!(own[0].1, "close");
+        assert_eq!(after, before, "no other entry earned a checkpoint");
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn an_entry_moved_among_its_siblings_or_to_another_parent_is_dirty_and_earns_a_checkpoint() {
+        let (_dir, ws, t) = setup();
+        capture_on_close(&ws).unwrap();
+        let mut expected = checkpoints(&ws, &t.book);
+        let (parent, siblings) = family(&ws, &t);
+        let at = siblings.iter().position(|id| *id == t.entry).unwrap();
+        // To the other end of its level.
+        let index = if at == 0 { siblings.len() - 1 } else { 0 };
+        assert!(siblings.len() > 1, "the chapter has siblings");
+        let grandparent = entries(&ws, &t.book)
+            .iter()
+            .find(|e| e["id"] == parent)
+            .unwrap()["parent"]
+            .clone();
+        let only_the_chapter = BTreeSet::from([(t.book.clone(), t.entry.clone())]);
+
+        for (step, to, index) in [
+            ("among its siblings", &parent, index),
+            ("to another parent", &grandparent, 0),
+        ] {
+            let service = AutomaticHistory::start(ws.clone());
+            call(
+                &ws,
+                "entry.move",
+                json!({"book": t.book, "id": t.entry, "parent": to, "index": index}),
+            );
+            let now = entries(&ws, &t.book);
+            let moved = now.iter().find(|e| e["id"] == t.entry.as_str()).unwrap();
+            assert_eq!(&moved["parent"], to, "{step}");
+            assert_eq!(service.dirty_for_test(), only_the_chapter, "{step}");
+            service.finish().unwrap();
+            let mut after = checkpoints(&ws, &t.book);
+            let own = after.remove(&t.entry).unwrap();
+            let known = expected.remove(&t.entry).unwrap();
+            assert_eq!(own.len(), known.len() + 1, "{step}");
+            assert_eq!(own[0].1, "close", "{step}");
+            assert_eq!(own[1..], known[..], "{step}");
+            assert_eq!(
+                after, expected,
+                "{step}: no other entry earned a checkpoint"
+            );
+            expected.insert(t.entry.clone(), own);
+        }
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn the_close_sweep_calls_the_command_for_exactly_the_entries_it_would_save() {
+        let (_dir, ws, t) = setup();
+        let due = |ws: &Workspace| -> BTreeSet<String> {
+            let due = api::entries_due_for_capture(ws, &t.book).unwrap();
+            let set: BTreeSet<String> = due.iter().cloned().collect();
+            assert_eq!(set.len(), due.len(), "each entry once");
+            set
+        };
+        let all = entries(&ws, &t.book);
+        assert_eq!(
+            due(&ws),
+            ids(&all),
+            "without a checkpoint every entry is due"
+        );
+        capture_on_close(&ws).unwrap();
+        assert_eq!(due(&ws), BTreeSet::new());
+
+        // A title, a body, a field, a new sibling and a move.
+        let chapters: Vec<String> = all
+            .iter()
+            .filter(|e| e["template"] == "tpl-chapter" && e["deleted_at"].is_null())
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .collect();
+        assert!(chapters.len() >= 3, "{chapters:?}");
+        let (parent, _) = family(&ws, &t);
+        call(
+            &ws,
+            "entry.update",
+            json!({"book": t.book, "id": chapters[0], "title": "A new title"}),
+        );
+        call(
+            &ws,
+            "module.set_prose",
+            json!({"book": t.book, "owner": chapters[1], "module": "mod-prose", "paragraphs": [{"text": "A new body"}]}),
+        );
+        let created = call(
+            &ws,
+            "entry.create",
+            json!({"book": t.book, "parent": parent, "template": "tpl-chapter", "title": "A new sibling"}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let last = chapters.last().unwrap();
+        let home = all.iter().find(|e| e["id"] == last.as_str()).unwrap()["parent"].clone();
+        call(
+            &ws,
+            "entry.move",
+            json!({"book": t.book, "id": last, "parent": home, "index": 0}),
+        );
+        let changed = BTreeSet::from([
+            chapters[0].clone(),
+            chapters[1].clone(),
+            created.clone(),
+            last.clone(),
+        ]);
+        assert_eq!(changed.len(), 4);
+        assert_eq!(due(&ws), changed);
+
+        // The command itself, entry by entry: it saves for those and for no
+        // other, so leaving the others out changes nothing.
+        let before = checkpoints(&ws, &t.book);
+        for (entry, known) in &before {
+            let got = ws
+                .run::<api::Capture>(
+                    &Actor::User,
+                    api::CaptureIn {
+                        target: api::EntryIn {
+                            book: t.book.clone(),
+                            entry: entry.clone(),
+                        },
+                        reason: api::CaptureReason::Close,
+                    },
+                )
+                .unwrap()
+                .output;
+            if changed.contains(entry) {
+                assert!(known.iter().all(|(id, _)| *id != got.id), "{entry} is new");
+            } else {
+                assert_eq!(got.id, known[0].0, "{entry} was left alone");
+            }
+        }
+        let after = checkpoints(&ws, &t.book);
+        for (entry, known) in &before {
+            let more = usize::from(changed.contains(entry));
+            assert_eq!(after[entry].len(), known.len() + more, "{entry}");
+        }
+        assert_eq!(due(&ws), BTreeSet::new());
+
+        // A template gains a prose module: a capture gives each of its
+        // entries the missing body, so they are due though nothing they own
+        // changed.
+        call(
+            &ws,
+            "entry_template.put_module",
+            json!({"book": t.book, "template": "tpl-chapter", "module": {"id": "second", "kind": "prose", "name": "second"}}),
+        );
+        let of_the_template: BTreeSet<String> = entries(&ws, &t.book)
+            .iter()
+            .filter(|e| e["template"] == "tpl-chapter")
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .collect();
+        assert!(of_the_template.is_superset(&changed));
+        assert_eq!(due(&ws), of_the_template);
+        capture_on_close(&ws).unwrap();
+        assert_eq!(due(&ws), BTreeSet::new());
+        let last = checkpoints(&ws, &t.book);
+        for (entry, known) in &after {
+            let more = usize::from(of_the_template.contains(entry));
+            assert_eq!(last[entry].len(), known.len() + more, "{entry}");
+        }
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn text_a_holder_could_not_store_still_counts_as_a_change_on_close() {
+        let (_dir, ws, t) = setup();
+        capture_on_close(&ws).unwrap();
+        let body = format!("body:{}/mod-prose", t.entry);
+        let session = ws.prose_session(&body).unwrap();
+        ws.library()
+            .local_transaction(|tx| {
+                tx.execute_batch("CREATE TRIGGER reject_body BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'body:%' BEGIN SELECT RAISE(ABORT,'body fault'); END;")?;
+                Ok(())
+            })
+            .unwrap();
+        let stored = ws.library().head(&body).unwrap().unwrap().frontiers;
+        assert!(
+            session
+                .edit(|t| t.insert_text(0, "Typed while the disk refused"))
+                .is_err()
+        );
+        // SQLite still holds the version of the last checkpoint; only the
+        // open holder has the new text. The sweep reads the holder.
+        assert_eq!(ws.library().head(&body).unwrap().unwrap().frontiers, stored);
+        assert_eq!(
+            api::entries_due_for_capture(&ws, &t.book).unwrap(),
+            vec![t.entry.clone()]
+        );
+        assert!(
+            capture_on_close(&ws).is_err(),
+            "a quit must not pass over text that is not stored"
+        );
+        ws.library()
+            .local_transaction(|tx| {
+                tx.execute_batch("DROP TRIGGER reject_body")?;
+                Ok(())
+            })
+            .unwrap();
+        capture_on_close(&ws).unwrap();
+        let points = ws.run::<api::List>(&Actor::User, t.clone()).unwrap().output;
+        assert_eq!(points.len(), 2);
+        assert_eq!(points[0].reason, "close");
+        let preview = ws
+            .run::<api::Preview>(
+                &Actor::User,
+                api::PointIn {
+                    target: t.clone(),
+                    point: points[0].id.clone(),
+                },
+            )
+            .unwrap()
+            .output;
+        assert!(
+            preview
+                .bodies
+                .iter()
+                .any(|b| b.text.contains("Typed while the disk refused"))
+        );
+        drop(session);
         ws.shutdown().unwrap();
     }
 }
