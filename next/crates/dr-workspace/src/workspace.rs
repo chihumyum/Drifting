@@ -60,6 +60,12 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
             let merged = loro::LoroDoc::new();
             dr_doc::schema::configure(&merged);
             merged.import(&doc.export(loro::ExportMode::Snapshot)?)?;
+            // A snapshot leaves out updates that still wait for a dependency.
+            // One of them may change the marker once `bytes` brings what it
+            // waits for.
+            if let Some(waiting) = doc.export_pending_updates()? {
+                merged.import(&waiting)?;
+            }
             merged.import(bytes)?;
             if !dr_doc::v3::is_v3_doc(&merged) {
                 return Err(StoreError::Invalid {
