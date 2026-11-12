@@ -22,7 +22,7 @@ fn canonical_model(path: &str) -> bool {
         && path != "next/crates/dr-model/src/id.rs"
 }
 fn old_command() -> Regex {
-    Regex::new(r#"\"(?:book\.create|history\.(?:agent_changes|undo_agent)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin)\.[a-z_]+)\""#).expect("cutover pattern")
+    Regex::new(r#"\"(?:book\.create|history\.(?:agent_changes|undo_agent)|level\.(?:get|list)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin)\.[a-z_]+)\""#).expect("cutover pattern")
 }
 pub fn run(repo: &Repo) -> Result<Outcome, String> {
     let mut out = Outcome::default();
@@ -114,6 +114,8 @@ mod tests {
             "element.list",
             "act.update",
             "plot_grid.get",
+            "level.get",
+            "level.list",
         ] {
             assert!(old_command().is_match(&format!("\"{name}\"")));
         }
@@ -125,6 +127,7 @@ mod tests {
             "memory.add",
             "fact.put",
             "relation.create",
+            "entry.set_level",
         ] {
             assert!(!old_command().is_match(&format!("\"{name}\"")));
         }

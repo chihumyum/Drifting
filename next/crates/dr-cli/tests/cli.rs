@@ -443,21 +443,18 @@ fn a_scenario_that_drives_the_app_keeps_to_its_own_profile() {
 }
 
 #[test]
-fn all_seed_entrypoints_write_only_canonical_v3() {
+fn all_seed_entrypoints_write_only_the_current_format() {
+    // One name per preset; the old `v3-` alias is gone.
     for name in ["tiny", "lite", "heavy", "showcase"] {
-        assert_eq!(
-            dr_cli::seed::Choice::parse(name).unwrap().preset,
-            dr_cli::seed::Choice::parse(&format!("v3-{name}"))
-                .unwrap()
-                .preset
-        );
-        dr_cli::scenario::parse(&format!(r#"{{"steps":[{{"seed":"v3-{name}"}}]}}"#)).unwrap();
+        assert!(dr_cli::seed::Choice::parse(name).is_some());
+        assert!(dr_cli::seed::Choice::parse(&format!("v3-{name}")).is_none());
+        dr_cli::scenario::parse(&format!(r#"{{"steps":[{{"seed":"{name}"}}]}}"#)).unwrap();
     }
-    assert!(dr_cli::seed::Choice::parse("v3-unknown").is_none());
+    assert!(dr_cli::seed::Choice::parse("unknown").is_none());
     let dir = tempfile::tempdir().unwrap();
     run(Command::Scenario {
         library: Some(dir.path().join("library")),
-        name: "seed:v3-tiny".into(),
+        name: "seed:tiny".into(),
         yes: true,
         app: None,
         profile: None,

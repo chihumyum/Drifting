@@ -2,7 +2,7 @@
   "about": "K4-0 structure correctness: isolated secondary window, setting override and inherited source refresh, explicit null, retained prose input, Book/Material/template navigation and persisted reload. No heavy or visual acceptance.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",
@@ -172,7 +172,7 @@
       "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry_history.version",
       "input": {
         "book": "${books.0.id}"
       },
@@ -199,18 +199,26 @@
       "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry.list",
       "input": {
-        "book": "${books.0.id}"
+        "book": "${books.0.id}",
+        "all": true,
+        "below": true
       },
-      "save": "overridden",
       "expect": {
-        "/levels/[id=${level.id}]/settings/auto_link": true,
-        "/levels/[id=${level.id}]/sources/auto_link": {
+        "/[id=${level.id}]/below/settings/auto_link": true,
+        "/[id=${level.id}]/below/sources/auto_link": {
           "kind": "override",
           "entry": "${level.id}"
         }
       }
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "overridden"
     },
     {
       "app": "ui.wait",
@@ -243,7 +251,7 @@
       "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry_history.version",
       "input": {
         "book": "${books.0.id}"
       },
@@ -303,7 +311,7 @@
       "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry_history.version",
       "input": {
         "book": "${books.0.id}"
       },
@@ -404,7 +412,7 @@
       "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry_history.version",
       "input": {
         "book": "${books.0.id}"
       },
@@ -553,7 +561,7 @@
       "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry_history.version",
       "input": {
         "book": "${books.0.id}"
       },
@@ -582,18 +590,26 @@
       "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
-      "call": "level.list",
+      "call": "entry.list",
       "input": {
-        "book": "${books.0.id}"
+        "book": "${books.0.id}",
+        "all": true,
+        "below": true
       },
-      "save": "reopened",
       "expect": {
-        "/levels/[id=${level.id}]/settings/display": "grid",
-        "/levels/[id=${level.id}]/sources/display": {
+        "/[id=${level.id}]/below/settings/display": "grid",
+        "/[id=${level.id}]/below/sources/display": {
           "kind": "override",
           "entry": "${level.id}"
         }
       }
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "reopened"
     },
     {
       "app": "ui.wait",

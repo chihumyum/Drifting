@@ -149,7 +149,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                     );
                 }
             }
-            _ => return Err(WsError::invalid("unsupported v3 history collection")),
+            _ => return Err(WsError::invalid("unsupported history collection")),
         }
     }
     for p in &plans {

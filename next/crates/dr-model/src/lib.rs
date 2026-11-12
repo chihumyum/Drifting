@@ -13,7 +13,7 @@
 //! - [`import_v1`]: the 0.1 source format, for the source replay only: the
 //!   per-kind ids, vocabularies and records of the old book model, and how
 //!   retired 0.1.x values map onto the current schema. Product code may not
-//!   import it (`cargo xtask check`, gate `v3-cutover`).
+//!   import it (`cargo xtask check`, gate `cutover`).
 //!
 //! `dr-doc` maps these onto Loro documents (`docs/rust-rewrite/loro-schema.md`);
 //! commands (F3) validate against them. This crate depends on neither.

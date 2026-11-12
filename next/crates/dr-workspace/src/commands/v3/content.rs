@@ -452,7 +452,7 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
                 ) {
                     Ok(k)
                 } else {
-                    Err(WsError::invalid("invalid v3 endpoint kind"))
+                    Err(WsError::invalid("invalid endpoint kind"))
                 }
             })
             .collect()

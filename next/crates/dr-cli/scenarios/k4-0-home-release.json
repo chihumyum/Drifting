@@ -1,8 +1,8 @@
 {
-  "about": "F6 v3 Home release: with the production Home mounted, back up v3-lite, change the book, restore through the real confirmation dialog, verify the restored data and preserved pre-restore copy, reopen Home, type and undo in the restored library. Failure recovery is covered separately by permanent real-Home contracts.",
+  "about": "F6 v3 Home release: with the production Home mounted, back up lite, change the book, restore through the real confirmation dialog, verify the restored data and preserved pre-restore copy, reopen Home, type and undo in the restored library. Failure recovery is covered separately by permanent real-Home contracts.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

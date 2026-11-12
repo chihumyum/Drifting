@@ -772,7 +772,7 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -890,7 +890,7 @@ expression: json
           "type": "object"
         },
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -1109,7 +1109,7 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -1308,7 +1308,7 @@ expression: json
           "type": "object"
         },
         "CommentTargetV3": {
-          "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+          "description": "A comment target. Old structural kinds are not accepted.",
           "properties": {
             "id": {
               "type": "string"
@@ -1997,7 +1997,7 @@ expression: json
           "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
         },
         "parent": {
-          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
           "type": [
             "string",
             "null"
@@ -2514,7 +2514,7 @@ expression: json
           "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
         },
         "parent": {
-          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
           "type": [
             "string",
             "null"
@@ -2732,7 +2732,7 @@ expression: json
               "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
             },
             "parent": {
-              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
               "type": [
                 "string",
                 "null"
@@ -9294,7 +9294,7 @@ expression: json
               "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
             },
             "parent": {
-              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
               "type": [
                 "string",
                 "null"
@@ -12612,7 +12612,7 @@ expression: json
       },
       "properties": {
         "doc": {
-          "description": "`body:<entry>/<module>` (including level `about`) or `material:<id>` of a v3 book.",
+          "description": "`body:<entry>/<module>` or `material:<id>` of a book.",
           "type": "string"
         },
         "editing": {

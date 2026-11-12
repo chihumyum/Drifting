@@ -38,7 +38,7 @@ pub struct RecentTouchIn {
 }
 fn decode(raw: Option<String>, book: &str) -> dr_store::Result<Vec<RecentEntry>> {
     let invalid = || StoreError::Invalid {
-        what: "v3 recent pages",
+        what: "recent pages",
         value: "unreadable state; left unchanged".into(),
     };
     let entries: Vec<RecentEntry> = raw

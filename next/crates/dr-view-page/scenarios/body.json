@@ -2,7 +2,7 @@
   "about": "K4 G1: v3-lite body input and undo, chapter chrome, slash, selection bar, end action and level about.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

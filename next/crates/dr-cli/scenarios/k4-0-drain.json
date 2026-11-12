@@ -1,8 +1,8 @@
 {
-  "about": "F6 common release with the formal G1 host: v3-lite real input, ordinary quit, persisted complete checkpoint, reopen and undo. G1 has not yet moved its production registration to after_drain; this smoke does not claim that consumer migration or Material comment saving.",
+  "about": "F6 common release with the formal G1 host: lite real input, ordinary quit, persisted complete checkpoint, reopen and undo. G1 has not yet moved its production registration to after_drain; this smoke does not claim that consumer migration or Material comment saving.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

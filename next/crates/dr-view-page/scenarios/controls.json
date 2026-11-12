@@ -2,7 +2,7 @@
   "about": "K4 G1: v3-lite KV, patches and plot changes from real controls, read back through public commands.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

@@ -2,7 +2,7 @@
   "about": "K4 G1: v3-lite typed fields, real window input and persisted values.",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",

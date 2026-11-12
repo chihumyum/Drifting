@@ -135,7 +135,7 @@ def run_case(args, preset):
 def main():
     p=argparse.ArgumentParser();p.add_argument("--cli",type=Path,default=Path("target/debug/dr-cli"));p.add_argument("--app",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True);p.add_argument("--build-label",required=True);p.add_argument("--timeout-ms",type=int,default=240000)
-    p.add_argument("--frames",action="store_true");p.add_argument("--preset",choices=("v3-heavy",),default="v3-heavy")
+    p.add_argument("--frames",action="store_true");p.add_argument("--preset",choices=("heavy",),default="heavy")
     args=p.parse_args();args.cli=args.cli.resolve();args.app=args.app.resolve();args.out=args.out.resolve();args.out.mkdir(parents=True,exist_ok=True)
     report={"method":"Visible native window. Open and input dispatch include CLI/IPC. Native CPU draw work excludes GPU and presentation; one first book-open sample per case in a new app process; OS caches are not cleared. The bottom panel is closed for scrolling.",
             "system":platform.system(),"architecture":platform.machine(),"binary_sha256":hashlib.sha256(args.app.read_bytes()).hexdigest(),"cases":[]}

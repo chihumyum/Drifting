@@ -237,7 +237,8 @@ pub struct EntryLayout {
 pub struct Entry {
     pub id: String,
     /// Raw parent entry in the `entries` tree (`None` at the root).
-    /// List queries apply the leaf-parent tolerance to their filtering.
+    /// List queries read an entry under one whose switch is off as living
+    /// under the nearest level.
     pub parent: Option<String>,
     /// Fractional-index position among siblings in the `entries` tree (`文稿顺序`).
     pub pos: String,

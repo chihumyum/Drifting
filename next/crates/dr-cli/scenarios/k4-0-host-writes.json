@@ -1,8 +1,8 @@
 {
-  "about": "F6 v3-lite 正文与最近访问宿主：共享种子新建素材，真实输入/撤销/保存、composer 打开与取消、精确 Entry+module 与 Material 访问记录、两书隔离及重开。批注保存待 G4 正式接口后补验。",
+  "about": "F6 lite 正文与最近访问宿主：共享种子新建素材，真实输入/撤销/保存、composer 打开与取消、精确 Entry+module 与 Material 访问记录、两书隔离及重开。批注保存待 G4 正式接口后补验。",
   "steps": [
     {
-      "seed": "v3-lite"
+      "seed": "lite"
     },
     {
       "call": "book.list",
