@@ -1269,8 +1269,18 @@ fn peer_for(inner: &Inner, doc_id: &str) -> Result<u64> {
     Ok(peer)
 }
 
-/// Import the stored snapshot and the newer updates into `doc` in one batch
-/// (Loro dedupes any overlap). `None` when nothing is stored.
+/// Import the stored snapshot into `doc`, then the newer updates one by one
+/// in the order they were stored (Loro dedupes any overlap, and holds an
+/// update back until the updates it depends on arrive). `None` when nothing
+/// is stored.
+///
+/// Not `import_batch`: it imports detached and then checks the document out
+/// to the latest version with the document's own diff calculator, which
+/// always works in checkout mode and so first builds Loro's history cache,
+/// decoding every change the document has ever had. On a book written over
+/// three years that is about 160 ms for one small update on top of the
+/// snapshot; imported attached, the same update is a linear diff and no
+/// cache is built (docs/rust-rewrite/foundations/f2-store.md).
 pub(crate) fn load_into(
     conn: &Connection,
     doc_id: &str,
@@ -1311,12 +1321,13 @@ pub(crate) fn load_into(
     if batch.is_empty() {
         return Ok(None);
     }
-    let status = if batch.len() == 1 {
-        doc.import(&batch[0])?
-    } else {
-        doc.import_batch(&batch)?
-    };
-    if status.pending.is_some() {
+    // An import reports what of its own bytes still waits; what an earlier
+    // import left waiting may be applied by a later one.
+    let mut waited = false;
+    for bytes in &batch {
+        waited |= doc.import(bytes)?.pending.is_some();
+    }
+    if waited && doc.export_pending_updates()?.is_some() {
         return Err(StoreError::invalid(
             "stored document",
             format!("{doc_id}: stored updates depend on operations that are not stored"),

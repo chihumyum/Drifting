@@ -19,101 +19,159 @@ pub(super) fn entries(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Res
     if !crate::catalog::is_v3_book(ws, &book)? {
         return Ok(Vec::new());
     }
-    let mut ids = BTreeSet::new();
-    for target in &call.targets {
-        if let Ok(DocId::Body(body)) = DocId::parse(target) {
-            ids.insert(body.entry().to_string());
-        }
-    }
-    let args = &call.arguments;
-    let keys: &[&str] = match call.name.as_str() {
-        "entry.update" | "entry.move" | "entry.trash" | "entry.restore" => &["id"],
-        "membership.add" | "membership.remove" => &["host", "member"],
-        "membership.primary" => &["member"],
-        "timeline_view.place" | "timeline_view.remove" => &["lane", "entry"],
-        name if name.starts_with("module.") && args["template"] != true => &["entry", "owner"],
-        _ => &[],
-    };
-    for key in keys {
-        if let Some(id) = args[*key].as_str() {
-            ids.insert(id.to_owned());
-        }
+    let named = Named::of(call);
+    let mut ids = named.entries;
+    // Most calls name their entries; only a relation, membership or patch
+    // named by its own id has to be looked up in the book. Loading a copy
+    // of the book document costs as much as the book is big, so no other
+    // call loads one.
+    if named.lookups.is_empty() {
+        return Ok(ids.into_iter().collect());
     }
     let copy = ws.library().load_copy(&format!("book:{book}"))?;
     let borrowed = BorrowedBookV3::new(&copy, &book).map_err(|e| Error::Invalid(e.to_string()))?;
     let view = borrowed.view();
-    let mut endpoints = Vec::new();
-    if matches!(
-        call.name.as_str(),
-        "relation.create" | "module.put_relation"
-    ) {
-        for key in ["from", "to", "other"] {
-            if let (Some(kind), Some(id)) = (args[key]["kind"].as_str(), args[key]["id"].as_str()) {
-                endpoints.push((EntityKind::from(kind), id.to_owned()));
+    let Lookups {
+        mut patches,
+        relations,
+        memberships,
+    } = named.lookups;
+    if !memberships.is_empty() {
+        let stored = view.memberships_raw();
+        for key in memberships {
+            for membership in stored
+                .iter()
+                .filter(|m| dr_model::v3::Membership::key(&m.host, &m.member) == key)
+            {
+                ids.extend([membership.host.to_string(), membership.member.to_string()]);
             }
         }
     }
-    if matches!(
-        call.name.as_str(),
-        "relation.delete" | "module.remove_relation"
-    ) && let Some(relation) = view
-        .relations_raw()
-        .into_iter()
-        .find(|r| Some(r.id.as_str()) == args["id"].as_str())
-    {
-        endpoints.extend([
-            (relation.from.kind, relation.from.id),
-            (relation.to.kind, relation.to.id),
-        ]);
-    }
-    if call.name == "entry_history.restore" {
-        for target in args["targets"].as_array().into_iter().flatten() {
-            let Some(id) = target["id"].as_str() else {
-                continue;
-            };
-            match target["collection"].as_str() {
-                Some("entries") => {
-                    ids.insert(id.to_owned());
-                }
-                Some("memberships") => {
-                    for membership in view
-                        .memberships_raw()
-                        .iter()
-                        .filter(|m| dr_model::v3::Membership::key(&m.host, &m.member) == id)
-                    {
-                        ids.extend([membership.host.to_string(), membership.member.to_string()]);
+    if !relations.is_empty() {
+        let stored = view.relations_raw();
+        for id in relations {
+            if let Some(r) = stored.iter().find(|r| r.id.as_str() == id) {
+                for (kind, id) in [(&r.from.kind, &r.from.id), (&r.to.kind, &r.to.id)] {
+                    if *kind == EntityKind::Entry {
+                        ids.insert(id.clone());
+                    } else if *kind == EntityKind::Patch {
+                        patches.push(id.clone());
                     }
                 }
-                Some("patches") => endpoints.push((EntityKind::Patch, id.to_owned())),
-                Some("plot_grids") => {
-                    if let Some((entry, _)) = id.split_once('/') {
-                        ids.insert(entry.to_owned());
-                    }
-                }
-                Some("relations") => {
-                    if let Some(r) = view
-                        .relations_raw()
-                        .into_iter()
-                        .find(|r| r.id.as_str() == id)
-                    {
-                        endpoints.extend([(r.from.kind, r.from.id), (r.to.kind, r.to.id)]);
-                    }
-                }
-                _ => {}
             }
         }
     }
-
-    for (kind, id) in endpoints {
-        if kind == EntityKind::Entry {
-            ids.insert(id);
-        } else if kind == EntityKind::Patch
-            && let Some(patch) = view.patches().iter().find(|p| p.id.as_str() == id)
-        {
-            ids.insert(patch.entry.to_string());
+    if !patches.is_empty() {
+        let stored = view.patches();
+        for id in patches {
+            if let Some(patch) = stored.iter().find(|p| p.id.as_str() == id) {
+                ids.insert(patch.entry.to_string());
+            }
         }
     }
     Ok(ids.into_iter().collect())
+}
+
+/// What a call names that its write-before checkpoint covers: entries named
+/// directly (by an argument or a prose document), and records named by their
+/// own id whose entries only the book knows.
+#[derive(Debug, Default)]
+struct Named {
+    entries: BTreeSet<String>,
+    lookups: Lookups,
+}
+
+/// Records to find in the book; each one leads to the entries it belongs to.
+#[derive(Debug, Default)]
+struct Lookups {
+    /// Patch ids: the patch's entry.
+    patches: Vec<String>,
+    /// Relation ids: each endpoint that is an entry, or a patch's entry.
+    relations: Vec<String>,
+    /// Membership keys: the host and the member.
+    memberships: Vec<String>,
+}
+
+impl Lookups {
+    fn is_empty(&self) -> bool {
+        self.patches.is_empty() && self.relations.is_empty() && self.memberships.is_empty()
+    }
+}
+
+impl Named {
+    fn of(call: &ResolvedCall) -> Self {
+        let mut named = Self::default();
+        for target in &call.targets {
+            if let Ok(DocId::Body(body)) = DocId::parse(target) {
+                named.entries.insert(body.entry().to_string());
+            }
+        }
+        let args = &call.arguments;
+        let keys: &[&str] = match call.name.as_str() {
+            "entry.update" | "entry.move" | "entry.trash" | "entry.restore" => &["id"],
+            "membership.add" | "membership.remove" => &["host", "member"],
+            "membership.primary" => &["member"],
+            "timeline_view.place" | "timeline_view.remove" => &["lane", "entry"],
+            name if name.starts_with("module.") && args["template"] != true => &["entry", "owner"],
+            _ => &[],
+        };
+        for key in keys {
+            if let Some(id) = args[*key].as_str() {
+                named.entries.insert(id.to_owned());
+            }
+        }
+        if matches!(
+            call.name.as_str(),
+            "relation.create" | "module.put_relation"
+        ) {
+            for key in ["from", "to", "other"] {
+                if let (Some(kind), Some(id)) =
+                    (args[key]["kind"].as_str(), args[key]["id"].as_str())
+                {
+                    named.endpoint(EntityKind::from(kind), id);
+                }
+            }
+        }
+        if matches!(
+            call.name.as_str(),
+            "relation.delete" | "module.remove_relation"
+        ) && let Some(id) = args["id"].as_str()
+        {
+            named.lookups.relations.push(id.to_owned());
+        }
+        if call.name == "entry_history.restore" {
+            for target in args["targets"].as_array().into_iter().flatten() {
+                let Some(id) = target["id"].as_str() else {
+                    continue;
+                };
+                match target["collection"].as_str() {
+                    Some("entries") => {
+                        named.entries.insert(id.to_owned());
+                    }
+                    Some("memberships") => named.lookups.memberships.push(id.to_owned()),
+                    Some("patches") => named.endpoint(EntityKind::Patch, id),
+                    Some("plot_grids") => {
+                        if let Some((entry, _)) = id.split_once('/') {
+                            named.entries.insert(entry.to_owned());
+                        }
+                    }
+                    Some("relations") => named.lookups.relations.push(id.to_owned()),
+                    _ => {}
+                }
+            }
+        }
+        named
+    }
+
+    /// A relation endpoint or a patch: an entry is named, a patch is looked
+    /// up, any other kind has no entry.
+    fn endpoint(&mut self, kind: EntityKind, id: &str) {
+        if kind == EntityKind::Entry {
+            self.entries.insert(id.to_owned());
+        } else if kind == EntityKind::Patch {
+            self.lookups.patches.push(id.to_owned());
+        }
+    }
 }
 
 impl AgentTools {
@@ -171,3 +229,7 @@ impl AgentTools {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "checkpoint_selection_tests.rs"]
+mod selection_tests;

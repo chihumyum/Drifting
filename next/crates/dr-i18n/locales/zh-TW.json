@@ -127,6 +127,12 @@
     },
     "forgotPassword": "忘記密碼？",
     "hasAccount": "已經有帳號？",
+    "legal": {
+      "consent": "繼續即視為同意{{terms}}",
+      "consentTerms": "相關條款",
+      "privacy": "隱私權政策",
+      "terms": "服務條款"
+    },
     "noAccount": "還沒有帳號？",
     "otp": {
       "codeSub": "已寄至 {{email}}，驗證碼有效期限 10 分鐘。",

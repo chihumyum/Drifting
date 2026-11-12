@@ -127,6 +127,12 @@
     },
     "forgotPassword": "비밀번호를 잊으셨나요?",
     "hasAccount": "이미 계정이 있나요?",
+    "legal": {
+      "consent": "계속하면 {{terms}}에 동의하는 것으로 봅니다",
+      "consentTerms": "관련 약관",
+      "privacy": "개인정보 처리방침",
+      "terms": "이용약관"
+    },
     "noAccount": "아직 계정이 없나요?",
     "otp": {
       "codeSub": "{{email}}로 보냈습니다. 코드는 10분간 유효합니다.",

@@ -176,3 +176,61 @@ fn entering_card_body_keeps_hover_card_open_past_grace_and_actions_click(cx: &mu
     wait(cx, 260);
     assert!(!open(cx, &builds), "card did not close after leaving");
 }
+
+/// Words with a card behind them (the consent line's 「相关条款」): a press
+/// opens the card at once instead of closing it, Escape and a press
+/// elsewhere close it, Enter opens it again from the keyboard.
+#[gpui::test]
+fn a_pressable_thing_opens_on_a_press_and_closes_on_escape_or_a_press_elsewhere(
+    cx: &mut TestAppContext,
+) {
+    struct Words {
+        builds: Rc<Cell<usize>>,
+    }
+
+    impl Render for Words {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let builds = self.builds.clone();
+            div().size_full().child(
+                div().w(px(120.0)).h(px(30.0)).child(
+                    HoverCard::new(
+                        "terms",
+                        div().w(px(120.0)).h(px(30.0)).child("相关条款"),
+                        move |_, _| {
+                            builds.set(builds.get() + 1);
+                            div().w(px(100.0)).h(px(60.0)).into_any_element()
+                        },
+                    )
+                    .pressable("相关条款"),
+                ),
+            )
+        }
+    }
+
+    let builds = Rc::new(Cell::new(0));
+    let b = builds.clone();
+    let (_, cx) = cx.add_window_view(move |_, _| Words { builds: b });
+    frame(cx);
+
+    // A press opens it without waiting out the hover delay.
+    cx.simulate_click(point(px(10.0), px(10.0)), Modifiers::default());
+    frame(cx);
+    assert!(open(cx, &builds), "a press did not open the card");
+    // The pointer resting on the words keeps it, past the grace.
+    wait(cx, 400);
+    assert!(open(cx, &builds), "the card closed under a resting pointer");
+
+    cx.simulate_keystrokes("escape");
+    frame(cx);
+    assert!(!open(cx, &builds), "Escape did not close the card");
+
+    // The press focused the words: Enter opens the card again.
+    cx.simulate_keystrokes("enter");
+    frame(cx);
+    assert!(open(cx, &builds), "Enter did not open the card");
+
+    // A press elsewhere closes it.
+    cx.simulate_click(point(px(600.0), px(500.0)), Modifiers::default());
+    frame(cx);
+    assert!(!open(cx, &builds), "a press elsewhere left the card open");
+}

@@ -127,6 +127,12 @@
     },
     "forgotPassword": "パスワードをお忘れですか？",
     "hasAccount": "アカウントをお持ちの方",
+    "legal": {
+      "consent": "続行すると、{{terms}}に同意したものとみなされます",
+      "consentTerms": "利用条件",
+      "privacy": "プライバシーポリシー",
+      "terms": "利用規約"
+    },
     "noAccount": "アカウントをお持ちでない方",
     "otp": {
       "codeSub": "{{email}}へ送信済み。コードは10分間有効です。",
