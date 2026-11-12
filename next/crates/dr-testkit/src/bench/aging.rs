@@ -10,8 +10,9 @@
 //!   compaction).
 //! - `book-aging`: the seed's book document as it is, then used for one and
 //!   for three years ([`crate::aging::book`]): its snapshot, load, the
-//!   structure snapshot, `Workspace::observe`, a writing-day write, and what
-//!   a sync would upload per day.
+//!   structure snapshot, every entry's fingerprint (what the automatic
+//!   checkpoints compare), `Workspace::observe`, a writing-day write, and
+//!   what a sync would upload per day.
 //!
 //! Quick mode runs small tiers on the tiny seed and pins their shapes; full
 //! mode is the heavy seed (a 20 000-character chapter, a 680-document book).
@@ -500,7 +501,7 @@ pub mod book_suite {
     }
 
     fn expect_quick() -> Value {
-        json!({"days30": {"byKind": {"checkpoint": {"commits": 328}, "comment": {"commits": 59}, "field": {"commits": 61}, "layout": {"commits": 184}, "structure": {"commits": 22}, "timeline": {"commits": 75}, "writingDay": {"commits": 1213}}, "changes": 125, "checkpointsForSiblings": 93, "checkpointsKept": 3, "checkpointsLive": 149, "checkpointsSaved": 328, "checkpointsThinned": 179, "comments": 38, "commentsLive": 44, "commits": 1942, "concurrentSessions": 0, "days": 30, "entries": 33, "entriesCreated": 9, "fieldEdits": 63, "layoutMoves": 213, "opRuns": 4193, "ops": 5999, "peers": 4, "planningSessions": 3, "sessions": 21, "timelineMoves": 75, "uploads": [{"batches": 1942, "cadenceS": 0, "writingDayOnly": 1213}, {"batches": 1614, "cadenceS": 8, "writingDayOnly": 1095}, {"batches": 1529, "cadenceS": 30, "writingDayOnly": 1039}, {"batches": 391, "cadenceS": 300, "writingDayOnly": 161}], "workingDays": 18, "writingDayKeys": 23, "writingDayWrites": 1213}, "fresh": {"changes": 3, "checkpointsLive": 0, "commentsLive": 6, "entries": 24, "opRuns": 1195, "ops": 1519, "peers": 2, "writingDayKeys": 5}})
+        json!({"days30": {"byKind": {"checkpoint": {"commits": 256}, "comment": {"commits": 59}, "field": {"commits": 61}, "layout": {"commits": 184}, "structure": {"commits": 22}, "timeline": {"commits": 75}, "writingDay": {"commits": 1213}}, "changes": 123, "checkpointsForSiblings": 0, "checkpointsKept": 3, "checkpointsLive": 115, "checkpointsSaved": 256, "checkpointsThinned": 141, "comments": 38, "commentsLive": 44, "commits": 1870, "concurrentSessions": 0, "days": 30, "entries": 33, "entriesCreated": 9, "fieldEdits": 63, "layoutMoves": 213, "opRuns": 4083, "ops": 5889, "peers": 4, "planningSessions": 3, "sessions": 21, "timelineMoves": 75, "uploads": [{"batches": 1870, "cadenceS": 0, "writingDayOnly": 1213}, {"batches": 1614, "cadenceS": 8, "writingDayOnly": 1095}, {"batches": 1529, "cadenceS": 30, "writingDayOnly": 1039}, {"batches": 391, "cadenceS": 300, "writingDayOnly": 161}], "workingDays": 18, "writingDayKeys": 23, "writingDayWrites": 1213}, "fresh": {"changes": 3, "checkpointsLive": 0, "commentsLive": 6, "entries": 24, "opRuns": 1195, "ops": 1519, "peers": 2, "writingDayKeys": 5}})
     }
 
     fn tiers(mode: Mode) -> Vec<(&'static str, Option<BookAging>)> {
@@ -531,6 +532,16 @@ pub mod book_suite {
                     Some(BookAging {
                         without_writing_days: true,
                         without_checkpoints: true,
+                        ..BookAging::days(3 * 365)
+                    }),
+                ),
+                // The same three years with the checkpoints the product
+                // saved for an entry's siblings until 2026-11-12: what that
+                // rule added, and the book the first measurements saw.
+                (
+                    "year3SiblingCheckpoints",
+                    Some(BookAging {
+                        sibling_checkpoints: true,
                         ..BookAging::days(3 * 365)
                     }),
                 ),
@@ -666,17 +677,20 @@ pub mod book_suite {
             case.time("docEntryCheckpoints", || v.entry_checkpoints().len());
         }
         // What dr-view-history's automatic checkpoints compute after every
-        // book change that touches entries: each entry's owned content,
-        // hashed, to find the ones that changed. One sample: on the heavy
-        // seed it takes seconds.
+        // book change that touches entries: every entry's fingerprint (what
+        // it owns and where it is, hashed), to find the ones that changed.
+        // One pass over the book (`entry_change_states`); until 2026-11-12
+        // each entry was asked for by itself, the whole book read again for
+        // each (18.5 s on the heavy seed, one sample).
         let d = load().map_err(err)?;
         let v = d.view();
-        {
+        for _ in 0..mode.reps(3, 10) {
             case.time("docEntryOwnersAll", || {
-                v.entries_raw()
+                v.entry_change_states()
                     .iter()
-                    .filter_map(|e| v.entry_owned_raw_state(&e.id))
-                    .map(|state| dr_store::digest::sha256_hex(state.to_string().as_bytes()).len())
+                    .map(|(_, state)| {
+                        dr_store::digest::sha256_hex(state.to_string().as_bytes()).len()
+                    })
                     .sum::<usize>()
             });
         }

@@ -16,11 +16,25 @@
 //! ```text
 //! cargo run --release -p history-aging-spike            # the heavy seed
 //! cargo run --release -p history-aging-spike -- --quick # the tiny seed, a smoke run
+//! cargo run --release -p history-aging-spike -- close   # one section only
 //! ```
 //!
-//! It ends with a probe of one product behaviour the book aging depends on:
-//! whether an entry earns an automatic checkpoint when only a sibling
-//! changed (through the real `entry_snapshot.capture` command).
+//! Then three things about the automatic entry checkpoints:
+//!
+//! - **every entry's fingerprint in one pass** over the same three book
+//!   documents: entry by entry, as the checkpoints took it until 2026-11-12,
+//!   and all at once, as they take it now;
+//! - a probe of one product behaviour the book aging depends on: whether an
+//!   entry earns an automatic checkpoint when only a sibling changed
+//!   (through the real `entry_snapshot.capture` command);
+//! - **the last sweep on quitting**: dr-view-history's `capture_on_close`
+//!   over a library holding the whole seeded book, the first time (every
+//!   entry earns its first checkpoint), again with nothing changed (what
+//!   every later quit pays), and after one entry was renamed and one
+//!   created.
+//!
+//! Sections can be picked by name: `editor`, `shell`, `fingerprint`,
+//! `probe`, `close` (none named: all of them).
 //!
 //! Prints milliseconds; nothing is written. See
 //! `docs/rust-rewrite/spikes/history-aging.md`.
@@ -184,9 +198,44 @@ fn shell(mode: Mode, dir: &Path, doc: &BookDocV3) -> Result<(), String> {
     ws.shutdown().map_err(err)
 }
 
+/// Every entry's fingerprint, taken once over the whole book: what the
+/// automatic checkpoints compute after a book change that touches entries.
+/// Until 2026-11-12 they asked for each entry by itself
+/// (`entry_owned_raw_state`, which reads the whole book again for every
+/// entry, so the pass grew with the square of the entries; it still serves
+/// previews and restores, one entry at a time); now they read all entries in
+/// one pass (`entry_change_states`). The old way gets one sample.
+fn fingerprints(mode: Mode, doc: &BookDocV3) -> Result<(), String> {
+    let hash = |state: &serde_json::Value| -> Result<usize, String> {
+        Ok(dr_store::digest::sha256_hex(&serde_json::to_vec(state).map_err(err)?).len())
+    };
+    let v = doc.view();
+    let t = Instant::now();
+    let mut each = 0;
+    for e in v.entries_raw() {
+        each += hash(&v.entry_owned_raw_state(&e.id).ok_or("an entry is gone")?)?;
+    }
+    row("entry by entry (until 2026-11-12)", &[ms(t)]);
+    let mut once = Vec::new();
+    for _ in 0..mode.reps(3, 10) {
+        let t = Instant::now();
+        let mut all = 0;
+        for (_, state) in v.entry_change_states() {
+            all += hash(&state)?;
+        }
+        once.push(ms(t));
+        if all != each {
+            return Err("the two passes did not see the same entries".into());
+        }
+    }
+    row("all entries in one pass (now)", &once);
+    Ok(())
+}
+
 /// Whether an automatic checkpoint is saved for an entry whose own content
-/// did not change, after a sibling was created or another entry edited:
-/// the real commands on the tiny seed.
+/// did not change, after a sibling was created or another entry edited, and
+/// that one is saved when the entry itself moves: the real commands on the
+/// tiny seed.
 fn sibling_probe(dir: &Path) -> Result<(), String> {
     use serde_json::{Value, json};
     let seeded = seed::generate_v3(seed::Preset::Tiny, DEFAULT_SEED).map_err(err)?;
@@ -253,6 +302,15 @@ fn sibling_probe(dir: &Path) -> Result<(), String> {
         "  after a sibling chapter was created:             {} point(s)",
         capture(&entry)?
     );
+    let beside = chapters.iter().filter(|c| c["parent"] == parent).count();
+    call(
+        "entry.move",
+        json!({ "book": book, "id": entry, "parent": parent, "index": beside }),
+    )?;
+    println!(
+        "  after the chapter itself moved to the end:       {} point(s)",
+        capture(&entry)?
+    );
     println!(
         "  manifest bytes of its latest point:              {}",
         call(
@@ -265,12 +323,88 @@ fn sibling_probe(dir: &Path) -> Result<(), String> {
     ws.shutdown().map_err(err)
 }
 
+/// What quitting costs: the last sweep of the automatic entry checkpoints
+/// (`dr_view_history::automatic::capture_on_close`, which the shell runs
+/// when a library is released) over a library holding the seeded book with
+/// all its bodies.
+fn close_sweep(dir: &Path, seeded: &seed::SeededV3) -> Result<(), String> {
+    use dr_view_history::automatic::capture_on_close;
+    use serde_json::{Value, json};
+    let ws = Workspace::open_dir(dir, "0.2.0-bench").map_err(err)?;
+    seeded.write_to(ws.library()).map_err(err)?;
+    let book = seeded.books[0].book_id().clone();
+    let call = |name: &str, input: Value| -> Result<Value, String> {
+        ws.call(&dr_workspace::Actor::User, name, input)
+            .map(|v| v["output"].clone())
+            .map_err(|e| format!("{name}: {e}"))
+    };
+    let points = || -> Result<usize, String> {
+        let doc = ws
+            .library()
+            .load_copy(&format!("book:{book}"))
+            .map_err(err)?;
+        Ok(dr_doc::v3::BorrowedBookV3::new(&doc, &book)
+            .map_err(err)?
+            .view()
+            .entry_checkpoints()
+            .len())
+    };
+    let entries = call("entry.list", json!({ "book": book.as_str(), "all": true }))?;
+    let entries = entries.as_array().ok_or("entry.list returned no list")?;
+    let chapter = entries
+        .iter()
+        .find(|e| e["template"] == "tpl-chapter")
+        .ok_or("the seed has no chapter")?;
+    println!(
+        "\nclose sweep (capture_on_close, the real commands): {} entries",
+        entries.len()
+    );
+    let sweep = |label: &str| -> Result<(), String> {
+        let before = points()?;
+        let t = Instant::now();
+        capture_on_close(&ws)?;
+        let took = ms(t);
+        println!(
+            "  {label:44} {took:>10.1} ms  {:>5} more point(s)",
+            points()? as i64 - before as i64
+        );
+        Ok(())
+    };
+    sweep("first quit (no checkpoints yet)")?;
+    sweep("quit again, nothing changed")?;
+    sweep("and again")?;
+    call(
+        "entry.update",
+        json!({ "book": book.as_str(), "id": chapter["id"], "title": "改了名的一章" }),
+    )?;
+    sweep("after one chapter was renamed")?;
+    call(
+        "entry.create",
+        json!({ "book": book.as_str(), "title": "新加的一章", "parent": chapter["parent"], "template": "tpl-chapter" }),
+    )?;
+    sweep("after a sibling chapter was created")?;
+    ws.shutdown().map_err(err)
+}
+
 fn main() -> Result<(), String> {
     let mode = if std::env::args().any(|a| a == "--quick") {
         Mode::Quick
     } else {
         Mode::Full
     };
+    let named: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|a| !a.starts_with("--"))
+        .collect();
+    if let Some(unknown) = named
+        .iter()
+        .find(|a| !["editor", "shell", "fingerprint", "probe", "close"].contains(&a.as_str()))
+    {
+        return Err(format!(
+            "unknown section {unknown}: editor, shell, fingerprint, probe or close"
+        ));
+    }
+    let wanted = |section: &str| named.is_empty() || named.iter().any(|a| a == section);
     if mode == Mode::Full && cfg!(debug_assertions) {
         eprintln!("history-aging-spike: a debug build; timings are not representative");
     }
@@ -293,6 +427,9 @@ fn main() -> Result<(), String> {
         ],
     };
     for (name, target) in chapters {
+        if !wanted("editor") {
+            break;
+        }
         let aged;
         let doc = if *target == 0 {
             base
@@ -318,6 +455,9 @@ fn main() -> Result<(), String> {
         Mode::Full => &[("fresh", 0), ("year1", 365), ("year3", 3 * 365)],
     };
     for (name, days) in books {
+        if !wanted("shell") && !wanted("fingerprint") {
+            break;
+        }
         let aged;
         let doc = if *days == 0 {
             &seeded_book.book
@@ -325,13 +465,27 @@ fn main() -> Result<(), String> {
             aged = book::age(&seeded_book.book, &BookAging::days(*days)).map_err(err)?;
             &aged.doc
         };
-        println!(
-            "\nshell, book {name}: {} operations",
-            aging::ops(&doc.version())
-        );
-        shell(mode, &scratch.path().join(format!("book-{name}")), doc)?;
+        if wanted("shell") {
+            println!(
+                "\nshell, book {name}: {} operations",
+                aging::ops(&doc.version())
+            );
+            shell(mode, &scratch.path().join(format!("book-{name}")), doc)?;
+        }
+        if wanted("fingerprint") {
+            println!(
+                "\nfingerprints, book {name}: {} entries",
+                doc.view().entries_raw().len()
+            );
+            fingerprints(mode, doc)?;
+        }
     }
-    sibling_probe(&scratch.path().join("checkpoint-probe"))?;
+    if wanted("probe") {
+        sibling_probe(&scratch.path().join("checkpoint-probe"))?;
+    }
+    if wanted("close") {
+        close_sweep(&scratch.path().join("close-sweep"), &seeded)?;
+    }
     println!(
         "\nload average {} at the end",
         evidence::machine()["loadAverage1m"]

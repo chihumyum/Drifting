@@ -684,3 +684,108 @@ fn damaged_checkpoint_metadata_is_refused_before_any_import_writes() {
         ws.shutdown().unwrap();
     }
 }
+
+/// The content hash a build before 2026-11-12 put in a manifest, computed
+/// here from the public readers as that build computed it: the entry's owned
+/// raw state, which lists its siblings, and the versions of its bodies.
+fn fingerprint_with_siblings(
+    ws: &Workspace,
+    point: &dr_workspace::commands::v3::snapshots::Point,
+) -> String {
+    use dr_workspace::naming;
+    let at = |id: &str, version: &str| {
+        ws.library()
+            .load_copy_at(id, &naming::frontiers_from_hex(version).unwrap())
+            .unwrap()
+    };
+    let book = at(&format!("book:{}", point.book), &point.book_version);
+    let book_id = point.book.parse().unwrap();
+    let state = BorrowedBookV3::new(&book, &book_id)
+        .unwrap()
+        .view()
+        .entry_owned_raw_state(&EntryId::parse(&point.entry).unwrap())
+        .unwrap();
+    assert!(state["siblings"].as_array().is_some_and(|s| s.len() > 1));
+    let bodies: BTreeMap<String, String> = point
+        .bodies
+        .iter()
+        .map(|(id, version)| {
+            let body = at(id, version);
+            (id.clone(), naming::frontiers_hex(&body.state_frontiers()))
+        })
+        .collect();
+    let mut value = json!({"state":state,"bodies":bodies});
+    value.sort_all_objects();
+    dr_store::digest::sha256_hex(&serde_json::to_vec(&value).unwrap())
+}
+
+#[test]
+fn a_checkpoint_saved_with_the_old_fingerprint_is_imported_and_previewed() {
+    use dr_workspace::commands::v3::snapshots as api;
+    let (dir, ws, book, entry) = checkpoint_fixture();
+    let value = output(
+        &ws,
+        "entry_snapshot.create",
+        json!({"book":book,"entry":entry}),
+    )
+    .unwrap();
+    // The manifest as a build before 2026-11-12 saved it. The first insert,
+    // with the fingerprint saved now, stays in the book's history, so the
+    // archive carries a manifest of each kind.
+    let mut point: api::Point = serde_json::from_value(value).unwrap();
+    let saved_now = point.content_hash.clone();
+    point.content_hash = fingerprint_with_siblings(&ws, &point);
+    assert_ne!(point.content_hash, saved_now);
+    point.checksum = api::checkpoint_manifest_checksum(&point).unwrap();
+    write_manifest_fixture(&ws, &book, &point.id, serde_json::to_value(&point).unwrap());
+    let target = json!({"book":book,"entry":entry,"point":point.id});
+    let source = output(&ws, "entry_snapshot.preview", target).unwrap();
+    assert_eq!(source["point"]["content_hash"], point.content_hash.as_str());
+    let protected = book_image(&ws, &book);
+
+    let file = dir.path().join("old-fingerprint.driftingbook");
+    export_book(&ws, &book, &file, &|_| {}).unwrap();
+    let copy = import_book(&ws, &file, &|_| {}).unwrap().book;
+    let entries = output(&ws, "entry.list", json!({"book":copy,"all":true})).unwrap();
+    let copied: Vec<&str> = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["title"] == source["metadata"]["title"])
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(copied.len(), 1, "the chapter's title is its own");
+    let copied = copied[0];
+    assert_ne!(copied, entry);
+    let points = output(
+        &ws,
+        "entry_snapshot.list",
+        json!({"book":copy,"entry":copied}),
+    )
+    .unwrap();
+    let points: Vec<api::Point> = serde_json::from_value(points).unwrap();
+    assert_eq!(points.len(), 1);
+    // The imported point is readable, shows what the source's showed, and
+    // carries the fingerprint saved now: a close capture of the unchanged
+    // entry finds it and saves nothing.
+    let imported = &points[0];
+    assert_ne!(imported.id, point.id);
+    let preview = output(
+        &ws,
+        "entry_snapshot.preview",
+        json!({"book":copy,"entry":copied,"point":imported.id}),
+    )
+    .unwrap();
+    assert_eq!(preview["metadata"]["title"], source["metadata"]["title"]);
+    assert!(!body_text(&source, PRIMARY).trim().is_empty());
+    assert_eq!(body_text(&preview, PRIMARY), body_text(&source, PRIMARY));
+    let reused = output(
+        &ws,
+        "entry_snapshot.capture",
+        json!({"book":copy,"entry":copied,"reason":"close"}),
+    )
+    .unwrap();
+    assert_eq!(reused["id"], imported.id.as_str());
+    assert_eq!(book_image(&ws, &book), protected);
+    ws.shutdown().unwrap();
+}

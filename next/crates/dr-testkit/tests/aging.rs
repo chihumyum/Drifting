@@ -206,6 +206,112 @@ fn leaving_one_kind_out_leaves_the_rest_alone() {
 }
 
 #[test]
+fn siblings_earn_no_checkpoint_unless_the_plan_asks_for_the_old_rule() {
+    let seeded = tiny();
+    let now = book::age(&seeded.book, &BookAging::days(40)).unwrap();
+    let before = book::age(
+        &seeded.book,
+        &BookAging {
+            sibling_checkpoints: true,
+            ..BookAging::days(40)
+        },
+    )
+    .unwrap();
+    assert_eq!(now.stats.checkpoints_for_siblings, 0);
+    assert!(
+        before.stats.checkpoints_for_siblings > 0,
+        "{:?}",
+        before.stats
+    );
+    // The entries that changed themselves earn the same checkpoints either
+    // way; the old rule only adds the siblings'.
+    assert_eq!(
+        now.stats.checkpoints_saved,
+        before.stats.checkpoints_saved - before.stats.checkpoints_for_siblings
+    );
+    assert!(now.stats.checkpoints_saved > 50, "{:?}", now.stats);
+    // A created idea and a moved chapter still earn theirs.
+    assert!(now.stats.entries_created > 0, "{:?}", now.stats);
+    let view = now.doc.view();
+    let pointed: std::collections::BTreeSet<String> = view
+        .entry_checkpoints()
+        .iter()
+        .map(|(_, manifest)| {
+            serde_json::from_str::<serde_json::Value>(manifest).unwrap()["entry"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    let seeded_ids: std::collections::BTreeSet<String> = seeded
+        .book
+        .view()
+        .entries_raw()
+        .into_iter()
+        .map(|e| e.id.to_string())
+        .collect();
+    for e in view.entries_raw() {
+        if !seeded_ids.contains(e.id.as_str()) {
+            assert!(pointed.contains(e.id.as_str()), "a new entry: {}", e.title);
+        }
+    }
+    // Everything else the author did is the same, commit for commit.
+    let rest = |commits: &[Commit]| -> Vec<(i64, u8, Kind)> {
+        commits
+            .iter()
+            .filter(|c| c.kind != Kind::Checkpoint)
+            .map(|c| (c.ts, c.device, c.kind))
+            .collect()
+    };
+    assert_eq!(rest(&now.commits), rest(&before.commits));
+    let stats = |s: book::BookStats| book::BookStats {
+        commits: 0,
+        checkpoints_saved: 0,
+        checkpoints_thinned: 0,
+        checkpoints_for_siblings: 0,
+        ops: 0,
+        ..s
+    };
+    assert_eq!(stats(now.stats), stats(before.stats));
+    assert!(now.doc.export_snapshot().unwrap().len() < before.doc.export_snapshot().unwrap().len());
+}
+
+#[test]
+fn every_entry_fingerprint_read_at_once_is_the_one_read_by_itself() {
+    let seeded = tiny();
+    let aged = book::age(&seeded.book, &BookAging::days(40)).unwrap();
+    for doc in [&seeded.book, &aged.doc] {
+        let view = doc.view();
+        let entries = view.entries_raw();
+        let all = view.entry_change_states();
+        assert!(entries.len() >= 20);
+        assert_eq!(
+            all.iter().map(|(id, _)| id).collect::<Vec<_>>(),
+            entries.iter().map(|e| &e.id).collect::<Vec<_>>()
+        );
+        let mut records = 0;
+        for ((id, state), e) in all.iter().zip(&entries) {
+            assert_eq!(view.entry_change_state(id).as_ref(), Some(state), "{id}");
+            // What the entry owns is what a preview shows of it; its place
+            // is its own position key, where the preview lists its siblings.
+            let raw = view.entry_owned_raw_state(id).unwrap();
+            for key in ["metadata", "records", "parent"] {
+                assert_eq!(state[key], raw[key], "{id} {key}");
+            }
+            assert_eq!(state["position"], e.pos.as_str(), "{id}");
+            assert_eq!(state.as_object().unwrap().len(), 4, "{id}");
+            records += state["records"]
+                .as_object()
+                .unwrap()
+                .values()
+                .map(|rows| rows.as_object().unwrap().len())
+                .sum::<usize>();
+        }
+        assert!(records > 0, "the seed's entries own records");
+    }
+}
+
+#[test]
 fn uploads_group_commits_by_device_and_cycle() {
     let c = |ts, device, kind| Commit {
         ts,

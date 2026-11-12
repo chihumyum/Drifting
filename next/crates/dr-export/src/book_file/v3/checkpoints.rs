@@ -130,15 +130,17 @@ pub(super) fn prepare(
                     new,
                 );
             }
-            if api::checkpoint_history_fingerprint(
+            // Either fingerprint a manifest may carry: the current one, or
+            // the one saved until 2026-11-12 (the workspace knows both).
+            if !api::checkpoint_history_matches(
                 &original,
                 &api::EntryIn {
                     book: point.book,
                     entry: point.entry,
                 },
+                &point.content_hash,
             )
             .map_err(damaged)?
-                != point.content_hash
             {
                 return Err(damaged(
                     "checkpoint historical content does not match its manifest",
@@ -146,7 +148,8 @@ pub(super) fn prepare(
             }
             // Cached book copies still contain the original checkpoint strings.
             // The shared fingerprint deliberately covers entry-owned state and
-            // body versions, not this independent checkpoint root.
+            // body versions, not this independent checkpoint root. The
+            // rewritten manifest always carries the current fingerprint.
             mapped.content_hash = api::checkpoint_history_fingerprint(
                 &rewritten,
                 &api::EntryIn {
