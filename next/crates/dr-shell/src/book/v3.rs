@@ -28,7 +28,6 @@ pub enum SettingSource {
     /// A lane always accepts members, even if an override says false.
     Lane {
         entry: String,
-        template: String,
     },
 }
 
@@ -40,7 +39,7 @@ impl From<entry::SettingSource> for SettingSource {
             entry::SettingSource::Template { entry, template } => {
                 Self::Template { entry, template }
             }
-            entry::SettingSource::Lane { entry, template } => Self::Lane { entry, template },
+            entry::SettingSource::Lane { entry } => Self::Lane { entry },
         }
     }
 }
@@ -180,24 +179,36 @@ impl BookV3 {
         let entry = self.entry(id)?;
         let template = self.template_of(id);
         let own_color = self.own_color(id);
-        let color = if template.is_some_and(|t| t.kind == "leaf") {
+        // The entry's own color when it has one, else its primary lane's.
+        let color = if own_color.is_some() {
+            own_color
+        } else {
             let valid = self.hosts_by_member.get(id);
             let primary = entry
                 .primary
                 .as_deref()
                 .filter(|&p| valid.is_some_and(|s| s.contains(p)))
                 .or_else(|| valid.and_then(|s| s.first().map(String::as_str)));
-            match primary.filter(|p| self.template_of(p).is_some_and(|t| t.lane)) {
-                Some(lane) => self.own_color(lane),
-                None => own_color,
-            }
-        } else {
-            own_color
+            primary
+                .filter(|p| self.is_lane(p))
+                .and_then(|lane| self.own_color(lane))
         };
         Some(Appearance {
             mark: template.and_then(|t| t.mark.clone()),
             color,
             sand: mark(template.and_then(|t| t.mark.as_deref()), id),
+        })
+    }
+    /// Whether `id` is a timeline swimlane: its switch is on and `lane` is
+    /// set on its own overrides, else on its template.
+    pub fn is_lane(&self, id: &str) -> bool {
+        self.entry(id).is_some_and(|e| {
+            e.level
+                && e.overrides
+                    .as_ref()
+                    .and_then(|o| o.lane)
+                    .or_else(|| self.template_of(id).and_then(|t| t.settings.lane))
+                    .unwrap_or(false)
         })
     }
     fn own_color(&self, id: &str) -> Option<String> {
@@ -295,27 +306,17 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         let memberships: Vec<types::Membership> =
             structure.memberships().iter().map(Into::into).collect();
 
-        let ms_levels = dr_model::v3::effective_manuscript_levels(entries_map, templates_map);
+        // The manuscript sequence: each entry's own book prose before what
+        // lives under it.
         let mut manuscript = Vec::new();
-        for level_id in ms_levels {
-            for entry in structure.entries() {
-                if entry.is_trashed() || !entry.is_leaf(templates_map) {
-                    continue;
-                }
-                let anc = dr_model::v3::effective_ancestors(entries_map, templates_map, &entry.id);
-                if anc.contains(&level_id)
-                    && anc
-                        .iter()
-                        .all(|a| entries_map.get(a).is_some_and(|ae| !ae.is_trashed()))
-                    && let Some(template) = entry.effective_template(templates_map)
-                {
-                    for module in template.prose_modules() {
-                        manuscript.push(ManuscriptBody {
-                            entry: entry.id.to_string(),
-                            module: module.id.to_string(),
-                            title: entry.title.clone(),
-                        });
-                    }
+        for part in structure.manuscript() {
+            for e in part.entries {
+                for prose in e.prose {
+                    manuscript.push(ManuscriptBody {
+                        entry: e.entry.id.to_string(),
+                        module: prose.module.to_string(),
+                        title: e.entry.title.clone(),
+                    });
                 }
             }
         }

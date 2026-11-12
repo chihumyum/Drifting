@@ -162,6 +162,7 @@ pub fn create(
             title: title.into(),
             parent: Some(action.level.clone()),
             template: action.template.clone(),
+            level: None,
             bodies: Default::default(),
         })
         .expect("serializable entry input"),

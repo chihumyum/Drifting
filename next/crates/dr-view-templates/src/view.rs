@@ -503,9 +503,9 @@ impl TemplateEditor {
         let (which, at) = self.picker.clone()?;
         let values = match which {
             Picker::Mark => model::MARKS.to_vec(),
+            // Any template takes any module.
             Picker::Add => model::MODULES
                 .iter()
-                .filter(|kind| self.draft.kind == "leaf" || **kind == "kv")
                 .chain(model::FIELDS)
                 .copied()
                 .collect(),
@@ -737,7 +737,10 @@ impl Render for TemplateEditor {
                     .child(sand::KindMark::new("k5-mark-symbol", mark).scale(1.5)),
             )
             .child(div().flex_1().min_w_0().type_px(28., 40.).child(name))
-            .child(type_label(&self.draft.kind, cx))
+            .child(type_label(
+                if self.draft.level { "level" } else { "leaf" },
+                cx,
+            ))
             .child(
                 div()
                     .id("k5-status")
@@ -782,15 +785,8 @@ impl Render for TemplateEditor {
                 .child(t(cx, k::COLOR))
                 .child(color),
         );
-        if matches!(self.draft.kind.as_str(), "leaf" | "level") {
-            content = content.child(t(
-                cx,
-                if self.draft.kind == "level" {
-                    k::FIELDS
-                } else {
-                    k::MODULES
-                },
-            ));
+        {
+            content = content.child(t(cx, k::MODULES));
             for module in self.draft.modules.clone() {
                 content = content.child(self.module_row(&module, window, cx));
             }
@@ -806,27 +802,19 @@ impl Render for TemplateEditor {
                         }
                     }))
                     .child(
-                        Button::new(
-                            "k5-add-module",
-                            t(
-                                cx,
-                                if self.draft.kind == "level" {
-                                    k::ADD_FIELD
-                                } else {
-                                    k::ADD_MODULE
-                                },
+                        Button::new("k5-add-module", t(cx, k::ADD_MODULE))
+                            .small()
+                            .text()
+                            .icon(Icon::Plus)
+                            .on_click(
+                                cx.listener(|this, _, w, cx| this.show_picker(Picker::Add, w, cx)),
                             ),
-                        )
-                        .small()
-                        .text()
-                        .icon(Icon::Plus)
-                        .on_click(
-                            cx.listener(|this, _, w, cx| this.show_picker(Picker::Add, w, cx)),
-                        ),
                     ),
             );
         }
-        if self.draft.kind == "level" {
+        // The settings for what lives below show while the default switch
+        // is on; their values stay when it is off.
+        if self.draft.level {
             content = content
                 .child(self.level_settings(cx))
                 .child(self.actions(window, cx));

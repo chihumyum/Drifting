@@ -9,9 +9,8 @@ use dr_model::{
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, KvEntryId, ModuleId, TimelineViewId},
     shared::KvEntry,
     v3::{
-        Entry, EntryTemplate, FieldType, LEVEL_ABOUT_MODULE, ModuleKind, ModuleSpec,
-        check_membership, check_timeline_placement_in_lane, level_about_module_id,
-        resolve_new_entry_residence,
+        Entry, EntryTemplate, FieldType, ModuleKind, ModuleSpec, check_membership,
+        check_timeline_placement_in_lane, resolve_new_entry_residence,
     },
 };
 use dr_workspace::{Workspace, registry};
@@ -1387,8 +1386,10 @@ fn resolve_entry_id(
         && let Some(entry) = entries.get(&id)
         && (include_trashed || !entry.is_trashed())
     {
-        if levels_only && !entry.is_level(templates) {
-            return Err(invalid(format!("entry {trimmed:?} is not a level")));
+        if levels_only && !entry.is_level() {
+            return Err(invalid(format!(
+                "entry {trimmed:?} has its switch off: nothing lives under it"
+            )));
         }
         return Ok(id);
     }
@@ -1396,7 +1397,7 @@ fn resolve_entry_id(
     let matches: Vec<&Entry> = entries
         .values()
         .filter(|e| include_trashed || !e.is_trashed())
-        .filter(|e| !levels_only || e.is_level(templates))
+        .filter(|e| !levels_only || e.is_level())
         .filter(|e| {
             parent_id
                 .as_ref()
@@ -1574,9 +1575,6 @@ fn resolve_entry_module(
             }
             return Ok((mid, Some(m.clone())));
         }
-        if entry.is_level(templates) && mid == level_about_module_id() {
-            return Ok((mid, None));
-        }
         if has_retained_module(ws, book, view, entry, &mid)? {
             if !allow_retained || require_writable {
                 return Err(invalid(format!(
@@ -1628,13 +1626,6 @@ fn resolve_entry_prose_module(
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(invalid("prose module name or id is empty"));
-    }
-    if entry.is_level(templates)
-        && (trimmed == LEVEL_ABOUT_MODULE
-            || trimmed == "层级说明"
-            || trimmed.eq_ignore_ascii_case("about"))
-    {
-        return Ok(level_about_module_id());
     }
     let active_tpl = entry.effective_template(templates);
     let prose_modules: Vec<&ModuleSpec> = active_tpl
@@ -1912,9 +1903,6 @@ fn default_single_prose_module(
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
     require_writable: bool,
 ) -> Result<ModuleId> {
-    if entry.is_level(templates) {
-        return Ok(level_about_module_id());
-    }
     let active_tpl = entry.effective_template(templates);
     let prose_mods: Vec<&ModuleSpec> = active_tpl
         .into_iter()

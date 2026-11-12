@@ -33,17 +33,18 @@ pub const MARKS: &[&str] = &[
     "square",
 ];
 
+/// A new template; `kind` `"level"` starts new entries with the switch on.
 pub fn blank(kind: &str, name: String) -> EntryTemplate {
     EntryTemplate {
         id: dr_model::v3::EntryTemplateId::new_v7().to_string(),
-        kind: kind.into(),
         name,
         mark: None,
         color: None,
         agent: None,
         modules: Vec::new(),
+        level: kind == "level",
+        linkable: true,
         settings: LevelSettingsOverride::default(),
-        lane: false,
         verbs: Vec::new(),
         deleted_at: None,
     }
@@ -236,13 +237,6 @@ pub fn validate_actions(
                 .iter()
                 .any(|t| t.id == id && t.deleted_at.is_none())
     };
-    let allowed = |id: &str| {
-        template
-            .settings
-            .allow
-            .as_ref()
-            .is_none_or(|allow| allow.is_empty() || allow.iter().any(|tid| tid == id))
-    };
     let mut ids = BTreeSet::new();
     for action in &template.verbs {
         if action.id.is_empty()
@@ -251,7 +245,7 @@ pub fn validate_actions(
             || action
                 .target_template
                 .as_deref()
-                .is_none_or(|target| !live(target) || !allowed(target))
+                .is_none_or(|target| !live(target))
         {
             return Err(WsError::Invalid(
                 "action needs a unique id, a name and an allowed live target template".into(),

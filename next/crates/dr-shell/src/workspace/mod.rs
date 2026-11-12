@@ -1033,7 +1033,7 @@ impl Workspace {
             .as_ref()
             .is_none_or(|lib| !crate::book::canonical(lib, book))
         {
-            log::warn!("only canonical v3 books can be opened; source retained");
+            log::warn!("only books of the current format can be opened; source retained");
             return;
         }
         if book != self.book_id || self.book.is_empty() {

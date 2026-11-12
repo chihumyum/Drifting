@@ -36,10 +36,10 @@ mod v3_lane {
 
     fn slot(book: &Book, id: &str) -> Option<(String, String)> {
         let b = book.v3()?;
-        let t = b.template_of(id)?;
-        if t.kind != "level" || !t.lane {
+        if !b.is_lane(id) {
             return None;
         }
+        let t = b.template_of(id)?;
         t.modules.iter().find_map(|m| {
             m.config
                 .color_field

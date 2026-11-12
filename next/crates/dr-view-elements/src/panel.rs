@@ -74,11 +74,7 @@ pub mod v3 {
                 }
             }
             let mut used = BTreeSet::new();
-            for lane in v
-                .entries
-                .iter()
-                .filter(|e| v.template_of(&e.id).is_some_and(|t| t.lane))
-            {
+            for lane in v.entries.iter().filter(|e| v.is_lane(&e.id)) {
                 let members: Vec<_> = leaves
                     .iter()
                     .filter(|id| {

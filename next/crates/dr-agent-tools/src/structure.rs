@@ -13,7 +13,7 @@ use dr_model::{
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
         Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
-        ProjectTemplateRef, TemplateKind, effective_ancestors, level_about_module_id,
+        ProjectTemplateRef, effective_ancestors, resolve_level_settings,
         resolve_level_settings_with_sources,
     },
 };
@@ -28,7 +28,7 @@ use crate::{
     catalog::{ActionDiagnostic, ActionPathSegment, ActionRef, Catalog},
 };
 
-pub const STRUCTURE_REVISION_PREFIX: &str = "k6-structure-v3";
+pub const STRUCTURE_REVISION_PREFIX: &str = "k6-structure-v4";
 pub const STRUCTURE_CONTEXT_SOURCE: &str = "BOOK_STRUCTURE.json (this book's templates, levels, actions, and author-configured guidance; project guidance, not a substitute for reading source prose or write authorization)";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,7 +47,8 @@ pub struct RootSummary {
     pub template: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub missing_template: Option<String>,
-    pub kind: String,
+    /// The entry's switch: whether entries can live under it.
+    pub level: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,8 +88,13 @@ pub struct ModuleSummary {
 pub struct TemplateSummary {
     #[serde(rename = "ref")]
     pub id: String,
-    pub kind: String,
     pub name: String,
+    /// Whether a new entry of this template starts with its switch on.
+    pub level: bool,
+    /// Whether entries of this template take part in auto-linking.
+    pub linkable: bool,
+    /// Whether entries of this template whose switch is on are swimlanes.
+    pub lane: bool,
     pub agent: TemplateAgentSummary,
     pub modules: Vec<ModuleSummary>,
 }
@@ -275,16 +281,12 @@ impl StructureContext {
                     .as_ref()
                     .filter(|_| effective.is_none())
                     .map(ToString::to_string);
-                let kind = match effective {
-                    Some(t) => t.kind.as_str().to_owned(),
-                    None => "untemplated".to_owned(),
-                };
                 RootSummary {
                     id: e.id.to_string(),
                     title: e.title,
                     template: effective.map(|t| t.id.to_string()),
                     missing_template,
-                    kind,
+                    level: e.level,
                 }
             })
             .collect();
@@ -309,17 +311,12 @@ impl StructureContext {
                     });
                 }
             }
-            if e.is_level(&templates_map) {
-                let eff = view.level_settings(Some(&e.id));
+            if e.is_level() {
+                let eff = resolve_level_settings(Some(&e.id), &entries_map, &templates_map);
                 if let Some(def_tid) = eff.default_template
                     && live_templates.contains_key(&def_tid)
                 {
                     included_templates.insert(def_tid);
-                }
-                for allow_tid in eff.allow {
-                    if live_templates.contains_key(&allow_tid) {
-                        included_templates.insert(allow_tid);
-                    }
                 }
             }
         }
@@ -358,9 +355,9 @@ impl StructureContext {
         // 5. Build LevelSummary list for all live levels in manuscript tree order.
         let levels: Vec<LevelSummary> = live_entries
             .iter()
-            .filter(|e| e.is_level(&templates_map))
+            .filter(|e| e.is_level())
             .map(|e| {
-                let path = level_path(&e.id, &entries_map, &templates_map);
+                let path = level_path(&e.id, &entries_map);
                 let effective_settings =
                     resolve_settings_with_sources(&e.id, &entries_map, &templates_map);
                 let actions = catalog
@@ -386,7 +383,7 @@ impl StructureContext {
                     template: e
                         .effective_template(&templates_map)
                         .map(|t| t.id.to_string()),
-                    lane: e.is_lane_level(&templates_map),
+                    lane: e.is_lane(&templates_map),
                     effective_settings,
                     actions,
                 }
@@ -465,9 +462,6 @@ fn summarize_template(tpl: &EntryTemplate, catalog: &Catalog) -> TemplateSummary
     let mut seen_modules = BTreeSet::new();
     let mut modules = Vec::new();
     for m in &tpl.modules {
-        if tpl.kind == TemplateKind::Level && !m.kind.allowed_on_level() {
-            continue;
-        }
         if !seen_modules.insert(m.id.clone()) {
             continue;
         }
@@ -475,8 +469,10 @@ fn summarize_template(tpl: &EntryTemplate, catalog: &Catalog) -> TemplateSummary
     }
     TemplateSummary {
         id: tpl.id.to_string(),
-        kind: tpl.kind.as_str().to_owned(),
         name: tpl.name.clone(),
+        level: tpl.level,
+        linkable: tpl.linkable,
+        lane: tpl.settings.lane.unwrap_or(false),
         agent,
         modules,
     }
@@ -516,6 +512,8 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
             vec!["module.read", "module.list"],
             vec!["module.put_relation", "module.remove_relation"],
         ),
+        // What lives below: read through the entry; moved with entry.move.
+        ModuleKind::Children => (vec!["module.read", "entry.get"], Vec::new()),
         ModuleKind::Other(_) => (vec!["module.read", "module.list"], Vec::new()),
     };
     let write_tools = if writable {
@@ -550,12 +548,8 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
     }
 }
 
-fn level_path(
-    level_id: &EntryId,
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> Vec<ActionPathSegment> {
-    let mut chain = effective_ancestors(entries, templates, level_id);
+fn level_path(level_id: &EntryId, entries: &BTreeMap<EntryId, Entry>) -> Vec<ActionPathSegment> {
+    let mut chain = effective_ancestors(entries, level_id);
     chain.reverse();
     chain.push(level_id.clone());
     chain
@@ -607,7 +601,7 @@ fn build_focus(
             included_templates.insert(tpl.id.clone());
         }
         let home = view.effective_parent(&entry.id);
-        for anc_id in effective_ancestors(entries_map, templates_map, &entry.id) {
+        for anc_id in effective_ancestors(entries_map, &entry.id) {
             if let Some(anc) = entries_map.get(&anc_id)
                 && let Some(tpl) = anc.effective_template(templates_map)
             {
@@ -622,16 +616,11 @@ fn build_focus(
                     if let Some(tpl) = host.effective_template(templates_map) {
                         included_templates.insert(tpl.id.clone());
                     }
-                    let eff = view.level_settings(Some(&m.host));
+                    let eff = resolve_level_settings(Some(&m.host), entries_map, templates_map);
                     if let Some(def_tid) = eff.default_template
                         && live_templates.contains_key(&def_tid)
                     {
                         included_templates.insert(def_tid);
-                    }
-                    for allow_tid in eff.allow {
-                        if live_templates.contains_key(&allow_tid) {
-                            included_templates.insert(allow_tid);
-                        }
                     }
                 }
                 m.host.to_string()
@@ -716,13 +705,7 @@ fn collect_focus_modules(
 ) -> Result<Vec<FocusModuleSummary>> {
     let active: Vec<ModuleSpec> = entry
         .effective_template(templates_map)
-        .map(|t| {
-            t.modules
-                .iter()
-                .filter(|m| !t.is_level() || m.kind.allowed_on_level())
-                .cloned()
-                .collect()
-        })
+        .map(|t| t.modules.clone())
         .unwrap_or_default();
 
     let mut ordered_ids: Vec<ModuleId> = Vec::new();
@@ -733,9 +716,6 @@ fn collect_focus_modules(
         }
     };
 
-    if entry.is_level(templates_map) {
-        push_id(level_about_module_id());
-    }
     for m in &active {
         push_id(m.id.clone());
     }
@@ -771,8 +751,7 @@ fn collect_focus_modules(
     let mut out = Vec::new();
     for id in ordered_ids {
         let def = active.iter().find(|m| m.id == id);
-        let is_level_about = entry.is_level(templates_map) && id == level_about_module_id();
-        let retained = def.is_none() && !is_level_about;
+        let retained = def.is_none();
         if retained {
             diagnostics.push(StructureDiagnostic {
                 kind: "retained_module".into(),
@@ -783,9 +762,8 @@ fn collect_focus_modules(
                 reason: "module content is retained from an earlier or missing template and remains readable".into(),
             });
         }
-        let is_prose = is_level_about
-            || def.is_some_and(|m| m.kind == ModuleKind::Prose)
-            || registered_prose.contains_key(&id);
+        let is_prose =
+            def.is_some_and(|m| m.kind == ModuleKind::Prose) || registered_prose.contains_key(&id);
         let prose_doc = if is_prose {
             Some(registered_prose.remove(&id).unwrap_or_else(|| {
                 DocId::Body(BodyDocId::new(entry.id.clone(), id.clone())).to_string()
@@ -812,16 +790,8 @@ fn collect_focus_modules(
         };
         out.push(FocusModuleSummary {
             id: id.to_string(),
-            kind: if is_level_about {
-                Some(ModuleKind::Prose.as_str().to_owned())
-            } else {
-                def.map(|m| m.kind.as_str().to_owned())
-            },
-            name: if is_level_about {
-                Some(level_about_module_id().to_string())
-            } else {
-                def.map(|m| m.name.clone())
-            },
+            kind: def.map(|m| m.kind.as_str().to_owned()),
+            name: def.map(|m| m.name.clone()),
             retained,
             read_tier: def
                 .and_then(|m| m.agent.as_ref())

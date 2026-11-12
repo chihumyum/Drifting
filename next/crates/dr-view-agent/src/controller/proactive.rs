@@ -109,7 +109,7 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
                 return Ok(result);
             }
         } else {
-            return Err("canonical v3 book required".into());
+            return Err("a book of the current format is required".into());
         }
     }
     Err("book structure changed while preparing suggestions; read again".into())

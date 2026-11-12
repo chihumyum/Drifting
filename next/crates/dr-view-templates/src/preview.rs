@@ -43,13 +43,13 @@ pub fn project(workspace: &Workspace, request: &Request) -> Result<Projection, W
             .ok_or_else(|| WsError::Conflict("preview template is unavailable".into()))?;
         let structure = StructureContext::from_v3_view(None, view, frontier, None)
             .map_err(|e| WsError::Internal(e.to_string()))?;
-        let level = request.draft.kind == "level";
+        let level = request.draft.level;
         Ok(Projection {
             source_frontier: request.frontier.clone(),
             draft_frontier: frontier.into(),
             template: TemplateSummary::from_v3_template(&template),
             level_defaults: level.then(|| request.draft.settings.clone()),
-            lane: level.then_some(request.draft.lane),
+            lane: level.then_some(request.draft.settings.lane == Some(true)),
             declared_actions: level.then(|| request.draft.verbs.clone()),
             structure,
         })

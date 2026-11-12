@@ -42,7 +42,7 @@ pub mod v3 {
     ) -> Result<Mutation, WsError> {
         let v = book
             .v3()
-            .ok_or_else(|| WsError::Invalid("v3 book required".into()))?;
+            .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
         // Held to the records of this snapshot that the command replaces,
         // and to the entries, levels and templates its input names: what
         // the author was shown when choosing it. A change elsewhere in the
@@ -64,7 +64,7 @@ pub mod v3 {
     pub fn prepare_edit(book: &Book, id: &str, mut changes: Value) -> Result<Mutation, WsError> {
         let v = book
             .v3()
-            .ok_or_else(|| WsError::Invalid("v3 book required".into()))?;
+            .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
         if v.entry(id).is_none() {
             return Err(WsError::Invalid("entry is no longer live".into()));
         }
@@ -82,7 +82,6 @@ pub mod v3 {
     ) -> Result<Mutation, WsError> {
         if ![
             "default_template",
-            "allow",
             "display",
             "auto_link",
             "accept",
@@ -96,7 +95,7 @@ pub mod v3 {
         }
         let v = book
             .v3()
-            .ok_or_else(|| WsError::Invalid("v3 book required".into()))?;
+            .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
         let entry = v
             .entry(id)
             .filter(|_| v.levels.contains_key(id))
@@ -153,30 +152,19 @@ pub mod v3 {
         let context = if v.levels.contains_key(origin) {
             Some(id)
         } else {
-            model::effective_parent_id(graph.entries.get(&id)?, &graph.entries, &graph.templates)
+            model::effective_parent_id(graph.entries.get(&id)?, &graph.entries)
         };
         let home =
             model::resolve_new_entry_residence(context.as_ref(), &graph.entries, &graph.templates);
-        let allows = |template: Option<&model::EntryTemplateId>| {
-            model::check_level_allows_template(
-                home.as_ref(),
-                template,
-                &graph.entries,
-                &graph.templates,
-            )
-            .is_ok()
-                && model::check_level_allows_template(
-                    context.as_ref(),
-                    template,
-                    &graph.entries,
-                    &graph.templates,
-                )
-                .is_ok()
+        // Any template can be created where an entry can live at all.
+        let allows = |_: Option<&model::EntryTemplateId>| {
+            model::check_parent_is_level(home.as_ref(), &graph.entries).is_ok()
+                && model::check_parent_is_level(context.as_ref(), &graph.entries).is_ok()
         };
         let templates: Vec<String> = v
             .templates
             .iter()
-            .filter(|t| t.deleted_at.is_none() && matches!(t.kind.as_str(), "leaf" | "level"))
+            .filter(|t| t.deleted_at.is_none())
             .filter(|t| t.id.parse().ok().is_some_and(|id| allows(Some(&id))))
             .map(|t| t.id.clone())
             .collect();
@@ -204,17 +192,10 @@ pub mod v3 {
         };
         v.templates
             .iter()
-            .filter(|t| t.deleted_at.is_none() && matches!(t.kind.as_str(), "leaf" | "level"))
+            .filter(|t| t.deleted_at.is_none())
             .filter(|t| {
                 let Ok(id) = t.id.parse() else { return false };
-                if model::check_template_switch(
-                    &entry_id,
-                    Some(&id),
-                    &graph.entries,
-                    &graph.templates,
-                )
-                .is_err()
-                {
+                if model::check_entry_template(&graph.templates, Some(&id)).is_err() {
                     return false;
                 }
                 let mut entries = graph.entries.clone();
@@ -240,25 +221,7 @@ pub mod v3 {
                 {
                     return false;
                 }
-                // A template may change inherited allowance on lower levels. Do
-                // not turn a currently valid resident placement into an invalid one.
-                !entries.values().any(|child| {
-                    let parent = model::effective_parent_id(child, &entries, &graph.templates);
-                    model::check_level_allows_template(
-                        parent.as_ref(),
-                        child.template.as_ref(),
-                        &graph.entries,
-                        &graph.templates,
-                    )
-                    .is_ok()
-                        && model::check_level_allows_template(
-                            parent.as_ref(),
-                            child.template.as_ref(),
-                            &entries,
-                            &graph.templates,
-                        )
-                        .is_err()
-                })
+                true
             })
             .map(|t| t.id.clone())
             .collect()
@@ -300,50 +263,22 @@ pub mod v3 {
         let graph = Graph::of(book)?;
         let id = entry.parse().ok()?;
         let target = onto.parse().ok()?;
-        let moving = v.entry(entry)?;
+        v.entry(entry)?;
         if let Some(level) = v.levels.get(onto) {
             if level.settings.accept {
                 model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
                 return Some(Drop::Membership { host: onto.into() });
             }
             model::check_entry_move(&graph.entries, &id, Some(&target)).ok()?;
-            let template = moving
-                .template
-                .as_deref()
-                .map(str::parse)
-                .transpose()
-                .ok()?;
-            model::check_level_allows_template(
-                Some(&target),
-                template.as_ref(),
-                &graph.entries,
-                &graph.templates,
-            )
-            .ok()?;
+            model::check_parent_is_level(Some(&target), &graph.entries).ok()?;
             Some(Drop::Residence {
                 parent: Some(onto.into()),
                 anchor: None,
             })
         } else {
-            let parent = model::effective_parent_id(
-                graph.entries.get(&target)?,
-                &graph.entries,
-                &graph.templates,
-            );
+            let parent = model::effective_parent_id(graph.entries.get(&target)?, &graph.entries);
             model::check_entry_move(&graph.entries, &id, parent.as_ref()).ok()?;
-            let template = moving
-                .template
-                .as_deref()
-                .map(str::parse)
-                .transpose()
-                .ok()?;
-            model::check_level_allows_template(
-                parent.as_ref(),
-                template.as_ref(),
-                &graph.entries,
-                &graph.templates,
-            )
-            .ok()?;
+            model::check_parent_is_level(parent.as_ref(), &graph.entries).ok()?;
             Some(Drop::Residence {
                 parent: parent.map(|id| id.to_string()),
                 anchor: Some((onto.into(), after)),

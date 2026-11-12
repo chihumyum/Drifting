@@ -34,7 +34,7 @@ pub(crate) fn refresh_v3(
         .load_copy(&format!("book:{book}"))
         .map_err(|e| e.to_string())?;
     if !dr_doc::v3::is_book_doc(&copy) {
-        return Err("only canonical v3 books support the Agent".into());
+        return Err("only books of the current format support the Agent".into());
     }
     {
         let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book).map_err(|e| e.to_string())?;

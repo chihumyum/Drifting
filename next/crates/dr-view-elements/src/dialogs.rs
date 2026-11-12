@@ -230,41 +230,13 @@ pub mod v3 {
                 .chain(
                     v.templates
                         .iter()
-                        .filter(|t| {
-                            t.deleted_at.is_none()
-                                && (s.allow.is_empty() || s.allow.contains(&t.id))
-                        })
+                        .filter(|t| t.deleted_at.is_none())
                         .map(|t| {
                             choice(
                                 t.name.clone().into(),
                                 json!(t.id),
                                 json!(s.default_template),
                             )
-                        }),
-                )
-                .collect(),
-                "allow" => std::iter::once(Choice {
-                    label: t(cx, keys::v3_levels::ALL_TEMPLATES),
-                    value: json!([]),
-                    checked: s.allow.is_empty(),
-                })
-                .chain(
-                    v.templates
-                        .iter()
-                        .filter(|t| t.deleted_at.is_none())
-                        .map(|template| {
-                            let mut selected = s.allow.clone();
-                            let checked = selected.contains(&template.id);
-                            if checked {
-                                selected.retain(|id| id != &template.id);
-                            } else {
-                                selected.push(template.id.clone());
-                            }
-                            Choice {
-                                label: template.name.clone().into(),
-                                value: json!(selected),
-                                checked,
-                            }
                         }),
                 )
                 .collect(),

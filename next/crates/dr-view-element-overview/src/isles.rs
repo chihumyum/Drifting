@@ -352,7 +352,7 @@ pub fn extract_v3_islands(
         let Some(level) = v3.levels.get(&entry.id) else {
             continue;
         };
-        let is_lane = v3.template_of(&entry.id).is_some_and(|t| t.lane);
+        let is_lane = v3.is_lane(&entry.id);
         if !level.settings.auto_link || level.settings.is_manuscript || is_lane {
             continue;
         }

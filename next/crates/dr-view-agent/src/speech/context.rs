@@ -22,18 +22,13 @@ pub fn glossary(lib: &Library, book: &BookId) -> Result<String, String> {
     let entries_map: std::collections::BTreeMap<_, _> =
         entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
     let live: Vec<_> = entries.into_iter().filter(|e| !e.is_trashed()).collect();
+    let linked = dr_model::v3::AutolinkNames::of(&entries_map, &memberships, &templates);
     let mut names = Vec::new();
-    for entry in live
-        .iter()
-        .filter(|e| dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates))
-    {
+    for entry in live.iter().filter(|e| linked.is_linked(&e.id)) {
         names.push(entry.title.clone());
         names.extend(entry.aliases(&templates));
     }
-    for entry in live
-        .iter()
-        .filter(|e| !dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates))
-    {
+    for entry in live.iter().filter(|e| !linked.is_linked(&e.id)) {
         names.push(entry.title.clone());
         names.extend(entry.aliases(&templates));
     }

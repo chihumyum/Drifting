@@ -184,15 +184,8 @@ impl Timeline {
                     );
                 }
                 for e in book.entries.iter().filter(|e| e.deleted_at.is_none()) {
-                    if !bind
-                        && (&e.id == lane
-                            || !book.levels.get(lane).is_some_and(|level| {
-                                level.settings.allow.is_empty()
-                                    || e.template
-                                        .as_ref()
-                                        .is_some_and(|t| level.settings.allow.contains(t))
-                            }))
-                    {
+                    // Any entry can join a lane that accepts (a lane always does).
+                    if !bind && (&e.id == lane || !book.levels.contains_key(lane)) {
                         continue;
                     }
                     let id = e.id.clone();
@@ -368,11 +361,7 @@ impl Timeline {
                 );
                 let shown = self.view_scope();
                 for e in &book.entries {
-                    if e.deleted_at.is_some()
-                        || !book
-                            .template_of(&e.id)
-                            .is_some_and(|t| t.kind == "level" && t.lane)
-                    {
+                    if e.deleted_at.is_some() || !book.is_lane(&e.id) {
                         continue;
                     }
                     let in_view = self

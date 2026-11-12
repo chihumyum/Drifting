@@ -1,15 +1,12 @@
-//! V3 manuscript conversion. Only live leaves resident under manuscript
-//! levels contribute, once each; prose modules follow their template order.
+//! Manuscript conversion: the manuscript sequence
+//! (`BookStructureV3::manuscript`), each entry with book prose once, its own
+//! book prose in template order before what lives under it.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::time::SystemTime;
 
 use dr_doc::{prose::BorrowedProse, v3::BorrowedBookV3};
-use dr_model::{
-    DocId,
-    id::{BodyDocId, BookId},
-    v3 as model,
-};
+use dr_model::{DocId, id::BookId};
 use dr_store::OpenDoc;
 use dr_workspace::Workspace;
 
@@ -72,7 +69,9 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
         .map_err(invalid)?
         .read(move |doc| {
             if !dr_doc::v3::is_book_doc(doc) {
-                return Err(invalid("v3 manuscript requires a v3 book"));
+                return Err(invalid(
+                    "the manuscript requires a book of the current format",
+                ));
             }
             let borrowed = BorrowedBookV3::new(doc, &id).map_err(invalid)?;
             let view = borrowed.view();
@@ -80,34 +79,24 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
             if meta.deleted_at.is_some() {
                 return Err(ExportError::NotFound(format!("book {id}")));
             }
-            let templates = view.templates_map();
-            let entries = view.entries_raw();
-            let map: BTreeMap<_, _> = entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
-            let levels = model::effective_manuscript_levels(&map, &templates);
-            let entries = entries
-                .iter()
-                .filter(|entry| {
-                    if entry.is_trashed() || !entry.is_leaf(&templates) {
-                        return false;
-                    }
-                    let ancestors = model::effective_ancestors(&map, &templates, &entry.id);
-                    ancestors.iter().any(|id| levels.contains(id))
-                        && ancestors
-                            .iter()
-                            .all(|id| map.get(id).is_some_and(|e| !e.is_trashed()))
-                })
-                .map(|entry| Entry {
-                    id: entry.id.to_string(),
-                    title: entry.title.clone(),
-                    mark: entry
-                        .effective_template(&templates)
+            // The manuscript sequence: every entry with book prose, its own
+            // prose before what lives under it; entries without book prose
+            // (an organizing level, say) do not appear.
+            let structure = view.structure_snapshot();
+            let templates = structure.templates_map();
+            let entries = structure
+                .manuscript()
+                .into_iter()
+                .flat_map(|p| p.entries)
+                .filter(|e| !e.prose.is_empty())
+                .map(|e| Entry {
+                    id: e.entry.id.to_string(),
+                    title: e.entry.title.clone(),
+                    mark: e
+                        .entry
+                        .effective_template(templates)
                         .and_then(|t| t.mark.clone()),
-                    prose: entry
-                        .effective_template(&templates)
-                        .into_iter()
-                        .flat_map(|t| t.prose_modules())
-                        .map(|m| DocId::Body(BodyDocId::new(entry.id.clone(), m.id.clone())))
-                        .collect(),
+                    prose: e.prose.iter().map(|p| p.doc.clone()).collect(),
                 })
                 .collect();
             Ok(Outline {
