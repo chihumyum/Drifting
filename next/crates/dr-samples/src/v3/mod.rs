@@ -11,7 +11,7 @@ pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 use dr_doc::import_v1::BookView;
 use dr_doc::v3::novel::*;
 use dr_model::id::*;
-use dr_model::import_v1::EntityRef;
+use dr_model::import_v1::{EntityRef, TemplateOwner};
 use dr_model::kind::EntityKind;
 use serde::{Deserialize, Serialize};
 
@@ -132,7 +132,7 @@ pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
         DocId::Element(id) => body_id(id.as_str(), MOD_PROSE),
         DocId::Category(id) => body_id(id.as_str(), MOD_ABOUT),
         DocId::Storyline(id) => body_id(id.as_str(), MOD_ABOUT),
-        DocId::Template(id) => match id.owner() {
+        DocId::Template(id) => match TemplateOwner::of(id) {
             Some(TemplateOwner::Category(id)) => DocId::Template(TemplateId::for_entry_module(
                 book,
                 &category_template(id.as_str()),

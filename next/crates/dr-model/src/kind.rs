@@ -5,10 +5,6 @@
 //! back unchanged. Readers decide how to show it; nothing is dropped. This is
 //! the "unknown values are kept" rule of `loro-schema.md` ("版本").
 
-use std::fmt;
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
 macro_rules! open_enum {
     (
         $(#[$meta:meta])*
@@ -49,14 +45,14 @@ macro_rules! open_enum {
             }
         }
 
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl ::std::fmt::Display for $name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 f.write_str(self.as_str())
             }
         }
 
-        impl fmt::Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl ::std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 match self {
                     Self::Other(s) => write!(f, "{}::Other({:?})", stringify!($name), s),
                     _ => write!(f, "{}::{}", stringify!($name), self.as_str()),
@@ -70,67 +66,21 @@ macro_rules! open_enum {
             }
         }
 
-        impl Serialize for $name {
-            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        impl ::serde::Serialize for $name {
+            fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
                 s.serialize_str(self.as_str())
             }
         }
 
-        impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                let s = String::deserialize(d)?;
+        impl<'de> ::serde::Deserialize<'de> for $name {
+            fn deserialize<D: ::serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                let s = <String as ::serde::Deserialize>::deserialize(d)?;
                 Ok(Self::parse(&s))
             }
         }
     };
 }
-
-open_enum!(
-    /// Chapter or idea. Readers go by `kind`: a chapter without a primary
-    /// storyline is still a chapter.
-    NodeKind {
-        Chapter = "chapter",
-        /// An idea (构想, English "Ideas"; internal name drift).
-        Drift = "drift",
-    }
-);
-
-open_enum!(
-    /// Writing status. Chapters use `draft` / `finished` / `discarded`
-    /// (`discarded` keeps the chapter on the timeline, styled as set aside);
-    /// ideas use `drifting` / `resting`. One field, disambiguated by
-    /// [`NodeKind`], as in the old `writing_status` column.
-    NodeStatus {
-        Draft = "draft",
-        Finished = "finished",
-        Discarded = "discarded",
-        Drifting = "drifting",
-        Resting = "resting",
-    }
-);
-
-impl NodeStatus {
-    /// The status a new node of `kind` starts with.
-    pub fn default_for(kind: &NodeKind) -> Self {
-        match kind {
-            NodeKind::Drift => NodeStatus::Drifting,
-            _ => NodeStatus::Draft,
-        }
-    }
-
-    /// Whether this status belongs to `kind` (a chapter status on an idea,
-    /// for example, is shown as the kind's default).
-    pub fn fits(&self, kind: &NodeKind) -> bool {
-        match kind {
-            NodeKind::Chapter => matches!(
-                self,
-                NodeStatus::Draft | NodeStatus::Finished | NodeStatus::Discarded
-            ),
-            NodeKind::Drift => matches!(self, NodeStatus::Drifting | NodeStatus::Resting),
-            NodeKind::Other(_) => true,
-        }
-    }
-}
+pub(crate) use open_enum;
 
 open_enum!(
     /// What an entity reference (relation end, comment target, memory target,
@@ -138,11 +88,24 @@ open_enum!(
     ///
     /// v0 names materials `material` (the root container is `materials`); the
     /// old `library_item` is read as [`EntityKind::Material`].
+    ///
+    /// A canonical reference names `entry`, `material`, `comment` or `patch`
+    /// (`kernel-v3.md`). `node`, `element`, `category` and `storyline` are
+    /// the 0.1 source format's values. They stay known here, not in
+    /// `import_v1`, because this is the stored vocabulary and shared code
+    /// still meets them: an entity link written without a kind reads as
+    /// `element` (the prose codec and the editor), and the role predicates
+    /// below decide which stored references the shared readers accept.
+    /// Canonical writers check [`EntityKind::may_be_linked_v3`].
     EntityKind {
+        /// Source format only.
         Node = "node",
+        /// Source format; also what an entity link without a kind reads as.
         Element = "element",
         Patch = "patch",
+        /// Source format only.
         Category = "category",
+        /// Source format only.
         Storyline = "storyline",
         Entry = "entry",
         Comment = "comment",
@@ -213,14 +176,6 @@ open_enum!(
 );
 
 open_enum!(
-    /// How a category's elements are laid out in the element overview.
-    CategoryLayout {
-        Auto = "auto",
-        Pinned = "pinned",
-    }
-);
-
-open_enum!(
     /// A margin note or a TODO. Old values other than these are kept as
     /// written (`loro-schema.md`: "旧值原样").
     CommentKind {
@@ -232,7 +187,7 @@ open_enum!(
 open_enum!(
     /// The retired `converted` (a Copilot suggestion that was accepted) is
     /// not a v2 value; importing turns it into `resolved` (see
-    /// [`crate::legacy`]).
+    /// [`crate::import_v1::legacy`]).
     CommentStatus {
         Open = "open",
         Resolved = "resolved",
@@ -393,15 +348,5 @@ mod tests {
         assert!(EntityKind::Entry.may_be_linked_v3());
         assert!(EntityKind::Material.may_be_linked_v3());
         assert!(!EntityKind::Element.may_be_linked_v3());
-    }
-
-    #[test]
-    fn node_status_fits_its_kind() {
-        assert!(NodeStatus::Draft.fits(&NodeKind::Chapter));
-        assert!(!NodeStatus::Draft.fits(&NodeKind::Drift));
-        assert_eq!(
-            NodeStatus::default_for(&NodeKind::Drift),
-            NodeStatus::Drifting
-        );
     }
 }

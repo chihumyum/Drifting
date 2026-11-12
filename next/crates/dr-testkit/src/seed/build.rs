@@ -5,6 +5,7 @@
 
 use dr_doc::{DocError, Result};
 use dr_model::id::*;
+use dr_model::import_v1::{CategoryLayout, NodeKind};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::shared::{BlockSnapshot, EntityRef, KvEntry};

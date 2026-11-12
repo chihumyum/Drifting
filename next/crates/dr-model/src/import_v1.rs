@@ -1,7 +1,20 @@
 //! 0.1 source replay records. Never the App book model.
+//!
+//! Everything the old per-kind book model needs lives here: its ids
+//! (chapter or idea, act, storyline, category, element, idea group), its
+//! vocabularies, its records, its ordering rules and the mapping of retired
+//! values ([`legacy`]). Only the source replay may import this module
+//! (`dr-doc::import_v1`, `dr-import-v1`, `dr-samples`' source builders and
+//! `dr-testkit`'s source fixtures); `cargo xtask check` (gate `v3-cutover`)
+//! refuses the import anywhere else.
+mod ids;
+mod kinds;
+pub mod legacy;
 pub mod order;
 
 pub use crate::shared::*;
+pub use ids::*;
+pub use kinds::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};

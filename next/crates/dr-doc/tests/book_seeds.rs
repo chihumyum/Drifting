@@ -21,6 +21,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use dr_doc::import_v1::{BookDoc, BookTxn, Collection};
 use dr_model::id::*;
+use dr_model::import_v1::{NodeId, default_plot_row};
 use dr_model::kind::*;
 use dr_model::{DocId, Origin, Timestamp};
 use proptest::prelude::*;
@@ -237,7 +238,7 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
                 line,
                 text,
             } => {
-                let id = PlotRowId::default_for(&chapter(c), line as usize);
+                let id = default_plot_row(&chapter(c), line as usize);
                 let Some(g) = peers[peer].view().plot_grid(&chapter(c)) else {
                     continue;
                 };
@@ -262,7 +263,7 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
                 line,
                 to,
             } => {
-                let id = PlotRowId::default_for(&chapter(c), line as usize);
+                let id = default_plot_row(&chapter(c), line as usize);
                 let Some(g) = peers[peer].view().plot_grid(&chapter(c)) else {
                     continue;
                 };
@@ -337,7 +338,7 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
         prop_assert_eq!(g.rows.len(), 3 + added);
         prop_assert_eq!(g.cols.len(), 3);
         for line in 1..=3u8 {
-            let id = PlotRowId::default_for(&chapter(c), line as usize);
+            let id = default_plot_row(&chapter(c), line as usize);
             let row = g.rows.iter().find(|r| r.id == id);
             prop_assert!(row.is_some(), "default row {} is there", id);
             let row = row.unwrap();

@@ -28,7 +28,7 @@ use crate::seed::{self, DEFAULT_SEED, SeededBook};
 use dr_doc::prose::ProseDoc;
 use dr_index::{TextDeriver, derive_view, prose_reader};
 use dr_model::DocId;
-use dr_model::kind::NodeKind;
+use dr_model::import_v1::NodeKind;
 use dr_store::index::{
     BlockRow, DeriveInput, DerivedPatch, DerivedUpdate, Deriver, DocIndex, DocPatch, Splice,
 };

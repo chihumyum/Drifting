@@ -8,7 +8,7 @@ use dr_doc::v3::novel::*;
 use dr_doc::v3::{BookTxnV3, BookViewV3};
 use dr_doc::{Anchor, DocError, Result};
 use dr_model::id::*;
-use dr_model::import_v1::{EntityRef, canonical_symmetric};
+use dr_model::import_v1::{EntityRef, NodeId, canonical_symmetric};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::v3::*;

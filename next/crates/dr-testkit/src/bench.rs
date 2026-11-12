@@ -418,7 +418,7 @@ pub mod store {
                 .book
                 .view()
                 .node(n)
-                .is_some_and(|n| n.kind == dr_model::kind::NodeKind::Chapter),
+                .is_some_and(|n| n.kind == dr_model::import_v1::NodeKind::Chapter),
             _ => false,
         }
     }

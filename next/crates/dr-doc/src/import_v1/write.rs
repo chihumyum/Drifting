@@ -12,7 +12,9 @@
 
 use dr_model::id::*;
 use dr_model::import_v1::{
-    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, normalize_relation_type_name,
+    ActId, Asset, BlockSnapshot, CategoryId, CategoryLayout, DriftGroupId, ElementId, EntityRef,
+    KvEntry, MaterialRegion, NodeId, NodeKind, NodeStatus, StorylineId,
+    normalize_relation_type_name,
 };
 use dr_model::kind::*;
 use dr_model::pos::PosKey;

@@ -12,7 +12,9 @@
 
 use dr_model::Day;
 use dr_model::id::*;
-use dr_model::kind::NodeStatus;
+use dr_model::import_v1::{
+    ActId, CategoryId, DriftGroupId, ElementId, NodeId, NodeStatus, StorylineId,
+};
 
 use super::build::{day_before_t0, id};
 use super::preset::{Budget, Spec, allocate};

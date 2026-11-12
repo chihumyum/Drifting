@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 use dr_doc::import_v1::{BookDoc, BookTxn, Collection};
 use dr_model::id::*;
 use dr_model::import_v1::order::cmp_order;
+use dr_model::import_v1::{DriftGroupId, ElementId, NodeId, NodeKind, StorylineId};
 use dr_model::kind::*;
 use dr_model::shared::{EntityRef, canonical_symmetric};
 use dr_model::{Origin, Timestamp};
