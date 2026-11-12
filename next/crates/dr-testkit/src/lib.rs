@@ -12,6 +12,8 @@
 //!   the paragraphs the samples and the seed lay out), which depends on no
 //!   store, so dr-store's own tests can use them without a dependency
 //!   cycle; re-exported here;
+//! - [`aging`]: a seeded chapter or book document used for a year or two,
+//!   for measurements that depend on how long a history is;
 //! - [`evidence`]: measured evidence files and their freshness check
 //!   (`cargo xtask evidence --check`); contract evidence is asserted by tests
 //!   instead of committed;
@@ -22,6 +24,7 @@
 //!
 //! See `docs/rust-rewrite/foundations/f8-testkit.md`.
 
+pub mod aging;
 pub mod bench;
 pub mod crash;
 pub mod evidence;
