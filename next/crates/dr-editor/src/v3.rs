@@ -123,7 +123,7 @@ pub(crate) fn page_infos(
                     return info;
                 };
                 info.title = entry.title.clone();
-                let template = entry.effective_template(&templates);
+                let template = entry.effective_template(templates);
                 // The familiar folio is only for the built-in novel templates.
                 info.kind = match template.map(|t| t.id.as_str()) {
                     Some("tpl-chapter") => crate::page::PageKind::Chapter,
@@ -165,7 +165,7 @@ pub(crate) fn page_infos(
                 if let Some(primary) = &entry.primary
                     && let Some(lane) = entries.get(primary)
                 {
-                    let template = lane.effective_template(&templates);
+                    let template = lane.effective_template(templates);
                     let color = template
                         .and_then(|t| {
                             t.modules.iter().find_map(|m| {

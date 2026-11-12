@@ -701,20 +701,18 @@ fn build_v3_actions(
                 });
                 continue;
             }
-            if residence.as_ref() != Some(&level.id) {
-                if !effective.accept {
-                    diagnostics.push(ActionDiagnostic {
-                        code: "invalid_membership_binding".into(),
-                        level: Some(level.id.to_string()),
-                        template: tpl.id.to_string(),
-                        verb: verb.id.clone(),
-                        message: format!(
-                            "action {:?} on level {:?} ({}) resides in {:?} but level cannot accept target template {}",
-                            verb.name, level.title, level.id, residence, target_id
-                        ),
-                    });
-                    continue;
-                }
+            if residence.as_ref() != Some(&level.id) && !effective.accept {
+                diagnostics.push(ActionDiagnostic {
+                    code: "invalid_membership_binding".into(),
+                    level: Some(level.id.to_string()),
+                    template: tpl.id.to_string(),
+                    verb: verb.id.clone(),
+                    message: format!(
+                        "action {:?} on level {:?} ({}) resides in {:?} but level cannot accept target template {}",
+                        verb.name, level.title, level.id, residence, target_id
+                    ),
+                });
+                continue;
             }
 
             let reference = ActionRef {
