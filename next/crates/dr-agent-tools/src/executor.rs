@@ -734,6 +734,7 @@ impl AgentTools {
             }
             WritePreconditions {
                 versions,
+                records: Vec::new(),
                 require_all: true,
             }
         };

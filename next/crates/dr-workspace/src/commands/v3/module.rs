@@ -209,7 +209,8 @@ op! {
         entries.insert(e.id.clone(), e.clone());
         graph_ok(&entries, &v.templates_map(), &v.memberships_raw())?;
         let id = e.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let field = rec(CollectionV3::Entries, &id).at(["fields", module.id.as_str(), &input.field]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([field]), move |t| {
             t.entries().entry(&e.id)?.set_field(
                 &module.id,
                 &input.field,
@@ -226,6 +227,10 @@ op! {
         Ok(Done { id: id.to_string() })
     }
 }
+/// One row of a key/value module, inside its entry's record.
+fn kv_row(entry: &EntryId, module: &ModuleId, row: &str) -> dr_doc::v3::RecordKeyV3 {
+    rec(CollectionV3::Entries, entry).at([format!("kv:{module}"), row.to_owned()])
+}
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct KvPutIn {
     #[serde(flatten)]
@@ -241,7 +246,8 @@ op! {
         }
         let row: KvEntry = convert(input.row)?;
         let id = e.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let replaced = kv_row(&id, &module.id, row.id.as_str());
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
             t.entries().entry(&e.id)?.put_kv(&module.id, &row)?;
             Ok(())
         })?;
@@ -265,7 +271,8 @@ op! {
         }
         let row: KvEntryId = pid("row", &input.row)?;
         let id = e.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let replaced = kv_row(&id, &module.id, row.as_str());
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
             t.entries().entry(&e.id)?.remove_kv(&module.id, &row)?;
             Ok(())
         })?;

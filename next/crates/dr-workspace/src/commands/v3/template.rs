@@ -17,7 +17,9 @@ pub struct PutIn {
     pub book: String,
     pub template: types::EntryTemplate,
 }
-fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate) -> Result<Done> {
+/// `module`: the one module definition a call replaces or removes; `None`
+/// when it replaces the template.
+fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -> Result<Done> {
     let slot = cx.book_v3(book)?;
     let v = slot.reader_v3.view();
     let entries = v.entries_map();
@@ -133,7 +135,12 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate) -> Result<Done> {
     graph_ok(&entries, &templates, &v.memberships_raw())?;
     let id = t.id.clone();
     let title = t.name.clone();
-    let (_, at) = cx.write_book_v3(&slot, move |tx| {
+    let template = rec(CollectionV3::Templates, &id);
+    let replaced = match module {
+        Some(module) => template.at(["modules", module]),
+        None => template,
+    };
+    let (_, at) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
         tx.template(&t.id)?.set_full(&t)?;
         Ok(())
     })?;
@@ -148,7 +155,7 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate) -> Result<Done> {
 }
 op! {
     TemplatePut="entry_template.put",Write,Book,"Create or replace a v3 template definition while retaining existing entry content.",fn(cx,input:PutIn)->Done {
-        put(cx, &input.book, convert(input.template)?)
+        put(cx, &input.book, convert(input.template)?, None)
     }
 }
 op! {
@@ -158,7 +165,8 @@ op! {
         let t = template_of(&v, &input.id)?;
         m::check_template_delete(&t.id, &v.entries_map())?;
         let id = t.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |tx| {
+        let trashed = rec(CollectionV3::Templates, &id).at(["deleted_at"]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([trashed]), move |tx| {
             tx.template(&t.id)?.deleted_at(Some(now()))?;
             Ok(())
         })?;
@@ -178,9 +186,10 @@ op! {
         let s = cx.book_v3(&input.book)?;
         let mut t = template_of(&s.reader_v3.view(), &input.template)?;
         let module: m::ModuleSpec = convert(input.module)?;
+        let id = module.id.clone();
         t.modules.retain(|m| m.id != module.id);
         t.modules.push(module);
-        put(cx, &input.book, t)
+        put(cx, &input.book, t, Some(id.as_str()))
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -194,6 +203,6 @@ op! {
         let s = cx.book_v3(&input.book)?;
         let mut t = template_of(&s.reader_v3.view(), &input.template)?;
         t.modules.retain(|m| m.id.as_str() != input.module);
-        put(cx, &input.book, t)
+        put(cx, &input.book, t, Some(&input.module))
     }
 }

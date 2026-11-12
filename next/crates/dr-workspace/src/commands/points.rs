@@ -390,7 +390,7 @@ op! {
         let mut book_pre = None;
         if let (Some(bs), Some(old)) = (book_slot, old) && !keys.is_empty() {
             let write_keys = keys.clone(); let id = owner.1.clone();
-            book_pre = Some(cx.write_book_v3(&bs, move |txn| { txn.restore_fields(Collection::Materials, &id, &old, &write_keys.iter().map(String::as_str).collect::<Vec<_>>())?; Ok(()) })?.1);
+            book_pre = Some(cx.write_book_v3(&bs, Replaces::Document, move |txn| { txn.restore_fields(Collection::Materials, &id, &old, &write_keys.iter().map(String::as_str).collect::<Vec<_>>())?; Ok(()) })?.1);
             cx.effect(EffectAction::Updated, "material", &owner.1, None);
         }
         if prose_changed { cx.effect(EffectAction::Restored, "prose", &input.doc, None); }

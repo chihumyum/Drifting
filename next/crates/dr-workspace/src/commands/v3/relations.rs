@@ -68,7 +68,7 @@ op! {
         let id=input.id.as_deref().map(|id|pid("relation",id)).transpose()?.unwrap_or_else(RelationId::new_v7);
         if v.relations_raw().iter().any(|r|r.id==id){return Err(WsError::invalid("relation identity is already stored"));}
         let saved=id.clone();
-        let (_,at)=cx.write_book_v3(&s,move|t|{t.relation(&saved)?.ends(&from,&to)?.relation_type(&ty.id)?.created_at(Some(now()))?;Ok(())})?;
+        let (_,at)=cx.write_book_v3(&s,Replaces::nothing(),move|t|{t.relation(&saved)?.ends(&from,&to)?.relation_type(&ty.id)?.created_at(Some(now()))?;Ok(())})?;
         undo(cx,&s,&at,vec![key("relations",&id)]);
         cx.effect(EffectAction::Created,"relation",id.as_str(),None);
         Ok(Made{id:id.to_string(),existing:false})
@@ -78,7 +78,7 @@ op! {
     Delete="relation.delete",Write,Book,"Delete one canonical relation without deleting either endpoint.",fn(cx,input:EntityIn)->Done {
         let s=cx.book_v3(&input.book)?;let id:RelationId=pid("relation",&input.id)?;
         if !s.reader_v3.view().relations_raw().iter().any(|r|r.id==id){return Err(WsError::not_found("relation",&input.id));}
-        let saved=id.clone();let (_,at)=cx.write_book_v3(&s,move|t|{t.purge(CollectionV3::Relations,saved.as_str())?;Ok(())})?;
+        let saved=id.clone();let (_,at)=cx.write_book_v3(&s,Replaces::record(CollectionV3::Relations,&id),move|t|{t.purge(CollectionV3::Relations,saved.as_str())?;Ok(())})?;
         undo(cx,&s,&at,vec![key("relations",&id)]);cx.effect(EffectAction::Purged,"relation",&input.id,None);Ok(Done{id:input.id})
     }
 }

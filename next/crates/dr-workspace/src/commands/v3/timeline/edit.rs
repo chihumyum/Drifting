@@ -81,6 +81,13 @@ pub struct RestoreFieldsIn {
     pub fields: Vec<Field>,
 }
 
+/// A lane of a view, or one of its fields, as the key of a write guard.
+fn lane_key(view: &TimelineViewId, lane: &EntryId, field: Option<&str>) -> dr_doc::v3::RecordKeyV3 {
+    rec(CollectionV3::TimelineViews, view)
+        .at(["lanes", lane.as_str()])
+        .at(field)
+}
+
 fn finish(
     cx: &Cx<'_>,
     slot: &BookSlot,
@@ -152,7 +159,8 @@ op! {
         name_ok(&input.name)?;
         let id: TimelineViewId = pid("timeline view", &input.view)?;
         let name = input.name.trim().to_owned();
-        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+        let replaced = rec(CollectionV3::TimelineViews, &id).at(["name"]);
+        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
             let tv = view(&tx.view(), id.as_str())?;
             tx.view().timeline_field_restore_state(&id, &TimelineFieldV3::Name)?;
             if tv.name == name { return Ok((vec![], frontiers_hex(&tx.view().state_frontiers()))); }
@@ -170,7 +178,8 @@ op! {
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
         let lane: EntryId = pid("lane", &input.target.lane)?;
         let place = input.place.unwrap_or(Order::Last);
-        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+        let replaced = lane_key(&id, &lane, None);
+        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
             let v = tx.view();
             let tv = view(&v, id.as_str())?;
             // Preflight retained native data before adding or restoring a lane.
@@ -196,7 +205,8 @@ op! {
         let slot = cx.book_v3(&input.target.book)?;
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
         let lane: EntryId = pid("lane", &input.target.lane)?;
-        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+        let replaced = lane_key(&id, &lane, Some("act_track"));
+        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
             let v = tx.view();
             let tv = view(&v, id.as_str())?;
             let old = tv.lanes.iter().find(|l| l.entry == lane)
@@ -219,7 +229,8 @@ op! {
         let slot = cx.book_v3(&input.target.book)?;
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
         let lane: EntryId = pid("lane", &input.target.lane)?;
-        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+        let replaced = lane_key(&id, &lane, Some("pos"));
+        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
             let v = tx.view();
             let tv = view(&v, id.as_str())?;
             let old = tv.lanes.iter().find(|l| l.entry == lane)
@@ -241,7 +252,9 @@ op! {
         let slot = cx.book_v3(&input.book)?;
         let id: TimelineViewId = pid("timeline view", &input.view)?;
         let lane: EntryId = pid("lane", &input.lane)?;
-        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+        // The lane; positions it orphans are planned in the job below.
+        let removed = lane_key(&id, &lane, None);
+        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::records([removed]), move |tx| {
             let v = tx.view();
             let tv = view(&v, id.as_str())?;
             if v.timeline_field_snapshot(&id, &TimelineFieldV3::Lane(lane.clone()))?.is_none() {
@@ -303,7 +316,8 @@ op! {
             let want = expected.timeline_field_restore_state(&id, &key)?;
             pairs.push((field, key, value, want));
         }
-        let ((fields, expected), before) = cx.write_book_v3(&slot, move |tx| {
+        // An inverse compares every selected field itself, below.
+        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::nothing(), move |tx| {
             let v = tx.view();
             for (_, key, _, expected) in &pairs {
                 if v.timeline_field_restore_state(&id, key)? != *expected {

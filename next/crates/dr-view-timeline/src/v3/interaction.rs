@@ -108,6 +108,7 @@ impl Timeline {
                 serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"at":at,"span":span}),
                 WritePreconditions {
                     versions: [(format!("book:{book}"), version)].into(),
+                    records: Vec::new(),
                     require_all: true,
                 },
             )?;

@@ -313,6 +313,7 @@ impl ProjectMemoryView {
                 args,
                 WritePreconditions {
                     versions: HashMap::from([(format!("book:{book}"), version)]),
+                    records: Vec::new(),
                     require_all: true,
                 },
             )

@@ -196,7 +196,17 @@ fn put_patch(cx: &Cx<'_>, input: PatchIn) -> Result<Done> {
     }
     let pos: Option<PosKey> = input.pos.as_deref().map(convert).transpose()?;
     let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    // A patch the caller names has its text replaced; its source reference is
+    // not touched. A patch created here has a fresh id and replaces nothing.
+    let replaced = input.id.is_some().then(|| {
+        ["title", "body"]
+            .into_iter()
+            .chain(pos.is_some().then_some("pos"))
+            .map(|field| rec(CollectionV3::Patches, &id).at([field]))
+            .collect::<Vec<_>>()
+    });
+    let replaced = Replaces::records(replaced.into_iter().flatten());
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         let w = t.patch(&saved)?;
         w.entry(&e.id)?
             .module(&m.id)?
@@ -230,7 +240,8 @@ op! {
             return Err(WsError::not_found("patch", &input.id));
         }
         let id = input.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let removed = Replaces::record(CollectionV3::Patches, &id);
+        let (_, at) = cx.write_book_v3(&s, removed, move |t| {
             t.purge(CollectionV3::Patches, &id)?;
             Ok(())
         })?;
@@ -287,7 +298,8 @@ fn put_grid(cx: &Cx<'_>, input: GridIn) -> Result<Done> {
     }
     let old = s.reader_v3.view().plot_grid(&e.id, &m.id);
     let id = m::PlotGridV3::key(&e.id, &m.id);
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let replaced = Replaces::record(CollectionV3::PlotGrids, &id);
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         let w = t.plot_grid(&e.id, &m.id)?;
         if let Some(old) = old {
             for r in old.rows {
@@ -391,7 +403,8 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
     let st = templates(&d.source_templates)?;
     let tt = templates(&d.target_templates)?;
     let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let replaced = Replaces::record(CollectionV3::RelationTypes, &id);
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         t.relation_type(&saved)?
             .name(&d.name)?
             .description(&d.description)?
@@ -424,7 +437,8 @@ op! {
             return Err(WsError::invalid("relation type is locked or in use"));
         }
         let saved = id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let removed = Replaces::record(CollectionV3::RelationTypes, &id);
+        let (_, at) = cx.write_book_v3(&s, removed, move |t| {
             Ok(t.purge(CollectionV3::RelationTypes, saved.as_str())?)
         })?;
         undo(cx, &s, &at, vec![key("relation_types", &id)]);
@@ -496,7 +510,7 @@ fn put_relation(cx: &Cx<'_>, input: RelationIn) -> Result<Done> {
     }
     let id = RelationId::new_v7();
     let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let (_, at) = cx.write_book_v3(&s, Replaces::nothing(), move |t| {
         t.relation(&saved)?
             .ends(&from, &to)?
             .relation_type(&ty.id)?
@@ -524,7 +538,8 @@ op! {
             return Err(WsError::not_found("relation", &input.id));
         }
         let id = input.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| Ok(t.purge(CollectionV3::Relations, &id)?))?;
+        let removed = Replaces::record(CollectionV3::Relations, &id);
+        let (_, at) = cx.write_book_v3(&s, removed, move |t| Ok(t.purge(CollectionV3::Relations, &id)?))?;
         undo(cx, &s, &at, vec![key("relations", &input.id)]);
         cx.effect(EffectAction::Purged, "relation", &input.id, None);
         Ok(Done { id: input.id })

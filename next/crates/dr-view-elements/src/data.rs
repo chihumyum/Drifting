@@ -52,6 +52,7 @@ pub mod v3 {
             input,
             preconditions: WritePreconditions {
                 versions: [(format!("book:{}", book.id), v.revision.clone())].into(),
+                records: Vec::new(),
                 require_all: false,
             },
         })

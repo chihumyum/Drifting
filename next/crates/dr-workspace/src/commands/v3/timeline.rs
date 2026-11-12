@@ -74,7 +74,8 @@ op! {
         }
         let old = v.timeline_views_raw().into_iter().find(|t| t.id == tv.id);
         let id = tv.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |tx| {
+        let replaced = Replaces::record(CollectionV3::TimelineViews, &id);
+        let (_, at) = cx.write_book_v3(&s, replaced, move |tx| {
             let w = tx.timeline_view(&tv.id)?;
             w.name(&tv.name)?.pos(tv.pos.as_ref())?.deleted_at(None)?;
             if let Some(old) = old {
@@ -116,7 +117,8 @@ op! {
         let s = cx.book_v3(&input.book)?;
         let tv = view(&s.reader_v3.view(), &input.id)?;
         let id = tv.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let trashed = rec(CollectionV3::TimelineViews, &id).at(["deleted_at"]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([trashed]), move |t| {
             t.timeline_view(&tv.id)?.deleted_at(Some(now()))?;
             Ok(())
         })?;
@@ -182,7 +184,9 @@ op! {
             keys.push(key("memberships", m::Membership::key(lane, &e.id)));
         }
         let id = e.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        // The entry's position in this view. A membership it joins is new.
+        let placed = rec(CollectionV3::TimelineViews, &tv.id).at(["placements", id.as_str()]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([placed]), move |t| {
             if let Some(lane) = lane.filter(|_| join) {
                 t.put_membership(&lane, &e.id, None, Some(now()))?;
             }
@@ -243,7 +247,8 @@ op! {
         pin_ok(&v, &p)?;
         let id = p.id.clone();
         let vid = tv.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let replaced = rec(CollectionV3::TimelineViews, &vid).at(["pins", id.as_str()]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
             t.timeline_view(&tv.id)?.put_pin(&p)?;
             Ok(())
         })?;
@@ -264,7 +269,8 @@ op! {
         let tv = view(&s.reader_v3.view(), &input.view)?;
         let pin: TimePinId = pid("pin", &input.pin)?;
         let vid = tv.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let removed = rec(CollectionV3::TimelineViews, &vid).at(["pins", pin.as_str()]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([removed]), move |t| {
             t.timeline_view(&tv.id)?.remove_pin(&pin)?;
             Ok(())
         })?;

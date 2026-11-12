@@ -60,7 +60,8 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
         created_at: created,
     });
     graph_ok(&entries, &templates, &ms)?;
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let replaced = Replaces::record(CollectionV3::Memberships, &k);
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         t.put_membership(&host, &member, pos.as_ref(), created)?;
         Ok(())
     })?;
@@ -103,7 +104,10 @@ op! {
         let s = cx.book_v3(&input.book)?;
         let host: EntryId = pid("host", &input.host)?;
         let k = m::Membership::key(&host, &pid("member", &input.member)?);
-        let (receipt, at) = cx.write_book_v3(&s, move |t| {
+        // The cancelled membership; what follows from it is planned below,
+        // against the live document, in the same job.
+        let removed = Replaces::record(CollectionV3::Memberships, &k);
+        let (receipt, at) = cx.write_book_v3(&s, removed, move |t| {
             let v = t.view();
             let member = live(&v, &input.member)?;
             let views = removals(&v, &host, &member.id);
@@ -161,7 +165,8 @@ op! {
             ));
         }
         let id = member.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let primary = rec(CollectionV3::Entries, &id).at(["primary"]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([primary]), move |t| {
             t.entries().entry(&member)?.primary(host.as_ref())?;
             Ok(())
         })?;

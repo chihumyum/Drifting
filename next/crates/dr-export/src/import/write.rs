@@ -284,6 +284,7 @@ fn import_one(
         }),
         dr_workspace::WritePreconditions {
             versions: std::collections::HashMap::from([(observed.doc, observed.version)]),
+            records: Vec::new(),
             require_all: false,
         },
     )?;

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cx::{Cx, EffectAction};
 use crate::error::{Result, WsError};
+pub(crate) use crate::guard::Replaces;
 use crate::registry::Registry;
 use crate::workspace::BookSlot;
 
@@ -125,6 +126,14 @@ where
 pub(crate) fn pid<T: std::str::FromStr>(what: &'static str, s: &str) -> Result<T> {
     s.parse()
         .map_err(|_| WsError::invalid(format!("bad {what} id {s:?}")))
+}
+
+/// Record `id` of `collection`, as the key of a write guard.
+pub(crate) fn rec(
+    collection: dr_doc::v3::CollectionV3,
+    id: impl ToString,
+) -> dr_doc::v3::RecordKeyV3 {
+    dr_doc::v3::RecordKeyV3::record(collection, id.to_string())
 }
 
 pub(crate) fn name_ok(s: &str) -> Result<()> {

@@ -195,7 +195,13 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
         _ => (0, 0, 0),
     });
     let book = s.book.clone();
-    let (_, before) = cx.write_book_v3(&s, move |t| {
+    let restored = Replaces::records(input.targets.iter().filter_map(|target| {
+        Some(rec(
+            CollectionV3::from_root(&target.collection)?,
+            &target.id,
+        ))
+    }));
+    let (_, before) = cx.write_book_v3(&s, restored, move |t| {
         let shared = plans
             .iter()
             .filter_map(|p| match p {

@@ -59,7 +59,7 @@ op! {
     "Move a book to the trash (restorable; storage deletes it for good later).",
     fn(cx, input: BookIn) -> Done {
         let slot = cx.book(&input.book)?;
-        cx.write_book_v3(&slot, |txn| { txn.meta().deleted_at(Some(now()))?; Ok(()) })?;
+        cx.write_book_v3(&slot, Replaces::record(dr_doc::v3::CollectionV3::Meta, "deleted_at"), |txn| { txn.meta().deleted_at(Some(now()))?; Ok(()) })?;
         cx.effect(EffectAction::Trashed, "book", &input.book, Some(&slot.reader_v3.view().meta().name));
         cx.undo_with(Invocation::new("book.restore", &input));
         Ok(Done { id: input.book })
@@ -71,7 +71,7 @@ op! {
     "Bring a book back from the trash.",
     fn(cx, input: BookIn) -> Done {
         let slot = cx.book(&input.book)?;
-        cx.write_book_v3(&slot, |txn| { txn.meta().deleted_at(None)?; Ok(()) })?;
+        cx.write_book_v3(&slot, Replaces::record(dr_doc::v3::CollectionV3::Meta, "deleted_at"), |txn| { txn.meta().deleted_at(None)?; Ok(()) })?;
         cx.effect(EffectAction::Restored, "book", &input.book, Some(&slot.reader_v3.view().meta().name));
         cx.undo_with(Invocation::new("book.trash", &input));
         Ok(Done { id: input.book })

@@ -91,6 +91,7 @@ fn run_view_edit(lib: &Library, scope: ViewScope, edit: ViewEdit) -> Result<(), 
         input,
         WritePreconditions {
             versions: [(format!("book:{}", scope.book), scope.version)].into(),
+            records: Vec::new(),
             require_all: true,
         },
     )?;

@@ -150,6 +150,7 @@ impl AgentTools {
             // Every supplied write/source guard is checked in the reservation.
             let capture_guards = dr_workspace::WritePreconditions {
                 versions: guards.versions.clone(),
+                records: Vec::new(),
                 require_all: false,
             };
             let value = ws.call_guarded(

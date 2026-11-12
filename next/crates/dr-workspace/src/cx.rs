@@ -33,6 +33,7 @@ use serde_json::Value;
 
 use crate::actor::Actor;
 use crate::error::{Result, WsError};
+use crate::guard::Replaces;
 use crate::holder::{self, lock};
 use crate::registry::{Access, Concurrency, Spec};
 use crate::workspace::{BookSlot, ProseSlot, Workspace};
@@ -381,8 +382,9 @@ impl<'a> Cx<'a> {
             let guards = self.guards.clone().expect("guarded creation");
             let parent = format!("book:{book}");
             let slot = self.book(book.as_str())?;
+            let id = book.clone();
             slot.handle
-                .read(move |doc| guards.check_required(&parent, doc))??;
+                .read(move |doc| guards.check_parent(&parent, doc, &id))??;
         }
         self.ws
             .inner
@@ -452,8 +454,15 @@ impl<'a> Cx<'a> {
         })
     }
 
-    /// Step 3 on a v3 book document (`BookTxnV3`), one commit.
-    pub(crate) fn write_book_v3<R, F>(&self, slot: &BookSlot, f: F) -> Result<(R, Frontiers)>
+    /// Step 3 on a v3 book document (`BookTxnV3`), one commit. `replaces`
+    /// is what a guarded caller must have read (f3-write-guards.md); the
+    /// comparison runs in this write job, before `f`.
+    pub(crate) fn write_book_v3<R, F>(
+        &self,
+        slot: &BookSlot,
+        replaces: Replaces,
+        f: F,
+    ) -> Result<(R, Frontiers)>
     where
         F: FnOnce(&mut dr_doc::v3::BookTxnV3<'_>) -> Result<R> + Send + 'static,
         R: Send + 'static,
@@ -471,7 +480,7 @@ impl<'a> Cx<'a> {
         let guards = self.guards.clone();
         holder::write(&slot.handle, self.actor.store_origin(), agent, move |doc| {
             if let Some(guards) = guards {
-                guards.check(&format!("book:{book}"), doc)?;
+                guards.check_book(&format!("book:{book}"), doc, &book, &replaces)?;
             }
             let before = doc.oplog_frontiers();
             let r = {
