@@ -451,7 +451,7 @@ sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到
 
 - 撤销管理器排除 `user` 以外的全部来源，包括作者的命令 `user:command`（v2.1），由 `ProseUndo` 自己配好。
 
-- `UndoManager` 的合并间隔设为 **0**，不用 `group_start` / `group_end`。「一次撤销撤掉一阵连打」由编辑器自己做：用 `set_on_push` 给每个撤销项记时间，按一次撤销就连续弹出同一阵的几项。这样能避开 Loro #1228 和 #1245。
+- `UndoManager` 的合并间隔设为 **0**，不用 `group_start` / `group_end`。「一次撤销撤掉一阵连打」由编辑器自己做：用 `set_on_push` 给每个撤销项记时间，按一次撤销就连续弹出同一阵的几项。这样能避开 Loro #1228 和 #1245。（两个 issue 上游在 2026-11-12 关了，修复在还没发版的 1.18.0 里；升级后撤销已经不慢，没有性能上的理由改这条规矩，见 [history-aging.md](spikes/history-aging.md)。）
 - Loro #1229 绕不开：作者设了某个键（标题级别、链接）之后，另一台设备或 Agent 又改了同一个键，作者再撤销，会把对方的值也抹掉。只影响格式，不丢字。等上游修。
 - 详细的复现见结论文档。
 

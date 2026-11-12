@@ -18,9 +18,10 @@
 | --- | --- |
 | 本机 macOS，`main` 的 `9ae09a41`（2026-11-12 凌晨，流水里最后一次全套记录） | `cargo fmt`、Clippy、`cargo xtask check`（13 道门禁加漏洞审计）、根目录三条 `pnpm` 检查全过；测试 2252 通过、0 失败、22 忽略 |
 | 本机 macOS，`main` 的 `f272963e8` 加 2026-11-12 的切换遗留清理（这一页改写时重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：974 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check` 全过；测试 2256 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
+| 本机 macOS，合入切换遗留清理和老化实测两路之后的 `main`（2026-11-12 晚，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计：975 个锁定包、0 漏洞）、`pnpm public:check`、`pnpm ci:contract:check` 全过；测试 2263 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。都还没人修 |
 
-本地 `main` 比 `origin/main` 多两个提交（11-12 第一轮手测的修复），没推。
+本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上当天合进来的切换遗留清理和老化实测两路，都没推。
 
 ## 状态怎么读
 
@@ -165,6 +166,15 @@
 - **调试桥的鼠标事件不带修饰键**，验不了按住 Shift 点这类操作。要求写在 [handoff/README.md](handoff/README.md#真窗口验收)。
 - **单文档旧增量的折叠**（同步服务端）：`isSnapshot: true` 时折叠旧增量是可选的后续优化，没做。[m36](modules/m36-sync-v2.md)
 
+2026-11-12 实测「用了一两年的文档」量出来的（[spikes/history-aging.md](spikes/history-aging.md)，数字是高负载下量的，只看数量级）：
+
+- **自动快照点的「全书条目指纹」是条目数的平方。** `dr-view-history` 的 `AutomaticHistory` 在每次涉及条目的书目变更之后，对每个条目各调一次 `entry_owned_raw_state`，而它每次都把全部条目读几遍：重型种子的新书目（633 个条目）算一遍约 18 秒，在后台线程上一个一个排队。排在最前面修。
+- **条目的「内容」里含兄弟条目的有序列表**，所以新建一个条目或挪一下顺序，同级每个兄弟都各得一个快照点；三年的模型里 84% 的快照点是这么来的，书目文档因此从 0.8 MB 长到 26 MB。和上一条一起修。
+- **写作日每分钟往书目文档提交一次**：体积不大，但每次都让外壳重读整本书、每个打开的编辑器重建名字索引、另一台设备重新校验整份书目。方向已定：挪到每本书一份的小文档里（趁还没有真实数据），等写入守卫那一路合进来以后做。
+- **快照点清单存在书目文档里，修剪只删键**，清单本身留在历史里。先修前两条再重量一遍，再决定要不要挪。
+- **书目的导入校验每次整份导出再导入**（`dr-workspace` 的 `library_options`）：新书目一次 13 ms，三年后 268 ms，在书目的存储线程上。已交给写入守卫那一路。
+- **历史不裁剪。** 载入、打字、体积都没有量出逼我们裁的东西；浅快照解决不了撤销，还会让历史点、同步、批注锚点失效。
+
 保守处理、要动引擎才能放开的：
 
 - **嵌套树删除后恢复的节点身份**（F1、M09）。Loro 1.17.1 恢复一棵被删的嵌套树时会重建节点身份。现在恢复前先验一遍，没法保真还原就在第一次真正写入之前整批拒绝，原值、版本、历史点都不变。[k4-g1](modules/k4-g1-pages.md)、[m09](modules/m09-history.md)
@@ -179,7 +189,8 @@
 
 升级依赖时要看的：
 
-- 升级 Loro 前看 loro-dev/loro#1262、#1263 的状态并重跑 `next/spikes/loro-undo-quadratic`；升级 GPUI 后照 zed-industries/zed#66690、#66691 里的复现程序重跑。
+- **Loro 升到带 #1217 的版本是交接（F7）前必须做的一项。** 1.17.1 每撤销一步都重放这一章的全部历史：2 万字的章节改过三遍后撤一项约 9 ms、连撤 20 项约 340 ms，改过八遍约 24 ms 和 890 ms。修复在 2026-11-11 合进上游主干（1.18.0，未发版），实测撤一项约 0.02 ms。1.18.0 发布了就升；交接先到就用 `[patch.crates-io]` 精确钉上游提交。升级时要做的事（前后各跑 `bench chapter-aging`、重跑 `loro-undo-lab` 和 `loro-undo-quadratic`、`undo_cases_in_our_usage` 照本意改）在 [spikes/history-aging.md 的「推荐」](spikes/history-aging.md#推荐)。升级前也看 loro-dev/loro#1262 的状态。
+- 升级 GPUI 后照 zed-industries/zed#66690、#66691 里的复现程序重跑。
 
 ## 作者定下的
 
@@ -219,7 +230,7 @@
 ## 对外
 
 - loro-dev/loro#1262：批量导入不查校验和（2026-11-07 报）。
-- [loro-dev/loro#1263](https://github.com/loro-dev/loro/issues/1263)：每次 `undo()` 把整篇文字的历史重放两遍，连撤是平方级（2026-11-08 报）。同一原因已有外人的 PR #1217，没合。
+- [loro-dev/loro#1263](https://github.com/loro-dev/loro/issues/1263)：每次 `undo()` 把整篇文字的历史重放两遍，连撤是平方级（2026-11-08 报）。同一原因外人的 PR #1217 在 2026-11-11 合进上游主干，1.18.0 还没发版；issue 还开着。
 - [zed-industries/zed#66690](https://github.com/zed-industries/zed/issues/66690)：缓存视图里的元素从读屏树里掉出去；[#66691](https://github.com/zed-industries/zed/issues/66691)：系统问焦点元素时答成窗口（2026-11-08 报）。两个 issue 都附了补丁，只开了 issue。
 
 ## 东西在哪
@@ -233,6 +244,7 @@
 | 怎么构建、运行、跑检查、用调试桥 | 仓库根 `AGENTS.md`「New workspace (`next/`)」、[next/README.md](../../next/README.md)、[f8-testkit.md](foundations/f8-testkit.md) |
 | 怎么开一路工作、怎么交回、怎么整合 | [README.md 的「怎么推进」](README.md#怎么推进)、[handoff/README.md](handoff/README.md) |
 | 性能预算、重型书的实测数字、输入法矩阵 | [benchmarks.md](benchmarks.md) |
+| 用了一两年的章节和书目：撤销、载入、体积、同步上传量的实测 | [spikes/history-aging.md](spikes/history-aging.md) |
 | 提交进仓库的测量证据 | `acceptance/`（哪些过期由 `cargo xtask check` 的 evidence 门禁报） |
 | 活动契约和守着它们的测试 | `next/crates/dr-model/src/invariant.rs` |
 | 门禁 | `next/xtask/src/gates/` |
