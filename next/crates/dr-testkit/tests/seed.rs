@@ -266,7 +266,8 @@ fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
         .filter(|(n, _)| *n != "todos" && *n != "comments")
         .map(|(_, b)| b.count)
         .sum();
-    assert_eq!(shape.documents, prose_bodies + 1);
+    // The prose, the book, and the two documents beside it.
+    assert_eq!(shape.documents, prose_bodies + 3);
 
     let book = &s.books[0];
     check_v3_invariants(book);
@@ -304,8 +305,20 @@ fn v3_tiny_lite_and_heavy_align_with_v2_scale_and_pinned_fingerprints() {
         );
         if *preset != Preset::Heavy {
             let v2 = seed::generate(*preset, DEFAULT_SEED).unwrap();
+            // A v3 seed writes the two documents beside each book
+            // (`stats:`, `checkpoints:`) on top of what a v2 seed writes;
+            // everything else matches.
+            let mut shape = v3.shape();
+            let beside = 2 * v3.books.len();
             assert_eq!(
-                v3.shape(),
+                shape.documents,
+                v2.shape().documents + beside,
+                "{}",
+                preset.name()
+            );
+            shape.documents -= beside;
+            assert_eq!(
+                shape,
                 v2.shape(),
                 "v3 shape matches v2 for {}",
                 preset.name()
