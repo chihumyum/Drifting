@@ -1228,6 +1228,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "Announcement",
+      "personal": "Message"
     }
   },
   "paperSync": {

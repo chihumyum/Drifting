@@ -28,7 +28,11 @@ pnpm hosted:acceptance --check
 ```
 
 The default service origin is `http://localhost:3000`. Verification messages
-are available in the private stack's local Mailpit. The lab uses its own bundle
+are available in the private stack's local Mailpit. The
+[account notices](notices.md) case publishes through the local service's
+operator console, so `pnpm hosted:acceptance` also needs that synthetic
+operator's sign-in in `HOSTED_TEST_OPERATOR_EMAIL` and
+`HOSTED_TEST_OPERATOR_PASSWORD`. The lab uses its own bundle
 identifier and local database directory. `DRIFTING_HOSTED_LAB_INSTANCE=peer`
 creates a second isolated Mac instance with its own library and credential service. macOS debug bundles use an ad-hoc
 signature; this is not distribution signing. Non-debug macOS bundles require a
@@ -46,6 +50,10 @@ The desktop workspace shows sync state outside Settings: a sand mark in the
 paper's lower-left corner for long transfers, retries and offline, plus the
 notification bell for problems the author has to act on. See
 [sync status](sync-status.md).
+
+The service's operator can send signed-in authors a short notice (a maintenance
+window, an answer to feedback); it arrives in the notification center within
+about a minute. See [account notices](notices.md).
 
 [Account settings](account-settings.md) supports changing the display name,
 choosing/removing an avatar and changing the password. With sync connected,

@@ -20,6 +20,7 @@ export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
  * `markdown-folder`: an edited file in the project Markdown folder could not merge (docs/markdown-mirror.md).
  * `app-update`: a new version is available, or this launch installed one (services/update).
  * `crash-follow-up`: a fatal report from an earlier launch the author can explain (docs/crash-reports.md).
+ * `notice`: what the operator of the Hosted service tells signed-in authors (docs/hosted-sync/notices.md).
  */
 export type AppNotificationSource =
   | 'hosted-sync'
@@ -27,7 +28,8 @@ export type AppNotificationSource =
   | 'agent-organize'
   | 'markdown-folder'
   | 'app-update'
-  | 'crash-follow-up';
+  | 'crash-follow-up'
+  | 'notice';
 
 /** What a notification opens: an entity in a project, wherever the author is. */
 export interface AppNotificationTarget {
@@ -68,6 +70,10 @@ export interface AppNotificationEvent {
   settingsSection?: string;
   /** Clicking the row opens the feedback dialog to explain this crash. */
   crashFollowUp?: CrashFollowUp;
+  /** Clicking the row opens this `https:` page in the system browser. */
+  externalUrl?: string;
+  /** A notice addressed to this account alone, not to every account. */
+  personal?: boolean;
   /**
    * A sync problem the author has to act on (sync/sync-health.ts): the row
    * stays first and cannot be removed or cleared until an event with `null`
@@ -89,6 +95,8 @@ export interface AppNotification {
   projectHomeId?: string;
   settingsSection?: string;
   crashFollowUp?: CrashFollowUp;
+  externalUrl?: string;
+  personal?: boolean;
   syncProblem?: SyncProblemReport;
   outcome?: NotificationOutcome;
   count?: number;
@@ -121,6 +129,8 @@ interface NotificationStore {
   setCenterOpen: (open: boolean) => void;
   toggleCenter: (owner?: string) => void;
   markAllRead: () => void;
+  /** One row was read elsewhere: it stays where it is in the list. */
+  markRead: (id: string) => void;
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -147,6 +157,8 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           projectHomeId: e.projectHomeId ?? existing.projectHomeId,
           settingsSection: e.settingsSection ?? existing.settingsSection,
           crashFollowUp: e.crashFollowUp ?? existing.crashFollowUp,
+          externalUrl: e.externalUrl ?? existing.externalUrl,
+          personal: e.personal ?? existing.personal,
           syncProblem: e.syncProblem === undefined ? existing.syncProblem : e.syncProblem ?? undefined,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
@@ -171,6 +183,8 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         projectHomeId: e.projectHomeId,
         settingsSection: e.settingsSection,
         crashFollowUp: e.crashFollowUp,
+        externalUrl: e.externalUrl,
+        personal: e.personal,
         syncProblem: e.syncProblem ?? undefined,
         outcome: e.outcome,
         count: e.count,
@@ -201,6 +215,12 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
     }),
 
   markAllRead: () => set((s) => ({ items: s.items.map((n) => ({ ...n, read: true })) })),
+  markRead: (id) =>
+    set((s) =>
+      s.items.some((n) => n.id === id && !n.read)
+        ? { items: s.items.map((n) => (n.id === id ? { ...n, read: true } : n)) }
+        : s,
+    ),
   remove: (id) => set((s) => ({ items: s.items.filter((n) => n.id !== id || n.syncProblem) })),
   clear: () => set((s) => ({ items: s.items.filter((n) => n.syncProblem) })),
 }));

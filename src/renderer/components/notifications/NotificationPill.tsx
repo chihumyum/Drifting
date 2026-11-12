@@ -5,6 +5,7 @@
  *   - task just finished  → the result's ink seal for FLASH_MS, then the bell
  *   - a sync problem lasts → the danger seal, until it resolves
  *   - a crash follow-up is unread → its warning seal, until the center opens
+ *   - a notice is unread         → the name seal, until the center opens
  *   - a found update is unread   → the update mark, until the center opens
  *   - otherwise           → the bell (furin)
  * Clicking toggles the notification center, which opens upward from it.
@@ -23,6 +24,7 @@ import { useNotificationStore, type AppNotification } from '../../store/notifica
 import { isUnreadUpdateAvailable } from '../../services/update/update-notice';
 import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
 import { syncActionsFor, useSyncStatusActions, type SyncStatusAction } from '../../features/sync-status/sync-status-actions';
+import { platform } from '../../platform';
 import '../../../styles/notifications.css';
 
 const FLASH_MS = 1800; // how long the result icon shows in the circle after the pill collapses
@@ -36,6 +38,8 @@ type FlashResult = {
 
 /** A reader's comment speaks in the comment colour with its own mark. */
 const COMMENT_INK = 'hsl(var(--comment))';
+/** A notice from the service is neither a result nor a failure: plain ink under its seal. */
+const NOTICE_INK = 'hsl(var(--ink-1))';
 
 /** Fixed-position edges of the notification center. */
 type Anchor = { top: number; right: number } | { bottom: number; left: number } | { top: number; left: number };
@@ -67,11 +71,13 @@ function sourceLabel(n: AppNotification, t: (key: string, options?: Record<strin
   if (n.source === 'markdown-folder') return t('notifications.markdownFolder.source');
   if (n.source === 'app-update') return t('notifications.appUpdate.source');
   if (n.source === 'crash-follow-up') return t('notifications.crashFollowUp.source');
+  if (n.source === 'notice') return t(n.personal ? 'notifications.notice.personal' : 'notifications.notice.source');
   return t(n.source === 'share-comment' ? 'notifications.shareComments.source' : 'notifications.cloudSync.source');
 }
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
   if (n.source === 'share-comment') return <BrushIcon name="comment" size={size} />;
+  if (n.source === 'notice') return <BrushIcon name="name-seal" size={size} />;
   if (n.state === 'running') {
     return (
       <BrushIcon name="loader" size={size} className="ui-spin" />
@@ -85,6 +91,7 @@ function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
 
 function flashToneColor(r: NonNullable<FlashResult>): string {
   if (r.source === 'share-comment') return COMMENT_INK;
+  if (r.source === 'notice') return NOTICE_INK;
   if (r.state === 'stopped') return 'hsl(var(--ink-3))';
   if (r.state === 'failed') return 'hsl(var(--destructive))';
   if (r.outcome === 'issues') return 'hsl(32 80% 44%)';
@@ -93,6 +100,7 @@ function flashToneColor(r: NonNullable<FlashResult>): string {
 
 function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
   if (result.source === 'share-comment') return <BrushIcon name="comment" size={15} />;
+  if (result.source === 'notice') return <BrushIcon name="name-seal" size={15} />;
   if (result.state === 'stopped') return <BrushIcon name="status-stopped" size={15} />;
   if (result.state === 'failed') return <BrushIcon name="status-warning" size={15} />;
   if (result.outcome === 'issues') return <BrushIcon name="status-warning" size={15} />;
@@ -102,6 +110,7 @@ function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
 // Foreground color for a notification's state/outcome.
 function toneColor(n: AppNotification): string {
   if (n.source === 'share-comment') return COMMENT_INK;
+  if (n.source === 'notice') return NOTICE_INK;
   if (n.state === 'running') return 'hsl(var(--ink-2))';
   if (n.state === 'stopped') return 'hsl(var(--ink-3))';
   if (n.state === 'failed') return 'hsl(var(--destructive))';
@@ -134,6 +143,8 @@ export function NotificationPill({ opens = 'down', floating = false }: {
   const syncProblem = items.some((n) => n.syncProblem);
   // A crash the author has not looked at keeps its seal on the bell.
   const unreadFollowUp = items.some((n) => n.source === 'crash-follow-up' && !n.read);
+  // A notice from the service keeps its seal on the bell until the center opens.
+  const unreadNotice = items.some((n) => n.source === 'notice' && !n.read);
   // A found update keeps its mark on the bell until the center opens.
   const unreadUpdate = items.find(isUnreadUpdateAvailable);
   const headUpdatedAt = items.length ? items[0].updatedAt : 0;
@@ -212,7 +223,7 @@ export function NotificationPill({ opens = 'down', floating = false }: {
   const now = useNow(drawsCenter);
 
   // Priority: a sync problem > active work (source-specific blink) > flash result icon
-  // > unread crash follow-up > unread found update > bell.
+  // > unread crash follow-up > unread notice > unread found update > bell.
   let iconEl: React.ReactNode;
   let iconColor: string | undefined;
   if (syncProblem) {
@@ -239,6 +250,9 @@ export function NotificationPill({ opens = 'down', floating = false }: {
   } else if (unreadFollowUp) {
     iconColor = 'hsl(var(--destructive))';
     iconEl = <BrushIcon name="status-warning" size={15} />;
+  } else if (unreadNotice) {
+    iconColor = NOTICE_INK;
+    iconEl = <BrushIcon name="name-seal" size={15} />;
   } else if (unreadUpdate) {
     iconColor = toneColor(unreadUpdate);
     iconEl = <BrushIcon name="rotate" size={15} />;
@@ -311,6 +325,11 @@ export function NotificationCenter({
       setCenterOpen(false);
       return;
     }
+    if (n.externalUrl) {
+      void platform.material.openExternal(n.externalUrl);
+      setCenterOpen(false);
+      return;
+    }
     if (n.projectHomeId) {
       if (navigator && n.projectHomeId === navigator.projectId) navigator.showProjectHome();
       else navigate(`/project/${n.projectHomeId}`);
@@ -357,7 +376,7 @@ export function NotificationCenter({
                 'menu-surface__item',
                 'notification-row',
                 n.read ? '' : 'is-unread',
-                n.chapterId || n.target || n.projectHomeId || n.settingsSection || n.crashFollowUp ? '' : 'is-static',
+                n.chapterId || n.target || n.projectHomeId || n.settingsSection || n.crashFollowUp || n.externalUrl ? '' : 'is-static',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -369,7 +388,7 @@ export function NotificationCenter({
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
                     <BrushIcon
-                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : n.source === 'app-update' ? 'rotate' : n.source === 'crash-follow-up' ? 'brush-broken' : 'cloud'}
+                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : n.source === 'app-update' ? 'rotate' : n.source === 'crash-follow-up' ? 'brush-broken' : n.source === 'notice' ? 'name-seal' : 'cloud'}
                       size={12}
                     />
                     {sourceLabel(n, t)}
@@ -378,7 +397,7 @@ export function NotificationCenter({
                 </div>
                 <div className="notification-row__title">{n.title}</div>
                 {(n.detail || n.error) && (
-                  <div className={`notification-row__detail${n.error ? ' is-error' : ''}`}>
+                  <div className={`notification-row__detail${n.error ? ' is-error' : ''}${n.source === 'notice' ? ' is-multiline' : ''}`}>
                     {n.error || n.detail}
                   </div>
                 )}

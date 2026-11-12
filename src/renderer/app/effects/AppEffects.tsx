@@ -211,10 +211,11 @@ function SyncEngineEffects() {
     const stopHostedProvisioning = installHostedSyncGenerationProvisioningRuntime();
     const stopHostedDiscovery = installHostedDiscoveryRuntime();
     const stopSync = installProductionSyncRuntime();
-    // Readers' comments on share links and the account's preferences; only
-    // Hosted-configured builds load them.
+    // Readers' comments on share links, the account's preferences and the
+    // service's notices; only Hosted-configured builds load them.
     let stopShareInbox: (() => void) | undefined;
     let stopPreferenceSync: (() => void) | undefined;
+    let stopNotices: (() => void) | undefined;
     let disposed = false;
     if (!APP_CONFIG.LOCAL_ONLY_MODE) {
       void import('../../features/share-links/share-inbox-runtime').then((module) => {
@@ -223,9 +224,13 @@ function SyncEngineEffects() {
       void import('../../features/preference-sync/preference-sync-runtime').then((module) => {
         if (!disposed) stopPreferenceSync = module.installPreferenceSyncRuntime();
       });
+      void import('../../features/notices/notice-runtime').then((module) => {
+        if (!disposed) stopNotices = module.installNoticeRuntime();
+      });
     }
     return () => {
       disposed = true;
+      stopNotices?.();
       stopPreferenceSync?.();
       stopShareInbox?.();
       stopHostedDiscovery();

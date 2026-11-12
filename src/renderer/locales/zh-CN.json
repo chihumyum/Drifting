@@ -1226,6 +1226,10 @@
     },
     "crashFollowUp": {
       "source": "Drifting"
+    },
+    "notice": {
+      "source": "公告",
+      "personal": "消息"
     }
   },
   "paperSync": {

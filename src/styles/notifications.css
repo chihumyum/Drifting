@@ -100,6 +100,12 @@ html[data-shell-mode] .notification-row.is-static::before {
   color: hsl(var(--destructive));
 }
 
+/* A notice's body keeps the line breaks its writer made. */
+.notification-row__detail.is-multiline {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .notification-row__progress {
   margin-top: 8px;
 }
