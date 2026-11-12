@@ -26,9 +26,15 @@ Nothing is sent when the build has no Hosted service (public local-only source
 builds), in development builds (unless `VITE_DRIFTING_CRASH_REPORTS_IN_DEV=1`
 for acceptance against a local service), or when the author turns off
 Settings → Privacy → Send crash reports automatically. The setting defaults on
-and is disclosed on first launch (`preAlphaGuide.crashReports`, guide v6): on
-the desktop as the last line of the first-run welcome card, on mobile in the
-guide's list. With reports off, recorded native panics are still taken and discarded.
+and is disclosed where an author signs in (`preAlphaGuide.crashReports`): the
+sign-in and sign-up forms end with one line, "By continuing, you agree to the
+terms", and the hover card on "the terms" says that fault reports are sent and
+where to turn them off, above rows that open the terms and the privacy policy
+(`features/auth/ConsentLine.tsx`). Until 2026-11-13 the sentence was the last
+line of the first-run welcome card, which every author passed; an author who
+continues locally there no longer meets it before Settings → Privacy, although
+reports are sent without a session too. With reports off, recorded native
+panics are still taken and discarded.
 
 ## What a report contains
 
