@@ -166,7 +166,10 @@ fn writes_need_yes_a_closed_app_and_leave_a_backup() {
             .count(),
         4
     );
-    drop(open);
+    // The app quits. `close`, not `drop`: the index rebuild a library starts
+    // when it opens holds the library while it works on a document, so a
+    // dropped handle may leave the lock taken for a moment; `close` waits.
+    open.close().unwrap();
     assert!(matches!(
         offline::guarded_write(&lib, false, "x", |_| Ok(String::new())).unwrap(),
         Guarded::DryRun(_)
