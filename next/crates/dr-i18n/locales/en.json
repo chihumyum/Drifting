@@ -670,6 +670,9 @@
       "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
       "source": "Markdown folder"
     },
+    "notice": {
+      "source": "Announcement"
+    },
     "organize": {
       "source": "Agent"
     },

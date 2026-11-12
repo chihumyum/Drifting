@@ -663,6 +663,9 @@
       "preserved_other": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
       "source": "Markdown 資料夾"
     },
+    "notice": {
+      "source": "公告"
+    },
     "organize": {
       "source": "Agent"
     },
