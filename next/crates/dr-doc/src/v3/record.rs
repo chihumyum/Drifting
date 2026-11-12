@@ -13,7 +13,6 @@ use loro::{Container, LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentI
 use serde_json::{Value, json};
 
 use super::CollectionV3;
-use super::raw::raw_value;
 use super::read::BookViewV3;
 
 /// One part of a v3 book document.
@@ -96,66 +95,58 @@ impl std::fmt::Display for RecordKeyV3 {
 /// What a guard compares, and what a caller may inspect.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecordStateV3 {
-    /// Stored state with explicit container kinds and rich-text deltas, keys
-    /// sorted. Two reads are the same record state exactly when this is equal.
+    /// The stored content of the record, hidden and retained fields included:
+    /// its deep value (for an entry, with its residence). Two reads are the
+    /// same record state exactly when this is equal. One read of each record
+    /// is all it takes, so a view can afford the digest of everything it
+    /// shows; what it leaves out is how a nested value is stored (as a
+    /// container or a plain value) and the formatting of nested text.
     pub raw: Value,
     /// The plain deep value queries decode (`null` when absent), so a caller
     /// can tell whether a filtered read showed everything that is stored.
     pub value: Value,
+    single: bool,
 }
 
 impl RecordStateV3 {
     /// The value, when this state is one plain stored value, or nothing
     /// stored (`null`). `None` for every container (a record, a list, a
-    /// text), and for an entry id with more than one node.
+    /// text), for a value inside a plain map or below a container that is
+    /// not a map, and for an entry id with more than one node: writing it
+    /// would replace something this state does not name.
     pub fn single(&self) -> Option<&Value> {
-        let one = |raw: &Value| {
-            raw.as_object().is_some_and(|map| {
-                map.len() == 1 && (map.contains_key("absent") || map.contains_key("value"))
-            })
-        };
-        let single = match self.raw.as_object() {
-            Some(map) if map.len() == 1 && map.contains_key("nodes") => map["nodes"]
-                .as_array()
-                .is_some_and(|nodes| nodes.len() == 1 && one(&nodes[0])),
-            _ => one(&self.raw),
-        };
-        single.then_some(&self.value)
+        self.single.then_some(&self.value)
     }
 }
 
-fn absent() -> RecordStateV3 {
-    RecordStateV3 {
-        raw: json!({"absent": true}),
-        value: Value::Null,
-    }
+/// How the addressed value is stored.
+#[derive(Clone, Copy, PartialEq)]
+enum Stored {
+    Absent,
+    Plain,
+    Container,
+    /// Inside a plain value, or below a text, list or tree.
+    Inside,
 }
 
 fn plain(value: &LoroValue) -> Value {
     serde_json::to_value(value).expect("Loro values serialize")
 }
 
-fn of(value: loro::ValueOrContainer) -> RecordStateV3 {
-    let value_plain = plain(&value.get_deep_value());
-    RecordStateV3 {
-        raw: raw_value(value),
-        value: value_plain,
-    }
-}
-
-/// Walk `path` below `map`. A plain (atomic) map value is walked as data.
-fn walk(map: &LoroMap, path: &[String]) -> RecordStateV3 {
+/// The content at `path` below `map` (`None`: nothing there), and how it is
+/// stored.
+fn walk(map: &LoroMap, path: &[String]) -> (Option<Value>, Stored) {
     let Some((first, rest)) = path.split_first() else {
-        return of(loro::ValueOrContainer::Container(Container::Map(
-            map.clone(),
-        )));
+        return (Some(plain(&map.get_deep_value())), Stored::Container);
     };
     match map.get(first) {
-        None => absent(),
-        Some(found) if rest.is_empty() => of(found),
+        None => (None, Stored::Absent),
+        Some(loro::ValueOrContainer::Value(value)) if rest.is_empty() => {
+            (Some(plain(&value)), Stored::Plain)
+        }
+        Some(found) if rest.is_empty() => (Some(plain(&found.get_deep_value())), Stored::Container),
         Some(loro::ValueOrContainer::Container(Container::Map(inner))) => walk(&inner, rest),
-        // Inside a plain value: not a stored value of its own. Writing it
-        // would replace the whole plain value it is part of.
+        // Inside a plain value: content, but not a stored value of its own.
         Some(loro::ValueOrContainer::Value(value)) => {
             let mut current = Some(&value);
             for segment in rest {
@@ -164,17 +155,26 @@ fn walk(map: &LoroMap, path: &[String]) -> RecordStateV3 {
                     _ => None,
                 };
             }
-            RecordStateV3 {
-                raw: json!({"within": current}),
-                value: current.map_or(Value::Null, plain),
-            }
+            (current.map(plain), Stored::Inside)
         }
-        // A text, list or tree has no keyed children to select, and a write
-        // below it would replace it.
-        Some(loro::ValueOrContainer::Container(_)) => RecordStateV3 {
-            raw: json!({"blocked": true}),
-            value: Value::Null,
-        },
+        // A text, list or tree has no keyed children to select.
+        Some(loro::ValueOrContainer::Container(_)) => (None, Stored::Inside),
+    }
+}
+
+/// Present content and absence never read the same, whatever is stored.
+fn content(found: Option<Value>) -> Value {
+    match found {
+        Some(value) => json!({"is": value}),
+        None => json!({"absent": true}),
+    }
+}
+
+fn state(found: Option<Value>, stored: Stored) -> RecordStateV3 {
+    RecordStateV3 {
+        value: found.clone().unwrap_or(Value::Null),
+        raw: content(found),
+        single: matches!(stored, Stored::Absent | Stored::Plain),
     }
 }
 
@@ -255,67 +255,68 @@ impl<'a> RecordReaderV3<'a> {
     /// The stored state `key` names. An invalid key reads as absent.
     pub fn state(&mut self, key: &RecordKeyV3) -> RecordStateV3 {
         if !key.is_valid() {
-            return absent();
+            return state(None, Stored::Absent);
         }
-        let mut state = if key.collection.is_tree() {
+        if key.collection.is_tree() {
             self.tree_state(key)
         } else {
-            walk(&self.doc.get_map(key.collection.root()), &key.path)
-        };
-        state.raw.sort_all_objects();
-        state
+            let (found, stored) = walk(&self.doc.get_map(key.collection.root()), &key.path);
+            state(found, stored)
+        }
     }
 
     fn tree_state(&mut self, key: &RecordKeyV3) -> RecordStateV3 {
         let index = self.tree(key.collection);
+        let order = |children: Vec<Value>| RecordStateV3 {
+            raw: json!({"children": children}),
+            value: Value::Array(children),
+            single: false,
+        };
         let Some((id, rest)) = key.path.split_first() else {
             if key.children {
-                let children = index.child_ids(None);
-                return RecordStateV3 {
-                    raw: json!({"children": children}),
-                    value: Value::Array(children),
-                };
+                return order(index.child_ids(None));
             }
-            return of(loro::ValueOrContainer::Container(Container::Tree(
-                index.tree.clone(),
-            )));
+            // The whole tree: every node's metadata, and where it hangs.
+            return state(
+                Some(plain(&index.tree.get_value_with_meta())),
+                Stored::Container,
+            );
         };
         // Two devices can each create a node for one domain id. Every copy is
         // part of the record: a guard must notice a change to any of them.
         let Some(copies) = index.nodes.get(id) else {
-            return absent();
+            return state(None, Stored::Absent);
         };
         if key.children {
-            let children: Vec<Value> = copies
-                .iter()
-                .flat_map(|node| index.child_ids(Some(*node)))
-                .collect();
-            return RecordStateV3 {
-                raw: json!({"children": children}),
-                value: Value::Array(children),
-            };
+            return order(
+                copies
+                    .iter()
+                    .flat_map(|node| index.child_ids(Some(*node)))
+                    .collect(),
+            );
         }
         let mut raw = Vec::new();
-        let mut value = Vec::new();
+        let mut first = None;
         for node in copies {
             let Ok(meta) = index.tree.get_meta(*node) else {
                 continue;
             };
-            if rest.is_empty() {
-                let parent = index.parent(*node);
-                let own = of(loro::ValueOrContainer::Container(Container::Map(meta)));
-                raw.push(json!({"meta": own.raw, "parent": parent}));
-                value.push(json!({"meta": own.value, "parent": parent}));
+            let (found, stored) = if rest.is_empty() {
+                let own =
+                    json!({"meta": plain(&meta.get_deep_value()), "parent": index.parent(*node)});
+                (Some(own), Stored::Container)
             } else {
-                let inner = walk(&meta, rest);
-                raw.push(inner.raw);
-                value.push(inner.value);
-            }
+                walk(&meta, rest)
+            };
+            raw.push(content(found.clone()));
+            first.get_or_insert((found, stored));
         }
+        let (found, stored) = first.unwrap_or((None, Stored::Absent));
         RecordStateV3 {
             raw: json!({"nodes": raw}),
             // The first copy is the one readers show.
-            value: value.into_iter().next().unwrap_or(Value::Null),
+            value: found.unwrap_or(Value::Null),
+            single: copies.len() == 1 && matches!(stored, Stored::Absent | Stored::Plain),
         }
     }
 }
@@ -385,9 +386,15 @@ mod tests {
         let body = record.clone().at(["body"]);
         let all = RecordKeyV3::collection(C::Patches);
         let before = [&record, &title, &body, &all].map(|k| raw(&doc, k));
-        // The body is a text container: the state says so, with its delta.
-        assert!(before[2]["text"].is_array(), "{}", before[2]);
+        // The body is a text: its content is its string, and it is not one
+        // plain value an expected value could stand for.
+        assert_eq!(before[2], json!({"is": "first body"}));
         assert_eq!(doc.view().record_state(&body).value, "first body");
+        assert!(doc.view().record_state(&body).single().is_none());
+        assert_eq!(
+            doc.view().record_state(&title).single(),
+            Some(&json!("one"))
+        );
 
         // Another record of the same collection.
         put(&mut doc, &q, "two", "second body, edited");
@@ -444,7 +451,7 @@ mod tests {
         assert_ne!(before.3, raw(&doc, &children(&roots.ideas)));
         assert_eq!(
             raw(&doc, &entry(&a).at(["title"])),
-            json!({"nodes": [{"value": "A"}]})
+            json!({"nodes": [{"is": "A"}]})
         );
     }
 
@@ -467,7 +474,7 @@ mod tests {
         assert_eq!(nodes.len(), 2, "{}", state.raw);
         let mut titles: Vec<&str> = nodes
             .iter()
-            .map(|n| n["meta"]["map"]["title"]["value"].as_str().unwrap())
+            .map(|n| n["is"]["meta"]["title"].as_str().unwrap())
             .collect();
         titles.sort_unstable();
         assert_eq!(titles, ["Here", "There"]);
@@ -515,7 +522,7 @@ mod tests {
         let key =
             RecordKeyV3::record(C::Entries, roots.manuscript.as_str()).at(["title", "deeper"]);
         let state = doc.view().record_state(&key);
-        assert_eq!(state.raw, json!({"nodes": [{"within": null}]}), "{key}");
+        assert_eq!(state.raw, json!({"nodes": [absent]}), "{key}");
         assert!(state.value.is_null() && state.single().is_none(), "{key}");
         let title = RecordKeyV3::record(C::Entries, roots.manuscript.as_str()).at(["title"]);
         assert!(
@@ -528,7 +535,7 @@ mod tests {
         let empty = raw(&doc, &RecordKeyV3::collection(C::Patches));
         doc.view().patches();
         assert_eq!(empty, raw(&doc, &RecordKeyV3::collection(C::Patches)));
-        assert_eq!(empty, json!({"map": {}}));
+        assert_eq!(empty, json!({"is": {}}));
 
         let record = RecordKeyV3::record(C::TimelineViews, "v");
         assert!(RecordKeyV3::collection(C::TimelineViews).contains(&record));
