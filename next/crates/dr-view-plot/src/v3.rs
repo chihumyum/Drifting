@@ -2,7 +2,7 @@
 use crate::{Grid, Line, PlannerHost, PlotPlanner, Write};
 use dr_model::pos::PosKey;
 use dr_workspace::{
-    Actor, Workspace, WritePreconditions, WsError,
+    Actor, RecordKey, Workspace, WritePreconditions, WsError,
     commands::v3::{
         content, module,
         plot::{Axis, CellInfo, LineInfo, PlotGridInfo},
@@ -112,9 +112,14 @@ fn prepare_from(
     writes: Vec<Write>,
     base: Option<&Grid>,
 ) -> Result<PreparedWrite, WsError> {
-    // Observe before reading: any intervening book change invalidates this
-    // whole-grid replacement. Never retry a failed guarded command here.
-    let observed = lib.observe(&format!("book:{book}"))?;
+    // Observe before reading: any intervening change to this grid invalidates
+    // the whole-grid replacement. Never retry a failed guarded command here.
+    let stored = lib
+        .observe_records(
+            &format!("book:{book}"),
+            &[RecordKey::plot_grid(entry, module)],
+        )?
+        .remove(0);
     let mut grid = Grid::from_info(&read(lib, book, entry, module)?);
     if base.is_some_and(|base| *base != grid) {
         return Err(WsError::Conflict("plot grid changed while editing".into()));
@@ -194,7 +199,7 @@ fn prepare_from(
                     .collect(),
             },
         },
-        guard: WritePreconditions::from_observations([observed]),
+        guard: WritePreconditions::from_records([stored]),
     })
 }
 struct ModuleView(Entity<PlotPlanner>);

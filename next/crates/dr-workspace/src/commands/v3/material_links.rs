@@ -46,7 +46,11 @@ op! {
         }
         let changed = if input.linked { vec![RelationId::new_v7()] } else { matching };
         let writing = changed.clone();
-        let (_, before) = cx.write_book_v3(&slot, move |txn| {
+        // Linking adds an edge under a fresh id; unlinking removes these.
+        let removed = Replaces::records(
+            changed.iter().filter(|_| !input.linked).map(|id| rec(CollectionV3::Relations, id)),
+        );
+        let (_, before) = cx.write_book_v3(&slot, removed, move |txn| {
             for id in &writing {
                 if input.linked {
                     txn.relation(id)?.ends(&material, &entry)?.relation_type(&ty)?.created_at(Some(now()))?;

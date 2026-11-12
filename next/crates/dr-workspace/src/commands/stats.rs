@@ -198,7 +198,8 @@ op! {
         if !same {
             let words = input.words;
 
-                cx.write_book_v3(&slot, move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
+                // This device's own counter for the day: no other writer sets it.
+                cx.write_book_v3(&slot, Replaces::nothing(), move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
 
         }
         // No effect and no inverse: the recorder's writes leave no journal

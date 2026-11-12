@@ -21,7 +21,7 @@ use crate::events::{
     self, BookChanged, Bus, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
     WsEvent, book_changes, prose_ranges, touched_blocks_near,
 };
-use crate::guard::{Guards, Observation, WritePreconditions};
+use crate::guard::{Guards, Observation, RecordKey, RecordObservation, WritePreconditions};
 use crate::holder::{self, lock};
 use crate::journal::{Journal, JournalEntry};
 use crate::nav::NavTarget;
@@ -60,6 +60,12 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
             let merged = loro::LoroDoc::new();
             dr_doc::schema::configure(&merged);
             merged.import(&doc.export(loro::ExportMode::Snapshot)?)?;
+            // A snapshot leaves out updates that still wait for a dependency.
+            // One of them may change the marker once `bytes` brings what it
+            // waits for.
+            if let Some(waiting) = doc.export_pending_updates()? {
+                merged.import(&waiting)?;
+            }
             merged.import(bytes)?;
             if !dr_doc::v3::is_v3_doc(&merged) {
                 return Err(StoreError::Invalid {
@@ -518,7 +524,65 @@ impl Workspace {
         })?
     }
 
-    /// Run a registered call with document CAS checked inside each write job.
+    /// The committed version of a book or prose document, from a holder read
+    /// job. Unlike [`Self::observe`] it reads no content and costs the same
+    /// however long the document's history is.
+    pub fn version(&self, id: &str) -> Result<String> {
+        let doc = DocId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let handle = match &doc {
+            DocId::Book(book) => self.book_slot(book)?.handle.clone(),
+            _ if doc.profile().is_some() => self.prose_slot(&doc)?.handle.clone(),
+            _ => {
+                return Err(WsError::Invalid(
+                    "a version belongs to a book or prose document".into(),
+                ));
+            }
+        };
+        Ok(handle.read(|doc| crate::naming::frontiers_hex(&doc.oplog_frontiers()))?)
+    }
+
+    /// Whether `book` is a canonical v3 book. A book this workspace has open
+    /// is one; otherwise its stored document is looked at without opening
+    /// it, so a book in an older format is left untouched.
+    pub fn is_v3_book(&self, book: &BookId) -> Result<bool> {
+        if lock(&self.inner.books).contains_key(book) {
+            return Ok(true);
+        }
+        let copy = self
+            .inner
+            .lib
+            .load_copy(&DocId::Book(book.clone()).to_string())?;
+        Ok(dr_doc::v3::is_v3_doc(&copy))
+    }
+
+    /// Read the stored state of some records of v3 book document `doc`
+    /// (`book:<id>`) in one holder read job: hidden and retained data
+    /// included, nothing exported or imported, the rest of the book not
+    /// decoded. A caller keeps the digests of what a later write replaces or
+    /// was derived from and hands them to [`Self::call_guarded`]; a write to
+    /// any other record of the same book does not invalidate them.
+    pub fn observe_records(&self, doc: &str, keys: &[RecordKey]) -> Result<Vec<RecordObservation>> {
+        let DocId::Book(book) = DocId::parse(doc).map_err(|e| WsError::Invalid(e.to_string()))?
+        else {
+            return Err(WsError::Invalid("records belong to a book document".into()));
+        };
+        let slot = self.book_slot(&book)?;
+        if !slot.is_v3() {
+            return Err(WsError::invalid("records belong to a v3 book document"));
+        }
+        let keys = keys
+            .iter()
+            .map(|key| Ok((key.clone(), key.parse()?)))
+            .collect::<Result<Vec<_>>>()?;
+        let id = DocId::Book(book.clone()).to_string();
+        slot.handle
+            .read(move |doc| crate::guard::observe_records(&id, doc, &book, &keys))?
+    }
+
+    /// Run a registered call with its preconditions checked inside each write
+    /// job: a version for every prose document, and for a book document the
+    /// records the call replaces or was derived from (or the book's version,
+    /// for a call that must hold the whole book still).
     /// V3 comment ranges, blocks and reanchors also require the source prose
     /// observation: its check and anchor/quote derivation share one read job.
     /// Later prose edits move stable anchors; quotes remain historical. This

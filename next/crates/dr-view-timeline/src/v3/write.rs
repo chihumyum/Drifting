@@ -1,7 +1,7 @@
 use super::*;
 use dr_model::pos::PosKey;
 use dr_workspace::{
-    Actor, Observation, WritePreconditions, WsError,
+    Actor, RecordKey, RecordObservation, WritePreconditions, WsError,
     commands::{
         BookIn, EntityIn,
         v3::{
@@ -22,13 +22,13 @@ pub(super) enum ViewEdit {
     SetActTrack(String, bool),
 }
 
-/// The frontier is the original book observation behind the displayed F6
-/// snapshot. Never replace it with a fresh observation when submitting a draft.
+/// The guard is that of the displayed F6 snapshot the edit was made from.
+/// Never replace it with a fresh one when submitting a draft.
 #[derive(Clone)]
 pub(super) struct ViewScope {
     pub book: String,
     pub view: String,
-    pub version: String,
+    pub guard: WritePreconditions,
     pub lanes: Vec<(String, bool)>,
 }
 
@@ -85,15 +85,7 @@ fn run_view_edit(lib: &Library, scope: ViewScope, edit: ViewEdit) -> Result<(), 
             )
         }
     };
-    lib.call_guarded(
-        &Actor::User,
-        command,
-        input,
-        WritePreconditions {
-            versions: [(format!("book:{}", scope.book), scope.version)].into(),
-            require_all: true,
-        },
-    )?;
+    lib.call_guarded(&Actor::User, command, input, scope.guard)?;
     Ok(())
 }
 
@@ -139,17 +131,39 @@ fn require_coverage(raw: Option<&Value>, expected: &Value) -> Result<(), WsError
     }
 }
 
+/// The stored state of one time pin (`null`: not stored), observed before
+/// anything is read to build its replacement.
+pub(super) fn observe_pin(
+    lib: &Library,
+    book: &str,
+    view: &str,
+    pin: &str,
+) -> Result<RecordObservation, WsError> {
+    observe(lib, book, RecordKey::timeline_view(view).at(["pins", pin]))
+}
+
+pub(super) fn observe(
+    lib: &Library,
+    book: &str,
+    key: RecordKey,
+) -> Result<RecordObservation, WsError> {
+    Ok(lib
+        .observe_records(&format!("book:{book}"), &[key])?
+        .remove(0))
+}
+
+/// A replacement held to the record it was built from.
 pub(super) fn replace(
     lib: &Library,
     command: &str,
     input: Value,
-    observed: Observation,
+    stored: RecordObservation,
 ) -> Result<(), WsError> {
     lib.call_guarded(
         &Actor::User,
         command,
         input,
-        WritePreconditions::from_observations([observed]),
+        WritePreconditions::from_records([stored]),
     )?;
     Ok(())
 }
@@ -245,8 +259,10 @@ impl Timeline {
         self.selected = Some(id.clone());
         self.remember(cx);
         self.write(cx, move |lib, book| {
-            let observed = lib.observe(&format!("book:{book}"))?;
-            if observed.value["timeline_views"].get(&id).is_some() {
+            // Held to this view not being stored: one made under the same
+            // id meanwhile is not replaced.
+            let stored = observe(&lib, &book, RecordKey::timeline_view(&id))?;
+            if !stored.value.is_null() {
                 return Err(WsError::Conflict("timeline view already exists".into()));
             }
             let views = lib
@@ -276,7 +292,7 @@ impl Timeline {
                     },
                 })
                 .map_err(|e| WsError::Internal(e.to_string()))?,
-                observed,
+                stored,
             )?;
             Ok(())
         });
@@ -318,8 +334,8 @@ impl Timeline {
         let base_name = t(cx, keys::v3_timeline::ACT_LEVEL_NAME).to_string();
         self.popup = None;
         self.write(cx, move |lib, book| {
-            let observed = lib.observe(&format!("book:{book}"))?;
-            if observed.value["templates"].get("tpl-act-track").is_none() {
+            let template = observe(&lib, &book, RecordKey::template("tpl-act-track"))?;
+            if template.value.is_null() {
                 let tpl = timeline::act_track_template(base_name.clone());
                 lib.call(
                     &Actor::User,
@@ -493,7 +509,7 @@ impl Timeline {
         Some(ViewScope {
             book: self.book.id.clone(),
             view: id.into(),
-            version: book.revision.clone(),
+            guard: book.guard(),
             lanes: view
                 .lanes
                 .iter()
@@ -506,7 +522,7 @@ impl Timeline {
             return;
         };
         if let Some(draft) = &self.submitting {
-            scope.version = draft.version.clone();
+            scope.guard = draft.guard.clone();
         }
         self.edit_view_at(scope, edit, cx);
     }
@@ -597,11 +613,22 @@ mod tests {
     #[::core::prelude::v1::test]
     fn local_edits_use_the_displayed_frontier_and_retry_preserves_other_writers() {
         let (_dir, lib, book, view) = fixture();
-        let shown = lib.observe(&format!("book:{book}")).unwrap();
+        // The guard of a displayed snapshot: the digest of the view it shows.
+        let displayed = || {
+            WritePreconditions::default().with_shown(
+                lib.observe_records(
+                    &format!("book:{book}"),
+                    &[RecordKey::timeline_view(&view.id)],
+                )
+                .unwrap()
+                .into_iter()
+                .map(Into::into),
+            )
+        };
         let mut scope = ViewScope {
             book: book.clone(),
             view: view.id.clone(),
-            version: shown.version,
+            guard: displayed(),
             lanes: view
                 .lanes
                 .iter()
@@ -637,7 +664,7 @@ mod tests {
             lib.observe(&format!("book:{book}")).unwrap().version,
             after_other.version
         );
-        scope.version = after_other.version;
+        scope.guard = displayed();
         run_view_edit(
             &lib,
             scope,

@@ -7,7 +7,7 @@ use dr_view_elements::data::v3::{
     creation, drop_target, membership_hosts, prepare, prepare_board, prepare_drop, prepare_edit,
     switch_templates,
 };
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::{Actor, Workspace, WsError};
 use serde_json::{Value, json};
 fn seed() -> (tempfile::TempDir, Workspace, String) {
     let dir = tempfile::tempdir().unwrap();
@@ -587,5 +587,94 @@ fn template_and_layout_edits_preserve_memberships_hidden_by_a_trashed_host() {
     assert_eq!(entry.parent.as_deref(), Some(residence.as_str()));
     assert_eq!(entry.template.as_deref(), Some("tpl-idea"));
     assert_eq!(entry.layout.board, Some((24.0, 48.0)));
+    ws.shutdown().unwrap();
+}
+
+/// A command built from a snapshot is held to what its dialog showed: the
+/// level it names and the levels above it. Anything else in the book may
+/// change without refusing it.
+#[test]
+fn a_creation_is_held_to_the_levels_it_was_chosen_under_and_to_nothing_else() {
+    let (_dir, ws, book) = seed();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let manuscript = root(&snapshot, "tpl-manuscript");
+    let lane = root(&snapshot, "tpl-storyline");
+    let context = creation(&snapshot, &lane).unwrap();
+    let create = |from: &Book, title: &str| {
+        prepare(
+            from,
+            "entry.create",
+            json!({"parent":context.context,"template":context.default,"title":title}),
+        )
+        .unwrap()
+        .commit(&ws)
+    };
+    let titled = |title: &str| {
+        call(
+            &ws,
+            "entry.list",
+            json!({"book":book,"all":true,"query":title}),
+        )
+        .as_array()
+        .unwrap()
+        .clone()
+    };
+
+    // The book moves on in ways the dialog never showed.
+    let other = entry(
+        &ws,
+        &book,
+        &manuscript,
+        "tpl-chapter",
+        "Synthetic elsewhere",
+    );
+    call(
+        &ws,
+        "writing_day.record",
+        json!({"book":book,"device":"device-000000000000000000000001","day":"2026-11-12","words":7}),
+    );
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":other,"title":"Synthetic elsewhere renamed"}),
+    );
+    create(&snapshot, "Synthetic unaffected").unwrap();
+    assert_eq!(titled("Synthetic unaffected").len(), 1);
+
+    // The level now sends new entries somewhere else than the dialog said.
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let home = entry(&ws, &book, &manuscript, "tpl-group", "Synthetic new home");
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":lane,"overrides":{"home":home}}),
+    );
+    let refused = create(&snapshot, "Synthetic stale home");
+    assert!(matches!(refused, Err(WsError::Conflict(_))), "{refused:?}");
+    assert!(titled("Synthetic stale home").is_empty());
+
+    // So does a change to a level above it, where settings are inherited from.
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let above = snapshot
+        .v3()
+        .unwrap()
+        .entry(&lane)
+        .unwrap()
+        .parent
+        .clone()
+        .unwrap();
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":above,"overrides":{"default_template":"tpl-idea"}}),
+    );
+    let refused = create(&snapshot, "Synthetic stale ancestor");
+    assert!(matches!(refused, Err(WsError::Conflict(_))), "{refused:?}");
+    assert!(titled("Synthetic stale ancestor").is_empty());
+
+    // From what is shown now it goes through, to the new home.
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let created = create(&snapshot, "Synthetic current").unwrap();
+    assert_eq!(created["parent"], home.as_str());
     ws.shutdown().unwrap();
 }

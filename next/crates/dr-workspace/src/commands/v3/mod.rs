@@ -1,5 +1,6 @@
-//! Universal commands. Every operation checks the book version before writing.
-use super::{BookIn, Done, EntityIn, Named, name_ok, now, pid};
+//! Universal commands. Every book write declares what it replaces, so a
+//! guarded caller is held to the records it read (f3-write-guards.md).
+use super::{BookIn, Done, EntityIn, Named, Replaces, name_ok, now, pid, rec};
 use crate::cx::{Cx, EffectAction, Invocation};
 use crate::error::{Result, WsError};
 use crate::naming::{frontiers_from_hex, frontiers_hex};

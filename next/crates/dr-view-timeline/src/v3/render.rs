@@ -790,7 +790,7 @@ impl Timeline {
                 });
                 let resize = Resizing {
                     book: self.book.id.clone(),
-                    version: self.book.v3().unwrap().revision.clone(),
+                    guard: self.book.v3().unwrap().guard(),
                     entry: id.clone(),
                     at: clip.at,
                     view: view.id.clone(),

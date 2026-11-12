@@ -70,6 +70,8 @@ memory.list                  query    shared   List the book's Project Memory en
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
+module.edit_kv               command  book     Change the key or the value of one key/value row of a v3 module, leaving what is not named as it is.
+module.edit_patch            command  book     Change the title or the body of one v3 patch record, leaving what is not named as it is.
 module.list                  query    shared   List current and retained v3 modules and their registered prose documents.
 module.prose_document        command  book     Initialize a v3 prose module or level description and return its document ID.
 module.put_grid              command  book     Replace the rows, columns, cells and size of one v3 plot module.

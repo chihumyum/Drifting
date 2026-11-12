@@ -65,7 +65,8 @@ op! {
         let restored_memberships: Vec<_> = old.memberships_raw().into_iter()
             .filter(|m| m.host == host && m.member == member).collect();
         let inverse = input.clone();
-        let (after, before) = cx.write_book_v3(&slot, move |tx| {
+        // An inverse compares every selected value itself, below.
+        let (after, before) = cx.write_book_v3(&slot, Replaces::nothing(), move |tx| {
             let v = tx.view();
             // Preflight every selected path and the final graph before the
             // first mutation, including a concurrently hidden/trash view.

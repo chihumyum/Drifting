@@ -351,7 +351,7 @@ op! {
         let id = CommentId::new_v7();
         let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
         let (i2, body, an) = (id.clone(), input.body.clone(), input.author_name.clone());
-        cx.write_book_v3(&slot, move |txn| {
+        cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let w = txn.comment(&i2)?;
             w.kind(&kind)?.target(target.as_ref())?.module(module.as_ref())?.target_block(block.as_ref())?.anchor(anchor.as_ref())?
                 .quote(quote.as_deref())?.body(&body)?.status(&CommentStatus::Open)?.priority(priority.as_ref())?
@@ -383,7 +383,7 @@ op! {
         let priority: Option<Option<CommentPriority>> = input.priority.as_ref().map(|p| p.as_deref().map(CommentPriority::parse));
         if let Some(Some(p)) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
         let (id, i) = (old.id.clone(), input.clone());
-        cx.write_book_v3(&slot, move |txn| {
+        cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
             let w = txn.comment(&id)?;
             if let Some(b) = &i.body { w.body(b)?; }
             if let Some(s) = &status {
@@ -420,7 +420,7 @@ op! {
         let mut touched: Vec<(String, String)> = vec![("comments".into(), input.id.clone())];
         touched.extend(rels.iter().map(|r| ("relations".to_string(), r.to_string())));
         let (i2, r2) = (id.clone(), rels.clone());
-        let (_, before) = cx.write_book_v3(&slot, move |txn| {
+        let (_, before) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
             for r in &r2 { txn.purge(CollectionV3::Relations, r.as_str())?; }
             txn.purge(CollectionV3::Comments, i2.as_str())?;
             Ok(())
@@ -482,7 +482,8 @@ op! {
             return Ok(Done { id: input.id });
         }
         let id = old.id.clone();
-        cx.write_book_v3(&slot, move |txn| {
+        let replaced = rec(CollectionV3::Comments, &id).at(["anchor"]);
+        cx.write_book_v3(&slot, Replaces::records([replaced]), move |txn| {
             txn.comment(&id)?.anchor(anchor.as_ref())?;
             Ok(())
         })?;
@@ -568,7 +569,8 @@ op! {
         }).map_err(|e| WsError::Internal(e.to_string()))?;
         let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
         let (d2, c2, r2, rm2) = (doc.clone(), create.clone(), rels.clone(), remove.clone());
-        let created = cx.write_book_v3(&slot, move |txn| {
+        // Projected from the prose it follows, under ids derived from it.
+        let created = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let mut ids = Vec::new();
             // dr-doc's seed change writes kind, target, block, the task as
             // the body and the status, the same on every device; only the

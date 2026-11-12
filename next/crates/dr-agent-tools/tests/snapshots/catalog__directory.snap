@@ -185,6 +185,8 @@ history.restore_point: history restore labels require an atomic guarded owner ho
 material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 material.set_entry_link: material entry links need exact endpoint and relation read coverage
 membership.restore: scoped membership undo is internal until K6 provides a guarded facade
+module.edit_kv: field edits belong to a view that showed the field; use the record commands
+module.edit_patch: field edits belong to a view that showed the field; use the record commands
 module.prose_document: storage, editor, or derived-state maintenance
 project.create: library-wide lifecycle operation
 recent.touch: storage, editor, or derived-state maintenance

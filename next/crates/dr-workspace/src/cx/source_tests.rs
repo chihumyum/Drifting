@@ -105,7 +105,7 @@ fn guarded_source_read_serializes_a_real_concurrent_writer_and_keeps_historical_
     // Book CAS remains separate; no claim of an atomic two-document commit.
     let id = CommentId::new_v7();
     let key = id.to_string();
-    cx.write_book_v3(&book_slot, move |txn| {
+    cx.write_book_v3(&book_slot, Replaces::nothing(), move |txn| {
         txn.comment(&id)?
             .kind(&CommentKind::Note)?
             .target(Some(&EntityRef::new(EntityKind::Entry, entry)))?

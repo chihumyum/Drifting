@@ -23,7 +23,8 @@ use dr_view_stats::{
     v3::{Loaded, Scope},
 };
 use dr_workspace::{
-    Actor, Workspace as Library, WritePreconditions, WsError, commands::v3::entry::CreateIn,
+    Actor, RecordKey, Workspace as Library, WritePreconditions, WsError,
+    commands::v3::entry::CreateIn,
 };
 use gpui::{
     AppContext as _, Context, ElementId, Entity, Focusable, IntoElement, ParentElement, Render,
@@ -139,7 +140,16 @@ pub fn create(
     action: &CreateAction,
     title: &str,
 ) -> Result<String, WsError> {
-    let observed = lib.observe(&format!("book:{book}"))?;
+    // An action is declared by a level and its template. Observe both before
+    // re-checking it: the new entry is held to the declaration it was chosen
+    // from, not to the rest of the book.
+    let declared = lib.observe_records(
+        &format!("book:{book}"),
+        &[
+            RecordKey::entry(&action.level),
+            RecordKey::collection("templates"),
+        ],
+    )?;
     let current = Book::load(lib, book)?;
     if !actions(&current).iter().any(|a| a == action) {
         return Err(WsError::Conflict("home action changed".into()));
@@ -155,7 +165,7 @@ pub fn create(
             bodies: Default::default(),
         })
         .expect("serializable entry input"),
-        WritePreconditions::from_observations([observed]),
+        WritePreconditions::from_records(declared),
     )?;
     result["output"]["id"]
         .as_str()

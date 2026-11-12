@@ -14,7 +14,8 @@ use dr_workspace::{
 pub(super) struct Resizing {
     pub book: String,
     pub view: String,
-    pub version: String,
+    /// The guard of the snapshot the drag started from.
+    pub guard: WritePreconditions,
     pub entry: String,
     pub at: f64,
     pub end: f64,
@@ -61,7 +62,7 @@ impl Timeline {
         let Some(book) = self.book.v3() else {
             return;
         };
-        self.place_at(entry, lane, at, span, book.revision.clone(), cx);
+        self.place_at(entry, lane, at, span, book.guard(), cx);
     }
     fn place_at(
         &mut self,
@@ -69,7 +70,7 @@ impl Timeline {
         lane: Option<String>,
         at: f64,
         span: Option<f64>,
-        version: String,
+        guard: WritePreconditions,
         cx: &mut Context<Self>,
     ) {
         if !at.is_finite() || span.is_some_and(|n| !n.is_finite() || n < 0.) {
@@ -106,10 +107,7 @@ impl Timeline {
                 &Actor::User,
                 "timeline_view.place",
                 serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"at":at,"span":span}),
-                WritePreconditions {
-                    versions: [(format!("book:{book}"), version)].into(),
-                    require_all: true,
-                },
+                guard,
             )?;
             Ok(())
         });
@@ -142,18 +140,17 @@ impl Timeline {
             return;
         };
         self.write(cx, move |lib, book| {
-            let observed = lib.observe(&format!("book:{book}"))?;
-            if observed.value["timeline_views"][&view]["pins"]
-                .get(&pin.id)
-                .is_some()
-            {
+            // Held to this pin not being stored: one made under the same id
+            // meanwhile is not replaced.
+            let stored = write::observe_pin(&lib, &book, &view, &pin.id)?;
+            if !stored.value.is_null() {
                 return Err(WsError::Conflict("time pin already exists".into()));
             }
             write::replace(
                 &lib,
                 "timeline_view.put_pin",
                 serde_json::json!({"book":book,"view":view,"pin":pin}),
-                observed,
+                stored,
             )
         });
     }
@@ -205,7 +202,9 @@ impl Timeline {
         self.write(cx, move |lib, book| {
             // Merge one field into the latest pin, so rename/colour/binding
             // and dragging cannot clobber one another while a snapshot lags.
-            let observed = lib.observe(&format!("book:{book}"))?;
+            // Observe the stored pin before reading the list: the replacement
+            // is held to exactly that pin.
+            let stored = write::observe_pin(&lib, &book, &view, &id)?;
             let mut pin = lib
                 .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
                 .output
@@ -216,10 +215,7 @@ impl Timeline {
                     what: "time pin",
                     id: id.clone(),
                 })?;
-            write::complete_pin(
-                observed.value["timeline_views"][&view]["pins"].get(&id),
-                &pin,
-            )?;
+            write::complete_pin(Some(&stored.value).filter(|pin| !pin.is_null()), &pin)?;
             match edit {
                 PinEdit::Label(s) => pin.label = s,
                 PinEdit::Color(s) => pin.color = s,
@@ -230,7 +226,7 @@ impl Timeline {
                 &lib,
                 "timeline_view.put_pin",
                 serde_json::json!({"book":book,"view":view,"pin":pin}),
-                observed,
+                stored,
             )
         });
     }
@@ -285,8 +281,8 @@ impl Timeline {
                         .and_then(|v| v.placements.iter().find(|p| p.entry == drag.entry))
                         .and_then(|p| p.span)
                 });
-            let version = drag.page().book.v3().unwrap().revision.clone();
-            self.place_at(drag.entry.clone(), Some(lane), at, span, version, cx);
+            let guard = drag.page().book.v3().unwrap().guard();
+            self.place_at(drag.entry.clone(), Some(lane), at, span, guard, cx);
         }
     }
     pub(super) fn resize_moved(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
@@ -311,7 +307,7 @@ impl Timeline {
                 None,
                 resize.at,
                 Some((end - resize.at).max(0.25)),
-                resize.version,
+                resize.guard,
                 cx,
             );
         }

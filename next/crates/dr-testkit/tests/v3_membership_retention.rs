@@ -146,6 +146,7 @@ fn guarded_membership_remove_keeps_placement_hidden_by_an_unrelated_trashed_lane
     let observed = ws.observe(&format!("book:{book}")).unwrap();
     let guard = WritePreconditions {
         versions: [(observed.doc, observed.version)].into(),
+        records: Vec::new(),
         require_all: false,
     };
     let removed = ws

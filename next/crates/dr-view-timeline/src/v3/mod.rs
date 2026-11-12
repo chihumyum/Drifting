@@ -15,7 +15,7 @@ use dr_shell::{
     t,
 };
 use dr_ui::input::field::{FieldEvent, TextField};
-use dr_workspace::{Workspace as Library, commands::v3::types::TimelineView};
+use dr_workspace::{Workspace as Library, WritePreconditions, commands::v3::types::TimelineView};
 use gpui::{prelude::*, *};
 use std::{cell::Cell, rc::Rc};
 
@@ -43,7 +43,8 @@ struct Editing {
     id: String,
     kind: EditKind,
     field: Entity<TextField>,
-    version: String,
+    /// The guard of the snapshot this draft was started from.
+    guard: WritePreconditions,
     failed: bool,
     _sub: Subscription,
 }
@@ -302,7 +303,7 @@ impl Timeline {
                     && draft.failed
                     && let Some(book) = t.book.v3()
                 {
-                    draft.version = book.revision.clone();
+                    draft.guard = book.guard();
                     draft.failed = false;
                 }
                 match kind {
@@ -339,11 +340,7 @@ impl Timeline {
             id,
             kind,
             field,
-            version: self
-                .book
-                .v3()
-                .map(|b| b.revision.clone())
-                .unwrap_or_default(),
+            guard: self.book.v3().map(|b| b.guard()).unwrap_or_default(),
             failed: false,
             _sub: sub,
         });

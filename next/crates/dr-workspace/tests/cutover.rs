@@ -104,3 +104,68 @@ fn old_sync_payload_cannot_be_hidden_under_a_new_canonical_genesis() {
     assert!(ws.library().docs(None, None).unwrap().is_empty());
     ws.shutdown().unwrap();
 }
+#[test]
+fn a_marker_change_that_arrives_before_its_dependency_is_refused_with_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
+    let book = ws
+        .call(
+            &Actor::User,
+            "project.create",
+            json!({"name":"Synthetic cutover"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let id = format!("book:{book}");
+    let marker = |ws: &Workspace| ws.observe(&id).unwrap().value["meta"]["v"].clone();
+    // Another device: a harmless write, then one that changes the marker.
+    let other = ws.library().load_copy(&id).unwrap();
+    let start = other.oplog_vv();
+    other
+        .get_map("writing_days")
+        .insert("synthetic-device/2026-12-02", 1)
+        .unwrap();
+    other.commit();
+    let harmless = other.export(loro::ExportMode::updates(&start)).unwrap();
+    let between = other.oplog_vv();
+    other.get_map("meta").insert("v", 2).unwrap();
+    other.commit();
+    let change = other.export(loro::ExportMode::updates(&between)).unwrap();
+    let both = other.export(loro::ExportMode::updates(&start)).unwrap();
+    let import = |ws: &Workspace, bytes: &[u8]| {
+        ws.import_remote(
+            &id,
+            Some(("book", book.as_str())),
+            bytes.to_vec(),
+            &Actor::Sync,
+        )
+    };
+
+    assert!(import(&ws, &both).is_err());
+    assert_eq!(marker(&ws), json!(3));
+    // Alone it cannot apply yet: it waits, and changes nothing.
+    import(&ws, &change).unwrap();
+    assert_eq!(marker(&ws), json!(3));
+    // What it waits for would apply it too.
+    let before = ws.version(&id).unwrap();
+    assert!(import(&ws, &harmless).is_err());
+    assert_eq!(marker(&ws), json!(3));
+    assert_eq!(ws.version(&id).unwrap(), before);
+    ws.shutdown().unwrap();
+
+    // A waiting update is held in memory only: after a restart it has to
+    // come again. Its dependency now lands on its own, and with the
+    // dependency in the book the marker change is refused outright.
+    let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
+    assert_eq!(marker(&ws), json!(3));
+    assert!(import(&ws, &harmless).unwrap());
+    assert_eq!(
+        ws.observe(&id).unwrap().value["writing_days"]["synthetic-device/2026-12-02"],
+        json!(1)
+    );
+    assert!(import(&ws, &change).is_err());
+    assert_eq!(marker(&ws), json!(3));
+    ws.shutdown().unwrap();
+}

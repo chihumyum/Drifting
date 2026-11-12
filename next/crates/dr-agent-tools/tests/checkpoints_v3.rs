@@ -245,6 +245,7 @@ fn checkpoint_receipt_is_exact_and_does_not_rebase_an_intervening_author_write()
     let old = f.ws.observe(&book).unwrap();
     let guards = WritePreconditions {
         versions: [(book.clone(), old.version.clone())].into(),
+        records: Vec::new(),
         require_all: false,
     };
     let receipt =
@@ -274,6 +275,7 @@ fn checkpoint_receipt_is_exact_and_does_not_rebase_an_intervening_author_write()
             json!({"book":f.book,"id":f.entry,"title":"Must conflict"}),
             WritePreconditions {
                 versions,
+                records: Vec::new(),
                 require_all: true
             }
         )

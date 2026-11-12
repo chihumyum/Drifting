@@ -215,7 +215,7 @@ impl StructureContext {
     ) -> Result<Option<Self>> {
         let book_doc = format!("book:{book}");
         for _ in 0..3 {
-            let before = ws.observe(&book_doc)?;
+            let before = ws.version(&book_doc)?;
             let copy = ws.library().load_copy(&book_doc)?;
             if !is_v3_doc(&copy) {
                 return Ok(None);
@@ -226,9 +226,8 @@ impl StructureContext {
             if view.trashed_at().is_some() {
                 return Err(Error::Invalid("book is unavailable".into()));
             }
-            let built = Self::from_v3_view(Some(ws.library()), &view, &before.version, focus)?;
-            let after = ws.observe(&book_doc)?;
-            if before.version == after.version {
+            let built = Self::from_v3_view(Some(ws.library()), &view, &before, focus)?;
+            if before == ws.version(&book_doc)? {
                 return Ok(Some(built));
             }
         }

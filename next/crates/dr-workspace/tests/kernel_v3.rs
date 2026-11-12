@@ -1147,3 +1147,130 @@ fn v3_template_module_links_survive_copy_edit_history_and_other_book_is_untouche
         other_text.value
     );
 }
+
+/// A field edit reads and writes inside one job: what it does not name keeps
+/// whatever is stored, a record that is gone is not made, and one undo step
+/// is one field.
+#[test]
+fn v3_field_edits_write_only_what_they_name() {
+    let e = env();
+    let b = project(&e);
+    let ms = root(&e, &b, "tpl-manuscript");
+    for (id, kind) in [("edit-patches", "patches"), ("edit-kv", "kv")] {
+        e.call(
+            "entry_template.put_module",
+            json!({"book":b,"template":"tpl-chapter","module":{"id":id,"kind":kind,"name":id}}),
+        );
+    }
+    let a = create(&e, &b, &ms, "A", "tpl-chapter");
+    let patches = |extra: Value| {
+        let mut input = json!({"book":b,"entry":a,"module":"edit-patches"});
+        input
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        input
+    };
+    let patch = e.out(
+        "module.put_patch",
+        patches(json!({"title":"Synthetic title","body":"Synthetic body"})),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let stored = || e.out("module.read", patches(json!({})))["patches"][0].clone();
+
+    let edited = e.out(
+        "module.edit_patch",
+        patches(json!({"id":patch,"title":"Edited title"})),
+    );
+    assert_eq!(edited["title"], "Edited title");
+    assert_eq!(edited["body"], "Synthetic body");
+    e.call(
+        "module.edit_patch",
+        patches(json!({"id":patch,"body":"Edited body"})),
+    );
+    assert_eq!(stored()["title"], "Edited title");
+    assert_eq!(stored()["body"], "Edited body");
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert_eq!(stored()["title"], "Edited title");
+    assert_eq!(stored()["body"], "Synthetic body");
+    e.call(
+        "module.edit_patch",
+        patches(json!({"id":patch,"title":null})),
+    );
+    assert!(stored()["title"].is_null());
+
+    // Nothing named, a patch that is not there, another module's kind:
+    // nothing is written.
+    let at = version(&e, &b);
+    e.call("module.edit_patch", patches(json!({"id":patch})));
+    assert_eq!(
+        e.try_call(
+            "module.edit_patch",
+            patches(json!({"id":"synthetic-missing","title":"Synthetic"}))
+        )
+        .unwrap_err()
+        .code(),
+        "not_found"
+    );
+    assert!(
+        e.try_call(
+            "module.edit_patch",
+            json!({"book":b,"entry":a,"module":"edit-kv","id":patch,"title":"Synthetic"})
+        )
+        .is_err()
+    );
+    assert_eq!(at, version(&e, &b));
+    assert_eq!(
+        e.out("module.read", patches(json!({})))["patches"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let kv = |extra: Value| {
+        let mut input = json!({"book":b,"entry":a,"module":"edit-kv"});
+        input
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        input
+    };
+    e.call(
+        "module.put_kv",
+        kv(json!({"row":{"id":"row","key":"Synthetic key","value":"Synthetic value","pos":"a1"}})),
+    );
+    let row = || e.out("module.read", kv(json!({})))["kv"][0].clone();
+    let edited = e.out(
+        "module.edit_kv",
+        kv(json!({"row":"row","value":"Edited value"})),
+    );
+    assert_eq!(
+        edited,
+        json!({"id":"row","key":"Synthetic key","value":"Edited value","pos":"a1"})
+    );
+    e.call(
+        "module.edit_kv",
+        kv(json!({"row":"row","key":"Edited key"})),
+    );
+    assert_eq!(
+        row(),
+        json!({"id":"row","key":"Edited key","value":"Edited value","pos":"a1"})
+    );
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert_eq!(row()["key"], "Synthetic key");
+    assert_eq!(row()["value"], "Edited value");
+    let at = version(&e, &b);
+    assert_eq!(
+        e.try_call(
+            "module.edit_kv",
+            kv(json!({"row":"synthetic-missing","key":"Synthetic"}))
+        )
+        .unwrap_err()
+        .code(),
+        "not_found"
+    );
+    assert_eq!(at, version(&e, &b));
+}

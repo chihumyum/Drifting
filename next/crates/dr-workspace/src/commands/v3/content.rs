@@ -6,6 +6,7 @@ use dr_model::shared::{EntityRef, PLOT_CELL_H, PLOT_CELL_W, PlotLine};
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<PatchPut>()
+        .add::<PatchEdit>()
         .add::<PatchRemove>()
         .add::<GridPut>()
         .add::<RelationPut>()
@@ -196,7 +197,17 @@ fn put_patch(cx: &Cx<'_>, input: PatchIn) -> Result<Done> {
     }
     let pos: Option<PosKey> = input.pos.as_deref().map(convert).transpose()?;
     let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    // A patch the caller names has its text replaced; its source reference is
+    // not touched. A patch created here has a fresh id and replaces nothing.
+    let replaced = input.id.is_some().then(|| {
+        ["title", "body"]
+            .into_iter()
+            .chain(pos.is_some().then_some("pos"))
+            .map(|field| rec(CollectionV3::Patches, &id).at([field]))
+            .collect::<Vec<_>>()
+    });
+    let replaced = Replaces::records(replaced.into_iter().flatten());
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         let w = t.patch(&saved)?;
         w.entry(&e.id)?
             .module(&m.id)?
@@ -210,6 +221,69 @@ fn put_patch(cx: &Cx<'_>, input: PatchIn) -> Result<Done> {
     undo(cx, &s, &at, vec![key("patches", &id)]);
     cx.effect(EffectAction::Updated, "patch", id.as_str(), None);
     Ok(Done { id: id.to_string() })
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PatchEditIn {
+    #[serde(flatten)]
+    pub target: module::In,
+    pub id: String,
+    /// Omit to leave the title as it is; `null` clears it.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
+    pub title: Option<Option<String>>,
+    /// Omit to leave the body as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+}
+op! {
+    PatchEdit="module.edit_patch",Write,Book,"Change the title or the body of one v3 patch record, leaving what is not named as it is.",fn(cx,input:PatchEditIn)->Patch {
+        edit_patch(cx, input)
+    }
+}
+fn edit_patch(cx: &Cx<'_>, input: PatchEditIn) -> Result<Patch> {
+    let (s, e, m) = selected(cx, &input.target, m::ModuleKind::Patches)?;
+    let id: PatchId = pid("patch", &input.id)?;
+    let named = [
+        ("title", input.title.is_some()),
+        ("body", input.body.is_some()),
+    ];
+    let replaced = Replaces::records(
+        named
+            .iter()
+            .filter(|(_, named)| *named)
+            .map(|(field, _)| rec(CollectionV3::Patches, &id).at([*field])),
+    );
+    let saved = id.clone();
+    let (patch, at) = cx.write_book_v3(&s, replaced, move |t| {
+        // Read and written in one job: what is not named keeps whatever it
+        // holds now, and a patch removed meanwhile is not brought back empty.
+        let stored = |t: &dr_doc::v3::BookTxnV3<'_>| {
+            t.view()
+                .patches_of(&e.id, &m.id)
+                .into_iter()
+                .find(|p| p.id == saved)
+                .ok_or_else(|| WsError::not_found("patch", saved.as_str()))
+        };
+        stored(t)?;
+        let w = t.patch(&saved)?;
+        if let Some(title) = &input.title {
+            w.title(title.as_deref())?;
+        }
+        if let Some(body) = &input.body {
+            w.body(body)?;
+        }
+        stored(t)
+    })?;
+    if named.iter().any(|(_, named)| *named) {
+        undo(cx, &s, &at, vec![key("patches", &id)]);
+        cx.effect(EffectAction::Updated, "patch", id.as_str(), None);
+    } else {
+        cx.undo_nothing();
+    }
+    convert(patch)
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct RecordIn {
@@ -230,7 +304,8 @@ op! {
             return Err(WsError::not_found("patch", &input.id));
         }
         let id = input.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let removed = Replaces::record(CollectionV3::Patches, &id);
+        let (_, at) = cx.write_book_v3(&s, removed, move |t| {
             t.purge(CollectionV3::Patches, &id)?;
             Ok(())
         })?;
@@ -287,7 +362,8 @@ fn put_grid(cx: &Cx<'_>, input: GridIn) -> Result<Done> {
     }
     let old = s.reader_v3.view().plot_grid(&e.id, &m.id);
     let id = m::PlotGridV3::key(&e.id, &m.id);
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let replaced = Replaces::record(CollectionV3::PlotGrids, &id);
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         let w = t.plot_grid(&e.id, &m.id)?;
         if let Some(old) = old {
             for r in old.rows {
@@ -391,7 +467,8 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
     let st = templates(&d.source_templates)?;
     let tt = templates(&d.target_templates)?;
     let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let replaced = Replaces::record(CollectionV3::RelationTypes, &id);
+    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
         t.relation_type(&saved)?
             .name(&d.name)?
             .description(&d.description)?
@@ -424,7 +501,8 @@ op! {
             return Err(WsError::invalid("relation type is locked or in use"));
         }
         let saved = id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let removed = Replaces::record(CollectionV3::RelationTypes, &id);
+        let (_, at) = cx.write_book_v3(&s, removed, move |t| {
             Ok(t.purge(CollectionV3::RelationTypes, saved.as_str())?)
         })?;
         undo(cx, &s, &at, vec![key("relation_types", &id)]);
@@ -496,7 +574,7 @@ fn put_relation(cx: &Cx<'_>, input: RelationIn) -> Result<Done> {
     }
     let id = RelationId::new_v7();
     let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, move |t| {
+    let (_, at) = cx.write_book_v3(&s, Replaces::nothing(), move |t| {
         t.relation(&saved)?
             .ends(&from, &to)?
             .relation_type(&ty.id)?
@@ -524,7 +602,8 @@ op! {
             return Err(WsError::not_found("relation", &input.id));
         }
         let id = input.id.clone();
-        let (_, at) = cx.write_book_v3(&s, move |t| Ok(t.purge(CollectionV3::Relations, &id)?))?;
+        let removed = Replaces::record(CollectionV3::Relations, &id);
+        let (_, at) = cx.write_book_v3(&s, removed, move |t| Ok(t.purge(CollectionV3::Relations, &id)?))?;
         undo(cx, &s, &at, vec![key("relations", &input.id)]);
         cx.effect(EffectAction::Purged, "relation", &input.id, None);
         Ok(Done { id: input.id })

@@ -49,7 +49,7 @@ pub enum Concurrency {
 
 /// A command or query, statically typed.
 pub trait Op: 'static {
-    /// Dotted lower-case name, e.g. `chapter.create`.
+    /// Dotted lower-case name, e.g. `entry.create`.
     /// Required book schema version; None denotes the existing common/v2.2 surface.
     const BOOK_VERSION: Option<i64> = None;
     const NAME: &'static str;

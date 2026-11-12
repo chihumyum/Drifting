@@ -8528,6 +8528,200 @@ expression: json
     "summary": "Change a Project Memory entry's text, kind or status."
   },
   {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "key": {
+          "description": "Omit to leave the key as it is.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "module": {
+          "type": "string"
+        },
+        "row": {
+          "type": "string"
+        },
+        "value": {
+          "description": "Omit to leave the value as it is.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "row"
+      ],
+      "title": "KvEditIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.edit_kv",
+    "output": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "pos": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "value",
+        "pos"
+      ],
+      "title": "KvEntry",
+      "type": "object"
+    },
+    "summary": "Change the key or the value of one key/value row of a v3 module, leaving what is not named as it is."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "body": {
+          "description": "Omit to leave the body as it is.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "title": {
+          "description": "Omit to leave the title as it is; `null` clears it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "id"
+      ],
+      "title": "PatchEditIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.edit_patch",
+    "output": {
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "invalidated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "module": {
+          "type": "string"
+        },
+        "pos": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_block": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_entry": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_module": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "entry",
+        "module",
+        "source_entry",
+        "source_module",
+        "source_block",
+        "source_text",
+        "title",
+        "body",
+        "pos",
+        "invalidated_at"
+      ],
+      "title": "Patch",
+      "type": "object"
+    },
+    "summary": "Change the title or the body of one v3 patch record, leaving what is not named as it is."
+  },
+  {
     "access": "read",
     "book_version": 3,
     "concurrency": "shared",

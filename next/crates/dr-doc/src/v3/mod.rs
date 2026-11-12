@@ -7,6 +7,7 @@
 pub mod novel;
 mod raw;
 pub mod read;
+mod record;
 mod structure;
 pub mod write;
 
@@ -36,6 +37,7 @@ pub use novel::{
 };
 pub use raw::raw_document_state;
 pub use read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
+pub use record::{RecordKeyV3, RecordReaderV3, RecordStateV3};
 pub use structure::BookStructureV3;
 pub use write::BookTxnV3;
 

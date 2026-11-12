@@ -605,11 +605,7 @@ impl Catalog {
 }
 
 pub fn is_v3_book(ws: &Workspace, book: &BookId) -> crate::Result<bool> {
-    let doc = ws
-        .library()
-        .load_copy(&format!("book:{book}"))
-        .map_err(dr_workspace::WsError::from)?;
-    Ok(is_v3_doc(&doc))
+    Ok(ws.is_v3_book(book)?)
 }
 
 fn build_v3_actions(
@@ -934,6 +930,9 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     }
     if spec.name == "timeline_view.restore_fields" {
         return Some("scoped timeline undo is internal until K6 provides a guarded facade");
+    }
+    if matches!(spec.name, "module.edit_patch" | "module.edit_kv") {
+        return Some("field edits belong to a view that showed the field; use the record commands");
     }
     if spec.name == "membership.restore" {
         return Some("scoped membership undo is internal until K6 provides a guarded facade");

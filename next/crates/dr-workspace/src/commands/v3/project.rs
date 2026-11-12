@@ -65,7 +65,8 @@ op! {
         };
         let entry = KvEntry { id: id.clone(), key: input.key.trim().to_string(), value: input.value.clone(), pos };
         let e2 = entry.clone();
-        let (_,at)=cx.write_book_v3(&slot, move |txn| { txn.put_fact(&e2)?; Ok(()) })?;
+        let replaced = Replaces::records(existing.iter().map(|f| rec(CollectionV3::Facts, &f.id)));
+        let (_,at)=cx.write_book_v3(&slot, replaced, move |txn| { txn.put_fact(&e2)?; Ok(()) })?;
         undo(cx,&slot,&at,vec![key("facts",&id)]);
         match existing {
             Some(_) => {
@@ -89,7 +90,7 @@ op! {
         let old = slot.reader_v3.view().facts().iter().find(|f| f.id.as_str() == input.id).cloned()
             .ok_or_else(|| WsError::not_found("fact", &input.id))?;
         let id = old.id.clone();
-        let (_,at)=cx.write_book_v3(&slot, move |txn| { txn.remove_fact(&id)?; Ok(()) })?;
+        let (_,at)=cx.write_book_v3(&slot, Replaces::record(CollectionV3::Facts, &id), move |txn| { txn.remove_fact(&id)?; Ok(()) })?;
         undo(cx,&slot,&at,vec![key("facts",&input.id)]);
         cx.effect(EffectAction::Purged, "fact", &input.id, Some(&old.key));
 
@@ -155,7 +156,7 @@ op! {
         let id = MemoryId::new_v7();
         let source = if matches!(cx.actor(), crate::Actor::Agent { .. }) { MemorySource::Agent } else { MemorySource::Author };
         let (i2, body) = (id.clone(), input.body.clone());
-        let (_,at)=cx.write_book_v3(&slot, move |txn| {
+        let (_,at)=cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             txn.memory(&i2)?.kind(&kind)?.body(&body)?.target(target.as_ref())?
                 .target_block(block.as_ref())?.source(&source)?.status(&MemoryStatus::Active)?;
             Ok(())
@@ -194,7 +195,7 @@ op! {
             return Err(WsError::invalid(format!("unknown memory status {:?}", s.as_str())));
         }
         let (id, body) = (old.id.clone(), input.body.clone());
-        let (_,at)=cx.write_book_v3(&slot, move |txn| {
+        let (_,at)=cx.write_book_v3(&slot, Replaces::record(CollectionV3::Memory, &id), move |txn| {
             let w = txn.memory(&id)?;
             if let Some(b) = &body { w.body(b)?; }
             if let Some(k) = &kind { w.kind(k)?; }
@@ -219,7 +220,8 @@ fn memory_removed(cx: &Cx<'_>, input: &EntityIn, removed: bool) -> Result<Done> 
         .map(|m| m.id.clone())
         .ok_or_else(|| WsError::not_found("memory", &input.id))?;
     let at = removed.then(now);
-    let (_, at) = cx.write_book_v3(&slot, move |txn| {
+    let flag = rec(CollectionV3::Memory, &id).at(["deleted_at"]);
+    let (_, at) = cx.write_book_v3(&slot, Replaces::records([flag]), move |txn| {
         txn.memory(&id)?.deleted_at(at)?;
         Ok(())
     })?;

@@ -74,7 +74,16 @@ op! {
             word_target: change.word_target.map(|_| m.word_target_set),
             daily_word_target: change.daily_word_target.map(|_| m.daily_word_target_set),
         };
-        cx.write_book_v3(&slot, move |txn| {
+        let replaced = [
+            ("name", change.name.is_some()),
+            ("summary", change.summary.is_some()),
+            ("word_target", change.word_target.is_some()),
+            ("daily_word_target", change.daily_word_target.is_some()),
+        ]
+        .into_iter()
+        .filter(|(_, set)| *set)
+        .map(|(field, _)| rec(CollectionV3::Meta, field));
+        cx.write_book_v3(&slot, Replaces::records(replaced), move |txn| {
             let w = txn.meta();
             if let Some(n) = &change.name { w.name(n)?; }
             if let Some(s) = &change.summary { w.summary(s)?; }

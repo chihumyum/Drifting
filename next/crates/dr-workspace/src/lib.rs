@@ -55,7 +55,10 @@ pub use error::{Result, WsError};
 pub use events::{
     BookChanged, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription, WsEvent,
 };
-pub use guard::{Observation, WritePreconditions};
+pub use guard::{
+    Expected, Observation, RecordKey, RecordObservation, RecordPrecondition, WritePreconditions,
+    observe_records_in,
+};
 pub use holder::COMMAND_ORIGIN;
 pub use nav::NavTarget;
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
