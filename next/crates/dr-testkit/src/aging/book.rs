@@ -550,7 +550,7 @@ impl World {
                 self.stats.entries_created += 1;
                 self.commit(doc, device, ts, Kind::Structure, |t| {
                     t.entries()
-                        .create(&id, Some(&parent), &title, Some(&tid(TPL_IDEA)))?
+                        .create(&id, Some(&parent), &title, Some(&tid(TPL_IDEA)), false)?
                         .created_at(Some(Timestamp(ts)))?
                         .board_pos(Some(at))?;
                     Ok(())

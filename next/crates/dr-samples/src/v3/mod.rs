@@ -74,11 +74,12 @@ pub fn map_ref(r: &EntityRef) -> EntityRef {
 }
 
 /// Default v3 prose module implied by a legacy entity kind when addressing its
-/// prose body (`Node` / `Element` -> `mod-prose`, `Category` / `Storyline` -> `about`).
+/// prose body (`Node` / `Element` -> `mod-prose`, `Category` / `Storyline` ->
+/// `mod-description`, the 「说明」 of their templates).
 pub fn default_link_module(kind: &EntityKind) -> Option<ModuleId> {
     match kind {
         EntityKind::Node | EntityKind::Element => Some(mid(MOD_PROSE)),
-        EntityKind::Storyline | EntityKind::Category => Some(mid(MOD_ABOUT)),
+        EntityKind::Storyline | EntityKind::Category => Some(mid(MOD_DESCRIPTION)),
         _ => None,
     }
 }
@@ -130,8 +131,8 @@ pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
     match old {
         DocId::Node(id) => body_id(id.as_str(), MOD_PROSE),
         DocId::Element(id) => body_id(id.as_str(), MOD_PROSE),
-        DocId::Category(id) => body_id(id.as_str(), MOD_ABOUT),
-        DocId::Storyline(id) => body_id(id.as_str(), MOD_ABOUT),
+        DocId::Category(id) => body_id(id.as_str(), MOD_DESCRIPTION),
+        DocId::Storyline(id) => body_id(id.as_str(), MOD_DESCRIPTION),
         DocId::Template(id) => match TemplateOwner::of(id) {
             Some(TemplateOwner::Category(id)) => DocId::Template(TemplateId::for_entry_module(
                 book,

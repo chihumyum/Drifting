@@ -2,7 +2,7 @@
 //!
 //! Mirrors the four v2.2 presets (`tiny` / `lite` / `heavy` / `showcase`) at
 //! the exact same corpus scale and fingerprint while storing books in the v3
-//! schema (`BookDocV3` + `body:<entry_id>/<module_id>` / `body:<entry_id>/about`
+//! schema (`BookDocV3` + `body:<entry_id>/<module_id>` / `body:<entry_id>/mod-description`
 //! / `material:<id>` prose documents).
 
 use std::collections::{BTreeMap, HashMap};
@@ -13,7 +13,7 @@ use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_doc::side::{CheckpointsDoc, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
-    MOD_ABOUT, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
+    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
     NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_CATEGORY,
     TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA, TPL_IDEA_GROUP, TPL_IDEAS,
     TPL_MANUSCRIPT, TPL_STORYLINE, TPL_STORYLINES, novel_project_templates,
@@ -78,7 +78,7 @@ fn map_entity_ref_v3(r: &EntityRef) -> EntityRef {
 /// two documents beside it.
 pub struct SeededBookV3 {
     pub book: BookDocV3,
-    /// Every prose document (`body:<entry>/<module>`, `body:<entry>/about`,
+    /// Every prose document (`body:<entry>/<module>`, `body:<entry>/mod-description` (the 「说明」),
     /// `material:<id>`), in creation order.
     pub prose: Vec<ProseDoc>,
     /// `stats:<book>`: the writing days.
@@ -348,14 +348,24 @@ fn init_novel_roots(txn: &mut BookTxnV3<'_>, ids: &NovelRootEntries) -> Result<(
         }
         txn.template(&tpl.id)?.set_full(&tpl)?;
     }
+    txn.entries().create(
+        &ids.manuscript,
+        None,
+        "书稿",
+        Some(&tid(TPL_MANUSCRIPT)),
+        true,
+    )?;
     txn.entries()
-        .create(&ids.manuscript, None, "书稿", Some(&tid(TPL_MANUSCRIPT)))?;
+        .create(&ids.ideas, None, "构想", Some(&tid(TPL_IDEAS)), true)?;
     txn.entries()
-        .create(&ids.ideas, None, "构想", Some(&tid(TPL_IDEAS)))?;
-    txn.entries()
-        .create(&ids.elements, None, "要素", Some(&tid(TPL_ELEMENTS)))?;
-    txn.entries()
-        .create(&ids.storylines, None, "故事线", Some(&tid(TPL_STORYLINES)))?;
+        .create(&ids.elements, None, "要素", Some(&tid(TPL_ELEMENTS)), true)?;
+    txn.entries().create(
+        &ids.storylines,
+        None,
+        "故事线",
+        Some(&tid(TPL_STORYLINES)),
+        true,
+    )?;
     txn.timeline_view(&ids.narrative_view)?
         .name("叙事时间线")?
         .pos(Some(&PosKey::first()))?;
@@ -392,6 +402,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                     Some(&roots.storylines),
                     &s.name,
                     Some(&tid(TPL_STORYLINE)),
+                    true,
                 )?
                 .set_field(&fmod, "color", Some(&FieldValue::Text(s.color.clone())))?
                 .set_field(&fmod, "summary", Some(&FieldValue::Text(s.summary.clone())))?;
@@ -406,15 +417,20 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                     Some(&roots.elements),
                     &c.name,
                     Some(&tid(TPL_CATEGORY)),
+                    true,
                 )?
                 .set_field(&fmod, "color", Some(&FieldValue::Text(c.color.clone())))?;
         }
         for (i, e) in p.elements.iter().enumerate() {
             let cat_id = eid(p.categories[e.category].0.as_str());
             let entry_id = eid(e.id.as_str());
-            let w =
-                t.entries()
-                    .create(&entry_id, Some(&cat_id), &e.name, Some(&tid(TPL_CHARACTER)))?;
+            let w = t.entries().create(
+                &entry_id,
+                Some(&cat_id),
+                &e.name,
+                Some(&tid(TPL_CHARACTER)),
+                false,
+            )?;
             w.created_at(Some(Timestamp(T0 + i as i64)))?.set_field(
                 &fmod,
                 "summary",
@@ -449,7 +465,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     for (id, s) in &p.storylines {
         b.prose(
             "storylines",
-            body_doc_id(id.as_str(), MOD_ABOUT),
+            body_doc_id(id.as_str(), MOD_DESCRIPTION),
             &s.body,
             &[],
         )?;
@@ -457,7 +473,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     for (id, c) in &p.categories {
         b.prose(
             "categories",
-            body_doc_id(id.as_str(), MOD_ABOUT),
+            body_doc_id(id.as_str(), MOD_DESCRIPTION),
             &c.body,
             &[],
         )?;
@@ -499,6 +515,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 Some(&roots.manuscript),
                 name,
                 Some(&tid(TPL_GROUP)),
+                true,
             )?;
         }
         for (i, c) in p.chapters.iter().enumerate() {
@@ -521,6 +538,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                     Some(&parent_id),
                     &c.title,
                     Some(&tid(TPL_CHAPTER)),
+                    false,
                 )?;
                 w.created_at(Some(Timestamp(T0 + i as i64)))?
                     .primary(primary_sl.as_ref())?
@@ -575,6 +593,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 Some(&roots.ideas),
                 name,
                 Some(&tid(TPL_IDEA_GROUP)),
+                true,
             )?;
         }
         for (i, idea) in p.ideas.iter().enumerate() {
@@ -588,6 +607,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 Some(&parent_id),
                 &idea.title,
                 Some(&tid(TPL_IDEA)),
+                false,
             )?;
             w.created_at(Some(Timestamp(T0 + i as i64)))?
                 .set_field(
@@ -755,6 +775,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 Some(&roots.storylines),
                 &s.name,
                 Some(&tid(TPL_STORYLINE)),
+                true,
             )?;
             w.set_field(&fmod, "color", Some(&FieldValue::Text(s.color.clone())))?
                 .set_field(&fmod, "summary", Some(&FieldValue::Text(s.summary.clone())))?;
@@ -774,6 +795,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     Some(&roots.elements),
                     &c.name,
                     Some(&tid(TPL_CATEGORY)),
+                    true,
                 )?
                 .set_field(&fmod, "color", Some(&FieldValue::Text(c.color.clone())))?;
         }
@@ -790,6 +812,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 Some(&parent_id),
                 &e.name,
                 Some(&tid(TPL_CHARACTER)),
+                false,
             )?;
             w.created_at(e.created_at)?.set_field(
                 &fmod,
@@ -821,6 +844,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 Some(&roots.manuscript),
                 &a.name,
                 Some(&tid(TPL_GROUP)),
+                true,
             )?;
         }
         for c in &chapters {
@@ -854,6 +878,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     Some(&parent_id),
                     &c.title,
                     Some(&tid(TPL_CHAPTER)),
+                    false,
                 )?;
                 w.created_at(c.created_at)?
                     .primary(primary_host.as_ref())?
@@ -917,6 +942,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 Some(&parent_id),
                 &g.name,
                 Some(&tid(TPL_IDEA_GROUP)),
+                true,
             )?;
         }
         for d in &drifts {
@@ -926,9 +952,13 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .map(|g| eid(g.as_str()))
                 .unwrap_or_else(|| roots.ideas.clone());
             let idea_id = eid(d.id.as_str());
-            let w =
-                t.entries()
-                    .create(&idea_id, Some(&parent_id), &d.title, Some(&tid(TPL_IDEA)))?;
+            let w = t.entries().create(
+                &idea_id,
+                Some(&parent_id),
+                &d.title,
+                Some(&tid(TPL_IDEA)),
+                false,
+            )?;
             w.created_at(d.created_at)?
                 .set_field(&fmod, "summary", Some(&FieldValue::Text(d.summary.clone())))?
                 .set_field(
@@ -1016,8 +1046,8 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
     let mut chapter_prose_by_id: HashMap<String, usize> = HashMap::new();
     for p in &src.prose {
         let new_id = match p.doc_id() {
-            DocId::Storyline(id) => body_doc_id(id.as_str(), MOD_ABOUT),
-            DocId::Category(id) => body_doc_id(id.as_str(), MOD_ABOUT),
+            DocId::Storyline(id) => body_doc_id(id.as_str(), MOD_DESCRIPTION),
+            DocId::Category(id) => body_doc_id(id.as_str(), MOD_DESCRIPTION),
             DocId::Element(id) => body_doc_id(id.as_str(), MOD_PROSE),
             DocId::Node(id) => body_doc_id(id.as_str(), MOD_PROSE),
             DocId::Material(id) => DocId::Material(id.clone()),
@@ -1280,7 +1310,7 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
                 s.title,
                 color,
                 summary,
-                prose(body_doc_id(s.id.as_str(), MOD_ABOUT))?
+                prose(body_doc_id(s.id.as_str(), MOD_DESCRIPTION))?
             ]))
         })
         .collect::<std::result::Result<_, String>>()?;
@@ -1293,7 +1323,7 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             Ok(json!([
                 c.title,
                 color,
-                prose(body_doc_id(c.id.as_str(), MOD_ABOUT))?
+                prose(body_doc_id(c.id.as_str(), MOD_DESCRIPTION))?
             ]))
         })
         .collect::<std::result::Result<_, String>>()?;
