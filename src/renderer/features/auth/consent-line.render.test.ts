@@ -21,27 +21,21 @@ vi.mock('../../platform', () => ({ platform: { material: { openExternal: vi.fn()
 
 import { ConsentLine } from './ConsentLine';
 
-describe('what signing in agrees to', () => {
+describe('what going on from the first-run welcome agrees to', () => {
   it.each(SUPPORTED_LOCALES)('is one line whose terms are the words a hover card hangs on (%s)', (locale) => {
     language.legal = catalog(locale).auth.legal;
     const { consent, consentTerms } = language.legal;
     const [before, after] = consent!.split('{{terms}}');
     const html = renderToStaticMarkup(createElement(ConsentLine));
 
-    expect(Object.keys(language.legal).sort()).toEqual(['consent', 'consentTerms', 'privacy', 'terms']);
+    // The sign-up form's own sentence keeps its words beside the welcome line's.
+    expect(Object.keys(language.legal).sort()).toEqual(['agree', 'and', 'consent', 'consentTerms', 'privacy', 'terms', 'termsUnavailable']);
     // The sentence is the translation's, with the button exactly where it names the terms.
     expect(html).toBe(
-      `<p class="auth-flow__legal">${before}<button type="button" class="auth-flow__consent" aria-expanded="false">${consentTerms}</button>${after}</p>`,
+      `<p class="first-run-welcome__note">${before}<button type="button" class="first-run-welcome__terms" aria-expanded="false">${consentTerms}</button>${after}</p>`,
     );
     // The line stays short; the items are not in it until the card opens.
     expect(html).not.toContain('preAlphaGuide.crashReports');
     expect(html).not.toContain('hover-card');
-  });
-
-  it('takes the place it is put in: the last line of the first-run welcome', () => {
-    language.legal = catalog('zh-CN').auth.legal;
-    expect(renderToStaticMarkup(createElement(ConsentLine, { className: 'first-run-welcome__note' }))).toBe(
-      '<p class="first-run-welcome__note">继续即视为同意<button type="button" class="auth-flow__consent" aria-expanded="false">相关条款</button></p>',
-    );
   });
 });

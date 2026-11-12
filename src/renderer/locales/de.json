@@ -1737,10 +1737,13 @@
       "or": "oder"
     },
     "legal": {
-      "consent": "Wenn du fortfährst, akzeptierst du {{terms}}.",
-      "consentTerms": "die Bedingungen",
+      "agree": "Mit der Registrierung akzeptierst du die",
       "terms": "Nutzungsbedingungen",
-      "privacy": "Datenschutzerklärung"
+      "termsUnavailable": "Der Betreiber hat keine Nutzungsbedingungen hinterlegt.",
+      "and": "und",
+      "privacy": "Datenschutzerklärung",
+      "consent": "Wenn du fortfährst, akzeptierst du {{terms}}.",
+      "consentTerms": "die Bedingungen"
     },
     "forgot": {
       "sub": "Gib deine Konto-E-Mail ein, um einen Code zu erhalten.",
