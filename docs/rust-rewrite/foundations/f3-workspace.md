@@ -347,7 +347,8 @@ ws.call(&Actor::User, "history.undo_agent", json!({"session": "会话", "turn": 
 let s = ws.prose_session("node:<id>")?; s.edit(|t| ..)?; s.undo()?;          // 编辑器层（给 F4）
 
 // 事件
-let _sub = ws.subscribe(|e: &WsEvent| ..);  // Book { book, changes: [{collection, id, fields}] } |
+let _sub = ws.subscribe(|e: &WsEvent| ..);  // Book { book, changes: [{collection, id, fields}],
+                                             //        touched: { content, writing_days, checkpoints } } |
                                              // Removed { book, entities: [{target, purged}] } |
                                              // Prose { doc, ranges, blocks } | Local(本机表)
 // 外壳
@@ -476,6 +477,13 @@ quit::before_quit(cx, move |_| {
 
 - 唯一的来源是 F2 的库总线：每篇打开文档已经落盘的变化，加上本机表的变化（F2 自己的资源、结算、派生索引、同步状态，以及工作区的日志）。
 - 书目文档的变化换算成 `EntityChange { collection, id, fields }`：哪个集合、哪个实体、改了哪些字段（新建或删除的实体 `fields` 为空）。规则和 dr-doc 的 `BookEvent` 一样（路径第一层是集合，第二层是实体）。
+- **`Book` 事件还说明这次变化碰了书目的哪一部分**（2026-11-12）：`BookChanged.touched` 有三个布尔值，`content`（书的内容）、`writing_days`（写作日）、`checkpoints`（条目快照点清单）。
+  - 为什么：写作日每分钟往书目文档提交一次，每存一个快照点也提交一次，它们不改书的内容；以前每一次都让外壳重读整本书、每个打开的编辑器重读名字。现在只关心内容的监听者看 `touched.content`，其余的放过去。
+  - 怎么分：看每个被改的容器挂在哪个根下面。只有名字正好是 `writing_days`、`entry_checkpoints` 的映射根不算内容；其余一律算内容，包括这个版本不认识的根、根读不出来的容器、一个容器都没点名的变化。一次变化可以同时碰几部分（另一台设备的一批提交）。本机的提交和同步进来的分法一样。
+  - 不要用 `changes` 为空来猜：清单的根不在 `CollectionV3` 里，只写清单的提交 `changes` 是空的，但别的换算不出实体的变化也可能是空的。
+  - 谁听什么：外壳的整本重读、编辑器的名字和链接目标、搜索、审阅、情节格、素材的关联、Agent 的两个记忆面板只在 `content` 时动；统计标签、书架、作品主页在 `content` 或 `writing_days` 时动；没有人为 `checkpoints` 动（历史对话框不订阅事件）。
+  - 书目文档的格式、命令、存储都没变，书目的版本照旧被每次提交推进：按整篇版本做的守卫和缓存（链接名字的按书缓存、带整本版本的受守卫调用）照旧看得见这些提交。
+- 派生索引的事件（`Local`，表 `index`）用 `dr_workspace::is_text_index` 判断是不是「一篇有正文的文档的索引写好了」。书目文档、模板文档、对话文档在索引里也各有一行，永远是空的，每次提交之后重写一遍；听字数和搜索结果的地方（统计标签、书架、作品主页、搜索）不为它动。存储层照旧写、照旧发。
 - 紧跟着同一次变化，如果有东西进了废纸篓或者被彻底删掉（章节、构想、故事线、要素、分类、素材、整本书），再发一条 `Removed`，带上外壳能用的 `NavTarget`。恢复和新建不发。
 - 正文的变化给出改后的字符范围（插入覆盖新字，删除是一个点）。工作区开着这篇文档时，再换算成被碰到的段落块 ID。
 - 模板文档（`template:` 开头）的一次提交让它从空的变成有字、或者反过来时，紧跟着这篇正文的事件再发一条 `Book`，点名它的主人（故事线的 `chapter_template`、分类的 `element_template`），因为列表里的 `has_chapter_template` / `has_element_template` 变了（第九轮）。
