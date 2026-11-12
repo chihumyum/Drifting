@@ -700,10 +700,7 @@ fn v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions() {
         matches!(&stale_err, Error::Invalid(msg) if msg.contains("tool definition changed")),
         "expected a stale revision, got: {stale_err:?}"
     );
-    assert_eq!(
-        f.ws.observe(&before.doc).unwrap().version,
-        before.version
-    );
+    assert_eq!(f.ws.observe(&before.doc).unwrap().version, before.version);
 }
 
 #[test]
