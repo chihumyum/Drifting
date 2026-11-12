@@ -131,7 +131,7 @@
     "add_action": "Ajouter une action",
     "add_field": "Ajouter un champ",
     "add_module": "Ajouter un module",
-    "agent_preview": "Ce que voit l’assistant",
+    "agent_preview": "Ce que voit l’Agent",
     "aliases": "Alias",
     "all_templates": "Tout modèle",
     "allow": "Modèles autorisés",
@@ -147,7 +147,7 @@
     "entity_ref": "Référence à une entrée",
     "field_name": "Nom du champ",
     "fields": "Champs",
-    "for_agent": "Pour l’assistant",
+    "for_agent": "Pour l’Agent",
     "format_full": "Tous",
     "format_notes": "Notes",
     "format_plain": "Aucun",
@@ -234,11 +234,13 @@
     "unassigned": "Sans rattachement"
   },
   "v3Settings": {
-    "providerAnthropic": "Utilisé par Agent général.",
-    "providerDeepseek": "Utilisé par Agent général.",
-    "providerOpenai": "Utilisé par Agent général.",
-    "providerOpenaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT.",
-    "railAgent": "Agent général"
+    "codeCopied": "Copié",
+    "copyCode": "Copier le code",
+    "providerAnthropic": "Utilisé par Agent.",
+    "providerDeepseek": "Utilisé par Agent.",
+    "providerOpenai": "Utilisé par Agent.",
+    "providerOpenaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT.",
+    "railAgent": "Agent"
   },
   "v3Shell": {
     "about": "Description",

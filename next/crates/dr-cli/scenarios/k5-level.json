@@ -686,7 +686,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "What the helper sees"
+        "label": "What the Agent sees"
       }
     },
     {
@@ -702,7 +702,7 @@
       "params": {
         "contains": "Synthetic author instructions",
         "within": {
-          "label": "What the helper sees",
+          "label": "What the Agent sees",
           "role": "Group"
         }
       }
@@ -1039,7 +1039,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "What the helper sees"
+        "label": "What the Agent sees"
       }
     },
     {
@@ -1055,7 +1055,7 @@
       "params": {
         "contains": "Synthetic table guidance",
         "within": {
-          "label": "What the helper sees",
+          "label": "What the Agent sees",
           "role": "Group"
         }
       }

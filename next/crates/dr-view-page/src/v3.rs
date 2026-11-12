@@ -245,13 +245,13 @@ impl Render for BodyModule {
                 prose.focus_handle(cx).focus(window, cx)
             });
         }
+        let body_id = format!("v3-body-{}-{}", self.host.entry, self.host.module.id);
+        let body_dbg = body_id.clone();
         div()
-            .id(SharedString::from(format!(
-                "v3-body-{}-{}",
-                self.host.entry, self.host.module.id
-            )))
+            .id(SharedString::from(body_id))
+            .debug_selector(move || body_dbg.clone())
             .track_focus(&self.focus)
-            .h((window.viewport_size().height * 0.5).clamp(px(240.), px(720.)))
+            .min_h(px(160.))
             .w_full()
             .min_w_0()
             .children(self.editor.clone())

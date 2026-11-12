@@ -77,7 +77,7 @@ pub enum RightTab {
     Review,
     Library,
     Stats,
-    /// 帮手 (the Agent).
+    /// Agent.
     Companion,
 }
 
@@ -94,7 +94,7 @@ impl RightTab {
             RightTab::Review => keys::right_sidebar::tabs::REVIEW,
             RightTab::Library => keys::right_sidebar::tabs::LIBRARY,
             RightTab::Stats => keys::right_sidebar::tabs::STATS,
-            RightTab::Companion => keys::right_sidebar::tabs::COMPANION,
+            RightTab::Companion => keys::v3_settings::RAIL_AGENT,
         }
     }
 }

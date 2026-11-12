@@ -188,6 +188,12 @@ impl Shelf {
             _fields: Vec::new(),
             _ws: None,
         };
+        shelf
+            ._fields
+            .push(cx.observe_global::<dr_shell::Strings>(|_, cx| cx.notify()));
+        shelf
+            ._fields
+            .push(cx.observe_global::<dr_shell::Settings>(|_, cx| cx.notify()));
         shelf.listen(cx);
         shelf.reload(cx);
         // The workspace is still being made: follow it once it is there.
@@ -1049,6 +1055,7 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
     .cursor_pointer()
     .role(gpui::Role::Button)
     .aria_label(dr_shell::account::menu_aria_label(cx))
+    .debug_selector(|| "shelf-account".into())
     .on_click(move |_, window, cx| entity.update(cx, |shelf, cx| shelf.toggle_menu(window, cx)))
     .child(overlay::probe(shelf.account.clone()))
     .child(avatar)

@@ -14,8 +14,8 @@ use dr_ui::{
 };
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _,
-    IntoElement, ParentElement, Render, SharedString, Styled, Subscription, Window, div,
-    prelude::FluentBuilder as _, px,
+    IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled,
+    Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 
 use crate::connection::{
@@ -66,6 +66,7 @@ pub struct ConnectionView {
     open: Option<Provider>,
     pending_connect: bool,
     pending_login: Option<u64>,
+    copied_code: Option<String>,
     settings_provider: Option<Provider>,
     _subscriptions: Vec<Subscription>,
 }
@@ -96,6 +97,7 @@ impl ConnectionView {
         });
         let state = cx.observe_in(&connections, window, |view, connections, window, cx| {
             let current = connections.read(cx);
+            let active_code = current.login.as_ref().map(|login| login.user_code.clone());
             let busy = current.operation.is_some();
             let succeeded = current.failure.is_none()
                 && !busy
@@ -119,6 +121,9 @@ impl ConnectionView {
                     window.blur(cx);
                 }
                 cx.emit(ConnectionEvent::Connected);
+            }
+            if view.copied_code != active_code {
+                view.copied_code = None;
             }
             if !busy {
                 view.pending_connect = false;
@@ -154,6 +159,7 @@ impl ConnectionView {
             open: None,
             pending_connect: false,
             pending_login: None,
+            copied_code: None,
             settings_provider: None,
             _subscriptions: vec![state, input, release, window_closed],
         }
@@ -402,13 +408,30 @@ impl ConnectionView {
         }
         if let Some(login) = login {
             let url = login.verification_url;
+            let user_code = login.user_code;
+            let copied = self.copied_code.as_deref() == Some(user_code.as_str());
+            let code_for_row = user_code.clone();
+            let code_for_btn = user_code.clone();
             let cancel = self.connections.clone();
             col = col
-                .child(div().font_role(Role::Index).child(format!(
-                    "{}: {}",
-                    t(cx, keys::settings::codex_subscription::CODE_LABEL),
-                    login.user_code
-                )))
+                .child(
+                    div()
+                        .id("chatgpt-copy-code-row")
+                        .cursor_pointer()
+                        .font_role(Role::Index)
+                        .on_click(cx.listener(move |view, _, _, cx| {
+                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                code_for_row.clone(),
+                            ));
+                            view.copied_code = Some(code_for_row.clone());
+                            cx.notify();
+                        }))
+                        .child(format!(
+                            "{}: {}",
+                            t(cx, keys::settings::codex_subscription::CODE_LABEL),
+                            user_code
+                        )),
+                )
                 .child(
                     div()
                         .text_color(p.muted().solid())
@@ -419,6 +442,31 @@ impl ConnectionView {
                         .flex()
                         .flex_wrap()
                         .gap(px(6.0))
+                        .child(
+                            div().debug_selector(|| "chatgpt-copy-code".into()).child(
+                                Button::new(
+                                    "chatgpt-copy-code",
+                                    t(
+                                        cx,
+                                        if copied {
+                                            keys::v3_settings::CODE_COPIED
+                                        } else {
+                                            keys::v3_settings::COPY_CODE
+                                        },
+                                    ),
+                                )
+                                .small()
+                                .on_click(cx.listener(
+                                    move |view, _, _, cx| {
+                                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                            code_for_btn.clone(),
+                                        ));
+                                        view.copied_code = Some(code_for_btn.clone());
+                                        cx.notify();
+                                    },
+                                )),
+                            ),
+                        )
                         .child(
                             Button::new(
                                 "chatgpt-open-verification",

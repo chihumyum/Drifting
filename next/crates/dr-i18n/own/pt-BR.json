@@ -131,7 +131,7 @@
     "add_action": "Adicionar ação",
     "add_field": "Adicionar campo",
     "add_module": "Adicionar módulo",
-    "agent_preview": "O que o assistente vê",
+    "agent_preview": "O que o Agent vê",
     "aliases": "Apelidos",
     "all_templates": "Qualquer modelo",
     "allow": "Modelos permitidos",
@@ -147,7 +147,7 @@
     "entity_ref": "Referência a entrada",
     "field_name": "Nome do campo",
     "fields": "Campos",
-    "for_agent": "Para o assistente",
+    "for_agent": "Para o Agent",
     "format_full": "Todos",
     "format_notes": "Notas",
     "format_plain": "Nenhum",
@@ -234,11 +234,13 @@
     "unassigned": "Sem atribuição"
   },
   "v3Settings": {
-    "providerAnthropic": "Usado pelo Agent geral.",
-    "providerDeepseek": "Usado pelo Agent geral.",
-    "providerOpenai": "Usado pelo Agent geral.",
-    "providerOpenaiCodex": "Entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent geral com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT.",
-    "railAgent": "Agent geral"
+    "codeCopied": "Copiado",
+    "copyCode": "Copiar código",
+    "providerAnthropic": "Usado pelo Agent.",
+    "providerDeepseek": "Usado pelo Agent.",
+    "providerOpenai": "Usado pelo Agent.",
+    "providerOpenaiCodex": "Entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT.",
+    "railAgent": "Agent"
   },
   "v3Shell": {
     "about": "Descrição",

@@ -1029,9 +1029,18 @@ fn settings_take_effect_and_reach_the_file(cx: &mut TestAppContext) {
         assert_eq!(theme.appearance, dr_ui::Appearance::Dark);
         assert_eq!(theme.scale, dr_ui::tokens::TextSize::Large.scale());
         assert_eq!(
-            dr_shell::t(cx, dr_i18n::keys::right_sidebar::tabs::COMPANION),
+            dr_shell::t(cx, dr_shell::workspace::RightTab::Companion.label()),
             "Agent"
         );
+        Settings::update(cx, |f| {
+            f.set(registry::UI_LOCALE, Value::from("zh-CN"), None)
+        })
+        .unwrap();
+        assert_eq!(
+            dr_shell::t(cx, dr_shell::workspace::RightTab::Companion.label()),
+            "Agent"
+        );
+        Settings::update(cx, |f| f.set(registry::UI_LOCALE, Value::from("en"), None)).unwrap();
     });
     // Written after the delay, not at once.
     assert!(!dir.path().join("settings.json").exists());

@@ -138,10 +138,11 @@ pub fn sidebar_toggles(
 }
 
 /// Hides or shows the window's traffic lights (immersive writing, M26) by
-/// their alpha. AppKit lays the title bar out again when the alpha
-/// changes and drops the custom position (the 0.1 client measured the
-/// close button jumping from x 18 to 9), so the buttons' and their
-/// container's frames are read first and put back in the same turn.
+/// their alpha. AppKit lays `NSTitlebarContainerView` (the buttons'
+/// grandparent) out again when the alpha changes, shrinking it from GPUI's
+/// 42 pt strip back to native height and shifting the buttons upward, so we
+/// flush any pending titlebar layout and re-apply [`TRAFFIC_LIGHT_POSITION`]
+/// through GPUI in the same turn.
 #[cfg(target_os = "macos")]
 pub fn set_traffic_lights_hidden(window: &Window, hidden: bool) {
     use objc2_app_kit::{NSView, NSWindowButton};
@@ -167,19 +168,18 @@ pub fn set_traffic_lights_hidden(window: &Window, hidden: bool) {
     .into_iter()
     .filter_map(|b| ns_window.standardWindowButton(b))
     .collect();
-    let frames: Vec<_> = buttons.iter().map(|b| b.frame()).collect();
-    // SAFETY: the title bar's view outlives this turn; main thread.
-    let container = buttons.first().and_then(|b| unsafe { b.superview() });
-    let container_frame = container.as_ref().map(|c| c.frame());
     for button in &buttons {
         button.setAlphaValue(if hidden { 0.0 } else { 1.0 });
     }
-    for (button, frame) in buttons.iter().zip(frames) {
-        button.setFrame(frame);
+    // SAFETY: the title bar's views outlive this turn on the main thread.
+    if let Some(titlebar_container) = buttons
+        .first()
+        .and_then(|b| unsafe { b.superview() })
+        .and_then(|v| unsafe { v.superview() })
+    {
+        titlebar_container.layoutSubtreeIfNeeded();
     }
-    if let (Some(container), Some(frame)) = (container, container_frame) {
-        container.setFrame(frame);
-    }
+    window.set_traffic_light_position(TRAFFIC_LIGHT_POSITION);
 }
 
 #[cfg(not(target_os = "macos"))]

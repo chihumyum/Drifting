@@ -124,7 +124,7 @@
     "add_action": "新增動作",
     "add_field": "新增欄位",
     "add_module": "新增模組",
-    "agent_preview": "幫手看到的",
+    "agent_preview": "Agent 看到的",
     "aliases": "別名",
     "all_templates": "不限",
     "allow": "允許的範本",
@@ -140,7 +140,7 @@
     "entity_ref": "項目引用",
     "field_name": "欄位名稱",
     "fields": "欄位",
-    "for_agent": "寫給幫手",
+    "for_agent": "寫給 Agent",
     "format_full": "全部",
     "format_notes": "筆記",
     "format_plain": "無",
@@ -227,11 +227,13 @@
     "unassigned": "未歸屬"
   },
   "v3Settings": {
-    "providerAnthropic": "供通用 Agent 使用。",
-    "providerDeepseek": "供通用 Agent 使用。",
-    "providerOpenai": "供通用 Agent 使用。",
-    "providerOpenaiCodex": "透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行通用 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。",
-    "railAgent": "通用 Agent"
+    "codeCopied": "已複製",
+    "copyCode": "複製代碼",
+    "providerAnthropic": "供 Agent 使用。",
+    "providerDeepseek": "供 Agent 使用。",
+    "providerOpenai": "供 Agent 使用。",
+    "providerOpenaiCodex": "透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。",
+    "railAgent": "Agent"
   },
   "v3Shell": {
     "about": "說明",

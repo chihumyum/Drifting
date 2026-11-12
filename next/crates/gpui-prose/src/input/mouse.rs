@@ -191,6 +191,9 @@ impl ProseEditor {
         if let Some((chapter, offset)) = self.hit_test(event.position) {
             self.drag_to_in(chapter, offset, cx);
         }
+        if self.options.fit_content {
+            return;
+        }
         // Dragged past the edge: scroll so the selection can grow.
         let viewport = self.list.viewport_bounds();
         let delta = if event.position.y < viewport.top() {

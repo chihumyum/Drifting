@@ -439,3 +439,114 @@ fn cancelling_after_save_never_rewrites_old_page_facts(cx: &mut TestAppContext) 
     );
     e.ws.close();
 }
+
+#[gpui::test]
+fn body_module_expands_flat_beyond_720px_without_inner_clamp(cx: &mut TestAppContext) {
+    use gpui::{
+        AppContext as _, InteractiveElement as _, IntoElement, ParentElement as _, Render,
+        StatefulInteractiveElement as _, Styled as _,
+    };
+
+    struct ScrollHost {
+        body: Entity<BodyModule>,
+    }
+    impl Render for ScrollHost {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
+            gpui::div()
+                .id("entry-scroll")
+                .size_full()
+                .overflow_y_scroll()
+                .child(self.body.clone())
+        }
+    }
+
+    let e = env();
+    let paragraphs: Vec<Value> = (1..=60)
+        .map(|i| {
+            json!({
+                "text": format!(
+                    "第 {i} 段正文，在条目页里应当自然摊平展开，而不是被限制在固定高度的小滚动框里。"
+                )
+            })
+        })
+        .collect();
+    call(
+        &e.ws,
+        "module.set_prose",
+        json!({
+            "book": e.book,
+            "owner": e.entry,
+            "module": "mod-prose",
+            "paragraphs": paragraphs,
+        }),
+    );
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        if cx.try_global::<dr_shell::strings::Strings>().is_none() {
+            dr_shell::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "test",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: Some(dr_ui::Appearance::Light),
+                },
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+        }
+    });
+    let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
+    let module = book
+        .v3()
+        .unwrap()
+        .template_of(&e.entry)
+        .unwrap()
+        .modules
+        .iter()
+        .find(|m| m.id == "mod-prose")
+        .unwrap()
+        .clone();
+    let host = ModuleHost {
+        page: PageViewHost {
+            workspace: WeakEntity::new_invalid(),
+            library: e.ws.clone(),
+            book_id: e.book.clone(),
+            book,
+        },
+        entry: e.entry.clone(),
+        module,
+    };
+    let window = cx.add_window(|window, cx| ScrollHost {
+        body: cx.new(|cx| BodyModule::new(host, window, cx)),
+    });
+    let body = window
+        .root(cx)
+        .unwrap()
+        .read_with(cx, |h, _| h.body.clone());
+    let mut vcx = VisualTestContext::from_window(window.into(), cx);
+    vcx.simulate_resize(size(px(1000.), px(900.)));
+    wait(&mut vcx, |cx| {
+        body.read_with(cx, |v, _| v.editor().is_some())
+    });
+    let doc = format!("body:{}/mod-prose", e.entry);
+    wait(&mut vcx, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&doc, cx).is_some())
+    });
+    draw(&mut vcx);
+    draw(&mut vcx);
+    let selector: &'static str =
+        Box::leak(format!("v3-body-{}-mod-prose", e.entry).into_boxed_str());
+    let bounds = vcx.debug_bounds(selector).expect("flat body module bounds");
+    assert!(
+        bounds.size.height > px(1500.0),
+        "expected BodyModule to expand flat past viewport (900px) and old 720px clamp, got {:?}",
+        bounds.size
+    );
+    e.ws.close();
+}
