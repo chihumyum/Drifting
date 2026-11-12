@@ -324,12 +324,43 @@ impl Replaces {
 }
 
 /// The digest of a record's stored state ([`dr_doc::v3::RecordStateV3::raw`]).
+///
+/// Taken over the state with every object in key order. A JSON object may
+/// keep the order it was filled in; hashing it as it comes would make the
+/// digest follow how a value was built instead of what it holds, and an
+/// unchanged record could then read as changed. dr-doc already builds the
+/// state in key order, so the check below is all this normally costs.
 pub(crate) fn digest(raw: &Value) -> String {
-    let bytes = serde_json::to_vec(raw).expect("JSON values serialize");
+    let bytes = if in_key_order(raw) {
+        serde_json::to_vec(raw)
+    } else {
+        let mut sorted = raw.clone();
+        sorted.sort_all_objects();
+        serde_json::to_vec(&sorted)
+    }
+    .expect("JSON values serialize");
     Sha256::digest(&bytes)
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
+}
+
+fn in_key_order(value: &Value) -> bool {
+    match value {
+        Value::Object(map) => {
+            let mut keys = map.keys();
+            let mut previous = keys.next();
+            for key in keys {
+                if previous.is_some_and(|previous| previous >= key) {
+                    return false;
+                }
+                previous = Some(key);
+            }
+            map.values().all(in_key_order)
+        }
+        Value::Array(items) => items.iter().all(in_key_order),
+        _ => true,
+    }
 }
 
 /// Equal as stored values: an integer and the same number as a float are one
@@ -603,5 +634,24 @@ impl Guards {
 
     pub(crate) fn missing(id: &str) -> WsError {
         WsError::Conflict(format!("read required: {id}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn a_digest_follows_content_and_not_the_order_an_object_was_filled_in() {
+        let one = json!({"b": 1, "a": {"y": [{"k": 1, "j": 2}], "x": 2}});
+        let other = json!({"a": {"x": 2, "y": [{"j": 2, "k": 1}]}, "b": 1});
+        assert_eq!(one, other);
+        assert!(in_key_order(&other));
+        assert_eq!(digest(&one), digest(&other));
+        // The order of a list is content.
+        assert_ne!(digest(&json!({"a": [1, 2]})), digest(&json!({"a": [2, 1]})));
+        assert_ne!(digest(&one), digest(&json!({"a": {"x": 2}, "b": 1})));
     }
 }

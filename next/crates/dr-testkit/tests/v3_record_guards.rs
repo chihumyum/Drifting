@@ -591,6 +591,88 @@ fn record_digests_survive_a_reopen_and_reject_malformed_guards() {
 }
 
 #[test]
+fn an_unchanged_record_keeps_its_digest_while_the_rest_of_the_book_is_read_and_written() {
+    let mut e = Env::new();
+    let (lane, chapter) = e.lane_and_chapter("decode");
+    let (view, other_view) = ("synthetic-decode-view", "synthetic-decode-other");
+    for id in [view, other_view] {
+        e.out(
+            "timeline_view.put",
+            json!({"book": e.book, "view": {"id": id, "name": "Synthetic decode", "lanes": [{"entry": lane}]}}),
+        );
+    }
+    // A collection whose records were written in no particular order, some
+    // of them removed again.
+    let facts: Vec<String> = (0..36)
+        .map(|i| {
+            e.out(
+                "fact.put",
+                json!({"book": e.book, "key": format!("Synthetic fact {:02}", (i * 17) % 36),
+                    "value": format!("Synthetic value {i}")}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    for id in facts.iter().step_by(3) {
+        e.out("fact.remove", json!({"book": e.book, "id": id}));
+    }
+    let manuscript = e.root("tpl-manuscript");
+    let keys = [
+        RecordKey::timeline_view(view),
+        RecordKey::entry(&chapter),
+        RecordKey::entry(&chapter).at(["title"]),
+        RecordKey::entry(&manuscript),
+        RecordKey::children_of(Some(&manuscript)),
+        RecordKey::children_of(None),
+        RecordKey::record("facts", &facts[1]),
+        RecordKey::collection("facts"),
+        RecordKey::collection("templates"),
+        RecordKey::collection("memberships"),
+        RecordKey::collection("meta"),
+    ];
+    let digests =
+        |e: &Env| -> Vec<String> { e.observe(&keys).into_iter().map(|o| o.digest).collect() };
+    let written = digests(&e);
+
+    // The first read after a restart comes before any query has decoded
+    // the book; the later ones come after queries and writes that touch
+    // every collection these records live in, and change none of them.
+    e.reopen();
+    let first = digests(&e);
+    assert_eq!(written, first);
+    for name in [
+        "entry.list",
+        "timeline_view.list",
+        "fact.list",
+        "entry_template.list",
+    ] {
+        e.out(name, json!({"book": e.book, "all": true}));
+    }
+    e.out("entry.get", json!({"book": e.book, "id": chapter}));
+    assert_eq!(first, digests(&e));
+    e.out(
+        "writing_day.record",
+        json!({"book": e.book, "device": "device-000000000000000000000001",
+            "day": "2026-11-12", "words": 1234}),
+    );
+    e.out(
+        "timeline_view.rename",
+        json!({"book": e.book, "view": other_view, "name": "Synthetic decode, renamed"}),
+    );
+    e.out(
+        "entry.update",
+        json!({"book": e.book, "id": lane, "title": "Synthetic lane renamed"}),
+    );
+    assert_eq!(first, digests(&e));
+
+    // And a restart after those writes reads them the same again.
+    e.reopen();
+    assert_eq!(first, digests(&e));
+}
+
+#[test]
 fn a_field_edit_is_held_to_the_value_it_was_made_from() {
     let e = Env::new();
     let (_, chapter) = e.lane_and_chapter("values");

@@ -101,6 +101,8 @@ pub struct RecordStateV3 {
     /// is all it takes, so a view can afford the digest of everything it
     /// shows; what it leaves out is how a nested value is stored (as a
     /// container or a plain value) and the formatting of nested text.
+    /// Every object in it is in key order, whatever order its keys were
+    /// written in and however Loro holds them: equal content is equal bytes.
     pub raw: Value,
     /// The plain deep value queries decode (`null` when absent), so a caller
     /// can tell whether a filtered read showed everything that is stored.
@@ -129,8 +131,28 @@ enum Stored {
     Inside,
 }
 
+/// A Loro value as plain JSON, every object in key order.
+///
+/// Loro hands a map value over as a hash map, and a JSON object here keeps
+/// the order it was filled in. Left alone, the bytes of a record state would
+/// follow how that hash map happened to be built, not what it holds. The
+/// order is fixed here, by construction, so that equal content always
+/// serializes to equal bytes.
 fn plain(value: &LoroValue) -> Value {
-    serde_json::to_value(value).expect("Loro values serialize")
+    match value {
+        LoroValue::Map(map) => {
+            let mut entries: Vec<(&String, &LoroValue)> = map.iter().collect();
+            entries.sort_unstable_by_key(|(key, _)| *key);
+            Value::Object(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| (key.clone(), plain(value)))
+                    .collect(),
+            )
+        }
+        LoroValue::List(list) => Value::Array(list.iter().map(plain).collect()),
+        other => serde_json::to_value(other).expect("Loro values serialize"),
+    }
 }
 
 /// The content at `path` below `map` (`None`: nothing there), and how it is
@@ -357,6 +379,192 @@ mod tests {
 
     fn raw(doc: &BookDocV3, key: &RecordKeyV3) -> Value {
         doc.view().record_state(key).raw
+    }
+
+    /// What a digest is taken over.
+    fn bytes(doc: &BookDocV3, key: &RecordKeyV3) -> String {
+        let raw = raw(doc, key);
+        assert_key_order(&raw);
+        serde_json::to_string(&raw).unwrap()
+    }
+
+    fn assert_key_order(value: &Value) {
+        match value {
+            Value::Object(map) => {
+                let keys: Vec<&String> = map.keys().collect();
+                assert!(keys.windows(2).all(|pair| pair[0] < pair[1]), "{keys:?}");
+                map.values().for_each(assert_key_order);
+            }
+            Value::Array(items) => items.iter().for_each(assert_key_order),
+            _ => {}
+        }
+    }
+
+    const NAMES: usize = 48;
+
+    fn name(i: usize) -> String {
+        format!("key-{:02}-{}", (i * 37) % NAMES, "x".repeat(i % 5))
+    }
+
+    /// The same record of a map collection, a nested map included, written
+    /// in one of two orders; the second also writes and deletes other keys
+    /// on the way.
+    fn write_record(doc: &BookDocV3, id: &str, scrambled: bool) {
+        let loro = doc.view().doc;
+        let record = loro
+            .get_map(C::Facts.root())
+            .ensure_mergeable_map(id)
+            .unwrap();
+        let nested = record.ensure_mergeable_map("nested").unwrap();
+        let mut order: Vec<usize> = (0..NAMES).collect();
+        if scrambled {
+            order.reverse();
+            for i in 0..NAMES {
+                record.insert(&format!("gone-{i}"), true).unwrap();
+                nested.insert(&format!("gone-{i}"), true).unwrap();
+            }
+            loro.commit();
+        }
+        for i in order {
+            record.insert(&name(i), i as i64).unwrap();
+            nested.insert(&name(i), format!("value {i}")).unwrap();
+            if scrambled && i % 3 == 0 {
+                record.delete(&format!("gone-{i}")).unwrap();
+                loro.commit();
+            }
+        }
+        if scrambled {
+            for i in 0..NAMES {
+                record.delete(&format!("gone-{i}")).unwrap();
+                nested.delete(&format!("gone-{i}")).unwrap();
+            }
+        }
+        loro.commit();
+    }
+
+    #[test]
+    fn a_map_value_reads_in_key_order_however_it_is_held() {
+        let entries = || (0..NAMES).map(|i| (name(i), LoroValue::from(i as i64)));
+        let small = LoroValue::from(entries().collect::<HashMap<_, _>>());
+        // The same content in a table of another size, filled in another
+        // order with other keys coming and going.
+        let mut held = loro::LoroMapValue::from(HashMap::<String, LoroValue>::new());
+        let table = held.make_mut();
+        table.reserve(4096);
+        for i in 0..NAMES {
+            table.insert(format!("gone-{i}"), LoroValue::from(true));
+        }
+        let mut reversed: Vec<_> = entries().collect();
+        reversed.reverse();
+        for (key, value) in reversed {
+            table.insert(key, value);
+        }
+        for i in 0..NAMES {
+            table.remove(&format!("gone-{i}"));
+        }
+        let large = LoroValue::Map(held);
+        assert_eq!(small, large);
+        // The premise: the two hand their keys over in different orders,
+        // which is what serializing them as they come would write down.
+        let held_order = |value: &LoroValue| match value {
+            LoroValue::Map(map) => map.keys().cloned().collect::<Vec<_>>(),
+            _ => unreachable!(),
+        };
+        assert_ne!(held_order(&small), held_order(&large));
+
+        let nest = |inner: &LoroValue| {
+            LoroValue::from(HashMap::from([
+                ("list".to_owned(), LoroValue::from(vec![inner.clone()])),
+                ("map".to_owned(), inner.clone()),
+            ]))
+        };
+        let (a, b) = (plain(&nest(&small)), plain(&nest(&large)));
+        assert_key_order(&a);
+        assert_eq!(
+            serde_json::to_string(&a).unwrap(),
+            serde_json::to_string(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn the_same_content_is_the_same_bytes_whatever_order_it_was_written_in() {
+        let (first, _) = book();
+        let (second, _) = book();
+        write_record(&first, "f-order", false);
+        write_record(&second, "f-order", true);
+        let record = RecordKeyV3::record(C::Facts, "f-order");
+        for key in [
+            record.clone(),
+            record.clone().at(["nested"]),
+            RecordKeyV3::collection(C::Facts),
+        ] {
+            assert_eq!(bytes(&first, &key), bytes(&second, &key), "{key}");
+        }
+        // One more key is other content.
+        let before = bytes(&second, &record);
+        second
+            .view()
+            .doc
+            .get_map(C::Facts.root())
+            .ensure_mergeable_map("f-order")
+            .unwrap()
+            .insert("one-more", 1)
+            .unwrap();
+        second.view().doc.commit();
+        assert_ne!(before, bytes(&second, &record));
+    }
+
+    #[test]
+    fn a_record_reads_the_same_before_and_after_its_containers_are_decoded() {
+        let (mut doc, roots) = book();
+        let entry = chapter(&mut doc, &roots.manuscript, "e-lazy", "Lazy");
+        write_record(&doc, "f-lazy", true);
+        let keys = [
+            RecordKeyV3::record(C::Facts, "f-lazy"),
+            RecordKeyV3::record(C::Facts, "f-lazy").at(["nested"]),
+            RecordKeyV3::collection(C::Facts),
+            RecordKeyV3::record(C::Entries, entry.as_str()),
+            RecordKeyV3::record(C::Entries, roots.manuscript.as_str()),
+            RecordKeyV3::children(C::Entries, Some(roots.manuscript.as_str())),
+            RecordKeyV3::collection(C::Entries),
+            RecordKeyV3::collection(C::Templates),
+        ];
+        let read = |doc: &BookDocV3| keys.each_ref().map(|key| bytes(doc, key));
+        let written = read(&doc);
+
+        // A document loaded from a snapshot decodes a container only when
+        // something needs its state: this first read comes before that.
+        let loaded =
+            BookDocV3::load(doc.book_id().clone(), 7, &[doc.export_snapshot().unwrap()]).unwrap();
+        let lazy = read(&loaded);
+        assert_eq!(written, lazy);
+
+        // Reads through the typed view, key lookups and a write next to the
+        // record all decode what they touch.
+        let loro = loaded.view().doc;
+        let facts = loro.get_map(C::Facts.root());
+        let record = facts.ensure_mergeable_map("f-lazy").unwrap();
+        assert!(record.get(&name(1)).is_some());
+        loaded.view().templates();
+        record.insert("passing", true).unwrap();
+        loro.commit();
+        record.delete("passing").unwrap();
+        loro.commit();
+        facts
+            .ensure_mergeable_map("f-other")
+            .unwrap()
+            .insert("k", 1)
+            .unwrap();
+        loro.commit();
+        facts.delete("f-other").unwrap();
+        loro.commit();
+        let mut loaded = loaded;
+        chapter(&mut loaded, &roots.ideas, "e-elsewhere", "Elsewhere");
+        let decoded = read(&loaded);
+        // The entry created elsewhere is in the whole tree, and nowhere else.
+        assert_eq!(lazy[..6], decoded[..6]);
+        assert_ne!(lazy[6], decoded[6]);
+        assert_eq!(lazy[7], decoded[7]);
     }
 
     #[test]
