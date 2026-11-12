@@ -418,7 +418,10 @@ impl ChapterEditor {
         let sub = ws.subscribe(move |e| {
             let notice = match e {
                 WsEvent::Prose(p) if p.doc.to_string() == watched => Some(Notice::Prose),
-                WsEvent::Book(_) | WsEvent::Removed(_) => Some(Notice::Book),
+                // Names, link targets and the page's facts are the book's
+                // content: a writing day or a saved checkpoint changes none.
+                WsEvent::Book(b) if b.touched.content => Some(Notice::Book),
+                WsEvent::Removed(_) => Some(Notice::Book),
                 _ => None,
             };
             if let Some(n) = notice {

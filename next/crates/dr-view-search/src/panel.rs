@@ -172,8 +172,10 @@ impl SearchPanel {
             lib.subscribe(move |event| {
                 // This callback can run on a document holder. Only enqueue;
                 // do not read documents or run a query on the publisher.
+                // What is searched of the book document is its content; a
+                // writing day or a saved checkpoint changes no result.
                 if matches!(event, WsEvent::Local(c) if c.table == "index")
-                    || matches!(event, WsEvent::Book(b) if b.book.as_str() == watched_book)
+                    || matches!(event, WsEvent::Book(b) if b.book.as_str() == watched_book && b.touched.content)
                 {
                     let _ = tx.unbounded_send(event.clone());
                 }

@@ -368,6 +368,9 @@ pub struct Assist {
     docs: Vec<String>,
     editor: Entity<ProseEditor>,
     names: Option<Rc<NameIndex>>,
+    /// How many times the book's names were dropped to be read again (for
+    /// tests).
+    pub names_dropped: usize,
     auto_links: bool,
     /// Paragraphs typed in since the last automatic-link pass: chapter, block
     /// id, and the line index when it has none.
@@ -446,6 +449,7 @@ impl Assist {
             docs,
             editor,
             names: None,
+            names_dropped: 0,
             auto_links: true,
             pending: Vec::new(),
             link_task: None,
@@ -538,6 +542,7 @@ impl Assist {
     /// `autolink`); its links reach this editor as someone else's write.
     pub fn invalidate_names(&mut self, cx: &mut Context<Self>) {
         self.names = None;
+        self.names_dropped += 1;
         cx.notify();
     }
 

@@ -116,7 +116,10 @@ impl ProjectMemoryView {
         let (send, mut receive) = mpsc::unbounded();
         let job = self.controller.workspace_job(move |ws| {
             Ok(ws.subscribe(move |event| {
-                if matches!(event,WsEvent::Book(change) if change.book==book) {
+                // Project Memory is the book's content; a writing day or a
+                // saved checkpoint is not.
+                if matches!(event,WsEvent::Book(change) if change.book==book && change.touched.content)
+                {
                     let _ = send.unbounded_send(());
                 }
             }))

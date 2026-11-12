@@ -72,7 +72,11 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
     let (tx, mut rx) = futures::channel::mpsc::unbounded::<(String, bool)>();
     let subscription = lib.as_ref().map(|lib| {
         lib.subscribe(move |e| {
-            if let WsEvent::Book(b) = e {
+            // Comments, their targets and the entries they hang on are the
+            // book's content: a writing day or a saved checkpoint is not.
+            if let WsEvent::Book(b) = e
+                && b.touched.content
+            {
                 let _ = tx.unbounded_send((b.book.to_string(), true));
             }
         })

@@ -46,7 +46,10 @@ impl Associations {
         let (tx, mut rx) = futures::channel::mpsc::unbounded();
         let watched = book.clone();
         let events = lib.subscribe(move |event| {
-            if matches!(event, dr_workspace::WsEvent::Book(b) if b.book.as_str() == watched) {
+            // A material's entries are the book's content; a writing day or
+            // a saved checkpoint is not.
+            if matches!(event, dr_workspace::WsEvent::Book(b) if b.book.as_str() == watched && b.touched.content)
+            {
                 let _ = tx.unbounded_send(());
             }
         });
