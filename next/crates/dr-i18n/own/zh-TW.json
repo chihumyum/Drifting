@@ -233,6 +233,7 @@
   "v3Shell": {
     "belongTo": "歸屬至",
     "board": "看板",
+    "bookView": "整書檢視",
     "changeTemplate": "更換範本",
     "childrenEntries": "下面的條目",
     "editTemplate": "編輯範本",

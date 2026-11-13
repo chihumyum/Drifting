@@ -33,7 +33,7 @@ mod stage;
 mod super_view;
 pub mod toast;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -56,9 +56,8 @@ use serde::{Deserialize, Serialize};
 use crate::actions::{
     CloseActiveTab, CloseProject, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward,
     NewEntity, NextTab, OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
-    ShowWholeBook, ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting,
-    ToggleLeftSidebar, ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar,
-    ToggleStoryGraph,
+    ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
+    ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
 };
 use crate::book::{self, Book};
 use crate::dialogs::{self, FollowUpNotice};
@@ -351,9 +350,9 @@ pub struct BookLayout {
     /// The outline rail in the page's left margin is hidden.
     #[serde(default)]
     pub outline_hidden: bool,
-    /// Where the whole book's page was being read (M05).
-    #[serde(default)]
-    pub book_position: Option<editors::SavedPosition>,
+    /// Where each level's flattened book view was being read, keyed by entry id (M05).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub book_positions: BTreeMap<String, editors::SavedPosition>,
     /// The Bottom Panel: which pane, its height.
     #[serde(default)]
     pub bottom: BottomLayout,
@@ -437,8 +436,8 @@ pub struct Workspace {
     dimmed: Option<gpui::EntityId>,
     /// Documents whose live word count M07 has from an editor.
     live_docs: HashSet<String>,
-    /// The whole book's reading position (kept with the layout).
-    book_position: Option<editors::SavedPosition>,
+    /// Each open or closed level book view's reading position (kept with the layout).
+    book_positions: BTreeMap<String, editors::SavedPosition>,
     /// The find bar over the focused page, while open.
     pub find: Option<Entity<find::FindBar>>,
     /// The Bottom Panel under the paper ([`bottom`]).
@@ -584,7 +583,7 @@ impl Workspace {
             editor_reduce: Theme::of(window, cx).reduce_motion,
             dimmed: None,
             live_docs: HashSet::new(),
-            book_position: None,
+            book_positions: BTreeMap::new(),
             find: None,
             bottom: bottom::Bottom::new(BottomLayout::default()),
             sea: Default::default(),
@@ -652,16 +651,23 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked, outline_hidden, position) = match &saved {
+        let (nav, left, right, dock_locked, outline_hidden, positions) = match &saved {
             Some(l) => (
                 Navigator::restored(l.nav.clone(), |_| true),
                 Some(l.left.clone()),
                 Some(l.right.clone()),
                 l.dock_locked,
                 l.outline_hidden,
-                l.book_position.clone(),
+                l.book_positions.clone(),
             ),
-            None => (Navigator::default(), None, None, false, false, None),
+            None => (
+                Navigator::default(),
+                None,
+                None,
+                false,
+                false,
+                BTreeMap::new(),
+            ),
         };
         self.bottom.layout = saved.map(|l| l.bottom).unwrap_or_default();
         self.bottom.forget();
@@ -671,7 +677,7 @@ impl Workspace {
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
         self.dock_locked = dock_locked;
         self.outline_hidden = outline_hidden;
-        self.book_position = position;
+        self.book_positions = positions;
         self.editors.clear();
         self.v3_sidebar = None;
         self.focused_editor = None;
@@ -762,6 +768,9 @@ impl Workspace {
                         .map(|l| l.target.clone())
                         .filter(|t| !book.exists(t))
                         .collect();
+                    if !gone.is_empty() && self.keep_reading_position(cx) {
+                        self.layout_dirty = true;
+                    }
                     for target in &gone {
                         self.nav.forget(target);
                         self.editors.remove(&target.key());
@@ -846,7 +855,13 @@ impl Workspace {
                         if entity.target == dr_workspace::NavTarget::Book && entity.purged {
                             book_purged = true;
                         }
-                        gone.push(book::target(entity.target));
+                        if let dr_workspace::NavTarget::Entry { id, module: None } = &entity.target
+                        {
+                            gone.push(Target::Book(id.clone()));
+                        }
+                        if let Some(target) = book::target(entity.target) {
+                            gone.push(target);
+                        }
                     }
                 }
                 _ => {}
@@ -867,6 +882,9 @@ impl Workspace {
             return;
         }
         if !gone.is_empty() {
+            if self.keep_reading_position(cx) {
+                self.layout_dirty = true;
+            }
             let prev_editors = self.editors.len();
             for target in &gone {
                 self.nav.forget(target);
@@ -895,8 +913,8 @@ impl Workspace {
             .flat_map(|t| t.leaves())
             .map(|l| l.target.key())
             .collect();
-        if !open.contains(&Target::Book.key()) {
-            self.keep_reading_position(cx);
+        if self.editors.keys().any(|k| !open.contains(k)) && self.keep_reading_position(cx) {
+            self.layout_dirty = true;
         }
         let prev_editors = self.editors.len();
         self.editors.retain(|key, _| open.contains(key));
@@ -1201,7 +1219,7 @@ impl Workspace {
             right: self.right.saved(),
             dock_locked: self.dock_locked,
             outline_hidden: self.outline_hidden,
-            book_position: self.book_position.clone(),
+            book_positions: self.book_positions.clone(),
             bottom: self.bottom.layout.clone(),
         }
     }
@@ -1525,10 +1543,6 @@ impl Workspace {
             ws.nav.go_home();
             ws.changed(cx);
         }))
-        .on_action(cx.listener(|ws, _: &ShowWholeBook, _, cx| {
-            ws.super_view = None;
-            ws.open(Target::Book, Open::PREVIEW, cx);
-        }))
         .on_action(cx.listener(|ws, _: &ToggleStoryGraph, _, cx| {
             ws.toggle_super_view(SuperView::StoryGraph, cx)
         }))
@@ -1786,9 +1800,19 @@ pub(crate) use nav::Side as PageSide;
 /// The name a pill, a page or a link shows for `target`: its title, the
 /// whole book's tab name, or 「未命名…」 for its kind.
 pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
-    use dr_i18n::keys::top_timeline::{singletons, untitled};
+    use dr_i18n::keys::top_timeline::untitled;
     let untitled = match target {
-        Target::Book => return crate::t(cx, singletons::ALL_CHAPTERS),
+        Target::Book(_) => {
+            let base = match book.title(target).filter(|t| !t.trim().is_empty()) {
+                Some(title) => title.to_owned(),
+                None => crate::t(cx, dr_i18n::keys::v3_shell::UNTITLED_ENTRY).to_string(),
+            };
+            return format!(
+                "{base} · {}",
+                crate::t(cx, dr_i18n::keys::v3_shell::BOOK_VIEW)
+            )
+            .into();
+        }
 
         Target::Material(_) => untitled::LIBRARY_ITEM,
         Target::Entry { .. } | Target::Template(_) => {

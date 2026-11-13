@@ -104,10 +104,12 @@ fn setup<'a>(
     let bodies = Bodies::default();
     cx.update(|cx| {
         dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
-            if *target != Target::Book {
+            let Target::Book(from) = target else {
                 return None;
-            }
-            let prepared = dr_editor::BookEditor::prepare(&host.library, &host.book_id).unwrap();
+            };
+            let prepared =
+                dr_editor::BookEditor::prepare(&host.library, &host.book_id, from.as_str())
+                    .unwrap();
             let editor = cx.new(|cx| {
                 dr_editor::BookEditor::with_prepared(
                     host.library.clone(),
@@ -389,7 +391,9 @@ fn identical_book_ids_in_another_library_cannot_register_into_this_page(cx: &mut
 fn the_registered_manuscript_uses_the_shared_find_and_reading_position(cx: &mut TestAppContext) {
     let (_dir, lib, book, entry) = fixture();
     let (view, _, cx) = setup(cx, &lib, &book, None);
-    view.update(cx, |w, cx| w.open(Target::Book, Open::KEEP, cx));
+    let manuscript_id = view.read_with(cx, |w, _| w.book.v3().unwrap().roots[0].clone());
+    let book_target = Target::Book(manuscript_id.parse().unwrap());
+    view.update(cx, |w, cx| w.open(book_target.clone(), Open::KEEP, cx));
     wait(&view, cx, |w, _| w.book_editor().is_some());
     let editor = view.read_with(cx, |w, _| w.book_editor().unwrap().clone());
     let doc = format!("body:{entry}/mod-prose");
@@ -400,8 +404,9 @@ fn the_registered_manuscript_uses_the_shared_find_and_reading_position(cx: &mut 
     let expected = editor.read_with(cx, |e, cx| e.reading_position(cx).unwrap());
     assert!(expected.paragraph > 0 || expected.offset > 0.0);
     view.update(cx, |w, cx| w.store_layout(cx));
-    let position =
-        cx.update(|_, cx| Settings::read(cx).layout(&book).unwrap()["book_position"].clone());
+    let position = cx.update(|_, cx| {
+        Settings::read(cx).layout(&book).unwrap()["book_positions"][manuscript_id.as_str()].clone()
+    });
     assert_eq!(position["doc"], doc);
     assert_eq!(position["paragraph"], expected.paragraph);
     assert_eq!(position["offset"], json!(expected.offset));
@@ -422,7 +427,7 @@ fn the_registered_manuscript_uses_the_shared_find_and_reading_position(cx: &mut 
         cx.notify();
     });
     wait(&view, cx, |w, _| w.book_editor().is_none());
-    view.update(cx, |w, cx| w.open(Target::Book, Open::KEEP, cx));
+    view.update(cx, |w, cx| w.open(book_target.clone(), Open::KEEP, cx));
     wait(&view, cx, |w, _| w.book_editor().is_some());
     let restored = view.read_with(cx, |w, cx| {
         w.book_editor()

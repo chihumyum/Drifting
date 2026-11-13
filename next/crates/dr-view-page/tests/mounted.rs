@@ -166,7 +166,9 @@ fn actual_body_makers_isolate_tabs_and_drive_find_selection_comment_save(cx: &mu
 fn actual_whole_book_registry_tracks_reload_focus_and_new_find(cx: &mut TestAppContext) {
     let (_dir, lib, book, _entry) = fixture();
     let (view, cx) = setup(cx, &lib, &book);
-    view.update(cx, |w, cx| w.open(Target::Book, Open::KEEP, cx));
+    let manuscript_id = view.read_with(cx, |w, _| w.book.v3().unwrap().roots[0].clone());
+    let book_target = Target::Book(manuscript_id.parse().unwrap());
+    view.update(cx, |w, cx| w.open(book_target.clone(), Open::KEEP, cx));
     wait(cx, |cx| {
         view.read_with(cx, |w, _| w.book_editor().is_some())
     });
@@ -349,4 +351,214 @@ fn failed_final_checkpoint_retains_real_head_input_and_resumes_typing(cx: &mut T
         f.replace_text_in_range(None, "Retry input enabled", w, cx);
     });
     assert_eq!(input.read_with(cx, |f, _| f.text()), "Retry input enabled");
+}
+
+#[gpui::test]
+fn whole_book_opens_from_any_level_entry_and_keeps_per_entry_reading_positions(
+    cx: &mut TestAppContext,
+) {
+    use dr_shell::Settings;
+
+    let (_dir, lib, book, _entry) = fixture();
+    let initial = dr_shell::book::Book::load(&lib, &book).unwrap();
+    let v = initial.v3().unwrap();
+    let ms_root = v.roots[0].clone();
+    let sl_root = v.roots[1].clone();
+
+    // Create an intermediate volume (`第一卷`, `level = true`) with `mod-description` (`in_book = false`)
+    // and two multi-paragraph chapters under it, plus a storyline (`主线`, `level = true`) affiliating them
+    // in reverse order.
+    let vol = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": ms_root, "template": "tpl-group", "title": "第一卷", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "module.set_prose",
+        json!({"book": book, "owner": vol, "module": "mod-description", "paragraphs": [{"text": "卷说明不应出现在整书视图"}]}),
+    );
+    let make_chapter = |title: &str, prefix: &str| -> String {
+        let id = call(
+            &lib,
+            "entry.create",
+            json!({"book": book, "parent": vol, "template": "tpl-chapter", "title": title}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let paragraphs: Vec<Value> = (1..=12)
+            .map(|n| json!({"text": format!("{prefix} 第{n}段")}))
+            .collect();
+        call(
+            &lib,
+            "module.set_prose",
+            json!({"book": book, "owner": id, "module": "mod-prose", "paragraphs": paragraphs}),
+        );
+        id
+    };
+    let ch_a = make_chapter("卷内甲章", "甲");
+    let ch_b = make_chapter("卷内乙章", "乙");
+
+    let storyline = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": sl_root, "template": "tpl-storyline", "title": "主线视角", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "membership.add",
+        json!({"book": book, "host": storyline, "member": ch_b, "pos": "a0"}),
+    );
+    call(
+        &lib,
+        "membership.add",
+        json!({"book": book, "host": storyline, "member": ch_a, "pos": "a1"}),
+    );
+
+    let (view, cx) = setup(cx, &lib, &book);
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| {
+            w.book.v3().is_some_and(|v| v.entry(&storyline).is_some())
+        })
+    });
+
+    let ms_book = Target::Book(ms_root.parse().unwrap());
+    let vol_book = Target::Book(vol.parse().unwrap());
+    let sl_book = Target::Book(storyline.parse().unwrap());
+
+    for t in [&ms_book, &vol_book, &sl_book] {
+        view.update(cx, |w, cx| w.open(t.clone(), Open::KEEP, cx));
+        wait(cx, |cx| {
+            view.read_with(cx, |w, _| w.book_editor_of(t).is_some())
+        });
+    }
+
+    // Verify `第一卷` flattened view starts with prose-less `第一卷` (depth 0), excludes `mod-description`,
+    // and contains both chapters with `mod-prose` + `second` in order.
+    let vol_editor = view.read_with(cx, |w, _| w.book_editor_of(&vol_book).unwrap().clone());
+    vol_editor.read_with(cx, |e, cx| {
+        assert_eq!(e.from_entry(), vol);
+        let sections: Vec<_> = e
+            .sections()
+            .iter()
+            .map(|s| (s.entry.as_str(), s.title.as_str(), s.depth, s.doc.is_some()))
+            .collect();
+        assert_eq!(
+            sections,
+            vec![
+                (vol.as_str(), "第一卷", 0, false),
+                (ch_a.as_str(), "卷内甲章", 1, true),
+                (ch_a.as_str(), "Second", 2, true),
+                (ch_b.as_str(), "卷内乙章", 1, true),
+                (ch_b.as_str(), "Second", 2, true),
+            ]
+        );
+        let full_text = e
+            .chapter_docs()
+            .map(|d| e.plain_text(d, cx).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!full_text.contains("卷说明不应出现在整书视图"));
+    });
+
+    // Verify `主线视角` flattened view starts with prose-less `主线视角` (depth 0) followed by memberships `乙 -> 甲`.
+    let sl_editor = view.read_with(cx, |w, _| w.book_editor_of(&sl_book).unwrap().clone());
+    sl_editor.read_with(cx, |e, _| {
+        assert_eq!(e.from_entry(), storyline);
+        let entries: Vec<_> = e
+            .sections()
+            .iter()
+            .map(|s| (s.entry.as_str(), s.depth, s.doc.is_some()))
+            .collect();
+        assert_eq!(
+            entries,
+            vec![
+                (storyline.as_str(), 0, false),
+                (ch_b.as_str(), 1, true),
+                (ch_b.as_str(), 2, true),
+                (ch_a.as_str(), 1, true),
+                (ch_a.as_str(), 2, true),
+            ]
+        );
+    });
+
+    // Scroll `vol_book` to `ch_b` line 15 and `sl_book` to `ch_a` line 9; verify independent persistence!
+    let doc_a = format!("body:{ch_a}/mod-prose");
+    let doc_b = format!("body:{ch_b}/mod-prose");
+    view.update(cx, |w, cx| w.open(vol_book.clone(), Open::KEEP, cx));
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| w.nav.current() == Some(&vol_book))
+    });
+    vol_editor.update_in(cx, |e, window, cx| {
+        assert!(e.reveal_line(&doc_b, 15, window, cx));
+    });
+    wait(cx, |_| true);
+    let expected_vol = vol_editor.read_with(cx, |e, cx| e.reading_position(cx).unwrap());
+    assert_eq!(expected_vol.doc, doc_b);
+
+    view.update(cx, |w, cx| w.open(sl_book.clone(), Open::KEEP, cx));
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| w.nav.current() == Some(&sl_book))
+    });
+    sl_editor.update_in(cx, |e, window, cx| {
+        assert!(e.reveal_line(&doc_a, 9, window, cx));
+    });
+    wait(cx, |_| true);
+    let expected_sl = sl_editor.read_with(cx, |e, cx| e.reading_position(cx).unwrap());
+    assert_eq!(expected_sl.doc, doc_a);
+
+    view.update(cx, |w, cx| w.store_layout(cx));
+    let saved_positions =
+        cx.update(|_, cx| Settings::read(cx).layout(&book).unwrap()["book_positions"].clone());
+    assert_eq!(saved_positions[&vol]["doc"], doc_b);
+    assert_eq!(saved_positions[&storyline]["doc"], doc_a);
+
+    // Close both tabs and reopen them; each restores its own independent position.
+    for key in [vol_book.key(), sl_book.key()] {
+        view.update(cx, |w, cx| {
+            let ix = w.nav.tabs().iter().position(|t| t.key() == key).unwrap();
+            w.nav.close(ix);
+            cx.notify();
+        });
+    }
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| {
+            w.book_editor_of(&vol_book).is_none() && w.book_editor_of(&sl_book).is_none()
+        })
+    });
+
+    view.update(cx, |w, cx| w.open(vol_book.clone(), Open::KEEP, cx));
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| w.book_editor_of(&vol_book).is_some())
+    });
+    let restored_vol = view.read_with(cx, |w, cx| {
+        w.book_editor_of(&vol_book)
+            .unwrap()
+            .read(cx)
+            .reading_position(cx)
+            .unwrap()
+    });
+    assert_eq!(restored_vol.doc, expected_vol.doc);
+    assert_eq!(restored_vol.paragraph, expected_vol.paragraph);
+
+    view.update(cx, |w, cx| w.open(sl_book.clone(), Open::KEEP, cx));
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| w.book_editor_of(&sl_book).is_some())
+    });
+    let restored_sl = view.read_with(cx, |w, cx| {
+        w.book_editor_of(&sl_book)
+            .unwrap()
+            .read(cx)
+            .reading_position(cx)
+            .unwrap()
+    });
+    assert_eq!(restored_sl.doc, expected_sl.doc);
+    assert_eq!(restored_sl.paragraph, expected_sl.paragraph);
 }

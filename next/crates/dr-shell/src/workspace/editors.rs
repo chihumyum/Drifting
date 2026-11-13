@@ -236,7 +236,7 @@ impl Tally {
     }
 }
 
-/// The whole book's reading position as the layout stores it.
+/// A level's flattened book-view reading position as the layout stores it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SavedPosition {
     pub doc: String,
@@ -246,6 +246,8 @@ pub struct SavedPosition {
     pub paragraph: usize,
     #[serde(default)]
     pub offset: f32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub at_title: bool,
 }
 
 impl From<ReadingPosition> for SavedPosition {
@@ -255,6 +257,7 @@ impl From<ReadingPosition> for SavedPosition {
             block: p.block,
             paragraph: p.paragraph,
             offset: p.offset,
+            at_title: p.at_title,
         }
     }
 }
@@ -266,6 +269,7 @@ impl From<&SavedPosition> for ReadingPosition {
             block: p.block.clone(),
             paragraph: p.paragraph,
             offset: p.offset,
+            at_title: p.at_title,
         }
     }
 }
@@ -337,10 +341,13 @@ impl Workspace {
             self.editors.insert(target.key(), PageEditor::module(page));
             return;
         }
-        // Materials retain their own prose document. Only entry/template
-        // pages (and the whole-book composition) belong to EntryPage.
+        // Materials retain their own prose document, and book views open a
+        // flattened BookEditor when no module factory claims them. Only entry
+        // and template pages belong to EntryPage.
         let v3_material = self.book.v3().is_some() && matches!(target, Target::Material(_));
-        if self.book.v3().is_some() && !v3_material {
+        let v3_entry_or_template = self.book.v3().is_some()
+            && matches!(target, Target::Entry { .. } | Target::Template(_));
+        if v3_entry_or_template {
             let view = cx.new(|cx| crate::v3::page::EntryPage::new(host, target.clone(), cx));
             view.update(cx, |view, cx| view.sync_parts(window, cx));
             if let Some(lines) = self.nav.take_reveal(target) {
@@ -356,6 +363,10 @@ impl Workspace {
             return;
         }
         let doc = book::doc_of(target);
+        let from_entry = match target {
+            Target::Book(from) => Some(from.to_string()),
+            _ => None,
+        };
         let key = target.key();
         let prepared = key.clone();
         let (one, book_id) = (doc.clone(), self.book_id.clone());
@@ -364,10 +375,10 @@ impl Workspace {
             let sessions = cx
                 .background_executor()
                 .spawn(async move {
-                    match one {
+                    match (one, from_entry) {
                         // One document: its editor's own session, for
                         // `ChapterEditor::with_session`.
-                        Some(doc) => {
+                        (Some(doc), _) => {
                             // SessionSource opens a document by id. Capture
                             // this request's book before leaving the UI thread
                             // and refuse a material owned by a different book.
@@ -382,10 +393,14 @@ impl Workspace {
                             }
                             dr_editor::SessionSource::open(&lib, &doc).map(Prepared::Doc)
                         }
-                        // The whole book: every chapter's session and
-                        // document, the acts and the anchors, for
+                        // Flattened book view from `from`, for
                         // `BookEditor::with_prepared`.
-                        None => BookEditor::prepare(&lib, &book_id).map(Prepared::Book),
+                        (None, Some(from)) => {
+                            BookEditor::prepare(&lib, &book_id, &from).map(Prepared::Book)
+                        }
+                        (None, None) => Err(dr_workspace::WsError::Invalid(
+                            "page target has neither document nor level root".into(),
+                        )),
                     }
                 })
                 .await;
@@ -422,7 +437,10 @@ impl Workspace {
         let settings = self.editor_settings.clone();
         let base = self.editor_base.clone();
         let title = self.page_title(key, cx);
-        let position = self.book_position.clone();
+        let position = match Target::from_key(key) {
+            Some(Target::Book(from)) => self.book_positions.get(from.as_str()).cloned(),
+            _ => None,
+        };
         // The tab may have closed meanwhile.
         let Some(page) = self.editors.get_mut(key) else {
             return;
@@ -495,8 +513,8 @@ impl Workspace {
                         e.restore(&at.into(), cx);
                     }
                 });
-                let events = cx.subscribe(&editor, |ws, _, event: &BookEditorEvent, cx| {
-                    ws.on_book_event(event, cx)
+                let events = cx.subscribe(&editor, |ws, editor, event: &BookEditorEvent, cx| {
+                    ws.on_book_event(&editor, event, cx)
                 });
                 page._events.push(events);
                 let comments = cx.subscribe_in(
@@ -611,8 +629,13 @@ impl Workspace {
         }
     }
 
-    pub(super) fn on_book_event(&mut self, event: &BookEditorEvent, cx: &mut Context<Self>) {
-        let key = Target::Book.key();
+    pub(super) fn on_book_event(
+        &mut self,
+        editor: &Entity<BookEditor>,
+        event: &BookEditorEvent,
+        cx: &mut Context<Self>,
+    ) {
+        let key = format!("book:{}", editor.read(cx).from_entry());
         match event {
             BookEditorEvent::Edited { doc } => {
                 self.unchecked.insert(doc.clone());
@@ -775,12 +798,18 @@ impl Workspace {
         }
     }
 
-    /// The whole book's editor, once its tab has shown it.
-    pub fn book_editor(&self) -> Option<&Entity<BookEditor>> {
-        match self.editors.get(&Target::Book.key())?.view.as_ref()? {
+    /// The flattened book editor of `target`'s page, once its tab has shown it.
+    pub fn book_editor_of(&self, target: &Target) -> Option<&Entity<BookEditor>> {
+        match self.editors.get(&target.key())?.view.as_ref()? {
             PageView::Book(e) => Some(e),
             PageView::Doc(_) => None,
         }
+    }
+
+    /// The active tab's flattened book editor, once its tab has shown it.
+    pub fn book_editor(&self) -> Option<&Entity<BookEditor>> {
+        let current = self.nav.current()?;
+        self.book_editor_of(current)
     }
 
     /// The editor of `target`'s page, whichever kind.
@@ -858,7 +887,9 @@ impl Workspace {
         if keys != self.shown_pages {
             self.shown_pages = keys;
             self.turning_until = Some(dr_ui::anim::now() + motion::PAGE_BLEND.duration);
-            self.keep_reading_position(cx);
+            if self.keep_reading_position(cx) {
+                self.layout_dirty = true;
+            }
         }
         let Some(until) = self.turning_until else {
             return;
@@ -873,20 +904,27 @@ impl Workspace {
         }
     }
 
-    /// The whole book's reading position, for the layout. Returns whether
-    /// it moved since it was last kept.
+    /// Every open flattened book view's reading position, for the layout.
+    /// Returns whether any moved since it was last kept.
     pub(super) fn keep_reading_position(&mut self, cx: &App) -> bool {
-        let Some(book) = self.book_editor() else {
-            return false;
-        };
-        let Some(at) = book.read(cx).reading_position(cx).map(SavedPosition::from) else {
-            return false;
-        };
-        if self.book_position.as_ref() == Some(&at) {
-            return false;
+        let mut moved = false;
+        for page in self.editors.values() {
+            for view in page.views() {
+                let PageView::Book(book) = view else {
+                    continue;
+                };
+                let b = book.read(cx);
+                let from = b.from_entry().to_owned();
+                let Some(at) = b.reading_position(cx).map(SavedPosition::from) else {
+                    continue;
+                };
+                if self.book_positions.get(&from) != Some(&at) {
+                    self.book_positions.insert(from, at);
+                    moved = true;
+                }
+            }
         }
-        self.book_position = Some(at);
-        true
+        moved
     }
 
     /// The prose editors of every open page.

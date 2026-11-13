@@ -211,7 +211,10 @@ fn the_stats_tab_follows_the_page_and_the_editor(cx: &mut TestAppContext) {
         assert_eq!(d.book_words(&live).unwrap().words, book.words + 100);
     });
     cx.update(|_, cx| LiveWords::clear_doc(&doc, cx));
-    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
+    let manuscript_id = view.read_with(cx, |ws, _| ws.book.v3().unwrap().roots[0].clone());
+    view.update(cx, |ws, cx| {
+        ws.open(Target::Book(manuscript_id.parse().unwrap()), Open::KEEP, cx)
+    });
     wait_for(&view, cx, |_, cx| {
         stats
             .read(cx)

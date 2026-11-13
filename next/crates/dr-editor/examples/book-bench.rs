@@ -239,6 +239,14 @@ fn scenarios(ws: &Workspace, book: &str, capture: Option<&Path>, since: Instant)
     let mut h = Headless::new();
     let load_start = evidence::load_average();
     let memory_start = phys_footprint_mb();
+    let manuscript_root = dr_editor::v3::read(ws, book, |v| {
+        dr_editor::v3::manuscript_roots(&v)
+            .into_iter()
+            .next()
+            .expect("manuscript root")
+            .to_string()
+    })
+    .expect("read manuscript root");
 
     // Opening the whole book: every chapter's session and document, then the
     // first frame. The first time the holders load from SQLite (cold); then
@@ -255,11 +263,11 @@ fn scenarios(ws: &Workspace, book: &str, capture: Option<&Path>, since: Instant)
         });
         h.draw();
         h.cx.run_until_parked();
-        let (ws2, book2) = (ws.clone(), book.to_owned());
+        let (ws2, book2, from2) = (ws.clone(), book.to_owned(), manuscript_root.clone());
         let t0 = Instant::now();
         h.update(|root, window, cx| {
             let view = cx.new(|cx| {
-                BookEditor::open(ws2, &book2, EditorSettings::default(), window, cx)
+                BookEditor::open(ws2, &book2, &from2, EditorSettings::default(), window, cx)
                     .expect("open the book")
             });
             root.update(cx, |r, cx| {

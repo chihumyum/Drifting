@@ -317,7 +317,11 @@ pub fn spread(ys: &mut [f32], min: f32, max: f32) {
 /// and chapters), with their tops, the document's height, the scroll and
 /// the view's height.
 pub fn read(view: &PageView, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
-    let whole_book = matches!(view, PageView::Book(_));
+    let book_editor = match view {
+        PageView::Book(b) => Some(b.read(cx)),
+        PageView::Doc(_) => None,
+    };
+    let whole_book = book_editor.is_some();
     let prose = view.prose(cx);
     let prose = prose.read(cx);
     let heights = prose.heights();
@@ -329,6 +333,19 @@ pub fn read(view: &PageView, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
             let item = book.chapter_item(chapter);
             if item < heights.len() {
                 let top = heights.top(item);
+                if let Some(b) = &book_editor {
+                    for h in b.headings_before(chapter) {
+                        if h.depth > 0 && !h.title.is_empty() {
+                            entries.push(Entry {
+                                level: 1,
+                                text: h.title.clone(),
+                                chapter,
+                                line: None,
+                                top,
+                            });
+                        }
+                    }
+                }
                 if let Some(act) = book.act_opening(chapter) {
                     entries.push(Entry {
                         level: 1,
@@ -465,7 +482,7 @@ fn v3_outline_editor(
             .find(|editor| page_focus.contains(&editor.prose(cx).focus_handle(cx), window))
     };
     match target {
-        Target::Book => get(None),
+        Target::Book(_) => get(None),
         Target::Entry { id, module } => {
             let mut modules = Vec::new();
             if let Some(template) = v.template_of(id.as_str()) {
@@ -514,11 +531,12 @@ pub fn rail(
         return None;
     }
     let target = target?;
-    let editor = if w.book.v3().is_some() && matches!(target, Target::Entry { .. } | Target::Book) {
-        v3_outline_editor(w, ws.entity_id(), target, window, cx)?
-    } else {
-        w.page_view(target)?.clone()
-    };
+    let editor =
+        if w.book.v3().is_some() && matches!(target, Target::Entry { .. } | Target::Book(_)) {
+            v3_outline_editor(w, ws.entity_id(), target, window, cx)?
+        } else {
+            w.page_view(target)?.clone()
+        };
     let page_w = w.editor_settings.page_width;
     let sheet = page_w.min(column_w);
     let gutter = (column_w - sheet) / 2.0 + PAGE_GUTTER;

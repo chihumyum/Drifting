@@ -240,6 +240,7 @@
   "v3Shell": {
     "belongTo": "Associar a",
     "board": "Quadro",
+    "bookView": "Vista do livro",
     "changeTemplate": "Trocar modelo",
     "childrenEntries": "Entradas abaixo",
     "editTemplate": "Editar modelo",

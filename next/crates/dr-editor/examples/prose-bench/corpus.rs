@@ -77,16 +77,22 @@ impl Corpus {
         }
         drop(seeded);
         let ws = Workspace::open_dir(dir.path(), VERSION).expect("workspace");
-        let chapters: Vec<_> =
-            dr_editor::v3::read(&ws, &book, |view| dr_editor::v3::manuscript_docs(&view))
-                .expect("manuscript order")
+        let chapters: Vec<_> = dr_editor::v3::read(&ws, &book, |view| {
+            let root = dr_editor::v3::manuscript_roots(&view)
                 .into_iter()
-                .map(|(doc, title)| Listed {
-                    chars: *chars.get(&doc).expect("seeded body"),
-                    doc,
-                    title,
-                })
-                .collect();
+                .next()
+                .expect("manuscript root");
+            dr_editor::v3::flatten_book(&view, &root).expect("flatten manuscript")
+        })
+        .expect("manuscript order")
+        .into_iter()
+        .filter_map(|s| Some((s.doc?, s.title)))
+        .map(|(doc, title)| Listed {
+            chars: *chars.get(&doc).expect("seeded body"),
+            doc,
+            title,
+        })
+        .collect();
         let longest = (0..chapters.len())
             .rev()
             .max_by_key(|&i| chapters[i].chars)

@@ -126,3 +126,14 @@ cargo run --release -p dr-editor --example book-bench -- --write
 | `next/crates/dr-editor/examples/book-bench.rs` | 全书基准（无窗口） |
 | `next/crates/gpui-prose/src/layout/book.rs` | 幕、`BookPos`、`BookRange`、`split_range`、`text_in` |
 | `next/crates/gpui-prose/src/editor.rs` | `undo_in`、`redo_in` |
+
+## 内核 v4 · T7 整书视图（2026-11-13）
+
+按 [kernel-v4.md](../kernel-v4.md) 第 7、9、14 节将全书视图升级为从任意开着「层级」开关的条目铺开的「整书视图」：
+
+- **起点与铺开规则**（`dr-editor/src/book.rs`、`dr-editor/src/v3.rs`）：`BookEditor::prepare(ws, book, from)` / `BookEditor::open(ws, book, from, settings, window, cx)` 以任意活动且 `level == true` 的条目 `from`（如「书稿」「第一卷」「故事线」「设定」或作者刚打开「层级」开关的条目）为起点，直接调用数据层 `BookStructureV3::flatten(from, Flatten { in_book_only: true, include_members: true })`，不在视图层重复做判重或深度遍历。起点自身的 `in_book = true` 正文模块排在最前，随后深度优先依次铺开住处子条目（按成书顺序）与有效归属成员（`Membership`，按归属位置），每一层条目的成书正文都在它下面的条目之前；`in_book = false` 的说明正文（如 `mod-description`）不进入整书视图。起点被移入回收站或关掉「层级」开关时，`BookEditor::prepare` 返回错误，已打开的视图与外壳标签自动收起。
+- **无成书正文条目的标题与层级渲染**：`FlatEntry.prose` 为空的条目（如「书稿」「第一卷」「故事线」或没有成书正文的组织条目）在 `BookSection`（`doc: None`）与 `SectionHeading` 中保留标题与相对深度 `depth`，无论位于开头、中间、末尾，还是整个子树全无成书正文，都在滚动区按 `depth` 缩进与字号层级画出标题，并在右栏大纲（`dr-shell/src/workspace/outline.rs`）中将 `depth > 0` 的中间层级标为一级大纲项。
+- **路由与入口统一，收起旧入口**（`dr-shell`、`dr-view-page`、`dr-view-home`）：页面路由由单例 `Target::Book`（`"book"`）改为按起点条目寻址的 `Target::Book(EntryId)`（`"book:<id>"`），支持同时打开多个不同起点的整书视图标签（标签标题形如「`<条目名> · 整书视图`」）。所有 `entry.level == true` 的条目在公共条目卡（`dr-shell/src/v3/card.rs` 的 `entry-open-book`）与条目页顶部（`dr-shell/src/v3/page.rs` 的 `#v3-entry-open-book`）均提供「整书视图」（九语 `v3Shell.bookView`）入口。退役旧的 `workspace::ShowWholeBook` 动作、`⌘⌥2`（`secondary-alt-2`）快捷键、项目主页 `#v3-home-all` 按钮与无参 `"book"` 路由。
+- **按起点记忆阅读位置**：`ReadingPosition` 新增 `at_title` 区分章节／前导层级标题项与正文段落；工作区布局将原单例 `book_position` 升级为 `book_positions: BTreeMap<String, SavedPosition>`（按 `from` 条目 ID 索引），各起点整书视图独立保存与恢复阅读位置。本轮按计划不做按视口分段加载文档。
+
+永久回归见 `dr-editor/tests/book.rs`、`dr-shell/tests/v3.rs`、`dr-shell/tests/v3_editors.rs` 与 `dr-view-page/tests/mounted.rs`。

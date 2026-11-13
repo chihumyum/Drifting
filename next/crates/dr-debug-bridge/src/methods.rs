@@ -722,7 +722,7 @@ fn open(p: &Value, cx: &mut App) -> Out {
         let target = if let Some(key) = p.get("target").and_then(Value::as_str) {
             Target::from_key(key).ok_or_else(|| {
                 bad(format!(
-                    "{key} is not a page key (entry:<id>[/<module>], material:<id>, template:<id>, book)"
+                    "{key} is not a page key (entry:<id>[/<module>], material:<id>, template:<id>, book:<id>)"
                 ))
             })?
         } else {
@@ -974,6 +974,21 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
                 "paragraphs": [], "text": "", "source": "editor",
             }));
         };
+        let sections = match view {
+            PageView::Book(b) => json!(
+                b.read(cx)
+                    .sections()
+                    .iter()
+                    .map(|s| json!({
+                        "entry": s.entry,
+                        "title": s.title,
+                        "depth": s.depth,
+                        "doc": s.doc,
+                    }))
+                    .collect::<Vec<_>>()
+            ),
+            PageView::Doc(_) => Value::Null,
+        };
         let whole_book = matches!(view, PageView::Book(_));
         let prose = view.prose(cx);
         let prose = prose.read(cx);
@@ -1003,6 +1018,7 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             "target": key, "title": title,
             "ready": ready, "loading": loading,
             "paragraphs": paragraphs, "text": lines.join("\n"),
+            "sections": sections,
             "selection": { "anchor": sel.anchor, "head": sel.head },
             "ime": prose.composition().map(|c| json!({"chapter":c.chapter,"text":c.text,"range":{"start":c.at,"end":c.at+c.replaced},"selected":{"start":c.selected.start,"end":c.selected.end}})),
             "source": if whole_book { "book" } else { "editor" },

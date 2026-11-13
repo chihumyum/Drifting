@@ -233,6 +233,7 @@
   "v3Shell": {
     "belongTo": "归属到",
     "board": "看板",
+    "bookView": "整书视图",
     "changeTemplate": "换模板",
     "childrenEntries": "下面的条目",
     "editTemplate": "编辑模板",

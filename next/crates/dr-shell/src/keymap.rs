@@ -167,16 +167,10 @@ pub static REGISTRY: &[Shortcut] = &[
         a::close_project::LABEL,
         a::close_project::DESC,
     ),
-    // Fixed in the 0.1 client (⌘⌥1–5).
+    // Fixed in the 0.1 client (⌘⌥1, ⌘⌥3–5).
     fixed(
         "workspace::ShowProjectHome",
         &["secondary-alt-1"],
-        Some(WORKSPACE),
-        Only::All,
-    ),
-    fixed(
-        "workspace::ShowWholeBook",
-        &["secondary-alt-2"],
         Some(WORKSPACE),
         Only::All,
     ),

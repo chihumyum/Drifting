@@ -266,14 +266,11 @@ fn shortcuts_go_back_and_forward_through_the_keymap(cx: &mut TestAppContext) {
     );
     keys(cx, "cmd-w");
     assert_eq!(view.read_with(cx, |ws, _| ws.nav.tabs().len()), 1);
-    // ⌘N goes home; ⌘⌥2 opens the whole book.
+    // ⌘N goes home; retired ⌘⌥2 no longer opens a singleton whole-book page.
     keys(cx, "cmd-n");
     assert_eq!(view.read_with(cx, |ws, _| ws.nav.page()), Page::Home);
     keys(cx, "cmd-alt-2");
-    assert_eq!(
-        view.read_with(cx, |ws, _| ws.nav.page()),
-        Page::Target(Target::Book)
-    );
+    assert_eq!(view.read_with(cx, |ws, _| ws.nav.page()), Page::Home);
 }
 
 #[gpui::test]
@@ -342,7 +339,7 @@ fn a_rebound_shortcut_takes_effect_at_once_and_is_stored(cx: &mut TestAppContext
         dr_shell::keymap::add_bindings(cx, || {
             vec![gpui::KeyBinding::new(
                 "cmd-alt-y",
-                dr_shell::actions::ShowWholeBook,
+                dr_shell::actions::ShowProjectHome,
                 Some("Workspace"),
             )]
         });
@@ -350,10 +347,7 @@ fn a_rebound_shortcut_takes_effect_at_once_and_is_stored(cx: &mut TestAppContext
         dr_shell::keymap::apply(&overrides, cx);
     });
     keys(cx, "cmd-alt-y");
-    assert_eq!(
-        view.read_with(cx, |ws, _| ws.nav.page()),
-        Page::Target(Target::Book)
-    );
+    assert_eq!(view.read_with(cx, |ws, _| ws.nav.page()), Page::Home);
 }
 
 #[gpui::test]
@@ -587,9 +581,11 @@ fn the_whole_book_is_one_editor(cx: &mut TestAppContext) {
     else {
         unreachable!()
     };
+    let manuscript_id = view.read_with(cx, |ws, _| ws.book.v3().unwrap().roots[0].clone());
+    let book_target = Target::Book(manuscript_id.parse().unwrap());
     let third_doc = format!("body:{third_id}/mod-prose");
-    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
-    let page = open_page(&view, cx, &Target::Book);
+    view.update(cx, |ws, cx| ws.open(book_target.clone(), Open::KEEP, cx));
+    let page = open_page(&view, cx, &book_target);
     let PageView::Book(editor) = page.clone() else {
         panic!("the whole book's page is a BookEditor")
     };
@@ -597,7 +593,11 @@ fn the_whole_book_is_one_editor(cx: &mut TestAppContext) {
     // The outline: three acts, 24 chapters (no headings in 《慢钟》's chapters).
     let (entries, ..) = cx.update(|_, cx| outline::read(&page, cx));
     let tiers = |t: u8| entries.iter().filter(|e| e.level == t).count();
-    assert_eq!((tiers(1), tiers(2)), (0, 24), "no built-in act tier");
+    assert_eq!(
+        (tiers(1), tiers(2)),
+        (3, 24),
+        "three prose-less act levels and 24 chapters"
+    );
     // To the third chapter by the outline, then type there.
     let at = entries
         .iter()
@@ -629,17 +629,18 @@ fn the_whole_book_is_one_editor(cx: &mut TestAppContext) {
         Some(fifth.clone())
     );
     open_editor(&view, cx, &fifth);
-    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
-    let current = open_page(&view, cx, &Target::Book);
+    view.update(cx, |ws, cx| ws.open(book_target.clone(), Open::KEEP, cx));
+    let current = open_page(&view, cx, &book_target);
     cx.update(|_, cx| assert_eq!(current.prose(cx).entity_id(), page.prose(cx).entity_id()));
     cx.update(|window, cx| outline::jump_to(&page, 4, None, window, cx));
     draw(cx);
     let caret_chapter = editor.read_with(cx, |e, cx| e.editor().read(cx).selection().chapter);
     assert_eq!(caret_chapter, 4);
-    // The reading position goes into the book's layout.
+    // The reading position goes into the book's layout per starting level entry.
     view.update(cx, |ws, cx| ws.store_layout(cx));
     let saved = cx.update(|_, cx| {
-        Settings::read(cx).layout(&book).cloned().unwrap()["book_position"].clone()
+        Settings::read(cx).layout(&book).cloned().unwrap()["book_positions"][manuscript_id.as_str()]
+            .clone()
     });
     assert_eq!(
         saved["doc"].as_str(),
@@ -654,19 +655,20 @@ fn the_whole_book_is_one_editor(cx: &mut TestAppContext) {
         )
     );
     // Closing the tab and opening it again comes back there.
+    let book_key = book_target.key();
     view.update(cx, |ws, cx| {
         let i = ws
             .nav
             .tabs()
             .iter()
-            .position(|t| t.key() == "book")
+            .position(|t| t.key() == book_key)
             .unwrap();
         ws.nav.close(i);
         cx.notify();
     });
     draw(cx);
-    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
-    let PageView::Book(again) = open_page(&view, cx, &Target::Book) else {
+    view.update(cx, |ws, cx| ws.open(book_target.clone(), Open::KEEP, cx));
+    let PageView::Book(again) = open_page(&view, cx, &book_target) else {
         unreachable!()
     };
     let position = again.read_with(cx, |e, cx| e.reading_position(cx)).unwrap();
@@ -1162,8 +1164,11 @@ fn a_comment_is_written_in_the_whole_book(cx: &mut TestAppContext) {
     else {
         unreachable!()
     };
-    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
-    let page = open_page(&view, cx, &Target::Book);
+    let book_target = view.read_with(cx, |ws, _| {
+        Target::Book(ws.book.v3().unwrap().roots[0].parse().unwrap())
+    });
+    view.update(cx, |ws, cx| ws.open(book_target.clone(), Open::KEEP, cx));
+    let page = open_page(&view, cx, &book_target);
     cx.update(|window, cx| outline::jump_to(&page, 2, None, window, cx));
     draw(cx);
     let prose = cx.update(|_, cx| page.prose(cx));
@@ -1637,8 +1642,11 @@ fn a_selection_across_chapters_counts_its_words(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
     wait_for(&view, cx, |ws| !ws.book.is_empty());
-    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
-    let page = open_page(&view, cx, &Target::Book);
+    let book_target = view.read_with(cx, |ws, _| {
+        Target::Book(ws.book.v3().unwrap().roots[0].parse().unwrap())
+    });
+    view.update(cx, |ws, cx| ws.open(book_target.clone(), Open::KEEP, cx));
+    let page = open_page(&view, cx, &book_target);
     let prose = cx.update(|_, cx| page.prose(cx));
     cx.update(|window, cx| {
         prose.update(cx, |p, cx| {

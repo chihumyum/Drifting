@@ -86,6 +86,14 @@ pub fn rows(target: &Target, host: &PageMenuHost, extra: &CardRows, cx: &App) ->
         Icon::ArrowIn,
         Some(open(host, target.clone())),
     ));
+    if v.entry(id.as_str()).is_some_and(|e| e.level) {
+        out.push(row(
+            "entry-open-book",
+            keys::v3_shell::BOOK_VIEW,
+            Icon::OpenBook,
+            Some(open(host, Target::Book(id.clone()))),
+        ));
+    }
     out.push(row(
         "entry-new",
         keys::v3_shell::NEW_ENTRY,

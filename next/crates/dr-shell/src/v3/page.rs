@@ -9,7 +9,13 @@ use crate::{
     strings::t,
 };
 use dr_i18n::keys;
-use dr_ui::{Theme, components::Switch, fonts::Role as FontRole, sand::KindMark, style::DrStyled};
+use dr_ui::{
+    Theme,
+    components::{Button, Switch},
+    fonts::Role as FontRole,
+    sand::{Icon, KindMark},
+    style::DrStyled,
+};
 use dr_workspace::commands::v3::types::ModuleSpec;
 use gpui::{prelude::*, *};
 use std::{collections::BTreeMap, rc::Rc};
@@ -329,6 +335,27 @@ impl Render for EntryPage {
                     let toggle_hint = t(cx, keys::v3_shell::LEVEL_SWITCH_HINT);
                     let toggle_host = self.host.clone();
                     let toggle_id = id.to_string();
+                    let open_book = entry.level.then(|| {
+                        let weak = self.host.workspace.clone();
+                        let expected_book = self.host.book_id.clone();
+                        let book_target = Target::Book(id.clone());
+                        div().debug_selector(|| "v3-entry-open-book".into()).child(
+                            Button::new("v3-entry-open-book", t(cx, keys::v3_shell::BOOK_VIEW))
+                                .small()
+                                .icon(Icon::OpenBook)
+                                .on_click(move |_, _, cx| {
+                                    if let Some(ws) = weak.upgrade() {
+                                        ws.update(cx, |ws, cx| {
+                                            if ws.book_id == expected_book
+                                                && ws.book.exists(&book_target)
+                                            {
+                                                ws.open(book_target.clone(), Open::KEEP, cx);
+                                            }
+                                        });
+                                    }
+                                }),
+                        )
+                    });
                     content = content.child(
                         div()
                             .flex()
@@ -357,61 +384,75 @@ impl Render for EntryPage {
                             )
                             .child(
                                 div()
-                                    .id("v3-entry-level-toggle")
-                                    .role(gpui::Role::CheckBox)
-                                    .aria_label(toggle_label.clone())
-                                    .aria_toggled(if entry.level {
-                                        gpui::Toggled::True
-                                    } else {
-                                        gpui::Toggled::False
-                                    })
                                     .flex_none()
                                     .flex()
                                     .flex_row()
                                     .items_center()
                                     .gap_3()
-                                    .cursor_pointer()
-                                    .on_click(move |_, window, cx| {
-                                        toggle_level(
-                                            toggle_host.clone(),
-                                            toggle_id.clone(),
-                                            window,
-                                            cx,
-                                        );
-                                    })
+                                    .children(open_book)
                                     .child(
                                         div()
+                                            .id("v3-entry-level-toggle")
+                                            .role(gpui::Role::CheckBox)
+                                            .aria_label(toggle_label.clone())
+                                            .aria_toggled(if entry.level {
+                                                gpui::Toggled::True
+                                            } else {
+                                                gpui::Toggled::False
+                                            })
                                             .flex()
-                                            .flex_col()
-                                            .items_end()
+                                            .flex_row()
+                                            .items_center()
+                                            .gap_3()
+                                            .cursor_pointer()
+                                            .on_click(move |_, window, cx| {
+                                                toggle_level(
+                                                    toggle_host.clone(),
+                                                    toggle_id.clone(),
+                                                    window,
+                                                    cx,
+                                                );
+                                            })
                                             .child(
                                                 div()
-                                                    .font_role(FontRole::Ui)
-                                                    .type_px(
-                                                        theme.scale.body,
-                                                        theme.scale.line_body,
+                                                    .flex()
+                                                    .flex_col()
+                                                    .items_end()
+                                                    .child(
+                                                        div()
+                                                            .font_role(FontRole::Ui)
+                                                            .type_px(
+                                                                theme.scale.body,
+                                                                theme.scale.line_body,
+                                                            )
+                                                            .text_color(
+                                                                theme.palette.ink(1).solid(),
+                                                            )
+                                                            .child(toggle_label),
                                                     )
-                                                    .text_color(theme.palette.ink(1).solid())
-                                                    .child(toggle_label),
+                                                    .child(
+                                                        div()
+                                                            .id("v3-entry-level-hint")
+                                                            .role(gpui::Role::Label)
+                                                            .aria_label(toggle_hint.clone())
+                                                            .font_role(FontRole::Ui)
+                                                            .type_px(
+                                                                theme.scale.caption,
+                                                                theme.scale.line_caption,
+                                                            )
+                                                            .text_color(
+                                                                theme.palette.muted().solid(),
+                                                            )
+                                                            .child(toggle_hint),
+                                                    ),
                                             )
-                                            .child(
-                                                div()
-                                                    .id("v3-entry-level-hint")
-                                                    .role(gpui::Role::Label)
-                                                    .aria_label(toggle_hint.clone())
-                                                    .font_role(FontRole::Ui)
-                                                    .type_px(
-                                                        theme.scale.caption,
-                                                        theme.scale.line_caption,
-                                                    )
-                                                    .text_color(theme.palette.muted().solid())
-                                                    .child(toggle_hint),
-                                            ),
-                                    )
-                                    .child(Switch::new(
-                                        SharedString::from(format!("v3-entry-level-switch-{id}")),
-                                        entry.level,
-                                    )),
+                                            .child(Switch::new(
+                                                SharedString::from(format!(
+                                                    "v3-entry-level-switch-{id}"
+                                                )),
+                                                entry.level,
+                                            )),
+                                    ),
                             ),
                     );
                     let level = v3.levels.get(id.as_str());

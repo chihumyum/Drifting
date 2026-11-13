@@ -924,7 +924,6 @@
       "library": "작품 · 자료실",
       "review": "작품 · 검토",
       "stats": {
-        "all-chapters": "작품 전체 · 리듬",
         "chapter": "이 장 · 상세 통계",
         "element": "이 요소 · 상세 통계",
         "material": "이 자료 · 상세",
@@ -1507,9 +1506,6 @@
     "dockLock": "열린 상태 유지",
     "dockUnlock": "점으로 접기",
     "newEntity": "개체 만들기",
-    "singletons": {
-      "allChapters": "작품 전체"
-    },
     "untitled": {
       "library_item": "이름 없는 자료"
     }
@@ -1577,6 +1573,7 @@
   "v3Shell": {
     "belongTo": "소속 지정",
     "board": "보드",
+    "bookView": "책 보기",
     "changeTemplate": "템플릿 변경",
     "childrenEntries": "하위 항목",
     "editTemplate": "템플릿 편집",

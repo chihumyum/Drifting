@@ -51,10 +51,29 @@ fn entry<'a>(e: &'a Env, template: &str) -> &'a Value {
 // F4c's ordinary cross-chapter text, on the canonical v3 manuscript. These
 // actions must pass through the drawn BookEditor/Assist capture, not through
 // ProseEditor's paste_text/on_cut helpers.
+fn manuscript_root(e: &Env) -> String {
+    dr_editor::v3::read(&e.ws, &e.book, |v| {
+        dr_editor::v3::manuscript_roots(&v)
+            .into_iter()
+            .next()
+            .unwrap()
+            .to_string()
+    })
+    .unwrap()
+}
+fn manuscript_docs(e: &Env) -> Vec<(String, String)> {
+    let root = dr_model::id::EntryId::parse(&manuscript_root(e)).unwrap();
+    dr_editor::v3::read(&e.ws, &e.book, move |v| {
+        dr_editor::v3::flatten_book(&v, &root).unwrap()
+    })
+    .unwrap()
+    .into_iter()
+    .filter_map(|s| Some((s.doc?, s.title)))
+    .collect()
+}
 fn cross_fixture() -> (Env, Vec<String>) {
     let e = env();
-    let docs = dr_editor::v3::read(&e.ws, &e.book, |v| dr_editor::v3::manuscript_docs(&v))
-        .unwrap()
+    let docs = manuscript_docs(&e)
         .into_iter()
         .map(|(doc, _)| doc)
         .collect::<Vec<_>>();
@@ -86,6 +105,7 @@ fn open_cross<'a>(
     &'a mut gpui::VisualTestContext,
 ) {
     use gpui::Focusable as _;
+    let from = manuscript_root(e);
     let ws = e.ws.clone();
     let book = e.book.clone();
     cx.executor().allow_parking();
@@ -93,6 +113,7 @@ fn open_cross<'a>(
         BookEditor::open(
             ws,
             &book,
+            &from,
             EditorSettings {
                 auto_entity_links: false,
                 ..Default::default()
@@ -157,6 +178,7 @@ fn cross_case(cx: &mut TestAppContext, cut: bool, external: bool) {
     let (e, docs) = cross_fixture();
     let before = cross_texts(&e, &docs);
     assert_eq!(&before[..2], &["甲乙丙\n", "丁戊\n己\n"]);
+    let from = manuscript_root(&e);
     let ws = e.ws.clone();
     let book = e.book.clone();
     cx.executor().allow_parking();
@@ -164,6 +186,7 @@ fn cross_case(cx: &mut TestAppContext, cut: bool, external: bool) {
         BookEditor::open(
             ws,
             &book,
+            &from,
             EditorSettings {
                 auto_entity_links: false,
                 ..Default::default()
@@ -798,8 +821,7 @@ fn manuscript_refresh_keeps_sessions_undo_and_document_order(cx: &mut TestAppCon
         "entry_template.put_module",
         json!({"template":"tpl-chapter","module":{"id":"second","kind":"prose","name":"Second"}}),
     );
-    let expected =
-        dr_editor::v3::read(&e.ws, &e.book, |v| dr_editor::v3::manuscript_docs(&v)).unwrap();
+    let expected = manuscript_docs(&e);
     assert_eq!(expected.len(), 8);
     assert!(expected.iter().all(|(d, _)| d.starts_with("body:")));
     // Existing seed prose opens directly; a newly added module must still
@@ -821,11 +843,12 @@ fn manuscript_refresh_keeps_sessions_undo_and_document_order(cx: &mut TestAppCon
         json!({"owner":"tpl-chapter","module":"second","template":true,
             "paragraphs":[{"text":defaults}]}),
     );
+    let from = manuscript_root(&e);
     let ws = e.ws.clone();
     let book = e.book.clone();
     cx.executor().allow_parking();
     let (view, cx) = cx.add_window_view(move |w, cx| {
-        BookEditor::open(ws, &book, EditorSettings::default(), w, cx).unwrap()
+        BookEditor::open(ws, &book, &from, EditorSettings::default(), w, cx).unwrap()
     });
     let docs = view.read_with(cx, |v, _| {
         v.chapter_docs().map(str::to_owned).collect::<Vec<_>>()

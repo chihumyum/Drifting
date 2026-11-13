@@ -924,7 +924,6 @@
       "library": "作品・資料庫",
       "review": "作品・レビュー",
       "stats": {
-        "all-chapters": "全編・ペース",
         "chapter": "この章・詳細統計",
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
@@ -1507,9 +1506,6 @@
     "dockLock": "開いたままにする",
     "dockUnlock": "点表示に戻す",
     "newEntity": "エンティティを作成",
-    "singletons": {
-      "allChapters": "全編"
-    },
     "untitled": {
       "library_item": "無題の資料"
     }
@@ -1577,6 +1573,7 @@
   "v3Shell": {
     "belongTo": "所属先",
     "board": "ボード",
+    "bookView": "ブック表示",
     "changeTemplate": "テンプレートを変更",
     "childrenEntries": "下の項目",
     "editTemplate": "テンプレートを編集",

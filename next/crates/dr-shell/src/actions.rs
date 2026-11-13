@@ -28,8 +28,6 @@ actions!(
         NewEntity,
         /// The Project Home (⌘⌥1).
         ShowProjectHome,
-        /// The whole book in one tab (⌘⌥2).
-        ShowWholeBook,
         /// The story graph Super View (⌘⌥3).
         ToggleStoryGraph,
         /// The element overview Super View (⌘⌥4).

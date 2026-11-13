@@ -520,13 +520,6 @@ impl Render for Home {
                 );
             }
         }
-        column = column.child(
-            Button::new("v3-home-all", t(cx, keys::manuscript_export::WHOLE_BOOK))
-                .text()
-                .on_click(|_, window, cx| {
-                    window.dispatch_action(Box::new(dr_shell::actions::ShowWholeBook), cx)
-                }),
-        );
         let mut creations = div().flex().flex_wrap().gap(px(12.0));
         for action in actions(&book) {
             let home = cx.entity();

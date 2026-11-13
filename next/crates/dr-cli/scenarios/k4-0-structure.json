@@ -455,7 +455,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "book"
+        "target": "book:${entries.[template=tpl-manuscript].id}"
       }
     },
     {
@@ -463,14 +463,14 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         }
       }
     },
     {
       "app": "state.get",
       "expect": {
-        "/pages/[key=book]/ready": true
+        "/pages/[key=book:${entries.[template=tpl-manuscript].id}]/ready": true
       },
       "note": "Filtered array selectors belong to scenario expectations; ui.wait takes plain JSON pointers."
     },

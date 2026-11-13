@@ -924,7 +924,6 @@
       "library": "作品 · 素材庫",
       "review": "作品 · 審閱",
       "stats": {
-        "all-chapters": "全書 · 節奏",
         "chapter": "此章 · 詳細統計",
         "element": "此要素 · 詳細統計",
         "material": "此素材 · 詳情",
@@ -1507,9 +1506,6 @@
     "dockLock": "保持展開",
     "dockUnlock": "收回為圓點",
     "newEntity": "建立實體",
-    "singletons": {
-      "allChapters": "全書"
-    },
     "untitled": {
       "library_item": "未命名素材"
     }
@@ -1577,6 +1573,7 @@
   "v3Shell": {
     "belongTo": "歸屬至",
     "board": "看板",
+    "bookView": "整書檢視",
     "changeTemplate": "更換範本",
     "childrenEntries": "下面的條目",
     "editTemplate": "編輯範本",

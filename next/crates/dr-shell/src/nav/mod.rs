@@ -37,16 +37,13 @@ pub enum Target {
     },
     Template(EntryTemplateId),
     Material(MaterialId),
-    /// 通览全书: the whole book in one scroll. One per book.
-    Book,
+    /// 整书视图: a level entry and everything under it in one scroll.
+    Book(EntryId),
 }
 
 impl Target {
     /// The target a [`Target::key`] names.
     pub fn from_key(key: &str) -> Option<Target> {
-        if key == "book" {
-            return Some(Target::Book);
-        }
         let (kind, id) = key.split_once(':')?;
         Some(match kind {
             "entry" => {
@@ -62,6 +59,7 @@ impl Target {
             "template" => Target::Template(id.parse().ok()?),
 
             "material" => Target::Material(id.parse().ok()?),
+            "book" => Target::Book(id.parse().ok()?),
             _ => return None,
         })
     }
@@ -76,12 +74,12 @@ impl Target {
             Target::Template(id) => format!("template:{id}"),
 
             Target::Material(id) => format!("material:{id}"),
-            Target::Book => "book".to_owned(),
+            Target::Book(id) => format!("book:{id}"),
         }
     }
 
     pub fn is_singleton(&self) -> bool {
-        matches!(self, Target::Book)
+        matches!(self, Target::Book(_))
     }
 }
 
@@ -798,10 +796,16 @@ mod tests {
         nav.open(ch(4), Open::PREVIEW);
         assert_eq!(nav.tabs().len(), 2);
         assert_eq!(nav.current(), Some(&ch(4)));
-        // The whole book opens at the top level even from a preview side.
+        // A level's book view opens at the top level even from a preview side.
         nav.focus_side(0, Side::Right);
-        nav.open(Target::Book, Open::PREVIEW);
+        nav.open(Target::Book("lvl-1".parse().unwrap()), Open::PREVIEW);
         assert!(matches!(&nav.tabs()[0], Tab::Split(s) if s.right.target == ch(3)));
+        assert!(Target::from_key("book").is_none());
+        assert!(Target::from_key("book:").is_none());
+        assert_eq!(
+            Target::from_key("book:lvl-1"),
+            Some(Target::Book("lvl-1".parse().unwrap()))
+        );
     }
 
     #[test]
