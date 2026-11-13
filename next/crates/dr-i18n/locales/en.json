@@ -1601,7 +1601,6 @@
     "turnOffLevelBody_one": "{{count}} entry below will move to the top level along with everything under it. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelBody_other": "{{count}} entries below will move to the top level along with everything under them. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelConfirm": "Turn off",
-    "turnOffLevelConflict": "Entries below changed while this dialog was open. Review the updated count and confirm again.",
     "turnOffLevelTitle": "Turn off Level",
     "untitledEntry": "Untitled entry",
     "untitledNamed": "Untitled {{name}}"

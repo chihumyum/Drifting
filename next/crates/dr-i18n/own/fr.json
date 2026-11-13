@@ -264,7 +264,6 @@
     "turnOffLevelBody_one": "{{count}} entrée en dessous sera déplacée au premier niveau avec tout ce qu’elle contient. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
     "turnOffLevelBody_other": "{{count}} entrées en dessous seront déplacées au premier niveau avec tout ce qu’elles contiennent. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
     "turnOffLevelConfirm": "Désactiver",
-    "turnOffLevelConflict": "Les entrées en dessous viennent de changer. Vérifiez le nouveau nombre puis confirmez à nouveau.",
     "turnOffLevelTitle": "Désactiver le niveau",
     "untitledEntry": "Entrée sans titre",
     "untitledNamed": "{{name}} sans titre"

@@ -596,8 +596,9 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 
 ### 作者 2026-11-13 定的四条（v4 收尾）
 
-第三条里页眉的编号已改：
+上面第一条里「对话框重读最新 `N` 并提示重新确认」已改：
 
+- **问的期间变了**：点「关闭层级」时先在后台重读一遍；住着的子条目跟框里说的不一样，就把框里的数字换成最新的、留在框里再问一次，不另加提示（`v3Shell.turnOffLevelConflict` 那句删了，九种语言一起）。一样才写，写入守着这个条目和它的子条目顺序，读和写之间别处改了就再读一遍。
 - **页眉的编号**：条目自己有成书正文时，住在它下面的条目（隔几层都算）不再单独编号，页眉显示模板名；位置、导出、字数不变（`kernel-v4.md` 第 7 节，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。书稿列表「按故事线」分组改按成书序列的位置收「带成书正文」的条目，有没有编号都列出来；书架的「N 章」按编号数，要素数改为不算带成书正文的条目。
 
 测试：`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。

@@ -256,7 +256,6 @@
     "trash": "移至最近刪除",
     "turnOffLevelBody_other": "下面的 {{count}} 個條目會移到最外層，各自下面的內容跟著走。歸屬到它的條目和它在時間線裡的泳道先不顯示，再打開就回來。",
     "turnOffLevelConfirm": "關閉層級",
-    "turnOffLevelConflict": "下面的條目剛剛發生了變化，請確認最新數量後再關閉。",
     "turnOffLevelTitle": "關閉層級",
     "untitledEntry": "無標題條目",
     "untitledNamed": "無標題{{name}}"

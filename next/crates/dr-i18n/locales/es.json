@@ -1610,7 +1610,6 @@
     "turnOffLevelBody_one": "{{count}} entrada debajo se moverá al nivel superior junto con todo lo que contiene. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
     "turnOffLevelBody_other": "{{count}} entradas debajo se moverán al nivel superior junto con todo lo que contienen. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
     "turnOffLevelConfirm": "Desactivar",
-    "turnOffLevelConflict": "Las entradas debajo acaban de cambiar. Revisa la cantidad actualizada y vuelve a confirmar.",
     "turnOffLevelTitle": "Desactivar nivel",
     "untitledEntry": "Entrada sin título",
     "untitledNamed": "{{name}} sin título"

@@ -1587,7 +1587,6 @@
     "trash": "放进最近删除",
     "turnOffLevelBody_other": "下面的 {{count}} 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。",
     "turnOffLevelConfirm": "关闭层级",
-    "turnOffLevelConflict": "下面的条目刚刚发生了变化，请确认最新数量后再关闭。",
     "turnOffLevelTitle": "关闭层级",
     "untitledEntry": "无标题条目",
     "untitledNamed": "无标题{{name}}"

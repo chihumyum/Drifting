@@ -1610,7 +1610,6 @@
     "turnOffLevelBody_one": "{{count}} entrada abaixo será movida para o nível mais externo com tudo o que estiver sob ela. As entradas associadas e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",
     "turnOffLevelBody_other": "{{count}} entradas abaixo serão movidas para o nível mais externo com tudo o que estiver sob elas. As entradas associadas e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",
     "turnOffLevelConfirm": "Desativar",
-    "turnOffLevelConflict": "As entradas abaixo acabaram de mudar. Confira a quantidade atualizada e confirme novamente.",
     "turnOffLevelTitle": "Desativar nível",
     "untitledEntry": "Entrada sem título",
     "untitledNamed": "{{name}} sem título"
