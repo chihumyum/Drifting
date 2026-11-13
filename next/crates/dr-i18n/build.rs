@@ -61,7 +61,7 @@ fn main() {
         }
     }
     // A language with only the plain key where English has plural forms
-    // (zh-CN's `projectPicker.desk.chaptersUnit`) uses it for every count,
+    // (zh-CN's `projectPicker.desk.storylinesUnit`) uses it for every count,
     // as i18next falls back to the plain key: it is that language's `_other`.
     for table in base.iter_mut() {
         for stem in &plural {

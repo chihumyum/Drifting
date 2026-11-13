@@ -92,6 +92,9 @@
     "bookTransfer": {
       "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version.",
       "older": "Dieses Buch wurde von einer früheren Entwicklungsversion von Drifting in einem Format exportiert, das diese Version nicht mehr liest."
+    },
+    "trash": {
+      "bodyWithoutChapters": "Dieses Buch ({{words}} Wörter · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht."
     }
   },
   "settings": {
