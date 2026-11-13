@@ -100,5 +100,8 @@ try {
   throw error;
 } finally {
   try { await closeHeadlessSession({ client, browser, server }); }
-  finally { rmSync(temporary, { recursive: true, force: true }); }
+  // The browser can still be writing its profile for a moment after it is
+  // closed: retry the removal instead of failing a finished measurement
+  // with ENOTEMPTY.
+  finally { rmSync(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); }
 }
