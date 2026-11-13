@@ -762,8 +762,6 @@
       "deleting": "削除中…"
     },
     "desk": {
-      "chaptersUnit_one": "章",
-      "chaptersUnit_other": "章",
       "coverStyle": {
         "names": {
           "bauhaus": "バウハウス",
@@ -848,7 +846,7 @@
       "writing": "執筆中"
     },
     "trash": {
-      "body": "作品（{{words}}文字・{{nodes}}章・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
+      "bodyWithoutChapters": "作品（{{words}}文字・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
       "confirm": "最近削除した項目へ移動",
       "deleteNow": "今すぐ削除",
       "expiresIn_one": "{{count}}日後に完全削除",
@@ -926,7 +924,6 @@
       "library": "作品・資料庫",
       "review": "作品・レビュー",
       "stats": {
-        "chapter": "この章・詳細統計",
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
         "none": "作品・詳細統計",
@@ -934,7 +931,6 @@
       }
     },
     "stats": {
-      "chapter": "章",
       "dialogueRatio": "会話の割合",
       "name": "名前",
       "paragraphSentence": "段落／文",

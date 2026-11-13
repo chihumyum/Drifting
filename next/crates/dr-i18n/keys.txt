@@ -11,7 +11,6 @@ rightSidebar.tabs.library
 rightSidebar.tabs.stats
 rightSidebar.kickers.review
 rightSidebar.kickers.library
-rightSidebar.kickers.stats.chapter
 rightSidebar.kickers.stats.storyline
 rightSidebar.kickers.stats.element
 rightSidebar.kickers.stats.none
@@ -170,7 +169,6 @@ dashboard.today.streak
 projectPicker.heat.daysUnit
 projectPicker.heat.today
 rightSidebar.stats.storyline
-rightSidebar.stats.chapter
 rightSidebar.stats.wordRhythm
 rightSidebar.stats.paragraphSentence
 rightSidebar.stats.paragraphSentenceValue
@@ -247,7 +245,6 @@ projectPicker.desk.untitled
 projectPicker.desk.progress
 projectPicker.desk.goal
 projectPicker.desk.wordsUnit
-projectPicker.desk.chaptersUnit
 projectPicker.desk.storylinesUnit
 projectPicker.desk.elementsUnit
 projectPicker.desk.trashEntry
@@ -260,7 +257,6 @@ projectPicker.desk.trashList.empty
 projectPicker.form.namePlaceholder
 projectPicker.form.summaryPlaceholder
 projectPicker.form.createSubmit
-projectPicker.trash.body
 projectPicker.trash.localNote
 projectPicker.trash.confirm
 projectPicker.trash.moving

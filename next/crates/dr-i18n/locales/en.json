@@ -769,8 +769,6 @@
       "deleting": "Deleting…"
     },
     "desk": {
-      "chaptersUnit_one": "chapter",
-      "chaptersUnit_other": "chapters",
       "coverStyle": {
         "names": {
           "bauhaus": "Bauhaus",
@@ -855,7 +853,7 @@
       "writing": "Writing"
     },
     "trash": {
-      "body": "This book ({{words}} words · {{nodes}} chapters · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
+      "bodyWithoutChapters": "This book ({{words}} words · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "confirm": "Move to Recently Deleted",
       "deleteNow": "Delete now",
       "expiresIn_one": "Permanently deleted in {{count}} day",
@@ -933,7 +931,6 @@
       "library": "Project · Library",
       "review": "Project · Review",
       "stats": {
-        "chapter": "This chapter · detailed stats",
         "element": "This element · detailed stats",
         "material": "This material · Details",
         "none": "Project · detailed stats",
@@ -941,7 +938,6 @@
       }
     },
     "stats": {
-      "chapter": "Chapter",
       "dialogueRatio": "Dialogue ratio",
       "name": "Name",
       "paragraphSentence": "Paragraphs / sentences",
