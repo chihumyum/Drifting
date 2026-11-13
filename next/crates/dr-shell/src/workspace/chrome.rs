@@ -185,6 +185,17 @@ pub fn set_traffic_lights_hidden(window: &Window, hidden: bool) {
 #[cfg(not(target_os = "macos"))]
 pub fn set_traffic_lights_hidden(_: &Window, _: bool) {}
 
+/// Puts the window controls back at [`TRAFFIC_LIGHT_POSITION`]. Only macOS
+/// lets an app place them (GPUI has no such call on other platforms), so
+/// elsewhere there is nothing to do.
+#[cfg(target_os = "macos")]
+pub fn place_traffic_lights(window: &Window) {
+    window.set_traffic_light_position(TRAFFIC_LIGHT_POSITION);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn place_traffic_lights(_: &Window) {}
+
 /// A sidebar's toggle, marked for M24's tour only while the sidebar is
 /// closed (it floats then).
 fn closed_anchor(

@@ -69,7 +69,7 @@ use crate::settings::panel::SettingsPanel;
 use crate::{Services, Settings, ShellInfo, keymap, menus};
 
 pub use bottom::{BottomLayout, BottomResize};
-pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION};
+pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION, place_traffic_lights};
 pub use dock::DockDrag;
 pub use editors::PageEditor;
 pub use sea::{FIRST_RUN_DONE, SeaState};
@@ -1447,7 +1447,7 @@ impl Workspace {
         self.notifications_open = false;
         // Settings leaves immersive writing so the window controls stay visible.
         self.set_immersive(false, cx);
-        window.set_traffic_light_position(chrome::TRAFFIC_LIGHT_POSITION);
+        chrome::place_traffic_lights(window);
         if self.settings.is_none() {
             let panel = cx.new(|cx| SettingsPanel::new(window, cx));
             cx.subscribe_in(&panel, window, |ws, _, event, window, cx| match event {

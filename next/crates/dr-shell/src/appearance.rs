@@ -15,7 +15,7 @@ pub fn apply(forced: Option<Appearance>, cx: &mut App) {
     for handle in cx.windows() {
         if let Some(ws) = handle.downcast::<crate::Workspace>() {
             let _ = ws.update(cx, |_, window, _| {
-                window.set_traffic_light_position(crate::workspace::TRAFFIC_LIGHT_POSITION);
+                crate::workspace::place_traffic_lights(window);
             });
         }
     }
