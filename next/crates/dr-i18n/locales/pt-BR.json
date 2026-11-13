@@ -621,6 +621,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Refazer",
+      "undo": "Desfazer"
+    },
     "projectActions": {
       "deleteFailed": "Não foi possível excluir o projeto. Tente novamente."
     }
@@ -691,6 +695,7 @@
     "insertColumnRight": "Inserir coluna à direita",
     "insertRowAbove": "Inserir linha acima",
     "insertRowBelow": "Inserir linha abaixo",
+    "move": "Mover",
     "moveDown": "Mover para baixo",
     "moveLeft": "Mover à esquerda",
     "moveRight": "Mover à direita",
@@ -1610,7 +1615,11 @@
     "turnOffLevelBody_one": "{{count}} entrada abaixo será movida para o nível mais externo com tudo o que estiver sob ela. As entradas associadas e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",
     "turnOffLevelBody_other": "{{count}} entradas abaixo serão movidas para o nível mais externo com tudo o que estiver sob elas. As entradas associadas e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",
     "turnOffLevelConfirm": "Desativar",
-    "turnOffLevelConflict": "As entradas abaixo acabaram de mudar. Confira a quantidade atualizada e confirme novamente.",
+    "turnOffLevelLaneBody": "Sua raia na linha do tempo ficará oculta até ser ativado novamente.",
+    "turnOffLevelMembersBody_one": "{{count}} entrada associada ficará oculta até ser ativado novamente.",
+    "turnOffLevelMembersBody_other": "{{count}} entradas associadas ficarão ocultas até ser ativado novamente.",
+    "turnOffLevelMembersLaneBody_one": "{{count}} entrada associada e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",
+    "turnOffLevelMembersLaneBody_other": "{{count}} entradas associadas e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",
     "turnOffLevelTitle": "Desativar nível",
     "untitledEntry": "Entrada sem título",
     "untitledNamed": "{{name}} sem título"

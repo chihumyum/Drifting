@@ -181,7 +181,8 @@ impl BookV3 {
         }
     }
     /// The 1-based chapter ordinal of `id` when it carries book prose in the
-    /// manuscript sequence.
+    /// manuscript sequence and lives under no entry with book prose of its
+    /// own (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
     pub fn manuscript_number(&self, id: &str) -> Option<u32> {
         self.ordinals.get(id).copied()
     }

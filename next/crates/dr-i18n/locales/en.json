@@ -619,6 +619,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Redo",
+      "undo": "Undo"
+    },
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
@@ -688,6 +692,7 @@
     "insertColumnRight": "Insert a column to the right",
     "insertRowAbove": "Insert a row above",
     "insertRowBelow": "Insert a row below",
+    "move": "Move",
     "moveDown": "Move down",
     "moveLeft": "Move left",
     "moveRight": "Move right",
@@ -1601,7 +1606,11 @@
     "turnOffLevelBody_one": "{{count}} entry below will move to the top level along with everything under it. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelBody_other": "{{count}} entries below will move to the top level along with everything under them. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelConfirm": "Turn off",
-    "turnOffLevelConflict": "Entries below changed while this dialog was open. Review the updated count and confirm again.",
+    "turnOffLevelLaneBody": "Its timeline swimlane will be hidden until you turn Level back on.",
+    "turnOffLevelMembersBody_one": "{{count}} entry assigned to it will be hidden until you turn Level back on.",
+    "turnOffLevelMembersBody_other": "{{count}} entries assigned to it will be hidden until you turn Level back on.",
+    "turnOffLevelMembersLaneBody_one": "{{count}} entry assigned to it and its timeline swimlane will be hidden until you turn Level back on.",
+    "turnOffLevelMembersLaneBody_other": "{{count}} entries assigned to it and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelTitle": "Turn off Level",
     "untitledEntry": "Untitled entry",
     "untitledNamed": "Untitled {{name}}"

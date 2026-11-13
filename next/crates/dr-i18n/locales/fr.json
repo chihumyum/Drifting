@@ -621,6 +621,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Rétablir",
+      "undo": "Annuler"
+    },
     "projectActions": {
       "deleteFailed": "Impossible de supprimer le projet. Réessayez."
     }
@@ -691,6 +695,7 @@
     "insertColumnRight": "Insérer une colonne à droite",
     "insertRowAbove": "Insérer une ligne au-dessus",
     "insertRowBelow": "Insérer une ligne en dessous",
+    "move": "Déplacer",
     "moveDown": "Descendre",
     "moveLeft": "Déplacer à gauche",
     "moveRight": "Déplacer à droite",
@@ -1610,7 +1615,11 @@
     "turnOffLevelBody_one": "{{count}} entrée en dessous sera déplacée au premier niveau avec tout ce qu’elle contient. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
     "turnOffLevelBody_other": "{{count}} entrées en dessous seront déplacées au premier niveau avec tout ce qu’elles contiennent. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
     "turnOffLevelConfirm": "Désactiver",
-    "turnOffLevelConflict": "Les entrées en dessous viennent de changer. Vérifiez le nouveau nombre puis confirmez à nouveau.",
+    "turnOffLevelLaneBody": "Son couloir dans la chronologie sera masqué jusqu’à sa réactivation.",
+    "turnOffLevelMembersBody_one": "{{count}} entrée rattachée sera masquée jusqu’à sa réactivation.",
+    "turnOffLevelMembersBody_other": "{{count}} entrées rattachées seront masquées jusqu’à sa réactivation.",
+    "turnOffLevelMembersLaneBody_one": "{{count}} entrée rattachée et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
+    "turnOffLevelMembersLaneBody_other": "{{count}} entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
     "turnOffLevelTitle": "Désactiver le niveau",
     "untitledEntry": "Entrée sans titre",
     "untitledNamed": "{{name}} sans titre"

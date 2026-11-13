@@ -270,13 +270,11 @@ fn grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane() {
     );
     assert!(at(&below).is_some());
     assert!(at(&group).is_none());
-    // Every numbered entry is listed once.
-    let numbered: BTreeSet<&str> = v
-        .entries
-        .iter()
-        .filter(|e| v.manuscript_number(&e.id).is_some())
-        .map(|e| e.id.as_str())
-        .collect();
+    // Every entry carrying book prose is listed once, numbered or not: the
+    // one under the chapter (which has book prose) has no number.
+    assert_eq!(v.manuscript_number(&below), None);
+    assert!(v.manuscript_number(&chapter).is_some());
+    let numbered: BTreeSet<&str> = v.manuscript.iter().map(|b| b.entry.as_str()).collect();
     let listed: BTreeSet<&str> = all.iter().copied().filter(|id| !v.is_lane(id)).collect();
     assert_eq!(listed, numbered);
     assert_eq!(all.iter().collect::<BTreeSet<_>>().len(), all.len());

@@ -1784,3 +1784,321 @@ fn level_entries_expose_book_view_on_card_and_page_and_close_when_level_turns_of
         );
     });
 }
+
+/// Author 2026-11-13: turning a 层级 off asks first when it hides entries
+/// assigned to it or its lane in a timeline view, even with nothing living
+/// under it, in the author's words (or the fewest words of them that fit);
+/// it asks nothing when it hides nothing. Cancelling changes nothing; a
+/// change to what the dialog said shows the new numbers and asks again,
+/// with no words of its own; once off, the data is kept and turning it
+/// back on brings everything back; the notice's 「撤销」 undoes the step.
+#[gpui::test]
+fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        pages::PageViewHost,
+        v3::{
+            self, Rendered,
+            page::{TurnOffLevelDialog, toggle_level},
+        },
+    };
+    use gpui::{prelude::*, *};
+    use std::time::{Duration, Instant};
+
+    struct DummyPart;
+    impl Render for DummyPart {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+
+    let (_dir, lib, id) = seed();
+    let b0 = Book::load(&lib, &id).unwrap();
+    let v0 = b0.v3().unwrap();
+    let root_of = |template: &str| {
+        v0.entries
+            .iter()
+            .find(|e| e.template.as_deref() == Some(template) && e.parent.is_none())
+            .unwrap()
+            .id
+            .clone()
+    };
+    let storylines = root_of("tpl-storylines");
+    let view_id = v0.timeline_views[0].id.clone();
+    let chapters: Vec<String> = v0
+        .entries
+        .iter()
+        .filter(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .map(|e| e.id.clone())
+        .take(3)
+        .collect();
+    assert_eq!(chapters.len(), 3);
+    let create = |parent: &str, template: &str, title: &str| {
+        call(
+            &lib,
+            "entry.create",
+            json!({"book": id, "parent": parent, "template": template, "title": title, "level": true}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let assign = |host: &str, member: &str| {
+        call(
+            &lib,
+            "membership.add",
+            json!({"book": id, "host": host, "member": member}),
+        );
+    };
+    let add_lane = |lane: &str| {
+        call(
+            &lib,
+            "timeline_view.add_lane",
+            json!({"book": id, "view": view_id, "lane": lane}),
+        );
+    };
+    // A lane with two entries assigned; a lane with none; a group that
+    // takes assigned entries, not a lane; a group that hides nothing.
+    let line = create(&storylines, "tpl-storyline", "支线");
+    add_lane(&line);
+    assign(&line, &chapters[0]);
+    assign(&line, &chapters[1]);
+    let bare_line = create(&storylines, "tpl-storyline", "空线");
+    add_lane(&bare_line);
+    let group = create(&storylines, "tpl-group", "收纳");
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": id, "id": group, "overrides": {"accept": true}}),
+    );
+    assign(&group, &chapters[2]);
+    let quiet = create(&storylines, "tpl-group", "空组");
+
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
+        for display in ["list", "board", "grid", "table"] {
+            v3::add_level_display(cx, display, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+        }
+        v3::add_level_settings(cx, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+    });
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let pump = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    let wait = |cx: &mut VisualTestContext, what: &str, done: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            pump(cx);
+            if view.read_with(cx, |ws, cx| done(ws, cx)) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait(cx, "the book", &|ws, _| {
+        ws.book.v3().is_some_and(|v| v.levels.contains_key(&quiet))
+    });
+    let toggle = |cx: &mut VisualTestContext, entry: &str| {
+        let host = PageViewHost {
+            workspace: view.downgrade(),
+            library: lib.clone(),
+            book_id: id.clone(),
+            book: view.read_with(cx, |ws, _| ws.book.clone()),
+        };
+        let entry = entry.to_owned();
+        cx.update(|window, cx| toggle_level(host, entry, window, cx));
+    };
+    let dialog_of = |ws: &Shell| {
+        ws.dialog
+            .as_ref()
+            .and_then(|d| d.clone().downcast::<TurnOffLevelDialog>().ok())
+    };
+    let ask = |cx: &mut VisualTestContext, entry: &str| -> Entity<TurnOffLevelDialog> {
+        toggle(cx, entry);
+        wait(cx, "the dialog", &|ws, _| dialog_of(ws).is_some());
+        view.read_with(cx, |ws, _| dialog_of(ws).unwrap())
+    };
+    let lanes = |ws: &Shell| -> Vec<String> {
+        let v = ws.book.v3().unwrap();
+        v.timeline_views
+            .iter()
+            .find(|tv| tv.id == view_id)
+            .unwrap()
+            .lanes
+            .iter()
+            .map(|l| l.entry.clone())
+            .collect()
+    };
+    let members = |ws: &Shell, host: &str| -> Vec<String> {
+        let mut m: Vec<String> = ws
+            .book
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .filter(|m| m.host == host)
+            .map(|m| m.member.clone())
+            .collect();
+        m.sort();
+        m
+    };
+
+    // Assigned entries and a lane: the author's sentence.
+    let dialog = ask(cx, &line);
+    dialog.read_with(cx, |d, cx| {
+        assert_eq!(d.child_count(), 0);
+        assert_eq!(d.member_count(), 2);
+        assert!(d.is_lane());
+        assert_eq!(
+            d.body_text(cx).as_ref(),
+            "归属到它的 2 个条目和它在时间线里的泳道先不显示，再打开就回来。"
+        );
+    });
+    // Cancel: nothing changes.
+    let (lanes_before, members_before) =
+        view.read_with(cx, |ws, _| (lanes(ws), members(ws, &line)));
+    dialog.update(cx, |d, cx| d.cancel(cx));
+    pump(cx);
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        assert!(ws.book.v3().unwrap().levels.contains_key(&line));
+        assert_eq!(lanes(ws), lanes_before);
+        assert_eq!(members(ws, &line), members_before);
+    });
+    // Confirm: the lane and the assigned entries stop showing; the data is
+    // kept and comes back as it was when the switch is turned on again.
+    let dialog = ask(cx, &line);
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait(cx, "the lane off", &|ws, _| {
+        !ws.book.v3().unwrap().levels.contains_key(&line)
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        assert!(!lanes(ws).contains(&line));
+        assert!(members(ws, &line).is_empty());
+    });
+    let stored = call(&lib, "entry.get", json!({"book": id, "id": line}));
+    assert_eq!(stored["level"], false);
+    toggle(cx, &line);
+    wait(cx, "the lane on", &|ws, _| {
+        ws.book.v3().unwrap().levels.contains_key(&line)
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none(), "turning it on asks nothing");
+        assert_eq!(lanes(ws), lanes_before);
+        assert_eq!(members(ws, &line), members_before);
+    });
+
+    // A lane with nothing assigned: only the lane.
+    let dialog = ask(cx, &bare_line);
+    dialog.read_with(cx, |d, cx| {
+        assert_eq!(
+            (d.child_count(), d.member_count(), d.is_lane()),
+            (0, 0, true)
+        );
+        assert_eq!(
+            d.body_text(cx).as_ref(),
+            "它在时间线里的泳道先不显示，再打开就回来。"
+        );
+    });
+    dialog.update(cx, |d, cx| d.cancel(cx));
+    pump(cx);
+
+    // Assigned entries, not a lane: only them.
+    let dialog = ask(cx, &group);
+    dialog.read_with(cx, |d, cx| {
+        assert_eq!(
+            (d.child_count(), d.member_count(), d.is_lane()),
+            (0, 1, false)
+        );
+        assert_eq!(
+            d.body_text(cx).as_ref(),
+            "归属到它的 1 个条目先不显示，再打开就回来。"
+        );
+        assert!(!d.has_conflict());
+    });
+    // Another entry is assigned while the dialog is open: confirming shows
+    // the new number and asks again (no words about it), and turns nothing off.
+    assign(&group, &chapters[0]);
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !dialog.read_with(cx, |d, _| !d.is_busy() && d.has_conflict()) {
+        pump(cx);
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for the refresh"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    dialog.read_with(cx, |d, cx| {
+        assert_eq!(d.member_count(), 2);
+        assert_eq!(
+            d.body_text(cx).as_ref(),
+            "归属到它的 2 个条目先不显示，再打开就回来。"
+        );
+    });
+    assert_eq!(
+        call(&lib, "entry.get", json!({"book": id, "id": group}))["level"],
+        true,
+        "a refreshed dialog turned nothing off"
+    );
+    view.read_with(cx, |ws, _| assert!(dialog_of(ws).is_some()));
+    // Confirmed again: off, and the notice offers 「撤销」.
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait(cx, "the group off", &|ws, _| {
+        !ws.book.v3().unwrap().levels.contains_key(&group)
+    });
+    wait(cx, "the notice", &|ws, _| {
+        ws.toast.as_ref().is_some_and(|t| t.offer.is_some())
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        let toast = ws.toast.as_ref().unwrap();
+        assert_eq!(toast.text.as_ref(), "关闭层级 · 收纳");
+        assert!(!toast.offer.as_ref().unwrap().redo);
+    });
+    // 「撤销」: on again with both entries assigned; the notice offers 「重做」.
+    view.update(cx, |ws, cx| ws.press_toast_offer(cx));
+    wait(cx, "the undo", &|ws, _| {
+        ws.book.v3().unwrap().levels.contains_key(&group)
+    });
+    wait(cx, "the redo notice", &|ws, _| {
+        ws.toast
+            .as_ref()
+            .and_then(|t| t.offer.as_ref())
+            .is_some_and(|o| o.redo)
+    });
+    view.read_with(cx, |ws, _| {
+        let mut expected = vec![chapters[0].clone(), chapters[2].clone()];
+        expected.sort();
+        assert_eq!(members(ws, &group), expected);
+        assert_eq!(ws.toast.as_ref().unwrap().text.as_ref(), "关闭层级 · 收纳");
+    });
+
+    // Hiding nothing: turned off at once, with no dialog.
+    toggle(cx, &quiet);
+    wait(cx, "the quiet group off", &|ws, _| {
+        !ws.book.v3().unwrap().levels.contains_key(&quiet)
+    });
+    view.read_with(cx, |ws, _| assert!(ws.dialog.is_none()));
+}

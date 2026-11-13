@@ -144,6 +144,13 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
         .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.id.clone())
         .collect();
+    // Every entry carrying book prose, numbered or not (one under an entry
+    // with book prose of its own has no number since 2026-11-13).
+    let with_prose: std::collections::BTreeSet<_> = manuscript
+        .iter()
+        .filter(|e| !e.prose.is_empty())
+        .map(|e| e.entry.id.clone())
+        .collect();
     let mut words = Some(0u64);
     for doc in manuscript
         .iter()
@@ -194,9 +201,9 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
         elements: entries
             .values()
             .filter(live)
-            // Content entries (a `linkable` template, or none) the
-            // manuscript does not number, whatever their switch.
-            .filter(|e| e.is_linkable(templates) && !numbered.contains(&e.id))
+            // Content entries (a `linkable` template, or none) that carry
+            // no book prose, whatever their switch.
+            .filter(|e| e.is_linkable(templates) && !with_prose.contains(&e.id))
             .count() as u32,
         words,
         updated_at,

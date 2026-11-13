@@ -116,6 +116,97 @@ impl Journal {
         row.map(|(seq, u)| Ok((seq, from_json(&u)?))).transpose()
     }
 
+    /// `actor`'s newest live rows in `book` that have an undo, newest first,
+    /// with the inverse of each: [`crate::Workspace::undo_in`] takes the
+    /// first that is the book's own command.
+    pub(crate) fn undoable_in(
+        &self,
+        actor: &str,
+        book: &str,
+        limit: usize,
+    ) -> Result<Vec<(JournalEntry, Vec<Invocation>)>> {
+        self.rows_in(
+            "SELECT seq, ts, actor, command, book, effects, state, undo FROM ws_journal
+             WHERE actor = ?1 AND book = ?2 AND state = 'live' AND undo IS NOT NULL
+             ORDER BY seq DESC LIMIT ?3",
+            actor,
+            book,
+            limit,
+        )
+    }
+
+    /// `actor`'s most recently undone rows in `book` that can be redone, in
+    /// the order [`Journal::last_redoable`] takes them, with the redo of each.
+    pub(crate) fn redoable_in(
+        &self,
+        actor: &str,
+        book: &str,
+        limit: usize,
+    ) -> Result<Vec<(JournalEntry, Vec<Invocation>)>> {
+        self.rows_in(
+            "SELECT seq, ts, actor, command, book, effects, state, redo FROM ws_journal
+             WHERE actor = ?1 AND book = ?2 AND state = 'undone' AND redo IS NOT NULL
+             ORDER BY changed_ts DESC, seq ASC LIMIT ?3",
+            actor,
+            book,
+            limit,
+        )
+    }
+
+    fn rows_in(
+        &self,
+        sql: &str,
+        actor: &str,
+        book: &str,
+        limit: usize,
+    ) -> Result<Vec<(JournalEntry, Vec<Invocation>)>> {
+        type Row = (
+            i64,
+            i64,
+            String,
+            String,
+            Option<String>,
+            String,
+            String,
+            String,
+        );
+        let rows: Vec<Row> = self.lib.local_read(|conn| {
+            let mut stmt = conn.prepare(sql)?;
+            let rows = stmt
+                .query_map(params![actor, book, limit as i64], |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                        r.get(6)?,
+                        r.get(7)?,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })?;
+        rows.into_iter()
+            .map(|(seq, ts, actor, command, book, effects, state, inverse)| {
+                Ok((
+                    JournalEntry {
+                        seq,
+                        ts,
+                        actor,
+                        command,
+                        book,
+                        effects: from_json(&effects)?,
+                        state,
+                        undoable: true,
+                    },
+                    from_json(&inverse)?,
+                ))
+            })
+            .collect()
+    }
+
     pub(crate) fn mark_undone(&self, seq: i64, redo: Option<&[Invocation]>) -> Result<()> {
         let redo = redo.map(to_json).transpose()?;
         Ok(self.lib.local_write(|tx| {

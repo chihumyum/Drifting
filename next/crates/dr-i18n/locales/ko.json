@@ -612,6 +612,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "다시 실행",
+      "undo": "실행 취소"
+    },
     "projectActions": {
       "deleteFailed": "작품을 삭제하지 못했습니다. 다시 시도해 주세요."
     }
@@ -681,6 +685,7 @@
     "insertColumnRight": "오른쪽에 열 삽입",
     "insertRowAbove": "위에 행 삽입",
     "insertRowBelow": "아래에 행 삽입",
+    "move": "이동",
     "moveDown": "아래로 이동",
     "moveLeft": "왼쪽으로 이동",
     "moveRight": "오른쪽으로 이동",
@@ -1593,7 +1598,9 @@
     "trash": "최근 삭제 항목으로 이동",
     "turnOffLevelBody_other": "아래의 항목 {{count}}개가 각 하위 내용과 함께 최상위로 이동합니다. 여기에 소속된 항목과 타임라인의 스윔레인은 잠시 숨겨지며 다시 켜면 돌아옵니다.",
     "turnOffLevelConfirm": "끄기",
-    "turnOffLevelConflict": "하위 항목이 방금 변경되었습니다. 최신 개수를 확인한 뒤 다시 진행해 주세요.",
+    "turnOffLevelLaneBody": "타임라인의 스윔레인은 잠시 숨겨지며 다시 켜면 돌아옵니다.",
+    "turnOffLevelMembersBody_other": "여기에 소속된 항목 {{count}}개는 잠시 숨겨지며 다시 켜면 돌아옵니다.",
+    "turnOffLevelMembersLaneBody_other": "여기에 소속된 항목 {{count}}개와 타임라인의 스윔레인은 잠시 숨겨지며 다시 켜면 돌아옵니다.",
     "turnOffLevelTitle": "계층 끄기",
     "untitledEntry": "제목 없는 항목",
     "untitledNamed": "제목 없는 {{name}}"

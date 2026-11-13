@@ -611,6 +611,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "重做",
+      "undo": "撤销"
+    },
     "projectActions": {
       "deleteFailed": "删除未完成，请重试。"
     }
@@ -680,6 +684,7 @@
     "insertColumnRight": "在右侧插入一列",
     "insertRowAbove": "在上方插入一行",
     "insertRowBelow": "在下方插入一行",
+    "move": "移动",
     "moveDown": "下移",
     "moveLeft": "左移",
     "moveRight": "右移",
@@ -1587,7 +1592,9 @@
     "trash": "放进最近删除",
     "turnOffLevelBody_other": "下面的 {{count}} 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。",
     "turnOffLevelConfirm": "关闭层级",
-    "turnOffLevelConflict": "下面的条目刚刚发生了变化，请确认最新数量后再关闭。",
+    "turnOffLevelLaneBody": "它在时间线里的泳道先不显示，再打开就回来。",
+    "turnOffLevelMembersBody_other": "归属到它的 {{count}} 个条目先不显示，再打开就回来。",
+    "turnOffLevelMembersLaneBody_other": "归属到它的 {{count}} 个条目和它在时间线里的泳道先不显示，再打开就回来。",
     "turnOffLevelTitle": "关闭层级",
     "untitledEntry": "无标题条目",
     "untitledNamed": "无标题{{name}}"

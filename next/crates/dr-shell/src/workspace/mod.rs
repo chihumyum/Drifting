@@ -32,6 +32,7 @@ mod sidebar;
 mod stage;
 mod super_view;
 pub mod toast;
+mod undo;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
@@ -416,6 +417,8 @@ pub struct Workspace {
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
+    /// ⌘Z / ⇧⌘Z and the notice's 「撤销」 on the book's commands (`undo.rs`).
+    structure_undo: undo::StructureUndo,
     /// The outline rail's 「…」 whose list is open, and the timer that
     /// closes it.
     pub outline_reveal: Option<outline::Reveal>,
@@ -570,6 +573,7 @@ impl Workspace {
             title_first: None,
             toast: None,
             toast_timer: None,
+            structure_undo: undo::StructureUndo::default(),
             companion: Default::default(),
             library_panel: Default::default(),
             super_views: Default::default(),
@@ -817,7 +821,8 @@ impl Workspace {
             if matches!(
                 event,
                 WsEvent::Book(_) | WsEvent::Removed(_) | WsEvent::Prose(_)
-            ) {
+            ) || matches!(event, WsEvent::Local(c) if undo::is_journal_row(c))
+            {
                 let _ = tx.unbounded_send(event.clone());
             }
         }));
@@ -844,8 +849,12 @@ impl Workspace {
         let mut reload_book = false;
         let mut book_purged = false;
         let mut gone = Vec::new();
+        let mut journal = Vec::new();
         for event in events {
             match event {
+                WsEvent::Local(c) if undo::is_journal_row(&c) => {
+                    journal.extend(c.key.parse::<i64>().ok());
+                }
                 // The lists are the book's content. Writing days and saved
                 // checkpoints live in their own documents (`Stats`,
                 // `Checkpoints`) and change none of them: nothing is read
@@ -867,6 +876,9 @@ impl Workspace {
                 }
                 _ => {}
             }
+        }
+        if !journal.is_empty() {
+            self.journal_recorded(journal, cx);
         }
         if book_purged {
             self.editors.clear();
@@ -1582,6 +1594,15 @@ impl Workspace {
         .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
             ws.show_shelf(window, cx);
         }))
+        // ⌘Z / ⇧⌘Z outside the prose: the book's commands (`undo.rs`).
+        .on_action(cx.listener(|ws, _: &crate::actions::Undo, window, cx| {
+            ws.on_edit_undo(false, window, cx)
+        }))
+        .on_action(
+            cx.listener(|ws, _: &crate::actions::Redo, window, cx| {
+                ws.on_edit_undo(true, window, cx)
+            }),
+        )
     }
 }
 
@@ -1681,7 +1702,7 @@ impl Render for Workspace {
             .when_some(self.search.clone(), |el, panel| el.child(panel))
             .children(self.composer_overlay())
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
-            .children(self.toast_overlay())
+            .children(self.toast_overlay(cx))
             .when_some(self.history.clone(), |el, dialog| el.child(dialog))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
@@ -1749,7 +1770,7 @@ impl Workspace {
             .child(strip)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
-            .children(self.toast_overlay())
+            .children(self.toast_overlay(cx))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
