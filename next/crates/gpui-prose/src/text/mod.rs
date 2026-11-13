@@ -31,7 +31,7 @@ pub use mirror::{ChangeSet, Line, LineSplice, TextOp};
 pub use source::{
     Edit, EditResult, MarkOverride, ProseSource, SourceChange, SourceEvent, SourceParagraph,
 };
-pub use undo::UndoConfig;
+pub use undo::{UndoClock, UndoConfig};
 
 #[cfg(test)]
 mod drdoc_style;

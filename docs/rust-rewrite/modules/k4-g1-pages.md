@@ -606,9 +606,10 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 - **`gpui_prose::EditorOptions::flow`**，`render/flow.rs` 的 `FlowItems`：编辑器高度是全文高度（高度索引里量过的按实高，没量过的按估计），每帧找到页面露出部分顶上的那一段，从它往上往下按实高排。没量过的段落量出来和估计不一样时，用页面的滚动句柄把页面挪同样的距离，作者正看着的字不跳。
 - **`ProseEditor::set_page_scroll`**、`ChapterEditor::set_page_scroll`、`BodyModule::set_page_scroll`，外壳经 `dr_shell::v3::Rendered::on_page_scroll`（新增，只加不改）把条目页的 `ScrollHandle` 交给正文。正文用它：保持字不跳；光标走到露出部分的边上（打字、回车、⌘↓）时滚页面跟上；拖选越过边缘时滚页面；光标定到远处（包括第一帧之前，比如打开到某一行）时先把页面滚过去。
 - **打开到某个模块**：`EntryPage` 把这个模块「钉」在视口里，直到作者自己滚动、点击或按键（`EntryPage::pinned`）。比视口矮的模块照以前，最少滚动让它整个露出来；比视口高的（长正文）只在它的顶端没露出来时才把顶端对齐，所以打开一章的正文时页头（标题、「层级」开关）照旧留在上面。要定位到正文某几行时由正文自己滚，不钉。
+- **撤销的时间**：撤销历史按 GPUI 执行器的时钟判断「离这一步第一次编辑多久」（`ProseDoc::set_clock`，编辑器建立时给它的文档设好）。App 里就是系统时钟，行为不变；测试平台上时钟不动，除非测试自己拨，所以撤销分组的测试不受机器忙闲影响。
 - **调试桥**：`ui.press` 的节点中心在窗口外、但节点一部分在窗口里时，点它在窗口里那部分的中心（随页铺开的正文就是这样）；整个在窗口外照旧报错。
 
-**测试**：`gpui-prose` 的 `render::flow_tests`（只画露出来的部分、估计改变时字不动、页面跟着光标、第一帧之前定位、没有滚动句柄时）；`dr-view-page/tests/shell_workspace.rs` 的 `an_entry_page_opened_at_a_module_keeps_it_in_view_while_the_body_grows`、`an_entry_page_opened_at_its_body_keeps_its_head`；`dr-debug-bridge` 的 `a_press_lands_on_the_part_of_a_node_the_window_shows`。长章节的耗时对比：`prose-bench page`（`box` 是 11-12 以前的小框，`fit` 是 11-12 到这次的铺开，`flow` 是现在）。
+**测试**：`gpui-prose` 的 `render::flow_tests`（只画露出来的部分、估计改变时字不动、页面跟着光标、第一帧之前定位、没有滚动句柄时）；`dr-editor/tests/v3_body_flow.rs`（长正文里一口气打一串字，每键一帧只排版视口附近的段落，一次撤销撤掉整串，拨过 500ms 再打就是两步）；`dr-view-page/tests/shell_workspace.rs` 的 `an_entry_page_opened_at_a_module_keeps_it_in_view_while_the_body_grows`、`an_entry_page_opened_at_its_body_keeps_its_head`；`dr-debug-bridge` 的 `a_press_lands_on_the_part_of_a_node_the_window_shows`。长章节的耗时对比：`prose-bench page`（`box` 是 11-12 以前的小框，`fit` 是 11-12 到这次的铺开，`flow` 是现在）。
 
 **待协调**：沉浸写作的打字机滚动在正文里按页面露出的部分对齐，作者在条目页里开沉浸写作的观感没在真窗口里看过。
 

@@ -136,6 +136,14 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) -> Self {
         let focus = cx.focus_handle();
+        // The undo history's time is GPUI's: the system clock in the app, a
+        // test's own under the test platform.
+        let mut book = book;
+        let executor = cx.background_executor().clone();
+        let clock: crate::text::UndoClock = std::sync::Arc::new(move || executor.now());
+        for chapter in &mut book.chapters {
+            chapter.doc.set_clock(clock.clone());
+        }
         let count = book.item_count();
         let list = ListState::new(count, ListAlignment::Top, px(OVERDRAW));
         let default_height = style.metrics(BlockKind::Body);
