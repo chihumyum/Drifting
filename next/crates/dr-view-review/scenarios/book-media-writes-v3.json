@@ -1,5 +1,5 @@
 {
-  "about": "G4 副屏主流程：用 testkit v3-lite、合成图片和预置最近访问，保存主页书名，从最近访问打开图片，再画区域写批注并读回。",
+  "about": "G4 副屏主流程：用 testkit v3-lite、合成图片和预置最近访问，保存主页书名，从最近访问打开图片，再画区域写批注并读回。场景不自己造库：先取一个没用过的 profile 名 P（小写字母、数字和 -），用 `cargo run -p dr-view-material --example v3-media-fixture -- \"$HOME/Library/Application Support/cc.drifting.next.dev.$P/library\"` 造好库，再带 `--profile $P --yes` 跑本场景（见 docs/rust-rewrite/handoff/README.md「真窗口验收」）。",
   "steps": [
     {
       "call": "book.list",

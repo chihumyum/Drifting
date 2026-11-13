@@ -337,7 +337,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Auto-link",
+        "label": "Automatic links",
         "role": "CheckBox"
       }
     },
@@ -406,7 +406,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Lane",
+        "label": "Swimlane",
         "role": "CheckBox"
       }
     },
@@ -896,7 +896,7 @@
         "role": "Button",
         "within": {
           "role": "Group",
-          "label": "Auto-link"
+          "label": "Automatic links"
         }
       }
     },
@@ -945,14 +945,31 @@
       }
     },
     {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 200
+      },
+      "note": "The last row's Restore sits below the window: scroll it in."
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "Restore",
         "role": "Button",
         "within": {
           "role": "Group",
-          "label": "Lane"
+          "label": "Swimlane"
         }
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": -200
       }
     },
     {

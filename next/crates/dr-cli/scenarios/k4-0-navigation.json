@@ -116,10 +116,11 @@
     },
     {
       "app": "nav.open",
-      "expect_error": "not_found",
+      "expect_error": "bad_request",
       "params": {
         "target": "chapter:${entries.[template=tpl-chapter].id}"
-      }
+      },
+      "note": "chapter:<id> is no longer a page key at all: it is refused as a bad request, not looked up."
     },
     {
       "app": "nav.open",

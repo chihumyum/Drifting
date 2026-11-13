@@ -191,6 +191,22 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      },
+      "note": "The bottom timeline is open by default and would cover the module inputs near the bottom of the window."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${entries.[template=tpl-chapter].id}/g1-drain-kv"
@@ -226,9 +242,9 @@
       "params": {
         "x": 1064,
         "y": 400,
-        "dy": 1100
+        "dy": 100000
       },
-      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+      "note": "Scroll to the end of the entry page: the three drain modules are the template's last, so their inputs are in view whatever lies above them."
     },
     {
       "app": "ui.wait",
@@ -318,9 +334,9 @@
       "params": {
         "x": 1064,
         "y": 400,
-        "dy": 1300
+        "dy": 100000
       },
-      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+      "note": "Scroll to the end of the entry page: the three drain modules are the template's last, so their inputs are in view whatever lies above them."
     },
     {
       "app": "ui.wait",
@@ -410,9 +426,18 @@
       "params": {
         "x": 1064,
         "y": 400,
-        "dy": 550
+        "dy": 100000
       },
-      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+      "note": "Scroll to the end of the entry page, a place that does not depend on the page above: the plot grid sits right above the three drain modules."
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1064,
+        "y": 400,
+        "dy": -450
+      },
+      "note": "From the end, back up to the plot grid's first row."
     },
     {
       "app": "ui.wait",
@@ -503,9 +528,9 @@
       "params": {
         "x": 1064,
         "y": 400,
-        "dy": 1000
+        "dy": 100000
       },
-      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+      "note": "Scroll to the end of the entry page: the three drain modules are the template's last, so their inputs are in view whatever lies above them."
     },
     {
       "app": "ui.wait",

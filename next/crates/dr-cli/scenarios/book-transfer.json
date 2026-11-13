@@ -9,6 +9,7 @@
     { "app": "window.focus" },
     { "app": "ui.find", "params": { "role": "Button", "label": "Open “慢钟”" }, "expect": { "/count": 1 } },
 
+    { "app": "input.scroll", "params": { "x": 1100, "y": 500, "dy": 400 }, "note": "More books are on the shelf than fit: scroll the cards so 慢钟's row is in the window before its hover arrow is pressed." },
     { "app": "panel.answer", "params": { "path": "${app.out}/慢钟.driftingbook" } },
     { "app": "ui.press", "params": { "label": "Export this book (.driftingbook)", "within": { "label": "Open “慢钟”" } },
       "note": "指针先停在《慢钟》书卡上，悬停才出来的导出箭头" },
@@ -22,7 +23,7 @@
     { "app": "panel.state", "expect": { "/last/kind": "open", "/last/prompt": "Import book (.driftingbook)" } },
     { "app": "ui.find", "params": { "role": "Button", "label": "Open “慢钟”", "count": 2, "timeout_ms": 10000 }, "note": "书架读到新书：两本《慢钟》并排" },
     { "app": "ui.screenshot", "png": "01-two-books.png" },
-    { "call": "book.get", "input": { "book": "${books.[name=慢钟].id}" }, "expect": { "/name": "慢钟", "/chapters": 24 }, "note": "原书没动" },
+    { "call": "book.shelf", "input": {}, "expect": { "/[id=${books.[name=慢钟].id}]/name": "慢钟", "/[id=${books.[name=慢钟].id}]/chapters": 24 }, "note": "原书没动（章数现在在书架的读数里，book.get 不带）" },
 
     { "app": "panel.answer", "params": { "path": "${app.log}" }, "note": "选一个不是书的文件（应用自己的日志）" },
     { "app": "ui.press", "params": { "role": "Button", "contains": "Import book" } },

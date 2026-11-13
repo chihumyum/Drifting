@@ -759,7 +759,7 @@ fn eligibility_uses_home_or_any_membership_and_never_links_the_owner() {
     call(
         &e,
         "entry.update",
-        json!({"id":host,"overrides":{"allow":[],"auto_link":true,"accept":true}}),
+        json!({"id":host,"overrides":{"auto_link":true,"accept":true}}),
     );
     call(&e, "membership.add", json!({"host":host,"member":id}));
     let names = NameIndex::load(&e.ws, &e.book, &[]).unwrap();
