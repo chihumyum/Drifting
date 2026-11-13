@@ -194,6 +194,23 @@ impl ProseEditor {
         if self.options.fit_content {
             return;
         }
+        if self.is_flow() {
+            // Dragged past what the page shows: the page scrolls.
+            let view = self.flow.borrow().view;
+            if let Some(view) = view {
+                let dy = if event.position.y < view.top() {
+                    f32::from(view.top() - event.position.y)
+                } else if event.position.y > view.bottom() {
+                    f32::from(view.bottom() - event.position.y)
+                } else {
+                    0.
+                };
+                if dy != 0. && self.flow.borrow().scroll_page(dy) != 0. {
+                    cx.notify();
+                }
+            }
+            return;
+        }
         // Dragged past the edge: scroll so the selection can grow.
         let viewport = self.list.viewport_bounds();
         let delta = if event.position.y < viewport.top() {

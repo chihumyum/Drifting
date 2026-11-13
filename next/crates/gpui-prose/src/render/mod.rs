@@ -9,12 +9,14 @@
 //! (Agent changes), moved with every edit and eased in and out. Block styles
 //! (quote, indent, alignment, rule) come from the paragraph attributes
 //! ([`blocks`]); immersive writing's paragraph focus and the scrollbar ticks
-//! live here too. See `docs/rust-rewrite/foundations/f4d-render.md`.
+//! live here too; an editor inside a page that scrolls lays out its items
+//! with [`flow`]. See `docs/rust-rewrite/foundations/f4d-render.md`.
 
 pub mod blocks;
 pub mod cursor;
 pub mod decor;
 pub mod element;
+pub mod flow;
 pub mod frame;
 mod items;
 pub mod motion;
@@ -25,6 +27,8 @@ pub mod state;
 pub mod ticks;
 
 #[cfg(test)]
+mod flow_tests;
+#[cfg(test)]
 mod tests;
 
 pub use blocks::{Align, BlockLook, BlockStyle, ListItem, ListMark};
@@ -34,6 +38,7 @@ pub use decor::{
     Touch, Underline, Wash,
 };
 pub use element::ParagraphElement;
+pub use flow::{FLOW_OVERDRAW, FlowItems, FlowState};
 pub use frame::{CompSpan, FrameCache, PaintedDecoration, PaintedLine};
 pub use paint::{TextPaint, paint_layout, paint_text};
 pub use runs::{RunStyle, line_runs, splice_composition};

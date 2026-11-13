@@ -6,7 +6,7 @@ use crate::{
     pages::PageViewHost,
 };
 use dr_workspace::commands::v3::types::ModuleSpec;
-use gpui::{AnyView, App, FocusHandle, Global, Window};
+use gpui::{AnyView, App, FocusHandle, Global, ScrollHandle, Window};
 use std::{collections::BTreeMap, rc::Rc};
 
 pub mod card;
@@ -46,6 +46,10 @@ pub struct LevelHost {
 /// must accept module/template changes without overwriting pending editor input.
 pub type Refresh = Rc<dyn Fn(Rc<Book>, &mut App)>;
 pub type Reveal = Rc<dyn Fn(Option<Lines>, &mut Window, &mut App)>;
+/// Hands a part the scroll of the page it is drawn in (an entry page), for a
+/// part as tall as its content that keeps something in view itself (a
+/// body's caret).
+pub type PageScroll = Rc<dyn Fn(ScrollHandle, &mut App)>;
 
 #[derive(Clone)]
 pub struct Rendered {
@@ -53,6 +57,7 @@ pub struct Rendered {
     pub focus: Option<FocusHandle>,
     pub refresh: Option<Refresh>,
     pub reveal: Option<Reveal>,
+    pub page_scroll: Option<PageScroll>,
 }
 impl Rendered {
     pub fn new(view: impl Into<AnyView>) -> Self {
@@ -61,6 +66,7 @@ impl Rendered {
             focus: None,
             refresh: None,
             reveal: None,
+            page_scroll: None,
         }
     }
     pub fn focus(mut self, focus: FocusHandle) -> Self {
@@ -73,6 +79,10 @@ impl Rendered {
     }
     pub fn on_reveal(mut self, f: impl Fn(Option<Lines>, &mut Window, &mut App) + 'static) -> Self {
         self.reveal = Some(Rc::new(f));
+        self
+    }
+    pub fn on_page_scroll(mut self, f: impl Fn(ScrollHandle, &mut App) + 'static) -> Self {
+        self.page_scroll = Some(Rc::new(f));
         self
     }
 }

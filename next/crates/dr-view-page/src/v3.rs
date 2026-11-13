@@ -17,6 +17,9 @@ pub struct BodyModule {
     reveal: Option<Lines>,
     loading: Option<Task<()>>,
     error: Option<String>,
+    /// The entry page's scroll, handed to the body's editor (it scrolls the
+    /// page to follow the caret and keep the text in place).
+    page_scroll: Option<ScrollHandle>,
     _links: Option<Subscription>,
 }
 
@@ -40,6 +43,7 @@ pub fn register(cx: &mut App) {
         let focus = view.read(cx).focus.clone();
         let refresh = view.downgrade();
         let reveal = view.downgrade();
+        let scroll = view.downgrade();
         Rendered::new(view)
             .focus(focus)
             .on_refresh(move |book, cx| {
@@ -52,6 +56,9 @@ pub fn register(cx: &mut App) {
                         v.reveal_now(window, cx);
                     })
                     .ok();
+            })
+            .on_page_scroll(move |page, cx| {
+                scroll.update(cx, |v, cx| v.set_page_scroll(page, cx)).ok();
             })
     });
 }
@@ -80,6 +87,7 @@ impl BodyModule {
             reveal: None,
             loading: None,
             error: None,
+            page_scroll: None,
             _links: None,
         };
         view.load(window, cx);
@@ -88,6 +96,15 @@ impl BodyModule {
 
     pub fn editor(&self) -> Option<Entity<ChapterEditor>> {
         self.editor.clone()
+    }
+
+    /// The entry page's scroll, for the body's editor (now, or when it
+    /// loads).
+    pub fn set_page_scroll(&mut self, page: ScrollHandle, cx: &mut Context<Self>) {
+        self.page_scroll = Some(page.clone());
+        if let Some(editor) = &self.editor {
+            editor.update(cx, |e, cx| e.set_page_scroll(Some(page), cx));
+        }
     }
 
     fn load(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -157,6 +174,9 @@ impl BodyModule {
                                 cx,
                             );
                         });
+                        if let Some(page) = view.page_scroll.clone() {
+                            editor.update(cx, |e, cx| e.set_page_scroll(Some(page), cx));
+                        }
                         let assist = editor.read(cx).assist().clone();
                         view._links = Some(bind_links(&assist, &host.page, window, cx));
                         view.editor = Some(editor);

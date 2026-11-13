@@ -40,6 +40,10 @@ pub struct EntryPage {
     pub revealed: Option<Lines>,
     pub synced: bool,
     pending_reveal: bool,
+    /// The section a target named (`entry:<id>/<module>`), kept in view while
+    /// the page settles (a body loads and grows to its text's height) until
+    /// the author scrolls, clicks or types in the page.
+    pinned: Option<String>,
 }
 impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
@@ -53,6 +57,7 @@ impl EntryPage {
             revealed: None,
             synced: false,
             pending_reveal: true,
+            pinned: None,
         }
     }
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
@@ -91,6 +96,33 @@ impl EntryPage {
         self.revealed = Some(lines);
         self.pending_reveal = true;
         cx.notify();
+    }
+    /// The section kept in view while the page settles, if any.
+    pub fn pinned(&self) -> Option<&str> {
+        self.pinned.as_deref()
+    }
+    /// Brings the page's child `ix` (a section) into view at the next frame,
+    /// once the page has been laid out with it: one that fits as little as
+    /// needed to show all of it; one taller than the page (a body as tall as
+    /// its text) only if its top is not showing, to its top, so the page head
+    /// stays above a body that starts on screen. Nothing is asked of GPUI
+    /// while the section shows: its request is carried out at the next
+    /// prepaint, by the section's size then (a body that loaded in between
+    /// would be put at the top).
+    fn show_section(&self, ix: usize) {
+        let view = self.scroll.bounds();
+        let Some(item) = self.scroll.bounds_for_item(ix) else {
+            return;
+        };
+        let offset = self.scroll.offset().y;
+        let (top, bottom) = (item.top() + offset, item.bottom() + offset);
+        if item.size.height > view.size.height {
+            if top < view.top() || top >= view.bottom() {
+                self.scroll.scroll_to_top_of_item(ix);
+            }
+        } else if top < view.top() || bottom > view.bottom() {
+            self.scroll.scroll_to_item(ix);
+        }
     }
     /// The requested module, otherwise the first prose editor, takes typing
     /// when its tab returns to the front. Placeholders use the page's handle.
@@ -147,6 +179,9 @@ impl EntryPage {
                 cx,
             )
         {
+            if let Some(page_scroll) = &part.page_scroll {
+                page_scroll(self.scroll.clone(), cx);
+            }
             self.parts.insert(key.clone(), (module.kind.clone(), part));
         }
         self.sections.push(Section {
@@ -159,8 +194,10 @@ impl EntryPage {
     fn render_module(&self, module: &ModuleSpec, window: &Window, cx: &App) -> AnyElement {
         let key = format!("module:{}", module.id);
         let theme = Theme::of(window, cx);
+        let selector = format!("v3-section-{}", module.id);
         div()
             .id(SharedString::from(key.clone()))
+            .debug_selector(move || selector.clone())
             .py_3()
             .flex()
             .flex_col()
@@ -358,6 +395,7 @@ impl Render for EntryPage {
                     });
                     content = content.child(
                         div()
+                            .debug_selector(|| "v3-entry-head".into())
                             .flex()
                             .flex_row()
                             .items_center()
@@ -512,16 +550,28 @@ impl Render for EntryPage {
                             })
                         });
                         if let Some(wanted) = wanted {
-                            if let Some(i) = self.sections.iter().position(|s| s.id == wanted) {
-                                self.scroll.scroll_to_item(i + 1);
-                            }
-                            if let Some((_, part)) = self.parts.get(&format!("module:{wanted}"))
-                                && let Some(reveal) = &part.reveal
-                            {
+                            let reveal = self
+                                .parts
+                                .get(&format!("module:{wanted}"))
+                                .and_then(|(_, part)| part.reveal.clone());
+                            // Lines to reveal are the body's own to scroll
+                            // to. Otherwise the section stays in view while
+                            // the page settles (a body above it grows to its
+                            // text's height once it loads), until the author
+                            // takes the page.
+                            self.pinned = (self.revealed.is_none() || reveal.is_none())
+                                .then(|| wanted.to_owned());
+                            if let Some(reveal) = reveal {
                                 reveal(self.revealed, window, cx);
                             }
                         }
                         self.pending_reveal = false;
+                    }
+                    if let Some(pinned) = &self.pinned {
+                        match self.sections.iter().position(|s| &s.id == pinned) {
+                            Some(i) => self.show_section(i + 1),
+                            None => self.pinned = None,
+                        }
                     }
                 }
             }
@@ -538,6 +588,18 @@ impl Render for EntryPage {
             .size_full()
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            .when(self.pinned.is_some(), |page| {
+                // The author takes the page: the named section is no longer
+                // held in view.
+                let unpin = |this: &mut Self, cx: &mut Context<Self>| {
+                    if this.pinned.take().is_some() {
+                        cx.notify();
+                    }
+                };
+                page.capture_any_mouse_down(cx.listener(move |this, _, _, cx| unpin(this, cx)))
+                    .on_scroll(cx.listener(move |this, _, _, cx| unpin(this, cx)))
+                    .capture_key_down(cx.listener(move |this, _, _, cx| unpin(this, cx)))
+            })
             .px_8()
             .pt_16()
             .pb_8()

@@ -1453,6 +1453,38 @@ fn offset((x, y): (f32, f32), p: &Value) -> (f32, f32) {
     (x + d("dx"), y + d("dy"))
 }
 
+/// Where a press on `node` lands in a window `size` wide and high: its centre
+/// (moved by `dx` / `dy`). A node larger than what the window shows whose
+/// centre is outside it (a body as tall as its text, on a page that scrolls)
+/// is pressed at the centre of its part inside the window, as a hand would
+/// press what it sees. A node wholly outside is not pressed.
+fn press_point(node: &a11y::Node, p: &Value, size: (f32, f32)) -> Result<(f32, f32), BridgeError> {
+    let (width, height) = size;
+    let inside = |(x, y): (f32, f32)| x >= 0.0 && y >= 0.0 && x < width && y < height;
+    let at = offset(node.center(), p);
+    if inside(at) {
+        return Ok(at);
+    }
+    let [x, y, w, h] = node.bounds;
+    let (left, top) = (x.max(0.0), y.max(0.0));
+    let (right, bottom) = ((x + w).min(width), (y + h).min(height));
+    if right > left && bottom > top {
+        let seen = offset(((left + right) / 2.0, (top + bottom) / 2.0), p);
+        if inside(seen) {
+            return Ok(seen);
+        }
+    }
+    Err(BridgeError::new(
+        codes::NOT_FOUND,
+        format!(
+            "{} is at ({:.0}, {:.0}), outside the window ({width:.0} × {height:.0}): scroll it into view first",
+            node.label.as_deref().unwrap_or(&node.role),
+            at.0,
+            at.1,
+        ),
+    ))
+}
+
 async fn press_node(p: &Value, cx: &mut AsyncApp) -> Out {
     // Let a menu or a dialog finish moving in, so the node is where it
     // stays (dr-ui's motions are 420 ms at most).
@@ -1466,7 +1498,13 @@ async fn press_node(p: &Value, cx: &mut AsyncApp) -> Out {
     let via = p.get("via").and_then(Value::as_str).unwrap_or("pointer");
     match via {
         "pointer" => {
-            let (x, y) = offset(node.center(), p);
+            let size = cx.update(|cx| {
+                in_window(cx, |_, window, _| {
+                    let size = window.viewport_size();
+                    (f32::from(size.width), f32::from(size.height))
+                })
+            })?;
+            let (x, y) = press_point(&node, p, size)?;
             // The pointer rests there a moment first, as a hand does: a
             // control that only shows while its row is hovered (an alias's
             // ×) is drawn, and so can be hit, from the next frame on.
@@ -1483,20 +1521,12 @@ async fn press_node(p: &Value, cx: &mut AsyncApp) -> Out {
             }
             cx.update(|cx| {
                 in_window(cx, |_, window, cx| {
+                    // The window may have changed size while the pointer rested.
                     let size = window.viewport_size();
-                    if x < 0.0 || y < 0.0 || x >= f32::from(size.width) || y >= f32::from(size.height) {
-                        return Err(BridgeError::new(
-                            codes::NOT_FOUND,
-                            format!(
-                                "{} is at ({x:.0}, {y:.0}), outside the window ({:.0} × {:.0}): scroll it into view first",
-                                node.label.as_deref().unwrap_or(&node.role),
-                                f32::from(size.width),
-                                f32::from(size.height)
-                            ),
-                        ));
-                    }
+                    let size = (f32::from(size.width), f32::from(size.height));
+                    let (x, y) = press_point(&node, p, size)?;
                     click_at(x, y, MouseButton::Left, 1, window, cx);
-                    Ok(())
+                    Ok::<_, BridgeError>(())
                 })?
             })?;
         }
@@ -1708,6 +1738,36 @@ mod query_tests {
             enabled: true,
             depth: 0,
         }
+    }
+
+    #[test]
+    fn a_press_lands_on_the_part_of_a_node_the_window_shows() {
+        let window = (1440.0, 900.0);
+        // Inside: the centre, moved by dx / dy.
+        let button = node("Button", "Close", [100.0, 100.0, 40.0, 20.0]);
+        assert_eq!(
+            press_point(&button, &json!({}), window).unwrap(),
+            (120.0, 110.0)
+        );
+        assert_eq!(
+            press_point(&button, &json!({ "dx": 5.0, "dy": -4.0 }), window).unwrap(),
+            (125.0, 106.0)
+        );
+        // A body as tall as its text, its centre below the window: the
+        // middle of what the window shows of it.
+        let body = node("TextArea", "", [240.0, 300.0, 960.0, 5184.0]);
+        assert_eq!(
+            press_point(&body, &json!({}), window).unwrap(),
+            (720.0, 600.0)
+        );
+        // Wholly outside: not pressed, with the error as before.
+        let below = node("Button", "Restore", [100.0, 935.0, 80.0, 24.0]);
+        let err = press_point(&below, &json!({}), window).unwrap_err();
+        assert_eq!(err.code, codes::NOT_FOUND);
+        assert!(err.message.contains("outside the window"), "{err:?}");
+        // A centre moved out of the window is not brought back.
+        let err = press_point(&button, &json!({ "dy": 2000.0 }), window).unwrap_err();
+        assert_eq!(err.code, codes::NOT_FOUND);
     }
 
     #[test]

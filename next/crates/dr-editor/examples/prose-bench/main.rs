@@ -18,6 +18,7 @@
 //! prose-bench idle [--seconds N] [--write]     idle CPU only (for GPUI patch comparisons)
 //! prose-bench decor [--write]                  frames with and without a few hundred decorations (headless)
 //! prose-bench capture [DIR] [--textures DIR]   screenshots of the paint layers and block styles (headless)
+//! prose-bench page [--modes box,fit,flow]       the longest chapter as an entry page's body (headless)
 //! ```
 //!
 //! Run with `cargo run --release -p dr-editor --example prose-bench -- …`.
@@ -45,6 +46,8 @@ mod bench;
 mod corpus;
 #[cfg(target_os = "macos")]
 mod decor;
+#[cfg(target_os = "macos")]
+mod page;
 #[cfg(target_os = "macos")]
 mod platform;
 #[cfg(target_os = "macos")]
@@ -126,6 +129,23 @@ fn main() {
             timeout(900);
             decor::run_decor(write);
         }
+        Some("page") => {
+            timeout(1800);
+            let modes: Vec<page::Mode> = value("--modes")
+                .unwrap_or_else(|| "box,fit,flow".into())
+                .split(',')
+                .map(|m| match m {
+                    "box" => page::Mode::Box,
+                    "fit" => page::Mode::Fit,
+                    "flow" => page::Mode::Flow,
+                    other => {
+                        eprintln!("prose-bench page: unknown mode {other:?} (box, fit, flow)");
+                        std::process::exit(2);
+                    }
+                })
+                .collect();
+            page::run_page(write, &modes);
+        }
         Some("capture") => {
             timeout(600);
             let dir = args
@@ -167,7 +187,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!(
-                "prose-bench: unknown subcommand {other:?} (chapter, window, headless, present, idle, decor, capture; see the top of main.rs)"
+                "prose-bench: unknown subcommand {other:?} (chapter, window, headless, present, idle, decor, capture, page; see the top of main.rs)"
             );
             std::process::exit(2);
         }

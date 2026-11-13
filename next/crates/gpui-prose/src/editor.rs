@@ -12,8 +12,8 @@ use std::{
 use gpui::{
     App, AppContext, Bounds, Context, CursorStyle, ElementInputHandler, Entity, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, ListAlignment, ListOffset, ListState,
-    MouseButton, ParentElement, Pixels, Point, Render, Styled, Subscription, Task, Window, canvas,
-    div, list, prelude::FluentBuilder as _, px,
+    MouseButton, ParentElement, Pixels, Point, Render, ScrollHandle, StyleRefinement, Styled,
+    Subscription, Task, Window, canvas, div, list, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -21,7 +21,7 @@ use crate::{
     input::{Composition, KEY_CONTEXT, Selection},
     layout::{BlockMetrics, Book, HeightIndex, ProseLayout, column, shape_set},
     platform::PlatformHooks,
-    render::{CursorLayer, FrameCache},
+    render::{CursorLayer, FlowItems, FlowState, FrameCache},
     style::{EditorOptions, ProseStyle},
     text::{AnchorChange, BlockKind, MarkOverride, Marks, ProseDoc, segment},
 };
@@ -73,6 +73,9 @@ pub struct ProseEditor {
     pub(crate) pending_marks: Vec<MarkOverride>,
     pub(crate) frame: Rc<RefCell<FrameCache>>,
     pub(crate) heights: Rc<RefCell<HeightIndex>>,
+    /// A flow editor's frame-to-frame state and its page's scroll
+    /// ([`EditorOptions::flow`]).
+    pub(crate) flow: Rc<RefCell<FlowState>>,
     /// Wrap width the current estimates were made for.
     pub(crate) estimate_width: Option<Pixels>,
     estimate_generation: u64,
@@ -162,6 +165,7 @@ impl ProseEditor {
             pending_marks: Vec::new(),
             frame: Rc::default(),
             heights: Rc::new(RefCell::new(heights)),
+            flow: Rc::default(),
             estimate_width: None,
             estimate_generation: 0,
             _estimate_task: None,
@@ -191,6 +195,20 @@ impl ProseEditor {
         self.hooks = Some(hooks);
     }
 
+    /// The scroll handle of the page a flow editor ([`EditorOptions::flow`])
+    /// is part of: the editor scrolls it to keep the text the author looks at
+    /// in place while estimated heights are corrected, to keep the caret in
+    /// view, to reveal a position and while a drag selects past the page's
+    /// edge. Without one it still draws only what the page shows.
+    pub fn set_page_scroll(&mut self, page: Option<ScrollHandle>) {
+        self.flow.borrow_mut().page = page;
+    }
+
+    /// Whether the editor is part of a page that scrolls it.
+    pub fn is_flow(&self) -> bool {
+        self.options.flow && !self.options.fit_content
+    }
+
     pub fn set_extension(&mut self, extension: Rc<dyn ProseExtension>) {
         self.extension = Some(extension);
         self.list.remeasure();
@@ -212,6 +230,7 @@ impl ProseEditor {
         let default = self.style.metrics(BlockKind::Body);
         *self.heights.borrow_mut() =
             HeightIndex::new((0..count).map(|_| default.line_height * 3. + default.pad_bottom));
+        self.flow.borrow_mut().reset();
         if let Some(width) = self.estimate_width {
             self.estimate_all(width, cx);
         }
@@ -501,10 +520,16 @@ impl ProseEditor {
         let chapter = chapter.min(self.book.chapters.len() - 1);
         self.cancel_composition();
         self.selection = Selection::caret(chapter, 0);
-        self.list.scroll_to(ListOffset {
-            item_ix: self.book.chapter_item(chapter),
-            offset_in_item: px(0.),
-        });
+        if self.is_flow() {
+            let item = self.book.chapter_item(chapter);
+            let y = self.flow_doc_top(item);
+            self.flow.borrow().scroll_doc_to(y, 0.);
+        } else {
+            self.list.scroll_to(ListOffset {
+                item_ix: self.book.chapter_item(chapter),
+                offset_in_item: px(0.),
+            });
+        }
         window.focus(&self.focus, cx);
         self.reset_blink(cx);
         cx.notify();
@@ -513,6 +538,13 @@ impl ProseEditor {
     /// Scrolls by `delta` pixels using the editor's own height index (so a
     /// jump can cross paragraphs the list has never measured).
     pub fn scroll_by_estimate(&mut self, delta: f64, cx: &mut Context<Self>) -> bool {
+        if self.is_flow() {
+            // The page scrolls (the text goes up as the view goes down).
+            let (y, total) = self.scroll_y();
+            self.flow.borrow().scroll_page(-delta as f32);
+            cx.notify();
+            return y + delta < total;
+        }
         let top = self.list.logical_scroll_top();
         let mut heights = self.heights.borrow_mut();
         let y = heights.top(top.item_ix) + f64::from(f32::from(top.offset_in_item)) + delta;
@@ -529,6 +561,20 @@ impl ProseEditor {
 
     /// Scroll position in document pixels, by the editor's height index.
     pub fn scroll_y(&self) -> (f64, f64) {
+        if self.is_flow() {
+            // The top of what the page shows, in the editor's pixels.
+            let flow = self.flow.borrow();
+            let mut heights = self.heights.borrow_mut();
+            let total = heights.total();
+            let y = match (flow.bounds, flow.view) {
+                (Some(bounds), Some(view)) => {
+                    f64::from(f32::from(view.top() - bounds.top())).clamp(0., total)
+                        - f64::from(flow.shift(&mut heights))
+                }
+                _ => 0.,
+            };
+            return (y, total);
+        }
         let top = self.list.logical_scroll_top();
         let mut heights = self.heights.borrow_mut();
         (
@@ -544,10 +590,13 @@ impl ProseEditor {
         // Typewriter scrolling keeps the caret on its line when the line
         // moves or the view's height changes (the 0.1 client's), for the
         // editor with the focus and a caret only.
+        // (A flow editor's height is its text's: it changes as the text
+        // grows, and the page's does not.)
         let resized = self
             .drawn_height
             .replace(bounds.size.height)
-            .is_some_and(|h| h != bounds.size.height);
+            .is_some_and(|h| h != bounds.size.height)
+            && !self.is_flow();
         if (std::mem::take(&mut self.realign_typewriter) || resized)
             && self.style.typewriter.is_some()
             && self.selection.is_empty()
@@ -713,6 +762,7 @@ impl ProseEditor {
                     self.heights.borrow_mut().set_estimate(item, estimate);
                 } else {
                     self.list.splice(item..item + old, splice.new);
+                    self.flow.borrow_mut().splice(item, old, splice.new);
                     let estimates: Vec<f32> = (start..start + splice.new)
                         .map(|line| self.estimate_line(chapter, line))
                         .collect();
@@ -730,12 +780,18 @@ impl ProseEditor {
             let base = self.book.line_item(chapter, 0);
             if listed > visible {
                 self.list.splice(base + visible..base + listed, 0);
+                self.flow
+                    .borrow_mut()
+                    .splice(base + visible, listed - visible, 0);
                 self.heights
                     .borrow_mut()
                     .splice(base + visible..base + listed, []);
             } else {
                 self.list
                     .splice(base + listed..base + listed, visible - listed);
+                self.flow
+                    .borrow_mut()
+                    .splice(base + listed, 0, visible - listed);
                 let estimates: Vec<f32> = (listed..visible)
                     .map(|line| self.estimate_line(chapter, line))
                     .collect();
@@ -905,6 +961,22 @@ impl ProseEditor {
             return;
         }
         let sel = self.selection;
+        if self.is_flow() {
+            // A paragraph drawn last frame asks the page to show the caret as
+            // it is laid out (`render::flow`). One far off has not been laid
+            // out: the page goes to it first, a third of the way down.
+            let line = self.book.chapters[sel.chapter].doc.locate(sel.head).0;
+            if self.frame.borrow().get(sel.chapter, line).is_none() {
+                let item = self.book.line_item(sel.chapter, line);
+                let y = self.flow_doc_top(item);
+                // The page goes there now if a frame has placed the editor;
+                // the next frame goes (again) once it has the geometry.
+                let mut flow = self.flow.borrow_mut();
+                flow.scroll_doc_to(y, 1. / 3.);
+                flow.reveal = Some(item);
+            }
+            return;
+        }
         let line = self.book.chapters[sel.chapter].doc.locate(sel.head).0;
         if self.frame.borrow().get(sel.chapter, line).is_none() {
             let item = self.book.line_item(sel.chapter, line);
@@ -928,6 +1000,14 @@ impl ProseEditor {
         }
     }
 
+    /// Where a flow editor places `item` (document pixels): the index's top
+    /// plus what the page has not taken yet.
+    pub(crate) fn flow_doc_top(&self, item: usize) -> f32 {
+        let mut heights = self.heights.borrow_mut();
+        let shift = self.flow.borrow().shift(&mut heights);
+        heights.top(item) as f32 + shift
+    }
+
     pub(crate) fn reset_blink(&mut self, cx: &mut Context<Self>) {
         self.cursor_layer.update(cx, |layer, cx| layer.restart(cx));
     }
@@ -947,6 +1027,29 @@ impl ProseEditor {
             // As tall as its text: not a cached view, whose size would come
             // from its style alone.
             return div().w_full().relative().child(editor.clone()).child(layer);
+        }
+        if this.is_flow() {
+            // As tall as its text, by the height index: a cached view given
+            // that height (redrawn when the page moves it, when it changes,
+            // or when a measurement changes its height).
+            let height = {
+                let mut heights = this.heights.borrow_mut();
+                let shift = this.flow.borrow().shift(&mut heights);
+                px((heights.total() as f32 + shift).max(0.))
+            };
+            let view = if this.input.a11y.live.get() {
+                div()
+                    .w_full()
+                    .h(height)
+                    .child(editor.clone())
+                    .into_any_element()
+            } else {
+                editor
+                    .clone()
+                    .cached(StyleRefinement::default().w_full().h(height))
+                    .into_any_element()
+            };
+            return div().w_full().relative().child(view).child(layer);
         }
         div()
             .size_full()
@@ -1076,18 +1179,20 @@ impl Render for ProseEditor {
         let (scroll_y, total) = self.scroll_y();
         let viewport = self.list.viewport_bounds().size.height;
         let fit = self.options.fit_content;
-        let thumb = (!fit && total > 0. && f64::from(f32::from(viewport)) < total).then(|| {
-            let view = f64::from(f32::from(viewport));
-            let height = (view / total * view).max(24.);
-            let top = (scroll_y / total * view).min(view - height);
-            (px(top as f32), px(height as f32))
-        });
+        let flow = self.is_flow();
+        let thumb =
+            (!fit && !flow && total > 0. && f64::from(f32::from(viewport)) < total).then(|| {
+                let view = f64::from(f32::from(viewport));
+                let height = (view / total * view).max(24.);
+                let top = (scroll_y / total * view).min(view - height);
+                (px(top as f32), px(height as f32))
+            });
         div()
             .id("prose-editor")
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus)
-            .when(fit, |root| root.w_full())
-            .when(!fit, |root| root.size_full())
+            .when(fit || flow, |root| root.w_full())
+            .when(!fit && !flow, |root| root.size_full())
             .relative()
             .bg(self.style.background)
             .cursor(CursorStyle::IBeam)
@@ -1144,6 +1249,15 @@ impl Render for ProseEditor {
                         .map(|ix| self.render_item(ix, window, cx))
                         .collect();
                     root.child(div().w_full().flex().flex_col().children(items))
+                } else if flow {
+                    // As tall as the text; only what the page shows is laid
+                    // out (`render::flow`).
+                    root.child(FlowItems::new(
+                        self.book.item_count(),
+                        self.heights.clone(),
+                        self.flow.clone(),
+                        cx.processor(|this, ix, window, cx| this.render_item(ix, window, cx)),
+                    ))
                 } else {
                     root.child(
                         list(
@@ -1154,7 +1268,7 @@ impl Render for ProseEditor {
                     )
                 }
             })
-            .when(!fit, |root| root.child(self.scroll_ticks(cx)))
+            .when(!fit && !flow, |root| root.child(self.scroll_ticks(cx)))
             .children(thumb.map(|(top, height)| {
                 div()
                     .absolute()
