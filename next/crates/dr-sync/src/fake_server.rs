@@ -43,6 +43,7 @@ struct ServerState {
     next_seq: u64,
     objects_by_seq: BTreeMap<u64, StoredObject>,
     seq_by_key: BTreeMap<String, u64>,
+    withheld: BTreeSet<u64>,
 }
 
 /// Loopback fake server implementing `/api/sync/v1/usage` and
@@ -82,6 +83,7 @@ impl FakeSyncServer {
             next_seq: 1,
             objects_by_seq: BTreeMap::new(),
             seq_by_key: BTreeMap::new(),
+            withheld: BTreeSet::new(),
         }));
         let stop = Arc::new(AtomicBool::new(false));
         let state_bg = Arc::clone(&state);
@@ -178,6 +180,29 @@ impl FakeSyncServer {
 
     pub fn stored_object_count(&self) -> usize {
         self.state.lock().expect("lock").objects_by_seq.len()
+    }
+
+    /// Every stored record, by ascending `seq` (withheld ones included).
+    pub fn records(&self) -> Vec<RemoteObjectRecord> {
+        self.state
+            .lock()
+            .expect("lock")
+            .objects_by_seq
+            .values()
+            .map(|o| o.record.clone())
+            .collect()
+    }
+
+    /// Leave the record `seq` out of change listings until
+    /// [`Self::release_withheld`]: a fault breaking the in-order contract,
+    /// so a later update arrives before the one it builds on.
+    pub fn withhold(&self, seq: u64) {
+        self.state.lock().expect("lock").withheld.insert(seq);
+    }
+
+    /// List withheld records again.
+    pub fn release_withheld(&self) {
+        self.state.lock().expect("lock").withheld.clear();
     }
 }
 
@@ -460,6 +485,7 @@ fn handle_connection(
         let all_after: Vec<RemoteObjectRecord> = guard
             .objects_by_seq
             .range((cursor + 1)..)
+            .filter(|(seq, _)| !guard.withheld.contains(seq))
             .map(|(_, obj)| obj.record.clone())
             .collect();
         let has_more = all_after.len() > limit;

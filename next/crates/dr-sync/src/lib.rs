@@ -10,7 +10,8 @@ pub mod protocol;
 pub mod runtime;
 
 pub use engine::{
-    AfterRemoteImportHook, AfterRemotePurgeHook, BeforeRemotePurgeHook, SyncCycleReport, SyncEngine,
+    AfterRemoteImportHook, AfterRemotePurgeHook, BeforeRemotePurgeHook, SYNC_STATE_SCOPE,
+    SyncCycleReport, SyncEngine,
 };
 pub use fake_server::FakeSyncServer;
 pub use health::{

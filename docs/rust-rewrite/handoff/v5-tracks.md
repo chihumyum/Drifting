@@ -121,13 +121,21 @@ git worktree add ~/Drifting-v5-<路> -b codex/v5-<路> main
 
 ### 别的会话在途的改动
 
-会话「Rust 迁移和 Entity v4 审查」有三处修复在途，还有三项小修要做。开工前、每一步之前都先 `git merge main`；下面这些地方不要抢着改：
+开工前、每一步之前都先 `git merge main`。
 
-- `dr-sync`（同步挂起更新的防御）：在途，只动这个 crate。
-- `dr-mcp` 和 `dr-view-agent/src/mcp.rs`（入站 MCP 按书给目录）：在途。T7 不重做它。
-- `dr-agent` 的 `runtime.rs`、`journal.rs` 和 `dr-doc` 的对话文档（流式写库攒批）：在途。D 不要动这几处；确实要动时等它合进 `main`。
+会话「Rust 迁移和 Entity v4 审查」的四项修复 2026-11-13 已经合进 `main`（`6fc78b6df`），在这之前开工的各路并入 `main` 时会遇到它们：
+
+- `dr-sync`：缺依赖的更新不确认；同步进度存进了书库的 `local_state`。
+- `dr-mcp`、`dr-view-agent/src/mcp.rs`：入站 MCP 按书给目录，`Host::replace` 现在收 `Backend { opener, catalog }`。T7 不重做它，在它上面接。
+- `dr-agent` 的 `runtime.rs`、`journal.rs` 和 `dr-doc` 的对话文档：流式文字攒批、对话追加改成线性。
+- 全书视图关掉即停（`dr-shell` 的 `pages.rs`、`workspace/super_view.rs`）：正文用 `pages::follow_super_view` 订阅工作区，只在舞台正显示它时回调；不走工作区的订阅用 `pages::super_view_shown` 判断。约定写在 [f6-shell.md](../foundations/f6-shell.md) 的 `add_super_view` 一条。**T5、T6 改「审阅与素材」时照这个约定，以后的结构视图也走同一个入口。**
+
+还在途、不要抢着改的两处：
+
 - `dr-agent/src/long_task/store.rs`：别的会话正在改，随后还有一项小修（每轮聊天白跑的整书读取）。D 在这里只做编译必须的改动。
-- `dr-shell/src/workspace/super_view.rs`（全书视图关掉即释放）和 `dr-editor/src/page.rs`（整书视图重数全书字数）：各有一项小修要做，T1、T4 碰到时先并入 `main`。
+- `dr-editor/src/page.rs`：整书视图每次书目变动重数全书字数，有一项小修要做。T4 碰到时先并入 `main`。
+
+一处已知、没修的问题，T5、T6 可能碰到：舞台正显示「审阅与素材」时由程序换库会失败，先关舞台再换就正常，要素全景没有这个问题。记在 [m23-shelf-review.md](../modules/m23-shelf-review.md) 的「待协调」里。碰到就照那里说的绕开，查清了原因再修，不要顺手改释放的顺序。
 - **P2 和 D** 都会碰 `dr-model` 里正文格式档的定义：P2 先合；D 在自己那一步里只删素材笔记这种文档。
 
 ## P1 文件夹里拖着调先后（`p1-reorder`）
