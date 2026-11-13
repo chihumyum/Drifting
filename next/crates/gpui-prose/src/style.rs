@@ -146,6 +146,13 @@ pub struct EditorOptions {
     /// table cell): no title rows, no scrollbar, every paragraph drawn in a
     /// plain column (no virtual list), as tall as they are.
     pub fit_content: bool,
+    /// An editor that is part of a page the host scrolls (an entry page's
+    /// body): as tall as its text, no scrollbar or title rows of its own, but
+    /// only the paragraphs near what the page shows are laid out and painted
+    /// ([`crate::render::flow`]). Give it the page's scroll handle
+    /// ([`crate::ProseEditor::set_page_scroll`]) so it keeps the text in
+    /// place, follows the caret and scrolls while a drag selects.
+    pub flow: bool,
 }
 
 impl Default for EditorOptions {
@@ -155,6 +162,7 @@ impl Default for EditorOptions {
             cursor_blink: Some(Duration::from_millis(530)),
             ime_log: false,
             fit_content: false,
+            flow: false,
         }
     }
 }

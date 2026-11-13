@@ -460,7 +460,7 @@ cargo drifting app quit
 | `input.click` | 在窗口坐标（逻辑像素）上点一下，可以连点 |
 | `input.move` / `input.drag` / `input.scroll` | 指针移过去（悬停）；按住左键从一点拖到另一点再松开（用鼠标选字）；在某处滚动若干像素 |
 | `ui.find` | 窗口无障碍树里的节点：角色、名字、值、位置、中心点。按 `label`（名字全等）、`contains`（名字、值、说明里含）、`role`（去掉 AX 前缀：Button、RadioButton、Slider、PopUpButton、MenuItem、TextArea…）挑；`within`（同样几个键）只要落在第一个符合它的节点里面的（中心点在它的框里）：比如某一张书卡上的导出箭头。等到有一个（`count` 等到正好几个，`absent` 等到一个都没有）。只在 macOS |
-| `ui.press` | 按第几个（`nth`）符合的节点：默认指针移到它中心（`dx`、`dy` 可以挪开一点），停 120 ms 再点，和手一样，只在悬停时才出现的按钮（别名的 ×）也点得到；在窗口外就报错，叫先滚进来。`via: "a11y"` 改让 AccessKit 按，`increment` / `decrement` 拨滑杆 |
+| `ui.press` | 按第几个（`nth`）符合的节点：默认指针移到它中心（`dx`、`dy` 可以挪开一点），停 120 ms 再点，和手一样，只在悬停时才出现的按钮（别名的 ×）也点得到；中心在窗口外、但节点有一部分在窗口里（随页铺开的正文，几千像素高），点它在窗口里那部分的中心（2026-11-13 起；中心在窗口里的照旧点中心）；整个在窗口外就报错，叫先滚进来。`via: "a11y"` 改让 AccessKit 按，`increment` / `decrement` 拨滑杆 |
 | `ui.hover` | 指针停到符合的节点上 |
 | `ui.focus` | 把键盘交给一个还不在无障碍树里的输入框，和点进去一样：`page.title`、`page.synopsis`（稿纸上那一章的章首）、`element.name`、`element.alias`、`element.summary`、`element.field.key`、`element.field.value`（`row` 第几行，默认最后一行）、`category.name`、`settings.search`；`select_all` 连字一起选中（像三连击） |
 | `settings.get` | `{keys?}`：外壳读到的设置值（默认全部）和界面语言 |

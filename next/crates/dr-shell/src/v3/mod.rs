@@ -46,6 +46,11 @@ pub struct LevelHost {
 /// must accept module/template changes without overwriting pending editor input.
 pub type Refresh = Rc<dyn Fn(Rc<Book>, &mut App)>;
 pub type Reveal = Rc<dyn Fn(Option<Lines>, &mut Window, &mut App)>;
+/// Hands a part the page it is drawn in (an entry page): its scroll, for a
+/// part as tall as its content that keeps something in view itself (a
+/// body's caret), and the flag such a part raises when it scrolls the page
+/// for the author ([`gpui_prose::render::PageScroll`]).
+pub type GivePageScroll = Rc<dyn Fn(gpui_prose::render::PageScroll, &mut App)>;
 
 #[derive(Clone)]
 pub struct Rendered {
@@ -53,6 +58,7 @@ pub struct Rendered {
     pub focus: Option<FocusHandle>,
     pub refresh: Option<Refresh>,
     pub reveal: Option<Reveal>,
+    pub page_scroll: Option<GivePageScroll>,
 }
 impl Rendered {
     pub fn new(view: impl Into<AnyView>) -> Self {
@@ -61,6 +67,7 @@ impl Rendered {
             focus: None,
             refresh: None,
             reveal: None,
+            page_scroll: None,
         }
     }
     pub fn focus(mut self, focus: FocusHandle) -> Self {
@@ -73,6 +80,13 @@ impl Rendered {
     }
     pub fn on_reveal(mut self, f: impl Fn(Option<Lines>, &mut Window, &mut App) + 'static) -> Self {
         self.reveal = Some(Rc::new(f));
+        self
+    }
+    pub fn on_page_scroll(
+        mut self,
+        f: impl Fn(gpui_prose::render::PageScroll, &mut App) + 'static,
+    ) -> Self {
+        self.page_scroll = Some(Rc::new(f));
         self
     }
 }

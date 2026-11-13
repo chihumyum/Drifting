@@ -90,6 +90,8 @@ pub struct ChapterEditor {
     embeds: Option<Rc<NoteEmbeds>>,
     /// Immersive writing: typewriter scrolling forced on (M26).
     immersive: bool,
+    /// The page a body is part of ([`Self::set_page_scroll`]).
+    page_scroll: Option<gpui_prose::render::PageScroll>,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -201,6 +203,7 @@ impl ChapterEditor {
             decor,
             embeds,
             immersive: false,
+            page_scroll: None,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
@@ -331,13 +334,15 @@ impl ChapterEditor {
         let ext = extension.clone();
         // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
         // lists (material notes); never in chapters.
-        let fit_content = crate::v3::body(doc_id).is_some();
+        // A v3 body is part of its entry page: as tall as its text, the page
+        // scrolling it, only what the page shows drawn.
+        let flow = crate::v3::body(doc_id).is_some();
         let editor = cx.new(|cx| {
             let mut editor = ProseEditor::with_options(
                 prose,
                 body_style,
                 gpui_prose::EditorOptions {
-                    fit_content,
+                    flow,
                     ..Default::default()
                 },
                 window,
@@ -536,6 +541,8 @@ impl ChapterEditor {
         self._editor_events = events;
         self.embeds = embeds;
         self.doc_id = doc_id.to_owned();
+        let page = self.page_scroll.clone();
+        self.editor.update(cx, |e, _| e.set_page_scroll(page));
         if self.pages.has_chrome() {
             self.pages.attach(&self.editor, cx);
             self.refresh_page(cx);
@@ -621,6 +628,18 @@ impl ChapterEditor {
     /// The gpui-prose editor (selection, focus, reveal a paragraph …).
     pub fn editor(&self) -> &Entity<ProseEditor> {
         &self.editor
+    }
+
+    /// The page this body is part of (an entry page): the body's editor
+    /// scrolls it to keep the caret in view and the text in place
+    /// ([`gpui_prose::ProseEditor::set_page_scroll`]).
+    pub fn set_page_scroll(
+        &mut self,
+        page: Option<gpui_prose::render::PageScroll>,
+        cx: &mut Context<Self>,
+    ) {
+        self.page_scroll = page.clone();
+        self.editor.update(cx, |e, _| e.set_page_scroll(page));
     }
 
     pub fn todo_markers(&self) -> &[TodoMarker] {
