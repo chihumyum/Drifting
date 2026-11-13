@@ -467,13 +467,14 @@ fn placement_is_one_undo_preserves_residence_and_removes_only_orphaned_view_posi
             .any(|p| p["entry"] == entry.id)
     );
     assert!(
-        views
+        !views
             .iter()
             .find(|v| v["id"] == "independent-view")
             .unwrap()["placements"]
             .as_array()
             .unwrap()
-            .is_empty()
+            .iter()
+            .any(|p| p["entry"] == entry.id)
     );
     t.update(cx, |t, cx| {
         t.remove_entry(entry.id.clone(), second.clone(), cx)
@@ -782,7 +783,7 @@ fn pin_only_target(
 ) {
     let before = Book::load(lib, book).unwrap();
     let view = before.v3().unwrap().timeline_views[0].clone();
-    let target = call(lib, "entry.create", json!({"book":book,"parent":view.lanes[0].entry,"template":TPL_CHAPTER,"title":"Synthetic pin-only target"}))["id"].as_str().unwrap().to_owned();
+    let target = call(lib, "entry.create", json!({"book":book,"parent":null,"template":TPL_CHAPTER,"title":"Synthetic pin-only target"}))["id"].as_str().unwrap().to_owned();
     let pin = "synthetic-hidden-binding".to_owned();
     call(
         lib,
@@ -1666,8 +1667,13 @@ fn switching_off_a_lane_entry_hides_lane_and_orphan_placements_until_switched_ba
         let lanes = t.lanes();
         assert_eq!(lanes.len(), 1);
         assert_eq!(lanes[0].id, lane0);
-        assert_eq!(lanes[0].clips.len(), 1);
-        assert_eq!(lanes[0].clips[0].entry, solo_member);
+        assert_eq!(lanes[0].clips.len(), lanes[0].members);
+        assert!(
+            lanes[0]
+                .clips
+                .iter()
+                .any(|c| c.entry == solo_member && c.at == 7.0 && c.span == Some(3.0))
+        );
     });
 }
 

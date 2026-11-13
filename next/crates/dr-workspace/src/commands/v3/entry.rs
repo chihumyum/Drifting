@@ -221,9 +221,26 @@ op! {
             e.primary = Some(h.clone());
         }
         changes_ok(&before, &after)?;
+        let auto_views: Vec<(TimelineViewId, f64)> = if let Some(h) = &host {
+            membership::live_views_with_lane(&v, h)
+                .into_iter()
+                .map(|tv| {
+                    let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                        &tv,
+                        &before.memberships,
+                        &before.entries,
+                        &before.templates,
+                    ));
+                    (tv.id, end)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         module::initialize(cx, &slot, &e, &before.templates, &input.bodies)?;
         let saved = e.clone();
         let h = host.clone();
+        let placed_views = auto_views.clone();
         let (_, at) = cx.write_book_v3(&slot, Replaces::nothing(), move |t| {
             let w = t.entries().create(
                 &saved.id,
@@ -246,11 +263,17 @@ op! {
             if let Some(h) = &h {
                 t.put_membership(h, &saved.id, None, Some(now()))?;
             }
+            for (vid, end) in &placed_views {
+                t.timeline_view(vid)?.put_placement(&saved.id, *end, None)?;
+            }
             Ok(())
         })?;
         let mut keys = vec![key("entries", &id)];
         if let Some(h) = host {
             keys.push(key("memberships", m::Membership::key(&h, &id)));
+        }
+        for (vid, _) in &auto_views {
+            keys.push(key("timeline_views", vid));
         }
         undo(cx, &slot, &at, keys);
         cx.effect(EffectAction::Created, "entry", id.as_str(), Some(&e.title));

@@ -702,3 +702,189 @@ fn redo_refuses_replaced_placement_parent_identity_without_touching_other_positi
     assert_eq!(after.version, before.version);
     assert_eq!(after.value, before.value);
 }
+
+#[test]
+fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos() {
+    let e = env();
+    let b = item(e.out("project.create", json!({"name":"View scale end"})));
+    let lane = create(&e, &b, "tpl-storyline", "Lane in two views");
+    let plain_lane = create(&e, &b, "tpl-storyline", "Lane added later");
+    let seed = create(&e, &b, "tpl-chapter", "Seed");
+    let joined = create(&e, &b, "tpl-chapter", "Joined");
+    let m1 = create(&e, &b, "tpl-chapter", "Existing 1");
+    let m2 = create(&e, &b, "tpl-chapter", "Existing 2");
+
+    // Plain host (not in any view yet) keeps `membership.pos` order (`m2` before `m1`).
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":plain_lane,"member":m1,"pos":"a9"}),
+    );
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":plain_lane,"member":m2,"pos":"a0"}),
+    );
+
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"v1","name":"V1","pos":"a0","lanes":[{"entry":lane,"pos":"a0"}]}}),
+    );
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"v2","name":"V2","pos":"a1","lanes":[{"entry":lane,"pos":"a0"}]}}),
+    );
+    // `timeline_view.place` joining `lane` in `v1` at (10, span 4) also auto-places `seed` in `v2` at 0.0.
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"v1","entry":seed,"lane":lane,"at":10,"span":4}),
+    );
+    assert_eq!(
+        raw(&e, &b)["timeline_views"]["v2"]["placements"][&seed]["at"],
+        0.0
+    );
+
+    // 1. `membership.add` on `lane` (in `v1` and `v2`) ignores `pos` and places `joined`
+    //    at scale end in both views (`15.0` in `v1`, `1.0` in `v2`).
+    let added = e.call(
+        "membership.add",
+        json!({"book":b,"host":lane,"member":joined,"pos":"z9"}),
+    );
+    assert_eq!(added["undo"][0]["command"], "membership.restore");
+    let state = raw(&e, &b);
+    let mkey = format!("{lane}|{joined}");
+    assert!(
+        state["memberships"][&mkey].get("pos").is_none(),
+        "lane in view must not write membership.pos"
+    );
+    assert_eq!(
+        state["timeline_views"]["v1"]["placements"][&joined]["at"],
+        15.0
+    );
+    assert_eq!(
+        state["timeline_views"]["v2"]["placements"][&joined]["at"],
+        1.0
+    );
+
+    // Re-calling `membership.add` with `pos` on a lane in views is a no-op.
+    let noop = e.call(
+        "membership.add",
+        json!({"book":b,"host":lane,"member":joined,"pos":"a0"}),
+    );
+    assert!(noop["journal"].is_null());
+    assert!(raw(&e, &b)["memberships"][&mkey].get("pos").is_none());
+
+    // Field-scoped undo/redo preserves concurrent peer pins in `v1`.
+    let peer = Actor::agent("peer", 1, "pin");
+    e.ws()
+        .call(
+            &peer,
+            "timeline_view.put_pin",
+            json!({"book":b,"view":"v1","pin":{"id":"p1","at":3,"label":"Keep"}}),
+        )
+        .unwrap();
+    e.ws().undo(&Actor::User).unwrap().expect("undo add");
+    let undone = raw(&e, &b);
+    assert!(undone["memberships"].get(&mkey).is_none());
+    assert!(
+        undone["timeline_views"]["v1"]["placements"]
+            .get(&joined)
+            .is_none()
+    );
+    assert!(
+        undone["timeline_views"]["v2"]["placements"]
+            .get(&joined)
+            .is_none()
+    );
+    assert_eq!(
+        undone["timeline_views"]["v1"]["pins"]["p1"]["label"],
+        "Keep"
+    );
+    e.ws().redo(&Actor::User).unwrap().expect("redo add");
+    assert_eq!(
+        raw(&e, &b)["timeline_views"]["v1"]["placements"][&joined]["at"],
+        15.0
+    );
+    assert_eq!(
+        raw(&e, &b)["timeline_views"]["v2"]["placements"][&joined]["at"],
+        1.0
+    );
+
+    // 2. `entry.create` inside `lane` auto-places the new entry at scale end in `v1` and `v2`.
+    let direct = item(e.out(
+        "entry.create",
+        json!({"book":b,"parent":lane,"template":"tpl-chapter","title":"Direct in lane"}),
+    ));
+    let state = raw(&e, &b);
+    assert!(
+        state["memberships"][format!("{lane}|{direct}")]
+            .get("pos")
+            .is_none()
+    );
+    assert_eq!(
+        state["timeline_views"]["v1"]["placements"][&direct]["at"],
+        16.0
+    );
+    assert_eq!(
+        state["timeline_views"]["v2"]["placements"][&direct]["at"],
+        2.0
+    );
+
+    // 3. `timeline_view.add_lane` places existing members (`m2`, `m1`) sequentially at scale end,
+    //    and field-scoped undo/redo removes and restores both the lane and those placements.
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book":b,"view":"v1","lane":plain_lane}),
+    );
+    let state = raw(&e, &b);
+    assert_eq!(state["timeline_views"]["v1"]["placements"][&m2]["at"], 17.0);
+    assert_eq!(state["timeline_views"]["v1"]["placements"][&m1]["at"], 18.0);
+    e.ws().undo(&Actor::User).unwrap().expect("undo add_lane");
+    let undone = raw(&e, &b);
+    assert!(
+        undone["timeline_views"]["v1"]["lanes"]
+            .get(&plain_lane)
+            .is_none()
+    );
+    assert!(
+        undone["timeline_views"]["v1"]["placements"]
+            .get(&m2)
+            .is_none()
+    );
+    assert!(
+        undone["timeline_views"]["v1"]["placements"]
+            .get(&m1)
+            .is_none()
+    );
+    e.ws().redo(&Actor::User).unwrap().expect("redo add_lane");
+    assert_eq!(
+        raw(&e, &b)["timeline_views"]["v1"]["placements"][&m2]["at"],
+        17.0
+    );
+    assert_eq!(
+        raw(&e, &b)["timeline_views"]["v1"]["placements"][&m1]["at"],
+        18.0
+    );
+
+    // 4. `entry.get` (`below.members`) follows `v1` by default, and switches to `v2`
+    //    when `project.book.root` names `v2`.
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"v2","entry":direct,"at":-5}),
+    );
+    let below_ids = |host_id: &str| -> Vec<String> {
+        e.out("entry.get", json!({"book":b,"id":host_id}))["below"]["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(
+        below_ids(&lane),
+        vec![seed.clone(), joined.clone(), direct.clone()]
+    );
+    e.call(
+        "project.update",
+        json!({"book":b,"root":{"kind":"view","view":"v2"}}),
+    );
+    assert_eq!(below_ids(&lane), vec![direct, seed, joined]);
+}

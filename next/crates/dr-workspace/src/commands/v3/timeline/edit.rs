@@ -190,10 +190,37 @@ op! {
             }
             m::check_timeline_lane(&lane, &v.entries_map(), &v.templates_map())?;
             let pos = position(&tv, &lane, &place)?;
-            tx.timeline_view(&id)?
-                .put_lane(&lane, Some(&pos))?
+            let snapshot = v.structure_snapshot();
+            let mut unplaced = Vec::new();
+            for member in snapshot.lane_members_order(&lane) {
+                if v.timeline_field_snapshot(&id, &TimelineFieldV3::Placement(member.id.clone()))?
+                    .is_none()
+                {
+                    unplaced.push(member.id.clone());
+                }
+            }
+            let mut fields = vec![Field::Lane {
+                lane: lane.to_string(),
+            }];
+            fields.extend(unplaced.iter().map(|m| Field::Placement {
+                entry: m.to_string(),
+            }));
+            for field in &fields {
+                v.timeline_field_restore_state(&id, &field.key()?)?;
+            }
+            let start_at = m::timeline_scale_end(&m::effective_timeline_placements(
+                &tv,
+                &v.memberships_raw(),
+                &v.entries_map(),
+                &v.templates_map(),
+            ));
+            let w = tx.timeline_view(&id)?;
+            w.put_lane(&lane, Some(&pos))?
                 .set_lane_act_track(&lane, input.act_track.filter(|b| *b))?;
-            Ok((vec![Field::Lane { lane: lane.to_string() }], frontiers_hex(&tx.view().state_frontiers())))
+            for (i, member) in unplaced.iter().enumerate() {
+                w.put_placement(member, start_at + (i as f64), None)?;
+            }
+            Ok((fields, frontiers_hex(&tx.view().state_frontiers())))
         })?;
         finish(cx, &slot, input.target.view, fields, before, expected)
     }

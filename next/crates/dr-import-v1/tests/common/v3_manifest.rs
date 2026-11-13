@@ -707,6 +707,70 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         ));
         out.default_view.lanes.push(Entry::Unaffiliated);
     }
+    // Every live member of every effective lane in `default_view` receives a
+    // finite placement at scale end (`VIEW-LANE-MEMBERS-PLACED`).
+    {
+        let live_lanes: BTreeSet<Entry> = out
+            .default_view
+            .lanes
+            .iter()
+            .filter(|lane| match lane {
+                Entry::Storyline(id) => rows
+                    .storylines
+                    .iter()
+                    .any(|s| &s.id == id && s.deleted_at.is_none()),
+                _ => true,
+            })
+            .cloned()
+            .collect();
+        let mut placed: BTreeSet<Entry> = out
+            .default_view
+            .placements
+            .iter()
+            .map(|p| p.entry.clone())
+            .collect();
+        let mut next_at = out
+            .default_view
+            .placements
+            .iter()
+            .filter(|p| p.at.is_finite())
+            .map(|p| {
+                let span = p.span.filter(|s| s.is_finite() && *s >= 0.0).unwrap_or(0.0);
+                p.at + span
+            })
+            .reduce(f64::max)
+            .map_or(0.0, |m| m + 1.0);
+        for m in &out.memberships {
+            if m.level == Entry::ActTrack
+                && live_lanes.contains(&Entry::ActTrack)
+                && placed.insert(m.member.clone())
+            {
+                out.default_view.placements.push(Placement {
+                    entry: m.member.clone(),
+                    at: next_at,
+                    span: None,
+                });
+                next_at += 1.0;
+            }
+        }
+        for leaf in &out.leaves {
+            if leaf.deleted_at.is_some() {
+                continue;
+            }
+            let in_live_lane = out
+                .memberships
+                .iter()
+                .any(|m| m.member == leaf.entry && live_lanes.contains(&m.level));
+            if in_live_lane && placed.insert(leaf.entry.clone()) {
+                out.default_view.placements.push(Placement {
+                    entry: leaf.entry.clone(),
+                    at: next_at,
+                    span: None,
+                });
+                next_at += 1.0;
+            }
+        }
+    }
     let mut groups = BTreeSet::new();
     for element in &rows.elements {
         let category = element

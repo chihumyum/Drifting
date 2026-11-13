@@ -228,14 +228,86 @@ impl BookStructureV3 {
         &self.memberships
     }
 
-    /// Entries validly belonging to `host`, in the memberships' own order.
-    pub fn members_of(&self, host: &EntryId) -> Vec<&Entry> {
-        self.members
+    /// Reference [`TimelineView`] whose scale governs `host`'s own page order
+    /// (`kernel-v5.md` §4): if `project.book.root` names a live view (`View` or
+    /// `Lane`) whose effective lanes contain `host`, that view wins; otherwise
+    /// the first live view in `(pos, id)` order whose effective lanes contain
+    /// `host`. Returns `None` when `host` is not in any live view.
+    pub fn lane_reference_view(&self, host: &EntryId) -> Option<&TimelineView> {
+        let in_view = |tv: &TimelineView| {
+            effective_timeline_lanes(&tv.lanes, &self.entries, &self.templates)
+                .iter()
+                .any(|l| &l.entry == host)
+        };
+        if let Some(book) = &self.project.book {
+            let root_view = match &book.root {
+                BookRoot::View { view } | BookRoot::Lane { view, .. } => {
+                    self.timeline_views.get(view)
+                }
+                BookRoot::Root | BookRoot::Entry { .. } => None,
+            };
+            if let Some(tv) = root_view.filter(|tv| in_view(tv)) {
+                return Some(tv);
+            }
+        }
+        self.ordered_views
+            .iter()
+            .map(|id| &self.timeline_views[id])
+            .find(|tv| in_view(tv))
+    }
+
+    fn members_along_view<'a>(&'a self, view: &TimelineView, host: &EntryId) -> Vec<&'a Entry> {
+        let placement_at: HashMap<&EntryId, f64> = view
+            .placements
+            .iter()
+            .filter(|p| p.at.is_finite())
+            .map(|p| (&p.entry, p.at))
+            .collect();
+        let mut seen = BTreeSet::new();
+        let mut ids: Vec<EntryId> = self
+            .members
             .get(host)
             .into_iter()
             .flatten()
-            .map(|id| &self.entries[id])
-            .collect()
+            .filter(|id| seen.insert((*id).clone()))
+            .cloned()
+            .collect();
+        ids.sort_by(|a, b| {
+            let pa = placement_at.get(a);
+            let pb = placement_at.get(b);
+            pa.is_none()
+                .cmp(&pb.is_none())
+                .then_with(|| match (pa, pb) {
+                    (Some(xa), Some(xb)) => xa.total_cmp(xb),
+                    _ => Ordering::Equal,
+                })
+                .then_with(|| a.cmp(b))
+        });
+        ids.into_iter().map(|id| &self.entries[&id]).collect()
+    }
+
+    /// Authoritative member order for `host`'s own page (`kernel-v5.md` §4,
+    /// `VIEW-LANE-MEMBERS-PLACED`): when `host` is in at least one live view,
+    /// ordered along [`Self::lane_reference_view`]'s scale (unplaced members
+    /// last, never reading `membership.pos`); otherwise ordered by
+    /// `(membership.pos, id)`.
+    pub fn lane_members_order(&self, host: &EntryId) -> Vec<&Entry> {
+        if let Some(view) = self.lane_reference_view(host) {
+            self.members_along_view(view, host)
+        } else {
+            self.members
+                .get(host)
+                .into_iter()
+                .flatten()
+                .map(|id| &self.entries[id])
+                .collect()
+        }
+    }
+
+    /// Entries validly belonging to `host`, in `host`'s authoritative member
+    /// order ([`Self::lane_members_order`]).
+    pub fn members_of(&self, host: &EntryId) -> Vec<&Entry> {
+        self.lane_members_order(host)
     }
 
     /// Live entries whose switch is on, in folder order.
@@ -300,10 +372,11 @@ impl BookStructureV3 {
         if !entry.is_level() {
             return;
         }
-        let residents = self.children.get(&Some(id.clone())).into_iter().flatten();
-        let members = self.members.get(id).into_iter().flatten();
-        for next in residents.chain(members) {
+        for next in self.children.get(&Some(id.clone())).into_iter().flatten() {
             self.walk(next, depth + 1, in_book_only, seen, out);
+        }
+        for next in self.lane_members_order(id) {
+            self.walk(&next.id, depth + 1, in_book_only, seen, out);
         }
     }
 

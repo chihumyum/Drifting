@@ -37,7 +37,7 @@ fn every_mapping_row_has_a_nonempty_fixture_and_pinned_totals() {
             memberships: 8,
             primaries: 3,
             lanes: 4,
-            placements: 5,
+            placements: 6,
             pins: 2,
             patches: 1,
             plot_grids: 1,
@@ -303,13 +303,16 @@ fn memberships_keep_primary_and_one_position_per_entry_in_multiple_lanes() {
             primary: false
         }));
     }
-    for node in [fixture::CHAPTER_BEFORE, fixture::CHAPTER_UNPLACED] {
-        assert!(
-            !positions
-                .iter()
-                .any(|p| p.entry == Entry::Node(node.into()))
-        );
-    }
+    assert!(
+        !positions
+            .iter()
+            .any(|p| p.entry == Entry::Node(fixture::CHAPTER_BEFORE.into()))
+    );
+    assert!(positions.contains(&Placement {
+        entry: Entry::Node(fixture::CHAPTER_UNPLACED.into()),
+        at: 23.25,
+        span: None,
+    }));
     assert_eq!(level(&m, &Entry::Unaffiliated).title, "未归属");
     // Author settled 11-11 (#23): placed under Storylines with Chapter default leaf.
     assert_eq!(
@@ -429,17 +432,20 @@ fn manifest_reads_the_source_instead_of_returning_fixed_fixture_counts() {
     assert_eq!(after.counts().levels, before.counts().levels - 1);
     assert_eq!(after.counts().lanes, 3);
     assert_eq!(after.counts().memberships, 6);
-    assert_eq!(after.counts().placements, 3);
+    assert_eq!(after.counts().placements, 5);
     assert!(after.default_view.placements.contains(&Placement {
         entry: Entry::Node(IDEA.into()),
         at: 10.,
         span: Some(4.),
     }));
-    assert!(!after.default_view.placements.iter().any(|p| p.entry
-        == Entry::ActLeaf {
+    assert!(after.default_view.placements.contains(&Placement {
+        entry: Entry::ActLeaf {
             act: "act-2".into(),
-            synthetic_rank: 0
-        }));
+            synthetic_rank: 0,
+        },
+        at: 22.75,
+        span: None,
+    }));
     assert!(
         !after
             .pending

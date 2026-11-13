@@ -2040,3 +2040,138 @@ fn project_book_root_reads_all_four_starts_and_tolerates_missing() {
         }
     );
 }
+
+#[test]
+fn lane_members_order_follows_reference_view_scale_and_places_unpositioned_last() {
+    let pk = |s: &str| PosKey::parse(s).unwrap();
+    let v_first = TimelineViewId::parse("view-first").unwrap();
+    let v_second = TimelineViewId::parse("view-second").unwrap();
+    let (mut doc, roots) = novel_book(76, |t, roots| {
+        t.entries().create(
+            &eid("lane"),
+            Some(&roots.storylines),
+            "支线",
+            Some(&tid(crate::v3::novel::TPL_STORYLINE)),
+            true,
+        )?;
+        for (id, title) in [("c1", "章一"), ("c2", "章二"), ("c3", "章三")] {
+            t.entries().create(
+                &eid(id),
+                Some(&roots.manuscript),
+                title,
+                Some(&tid(crate::v3::novel::TPL_CHAPTER)),
+                false,
+            )?;
+        }
+        // Plain host (not in any view): ordered by `(membership.pos, id)`.
+        t.put_membership(&roots.cat_character, &eid("c1"), Some(&pk("a9")), None)?;
+        t.put_membership(&roots.cat_character, &eid("c2"), Some(&pk("a0")), None)?;
+
+        // Swimlane with deliberately conflicting stored `membership.pos`:
+        // once `lane` is in a view, `membership.pos` must be ignored.
+        t.put_membership(&eid("lane"), &eid("c1"), Some(&pk("a9")), None)?;
+        t.put_membership(&eid("lane"), &eid("c2"), Some(&pk("a2")), None)?;
+        t.put_membership(&eid("lane"), &eid("c3"), Some(&pk("a0")), None)?;
+
+        let w1 = t.timeline_view(&v_first)?;
+        w1.name("视图一")?
+            .pos(Some(&pk("a0")))?
+            .put_lane(&eid("lane"), Some(&pk("a0")))?
+            .put_placement(&eid("c1"), 1.0, None)?
+            .put_placement(&eid("c2"), 5.0, None)?;
+        // `c3` intentionally unplaced in `view-first` (e.g. from concurrent merge):
+        // must appear at the end on read (`VIEW-LANE-MEMBERS-PLACED`).
+
+        let w2 = t.timeline_view(&v_second)?;
+        w2.name("视图二")?
+            .pos(Some(&pk("a1")))?
+            .put_lane(&eid("lane"), Some(&pk("a0")))?
+            .put_placement(&eid("c2"), -2.0, None)?
+            .put_placement(&eid("c3"), 0.0, None)?
+            .put_placement(&eid("c1"), 9.0, None)?;
+        Ok(())
+    });
+
+    // 1. Plain host uses `(membership.pos, id)`; swimlane uses first view `view-first`
+    //    because `project.book.root` is currently `书稿` (`Entry`).
+    let snap = doc.view().structure_snapshot();
+    assert!(snap.lane_reference_view(&roots.cat_character).is_none());
+    assert_eq!(
+        snap.lane_members_order(&roots.cat_character)
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["c2", "c1"]
+    );
+    assert_eq!(
+        snap.lane_reference_view(&eid("lane"))
+            .map(|v| v.id.as_str()),
+        Some("view-first")
+    );
+    assert_eq!(
+        snap.lane_members_order(&eid("lane"))
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["c1", "c2", "c3"]
+    );
+    assert_eq!(
+        snap.members_of(&eid("lane")),
+        snap.lane_members_order(&eid("lane"))
+    );
+    // Walking down from `storylines` folder reads `lane`'s members in `lane_members_order`.
+    let walked: Vec<String> = snap
+        .sequence(
+            &BookRoot::Entry {
+                entry: roots.storylines.clone(),
+            },
+            true,
+        )
+        .unwrap()
+        .into_iter()
+        .filter(|f| !f.prose.is_empty())
+        .map(|f| f.entry.id.to_string())
+        .collect();
+    assert_eq!(walked, vec!["c1", "c2", "c3"]);
+
+    // 2. Switching `project.book.root` to `View(view-second)` makes `view-second`
+    //    the reference view for `lane`'s own page and folder walks.
+    doc.edit(Origin::User, |t| {
+        t.project().book(Some(&ProjectBook {
+            root: BookRoot::View {
+                view: v_second.clone(),
+            },
+            word_target_set: None,
+            daily_word_target_set: None,
+        }))?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    let snap = doc.view().structure_snapshot();
+    assert_eq!(
+        snap.lane_reference_view(&eid("lane"))
+            .map(|v| v.id.as_str()),
+        Some("view-second")
+    );
+    assert_eq!(
+        snap.lane_members_order(&eid("lane"))
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["c2", "c3", "c1"]
+    );
+    let walked: Vec<String> = snap
+        .sequence(
+            &BookRoot::Entry {
+                entry: roots.storylines,
+            },
+            true,
+        )
+        .unwrap()
+        .into_iter()
+        .filter(|f| !f.prose.is_empty())
+        .map(|f| f.entry.id.to_string())
+        .collect();
+    assert_eq!(walked, vec!["c2", "c3", "c1"]);
+}

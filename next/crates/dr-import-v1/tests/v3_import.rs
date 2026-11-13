@@ -2908,15 +2908,18 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
             .any(|m| m.host == act_track.id && m.member == eid(IDEA_TRASHED))
     );
 
-    // Ordered memberships on "幕" equal all 9 acts in exact book order.
-    let mut track_members: Vec<_> = view
+    // Memberships on "幕" omit `pos` (`VIEW-LANE-MEMBERS-PLACED`) and `members_of`
+    // reads all 9 acts in narrative-view scale order.
+    let track_members: Vec<_> = view
         .memberships_raw()
         .into_iter()
         .filter(|m| m.host == act_track.id)
         .collect();
-    track_members.sort_by(|a, b| a.pos.cmp(&b.pos).then_with(|| a.member.cmp(&b.member)));
-    let expected_members = [
+    assert_eq!(track_members.len(), 9);
+    assert!(track_members.iter().all(|m| m.pos.is_none()));
+    let expected_scale_order = [
         eid(IDEA_BOUND),
+        eid(IDEA),
         synth_children[0].id.clone(),
         synth_children[1].id.clone(),
         synth_children[2].id.clone(),
@@ -2924,14 +2927,14 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
         synth_children[3].id.clone(),
         synth_children[4].id.clone(),
         synth_children[5].id.clone(),
-        eid(IDEA),
     ];
     assert_eq!(
-        track_members
-            .iter()
-            .map(|m| m.member.clone())
+        view.structure_snapshot()
+            .members_of(&act_track.id)
+            .into_iter()
+            .map(|e| e.id.clone())
             .collect::<Vec<_>>(),
-        expected_members
+        expected_scale_order
     );
 
     let placement_of = |id: &EntryId| -> Option<(f64, Option<f64>)> {
@@ -2944,7 +2947,7 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
 
     // Case 1 (`绑定`) + Case 8 (`重叠` with Case 2): chapters at 10.0 and 18.0 -> [10.0, 22.0] => (10.0, Some(12.0))
     assert_eq!(placement_of(&eid(IDEA_BOUND)), Some((10.0, Some(12.0))));
-    // Case 2 (`未绑定`) + Case 8 (`重叠`): chapters at 14.0 and 20.0 -> [14.0, 24.0] => (14.0, Some(10.0))
+    // Case 2 (`未绑定`) + Case 8 (`重叠`): chapters at 14.0 and 20.0 -> [14.0, Some(10.0)]
     assert_eq!(
         placement_of(&synth_children[0].id),
         Some((14.0, Some(10.0)))
@@ -2957,10 +2960,9 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     // second act creates synth_children[3] at (50.0, Some(4.0)).
     assert_eq!(placement_of(&eid(IDEA_SHARED)), Some((42.0, Some(4.0))));
     assert_eq!(placement_of(&synth_children[3].id), Some((50.0, Some(4.0))));
-    // Case 5 (`空幕`): membership present, NO placement!
-    assert_eq!(placement_of(&synth_children[4].id), None);
-    // Case 6 (`章节没有位置`): membership present, NO placement!
-    assert_eq!(placement_of(&synth_children[5].id), None);
+    // Case 5 (`空幕`) & Case 6 (`章节没有位置`): auto-placed at scale end (`VIEW-LANE-MEMBERS-PLACED`).
+    assert_eq!(placement_of(&synth_children[4].id), Some((61.0, None)));
+    assert_eq!(placement_of(&synth_children[5].id), Some((62.0, None)));
     // Case 7 (`构想原来就有位置`): keeps original (12.0, None) without overwriting with (60.0, Some(4.0))!
     assert_eq!(placement_of(&eid(IDEA)), Some((12.0, None)));
 

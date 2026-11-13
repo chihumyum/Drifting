@@ -1001,6 +1001,21 @@ pub fn sort_timeline_placements(placements: &mut [TimelinePlacement]) {
     placements.sort_by(|a, b| cmp_order((Some(a.at), &a.entry), (Some(b.at), &b.entry)));
 }
 
+/// Next coordinate at the end of `placements` (`VIEW-LANE-MEMBERS-PLACED`,
+/// `kernel-v5.md` §4): `0.0` when there are no finite placements, otherwise
+/// `max(at + span.unwrap_or(0.0)) + 1.0`.
+pub fn timeline_scale_end(placements: &[TimelinePlacement]) -> f64 {
+    placements
+        .iter()
+        .filter(|p| p.at.is_finite())
+        .map(|p| {
+            let span = p.span.filter(|s| s.is_finite() && *s >= 0.0).unwrap_or(0.0);
+            p.at + span
+        })
+        .reduce(f64::max)
+        .map_or(0.0, |m| m + 1.0)
+}
+
 /// A time pin on a [`TimelineView`]'s axis (`pins` sub-map).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimelinePin {

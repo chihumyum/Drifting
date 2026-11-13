@@ -536,7 +536,6 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 .map(|(id, _, _)| eid(id.as_str()))
                 .unwrap_or_else(|| roots.manuscript.clone());
             let chap_id = eid(c.id.as_str());
-            let mpos = positions(c.storylines.len());
             let primary_sl = c
                 .storylines
                 .first()
@@ -562,9 +561,9 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                         Some(&FieldValue::Text(c.status.as_str().into())),
                     )?;
             }
-            for (k, &s_idx) in c.storylines.iter().enumerate() {
+            for &s_idx in &c.storylines {
                 let sl_id = eid(p.storylines[s_idx].0.as_str());
-                t.put_membership(&sl_id, &chap_id, Some(&mpos[k]), None)?;
+                t.put_membership(&sl_id, &chap_id, None, None)?;
             }
             if !c.storylines.is_empty() {
                 t.timeline_view(&roots.narrative_view)?
@@ -880,7 +879,6 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     ordered_sl.push(s);
                 }
             }
-            let mpos = positions(ordered_sl.len());
             let primary_host = c
                 .primary_storyline
                 .as_ref()
@@ -903,14 +901,22 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                         Some(&FieldValue::Text(c.status.as_str().into())),
                     )?;
             }
-            for (k, sl) in ordered_sl.iter().enumerate() {
-                t.put_membership(&eid(sl.as_str()), &chap_id, Some(&mpos[k]), None)?;
+            for sl in &ordered_sl {
+                t.put_membership(&eid(sl.as_str()), &chap_id, None, None)?;
             }
-            if let Some(no) = c.narrative_order
-                && !ordered_sl.is_empty()
-            {
+            if !ordered_sl.is_empty() {
+                let at = match c.narrative_order {
+                    Some(no) => no,
+                    None => t
+                        .view()
+                        .timeline_views_raw()
+                        .into_iter()
+                        .find(|tv| tv.id == roots.narrative_view)
+                        .map(|tv| dr_model::v3::timeline_scale_end(&tv.placements))
+                        .unwrap_or(0.0),
+                };
                 t.timeline_view(&roots.narrative_view)?
-                    .put_placement(&chap_id, no, None)?;
+                    .put_placement(&chap_id, at, None)?;
             }
             if let Some(grid) = v.plot_grid(&c.id) {
                 let gw = t.plot_grid(&chap_id, &grid_mod)?;

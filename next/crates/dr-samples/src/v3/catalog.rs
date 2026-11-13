@@ -787,9 +787,8 @@ pub fn sync_catalog(
         }
     }
     if let Some(track_id) = &act_track_id {
-        let member_pos = crate::build::positions(resolved_act_entries.len());
-        for (act_entry, pos) in resolved_act_entries.iter().zip(&member_pos) {
-            txn.put_membership(track_id, &act_entry.entry_id, Some(pos), None)?;
+        for act_entry in &resolved_act_entries {
+            txn.put_membership(track_id, &act_entry.entry_id, None, None)?;
             if !act_entry.keep_existing_placement
                 && let Some((min_at, max_end)) = act_entry.interval
             {
@@ -805,6 +804,59 @@ pub fn sync_catalog(
             color: None,
             entry: pin.drift.as_ref().map(|d| eid(d.as_str())),
         })?;
+    }
+    // Every live member of every effective lane in the view gets a finite
+    // placement (`VIEW-LANE-MEMBERS-PLACED`), ordered deterministically by
+    // 0.1 act order and then 0.1 node order.
+    {
+        let mut live_lanes = BTreeSet::new();
+        if let Some(track_id) = &act_track_id {
+            live_lanes.insert(track_id.clone());
+        }
+        for s in &storylines {
+            if s.deleted_at.is_none() {
+                live_lanes.insert(eid(s.id.as_str()));
+            }
+        }
+        if needs_unaffiliated && let Some(u) = &unaffiliated {
+            live_lanes.insert(u.clone());
+        }
+        let existing_placements = txn
+            .view()
+            .timeline_views_raw()
+            .into_iter()
+            .find(|v| v.id == roots.narrative_view)
+            .map(|v| v.placements)
+            .unwrap_or_default();
+        let mut placed: BTreeSet<EntryId> = existing_placements
+            .iter()
+            .map(|p| p.entry.clone())
+            .collect();
+        let mut next_at = dr_model::v3::timeline_scale_end(&existing_placements);
+        let w = txn.timeline_view(&roots.narrative_view)?;
+        if act_track_id.is_some() {
+            for act_entry in &resolved_act_entries {
+                if placed.insert(act_entry.entry_id.clone()) {
+                    w.put_placement(&act_entry.entry_id, next_at, None)?;
+                    next_at += 1.0;
+                }
+            }
+        }
+        for n in &nodes {
+            if n.is_trashed() {
+                continue;
+            }
+            let id = eid(n.id.as_str());
+            let in_live_lane = n
+                .storylines
+                .iter()
+                .any(|h| live_lanes.contains(&eid(h.as_str())))
+                || (n.storylines.is_empty() && n.narrative_order.is_some() && needs_unaffiliated);
+            if in_live_lane && placed.insert(id.clone()) {
+                w.put_placement(&id, next_at, None)?;
+                next_at += 1.0;
+            }
+        }
     }
     copy_rest(txn, source)?;
     Ok(())

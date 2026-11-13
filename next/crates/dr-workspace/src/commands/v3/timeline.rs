@@ -36,7 +36,7 @@ op! {
     ViewPut="timeline_view.put",Write,Book,"Create or edit a timeline view, including its independent lane order.",fn(cx,input:PutIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
-        let tv: m::TimelineView = convert(input.view)?;
+        let mut tv: m::TimelineView = convert(input.view)?;
         name_ok(&tv.name)?;
         if tv.deleted_at.is_some() {
             return Err(WsError::invalid("use timeline_view.delete"));
@@ -64,6 +64,23 @@ op! {
             pin_ok(&v, pin)?;
             if !pins.insert(&pin.id) {
                 return Err(WsError::invalid("duplicate pin"));
+            }
+        }
+        let snapshot = v.structure_snapshot();
+        let effective_lanes = m::effective_timeline_lanes(&tv.lanes, &entries, &templates);
+        let mut placed_ids: BTreeSet<EntryId> =
+            tv.placements.iter().map(|p| p.entry.clone()).collect();
+        let mut next_at = m::timeline_scale_end(&tv.placements);
+        for lane in &effective_lanes {
+            for member in snapshot.lane_members_order(&lane.entry) {
+                if placed_ids.insert(member.id.clone()) {
+                    tv.placements.push(m::TimelinePlacement {
+                        entry: member.id.clone(),
+                        at: next_at,
+                        span: None,
+                    });
+                    next_at += 1.0;
+                }
             }
         }
         let old = v.timeline_views_raw().into_iter().find(|t| t.id == tv.id);
@@ -177,9 +194,28 @@ op! {
                 .iter()
                 .any(|m| &m.host == lane && m.member == e.id)
         });
+        let mut other_views = Vec::new();
+        if let Some(lane) = lane.as_ref().filter(|_| join) {
+            for other_tv in membership::live_views_with_lane(&v, lane) {
+                if other_tv.id != tv.id
+                    && v.timeline_placement_snapshot(&other_tv.id, &e.id)?.is_none()
+                {
+                    let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                        &other_tv,
+                        &before.memberships,
+                        entries,
+                        templates,
+                    ));
+                    other_views.push((other_tv.id, end));
+                }
+            }
+        }
         let mut keys = vec![key("timeline_views", &tv.id)];
         if let Some(lane) = lane.as_ref().filter(|_| join) {
             keys.push(key("memberships", m::Membership::key(lane, &e.id)));
+        }
+        for (vid, _) in &other_views {
+            keys.push(key("timeline_views", vid));
         }
         let id = e.id.clone();
         // The entry's position in this view. A membership it joins is new.
@@ -190,6 +226,9 @@ op! {
             }
             t.timeline_view(&tv.id)?
                 .put_placement(&e.id, input.at, input.span)?;
+            for (vid, end) in &other_views {
+                t.timeline_view(vid)?.put_placement(&e.id, *end, None)?;
+            }
             Ok(())
         })?;
         undo(cx, &s, &at, keys);

@@ -902,6 +902,16 @@ pub const INVARIANTS: &[Invariant] = &[
             "project_tabs_mount_four_targets_and_keep_invalid_mounts"
         ]
     ),
+    inv!(
+        "VIEW-LANE-MEMBERS-PLACED",
+        "视图里每条泳道的每个成员都有刻度位置：命令层在条目挂进泳道或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
+        [Command, Read],
+        "membership.add、entry.create、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_members_order（及 members_of、sequence）按成书起点视图或首个视图的刻度排，无位置的排在最后",
+        [
+            "lane_members_order_follows_reference_view_scale_and_places_unpositioned_last",
+            "joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos"
+        ]
+    ),
 ];
 
 pub const DIVERGENCES: &[Divergence] = &[
@@ -955,7 +965,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 85;
+pub const ACTIVE_CONTRACTS: usize = 86;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
