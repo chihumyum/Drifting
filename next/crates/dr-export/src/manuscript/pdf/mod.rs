@@ -12,6 +12,7 @@ use fontdb::Database;
 use krilla::Document;
 use krilla::action::{Action, LinkAction};
 use krilla::annotation::{Annotation, LinkAnnotation, Target};
+use krilla::color::rgb;
 use krilla::destination::XyzDestination;
 use krilla::geom::{PathBuilder, Point, Rect, Size, Transform};
 use krilla::image::Image;
@@ -26,7 +27,7 @@ pub(crate) use fonts::system_fonts;
 use layout::{FontRun, Line, Shaped, Shaper, TextStyle, break_lines, distribute, font_runs};
 
 use super::text::Language;
-use super::{Align, Block, Book, Run, Section};
+use super::{Align, Block, Book, ListKind, Run, Section};
 
 /// A5 in points.
 const PAGE_W: f32 = 419.53;
@@ -75,6 +76,7 @@ struct Para {
     first_indent: f32,
     left: f32,
     right: f32,
+    shade: Option<[u8; 3]>,
 }
 
 impl Para {
@@ -90,6 +92,7 @@ impl Para {
             first_indent: self.first_indent,
             left: self.left,
             right: self.right,
+            shade: self.shade,
         }
     }
 }
@@ -111,6 +114,11 @@ enum Flow {
         /// Lines of the next paragraph that must share this page.
         keep: usize,
         space_after: f32,
+    },
+    Table {
+        cells: Vec<Vec<usize>>,
+        left: f32,
+        right: f32,
     },
 }
 
@@ -141,6 +149,7 @@ enum Op {
         y: f32,
         w: f32,
         h: f32,
+        color: Option<[u8; 3]>,
     },
     Dots {
         x1: f32,
@@ -194,6 +203,8 @@ impl Builder<'_> {
                 italic: run.italic,
                 underline: run.underline,
                 strike: run.strike,
+                code: run.code,
+                highlight: run.highlight,
                 href: run.href.as_ref().map(|href| href.trim().to_string()),
             });
             let start = text.len();
@@ -210,6 +221,7 @@ impl Builder<'_> {
             first_indent: 0.0,
             left: 0.0,
             right: 0.0,
+            shade: None,
         }
     }
 
@@ -232,11 +244,12 @@ impl Builder<'_> {
             first_indent: 0.0,
             left: 0.0,
             right: 0.0,
+            shade: None,
         });
         self.paras.len() - 1
     }
 
-    fn blocks(&mut self, blocks: &[Block], quote: f32, first: &mut bool) {
+    fn blocks(&mut self, blocks: &[Block], quote: f32, shade: Option<[u8; 3]>, first: &mut bool) {
         let em = self.metrics.em();
         let leading = self.metrics.leading;
         for block in blocks {
@@ -256,6 +269,8 @@ impl Builder<'_> {
                     };
                     para.line_height = size * 1.5;
                     para.left = quote;
+                    para.right = quote;
+                    para.shade = shade;
                     self.paras.push(para);
                     self.flow.push(Flow::Space(before * leading));
                     self.flow.push(Flow::Para {
@@ -280,11 +295,16 @@ impl Builder<'_> {
                     para.line_height = leading;
                     para.left = quote + f32::from(*indent) * 2.0 * em;
                     para.right = quote;
-                    para.first_indent = match align {
-                        Align::Center | Align::Right => 0.0,
-                        _ if self.cjk => 2.0 * em,
-                        _ if *first => 0.0,
-                        _ => 1.5 * em,
+                    para.shade = shade;
+                    para.first_indent = if shade.is_some() {
+                        0.0
+                    } else {
+                        match align {
+                            Align::Center | Align::Right => 0.0,
+                            _ if self.cjk => 2.0 * em,
+                            _ if *first => 0.0,
+                            _ => 1.5 * em,
+                        }
                     };
                     self.paras.push(para);
                     self.flow.push(Flow::Para {
@@ -294,10 +314,123 @@ impl Builder<'_> {
                     });
                     *first = false;
                 }
+                Block::List { kind, items } => {
+                    self.flow.push(Flow::Space(0.3 * leading));
+                    let mut counters = [0usize; 9];
+                    for item in items {
+                        let lvl = usize::from(item.level.min(8));
+                        for c in &mut counters[lvl + 1..] {
+                            *c = 0;
+                        }
+                        let prefix = match kind {
+                            ListKind::Bullet => "• ".to_string(),
+                            ListKind::Ordered => {
+                                counters[lvl] += 1;
+                                format!("{}. ", counters[lvl])
+                            }
+                            ListKind::Task => {
+                                if item.checked {
+                                    "☑ ".to_string()
+                                } else {
+                                    "☐ ".to_string()
+                                }
+                            }
+                        };
+                        let mut item_runs = Vec::with_capacity(item.runs.len() + 1);
+                        item_runs.push(Run {
+                            text: prefix,
+                            ..Run::default()
+                        });
+                        item_runs.extend(item.runs.iter().cloned());
+                        let mut para = self.para_from_runs(&item_runs, self.metrics.body, false);
+                        para.align = Align::Left;
+                        para.line_height = leading;
+                        para.first_indent = 0.0;
+                        para.left = quote + (1.2 + f32::from(item.level.min(8)) * 1.5) * em;
+                        para.right = quote;
+                        para.shade = shade;
+                        self.paras.push(para);
+                        self.flow.push(Flow::Para {
+                            para: self.paras.len() - 1,
+                            keep: 0,
+                            space_after: 0.0,
+                        });
+                    }
+                    self.flow.push(Flow::Space(0.3 * leading));
+                    *first = true;
+                }
+                Block::CodeBlock { text, .. } => {
+                    let code_size = self.metrics.body * 0.9;
+                    let code_leading = self.metrics.leading * 0.92;
+                    let expanded = text.replace('\t', "    ");
+                    let style = self.style(TextStyle {
+                        code: true,
+                        ..TextStyle::plain(code_size)
+                    });
+                    let spans = if expanded.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![(0..expanded.len(), style)]
+                    };
+                    self.paras.push(Para {
+                        text: expanded,
+                        spans,
+                        runs: Vec::new(),
+                        size: code_size,
+                        line_height: code_leading,
+                        align: Align::Left,
+                        first_indent: 0.0,
+                        left: quote + 0.9 * em,
+                        right: quote + 0.9 * em,
+                        shade: Some([245, 245, 244]),
+                    });
+                    self.flow.push(Flow::Space(0.4 * leading));
+                    self.flow.push(Flow::Para {
+                        para: self.paras.len() - 1,
+                        keep: 0,
+                        space_after: 0.0,
+                    });
+                    self.flow.push(Flow::Space(0.4 * leading));
+                    *first = true;
+                }
+                Block::Callout { blocks, .. } => {
+                    self.flow.push(Flow::Space(0.4 * leading));
+                    let mut inner = true;
+                    self.blocks(blocks, quote + 1.2 * em, Some([245, 245, 244]), &mut inner);
+                    self.flow.push(Flow::Space(0.4 * leading));
+                    *first = true;
+                }
+                Block::Table { rows } => {
+                    let cell_size = self.metrics.body * 0.95;
+                    let cell_leading = cell_size * if self.cjk { 1.6 } else { 1.4 };
+                    let cells: Vec<Vec<usize>> = rows
+                        .iter()
+                        .map(|row| {
+                            row.iter()
+                                .map(|cell| {
+                                    let mut para = self.para_from_runs(cell, cell_size, false);
+                                    para.align = Align::Left;
+                                    para.line_height = cell_leading;
+                                    para.first_indent = 0.0;
+                                    self.paras.push(para);
+                                    self.paras.len() - 1
+                                })
+                                .collect()
+                        })
+                        .collect();
+                    self.flow.push(Flow::Space(0.4 * leading));
+                    self.flow.push(Flow::Table {
+                        cells,
+                        left: quote,
+                        right: quote,
+                    });
+                    self.flow.push(Flow::Space(0.4 * leading));
+                    *first = true;
+                }
                 Block::Quote { blocks } => {
                     self.flow.push(Flow::Space(0.4 * leading));
                     let mut inner = true;
-                    self.blocks(blocks, quote + 2.0 * em, &mut inner);
+                    self.blocks(blocks, quote + 2.0 * em, shade, &mut inner);
                     self.flow.push(Flow::Space(0.4 * leading));
                     *first = true;
                 }
@@ -397,7 +530,7 @@ impl Builder<'_> {
                         self.flow.push(Flow::Space(2.0 * self.metrics.leading));
                     }
                     let mut first = true;
-                    self.blocks(blocks, 0.0, &mut first);
+                    self.blocks(blocks, 0.0, None, &mut first);
                 }
             }
         }
@@ -500,12 +633,31 @@ impl<'s> Pager<'s> {
             }
             let text_style = &self.styles[style];
             let run_width = x - start_x;
+            let inline_wash = if text_style.highlight {
+                Some([254, 240, 138])
+            } else if text_style.code && para.shade.is_none() {
+                Some([242, 242, 240])
+            } else {
+                None
+            };
+            if let Some(rgb) = inline_wash
+                && run_width > 0.0
+            {
+                self.page.ops.push(Op::Rect {
+                    x: start_x,
+                    y: baseline - size * 0.82,
+                    w: run_width,
+                    h: size * 1.08,
+                    color: Some(rgb),
+                });
+            }
             if text_style.underline {
                 self.page.ops.push(Op::Rect {
                     x: start_x,
                     y: baseline + size * 0.14,
                     w: run_width,
                     h: size * 0.05,
+                    color: None,
                 });
             }
             if text_style.strike {
@@ -514,6 +666,7 @@ impl<'s> Pager<'s> {
                     y: baseline - size * 0.32,
                     w: run_width,
                     h: size * 0.05,
+                    color: None,
                 });
             }
             if let Some(href) = &text_style.href
@@ -568,6 +721,18 @@ impl<'s> Pager<'s> {
                     take -= 1;
                 }
             }
+            if let Some(rgb) = para.shade {
+                let box_x = self.metrics.left + para.left - 6.0;
+                let box_w = (width - para.left - para.right + 12.0).max(12.0);
+                let box_h = take as f32 * line_height + 4.0;
+                self.page.ops.push(Op::Rect {
+                    x: box_x,
+                    y: self.y - 2.0,
+                    w: box_w,
+                    h: box_h,
+                    color: Some(rgb),
+                });
+            }
             for (offset, line) in lines[index..index + take].iter().enumerate() {
                 let top = self.y;
                 self.draw_line(
@@ -584,6 +749,118 @@ impl<'s> Pager<'s> {
             index += take;
             if index < lines.len() {
                 self.new_page();
+            }
+        }
+    }
+
+    fn table(
+        &mut self,
+        shaped: &[Shaped],
+        paras: &[Para],
+        cells: &[Vec<usize>],
+        left: f32,
+        right: f32,
+    ) {
+        if cells.is_empty() || cells[0].is_empty() {
+            return;
+        }
+        let cols = cells[0].len();
+        let table_x = self.metrics.left + left;
+        let table_w = (self.metrics.width - left - right).max(36.0);
+        let col_w = table_w / cols as f32;
+        let pad_x = 5.0_f32;
+        let pad_y = 4.0_f32;
+        let inner_w = (col_w - 2.0 * pad_x).max(12.0);
+        let border = Some([214, 211, 209]);
+        let rule = 0.5_f32;
+        for row in cells {
+            let row_lines: Vec<Vec<Line>> = row
+                .iter()
+                .map(|&idx| break_lines(&shaped[idx], inner_w, inner_w))
+                .collect();
+            let line_h = row
+                .first()
+                .map(|&idx| paras[idx].line_height)
+                .unwrap_or(self.metrics.leading);
+            let max_lines = row_lines.iter().map(Vec::len).max().unwrap_or(1).max(1);
+            let page_cap = (((self.metrics.bottom - TOP - 2.0 * pad_y) / line_h)
+                .floor()
+                .max(1.0)) as usize;
+            let mut line_start = 0;
+            while line_start < max_lines {
+                let remaining = max_lines - line_start;
+                let fit = (((self.metrics.bottom - self.y - 2.0 * pad_y) / line_h + 0.001)
+                    .floor()
+                    .max(0.0)) as usize;
+                let take = if remaining <= fit {
+                    remaining
+                } else if !self.page_is_empty() && remaining <= page_cap {
+                    self.new_page();
+                    remaining
+                } else if fit == 0 {
+                    if self.page_is_empty() {
+                        1
+                    } else {
+                        self.new_page();
+                        continue;
+                    }
+                } else {
+                    fit.min(remaining)
+                };
+                let row_top = self.y;
+                let slice_h = take as f32 * line_h + 2.0 * pad_y;
+                self.page.ops.push(Op::Rect {
+                    x: table_x,
+                    y: row_top,
+                    w: table_w,
+                    h: rule,
+                    color: border,
+                });
+                self.page.ops.push(Op::Rect {
+                    x: table_x,
+                    y: row_top + slice_h,
+                    w: table_w,
+                    h: rule,
+                    color: border,
+                });
+                for col in 0..=cols {
+                    self.page.ops.push(Op::Rect {
+                        x: table_x + col as f32 * col_w,
+                        y: row_top,
+                        w: rule,
+                        h: slice_h,
+                        color: border,
+                    });
+                }
+                for (col_idx, (&para_idx, cell_lines)) in row.iter().zip(&row_lines).enumerate() {
+                    let cell_x = table_x + col_idx as f32 * col_w + pad_x;
+                    let cell_para = Para {
+                        left: 0.0,
+                        right: 0.0,
+                        first_indent: 0.0,
+                        shade: None,
+                        ..paras[para_idx].geometry()
+                    };
+                    let end = (line_start + take).min(cell_lines.len());
+                    if line_start < end {
+                        for (offset, line) in cell_lines[line_start..end].iter().enumerate() {
+                            self.draw_line(
+                                &shaped[para_idx],
+                                &cell_para,
+                                line,
+                                line_start + offset == 0,
+                                cell_x,
+                                inner_w,
+                                row_top + pad_y + offset as f32 * cell_para.line_height,
+                            );
+                        }
+                    }
+                }
+                self.y += slice_h;
+                line_start += take;
+                if line_start < max_lines {
+                    self.new_page();
+                }
             }
         }
     }
@@ -742,6 +1019,9 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
                 };
                 pager.paragraph(&shaped[*para], &paras[*para], next_height);
             }
+            Flow::Table { cells, left, right } => {
+                pager.table(&shaped, &paras, cells, *left, *right);
+            }
         }
     }
     let mut body_pages = pager.finish();
@@ -768,6 +1048,7 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
             first_indent: 0.0,
             left: 0.0,
             right: 0.0,
+            shade: None,
         };
         let mut footer = Pager::new(&metrics, &fonts, &styles);
         let top = FOOTER_BASELINE - footer.baseline(0.0, 12.0, 9.0);
@@ -876,6 +1157,7 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
                         first_indent: 0.0,
                         left: 0.0,
                         right: 0.0,
+                        shade: None,
                     };
                     let number_line = Line {
                         start: 0,
@@ -988,13 +1270,20 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
                     }
                     surface.set_stroke(None);
                 }
-                Op::Rect { x, y, w, h } => {
+                Op::Rect { x, y, w, h, color } => {
                     let mut path = PathBuilder::new();
                     if let Some(rect) = Rect::from_xywh(x, y, w.max(0.1), h.max(0.1)) {
                         path.push_rect(rect);
                     }
                     if let Some(path) = path.finish() {
-                        surface.set_fill(Some(Fill::default()));
+                        let fill = match color {
+                            Some([r, g, b]) => Fill {
+                                paint: rgb::Color::new(r, g, b).into(),
+                                ..Fill::default()
+                            },
+                            None => Fill::default(),
+                        };
+                        surface.set_fill(Some(fill));
                         surface.draw_path(&path);
                     }
                 }

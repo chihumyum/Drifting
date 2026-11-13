@@ -252,7 +252,30 @@ fn plain(block: &Block) -> String {
             .iter()
             .map(|r| r.text.replace('\n', " "))
             .collect::<String>(),
-        Block::Quote { blocks } => blocks.iter().map(plain).collect(),
+        Block::List { items, .. } => items
+            .iter()
+            .map(|item| {
+                item.runs
+                    .iter()
+                    .map(|r| r.text.replace('\n', " "))
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+        Block::CodeBlock { text, .. } => text.replace('\n', " "),
+        Block::Callout { blocks, .. } | Block::Quote { blocks } => {
+            blocks.iter().map(plain).collect()
+        }
+        Block::Table { rows } => rows
+            .iter()
+            .flat_map(|row| row.iter())
+            .map(|cell| {
+                cell.iter()
+                    .map(|r| r.text.replace('\n', " "))
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
         Block::Break => String::new(),
     }
 }

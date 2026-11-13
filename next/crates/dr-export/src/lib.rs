@@ -38,8 +38,8 @@ pub use import::{
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use manuscript::pdf_fonts;
 pub use manuscript::{
-    Align, Block, Cover, Format, Language, Manuscript, Run, Section, language, render,
-    valid_filename,
+    Align, Block, Cover, Format, Language, ListItem, ListKind, Manuscript, Run, Section, language,
+    render, valid_filename,
 };
 pub use markdown::markdown_filename;
 

@@ -90,6 +90,15 @@ const SYMBOL_FALLBACK: &[&str] = &[
     "Segoe UI Emoji",
     "Noto Color Emoji",
 ];
+const MONO_FALLBACK: &[&str] = &[
+    "SF Mono",
+    "Menlo",
+    "Monaco",
+    "Consolas",
+    "Liberation Mono",
+    "DejaVu Sans Mono",
+    "Courier New",
+];
 
 /// Installed fonts, scanned once per process.
 pub(crate) fn system_fonts() -> &'static Database {
@@ -132,6 +141,8 @@ pub(crate) struct FontSet {
     pub chain: Vec<usize>,
     /// The face for Latin letters and digits in a CJK book.
     pub latin: Option<usize>,
+    /// Monospace face for inline code and code blocks.
+    pub mono: Option<usize>,
     variants: HashMap<(usize, bool, bool), usize>,
     files: HashMap<PathBuf, Arc<Vec<u8>>>,
     loaded: HashMap<fontdb::ID, usize>,
@@ -176,6 +187,7 @@ impl FontSet {
             faces: Vec::new(),
             chain: Vec::new(),
             latin: None,
+            mono: None,
             variants: HashMap::new(),
             files: HashMap::new(),
             loaded: HashMap::new(),
@@ -239,6 +251,10 @@ impl FontSet {
             set.chain.retain(|&face| face != body);
             set.chain.insert(0, body);
         }
+        set.mono = MONO_FALLBACK
+            .iter()
+            .find_map(|name| set.load_family(database, name))
+            .filter(|&face| set.faces[face].has_glyph('a'));
         Ok(set)
     }
 
