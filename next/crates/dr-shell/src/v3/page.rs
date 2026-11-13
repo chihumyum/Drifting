@@ -396,6 +396,9 @@ impl Render for EntryPage {
                                             )
                                             .child(
                                                 div()
+                                                    .id("v3-entry-level-hint")
+                                                    .role(gpui::Role::Label)
+                                                    .aria_label(toggle_hint.clone())
                                                     .font_role(FontRole::Ui)
                                                     .type_px(
                                                         theme.scale.caption,
@@ -405,7 +408,10 @@ impl Render for EntryPage {
                                                     .child(toggle_hint),
                                             ),
                                     )
-                                    .child(Switch::new("v3-entry-level-switch", entry.level)),
+                                    .child(Switch::new(
+                                        SharedString::from(format!("v3-entry-level-switch-{id}")),
+                                        entry.level,
+                                    )),
                             ),
                     );
                     let level = v3.levels.get(id.as_str());

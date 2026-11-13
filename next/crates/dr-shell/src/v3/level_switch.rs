@@ -328,7 +328,13 @@ impl Render for TurnOffLevelDialog {
             .flex()
             .flex_col()
             .gap_3()
-            .child(wrapped(body_copy));
+            .child(
+                div()
+                    .id("v3-turn-off-level-copy")
+                    .role(gpui::Role::Label)
+                    .aria_label(body_copy.clone())
+                    .child(wrapped(body_copy)),
+            );
         if self.conflict {
             let msg = t(cx, keys::v3_shell::TURN_OFF_LEVEL_CONFLICT);
             body = body.child(
