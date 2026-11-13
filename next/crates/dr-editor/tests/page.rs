@@ -316,10 +316,12 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
     let one = chapter(&e, "一", "雨夜。");
     let two = chapter(&e, "二", "钟停了。");
 
+    let from =
+        dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, dr_doc::v3::novel::TPL_MANUSCRIPT);
     let (ws, book) = (e.ws.clone(), e.book.clone());
     cx.executor().allow_parking();
     let (view, cx) = cx.add_window_view(move |window, cx| {
-        BookEditor::open(ws, &book, EditorSettings::default(), window, cx).unwrap()
+        BookEditor::open(ws, &book, &from, EditorSettings::default(), window, cx).unwrap()
     });
     cx.simulate_resize(size(px(900.), px(900.)));
     let recorder = Rc::new(Recorder::default());

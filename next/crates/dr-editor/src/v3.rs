@@ -82,11 +82,55 @@ fn manuscript_docs_of(s: &dr_doc::v3::BookStructureV3) -> Vec<(String, String)> 
         .collect()
 }
 
-/// One visit of the manuscript sequence (`BookStructureV3::manuscript`):
-/// each entry's own book prose before what lives under it; every prose
-/// module keeps its own document.
-pub fn manuscript_docs(view: &BookViewV3<'_>) -> Vec<(String, String)> {
-    manuscript_docs_of(&view.structure_snapshot())
+/// Flattens `from` and everything below it for the book view
+/// (`kernel-v4.md` §7): `from`'s own book prose first, then depth-first in
+/// manuscript and membership order, keeping entries that carry no book prose
+/// so the view renders their headings and hierarchy.
+pub fn flatten_book(
+    view: &BookViewV3<'_>,
+    from: &dr_model::id::EntryId,
+) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
+    let structure = view.structure_snapshot();
+    let flat = structure.flatten(
+        from,
+        dr_doc::v3::Flatten {
+            in_book_only: true,
+            include_members: true,
+        },
+    )?;
+    let mut out = Vec::new();
+    for e in flat {
+        let entry = e.entry.id.to_string();
+        let title = e.entry.title.clone();
+        if e.prose.is_empty() {
+            out.push(crate::book::BookSection {
+                entry,
+                title,
+                depth: e.depth,
+                doc: None,
+            });
+        } else {
+            for (i, p) in e.prose.into_iter().enumerate() {
+                out.push(crate::book::BookSection {
+                    entry: entry.clone(),
+                    title: if i == 0 { title.clone() } else { p.name },
+                    depth: if i == 0 { e.depth } else { e.depth + 1 },
+                    doc: Some(p.doc.to_string()),
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Outermost manuscript level entries of the book, in manuscript order.
+pub fn manuscript_roots(view: &BookViewV3<'_>) -> Vec<dr_model::id::EntryId> {
+    let structure = view.structure_snapshot();
+    structure
+        .manuscript()
+        .into_iter()
+        .map(|p| p.root.id.clone())
+        .collect()
 }
 
 pub(crate) fn page_infos(

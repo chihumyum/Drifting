@@ -167,10 +167,12 @@ fn the_book_view_says_which_chapter_was_written_in(cx: &mut TestAppContext) {
     let e = env();
     chapter(&e, "一", "第一章。\n");
     let second = chapter(&e, "二", "第二章。\n");
+    let from =
+        dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, dr_doc::v3::novel::TPL_MANUSCRIPT);
     let (ws, book) = (e.ws.clone(), e.book.clone());
     cx.executor().allow_parking();
     let (view, cx) = cx.add_window_view(move |window, cx| {
-        BookEditor::open(ws, &book, settings(false, 0.4), window, cx).unwrap()
+        BookEditor::open(ws, &book, &from, settings(false, 0.4), window, cx).unwrap()
     });
     cx.simulate_resize(size(px(900.), px(700.)));
     draw(cx);

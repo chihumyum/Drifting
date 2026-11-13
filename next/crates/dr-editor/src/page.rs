@@ -30,8 +30,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use dr_workspace::{Actor, Workspace, WsError};
-use gpui::{AnyElement, App, Entity, Window};
-use gpui_prose::{ChapterSlots, ProseDoc, ProseEditor};
+use gpui::{
+    AnyElement, App, ElementId, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement,
+    StatefulInteractiveElement, Styled, Window, div, px, relative,
+};
+use gpui_prose::{ChapterSlots, ProseDoc, ProseEditor, ProseStyle};
 use serde_json::{Value, json};
 
 /// What kind of page a prose document is.
@@ -126,16 +129,132 @@ pub trait PageChrome: 'static {
 /// levels and the Markdown that makes them.
 pub const EMPTY_HINTS: &[(&str, &str)] = &[("H1", "#"), ("H2", "##"), ("H3", "###")];
 
+/// Prose-less section headings in a flattened book view, grouped around the
+/// view's prose chapters.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct BookHeadings {
+    pub before: Vec<Vec<crate::book::SectionHeading>>,
+    pub chapters: Vec<(String, u32)>,
+    pub after_last: Vec<crate::book::SectionHeading>,
+}
+
+impl BookHeadings {
+    pub fn has_any(&self) -> bool {
+        self.before.iter().any(|v| !v.is_empty()) || !self.after_last.is_empty()
+    }
+}
+
+/// Renders one prose-less entry heading in the paper column, scaled by its
+/// hierarchy `depth` relative to the starting level.
+pub(crate) fn render_section_heading(
+    heading: &crate::book::SectionHeading,
+    style: &ProseStyle,
+    first_in_scroll: bool,
+    after_heading: bool,
+) -> AnyElement {
+    let (size, weight, color, top, bottom) = match heading.depth {
+        0 => (
+            style.title_size,
+            FontWeight::BOLD,
+            style.text,
+            if first_in_scroll { px(56.) } else { px(88.) },
+            px(20.),
+        ),
+        1 => (
+            style.heading_sizes[0],
+            FontWeight::SEMIBOLD,
+            style.text,
+            if first_in_scroll {
+                px(48.)
+            } else if after_heading {
+                px(24.)
+            } else {
+                px(72.)
+            },
+            px(16.),
+        ),
+        2 => (
+            style.heading_sizes[1],
+            style.heading_weight,
+            style.text,
+            if after_heading { px(18.) } else { px(52.) },
+            px(12.),
+        ),
+        _ => (
+            style.heading_sizes[2],
+            style.heading_weight,
+            style.muted,
+            if after_heading { px(14.) } else { px(40.) },
+            px(10.),
+        ),
+    };
+    let indent = px((heading.depth.saturating_sub(3) * 16) as f32);
+    let selector = format!("book-section-heading-{}", heading.entry);
+    let dbg = selector.clone();
+    div()
+        .id(ElementId::Name(selector.into()))
+        .debug_selector(move || dbg.clone())
+        .role(gpui::Role::Heading)
+        .aria_label(heading.title.clone())
+        .w_full()
+        .px(style.gutter)
+        .flex()
+        .justify_center()
+        .pt(top)
+        .pb(bottom)
+        .child(
+            div()
+                .max_w(style.max_width)
+                .w_full()
+                .pl(indent)
+                .text_size(size)
+                .line_height(relative(style.heading_line_height))
+                .font_family(style.font_family.clone())
+                .font_weight(weight)
+                .text_color(color)
+                .child(heading.title.clone()),
+        )
+        .into_any_element()
+}
+
+fn render_chapter_title_row(title: &str, style: &ProseStyle, after_heading: bool) -> AnyElement {
+    let top = if after_heading { px(28.) } else { px(56.) };
+    div()
+        .w_full()
+        .px(style.gutter)
+        .flex()
+        .justify_center()
+        .pt(top)
+        .pb(px(28.))
+        .child(
+            div()
+                .max_w(style.max_width)
+                .w_full()
+                .text_size(style.title_size)
+                .font_family(style.font_family.clone())
+                .font_weight(FontWeight::BOLD)
+                .text_color(style.text)
+                .child(title.to_owned()),
+        )
+        .into_any_element()
+}
+
+const HEADING_ESTIMATE: f32 = 84.;
+
 /// Each page's facts and the host's chrome, shared with the editor's slots.
 #[derive(Default)]
 pub(crate) struct Pages {
     infos: Rc<RefCell<Vec<PageInfo>>>,
     chrome: Option<Rc<dyn PageChrome>>,
+    headings: Rc<RefCell<BookHeadings>>,
+    style: Rc<RefCell<ProseStyle>>,
 }
 
 struct Slots {
     infos: Rc<RefCell<Vec<PageInfo>>>,
-    chrome: Rc<dyn PageChrome>,
+    chrome: Option<Rc<dyn PageChrome>>,
+    headings: Rc<RefCell<BookHeadings>>,
+    style: Rc<RefCell<ProseStyle>>,
 }
 
 impl Slots {
@@ -146,23 +265,98 @@ impl Slots {
 
 impl ChapterSlots for Slots {
     fn head(&self, chapter: usize, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
-        let page = self.page(chapter)?;
-        self.chrome.head(&page, window, cx)
+        let (before, chapter_title) = {
+            let h = self.headings.borrow();
+            (
+                h.before.get(chapter).cloned().unwrap_or_default(),
+                h.chapters
+                    .get(chapter)
+                    .map(|(t, _)| t.clone())
+                    .unwrap_or_default(),
+            )
+        };
+        let chrome_head = self
+            .chrome
+            .as_ref()
+            .and_then(|chrome| self.page(chapter).and_then(|p| chrome.head(&p, window, cx)));
+        if before.is_empty() {
+            return chrome_head;
+        }
+        let style = self.style.borrow().clone();
+        let mut stack = div().w_full().flex().flex_col();
+        for (ix, heading) in before.iter().enumerate() {
+            stack = stack.child(render_section_heading(
+                heading,
+                &style,
+                chapter == 0 && ix == 0,
+                ix > 0,
+            ));
+        }
+        let own =
+            chrome_head.unwrap_or_else(|| render_chapter_title_row(&chapter_title, &style, true));
+        Some(stack.child(own).into_any_element())
     }
 
     fn end(&self, chapter: usize, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
-        let page = self.page(chapter)?;
-        self.chrome.end(&page, window, cx)
+        let after = {
+            let h = self.headings.borrow();
+            if chapter + 1 == h.chapters.len() {
+                h.after_last.clone()
+            } else {
+                Vec::new()
+            }
+        };
+        let chrome_end = self
+            .chrome
+            .as_ref()
+            .and_then(|chrome| self.page(chapter).and_then(|p| chrome.end(&p, window, cx)));
+        if after.is_empty() {
+            return chrome_end;
+        }
+        let style = self.style.borrow().clone();
+        let mut stack = div().w_full().flex().flex_col();
+        if let Some(end) = chrome_end {
+            stack = stack.child(end);
+        }
+        for (ix, heading) in after.iter().enumerate() {
+            stack = stack.child(render_section_heading(heading, &style, false, ix > 0));
+        }
+        Some(stack.into_any_element())
     }
 
     fn head_estimate(&self, chapter: usize) -> f32 {
-        self.page(chapter)
-            .map_or(200., |page| self.chrome.head_estimate(&page))
+        let before_len = self
+            .headings
+            .borrow()
+            .before
+            .get(chapter)
+            .map_or(0, Vec::len);
+        let base = match &self.chrome {
+            Some(chrome) => self
+                .page(chapter)
+                .map_or(200., |page| chrome.head_estimate(&page)),
+            None if before_len > 0 => 96.,
+            None => 160.,
+        };
+        before_len as f32 * HEADING_ESTIMATE + base
     }
 
     fn end_estimate(&self, chapter: usize) -> f32 {
-        self.page(chapter)
-            .map_or(120., |page| self.chrome.end_estimate(&page))
+        let after_len = {
+            let h = self.headings.borrow();
+            if chapter + 1 == h.chapters.len() {
+                h.after_last.len()
+            } else {
+                0
+            }
+        };
+        let base = match &self.chrome {
+            Some(chrome) => self
+                .page(chapter)
+                .map_or(120., |page| chrome.end_estimate(&page)),
+            None => 0.,
+        };
+        base + after_len as f32 * HEADING_ESTIMATE
     }
 }
 
@@ -176,6 +370,10 @@ impl Pages {
         self.chrome.is_some()
     }
 
+    fn is_active(&self) -> bool {
+        self.chrome.is_some() || self.headings.borrow().has_any()
+    }
+
     /// Gives the editor the host's chrome (or takes it away).
     pub fn set_chrome(
         &mut self,
@@ -187,12 +385,70 @@ impl Pages {
         self.attach(editor, cx);
     }
 
-    /// Puts the chrome on a new editor (the view rebuilt or switched it).
+    /// Updates the flattened book's prose-less section headings around its
+    /// prose chapters.
+    pub fn set_headings(&self, headings: BookHeadings, editor: &Entity<ProseEditor>, cx: &mut App) {
+        let was_active = self.is_active();
+        let changed: Vec<usize> = {
+            let old = self.headings.borrow();
+            let n = headings.chapters.len();
+            let old_n = old.chapters.len();
+            (0..n)
+                .filter(|&ix| {
+                    old.before.get(ix) != headings.before.get(ix)
+                        || (headings.before.get(ix).is_some_and(|b| !b.is_empty())
+                            && old.chapters.get(ix) != headings.chapters.get(ix))
+                        || ((ix + 1 == n || ix + 1 == old_n)
+                            && old.after_last != headings.after_last)
+                })
+                .collect()
+        };
+        *self.headings.borrow_mut() = headings;
+        let now_active = self.is_active();
+        if was_active != now_active {
+            self.attach(editor, cx);
+        } else if now_active && !changed.is_empty() {
+            editor.update(cx, |e, cx| {
+                for ix in changed {
+                    e.slots_changed(ix, cx);
+                }
+            });
+        }
+    }
+
+    /// Updates the prose style used when rendering prose-less section headings.
+    pub fn set_style(&self, style: ProseStyle, editor: &Entity<ProseEditor>, cx: &mut App) {
+        if *self.style.borrow() == style {
+            return;
+        }
+        *self.style.borrow_mut() = style;
+        if self.headings.borrow().has_any() {
+            let affected: Vec<usize> = {
+                let h = self.headings.borrow();
+                let n = h.chapters.len();
+                (0..n)
+                    .filter(|&ix| {
+                        h.before.get(ix).is_some_and(|b| !b.is_empty())
+                            || (ix + 1 == n && !h.after_last.is_empty())
+                    })
+                    .collect()
+            };
+            editor.update(cx, |e, cx| {
+                for ix in affected {
+                    e.slots_changed(ix, cx);
+                }
+            });
+        }
+    }
+
+    /// Puts the chrome / section headings on a new editor (the view rebuilt or switched it).
     pub fn attach(&self, editor: &Entity<ProseEditor>, cx: &mut App) {
-        let slots = self.chrome.clone().map(|chrome| {
+        let slots = self.is_active().then(|| {
             Rc::new(Slots {
                 infos: self.infos.clone(),
-                chrome,
+                chrome: self.chrome.clone(),
+                headings: self.headings.clone(),
+                style: self.style.clone(),
             }) as Rc<dyn ChapterSlots>
         });
         editor.update(cx, |e, cx| e.set_slots(slots, cx));

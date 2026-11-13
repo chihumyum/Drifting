@@ -41,7 +41,9 @@ pub mod v3;
 pub mod v3_link;
 pub mod view;
 
-pub use book::{BookEditor, BookEditorEvent, PreparedBook, ReadingPosition};
+pub use book::{
+    BookEditor, BookEditorEvent, BookSection, PreparedBook, ReadingPosition, SectionHeading,
+};
 pub use embeds::{NoteEmbeds, NoteEvent};
 pub use links::{DriftingExtension, LinkTargets};
 pub use page::{PageChrome, PageInfo, PageKind};

@@ -1,22 +1,22 @@
-//! The whole book in one editor (M05, 通览全书): every chapter of a book in
-//! one scroll, laid out by the same engine, each chapter edited in place.
+//! Flattened book view in one editor (M05, 整书视图): starting from any live
+//! entry whose `level` switch is on, that entry and everything below it in one
+//! continuous scroll (`kernel-v4.md` §7), each prose document edited in place.
 //!
-//! - Every chapter is its own prose document with its own workspace session
-//!   ([`SessionSource`]): typing in chapter 7 is a write to chapter 7's
+//! - Every prose module in the flattened sequence keeps its own workspace
+//!   session ([`SessionSource`]): typing in chapter 7 writes chapter 7's
 //!   document, and ⌘Z undoes in the chapter the caret is in (the chapters'
 //!   undo stacks never mix).
-//! - The chapters are opened in parallel (one document holder each, as F3
-//!   keeps a hundred documents open); gpui-prose virtualizes the scroll with
-//!   its height index, so a 1.5-million-character book lays out only what is
-//!   on screen.
-//! - Acts: the chapters that open an act carry the act's name
-//!   ([`gpui_prose::Book::act_opening`]) for the title pages.
-//! - Jump to a chapter (the table of contents), reveal a line of a position
-//!   link, save and restore the reading position.
-//! - Someone else's change to any chapter arrives as the workspace's `Prose`
-//!   event and is folded into that chapter; a change of the book's chapters
-//!   (added, removed, reordered, renamed) reloads the view at the same
+//! - Sessions are opened in parallel across cores; gpui-prose virtualizes the
+//!   scroll with its height index, so a 1.5-million-character book lays out
+//!   only what is on screen.
+//! - Entries without `in_book` prose (such as a manuscript root, 「第一卷」, or
+//!   a storyline whose description has `in_book = false`) still appear with
+//!   their title and hierarchy (`depth`).
+//! - Jump to a chapter, reveal a line of a position link, save and restore the
 //!   reading position.
+//! - Someone else's change to any chapter arrives as the workspace's `Prose`
+//!   event and is folded into that chapter; structural changes update titles
+//!   and headings in place or rebuild the view at the same reading position.
 //! - A selection may span chapters (drag, ⇧ with the arrows); copying joins
 //!   the chapters' parts, deleting takes each chapter's part out of that
 //!   chapter as a step of its own, undone together (gpui-prose's
@@ -25,13 +25,16 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use dr_model::id::EntryId;
 use dr_model::shared::EncodedAnchor;
 use dr_workspace::{Workspace, WsError, WsEvent};
 use futures::StreamExt;
 use futures::channel::mpsc;
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, Focusable, InteractiveElement, IntoElement,
-    ListOffset, ParentElement, Render, Styled, Subscription, Window, div, px,
+    ListOffset, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled,
+    Subscription, Window, div, point, px,
 };
 use gpui_prose::input::actions::{Redo, Undo};
 use gpui_prose::layout::{BookRange, Item};
@@ -39,6 +42,7 @@ use gpui_prose::{Book, Chapter, EditorEvent, ProseDoc, ProseEditor, ProseStyle};
 
 use crate::anchors;
 use crate::links::{DriftingExtension, LinkTargets};
+use crate::page::BookHeadings;
 use crate::settings::EditorSettings;
 use crate::source::SessionSource;
 use crate::todo::{self, TodoMarker};
@@ -62,35 +66,97 @@ pub enum BookEditorEvent {
     Reloaded,
 }
 
-/// Where the reader is: the paragraph at the top of the view. Survives
-/// edits (it names the paragraph by its block id) and restarts (the host
-/// stores it with the book's layout).
+/// One entry (or additional book-prose module of an entry) in a flattened book
+/// view (`kernel-v4.md` §7).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BookSection {
+    /// Entry id (`EntryId`).
+    pub entry: String,
+    /// Heading text: the entry's title, or the prose module's name on
+    /// subsequent book-prose modules of the same entry.
+    pub title: String,
+    /// Hierarchy depth relative to `from` (`0` is `from`).
+    pub depth: u32,
+    /// Prose document id (`body:<entry>/<module>`), or `None` when the entry
+    /// carries no `in_book` prose.
+    pub doc: Option<String>,
+}
+
+/// A prose-less entry's heading and hierarchy in the book scroll.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionHeading {
+    pub entry: String,
+    pub title: String,
+    pub depth: u32,
+}
+
+/// Where the reader is: the paragraph or title at the top of the view.
+/// Survives edits (it names the paragraph by its block id) and restarts (the
+/// host stores it with the book's layout).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReadingPosition {
-    /// The chapter's prose document.
+    /// The chapter's prose document (empty when the flattened view has no
+    /// prose documents and is scrolled among section headings).
     pub doc: String,
     /// The paragraph's block id, if it has one.
     pub block: Option<String>,
     /// The paragraph's index (used when the block id is gone).
     pub paragraph: usize,
-    /// Pixels of that paragraph above the top of the view.
+    /// Pixels of that item above the top of the view.
     pub offset: f32,
+    /// Whether the top of the view sits on `doc`'s title / preceding section
+    /// headings (`Item::Title`) rather than one of its paragraphs.
+    pub at_title: bool,
 }
 
-/// One chapter as the book lists it.
-#[derive(Clone, Debug, PartialEq)]
+/// One prose chapter as the flattened book lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Listed {
+    entry: String,
     doc: String,
     title: String,
+    depth: u32,
 }
 
-/// The chapters of `book` in reading order, and the acts.
-fn list(ws: &Workspace, book: &str) -> Result<Vec<Listed>, WsError> {
-    let docs = crate::v3::read(ws, book, |v| crate::v3::manuscript_docs(&v))?;
-    Ok(docs
-        .into_iter()
-        .map(|(doc, title)| Listed { doc, title })
-        .collect())
+fn partition(sections: &[BookSection]) -> (Vec<Listed>, BookHeadings) {
+    let mut listed = Vec::new();
+    let mut before = Vec::new();
+    let mut chapters = Vec::new();
+    let mut pending = Vec::new();
+    for section in sections {
+        match &section.doc {
+            None => pending.push(SectionHeading {
+                entry: section.entry.clone(),
+                title: section.title.clone(),
+                depth: section.depth,
+            }),
+            Some(doc) => {
+                before.push(std::mem::take(&mut pending));
+                chapters.push((section.title.clone(), section.depth));
+                listed.push(Listed {
+                    entry: section.entry.clone(),
+                    doc: doc.clone(),
+                    title: section.title.clone(),
+                    depth: section.depth,
+                });
+            }
+        }
+    }
+    (
+        listed,
+        BookHeadings {
+            before,
+            chapters,
+            after_last: pending,
+        },
+    )
+}
+
+/// Flattens `from` and everything below it in reading order (`kernel-v4.md` §7).
+fn list(ws: &Workspace, book: &str, from: &EntryId) -> Result<Vec<BookSection>, WsError> {
+    let from = from.clone();
+    let res = crate::v3::read(ws, book, move |v| crate::v3::flatten_book(&v, &from))?;
+    res.map_err(|e| WsError::Invalid(e.to_string()))
 }
 
 /// Opens every chapter's session and document, on all cores.
@@ -142,14 +208,17 @@ fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDo
         .collect()
 }
 
-/// What opening a book needs from the workspace, read off the main thread
-/// ([`BookEditor::prepare`], the slow half: every chapter's session and
-/// document, loaded from SQLite when cold; the acts; the comment anchors).
-/// `Send`: prepare it on a background thread, then install it on the main
-/// thread with [`BookEditor::with_prepared`], which cannot fail.
+/// What opening a flattened book view needs from the workspace, read off the
+/// main thread ([`BookEditor::prepare`], the slow half: every chapter's session
+/// and document, loaded from SQLite when cold; the flattened sections; the
+/// comment anchors). `Send`: prepare it on a background thread, then install it
+/// on the main thread with [`BookEditor::with_prepared`], which cannot fail.
 pub struct PreparedBook {
     book: String,
+    from: EntryId,
+    sections: Vec<BookSection>,
     listed: Vec<Listed>,
+    headings: BookHeadings,
     docs: Vec<ProseDoc>,
 }
 
@@ -159,24 +228,38 @@ impl PreparedBook {
         &self.book
     }
 
-    /// The chapters' prose documents, in reading order.
+    /// The starting level entry's id.
+    pub fn from_entry(&self) -> &str {
+        self.from.as_str()
+    }
+
+    /// Every section in flattened reading order, including prose-less entries.
+    pub fn sections(&self) -> &[BookSection] {
+        &self.sections
+    }
+
+    /// The prose documents in flattened reading order.
     pub fn chapter_docs(&self) -> impl Iterator<Item = &str> {
         self.listed.iter().map(|c| c.doc.as_str())
     }
 }
 
-/// A whole book, being read and edited.
+/// A flattened book view, being read and edited.
 pub struct BookEditor {
     ws: Workspace,
     book: String,
+    from: EntryId,
+    sections: Vec<BookSection>,
+    headings: BookHeadings,
     chapters: Vec<Listed>,
     index: HashMap<String, usize>,
     base_style: ProseStyle,
     settings: EditorSettings,
     extension: Rc<DriftingExtension>,
     editor: Entity<ProseEditor>,
+    empty_scroll: ScrollHandle,
     todos: HashMap<usize, Vec<TodoMarker>>,
-    /// Each chapter page's facts and the host's chrome (M03).
+    /// Each chapter page's facts, section headings and the host's chrome (M03).
     pages: crate::page::Pages,
     /// The pickers, automatic links and the selection bar.
     assist: Entity<crate::assist::Assist>,
@@ -196,38 +279,48 @@ impl EventEmitter<crate::view::EntityLinkOpened> for BookEditor {}
 impl EventEmitter<crate::view::WritingTyped> for BookEditor {}
 
 impl BookEditor {
-    /// Opens every chapter of `book` for the author: [`BookEditor::prepare`]
-    /// and [`BookEditor::with_prepared`] in one go, on the calling thread.
+    /// Opens `from` and everything below it in `book` (`kernel-v4.md` §7):
+    /// [`BookEditor::prepare`] and [`BookEditor::with_prepared`] in one go, on
+    /// the calling thread.
     pub fn open(
         ws: Workspace,
         book: &str,
+        from: &str,
         settings: EditorSettings,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Result<BookEditor, WsError> {
-        let prepared = Self::prepare(&ws, book)?;
+        let prepared = Self::prepare(&ws, book, from)?;
         Ok(Self::with_prepared(ws, prepared, settings, window, cx))
     }
 
-    /// The slow half of opening `book`, for any thread: the chapters and
-    /// acts, every chapter's session and document (on all cores), the
-    /// comment anchors. Fails when the book or a chapter cannot be read.
-    pub fn prepare(ws: &Workspace, book: &str) -> Result<PreparedBook, WsError> {
-        let listed = list(ws, book)?;
+    /// The slow half of opening `from` in `book`, for any thread: the flattened
+    /// sections, every prose module's session and document (on all cores), and
+    /// the comment anchors. Fails when `book`, `from`, or a chapter cannot be
+    /// read, or when `from` is not a live entry with its switch on.
+    pub fn prepare(ws: &Workspace, book: &str, from: &str) -> Result<PreparedBook, WsError> {
+        let from = EntryId::parse(from).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let sections = list(ws, book, &from)?;
+        let (listed, headings) = partition(&sections);
         let mut docs = open_all(ws, book, &listed)?;
-        match anchors::book_comment_anchors(ws, book) {
-            Ok(mut by_doc) => {
-                for (doc, chapter) in docs.iter_mut().zip(&listed) {
-                    for (id, anchor) in by_doc.remove(&chapter.doc).unwrap_or_default() {
-                        doc.set_anchor(id, anchor);
+        if !docs.is_empty() {
+            match anchors::book_comment_anchors(ws, book) {
+                Ok(mut by_doc) => {
+                    for (doc, chapter) in docs.iter_mut().zip(&listed) {
+                        for (id, anchor) in by_doc.remove(&chapter.doc).unwrap_or_default() {
+                            doc.set_anchor(id, anchor);
+                        }
                     }
                 }
+                Err(e) => log::warn!("dr-editor: comment anchors of {book}: {e}"),
             }
-            Err(e) => log::warn!("dr-editor: comment anchors of {book}: {e}"),
         }
         Ok(PreparedBook {
             book: book.to_owned(),
+            from,
+            sections,
             listed,
+            headings,
             docs,
         })
     }
@@ -241,21 +334,22 @@ impl BookEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> BookEditor {
-        let book = prepared.book.clone();
-        let book = book.as_str();
+        let book_id = prepared.book.clone();
+        let book = book_id.as_str();
+        let from = prepared.from.clone();
+        let sections = prepared.sections.clone();
+        let headings = prepared.headings.clone();
         let base_style = ProseStyle::default();
+        let style = settings.style(&base_style);
         let targets = Some(Box::new(crate::v3::LinkTargets {
             workspace: ws.clone(),
             book: book.to_owned(),
         }) as Box<dyn LinkTargets>);
         let extension = Rc::new(DriftingExtension::new(targets));
-        let (chapters, editor, events) = Self::install(
-            prepared,
-            &settings.style(&base_style),
-            &extension,
-            window,
-            cx,
-        );
+        let (chapters, editor, events) = Self::install(prepared, &style, &extension, window, cx);
+        let pages: crate::page::Pages = Default::default();
+        pages.set_style(style, &editor, cx);
+        pages.set_headings(headings.clone(), &editor, cx);
         let ws_events = Self::watch(&ws, window, cx);
         let index = chapters
             .iter()
@@ -320,7 +414,10 @@ impl BookEditor {
         );
         let mut this = BookEditor {
             ws,
-            book: book.to_owned(),
+            book: book_id,
+            from,
+            sections,
+            headings,
             chapters,
             index,
             base_style,
@@ -328,8 +425,9 @@ impl BookEditor {
             immersive: false,
             extension,
             editor,
+            empty_scroll: ScrollHandle::new(),
             todos: HashMap::new(),
-            pages: Default::default(),
+            pages,
             assist,
             _assist_events: assist_events,
             decor,
@@ -445,12 +543,22 @@ impl BookEditor {
         }
     }
 
-    /// The book's chapters changed: titles are updated in place; added,
-    /// removed or reordered chapters rebuild the view where the reader was.
+    /// The book's entries changed: titles and prose-less headings are updated
+    /// in place when the prose document sequence is unchanged; added, removed
+    /// or reordered prose documents rebuild the view where the reader was.
     fn follow_book(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Ok(listed) = list(&self.ws, &self.book) else {
-            return;
+        let sections = match list(&self.ws, &self.book, &self.from) {
+            Ok(sections) => sections,
+            Err(_) => {
+                // `from` was trashed or its switch was turned off; clear any
+                // stale content until the host closes this view.
+                if !self.sections.is_empty() || !self.chapters.is_empty() {
+                    self.install_sections(Vec::new(), Vec::new(), window, cx);
+                }
+                return;
+            }
         };
+        let (listed, headings) = partition(&sections);
         let same_docs = listed.len() == self.chapters.len()
             && listed
                 .iter()
@@ -466,6 +574,12 @@ impl BookEditor {
                 });
                 self.chapters = listed;
             }
+            if sections != self.sections {
+                self.sections = sections;
+                self.headings = headings.clone();
+                self.pages.set_headings(headings, &self.editor, cx);
+                cx.notify();
+            }
             return;
         }
         if let Err(e) = self.reload(window, cx) {
@@ -473,9 +587,13 @@ impl BookEditor {
         }
     }
 
-    /// Rebuilds the view (every chapter reopened) at the same reading
-    /// position.
-    pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Result<(), WsError> {
+    fn install_sections(
+        &mut self,
+        sections: Vec<BookSection>,
+        docs: Vec<ProseDoc>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let at = self.reading_position(cx);
         let style = self.settings.style_for(&self.base_style, self.immersive);
         let selection = self.editor.read(cx).selection();
@@ -486,56 +604,23 @@ impl BookEditor {
             self.chapters.get(selection.chapter).map(|c| c.doc.clone()),
         );
         let focused = self.editor.read(cx).focus_handle(cx).is_focused(window);
-        let (chapters, editor, events) = {
-            let listed = list(&self.ws, &self.book)?;
-            let missing: Vec<Listed> = listed
-                .iter()
-                .filter(|c| !self.index.contains_key(&c.doc))
-                .cloned()
-                .collect();
-            // Finish every fallible read before taking ownership of the live sessions.
-            let mut fresh = open_all(&self.ws, &self.book, &missing)?;
-            if !fresh.is_empty() {
-                match anchors::book_comment_anchors(&self.ws, &self.book) {
-                    Ok(mut by_doc) => {
-                        for (doc, listed) in fresh.iter_mut().zip(&missing) {
-                            for (id, anchor) in by_doc.remove(&listed.doc).unwrap_or_default() {
-                                doc.set_anchor(id, anchor);
-                            }
-                        }
-                    }
-                    Err(error) => log::warn!("dr-editor: new manuscript comment anchors: {error}"),
-                }
-            }
-            let held = self
-                .editor
-                .update(cx, |e, _| std::mem::take(&mut e.book_mut().chapters));
-            let mut docs: HashMap<String, ProseDoc> = self
-                .chapters
-                .iter()
-                .zip(held)
-                .map(|(l, c)| (l.doc.clone(), c.doc))
-                .collect();
-            docs.extend(missing.into_iter().zip(fresh).map(|(l, d)| (l.doc, d)));
-            let docs = listed
-                .iter()
-                .map(|l| {
-                    docs.remove(&l.doc)
-                        .expect("every listed document was opened")
-                })
-                .collect();
-            Self::install(
-                PreparedBook {
-                    book: self.book.clone(),
-                    listed,
-                    docs,
-                },
-                &style,
-                &self.extension,
-                window,
-                cx,
-            )
-        };
+        let (listed, headings) = partition(&sections);
+        let (chapters, editor, events) = Self::install(
+            PreparedBook {
+                book: self.book.clone(),
+                from: self.from.clone(),
+                sections: sections.clone(),
+                listed,
+                headings: headings.clone(),
+                docs,
+            },
+            &style,
+            &self.extension,
+            window,
+            cx,
+        );
+        self.sections = sections;
+        self.headings = headings.clone();
         self.index = chapters
             .iter()
             .enumerate()
@@ -545,8 +630,10 @@ impl BookEditor {
         self.editor = editor;
         self._editor_events = events;
         self.todos.clear();
+        self.pages.set_style(style, &self.editor, cx);
+        self.pages.set_headings(headings, &self.editor, cx);
+        self.pages.attach(&self.editor, cx);
         if self.pages.has_chrome() {
-            self.pages.attach(&self.editor, cx);
             self.refresh_pages(cx);
         }
         let (editor, docs) = (
@@ -587,6 +674,50 @@ impl BookEditor {
         }
         cx.emit(BookEditorEvent::Reloaded);
         cx.notify();
+    }
+
+    /// Rebuilds the view (reusing already open sessions) at the same reading
+    /// position.
+    pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Result<(), WsError> {
+        let sections = list(&self.ws, &self.book, &self.from)?;
+        let (listed, _) = partition(&sections);
+        let missing: Vec<Listed> = listed
+            .iter()
+            .filter(|c| !self.index.contains_key(&c.doc))
+            .cloned()
+            .collect();
+        // Finish every fallible read before taking ownership of the live sessions.
+        let mut fresh = open_all(&self.ws, &self.book, &missing)?;
+        if !fresh.is_empty() {
+            match anchors::book_comment_anchors(&self.ws, &self.book) {
+                Ok(mut by_doc) => {
+                    for (doc, listed) in fresh.iter_mut().zip(&missing) {
+                        for (id, anchor) in by_doc.remove(&listed.doc).unwrap_or_default() {
+                            doc.set_anchor(id, anchor);
+                        }
+                    }
+                }
+                Err(error) => log::warn!("dr-editor: new manuscript comment anchors: {error}"),
+            }
+        }
+        let held = self
+            .editor
+            .update(cx, |e, _| std::mem::take(&mut e.book_mut().chapters));
+        let mut docs: HashMap<String, ProseDoc> = self
+            .chapters
+            .iter()
+            .zip(held)
+            .map(|(l, c)| (l.doc.clone(), c.doc))
+            .collect();
+        docs.extend(missing.into_iter().zip(fresh).map(|(l, d)| (l.doc, d)));
+        let docs = listed
+            .iter()
+            .map(|l| {
+                docs.remove(&l.doc)
+                    .expect("every listed document was opened")
+            })
+            .collect();
+        self.install_sections(sections, docs, window, cx);
         Ok(())
     }
 
@@ -682,6 +813,40 @@ impl BookEditor {
 
     // ----- navigation ---------------------------------------------------------
 
+    /// The starting level entry's id.
+    pub fn from_entry(&self) -> &str {
+        self.from.as_str()
+    }
+
+    /// Every flattened section in reading order, including prose-less entries.
+    pub fn sections(&self) -> &[BookSection] {
+        &self.sections
+    }
+
+    /// Prose-less section headings rendered immediately before chapter `chapter`.
+    pub fn headings_before(&self, chapter: usize) -> &[SectionHeading] {
+        self.headings
+            .before
+            .get(chapter)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    /// Prose-less section headings rendered after the last prose chapter.
+    pub fn headings_after(&self) -> &[SectionHeading] {
+        &self.headings.after_last
+    }
+
+    /// Hierarchy depth of prose chapter `chapter` relative to `from`.
+    pub fn chapter_depth(&self, chapter: usize) -> Option<u32> {
+        self.chapters.get(chapter).map(|c| c.depth)
+    }
+
+    /// Entry id owning prose chapter `chapter`.
+    pub fn chapter_entry(&self, chapter: usize) -> Option<&str> {
+        self.chapters.get(chapter).map(|c| c.entry.as_str())
+    }
+
     /// The chapters' prose documents, in reading order.
     pub fn chapter_docs(&self) -> impl Iterator<Item = &str> {
         self.chapters.iter().map(|c| c.doc.as_str())
@@ -732,53 +897,92 @@ impl BookEditor {
         true
     }
 
-    /// The paragraph at the top of the view.
+    /// The paragraph or title at the top of the view.
     pub fn reading_position(&self, cx: &App) -> Option<ReadingPosition> {
         let editor = self.editor.read(cx);
-        let top = editor.list_state().logical_scroll_top();
         let book = editor.book();
         if book.chapters.is_empty() {
+            if !self.sections.is_empty() {
+                let offset = (-f32::from(self.empty_scroll.offset().y)).max(0.);
+                if offset > 0. {
+                    return Some(ReadingPosition {
+                        doc: String::new(),
+                        block: None,
+                        paragraph: 0,
+                        offset,
+                        at_title: true,
+                    });
+                }
+            }
             return None;
         }
-        let (chapter, paragraph, offset) =
-            match book.item(top.item_ix.min(book.item_count().saturating_sub(1))) {
-                Item::Title(c) => (c, 0, 0.),
-                Item::Line(c, l) => (c, l, f32::from(top.offset_in_item)),
-                // Past a chapter's text, at its end: its last paragraph.
-                Item::End(c) => (
-                    c,
-                    book.chapters[c].doc.visible_lines().saturating_sub(1),
-                    0.,
-                ),
-            };
-        let doc = &book.chapters[chapter].doc;
-        Some(ReadingPosition {
-            doc: self.chapters.get(chapter)?.doc.clone(),
-            block: doc
-                .lines()
-                .get(paragraph)
-                .and_then(|l| l.bid())
-                .map(str::to_owned),
-            paragraph,
-            offset,
-        })
+        let top = editor.list_state().logical_scroll_top();
+        match book.item(top.item_ix.min(book.item_count().saturating_sub(1))) {
+            Item::Title(c) => Some(ReadingPosition {
+                doc: self.chapters.get(c)?.doc.clone(),
+                block: None,
+                paragraph: 0,
+                offset: f32::from(top.offset_in_item),
+                at_title: true,
+            }),
+            Item::Line(c, l) => {
+                let doc = &book.chapters[c].doc;
+                Some(ReadingPosition {
+                    doc: self.chapters.get(c)?.doc.clone(),
+                    block: doc
+                        .lines()
+                        .get(l)
+                        .and_then(|ln| ln.bid())
+                        .map(str::to_owned),
+                    paragraph: l,
+                    offset: f32::from(top.offset_in_item),
+                    at_title: false,
+                })
+            }
+            // Past a chapter's text, at its end: its last paragraph.
+            Item::End(c) => {
+                let doc = &book.chapters[c].doc;
+                let paragraph = doc.visible_lines().saturating_sub(1);
+                Some(ReadingPosition {
+                    doc: self.chapters.get(c)?.doc.clone(),
+                    block: doc
+                        .lines()
+                        .get(paragraph)
+                        .and_then(|ln| ln.bid())
+                        .map(str::to_owned),
+                    paragraph,
+                    offset: 0.,
+                    at_title: false,
+                })
+            }
+        }
     }
 
     /// Scrolls back to a reading position (by block id, else by paragraph
-    /// index; a chapter that is gone leaves the view where it is).
+    /// index, or to the chapter's title / preceding headings when `at_title`
+    /// is set; a chapter that is gone leaves the view where it is).
     pub fn restore(&mut self, at: &ReadingPosition, cx: &mut Context<Self>) -> bool {
+        if at.doc.is_empty() && self.chapters.is_empty() && !self.sections.is_empty() {
+            self.empty_scroll.set_offset(point(px(0.), px(-at.offset)));
+            cx.notify();
+            return true;
+        }
         let Some(chapter) = self.chapter_of(&at.doc) else {
             return false;
         };
         self.editor.update(cx, |e, cx| {
-            let doc = &e.book().chapters[chapter].doc;
-            let paragraph = at
-                .block
-                .as_deref()
-                .and_then(|b| doc.line_by_bid(b))
-                .unwrap_or(at.paragraph)
-                .min(doc.visible_lines().saturating_sub(1));
-            let item = e.book().line_item(chapter, paragraph);
+            let item = if at.at_title {
+                e.book().chapter_item(chapter)
+            } else {
+                let doc = &e.book().chapters[chapter].doc;
+                let paragraph = at
+                    .block
+                    .as_deref()
+                    .and_then(|b| doc.line_by_bid(b))
+                    .unwrap_or(at.paragraph)
+                    .min(doc.visible_lines().saturating_sub(1));
+                e.book().line_item(chapter, paragraph)
+            };
             e.list_state().scroll_to(ListOffset {
                 item_ix: item,
                 offset_in_item: px(at.offset),
@@ -825,6 +1029,7 @@ impl BookEditor {
         }
         self.settings = settings;
         let style = self.settings.style_for(&self.base_style, self.immersive);
+        self.pages.set_style(style.clone(), &self.editor, cx);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
         self.assist.update(cx, |a, _| a.set_auto_links(auto));
@@ -839,6 +1044,7 @@ impl BookEditor {
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
         self.base_style = style;
         let style = self.settings.style_for(&self.base_style, self.immersive);
+        self.pages.set_style(style.clone(), &self.editor, cx);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         cx.notify();
     }
@@ -850,6 +1056,7 @@ impl BookEditor {
         }
         self.immersive = on;
         let style = self.settings.style_for(&self.base_style, on);
+        self.pages.set_style(style.clone(), &self.editor, cx);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         cx.notify();
     }
@@ -895,8 +1102,12 @@ enum Notice {
 
 impl Render for BookEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let style = self.settings.style_for(&self.base_style, self.immersive);
+        let empty_sections = self.chapters.is_empty() && !self.sections.is_empty();
         div()
             .size_full()
+            .relative()
+            .bg(style.background)
             // ⌘Z / ⌘⇧Z undo in the caret's chapter, before gpui-prose's own
             // handler (which undoes the latest step in any chapter).
             .capture_action(cx.listener(|this, _: &Undo, window, cx| {
@@ -910,6 +1121,35 @@ impl Render for BookEditor {
             .child({
                 crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
                     .into_any_element()
+            })
+            .when(empty_sections, |el| {
+                let headings: Vec<gpui::AnyElement> = self
+                    .sections
+                    .iter()
+                    .enumerate()
+                    .map(|(ix, s)| {
+                        crate::page::render_section_heading(
+                            &SectionHeading {
+                                entry: s.entry.clone(),
+                                title: s.title.clone(),
+                                depth: s.depth,
+                            },
+                            &style,
+                            ix == 0,
+                            ix > 0,
+                        )
+                    })
+                    .collect();
+                el.child(
+                    div()
+                        .id("book-editor-empty-sections")
+                        .absolute()
+                        .inset_0()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.empty_scroll)
+                        .pb(px(80.))
+                        .children(headings),
+                )
             })
     }
 }
