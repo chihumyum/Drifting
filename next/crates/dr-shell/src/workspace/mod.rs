@@ -32,8 +32,9 @@ mod sidebar;
 mod stage;
 mod super_view;
 pub mod toast;
+mod undo;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -507,6 +508,8 @@ pub struct Workspace {
     /// The layout changed since it was last stored.
     layout_dirty: bool,
     layout_save: Option<Task<()>>,
+    history_ops: VecDeque<undo::HistoryOp>,
+    history_task: Option<Task<()>>,
     _library_events: Option<dr_workspace::Subscription>,
     _observers: Vec<Subscription>,
 }
@@ -619,6 +622,8 @@ impl Workspace {
             typing_settle_task: None,
             layout_dirty: false,
             layout_save: None,
+            history_ops: VecDeque::new(),
+            history_task: None,
             _library_events: None,
             _observers: observers,
         };
@@ -1068,6 +1073,9 @@ impl Workspace {
             // A read of the book shown before is dropped, not applied.
             self.book_task = None;
             self.book_stale = false;
+            if changed_book {
+                self.clear_history_ops();
+            }
             // Search results belong to the book that opened the panel.
             self.search = None;
             self.pending_v3_links.clear();
@@ -1134,6 +1142,7 @@ impl Workspace {
         self.corner_menu = None;
         self.book_task = None;
         self.book_stale = false;
+        self.clear_history_ops();
         self._library_events = None;
         self.shelf = None;
         self.shelf_open = false;
@@ -1577,6 +1586,8 @@ impl Workspace {
         .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| ws.open_find(window, cx)))
         .on_action(cx.listener(|ws, _: &ReplaceInEditor, window, cx| ws.open_replace(window, cx)))
         .on_action(cx.listener(Self::on_new_comment))
+        .on_action(cx.listener(Self::on_undo))
+        .on_action(cx.listener(Self::on_redo))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
         .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
             ws.show_shelf(window, cx);
