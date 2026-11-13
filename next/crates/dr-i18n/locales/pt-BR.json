@@ -398,7 +398,6 @@
     }
   },
   "importDialog": {
-    "categoryTitle": "Categoria",
     "chooseFiles": "Escolher arquivos",
     "chooseFolder": "Escolher pasta",
     "clear": "Limpar",
@@ -410,24 +409,10 @@
       "parsing": "analisando",
       "ready": "pronto"
     },
-    "storylineTitle": "Linha narrativa",
     "summary": {
       "done": "Concluir",
       "failed": "falha",
       "ok": "importado"
-    },
-    "targets": {
-      "chapter": {
-        "label": "Capítulo"
-      },
-      "element": {
-        "desc": "Referências como personagens, lugares ou objetos. Exige categoria.",
-        "label": "Elemento"
-      },
-      "idea": {
-        "desc": "Cartão de ideia flutuante, independente das linhas narrativas.",
-        "label": "Ideia"
-      }
     },
     "title": "Importar arquivos",
     "warnings": {
@@ -499,6 +484,7 @@
     "format": "Formato",
     "loadFailed": "Não foi possível ler os capítulos. Tente novamente.",
     "loading": "Lendo capítulos…",
+    "manuscript": "Manuscrito",
     "menu": "Exportar manuscrito",
     "removeCover": "Remover",
     "retry": "Tentar novamente",
@@ -955,7 +941,6 @@
       "review": "Projeto · Revisão",
       "stats": {
         "all-chapters": "Livro inteiro · ritmo",
-        "category": "Esta categoria · estatísticas",
         "chapter": "Este capítulo · estatísticas",
         "element": "Este elemento · estatísticas",
         "material": "Este material · Detalhes",
@@ -964,7 +949,6 @@
       }
     },
     "stats": {
-      "category": "Categoria",
       "chapter": "Capítulo",
       "dialogueRatio": "Proporção de diálogo",
       "name": "Nome",
@@ -1661,7 +1645,6 @@
     "views": "Visualizações da linha do tempo"
   },
   "v3Transfer": {
-    "chapterDesc": "Capítulo do manuscrito: pode entrar na linha do tempo e conta nas estatísticas.",
     "filesTitle": "Arquivos",
     "targetTitle": "Destino"
   },

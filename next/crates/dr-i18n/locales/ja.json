@@ -393,7 +393,6 @@
     }
   },
   "importDialog": {
-    "categoryTitle": "カテゴリ",
     "chooseFiles": "ファイルを選択",
     "chooseFolder": "フォルダを選択",
     "clear": "消去",
@@ -405,24 +404,10 @@
       "parsing": "解析中",
       "ready": "準備完了"
     },
-    "storylineTitle": "ストーリーライン",
     "summary": {
       "done": "完了",
       "failed": "失敗",
       "ok": "インポート済み"
-    },
-    "targets": {
-      "chapter": {
-        "label": "章"
-      },
-      "element": {
-        "desc": "人物・場所・物などの設定資料です。カテゴリが必要です。",
-        "label": "要素"
-      },
-      "idea": {
-        "desc": "ストーリーラインから独立したアイデアカード。",
-        "label": "アイデア"
-      }
     },
     "title": "ファイルをインポート",
     "warnings": {
@@ -490,6 +475,7 @@
     "format": "形式",
     "loadFailed": "章を読み込めませんでした。再試行してください。",
     "loading": "章を読み込み中…",
+    "manuscript": "原稿",
     "menu": "原稿をエクスポート",
     "removeCover": "削除",
     "retry": "再試行",
@@ -939,7 +925,6 @@
       "review": "作品・レビュー",
       "stats": {
         "all-chapters": "全編・ペース",
-        "category": "このカテゴリ・詳細統計",
         "chapter": "この章・詳細統計",
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
@@ -948,7 +933,6 @@
       }
     },
     "stats": {
-      "category": "カテゴリ",
       "chapter": "章",
       "dialogueRatio": "会話の割合",
       "name": "名前",
@@ -1644,7 +1628,6 @@
     "views": "タイムラインビュー"
   },
   "v3Transfer": {
-    "chapterDesc": "原稿の章です。タイムラインに配置でき、文字数に計上します。",
     "filesTitle": "ファイル",
     "targetTitle": "対象"
   },

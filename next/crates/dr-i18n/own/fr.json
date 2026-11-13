@@ -50,12 +50,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Carte d’idée flottante, indépendante des intrigues.",
-        "label": "Idée"
-      }
-    },
     "warnings": {
       "imagesDropped_one": "{{count}} image n'a pas été importée",
       "imagesDropped_other": "{{count}} images n'ont pas été importées",
@@ -87,6 +81,9 @@
     "saveFailed": "Enregistrement impossible",
     "title": "Titre",
     "unset": "Non défini"
+  },
+  "manuscriptExport": {
+    "manuscript": "Manuscrit"
   },
   "positionLink": {
     "copied": "Lien de position copié"
@@ -295,7 +292,6 @@
     "views": "Vues chronologiques"
   },
   "v3Transfer": {
-    "chapterDesc": "Chapitre du manuscrit : peut figurer sur la chronologie et compte dans les statistiques.",
     "filesTitle": "Fichiers",
     "targetTitle": "Destination"
   }

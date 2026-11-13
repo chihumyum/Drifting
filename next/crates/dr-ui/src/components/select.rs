@@ -63,6 +63,7 @@ pub struct Select {
     selected: usize,
     open: Option<bool>,
     disabled: bool,
+    in_dialog: bool,
     on_change: Option<super::OnIndex>,
     menu_height: Option<f32>,
 }
@@ -75,6 +76,7 @@ impl Select {
             selected,
             open: None,
             disabled: false,
+            in_dialog: false,
             on_change: None,
             menu_height: None,
         }
@@ -88,6 +90,12 @@ impl Select {
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    /// Floats the open choice list above an enclosing [`super::Dialog`].
+    pub fn in_dialog(mut self) -> Self {
+        self.in_dialog = true;
         self
     }
 
@@ -252,20 +260,26 @@ impl RenderOnce for Select {
                 }
                 menu.into_any_element()
             };
-            overlay::float(
-                Place::below(b, 4.0),
-                Layer::Popover,
-                div()
-                    .relative()
-                    .child(overlay::probe(list_bounds_cell.clone()))
-                    .on_mouse_down_out(move |_, _, cx| {
-                        dismiss.update(cx, |st, cx| {
-                            st.open = false;
-                            cx.notify();
-                        })
+            let floated = div()
+                .relative()
+                .child(overlay::probe(list_bounds_cell.clone()))
+                .on_mouse_down_out(move |_, _, cx| {
+                    dismiss.update(cx, |st, cx| {
+                        st.open = false;
+                        cx.notify();
                     })
-                    .child(menu),
-            )
+                })
+                .child(menu);
+            if self.in_dialog {
+                overlay::float_priority(
+                    Place::below(b, 4.0),
+                    overlay::DIALOG_POPOVER_PRIORITY,
+                    floated,
+                )
+                .into_any_element()
+            } else {
+                overlay::float(Place::below(b, 4.0), Layer::Popover, floated).into_any_element()
+            }
         });
         div().relative().child(trigger).children(list)
     }

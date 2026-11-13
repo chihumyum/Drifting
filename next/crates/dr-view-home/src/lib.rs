@@ -1,6 +1,6 @@
 //! Canonical v3 Project Home.
 pub mod v3;
-mod v3_settings;
+pub mod v3_settings;
 
 use chrono::NaiveDate;
 use gpui::{App, AppContext as _, Global};

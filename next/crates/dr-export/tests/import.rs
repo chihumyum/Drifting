@@ -128,9 +128,7 @@ fn files_become_chapters_after_the_last_one_with_their_formatting() {
         &e.ws,
         &Actor::User,
         &e.book,
-        &ImportTarget::Chapter {
-            storyline: Some(line.clone()),
-        },
+        &ImportTarget::new(line.clone()),
         &docs,
         None,
     )
@@ -244,6 +242,7 @@ fn ideas_and_elements_and_what_fails_alone() {
             .view(),
     )
     .unwrap();
+    let ideas_root = roots.ideas.to_string();
     let people = roots.cat_character.to_string();
     dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-character", "安娜", None);
     let parsed = |name: &str, text: &str| parse_bytes(name, text.as_bytes()).unwrap();
@@ -251,7 +250,7 @@ fn ideas_and_elements_and_what_fails_alone() {
         &e.ws,
         &Actor::User,
         &e.book,
-        &ImportTarget::Idea,
+        &ImportTarget::new(ideas_root.clone()),
         &[(String::new(), parsed("念头.md", "一个**念头**"))],
         None,
     )
@@ -276,9 +275,7 @@ fn ideas_and_elements_and_what_fails_alone() {
         &e.ws,
         &Actor::User,
         &e.book,
-        &ImportTarget::Element {
-            category: Some(people.clone()),
-        },
+        &ImportTarget::new(people.clone()),
         &[
             (String::new(), parsed("安娜.md", "重名的要素")),
             (String::new(), parsed("本.md", "# 本\n\n钟表匠。")),
@@ -304,7 +301,7 @@ fn ideas_and_elements_and_what_fails_alone() {
         &e.ws,
         &Actor::User,
         &e.book,
-        &ImportTarget::Idea,
+        &ImportTarget::new(ideas_root.clone()),
         &[(String::new(), parsed("x.md", "x"))],
         Some(&stop),
     )
@@ -317,7 +314,7 @@ fn ideas_and_elements_and_what_fails_alone() {
             &e.ws,
             &Actor::User,
             &e.book,
-            &ImportTarget::Idea,
+            &ImportTarget::new(ideas_root),
             &[(String::new(), parsed("y.md", "y"))],
             None,
         )
@@ -328,13 +325,21 @@ fn ideas_and_elements_and_what_fails_alone() {
 #[test]
 fn an_import_actor_gets_automatic_links() {
     let e = env();
-    dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-character", "安娜", None);
+    let manuscript =
+        dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, dr_doc::v3::novel::TPL_MANUSCRIPT);
+    dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &e.book,
+        dr_doc::v3::novel::TPL_CHARACTER,
+        "安娜",
+        None,
+    );
     let doc: ParsedDoc = parse_bytes("a.txt", "安娜回来了。".as_bytes()).unwrap();
     let items = import_docs(
         &e.ws,
         &Actor::Import,
         &e.book,
-        &ImportTarget::Chapter { storyline: None },
+        &ImportTarget::new(manuscript),
         &[(String::new(), doc)],
         None,
     )
@@ -348,6 +353,99 @@ fn an_import_actor_gets_automatic_links() {
         1,
         "the name is linked as it is for any import"
     );
+}
+
+#[test]
+fn target_level_inherits_default_template_and_refuses_non_level_or_missing_default() {
+    use dr_doc::v3::novel;
+
+    let e = env();
+    let manuscript =
+        dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, novel::TPL_MANUSCRIPT);
+    let volume = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": manuscript,
+            "template": novel::TPL_GROUP,
+            "level": true,
+            "title": "第一卷"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // `第一卷` (`tpl-group`) has no own default_template, so it inherits
+    // `tpl-chapter` from `书稿` and places the imported entry under `第一卷`.
+    let doc = parse_bytes("01 晨雾.md", "# 晨雾\n\n桥上起雾了。".as_bytes()).unwrap();
+    let imported = import_docs(
+        &e.ws,
+        &Actor::User,
+        &e.book,
+        &ImportTarget::new(volume.clone()),
+        &[(String::new(), doc)],
+        None,
+    )
+    .unwrap();
+    let made = imported[0].result.clone().expect("inherits tpl-chapter");
+    let created = out(&e.ws, "entry.get", json!({"book": e.book, "id": made.id}));
+    assert_eq!(created["parent"], volume);
+    assert_eq!(created["template"], novel::TPL_CHAPTER);
+    assert_eq!(
+        prose(&e.ws, &made.doc),
+        vec![para(vec![run("桥上起雾了。")])]
+    );
+
+    // An entry whose level switch is off cannot be an import target.
+    let non_level = import_docs(
+        &e.ws,
+        &Actor::User,
+        &e.book,
+        &ImportTarget::new(made.id.clone()),
+        &[(
+            String::new(),
+            parse_bytes("b.txt", "字".as_bytes()).unwrap(),
+        )],
+        None,
+    )
+    .unwrap();
+    assert!(non_level[0].result.is_err());
+
+    // A top-level `tpl-group` has no default_template anywhere up its chain.
+    let bare_level = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "template": novel::TPL_GROUP,
+            "level": true,
+            "title": "无默认模板"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let no_default = import_docs(
+        &e.ws,
+        &Actor::User,
+        &e.book,
+        &ImportTarget::new(bare_level.clone()),
+        &[(
+            String::new(),
+            parse_bytes("c.txt", "字".as_bytes()).unwrap(),
+        )],
+        None,
+    )
+    .unwrap();
+    assert!(no_default[0].result.is_err());
+    let children = out(
+        &e.ws,
+        "entry.list",
+        json!({"book": e.book, "parent": bare_level}),
+    );
+    assert_eq!(children.as_array().unwrap().len(), 0);
 }
 
 #[test]

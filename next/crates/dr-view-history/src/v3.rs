@@ -25,6 +25,11 @@ pub struct EntryHistoryDialog {
     busy: bool,
     error: Option<String>,
     task: Option<Task<()>>,
+    known_seq: i64,
+    pending_seq: i64,
+    reads: u64,
+    _events: dr_workspace::Subscription,
+    _watch: Task<()>,
     focus: FocusHandle,
     restored: bool,
 }
@@ -32,6 +37,12 @@ impl EventEmitter<HistoryEvent> for EntryHistoryDialog {}
 impl EntryHistoryDialog {
     pub fn is_busy(&self) -> bool {
         self.busy
+    }
+    pub fn reads(&self) -> u64 {
+        self.reads
+    }
+    pub fn points(&self) -> Option<&[api::Point]> {
+        self.points.as_deref()
     }
     pub fn new(
         lib: Workspace,
@@ -41,6 +52,43 @@ impl EntryHistoryDialog {
         platform: Platform,
         cx: &mut Context<Self>,
     ) -> Self {
+        let book = target.book.clone();
+        let signal = std::sync::Arc::new(std::sync::Mutex::new((
+            None::<i64>,
+            None::<std::task::Waker>,
+        )));
+        let tx = signal.clone();
+        let events = lib.subscribe(move |event| {
+            if let dr_workspace::WsEvent::Checkpoints(c) = event
+                && c.book.as_str() == book
+            {
+                let waker = {
+                    let mut state = tx.lock().expect("checkpoint signal lock");
+                    state.0 = Some(state.0.map_or(c.seq, |old| old.max(c.seq)));
+                    state.1.take()
+                };
+                if let Some(waker) = waker {
+                    waker.wake();
+                }
+            }
+        });
+        let watch = cx.spawn(async move |this, cx| {
+            loop {
+                let seq = std::future::poll_fn(|cx| {
+                    let mut state = signal.lock().expect("checkpoint signal lock");
+                    if let Some(seq) = state.0.take() {
+                        std::task::Poll::Ready(seq)
+                    } else {
+                        state.1 = Some(cx.waker().clone());
+                        std::task::Poll::Pending
+                    }
+                })
+                .await;
+                if this.update(cx, |d, cx| d.on_checkpoints(seq, cx)).is_err() {
+                    break;
+                }
+            }
+        });
         let mut d = Self {
             lib,
             target,
@@ -53,25 +101,62 @@ impl EntryHistoryDialog {
             busy: false,
             error: None,
             task: None,
+            known_seq: 0,
+            pending_seq: 0,
+            reads: 0,
+            _events: events,
+            _watch: watch,
             focus: cx.focus_handle(),
             restored: false,
         };
         d.reload(cx);
         d
     }
+    fn on_checkpoints(&mut self, seq: i64, cx: &mut Context<Self>) {
+        self.pending_seq = self.pending_seq.max(seq);
+        if !self.busy && self.pending_seq > self.known_seq {
+            self.reload(cx);
+        }
+    }
     fn reload(&mut self, cx: &mut Context<Self>) {
         let (lib, target) = (self.lib.clone(), self.target.clone());
+        self.reads += 1;
         self.busy = true;
         self.task = Some(cx.spawn(async move |this, cx| {
-            let result = cx
+            let (seq, result) = cx
                 .background_executor()
-                .spawn(async move { lib.run::<api::List>(&Actor::User, target).map(|o| o.output) })
+                .spawn(async move {
+                    let seq = lib
+                        .library()
+                        .head(&format!("checkpoints:{}", target.book))
+                        .ok()
+                        .flatten()
+                        .map_or(0, |h| h.seq);
+                    (
+                        seq,
+                        lib.run::<api::List>(&Actor::User, target).map(|o| o.output),
+                    )
+                })
                 .await;
             this.update(cx, |d, cx| {
                 d.busy = false;
+                d.known_seq = d.known_seq.max(seq);
                 match result {
-                    Ok(p) => d.points = Some(p),
+                    Ok(p) => {
+                        if d.selected
+                            .as_ref()
+                            .is_some_and(|sel| !p.iter().any(|pt| &pt.id == sel))
+                        {
+                            d.selected = None;
+                            d.preview = None;
+                            d.confirming = false;
+                        }
+                        d.points = Some(p);
+                    }
                     Err(e) => d.error = Some(e.to_string()),
+                }
+                if d.pending_seq > d.known_seq {
+                    d.reload(cx);
                 }
                 cx.notify();
             })
@@ -102,6 +187,9 @@ impl EntryHistoryDialog {
                     Ok(p) => d.preview = Some(p),
                     Err(e) => d.error = Some(e.to_string()),
                 }
+                if d.pending_seq > d.known_seq {
+                    d.reload(cx);
+                }
                 cx.notify();
             })
             .ok();
@@ -127,7 +215,12 @@ impl EntryHistoryDialog {
                 d.busy = false;
                 match result {
                     Ok(_) => d.reload(cx),
-                    Err(e) => d.error = Some(e.to_string()),
+                    Err(e) => {
+                        d.error = Some(e.to_string());
+                        if d.pending_seq > d.known_seq {
+                            d.reload(cx);
+                        }
+                    }
                 }
                 cx.notify();
             })
@@ -179,6 +272,9 @@ impl EntryHistoryDialog {
                         d.error = Some(e.to_string());
                         // Keep the old preview. Selecting again explicitly reads
                         // fresh guards; a refused restore never retries silently.
+                        if d.pending_seq > d.known_seq {
+                            d.reload(cx);
+                        }
                     }
                 }
                 cx.notify();

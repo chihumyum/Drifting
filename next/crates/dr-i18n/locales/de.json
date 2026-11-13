@@ -398,7 +398,6 @@
     }
   },
   "importDialog": {
-    "categoryTitle": "Kategorie",
     "chooseFiles": "Dateien auswählen",
     "chooseFolder": "Ordner auswählen",
     "clear": "Leeren",
@@ -410,24 +409,10 @@
       "parsing": "wird eingelesen",
       "ready": "bereit"
     },
-    "storylineTitle": "Handlungsstrang",
     "summary": {
       "done": "Fertig",
       "failed": "fehlgeschlagen",
       "ok": "importiert"
-    },
-    "targets": {
-      "chapter": {
-        "label": "Kapitel"
-      },
-      "element": {
-        "desc": "Referenzmaterial wie Figuren, Orte oder Gegenstände. Kategorie erforderlich.",
-        "label": "Element"
-      },
-      "idea": {
-        "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen.",
-        "label": "Idee"
-      }
     },
     "title": "Dateien importieren",
     "warnings": {
@@ -497,6 +482,7 @@
     "format": "Format",
     "loadFailed": "Die Kapitel konnten nicht gelesen werden. Bitte erneut versuchen.",
     "loading": "Kapitel werden gelesen…",
+    "manuscript": "Manuskript",
     "menu": "Manuskript exportieren",
     "removeCover": "Entfernen",
     "retry": "Erneut versuchen",
@@ -946,7 +932,6 @@
       "review": "Projekt · Prüfung",
       "stats": {
         "all-chapters": "Ganzes Buch · Tempo",
-        "category": "Diese Kategorie · Detailstatistik",
         "chapter": "Dieses Kapitel · Detailstatistik",
         "element": "Dieses Element · Detailstatistik",
         "material": "Dieses Material · Details",
@@ -955,7 +940,6 @@
       }
     },
     "stats": {
-      "category": "Kategorie",
       "chapter": "Kapitel",
       "dialogueRatio": "Dialoganteil",
       "name": "Name",
@@ -1652,7 +1636,6 @@
     "views": "Zeitleistenansichten"
   },
   "v3Transfer": {
-    "chapterDesc": "Manuskriptkapitel: kann auf der Zeitleiste platziert werden und zählt zur Wortstatistik.",
     "filesTitle": "Dateien",
     "targetTitle": "Ziel"
   },

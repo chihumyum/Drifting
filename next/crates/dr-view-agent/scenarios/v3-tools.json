@@ -70,7 +70,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "结果 · comment-read",
+        "label": "结果 · level-off",
         "role": "Button",
         "timeout_ms": 30000
       }
@@ -79,6 +79,13 @@
       "app": "ui.find",
       "params": {
         "label": "comment.create",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "entry.set_level",
         "role": "Button"
       }
     },
@@ -161,6 +168,87 @@
       },
       "expect": {
         "/title": "${checkpoints.0.title}"
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${state.book.id}",
+        "query": "V4 smoke",
+        "all": true
+      },
+      "save": "smoke_entries",
+      "expect": {
+        "/[title=V4 smoke parent]/level": false,
+        "/[title=V4 smoke child]/parent": null
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${smoke_entries.[title=V4 smoke parent].id}"
+      },
+      "save": "parent_checkpoints",
+      "expect": {
+        "/0/entry": "${smoke_entries.[title=V4 smoke parent].id}"
+      }
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${smoke_entries.[title=V4 smoke parent].id}",
+        "point": "${parent_checkpoints.0.id}"
+      },
+      "save": "parent_preview"
+    },
+    {
+      "call": "entry_snapshot.restore",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${smoke_entries.[title=V4 smoke parent].id}",
+        "point": "${parent_checkpoints.0.id}",
+        "expected": "${parent_preview.expected}"
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${smoke_entries.[title=V4 smoke child].id}"
+      },
+      "save": "child_checkpoints",
+      "expect": {
+        "/0/entry": "${smoke_entries.[title=V4 smoke child].id}"
+      }
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${smoke_entries.[title=V4 smoke child].id}",
+        "point": "${child_checkpoints.0.id}"
+      },
+      "save": "child_preview"
+    },
+    {
+      "call": "entry_snapshot.restore",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${smoke_entries.[title=V4 smoke child].id}",
+        "point": "${child_checkpoints.0.id}",
+        "expected": "${child_preview.expected}"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${state.book.id}",
+        "id": "${smoke_entries.[title=V4 smoke child].id}"
+      },
+      "expect": {
+        "/parent": "${smoke_entries.[title=V4 smoke parent].id}"
       }
     },
     {

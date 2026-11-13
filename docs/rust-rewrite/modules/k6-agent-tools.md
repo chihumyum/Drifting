@@ -1,6 +1,6 @@
 # K6：通用帮手工具与书的结构说明（方案）
 
-> 2026-11-10 切换实施更新：旧固定域工具已移除；共享事实／Project Memory／关系／正文能力保留并接 canonical v3，目录／Schema 由原生成器更新。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
+> 2026-11-13 统一条目（内核 v4）更新：条目统一为单一种类并由自身「层级」开关（`level: bool`）控制下方可否驻留子条目；`level.get`／`level.list` 已从目录与调用入口退场，`entry.get` 与 `entry.list { below: true }` 直接携带 `below`，`entry.set_level(false)` 写前打点覆盖本体与直接子条目，目录／结构投影／解析全部改走内存活文档按需读取与结构指纹缓存。详见 [kernel-v4.md](../kernel-v4.md)、[v3-cutover.md](../v3-cutover.md) 与文末章节。下文历史交回记录保留其原语境。
 
 2026-11-09，轨道 3。按当时的夜间队列（`handoff/overnight.md`，已随过程文档清理删除，在 git 历史里）第二段交回；**本段只写方案，不实现、不登记工具、不修改目录快照或 F1／F3 结构。** 数据语义以作者定稿的 [kernel-v3.md](../kernel-v3.md) 为准，实施排在 K2 通用命令之后。
 
@@ -338,3 +338,12 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 最终 fmt、Clippy（workspace/all-targets/locked/-D warnings）、工作区测试、xtask 和根目录 public 检查全部退出 0；全测 **2238 通过／0 失败／22 忽略**，public 5556 个候选，审计 972 个锁定 crate、0 漏洞、12 条既有提示，性能证据仍为 19 stale／15 legacy。编译始终 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。定向回归覆盖打点失败原子拒绝、打点后书目／正文并发不覆盖、失败重试重新捕获、保留正文与部分读取权限、未知容器恢复拒绝、锚定批注正向／未读／陈旧／跨来源及 reanchor；原隐藏时间线回归随全套通过。v3 Tiny 种子和录制合成响应的最终真窗口 **21/21、0 pending**，验证条目修改、范围批注、自动快照、作者恢复与正常退出；同一 PID 的系统全局坐标确认在副屏。全套日志为 `/tmp/drifting-k6-checkpoint-final-{fmt,clippy,tests,gates,public}.log`，窗口结果为 `/tmp/drifting-k6-checkpoint-window-final/result.json`，位置证明为 `/tmp/drifting-k6-checkpoint-secondary-final.json`。初轮 Clippy 风格失败日志保留；首轮窗口功能已过 21 步，但辅助位置观察未捕捉窗口，修正观察方式后原场景重跑通过，首轮证据未覆盖。未调用真实模型、凭据或服务，未做 heavy、性能或截图目检。
 
 待协调：`entry_snapshot.*` 仍完全不向模型开放，新增命令只供宿主保存精确版本回执；范围／AnchorBytes／非空 reanchor 仍要求完整来源正文，快照内部读取不增加模型权限。未知未来树若无法保留身份则整批拒绝恢复；打点后实际多文档编辑故障仍遵守 M29 部分提交与收据，不承诺普通编辑全回滚。素材条目链接、M14 局部时间线命令继续排除，K2 在途 `membership.restore` 的正式排除与隐藏剩余泳道修复等后续接入，本批未消费其 WIP。G4 已知导入回滚竞争仍归 G4，本轮对应测试通过不等于关闭该问题。没有合进 main、推送或改动原 Antigravity 工作区，既有 K5 结构／模板预览签名保持。
+
+## 统一条目（内核 v4）对接与活文档缓存（11-13，T3）
+
+按 [kernel-v4.md](../kernel-v4.md) 与 2b 数据层交回边界完成 T3 适配，不改动 `dr-model`、`dr-doc`、`dr-workspace`、`dr-testkit` 接口：
+
+- **统一条目语义与覆盖边界**：目录与调用入口移除退场的 `level.get`／`level.list`；`entry.get` 与 `entry.list { below: true }` 在开关开启的存活条目上返回 `below`，读取覆盖继续记录 `level:<id>`（对应 `entries/<id>` 与 `children_of(<id>)`）并为 `below.members` 逐条记录 `membership:<host>|<member>`（以 `kernel-v4.md` 第 14 节 2b 实装边界为准，而非第 6 节初稿中的合并设想）。模板动作按条目自身 `level == true` 绑定（不再区分模板种类），`call_tool` 描述与动作住处诊断同步改为统一模板／接收语义。
+- **`entry.set_level` 写前快照与观察失效**：`checkpoints::entries` 的惰性 `Lookups` 增加 `entry.set_level`（`level: false`），写前同时为该条目与所有直接子条目（含已回收但仍挂在其下的直接子条目，不含孙条目）建立 `entry_snapshot.create_with_receipt` 完整快照，恢复父与子快照即可完整还原开关与原住处。执行产生 `moved` 后同步失效 `entry:roots`、`entry:*`、`entry:all` 及被挪动子条目的 `entry:<child>`／`level:<child>` 读取观察。
+- **结构上下文与按需读取**：`StructureContext` 输出不再包含旧模板 `kind`／`allow` 或旧层级 `about` 字段，`mod-description` 与 `mod-prose` 一样作为普通正文模块投影。`Catalog` 基础注册投影以 `OnceLock` 缓存，`AgentTools::catalog_for_book` 以 `CatalogStamp`（模板表＋按树序排列的存活 `level: true` 条目头）跨非结构写入直接复用同一份 `Arc<Catalog>`。`Catalog`、`StructureContext`、`resolve_v3` 以及 `dr-view-agent` 的系统提示刷新、主动建议上下文、关联跳转和引导检查全部改走 `Workspace::read_book_v3`／`is_v3_book` 读取内存活文档头或单节点 `entry_raw`，消除每次工具调用对大书的 `load_copy` 历史重放与全量 `entries()` 解码。
+- **验收与副屏冒烟**：新增永久回归覆盖目录退场命令排除、开关驱动的动作绑定、`CatalogStamp` 缓存复用与结构变更重算、`entry.set_level(false)` 父子快照恢复及孙条目排除、结构说明无 `kind`/`allow`/`about` 且 `mod-description` 投影为 `prose` 模块，以及 `checkpoints:<book>` 侧文档回执不阻塞长任务步骤证明。`dr-view-agent` 的 `v3-acceptance` 与 `scenarios/v3-tools.json` 扩至 30 步（0 pending），在副屏真窗口验证完整读写、批注、`entry.set_level(false)` 与父子快照恢复。Heavy 与三年陈化大书 `--release`「帮手读后改标题」前后耗时及全套门禁结果记于交回报告与 `$HOME/Drifting-autopilot-logs/v4-t3-agent/`。

@@ -73,46 +73,45 @@ struct CheckinProject {
 }
 
 fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, String> {
-    let doc = format!("book:{book}");
-    for _ in 0..3 {
-        let before = ws.version(&doc).map_err(string)?;
-        let copy = ws.library().load_copy(&doc).map_err(string)?;
-        if dr_doc::v3::is_book_doc(&copy) {
-            let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book).map_err(string)?;
-            let view = borrowed.view();
-            if view.trashed_at().is_some() {
-                return Err("book is unavailable".into());
-            }
-            let structure = dr_agent_tools::StructureContext::from_v3_view(
-                Some(ws.library()),
-                &view,
-                &before,
-                None,
-            )
-            .map_err(string)?;
-            let result = CheckinProject {
-                name: view.meta().name,
-                titles: structure
-                    .roots
-                    .iter()
-                    .map(|entry| entry.title.clone())
-                    .collect(),
-                todos: view
-                    .comments()
-                    .into_iter()
-                    .filter(|c| c.is_todo() && c.status.as_str() == "open")
-                    .map(|c| format!("{}: {}", c.id, c.body))
-                    .collect(),
-                guidance: Some(structure.to_contribution().map_err(string)?),
-            };
-            if before == ws.version(&doc).map_err(string)? {
-                return Ok(result);
-            }
-        } else {
-            return Err("a book of the current format is required".into());
-        }
+    if !ws.is_v3_book(book).map_err(string)? {
+        return Err("a book of the current format is required".into());
     }
-    Err("book structure changed while preparing suggestions; read again".into())
+    let book_owned = book.clone();
+    let lib = ws.library().clone();
+    ws.read_book_v3(book.as_str(), move |doc, version| {
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_owned)
+            .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+        let view = borrowed.view();
+        if view.trashed_at().is_some() {
+            return Ok(Err("book is unavailable".to_owned()));
+        }
+        let structure =
+            match dr_agent_tools::StructureContext::from_v3_view(Some(&lib), &view, &version, None)
+            {
+                Ok(s) => s,
+                Err(e) => return Ok(Err(e.to_string())),
+            };
+        let guidance = match structure.to_contribution() {
+            Ok(g) => g,
+            Err(e) => return Ok(Err(e.to_string())),
+        };
+        Ok(Ok(CheckinProject {
+            name: view.meta().name,
+            titles: structure
+                .roots
+                .iter()
+                .map(|entry| entry.title.clone())
+                .collect(),
+            todos: view
+                .comments()
+                .into_iter()
+                .filter(|c| c.is_todo() && c.status.as_str() == "open")
+                .map(|c| format!("{}: {}", c.id, c.body))
+                .collect(),
+            guidance: Some(guidance),
+        }))
+    })
+    .map_err(string)?
 }
 
 impl AgentController {

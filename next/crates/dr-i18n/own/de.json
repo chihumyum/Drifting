@@ -50,12 +50,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen.",
-        "label": "Idee"
-      }
-    },
     "warnings": {
       "imagesDropped_one": "{{count}} Bild wurde nicht importiert",
       "imagesDropped_other": "{{count}} Bilder wurden nicht importiert",
@@ -87,6 +81,9 @@
     "saveFailed": "Speichern fehlgeschlagen",
     "title": "Titel",
     "unset": "Nicht festgelegt"
+  },
+  "manuscriptExport": {
+    "manuscript": "Manuskript"
   },
   "positionLink": {
     "copied": "Positionslink kopiert"
@@ -295,7 +292,6 @@
     "views": "Zeitleistenansichten"
   },
   "v3Transfer": {
-    "chapterDesc": "Manuskriptkapitel: kann auf der Zeitleiste platziert werden und zählt zur Wortstatistik.",
     "filesTitle": "Dateien",
     "targetTitle": "Ziel"
   }

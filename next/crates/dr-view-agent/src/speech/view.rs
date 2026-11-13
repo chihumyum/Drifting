@@ -152,7 +152,8 @@ impl Dictation {
         self.preparing = true;
         let generation = self.generation;
         let client = self.client.clone();
-        let context = controller.workspace_job(move |ws| context::glossary(ws.library(), &book));
+        let context =
+            controller.workspace_job(move |ws| context::glossary_from_workspace(ws, &book));
         let (done, finished) = oneshot::channel();
         self.track(
             async move {

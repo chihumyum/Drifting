@@ -50,12 +50,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Tarjeta de idea flotante, independiente de las tramas.",
-        "label": "Idea"
-      }
-    },
     "warnings": {
       "imagesDropped_one": "No se importó {{count}} imagen",
       "imagesDropped_other": "No se importaron {{count}} imágenes",
@@ -87,6 +81,9 @@
     "saveFailed": "No se pudo guardar",
     "title": "Título",
     "unset": "Sin definir"
+  },
+  "manuscriptExport": {
+    "manuscript": "Manuscrito"
   },
   "positionLink": {
     "copied": "Enlace de posición copiado"
@@ -295,7 +292,6 @@
     "views": "Vistas de cronología"
   },
   "v3Transfer": {
-    "chapterDesc": "Capítulo del manuscrito: puede colocarse en la cronología y cuenta en las estadísticas.",
     "filesTitle": "Archivos",
     "targetTitle": "Destino"
   }

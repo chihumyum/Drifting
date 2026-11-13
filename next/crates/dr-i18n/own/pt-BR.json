@@ -50,12 +50,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Cartão de ideia flutuante, independente das linhas narrativas.",
-        "label": "Ideia"
-      }
-    },
     "warnings": {
       "imagesDropped_one": "{{count}} imagem não foi importada",
       "imagesDropped_other": "{{count}} imagens não foram importadas",
@@ -87,6 +81,9 @@
     "saveFailed": "Não foi possível salvar",
     "title": "Título",
     "unset": "Não definido"
+  },
+  "manuscriptExport": {
+    "manuscript": "Manuscrito"
   },
   "positionLink": {
     "copied": "Link de posição copiado"
@@ -295,7 +292,6 @@
     "views": "Visualizações da linha do tempo"
   },
   "v3Transfer": {
-    "chapterDesc": "Capítulo do manuscrito: pode entrar na linha do tempo e conta nas estatísticas.",
     "filesTitle": "Arquivos",
     "targetTitle": "Destino"
   }

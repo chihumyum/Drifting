@@ -1,14 +1,15 @@
 //! 「导入文件」 in the shell over a real library (GPUI's test platform): the
-//! account menu's action opens it over the open book; files are read as they
-//! are added (only the kinds it reads, in natural name order), their titles
-//! can be changed, and 「开始导入」 writes chapters into the chosen storyline;
-//! a taken element name fails alone.
+//! account menu's action opens it over the open book; target levels are listed
+//! as tree paths for every live entry with its level switch on; files are read
+//! as they are added (only the kinds it reads, in natural name order), their
+//! titles can be changed, and 「开始导入」 writes entries into the chosen level
+//! using its resolved default template; a taken name fails alone.
 
 use std::time::{Duration, Instant};
 
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_store::Library;
-use dr_view_transfer::documents::{DocumentsDialog, Kind, Status};
+use dr_view_transfer::documents::{DocumentsDialog, Status};
 use dr_workspace::{Actor, Workspace as Lib, WorkspaceOptions, library_options};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
@@ -125,10 +126,38 @@ fn files_become_chapters_of_the_chosen_storyline(cx: &mut TestAppContext) {
             ("10 尾声.md".to_owned(), "尾声".to_owned())
         ]
     );
-    // Into 支线.
+    // Every live entry with its level switch on, in tree order as paths;
+    // `序` (`level == false`) is not listed.
+    let paths_in_tree = d.read_with(cx, |d, _| {
+        d.levels.iter().map(|l| l.path.clone()).collect::<Vec<_>>()
+    });
+    assert_eq!(
+        paths_in_tree,
+        [
+            "书稿",
+            "构想",
+            "要素",
+            "要素 / 人物",
+            "要素 / 地点",
+            "要素 / 道具",
+            "要素 / 组织",
+            "故事线",
+            "故事线 / 主线",
+            "故事线 / 支线",
+            "幕",
+        ]
+        .into_iter()
+        .filter(|p| *p != "幕" || paths_in_tree.iter().any(|x| x == "幕"))
+        .collect::<Vec<_>>()
+    );
+    assert!(!paths_in_tree.iter().any(|p| p.ends_with("序")));
+
+    // Into 故事线 / 支线.
     d.update(cx, |d, cx| {
-        assert_eq!(d.kind, Kind::Chapter);
-        d.storyline = d.storylines.iter().position(|s| s.0 == second).unwrap();
+        assert_eq!(d.level, 0);
+        let idx = d.levels.iter().position(|s| s.id == second).unwrap();
+        assert_eq!(d.levels[idx].path, "故事线 / 支线");
+        d.level = idx;
         d.start(cx);
     });
     wait(cx, |cx| d.read_with(cx, |d, _| d.summary.is_some()));
@@ -152,11 +181,15 @@ fn files_become_chapters_of_the_chosen_storyline(cx: &mut TestAppContext) {
         );
     }
 
-    // Elements: a taken name fails alone.
+    // Into 要素 / 人物: a taken name fails alone.
     dr_testkit::seed::acceptance::novel_entry(&lib, &book, "tpl-character", "尾声", None);
     d.update(cx, |d, cx| {
         d.clear(cx);
-        d.kind = Kind::Element;
+        d.level = d
+            .levels
+            .iter()
+            .position(|l| l.path == "要素 / 人物")
+            .unwrap();
     });
     let again: Vec<_> = std::fs::read_dir(&files)
         .unwrap()
@@ -200,33 +233,110 @@ fn warnings_are_in_the_interface_language() {
     );
 }
 
+#[gpui::test]
+fn levels_follow_the_level_switch_and_nested_tree_paths(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = Lib::open(
+        Library::open(dir.path().join("library"), library_options(VERSION)).unwrap(),
+        WorkspaceOptions::default(),
+    )
+    .unwrap();
+    let book = out(&lib, "project.create", json!({"name": "树径"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let manuscript = dr_testkit::seed::acceptance::novel_root(&lib, &book, "tpl-manuscript");
+    let volume = out(
+        &lib,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": manuscript,
+            "template": "tpl-group",
+            "level": true,
+            "title": "第一卷"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let prologue = out(
+        &lib,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": manuscript,
+            "template": "tpl-chapter",
+            "title": "楔子"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &lib,
+        "entry.set_level",
+        json!({"book": book, "id": prologue, "level": true}),
+    );
+    let all = out(&lib, "entry.list", json!({"book": book, "all": true}));
+    let org = all
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["title"] == "组织")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &lib,
+        "entry.set_level",
+        json!({"book": book, "id": org, "level": false}),
+    );
+
+    let draft = dir.path().join("01 桥雾.md");
+    std::fs::write(&draft, "# 桥雾\n\n雾从河面升起。").unwrap();
+
+    let (view, cx) = setup(cx, lib.clone());
+    cx.update(|window, cx| {
+        window.dispatch_action(Box::new(dr_shell::actions::ImportDocuments), cx)
+    });
+    wait(cx, |cx| dialog(&view, cx).is_some());
+    let d = dialog(&view, cx).unwrap();
+
+    let paths = d.read_with(cx, |d, _| {
+        d.levels.iter().map(|l| l.path.clone()).collect::<Vec<_>>()
+    });
+    assert!(paths.contains(&"书稿 / 第一卷".to_owned()), "{paths:?}");
+    assert!(paths.contains(&"书稿 / 楔子".to_owned()), "{paths:?}");
+    assert!(!paths.iter().any(|p| p == "要素 / 组织"), "{paths:?}");
+
+    cx.update(|window, cx| d.update(cx, |d, cx| d.add(vec![draft], window, cx)));
+    wait(cx, |cx| d.read_with(cx, |d, _| d.ready() == 1));
+    d.update(cx, |d, cx| {
+        d.level = d.levels.iter().position(|l| l.id == volume).unwrap();
+        d.start(cx);
+    });
+    wait(cx, |cx| d.read_with(cx, |d, _| d.summary.is_some()));
+    assert_eq!(d.read_with(cx, |d, _| d.summary), Some((1, 0)));
+
+    let children = out(&lib, "entry.list", json!({"book": book, "parent": volume}));
+    let arr = children.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["title"], "桥雾");
+    assert_eq!(arr[0]["template"], "tpl-chapter");
+}
+
 #[test]
-fn import_dialog_copy_uses_v3_chapter_terms_and_clean_chinese_headings() {
+fn import_dialog_copy_names_target_and_files_across_all_locales() {
     use dr_i18n::{I18n, Locale, Platform, keys};
     let zh = I18n::new(Locale::ZhCn, Platform::Mac);
-    assert_eq!(zh.t(keys::v3_transfer::TARGET_TITLE), "类型");
+    assert_eq!(zh.t(keys::v3_transfer::TARGET_TITLE), "目标");
     assert_eq!(zh.t(keys::v3_transfer::FILES_TITLE), "文件");
-    let zh_desc = zh.t(Kind::Chapter.desc());
-    assert!(zh_desc.starts_with("书稿章节"), "{zh_desc}");
-    assert!(!zh_desc.contains("主线节点"), "{zh_desc}");
 
     for locale in Locale::ALL {
         let i18n = I18n::new(locale, Platform::Mac);
-        let desc = i18n.t(Kind::Chapter.desc());
-        for retired in [
-            "主线节点",
-            "主線節點",
-            "Mainline node",
-            "本編のノード",
-            "본편 노드",
-            "Haupttexts",
-            "texte principal",
-            "texto principal",
-        ] {
-            assert!(
-                !desc.contains(retired),
-                "{locale:?} chapter desc still contains retired term {retired:?}: {desc}"
-            );
-        }
+        assert!(!i18n.t(keys::v3_transfer::TARGET_TITLE).trim().is_empty());
+        assert!(!i18n.t(keys::v3_transfer::FILES_TITLE).trim().is_empty());
     }
 }

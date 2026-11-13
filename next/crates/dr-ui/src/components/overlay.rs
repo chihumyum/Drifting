@@ -172,13 +172,25 @@ pub fn place(place: Place, content: Size<Pixels>, window: Size<Pixels>) -> Point
     point(px(x.round()), px(y.round()))
 }
 
+/// Priority for dropdown lists opened from inside a [`Dialog`]: above
+/// [`Layer::Dialog`] (200) and below [`Layer::Notice`] (300).
+pub(crate) const DIALOG_POPOVER_PRIORITY: usize = 250;
+
 /// Floats `child` at `place` on `layer`, above everything else.
 pub fn float(place: Place, layer: Layer, child: impl IntoElement) -> impl IntoElement {
+    float_priority(place, layer.priority(), child)
+}
+
+pub(crate) fn float_priority(
+    place: Place,
+    priority: usize,
+    child: impl IntoElement,
+) -> impl IntoElement {
     deferred(Overlay {
         place,
         child: Some(child.into_any_element()),
     })
-    .with_priority(layer.priority())
+    .with_priority(priority)
 }
 
 /// Lays its child out at its natural size, then moves it to where [`place`]
