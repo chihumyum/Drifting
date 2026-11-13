@@ -4,14 +4,17 @@
 夜间队列协议（`handoff/overnight.md`，已随过程文档清理删除，在 git 历史里）。原型为
 [第 2 版](https://claude.ai/artifact/Q9cfuRn9u5T5vZ38qG1JU7)。
 
-## 叶子模板
+## 统一模板（内核 v4）
 
 `dr-view-templates` 是独立的界面 crate。应用登记 `init`，通过
 `v3::add_template_creator` 消费左栏的新建入口，通过 `pages::add_page_view`
-消费 `Target::Template`。只登记 v3 目标，旧版的分类／故事线模板编辑器不变。
+消费 `Target::Template`。内核 v4 合一后不再有层级模板／叶子模板两套形态：
+「新建模板」直接打开编辑器，页头不再显示类型徽章。
 
-叶子模板页可改名称、记号和颜色，添加正文、键值表、补丁、情节规划、关联，
-以及九种字段；正文可重复添加、分别命名。模块由砂笔握柄拖动排序，删除只移除定义。
+任何模板都可改名称、记号和颜色，添加任意模块——正文（可多篇、分别命名）、
+下面的条目（`children`，可调整在稿纸中的位置）、键值表、补丁、情节规划、关联，
+以及九种字段。每篇正文模块带有独立的「计入字数和导出」（`in_book`）开关；
+模板带「名字参与自动链接」（`linkable`）开关。模块由砂笔握柄拖动排序，删除只移除定义。
 新模块和字段用稳定 id，排序使用 F1 的位置键，通常只改变被移动模块的键。
 并发插入留下相同位置键时重新分配顺序；挪动失败不会丢掉模块。
 单选／多选的选项逐行填写；修改字段类型保留未改的配置和已有条目的值。
@@ -25,43 +28,47 @@
 记号使用外壳已经映射的砂笔集合。未知记号显示通用方印；未主动换记号时，
 保存仍保留原字符串。颜色与所有未编辑的模块配置也一并保留。
 
-## 层级模板与帮手说明
+## 默认「层级」开关、「下面」的设置与帮手说明
 
-模板集合的「新建模板」先选层级／叶子。层级模板只提供字段和键值表，
-层级说明正文由内核的 `about` 提供，不在模板里另建叶子正文模块。
-八项设置分别保存模板的覆盖值；「还原」删除覆盖，继续从祖先继承。
-默认模板的「无」和住处的「这一层」是显式空值，与继承不同；
-允许的模板的「不限」是显式空列表，与继承也不同。
+模板带默认的「层级」（`level`）开关，配一行小字说明「打开后下面能放条目」。
+该开关只决定用此模板新建的条目初始是否打开「层级」，改它永不追溯已有条目。
+开关打开时，编辑器展开「下面」的八项设置与动作声明；开关关闭时收起这两块，
+但保留已填的 `settings` 和 `verbs` 不清空（已有打开了「层级」的条目仍按这些设置解析）。
+
+八项设置（默认模板、显示、自动链接、收别处的条目、新条目住在、成书、格式快捷输入、泳道）
+分别保存模板的覆盖值。前七项点击「还原」删除覆盖以继续从祖先继承；「泳道」（`settings.lane`）
+不继承，未覆盖时不标「继承」，有显式值时点击「还原」回到 `None`（默认关）。
+默认模板的「无」和住处的「这一层」是显式空值，与继承不同。
 三方合并保留这些区别，包括同一设置表里有其他并发修改的时候。
 
 显示可选列表／网格／看板／岛屿，格式快捷输入使用内核的 full／notes／plain。
 泳道打开时「收别处的条目」的有效值为开且不可操作，但保留作者原先的覆盖值；
-关闭泳道就回到该覆盖值或继承。新条目住处从当前书的层级中选择。
+关闭或还原泳道就回到该覆盖值或继承。新条目住处从当前书的层级中选择。
 设置名换行、还原按钮在行尾，避免窄稿纸上压住控件。
 
-动作由稳定 id、作者名称和目标模板组成，目标选择遵守本模板非空的允许列表。
+动作由稳定 id、作者名称和目标模板组成，目标可从书内未删除的模板中选择。
 未选目标、目标已删除、名称为空或 id 重复的草稿不能保存；保存前重读后也会校验。
 保留已有动作的描述和位置，描述不当作可执行代码。动作工具的生成和执行归 K6，
 本页只编辑通用声明。
 
-两种模板都可编辑帮手名字、一句说明、注意事项和每个模块一句说明。
-不会填入自编的默认指导文字；新增的界面标签在 `dr-i18n/own` 九种语言中维护。
+所有模板都可编辑帮手名字、一句说明、注意事项和每个模块一句说明。
+不会填入自编的默认指导文字；新增的界面标签在 `dr-i18n/own` 九种语言中维护
+（已移除退役的 `leaf`、`leaf_template`、`level_template`）。
 修改模块说明保留已有的 writable／read_tier，新出现的模块指导保留默认可写权限。
 「帮手看到的」的公共结构预览消费见下节；书内指导不会从应用内置模板回填。
 
-第二次交回时的定向检查为 9 条契约通过；当时的真窗口与全套结果见文末记录。
-公共结构预览追加的测试与本轮检查单列在后续交回中。
-
 ## 公共结构预览
 
-本段消费 K6 正式交回 `983289b9` 提供的公共薄包装；接口不来自未交回的 WIP。
+本段消费 K6 提供的公共薄包装；接口不来自未交回的 WIP。
 
 K5 捕获外壳所给的书 id、`BookV3.revision` 和整份当前草稿。后台先按这一精确
 frontier 读取独立历史副本，再 fork 成可编辑的临时文档；只在该副本覆盖草稿定义。
 投影使用 K6 的 `StructureContext::from_v3_view` 和
 `TemplateSummary::from_v3_template`，前者收到的版本来自同一临时文档的真实 frontier。
-新建／未使用模板单独返回模板投影，保留模板和模块 id，不伪造条目来让模板进入在用列表。
-层级草稿另列原始覆盖和声明动作；在用层级的有效值与来源由同一快照的 K6 投影提供。
+新建／未使用模板单独返回模板投影（含 `level`、`linkable`、`lane` 与模块能力）及
+计入成书的正文模块列表（`book_prose_modules`），保留模板和模块 id，不伪造条目来让模板进入在用列表。
+当草稿默认「层级」打开时另列 `level_defaults`（含 `lane`）和 `declared_actions`；
+在用层级的有效值与来源由同一快照的 K6 投影提供。
 
 结果是带来源 frontier、临时 frontier、模板与书结构的可访问 JSON 文本。
 书结构与单模板都按作者原文投影，保留模块 writable／read_tier 与规范来源 DTO；
@@ -76,27 +83,27 @@ frontier 读取独立历史副本，再 fork 成可编辑的临时文档；只�
 ## 验收来源
 
 - `next/crates/dr-view-templates/tests/contract.rs`：共享 tiny v3 种子上的真实
-  F3／SQLite 契约。覆盖全部类型、两篇正文、重读后的顺序、删除后正文与字段值保留、
-  并发互不相干的修改合并、冲突拒绝，以及未知记号保留。
-- `next/crates/dr-cli/scenarios/k5-leaf.json`：v3-lite 的真窗口输入路径，
-  包括模板集合新建、改名、全部模块与九种字段、真实鼠标拖动、删除、并发刷新和重开。
-  运行结果与截图写到忽略目录 `next/target/acceptance/k5-leaf/`。
-- `next/crates/dr-cli/scenarios/k5-level.json`：v3-lite 真窗口新建层级模板，
-  校验添加器不出现正文；操作八项设置、四种显示、泳道的强制接收、动作添加／改名／
-  删除／缺目标拒绝、帮手说明与预览、逐项还原及显式空值；退出并重开核对持久化。
-- 层级契约还从实际模板创建条目，核对默认模板、住处、归属和泳道有效值；
-  删除动作目标后拒绝保存，删模块后保留条目数据。GPUI 契约核对后台刷新不夺走
-  输入、帮手说明不改变已有权限／读取层级，以及预览中的转义和泳道有效值。
-- `next/crates/dr-view-templates/src/preview.rs`：精确历史 frontier、未使用／在用草稿、
-  同名模块 id、规范层级来源、晚到结果、跨书及正文／隐藏字段隔离的永久测试。
-  GPUI 宿主测试另验证输入事件之后、下一帧之前的旧完成回调被拒绝，发布预览不夺焦点。
-- `next/crates/dr-cli/scenarios/k5-shared-preview.json`：公共结构预览的单条副屏冒烟。
-  新建未使用模板，输入模板和模块说明，先预览并断言真实模板列表不变，再保存、预览与重开。
+  F3／SQLite 契约。覆盖全部模块与字段类型（含 `children`）、多篇正文及每篇独立 `in_book`
+  对成书序列的控制、`linkable` 对自动链接参与和重名校验的控制、默认「层级」开关收起保留
+  设置且永不改动已有条目、八项「下面」设置（含 `settings.lane`）及可空设置还原合并、
+  动作校验、删除后正文与字段值保留、并发互不相干修改合并与冲突拒绝，以及未知记号保留。
+- `next/crates/dr-cli/scenarios/k5-leaf.json`：v3-lite 副屏真窗口输入路径，
+  包括直接新建模板、`linkable` 与每篇正文 `in_book` 开关、两篇正文、「下面的条目」与全部模块
+  及九种字段、真实鼠标拖动、删除、并发刷新和重开。
+- `next/crates/dr-cli/scenarios/k5-level.json`：v3-lite 副屏真窗口统一模板回归，
+  核对默认「层级」开关小字说明、任意模块可加（含正文与「下面的条目」）、八项设置（四种显示、
+  `settings.lane` 的强制接收与还原）、收起「层级」保存仍保留设置与动作、动作添加／改名／删除／
+  缺目标拒绝、帮手说明与 `book_prose_modules` 预览、逐项还原及显式空值；退出并重开核对持久化。
+- `next/crates/dr-view-templates/src/preview.rs` 与 `src/view.rs`：精确历史 frontier、
+  未使用／在用草稿、`book_prose_modules`、`children` 模块能力、默认「层级」收起与展开投影、
+  同名模块 id、规范层级来源、晚到结果、跨书及正文／隐藏字段隔离的永久测试与 GPUI 宿主测试。
+- `next/crates/dr-cli/scenarios/k5-shared-preview.json`：公共结构预览的副屏冒烟。
+  直接新建未使用模板，输入模板和模块说明，先预览并断言真实模板列表不变，再保存、预览与重开。
   场景显式关闭主动模型建议，不配置或调用模型。
 
 ```bash
 cd next
-CARGO_BUILD_JOBS=3 cargo build -p drifting --features debug-bridge --locked
+CARGO_BUILD_JOBS=3 cargo build -p drifting -p dr-cli --features drifting/debug-bridge --locked
 CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-leaf.json \
   --app target/debug/drifting
 CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-level.json \
@@ -231,3 +238,30 @@ K5 定向 **14/14**。标准 debug 的共享 v3-lite 主流程 **48/48、0 pendi
 heavy、性能预算、截图目检和样式打磨按最新口径暂缓，没有记为通过。标准 debug 日志仍有
 `__eh_frame` 链接提示及两项打包字体未找到提示，本轮未据此宣称视觉或性能达标。
 未向 main 合并、未推送；旧交回的 heavy 历史记录原样保留，K6 公共预览接线待办在本轮关闭。
+
+## 统一条目（内核 v4 · T2）交回（2026-11-13）
+
+分支 `codex/v4-t2-templates`，交回指针 `handback/v4-t2-templates`，基于数据层信号
+`ready/kernel-v4-data-layer`（`37db94f55`）。
+
+本轮按 `kernel-v4.md` 合一模板编辑器：删除新建时的层级／叶子选择菜单（`src/create.rs`）
+和页头类型徽章，移除 `dr-i18n/own` 中退役的 `leaf`、`leaf_template`、`level_template`，
+在九种语言中补齐 `children`（下面的条目）、`in_book`（计入字数和导出）、`level_hint`
+（打开后下面能放条目）、`linkable`（名字参与自动链接）并由 `sync-locales.py` 同步生成文件。
+任何模板可加任意模块（含多篇正文与可拖动排序的 `children` 模块），每篇正文带独立 `in_book`
+开关，模板带默认「层级」开关（展开／收起八项「下面」设置与动作且收起不清空存储值）与
+`linkable` 开关，「泳道」并入 `settings.lane`（未覆盖时不标「继承」，有值时支持「还原」），
+公共结构预览补齐 `book_prose_modules` 与 `settings.lane` 口径。
+
+编译并发 3、单线程测试且开启 `DR_UI_REQUIRE_FONTS=1`：`cargo fmt --all --check`、
+全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试
+（**2350 passed / 0 failed / 22 ignored**，其中 `dr-view-templates` **17/17**、
+`dr-shell --test strings` **1/1**）、`cargo xtask check`（含 `audit`，975 locked crates、
+0 vulnerabilities、12 notices）、根目录 `pnpm public:check` 与 `pnpm ci:contract:check`
+全部通过。副屏临时 profile 真窗口回归：`k5-shared-preview.json` **47/47**、
+`k5-level.json` **152/152**、`k5-leaf.json` **131/131**，均 **0 pending**，六张截图已逐张目检。
+
+跨轨道待收口：`kernel-v4.md` §14 提到移除模板类型键后在 `xtask` 的 `terms` 门禁中禁掉
+`"叶子模板"`／`"层级模板"`／`"leaf template"`／`"level template"`；当前 `main` 上
+`dr-agent-tools/src/executor.rs` 仍有一处待 T3 清理的 `"level template"` 字面量，
+本轮按保守口径未跨改 `xtask` 或 `dr-agent-tools`，留待 T2 与 T3 合入后统一加门禁。

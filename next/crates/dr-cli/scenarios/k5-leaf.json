@@ -1,5 +1,5 @@
 {
-  "about": "K5 叶子模板回归：lite 真窗口，叶子模板新建、两篇正文、全部模块及九种字段、改名、真实拖动排序、删除、并发刷新与重开。",
+  "about": "K5 模板模块与字段回归：副屏 lite 真窗口，模板新建、计入字数与自动链接开关、两篇正文、下面的条目与全部模块及九种字段、改名、真实拖动排序、删除、并发刷新与重开。",
   "steps": [
     {
       "seed": "lite"
@@ -12,6 +12,7 @@
     {
       "launch": {
         "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
           "DRIFTING_APPEARANCE": "light"
         },
         "settings": {
@@ -96,13 +97,6 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "MenuItem",
-        "label": "Leaf template"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
         "label": "Template name"
       }
     },
@@ -115,7 +109,7 @@
     {
       "app": "input.type",
       "params": {
-        "text": "Acceptance leaf"
+        "text": "Acceptance modules"
       }
     },
     {
@@ -137,15 +131,17 @@
       },
       "save": "created",
       "expect": {
-        "/[name=Acceptance leaf]/kind": "leaf",
-        "/[name=Acceptance leaf]/modules/0/kind": "prose"
+        "/[name=Acceptance modules]/level": false,
+        "/[name=Acceptance modules]/linkable": true,
+        "/[name=Acceptance modules]/modules/0/kind": "prose",
+        "/[name=Acceptance modules]/modules/0/config/in_book": true
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "template:${created.[name=Acceptance leaf].id}"
+          "/page": "template:${created.[name=Acceptance modules].id}"
         }
       }
     },
@@ -177,6 +173,13 @@
     {
       "app": "ui.press",
       "params": {
+        "label": "Include name in auto-links",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
         "label": "Save"
       }
     },
@@ -192,8 +195,9 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/mark": "square",
-        "/[id=${created.[name=Acceptance leaf].id}]/color": "#567890"
+        "/[id=${created.[name=Acceptance modules].id}]/mark": "square",
+        "/[id=${created.[name=Acceptance modules].id}]/color": "#567890",
+        "/[id=${created.[name=Acceptance modules].id}]/linkable": false
       }
     },
     {
@@ -260,14 +264,39 @@
       }
     },
     {
+      "app": "ui.press",
+      "params": {
+        "label": "Count words and export",
+        "role": "CheckBox",
+        "within": {
+          "role": "Group",
+          "label": "Second prose"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
       "call": "entry_template.list",
       "input": {
         "book": "${books.0.id}"
       },
       "save": "two",
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Primary prose",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/1/name": "Second prose"
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/name": "Primary prose",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/config/in_book": true,
+        "/[id=${created.[name=Acceptance modules].id}]/modules/1/name": "Second prose",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/1/config/in_book": false
       }
     },
     {
@@ -317,8 +346,8 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Second prose",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/1/name": "Primary prose"
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/name": "Second prose",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/1/name": "Primary prose"
       }
     },
     {
@@ -328,7 +357,28 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Entries below",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -349,7 +399,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -370,7 +420,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -391,7 +441,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -412,7 +462,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -433,7 +483,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -454,7 +504,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -475,7 +525,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -496,7 +546,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -517,7 +567,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -538,7 +588,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -559,7 +609,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
       }
@@ -580,9 +630,31 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 150
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 562,
+        "y": 480,
+        "dy": -750
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 150
       }
     },
     {
@@ -601,7 +673,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": -20000
       }
@@ -625,27 +697,30 @@
       },
       "save": "all",
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Second prose",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/1/name": "Primary prose",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/2/kind": "kv",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/3/kind": "patches",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/4/kind": "plot_grid",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/5/kind": "relations",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/6/config/defs/0/field_type": "text",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/7/config/defs/0/field_type": "long_text",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/8/config/defs/0/field_type": "number",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/9/config/defs/0/field_type": "date",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/10/config/defs/0/field_type": "select",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/11/config/defs/0/field_type": "multi_select",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/12/config/defs/0/field_type": "image",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/13/config/defs/0/field_type": "entity_ref",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/14/config/defs/0/field_type": "aliases"
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/name": "Second prose",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/config/in_book": false,
+        "/[id=${created.[name=Acceptance modules].id}]/modules/1/name": "Primary prose",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/1/config/in_book": true,
+        "/[id=${created.[name=Acceptance modules].id}]/modules/2/kind": "children",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/3/kind": "kv",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/4/kind": "patches",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/5/kind": "plot_grid",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/6/kind": "relations",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/7/config/defs/0/field_type": "text",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/8/config/defs/0/field_type": "long_text",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/9/config/defs/0/field_type": "number",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/10/config/defs/0/field_type": "date",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/11/config/defs/0/field_type": "select",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/12/config/defs/0/field_type": "multi_select",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/13/config/defs/0/field_type": "image",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/14/config/defs/0/field_type": "entity_ref",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/15/config/defs/0/field_type": "aliases"
       }
     },
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": 20000
       }
@@ -660,9 +735,9 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
-        "dy": -850
+        "dy": -900
       }
     },
     {
@@ -689,7 +764,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 590,
+        "x": 562,
         "y": 480,
         "dy": -20000
       }
@@ -712,8 +787,8 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/14/config/defs/0/field_type": "long_text",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/14/config/aliases_field": null
+        "/[id=${created.[name=Acceptance modules].id}]/modules/15/config/defs/0/field_type": "long_text",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/15/config/aliases_field": null
       }
     },
     {
@@ -731,7 +806,7 @@
     {
       "app": "input.type",
       "params": {
-        "text": "Acceptance renamed leaf"
+        "text": "Acceptance renamed modules"
       }
     },
     {
@@ -739,12 +814,13 @@
       "input": {
         "book": "${books.0.id}",
         "template": {
-          "id": "${created.[name=Acceptance leaf].id}",
-          "kind": "leaf",
-          "name": "Acceptance leaf",
+          "id": "${created.[name=Acceptance modules].id}",
+          "name": "Acceptance modules",
           "mark": "future-mark",
           "color": "#567890",
-          "modules": "${all.[name=Acceptance leaf].modules}"
+          "level": false,
+          "linkable": false,
+          "modules": "${all.[name=Acceptance modules].modules}"
         }
       },
       "note": "并发未改字段刷新，未提交的名字必须保留；未知记号不得丢失"
@@ -767,8 +843,8 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/name": "Acceptance renamed leaf",
-        "/[id=${created.[name=Acceptance leaf].id}]/mark": "future-mark"
+        "/[id=${created.[name=Acceptance modules].id}]/name": "Acceptance renamed modules",
+        "/[id=${created.[name=Acceptance modules].id}]/mark": "future-mark"
       }
     },
     {
@@ -803,7 +879,7 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Primary prose"
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/name": "Primary prose"
       }
     },
     {
@@ -811,6 +887,10 @@
     },
     {
       "launch": {
+        "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APPEARANCE": "light"
+        },
         "settings": {
           "device": {
             "modules": {
@@ -847,7 +927,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "template:${created.[name=Acceptance leaf].id}"
+        "target": "template:${created.[name=Acceptance modules].id}"
       }
     },
     {
@@ -862,9 +942,10 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance leaf].id}]/name": "Acceptance renamed leaf",
-        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Primary prose",
-        "/[id=${created.[name=Acceptance leaf].id}]/mark": "future-mark"
+        "/[id=${created.[name=Acceptance modules].id}]/name": "Acceptance renamed modules",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/0/name": "Primary prose",
+        "/[id=${created.[name=Acceptance modules].id}]/mark": "future-mark",
+        "/[id=${created.[name=Acceptance modules].id}]/linkable": false
       }
     },
     {
