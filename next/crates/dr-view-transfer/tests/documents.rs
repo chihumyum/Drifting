@@ -293,6 +293,17 @@ fn levels_follow_the_level_switch_and_nested_tree_paths(cx: &mut TestAppContext)
         "entry.set_level",
         json!({"book": book, "id": org, "level": false}),
     );
+    // A level whose new entries get no template: nothing can be imported.
+    out(
+        &lib,
+        "entry.create",
+        json!({
+            "book": book,
+            "template": "tpl-group",
+            "level": true,
+            "title": "无默认模板"
+        }),
+    );
 
     let draft = dir.path().join("01 桥雾.md");
     std::fs::write(&draft, "# 桥雾\n\n雾从河面升起。").unwrap();
@@ -310,6 +321,7 @@ fn levels_follow_the_level_switch_and_nested_tree_paths(cx: &mut TestAppContext)
     assert!(paths.contains(&"书稿 / 第一卷".to_owned()), "{paths:?}");
     assert!(paths.contains(&"书稿 / 楔子".to_owned()), "{paths:?}");
     assert!(!paths.iter().any(|p| p == "要素 / 组织"), "{paths:?}");
+    assert!(!paths.iter().any(|p| p == "无默认模板"), "{paths:?}");
 
     cx.update(|window, cx| d.update(cx, |d, cx| d.add(vec![draft], window, cx)));
     wait(cx, |cx| d.read_with(cx, |d, _| d.ready() == 1));
@@ -325,6 +337,13 @@ fn levels_follow_the_level_switch_and_nested_tree_paths(cx: &mut TestAppContext)
     assert_eq!(arr.len(), 1);
     assert_eq!(arr[0]["title"], "桥雾");
     assert_eq!(arr[0]["template"], "tpl-chapter");
+
+    // Esc closes it.
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(dialog(&view, cx).is_none());
 }
 
 #[test]

@@ -1,8 +1,10 @@
 //! Canonical v3 element islands extraction and skyline layout solver (`群岛`).
 //!
-//! Discovers island levels on `BookV3` (`display == "island"` sub-levels as well as
-//! standalone `auto_link && !is_manuscript` non-lane levels), keeps resident entries
-//! and accepted memberships distinct per G2, and solves balanced top/bottom skyline
+//! Discovers island levels on `BookV3` (the organising levels under a
+//! `display == "island"` level as well as standalone organising
+//! `auto_link && !is_manuscript` non-lane levels), shows every content entry
+//! as a card whatever its switch, keeps resident entries and accepted
+//! memberships distinct per G2, and solves balanced top/bottom skyline
 //! placements without any book-order or chapter appearance band.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -55,7 +57,7 @@ pub fn isles_lod(zoom: f32) -> IslesLod {
     }
 }
 
-/// Canonical v3 leaf entry displayed on the Element Overview canvas.
+/// A content entry displayed on the Element Overview canvas.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IslandItem {
     pub id: String,
@@ -97,11 +99,11 @@ pub struct IslandModel {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ExtractedIslands {
     pub islands: Vec<IslandModel>,
-    /// Deduplicated leaf entries across all discovered islands, in `BookV3.entries` order.
+    /// Deduplicated content entries across all discovered islands, in `BookV3.entries` order.
     pub elements: Vec<IslandItem>,
 }
 
-fn extract_leaf_fields(v3: &BookV3, entry_id: &str) -> (String, Vec<String>) {
+fn extract_fields(v3: &BookV3, entry_id: &str) -> (String, Vec<String>) {
     let Some(entry) = v3.entry(entry_id) else {
         return (String::new(), Vec::new());
     };
@@ -151,17 +153,58 @@ fn extract_leaf_fields(v3: &BookV3, entry_id: &str) -> (String, Vec<String>) {
     (summary, aliases)
 }
 
-fn collect_resident_leaves(v3: &BookV3, level_id: &str, out: &mut Vec<String>) {
-    let Some(level) = v3.levels.get(level_id) else {
+fn title_of(v3: &BookV3, id: &str) -> String {
+    v3.entry(id).map(|e| e.title.clone()).unwrap_or_default()
+}
+
+/// Collects the content entries living in `container` into `items`, those
+/// of the organising levels below it as well. A content entry whose switch
+/// is on is a card too; it is queued in `named` so that what lives under it
+/// becomes a group under its name.
+fn collect_content(
+    v3: &BookV3,
+    container: &str,
+    items: &mut Vec<String>,
+    named: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    let Some(level) = v3.levels.get(container) else {
         return;
     };
     for cid in &level.children {
-        if v3.levels.contains_key(cid) {
-            collect_resident_leaves(v3, cid, out);
-        } else if v3.entry(cid).is_some() {
-            out.push(cid.clone());
+        if !seen.insert(cid.clone()) {
+            continue;
+        }
+        if v3.is_content(cid) {
+            items.push(cid.clone());
+            if v3.levels.contains_key(cid) {
+                named.push(cid.clone());
+            }
+        } else {
+            collect_content(v3, cid, items, named, seen);
         }
     }
+}
+
+/// One group per content entry in `named`, titled with its name and holding
+/// what lives under it; nested ones follow their parent's group.
+fn named_groups(
+    v3: &BookV3,
+    mut named: Vec<String>,
+    seen: &mut HashSet<String>,
+) -> Vec<(Option<String>, bool, Vec<String>)> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < named.len() {
+        let id = named[i].clone();
+        let mut items = Vec::new();
+        let mut below = Vec::new();
+        collect_content(v3, &id, &mut items, &mut below, seen);
+        out.push((Some(title_of(v3, &id)), false, items));
+        named.splice(i + 1..i + 1, below);
+        i += 1;
+    }
+    out
 }
 
 fn subtree_level_ids(v3: &BookV3, root_id: &str, seen: &mut HashSet<String>) {
@@ -267,7 +310,9 @@ struct RawIsland {
     groups: Vec<(Option<String>, bool, Vec<String>)>,
 }
 
-/// Extract canonical v3 islands and unique element leaves from `BookV3`.
+/// Extract canonical v3 islands and the unique content entries on them from
+/// `BookV3`. Whether an entry is a card or a group follows its template
+/// ([`BookV3::is_content`]), never its switch.
 pub fn extract_v3_islands(
     v3: &BookV3,
     residents_label: &str,
@@ -278,8 +323,9 @@ pub fn extract_v3_islands(
     let mut raw_islands: Vec<RawIsland> = Vec::new();
 
     // 1. Levels configured with `display == "island"` (e.g. novel `要素` root):
-    //    their child levels are the islands, and any direct leaves/members on the
-    //    wrapper itself form an uncategorized island.
+    //    the organising levels under them are the islands, and the content
+    //    entries living or belonging directly on the wrapper form an
+    //    uncategorized island.
     let mut uncat_counter = 0usize;
     for entry in &v3.entries {
         let Some(root_level) = v3.levels.get(&entry.id) else {
@@ -290,33 +336,41 @@ pub fn extract_v3_islands(
         }
         subtree_level_ids(v3, &entry.id, &mut claimed_levels);
 
-        let mut wrapper_direct_leaves = Vec::new();
+        let mut seen = HashSet::from([entry.id.clone()]);
+        let mut wrapper_direct = Vec::new();
+        let mut named = Vec::new();
         for cid in &root_level.children {
-            if v3.levels.contains_key(cid) {
+            if !seen.insert(cid.clone()) {
+                continue;
+            }
+            if v3.is_content(cid) {
+                wrapper_direct.push(cid.clone());
+                if v3.levels.contains_key(cid) {
+                    named.push(cid.clone());
+                }
+            } else if v3.levels.contains_key(cid) {
                 raw_islands.push(extract_one_level_island(
                     v3,
                     cid,
                     residents_label,
                     members_label,
                 ));
-            } else if v3.entry(cid).is_some() {
-                wrapper_direct_leaves.push(cid.clone());
             }
         }
-        let resident_set: HashSet<&str> =
-            wrapper_direct_leaves.iter().map(String::as_str).collect();
+        let named = named_groups(v3, named, &mut seen);
+        let resident_set: HashSet<&str> = wrapper_direct
+            .iter()
+            .chain(named.iter().flat_map(|(_, _, ids)| ids))
+            .map(String::as_str)
+            .collect();
         let wrapper_members: Vec<String> = root_level
             .members
             .iter()
-            .filter(|mid| {
-                !v3.levels.contains_key(*mid)
-                    && v3.entry(mid).is_some()
-                    && !resident_set.contains(mid.as_str())
-            })
+            .filter(|mid| v3.is_content(mid) && !resident_set.contains(mid.as_str()))
             .cloned()
             .collect();
 
-        if !wrapper_direct_leaves.is_empty() || !wrapper_members.is_empty() {
+        if !wrapper_direct.is_empty() || !wrapper_members.is_empty() {
             uncat_counter += 1;
             let island_id = if uncat_counter == 1 {
                 UNCATEGORIZED_KEY.to_owned()
@@ -324,11 +378,12 @@ pub fn extract_v3_islands(
                 format!("{UNCATEGORIZED_KEY}:{uncat_counter}")
             };
             let mut groups = Vec::new();
-            let res_label = (!wrapper_direct_leaves.is_empty() && !wrapper_members.is_empty())
+            let res_label = (!wrapper_direct.is_empty() && !wrapper_members.is_empty())
                 .then(|| residents_label.to_owned());
-            if !wrapper_direct_leaves.is_empty() {
-                groups.push((res_label, false, wrapper_direct_leaves));
+            if !wrapper_direct.is_empty() {
+                groups.push((res_label, false, wrapper_direct));
             }
+            groups.extend(named);
             if !wrapper_members.is_empty() {
                 groups.push((Some(members_label.to_owned()), true, wrapper_members));
             }
@@ -344,9 +399,10 @@ pub fn extract_v3_islands(
         }
     }
 
-    // 2. Any standalone `auto_link && !is_manuscript` non-lane level not already inside an `"island"` tree.
+    // 2. Any standalone organising `auto_link && !is_manuscript` non-lane
+    //    level not already inside an `"island"` tree.
     for entry in &v3.entries {
-        if claimed_levels.contains(&entry.id) {
+        if claimed_levels.contains(&entry.id) || v3.is_content(&entry.id) {
             continue;
         }
         let Some(level) = v3.levels.get(&entry.id) else {
@@ -365,7 +421,7 @@ pub fn extract_v3_islands(
         ));
     }
 
-    // Track each leaf's resident island and membership islands so we can resolve its home island & color.
+    // Track each entry's resident island and membership islands so we can resolve its home island & color.
     let mut island_colors: HashMap<String, Option<String>> = HashMap::new();
     let mut resident_island_of: HashMap<String, String> = HashMap::new();
     let mut member_islands_of: HashMap<String, Vec<String>> = HashMap::new();
@@ -373,15 +429,15 @@ pub fn extract_v3_islands(
     for raw in &raw_islands {
         island_colors.insert(raw.island_id.clone(), raw.color.clone());
         for (_, is_members, ids) in &raw.groups {
-            for leaf_id in ids {
+            for id in ids {
                 if *is_members {
                     member_islands_of
-                        .entry(leaf_id.clone())
+                        .entry(id.clone())
                         .or_default()
                         .push(raw.island_id.clone());
                 } else {
                     resident_island_of
-                        .entry(leaf_id.clone())
+                        .entry(id.clone())
                         .or_insert_with(|| raw.island_id.clone());
                 }
             }
@@ -391,36 +447,32 @@ pub fn extract_v3_islands(
     let mut items_by_id: HashMap<String, IslandItem> = HashMap::new();
     for raw in &raw_islands {
         for (_, _, ids) in &raw.groups {
-            for leaf_id in ids {
-                if items_by_id.contains_key(leaf_id) {
+            for id in ids {
+                if items_by_id.contains_key(id) {
                     continue;
                 }
-                let Some(entry) = v3.entry(leaf_id) else {
+                let Some(entry) = v3.entry(id) else {
                     continue;
                 };
                 let primary_match = entry.primary.as_deref().filter(|p| {
-                    resident_island_of.get(leaf_id).map(String::as_str) == Some(*p)
+                    resident_island_of.get(id).map(String::as_str) == Some(*p)
                         || member_islands_of
-                            .get(leaf_id)
+                            .get(id)
                             .is_some_and(|ms| ms.iter().any(|m| m == *p))
                 });
                 let home_island_id = primary_match
                     .map(str::to_owned)
-                    .or_else(|| resident_island_of.get(leaf_id).cloned())
-                    .or_else(|| {
-                        member_islands_of
-                            .get(leaf_id)
-                            .and_then(|ms| ms.first().cloned())
-                    })
+                    .or_else(|| resident_island_of.get(id).cloned())
+                    .or_else(|| member_islands_of.get(id).and_then(|ms| ms.first().cloned()))
                     .unwrap_or_else(|| UNCATEGORIZED_KEY.to_owned());
 
-                let app = v3.appearance(leaf_id);
+                let app = v3.appearance(id);
                 let color = app
                     .as_ref()
                     .and_then(|a| a.color.clone())
                     .or_else(|| island_colors.get(&home_island_id).cloned().flatten());
                 let sand_kind = app.map_or(sand::Kind::Element, |a| a.sand);
-                let (summary, aliases) = extract_leaf_fields(v3, leaf_id);
+                let (summary, aliases) = extract_fields(v3, id);
                 let relation_pin = entry
                     .layout
                     .relation_graph
@@ -428,9 +480,9 @@ pub fn extract_v3_islands(
                     .map(|(x, y)| RelatePoint::new(x, y));
 
                 items_by_id.insert(
-                    leaf_id.clone(),
+                    id.clone(),
                     IslandItem {
-                        id: leaf_id.clone(),
+                        id: id.clone(),
                         name: entry.title.clone(),
                         aliases,
                         summary,
@@ -480,63 +532,67 @@ pub fn extract_v3_islands(
     ExtractedIslands { islands, elements }
 }
 
+/// The island of the organising level `island_id`: one group per organising
+/// level directly under it, then the content entries living in it, then
+/// one group per content entry with entries under it, then the entries
+/// that belong to it.
 fn extract_one_level_island(
     v3: &BookV3,
     island_id: &str,
     residents_label: &str,
     members_label: &str,
 ) -> RawIsland {
-    let title = v3
-        .entry(island_id)
-        .map(|e| e.title.clone())
-        .unwrap_or_default();
+    let title = title_of(v3, island_id);
     let app = v3.appearance(island_id);
     let color = app.as_ref().and_then(|a| a.color.clone());
     let sand_kind = app.map_or(sand::Kind::Category, |a| a.sand);
 
     let mut sub_groups: Vec<(Option<String>, bool, Vec<String>)> = Vec::new();
-    let mut direct_leaves: Vec<String> = Vec::new();
-    let mut all_resident_ids: HashSet<String> = HashSet::new();
 
     if let Some(level) = v3.levels.get(island_id) {
+        let mut seen = HashSet::from([island_id.to_owned()]);
+        let mut direct: Vec<String> = Vec::new();
+        let mut named: Vec<String> = Vec::new();
         for cid in &level.children {
-            if v3.levels.contains_key(cid) {
-                let mut leaves = Vec::new();
-                collect_resident_leaves(v3, cid, &mut leaves);
-                for lid in &leaves {
-                    all_resident_ids.insert(lid.clone());
+            if !seen.insert(cid.clone()) {
+                continue;
+            }
+            if v3.is_content(cid) {
+                direct.push(cid.clone());
+                if v3.levels.contains_key(cid) {
+                    named.push(cid.clone());
                 }
-                if !leaves.is_empty() {
-                    let gtitle = v3.entry(cid).map(|e| e.title.clone()).unwrap_or_default();
-                    sub_groups.push((Some(gtitle), false, leaves));
+            } else if v3.levels.contains_key(cid) {
+                let mut items = Vec::new();
+                collect_content(v3, cid, &mut items, &mut named, &mut seen);
+                if !items.is_empty() {
+                    sub_groups.push((Some(title_of(v3, cid)), false, items));
                 }
-            } else if v3.entry(cid).is_some() {
-                all_resident_ids.insert(cid.clone());
-                direct_leaves.push(cid.clone());
             }
         }
-
-        let member_leaves: Vec<String> = level
+        let named = named_groups(v3, named, &mut seen);
+        let resident_ids: HashSet<&str> = sub_groups
+            .iter()
+            .chain(&named)
+            .flat_map(|(_, _, ids)| ids)
+            .chain(&direct)
+            .map(String::as_str)
+            .collect();
+        let members: Vec<String> = level
             .members
             .iter()
-            .filter(|mid| {
-                !v3.levels.contains_key(*mid)
-                    && v3.entry(mid).is_some()
-                    && !all_resident_ids.contains(*mid)
-            })
+            .filter(|mid| v3.is_content(mid) && !resident_ids.contains(mid.as_str()))
             .cloned()
             .collect();
 
-        if !direct_leaves.is_empty() {
-            let direct_header = if !member_leaves.is_empty() && sub_groups.is_empty() {
-                Some(residents_label.to_owned())
-            } else {
-                None
-            };
-            sub_groups.push((direct_header, false, direct_leaves));
+        if !direct.is_empty() {
+            let direct_header = (!members.is_empty() && sub_groups.is_empty() && named.is_empty())
+                .then(|| residents_label.to_owned());
+            sub_groups.push((direct_header, false, direct));
         }
-        if !member_leaves.is_empty() {
-            sub_groups.push((Some(members_label.to_owned()), true, member_leaves));
+        sub_groups.extend(named);
+        if !members.is_empty() {
+            sub_groups.push((Some(members_label.to_owned()), true, members));
         }
     }
 

@@ -101,9 +101,9 @@
         "/v3Sidebar/roots/3": "${roots.3.id}",
         "/v3Sidebar/selected": "${roots.0.id}",
         "/v3Sidebar/display": "list",
-        "/v3Sidebar/registered": false
+        "/v3Sidebar/registered": true
       },
-      "note": "K4-0.6：根层级逐项成为标签，默认交给显示注册口或占位"
+      "note": "K4-0.6：根层级逐项成为标签，选中的根由 G2 注册的显示画出"
     },
     {
       "app": "ui.press",
@@ -191,8 +191,7 @@
         "book": "${books.0.id}",
         "template": {
           "id": "aaa-k4-template",
-          "name": "验收模板",
-          "kind": "leaf"
+          "name": "验收模板"
         }
       }
     },

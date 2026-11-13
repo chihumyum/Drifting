@@ -438,7 +438,7 @@ impl Render for EntryHistoryDialog {
 
 /// Display historical definitions and stored content, without current-template
 /// filtering. Unnamed retained modules still show all their content.
-fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
+pub(crate) fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
     let modules = p
         .template
         .as_ref()
@@ -456,17 +456,12 @@ fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
         serde_json::Value::Null => String::new(),
         other => other.to_string(),
     };
+    // Each body once, by its module's name.
     let mut out = Vec::new();
     for b in &p.bodies {
         out.push((
             name(b.doc.rsplit('/').next().unwrap_or_default()),
             b.text.clone(),
-        ));
-    }
-    for b in &p.bodies {
-        out.push((
-            b.doc.clone(),
-            serde_json::to_string_pretty(&b.raw_state).unwrap_or_default(),
         ));
     }
     if let Some(fields) = p.metadata.get("fields").and_then(|v| v.as_object()) {

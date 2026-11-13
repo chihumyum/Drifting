@@ -196,7 +196,7 @@ fn only_in_book_prose_drives_stats_shelf_cover_targets_and_recorder() {
 
     let day = Day::parse("2026-11-12").unwrap();
     let stats = stats_v3::load_at(&ws, &book, Scope::Book, &day).unwrap();
-    assert_eq!(stats.leaves, 3);
+    assert_eq!(stats.entries, 3);
     assert_eq!(
         stats.book_words(&Live::default()).unwrap().words,
         expected_total
@@ -243,7 +243,7 @@ fn only_in_book_prose_drives_stats_shelf_cover_targets_and_recorder() {
     );
 
     let cover = cover_request(&ws, &book, "潮汐志");
-    assert_eq!(cover.chapters, stats.leaves);
+    assert_eq!(cover.chapters, stats.entries);
     assert_eq!(cover.words, expected_entry_words);
     assert_eq!(
         cover.words.iter().sum::<u64>(),

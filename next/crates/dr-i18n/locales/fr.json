@@ -163,9 +163,7 @@
     }
   },
   "bottomStatusBar": {
-    "collapseTimeline": "Réduire la chronologie des intrigues",
     "elements": "Éléments",
-    "expandTimeline": "Développer la chronologie des intrigues",
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
@@ -243,10 +241,6 @@
       "deleteMaterial": "Supprimer la ressource",
       "moveMaterialToFolder": "Déplacer vers un dossier…",
       "openMaterialInSystem": "Ouvrir dans l’application par défaut"
-    },
-    "outlineRailMode": {
-      "hidden": "Masquer la table des matières",
-      "visible": "Afficher la table des matières"
     },
     "status": {
       "discarded": "Écarté",
@@ -425,8 +419,8 @@
     "entry_count_one": "{{count}} entrée",
     "entry_count_other": "{{count}} entrées",
     "entry_titles": "Titres des entrées",
+    "entry_total": "Nombre d’entrées",
     "entry_words": "Mots de l’entrée",
-    "leaf_count": "Nombre de feuilles",
     "material_words": "Mots du matériau",
     "retained_content": "Contenu conservé",
     "selected_entries": "Entrées sélectionnées",
@@ -909,6 +903,9 @@
     "delete": "Supprimer le type de relation",
     "description": "Description",
     "directed": "Orientée",
+    "genericAssociation": {
+      "name": "Association"
+    },
     "name": "Nom",
     "sourceRole": "Rôle source",
     "swap": "Inverser les extrémités de la relation",
@@ -1453,7 +1450,7 @@
     "aliases": "Alias",
     "auto_link": "Liens automatiques",
     "board": "Tableau",
-    "children": "Entrées ci-dessous",
+    "children": "Entrées en dessous",
     "choose_template": "Choisir un modèle",
     "color": "Couleur",
     "conflict": "Le modèle a été modifié ailleurs",
@@ -1592,18 +1589,22 @@
     "bookView": "Vue livre",
     "changeTemplate": "Changer de modèle",
     "childrenEntries": "Entrées en dessous",
+    "collapseTimeline": "Réduire la chronologie des intrigues",
     "editTemplate": "Modifier le modèle",
     "entries": "Entrées",
     "entryUntemplated": "Entrée",
+    "expandTimeline": "Développer la chronologie des intrigues",
     "grid": "Grille",
+    "hideOutline": "Masquer la table des matières",
     "islands": "Îles",
     "levelSwitch": "Niveau",
-    "levelSwitchHint": "Permet de placer des entrées en dessous",
+    "levelSwitchHint": "Activé, des entrées peuvent se trouver dessous",
     "list": "Liste",
     "newEntry": "Nouveau",
     "newTemplate": "Nouveau modèle",
     "open": "Ouvrir",
     "settings": "Réglages",
+    "showOutline": "Afficher la table des matières",
     "templates": "Modèles",
     "trash": "Déplacer vers les suppressions récentes",
     "turnOffLevelBody_one": "{{count}} entrée en dessous sera déplacée au premier niveau avec tout ce qu’elle contient. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",

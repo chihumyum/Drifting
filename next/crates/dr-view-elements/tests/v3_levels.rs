@@ -194,6 +194,96 @@ fn grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves() {
 }
 
 #[test]
+fn grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane() {
+    let (_dir, ws, book) = seed();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    let manuscript = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+    let (lane, chapter) = v
+        .memberships
+        .iter()
+        .find(|m| {
+            v.is_lane(&m.host)
+                && v.entry(&m.member)
+                    .is_some_and(|e| e.template.as_deref() == Some("tpl-chapter"))
+        })
+        .map(|m| (m.host.clone(), m.member.clone()))
+        .expect("a chapter on a storyline");
+    call(
+        &ws,
+        "membership.primary",
+        json!({"book":book,"host":lane,"member":chapter}),
+    );
+    call(
+        &ws,
+        "entry.set_level",
+        json!({"book":book,"id":chapter,"level":true}),
+    );
+    let below = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":chapter,"template":"tpl-chapter","title":"Synthetic below"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    // An organising level in the manuscript carries no book prose: it is
+    // not numbered, so it is not listed.
+    let group = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":manuscript,"template":"tpl-group","title":"Synthetic volume"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    assert!(v.levels.contains_key(&chapter));
+    let shown = rows(
+        &snapshot,
+        &manuscript,
+        Display::List,
+        true,
+        &BTreeSet::new(),
+        2,
+    );
+    let all = ids(&shown);
+    let at = |id: &str| all.iter().position(|x| *x == id);
+    assert!(at(&lane).unwrap() < at(&chapter).unwrap());
+    let unassigned = shown
+        .iter()
+        .position(|row| *row == Row::Section(Section::Unassigned))
+        .unwrap();
+    assert!(
+        shown
+            .iter()
+            .position(|row| matches!(row, Row::Entry { id, depth: 1 } if *id == chapter))
+            .unwrap()
+            < unassigned
+    );
+    assert!(at(&below).is_some());
+    assert!(at(&group).is_none());
+    // Every numbered entry is listed once.
+    let numbered: BTreeSet<&str> = v
+        .entries
+        .iter()
+        .filter(|e| v.manuscript_number(&e.id).is_some())
+        .map(|e| e.id.as_str())
+        .collect();
+    let listed: BTreeSet<&str> = all.iter().copied().filter(|id| !v.is_lane(id)).collect();
+    assert_eq!(listed, numbered);
+    assert_eq!(all.iter().collect::<BTreeSet<_>>().len(), all.len());
+    ws.shutdown().unwrap();
+}
+
+#[test]
 fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
     let (_dir, ws, book) = seed();
     let initial = Book::load(&ws, &book).unwrap();

@@ -1,9 +1,11 @@
 //! 「导入文件」: Markdown, text and Word files into the open book (on
 //! `dr_export::import`).
 //!
-//! The target selector lists every live entry whose level switch is on, as its
-//! path in the tree; each imported file becomes a new entry under that level
-//! using its resolved default template. Files come from the file panel or a
+//! The target selector lists every live entry whose level switch is on and
+//! whose resolved default template has prose, as its path in the tree; each
+//! imported file becomes a new entry under that level using that template,
+//! its text in the template's first prose counted toward the book (else its
+//! first prose). Files come from the file panel or a
 //! whole folder (only `.md`, `.markdown`, `.txt`, `.docx`, in natural name
 //! order); each is read on its own thread as it is added, its title (an
 //! opening H1, else the file name) can be changed, and 「开始导入」 writes
@@ -37,7 +39,8 @@ use keys::import_dialog as k;
 pub const WIDTH: f32 = 560.0;
 const LIST_MAX_HEIGHT: f32 = 280.0;
 
-/// One live entry whose level switch is on, in effective tree order.
+/// One live entry whose level switch is on and whose new entries get a
+/// template with prose, in effective tree order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LevelOption {
     pub id: String,
@@ -89,6 +92,8 @@ pub struct DocumentsDialog {
     pub summary: Option<(usize, usize)>,
     next: usize,
     tasks: Vec<Task<()>>,
+    /// Holds the keyboard so Esc reaches it; taken on the first frame.
+    focus: Option<gpui::FocusHandle>,
 }
 
 fn collect_levels(b: &dr_shell::book::v3::BookV3, i18n: &I18n) -> Vec<LevelOption> {
@@ -113,13 +118,22 @@ fn collect_levels(b: &dr_shell::book::v3::BookV3, i18n: &I18n) -> Vec<LevelOptio
                 .filter(|t| !t.is_empty())
                 .unwrap_or(untitled);
             ancestors.push(title.to_owned());
-            let appearance = b.appearance(id);
-            out.push(LevelOption {
-                id: id.clone(),
-                path: ancestors.join(" / "),
-                mark: appearance.as_ref().map_or(sand::Kind::Element, |a| a.sand),
-                color: appearance.and_then(|a| a.color),
-            });
+            // A file can go only where a new entry gets a template with prose.
+            let importable = level
+                .settings
+                .default_template
+                .as_deref()
+                .and_then(|t| b.template(t))
+                .is_some_and(|t| t.modules.iter().any(|m| m.kind == "prose"));
+            if importable {
+                let appearance = b.appearance(id);
+                out.push(LevelOption {
+                    id: id.clone(),
+                    path: ancestors.join(" / "),
+                    mark: appearance.as_ref().map_or(sand::Kind::Element, |a| a.sand),
+                    color: appearance.and_then(|a| a.color),
+                });
+            }
             walk(b, &level.children, ancestors, seen, untitled, out);
             ancestors.pop();
         }
@@ -174,6 +188,7 @@ impl DocumentsDialog {
             summary: None,
             next: 0,
             tasks: Vec::new(),
+            focus: None,
         }
     }
 
@@ -251,7 +266,10 @@ impl DocumentsDialog {
                 item.parsed = Some(doc);
                 item.status = Status::Ready;
             }
-            Err(e) => item.status = Status::Error(e.to_string()),
+            Err(e) => {
+                log::warn!("import: {}: {e}", item.filename);
+                item.status = Status::Error(e.to_string());
+            }
         }
         cx.notify();
     }
@@ -332,6 +350,7 @@ impl DocumentsDialog {
                             ok += 1;
                         }
                         Err(e) => {
+                            log::warn!("import: {}: {e}", item.filename);
                             item.status = Status::Error(e);
                             failed += 1;
                         }
@@ -339,6 +358,7 @@ impl DocumentsDialog {
                 }
             }
             Err(e) => {
+                log::warn!("import: {e}");
                 for i in &picked {
                     self.items[*i].status = Status::Error(e.to_string());
                 }
@@ -497,8 +517,10 @@ impl Render for DocumentsDialog {
                 Status::Committed => (t(k::status::COMMITTED), p.ink(1)),
                 Status::Error(_) => (t(k::status::ERROR), p.danger),
             };
+            // A failure is said by its translated status; the reason in
+            // English only goes to the log.
             let detail = match &item.status {
-                Status::Error(e) => Some((e.clone(), p.danger)),
+                Status::Error(_) => None,
                 _ if !item.warnings.is_empty() => Some((item.warnings.join(" "), p.muted())),
                 _ => None,
             };
@@ -583,6 +605,21 @@ impl Render for DocumentsDialog {
                     .child(status),
             );
         }
-        div().child(dialog)
+        let focus = match &self.focus {
+            Some(focus) => focus.clone(),
+            None => {
+                let focus = cx.focus_handle();
+                self.focus = Some(focus.clone());
+                let take = focus.clone();
+                window.defer(cx, move |window, cx| window.focus(&take, cx));
+                focus
+            }
+        };
+        div()
+            .track_focus(&focus)
+            .key_context("ImportDocumentsDialog")
+            // Esc closes it as 「关闭」 does (not while it writes).
+            .on_action(cx.listener(|d, _: &dr_shell::actions::Dismiss, _, cx| d.close(cx)))
+            .child(dialog)
     }
 }

@@ -163,9 +163,7 @@
     }
   },
   "bottomStatusBar": {
-    "collapseTimeline": "收起 Storyline Timeline",
     "elements": "要素全景",
-    "expandTimeline": "展开 Storyline Timeline",
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
@@ -243,10 +241,6 @@
       "deleteMaterial": "删除素材",
       "moveMaterialToFolder": "移动到素材夹…",
       "openMaterialInSystem": "用默认应用打开"
-    },
-    "outlineRailMode": {
-      "hidden": "隐藏 TOC",
-      "visible": "显示 TOC"
     },
     "status": {
       "discarded": "已弃用",
@@ -418,8 +412,8 @@
   "k4Book": {
     "entry_count_other": "{{count}} 个条目",
     "entry_titles": "条目标题",
+    "entry_total": "条目数量",
     "entry_words": "条目字数",
-    "leaf_count": "叶子数量",
     "material_words": "素材字数",
     "retained_content": "保留的内容",
     "selected_entries": "选中条目",
@@ -887,6 +881,9 @@
     "delete": "删除关系类型",
     "description": "说明",
     "directed": "有向",
+    "genericAssociation": {
+      "name": "关联"
+    },
     "name": "名称",
     "sourceRole": "源角色",
     "swap": "交换关系两端",
@@ -1570,10 +1567,13 @@
     "bookView": "整书视图",
     "changeTemplate": "换模板",
     "childrenEntries": "下面的条目",
+    "collapseTimeline": "收起故事线时间线",
     "editTemplate": "编辑模板",
     "entries": "条目",
     "entryUntemplated": "条目",
+    "expandTimeline": "展开故事线时间线",
     "grid": "网格",
+    "hideOutline": "隐藏目录",
     "islands": "岛屿",
     "levelSwitch": "层级",
     "levelSwitchHint": "打开后下面能放条目",
@@ -1582,6 +1582,7 @@
     "newTemplate": "新建模板",
     "open": "打开",
     "settings": "设置",
+    "showOutline": "显示目录",
     "templates": "模板集合",
     "trash": "放进最近删除",
     "turnOffLevelBody_other": "下面的 {{count}} 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。",

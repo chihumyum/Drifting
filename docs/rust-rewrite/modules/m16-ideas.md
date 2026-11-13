@@ -1,5 +1,7 @@
 # M16 构想面板
 
+> 2026-11-13 内核 v4：构想看板（`tpl-ideas`）是整理用的模板（`linkable` 关），构想（`tpl-idea`）是装内容的模板（`linkable` 开）。看板、左栏和要素全景按模板认「出卡片还是当分组」，不按「层级」开关：一个开着开关的构想照样是一张卡片。见 [kernel-v4.md](../kernel-v4.md) 第 2 节。下文是切换前的记录。
+
 2026-11-08，第一个里程碑；第二十三批补原面板的真实窗口验收。计划见 [modules.md 的 M16](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-ideas/`，读外壳的书快照（`Book::ideas`、`Book::idea_groups`），写全走 F3 的 `idea.*` 和 `idea_group.*`（`next/crates/dr-workspace/src/commands/idea.rs`）。对照的旧版是桌面端 `src/renderer/components/leftBars/DriftPanel.tsx`、`LeftSidebarSubHeader.tsx` 里构想那一半、`usecase/useDriftGroup.ts`、`domain/drift-group.ts`，以及 `EditorTopBar.tsx` 里构想的菜单项。截图在 [m16/](m16/)。
 
 ## 做了什么（大白话）

@@ -545,3 +545,14 @@ fn prose_in_book_children_module_and_linkable_govern_manuscript_and_autolinks() 
     assert!(is_linked(&ws, &book, &custom_entry_id));
     ws.shutdown().unwrap();
 }
+
+#[test]
+fn a_template_places_the_children_module_once() {
+    let mut t = model::blank("Synthetic".into());
+    model::add_module(&mut t, model::module("children", "Below".into()));
+    model::add_module(&mut t, model::module("children", "Below again".into()));
+    model::add_module(&mut t, model::module("prose", "Text".into()));
+    assert_eq!(t.modules.iter().filter(|m| m.kind == "children").count(), 1);
+    assert_eq!(t.modules.len(), 2);
+    assert!(model::has_children_module(&t));
+}

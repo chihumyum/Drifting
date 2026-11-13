@@ -27,8 +27,6 @@ projectHome.kicker
 bottomStatusBar.storyGraph
 bottomStatusBar.elements
 bottomStatusBar.todoLibrary
-bottomStatusBar.expandTimeline
-bottomStatusBar.collapseTimeline
 notifications.title
 notifications.clear
 notifications.empty
@@ -159,8 +157,6 @@ editorTopBar.status.drifting
 editorTopBar.status.resting
 immersiveWriting.enter
 immersiveWriting.leave
-editorTopBar.outlineRailMode.visible
-editorTopBar.outlineRailMode.hidden
 editorOutline.aria
 editorOutline.hiddenItems
 workspaceWordTally.selection
@@ -945,6 +941,7 @@ relationTypes.targetRole
 relationTypes.delete
 relationTypes.builtIn
 relationTypes.swap
+relationTypes.genericAssociation.name
 storyGraph.edge.hideKind
 storyGraph.edge.showKind
 storyGraph.edge.delete

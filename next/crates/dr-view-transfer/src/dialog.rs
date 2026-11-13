@@ -9,8 +9,8 @@ use dr_ui::style::DrStyled;
 use dr_ui::tokens::space;
 use dr_ui::{Theme, fonts::Role};
 use gpui::{
-    App, AppContext as _, Context, Entity, IntoElement, ParentElement, Render, SharedString,
-    Styled, Window, div, px,
+    App, AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
+    ParentElement, Render, SharedString, Styled, Window, div, px,
 };
 
 /// The dialog's width.
@@ -50,6 +50,8 @@ pub struct TransferDialog {
     pub state: State,
     pub(crate) i18n: I18n,
     proceed: Option<Proceed>,
+    /// Holds the keyboard so Esc reaches it; taken on the first frame.
+    focus: Option<FocusHandle>,
 }
 
 impl TransferDialog {
@@ -59,6 +61,7 @@ impl TransferDialog {
             state,
             i18n: I18n::new(strings.locale(), strings.platform()),
             proceed: None,
+            focus: None,
         }
     }
 
@@ -202,6 +205,21 @@ impl Render for TransferDialog {
         if !self.is_working() {
             dialog = dialog.on_close(move |_, cx| this.update(cx, |d, cx| d.close(cx)));
         }
-        div().child(dialog)
+        let focus = match &self.focus {
+            Some(focus) => focus.clone(),
+            None => {
+                let focus = cx.focus_handle();
+                self.focus = Some(focus.clone());
+                let take = focus.clone();
+                window.defer(cx, move |window, cx| window.focus(&take, cx));
+                focus
+            }
+        };
+        div()
+            .track_focus(&focus)
+            .key_context("TransferDialog")
+            // Esc closes it as 「关闭」 does (not while it works).
+            .on_action(cx.listener(|d, _: &dr_shell::actions::Dismiss, _, cx| d.close(cx)))
+            .child(dialog)
     }
 }

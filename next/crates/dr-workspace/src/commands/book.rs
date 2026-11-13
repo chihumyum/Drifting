@@ -194,7 +194,9 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
         elements: entries
             .values()
             .filter(live)
-            .filter(|e| !e.is_level() && !numbered.contains(&e.id))
+            // Content entries (a `linkable` template, or none) the
+            // manuscript does not number, whatever their switch.
+            .filter(|e| e.is_linkable(templates) && !numbered.contains(&e.id))
             .count() as u32,
         words,
         updated_at,

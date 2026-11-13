@@ -375,3 +375,8 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 - **导入文档（`dr-export::import`、`dr-view-transfer`）**：去掉写死的「章 / 要素 / 构想」目标枚举与内置模板 id（`tpl-*`）。`ImportTarget` 直接收目标层级的条目 id；写入时校验目标是开着「层级」开关（`level = true`）的活条目，按 `resolve_level_settings` 取它的默认模板（含祖先层级与模板继承），并在模板有 `home` 泳道（如故事线层级）时把导入的新条目建在泳道住处且挂上该层级归属，同时对整条层级祖先链、模板和住处做前置条件守卫。若目标默认模板没有正文模块或有多个正文模块，单篇报错拒绝而不猜测写入哪个模块。「导入文件」对话框顶部用下拉框按树路径列出全书所有开着「层级」开关的活条目（如 `书稿`、`要素 / 人物`、`故事线 / 支线`），中文标签由「类型」改为「目标」，不加选项说明文字。
 - **书文件对话框回归（`dr-view-transfer`）**：书架导入对话框遇到 `formatVersion: 3` 的 `.driftingbook` 时报 `projectPicker.bookTransfer.older` 且不写入任何文档；格式 4 导出导入继续携带 `stats:<书>`、`checkpoints:<书>` 与全部正文和历史。另为模态对话框里的 `Select`（导出成稿的「成书」与导入文件的「目标」）补上 `Select::in_dialog()` 浮层优先级，使下拉列表浮在 `Dialog` 之上且点击列表项不误触遮罩。
 
+## 内核 v4 收尾（2026-11-13）
+
+- 导入一篇文档：文字落进目标层级默认模板里第一篇「计入字数和导出」的正文，没有就落进第一篇正文（`dr_export::import::import_module`）；目标列表只列新条目的模板有正文的层级；失败时只显示翻译过的「错误」，英文原因只进日志。测试 `dr-export/tests/import.rs` 的 `the_text_goes_into_the_first_book_prose_else_the_first_prose`、`dr-view-transfer/tests/documents.rs`。
+- 导入文件对话框和书文件搬运对话框（含「无法导入」）按 Esc 能关（工作中的不关）。测试 `tests/book.rs` 的 `a_refused_file_closes_with_escape`。
+- 场景 `book-transfer.json` 在按《慢钟》的导出箭头前先滚动书架。

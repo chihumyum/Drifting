@@ -99,6 +99,12 @@ impl Select {
         self
     }
 
+    /// Whether the open list floats above an enclosing dialog
+    /// ([`Self::in_dialog`]).
+    pub fn is_in_dialog(&self) -> bool {
+        self.in_dialog
+    }
+
     /// Opt into a scrollable choice viewport. Existing selects keep their
     /// current layout; callers with author-sized inventories can reach every row.
     pub fn max_menu_height(mut self, height: f32) -> Self {
@@ -271,12 +277,7 @@ impl RenderOnce for Select {
                 })
                 .child(menu);
             if self.in_dialog {
-                overlay::float_priority(
-                    Place::below(b, 4.0),
-                    overlay::DIALOG_POPOVER_PRIORITY,
-                    floated,
-                )
-                .into_any_element()
+                overlay::float_in_dialog(Place::below(b, 4.0), floated).into_any_element()
             } else {
                 overlay::float(Place::below(b, 4.0), Layer::Popover, floated).into_any_element()
             }

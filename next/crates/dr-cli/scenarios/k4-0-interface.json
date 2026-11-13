@@ -118,12 +118,13 @@
       "app": "ui.wait",
       "params": {
         "page": {
-          "/source": "v3",
+          "/source": "editor",
           "/composition/sections/0/kind": "fields",
           "/composition/sections/1/kind": "prose",
           "/composition/sections/2/kind": "plot_grid"
         }
-      }
+      },
+      "note": "An entry page holds the real prose editor (source editor) and reports its composition beside it."
     },
     {
       "app": "state.get",
@@ -132,7 +133,7 @@
         "/v3Appearance/mark": "file-text",
         "/v3Appearance/color": "${primary.fields.mod-fields.color}"
       },
-      "note": "K4-0.3/4：叶子按模板模块顺序组合，模板记号和主归属颜色"
+      "note": "K4-0.3/4：条目按模板模块顺序组合，模板记号和主归属颜色"
     },
     {
       "app": "ui.wait",
@@ -144,7 +145,7 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "01-leaf.png"
+      "png": "01-entry.png"
     },
     {
       "app": "nav.open",

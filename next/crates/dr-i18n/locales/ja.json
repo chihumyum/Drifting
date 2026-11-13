@@ -163,9 +163,7 @@
     }
   },
   "bottomStatusBar": {
-    "collapseTimeline": "ストーリーラインのタイムラインを折りたたむ",
     "elements": "要素",
-    "expandTimeline": "ストーリーラインのタイムラインを展開",
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
@@ -243,10 +241,6 @@
       "deleteMaterial": "資料を削除",
       "moveMaterialToFolder": "フォルダーに移動…",
       "openMaterialInSystem": "既定のアプリで開く"
-    },
-    "outlineRailMode": {
-      "hidden": "目次を非表示",
-      "visible": "目次を表示"
     },
     "status": {
       "discarded": "不採用",
@@ -418,8 +412,8 @@
   "k4Book": {
     "entry_count_other": "{{count}} 項目",
     "entry_titles": "項目のタイトル",
+    "entry_total": "項目数",
     "entry_words": "項目の文字数",
-    "leaf_count": "リーフ数",
     "material_words": "素材の文字数",
     "retained_content": "保持された内容",
     "selected_entries": "選択した項目",
@@ -893,6 +887,9 @@
     "delete": "関係の種類を削除",
     "description": "説明",
     "directed": "有向",
+    "genericAssociation": {
+      "name": "関連"
+    },
     "name": "名前",
     "sourceRole": "始点の役割",
     "swap": "関係の始点と終点を入れ替え",
@@ -1428,7 +1425,7 @@
     "unnamedCategory": "無題のカテゴリ"
   },
   "templateEditor": {
-    "accept": "別の場所の項目を受け入れる",
+    "accept": "ほかの場所の項目を受け入れる",
     "action_name": "アクション名",
     "actions": "アクション",
     "add_action": "アクションを追加",
@@ -1454,14 +1451,14 @@
     "format_plain": "なし",
     "format_shortcuts": "書式入力ショートカット",
     "grid": "グリッド",
-    "home": "新しい項目の保存先",
+    "home": "新しい項目の置き場所",
     "image": "画像",
     "in_book": "文字数と書き出しに含める",
     "inherit": "継承",
     "instructions": "注意事項",
-    "island": "島",
+    "island": "アイランド",
     "kv": "キーと値の表",
-    "lane": "レーン",
+    "lane": "スイムレーン",
     "level": "階層",
     "level_hint": "オンにすると下に項目を置けます",
     "linkable": "名前を自動リンクに含める",
@@ -1482,7 +1479,7 @@
     "multi_select": "複数選択",
     "name": "名前",
     "new_entry": "項目を作成",
-    "new_template": "テンプレートを作成",
+    "new_template": "新規テンプレート",
     "none": "なし",
     "number": "数値",
     "options": "選択肢",
@@ -1541,7 +1538,7 @@
     "formatFull": "すべて",
     "formatNotes": "ノート",
     "formatPlain": "プレーンテキスト",
-    "formatShortcuts": "書式ショートカット",
+    "formatShortcuts": "書式入力ショートカット",
     "home": "新しい項目の置き場所",
     "isManuscript": "原稿",
     "lane": "スイムレーン",
@@ -1576,10 +1573,13 @@
     "bookView": "ブック表示",
     "changeTemplate": "テンプレートを変更",
     "childrenEntries": "下の項目",
+    "collapseTimeline": "ストーリーラインのタイムラインを折りたたむ",
     "editTemplate": "テンプレートを編集",
     "entries": "項目",
     "entryUntemplated": "項目",
+    "expandTimeline": "ストーリーラインのタイムラインを展開",
     "grid": "グリッド",
+    "hideOutline": "目次を非表示",
     "islands": "アイランド",
     "levelSwitch": "階層",
     "levelSwitchHint": "オンにすると下に項目を置けます",
@@ -1588,6 +1588,7 @@
     "newTemplate": "新規テンプレート",
     "open": "開く",
     "settings": "設定",
+    "showOutline": "目次を表示",
     "templates": "テンプレート",
     "trash": "最近削除した項目に移動",
     "turnOffLevelBody_other": "下の {{count}} 件の項目は、それぞれの下にあるものと一緒に最上位へ移ります。ここに所属する項目とタイムラインのレーンは一時的に隠れ、再びオンにすると戻ります。",
