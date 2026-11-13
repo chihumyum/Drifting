@@ -242,7 +242,7 @@ heavy、性能预算、截图目检和样式打磨按最新口径暂缓，没有
 ## 统一条目（内核 v4 · T2）交回（2026-11-13）
 
 分支 `codex/v4-t2-templates`，交回指针 `handback/v4-t2-templates`，基于数据层信号
-`ready/kernel-v4-data-layer`（`37db94f55`）。
+`ready/kernel-v4-data-layer`（`37db94f55`），并已同步 `main`（`d3bc12f9d`，含 T8 第一部分与 T4）。
 
 本轮按 `kernel-v4.md` 合一模板编辑器：删除新建时的层级／叶子选择菜单（`src/create.rs`）
 和页头类型徽章，移除 `dr-i18n/own` 中退役的 `leaf`、`leaf_template`、`level_template`，
@@ -254,12 +254,12 @@ heavy、性能预算、截图目检和样式打磨按最新口径暂缓，没有
 公共结构预览补齐 `book_prose_modules` 与 `settings.lane` 口径。
 
 编译并发 3、单线程测试且开启 `DR_UI_REQUIRE_FONTS=1`：`cargo fmt --all --check`、
-全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试
-（**2350 passed / 0 failed / 22 ignored**，其中 `dr-view-templates` **17/17**、
-`dr-shell --test strings` **1/1**）、`cargo xtask check`（含 `audit`，975 locked crates、
-0 vulnerabilities、12 notices）、根目录 `pnpm public:check` 与 `pnpm ci:contract:check`
-全部通过。副屏临时 profile 真窗口回归：`k5-shared-preview.json` **47/47**、
-`k5-level.json` **152/152**、`k5-leaf.json` **131/131**，均 **0 pending**，六张截图已逐张目检。
+全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试零失败通过
+（其中 `dr-view-templates` **17/17**、`dr-shell --test strings` **1/1**）、
+`cargo xtask check`（含 `audit`，0 vulnerabilities）、根目录 `pnpm public:check` 与
+`pnpm ci:contract:check` 全部通过。副屏临时 profile 真窗口回归：
+`k5-shared-preview.json` **47/47**、`k5-level.json` **152/152**、`k5-leaf.json`
+**131/131**，均 **0 pending**，六张截图已逐张目检。
 
 跨轨道待收口：`kernel-v4.md` §14 提到移除模板类型键后在 `xtask` 的 `terms` 门禁中禁掉
 `"叶子模板"`／`"层级模板"`／`"leaf template"`／`"level template"`；当前 `main` 上
