@@ -183,7 +183,12 @@ impl SearchPanel {
                 }
             })
         });
-        let lib = panel.lib.clone();
+        // The panel's own field is its one strong handle on the library, so
+        // the library goes with the panel. Its tasks hold a weak one: a task
+        // the panel's drop cancels keeps what it captured until its executor
+        // next runs it, and a library swap closing the library right then
+        // would find it still held (`dr_shell::library::replace`).
+        let lib = panel.lib.as_ref().map(Workspace::downgrade);
         let book = panel.book.clone();
         let events = cx.spawn(async move |this, cx| {
             while let Some(first) = rx.next().await {
@@ -202,6 +207,9 @@ impl SearchPanel {
                 let relevant = cx
                     .background_executor()
                     .spawn(async move {
+                        let Some(lib) = lib.upgrade() else {
+                            return false;
+                        };
                         batch.iter().any(|event| match event {
                             WsEvent::Book(b) => b.book.as_str() == book,
                             WsEvent::Local(c) if c.table == "index" => lib
@@ -281,8 +289,12 @@ impl SearchPanel {
 
             return;
         }
-        let (Some(lib), book, query) = (self.lib.clone(), self.book.clone(), self.query.clone())
-        else {
+        // Weak, as the event task's (see `new_v3`).
+        let (Some(lib), book, query) = (
+            self.lib.as_ref().map(Workspace::downgrade),
+            self.book.clone(),
+            self.query.clone(),
+        ) else {
             return;
         };
         // A newer search drops the one still waiting or running.
@@ -294,7 +306,13 @@ impl SearchPanel {
             let asked_book = book.clone();
             let hits = cx
                 .background_executor()
-                .spawn(async move { crate::v3::search(&lib, &book, &query, LIMIT) })
+                .spawn(async move {
+                    // Gone only with the panel, which reads no result then.
+                    let Some(lib) = lib.upgrade() else {
+                        return Ok(Vec::new());
+                    };
+                    crate::v3::search(&lib, &book, &query, LIMIT)
+                })
                 .await;
             this.update(cx, |panel, cx| {
                 // Equal text is insufficient for A → B → A or a requery
