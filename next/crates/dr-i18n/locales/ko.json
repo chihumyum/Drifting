@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "줄거리…",
-    "untitledChapter": "제목 없는 장",
-    "untitledDrift": "제목 없는 아이디어"
+    "untitledChapter": "제목 없는 장"
   },
   "chapterEnd": {
     "defaultTitle": "새 장",
@@ -643,8 +642,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "장",
-      "chapterNumber": "제{{n}}장",
-      "drift": "아이디어"
+      "chapterNumber": "제{{n}}장"
     },
     "meta": {
       "words": "{{count}}자"

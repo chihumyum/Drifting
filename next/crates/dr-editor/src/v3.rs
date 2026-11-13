@@ -99,38 +99,49 @@ pub(crate) fn page_infos(
         let structure = view.structure_snapshot();
         let entries = structure.entries_map();
         let templates = structure.templates_map();
-        let manuscript = manuscript_docs_of(&structure);
-        let mut numbered = Vec::new();
-        let mut number_by_id = std::collections::HashMap::new();
-        for (doc, _) in manuscript {
-            if let Some((id, _)) = body(&doc)
-                && !number_by_id.contains_key(&id)
-            {
-                numbered.push(id.clone());
-                number_by_id.insert(id, numbered.len() as u32);
-            }
-        }
+        let number_by_id: std::collections::HashMap<dr_model::id::EntryId, u32> = structure
+            .manuscript()
+            .into_iter()
+            .flat_map(|p| p.entries)
+            .filter_map(|e| Some((e.entry.id.clone(), e.ordinal?)))
+            .collect();
+        let is_active_lane = |host: &dr_model::id::EntryId| {
+            structure
+                .level_settings(host)
+                .is_some_and(|s| s.settings.lane)
+        };
         docs.iter()
             .map(|doc| {
                 let mut info = crate::page::PageInfo::blank(doc);
                 let Some((id, module)) = body(doc) else {
                     return info;
                 };
-                let Some(entry) = dr_model::id::EntryId::parse(&id)
-                    .ok()
-                    .and_then(|eid| entries.get(&eid))
-                else {
+                let Ok(eid) = dr_model::id::EntryId::parse(&id) else {
+                    return info;
+                };
+                let Some(entry) = entries.get(&eid) else {
                     return info;
                 };
                 info.title = entry.title.clone();
                 let template = entry.effective_template(templates);
-                // The familiar folio is only for the built-in novel templates.
-                info.kind = match template.map(|t| t.id.as_str()) {
-                    Some("tpl-chapter") => crate::page::PageKind::Chapter,
-                    Some("tpl-idea") => crate::page::PageKind::Idea,
-                    _ => crate::page::PageKind::Other,
+                info.template_name = template.map(|t| t.name.clone()).unwrap_or_default();
+                let is_primary_book_prose = match template {
+                    Some(t) => t
+                        .book_prose_modules()
+                        .next()
+                        .is_some_and(|m| m.id.as_str() == module),
+                    None => true,
                 };
-                info.number = number_by_id.get(&id).copied();
+                if is_primary_book_prose {
+                    info.chrome = true;
+                    info.number = number_by_id.get(&eid).copied();
+                    info.kind = if info.number.is_some() {
+                        crate::page::PageKind::Chapter
+                    } else {
+                        crate::page::PageKind::Other
+                    };
+                }
+                let mut own_color = None;
                 if let Some(t) = template {
                     for m in &t.modules {
                         let fields = entry.fields.get(&m.id);
@@ -142,31 +153,55 @@ pub(crate) fn page_infos(
                                 .to_string()
                         };
                         if m.config.summary_field.is_some() {
+                            info.has_synopsis = true;
                             info.synopsis = field(&m.config.summary_field);
                         }
                         if m.config.status_field.is_some() {
+                            info.has_status = true;
                             info.status = field(&m.config.status_field);
                         }
+                        if own_color.is_none()
+                            && let Some(key) = m.config.color_field.as_ref()
+                            && let Some(c) = fields
+                                .and_then(|f| f.get(key))
+                                .and_then(|v| v.as_str())
+                                .filter(|s| !s.is_empty())
+                        {
+                            own_color = Some(c.to_owned());
+                        }
                     }
-                    // Repeated body modules use their own name; only the first owns the entry heading.
-                    if t.prose_modules()
-                        .next()
-                        .is_some_and(|m| m.id.as_str() != module)
-                    {
+                    // Secondary prose modules carry their own module name rather than the entry heading.
+                    if !is_primary_book_prose && t.prose_modules().nth(1).is_some() {
                         info.title = t
                             .modules
                             .iter()
                             .find(|m| m.id.as_str() == module)
                             .map(|m| m.name.clone())
                             .unwrap_or_default();
-                        info.kind = crate::page::PageKind::Other;
                     }
                 }
-                if let Some(primary) = &entry.primary
-                    && let Some(lane) = entries.get(primary)
+                let lane_host = entry
+                    .primary
+                    .as_ref()
+                    .filter(|p| {
+                        is_active_lane(p)
+                            && structure
+                                .memberships()
+                                .iter()
+                                .any(|m| m.member == eid && &m.host == *p)
+                    })
+                    .or_else(|| {
+                        structure
+                            .memberships()
+                            .iter()
+                            .find(|m| m.member == eid && is_active_lane(&m.host))
+                            .map(|m| &m.host)
+                    });
+                if let Some(host_id) = lane_host
+                    && let Some(lane) = entries.get(host_id)
                 {
-                    let template = lane.effective_template(templates);
-                    let color = template
+                    let lane_tpl = lane.effective_template(templates);
+                    let color = lane_tpl
                         .and_then(|t| {
                             t.modules.iter().find_map(|m| {
                                 let key = m.config.color_field.as_ref()?;
@@ -174,17 +209,37 @@ pub(crate) fn page_infos(
                                     .get(&m.id)?
                                     .get(key)?
                                     .as_str()
+                                    .filter(|s| !s.is_empty())
                                     .map(str::to_owned)
                             })
                         })
-                        .or_else(|| template.and_then(|t| t.color.clone()))
+                        .or_else(|| {
+                            lane_tpl
+                                .and_then(|t| t.color.as_deref())
+                                .filter(|s| !s.is_empty())
+                                .map(str::to_owned)
+                        })
                         .unwrap_or_default();
                     info.storyline = Some(crate::page::StorylineMark {
-                        id: primary.to_string(),
+                        id: host_id.to_string(),
                         name: lane.title.clone(),
                         color,
                     });
                 }
+                info.color = own_color
+                    .or_else(|| {
+                        template
+                            .and_then(|t| t.color.as_deref())
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_owned)
+                    })
+                    .or_else(|| {
+                        info.storyline
+                            .as_ref()
+                            .map(|s| s.color.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_owned)
+                    });
                 info
             })
             .collect()

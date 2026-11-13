@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
-    "untitledChapter": "無題の章",
-    "untitledDrift": "無題のアイデア"
+    "untitledChapter": "無題の章"
   },
   "chapterEnd": {
     "defaultTitle": "新しい章",
@@ -643,8 +642,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章",
-      "chapterNumber": "第{{n}}章",
-      "drift": "アイデア"
+      "chapterNumber": "第{{n}}章"
     },
     "meta": {
       "words": "{{count}}文字"

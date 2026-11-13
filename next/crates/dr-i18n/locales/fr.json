@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
-    "untitledChapter": "Chapitre sans titre",
-    "untitledDrift": "Idée sans titre"
+    "untitledChapter": "Chapitre sans titre"
   },
   "chapterEnd": {
     "defaultTitle": "Nouveau chapitre",
@@ -652,8 +651,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Chapitre",
-      "chapterNumber": "Chapitre {{n}}",
-      "drift": "Idée"
+      "chapterNumber": "Chapitre {{n}}"
     },
     "meta": {
       "words": "{{count}} mots"

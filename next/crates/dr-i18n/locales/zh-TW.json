@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
-    "untitledChapter": "未命名章節",
-    "untitledDrift": "未命名構想"
+    "untitledChapter": "未命名章節"
   },
   "chapterEnd": {
     "defaultTitle": "新章節",
@@ -643,8 +642,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章節",
-      "chapterNumber": "第 {{n}} 章",
-      "drift": "構想"
+      "chapterNumber": "第 {{n}} 章"
     },
     "meta": {
       "words": "{{count}} 字"

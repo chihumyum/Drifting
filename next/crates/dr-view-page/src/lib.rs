@@ -36,7 +36,7 @@ pub mod whole;
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use dr_editor::page::{PageChrome, PageInfo, PageKind};
+use dr_editor::page::{PageChrome, PageInfo};
 use dr_shell::pages::{PageEditorRef, PageHost};
 use dr_ui::tokens::page as tk;
 use gpui::{
@@ -121,7 +121,7 @@ impl Chrome {
 
 impl PageChrome for Chrome {
     fn head(&self, page: &PageInfo, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
-        if page.kind == PageKind::Other {
+        if !page.chrome {
             return None;
         }
         let (head, _) = self.views(page, window, cx);
@@ -129,27 +129,37 @@ impl PageChrome for Chrome {
     }
 
     fn end(&self, page: &PageInfo, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
-        if page.kind == PageKind::Other {
+        if !page.chrome {
             return None;
         }
         let (_, end) = self.views(page, window, cx);
         Some(div().w_full().child(end).into_any_element())
     }
 
-    fn head_estimate(&self, _page: &PageInfo) -> f32 {
+    fn head_estimate(&self, page: &PageInfo) -> f32 {
+        if !page.chrome {
+            return 0.0;
+        }
+        let synopsis = if page.has_synopsis {
+            24.0 + tk::SYNOPSIS_GAP
+        } else {
+            0.0
+        };
         tk::TOP
             + tk::FOLIO_LINE
             + tk::FOLIO_PAD
             + tk::FOLIO_MARGIN
             + tk::TITLE_SIZE * tk::TITLE_LINE
             + tk::TITLE_GAP
-            + 24.0
-            + tk::SYNOPSIS_GAP
+            + synopsis
             + 1.0
             + tk::RULE_GAP
     }
 
     fn end_estimate(&self, page: &PageInfo) -> f32 {
+        if !page.chrome {
+            return 0.0;
+        }
         let hints = if page.empty {
             tk::HINTS_TOP + 140.0
         } else {

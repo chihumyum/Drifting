@@ -437,7 +437,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "entry:${entries.[template=tpl-manuscript].id}/about"
+        "target": "entry:${entries.[template=tpl-manuscript].id}/mod-description"
       }
     },
     {
@@ -470,7 +470,7 @@
       "input": {
         "book": "${books.0.id}",
         "owner": "${entries.[template=tpl-manuscript].id}",
-        "module": "about"
+        "module": "mod-description"
       },
       "contains": {
         "/paragraphs/0/text": "G1"
