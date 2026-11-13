@@ -123,7 +123,9 @@ impl Headless {
                     cx.new(|cx| ProseEditor::with_options(book, style, options, window, cx));
                 if mode == Mode::Flow {
                     let handle = page_scroll.clone();
-                    editor.update(cx, |e, _| e.set_page_scroll(Some(handle)));
+                    editor.update(cx, |e, _| {
+                        e.set_page_scroll(Some(gpui_prose::render::PageScroll::new(handle)))
+                    });
                 }
                 let page = cx.new(|_| Page {
                     editor: editor.clone(),

@@ -78,7 +78,9 @@ fn page_with(
         let editor = cx
             .new(|cx| ProseEditor::with_options(book, ProseStyle::default(), options, window, cx));
         if with_page {
-            editor.update(cx, |e, _| e.set_page_scroll(Some(handle.clone())));
+            editor.update(cx, |e, _| {
+                e.set_page_scroll(Some(crate::render::PageScroll::new(handle.clone())))
+            });
         }
         // Before the editor has ever been drawn.
         editor.update(cx, |e, cx| before_drawing(e, window, cx));

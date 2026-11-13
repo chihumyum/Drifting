@@ -38,7 +38,7 @@ pub use decor::{
     Touch, Underline, Wash,
 };
 pub use element::ParagraphElement;
-pub use flow::{FLOW_OVERDRAW, FlowItems, FlowState};
+pub use flow::{FLOW_OVERDRAW, FlowItems, FlowState, PageScroll};
 pub use frame::{CompSpan, FrameCache, PaintedDecoration, PaintedLine};
 pub use paint::{TextPaint, paint_layout, paint_text};
 pub use runs::{RunStyle, line_runs, splice_composition};

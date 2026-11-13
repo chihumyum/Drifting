@@ -12,8 +12,8 @@ use std::{
 use gpui::{
     App, AppContext, Bounds, Context, CursorStyle, ElementInputHandler, Entity, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, ListAlignment, ListOffset, ListState,
-    MouseButton, ParentElement, Pixels, Point, Render, ScrollHandle, StyleRefinement, Styled,
-    Subscription, Task, Window, canvas, div, list, prelude::FluentBuilder as _, px,
+    MouseButton, ParentElement, Pixels, Point, Render, StyleRefinement, Styled, Subscription, Task,
+    Window, canvas, div, list, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -203,12 +203,13 @@ impl ProseEditor {
         self.hooks = Some(hooks);
     }
 
-    /// The scroll handle of the page a flow editor ([`EditorOptions::flow`])
-    /// is part of: the editor scrolls it to keep the text the author looks at
-    /// in place while estimated heights are corrected, to keep the caret in
-    /// view, to reveal a position and while a drag selects past the page's
-    /// edge. Without one it still draws only what the page shows.
-    pub fn set_page_scroll(&mut self, page: Option<ScrollHandle>) {
+    /// The page a flow editor ([`EditorOptions::flow`]) is part of: the
+    /// editor scrolls it to keep the text the author looks at in place while
+    /// estimated heights are corrected, and for the author (raising
+    /// [`crate::render::PageScroll::for_author`]) to keep the caret in view,
+    /// to reveal a position and while a drag selects past the page's edge.
+    /// Without one it still draws only what the page shows.
+    pub fn set_page_scroll(&mut self, page: Option<crate::render::PageScroll>) {
         self.flow.borrow_mut().page = page;
     }
 
@@ -549,7 +550,7 @@ impl ProseEditor {
         if self.is_flow() {
             // The page scrolls (the text goes up as the view goes down).
             let (y, total) = self.scroll_y();
-            self.flow.borrow().scroll_page(-delta as f32);
+            self.flow.borrow().scroll_page_for_author(-delta as f32);
             cx.notify();
             return y + delta < total;
         }

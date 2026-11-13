@@ -19,7 +19,7 @@ pub struct BodyModule {
     error: Option<String>,
     /// The entry page's scroll, handed to the body's editor (it scrolls the
     /// page to follow the caret and keep the text in place).
-    page_scroll: Option<ScrollHandle>,
+    page_scroll: Option<dr_editor::PageScroll>,
     _links: Option<Subscription>,
 }
 
@@ -100,7 +100,7 @@ impl BodyModule {
 
     /// The entry page's scroll, for the body's editor (now, or when it
     /// loads).
-    pub fn set_page_scroll(&mut self, page: ScrollHandle, cx: &mut Context<Self>) {
+    pub fn set_page_scroll(&mut self, page: dr_editor::PageScroll, cx: &mut Context<Self>) {
         self.page_scroll = Some(page.clone());
         if let Some(editor) = &self.editor {
             editor.update(cx, |e, cx| e.set_page_scroll(Some(page), cx));

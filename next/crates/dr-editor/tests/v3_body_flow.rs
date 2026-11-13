@@ -125,7 +125,12 @@ fn a_burst_typed_into_a_long_body_lays_out_what_shows_and_undoes_in_one_step(
         let editor = cx.new(|cx| {
             ChapterEditor::open(ws, &book, &opened, EditorSettings::default(), window, cx).unwrap()
         });
-        editor.update(cx, |e, cx| e.set_page_scroll(Some(page_scroll.clone()), cx));
+        editor.update(cx, |e, cx| {
+            e.set_page_scroll(
+                Some(gpui_prose::render::PageScroll::new(page_scroll.clone())),
+                cx,
+            )
+        });
         Page {
             editor,
             scroll: page_scroll,

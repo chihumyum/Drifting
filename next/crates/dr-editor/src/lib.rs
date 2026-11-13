@@ -57,3 +57,5 @@ pub use view::{
 
 // The public playback switch lives on each host's `editor()` entity.
 pub use gpui_prose::playback::{CommitPlaybackOptions, CommitPlaybackStatus};
+/// The page a v3 body is part of ([`ChapterEditor::set_page_scroll`]).
+pub use gpui_prose::render::PageScroll;

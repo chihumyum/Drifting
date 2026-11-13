@@ -90,8 +90,8 @@ pub struct ChapterEditor {
     embeds: Option<Rc<NoteEmbeds>>,
     /// Immersive writing: typewriter scrolling forced on (M26).
     immersive: bool,
-    /// The scroll of the page a body is part of ([`Self::set_page_scroll`]).
-    page_scroll: Option<gpui::ScrollHandle>,
+    /// The page a body is part of ([`Self::set_page_scroll`]).
+    page_scroll: Option<gpui_prose::render::PageScroll>,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -630,10 +630,14 @@ impl ChapterEditor {
         &self.editor
     }
 
-    /// The scroll handle of the page this body is part of (an entry page):
-    /// the body's editor scrolls the page to keep the caret in view and the
-    /// text in place ([`gpui_prose::ProseEditor::set_page_scroll`]).
-    pub fn set_page_scroll(&mut self, page: Option<gpui::ScrollHandle>, cx: &mut Context<Self>) {
+    /// The page this body is part of (an entry page): the body's editor
+    /// scrolls it to keep the caret in view and the text in place
+    /// ([`gpui_prose::ProseEditor::set_page_scroll`]).
+    pub fn set_page_scroll(
+        &mut self,
+        page: Option<gpui_prose::render::PageScroll>,
+        cx: &mut Context<Self>,
+    ) {
         self.page_scroll = page.clone();
         self.editor.update(cx, |e, _| e.set_page_scroll(page));
     }

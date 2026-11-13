@@ -205,7 +205,7 @@ impl ProseEditor {
                 } else {
                     0.
                 };
-                if dy != 0. && self.flow.borrow().scroll_page(dy) != 0. {
+                if dy != 0. && self.flow.borrow().scroll_page_for_author(dy) != 0. {
                     cx.notify();
                 }
             }

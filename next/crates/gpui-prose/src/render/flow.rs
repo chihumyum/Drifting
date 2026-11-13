@@ -19,7 +19,11 @@
 //! Requests to keep the caret in view (the paragraph's autoscroll) move the
 //! page too.
 
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    ops::Range,
+    rc::Rc,
+};
 
 use gpui::{
     AnyElement, App, AvailableSpace, Bounds, ContentMask, Element, ElementId, GlobalElementId,
@@ -32,11 +36,33 @@ use crate::layout::HeightIndex;
 /// Pixels laid out above and below the part of the editor the page shows.
 pub const FLOW_OVERDRAW: f32 = 1200.;
 
+/// The page a flow editor is part of ([`crate::ProseEditor::set_page_scroll`]).
+#[derive(Clone)]
+pub struct PageScroll {
+    /// The page's scroll.
+    pub handle: ScrollHandle,
+    /// Raised when the editor scrolls the page for the author: to the caret
+    /// as it moves, to a position it was sent to, while a drag selects, when
+    /// asked to scroll. Not when it only keeps the text in place. The page
+    /// lowers it when it reads it: a position it was holding (the module a
+    /// link opened) is the author's again.
+    pub for_author: Rc<Cell<bool>>,
+}
+
+impl PageScroll {
+    pub fn new(handle: ScrollHandle) -> PageScroll {
+        PageScroll {
+            handle,
+            for_author: Rc::default(),
+        }
+    }
+}
+
 /// What a flow editor keeps between frames.
 #[derive(Default)]
 pub struct FlowState {
     /// The host page's scroll.
-    pub page: Option<ScrollHandle>,
+    pub page: Option<PageScroll>,
     /// With a page: the item at the top of what it showed, and where
     /// (document pixels) the next frame places it.
     anchor: Option<(usize, f32)>,
@@ -94,10 +120,21 @@ impl FlowState {
         let Some(page) = &self.page else {
             return 0.;
         };
-        let offset = page.offset();
+        let offset = page.handle.offset();
         let y = (offset.y + px(dy)).min(px(0.));
-        page.set_offset(point(offset.x, y));
+        page.handle.set_offset(point(offset.x, y));
         f32::from(y - offset.y)
+    }
+
+    /// [`FlowState::scroll_page`] for the author (see [`PageScroll::for_author`]).
+    pub fn scroll_page_for_author(&self, dy: f32) -> f32 {
+        let moved = self.scroll_page(dy);
+        if moved != 0.
+            && let Some(page) = &self.page
+        {
+            page.for_author.set(true);
+        }
+        moved
     }
 
     /// Scrolls the page so that document pixel `y` of the editor shows
@@ -112,7 +149,7 @@ impl FlowState {
         }
         let wanted = view.top() + view.size.height * fraction;
         let now = bounds.top() + px(y);
-        self.scroll_page(f32::from(wanted - now));
+        self.scroll_page_for_author(f32::from(wanted - now));
         true
     }
 }
@@ -215,7 +252,7 @@ impl Element for FlowItems {
                     index.top(item) as f32 + state.shift(&mut index)
                 };
                 let wanted = view.top() + view.size.height / 3.;
-                if state.scroll_page(f32::from(wanted - (bounds.top() + px(y)))) != 0. {
+                if state.scroll_page_for_author(f32::from(wanted - (bounds.top() + px(y)))) != 0. {
                     window.request_animation_frame();
                 } else {
                     state.reveal = None;
@@ -314,7 +351,7 @@ impl Element for FlowItems {
                 state.reveal = None;
             } else {
                 let wanted = view.top() + view.size.height / 3.;
-                let dy = state.scroll_page(f32::from(wanted - at));
+                let dy = state.scroll_page_for_author(f32::from(wanted - at));
                 if dy == 0. {
                     state.reveal = None;
                 } else {
@@ -351,7 +388,7 @@ impl Element for FlowItems {
                 0.
             };
             if dy != 0. {
-                moved += state.scroll_page(dy);
+                moved += state.scroll_page_for_author(dy);
             }
         }
         drop(state);

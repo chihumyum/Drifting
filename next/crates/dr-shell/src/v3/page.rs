@@ -42,8 +42,12 @@ pub struct EntryPage {
     pending_reveal: bool,
     /// The section a target named (`entry:<id>/<module>`), kept in view while
     /// the page settles (a body loads and grows to its text's height) until
-    /// the author scrolls, clicks or types in the page.
+    /// the author scrolls, clicks or types in the page, or a body scrolls it
+    /// for them (`author_scrolled`).
     pinned: Option<String>,
+    /// Raised by a body that scrolled the page for the author (to its caret,
+    /// to a position): the page is theirs again.
+    author_scrolled: Rc<std::cell::Cell<bool>>,
 }
 impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
@@ -58,6 +62,7 @@ impl EntryPage {
             synced: false,
             pending_reveal: true,
             pinned: None,
+            author_scrolled: Rc::default(),
         }
     }
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
@@ -180,7 +185,13 @@ impl EntryPage {
             )
         {
             if let Some(page_scroll) = &part.page_scroll {
-                page_scroll(self.scroll.clone(), cx);
+                page_scroll(
+                    gpui_prose::render::PageScroll {
+                        handle: self.scroll.clone(),
+                        for_author: self.author_scrolled.clone(),
+                    },
+                    cx,
+                );
             }
             self.parts.insert(key.clone(), (module.kind.clone(), part));
         }
@@ -566,6 +577,9 @@ impl Render for EntryPage {
                             }
                         }
                         self.pending_reveal = false;
+                    }
+                    if self.author_scrolled.replace(false) {
+                        self.pinned = None;
                     }
                     if let Some(pinned) = &self.pinned {
                         match self.sections.iter().position(|s| &s.id == pinned) {
