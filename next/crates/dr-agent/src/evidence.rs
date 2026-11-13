@@ -163,7 +163,7 @@ fn book_entities(
     let mut entities = BTreeMap::new();
     for entry in view.entries_raw() {
         let key = format!("entry:{}", entry.id);
-        let mut targets = BTreeSet::from([key.clone(), format!("body:{}/about", entry.id)]);
+        let mut targets = BTreeSet::from([key.clone()]);
         if let Some(tpl) = entry.effective_template(&templates) {
             for m in &tpl.modules {
                 if m.kind == dr_model::v3::ModuleKind::Prose {
@@ -207,11 +207,7 @@ fn book_entities(
     }
     for patch in view.patches() {
         let key = format!("patch:{}", patch.id);
-        let mut targets = BTreeSet::from([
-            key.clone(),
-            format!("entry:{}", patch.entry),
-            format!("body:{}/about", patch.entry),
-        ]);
+        let mut targets = BTreeSet::from([key.clone(), format!("entry:{}", patch.entry)]);
         if let Some(src) = &patch.source_entry {
             targets.insert(format!("entry:{src}"));
         }
@@ -286,7 +282,7 @@ pub(crate) fn write_proof(
                     }
                 }
             }
-            DocId::Conversation(_) => continue,
+            DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) => continue,
             DocId::Body(body) => {
                 proof.targets.insert(receipt.doc_id.clone());
                 proof.targets.insert(format!("entry:{}", body.entry()));

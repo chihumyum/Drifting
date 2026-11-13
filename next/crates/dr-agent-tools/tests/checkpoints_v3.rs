@@ -366,3 +366,130 @@ fn agent_checkpoint_with_unrestorable_future_tree_refuses_restore_without_losing
         raw
     );
 }
+
+#[test]
+fn set_level_off_checkpoints_entry_and_direct_children_and_leaves_no_checkpoint_when_unread_or_stale()
+ {
+    let f = Fixture::new();
+    let container = f.author(
+        "entry.create",
+        json!({"title":"Synthetic arc","level":true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let live_child = f.author(
+        "entry.create",
+        json!({"parent":container,"title":"Synthetic live child","level":true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let trashed_child = f.author(
+        "entry.create",
+        json!({"parent":container,"title":"Synthetic trashed child"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let grandchild = f.author(
+        "entry.create",
+        json!({"parent":live_child,"title":"Synthetic grandchild"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    f.author("entry.trash", json!({"id":trashed_child}));
+
+    let points_of = |id: &str| {
+        f.author("entry_snapshot.list", json!({"entry":id}))
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+
+    // Listing entries without `below` (`below: false` default) records
+    // `entry:<id>` and `entry:*` without `level:<id>`, so turning off a
+    // non-empty level's switch must be rejected as ReadRequired and leave zero
+    // checkpoints on any entry.
+    f.call(1, "entry.list", json!({"all":true})).unwrap();
+    let before = f.state();
+    assert!(matches!(
+        f.call(1, "entry.set_level", json!({"id":container,"level":false})),
+        Err(Error::ReadRequired(_))
+    ));
+    assert_eq!(f.state(), before);
+    for id in [&container, &live_child, &trashed_child, &grandchild] {
+        assert!(points_of(id).is_empty(), "unexpected checkpoint for {id}");
+    }
+
+    // Reading with `below` covers `level:<id>`, but an intervening author
+    // child change must conflict before writing any checkpoint.
+    f.call(2, "entry.get", json!({"id":container})).unwrap();
+    let extra_child = f.author(
+        "entry.create",
+        json!({"parent":container,"title":"Concurrent child"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let before = f.state();
+    assert!(matches!(
+        f.call(2, "entry.set_level", json!({"id":container,"level":false})),
+        Err(Error::Conflict(_))
+    ));
+    assert_eq!(f.state(), before);
+    for id in [
+        &container,
+        &live_child,
+        &trashed_child,
+        &extra_child,
+        &grandchild,
+    ] {
+        assert!(points_of(id).is_empty(), "unexpected checkpoint for {id}");
+    }
+
+    // Fresh read with `below` succeeds, checkpoints container + all direct
+    // children (live and trashed), excludes grandchildren, and restores cleanly.
+    f.call(3, "entry.get", json!({"id":container})).unwrap();
+    let out = f
+        .call(3, "entry.set_level", json!({"id":container,"level":false}))
+        .unwrap();
+    assert_eq!(out["level"], false);
+    assert_eq!(points_of(&container).len(), 1);
+    assert_eq!(points_of(&live_child).len(), 1);
+    assert_eq!(points_of(&trashed_child).len(), 1);
+    assert_eq!(points_of(&extra_child).len(), 1);
+    assert!(points_of(&grandchild).is_empty());
+
+    let child_point = points_of(&live_child)[0]["id"].clone();
+    f.author("entry.set_level", json!({"id":container,"level":true}));
+    let preview = f.author(
+        "entry_snapshot.preview",
+        json!({"entry":live_child,"point":child_point}),
+    );
+    f.author(
+        "entry_snapshot.restore",
+        json!({"entry":live_child,"point":child_point,"expected":preview["expected"]}),
+    );
+    assert_eq!(
+        f.author("entry.get", json!({"id":live_child}))["parent"],
+        json!(container)
+    );
+
+    // Side documents (`stats:<book>`, `checkpoints:<book>`) are never exposed
+    // as document selectors to agent tools, even when `prose_only` is false.
+    for side in [
+        format!("stats:{}", f.book),
+        format!("checkpoints:{}", f.book),
+    ] {
+        assert!(matches!(
+            f.call(4, "prose.read", json!({"doc":side})),
+            Err(Error::Invalid(_))
+        ));
+        assert!(matches!(
+            f.call(4, "comment.create", json!({"doc":side,"body":"Side doc"})),
+            Err(Error::Invalid(_))
+        ));
+    }
+}

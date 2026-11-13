@@ -584,3 +584,102 @@ fn v3_manifest_keeps_each_body_and_retained_module_as_a_distinct_target() {
     );
     f.ws.close();
 }
+
+#[test]
+fn write_proof_skips_side_docs_and_retired_about_body() {
+    let f = Fixture::new();
+    let entries =
+        f.ws.call(
+            &Actor::User,
+            "entry.list",
+            json!({"book":f.book,"all":true}),
+        )
+        .unwrap();
+    let character = entries["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-character")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let manuscript = entries["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-manuscript")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // A checkpoint-only call settles `checkpoints:<book>`, which must not
+    // count as authored write proof.
+    f.ws.call(
+        &Actor::Agent {
+            session: f.session.clone(),
+            turn: 1,
+            call: "checkpoint-only".into(),
+        },
+        "entry_snapshot.create_with_receipt",
+        json!({"book":f.book,"entry":manuscript}),
+    )
+    .unwrap();
+    assert!(
+        crate::evidence::write_proof(f.ws.library(), &f.session, 1, "checkpoint-only")
+            .unwrap()
+            .is_none()
+    );
+
+    // Updating entries alongside checkpoints claims their active prose modules
+    // (`mod-description` on manuscript, `mod-prose` on character), never
+    // `checkpoints:<book>`, `stats:<book>`, or retired `body:<id>/about`.
+    let actor = Actor::Agent {
+        session: f.session.clone(),
+        turn: 2,
+        call: "update-entries".into(),
+    };
+    f.ws.call(
+        &actor,
+        "entry_snapshot.create_with_receipt",
+        json!({"book":f.book,"entry":manuscript}),
+    )
+    .unwrap();
+    f.ws.call(
+        &actor,
+        "entry.update",
+        json!({"book":f.book,"id":manuscript,"title":"Updated manuscript title"}),
+    )
+    .unwrap();
+    f.ws.call(
+        &actor,
+        "entry.update",
+        json!({"book":f.book,"id":character,"title":"Updated character title"}),
+    )
+    .unwrap();
+    let proof = crate::evidence::write_proof(f.ws.library(), &f.session, 2, "update-entries")
+        .unwrap()
+        .unwrap();
+    assert!(proof.targets.contains(&format!("entry:{manuscript}")));
+    assert!(
+        proof
+            .targets
+            .contains(&format!("body:{manuscript}/mod-description"))
+    );
+    assert!(proof.targets.contains(&format!("entry:{character}")));
+    assert!(
+        proof
+            .targets
+            .contains(&format!("body:{character}/mod-prose"))
+    );
+    assert!(
+        !proof.targets.iter().any(|t| t.starts_with("checkpoints:")
+            || t.starts_with("stats:")
+            || t.ends_with("/about")),
+        "unexpected targets: {:?}",
+        proof.targets
+    );
+    f.ws.close();
+}

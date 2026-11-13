@@ -468,3 +468,128 @@ fn draft_template_preview_uses_the_same_module_projection_without_read_coverage(
         Err(Error::ReadRequired(_))
     ));
 }
+
+#[test]
+fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as_prose_module() {
+    use dr_doc::v3::novel::{MOD_DESCRIPTION, TPL_MANUSCRIPT};
+
+    let f = Fixture::new();
+    let manuscript_id = f
+        .out("entry.list", json!({"book": f.book}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == TPL_MANUSCRIPT)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let context = StructureContext::for_book(
+        &f.ws,
+        &f.book,
+        Some(&FocusRequest {
+            entry: Some(manuscript_id.clone()),
+            timeline_view: None,
+        }),
+    )
+    .unwrap()
+    .unwrap();
+    let contribution = context.to_contribution().unwrap();
+    let parsed: Value = serde_json::from_str(&contribution.text).unwrap();
+
+    // Templates carry `level`, `linkable`, `lane`; never `kind` or `allow`.
+    let templates = parsed["templates"].as_array().unwrap();
+    assert!(!templates.is_empty());
+    for tpl in templates {
+        let obj = tpl.as_object().unwrap();
+        assert!(!obj.contains_key("kind"), "template still has kind: {tpl}");
+        assert!(
+            !obj.contains_key("allow"),
+            "template still has allow: {tpl}"
+        );
+        assert!(obj.get("level").and_then(Value::as_bool).is_some());
+        assert!(obj.get("linkable").and_then(Value::as_bool).is_some());
+        assert!(obj.get("lane").and_then(Value::as_bool).is_some());
+    }
+
+    // Levels never expose `allow` or `about`.
+    let levels = parsed["levels"].as_array().unwrap();
+    assert!(!levels.is_empty());
+    for lvl in levels {
+        let obj = lvl.as_object().unwrap();
+        assert!(!obj.contains_key("about"), "level still has about: {lvl}");
+        let eff = lvl["effective_settings"].as_object().unwrap();
+        assert!(
+            !eff.contains_key("allow"),
+            "effective_settings still has allow: {lvl}"
+        );
+        let sources = eff["sources"].as_object().unwrap();
+        assert!(
+            !sources.contains_key("allow"),
+            "sources still has allow: {lvl}"
+        );
+    }
+
+    // Recursive walk: no object key anywhere in BOOK_STRUCTURE.json is `allow` or `about`,
+    // and no string value references `/about`.
+    fn assert_no_retired_fields(v: &Value) {
+        match v {
+            Value::Object(map) => {
+                for (k, child) in map {
+                    assert_ne!(k, "allow", "unexpected `allow` key in BOOK_STRUCTURE.json");
+                    assert_ne!(k, "about", "unexpected `about` key in BOOK_STRUCTURE.json");
+                    assert_no_retired_fields(child);
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    assert_no_retired_fields(item);
+                }
+            }
+            Value::String(s) => {
+                assert!(
+                    !s.ends_with("/about"),
+                    "unexpected `/about` doc id in BOOK_STRUCTURE.json: {s}"
+                );
+            }
+            _ => {}
+        }
+    }
+    assert_no_retired_fields(&parsed);
+
+    // 「说明」(`mod-description`) appears as an ordinary `prose` module on `tpl-manuscript`
+    // and in `focus.modules` on `书稿`.
+    let manuscript_tpl = templates
+        .iter()
+        .find(|t| t["ref"] == TPL_MANUSCRIPT)
+        .expect("manuscript template present");
+    let desc_mod = manuscript_tpl["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["ref"] == MOD_DESCRIPTION)
+        .expect("mod-description projected on manuscript template");
+    assert_eq!(desc_mod["kind"], "prose");
+    assert_eq!(desc_mod["name"], "说明");
+    assert!(
+        desc_mod["capabilities"]["read_tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t == "module.read_prose")
+    );
+
+    let focus_desc = parsed["focus"]["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["ref"] == MOD_DESCRIPTION)
+        .expect("mod-description projected in manuscript focus");
+    assert_eq!(focus_desc["kind"], "prose");
+    assert_eq!(focus_desc["name"], "说明");
+    assert_eq!(
+        focus_desc["prose_doc"],
+        format!("body:{manuscript_id}/{MOD_DESCRIPTION}")
+    );
+}

@@ -29,20 +29,23 @@ pub(crate) fn refresh_v3(
     book: &dr_model::id::BookId,
     config: &mut dr_agent::RunConfig,
 ) -> Result<(), String> {
-    let copy = ws
-        .library()
-        .load_copy(&format!("book:{book}"))
-        .map_err(|e| e.to_string())?;
-    if !dr_doc::v3::is_book_doc(&copy) {
+    if !ws.is_v3_book(book).map_err(|e| e.to_string())? {
         return Err("only books of the current format support the Agent".into());
     }
-    {
-        let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book).map_err(|e| e.to_string())?;
-        let view = borrowed.view();
-        if view.trashed_at().is_some() {
-            return Err("book is unavailable".into());
-        }
-        config.system_prompt = build(book.as_str(), &view.meta().name);
-    }
+    let book_id = book.clone();
+    let name = ws
+        .read_book_v3(book.as_str(), move |doc, _| {
+            Ok((|| -> Result<String, String> {
+                let borrowed =
+                    dr_doc::v3::BorrowedBookV3::new(doc, &book_id).map_err(|e| e.to_string())?;
+                let view = borrowed.view();
+                if view.trashed_at().is_some() {
+                    return Err("book is unavailable".into());
+                }
+                Ok(view.meta().name)
+            })())
+        })
+        .map_err(|e| e.to_string())??;
+    config.system_prompt = build(book.as_str(), &name);
     Ok(())
 }

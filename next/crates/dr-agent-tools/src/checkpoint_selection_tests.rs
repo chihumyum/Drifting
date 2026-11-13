@@ -48,6 +48,22 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     let copy = ws.library().load_copy(&format!("book:{book}"))?;
     let borrowed = BorrowedBookV3::new(&copy, &book).map_err(|e| Error::Invalid(e.to_string()))?;
     let view = borrowed.view();
+    if call.name == "entry.set_level"
+        && args["level"] == false
+        && let Some(id) = args["id"].as_str()
+        && let Ok(parent_id) = dr_model::id::EntryId::parse(id)
+        && let Some(parent) = view.entry_raw(&parent_id)
+        && !parent.is_trashed()
+        && parent.is_level()
+    {
+        for child in view
+            .entries_raw()
+            .into_iter()
+            .filter(|c| c.parent.as_ref() == Some(&parent_id))
+        {
+            ids.insert(child.id.to_string());
+        }
+    }
     let mut endpoints = Vec::new();
     if matches!(
         call.name.as_str(),
@@ -124,6 +140,7 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
 /// The calls whose checkpoint has to find a record in the book (with the
 /// arguments below, which name every kind of record).
 const LOOKUPS: &[&str] = &[
+    "entry.set_level",
     "entry_history.restore",
     "module.put_relation",
     "module.remove_relation",
@@ -219,7 +236,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
     let body = format!("body:{chapter}/mod-prose");
     let everything = |id: Value, template: bool| {
         json!({
-            "book": book, "id": id, "template": template,
+            "book": book, "id": id, "template": template, "level": false,
             "host": membership.host.to_string(), "member": membership.member.to_string(),
             "lane": chapter, "entry": character, "owner": chapter,
             "from": {"kind": "entry", "id": chapter},
@@ -381,5 +398,61 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
         .unwrap(),
         members
     );
+
+    // Turning off an entry's level switch checkpoints the entry and its direct
+    // children (live and trashed), excluding grandchildren; turning it on
+    // neither loads the book nor checkpoints children.
+    let parent_level = out(
+        "entry.create",
+        json!({"book": book, "title": "Synthetic container", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let live_child = out(
+        "entry.create",
+        json!({"book": book, "parent": parent_level, "title": "Synthetic live child", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let trashed_child = out(
+        "entry.create",
+        json!({"book": book, "parent": parent_level, "title": "Synthetic trashed child"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let grandchild = out(
+        "entry.create",
+        json!({"book": book, "parent": live_child, "title": "Synthetic grandchild"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out("entry.trash", json!({"book": book, "id": trashed_child}));
+    let on_call = call(
+        "entry.set_level",
+        json!({"id": parent_level, "level": true}),
+    );
+    assert!(Named::of(&on_call).lookups.is_empty());
+    assert_eq!(
+        entries(&ws, &key, &on_call).unwrap(),
+        vec![parent_level.clone()]
+    );
+    let off_call = call(
+        "entry.set_level",
+        json!({"id": parent_level, "level": false}),
+    );
+    assert!(!Named::of(&off_call).lookups.is_empty());
+    let mut expected_off = vec![
+        parent_level.clone(),
+        live_child.clone(),
+        trashed_child.clone(),
+    ];
+    expected_off.sort();
+    let actual_off = entries(&ws, &key, &off_call).unwrap();
+    assert_eq!(actual_off, expected_off);
+    assert!(!actual_off.contains(&grandchild));
     ws.close();
 }

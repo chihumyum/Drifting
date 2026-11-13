@@ -86,3 +86,5 @@
 ## 参考与协调
 
 接口对照旧版 `src/renderer/lib/speech/`；[CPAL API](https://docs.rs/cpal/0.18.2/cpal/traits/trait.DeviceTrait.html)、[百炼 Qwen ASR](https://help.aliyun.com/en/model-studio/qwen-asr-api-reference)。依赖只加工作区统一版本；许可与依赖方向由 `cargo xtask check` 验证。涉及 `dr-i18n` 的既有键登记／生成翻译与一个积压状态新键，以及 app 打包隐私描述、既有 `agent-acceptance` 的假服务挂接，由整合者与轨道 2／4 协调；没有修改平台运行时、F1／F3 结构或能力清单。v3 的专名读取来源与 F7 正式签名后的麦克风授权，仍分别由对应 owner 接续。
+
+统一条目（内核 v4，T3，2026-11-13）补充：`speech::context::glossary_from_workspace` 通过 `Workspace::read_book_v3` 直接从内存活文档读取存活条目的标题、模板 `FieldType::Aliases` 字段与有效自动链接集合（优先自动链接条目，再取其余存活条目），录音启动时不再触发 `Library::load_copy` 重放陈化大书历史；离线 `glossary(lib, book)` 签名保持兼容。

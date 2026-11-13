@@ -769,3 +769,197 @@ fn timeline_field_commands_are_absent_and_refused_in_v3_agent_catalog() {
         serde_json::to_value(f.ws.journal(None, 100).unwrap()).unwrap()
     );
 }
+
+#[test]
+fn v4_catalog_excludes_retired_level_queries_binds_actions_by_entry_switch_and_reuses_cached_catalog()
+ {
+    use dr_agent_tools::{AgentTools, CallRequest, Error};
+    use std::sync::Arc;
+
+    let f = V3Fixture::new();
+    let tools = AgentTools::new();
+    let c0 = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+
+    // 1. `level.get` and `level.list` are absent; `entry.set_level` is present.
+    assert!(c0.descriptor("entry.set_level").is_some());
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap();
+    for retired in ["level.get", "level.list"] {
+        assert!(c0.descriptor(retired).is_none(), "{retired}");
+        let res = tools.invoke(
+            &f.ws,
+            &f.book,
+            &Actor::agent("v4-level-queries", 1, retired),
+            CallRequest {
+                name: retired.into(),
+                arguments: json!({}),
+                revision: None,
+                edited_text: None,
+            },
+        );
+        assert!(matches!(res, Err(Error::Invalid(msg)) if msg == "unknown book tool"));
+    }
+    assert_eq!(f.ws.observe(&before.doc).unwrap().version, before.version);
+
+    // 2. Non-structural writes do not rebuild the cached `Arc<Catalog>`.
+    let chapters = dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, "tpl-chapter");
+    let chapter_id = chapters[0]["id"].as_str().unwrap().to_owned();
+    let actor = Actor::agent("v4-cache", 1, "write");
+    tools
+        .invoke(
+            &f.ws,
+            &f.book,
+            &actor,
+            CallRequest {
+                name: "entry.get".into(),
+                arguments: json!({"id": chapter_id}),
+                revision: None,
+                edited_text: None,
+            },
+        )
+        .unwrap();
+    tools
+        .invoke(
+            &f.ws,
+            &f.book,
+            &actor,
+            CallRequest {
+                name: "entry.update".into(),
+                arguments: json!({"id": chapter_id, "title": "改名后不重建目录"}),
+                revision: None,
+                edited_text: None,
+            },
+        )
+        .unwrap();
+    let c_after_leaf_rename = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    assert!(
+        Arc::ptr_eq(&c0, &c_after_leaf_rename),
+        "renaming an entry with level=false must reuse the cached Catalog allocation"
+    );
+
+    let characters =
+        dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, "tpl-character");
+    let char_id = characters[0]["id"].as_str().unwrap().to_owned();
+    let mods = f.out("module.list", json!({"book": f.book, "id": char_id}));
+    if let Some(fields_mod) = mods
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["kind"] == "fields")
+    {
+        let mid = fields_mod["id"].as_str().unwrap();
+        let read_mod = f.out(
+            "module.read",
+            json!({"book": f.book, "entry": char_id, "module": mid}),
+        );
+        if let Some(first_def) = read_mod["defs"].as_array().and_then(|d| d.first()) {
+            let fid = first_def["id"].as_str().unwrap();
+            f.out(
+                "module.set_field",
+                json!({"book": f.book, "entry": char_id, "module": mid, "field": fid, "value": null}),
+            );
+            let c_after_field = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+            assert!(Arc::ptr_eq(&c0, &c_after_field));
+        }
+    }
+
+    let doc_id = format!("body:{chapter_id}/mod-prose");
+    let prose = f.out("prose.read", json!({"doc": doc_id, "limit": 5}));
+    if let Some(p0) = prose["paragraphs"].as_array().and_then(|p| p.first())
+        && let Some(txt) = p0["text"].as_str()
+        && !txt.is_empty()
+    {
+        f.out(
+            "prose.replace",
+            json!({"doc": doc_id, "block_id": p0["block_id"], "find": txt, "replace": format!("{txt}。")}),
+        );
+        let c_after_prose = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+        assert!(Arc::ptr_eq(&c0, &c_after_prose));
+    }
+
+    // 3. Template actions bind ONLY on entries whose `level` switch is ON.
+    f.out(
+        "entry_template.put",
+        json!({
+            "book": f.book,
+            "template": {
+                "id": "tpl-custom-card",
+                "name": "卡片",
+                "level": false,
+                "linkable": false,
+                "modules": [],
+                "settings": {"default_template": "tpl-chapter"},
+                "verbs": [{
+                    "id": "verb-spawn",
+                    "name": "派生章节",
+                    "description": "在此条目下派生一章",
+                    "target_template": "tpl-chapter",
+                    "pos": "a0"
+                }]
+            }
+        }),
+    );
+    let c_after_tpl = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    assert!(
+        !Arc::ptr_eq(&c0, &c_after_tpl),
+        "template changes must invalidate CatalogStamp"
+    );
+
+    let off_entry = f.out(
+        "entry.create",
+        json!({"book": f.book, "title": "开关关闭的卡片", "template": "tpl-custom-card"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let on_entry = f.out(
+        "entry.create",
+        json!({"book": f.book, "title": "开关打开的卡片", "template": "tpl-custom-card"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let c_both_off = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    assert!(
+        Arc::ptr_eq(&c_after_tpl, &c_both_off),
+        "creating level=false entries must keep CatalogStamp unchanged"
+    );
+    assert!(
+        c_both_off
+            .actions()
+            .iter()
+            .all(|a| a.reference.level != off_entry && a.reference.level != on_entry)
+    );
+    assert!(c_both_off.action_diagnostics().is_empty());
+
+    f.out(
+        "entry.set_level",
+        json!({"book": f.book, "id": on_entry, "level": true}),
+    );
+    let c_one_on = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    assert!(!Arc::ptr_eq(&c_both_off, &c_one_on));
+    assert!(
+        c_one_on
+            .actions()
+            .iter()
+            .any(|a| a.reference.level == on_entry && a.reference.verb == "verb-spawn")
+    );
+    assert!(
+        c_one_on
+            .actions()
+            .iter()
+            .all(|a| a.reference.level != off_entry)
+    );
+
+    f.out(
+        "entry.set_level",
+        json!({"book": f.book, "id": on_entry, "level": false}),
+    );
+    let c_off_again = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    assert!(
+        c_off_again
+            .actions()
+            .iter()
+            .all(|a| a.reference.level != on_entry)
+    );
+}

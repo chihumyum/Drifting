@@ -20,12 +20,22 @@ pub struct ResolvedCall {
     pub subjects: Vec<String>,
 }
 pub fn resolve(ws: &Workspace, book: &BookId, name: &str, args: Value) -> Result<ResolvedCall> {
+    resolve_with_catalog(ws, book, None, name, args)
+}
+
+pub(crate) fn resolve_with_catalog(
+    ws: &Workspace,
+    book: &BookId,
+    catalog: Option<&crate::catalog::Catalog>,
+    name: &str,
+    args: Value,
+) -> Result<ResolvedCall> {
     if !crate::catalog::is_v3_book(ws, book)? {
         return Err(Error::Invalid(
             "only canonical v3 books support tools".into(),
         ));
     }
-    v3::resolve_v3(ws, book, name, args)
+    v3::resolve_v3(ws, book, catalog, name, args)
 }
 pub fn coverage(name: &str, args: &Value, output: &Value) -> Vec<String> {
     if let Some(read) = v3::coverage_v3(name, args, output) {
