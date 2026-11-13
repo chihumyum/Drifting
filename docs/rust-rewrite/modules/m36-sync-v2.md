@@ -16,7 +16,7 @@
    - 把一本书及工作区当作「一组不透明 ID 的 Loro 文档加资源文件」，文档 ID（`doc_id`）和文档种类（`kind`）均作为不透明字符串处理，不写死任何文档种类列表，直接兼容通用内核 v3 的树与叶子模块。
    - **增量上传与压缩正交**：使用 F2 `dr_store::Library` 已有的 `docs_with_local_changes`、`export_for_upload(doc_id)` 与 `mark_uploaded(doc_id, &vv)`，只上传 `remote_vv` 之后的增量改动；即使本机已跑过 `compact_now` 折叠快照，`export_for_upload` 依然从文档 oplog 导出精确增量，压缩与上传互不相干。
    - **帮手对话同路同步（M27）**：帮手对话文档（如 `conv:*`）与书目、正文章节走同一条 `LoroUpdate` 通道，不另起同步引擎。
-   - **断网续传**：逐条记录并持久化游标（`sync-cursor-v2.json`）与 `sync_doc.remote_vv`、`asset.uploaded_ms`；中途断网后重连可从断点继续上传与拉取。
+   - **断网续传**：逐条记录并持久化游标（2026-11-13 起存在库内 F2 `local_state` 的 `sync-v2` 下，见文末同日一节；原 `sync-cursor-v2.json` 已废）与 `sync_doc.remote_vv`、`asset.uploaded_ms`；中途断网后重连可从断点继续上传与拉取。只有 Loro 完整应用的远端更新才确认、才推进游标。
    - **从空库恢复（`restore_library`）**：新设备或本机库重建时，从 `cursor = 0` 拉取对象日志并恢复全部 Loro 文档与资源变体文件，恢复后资源自动标记已上传。
    - **配额控制**：软上限 `500 MiB`（`DEFAULT_QUOTA_BYTES`）、硬上限 `1 GiB`（`DEFAULT_HARD_LIMIT_BYTES`）。新资源导入前可通过 `check_new_asset_quota` 结合 `GET /api/sync/v1/usage` 与本机待传资源字节数预检；服务端返回 `413 QUOTA_EXCEEDED` 时自动进入 `SyncProblem::Quota` 状态。
 3. **同步状态记号与通知中心桥接（`dr_sync::health` + `dr_view_account::sync_mark`）**：
@@ -208,7 +208,7 @@ cargo test -p dr-sync --lib --locked
 1. **内核自动同步运行时与删书物理资源回收（`dr-sync` + `dr-workspace`）**：
    - 新增 [`dr_sync::SyncRuntime`](../../../next/crates/dr-sync/src/runtime.rs)，在独立后台工作线程上驱动 `SyncEngine::sync_once`：开库后立即跑首轮同步并按固定周期轮询；订阅 `StoreEvent` 将连续本地编辑按尾部防抖合并为单次上传；瞬时网络／5xx 错误按指数退避重试，离线快速重连，遇到 `401`（`Reauth`）或 `413`（`Quota`）自动暂停重试直至凭据变化或手动触发；未登录／本机模式不创建网络循环、零请求。
    - 补齐整书永久删除后接收端的物理资源回收：当 `DocPurge` 使某本书满足整书已清除（`library.book_purged(b) && library.purged("book:<b>").is_some()`）时，自动回收本机已下载的该书物理资源变体与 `asset` 表记录，并在从 `cursor = 0` 重放时跳过已清除书的历史 `AssetBlob` 下载，另一本书的资源与文档不受影响。
-   - 保持 F2 持有者边界：远端 `DocPurge` 遇到当前打开的文档先释放非活跃书槽位，若仍被编辑器持有则维持 `StoreError::AlreadyOpen` 阻塞且不推进 `sync-cursor-v2.json`，待标签页／书切换释放持有者后自动唤醒重跑；拉取更新后自动刷新 `Workspace` 派生缓存与脏全文索引，并在 [`dr-workspace`](../../../next/crates/dr-workspace/src/sync.rs) 提供 `"sync.status"`、`"sync.now"` 与 `check_book_revision_freshness`（防止外壳异步旧快照回退覆盖同步新版本）。
+   - 保持 F2 持有者边界：远端 `DocPurge` 遇到当前打开的文档先释放非活跃书槽位，若仍被编辑器持有则维持 `StoreError::AlreadyOpen` 阻塞且不推进游标，待标签页／书切换释放持有者后自动唤醒重跑；拉取更新后自动刷新 `Workspace` 派生缓存与脏全文索引，并在 [`dr-workspace`](../../../next/crates/dr-workspace/src/sync.rs) 提供 `"sync.status"`、`"sync.now"` 与 `check_book_revision_freshness`（防止外壳异步旧快照回退覆盖同步新版本）。
    - 新增独立回环假服务示例 `cargo run -p dr-sync --example fake_sync_server` 及 `FakeSyncServer::set_fail_all` 断网注入接口。
 2. **桌面 App 生命周期监督器与排空屏障（`app/drifting`）**：
    - 新增 [`app/drifting/src/sync.rs`](../../../next/app/drifting/src/sync.rs) 生产监督器并在 `main.rs` 挂载：监听 `AccountUiService` 与 `LibraryRegistry` 状态切换账号库／本机库（含首次启动 `first_run::write_samples` 短暂持有 `Workspace` 克隆时的非阻塞重试切换），仅在已登录且当前打开目标账号库时启动 `SyncRuntime`。
@@ -234,3 +234,48 @@ cargo test -p dr-sync --lib --locked
 - **Hosted 服务端上线与切换期配额口径（服务端本地 `29074bc6` 已实现并验收，待作者确认配额口径并推送上线）**：独立服务端仓库已完成本文「服务端需要提供的」所列 `loro-v2` 命名空间、HTTP 接口、三档配额（默认 `SYNC_QUOTA_METERING_MODE=separate` 过渡期独立 `500 MiB / 1 GiB`，内置 `combined` 合并模式开关）、有序迁移 `0010_loro_sync_v2.sql` 与按需整书回收脚本，并通过本机容器栈与 `next/` 三设备往返联调（见 `~/Drifting-autopilot-logs/loro-v2-server.md`）；仅剩作者确认是否沿用默认 `separate` 配额口径并按交回报告五步清单推送部署。
 - **「偏好设置 → 账号」页内退出登录按钮的预排空钩子（已在凌晨追加第 2 项补齐 11-12）**：`dr_shell::sync` 现提供公开入口 `run_before_sign_out(cx)`，`dr_view_account::sign_out(cx)` 统一在发起 `inner.sign_out()` 吊销远端令牌之前先行调用并等待 `run_before_sign_out(cx)` 冲刷待传改动，同时以 `signing_out` 重入保护合并侧栏账号菜单与「偏好设置 → 账号」页两处退出入口，保证无论从哪一处退出均先排空上传一次再吊销令牌并切回本机库（见 `dr-view-account::tests::settings_account_sign_out_drains_before_revoking_token` 与 `drifting::sync::tests::settings_sign_out_drains_pending_uploads_before_token_revocation_and_returns_to_local`）。
 - **顺带记录的既有测试竞态观察（已在凌晨追加第 3 项确定性修复 11-12）**：排查工作区测试时发现 `dr-view-element-overview` 的 `drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo` 偶发与 `dr-view-history::AutomaticHistory` 后台线程的 `entry_snapshot.capture` 竞争同一 `book:<id>` 的 `oplog_frontiers()`（`membership.add`／`undo` 不改条目自有状态哈希或启动基线晚于首笔前台写入，`changed.is_empty()` 分支会将全书条目加入 `dirty` 并在无周期定时器情况下后台立即连续写入首次快照），小概率触发 `WritePreconditions` 的 `stale observation`。已在 `dr-view-history::AutomaticHistory` 补齐订前同步 `loro_head` 基线与 15 分钟 `PERIODIC_INTERVAL` 定时器并移除全书标脏回退，见 [`m09-history.md`](m09-history.md)。
+
+## 2026-11-13：没应用的远端更新不确认，游标随库保存
+
+### 原来的问题
+
+- **没应用也确认。** 远端 Loro 更新若依赖本机没有的操作，Loro 1.17.1 只把它停在内存里的待定池（`ImportStatus.pending`），版本不动；F2 holder 版本没变就什么也不存，关掉最后一个句柄文档就丢了。旧引擎照样 `mark_uploaded`、推进并保存游标，这条记录再也不会被拉取。
+- **游标离开了它描述的数据。** 游标在库目录旁的 `sync-cursor-v2.json`，每条记录整份重写（连同不断增长的已登记文档集合）。M41 应用内恢复备份只换数据库文件，恢复旧备份后游标领先于数据：备份之后的记录不再拉取，之后依赖它们的更新又落进上一条。按服务端契约（严格递增 seq、升序分页）正常投递本就按因果顺序，恢复备份是眼下唯一现实的触发途径。
+
+### 现在的行为
+
+1. **只确认完整应用的更新**（`dr-sync/src/engine.rs` `apply_remote_record`）。导入结果（F2 已有的 `Imported.status`）带 `pending` 时：不 `mark_uploaded`、不登记、不推进游标，返回 `SyncError::MissingDependencies { doc_id, seq }`。已经应用的部分照常由 F2 存下，并照常重建索引、调用 `after_remote_import`；等待的部分不写进 `loro_update`（`load_into` 拒绝缺依赖的存储）。本机还没有的文档，先读更新块的 `start_frontiers`（`decode_import_blob_meta`）：块依赖块外操作就直接报错，不为它建空文档（否则下一周期会把空 genesis 上传成服务端的一条垃圾记录）。
+2. **一次自愈重放**（`pull_remote_changes`）。某文档第一次报 `MissingDependencies` 时游标存回 0，下一周期按序重放整条日志；已应用的记录走既有的 `already_covered` 跳过，与 `restore_library` 一样幂等。每个引擎实例每个文档至多一次（运行时每次接入新建引擎，即重启或换库后可再有一次）。重放后仍缺，就停在那条记录前、每周期报同一个错误，由运行时退避和健康状态（连续 3 周期失败升为「！」）呈现。**打开着的文档**：Loro 把早到的更新留在该文档内存里，依赖到达时一并应用，F2 把两者存成一行；早到那条的记录随后被判为已覆盖并确认，不会卡住。
+3. **游标随库保存**。引擎状态改存在库内 F2 `local_state`，scope `sync-v2`（`dr_sync::SYNC_STATE_SCOPE`），不同步、不绑 `book_id`：键 `cursor`（十进制 seq）；每个已在服务端的文档一行 `doc/<doc_id>`；每个已上传墓碑一行 `purge/<doc_id>:<purged_ms>`。每条记录只写游标这一行（值没变不写），遇到新文档多写它自己一行，与文档总数无关；`restore_library` 在一个事务里把游标置 0、删掉文档行。备份是整库 `VACUUM INTO`，恢复后游标与数据一致；库里没有状态就从 0 开始。旧的 `sync-cursor-v2.json` 在 `SyncEngine::new` 时删除、从不读取（未发布，不做兼容）。没有新迁移：`local_state` 是 `0004` 已有的设施。写走 `local_write`，每改一行照 F2 规则发一条 `LocalChange`（表 `local_state`，键 `sync-v2/…`），运行时的订阅不理会这张表。
+4. **`Workspace::import_remote`**（`dr-workspace`）未改：它对等待中的更新照旧返回成功，这是 v4 切换契约 `dr-workspace/tests/cutover.rs` 的 `a_marker_change_that_arrives_before_its_dependency_is_refused_with_it` 明确断言的行为（「等待、什么也不改」，重启后须再来一次）。同步引擎不走这条路径，目前只有测试调用它；若要让它也报错，需由切换契约的负责方一并改那条断言。
+5. **假服务** 新增 `records()` 与 `withhold(seq)`／`release_withheld()`：后者故意打破按序契约，让后一条更新先于它依赖的那条被列出。
+
+App 的恢复接线（`app/drifting/src/main.rs` 经 `dr_shell::library::replace` 调 `Library::restore_staged_with`）无需改动：恢复前运行时已排空并卸下旧库，恢复后新建的引擎从恢复出的数据库读游标。
+
+### 测试
+
+全部用本机回环 `FakeSyncServer`、临时库、合成令牌和 `dr_testkit::seed` 的 canonical v3 Tiny 数据。
+
+| 测试 | 证明 |
+| --- | --- |
+| `causal_delivery::an_update_ahead_of_its_dependency_is_refused_and_one_replay_heals_a_closed_doc` | 同一正文的两次编辑分两条上传，扣下第一条：关闭的文档收到第二条时返回指名该文档与 seq 的 `MissingDependencies`；`remote_vv`、`head`、正文不变，游标（内存与库内）未越过它并回到 0；放出第一条后一次重放两者都在，版本与作者端一致，已确认，再同步无下载；关库重开可读。 |
+| `causal_delivery::a_doc_held_open_parks_the_early_update_and_ends_acknowledged_after_the_replay` | 同上，但读者端一直持有该文档：早到的更新在打开的文档里不可见；重放后持有的句柄与库内都是两次编辑后的正文，早到那条被确认、游标到末尾，再同步无事可做。 |
+| `causal_delivery::a_dependency_still_missing_after_the_replay_keeps_failing_without_another_reset` | 依赖一直不到：只回 0 一次，之后每周期停在同一位置报同一错误，失败周期计入健康状态；新引擎（相当于重启）有自己的一次重放，依赖可列出后恢复。 |
+| `causal_delivery::sync_progress_lives_in_the_library_one_row_per_fact` | 旧状态文件不读、被删除；每个文档一行、首次见到时只写一次；之后拉 N 条已知文档的记录恰好只改游标行 N 次，文档行（含修改时间）不变；新引擎从这些行续上。 |
+| `restore_backup::restoring_an_older_backup_resumes_from_its_own_cursor_and_converges` | 同步→备份→作者编辑、读者编辑并上传→恢复备份→作者再编辑：恢复后的新引擎游标等于备份时的游标，第一次同步即成功，取回作者两次编辑和自己恢复前上传的编辑，两库全部文档版本与值一致。换回 `main`（`8bfa4927e`）的 `engine.rs`／`protocol.rs`／`lib.rs` 实跑失败：恢复后游标是 JSON 里领先的 24 而非备份时的 22；去掉这条断言后，恢复后第一次同步下载不足 3 份文档（备份之后的记录被跳过）。 |
+
+改动的既有断言：`v3_roundtrip.rs` 的 `reject_conflicting_document_identity`（三个矛盾元数据契约共用）原来比较 `sync-cursor-v2.json` 的字节不变，现在比较库内 `sync-v2` 全部行（含修改时间）不变，并断言这些行非空；含义同为「整个持久化同步状态不变」。
+
+### 已知边界
+
+- 依赖永远不到（服务端丢了记录或违反顺序契约），这台设备会停在那条记录前，后面其他文档的记录也拉不下来。这是有意的：可见的错误好过静默丢数据；何时跳过需另定。
+- F2 holder 对部分应用的同步导入仍按块头把整个块的版本并进 `remote_vv`（「服务端有这些」本身为真）；是否重新拉取看 `head`，不受影响。dr-store 本次未改。
+
+### 检查结果
+
+在 `main` `8bfa4927e` 之上，于 `next/` 以 `CARGO_BUILD_JOBS=4`、测试 `RUST_TEST_THREADS=1` 执行：
+
+- `cargo fmt --all --check`：通过。
+- `cargo clippy -p dr-sync -p dr-store -p dr-workspace --all-targets --locked -- -D warnings`：通过。
+- `cargo test -p dr-sync -p dr-store -p dr-workspace --locked`：368 通过、0 失败、2 忽略（含新增 5 项）。
+- `cargo xtask check --skip audit`：11 项门禁全部通过；22 份 stale／15 份 legacy 测量照旧只记录（未跑审计）。
