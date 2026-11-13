@@ -5,10 +5,20 @@
 //! Document kinds are never hardcoded: book catalog documents, chapters,
 //! v3 item trees and Agent conversation documents (`conv:*`) all flow through
 //! the same `export_for_upload` / `Origin::Sync` pipeline.
+//!
+//! - A remote update is acknowledged (marked as on the server, its record
+//!   passed by the cursor) only once Loro has applied all of it. An update
+//!   that waits for operations this device does not have stops the pull with
+//!   [`SyncError::MissingDependencies`]; the first time that happens to a
+//!   document in an engine's life, the cursor goes back to 0 so the next
+//!   cycle replays the feed in order.
+//! - The engine's progress lives in the library database (dr-store
+//!   `local_state`, scope [`SYNC_STATE_SCOPE`]), one row per fact, so a
+//!   restored backup brings back the cursor that matches its data and a
+//!   record costs one row write however many documents the library has.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -19,7 +29,7 @@ use dr_store::asset::{
     MAX_COPY_BYTES, SourceImport, Variant, VariantBytes, sanitized_extension, sanitized_segment,
 };
 use dr_store::{DocInfo, Library, OpenDoc, Origin};
-use loro::{ExportMode, VersionVector};
+use loro::{ExportMode, LoroDoc, VersionVector};
 use serde::{Deserialize, Serialize};
 
 use crate::health::{
@@ -31,16 +41,47 @@ use crate::protocol::{
     check_asset_quota, sha256_digest, write_verified_file_atomic,
 };
 
-const CURSOR_FILE_NAME: &str = "sync-cursor-v2.json";
+/// The dr-store `local_state` scope holding the engine's progress, never
+/// synced: key `cursor` (the last change-feed `seq` applied, in decimal), one
+/// key `doc/<doc_id>` per document known to be on the server, and one key
+/// `purge/<doc_id>:<purged_ms>` per purge tombstone uploaded.
+pub const SYNC_STATE_SCOPE: &str = "sync-v2";
+const CURSOR_KEY: &str = "cursor";
+const REGISTERED_PREFIX: &str = "doc/";
+const PURGE_PREFIX: &str = "purge/";
+/// Where the state was kept before it moved into the database. Removed when
+/// found, never read: only unreleased development libraries have it.
+const OLD_STATE_FILE: &str = "sync-cursor-v2.json";
 const DEFAULT_PAGE_LIMIT: usize = 100;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct PersistedSyncState {
+/// The engine's progress as loaded from, and written through to,
+/// [`SYNC_STATE_SCOPE`].
+#[derive(Clone, Debug, Default)]
+struct SyncState {
     cursor: u64,
-    #[serde(default)]
     registered_docs: BTreeSet<String>,
-    #[serde(default)]
     uploaded_purges: BTreeSet<String>,
+}
+
+impl SyncState {
+    fn load(library: &Library) -> Result<Self, SyncError> {
+        let mut state = Self::default();
+        for entry in library.local_entries(SYNC_STATE_SCOPE, None)? {
+            if entry.key == CURSOR_KEY {
+                // Unreadable means unknown: replaying from the start is safe.
+                state.cursor = entry.value.parse().unwrap_or(0);
+            } else if let Some(doc_id) = entry.key.strip_prefix(REGISTERED_PREFIX) {
+                state.registered_docs.insert(doc_id.to_owned());
+            } else if let Some(purge) = entry.key.strip_prefix(PURGE_PREFIX) {
+                state.uploaded_purges.insert(purge.to_owned());
+            }
+        }
+        Ok(state)
+    }
+}
+
+fn registered_key(doc_id: &str) -> String {
+    format!("{REGISTERED_PREFIX}{doc_id}")
 }
 
 /// Summary of work performed during a single sync cycle.
@@ -64,8 +105,10 @@ pub type AfterRemoteImportHook = Arc<dyn Fn(&str) + Send + Sync>;
 pub struct SyncEngine {
     client: SyncHttpClient,
     health: SyncHealthTracker,
-    state_path: Option<PathBuf>,
-    state: PersistedSyncState,
+    state: SyncState,
+    /// Documents whose missing dependencies already sent the cursor back to
+    /// 0 once in this engine's life (the replay is not repeated).
+    replayed_for: BTreeSet<String>,
     cancel: Arc<AtomicBool>,
     before_remote_purge: Option<BeforeRemotePurgeHook>,
     after_remote_purge: Option<AfterRemotePurgeHook>,
@@ -73,20 +116,20 @@ pub struct SyncEngine {
 }
 
 impl SyncEngine {
-    /// Create a sync engine talking to `base_url` for `library`.
+    /// Create a sync engine talking to `base_url` for `library`, resuming
+    /// from the progress stored in the library database (cursor 0 when none
+    /// is stored).
     pub fn new(base_url: impl Into<String>, library: &Library) -> Result<Self, SyncError> {
         let client = SyncHttpClient::new(base_url)?;
-        let state_path = Some(library.paths().root.join(CURSOR_FILE_NAME));
-        let state = state_path
-            .as_ref()
-            .and_then(|p| fs::read(p).ok())
-            .and_then(|raw| serde_json::from_slice::<PersistedSyncState>(&raw).ok())
-            .unwrap_or_default();
+        let state = SyncState::load(library)?;
+        // A state file from before the move would only contradict the
+        // database (after a restore it is ahead of the data).
+        let _ = fs::remove_file(library.paths().root.join(OLD_STATE_FILE));
         Ok(Self {
             client,
             health: SyncHealthTracker::new(true),
-            state_path,
             state,
+            replayed_for: BTreeSet::new(),
             cancel: Arc::new(AtomicBool::new(false)),
             before_remote_purge: None,
             after_remote_purge: None,
@@ -188,13 +231,59 @@ impl SyncEngine {
         self.state.cursor
     }
 
-    fn save_state(&self) {
-        let Some(path) = &self.state_path else {
-            return;
-        };
-        if let Ok(bytes) = serde_json::to_vec_pretty(&self.state) {
-            let _ = fs::write(path, bytes);
+    /// Store the cursor (one row; the rest of the state is untouched).
+    fn set_cursor(&mut self, library: &Library, cursor: u64) -> Result<(), SyncError> {
+        if self.state.cursor == cursor {
+            return Ok(());
         }
+        library.local_set(SYNC_STATE_SCOPE, CURSOR_KEY, &cursor.to_string(), None)?;
+        self.state.cursor = cursor;
+        Ok(())
+    }
+
+    /// Record documents now known to be on the server: one new row each, in
+    /// one transaction; documents already recorded cost nothing.
+    fn register_docs<I>(&mut self, library: &Library, doc_ids: I) -> Result<(), SyncError>
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let new: BTreeSet<String> = doc_ids
+            .into_iter()
+            .filter(|id| !self.state.registered_docs.contains(id))
+            .collect();
+        if new.is_empty() {
+            return Ok(());
+        }
+        library.local_write(|tx| {
+            for doc_id in &new {
+                tx.set_state(SYNC_STATE_SCOPE, &registered_key(doc_id), "1", None)?;
+            }
+            Ok(())
+        })?;
+        self.state.registered_docs.extend(new);
+        Ok(())
+    }
+
+    fn register_doc(&mut self, library: &Library, doc_id: &str) -> Result<(), SyncError> {
+        self.register_docs(library, [doc_id.to_owned()])
+    }
+
+    fn record_uploaded_purge(
+        &mut self,
+        library: &Library,
+        purge_key: String,
+    ) -> Result<(), SyncError> {
+        if self.state.uploaded_purges.contains(&purge_key) {
+            return Ok(());
+        }
+        library.local_set(
+            SYNC_STATE_SCOPE,
+            &format!("{PURGE_PREFIX}{purge_key}"),
+            "1",
+            None,
+        )?;
+        self.state.uploaded_purges.insert(purge_key);
+        Ok(())
     }
 
     /// Check whether importing a new local asset of `incoming_asset_bytes` is
@@ -300,9 +389,16 @@ impl SyncEngine {
         library: &Library,
         access_token: &str,
     ) -> Result<SyncCycleReport, SyncError> {
+        let registered = &self.state.registered_docs;
+        library.local_write(|tx| {
+            tx.set_state(SYNC_STATE_SCOPE, CURSOR_KEY, "0", None)?;
+            for doc_id in registered {
+                tx.remove_state(SYNC_STATE_SCOPE, &registered_key(doc_id))?;
+            }
+            Ok(())
+        })?;
         self.state.cursor = 0;
         self.state.registered_docs.clear();
-        self.save_state();
         self.sync_once(library, access_token)
     }
 
@@ -349,8 +445,7 @@ impl SyncEngine {
                     Some(&self.cancel),
                 )?;
                 library.mark_uploaded(&batch.doc_id, &batch.vv)?;
-                self.state.registered_docs.insert(doc_id);
-                self.save_state();
+                self.register_doc(library, &doc_id)?;
                 report.uploaded_docs += 1;
             }
         }
@@ -361,15 +456,20 @@ impl SyncEngine {
             .iter()
             .filter(|d| d.doc_id.starts_with("book:"))
             .chain(all_docs.iter().filter(|d| !d.doc_id.starts_with("book:")));
+        let mut unregistered = Vec::new();
+        let mut known_remotely = Vec::new();
         for info in ordered_docs {
             if self.state.registered_docs.contains(&info.doc_id) {
                 continue;
             }
-            let remote_vv = library.remote_vv(&info.doc_id)?;
-            if !remote_vv.is_empty() {
-                self.state.registered_docs.insert(info.doc_id.clone());
-                continue;
+            if library.remote_vv(&info.doc_id)?.is_empty() {
+                unregistered.push(info);
+            } else {
+                known_remotely.push(info.doc_id.clone());
             }
+        }
+        self.register_docs(library, known_remotely)?;
+        for info in unregistered {
             let doc = library.load_copy(&info.doc_id)?;
             let vv = doc.oplog_vv();
             let bytes = doc.export(ExportMode::all_updates())?;
@@ -392,8 +492,7 @@ impl SyncEngine {
                 Some(&self.cancel),
             )?;
             library.mark_uploaded(&info.doc_id, &vv)?;
-            self.state.registered_docs.insert(info.doc_id.clone());
-            self.save_state();
+            self.register_doc(library, &info.doc_id)?;
             report.uploaded_docs += 1;
         }
 
@@ -460,8 +559,7 @@ impl SyncEngine {
                 &body,
                 Some(&self.cancel),
             )?;
-            self.state.uploaded_purges.insert(purge_key);
-            self.save_state();
+            self.record_uploaded_purge(library, purge_key)?;
             report.uploaded_purges += 1;
         }
 
@@ -479,20 +577,30 @@ impl SyncEngine {
                 self.client
                     .list_changes(access_token, self.state.cursor, DEFAULT_PAGE_LIMIT)?;
             if page.changes.is_empty() {
-                self.state.cursor = page.next_cursor.max(self.state.cursor);
-                self.save_state();
+                self.set_cursor(library, page.next_cursor.max(self.state.cursor))?;
                 break;
             }
 
             for record in &page.changes {
-                self.apply_remote_record(library, access_token, record, report)?;
-                self.state.cursor = record.seq;
-                self.save_state();
+                if let Err(err) = self.apply_remote_record(library, access_token, record, report) {
+                    // An update that waits for operations this device lacks
+                    // (a cursor ahead of the data, say after a backup was
+                    // restored): the feed holds them in order, so read it
+                    // again from the start, once per document. Applied
+                    // records are recognised and skipped on the way.
+                    if let SyncError::MissingDependencies { doc_id, .. } = &err
+                        && !self.replayed_for.contains(doc_id)
+                    {
+                        self.set_cursor(library, 0)?;
+                        self.replayed_for.insert(doc_id.clone());
+                    }
+                    return Err(err);
+                }
+                self.set_cursor(library, record.seq)?;
             }
 
             if !page.has_more {
-                self.state.cursor = page.next_cursor.max(self.state.cursor);
-                self.save_state();
+                self.set_cursor(library, page.next_cursor.max(self.state.cursor))?;
                 break;
             }
         }
@@ -540,7 +648,7 @@ impl SyncEngine {
                             .all(|(peer, end)| head.vv.get(peer).copied().unwrap_or(0) >= *end);
                     if already_covered {
                         library.mark_uploaded(doc_id, &remote_vv)?;
-                        self.state.registered_docs.insert(doc_id.clone());
+                        self.register_doc(library, doc_id)?;
                         return Ok(());
                     }
                 }
@@ -552,6 +660,22 @@ impl SyncEngine {
                     record.byte_length,
                     Some(&self.cancel),
                 )?;
+                let missing = || SyncError::MissingDependencies {
+                    doc_id: doc_id.clone(),
+                    seq: record.seq,
+                };
+
+                // A document new to this device has nothing the update could
+                // build on: when it names operations outside itself, it would
+                // only wait, so do not create an empty document for it.
+                // (Unreadable bytes go on to the import, which reports them.)
+                if !bytes.is_empty()
+                    && library.doc_info(doc_id)?.is_none()
+                    && LoroDoc::decode_import_blob_meta(&bytes, false)
+                        .is_ok_and(|meta| !meta.start_frontiers.is_empty())
+                {
+                    return Err(missing());
+                }
 
                 let handle = library.open_doc(
                     doc_id,
@@ -561,8 +685,29 @@ impl SyncEngine {
                         genesis: &|_| {},
                     },
                 )?;
-                if !bytes.is_empty() {
-                    let _ = handle.import(bytes, Origin::Sync)?;
+                let (applied, waiting) = if bytes.is_empty() {
+                    (false, false)
+                } else {
+                    let imported = handle.import(bytes, Origin::Sync)?;
+                    (
+                        imported.committed.seq.is_some(),
+                        imported.status.pending.is_some(),
+                    )
+                };
+                if waiting {
+                    // Loro keeps the waiting part in memory only (dr-store
+                    // stores what was applied and nothing else): neither
+                    // acknowledge the update nor pass its record, so it is
+                    // fetched again. Whatever part did apply is stored, so
+                    // derived data follows it as for any import.
+                    handle.close();
+                    if applied {
+                        let _ = library.reindex_doc(doc_id);
+                        if let Some(cb) = &self.after_remote_import {
+                            cb(doc_id);
+                        }
+                    }
+                    return Err(missing());
                 }
                 library.mark_uploaded(doc_id, &remote_vv)?;
                 handle.close();
@@ -570,7 +715,7 @@ impl SyncEngine {
                 if let Some(cb) = &self.after_remote_import {
                     cb(doc_id);
                 }
-                self.state.registered_docs.insert(doc_id.clone());
+                self.register_doc(library, doc_id)?;
                 report.downloaded_docs += 1;
             }
             RemoteObjectPayload::AssetBlob {
@@ -690,9 +835,7 @@ impl SyncEngine {
                 if let Some(cb) = &self.after_remote_purge {
                     cb(doc_id, whole_book_purged.as_deref());
                 }
-                self.state
-                    .uploaded_purges
-                    .insert(format!("{doc_id}:{purged_ms}"));
+                self.record_uploaded_purge(library, format!("{doc_id}:{purged_ms}"))?;
             }
         }
         Ok(())

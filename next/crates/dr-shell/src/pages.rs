@@ -59,7 +59,8 @@ use std::rc::Rc;
 use dr_editor::page::PageChrome;
 use dr_editor::{BookEditor, ChapterEditor};
 use gpui::{
-    AnyView, App, Bounds, Entity, FocusHandle, Global, Pixels, SharedString, WeakEntity, Window,
+    AnyView, App, Bounds, Context, Entity, FocusHandle, Global, Pixels, SharedString, Subscription,
+    WeakEntity, Window,
 };
 
 use crate::Workspace;
@@ -150,6 +151,34 @@ pub struct SuperViewHost {
     pub library: Option<dr_workspace::Workspace>,
     pub book_id: String,
     pub book: Rc<Book>,
+    /// Which of the stage's views this content is.
+    pub view: SuperView,
+}
+
+/// Whether `workspace`'s stage is showing `view` now.
+pub fn super_view_shown(workspace: &WeakEntity<Workspace>, view: SuperView, cx: &App) -> bool {
+    workspace
+        .upgrade()
+        .is_some_and(|ws| ws.read(cx).super_view == Some(view))
+}
+
+/// Follow `workspace` for a Super View's content, only while the stage shows
+/// `view`. The stage keeps the content it made while it is closed or showing
+/// another view, and content that is not on screen has nothing to redo: it
+/// hears nothing then. Showing it again notifies the workspace, so
+/// `on_change` runs and a content that compares what it holds with the
+/// workspace catches up with everything it missed in that one call.
+pub fn follow_super_view<V: 'static>(
+    workspace: &Entity<Workspace>,
+    view: SuperView,
+    cx: &mut Context<V>,
+    on_change: impl Fn(&mut V, Entity<Workspace>, &mut Context<V>) + 'static,
+) -> Subscription {
+    cx.observe(workspace, move |this, ws, cx| {
+        if ws.read(cx).super_view == Some(view) {
+            on_change(this, ws, cx);
+        }
+    })
 }
 
 /// A Super View a module draws: its body under the stage's header, and

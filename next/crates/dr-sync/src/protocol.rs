@@ -91,6 +91,12 @@ pub enum SyncError {
         message: String,
     },
 
+    /// The remote update in feed record `seq` builds on operations of
+    /// `doc_id` this device does not have. It was neither acknowledged nor
+    /// passed: the record is fetched again (see `SyncEngine`).
+    #[error("remote update {seq} for {doc_id} depends on changes this device does not have yet")]
+    MissingDependencies { doc_id: String, seq: u64 },
+
     #[error("store error: {0}")]
     Store(#[from] dr_store::StoreError),
 

@@ -731,8 +731,10 @@ mod tests {
         cx.update(|cx| {
             let provider =
                 ProviderDriver::new(HttpClient::new().unwrap(), Credentials::new(secrets));
-            let tools = Arc::new(crate::tools::CompanionTools::with_plugins(
-                cx.global::<crate::mcp::McpGlobal>().slot.clone(),
+            let global = cx.global::<crate::mcp::McpGlobal>();
+            let tools = Arc::new(crate::tools::CompanionTools::shared(
+                global.tools.clone(),
+                global.slot.clone(),
             ));
             crate::init_with(provider, Arc::new(ScriptedDriver::new(vec![])), tools, cx);
         });
