@@ -1348,12 +1348,6 @@ fn resolve_settings_override(
         let tid = resolve_template_id(view, templates, dt, false)?;
         *dt = tid.to_string().into();
     }
-    if let Some(allow) = ov_obj.get_mut("allow").and_then(Value::as_array_mut) {
-        for item in allow {
-            let tid = resolve_template_id(view, templates, item, false)?;
-            *item = tid.to_string().into();
-        }
-    }
     if let Some(home) = ov_obj.get_mut("home")
         && !home.is_null()
     {
@@ -1888,7 +1882,11 @@ fn resolve_document_v3(
         return Err(invalid("document selector must be a string or object"));
     };
 
-    if matches!(doc, DocId::Conversation(_)) || (prose_only && doc.profile().is_none()) {
+    if matches!(
+        doc,
+        DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_)
+    ) || (prose_only && doc.profile().is_none())
+    {
         return Err(invalid("target is not an authored prose document"));
     }
     let id = doc.to_string();

@@ -1,32 +1,52 @@
 //! Host-only complete entry checkpoints. A receipt advances only the current
 //! invocation's book CAS; it never grants content coverage or refreshes reads.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::v3::BorrowedBookV3;
-use dr_model::{DocId, id::BookId, kind::EntityKind};
-use dr_workspace::{Workspace, commands::v3::snapshots::Created};
+use dr_model::{DocId, id::BookId, id::EntryId, kind::EntityKind};
+use dr_workspace::{RecordKey, Workspace, commands::v3::snapshots::Created};
 
 use super::{AgentTools, TurnKey};
 use crate::{Error, Result, resolve::ResolvedCall};
 
+#[cfg(test)]
 pub(super) fn entries(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<String>> {
+    Ok(selection(ws, key, call)?.entries)
+}
+
+struct Selection {
+    entries: Vec<String>,
+    children_guard: Vec<String>,
+}
+
+fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selection> {
     // Comments are book-owned, not part of an entry checkpoint. Their source
     // prose is read only, and must not create a checkpoint or new body.
     if call.name.starts_with("comment.") {
-        return Ok(Vec::new());
+        return Ok(Selection {
+            entries: Vec::new(),
+            children_guard: Vec::new(),
+        });
     }
     let book = BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?;
     if !crate::catalog::is_v3_book(ws, &book)? {
-        return Ok(Vec::new());
+        return Ok(Selection {
+            entries: Vec::new(),
+            children_guard: Vec::new(),
+        });
     }
     let named = Named::of(call);
     let mut ids = named.entries;
     // Most calls name their entries; only a relation, membership or patch
-    // named by its own id has to be looked up in the book. Loading a copy
-    // of the book document costs as much as the book is big, so no other
-    // call loads one.
+    // named by its own id, or turning off an entry's level switch (which
+    // moves any direct children to root), has to be looked up in the book.
+    // Loading a copy of the book document costs as much as the book is big,
+    // so no other call loads one.
     if named.lookups.is_empty() {
-        return Ok(ids.into_iter().collect());
+        return Ok(Selection {
+            entries: ids.into_iter().collect(),
+            children_guard: Vec::new(),
+        });
     }
     let copy = ws.library().load_copy(&format!("book:{book}"))?;
     let borrowed = BorrowedBookV3::new(&copy, &book).map_err(|e| Error::Invalid(e.to_string()))?;
@@ -35,7 +55,32 @@ pub(super) fn entries(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Res
         mut patches,
         relations,
         memberships,
+        children_of,
     } = named.lookups;
+    let mut children_guard = Vec::new();
+    if !children_of.is_empty() {
+        let headers = view.entry_headers_with(&BTreeMap::new());
+        for id in children_of {
+            let Ok(parent_id) = EntryId::parse(&id) else {
+                continue;
+            };
+            let Some(parent) = headers.get(&parent_id) else {
+                continue;
+            };
+            if parent.is_trashed() || !parent.is_level() {
+                continue;
+            }
+            let direct: Vec<String> = headers
+                .values()
+                .filter(|c| c.parent.as_ref() == Some(&parent_id))
+                .map(|c| c.id.to_string())
+                .collect();
+            if !direct.is_empty() {
+                children_guard.push(parent_id.to_string());
+                ids.extend(direct);
+            }
+        }
+    }
     if !memberships.is_empty() {
         let stored = view.memberships_raw();
         for key in memberships {
@@ -69,7 +114,10 @@ pub(super) fn entries(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Res
             }
         }
     }
-    Ok(ids.into_iter().collect())
+    Ok(Selection {
+        entries: ids.into_iter().collect(),
+        children_guard,
+    })
 }
 
 /// What a call names that its write-before checkpoint covers: entries named
@@ -90,11 +138,17 @@ struct Lookups {
     relations: Vec<String>,
     /// Membership keys: the host and the member.
     memberships: Vec<String>,
+    /// Entries whose switch is being turned off: any direct children moved to
+    /// root.
+    children_of: Vec<String>,
 }
 
 impl Lookups {
     fn is_empty(&self) -> bool {
-        self.patches.is_empty() && self.relations.is_empty() && self.memberships.is_empty()
+        self.patches.is_empty()
+            && self.relations.is_empty()
+            && self.memberships.is_empty()
+            && self.children_of.is_empty()
     }
 }
 
@@ -121,6 +175,12 @@ impl Named {
             if let Some(id) = args[*key].as_str() {
                 named.entries.insert(id.to_owned());
             }
+        }
+        if call.name == "entry.set_level"
+            && args["level"] == false
+            && let Some(id) = args["id"].as_str()
+        {
+            named.lookups.children_of.push(id.to_owned());
         }
         if matches!(
             call.name.as_str(),
@@ -187,7 +247,22 @@ impl AgentTools {
         captured: &mut Vec<String>,
     ) -> Result<()> {
         let book_doc = format!("book:{}", key.book);
-        for entry in entries(ws, key, call)? {
+        let sel = selection(ws, key, call)?;
+        if !guards.versions.contains_key(&book_doc) {
+            for parent in &sel.children_guard {
+                let key = RecordKey::children_of(Some(parent));
+                if !guards
+                    .records
+                    .iter()
+                    .any(|r| r.doc == book_doc && r.key == key)
+                {
+                    return Err(Error::ReadRequired(format!(
+                        "read required: {book_doc} record {key}"
+                    )));
+                }
+            }
+        }
+        for entry in sel.entries {
             {
                 let turns = self.turns.lock().expect("tool observations");
                 let turn = turns

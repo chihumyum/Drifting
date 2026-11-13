@@ -856,6 +856,18 @@ impl AgentTools {
         }
         match result {
             Ok(value) => {
+                if call.name == "entry.set_level"
+                    && let Some(moved) = value["output"]["moved"].as_array()
+                    && !moved.is_empty()
+                {
+                    turn.book.forget("entry:roots");
+                    turn.book.forget("entry:*");
+                    turn.book.forget("entry:all");
+                    for child in moved.iter().filter_map(Value::as_str) {
+                        turn.book.forget(&format!("entry:{child}"));
+                        turn.book.forget(&format!("level:{child}"));
+                    }
+                }
                 turn.checkpointed.extend(captured);
                 Ok(value)
             }
@@ -922,14 +934,18 @@ fn needed(call: &ResolvedCall) -> Vec<String> {
 /// replaces nothing, ordering one that exists replaces its order, and
 /// without a read of it the workspace refuses that replacement.
 fn offered(call: &ResolvedCall) -> Vec<String> {
-    match (
-        call.name.as_str(),
-        call.arguments["host"].as_str(),
-        call.arguments["member"].as_str(),
-    ) {
-        ("membership.add", Some(host), Some(member)) => {
-            vec![format!("membership:{host}|{member}")]
-        }
+    match call.name.as_str() {
+        "membership.add" => match (
+            call.arguments["host"].as_str(),
+            call.arguments["member"].as_str(),
+        ) {
+            (Some(host), Some(member)) => vec![format!("membership:{host}|{member}")],
+            _ => Vec::new(),
+        },
+        "entry.set_level" if call.arguments["level"] == false => call.arguments["id"]
+            .as_str()
+            .map(|id| vec![format!("level:{id}")])
+            .unwrap_or_default(),
         _ => Vec::new(),
     }
 }
