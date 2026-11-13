@@ -200,3 +200,7 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
 
 - **字数与章数走成书序列（[kernel-v4.md](../kernel-v4.md) §7）。** `book.shelf` 的字数和章数只算成书序列（最外层成书层级下按住处先序遍历、排除回收站，只计 `in_book == true` 即「计入字数和导出」打开的正文模块），与右栏统计面板、作品主页和封面的字数一致。
 - **写作日与快照清单分流（[kernel-v4.md](../kernel-v4.md) §8）。** 写作日存在 `stats:<书>`，书架订阅 `WsEvent::Stats`（热力图和书卡近 30 天砂条跟着更新）；条目快照清单存在 `checkpoints:<书>`（`WsEvent::Checkpoints`），存快照点或修剪自动点不会唤醒书架重读（`dr-view-shelf/tests/quiet.rs`、`dr-view-home/tests/quiet.rs`）。
+
+## 书卡不再显示章数（2026-11-14）
+
+作者 2026-11-14 定：书架上不再出现「N 章」。书卡的那一行只剩字数、故事线数、要素数；放进最近删除的确认里也去掉了章数（own 文案 `projectPicker.trash.bodyWithoutChapters`，九种语言，从 0.1 那句删掉章数一段得来）。`book.shelf` 的 `chapters` 仍然给出（封面和场景在用），只是界面不显示。顺带从 `keys.txt` 去掉了四个没人用的键：`projectPicker.desk.chaptersUnit`、`projectPicker.trash.body`，以及一直没人用、只是被 `desk::CHAPTERS_UNIT` 这串字碰巧盖住的 `rightSidebar.stats.chapter`、`rightSidebar.kickers.stats.chapter`（`dr-shell/tests/strings.rs` 按子串判断用没用到，别名 `k` 加 `::CHAPTER` 正好出现在 `desk::CHAPTERS_UNIT` 里）。没有在真窗口里看过改后的书卡。
