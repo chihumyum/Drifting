@@ -181,6 +181,13 @@ pub fn float(place: Place, layer: Layer, child: impl IntoElement) -> impl IntoEl
     float_priority(place, layer.priority(), child)
 }
 
+/// Floats `child` at `place` above an enclosing [`Dialog`] and below
+/// notices: a menu a dialog opens, as [`super::Select::in_dialog`] does for
+/// its list.
+pub fn float_in_dialog(place: Place, child: impl IntoElement) -> impl IntoElement {
+    float_priority(place, DIALOG_POPOVER_PRIORITY, child)
+}
+
 pub(crate) fn float_priority(
     place: Place,
     priority: usize,
