@@ -131,11 +131,6 @@ pub(crate) fn page_infos(
             .flat_map(|p| p.entries)
             .filter_map(|e| Some((e.entry.id.clone(), e.ordinal?)))
             .collect();
-        let is_active_lane = |host: &dr_model::id::EntryId| {
-            structure
-                .level_settings(host)
-                .is_some_and(|s| s.settings.lane)
-        };
         docs.iter()
             .map(|doc| {
                 let mut info = crate::page::PageInfo::blank(doc);
@@ -167,7 +162,6 @@ pub(crate) fn page_infos(
                         crate::page::PageKind::Other
                     };
                 }
-                let mut own_color = None;
                 if let Some(t) = template {
                     for m in &t.modules {
                         let fields = entry.fields.get(&m.id);
@@ -186,15 +180,6 @@ pub(crate) fn page_infos(
                             info.has_status = true;
                             info.status = field(&m.config.status_field);
                         }
-                        if own_color.is_none()
-                            && let Some(key) = m.config.color_field.as_ref()
-                            && let Some(c) = fields
-                                .and_then(|f| f.get(key))
-                                .and_then(|v| v.as_str())
-                                .filter(|s| !s.is_empty())
-                        {
-                            own_color = Some(c.to_owned());
-                        }
                     }
                     // Secondary prose modules carry their own module name rather than the entry heading.
                     if !is_primary_book_prose && t.prose_modules().nth(1).is_some() {
@@ -206,66 +191,19 @@ pub(crate) fn page_infos(
                             .unwrap_or_default();
                     }
                 }
-                let lane_host = entry
-                    .primary
-                    .as_ref()
-                    .filter(|p| {
-                        is_active_lane(p)
-                            && structure
-                                .memberships()
-                                .iter()
-                                .any(|m| m.member == eid && &m.host == *p)
-                    })
-                    .or_else(|| {
-                        structure
-                            .memberships()
-                            .iter()
-                            .find(|m| m.member == eid && is_active_lane(&m.host))
-                            .map(|m| &m.host)
-                    });
-                if let Some(host_id) = lane_host
+                // The lane and colour every surface shows (`kernel-v4.md` §9).
+                let memberships = structure.memberships();
+                if let Some(host_id) =
+                    dr_model::v3::primary_lane(entry, entries, templates, memberships)
                     && let Some(lane) = entries.get(host_id)
                 {
-                    let lane_tpl = lane.effective_template(templates);
-                    let color = lane_tpl
-                        .and_then(|t| {
-                            t.modules.iter().find_map(|m| {
-                                let key = m.config.color_field.as_ref()?;
-                                lane.fields
-                                    .get(&m.id)?
-                                    .get(key)?
-                                    .as_str()
-                                    .filter(|s| !s.is_empty())
-                                    .map(str::to_owned)
-                            })
-                        })
-                        .or_else(|| {
-                            lane_tpl
-                                .and_then(|t| t.color.as_deref())
-                                .filter(|s| !s.is_empty())
-                                .map(str::to_owned)
-                        })
-                        .unwrap_or_default();
                     info.storyline = Some(crate::page::StorylineMark {
                         id: host_id.to_string(),
                         name: lane.title.clone(),
-                        color,
+                        color: dr_model::v3::lane_color(lane, templates).unwrap_or_default(),
                     });
                 }
-                info.color = own_color
-                    .or_else(|| {
-                        template
-                            .and_then(|t| t.color.as_deref())
-                            .filter(|s| !s.is_empty())
-                            .map(str::to_owned)
-                    })
-                    .or_else(|| {
-                        info.storyline
-                            .as_ref()
-                            .map(|s| s.color.as_str())
-                            .filter(|s| !s.is_empty())
-                            .map(str::to_owned)
-                    });
+                info.color = dr_model::v3::entry_color(entry, entries, templates, memberships);
                 info
             })
             .collect()

@@ -125,12 +125,14 @@ impl ElementOverview {
             .collect()
     }
 
-    pub(crate) fn relation_type_label(&self, type_id: &str) -> String {
+    pub(crate) fn relation_type_label(&self, type_id: &str, cx: &App) -> String {
         self.relation_types
             .iter()
             .find(|rt| rt.definition.id == type_id)
-            .map(|rt| rt.definition.name.clone())
-            .unwrap_or_else(|| "关联".to_owned())
+            .map(|rt| dr_view_relations::type_name(rt, cx))
+            .unwrap_or_else(|| {
+                t(cx, dr_i18n::keys::relation_types::generic_association::NAME).to_string()
+            })
     }
 
     pub(crate) fn relation_type_color(&self, type_id: &str, window: &Window, cx: &App) -> Rgb {
@@ -555,7 +557,8 @@ impl ElementOverview {
                 .as_deref()
                 .and_then(color_of)
                 .unwrap_or_else(|| p.ink(2));
-            let rt_name = rt.definition.name.as_str();
+            let rt_name = dr_view_relations::type_name(rt, cx);
+            let rt_name = rt_name.as_str();
             let hint = if hidden {
                 tf(cx, k_edge::SHOW_KIND, &[("label", &rt_name)])
             } else {
@@ -563,7 +566,7 @@ impl ElementOverview {
             };
             rows.push(LegendRow {
                 id: format!("se-legend-type-{}", rt.definition.id),
-                label: SharedString::from(rt.definition.name.clone()),
+                label: SharedString::from(dr_view_relations::type_name(rt, cx)),
                 count,
                 color,
                 visible: !hidden,
@@ -701,7 +704,7 @@ impl ElementOverview {
                         div()
                             .text_size(px(11.5))
                             .text_color(p.ink(1).solid())
-                            .child(SharedString::from(rt.definition.name.clone())),
+                            .child(SharedString::from(dr_view_relations::type_name(rt, cx))),
                     )
                     .into_any_element()
             })
@@ -839,7 +842,7 @@ impl ElementOverview {
         let p = Theme::of(window, cx).palette;
         let from_name = self.endpoint_label(&rel.from.kind, &rel.from.id);
         let to_name = self.endpoint_label(&rel.to.kind, &rel.to.id);
-        let type_label = self.relation_type_label(&rel.relation_type);
+        let type_label = self.relation_type_label(&rel.relation_type, cx);
         let color = self.relation_type_color(&rel.relation_type, window, cx);
         let del_id = rel.id.clone();
 
@@ -975,7 +978,9 @@ impl ElementOverview {
                                 div()
                                     .text_size(px(11.5))
                                     .text_color(p.ink(1).solid())
-                                    .child(SharedString::from(rt.definition.name.clone())),
+                                    .child(SharedString::from(dr_view_relations::type_name(
+                                        rt, cx,
+                                    ))),
                             )
                             .when(locked, |d| {
                                 d.child(

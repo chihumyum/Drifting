@@ -82,6 +82,11 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
             template: "tpl-manuscript".into()
         }
     );
+    // The setting resolves down the tree, but only the outermost level's own
+    // declaration makes a manuscript.
+    assert!(level.settings.is_manuscript);
+    assert!(v.is_manuscript_root(&root.id));
+    assert!(!v.is_manuscript_root(child));
     assert_ne!(v.revision, b.v3().unwrap().revision);
     let legacy = dr_testkit::seed::acceptance::empty_source(ws.library());
     let before = ws.library().head(&format!("book:{legacy}")).unwrap();

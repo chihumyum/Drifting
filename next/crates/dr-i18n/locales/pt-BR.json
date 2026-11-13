@@ -163,9 +163,7 @@
     }
   },
   "bottomStatusBar": {
-    "collapseTimeline": "Recolher linha do tempo narrativa",
     "elements": "Elementos",
-    "expandTimeline": "Expandir linha do tempo narrativa",
     "storyGraph": "Grafo da história",
     "todoLibrary": "Tarefas e biblioteca de materiais"
   },
@@ -243,10 +241,6 @@
       "deleteMaterial": "Excluir material",
       "moveMaterialToFolder": "Mover para pasta…",
       "openMaterialInSystem": "Abrir no aplicativo padrão"
-    },
-    "outlineRailMode": {
-      "hidden": "Ocultar sumário",
-      "visible": "Mostrar sumário"
     },
     "status": {
       "discarded": "Descartado",
@@ -425,8 +419,8 @@
     "entry_count_one": "{{count}} entrada",
     "entry_count_other": "{{count}} entradas",
     "entry_titles": "Títulos das entradas",
+    "entry_total": "Número de entradas",
     "entry_words": "Palavras da entrada",
-    "leaf_count": "Número de folhas",
     "material_words": "Palavras do material",
     "retained_content": "Conteúdo preservado",
     "selected_entries": "Entradas selecionadas",
@@ -909,6 +903,9 @@
     "delete": "Excluir tipo de relação",
     "description": "Descrição",
     "directed": "Direcionada",
+    "genericAssociation": {
+      "name": "Associação"
+    },
     "name": "Nome",
     "sourceRole": "Papel de origem",
     "swap": "Inverter extremidades da relação",
@@ -1470,7 +1467,7 @@
     "format_plain": "Nenhum",
     "format_shortcuts": "Atalhos de formatação",
     "grid": "Grade",
-    "home": "Local de novas entradas",
+    "home": "Local das novas entradas",
     "image": "Imagem",
     "in_book": "Contar palavras e exportar",
     "inherit": "Herdar",
@@ -1592,18 +1589,22 @@
     "bookView": "Vista do livro",
     "changeTemplate": "Trocar modelo",
     "childrenEntries": "Entradas abaixo",
+    "collapseTimeline": "Recolher linha do tempo narrativa",
     "editTemplate": "Editar modelo",
     "entries": "Entradas",
     "entryUntemplated": "Entrada",
+    "expandTimeline": "Expandir linha do tempo narrativa",
     "grid": "Grade",
+    "hideOutline": "Ocultar sumário",
     "islands": "Ilhas",
     "levelSwitch": "Nível",
-    "levelSwitchHint": "Permite colocar entradas abaixo",
+    "levelSwitchHint": "Quando ativado, permite entradas abaixo",
     "list": "Lista",
     "newEntry": "Novo",
     "newTemplate": "Novo modelo",
     "open": "Abrir",
     "settings": "Configurações",
+    "showOutline": "Mostrar sumário",
     "templates": "Modelos",
     "trash": "Mover para Excluídos recentemente",
     "turnOffLevelBody_one": "{{count}} entrada abaixo será movida para o nível mais externo com tudo o que estiver sob ela. As entradas associadas e sua raia na linha do tempo ficarão ocultas até ser ativado novamente.",

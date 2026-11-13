@@ -124,9 +124,9 @@ pub fn corner(
             .label(t(
                 cx,
                 if shown {
-                    keys::editor_top_bar::outline_rail_mode::HIDDEN
+                    keys::v3_shell::HIDE_OUTLINE
                 } else {
-                    keys::editor_top_bar::outline_rail_mode::VISIBLE
+                    keys::v3_shell::SHOW_OUTLINE
                 },
             ))
             .on_click(move |_, _, cx| {
@@ -206,9 +206,9 @@ pub fn corner(
             .label(t(
                 cx,
                 if shown {
-                    keys::bottom_status_bar::COLLAPSE_TIMELINE
+                    keys::v3_shell::COLLAPSE_TIMELINE
                 } else {
-                    keys::bottom_status_bar::EXPAND_TIMELINE
+                    keys::v3_shell::EXPAND_TIMELINE
                 },
             ))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleBottomTimeline), cx))

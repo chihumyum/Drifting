@@ -124,7 +124,7 @@ impl Entries<'_, '_> {
         template: &EntryTemplateId,
     ) -> Result<dr_doc::v3::write::EntryWriterV3> {
         if !self.wanted.insert(id.clone()) {
-            return Err(invalid(format!("v3 entry id collision: {id}")));
+            return Err(invalid(format!("entry id collision: {id}")));
         }
         let index = self.sibling.entry(parent.cloned()).or_default();
         // The switch starts from the template, as for a new entry.
@@ -243,7 +243,7 @@ enum PlannedActTarget {
         idea_id: NodeId,
         keep_existing_placement: bool,
     },
-    SyntheticLeaf {
+    SyntheticEntry {
         name: String,
         color: Option<String>,
         shared_idea_split: bool,
@@ -296,14 +296,14 @@ fn plan_act_track(source: &BookView<'_>) -> Option<Vec<PlannedAct>> {
                     keep_existing_placement: idea.narrative_order.is_some(),
                 }
             } else {
-                PlannedActTarget::SyntheticLeaf {
+                PlannedActTarget::SyntheticEntry {
                     name: act.name,
                     color: act.color,
                     shared_idea_split: true,
                 }
             }
         } else {
-            PlannedActTarget::SyntheticLeaf {
+            PlannedActTarget::SyntheticEntry {
                 name: act.name,
                 color: act.color,
                 shared_idea_split: false,
@@ -324,7 +324,7 @@ pub fn act_import_notes(source: &BookView<'_>) -> BTreeMap<&'static str, usize> 
     let mut kept_placement = 0usize;
     for act in planned {
         match act.target {
-            PlannedActTarget::SyntheticLeaf {
+            PlannedActTarget::SyntheticEntry {
                 shared_idea_split: true,
                 ..
             } => shared_split += 1,
@@ -346,13 +346,13 @@ pub fn act_import_notes(source: &BookView<'_>) -> BTreeMap<&'static str, usize> 
 
 fn apply_act_color_if_supported(
     w: &dr_doc::v3::write::EntryWriterV3,
-    leaf_template: Option<&EntryTemplate>,
+    template: Option<&EntryTemplate>,
     color: Option<&str>,
 ) -> Result<()> {
     let Some(color) = color.filter(|s| !s.is_empty()) else {
         return Ok(());
     };
-    let Some(tpl) = leaf_template else {
+    let Some(tpl) = template else {
         return Ok(());
     };
     for module in &tpl.modules {
@@ -376,7 +376,7 @@ pub fn sync_catalog(
 ) -> Result<()> {
     let pending = choices.pending(source);
     if !pending.is_empty() {
-        return Err(invalid(format!("unresolved v3 mapping: {pending:?}")));
+        return Err(invalid(format!("unresolved mapping: {pending:?}")));
     }
     let roots = roots(txn)?;
     let meta = source.meta();
@@ -446,7 +446,7 @@ pub fn sync_catalog(
             })
             .map_or_else(EntryId::new_v7, |e| e.id.clone())
     });
-    let existing_act_leaves: Vec<EntryId> = act_track_id
+    let existing_acts: Vec<EntryId> = act_track_id
         .as_ref()
         .map(|track_id| {
             existing
@@ -456,12 +456,12 @@ pub fn sync_catalog(
                 .collect()
         })
         .unwrap_or_default();
-    let act_leaf_tpl = txn
+    let act_tpl = txn
         .view()
         .template(&tid(TPL_ACT_TRACK))
         .and_then(|t| t.settings.default_template.flatten())
         .unwrap_or_else(|| tid(TPL_IDEA));
-    let act_leaf_tpl_def = txn.view().template(&act_leaf_tpl);
+    let act_tpl_def = txn.view().template(&act_tpl);
     let mut entries = Entries {
         txn,
         wanted: BTreeSet::new(),
@@ -492,16 +492,16 @@ pub fn sync_catalog(
                         keep_existing_placement: *keep_existing_placement,
                     });
                 }
-                PlannedActTarget::SyntheticLeaf { name, color, .. } => {
-                    let leaf_id = existing_act_leaves
+                PlannedActTarget::SyntheticEntry { name, color, .. } => {
+                    let act_id = existing_acts
                         .get(synth_idx)
                         .cloned()
                         .unwrap_or_else(EntryId::new_v7);
                     synth_idx += 1;
-                    let w = entries.put(&leaf_id, Some(track_id), name, &act_leaf_tpl)?;
-                    apply_act_color_if_supported(&w, act_leaf_tpl_def.as_ref(), color.as_deref())?;
+                    let w = entries.put(&act_id, Some(track_id), name, &act_tpl)?;
+                    apply_act_color_if_supported(&w, act_tpl_def.as_ref(), color.as_deref())?;
                     resolved_act_entries.push(ResolvedActEntry {
-                        entry_id: leaf_id,
+                        entry_id: act_id,
                         interval: act.interval,
                         keep_existing_placement: false,
                     });
@@ -1048,7 +1048,7 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             })
         {
             return Err(format!(
-                "relation type {} has an unknown v3 endpoint kind",
+                "relation type {} has an unknown endpoint kind",
                 relation_type.id
             ));
         }
@@ -1115,10 +1115,10 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
         }
     }
     if view.relations_raw().len() != view.relations().len() {
-        return Err("v3 relation constraints reject an imported endpoint".into());
+        return Err("relation constraints reject an imported endpoint".into());
     }
     if !view.repair_plan().is_empty() {
-        return Err("v3 import requires a repair; source must be reviewed".into());
+        return Err("import requires a repair; source must be reviewed".into());
     }
     Ok(())
 }

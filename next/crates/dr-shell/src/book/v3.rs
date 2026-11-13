@@ -77,10 +77,15 @@ pub struct BookV3 {
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
     template_index: BTreeMap<String, usize>,
+    /// Each live entry's colour ([`dr_model::v3::entry_color`]), from the
+    /// same read.
     #[serde(skip)]
-    hosts_by_member: BTreeMap<String, BTreeSet<String>>,
+    colors: BTreeMap<String, String>,
     #[serde(skip)]
     ordinals: BTreeMap<String, u32>,
+    /// The outermost manuscript levels, the only ones `is_manuscript` counts on.
+    #[serde(skip)]
+    manuscript_roots: BTreeSet<String>,
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
@@ -180,6 +185,12 @@ impl BookV3 {
     pub fn manuscript_number(&self, id: &str) -> Option<u32> {
         self.ordinals.get(id).copied()
     }
+    /// Whether `id` is an outermost level that declares itself a manuscript:
+    /// the only kind `is_manuscript` counts on (`kernel-v4.md` "成书"),
+    /// whatever the settings below it resolve to.
+    pub fn is_manuscript_root(&self, id: &str) -> bool {
+        self.manuscript_roots.contains(id)
+    }
     /// Whether `id` holds content rather than organising it: its template
     /// is `linkable` (`kernel-v4.md` §2), and an entry without a template
     /// counts as content. A content entry is shown as a card whether or not
@@ -190,26 +201,11 @@ impl BookV3 {
     /// Metadata for every entry surface. Marks keep the template's vocabulary;
     /// the sand renderer maps the built-in marks to the existing visual family.
     pub fn appearance(&self, id: &str) -> Option<Appearance> {
-        let entry = self.entry(id)?;
+        self.entry(id)?;
         let template = self.template_of(id);
-        let own_color = self.own_color(id);
-        // The entry's own color when it has one, else its primary lane's.
-        let color = if own_color.is_some() {
-            own_color
-        } else {
-            let valid = self.hosts_by_member.get(id);
-            let primary = entry
-                .primary
-                .as_deref()
-                .filter(|&p| valid.is_some_and(|s| s.contains(p)) && self.is_lane(p))
-                .or_else(|| {
-                    valid.and_then(|s| s.iter().map(String::as_str).find(|&p| self.is_lane(p)))
-                });
-            primary.and_then(|lane| self.own_color(lane))
-        };
         Some(Appearance {
             mark: template.and_then(|t| t.mark.clone()),
-            color,
+            color: self.colors.get(id).cloned(),
             sand: mark(template.and_then(|t| t.mark.as_deref()), id),
         })
     }
@@ -224,22 +220,6 @@ impl BookV3 {
                     .or_else(|| self.template_of(id).and_then(|t| t.settings.lane))
                     .unwrap_or(false)
         })
-    }
-    fn own_color(&self, id: &str) -> Option<String> {
-        let entry = self.entry(id)?;
-        let template = self.template_of(id)?;
-        // Per-entry field colour (e.g. a lane) precedes the template default.
-        template
-            .modules
-            .iter()
-            .find_map(|m| {
-                let field = m.config.color_field.as_ref()?;
-                match entry.fields.get(&m.id)?.get(field)? {
-                    types::FieldValue::Text(s) if !s.is_empty() => Some(s.clone()),
-                    _ => None,
-                }
-            })
-            .or_else(|| template.color.clone())
     }
 }
 
@@ -319,12 +299,27 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .collect();
         let memberships: Vec<types::Membership> =
             structure.memberships().iter().map(Into::into).collect();
+        let colors: BTreeMap<String, String> = structure
+            .entries()
+            .filter(|e| !e.is_trashed())
+            .filter_map(|e| {
+                let color = dr_model::v3::entry_color(
+                    e,
+                    entries_map,
+                    templates_map,
+                    structure.memberships(),
+                )?;
+                Some((e.id.to_string(), color))
+            })
+            .collect();
 
         // The manuscript sequence: each entry's own book prose before what
         // lives under it.
         let mut manuscript = Vec::new();
         let mut ordinals = BTreeMap::new();
+        let mut manuscript_roots = BTreeSet::new();
         for part in structure.manuscript() {
+            manuscript_roots.insert(part.root.id.to_string());
             for e in part.entries {
                 if let Some(n) = e.ordinal {
                     ordinals.insert(e.entry.id.to_string(), n);
@@ -401,11 +396,13 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 shown,
                 manuscript,
                 ordinals,
+                manuscript_roots,
                 entries,
                 templates,
                 roots,
                 levels,
                 memberships,
+                colors,
                 timeline_views,
                 materials,
                 material_folders,
@@ -432,12 +429,6 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         .enumerate()
         .map(|(i, record)| (record.key.clone(), i))
         .collect();
-    for m in &v3.memberships {
-        v3.hosts_by_member
-            .entry(m.member.clone())
-            .or_default()
-            .insert(m.host.clone());
-    }
     let mut index = std::collections::HashMap::with_capacity(
         v3.materials.len() + v3.entries.len() + v3.templates.len(),
     );

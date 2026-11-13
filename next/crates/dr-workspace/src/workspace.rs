@@ -1314,7 +1314,7 @@ impl Workspace {
 
     /// Compiled automatic-link matcher for `book` excluding `own_entity_id`.
     /// Shares the book's cached Aho-Corasick automaton whenever `own_entity_id`
-    /// is not itself an auto-link leaf.
+    /// is not itself an auto-linked entry.
     pub fn book_link_matcher(
         &self,
         book: &str,

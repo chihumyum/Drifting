@@ -304,6 +304,7 @@ pub struct Dialog {
     width: f32,
     on_close: Option<super::Handler>,
     on_mist: Option<super::Handler>,
+    close_label: Option<SharedString>,
 }
 
 impl Dialog {
@@ -319,6 +320,7 @@ impl Dialog {
             width: 420.0,
             on_close: None,
             on_mist: None,
+            close_label: None,
         }
     }
 
@@ -368,6 +370,13 @@ impl Dialog {
     /// lost: 0.1's `closeOnBackdrop`). `|_, _| {}` keeps the mist inert.
     pub fn on_mist(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_mist = Some(Rc::new(f));
+        self
+    }
+
+    /// Names the ✕ for the accessibility tree (it is a button there only
+    /// with a name).
+    pub fn close_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.close_label = Some(label.into());
         self
     }
 }
@@ -439,6 +448,7 @@ impl RenderOnce for Dialog {
                                 crate::style::child_id(&self.id.clone(), "close"),
                                 Icon::Close,
                             )
+                            .when_some(self.close_label.clone(), |b, label| b.label(label))
                             .on_click(move |_, w, cx| f(w, cx)),
                         )
                     }),

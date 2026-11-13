@@ -240,15 +240,14 @@ impl Catalog {
     pub fn for_book(ws: &Workspace, book: &BookId) -> crate::Result<Self> {
         if !is_v3_book(ws, book)? {
             return Err(crate::Error::Invalid(
-                "only canonical v3 books have a tool catalog".into(),
+                "only books in the current format have a tool catalog".into(),
             ));
         }
         let book_id = book.clone();
         ws.read_book_v3(book.as_str(), move |doc, _| {
             Ok((|| -> crate::Result<Self> {
-                let borrowed = BorrowedBookV3::new(doc, &book_id).map_err(|e| {
-                    crate::Error::Invalid(format!("invalid v3 book {book_id}: {e}"))
-                })?;
+                let borrowed = BorrowedBookV3::new(doc, &book_id)
+                    .map_err(|e| crate::Error::Invalid(format!("invalid book {book_id}: {e}")))?;
                 Ok(Self::from_v3_view(&book_id, &borrowed.view()))
             })())
         })?

@@ -163,9 +163,7 @@
     }
   },
   "bottomStatusBar": {
-    "collapseTimeline": "Contraer cronología de tramas",
     "elements": "Elementos",
-    "expandTimeline": "Expandir cronología de tramas",
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
@@ -243,10 +241,6 @@
       "deleteMaterial": "Eliminar material",
       "moveMaterialToFolder": "Mover a carpeta…",
       "openMaterialInSystem": "Abrir con la aplicación predeterminada"
-    },
-    "outlineRailMode": {
-      "hidden": "Ocultar índice",
-      "visible": "Mostrar índice"
     },
     "status": {
       "discarded": "Descartado",
@@ -425,8 +419,8 @@
     "entry_count_one": "{{count}} entrada",
     "entry_count_other": "{{count}} entradas",
     "entry_titles": "Títulos de las entradas",
+    "entry_total": "Número de entradas",
     "entry_words": "Palabras de la entrada",
-    "leaf_count": "Número de hojas",
     "material_words": "Palabras del material",
     "retained_content": "Contenido conservado",
     "selected_entries": "Entradas seleccionadas",
@@ -909,6 +903,9 @@
     "delete": "Eliminar tipo de relación",
     "description": "Descripción",
     "directed": "Dirigida",
+    "genericAssociation": {
+      "name": "Asociación"
+    },
     "name": "Nombre",
     "sourceRole": "Rol de origen",
     "swap": "Intercambiar extremos de la relación",
@@ -1460,7 +1457,7 @@
     "date": "Fecha",
     "default_template": "Plantilla predeterminada",
     "description": "Descripción",
-    "display": "Vista",
+    "display": "Visualización",
     "entity_ref": "Referencia a entrada",
     "field_name": "Nombre del campo",
     "fields": "Campos",
@@ -1470,7 +1467,7 @@
     "format_plain": "Ninguno",
     "format_shortcuts": "Atajos de formato",
     "grid": "Cuadrícula",
-    "home": "Ubicación de nuevas entradas",
+    "home": "Ubicación de las nuevas entradas",
     "image": "Imagen",
     "in_book": "Contar palabras y exportar",
     "inherit": "Heredar",
@@ -1592,18 +1589,22 @@
     "bookView": "Vista de libro",
     "changeTemplate": "Cambiar plantilla",
     "childrenEntries": "Entradas debajo",
+    "collapseTimeline": "Contraer cronología de tramas",
     "editTemplate": "Editar plantilla",
     "entries": "Entradas",
     "entryUntemplated": "Entrada",
+    "expandTimeline": "Expandir cronología de tramas",
     "grid": "Cuadrícula",
+    "hideOutline": "Ocultar índice",
     "islands": "Islas",
     "levelSwitch": "Nivel",
-    "levelSwitchHint": "Permite colocar entradas debajo",
+    "levelSwitchHint": "Al activarlo, admite entradas debajo",
     "list": "Lista",
     "newEntry": "Nuevo",
     "newTemplate": "Nueva plantilla",
     "open": "Abrir",
     "settings": "Ajustes",
+    "showOutline": "Mostrar índice",
     "templates": "Plantillas",
     "trash": "Mover a Eliminados recientemente",
     "turnOffLevelBody_one": "{{count}} entrada debajo se moverá al nivel superior junto con todo lo que contiene. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",

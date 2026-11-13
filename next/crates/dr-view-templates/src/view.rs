@@ -499,11 +499,12 @@ impl TemplateEditor {
         let (which, at) = self.picker.clone()?;
         let values = match which {
             Picker::Mark => model::MARKS.to_vec(),
-            // Any template takes any module.
+            // Any template takes any module, 「下面的条目」 once.
             Picker::Add => model::MODULES
                 .iter()
                 .chain(model::FIELDS)
                 .copied()
+                .filter(|kind| *kind != "children" || !model::has_children_module(&self.draft))
                 .collect(),
         };
         let mut menu = Menu::new("k5-picker");
@@ -961,6 +962,7 @@ impl Render for TemplateEditor {
         if self.creating {
             let close = cx.entity_id();
             Dialog::new("k5-create", t(cx, k::NEW_TEMPLATE))
+                .close_label(t(cx, common::CLOSE))
                 .width(760.)
                 .body(div().h(px(500.)).child(page))
                 .on_close(move |_, cx| dr_shell::dialogs::hide(cx, close))

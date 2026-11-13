@@ -56,7 +56,7 @@ pub enum ImportError {
     Invalid(String),
     /// v3 mapping or source-integrity questions. Preflight runs before
     /// opening the target library or adopting an installation identity.
-    #[error("v3 import needs decisions or source repair: {0:?}")]
+    #[error("import needs decisions or source repair: {0:?}")]
     V3Pending(Vec<crate::v3::Pending>),
 }
 

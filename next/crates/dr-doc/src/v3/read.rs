@@ -1021,13 +1021,6 @@ impl<'a> BookViewV3<'a> {
             .find(|e| e.template.as_ref() == Some(template_id))
     }
 
-    /// Look up the novel root level entries (`书稿`, `构想`, `要素`, `故事线`),
-    /// default category entries (`人物`, `地点`, `道具`, `组织`), and default
-    /// timeline view by their templates.
-    pub fn novel_roots(&self) -> Option<crate::v3::novel::NovelRootEntries> {
-        crate::v3::novel::find_novel_roots(self)
-    }
-
     // ---- memberships -----------------------------------------------------
 
     /// Every stored membership, unfiltered, sorted by `(host, pos, member)`.

@@ -277,3 +277,50 @@ fn recent_material_uses_v3_metadata_and_survives_reopening() {
     assert_eq!(pages[0].title, title);
     reopened.shutdown().unwrap();
 }
+
+#[test]
+fn same_named_actions_carry_the_titles_of_their_levels() {
+    let (_dir, lib, book) = fixture();
+    let check = |all: &[v3::CreateAction]| {
+        for a in all {
+            let same = all.iter().filter(|b| b.name == a.name).count();
+            let label = v3::action_label(all, a);
+            if same > 1 {
+                assert_eq!(label, format!("{} · {}", a.name, a.level_title));
+            } else {
+                assert_eq!(label, a.name);
+            }
+        }
+    };
+    let manuscript = v3::actions(&Book::load(&lib, &book).unwrap())
+        .into_iter()
+        .find(|a| a.template.as_deref() == Some("tpl-chapter"))
+        .unwrap();
+    check(&v3::actions(&Book::load(&lib, &book).unwrap()));
+    // A second manuscript declares the same action: both say where.
+    let second = lib
+        .call(
+            &Actor::User,
+            "entry.create",
+            json!({"book":book,"template":"tpl-manuscript","title":"Synthetic sequel"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let all = v3::actions(&Book::load(&lib, &book).unwrap());
+    check(&all);
+    let sequel = all.iter().find(|a| a.level == second).unwrap();
+    assert_eq!(
+        v3::action_label(&all, sequel),
+        format!("{} · Synthetic sequel", manuscript.name)
+    );
+    let first = all
+        .iter()
+        .find(|a| a.level == manuscript.level && a.id == manuscript.id)
+        .unwrap();
+    assert_eq!(
+        v3::action_label(&all, first),
+        format!("{} · {}", manuscript.name, manuscript.level_title)
+    );
+}

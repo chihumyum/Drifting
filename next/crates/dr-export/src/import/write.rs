@@ -176,6 +176,17 @@ fn name_for(asked: &str, parsed: &ParsedDoc) -> String {
     name.chars().take(MAX_NAME).collect()
 }
 
+/// The prose module an imported document's text goes into, under the
+/// template a new entry gets: the first one counted toward words and
+/// export (`in_book`), else the first one. `None`: the template has no
+/// prose, so a document cannot be imported with it.
+pub fn import_module(template: &dr_model::v3::EntryTemplate) -> Option<&dr_model::v3::ModuleSpec> {
+    template
+        .book_prose_modules()
+        .next()
+        .or_else(|| template.prose_modules().next())
+}
+
 /// Create one entity per `(name, file)` in `book`, in order, as `actor`.
 /// `cancel` stops before the next file. Fails only when the book is gone;
 /// each file's own failure is in its [`ImportedItem`].
@@ -262,13 +273,10 @@ fn import_one(
     let template = templates
         .get(&template_id)
         .ok_or_else(|| ExportError::Invalid("import template missing".into()))?;
-    let modules: Vec<_> = template.prose_modules().collect();
-    let [module] = modules.as_slice() else {
-        return Err(ExportError::Invalid(
-            "import template must identify exactly one prose module".into(),
-        ));
-    };
-    let module = module.id.to_string();
+    let module = import_module(template)
+        .ok_or_else(|| ExportError::Invalid("import template has no prose module".into()))?
+        .id
+        .to_string();
     let mut guard_keys = Vec::new();
     let mut seen_keys = std::collections::HashSet::new();
     let mut push_key = |key: dr_workspace::RecordKey| {
