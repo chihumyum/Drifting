@@ -1,6 +1,6 @@
-//! A durable, explicitly separate v3 import destination. No active Workspace
+//! A durable, explicitly separate import destination. No active Workspace
 //! enters the worker; import_with opens one store without a deriver, closes it,
-//! and only then the normal v3 index is rebuilt in a separate open/close cycle.
+//! and only then the normal index is rebuilt in a separate open/close cycle.
 use std::path::{Path, PathBuf};
 
 use dr_import_v1::{
@@ -59,7 +59,7 @@ impl Destination {
             || target.starts_with(&original)
             || original.starts_with(&target)
         {
-            return Err("v3 reimport requires a new destination".into());
+            return Err("reimport requires a new destination".into());
         }
         Ok(())
     }

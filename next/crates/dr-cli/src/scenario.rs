@@ -7,7 +7,7 @@
 //! {"steps":[
 //!   {"call":"project.create","input":{"name":"Synthetic example"},"save":"book"},
 //!   {"call":"entry.list","input":{"book":"${book.id}"},"save":"roots"},
-//!   {"call":"entry.create","input":{"book":"${book.id}","parent":"${roots.[template=tpl-manuscript].id}","template":"tpl-chapter","title":"First chapter"}}
+//!   {"call":"entry.create","input":{"book":"${book.id}","parent":"${roots.[title=书稿].id}","title":"First chapter"}}
 //! ]}
 //! ```
 //!

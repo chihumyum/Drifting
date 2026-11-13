@@ -42,11 +42,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "destination": "A separate new library will be created. The current library and 0.1 source are preserved.",
       "pending": "Mapping choices required before import",
       "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "switching": "Opening the completed library",
+      "title": "Reimport into new library"
     }
   },
   "importDialog": {

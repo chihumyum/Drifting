@@ -1,6 +1,7 @@
-//! Canonical v3 import. Source catalogs are replayed only in memory. The
-//! pipeline owns staging, prose history, anchors, receipts, assets and resume.
-//! Unresolved policy and malformed source rows stop before target writes.
+//! Unified-entry import (book format 4, `kernel-v4.md` §10). Source catalogs
+//! are replayed only in memory. The pipeline owns staging, prose history,
+//! anchors, receipts, assets and resume. Unresolved policy and malformed source
+//! rows stop before target writes.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -25,7 +26,7 @@ pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
-        "3:{:x}",
+        "4:{:x}",
         Sha256::digest(serde_json::to_vec(&options.v3)?)
     ))
 }
