@@ -1,7 +1,15 @@
 //! Canonical v3 level surface.
 pub mod v3 {
-    use std::{collections::BTreeSet, rc::Rc};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        rc::Rc,
+    };
 
+    pub use crate::data::v3::{DropSlot, SortOrder, UpdatedMap};
+    use crate::data::v3::{
+        compare_entries, drop_slot_at, prepare_resolved_drop, resolve_drop, sort_memory_key,
+        updated_timestamps,
+    };
     use dr_i18n::keys;
     use dr_shell::{
         book::Book,
@@ -42,6 +50,20 @@ pub mod v3 {
         Island { id: String, members: Vec<String> },
     }
 
+    fn ordered_ids(
+        v: &dr_shell::book::v3::BookV3,
+        ids: &[String],
+        sort: SortOrder,
+        updated: &UpdatedMap,
+    ) -> Vec<String> {
+        if sort == SortOrder::Manual {
+            return ids.to_vec();
+        }
+        let mut out = ids.to_vec();
+        out.sort_by(|a, b| compare_entries(v, a, b, sort, updated));
+        out
+    }
+
     /// Flatten only the effective residence tree. Accepted entries are a
     /// separate section and never silently become children in the tree.
     pub fn rows(
@@ -52,6 +74,29 @@ pub mod v3 {
         folded: &BTreeSet<String>,
         columns: usize,
     ) -> Vec<Row> {
+        rows_sorted(
+            book,
+            level,
+            display,
+            grouped,
+            SortOrder::Manual,
+            &BTreeMap::new(),
+            folded,
+            columns,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn rows_sorted(
+        book: &Book,
+        level: &str,
+        display: Display,
+        grouped: bool,
+        sort: SortOrder,
+        updated: &UpdatedMap,
+        folded: &BTreeSet<String>,
+        columns: usize,
+    ) -> Vec<Row> {
         let Some(v) = book.v3() else {
             return Vec::new();
         };
@@ -59,6 +104,11 @@ pub mod v3 {
             return Vec::new();
         };
         let mut out = Vec::new();
+        let active_sort = if matches!(display, Display::List | Display::Grid) && !grouped {
+            sort
+        } else {
+            SortOrder::Manual
+        };
         if grouped && display == Display::List {
             let mut leaves = Vec::new();
             let mut pending: Vec<_> = root.children.iter().rev().cloned().collect();
@@ -111,11 +161,10 @@ pub mod v3 {
             }
         } else {
             out.push(Row::Section(Section::Residents));
-            let mut pending: Vec<_> = root
-                .children
-                .iter()
+            let mut pending: Vec<_> = ordered_ids(v, &root.children, active_sort, updated)
+                .into_iter()
                 .rev()
-                .map(|id| (id.clone(), 0))
+                .map(|id| (id, 0))
                 .collect();
             let mut seen = BTreeSet::new();
             while let Some((id, depth)) = pending.pop() {
@@ -170,11 +219,10 @@ pub mod v3 {
                     });
                     if !folded.contains(&id) {
                         pending.extend(
-                            child
-                                .children
-                                .iter()
+                            ordered_ids(v, &child.children, active_sort, updated)
+                                .into_iter()
                                 .rev()
-                                .map(|id| (id.clone(), depth + 1)),
+                                .map(|id| (id, depth + 1)),
                         );
                     }
                 }
@@ -182,8 +230,8 @@ pub mod v3 {
         }
         if !root.members.is_empty() {
             out.push(Row::Section(Section::Members));
-            for id in &root.members {
-                out.push(Row::Member { id: id.clone() });
+            for id in ordered_ids(v, &root.members, active_sort, updated) {
+                out.push(Row::Member { id });
             }
         }
         out
@@ -264,6 +312,36 @@ pub mod v3 {
         })
         .detach();
     }
+    fn drop_on_resolved(
+        page: &dr_shell::pages::PageViewHost,
+        drag: &EntryDrag,
+        onto: &str,
+        slot: DropSlot,
+        can_reorder: bool,
+        is_member: bool,
+        cx: &mut App,
+    ) {
+        if !drag.matches(page) || !drag.is_current(cx) {
+            return;
+        }
+        let Some(target) = resolve_drop(
+            &drag.page().book,
+            &drag.entry,
+            onto,
+            slot,
+            can_reorder,
+            is_member,
+        ) else {
+            return;
+        };
+        if let Ok(edit) = prepare_resolved_drop(&drag.page().book, &drag.entry, target) {
+            admit_drag(
+                drag.page(),
+                move |lib| edit.commit_if_changed(&lib).map(|v| v.unwrap_or_default()),
+                cx,
+            );
+        }
+    }
     fn drop_on_entry(
         page: &dr_shell::pages::PageViewHost,
         drag: &EntryDrag,
@@ -276,7 +354,11 @@ pub mod v3 {
         }
         if let Ok(edit) = crate::data::v3::prepare_drop(&drag.page().book, &drag.entry, onto, after)
         {
-            admit_drag(drag.page(), move |lib| edit.commit(&lib), cx);
+            admit_drag(
+                drag.page(),
+                move |lib| edit.commit_if_changed(&lib).map(|v| v.unwrap_or_default()),
+                cx,
+            );
         }
     }
     fn drop_on_board(
@@ -315,8 +397,12 @@ pub mod v3 {
         pub host: LevelHost,
         pub display: Display,
         pub grouped: bool,
+        pub sort: SortOrder,
         pub folded: BTreeSet<String>,
         pub rows: Rc<Vec<Row>>,
+        updated: UpdatedMap,
+        focus: Option<FocusHandle>,
+        _observers: Vec<Subscription>,
         list: ListState,
         scroll: ScrollHandle,
     }
@@ -391,7 +477,33 @@ pub mod v3 {
     }
 
     pub fn make(host: LevelHost, display: Display, cx: &mut App) -> Rendered {
-        let view = cx.new(|_| LevelDisplay::new(host, display));
+        let ws = host.page.workspace.upgrade();
+        let view = cx.new(|cx| {
+            let mut this = LevelDisplay::new(host, display);
+            this.focus = Some(cx.focus_handle());
+            if let Some(ws) = &ws {
+                this._observers
+                    .push(cx.observe(ws, |this: &mut LevelDisplay, ws, cx| {
+                        if this.sync_workspace_memory(ws.read(cx)) {
+                            cx.notify();
+                        }
+                    }));
+            }
+            this
+        });
+        if let Some(ws) = ws {
+            // `make` may be invoked from inside `Workspace::render` or
+            // `Workspace::prepare_editor` while `ws` is mutably borrowed;
+            // defer the initial `ws.read(cx)` check until the outer update ends.
+            let weak = view.downgrade();
+            cx.defer(move |cx| {
+                let _ = weak.update(cx, |this, cx| {
+                    if this.sync_workspace_memory(ws.read(cx)) {
+                        cx.notify();
+                    }
+                });
+            });
+        }
         let weak = view.downgrade();
         Rendered::new(view).on_refresh(move |book, cx| {
             let _ = weak.update(cx, |this, cx| this.refresh(book, cx));
@@ -400,17 +512,106 @@ pub mod v3 {
 
     impl LevelDisplay {
         pub fn new(host: LevelHost, display: Display) -> Self {
+            let mut sort = SortOrder::Manual;
+            let row = format!(
+                "memory:{}:{}",
+                host.page.book_id,
+                sort_memory_key(&host.level)
+            );
+            if let Ok(Some(raw)) = host
+                .page
+                .library
+                .library()
+                .local_get(dr_shell::workspace::BOOK_MEMORY_SCOPE, &row)
+                && let Ok(parsed) = serde_json::from_str::<String>(&raw)
+                && let Some(saved) = SortOrder::parse(&parsed)
+            {
+                sort = saved;
+            }
+            let updated = if sort == SortOrder::Updated {
+                updated_timestamps(&host.page.library, &host.page.book)
+            } else {
+                BTreeMap::new()
+            };
             let mut this = Self {
                 host,
                 display,
                 grouped: false,
+                sort,
                 folded: BTreeSet::new(),
                 rows: Rc::default(),
+                updated,
+                focus: None,
+                _observers: Vec::new(),
                 list: ListState::new(0, ListAlignment::Top, px(300.0)),
                 scroll: ScrollHandle::new(),
             };
             this.rebuild();
             this
+        }
+        pub fn can_reorder(&self) -> bool {
+            matches!(self.display, Display::List | Display::Grid)
+                && self.sort == SortOrder::Manual
+                && !(self.grouped && self.display == Display::List)
+        }
+        fn sync_workspace_memory(&mut self, ws: &dr_shell::Workspace) -> bool {
+            if ws.book_id != self.host.page.book_id {
+                return false;
+            }
+            let key = sort_memory_key(&self.host.level);
+            let next = if let Some(saved) = ws
+                .book_memory(&key)
+                .and_then(|v| v.as_str())
+                .and_then(SortOrder::parse)
+            {
+                Some(saved)
+            } else if ws.book_memory_ready() {
+                Some(SortOrder::Manual)
+            } else {
+                None
+            };
+            let Some(next) = next else {
+                return false;
+            };
+            if self.sort == next {
+                return false;
+            }
+            self.sort = next;
+            if self.sort == SortOrder::Updated {
+                self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
+            }
+            self.rebuild();
+            true
+        }
+        pub fn set_sort(&mut self, sort: SortOrder, cx: &mut Context<Self>) {
+            let changed = self.sort != sort;
+            self.sort = sort;
+            if self.sort == SortOrder::Updated {
+                self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
+            }
+            if changed || self.sort == SortOrder::Updated {
+                self.rebuild();
+            }
+            let key = sort_memory_key(&self.host.level);
+            let val = serde_json::json!(sort.as_str());
+            if let Some(ws) = self.host.page.workspace.upgrade() {
+                ws.update(cx, |ws, cx| {
+                    ws.set_book_memory(&key, val, cx);
+                    cx.notify();
+                });
+            } else {
+                let lib = self.host.page.library.clone();
+                let book = self.host.page.book_id.clone();
+                let row = format!("memory:{book}:{key}");
+                let raw = val.to_string();
+                let _ = lib.library().local_set(
+                    dr_shell::workspace::BOOK_MEMORY_SCOPE,
+                    &row,
+                    &raw,
+                    Some(&book),
+                );
+            }
+            cx.notify();
         }
         fn rebuild(&mut self) {
             let columns = if self.host.surface == DisplaySurface::Sidebar {
@@ -418,11 +619,13 @@ pub mod v3 {
             } else {
                 4
             };
-            let rows = rows(
+            let rows = rows_sorted(
                 &self.host.page.book,
                 &self.host.level,
                 self.display,
                 self.grouped,
+                self.sort,
+                &self.updated,
                 &self.folded,
                 columns,
             );
@@ -449,6 +652,9 @@ pub mod v3 {
         }
         pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
             self.host.page.book = book;
+            if self.sort == SortOrder::Updated {
+                self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
+            }
             self.rebuild();
             cx.notify();
         }
@@ -467,7 +673,7 @@ pub mod v3 {
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
-            self.entry_at(id, depth, tile, "root", None, window, cx)
+            self.entry_at(id, depth, tile, "root", false, None, window, cx)
         }
         fn entry_scoped(
             &self,
@@ -478,7 +684,16 @@ pub mod v3 {
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
-            self.entry_at(id, depth, tile, scope, None, window, cx)
+            self.entry_at(id, depth, tile, scope, false, None, window, cx)
+        }
+        fn entry_member(
+            &self,
+            id: &str,
+            scope: &str,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
+            self.entry_at(id, 0, false, scope, true, None, window, cx)
         }
         #[allow(clippy::too_many_arguments)]
         fn entry_at(
@@ -487,6 +702,7 @@ pub mod v3 {
             depth: usize,
             tile: bool,
             scope: &str,
+            is_member: bool,
             board: Option<(String, (f64, f64))>,
             window: &mut Window,
             cx: &mut App,
@@ -500,6 +716,9 @@ pub mod v3 {
             let Some(target) = entry_target(id) else {
                 return div().into_any_element();
             };
+            let is_level = v.levels.contains_key(id);
+            let row_can_reorder =
+                self.can_reorder() && scope != "root" && !is_member && board.is_none();
             let (mark, color) = self.host.page.book.mark(&target);
             let weak = self.host.page.workspace.clone();
             let card_ws = weak.upgrade();
@@ -567,11 +786,7 @@ pub mod v3 {
                     .mark(mark)
                     .color_opt(color)
                     .selected(selected)
-                    .font(if v.levels.contains_key(id) {
-                        Role::Structure
-                    } else {
-                        Role::Ui
-                    })
+                    .font(if is_level { Role::Structure } else { Role::Ui })
                     .on_click(on_click)
                     .into_any_element()
             };
@@ -592,8 +807,12 @@ pub mod v3 {
                 window,
                 cx,
             );
+            let can_bounds = bounds.clone();
+            let over_bounds = bounds.clone();
             let drop_bounds = bounds.clone();
             let grab_bounds = bounds.clone();
+            let drag_focus = self.focus.clone();
+            let drop_focus = self.focus.clone();
             let in_board = board.is_some();
             let start = window.use_keyed_state(
                 SharedString::from(format!("g2-drag-start-{}-{scope}-{id}", self.host.level)),
@@ -608,7 +827,24 @@ pub mod v3 {
             let can_page = page.clone();
             let onto = id.to_owned();
             let can_onto = onto.clone();
-            let wash = Theme::of(window, cx).palette.accent.alpha(0.08);
+            let palette = Theme::of(window, cx).palette;
+            let wash = palette.accent.alpha(0.08);
+            let line = palette.accent.alpha(0.55);
+            let slot_for = move |bounds: &Entity<Option<Bounds<Pixels>>>,
+                                 window: &Window,
+                                 cx: &App| {
+                bounds
+                    .read(cx)
+                    .as_ref()
+                    .map(|b| {
+                        drop_slot_at(*b, window.mouse_position(), is_level, tile, row_can_reorder)
+                    })
+                    .unwrap_or(if is_level || !row_can_reorder {
+                        DropSlot::Into
+                    } else {
+                        DropSlot::After
+                    })
+            };
             div()
                 .id(SharedString::from(format!(
                     "g2-drag-{}-{scope}-{id}",
@@ -627,6 +863,9 @@ pub mod v3 {
                     pressed.update(cx, |start, _| *start = Some(event.position));
                 })
                 .on_drag(drag, move |drag, _, window, cx| {
+                    if let Some(focus) = &drag_focus {
+                        focus.focus(window, cx);
+                    }
                     let source = drag.source::<EntryDragSource>().expect("G2 drag source");
                     if source.start.read(cx).is_none() {
                         source
@@ -643,25 +882,39 @@ pub mod v3 {
                     cx.new(|_| DraggedPill::new(pill, at))
                 })
                 .when(!in_board, |el| {
-                    el.can_drop(move |value, _, _| {
+                    el.can_drop(move |value, window, cx| {
                         value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
-                            drag.matches(&can_page)
-                                && crate::data::v3::drop_target(
-                                    &drag.page().book,
-                                    &drag.entry,
-                                    &can_onto,
-                                    true,
-                                )
-                                .is_some()
+                            if !drag.matches(&can_page) {
+                                return false;
+                            }
+                            let slot = slot_for(&can_bounds, window, cx);
+                            resolve_drop(
+                                &drag.page().book,
+                                &drag.entry,
+                                &can_onto,
+                                slot,
+                                row_can_reorder,
+                                is_member,
+                            )
+                            .is_some()
                         })
                     })
-                    .drag_over::<EntryDrag>(move |style, _, _, _| style.bg(wash))
+                    .drag_over::<EntryDrag>(move |style, _, window, cx| {
+                        let slot = slot_for(&over_bounds, window, cx);
+                        if slot == DropSlot::Into || tile {
+                            style.bg(wash)
+                        } else if slot == DropSlot::Before {
+                            style.border_t_1().border_color(line)
+                        } else {
+                            style.border_b_1().border_color(line)
+                        }
+                    })
                     .on_drop(move |drag: &EntryDrag, window, cx| {
-                        let after = drop_bounds
-                            .read(cx)
-                            .as_ref()
-                            .is_some_and(|bounds| window.mouse_position().y >= bounds.center().y);
-                        drop_on_entry(&page, drag, &onto, after, cx);
+                        if let Some(focus) = &drop_focus {
+                            focus.focus(window, cx);
+                        }
+                        let slot = slot_for(&drop_bounds, window, cx);
+                        drop_on_resolved(&page, drag, &onto, slot, row_can_reorder, is_member, cx);
                     })
                 })
                 .child(overlay::probe(bounds))
@@ -701,7 +954,7 @@ pub mod v3 {
                     .aria_label(self.heading(*section, cx))
                     .child(self.heading(*section, cx))
                     .into_any_element(),
-                Row::Member { id } => self.entry_scoped(id, 0, false, scope, window, cx),
+                Row::Member { id } => self.entry_member(id, scope, window, cx),
                 Row::Entry { id, depth } => {
                     let mut row = div().flex().items_center().min_w_0().w_full();
                     if self
@@ -930,6 +1183,7 @@ pub mod v3 {
                             0,
                             false,
                             scope,
+                            false,
                             Some((self.host.level.clone(), *position)),
                             window,
                             cx,
@@ -942,7 +1196,13 @@ pub mod v3 {
 
     impl Render for LevelDisplay {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let focus = self.focus.get_or_insert_with(|| cx.focus_handle()).clone();
             let mut root = div()
+                .id(SharedString::from(format!(
+                    "g2-display-{}",
+                    self.host.level
+                )))
+                .track_focus(&focus)
                 .flex()
                 .flex_col()
                 .min_h_0()
@@ -984,6 +1244,37 @@ pub mod v3 {
                             cx.notify();
                         });
                     }),
+                );
+            }
+            if matches!(self.display, Display::List | Display::Grid)
+                && !(self.grouped && self.display == Display::List)
+            {
+                let weak = cx.entity().downgrade();
+                root = root.child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "g2-sort-scroll-{}",
+                            self.host.level
+                        )))
+                        .overflow_x_scroll()
+                        .flex_shrink_0()
+                        .child(
+                            Segmented::new(
+                                SharedString::from(format!("g2-sort-{}", self.host.level)),
+                                [
+                                    t(cx, keys::v3_levels::SORT_MANUAL),
+                                    t(cx, keys::v3_levels::SORT_UPDATED),
+                                    t(cx, keys::v3_levels::SORT_CREATED),
+                                    t(cx, keys::v3_levels::SORT_NAME),
+                                ],
+                                self.sort.index(),
+                            )
+                            .on_change(move |index, _, cx| {
+                                let _ = weak.update(cx, |this, cx| {
+                                    this.set_sort(SortOrder::from_index(index), cx);
+                                });
+                            }),
+                        ),
                 );
             }
             let body = if self.display == Display::Board {
