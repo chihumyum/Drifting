@@ -12,13 +12,29 @@ pub fn glossary(lib: &Library, book: &BookId) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, book).map_err(|e| e.to_string())?;
-    let view = borrowed.view();
+    glossary_from_view(&borrowed.view())
+}
+
+pub fn glossary_from_workspace(
+    ws: &dr_workspace::Workspace,
+    book: &BookId,
+) -> Result<String, String> {
+    let book_owned = book.clone();
+    ws.read_book_v3(book.as_str(), move |doc, _| {
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_owned)
+            .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+        Ok(glossary_from_view(&borrowed.view()))
+    })
+    .map_err(|e| e.to_string())?
+}
+
+fn glossary_from_view(view: &dr_doc::v3::BookViewV3<'_>) -> Result<String, String> {
     if view.trashed_at().is_some() {
         return Err("project is unavailable".into());
     }
     let templates = view.templates_map();
     let memberships = view.memberships_raw();
-    let entries = view.entries();
+    let entries = view.entries_raw();
     let entries_map: std::collections::BTreeMap<_, _> =
         entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
     let live: Vec<_> = entries.into_iter().filter(|e| !e.is_trashed()).collect();

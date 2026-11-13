@@ -210,20 +210,21 @@ pub fn resolve_change(
             .ok_or_else(missing);
     }
     if change.kind == "relation" {
-        let copy = ws
-            .library()
-            .load_copy(&format!("book:{book}"))
-            .map_err(|e| e.to_string())?;
-        let book_id = book
+        let book_id: dr_model::id::BookId = book
             .parse()
             .map_err(|e: dr_model::id::IdError| e.to_string())?;
-        let borrowed =
-            dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(|e| e.to_string())?;
-        let r = borrowed
-            .view()
-            .relations_raw()
-            .into_iter()
-            .find(|r| r.id.as_str() == change.id)
+        let change_id = change.id.clone();
+        let r = ws
+            .read_book_v3(book, move |doc, _| {
+                let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                    .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+                Ok(borrowed
+                    .view()
+                    .relations_raw()
+                    .into_iter()
+                    .find(|r| r.id.as_str() == change_id))
+            })
+            .map_err(|e| e.to_string())?
             .ok_or_else(missing)?;
         return [&r.from, &r.to]
             .into_iter()
@@ -262,11 +263,10 @@ pub fn resolve_change(
 }
 
 pub fn starters(ws: &Workspace, book: &str) -> Result<StarterSource, String> {
-    let copy = ws
-        .library()
-        .load_copy(&format!("book:{book}"))
-        .map_err(|e| e.to_string())?;
-    if !dr_doc::v3::is_book_doc(&copy) {
+    let book_id: dr_model::id::BookId = book
+        .parse()
+        .map_err(|e: dr_model::id::IdError| e.to_string())?;
+    if !ws.is_v3_book(&book_id).map_err(|e| e.to_string())? {
         return Err("only books of the current format support the Agent".into());
     }
     Ok(StarterSource)

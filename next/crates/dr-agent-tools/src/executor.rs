@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 
 use crate::{
     Error, Result,
-    catalog::{ActionRef, ActionTarget, Catalog, Search, is_v3_book},
+    catalog::{ActionRef, ActionTarget, Catalog, CatalogStamp, Search, catalog_inputs, is_v3_book},
     prose::{self, Projection},
     resolve::{self, ResolvedCall},
     structure::{FocusRequest, StructureContext},
@@ -216,7 +216,14 @@ struct CatalogCacheKey {
     book: String,
 }
 
-type V3CatalogCache = HashMap<CatalogCacheKey, (String, Arc<Catalog>)>;
+#[derive(Clone)]
+struct CachedCatalog {
+    last_version: String,
+    stamp: CatalogStamp,
+    catalog: Arc<Catalog>,
+}
+
+type V3CatalogCache = HashMap<CatalogCacheKey, CachedCatalog>;
 
 #[derive(Clone)]
 pub struct AgentTools {
@@ -262,7 +269,11 @@ impl AgentTools {
         book: &BookId,
         focus: Option<&FocusRequest>,
     ) -> Result<Option<StructureContext>> {
-        StructureContext::for_book(ws, book, focus)
+        if !is_v3_book(ws, book)? {
+            return StructureContext::for_book(ws, book, focus);
+        }
+        let catalog = self.catalog_for_book(ws, book)?;
+        StructureContext::for_book_with_catalog(ws, book, Some(catalog), focus)
     }
 
     pub fn catalog_for_book(&self, ws: &Workspace, book: &BookId) -> Result<Arc<Catalog>> {
@@ -276,24 +287,45 @@ impl AgentTools {
         let cache_key = CatalogCacheKey {
             book: book.to_string(),
         };
-        if let Some((cached_version, cached)) = self
-            .v3_cache
-            .lock()
-            .expect("v3 catalog cache")
-            .get(&cache_key)
-            .cloned()
-            && cached_version == version
-        {
-            return Ok(cached);
-        }
-        let catalog = Arc::new(Catalog::for_book(ws, book)?);
-        let after = ws.version(&book_doc)?;
-        if after == version {
-            self.v3_cache
-                .lock()
-                .expect("v3 catalog cache")
-                .insert(cache_key, (version, Arc::clone(&catalog)));
-        }
+        let prev = {
+            let cache = self.v3_cache.lock().expect("v3 catalog cache");
+            if let Some(cached) = cache.get(&cache_key)
+                && cached.last_version == version
+            {
+                return Ok(Arc::clone(&cached.catalog));
+            }
+            cache.get(&cache_key).cloned()
+        };
+        let book_id = book.clone();
+        let (live_version, stamp, catalog) =
+            ws.read_book_v3(book.as_str(), move |doc, live_version| {
+                Ok((|| -> Result<(String, CatalogStamp, Arc<Catalog>)> {
+                    let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                        .map_err(|e| Error::Invalid(format!("invalid v3 book {book_id}: {e}")))?;
+                    let view = borrowed.view();
+                    let (stamp, headers, ordered_levels) = catalog_inputs(&view);
+                    if let Some(prev) = prev
+                        && (prev.last_version == live_version || prev.stamp == stamp)
+                    {
+                        return Ok((live_version, prev.stamp, prev.catalog));
+                    }
+                    let catalog = Arc::new(Catalog::from_v3_parts(
+                        &book_id,
+                        &stamp.templates,
+                        &headers,
+                        &ordered_levels,
+                    ));
+                    Ok((live_version, stamp, catalog))
+                })())
+            })??;
+        self.v3_cache.lock().expect("v3 catalog cache").insert(
+            cache_key,
+            CachedCatalog {
+                last_version: live_version,
+                stamp,
+                catalog: Arc::clone(&catalog),
+            },
+        );
         Ok(catalog)
     }
 
@@ -388,7 +420,13 @@ impl AgentTools {
         }
         let canonical_name = request.canonical_name_in(&catalog, book)?;
         let key = turn_key(book, actor);
-        let mut resolved = resolve::resolve(ws, book, &canonical_name, request.arguments)?;
+        let mut resolved = resolve::resolve_with_catalog(
+            ws,
+            book,
+            Some(&catalog),
+            &canonical_name,
+            request.arguments,
+        )?;
         if descriptor.access == ToolAccess::Read {
             if request.edited_text.is_some() {
                 return Err(Error::Invalid(
