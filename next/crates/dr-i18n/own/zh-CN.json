@@ -37,11 +37,11 @@
       }
     },
     "v3": {
-      "destination": "导入到独立的新 v3 库，保留当前库和 0.1 源库。",
+      "destination": "导入到独立的新库，保留当前库和 0.1 源库。",
       "pending": "导入前需要映射选择",
       "start": "导入到新库",
-      "switching": "正在打开已完成的 v3 库",
-      "title": "重新导入为 v3"
+      "switching": "正在打开已完成的新库",
+      "title": "重新导入到新库"
     }
   },
   "importDialog": {

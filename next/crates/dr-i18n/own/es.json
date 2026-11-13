@@ -42,11 +42,11 @@
       }
     },
     "v3": {
-      "destination": "Se creará una biblioteca v3 independiente. La biblioteca actual y el origen 0.1 se conservan.",
+      "destination": "Se creará una biblioteca nueva independiente. La biblioteca actual y el origen 0.1 se conservan.",
       "pending": "Se requieren opciones de asignación antes de importar",
       "start": "Importar en una biblioteca nueva",
-      "switching": "Abriendo la biblioteca v3 completada",
-      "title": "Reimportar como v3"
+      "switching": "Abriendo la biblioteca completada",
+      "title": "Reimportar en una biblioteca nueva"
     }
   },
   "importDialog": {

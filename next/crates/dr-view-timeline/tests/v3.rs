@@ -1,4 +1,5 @@
 //! K4 G3 uses the shared v3 seed and real workspace commands. No second corpus.
+use dr_doc::v3::novel::{TPL_ACT_TRACK, TPL_CHAPTER, TPL_IDEA, TPL_STORYLINE};
 use dr_shell::{
     Services, SettingsFile, ShellInfo, Workspace,
     book::Book,
@@ -79,7 +80,7 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
     let resident = call(
         &lib,
         "entry.create",
-        json!({"book":id,"parent":lane,"title":"Synthetic resident","template":"tpl-chapter"}),
+        json!({"book":id,"parent":lane,"title":"Synthetic resident","template":TPL_CHAPTER}),
     );
     let next = Book::load(&lib, &id).unwrap();
     assert!(
@@ -216,7 +217,7 @@ fn shared_entry_drop_preserves_residence_and_rejects_other_libraries_owners_and_
     let source = b
         .entries
         .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .find(|e| e.template.as_deref() == Some(TPL_IDEA))
         .unwrap()
         .clone();
     let view = b.timeline_views[0].clone();
@@ -310,7 +311,7 @@ fn placement_uses_the_displayed_frontier_before_the_backend_write(cx: &mut TestA
     let entry = book
         .entries
         .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .find(|e| e.template.as_deref() == Some(TPL_IDEA))
         .unwrap()
         .id
         .clone();
@@ -382,7 +383,7 @@ fn placement_is_one_undo_preserves_residence_and_removes_only_orphaned_view_posi
     let entry = b
         .entries
         .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .find(|e| e.template.as_deref() == Some(TPL_IDEA))
         .unwrap()
         .clone();
     let view = b.timeline_views[0].clone();
@@ -781,7 +782,7 @@ fn pin_only_target(
 ) {
     let before = Book::load(lib, book).unwrap();
     let view = before.v3().unwrap().timeline_views[0].clone();
-    let target = call(lib, "entry.create", json!({"book":book,"parent":view.lanes[0].entry,"template":"tpl-chapter","title":"Synthetic pin-only target"}))["id"].as_str().unwrap().to_owned();
+    let target = call(lib, "entry.create", json!({"book":book,"parent":view.lanes[0].entry,"template":TPL_CHAPTER,"title":"Synthetic pin-only target"}))["id"].as_str().unwrap().to_owned();
     let pin = "synthetic-hidden-binding".to_owned();
     call(
         lib,
@@ -1193,13 +1194,13 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
         .entries
         .iter()
         .find(|e| {
-            e.template.as_deref() == Some("tpl-idea")
+            e.template.as_deref() == Some(TPL_IDEA)
                 && !view0.placements.iter().any(|p| p.entry == e.id)
         })
         .unwrap_or_else(|| {
             b0.entries
                 .iter()
-                .find(|e| e.template.as_deref() == Some("tpl-idea"))
+                .find(|e| e.template.as_deref() == Some(TPL_IDEA))
                 .unwrap()
         })
         .clone();
@@ -1212,8 +1213,8 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
     let t = host.read_with(cx, |h, _| h.timeline.clone());
     assert!(t.read_with(cx, |t, _| t.lanes().iter().all(|l| !l.act_track)));
 
-    // 1. Create first act track -> top-level "Acts" (`tpl-act-track`), placed first with `act_track = true`.
-    t.update(cx, |t, cx| t.create_act_track(cx));
+    // 1. Create first act track -> top-level "Acts" (`TPL_ACT_TRACK`), placed first with `act_track = true`.
+    t.update(cx, |t, cx| t.create_act_track(TPL_ACT_TRACK.into(), cx));
     wait(cx, |_| {
         call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"][0]["act_track"]
             == json!(true)
@@ -1228,16 +1229,15 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
     });
     let act1_entry = call(&lib, "entry.get", json!({"book":id,"id":act1}));
     assert!(act1_entry["parent"].is_null());
-    assert_eq!(act1_entry["template"], "tpl-act-track");
-    let tpl =
-        lib.observe(&format!("book:{id}")).unwrap().value["templates"]["tpl-act-track"].clone();
+    assert_eq!(act1_entry["template"], TPL_ACT_TRACK);
+    let tpl = lib.observe(&format!("book:{id}")).unwrap().value["templates"][TPL_ACT_TRACK].clone();
     assert_eq!(tpl["settings"]["lane"], true);
-    assert_eq!(tpl["settings"]["default_template"], "tpl-idea");
+    assert_eq!(tpl["settings"]["default_template"], TPL_IDEA);
     assert!(tpl["settings"].get("allow").is_none());
     assert!(tpl["settings"]["home"].is_null());
 
     // 2. Create second act track -> auto-numbered "Acts 2", placed right after "Acts" and above normal lanes.
-    t.update(cx, |t, cx| t.create_act_track(cx));
+    t.update(cx, |t, cx| t.create_act_track(TPL_ACT_TRACK.into(), cx));
     wait(cx, |_| {
         call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
             .as_array()
@@ -1292,7 +1292,7 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
         .to_owned();
     let created_entry = call(&lib, "entry.get", json!({"book":id,"id":created_id}));
     assert_eq!(created_entry["parent"], act1);
-    assert_eq!(created_entry["template"], "tpl-idea");
+    assert_eq!(created_entry["template"], TPL_IDEA);
     let created_clip = cx
         .debug_bounds(Box::leak(
             format!("v3-clip-{act1}-{created_id}").into_boxed_str(),
@@ -1398,5 +1398,455 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
         let lanes = t.lanes();
         let pos = lanes.iter().position(|l| l.id == storyline0).unwrap();
         assert!(pos >= 2 && !lanes[pos].act_track);
+    });
+}
+
+#[test]
+fn lanes_follow_resolved_lane_setting_without_inheriting_to_child_levels() {
+    let (_dir, lib, id) = seed();
+    let initial = Book::load(&lib, &id).unwrap();
+    let b0 = initial.v3().unwrap();
+    let view_id = b0.timeline_views[0].id.clone();
+    let existing_lane = b0.timeline_views[0].lanes[0].entry.clone();
+
+    // 1. A non-lane template entry whose own `overrides.lane` is set to `true` becomes a valid lane.
+    call(
+        &lib,
+        "entry_template.put",
+        json!({
+            "book": id,
+            "template": {
+                "id": "custom-plain-level",
+                "name": "Synthetic plain level",
+                "level": true,
+                "linkable": false,
+                "settings": {}
+            }
+        }),
+    );
+    let overridden = call(
+        &lib,
+        "entry.create",
+        json!({
+            "book": id,
+            "parent": null,
+            "title": "Synthetic overridden lane",
+            "template": "custom-plain-level"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        !Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .is_lane(&overridden)
+    );
+    call(
+        &lib,
+        "entry.update",
+        json!({
+            "book": id,
+            "id": overridden,
+            "overrides": { "lane": true }
+        }),
+    );
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({
+            "book": id,
+            "view": view_id,
+            "lane": overridden
+        }),
+    );
+
+    // 2. A child level created under a lane does NOT inherit `lane`.
+    let child_level = call(
+        &lib,
+        "entry.create",
+        json!({
+            "book": id,
+            "parent": overridden,
+            "title": "Synthetic child level under lane",
+            "template": "custom-plain-level",
+            "level": true
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let loaded = Book::load(&lib, &id).unwrap();
+    let b1 = loaded.v3().unwrap();
+    assert!(b1.is_lane(&overridden));
+    assert!(!b1.is_lane(&child_level));
+    assert!(
+        model::lanes(b1, &b1.timeline_views[0])
+            .iter()
+            .any(|l| l.id == overridden)
+    );
+
+    // 3. Turning `overrides.lane = false` on a template-backed lane hides it from rendered lanes.
+    call(
+        &lib,
+        "entry.update",
+        json!({
+            "book": id,
+            "id": existing_lane,
+            "overrides": { "lane": false }
+        }),
+    );
+    let after_off = Book::load(&lib, &id).unwrap();
+    let b2 = after_off.v3().unwrap();
+    assert!(!b2.is_lane(&existing_lane));
+    assert!(
+        !model::lanes(b2, &b2.timeline_views[0])
+            .iter()
+            .any(|l| l.id == existing_lane)
+    );
+    assert!(
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view_id]["lanes"]
+            .get(&existing_lane)
+            .is_some()
+    );
+    lib.shutdown().unwrap();
+}
+
+#[gpui::test]
+fn switching_off_a_lane_entry_hides_lane_and_orphan_placements_until_switched_back_on_or_undone(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let before_book = Book::load(&lib, &id).unwrap();
+    let b0 = before_book.v3().unwrap();
+    let view0 = b0.timeline_views[0].clone();
+    let lane0 = view0.lanes[0].entry.clone();
+    let lane1 = view0.lanes[1].entry.clone();
+    let shared_member = view0.placements[0].entry.clone();
+
+    // Ensure `shared_member` belongs to both `lane0` and `lane1`, while `solo_member` belongs only to `lane0`.
+    call(
+        &lib,
+        "membership.add",
+        json!({ "book": id, "host": lane0, "member": shared_member }),
+    );
+    call(
+        &lib,
+        "membership.add",
+        json!({ "book": id, "host": lane1, "member": shared_member }),
+    );
+    let solo_member = b0
+        .entries
+        .iter()
+        .find(|e| {
+            e.template.as_deref() == Some(TPL_IDEA)
+                && !view0.placements.iter().any(|p| p.entry == e.id)
+        })
+        .unwrap()
+        .id
+        .clone();
+    call(
+        &lib,
+        "timeline_view.place",
+        json!({
+            "book": id,
+            "view": view0.id,
+            "entry": solo_member,
+            "lane": lane0,
+            "at": 18.0,
+            "span": 6.0
+        }),
+    );
+    call(
+        &lib,
+        "timeline_view.put",
+        json!({
+            "book": id,
+            "view": {
+                "id": "second-view-with-lane0",
+                "name": "Synthetic second view",
+                "lanes": [{ "entry": lane0, "pos": "a0" }],
+                "placements": [{ "entry": solo_member, "at": 7.0, "span": 3.0 }]
+            }
+        }),
+    );
+
+    let (host, cx) = visual(cx, &lib, &id);
+    refresh(&host, &lib, &id, cx);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    let expected_lanes: Vec<(String, bool, usize, Vec<_>)> = t.read_with(cx, |t, _| {
+        t.lanes()
+            .into_iter()
+            .map(|l| (l.id, l.act_track, l.members, l.clips))
+            .collect()
+    });
+    assert!(
+        expected_lanes.iter().any(|(l, _, _, clips)| {
+            l == &lane0 && clips.iter().any(|c| c.entry == solo_member)
+        })
+    );
+    let raw_before = lib.observe(&format!("book:{id}")).unwrap().value;
+
+    // Switch `lane0`'s level off: hidden in every view, orphan placement hidden, shared placement stays in `lane1`.
+    call(
+        &lib,
+        "entry.set_level",
+        json!({ "book": id, "id": lane0, "level": false }),
+    );
+    refresh(&host, &lib, &id, cx);
+    t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert!(!lanes.iter().any(|l| l.id == lane0));
+        assert!(
+            !lanes
+                .iter()
+                .any(|l| l.clips.iter().any(|c| c.entry == solo_member))
+        );
+        let remaining = lanes.iter().find(|l| l.id == lane1).unwrap();
+        assert!(remaining.clips.iter().any(|c| c.entry == shared_member));
+    });
+    t.update(cx, |t, cx| t.select("second-view-with-lane0".into(), cx));
+    assert!(t.read_with(cx, |t, _| t.lanes().is_empty()));
+    t.update(cx, |t, cx| t.select(view0.id.clone(), cx));
+
+    let raw_while_off = lib.observe(&format!("book:{id}")).unwrap().value;
+    assert_eq!(raw_while_off["memberships"], raw_before["memberships"]);
+    assert_eq!(
+        raw_while_off["timeline_views"],
+        raw_before["timeline_views"]
+    );
+
+    // Undo `set_level(false)` -> view restores identically.
+    lib.undo(&Actor::User).unwrap().unwrap();
+    refresh(&host, &lib, &id, cx);
+    let after_undo: Vec<(String, bool, usize, Vec<_>)> = t.read_with(cx, |t, _| {
+        t.lanes()
+            .into_iter()
+            .map(|l| (l.id, l.act_track, l.members, l.clips))
+            .collect()
+    });
+    assert_eq!(after_undo, expected_lanes);
+
+    // Switch off again, perform a local view rename while hidden, then switch back on via `entry.set_level(true)`.
+    call(
+        &lib,
+        "entry.set_level",
+        json!({ "book": id, "id": lane0, "level": false }),
+    );
+    refresh(&host, &lib, &id, cx);
+    cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
+    frame(cx);
+    cx.simulate_input("Synthetic renamed while lane off");
+    cx.simulate_keystrokes("enter");
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book": id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["id"] == view0.id && v["name"] == "Synthetic renamed while lane off")
+    });
+    call(
+        &lib,
+        "entry.set_level",
+        json!({ "book": id, "id": lane0, "level": true }),
+    );
+    refresh(&host, &lib, &id, cx);
+    let after_reopen: Vec<(String, bool, usize, Vec<_>)> = t.read_with(cx, |t, _| {
+        t.lanes()
+            .into_iter()
+            .map(|l| (l.id, l.act_track, l.members, l.clips))
+            .collect()
+    });
+    assert_eq!(after_reopen, expected_lanes);
+    t.update(cx, |t, cx| t.select("second-view-with-lane0".into(), cx));
+    t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert_eq!(lanes.len(), 1);
+        assert_eq!(lanes[0].id, lane0);
+        assert_eq!(lanes[0].clips.len(), 1);
+        assert_eq!(lanes[0].clips[0].entry, solo_member);
+    });
+}
+
+#[gpui::test]
+fn act_track_creation_picks_lane_templates_by_data_without_fixed_template_ids(
+    cx: &mut TestAppContext,
+) {
+    use gpui::Modifiers;
+    let (_dir, lib, id) = seed();
+
+    // Turn off `lane` on the built-in templates and delete `TPL_ACT_TRACK` (unused in `tiny`),
+    // leaving zero `tpl-*` swimlane templates in the book.
+    call(
+        &lib,
+        "entry_template.delete",
+        json!({ "book": id, "id": TPL_ACT_TRACK }),
+    );
+    let mut storyline_tpl =
+        lib.observe(&format!("book:{id}")).unwrap().value["templates"][TPL_STORYLINE].clone();
+    storyline_tpl["id"] = json!(TPL_STORYLINE);
+    storyline_tpl["settings"]["lane"] = json!(false);
+    // Modules map in raw Loro -> fetch clean DTO via `entry_template.list` before `put`.
+    let listed_storyline = call(&lib, "entry_template.list", json!({ "book": id }))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == TPL_STORYLINE)
+        .unwrap()
+        .clone();
+    let mut updated_storyline = listed_storyline;
+    updated_storyline["settings"]["lane"] = json!(false);
+    call(
+        &lib,
+        "entry_template.put",
+        json!({ "book": id, "template": updated_storyline }),
+    );
+    let _ = storyline_tpl;
+
+    // Register custom non-`tpl-*` templates:
+    // - `custom-card`: switch off (`level: false`), target default template
+    // - `custom-off-switch`: `level: false` even though `settings.lane: true` -> NOT eligible
+    // - `custom-arc-alpha` & `custom-arc-beta`: `level: true` and `settings.lane: true` -> eligible!
+    for tpl in [
+        json!({
+            "id": "custom-card",
+            "name": "Synthetic card",
+            "level": false,
+            "linkable": false,
+            "settings": {}
+        }),
+        json!({
+            "id": "custom-off-switch",
+            "name": "Synthetic switch-off template",
+            "level": false,
+            "linkable": false,
+            "settings": { "lane": true }
+        }),
+        json!({
+            "id": "custom-arc-alpha",
+            "name": "Synthetic Arc Alpha",
+            "level": true,
+            "linkable": false,
+            "settings": { "lane": true, "default_template": "custom-card" }
+        }),
+        json!({
+            "id": "custom-arc-beta",
+            "name": "Synthetic Arc Beta",
+            "level": true,
+            "linkable": false,
+            "settings": { "lane": true }
+        }),
+    ] {
+        call(
+            &lib,
+            "entry_template.put",
+            json!({ "book": id, "template": tpl }),
+        );
+    }
+
+    let check_book = Book::load(&lib, &id).unwrap();
+    let candidate_ids: Vec<_> = model::lane_templates(check_book.v3().unwrap())
+        .into_iter()
+        .map(|t| t.id.clone())
+        .collect();
+    assert_eq!(
+        candidate_ids,
+        vec!["custom-arc-alpha".to_owned(), "custom-arc-beta".to_owned()]
+    );
+
+    let (host, cx) = visual(cx, &lib, &id);
+    refresh(&host, &lib, &id, cx);
+    frame(cx);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+
+    // 1. Multiple eligible templates -> clicking `New act track` opens template picker submenu.
+    let lanes_btn = cx.debug_bounds("v3-timeline-lanes").unwrap().center();
+    cx.simulate_click(lanes_btn, Modifiers::none());
+    frame(cx);
+    let new_act_btn = cx.debug_bounds("v3-lane-new-act-track").unwrap().center();
+    cx.simulate_click(new_act_btn, Modifiers::none());
+    frame(cx);
+    assert!(
+        cx.debug_bounds("v3-act-template-custom-off-switch")
+            .is_none()
+    );
+    assert!(cx.debug_bounds("v3-act-template-custom-arc-beta").is_some());
+    let alpha_item = cx
+        .debug_bounds("v3-act-template-custom-arc-alpha")
+        .unwrap()
+        .center();
+    cx.simulate_click(alpha_item, Modifiers::none());
+    wait(cx, |_| {
+        !call(&lib, "timeline_view.list", json!({ "book": id }))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    });
+    refresh(&host, &lib, &id, cx);
+    let first_act = t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert_eq!(lanes.len(), 1);
+        assert!(lanes[0].act_track);
+        assert_eq!(lanes[0].title, "Acts");
+        lanes[0].id.clone()
+    });
+    let first_entry = call(&lib, "entry.get", json!({ "book": id, "id": first_act }));
+    assert!(first_entry["parent"].is_null());
+    assert_eq!(first_entry["level"], true);
+    assert_eq!(first_entry["template"], "custom-arc-alpha");
+
+    // Creating an entry inside `first_act` uses `custom-arc-alpha`'s `default_template` (`custom-card`).
+    t.update(cx, |t, cx| t.create_entry_in_lane(first_act.clone(), cx));
+    wait(cx, |_| {
+        call(&lib, "membership.list", json!({ "book": id }))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == first_act)
+    });
+    let member_id = call(&lib, "membership.list", json!({ "book": id }))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["host"] == first_act)
+        .unwrap()["member"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        call(&lib, "entry.get", json!({ "book": id, "id": member_id }))["template"],
+        "custom-card"
+    );
+
+    // 2. Delete `custom-arc-beta` so only ONE eligible lane template remains -> 1-click creation.
+    call(
+        &lib,
+        "entry_template.delete",
+        json!({ "book": id, "id": "custom-arc-beta" }),
+    );
+    refresh(&host, &lib, &id, cx);
+    frame(cx);
+    let lanes_btn = cx.debug_bounds("v3-timeline-lanes").unwrap().center();
+    cx.simulate_click(lanes_btn, Modifiers::none());
+    frame(cx);
+    let new_act_btn = cx.debug_bounds("v3-lane-new-act-track").unwrap().center();
+    cx.simulate_click(new_act_btn, Modifiers::none());
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({ "book": id }))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .len()
+            == 2
+    });
+    refresh(&host, &lib, &id, cx);
+    t.read_with(cx, |t, _| {
+        let lanes = t.lanes();
+        assert_eq!(lanes.len(), 2);
+        assert_eq!(lanes[0].title, "Acts");
+        assert_eq!(lanes[1].title, "Acts 2");
+        assert!(lanes[1].act_track);
     });
 }

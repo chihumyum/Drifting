@@ -68,7 +68,7 @@ impl Timeline {
                 .on_click(cx.listener(|this, _, w, cx| this.rename(true, w, cx))),
         )
         .child(div().flex_1())
-        .when(self.view().is_some_and(|v| !v.lanes.is_empty()), |el| {
+        .when(!self.lanes().is_empty(), |el| {
             el.child(
                 PanelIconButton::new("v3-place-entry", Icon::FileText)
                     .label(t(cx, keys::v3_timeline::PLACE_ENTRY))
@@ -83,15 +83,17 @@ impl Timeline {
         })
         .when(self.view().is_some(), |el| {
             el.child(
-                PanelIconButton::new("v3-timeline-lanes", Icon::Layers)
-                    .label(t(cx, keys::v3_timeline::ADD_LANE))
-                    .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::Lanes,
-                            at: e.position(),
-                        });
-                        cx.notify();
-                    })),
+                div().debug_selector(|| "v3-timeline-lanes".into()).child(
+                    PanelIconButton::new("v3-timeline-lanes", Icon::Layers)
+                        .label(t(cx, keys::v3_timeline::ADD_LANE))
+                        .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
+                            this.popup = Some(Popup {
+                                of: MenuOf::Lanes,
+                                at: e.position(),
+                            });
+                            cx.notify();
+                        })),
+                ),
             )
         })
         .into_any_element()
@@ -185,7 +187,7 @@ impl Timeline {
                 }
                 for e in book.entries.iter().filter(|e| e.deleted_at.is_none()) {
                     // Any entry can join a lane that accepts (a lane always does).
-                    if !bind && (&e.id == lane || !book.levels.contains_key(lane)) {
+                    if !bind && (&e.id == lane || !book.is_lane(lane)) {
                         continue;
                     }
                     let id = e.id.clone();
@@ -350,15 +352,45 @@ impl Timeline {
                         ),
                 );
             }
+            MenuOf::ActTrackTemplates => {
+                for tpl in model::lane_templates(book) {
+                    let id = tpl.id.clone();
+                    menu =
+                        menu.child(
+                            MenuItem::new(
+                                SharedString::from(format!("v3-act-template-{id}")),
+                                Icon::LanesStagger,
+                                tpl.name.clone(),
+                            )
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| this.create_act_track(id.clone(), cx),
+                            )),
+                        );
+                }
+            }
             MenuOf::Lanes => {
-                menu = menu.child(
-                    MenuItem::new(
-                        "v3-lane-new-act-track",
-                        Icon::Plus,
-                        t(cx, keys::v3_timeline::NEW_ACT_TRACK),
-                    )
-                    .on_click(cx.listener(|this, _, _, cx| this.create_act_track(cx))),
-                );
+                let templates = model::lane_templates(book);
+                let mut new_act = MenuItem::new(
+                    "v3-lane-new-act-track",
+                    Icon::Plus,
+                    t(cx, keys::v3_timeline::NEW_ACT_TRACK),
+                )
+                .disabled(templates.is_empty());
+                if templates.len() == 1 {
+                    let tpl = templates[0].id.clone();
+                    new_act = new_act.on_click(cx.listener(move |this, _, _, cx| {
+                        this.create_act_track(tpl.clone(), cx);
+                    }));
+                } else if templates.len() > 1 {
+                    new_act = new_act.on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
+                        this.popup = Some(Popup {
+                            of: MenuOf::ActTrackTemplates,
+                            at: e.position(),
+                        });
+                        cx.notify();
+                    }));
+                }
+                menu = menu.child(new_act);
                 let shown = self.view_scope();
                 for e in &book.entries {
                     if e.deleted_at.is_some() || !book.is_lane(&e.id) {
@@ -431,6 +463,7 @@ impl Timeline {
             match &popup.of {
                 MenuOf::Bind(_) => keys::v3_timeline::BIND_ENTRY,
                 MenuOf::PickLane => keys::v3_timeline::SELECT_LANE,
+                MenuOf::ActTrackTemplates => keys::v3_timeline::NEW_ACT_TRACK,
                 _ => keys::v3_timeline::PLACE_ENTRY,
             },
         );

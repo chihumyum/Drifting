@@ -327,22 +327,23 @@ impl Timeline {
             self.edit_view(id, ViewEdit::SetActTrack(lane, act_track), cx);
         }
     }
-    pub fn create_act_track(&mut self, cx: &mut Context<Self>) {
+    pub fn create_act_track(&mut self, template: String, cx: &mut Context<Self>) {
         let Some(view_id) = self.view().map(|v| v.id.clone()) else {
             return;
         };
+        let Some(book_snap) = self.book.v3() else {
+            return;
+        };
+        if !book_snap
+            .template(&template)
+            .is_some_and(|t| t.level && t.settings.lane == Some(true))
+        {
+            return;
+        }
+        let guard = book_snap.guard_for(&serde_json::json!({ "template": &template }));
         let base_name = t(cx, keys::v3_timeline::ACT_LEVEL_NAME).to_string();
         self.popup = None;
         self.write(cx, move |lib, book| {
-            let template = observe(&lib, &book, RecordKey::template("tpl-act-track"))?;
-            if template.value.is_null() {
-                let tpl = timeline::act_track_template(base_name.clone());
-                lib.call(
-                    &Actor::User,
-                    "entry_template.put",
-                    serde_json::json!({"book": book, "template": tpl}),
-                )?;
-            }
             let entries_out = lib.call(
                 &Actor::User,
                 "entry.list",
@@ -361,15 +362,16 @@ impl Timeline {
                 "幕",
                 root_titles.iter().map(String::as_str),
             );
-            let created = lib.call(
+            let created = lib.call_guarded(
                 &Actor::User,
                 "entry.create",
                 serde_json::json!({
                     "book": book,
                     "parent": serde_json::Value::Null,
                     "title": title,
-                    "template": "tpl-act-track",
+                    "template": template,
                 }),
+                guard,
             )?;
             let lane_id = created["output"]["id"]
                 .as_str()
@@ -381,13 +383,11 @@ impl Timeline {
             let place = views
                 .iter()
                 .find(|v| v.id == view_id && v.deleted_at.is_none())
-                .and_then(|v| {
+                .map(|v| {
                     if let Some(last_act) = v.lanes.iter().rfind(|l| l.act_track == Some(true)) {
-                        Some(dr_workspace::naming::Place::After(last_act.entry.clone()))
-                    } else if !v.lanes.is_empty() {
-                        Some(dr_workspace::naming::Place::First)
+                        dr_workspace::naming::Place::After(last_act.entry.clone())
                     } else {
-                        None
+                        dr_workspace::naming::Place::First
                     }
                 });
             lib.call(

@@ -42,11 +42,11 @@
       }
     },
     "v3": {
-      "destination": "Une bibliothèque v3 distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
+      "destination": "Une nouvelle bibliothèque distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
       "pending": "Choix de correspondance requis avant l’import",
       "start": "Importer dans une nouvelle bibliothèque",
-      "switching": "Ouverture de la bibliothèque v3 terminée",
-      "title": "Réimporter en v3"
+      "switching": "Ouverture de la bibliothèque terminée",
+      "title": "Réimporter dans une nouvelle bibliothèque"
     }
   },
   "importDialog": {

@@ -1,6 +1,6 @@
 //! A v3 timeline has no manuscript axis or synthetic lanes.
 use dr_shell::book::v3::BookV3;
-use dr_workspace::commands::v3::types::{TimelinePlacement, TimelineView};
+use dr_workspace::commands::v3::types::{EntryTemplate, TimelinePlacement, TimelineView};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const UNIT: f32 = 20.0;
@@ -56,6 +56,15 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
         .collect();
     out.sort_by_key(|l| !l.act_track);
     out
+}
+
+/// Live templates whose new entries default to active swimlanes (`level` on and
+/// `settings.lane == Some(true)`), recognized by template data rather than ID.
+pub fn lane_templates(book: &BookV3) -> Vec<&EntryTemplate> {
+    book.templates
+        .iter()
+        .filter(|t| t.deleted_at.is_none() && t.level && t.settings.lane == Some(true))
+        .collect()
 }
 
 /// Dropping a lane from a view retains its entry and memberships. Only
