@@ -31,8 +31,13 @@ pub mod v3 {
     }
     impl Mutation {
         pub fn commit(self, lib: &Workspace) -> Result<Value, WsError> {
-            lib.call_guarded(&Actor::User, self.command, self.input, self.preconditions)
+            self.commit_answer(lib)
                 .map(|answer| answer["output"].clone())
+        }
+        /// [`Mutation::commit`], returning the command's whole answer (its
+        /// `journal` row too, for a notice's 「撤销」).
+        pub fn commit_answer(self, lib: &Workspace) -> Result<Value, WsError> {
+            lib.call_guarded(&Actor::User, self.command, self.input, self.preconditions)
         }
     }
     pub fn prepare(

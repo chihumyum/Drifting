@@ -612,6 +612,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "やり直す",
+      "undo": "元に戻す"
+    },
     "projectActions": {
       "deleteFailed": "作品を削除できませんでした。もう一度お試しください。"
     }
@@ -681,6 +685,7 @@
     "insertColumnRight": "右に列を挿入",
     "insertRowAbove": "上に行を挿入",
     "insertRowBelow": "下に行を挿入",
+    "move": "移動",
     "moveDown": "下へ移動",
     "moveLeft": "左へ移動",
     "moveRight": "右へ移動",

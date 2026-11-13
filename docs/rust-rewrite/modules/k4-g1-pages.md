@@ -596,13 +596,14 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 
 ### 作者 2026-11-13 定的四条（v4 收尾）
 
-上面第一条里「对话框重读最新 `N` 并提示重新确认」已改：
+上面第一条里「对话框重读最新 `N` 并提示重新确认」和「一步 `Workspace::undo` 即可恢复」已改：
 
 - **关开关什么时候问**：下面住着条目时照旧用那句「下面的 N 个条目会移到最外层……」。下面没有住着的条目，但有归属进来的成员、或者它在某个时间线视图里当泳道时，也问（`SwitchInspection::needs_confirmation`）：成员和泳道都有时用作者给的原句「归属到它的 N 个条目和它在时间线里的泳道先不显示，再打开就回来。」；只有成员时去掉「和它在时间线里的泳道」，只有泳道时是「它在时间线里的泳道先不显示，再打开就回来。」。三样都没有就不问，直接关。
 - **问的期间变了**：点「关闭层级」时先在后台重读一遍；住着的子条目、成员（按 id）或泳道身份跟框里说的不一样，就把框里的数字换成最新的、留在框里再问一次，不另加提示（`v3Shell.turnOffLevelConflict` 那句删了，九种语言一起）。一样才写，写入守着这个条目、它的子条目顺序和书里的归属、视图两个集合，读和写之间别处改了就再读一遍。
+- **撤销**：关掉以后窗口下沿的纸条写「关闭层级 · 条目名」，带「撤销」，点了开关和挪走的子条目一步全部回去；光标不在正文里时 ⌘Z 也撤它（`foundations/f6-shell.md` 的「在窗口里撤销书的结构」）。
 - **页眉的编号**：条目自己有成书正文时，住在它下面的条目（隔几层都算）不再单独编号，页眉显示模板名；位置、导出、字数不变（`kernel-v4.md` 第 7 节，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。书稿列表「按故事线」分组改按成书序列的位置收「带成书正文」的条目，有没有编号都列出来；书架的「N 章」按编号数，要素数改为不算带成书正文的条目。
 
-测试：`dr-shell/tests/v3.rs` 的 `v4_turning_off_a_level_asks_for_assigned_entries_and_lanes`；`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。
+测试：`dr-shell/tests/v3.rs` 的 `v4_turning_off_a_level_asks_for_assigned_entries_and_lanes`；`dr-view-page/tests/shell_workspace.rs` 的 `the_books_structure_undoes_from_the_notice_and_outside_the_prose`；`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-workspace/tests/undo.rs` 的 `undo_in_a_book_takes_back_that_books_latest_command_of_the_author_only`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。
 
 ## 正文随页铺开、按视口画（2026-11-13，编辑器回归修复）
 

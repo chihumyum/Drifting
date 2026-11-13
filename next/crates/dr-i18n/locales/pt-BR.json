@@ -621,6 +621,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Refazer",
+      "undo": "Desfazer"
+    },
     "projectActions": {
       "deleteFailed": "Não foi possível excluir o projeto. Tente novamente."
     }
@@ -691,6 +695,7 @@
     "insertColumnRight": "Inserir coluna à direita",
     "insertRowAbove": "Inserir linha acima",
     "insertRowBelow": "Inserir linha abaixo",
+    "move": "Mover",
     "moveDown": "Mover para baixo",
     "moveLeft": "Mover à esquerda",
     "moveRight": "Mover à direita",

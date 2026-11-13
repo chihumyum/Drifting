@@ -612,6 +612,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "重做",
+      "undo": "復原"
+    },
     "projectActions": {
       "deleteFailed": "無法刪除作品，請再試一次。"
     }
@@ -681,6 +685,7 @@
     "insertColumnRight": "在右側插入欄",
     "insertRowAbove": "在上方插入列",
     "insertRowBelow": "在下方插入列",
+    "move": "移動",
     "moveDown": "下移",
     "moveLeft": "左移",
     "moveRight": "右移",

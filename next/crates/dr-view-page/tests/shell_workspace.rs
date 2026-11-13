@@ -2615,3 +2615,221 @@ fn an_entry_page_opened_at_its_body_keeps_its_head(cx: &mut TestAppContext) {
         "head {head:?}, body section {section:?}"
     );
 }
+
+/// Author 2026-11-13: the book's structure undoes from the window. With the
+/// caret in the prose, ⌘Z stays the editor's and undoes only its typing; in
+/// the find bar's field and in a dialog it undoes nothing of the book's.
+/// The notice after turning a 层级 off undoes that one step (the switch and
+/// every entry that moved come back together) and then offers 「重做」.
+/// Outside the prose, ⌘Z / ⇧⌘Z undo and redo the author's latest command in
+/// this book, and never an Agent's.
+#[gpui::test]
+fn the_books_structure_undoes_from_the_notice_and_outside_the_prose(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    cx.update(|_, cx| dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, first) = view.read_with(cx, |ws, _| (ws.book_id.clone(), chapter_of(ws, 0)));
+    let Target::Entry {
+        id,
+        module: Some(_),
+    } = &first
+    else {
+        unreachable!()
+    };
+    let chapter = id.to_string();
+    let title = view.read_with(cx, |ws, _| {
+        ws.book.v3().unwrap().entry(&chapter).unwrap().title.clone()
+    });
+    let doc = format!("body:{chapter}/mod-prose");
+    // Its switch on and two entries living under it: the author's commands.
+    out(
+        &lib,
+        "entry.set_level",
+        json!({"book": book, "id": chapter, "level": true}),
+    );
+    let below: Vec<String> = ["甲", "乙"]
+        .into_iter()
+        .map(|t| {
+            out(
+                &lib,
+                "entry.create",
+                json!({"book": book, "parent": chapter, "template": "tpl-chapter", "title": t}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    let children = |ws: &Workspace| -> Option<Vec<String>> {
+        Some(ws.book.v3()?.levels.get(&chapter)?.children.clone())
+    };
+    wait_for(&view, cx, |ws| children(ws) == Some(below.clone()));
+    let top = |lib: &Library| {
+        let row = lib.journal(Some("user"), 1).unwrap().remove(0);
+        (row.seq, row.state)
+    };
+
+    // Typing in the chapter: the editor's own step, not the book's.
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, cx, &first);
+    let original = stored(&lib, &doc);
+    type_text(cx, "钟");
+    assert_eq!(stored(&lib, &doc)[0], format!("钟{}", original[0]));
+    let typed = stored(&lib, &doc);
+
+    // The find bar's field keeps ⌘Z: nothing of the book's is undone.
+    let journal = top(&lib);
+    keys(cx, "cmd-f");
+    draw(cx);
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| ws.find.is_some()));
+    cx.update(|window, cx| {
+        let in_field = window
+            .context_stack()
+            .iter()
+            .any(|c| c.contains(dr_ui::input::field::KEY_CONTEXT));
+        assert!(in_field, "the find bar's field has the keyboard");
+        assert!(!view.read(cx).structure_has_keyboard(window, cx));
+    });
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(top(&lib), journal, "⌘Z in a text field undid no command");
+    assert_eq!(stored(&lib, &doc), typed);
+    keys(cx, "escape");
+    draw(cx);
+    cx.run_until_parked();
+
+    // Turning the switch off asks (two entries live under it); ⌘Z in the
+    // dialog undoes nothing of the book's.
+    let host = view.read_with(cx, |ws, _| dr_shell::pages::PageViewHost {
+        workspace: view.downgrade(),
+        library: lib.clone(),
+        book_id: ws.book_id.clone(),
+        book: ws.book.clone(),
+    });
+    let entry = chapter.clone();
+    cx.update(|window, cx| dr_shell::v3::page::toggle_level(host, entry, window, cx));
+    wait_for(&view, cx, |ws| ws.dialog.is_some());
+    draw(cx);
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(top(&lib), journal, "⌘Z in a dialog undid no command");
+    let dialog = view.read_with(cx, |ws, _| {
+        ws.dialog
+            .clone()
+            .unwrap()
+            .downcast::<dr_shell::v3::page::TurnOffLevelDialog>()
+            .unwrap()
+    });
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait_for(&view, cx, |ws| {
+        children(ws).is_none() && ws.toast.as_ref().is_some_and(|t| t.offer.is_some())
+    });
+    view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        for id in &below {
+            assert_eq!(v.entry(id).unwrap().parent, None, "moved to the top level");
+        }
+        assert_eq!(
+            ws.toast.as_ref().unwrap().text.as_ref(),
+            format!("关闭层级 · {title}")
+        );
+    });
+
+    // The caret is back in the prose: ⌘Z undoes the typing only.
+    draw(cx);
+    cx.update(|window, cx| {
+        let prose = editor.read(cx).editor().focus_handle(cx);
+        assert_eq!(
+            window.focused(cx),
+            Some(prose),
+            "the editor has the keyboard"
+        );
+    });
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(stored(&lib, &doc), original, "the editor undid its typing");
+    assert_eq!(
+        out(&lib, "entry.get", json!({"book": book, "id": chapter}))["level"],
+        false,
+        "the switch stays off"
+    );
+
+    // The notice's 「撤销」: the switch and both entries back in one step.
+    let off = top(&lib);
+    view.update(cx, |ws, cx| ws.press_toast_offer(cx));
+    wait_for(&view, cx, |ws| {
+        children(ws) == Some(below.clone())
+            && ws
+                .toast
+                .as_ref()
+                .and_then(|t| t.offer.as_ref())
+                .is_some_and(|o| o.redo)
+    });
+    assert_eq!(top(&lib).0, off.0);
+
+    // Outside the prose (the workspace has the keyboard): ⇧⌘Z redoes it,
+    // ⌘Z undoes it again; each notice says what.
+    cx.update(|window, cx| {
+        let handle = view.read(cx).focus_handle().clone();
+        handle.focus(window, cx);
+    });
+    draw(cx);
+    cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
+    keys(cx, "cmd-shift-z");
+    wait_for(&view, cx, |ws| {
+        children(ws).is_none()
+            && ws
+                .toast
+                .as_ref()
+                .and_then(|t| t.offer.as_ref())
+                .is_some_and(|o| !o.redo)
+    });
+    view.read_with(cx, |ws, _| {
+        assert_eq!(
+            ws.toast.as_ref().unwrap().text.as_ref(),
+            format!("层级 · {title}")
+        );
+    });
+    keys(cx, "cmd-z");
+    wait_for(&view, cx, |ws| children(ws) == Some(below.clone()));
+    assert_eq!(stored(&lib, &doc), original, "no prose was touched");
+
+    // An Agent's write is not the author's to undo: ⌘Z takes back the
+    // author's previous command (the second entry's creation) instead.
+    lib.call(
+        &Actor::agent("s", 1, "c"),
+        "entry.update",
+        json!({"book": book, "id": below[0], "title": "帮手改的"}),
+    )
+    .unwrap();
+    wait_for(&view, cx, |ws| {
+        ws.book.v3().unwrap().entry(&below[0]).unwrap().title == "帮手改的"
+    });
+    cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
+    keys(cx, "cmd-z");
+    wait_for(&view, cx, |ws| children(ws) == Some(vec![below[0].clone()]));
+    view.read_with(cx, |ws, _| {
+        assert_eq!(
+            ws.book.v3().unwrap().entry(&below[0]).unwrap().title,
+            "帮手改的"
+        );
+    });
+
+    // A move of the author's, wherever it was made from (here the command a
+    // drag commits): the notice names it and its 「撤销」 puts it back.
+    out(
+        &lib,
+        "entry.move",
+        json!({"book": book, "id": below[0], "parent": null}),
+    );
+    wait_for(&view, cx, |ws| {
+        children(ws) == Some(vec![])
+            && ws.toast.as_ref().is_some_and(|t| {
+                t.offer.as_ref().is_some_and(|o| !o.redo) && t.text.as_ref() == "移动 · 帮手改的"
+            })
+    });
+    view.update(cx, |ws, cx| ws.press_toast_offer(cx));
+    wait_for(&view, cx, |ws| children(ws) == Some(vec![below[0].clone()]));
+}

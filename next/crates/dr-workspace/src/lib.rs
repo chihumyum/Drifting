@@ -65,5 +65,6 @@ pub use nav::NavTarget;
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
 pub use sync::{SyncController, SyncNowOutput, SyncStatusSnapshot};
 pub use workspace::{
-    QuitReport, ShutdownRefused, WeakWorkspace, Workspace, WorkspaceOptions, library_options,
+    QuitReport, ShutdownRefused, Undone, WeakWorkspace, Workspace, WorkspaceOptions,
+    library_options,
 };

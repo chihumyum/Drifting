@@ -619,6 +619,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Redo",
+      "undo": "Undo"
+    },
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
@@ -688,6 +692,7 @@
     "insertColumnRight": "Insert a column to the right",
     "insertRowAbove": "Insert a row above",
     "insertRowBelow": "Insert a row below",
+    "move": "Move",
     "moveDown": "Move down",
     "moveLeft": "Move left",
     "moveRight": "Move right",

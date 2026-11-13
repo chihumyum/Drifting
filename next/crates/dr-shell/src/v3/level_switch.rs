@@ -8,12 +8,14 @@
 //! confirms, the dialog shows the new numbers and asks again, with no
 //! further words; the write is guarded on `entries/<id>`,
 //! `children_of(<id>)` and the book's memberships and timeline views, so
-//! nothing changes between the last read and the write either.
+//! nothing changes between the last read and the write either. After it is
+//! off, a notice offers 「撤销」 (`workspace/toast.rs`).
 
 use crate::{
     actions::Dismiss,
     pages::PageViewHost,
     strings::{t, tp},
+    workspace::toast::offer_undo_after,
 };
 use dr_doc::v3::BorrowedBookV3;
 use dr_i18n::keys;
@@ -25,7 +27,7 @@ use dr_ui::{
 };
 use dr_workspace::{Actor, RecordKey, Workspace, WritePreconditions, WsError};
 use gpui::{prelude::*, *};
-use serde_json::json;
+use serde_json::{Value, json};
 
 /// Consistent snapshot of an entry's `层级` switch and of what turning it
 /// off hides, with the record preconditions, read from the same Loro
@@ -157,8 +159,8 @@ pub fn inspect_level_switch(
 
 /// How a turn-off went.
 enum TurnOff {
-    /// It is off.
-    Done,
+    /// It is off: what `entry.set_level` returned.
+    Done(Value),
     /// It was already off.
     Gone,
     /// It hides something other than `shown` said: ask again.
@@ -189,7 +191,7 @@ fn turn_off(
             json!({ "book": book_id, "id": entry_id, "level": false }),
             fresh.preconditions.clone(),
         ) {
-            Ok(_) => return Ok(TurnOff::Done),
+            Ok(answer) => return Ok(TurnOff::Done(answer)),
             Err(WsError::Conflict(_)) => {
                 fresh = inspect_level_switch(lib, book_id, entry_id)?;
             }
@@ -232,6 +234,12 @@ fn toast_save_failed(host: &PageViewHost, cx: &mut App) {
             ws.toast(text, cx);
         }
     });
+}
+
+/// 「撤销」 for the turn-off `answer` recorded.
+fn offer_undo(host: &PageViewHost, entry_id: &str, answer: &Value, cx: &mut App) {
+    let label = t(cx, keys::v3_shell::TURN_OFF_LEVEL_TITLE);
+    offer_undo_after(host, label, entry_id, answer, cx);
 }
 
 fn show_dialog_in(
@@ -292,7 +300,7 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                             json!({ "book": book_id, "id": eid, "level": true }),
                             info.turn_on_preconditions(),
                         )
-                        .map(|_| TurnOff::Done)
+                        .map(TurnOff::Done)
                     } else {
                         turn_off(&lib, &book_id, &eid, &info)
                     }
@@ -305,7 +313,12 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                                 return;
                             }
                             match outcome {
-                                Ok(TurnOff::Done) | Ok(TurnOff::Gone) => {}
+                                Ok(TurnOff::Done(answer)) => {
+                                    if !turning_on {
+                                        offer_undo(&host, &entry_id, &answer, cx);
+                                    }
+                                }
+                                Ok(TurnOff::Gone) => {}
                                 Ok(TurnOff::Ask(next)) => {
                                     show_dialog_in(handle, host, entry_id, next, true, window, cx);
                                 }
@@ -420,7 +433,11 @@ impl TurnOffLevelDialog {
             let _ = this.update(cx, |this, cx| {
                 this.busy = false;
                 match outcome {
-                    Ok(TurnOff::Done) | Ok(TurnOff::Gone) => this.cancel(cx),
+                    Ok(TurnOff::Done(answer)) => {
+                        this.cancel(cx);
+                        offer_undo(&this.host, &this.entry_id, &answer, cx);
+                    }
+                    Ok(TurnOff::Gone) => this.cancel(cx),
                     Ok(TurnOff::Ask(next)) => {
                         this.info = next;
                         this.refreshed = true;

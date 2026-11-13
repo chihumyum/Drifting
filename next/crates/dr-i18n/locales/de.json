@@ -619,6 +619,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Wiederholen",
+      "undo": "Rückgängig"
+    },
     "projectActions": {
       "deleteFailed": "Projekt konnte nicht gelöscht werden. Bitte erneut versuchen."
     }
@@ -688,6 +692,7 @@
     "insertColumnRight": "Spalte rechts einfügen",
     "insertRowAbove": "Zeile darüber einfügen",
     "insertRowBelow": "Zeile darunter einfügen",
+    "move": "Verschieben",
     "moveDown": "Nach unten",
     "moveLeft": "Nach links",
     "moveRight": "Nach rechts",

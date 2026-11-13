@@ -611,6 +611,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "重做",
+      "undo": "撤销"
+    },
     "projectActions": {
       "deleteFailed": "删除未完成，请重试。"
     }
@@ -680,6 +684,7 @@
     "insertColumnRight": "在右侧插入一列",
     "insertRowAbove": "在上方插入一行",
     "insertRowBelow": "在下方插入一行",
+    "move": "移动",
     "moveDown": "下移",
     "moveLeft": "左移",
     "moveRight": "右移",

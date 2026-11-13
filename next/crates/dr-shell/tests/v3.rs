@@ -1791,7 +1791,7 @@ fn level_entries_expose_book_view_on_card_and_page_and_close_when_level_turns_of
 /// it asks nothing when it hides nothing. Cancelling changes nothing; a
 /// change to what the dialog said shows the new numbers and asks again,
 /// with no words of its own; once off, the data is kept and turning it
-/// back on brings everything back.
+/// back on brings everything back; the notice's 「撤销」 undoes the step.
 #[gpui::test]
 fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::TestAppContext) {
     use dr_shell::{
@@ -2063,12 +2063,37 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
         "a refreshed dialog turned nothing off"
     );
     view.read_with(cx, |ws, _| assert!(dialog_of(ws).is_some()));
-    // Confirmed again: off.
+    // Confirmed again: off, and the notice offers 「撤销」.
     dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
     wait(cx, "the group off", &|ws, _| {
         !ws.book.v3().unwrap().levels.contains_key(&group)
     });
-    view.read_with(cx, |ws, _| assert!(ws.dialog.is_none()));
+    wait(cx, "the notice", &|ws, _| {
+        ws.toast.as_ref().is_some_and(|t| t.offer.is_some())
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        let toast = ws.toast.as_ref().unwrap();
+        assert_eq!(toast.text.as_ref(), "关闭层级 · 收纳");
+        assert!(!toast.offer.as_ref().unwrap().redo);
+    });
+    // 「撤销」: on again with both entries assigned; the notice offers 「重做」.
+    view.update(cx, |ws, cx| ws.press_toast_offer(cx));
+    wait(cx, "the undo", &|ws, _| {
+        ws.book.v3().unwrap().levels.contains_key(&group)
+    });
+    wait(cx, "the redo notice", &|ws, _| {
+        ws.toast
+            .as_ref()
+            .and_then(|t| t.offer.as_ref())
+            .is_some_and(|o| o.redo)
+    });
+    view.read_with(cx, |ws, _| {
+        let mut expected = vec![chapters[0].clone(), chapters[2].clone()];
+        expected.sort();
+        assert_eq!(members(ws, &group), expected);
+        assert_eq!(ws.toast.as_ref().unwrap().text.as_ref(), "关闭层级 · 收纳");
+    });
 
     // Hiding nothing: turned off at once, with no dialog.
     toggle(cx, &quiet);

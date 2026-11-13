@@ -621,6 +621,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Rétablir",
+      "undo": "Annuler"
+    },
     "projectActions": {
       "deleteFailed": "Impossible de supprimer le projet. Réessayez."
     }
@@ -691,6 +695,7 @@
     "insertColumnRight": "Insérer une colonne à droite",
     "insertRowAbove": "Insérer une ligne au-dessus",
     "insertRowBelow": "Insérer une ligne en dessous",
+    "move": "Déplacer",
     "moveDown": "Descendre",
     "moveLeft": "Déplacer à gauche",
     "moveRight": "Déplacer à droite",

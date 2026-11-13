@@ -277,6 +277,8 @@ projectPicker.trash.permanentBody
 projectPicker.delete.deleting
 common.delete
 mobileWorkspace.projectActions.deleteFailed
+mobileWorkspace.editorAccessory.undo
+mobileWorkspace.editorAccessory.redo
 userMenu.import
 userMenu.importBook
 userMenu.localMenu
@@ -449,6 +451,7 @@ plotGrid.moveUp
 plotGrid.moveDown
 plotGrid.moveLeft
 plotGrid.moveRight
+plotGrid.move
 plotGrid.insertRowAbove
 plotGrid.insertRowBelow
 plotGrid.insertColumnLeft
