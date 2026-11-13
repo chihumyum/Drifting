@@ -701,7 +701,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "book"
+        "target": "book:${entries.[template=tpl-manuscript].id}"
       }
     },
     {
@@ -721,7 +721,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         },
         "timeout_ms": 30000
       }
@@ -1100,9 +1100,9 @@
       }
     },
     {
-      "app": "input.key",
+      "app": "nav.open",
       "params": {
-        "keys": "secondary-alt-2"
+        "target": "book:${entries.[template=tpl-manuscript].id}"
       }
     },
     {
@@ -1116,7 +1116,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         },
         "timeout_ms": 30000
       }

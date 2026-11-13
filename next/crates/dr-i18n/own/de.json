@@ -240,6 +240,7 @@
   "v3Shell": {
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
+    "bookView": "Buchansicht",
     "changeTemplate": "Vorlage wechseln",
     "childrenEntries": "Untergeordnete Einträge",
     "editTemplate": "Vorlage bearbeiten",

@@ -233,6 +233,7 @@
   "v3Shell": {
     "belongTo": "소속 지정",
     "board": "보드",
+    "bookView": "책 보기",
     "changeTemplate": "템플릿 변경",
     "childrenEntries": "하위 항목",
     "editTemplate": "템플릿 편집",

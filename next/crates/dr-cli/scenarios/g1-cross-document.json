@@ -104,7 +104,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "book"
+        "target": "book:${first.0.parent}"
       }
     },
     {
@@ -114,7 +114,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/id": "${books.0.id}",
-          "/page": "book",
+          "/page": "book:${first.0.parent}",
           "/focus/editor": true
         },
         "page": {
@@ -769,7 +769,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "book"
+        "target": "book:${first.0.parent}"
       }
     },
     {
@@ -779,7 +779,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/id": "${books.0.id}",
-          "/page": "book",
+          "/page": "book:${first.0.parent}",
           "/focus/editor": true
         },
         "page": {

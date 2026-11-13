@@ -90,11 +90,10 @@
       }
     },
     {
-      "app": "input.key",
+      "app": "nav.open",
       "params": {
-        "keys": "secondary-alt-2"
-      },
-      "note": "Use the existing whole-book shortcut; K4-0 v3 Book.exists currently rejects the bridge nav.open book target."
+        "target": "book:${entries.[template=tpl-manuscript].id}"
+      }
     },
     {
       "app": "ui.wait",
@@ -114,7 +113,7 @@
       "params": {
         "state": {
           "/bottom/pane": null,
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         },
         "timeout_ms": 10000
       }

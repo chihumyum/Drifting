@@ -109,9 +109,9 @@
       }
     },
     {
-      "app": "action.dispatch",
+      "app": "nav.open",
       "params": {
-        "name": "workspace::ShowWholeBook"
+        "target": "book:${entries.[template=tpl-manuscript].id}"
       }
     },
     {

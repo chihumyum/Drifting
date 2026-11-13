@@ -64,24 +64,6 @@ pub fn prepare_body(
     crate::SessionSource::open_verified_v3(ws, doc)
 }
 
-/// The manuscript sequence's documents with their labels: an entry's first
-/// book prose carries the entry's title, later ones their module's name.
-fn manuscript_docs_of(s: &dr_doc::v3::BookStructureV3) -> Vec<(String, String)> {
-    s.manuscript()
-        .into_iter()
-        .flat_map(|p| p.entries)
-        .flat_map(|e| {
-            let title = e.entry.title.clone();
-            e.prose.into_iter().enumerate().map(move |(i, p)| {
-                (
-                    p.doc.to_string(),
-                    if i == 0 { title.clone() } else { p.name },
-                )
-            })
-        })
-        .collect()
-}
-
 /// Flattens `from` and everything below it for the book view
 /// (`kernel-v4.md` §7): `from`'s own book prose first, then depth-first in
 /// manuscript and membership order, keeping entries that carry no book prose

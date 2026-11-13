@@ -918,7 +918,6 @@
       "library": "全项目 · 素材库",
       "review": "全项目 · 审阅",
       "stats": {
-        "all-chapters": "全书 · 节奏统计",
         "chapter": "本章 · 详细统计",
         "element": "本要素 · 详细统计",
         "material": "这份素材 · 详细统计",
@@ -1501,9 +1500,6 @@
     "dockLock": "保持展开",
     "dockUnlock": "收回小点",
     "newEntity": "新建实体",
-    "singletons": {
-      "allChapters": "通览全书"
-    },
     "untitled": {
       "library_item": "未命名素材"
     }
@@ -1571,6 +1567,7 @@
   "v3Shell": {
     "belongTo": "归属到",
     "board": "看板",
+    "bookView": "整书视图",
     "changeTemplate": "换模板",
     "childrenEntries": "下面的条目",
     "editTemplate": "编辑模板",

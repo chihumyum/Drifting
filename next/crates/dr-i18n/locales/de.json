@@ -931,7 +931,6 @@
       "library": "Projekt · Materialsammlung",
       "review": "Projekt · Prüfung",
       "stats": {
-        "all-chapters": "Ganzes Buch · Tempo",
         "chapter": "Dieses Kapitel · Detailstatistik",
         "element": "Dieses Element · Detailstatistik",
         "material": "Dieses Material · Details",
@@ -1514,9 +1513,6 @@
     "dockLock": "Offen halten",
     "dockUnlock": "Zu Punkten einklappen",
     "newEntity": "Entität erstellen",
-    "singletons": {
-      "allChapters": "Ganzes Buch"
-    },
     "untitled": {
       "library_item": "Unbenanntes Material"
     }
@@ -1584,6 +1580,7 @@
   "v3Shell": {
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
+    "bookView": "Buchansicht",
     "changeTemplate": "Vorlage wechseln",
     "childrenEntries": "Untergeordnete Einträge",
     "editTemplate": "Vorlage bearbeiten",

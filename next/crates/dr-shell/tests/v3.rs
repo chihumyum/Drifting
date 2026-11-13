@@ -206,7 +206,7 @@ fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppCo
         // The shell owns the page's lifetime; the real G1 manuscript renderer
         // is exercised by k4-0-navigation.json in a native window.
         dr_shell::pages::add_page_view(cx, |target, _, _, cx| {
-            (*target == Target::Book).then(|| {
+            matches!(target, Target::Book(_)).then(|| {
                 let view = cx.new(|cx| BookPage(cx.focus_handle()));
                 dr_shell::pages::ModulePage {
                     focus: view.read(cx).0.clone(),
@@ -232,7 +232,7 @@ fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppCo
         }
     };
     wait(cx, None);
-    let (entry, material, revision) = view.read_with(cx, |ws, _| {
+    let (entry, material, book_target, revision) = view.read_with(cx, |ws, _| {
         let b = ws.book.v3().unwrap();
         (
             b.entries
@@ -241,17 +241,24 @@ fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppCo
                 .unwrap()
                 .clone(),
             Target::Material(b.materials[0].id.parse().unwrap()),
+            Target::Book(b.roots[0].parse().unwrap()),
             b.revision.clone(),
         )
     });
     let module = Target::from_key(&format!("entry:{}/mod-prose", entry.id)).unwrap();
-    for target in [&module, &material, &Target::Book] {
+    for target in [&module, &material, &book_target] {
         view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         cx.run_until_parked();
     }
+    let book_key = book_target.key();
     let page = view.read_with(cx, |ws, _| {
-        ws.editors["book"].module.as_ref().unwrap().view.entity_id()
+        ws.editors[&book_key]
+            .module
+            .as_ref()
+            .unwrap()
+            .view
+            .entity_id()
     });
     call(
         &lib,
@@ -260,13 +267,18 @@ fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppCo
     );
     wait(cx, Some(&revision));
     view.read_with(cx, |ws, _| {
-        assert_eq!(ws.nav.current(), Some(&Target::Book));
+        assert_eq!(ws.nav.current(), Some(&book_target));
         assert_eq!(
-            ws.editors["book"].module.as_ref().unwrap().view.entity_id(),
+            ws.editors[&book_key]
+                .module
+                .as_ref()
+                .unwrap()
+                .view
+                .entity_id(),
             page,
             "snapshot refresh retains the mounted manuscript page"
         );
-        for target in [&module, &material, &Target::Book] {
+        for target in [&module, &material, &book_target] {
             assert!(ws.book.exists(target));
             assert!(ws.editors.contains_key(&target.key()));
             assert!(
@@ -276,6 +288,8 @@ fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppCo
                     .any(|t| t.leaves().any(|l| &l.target == target))
             );
         }
+        assert!(Target::from_key("book").is_none());
+        assert!(Target::from_key("book:").is_none());
         for kind in ["chapter", "idea", "element", "storyline", "category"] {
             assert!(
                 Target::from_key(&format!("{kind}:{}", entry.id)).is_none(),
@@ -1530,4 +1544,219 @@ fn v4_children_module_placement_and_mod_description_ordinary_prose(cx: &mut gpui
             .iter()
             .any(|p| p["text"].as_str().unwrap().contains("书稿层级说明正文"))
     );
+}
+
+#[gpui::test]
+fn level_entries_expose_book_view_on_card_and_page_and_close_when_level_turns_off(
+    cx: &mut gpui::TestAppContext,
+) {
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        pages::{CardRows, ModulePage, PageMenuHost},
+        v3,
+    };
+    use gpui::{AppContext as _, IntoElement, Modifiers, Render, VisualTestContext, div};
+    use std::time::{Duration, Instant};
+
+    struct BookStub(gpui::FocusHandle);
+    impl Render for BookStub {
+        fn render(
+            &mut self,
+            _: &mut gpui::Window,
+            _: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
+            div()
+        }
+    }
+
+    let (_dir, lib, id) = seed();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_shell::pages::add_page_view(cx, |target, host, _, cx| {
+            if !matches!(target, Target::Book(_)) || !host.book.exists(target) {
+                return None;
+            }
+            let view = cx.new(|cx| BookStub(cx.focus_handle()));
+            Some(ModulePage {
+                focus: view.read(cx).0.clone(),
+                view: view.into(),
+            })
+        });
+    });
+
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let pump = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    let wait_book = |cx: &mut VisualTestContext,
+                     pred: &dyn Fn(&dr_shell::book::v3::BookV3) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            pump(cx);
+            if view.read_with(cx, |ws, _| ws.book.v3().is_some_and(pred)) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "timed out waiting for book");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait_book(cx, &|_| true);
+
+    let (roots, chapter_id, storyline_id) = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        let ch = v.entries.iter().find(|e| !e.level).unwrap().id.clone();
+        let sl = v
+            .entries
+            .iter()
+            .find(|e| e.level && e.parent.as_deref() == Some(v.roots[1].as_str()))
+            .unwrap()
+            .id
+            .clone();
+        (v.roots.clone(), ch, sl)
+    });
+
+    let card_ids = |cx: &mut VisualTestContext, entry_id: &str| -> Vec<String> {
+        cx.update(|_, cx| {
+            let book = view.read(cx).book.clone();
+            let host = PageMenuHost {
+                workspace: view.downgrade(),
+                library: Some(lib.clone()),
+                book_id: id.clone(),
+                book,
+            };
+            let target = Target::from_key(&format!("entry:{entry_id}")).unwrap();
+            v3::card::rows(&target, &host, &CardRows::default(), cx)
+                .into_iter()
+                .map(|r| r.id.to_string())
+                .collect()
+        })
+    };
+
+    // Every root level (`书稿`, `故事线`, `设定`, `漂流`) and nested level (`故事线` child)
+    // exposes `"entry-open-book"` right after `"entry-open"`.
+    for level_id in roots.iter().chain(std::iter::once(&storyline_id)) {
+        let ids = card_ids(cx, level_id);
+        assert_eq!(ids[0], "entry-open");
+        assert_eq!(ids[1], "entry-open-book", "missing on level {level_id}");
+    }
+
+    // Non-level entries omit `"entry-open-book"` on both card and EntryPage.
+    assert!(
+        !card_ids(cx, &chapter_id)
+            .iter()
+            .any(|r| r == "entry-open-book")
+    );
+    assert!(view.read_with(cx, |ws, _| {
+        !ws.book.exists(&Target::Book(chapter_id.parse().unwrap()))
+    }));
+    let chapter_target = Target::from_key(&format!("entry:{chapter_id}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(chapter_target.clone(), Open::KEEP, cx));
+    pump(cx);
+    assert!(
+        cx.debug_bounds("v3-entry-open-book").is_none(),
+        "non-level EntryPage must not render v3-entry-open-book"
+    );
+
+    // Turning `level` ON immediately exposes `v3-entry-open-book` and `"entry-open-book"`.
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": id, "id": chapter_id, "level": true}),
+    );
+    wait_book(cx, &|v| v.levels.contains_key(&chapter_id));
+    pump(cx);
+    assert!(
+        card_ids(cx, &chapter_id)
+            .iter()
+            .any(|r| r == "entry-open-book")
+    );
+    let btn = cx
+        .debug_bounds("v3-entry-open-book")
+        .expect("v3-entry-open-book appears when level is true");
+    cx.simulate_click(btn.center(), Modifiers::none());
+    pump(cx);
+    let chapter_book = Target::Book(chapter_id.parse().unwrap());
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.nav.current().cloned()),
+        Some(chapter_book.clone())
+    );
+
+    // Opening another flattened book view via `card::rows`'s `"entry-open-book"` works alongside it.
+    cx.update(|window, cx| {
+        let book = view.read(cx).book.clone();
+        let host = PageMenuHost {
+            workspace: view.downgrade(),
+            library: Some(lib.clone()),
+            book_id: id.clone(),
+            book,
+        };
+        let target = Target::from_key(&format!("entry:{storyline_id}")).unwrap();
+        let row = v3::card::rows(&target, &host, &CardRows::default(), cx)
+            .into_iter()
+            .find(|r| r.id.as_ref() == "entry-open-book")
+            .unwrap();
+        (row.run.unwrap())(window, cx);
+    });
+    pump(cx);
+    let storyline_book = Target::Book(storyline_id.parse().unwrap());
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.nav.current().cloned()),
+        Some(storyline_book.clone())
+    );
+    assert!(view.read_with(cx, |ws, _| ws.editors.contains_key(&chapter_book.key())));
+    assert!(view.read_with(cx, |ws, _| ws.editors.contains_key(&storyline_book.key())));
+
+    // Turning `level` OFF on `chapter_id` invalidates `Target::Book(chapter_id)` and drops its tab,
+    // while keeping `Target::Book(storyline_id)` open.
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": id, "id": chapter_id, "level": false}),
+    );
+    wait_book(cx, &|v| !v.levels.contains_key(&chapter_id));
+    pump(cx);
+    view.read_with(cx, |ws, _| {
+        assert!(!ws.book.exists(&chapter_book));
+        assert!(!ws.editors.contains_key(&chapter_book.key()));
+        assert!(
+            !ws.nav
+                .tabs()
+                .iter()
+                .any(|t| t.leaves().any(|l| l.target == chapter_book))
+        );
+        assert!(ws.editors.contains_key(&storyline_book.key()));
+    });
+
+    // Trashing `storyline_id` closes its flattened book view tab too.
+    call(&lib, "entry.trash", json!({"book": id, "id": storyline_id}));
+    wait_book(cx, &|v| v.entry(&storyline_id).is_none());
+    pump(cx);
+    view.read_with(cx, |ws, _| {
+        assert!(!ws.book.exists(&storyline_book));
+        assert!(!ws.editors.contains_key(&storyline_book.key()));
+        assert!(
+            !ws.nav
+                .tabs()
+                .iter()
+                .any(|t| t.leaves().any(|l| l.target == storyline_book))
+        );
+    });
 }

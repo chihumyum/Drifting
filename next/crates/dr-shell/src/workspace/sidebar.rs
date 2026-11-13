@@ -646,7 +646,7 @@ fn right_header(
             // Read from the navigation model: what the stats follow.
             let key = match ws.nav.current() {
                 None => k::NONE,
-                Some(Target::Book) => k::ALL_CHAPTERS,
+                Some(Target::Book(_)) => keys::v3_shell::BOOK_VIEW,
 
                 Some(Target::Material(_)) => k::MATERIAL,
                 Some(Target::Entry { .. } | Target::Template(_)) => keys::v3_shell::ENTRIES,
@@ -1125,7 +1125,7 @@ fn heading_row(
 fn v3_stats_scope(target: Option<&Target>) -> Option<dr_view_stats::v3::Scope> {
     use dr_view_stats::v3::Scope;
     match target {
-        None | Some(Target::Book) => Some(Scope::Book),
+        None | Some(Target::Book(_)) => Some(Scope::Book),
         Some(Target::Entry { id, module }) => Some(Scope::Entry {
             id: id.to_string(),
             module: module.as_ref().map(ToString::to_string),
@@ -1138,7 +1138,7 @@ fn v3_stats_scope(target: Option<&Target>) -> Option<dr_view_stats::v3::Scope> {
 fn v3_stats_target(scope: dr_view_stats::v3::Scope) -> Option<Target> {
     use dr_view_stats::v3::Scope;
     Some(match scope {
-        Scope::Book => Target::Book,
+        Scope::Book => return None,
         Scope::Entry { id, module } => Target::Entry {
             id: id.parse().ok()?,
             module: module.map(|m| m.parse()).transpose().ok()?,
@@ -1152,7 +1152,7 @@ fn v3_stats_target(scope: dr_view_stats::v3::Scope) -> Option<Target> {
 fn v3_review_scope(target: Option<&Target>) -> Option<Option<dr_view_review::v3::Target>> {
     use dr_view_review::v3::Target as ReviewTarget;
     Some(match target {
-        None | Some(Target::Book) => None,
+        None | Some(Target::Book(_)) => None,
         Some(Target::Entry { id, module }) => Some(ReviewTarget::Entry {
             id: id.to_string(),
             module: module.as_ref().map(ToString::to_string),
@@ -1675,7 +1675,6 @@ mod v3_panel_tests {
     #[test]
     fn scope_roundtrips_modules_without_a_legacy_book_sentinel() {
         for key in [
-            "book",
             "entry:one",
             "entry:one/mod-prose",
             "entry:one/mod-fields",
@@ -1686,11 +1685,16 @@ mod v3_panel_tests {
             assert_eq!(v3_stats_target(scope), Some(target));
         }
         assert_eq!(v3_stats_scope(None), Some(Scope::Book));
+        assert_eq!(
+            v3_stats_scope(Some(&Target::from_key("book:one").unwrap())),
+            Some(Scope::Book)
+        );
+        assert!(v3_stats_target(Scope::Book).is_none());
         {
             let key = "template:tpl-chapter";
             assert_eq!(v3_stats_scope(Some(&Target::from_key(key).unwrap())), None);
         }
-        for key in ["chapter:one", "element:one"] {
+        for key in ["book", "book:", "chapter:one", "element:one"] {
             assert!(Target::from_key(key).is_none());
         }
         assert!(
@@ -1701,7 +1705,10 @@ mod v3_panel_tests {
             .is_none()
         );
         assert_eq!(v3_review_scope(None), Some(None));
-        assert_eq!(v3_review_scope(Some(&Target::Book)), Some(None));
+        assert_eq!(
+            v3_review_scope(Some(&Target::from_key("book:one").unwrap())),
+            Some(None)
+        );
         for key in [
             "entry:one",
             "entry:one/mod-prose",
@@ -1776,13 +1783,14 @@ mod v3_panel_tests {
         });
         let (shell, cx) = cx.add_window_view(Workspace::new);
         wait(cx, |cx| shell.read(cx).book.v3().is_some());
-        let (entry, nonprose, material) = shell.read_with(cx, |ws, _| {
+        let (entry, other_entry, root, nonprose, material) = shell.read_with(cx, |ws, _| {
             let v = ws.book.v3().unwrap();
-            let entry = v
+            let mut chapters = v
                 .entries
                 .iter()
-                .find(|e| e.template.as_deref() == Some("tpl-chapter"))
-                .unwrap();
+                .filter(|e| e.template.as_deref() == Some("tpl-chapter"));
+            let entry = chapters.next().unwrap();
+            let other = chapters.next().unwrap();
             let nonprose = v
                 .template_of(&entry.id)
                 .unwrap()
@@ -1792,12 +1800,15 @@ mod v3_panel_tests {
                 .unwrap();
             (
                 entry.id.clone(),
+                other.id.clone(),
+                v.roots[0].clone(),
                 nonprose.id.clone(),
                 v.materials[0].id.clone(),
             )
         });
         for target in [
             None,
+            Target::from_key(&format!("book:{root}")),
             Target::from_key(&format!("entry:{entry}")),
             Target::from_key(&format!("entry:{entry}/mod-prose")),
             Target::from_key(&format!("entry:{entry}/{nonprose}")),
@@ -1835,17 +1846,21 @@ mod v3_panel_tests {
             id: entry,
             module: Some("mod-prose".into()),
         };
+        let other_scope = Scope::Entry {
+            id: other_entry,
+            module: Some("mod-prose".into()),
+        };
         let target = v3_stats_target(scope.clone()).unwrap();
         cx.update(|window, cx| open(scope, window, cx));
         shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
         shell.update(cx, |ws, _| ws.book_id = "different-book".into());
-        cx.update(|window, cx| open(Scope::Book, window, cx));
+        cx.update(|window, cx| open(other_scope.clone(), window, cx));
         shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
         shell.update(cx, |ws, _| {
             ws.book_id = book;
             ws.library = Some(other_lib);
         });
-        cx.update(|window, cx| open(Scope::Book, window, cx));
+        cx.update(|window, cx| open(other_scope, window, cx));
         shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
         cx.update(|_, cx| dr_view_stats::release(cx));
     }
@@ -1861,6 +1876,7 @@ mod v3_panel_tests {
         assert_eq!(book, same_book);
         let snapshot = Book::load(&lib, &book).unwrap();
         let v = snapshot.v3().unwrap();
+        let root = v.roots[0].clone();
         let mut chapters = v
             .entries
             .iter()
@@ -1948,7 +1964,10 @@ mod v3_panel_tests {
             v.set_current_only(true, cx);
         });
         for (target, expected) in [
-            (Target::Book, vec![0, 1, 2, 3, 4]),
+            (
+                Target::from_key(&format!("book:{root}")).unwrap(),
+                vec![0, 1, 2, 3, 4],
+            ),
             (
                 Target::from_key(&format!("entry:{entry}")).unwrap(),
                 vec![0, 1],

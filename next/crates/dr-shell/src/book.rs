@@ -84,16 +84,13 @@ impl Book {
     }
     pub fn entry(&self, target: &Target) -> Option<&Entry> {
         let key = match target {
-            Target::Entry { id, .. } => format!("entry:{id}"),
+            Target::Entry { id, .. } | Target::Book(id) => format!("entry:{id}"),
             _ => target.key(),
         };
         self.index.get(&key)
     }
     pub fn title(&self, target: &Target) -> Option<&str> {
-        match target {
-            Target::Book => (!self.is_empty()).then_some(self.name.as_str()),
-            t => self.entry(t).map(|e| e.title.as_str()),
-        }
+        self.entry(target).map(|e| e.title.as_str())
     }
     pub fn v3(&self) -> Option<&v3::BookV3> {
         match &self.snapshot {
@@ -111,12 +108,15 @@ impl Book {
         self.v3().is_some_and(|b| b.exists(target))
     }
     pub fn mark(&self, target: &Target) -> (sand::Kind, Option<Rgb>) {
+        if matches!(target, Target::Book(_)) {
+            return (sand::Kind::All, self.entry(target).and_then(|e| e.color));
+        }
         self.entry(target)
             .map(|e| (e.mark, e.color))
             .unwrap_or_else(|| {
                 (
                     match target {
-                        Target::Book => sand::Kind::All,
+                        Target::Book(_) => sand::Kind::All,
                         Target::Material(_) => sand::Kind::Material,
                         _ => sand::Kind::Element,
                     },
@@ -179,7 +179,10 @@ impl PageText {
 }
 pub fn nav_target(t: &Target) -> NavTarget {
     match t {
-        Target::Book => NavTarget::Book,
+        Target::Book(id) => NavTarget::Entry {
+            id: id.clone(),
+            module: None,
+        },
         Target::Entry { id, module } => NavTarget::Entry {
             id: id.clone(),
             module: module.clone(),
@@ -188,13 +191,13 @@ pub fn nav_target(t: &Target) -> NavTarget {
         Target::Material(id) => NavTarget::Material(id.clone()),
     }
 }
-pub fn target(t: NavTarget) -> Target {
-    match t {
-        NavTarget::Book => Target::Book,
+pub fn target(t: NavTarget) -> Option<Target> {
+    Some(match t {
+        NavTarget::Book => return None,
         NavTarget::Entry { id, module } => Target::Entry { id, module },
         NavTarget::Template(id) => Target::Template(id),
         NavTarget::Material(id) => Target::Material(id),
-    }
+    })
 }
 #[cfg(test)]
 mod tests {

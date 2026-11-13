@@ -124,10 +124,10 @@
     {
       "app": "nav.open",
       "expect": {
-        "/opened": "book"
+        "/opened": "book:${entries.[template=tpl-manuscript].id}"
       },
       "params": {
-        "target": "book"
+        "target": "book:${entries.[template=tpl-manuscript].id}"
       }
     },
     {
@@ -135,7 +135,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         }
       }
     },
@@ -181,15 +181,15 @@
         "timeout_ms": 30000,
         "state": {
           "/v3/entries": "${reordered}",
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         }
       }
     },
     {
       "app": "state.get",
       "expect": {
-        "/tabs/[key=book]/leaves/0/target": "book",
-        "/pages/[key=book]/ready": true,
+        "/tabs/[key=book:${entries.[template=tpl-manuscript].id}]/leaves/0/target": "book:${entries.[template=tpl-manuscript].id}",
+        "/pages/[key=book:${entries.[template=tpl-manuscript].id}]/ready": true,
         "/tabs/[key=material:${loaded.v3.materials.[kind=text].id}]/leaves/0/target": "material:${loaded.v3.materials.[kind=text].id}"
       },
       "note": "重排已进入外壳快照，全书及素材标签仍保留"
@@ -299,7 +299,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/name": "Synthetic v3 refreshed",
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         }
       }
     },
@@ -339,8 +339,8 @@
       "app": "state.get",
       "expect": {
         "/pageTitle": "${loaded.v3.materials.[kind=text].title}",
-        "/tabs/[key=book]/leaves/0/target": "book",
-        "/pages/[key=book]/ready": true
+        "/tabs/[key=book:${entries.[template=tpl-manuscript].id}]/leaves/0/target": "book:${entries.[template=tpl-manuscript].id}",
+        "/pages/[key=book:${entries.[template=tpl-manuscript].id}]/ready": true
       }
     },
     {
@@ -391,10 +391,10 @@
     {
       "app": "nav.open",
       "expect": {
-        "/opened": "book"
+        "/opened": "book:${entries.[template=tpl-manuscript].id}"
       },
       "params": {
-        "target": "book"
+        "target": "book:${entries.[template=tpl-manuscript].id}"
       }
     },
     {
@@ -402,7 +402,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "book"
+          "/page": "book:${entries.[template=tpl-manuscript].id}"
         }
       }
     },

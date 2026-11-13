@@ -176,9 +176,11 @@ fn front_pages_keep_modules_visit_order_and_navigation_is_read_only(cx: &mut Tes
         expected
     );
 
-    // Whole-book and template tabs are not forged into a page sentinel.
+    // Flattened book views and template tabs are not forged into a page sentinel.
+    assert!(Target::from_key("book").is_none());
+    let book_view = format!("book:{}", snapshot.v3().unwrap().roots[0]);
     let untouched = list(&lib, book);
-    for key in ["book", "template:tpl-chapter"] {
+    for key in [book_view.as_str(), "template:tpl-chapter"] {
         open(&view, cx, key);
     }
     cx.run_until_parked();

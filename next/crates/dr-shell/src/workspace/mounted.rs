@@ -44,7 +44,10 @@ impl Workspace {
                             e.read(cx).book_id() == self.book_id
                                 && e.read(cx).doc_id() == format!("material:{id}")
                         }
-                        (Target::Book, PageView::Book(e)) => e.read(cx).book_id() == self.book_id,
+                        (Target::Book(from), PageView::Book(e)) => {
+                            e.read(cx).book_id() == self.book_id
+                                && e.read(cx).from_entry() == from.as_str()
+                        }
                         _ => false,
                     };
                     valid.then_some((module, view))
@@ -68,7 +71,8 @@ impl Workspace {
                 let binding = self.bind_mounted_editor(view.clone(), window, cx);
                 if new_instance
                     && let PageView::Book(editor) = view
-                    && let Some(at) = &self.book_position
+                    && let Target::Book(from) = &target
+                    && let Some(at) = self.book_positions.get(from.as_str())
                 {
                     editor.update(cx, |e, cx| e.restore(&at.into(), cx));
                 }
@@ -239,8 +243,8 @@ impl Workspace {
             PageView::Book(editor) => {
                 events.extend(link_events(editor, cx));
                 editor.update(cx, |e, cx| e.set_decor_looks(looks, cx));
-                events.push(cx.subscribe(editor, |ws, _, event, cx| {
-                    ws.on_book_event(event, cx);
+                events.push(cx.subscribe(editor, |ws, e, event, cx| {
+                    ws.on_book_event(&e, event, cx);
                     // Reload can replace ProseEditor without replacing the
                     // renderer entity; refresh its focus/selection bindings.
                     cx.notify();

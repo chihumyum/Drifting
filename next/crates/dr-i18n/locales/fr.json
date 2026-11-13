@@ -940,7 +940,6 @@
       "library": "Projet · Documentation",
       "review": "Projet · Relecture",
       "stats": {
-        "all-chapters": "Livre entier · rythme",
         "chapter": "Ce chapitre · statistiques détaillées",
         "element": "Cet élément · statistiques détaillées",
         "material": "Cette ressource · Détails",
@@ -1523,9 +1522,6 @@
     "dockLock": "Garder ouvert",
     "dockUnlock": "Replier en points",
     "newEntity": "Créer une entité",
-    "singletons": {
-      "allChapters": "Livre entier"
-    },
     "untitled": {
       "library_item": "Ressource sans titre"
     }
@@ -1593,6 +1589,7 @@
   "v3Shell": {
     "belongTo": "Rattacher à",
     "board": "Tableau",
+    "bookView": "Vue livre",
     "changeTemplate": "Changer de modèle",
     "childrenEntries": "Entrées en dessous",
     "editTemplate": "Modifier le modèle",

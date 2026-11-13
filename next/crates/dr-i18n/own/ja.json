@@ -233,6 +233,7 @@
   "v3Shell": {
     "belongTo": "所属先",
     "board": "ボード",
+    "bookView": "ブック表示",
     "changeTemplate": "テンプレートを変更",
     "childrenEntries": "下の項目",
     "editTemplate": "テンプレートを編集",

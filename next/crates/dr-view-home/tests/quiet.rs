@@ -148,7 +148,13 @@ fn side_docs_wake_only_their_own_views_leaving_shell_and_open_editors_still(
     use std::rc::Rc;
 
     let (_dir, lib, book) = fixture();
-    let prepared_book = BookEditor::prepare(&lib, &book).unwrap();
+    let manuscript_root = dr_shell::book::Book::load(&lib, &book)
+        .unwrap()
+        .v3()
+        .unwrap()
+        .roots[0]
+        .clone();
+    let prepared_book = BookEditor::prepare(&lib, &book, &manuscript_root).unwrap();
     let today_str = chrono::Local::now().format("%Y-%m-%d").to_string();
     let today_date = chrono::NaiveDate::parse_from_str(&today_str, "%Y-%m-%d").unwrap();
     cx.executor().allow_parking();

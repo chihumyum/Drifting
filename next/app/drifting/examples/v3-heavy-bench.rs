@@ -737,11 +737,12 @@ fn main() {
     );
 
     // Also measure Whole Book open + workspace scroll frames (before closing heavy tabs).
-    let open_whole_book_tab_ms = round3(h.open_target_and_wait(Target::Book, Open::KEEP));
+    let book_target = Target::Book(manuscript_level_id.parse().expect("manuscript level id"));
+    let open_whole_book_tab_ms = round3(h.open_target_and_wait(book_target.clone(), Open::KEEP));
     let wb_prose = h.update(|ws, _, cx| {
         ws.read(cx)
             .editors
-            .get(&Target::Book.key())
+            .get(&book_target.key())
             .expect("whole book mounted")
             .view
             .as_ref()
@@ -760,9 +761,10 @@ fn main() {
     }
     // Close Whole Book tab so subsequent sidebar/timeline/search measurements measure their own cost cleanly.
     h.update(|ws, _, cx| {
+        let k = book_target.clone();
         ws.update(cx, |ws, cx| {
-            ws.nav.forget(&Target::Book);
-            ws.editors.remove(&Target::Book.key());
+            ws.nav.forget(&k);
+            ws.editors.remove(&k.key());
             cx.notify();
         });
     });
