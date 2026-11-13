@@ -42,11 +42,11 @@
       }
     },
     "v3": {
-      "destination": "Eine separate v3-Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
+      "destination": "Eine separate neue Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
       "pending": "Vor dem Import sind Zuordnungen erforderlich",
       "start": "In neue Bibliothek importieren",
-      "switching": "Die fertige v3-Bibliothek wird geöffnet",
-      "title": "Als v3 erneut importieren"
+      "switching": "Die fertige Bibliothek wird geöffnet",
+      "title": "In neue Bibliothek erneut importieren"
     }
   },
   "importDialog": {

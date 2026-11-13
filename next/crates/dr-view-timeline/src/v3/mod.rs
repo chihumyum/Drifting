@@ -23,6 +23,7 @@ use std::{cell::Cell, rc::Rc};
 enum MenuOf {
     Views,
     Lanes,
+    ActTrackTemplates,
     PickLane,
     Entries(String),
     Clip { entry: String, lane: String },
@@ -137,10 +138,9 @@ impl Timeline {
             else {
                 return false;
             };
-            if p.lane
-                .as_ref()
-                .is_some_and(|lane| !view.lanes.iter().any(|l| &l.entry == lane))
-            {
+            if p.lane.as_ref().is_some_and(|lane| {
+                !book.is_lane(lane) || !view.lanes.iter().any(|l| &l.entry == lane)
+            }) {
                 return false;
             }
             let arrived = view.placements.iter().any(|x| x == &p.place)
@@ -211,7 +211,7 @@ impl Timeline {
         }
     }
     pub fn min_height(&self) -> f32 {
-        model::HEAD + model::RULER + model::ROW * self.view().map_or(0, |v| v.lanes.len()) as f32
+        model::HEAD + model::RULER + model::ROW * self.lanes().len() as f32
     }
     pub fn select(&mut self, id: String, cx: &mut Context<Self>) {
         self.selected = Some(id);
