@@ -430,7 +430,7 @@ fn explain(key: &str) -> Option<&'static str> {
         "entity-link-same-target-overlap" => {
             "同一段文字上有两条指向同一对象、但范围不同的链接，保留了后一条"
         }
-        "template-unreadable" => "有模版读不出来，没有导入（旧的字段原样留着）",
+        "template-unreadable" => "有模板读不出来，没有导入（旧的字段原样留着）",
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
         "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
@@ -528,7 +528,7 @@ pub fn summary_zh(r: &Receipt) -> String {
         ));
         if b.templates > 0 {
             s.push_str(&format!(
-                "{} 个要素模版和章节模版写成了模版文档，新建的要素和章节照它开头。\n\n",
+                "{} 份旧版正文模板写成了条目模板的初始正文，新建条目照它开头。\n\n",
                 b.templates
             ));
         }

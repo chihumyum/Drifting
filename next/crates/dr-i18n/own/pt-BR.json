@@ -42,11 +42,11 @@
       }
     },
     "v3": {
-      "destination": "Uma biblioteca v3 separada será criada. A biblioteca atual e a origem 0.1 são preservadas.",
+      "destination": "Uma nova biblioteca separada será criada. A biblioteca atual e a origem 0.1 são preservadas.",
       "pending": "Opções de mapeamento necessárias antes da importação",
       "start": "Importar para nova biblioteca",
-      "switching": "Abrindo a biblioteca v3 concluída",
-      "title": "Reimportar como v3"
+      "switching": "Abrindo a biblioteca concluída",
+      "title": "Reimportar para nova biblioteca"
     }
   },
   "importDialog": {
