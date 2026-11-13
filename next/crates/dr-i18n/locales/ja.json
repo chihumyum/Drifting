@@ -1592,7 +1592,6 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "説明",
     "belongTo": "所属先",
     "board": "ボード",
     "changeTemplate": "テンプレートを変更",

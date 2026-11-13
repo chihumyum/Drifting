@@ -1,3 +1,6 @@
+pub use super::level_switch::{
+    SwitchInspection, TurnOffLevelDialog, inspect_level_switch, toggle_level,
+};
 use super::{DisplaySurface, LevelHost, ModuleHost, Rendered};
 use crate::{
     book::Book,
@@ -6,7 +9,7 @@ use crate::{
     strings::t,
 };
 use dr_i18n::keys;
-use dr_ui::{Theme, fonts::Role as FontRole, style::DrStyled};
+use dr_ui::{Theme, components::Switch, fonts::Role as FontRole, sand::KindMark, style::DrStyled};
 use dr_workspace::commands::v3::types::ModuleSpec;
 use gpui::{prelude::*, *};
 use std::{collections::BTreeMap, rc::Rc};
@@ -59,13 +62,15 @@ impl EntryPage {
                         .get(id.as_str())
                         .is_some_and(|l| l.settings.display == *kind);
                 }
-                if key == "settings" || key == "module:about" {
+                if key == "settings" {
                     return v3.levels.contains_key(id.as_str());
                 }
                 v3.template_of(id.as_str()).is_some_and(|t| {
-                    t.modules
-                        .iter()
-                        .any(|m| key == &format!("module:{}", m.id) && m.kind == *kind)
+                    t.modules.iter().any(|m| {
+                        m.kind != "children"
+                            && key == &format!("module:{}", m.id)
+                            && m.kind == *kind
+                    })
                 })
             });
         }
@@ -163,6 +168,65 @@ impl EntryPage {
             .children(self.parts.get(&key).map(|(_, p)| p.view.clone()))
             .into_any_element()
     }
+    fn mount_display(
+        &mut self,
+        id: &str,
+        section_id: String,
+        display_kind: &str,
+        name: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = "display".to_owned();
+        if self
+            .parts
+            .get(&key)
+            .is_some_and(|(kind, _)| kind != display_kind)
+        {
+            self.parts.remove(&key);
+        }
+        if !self.parts.contains_key(&key)
+            && let Some(view) = super::level_display(
+                LevelHost {
+                    page: self.host.clone(),
+                    level: id.to_string(),
+                    surface: DisplaySurface::Page,
+                },
+                window,
+                cx,
+            )
+        {
+            self.parts
+                .insert(key.clone(), (display_kind.to_owned(), view));
+        }
+        self.sections.push(Section {
+            id: section_id,
+            kind: display_kind.to_owned(),
+            name,
+            registered: self.parts.contains_key(&key),
+        });
+    }
+    fn render_children_section(
+        &self,
+        id: &str,
+        section_id: &str,
+        heading: SharedString,
+        cx: &App,
+    ) -> AnyElement {
+        let display = if let Some((_, p)) = self.parts.get("display") {
+            p.view.clone().into_any_element()
+        } else {
+            placeholder_display(&self.host, id, cx)
+        };
+        div()
+            .id(SharedString::from(format!("section:{section_id}")))
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(heading)
+            .child(display)
+            .into_any_element()
+    }
     pub fn sync_parts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let book = self.host.book.clone();
         self.sections.clear();
@@ -173,49 +237,41 @@ impl EntryPage {
         if let Target::Entry { id, .. } = self.target.clone()
             && v3.entry(id.as_str()).is_some()
         {
-            if let Some(level) = v3.levels.get(id.as_str()) {
-                let about = ModuleSpec {
-                    id: "about".into(),
-                    kind: "prose".into(),
-                    name: t(cx, keys::v3_shell::ABOUT).to_string(),
-                    pos: None,
-                    config: Default::default(),
-                    agent: None,
-                };
-                self.mount_module(id.as_str(), about, window, cx);
-                if let Some(template) = v3.template_of(id.as_str()) {
-                    for spec in &template.modules {
-                        self.mount_module(id.as_str(), spec.clone(), window, cx);
+            let level = v3.levels.get(id.as_str()).cloned();
+            let mut has_children_module = false;
+            if let Some(template) = v3.template_of(id.as_str()) {
+                for spec in &template.modules {
+                    if spec.kind == "children" {
+                        if let Some(level) = &level
+                            && !has_children_module
+                        {
+                            has_children_module = true;
+                            self.mount_display(
+                                id.as_str(),
+                                spec.id.clone(),
+                                &level.settings.display,
+                                spec.name.clone(),
+                                window,
+                                cx,
+                            );
+                        }
+                        continue;
                     }
+                    self.mount_module(id.as_str(), spec.clone(), window, cx);
                 }
-                let key = "display".to_owned();
-                if self
-                    .parts
-                    .get(&key)
-                    .is_some_and(|(kind, _)| kind != &level.settings.display)
-                {
-                    self.parts.remove(&key);
-                }
-                if !self.parts.contains_key(&key)
-                    && let Some(view) = super::level_display(
-                        LevelHost {
-                            page: self.host.clone(),
-                            level: id.to_string(),
-                            surface: DisplaySurface::Page,
-                        },
+            }
+            if let Some(level) = &level {
+                if !has_children_module {
+                    let heading = t(cx, keys::v3_shell::CHILDREN_ENTRIES).to_string();
+                    self.mount_display(
+                        id.as_str(),
+                        "display".into(),
+                        &level.settings.display,
+                        heading,
                         window,
                         cx,
-                    )
-                {
-                    self.parts
-                        .insert(key.clone(), (level.settings.display.clone(), view));
+                    );
                 }
-                self.sections.push(Section {
-                    id: key.clone(),
-                    kind: level.settings.display.clone(),
-                    name: t(cx, keys::v3_shell::ENTRIES).to_string(),
-                    registered: self.parts.contains_key(&key),
-                });
                 let key = "settings".to_owned();
                 if !self.parts.contains_key(&key)
                     && let Some(view) = super::level_settings(
@@ -236,16 +292,14 @@ impl EntryPage {
                     name: t(cx, keys::v3_shell::SETTINGS).to_string(),
                     registered: self.parts.contains_key(&key),
                 });
-            } else if let Some(template) = v3.template_of(id.as_str()) {
-                for spec in &template.modules {
-                    self.mount_module(id.as_str(), spec.clone(), window, cx);
-                }
             }
+            let is_level = level.is_some();
             let active: Vec<_> = self
                 .sections
                 .iter()
                 .map(|s| format!("module:{}", s.id))
-                .chain(["display".into(), "settings".into()])
+                .chain(is_level.then(|| "display".to_owned()))
+                .chain(is_level.then(|| "settings".to_owned()))
                 .collect();
             self.parts.retain(|k, _| active.contains(k));
         }
@@ -264,45 +318,124 @@ impl Render for EntryPage {
         match self.target.clone() {
             Target::Entry { id, module } => {
                 if let Some(entry) = v3.entry(id.as_str()) {
+                    let (mark, color) = book.mark(&self.target);
+                    let kind_mark =
+                        KindMark::new(SharedString::from(format!("v3-entry-mark-{id}")), mark);
+                    let kind_mark = match color {
+                        Some(c) => kind_mark.color(c),
+                        None => kind_mark,
+                    };
+                    let toggle_label = t(cx, keys::v3_shell::LEVEL_SWITCH);
+                    let toggle_hint = t(cx, keys::v3_shell::LEVEL_SWITCH_HINT);
+                    let toggle_host = self.host.clone();
+                    let toggle_id = id.to_string();
                     content = content.child(
                         div()
-                            .font_role(FontRole::Structure)
-                            .type_px(theme.scale.heading, theme.scale.heading + 12.0)
-                            .child(entry.title.clone()),
-                    );
-                    if let Some(level) = v3.levels.get(id.as_str()) {
-                        let about = ModuleSpec {
-                            id: "about".into(),
-                            kind: "prose".into(),
-                            name: t(cx, keys::v3_shell::ABOUT).to_string(),
-                            pos: None,
-                            config: Default::default(),
-                            agent: None,
-                        };
-                        let mut description = div()
                             .flex()
-                            .flex_col()
-                            .child(self.render_module(&about, window, cx));
-                        if let Some(template) = v3.template_of(id.as_str()) {
-                            for spec in &template.modules {
-                                description =
-                                    description.child(self.render_module(spec, window, cx));
+                            .flex_row()
+                            .items_center()
+                            .justify_between()
+                            .gap_4()
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .items_center()
+                                    .gap_2()
+                                    .min_w_0()
+                                    .flex_1()
+                                    .child(kind_mark)
+                                    .child(
+                                        div()
+                                            .font_role(FontRole::Structure)
+                                            .type_px(
+                                                theme.scale.heading,
+                                                theme.scale.heading + 12.0,
+                                            )
+                                            .child(entry.title.clone()),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .id("v3-entry-level-toggle")
+                                    .role(gpui::Role::CheckBox)
+                                    .aria_label(toggle_label.clone())
+                                    .aria_toggled(if entry.level {
+                                        gpui::Toggled::True
+                                    } else {
+                                        gpui::Toggled::False
+                                    })
+                                    .flex_none()
+                                    .flex()
+                                    .flex_row()
+                                    .items_center()
+                                    .gap_3()
+                                    .cursor_pointer()
+                                    .on_click(move |_, window, cx| {
+                                        toggle_level(
+                                            toggle_host.clone(),
+                                            toggle_id.clone(),
+                                            window,
+                                            cx,
+                                        );
+                                    })
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .flex_col()
+                                            .items_end()
+                                            .child(
+                                                div()
+                                                    .font_role(FontRole::Ui)
+                                                    .type_px(
+                                                        theme.scale.body,
+                                                        theme.scale.line_body,
+                                                    )
+                                                    .text_color(theme.palette.ink(1).solid())
+                                                    .child(toggle_label),
+                                            )
+                                            .child(
+                                                div()
+                                                    .font_role(FontRole::Ui)
+                                                    .type_px(
+                                                        theme.scale.caption,
+                                                        theme.scale.line_caption,
+                                                    )
+                                                    .text_color(theme.palette.muted().solid())
+                                                    .child(toggle_hint),
+                                            ),
+                                    )
+                                    .child(Switch::new("v3-entry-level-switch", entry.level)),
+                            ),
+                    );
+                    let level = v3.levels.get(id.as_str());
+                    let mut has_children_module = false;
+                    if let Some(template) = v3.template_of(id.as_str()) {
+                        for spec in &template.modules {
+                            if spec.kind == "children" {
+                                if level.is_some() && !has_children_module {
+                                    has_children_module = true;
+                                    content = content.child(self.render_children_section(
+                                        id.as_str(),
+                                        &spec.id,
+                                        spec.name.clone().into(),
+                                        cx,
+                                    ));
+                                }
+                                continue;
                             }
+                            content = content.child(self.render_module(spec, window, cx));
                         }
-                        content = content.child(description);
-                        let display = if let Some((_, p)) = self.parts.get("display") {
-                            p.view.clone().into_any_element()
-                        } else {
-                            placeholder_display(&self.host, id.as_str(), cx)
-                        };
-                        content = content.child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap_2()
-                                .child(t(cx, keys::v3_shell::ENTRIES))
-                                .child(display),
-                        );
+                    }
+                    if let Some(level) = level {
+                        if !has_children_module {
+                            content = content.child(self.render_children_section(
+                                id.as_str(),
+                                "display",
+                                t(cx, keys::v3_shell::CHILDREN_ENTRIES),
+                                cx,
+                            ));
+                        }
                         // The controls belong to G2 (`add_level_settings`). Until one is
                         // registered, show the effective display with the agreed label.
                         let settings = if let Some((_, p)) = self.parts.get("settings") {
@@ -314,16 +447,13 @@ impl Render for EntryPage {
                         };
                         content = content.child(
                             div()
+                                .id("section:settings")
                                 .flex()
                                 .flex_col()
                                 .gap_2()
                                 .child(t(cx, keys::v3_shell::SETTINGS))
                                 .child(settings),
                         );
-                    } else if let Some(template) = v3.template_of(id.as_str()) {
-                        for spec in &template.modules {
-                            content = content.child(self.render_module(spec, window, cx));
-                        }
                     }
                     if self.pending_reveal {
                         let wanted = module.as_ref().map(|m| m.as_str()).or_else(|| {
@@ -336,13 +466,7 @@ impl Render for EntryPage {
                         });
                         if let Some(wanted) = wanted {
                             if let Some(i) = self.sections.iter().position(|s| s.id == wanted) {
-                                self.scroll.scroll_to_item(
-                                    if v3.levels.contains_key(id.as_str()) {
-                                        1
-                                    } else {
-                                        i + 1
-                                    },
-                                );
+                                self.scroll.scroll_to_item(i + 1);
                             }
                             if let Some((_, part)) = self.parts.get(&format!("module:{wanted}"))
                                 && let Some(reveal) = &part.reveal

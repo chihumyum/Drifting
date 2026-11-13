@@ -233,7 +233,6 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "说明",
     "belongTo": "归属到",
     "board": "看板",
     "changeTemplate": "换模板",

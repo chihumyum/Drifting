@@ -240,7 +240,6 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Description",
     "belongTo": "Rattacher à",
     "board": "Tableau",
     "changeTemplate": "Changer de modèle",

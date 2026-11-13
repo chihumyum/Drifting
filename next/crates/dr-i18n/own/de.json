@@ -240,7 +240,6 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Beschreibung",
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
     "changeTemplate": "Vorlage wechseln",
