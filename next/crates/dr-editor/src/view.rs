@@ -308,10 +308,7 @@ impl ChapterEditor {
     ) -> EditorParts {
         // A material note draws its tables and materials (`embeds.rs`); they
         // write through the note's own session.
-        let note = dr_model::DocId::parse(doc_id)
-            .ok()
-            .and_then(|d| d.profile())
-            == Some(dr_model::ProseProfile::Note);
+        let note = is_note(doc_id);
         let shared = note.then(|| (source.shared_session(), source.handle().clone()));
         extension.set_note(note);
         let mut doc = ProseDoc::open(Box::new(source));
@@ -674,12 +671,11 @@ impl ChapterEditor {
     }
 }
 
-/// Whether `doc_id` is a material note (the note profile).
+/// Whether `doc_id` is a material note (`material:<id>`).
 fn is_note(doc_id: &str) -> bool {
     dr_model::DocId::parse(doc_id)
         .ok()
-        .and_then(|d| d.profile())
-        == Some(dr_model::ProseProfile::Note)
+        .is_some_and(|d| d.kind() == dr_model::DocKind::Material)
 }
 
 impl ChapterEditor {

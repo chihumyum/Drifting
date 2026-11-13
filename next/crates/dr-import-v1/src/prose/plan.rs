@@ -352,7 +352,7 @@ fn entity_link(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<Enti
 /// Build the runs of one old line's text, without dropped characters.
 fn runs_of(
     line: &Line,
-    profile: ProseProfile,
+    _profile: ProseProfile,
     ctx: &Context<'_>,
     notes: &mut Notes,
     dropped_inline: &mut Vec<String>,
@@ -388,9 +388,6 @@ fn runs_of(
                     Some(h) => range.for_each(|i| states[i].link = Some(h.clone())),
                     None => notes.add("link-without-href"),
                 }
-            }
-            "highlight" | "code" if profile == ProseProfile::Prose => {
-                notes.add(format!("{}-in-prose", span.mark));
             }
             "highlight" => {
                 let color = serde_json::from_str::<Value>(&span.attrs)
@@ -630,7 +627,7 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                     dropped: Vec::new(),
                 });
                 match material {
-                    Some(m) if ctx.profile == ProseProfile::Note => {
+                    Some(m) => {
                         let eid = embed_id(id.as_ref(), &mut embed_n);
                         paras.push(embed_para(
                             id,
@@ -641,7 +638,7 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                             },
                         ));
                     }
-                    _ => {
+                    None => {
                         notes.add("material-embed-dropped");
                         paras.push(Para::plain(id));
                     }
@@ -891,7 +888,7 @@ type MarkedCharV3 = (char, InlineMarks, Vec<EntityLinkV3>);
 
 fn runs_of_v3(
     line: &Line,
-    profile: ProseProfile,
+    _profile: ProseProfile,
     ctx: &Context<'_>,
     notes: &mut Notes,
     dropped_inline: &mut Vec<String>,
@@ -927,9 +924,6 @@ fn runs_of_v3(
                     Some(h) => range.for_each(|i| states[i].link = Some(h.clone())),
                     None => notes.add("link-without-href"),
                 }
-            }
-            "highlight" | "code" if profile == ProseProfile::Prose => {
-                notes.add(format!("{}-in-prose", span.mark));
             }
             "highlight" => {
                 let color = serde_json::from_str::<Value>(&span.attrs)
@@ -1182,7 +1176,7 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                     dropped: Vec::new(),
                 });
                 match material {
-                    Some(m) if ctx.profile == ProseProfile::Note => {
+                    Some(m) => {
                         let eid = embed_id(id.as_ref(), &mut embed_n);
                         paras.push(embed_para(
                             id,
@@ -1193,7 +1187,7 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                             },
                         ));
                     }
-                    _ => {
+                    None => {
                         notes.add("material-embed-dropped");
                         paras.push(Para::plain(id));
                     }
@@ -1335,7 +1329,7 @@ mod tests {
             (old == "todo-1").then(|| CommentId::parse("todo:note_task:material:m#tp1").unwrap())
         };
         let c = Context {
-            profile: ProseProfile::Note,
+            profile: ProseProfile::Prose,
             span: &|_| None,
             todo: &todo,
         };
@@ -1405,17 +1399,17 @@ mod tests {
     }
 
     #[test]
-    fn note_attributes_and_marks_are_dropped_in_prose() {
+    fn list_highlight_and_code_keep_while_unknown_marks_and_inlines_drop() {
         let p = plan_of(
             r#"{"type":"doc","content":[{"type":"bulletList","content":[{"type":"listItem","content":[
               {"type":"paragraph","attrs":{"id":"a"},"content":[{"type":"text","text":"x","marks":[{"type":"highlight"},{"type":"code"},{"type":"strange"}]},{"type":"mention","attrs":{"who":"z"}},{"type":"text","text":"y"}]}]}]}]}"#,
             ProseProfile::Prose,
         );
-        assert_eq!(p.paras[0].attrs, BlockAttrs::default());
+        assert_eq!(p.paras[0].attrs.list, Some(ListKind::Bullet));
         assert_eq!(p.paras[0].text(), "xy");
-        assert!(p.paras[0].runs[0].marks.is_plain());
-        assert_eq!(p.notes.0["note-attribute-in-prose"], 1);
-        assert_eq!(p.notes.0["highlight-in-prose"], 1);
+        assert_eq!(p.paras[0].runs[0].marks.highlight.as_deref(), Some(""));
+        assert!(p.paras[0].runs[0].marks.code);
+        assert!(p.paras[0].runs[1].marks.is_plain());
         assert_eq!(p.notes.0["unknown-mark:strange"], 1);
         assert_eq!(p.notes.0["unknown-inline:mention"], 1);
         assert_eq!(

@@ -13,7 +13,6 @@
 use std::collections::HashSet;
 use std::ops::Range;
 
-use dr_model::ProseProfile;
 use dr_model::id::{BlockId, EmbedId};
 use dr_model::pos::PosKey;
 use dr_model::prose::{
@@ -22,7 +21,7 @@ use dr_model::prose::{
 use loro::cursor::Side;
 use loro::{LoroText, LoroValue};
 
-use super::attrs::{encode_block, encode_entity, note_only_block};
+use super::attrs::{encode_block, encode_entity};
 use super::embed::{EmbedKind, EmbedView, TableWriter};
 use super::view::{ProseView, Run};
 use crate::error::{DocError, Result};
@@ -93,12 +92,7 @@ impl<'a> ProseTxn<'a> {
         Ok(BlockId::parse(&format!("{}@{}", id.counter, id.peer)).expect("op id is a valid id"))
     }
 
-    fn check_profile(&self, b: &BlockAttrs) -> Result<()> {
-        if self.view.profile == ProseProfile::Prose
-            && let Some(what) = note_only_block(b)
-        {
-            return Err(DocError::NotInProfile(what));
-        }
+    fn check_profile(&self, _b: &BlockAttrs) -> Result<()> {
         Ok(())
     }
 
@@ -172,9 +166,6 @@ impl<'a> ProseTxn<'a> {
     /// takes its place, so applying a template to a new, empty document
     /// leaves exactly the template.
     /// Returns the position after the copied text.
-    ///
-    /// Marks and attributes `from` has but this document's profile does not
-    /// allow are refused (a note's list copied into a chapter).
     pub fn insert_copy(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
         self.insert_copy_with_links(pos, from, false)
     }

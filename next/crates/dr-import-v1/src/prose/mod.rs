@@ -151,10 +151,10 @@ mod tests {
 
     #[test]
     fn a_note_is_stored_exactly_and_round_trips() {
-        let p = planned(NOTE, ProseProfile::Note);
+        let p = planned(NOTE, ProseProfile::Prose);
         let (doc, _) = write_versions("material:m1", &[&p]);
         let back = read::read_paras(&doc.view());
-        assert!(round_trips(&back, ProseProfile::Note));
+        assert!(round_trips(&back, ProseProfile::Prose));
         assert!(back[0].runs[0].marks.highlight.as_deref() == Some("#ff0"));
         assert_eq!(back[1].attrs.todo.as_ref().unwrap().as_str(), "todo-x");
         assert_eq!(back[2].attrs.list, Some(dr_model::kind::ListKind::Ordered));
@@ -188,9 +188,9 @@ mod tests {
 
     #[test]
     fn notes_embeds_survive_versions() {
-        let v1 = planned(NOTE, ProseProfile::Note);
-        let v2 = planned(&NOTE.replace("六十", "七十"), ProseProfile::Note);
-        let v3 = planned(r#"{"type":"doc","content":[]}"#, ProseProfile::Note);
+        let v1 = planned(NOTE, ProseProfile::Prose);
+        let v2 = planned(&NOTE.replace("六十", "七十"), ProseProfile::Prose);
+        let v3 = planned(r#"{"type":"doc","content":[]}"#, ProseProfile::Prose);
         write_versions("material:m2", &[&v1, &v2, &v3, &v2]);
     }
 }

@@ -526,28 +526,28 @@ impl DocKind {
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book, conversation, stats and checkpoints documents. Material notes use the note profile, everything else
-    /// the prose profile (as the old `editor-schema-profile.ts`: the profile
-    /// follows the document, not the view); templates the prose profile of
-    /// the entries made from them.
+    /// book, conversation, stats and checkpoints documents. Every prose
+    /// document shares the single `ProseProfile::Prose` (`kernel-v5.md` §6;
+    /// the former note profile is retired).
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
             DocKind::Book | DocKind::Conversation | DocKind::Stats | DocKind::Checkpoints => None,
-            DocKind::Material => Some(ProseProfile::Note),
             _ => Some(ProseProfile::Prose),
         }
     }
 }
 
 /// Which block attributes and inline marks a prose document may carry.
+///
+/// Kernel v5 unifies all prose documents on one profile (`kernel-v5.md` §6);
+/// the former note-only profile is retired.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProseProfile {
-    /// An entry's prose modules and a level's description.
+    /// Every prose document: headings, quotes, indents, alignment, rules,
+    /// lists, tasks, code blocks, callouts, links, entity links, highlights,
+    /// inline code, and embeds.
     Prose,
-    /// Material notes: adds lists, tasks, code blocks, callouts, highlight and
-    /// inline code.
-    Note,
 }
 
 /// The id of a Loro document: `book:<id>` for the book (catalog) document,
@@ -815,7 +815,7 @@ mod tests {
         ));
         assert_eq!(
             DocId::parse("material:m").unwrap().profile(),
-            Some(ProseProfile::Note)
+            Some(ProseProfile::Prose)
         );
         assert_eq!(
             DocId::parse("node:m").unwrap().profile(),
