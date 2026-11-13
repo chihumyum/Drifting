@@ -345,3 +345,163 @@ mod live_splices {
         }
     }
 }
+
+#[test]
+fn entry_body_plain_text_metrics_live_count_and_outline_cover_every_format() {
+    use dr_doc::prose::Run;
+    use dr_model::kind::ListKind;
+    use dr_model::prose::{BlockAttrs, InlineMarks, LINE_BREAK};
+
+    let mut d = ProseDoc::create(DocId::parse("body:e1/m1").unwrap(), 17).unwrap();
+    let tbl = EmbedId::parse("tbl-all").unwrap();
+    let (r, _) = d.edit(Origin::User, |t| {
+        let lines = [
+            "第一章",
+            "无序列表项",
+            "有序列表项",
+            "任务核查项",
+            "let orbit = 42;",
+            "提示块提醒",
+            "正文含高亮词与inline_fn调用",
+        ];
+        t.insert_paragraphs(0, &lines.join("\n"))?;
+
+        let starts: Vec<usize> = t.view().paragraphs().map(|p| p.range.start).collect();
+        t.set_heading(starts[0], Some(Heading::H1))?;
+        t.set_block_attrs(
+            starts[1],
+            &BlockAttrs {
+                list: Some(ListKind::Bullet),
+                list_level: 0,
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[2],
+            &BlockAttrs {
+                list: Some(ListKind::Ordered),
+                list_level: 1,
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[3],
+            &BlockAttrs {
+                list: Some(ListKind::Task),
+                checked: true,
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[4],
+            &BlockAttrs {
+                code_block: Some("rust".into()),
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[5],
+            &BlockAttrs {
+                callout: Some("info".into()),
+                ..BlockAttrs::default()
+            },
+        )?;
+
+        // "正文含高亮词与inline_fn调用" -> highlight on "高亮词" (offset +3..+6), code on "inline_fn" (+7..+16)
+        let rich_start = starts[6];
+        t.set_style(
+            rich_start + 3..rich_start + 6,
+            &InlineStyle::Highlight("yellow".into()),
+        )?;
+        t.set_style(rich_start + 7..rich_start + 16, &InlineStyle::Code)?;
+
+        // Insert a 2x2 table at the end with rich marks and a soft line break.
+        let end_para = t.split(t.view().len() - 1)?;
+        let w = t.insert_embed(end_para, &tbl, &EmbedKind::Table)?;
+        w.add_col("c0", &PosKey::first())?;
+        w.add_col("c1", &PosKey::first().after())?;
+        w.add_row("r0", &PosKey::first())?;
+        w.add_row("r1", &PosKey::first().after())?;
+        drop(w);
+        t.set_table_cell_runs_v3(
+            &tbl,
+            "r0",
+            "c0",
+            &[Run {
+                text: "表头甲".into(),
+                marks: InlineMarks {
+                    bold: true,
+                    ..InlineMarks::default()
+                },
+            }],
+            &[],
+        )?;
+        t.set_table_cell_runs_v3(
+            &tbl,
+            "r0",
+            "c1",
+            &[Run {
+                text: "cell_code".into(),
+                marks: InlineMarks {
+                    code: true,
+                    highlight: Some("amber".into()),
+                    ..InlineMarks::default()
+                },
+            }],
+            &[],
+        )?;
+        t.set_table_cell_runs_v3(
+            &tbl,
+            "r1",
+            "c0",
+            &[
+                Run {
+                    text: "首行".into(),
+                    marks: InlineMarks::default(),
+                },
+                Run {
+                    text: LINE_BREAK.to_string(),
+                    marks: InlineMarks::default(),
+                },
+                Run {
+                    text: "次行".into(),
+                    marks: InlineMarks::default(),
+                },
+            ],
+            &[],
+        )?;
+        t.table(&tbl)?.set_cell("r1", "c1", "终格")
+    });
+    r.unwrap();
+
+    let v = d.view();
+    let plain = plain_text(&v);
+    assert!(!plain.contains('\u{FFFC}'));
+    for needle in [
+        "第一章",
+        "无序列表项",
+        "有序列表项",
+        "任务核查项",
+        "let orbit = 42;",
+        "提示块提醒",
+        "正文含高亮词与inline_fn调用",
+        "表头甲\tcell_code\u{2028}首行\u{2028}次行\t终格",
+    ] {
+        assert!(plain.contains(needle), "missing {needle:?} in {plain:?}");
+    }
+
+    let mut by_block = TextMetrics::default();
+    for p in v.paragraphs() {
+        by_block += text_metrics(&block_text(&v, &p));
+    }
+    let live = LiveCount::from_view(&v);
+    assert_eq!(live.total(), by_block);
+    assert_eq!(count_words(&plain), by_block.words);
+
+    let items = outline(&v);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].heading, Heading::H1);
+    assert_eq!(items[0].text, "第一章");
+    // 6 formatted body blocks + 1 table block + 1 trailing empty block after split/embed = check exact count:
+    assert_eq!(items[0].paragraphs_after, v.paragraphs().count() - 1);
+}
