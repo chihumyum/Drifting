@@ -42,6 +42,8 @@
    所有模块一个外层滚动；章节正文已有章首、章末和虚拟滚动。需要外壳提供正文
    模块占用稿纸视口的布局契约，并避免小说章页出现两份标题。当前模块内暂用
    独立视口保留虚拟化，不把展开所有段落当作 heavy 的解决办法。
+   **2026-11-13 已解决**：正文随条目页一起滚、没有自己的视口，仍只画露出来的
+   部分（见文末「正文随页铺开、按视口画」）。
 4. **情节规划并发（第四十九批退回后的修正）。** 原适配器先重读再整网格替换，
    确实会覆盖另一个窗口／帮手已成功提交的格子；此前只写待协调不充分。
    现用已有 `Workspace::observe` 在读网格前取书版本，`call_guarded` 提交时在
@@ -591,4 +593,34 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 - **正文页眉章首统一**（`dr-editor/src/page.rs`、`dr-editor/src/v3.rs`、`dr-view-page`）：不再按固定模板 id 区分页面种类，`PageKind` 收束为两类（成书序列中有编号的 `Chapter` 与其余 `Other`）。单条目页只在模板第一篇 `in_book = true` 的正文模块挂接章首与章末，避免多篇正文或 `mod-description` 重复渲染标题头；状态与梗概输入按模板角色字段存在性按需挂载。
 
 永久回归见 `dr-shell/tests/v3.rs`、`dr-view-page/tests/v3.rs` 与 `dr-editor/tests/page.rs`。
+
+### 作者 2026-11-13 定的四条（v4 收尾）
+
+上面第一条里「对话框重读最新 `N` 并提示重新确认」和「一步 `Workspace::undo` 即可恢复」已改：
+
+- **关开关什么时候问**：下面住着条目时照旧用那句「下面的 N 个条目会移到最外层……」。下面没有住着的条目，但有归属进来的成员、或者它在某个时间线视图里当泳道时，也问（`SwitchInspection::needs_confirmation`）：成员和泳道都有时用作者给的原句「归属到它的 N 个条目和它在时间线里的泳道先不显示，再打开就回来。」；只有成员时去掉「和它在时间线里的泳道」，只有泳道时是「它在时间线里的泳道先不显示，再打开就回来。」。三样都没有就不问，直接关。
+- **问的期间变了**：点「关闭层级」时先在后台重读一遍；住着的子条目、成员（按 id）或泳道身份跟框里说的不一样，就把框里的数字换成最新的、留在框里再问一次，不另加提示（`v3Shell.turnOffLevelConflict` 那句删了，九种语言一起）。一样才写，写入守着这个条目、它的子条目顺序和书里的归属、视图两个集合，读和写之间别处改了就再读一遍。
+- **撤销**：关掉以后窗口下沿的纸条写「关闭层级 · 条目名」，带「撤销」，点了开关和挪走的子条目一步全部回去；光标不在正文里时 ⌘Z 也撤它（`foundations/f6-shell.md` 的「在窗口里撤销书的结构」）。
+- **页眉的编号**：条目自己有成书正文时，住在它下面的条目（隔几层都算）不再单独编号，页眉显示模板名；位置、导出、字数不变（`kernel-v4.md` 第 7 节，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。书稿列表「按故事线」分组改按成书序列的位置收「带成书正文」的条目，有没有编号都列出来；书架的「N 章」按编号数，要素数改为不算带成书正文的条目。
+
+测试：`dr-shell/tests/v3.rs` 的 `v4_turning_off_a_level_asks_for_assigned_entries_and_lanes`；`dr-view-page/tests/shell_workspace.rs` 的 `the_books_structure_undoes_from_the_notice_and_outside_the_prose`；`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-workspace/tests/undo.rs` 的 `undo_in_a_book_takes_back_that_books_latest_command_of_the_author_only`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。
+
+## 正文随页铺开、按视口画（2026-11-13，编辑器回归修复）
+
+**大白话。** 11-12 第一轮手测修复（`ed6bff096`）按作者的意见，把条目页正文从「半个窗口高（240–720px）的小滚动框」改成随页面铺开。做法是给正文开了 `fit_content`，这个选项原本给表格格子用：不用虚拟列表、每帧把每一段都排版画出来。于是长章节每一帧、每按一个键都要把整章排一遍（上面待协调 3 早就说过不能这样做）；冒烟报告的两个回归都出在这里：
+
+- 正文的无障碍节点有整章那么高，场景「按正文输入区」点它的中心，中心在窗口外；打开 `entry:<id>/<模块>` 时，模块在第一帧滚到位以后，上面的正文才加载、长高，又把它推出了视口。
+- GPUI 派发每个按键前会先把脏窗口画完一帧，一帧排整章，调试桥一口气打的 14 个字就超过了撤销合并的 500ms，一次 ⌘Z 只撤回最后一个词。撤销分组的规则本身没变。
+
+现在正文仍然随页铺开（作者要的样子不变），但只排版、绘制页面露出来的部分前后各 1200px 的段落，和自己滚动的编辑器一样按视口画：
+
+- **`gpui_prose::EditorOptions::flow`**，`render/flow.rs` 的 `FlowItems`：编辑器高度是全文高度（高度索引里量过的按实高，没量过的按估计），每帧找到页面露出部分顶上的那一段，从它往上往下按实高排。没量过的段落量出来和估计不一样时，用页面的滚动句柄把页面挪同样的距离，作者正看着的字不跳。
+- **`ProseEditor::set_page_scroll`**、`ChapterEditor::set_page_scroll`、`BodyModule::set_page_scroll`，外壳经 `dr_shell::v3::Rendered::on_page_scroll`（新增，只加不改）把条目页的 `PageScroll`（滚动句柄，加一个「为作者滚过」的标记）交给正文。正文用它：保持字不跳；光标走到露出部分的边上（打字、回车、⌘↓）时滚页面跟上；拖选越过边缘时滚页面；光标定到远处（包括第一帧之前，比如打开到某一行）时先把页面滚过去。
+- **打开到某个模块**：`EntryPage` 把这个模块「钉」在视口里，直到作者自己滚动、点击或按键，或者正文为作者滚了页面（跟着光标、定位、拖选；`gpui_prose::render::PageScroll::for_author`，只为保持字不跳的补偿不算）（`EntryPage::pinned`）。比视口矮的模块照以前，最少滚动让它整个露出来；比视口高的（长正文）只在它的顶端没露出来时才把顶端对齐，所以打开一章的正文时页头（标题、「层级」开关）照旧留在上面。要定位到正文某几行时由正文自己滚，不钉。
+- **撤销的时间**：撤销历史按 GPUI 执行器的时钟判断「离这一步第一次编辑多久」（`ProseDoc::set_clock`，编辑器建立时给它的文档设好）。App 里就是系统时钟，行为不变；测试平台上时钟不动，除非测试自己拨，所以撤销分组的测试不受机器忙闲影响。
+- **调试桥**：`ui.press` 的节点中心在窗口外、但节点一部分在窗口里时，点它在窗口里那部分的中心（随页铺开的正文就是这样）；整个在窗口外照旧报错。
+
+**测试**：`gpui-prose` 的 `render::flow_tests`（只画露出来的部分、估计改变时字不动、页面跟着光标、第一帧之前定位、没有滚动句柄时）；`dr-editor/tests/v3_body_flow.rs`（长正文里一口气打一串字，每键一帧只排版视口附近的段落，一次撤销撤掉整串，拨过 500ms 再打就是两步）；`dr-view-page/tests/shell_workspace.rs` 的 `an_entry_page_opened_at_a_module_keeps_it_in_view_while_the_body_grows`、`an_entry_page_opened_at_its_body_keeps_its_head`；`dr-debug-bridge` 的 `a_press_lands_on_the_part_of_a_node_the_window_shows`。长章节的耗时对比：`prose-bench page`（`box` 是 11-12 以前的小框，`fit` 是 11-12 到这次的铺开，`flow` 是现在）。
+
+**待协调**：沉浸写作的打字机滚动在正文里按页面露出的部分对齐，作者在条目页里开沉浸写作的观感没在真窗口里看过。
 

@@ -934,6 +934,78 @@ impl Workspace {
         }))
     }
 
+    /// [`Workspace::undo`] within one book: `actor`'s latest undoable
+    /// command in `book`, whatever `actor` did in other books since. Only the
+    /// book's own commands count: a library-level one recorded under it (the
+    /// book's creation) is never taken back this way. With `only`, it undoes
+    /// nothing unless that command is journal row `only` (an offer to undo a
+    /// given step must not take back another one). `None` when nothing was
+    /// undone.
+    pub fn undo_in(&self, actor: &Actor, book: &str, only: Option<i64>) -> Result<Option<Undone>> {
+        let key = actor.journal_key();
+        let Some((entry, inverses)) =
+            Self::book_own(self.inner.journal.undoable_in(&key, book, 1)?)
+        else {
+            return Ok(None);
+        };
+        if only.is_some_and(|seq| seq != entry.seq) {
+            return Ok(None);
+        }
+        let (effects, redo) = self.run_inverses(actor, &inverses)?;
+        self.inner.journal.mark_undone(entry.seq, redo.as_deref())?;
+        Ok(Some(Undone {
+            entry: JournalEntry {
+                state: "undone".into(),
+                ..entry
+            },
+            outcome: Outcome {
+                output: Value::Null,
+                effects,
+                undo: redo,
+                journal: None,
+            },
+        }))
+    }
+
+    /// [`Workspace::redo`] within one book, as [`Workspace::undo_in`].
+    pub fn redo_in(&self, actor: &Actor, book: &str, only: Option<i64>) -> Result<Option<Undone>> {
+        let key = actor.journal_key();
+        let Some((entry, redo)) = Self::book_own(self.inner.journal.redoable_in(&key, book, 1)?)
+        else {
+            return Ok(None);
+        };
+        if only.is_some_and(|seq| seq != entry.seq) {
+            return Ok(None);
+        }
+        let (effects, undo) = self.run_inverses(actor, &redo)?;
+        self.inner.journal.mark_redone(entry.seq, undo.as_deref())?;
+        Ok(Some(Undone {
+            entry: JournalEntry {
+                state: "live".into(),
+                ..entry
+            },
+            outcome: Outcome {
+                output: Value::Null,
+                effects,
+                undo,
+                journal: None,
+            },
+        }))
+    }
+
+    /// The newest of `rows` when it is a book-level command. A library-level
+    /// one (`project.create`) stops undo and redo in the book there: the
+    /// book is not taken back from inside it.
+    fn book_own(
+        rows: Vec<(JournalEntry, Vec<Invocation>)>,
+    ) -> Option<(JournalEntry, Vec<Invocation>)> {
+        let row = rows.into_iter().next()?;
+        let book_level = registry()
+            .get(&row.0.command)
+            .is_some_and(|spec| spec.concurrency == crate::registry::Concurrency::Book);
+        book_level.then_some(row)
+    }
+
     fn run_inverses(
         &self,
         actor: &Actor,
@@ -1314,7 +1386,7 @@ impl Workspace {
 
     /// Compiled automatic-link matcher for `book` excluding `own_entity_id`.
     /// Shares the book's cached Aho-Corasick automaton whenever `own_entity_id`
-    /// is not itself an auto-link leaf.
+    /// is not itself an auto-linked entry.
     pub fn book_link_matcher(
         &self,
         book: &str,
@@ -1490,6 +1562,15 @@ impl Workspace {
         }
         Ok(slot)
     }
+}
+
+/// What [`Workspace::undo_in`] took back or [`Workspace::redo_in`] brought
+/// back: the journal row (the command and what it did when it ran, `state`
+/// as it is now) and what running its inverse did.
+#[derive(Clone, Debug)]
+pub struct Undone {
+    pub entry: JournalEntry,
+    pub outcome: Outcome<Value>,
 }
 
 /// What [`Workspace::before_quit`] did.

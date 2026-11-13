@@ -15,6 +15,16 @@ use gpui::{
     Window, div, px,
 };
 
+/// The tallest the open entry list gets, so a long book's list stays in the window.
+const LIST_MAX_HEIGHT: f32 = 280.0;
+
+/// The entry choice of the dialog: its list floats above the dialog.
+fn entry_choice(labels: Vec<Choice>, selected: usize) -> Select {
+    Select::new("material-entry-choice", labels, selected)
+        .in_dialog()
+        .max_menu_height(LIST_MAX_HEIGHT)
+}
+
 pub(crate) fn show(host: PageMenuHost, material: String, window: &mut Window, cx: &mut App) {
     if host
         .workspace
@@ -180,7 +190,7 @@ impl Render for Associations {
         );
         let pick = cx.entity();
         rows = rows.child(
-            Select::new("material-entry-choice", labels, selected)
+            entry_choice(labels, selected)
                 .disabled(self.busy)
                 .on_change(move |i, _, cx| {
                     pick.update(cx, |v, cx| {
@@ -364,6 +374,78 @@ mod tests {
                 .unwrap()
                 .linked
         );
+        lib.close();
+    }
+
+    #[gpui::test]
+    fn the_entry_list_floats_above_its_dialog(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let store =
+            dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        let material = seed.books[0].book.view().materials()[0].id.to_string();
+        seed.write_to(&store).unwrap();
+        let lib = Workspace::open(store, WorkspaceOptions::default()).unwrap();
+        cx.update(|cx| {
+            let _ = dr_ui::init(cx);
+            dr_shell::init(
+                dr_shell::ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: Some(dr_ui::Appearance::Light),
+                },
+                dr_shell::Services::default(),
+                dr_shell::SettingsFile::in_memory(),
+                cx,
+            )
+        });
+        let (frame, cx) = cx.add_window_view(|_, cx| {
+            Frame(cx.new(|cx| Associations::new(lib.clone(), book.clone(), material.clone(), cx)))
+        });
+        cx.simulate_resize(gpui::size(px(900.), px(700.)));
+        let view = frame.read_with(cx, |f, _| f.0.clone());
+        wait(cx, |cx| view.read_with(cx, |v, _| !v.reading));
+        let draw = |cx: &mut VisualTestContext| {
+            for _ in 0..3 {
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.simulate_next_frame(cx);
+                    w.draw(cx).clear(cx);
+                });
+            }
+        };
+        draw(cx);
+        let trigger = cx.debug_bounds("material-entry-choice").unwrap();
+        cx.simulate_click(trigger.center(), gpui::Modifiers::default());
+        draw(cx);
+        // A row near the bottom of the open list, past the dialog's card.
+        let list = cx.debug_bounds("select-choice-scroll").unwrap();
+        cx.simulate_click(
+            gpui::point(list.center().x, list.bottom() - px(18.)),
+            gpui::Modifiers::default(),
+        );
+        draw(cx);
+        let unlinked: Vec<String> = view.read_with(cx, |v, _| {
+            v.entries
+                .iter()
+                .filter(|e| !e.linked)
+                .map(|e| e.id.clone())
+                .collect()
+        });
+        let selected = view.read_with(cx, |v, _| v.selected.clone());
+        assert!(selected.is_some_and(|id| unlinked.contains(&id)));
+        // Clicks reach a list painted under the dialog too (GPUI hit-tests
+        // nested floats on top): what keeps it visible is its layer, see
+        // dr-ui's `tests/layers.rs`.
+        assert!(super::entry_choice(Vec::new(), 0).is_in_dialog());
         lib.close();
     }
 }

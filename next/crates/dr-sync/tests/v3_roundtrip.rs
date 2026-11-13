@@ -25,7 +25,9 @@ use dr_store::{
     asset::{AssetRecord, MAX_COPY_BYTES, SourceImport, Variant, VariantBytes},
     index::DOC_KIND_TEMPLATE,
 };
-use dr_sync::{FakeSyncServer, RemoteObjectPayload, SyncEngine, SyncError, SyncHttpClient};
+use dr_sync::{
+    FakeSyncServer, RemoteObjectPayload, SYNC_STATE_SCOPE, SyncEngine, SyncError, SyncHttpClient,
+};
 use dr_testkit::{
     media,
     seed::{self, DEFAULT_SEED, Preset},
@@ -385,8 +387,8 @@ fn reject_conflicting_document_identity(change: RemoteDocumentChange, already_pu
         let images = [book_image(&lib, &book_a), book_image(&lib, &book_b)];
         let tombstones = lib.purged_docs(None).unwrap();
         let confirmed_vv = lib.remote_vv(&info.doc_id).unwrap();
-        let state_path = path.join("sync-cursor-v2.json");
-        let state = fs::read(&state_path).unwrap();
+        let state = lib.local_entries(SYNC_STATE_SCOPE, None).unwrap();
+        assert!(!state.is_empty(), "the engine's state lives in the library");
         let record = SyncHttpClient::new(server.base_url())
             .unwrap()
             .put_object(
@@ -415,7 +417,7 @@ fn reject_conflicting_document_identity(change: RemoteDocumentChange, already_pu
             assert_eq!(lib.purged_docs(None).unwrap(), tombstones);
             assert_eq!(lib.remote_vv(&info.doc_id).unwrap(), confirmed_vv);
             assert_eq!(engine.cursor(), cursor);
-            assert_eq!(fs::read(&state_path).unwrap(), state);
+            assert_eq!(lib.local_entries(SYNC_STATE_SCOPE, None).unwrap(), state);
             sentinel(&sentinel_path, b"synthetic sentinel");
             assert_eq!(
                 fs::metadata(&sentinel_path).unwrap().modified().unwrap(),

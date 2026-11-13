@@ -2461,3 +2461,457 @@ fn sea_opening_wait_prepares_v3_entry_modules_without_stalling(cx: &mut TestAppC
         "{sections:?}"
     );
 }
+
+/// An entry with a long body: `(entry, module)`, the module after the body
+/// (`after_body`) or a chapter's body itself, the body given `paragraphs`
+/// paragraphs.
+fn long_body_entry(
+    lib: &Library,
+    view: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+    after_body: bool,
+    paragraphs: usize,
+) -> (String, String) {
+    let (book, entry, module) = view.read_with(cx, |ws, _| {
+        let v3 = ws.book.v3().unwrap();
+        v3.entries
+            .iter()
+            .find_map(|e| {
+                let modules = &v3.template_of(&e.id)?.modules;
+                let body = modules.iter().position(|m| m.id == "mod-prose")?;
+                let module = if after_body {
+                    modules.get(body + 1)?.id.clone()
+                } else if e.template.as_deref() == Some("tpl-chapter") {
+                    "mod-prose".to_owned()
+                } else {
+                    return None;
+                };
+                Some((ws.book_id.clone(), e.id.clone(), module))
+            })
+            .expect("an entry with a body")
+    });
+    let text = "钟表铺的门推开时，铜铃在头顶响了一声，柜台后面的老人没有抬头，只是把放大镜往眼前又推近了一点。";
+    let paragraphs: Vec<Value> = (0..paragraphs)
+        .map(|i| json!({ "text": format!("第{i}段。{text}") }))
+        .collect();
+    out(
+        lib,
+        "module.set_prose",
+        json!({ "book": book, "owner": entry, "module": "mod-prose", "paragraphs": paragraphs }),
+    );
+    (entry, module)
+}
+
+/// Draws until the entry page of `target` has its body editor and has drawn
+/// it a few times since.
+fn settle_entry_page(view: &Entity<Workspace>, cx: &mut VisualTestContext, target: &Target) {
+    let owner = view.entity_id();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        cx.run_until_parked();
+        let ready = view.read_with(cx, |ws, cx| {
+            let key = target.key();
+            ws.editors
+                .get(&key)
+                .is_some_and(|page| ws.page_status(owner, &key, page, cx).0)
+        });
+        if ready {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the entry page did not settle");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    for _ in 0..8 {
+        draw(cx);
+        cx.run_until_parked();
+    }
+}
+
+/// An entry page opened at a module (`entry:<id>/<module>`) shows that
+/// module, and keeps showing it while the body above it loads and grows to
+/// its text's height; a body is as tall as its text, the page scrolling it
+/// (not a box of its own; gpui-prose's `render::flow_tests` check that only
+/// what the window shows of it is laid out). Scrolling the page lets the
+/// module go.
+#[gpui::test]
+fn an_entry_page_opened_at_a_module_keeps_it_in_view_while_the_body_grows(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let writer = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (entry, module) = long_body_entry(&writer, &view, cx, true, 160);
+    wait_for(&view, cx, |ws| ws.book.v3().is_some());
+    cx.simulate_resize(gpui::size(gpui::px(1100.), gpui::px(800.)));
+    let target = Target::from_key(&format!("entry:{entry}/{module}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &target);
+    let body = cx
+        .debug_bounds(Box::leak(
+            format!("v3-body-{entry}-mod-prose").into_boxed_str(),
+        ))
+        .expect("the body");
+    assert!(
+        body.size.height > gpui::px(4000.),
+        "the body is as tall as its text: {body:?}"
+    );
+    let section = cx
+        .debug_bounds(Box::leak(format!("v3-section-{module}").into_boxed_str()))
+        .expect("the module");
+    assert!(
+        section.top() >= gpui::px(0.) && section.top() < gpui::px(800.),
+        "{module} is in view: {section:?} (body {body:?})"
+    );
+    let pinned = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |ws, cx| {
+            ws.editors
+                .get(&target.key())
+                .and_then(|p| p.v3.as_ref())
+                .and_then(|p| p.read(cx).pinned().map(str::to_owned))
+        })
+    };
+    assert_eq!(pinned(cx).as_deref(), Some(module.as_str()));
+    // The author scrolls: the page is theirs.
+    cx.simulate_event(gpui::ScrollEvent {
+        position: gpui::point(gpui::px(600.), gpui::px(400.)),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(gpui::px(0.), gpui::px(-200.))),
+        ..Default::default()
+    });
+    draw(cx);
+    assert_eq!(pinned(cx), None);
+}
+
+/// An entry page opened at a chapter's body keeps the page head above it
+/// when the body starts on screen: the page does not scroll the head away to
+/// put the (long) body's top at the window's top.
+#[gpui::test]
+fn an_entry_page_opened_at_its_body_keeps_its_head(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let writer = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (entry, _) = long_body_entry(&writer, &view, cx, false, 160);
+    cx.simulate_resize(gpui::size(gpui::px(1100.), gpui::px(800.)));
+    let target = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &target);
+    let body = cx
+        .debug_bounds(Box::leak(
+            format!("v3-body-{entry}-mod-prose").into_boxed_str(),
+        ))
+        .expect("the body");
+    let section = cx
+        .debug_bounds("v3-section-mod-prose")
+        .expect("the body's section");
+    assert!(
+        body.size.height > gpui::px(4000.),
+        "the body is as tall as its text: {body:?}"
+    );
+    // The page head shows, and the body's section starts under it.
+    let head = cx.debug_bounds("v3-entry-head").expect("the page head");
+    assert!(head.top() >= gpui::px(0.), "{head:?}");
+    assert!(
+        head.bottom() <= section.top() && section.top() < gpui::px(400.),
+        "head {head:?}, body section {section:?}"
+    );
+}
+
+/// The section an entry page holds in view and ⌘Z do not get in each other's
+/// way. With the caret in the body of a page opened at it, ⌘Z still undoes
+/// only the typing, the book's latest command untouched. With the keyboard
+/// on a page held at another module but outside any prose, ⌘Z undoes the
+/// book's latest command, and the page lets go of the section as it does
+/// for any key the author presses in it.
+#[gpui::test]
+fn a_page_holding_a_section_in_view_and_cmd_z_leave_each_other_alone(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let writer = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (entry, module) = long_body_entry(&writer, &view, cx, true, 160);
+    wait_for(&view, cx, |ws| ws.book.v3().is_some());
+    cx.simulate_resize(gpui::size(gpui::px(1100.), gpui::px(800.)));
+    let book = view.read_with(cx, |ws, _| ws.book_id.clone());
+    let title = || {
+        out(&writer, "entry.get", json!({"book": book, "id": entry}))["title"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let original = title();
+    // The book's latest command of the author's: a rename.
+    out(
+        &writer,
+        "entry.update",
+        json!({"book": book, "id": entry, "title": "改过的名字"}),
+    );
+    wait_for(&view, cx, |ws| {
+        ws.book.v3().unwrap().entry(&entry).unwrap().title == "改过的名字"
+    });
+    let pinned = |cx: &mut VisualTestContext, target: &Target| {
+        view.read_with(cx, |ws, cx| {
+            ws.editors
+                .get(&target.key())
+                .and_then(|p| p.v3.as_ref())
+                .and_then(|p| p.read(cx).pinned().map(str::to_owned))
+        })
+    };
+
+    // Opened at its body: the body is held in view and has the keyboard.
+    let body = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+    view.update(cx, |ws, cx| ws.open(body.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &body);
+    assert_eq!(pinned(cx, &body).as_deref(), Some("mod-prose"));
+    let doc = format!("body:{entry}/mod-prose");
+    let before = stored(&writer, &doc);
+    cx.update(|window, cx| assert!(!view.read(cx).structure_has_keyboard(window, cx)));
+    type_text(cx, "钟");
+    assert_eq!(stored(&writer, &doc)[0], format!("钟{}", before[0]));
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(stored(&writer, &doc), before, "⌘Z undid the typing");
+    assert_eq!(title(), "改过的名字", "and left the book's command alone");
+
+    // Opened at another module, the keyboard on the page itself: ⌘Z undoes
+    // the rename and the page lets go of the module.
+    let other = Target::from_key(&format!("entry:{entry}/{module}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(other.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &other);
+    assert_eq!(pinned(cx, &other).as_deref(), Some(module.as_str()));
+    cx.update(|window, cx| {
+        let page = view.read(cx).editors[&other.key()].v3.clone().unwrap();
+        let handle = page.read(cx).focus.clone();
+        handle.focus(window, cx);
+    });
+    draw(cx);
+    cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
+    assert_eq!(
+        pinned(cx, &other).as_deref(),
+        Some(module.as_str()),
+        "taking the keyboard is not taking the page"
+    );
+    keys(cx, "cmd-z");
+    wait_for(&view, cx, |ws| {
+        ws.book.v3().unwrap().entry(&entry).unwrap().title == original
+    });
+    draw(cx);
+    assert_eq!(pinned(cx, &other), None, "⌘Z let go of the module");
+}
+
+/// Author 2026-11-13: the book's structure undoes from the window. With the
+/// caret in the prose, ⌘Z stays the editor's and undoes only its typing; in
+/// the find bar's field and in a dialog it undoes nothing of the book's.
+/// The notice after turning a 层级 off undoes that one step (the switch and
+/// every entry that moved come back together) and then offers 「重做」.
+/// Outside the prose, ⌘Z / ⇧⌘Z undo and redo the author's latest command in
+/// this book, and never an Agent's.
+#[gpui::test]
+fn the_books_structure_undoes_from_the_notice_and_outside_the_prose(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    cx.update(|_, cx| dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, first) = view.read_with(cx, |ws, _| (ws.book_id.clone(), chapter_of(ws, 0)));
+    let Target::Entry {
+        id,
+        module: Some(_),
+    } = &first
+    else {
+        unreachable!()
+    };
+    let chapter = id.to_string();
+    let title = view.read_with(cx, |ws, _| {
+        ws.book.v3().unwrap().entry(&chapter).unwrap().title.clone()
+    });
+    let doc = format!("body:{chapter}/mod-prose");
+    // Its switch on and two entries living under it: the author's commands.
+    out(
+        &lib,
+        "entry.set_level",
+        json!({"book": book, "id": chapter, "level": true}),
+    );
+    let below: Vec<String> = ["甲", "乙"]
+        .into_iter()
+        .map(|t| {
+            out(
+                &lib,
+                "entry.create",
+                json!({"book": book, "parent": chapter, "template": "tpl-chapter", "title": t}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    let children = |ws: &Workspace| -> Option<Vec<String>> {
+        Some(ws.book.v3()?.levels.get(&chapter)?.children.clone())
+    };
+    wait_for(&view, cx, |ws| children(ws) == Some(below.clone()));
+    let top = |lib: &Library| {
+        let row = lib.journal(Some("user"), 1).unwrap().remove(0);
+        (row.seq, row.state)
+    };
+
+    // Typing in the chapter: the editor's own step, not the book's.
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, cx, &first);
+    let original = stored(&lib, &doc);
+    type_text(cx, "钟");
+    assert_eq!(stored(&lib, &doc)[0], format!("钟{}", original[0]));
+    let typed = stored(&lib, &doc);
+
+    // The find bar's field keeps ⌘Z: nothing of the book's is undone.
+    let journal = top(&lib);
+    keys(cx, "cmd-f");
+    draw(cx);
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| ws.find.is_some()));
+    cx.update(|window, cx| {
+        let in_field = window
+            .context_stack()
+            .iter()
+            .any(|c| c.contains(dr_ui::input::field::KEY_CONTEXT));
+        assert!(in_field, "the find bar's field has the keyboard");
+        assert!(!view.read(cx).structure_has_keyboard(window, cx));
+    });
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(top(&lib), journal, "⌘Z in a text field undid no command");
+    assert_eq!(stored(&lib, &doc), typed);
+    keys(cx, "escape");
+    draw(cx);
+    cx.run_until_parked();
+
+    // Turning the switch off asks (two entries live under it); ⌘Z in the
+    // dialog undoes nothing of the book's.
+    let host = view.read_with(cx, |ws, _| dr_shell::pages::PageViewHost {
+        workspace: view.downgrade(),
+        library: lib.clone(),
+        book_id: ws.book_id.clone(),
+        book: ws.book.clone(),
+    });
+    let entry = chapter.clone();
+    cx.update(|window, cx| dr_shell::v3::page::toggle_level(host, entry, window, cx));
+    wait_for(&view, cx, |ws| ws.dialog.is_some());
+    draw(cx);
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(top(&lib), journal, "⌘Z in a dialog undid no command");
+    let dialog = view.read_with(cx, |ws, _| {
+        ws.dialog
+            .clone()
+            .unwrap()
+            .downcast::<dr_shell::v3::page::TurnOffLevelDialog>()
+            .unwrap()
+    });
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait_for(&view, cx, |ws| {
+        children(ws).is_none() && ws.toast.as_ref().is_some_and(|t| t.offer.is_some())
+    });
+    view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        for id in &below {
+            assert_eq!(v.entry(id).unwrap().parent, None, "moved to the top level");
+        }
+        assert_eq!(
+            ws.toast.as_ref().unwrap().text.as_ref(),
+            format!("关闭层级 · {title}")
+        );
+    });
+
+    // The caret is back in the prose: ⌘Z undoes the typing only.
+    draw(cx);
+    cx.update(|window, cx| {
+        let prose = editor.read(cx).editor().focus_handle(cx);
+        assert_eq!(
+            window.focused(cx),
+            Some(prose),
+            "the editor has the keyboard"
+        );
+    });
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(stored(&lib, &doc), original, "the editor undid its typing");
+    assert_eq!(
+        out(&lib, "entry.get", json!({"book": book, "id": chapter}))["level"],
+        false,
+        "the switch stays off"
+    );
+
+    // The notice's 「撤销」: the switch and both entries back in one step.
+    let off = top(&lib);
+    view.update(cx, |ws, cx| ws.press_toast_offer(cx));
+    wait_for(&view, cx, |ws| {
+        children(ws) == Some(below.clone())
+            && ws
+                .toast
+                .as_ref()
+                .and_then(|t| t.offer.as_ref())
+                .is_some_and(|o| o.redo)
+    });
+    assert_eq!(top(&lib).0, off.0);
+
+    // Outside the prose (the workspace has the keyboard): ⇧⌘Z redoes it,
+    // ⌘Z undoes it again; each notice says what.
+    cx.update(|window, cx| {
+        let handle = view.read(cx).focus_handle().clone();
+        handle.focus(window, cx);
+    });
+    draw(cx);
+    cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
+    keys(cx, "cmd-shift-z");
+    wait_for(&view, cx, |ws| {
+        children(ws).is_none()
+            && ws
+                .toast
+                .as_ref()
+                .and_then(|t| t.offer.as_ref())
+                .is_some_and(|o| !o.redo)
+    });
+    view.read_with(cx, |ws, _| {
+        assert_eq!(
+            ws.toast.as_ref().unwrap().text.as_ref(),
+            format!("层级 · {title}")
+        );
+    });
+    keys(cx, "cmd-z");
+    wait_for(&view, cx, |ws| children(ws) == Some(below.clone()));
+    assert_eq!(stored(&lib, &doc), original, "no prose was touched");
+
+    // An Agent's write is not the author's to undo: ⌘Z takes back the
+    // author's previous command (the second entry's creation) instead.
+    lib.call(
+        &Actor::agent("s", 1, "c"),
+        "entry.update",
+        json!({"book": book, "id": below[0], "title": "帮手改的"}),
+    )
+    .unwrap();
+    wait_for(&view, cx, |ws| {
+        ws.book.v3().unwrap().entry(&below[0]).unwrap().title == "帮手改的"
+    });
+    cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
+    keys(cx, "cmd-z");
+    wait_for(&view, cx, |ws| children(ws) == Some(vec![below[0].clone()]));
+    view.read_with(cx, |ws, _| {
+        assert_eq!(
+            ws.book.v3().unwrap().entry(&below[0]).unwrap().title,
+            "帮手改的"
+        );
+    });
+
+    // A move of the author's, wherever it was made from (here the command a
+    // drag commits): the notice names it and its 「撤销」 puts it back.
+    out(
+        &lib,
+        "entry.move",
+        json!({"book": book, "id": below[0], "parent": null}),
+    );
+    wait_for(&view, cx, |ws| {
+        children(ws) == Some(vec![])
+            && ws.toast.as_ref().is_some_and(|t| {
+                t.offer.as_ref().is_some_and(|o| !o.redo) && t.text.as_ref() == "移动 · 帮手改的"
+            })
+    });
+    view.update(cx, |ws, cx| ws.press_toast_offer(cx));
+    wait_for(&view, cx, |ws| children(ws) == Some(vec![below[0].clone()]));
+}

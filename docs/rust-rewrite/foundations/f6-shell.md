@@ -6,6 +6,13 @@
 
 稿纸四周的那一圈搬到了 GPUI 上：三栏、两侧抽屉、稿纸顶上的标签坞、分栏、Super View 舞台、设置、通知、快捷键、退出流程，外加读旧版九种语言文案的 `dr-i18n`。第二个里程碑起，外壳打开的是**真的书**：面板列表从 F3 的查询来，别处（帮手、另一台设备）删了东西，对应的标签自己关掉。第三个里程碑起，**在 App 里打开一本书就能写字**：稿纸上是 F4 的编辑器，打的字、回车、撤销都经 F3 落盘，关掉 App 再开都在，搜索和字数跟着变。
 
+### 内核 v4 收尾：在窗口里撤销书的结构（2026-11-13，作者定）（大白话）
+
+- **⌘Z / ⇧⌘Z 在正文外面撤的是书的结构。** 光标在正文里时照旧只撤正文（编辑器自己的撤销，一点没变）；光标在输入框、文本框、查找栏里，或者对话框、设置、搜索、批注撰写框、通知中心开着时，⌘Z 不碰书的结构，和以前一样。其余时候（比如点了左栏、条目页的空白处、Super View 里），⌘Z 撤的是**这本书里**作者最近一次可撤销的命令，按撤销栈的顺序，不管它是关层级、移动、改名还是改了一个字段；⇧⌘Z 重做。别的书里做的事不在这本书里撤，建书这一步也撤不掉（`dr_workspace::Workspace::undo_in` / `redo_in`，只认作用在书上的命令）。帮手的写入记在它自己的撤销栈（`agent:<会话>`）里，作者的 ⌘Z 撤不到，照旧靠快照历史撤。
+- **怎么判断「光标在正文里」**：⌘Z 先作为编辑菜单的 `edit::Undo` 派出去；工作区在根上接住时，先看焦点这条路径上有没有正文编辑器的 `Undo`（`window.is_action_available`），有就放过去（`cx.propagate()`），GPUI 接着派编辑器自己的那个键；焦点路径上有 `DrTextField`、`DrTextArea`、`DrFind`、`ProseEditor` 这几个键上下文时也放过去。对话框开着时工作区本来就不挂自己的快捷键（`modal()`）。都不是，才交给书（`Workspace::structure_has_keyboard`）。条目页「打开到某个模块时把它留在视口里，作者按键就松开」靠的是页面上的按键监听，GPUI 只把没有动作接住的键交给它；⌘Z / ⇧⌘Z 被书接住以后，焦点在哪个条目页里，工作区就替它松开（`EntryPage::release_pin`），和以前一样；正文里的 ⌘Z 照旧归编辑器，不碰这条（测试 `a_page_holding_a_section_in_view_and_cmd_z_leave_each_other_alone`）。
+- **提示条带「撤销」。** 作者在界面上关掉层级、移动条目（左栏、列表、看板、要素全景，哪里拖的都算）、换模板之后，窗口下沿的小纸条写出做了什么（「关闭层级 · 第一章」「移动 · 小节甲」「换模板 · 阿青」），带一个「撤销」；点了就一步撤回这一步，纸条换成撤了什么加「重做」。⌘Z / ⇧⌘Z 撤或重做以后同样出这张纸条。纸条 6 秒后淡出；之后作者在这本书里又做了一步（重做纸条：在哪本书都算），纸条立刻收走，免得点到的已经不是它说的那一步；换了书就不再带按钮。「新建下一章」先建后挪，那一次挪动不出纸条。
+- **文案只用现成的**：按钮是旧版的「撤销」「重做」（`mobileWorkspace.editorAccessory.undo` / `redo`），说做了什么用「关闭层级」「换模板」「层级」和旧版的「移动」（`plotGrid.move`），后面接条目名；别的命令只写它碰到的那个东西的名字，没有名字时写命令名。
+
 ### 第十轮：沉浸写作的外壳部分（M26）（大白话）
 
 照 m26-immersive.md「给 F6 的接口」做，新文件 `workspace/immersive.rs`：
@@ -23,7 +30,7 @@
 ### 第九轮：本机值、编辑故事线、按书记忆收进库里、Markdown 文件夹、字海和导览的登记口（大白话）
 
 - **（插队）全窗视图和帮手的登记口，给 Codex 做的模块用。**
-  - `pages::add_super_view(cx, SuperView, |&SuperViewHost, &mut Window, &mut App| SuperViewPage)`：故事图（M21）、要素全景（M22）、审阅与素材（M23）各自登记正文。`SuperViewHost { workspace, library, book_id, book }`；`SuperViewPage::new(正文).head_start(视图).head_end(视图)`：`head_start` 放在舞台头部左边「返回」后面（M22 的群岛 / 关系切换在计数左边），`head_end` 放在头部最右，给视图自己的控件用。关系线图例不放这里：作者 2026-11-03 定的是在内容区右上角，由视图画在正文里（第十轮改正了注释）。舞台第一次给这本书显示某个视图时问一次，留着用，换书、换库时重做；谁也没登记的视图照旧是一张空纸。测试用 `Workspace::super_view_content(view)` 看做出来的东西。
+  - `pages::add_super_view(cx, SuperView, |&SuperViewHost, &mut Window, &mut App| SuperViewPage)`：故事图（M21）、要素全景（M22）、审阅与素材（M23）各自登记正文。`SuperViewHost { workspace, library, book_id, book, view }`（`view` 是它在舞台上是哪一个）；`SuperViewPage::new(正文).head_start(视图).head_end(视图)`：`head_start` 放在舞台头部左边「返回」后面（M22 的群岛 / 关系切换在计数左边），`head_end` 放在头部最右，给视图自己的控件用。关系线图例不放这里：作者 2026-11-03 定的是在内容区右上角，由视图画在正文里（第十轮改正了注释）。舞台第一次给这本书显示某个视图时问一次，留着用，换书、换库时重做；谁也没登记的视图照旧是一张空纸。**留着的正文只在舞台正显示它的时候跟着工作区变**（2026-11-13）：正文用 `pages::follow_super_view(&工作区, view, cx, 回调)` 订阅，不直接 `cx.observe` 工作区；舞台关着或显示别的视图时回调不触发，再显示时工作区会通知一次，正文拿自己手里的和工作区的一比，一次补齐。以前关掉舞台以后，要素全景和审阅与素材在每次书目变动时仍然各自整份重读（要素全景还在主线程重算共现和布局），切到另一本书时被留着的旧正文也会白跟一次。不走工作区的订阅（比如直接订书库事件）自己用 `pages::super_view_shown(&工作区, view, cx)` 判断，没显示时只记一笔，等上面的回调来了再补。测试用 `Workspace::super_view_content(view)` 看做出来的东西。
   - `pages::set_companion(cx, |WeakEntity<Workspace>, &mut Window, &mut App| LeftPanel)`：右栏「帮手」标签（M31）的头和正文，照 `add_left_panel`：每个半栏第一次显示这个标签时问一次，留着用；头放在标签那一行，正文铺满半栏。没登记时照旧空白。
   - `pages::set_library(cx, |WeakEntity<Workspace>, &mut Window, &mut App| LeftPanel)`：右栏「素材库」标签（M19）的头和正文，写法和 `set_companion` 一样（每个半栏第一次显示时问一次，留着用；换书时放掉）。没登记时外壳照旧自己列素材夹和素材。测试 `a_module_draws_the_library_tab`。
 
@@ -386,14 +393,14 @@ app.run(|cx| {
 | `pages`（底部面板） | 时间线（M14）、情节规划（M15） | `add_bottom_panel(cx, BottomPane::{Timeline, Planner}, \|&BottomHost, &mut Window, &mut App\| Option<BottomPanel>)`；`BottomHost { workspace, library, book_id, book, target }`；`BottomPanel::new(view).min_height(\|cx\| f32).on_refresh(\|host, cx\| …)`；`has_bottom_panel(pane, cx)`；`Workspace::{bottom_pane(cx), toggle_timeline, toggle_planner, bottom_height, set_bottom_height, bottom_view(pane)}`；`workspace::{BottomLayout, BottomResize}` |
 | `workspace`（按书记住） | 想在本机按书记点什么的模块（时间线） | `Workspace::book_memory(key) -> Option<&Value>`、`book_memory_ready()`、`set_book_memory(key, Value, cx)`（F2 的 `local_state`，范围 `workspace::BOOK_MEMORY_SCOPE` = `shell`，键 `memory:<书>:<key>`，挂在书下） |
 | `settings`（本机值） | 要在这台设备上记点什么、又不是设置的模块（书架画风、导览看过、Markdown 文件夹） | `SettingsFile::{device_memory, set_device_memory}`；`Settings::{device_memory(cx, key), set_device_memory(cx, key, Option<Value>)}`（设置文件 `device.modules`） |
-| `pages`（全窗视图、帮手） | M21、M22、M23、M31 | `add_super_view(cx, SuperView, \|&SuperViewHost, &mut Window, &mut App\| SuperViewPage)`、`SuperViewPage { body, head_start, head_end }`；`set_companion(cx, \|WeakEntity<Workspace>, &mut Window, &mut App\| LeftPanel)`；`set_library(cx, \|WeakEntity<Workspace>, &mut Window, &mut App\| LeftPanel)`（M19 的素材库）；`Workspace::super_view_content(view)` |
+| `pages`（全窗视图、帮手） | M21、M22、M23、M31 | `add_super_view(cx, SuperView, \|&SuperViewHost, &mut Window, &mut App\| SuperViewPage)`、`SuperViewPage { body, head_start, head_end }`、`follow_super_view(&工作区, view, cx, 回调)`、`super_view_shown(&工作区, view, cx)`；`set_companion(cx, \|WeakEntity<Workspace>, &mut Window, &mut App\| LeftPanel)`；`set_library(cx, \|WeakEntity<Workspace>, &mut Window, &mut App\| LeftPanel)`（M19 的素材库）；`Workspace::super_view_content(view)` |
 | `pages`（M24） | dr-view-sea | `set_backdrop(cx, Backdrop { draw, hold, ebbing, on_sea })`、`SeaHold::{Surface, Loading}`；`set_first_run(cx, \|done, window, cx\| FirstRunPage { view, shows_shelf })`；`set_guide(cx, Guide { anchor, start, layer, reset })`；`anchor(id, el, cx)`、`anchors::*`；`Workspace::{ebbing, sea}`、`SeaState::{waiting, first_run_shows}`、`workspace::FIRST_RUN_DONE` |
 | `mirror` | M40、首次运行 | `folder(cx)`、`is_on(cx)`、`is_running(cx)`、`set_folder(path, cx)`、`set_on(bool, cx)`、`restart(cx)`、`stop(cx)`、`ask_turn_off(cx)`、`ask_turn_off_then(cx, after)`；`notifications::Notifications::post_opening(source, text, Some((book, doc)), cx)` |
 | `workspace`（悬停卡） | 自己画东西、要同一张页面卡的模块（M14 的片段和泳道名） | `page_hover_card(id, el, &target, &ws, CardRows { lead, before_danger }, cx)`；`PageMenuHost::of(&ws, cx)` |
 | `pages`（⋯ 菜单） | 要在页面 ⋯ 菜单里加行的模块（M11） | `add_page_menu(cx, \|target, &PageMenuHost, &App\| Vec<PageMenuSection>)`；`PageMenuItem { id, icon: RowIcon, label, checked, danger, run: RunRow }`、`PageMenuHost { workspace, library, book_id, book }` |
 | `pages`（整页） | 自己画一整页、不用正文编辑器的模块（M19 的图片和 PDF 素材） | `add_page_view(cx, \|&Target, PageViewHost, &mut Window, &mut App\| Option<ModulePage>)`；`ModulePage { view, focus }`、`PageViewHost { workspace, library, book_id, book }`；`Workspace::module_page(&Target)`。开编辑器前先问，答了的页存成 `PageEditor::module`，铺在桌面上、全宽、不画稿纸；在前面时 `focus` 拿键盘，和编辑器一样；关标签照旧放掉（[m19-materials.md](../modules/m19-materials.md)） |
 | `pages`（左栏） | 自己画左栏某个标签的模块（M11 的要素面板） | `add_left_panel(cx, \|LeftTab, WeakEntity<Workspace>, &mut Window, &mut App\| Option<LeftPanel>)`；`LeftPanel { head: AnyView, body: AnyView }` |
-| `workspace`（提示、侧栏状态） | 要提示一句的地方；测试 | `Workspace::toast(文字, cx)`；`folded_in(pane)`、`toggle_fold(pane, group, cx)`、`fold_all(pane, cx)`、`list_scroll(list)` |
+| `workspace`（提示、侧栏状态） | 要提示一句的地方；测试 | `Workspace::toast(文字, cx)`；带「撤销」的 `Workspace::offer_undo(文字, 书, 撤销栈序号, cx)`、`toast::offer_undo_after(&PageViewHost, 标签, 条目, 命令的返回, cx)`；`Workspace::press_toast_offer(cx)`（等于点纸条的按钮）、`structure_has_keyboard(window, cx)`（⌘Z 这时归不归书）；`folded_in(pane)`、`toggle_fold(pane, group, cx)`、`fold_all(pane, cx)`、`list_scroll(list)` |
 | `workspace::page_actions` | ⋯ 菜单、悬停卡 | `page_actions(&ws, &host, &target, cx) -> Vec<PageMenuSection>`（分享与导出、写作状态、模块的行、历史快照、最后是删除一类） |
 | `nav::Open` | 打开页面的人（dr-view-page 的 ⁂） | `Open::PREVIEW`、`Open::KEEP`、`Open::KEEP.at_title()`（这一页的编辑器打开时不拿键盘，交给章首的标题） |
 | `actions` | dr-text 的备份、恢复对话框 | `BackupLibrary`、`RestoreLibrary`（`workspace::` 命名空间；设置「本地数据」的两个按钮派发） |
@@ -704,7 +711,8 @@ M04 章节面板、幕与大纲栏（`modules.md`）：
 | `crates/dr-shell/src/workspace/immersive.rs` | M26 沉浸写作的外壳部分：进出、打字进入、点外面退出、顶边露出、出口和字数、红绿灯 |
 | `crates/dr-shell/src/workspace/sea.rs` | M24 在外壳里：字海按住和放开、整窗等待、退潮、首次运行、导览的开始和图层 |
 | `crates/dr-shell/src/mirror.rs` | M40 Markdown 文件夹：起停、通知、关掉前的确认 |
-| `crates/dr-shell/src/workspace/toast.rs` | 窗口下沿的小纸条（`Workspace::toast`） |
+| `crates/dr-shell/src/workspace/toast.rs` | 窗口下沿的小纸条（`Workspace::toast`、带「撤销」「重做」的 `offer_undo`） |
+| `crates/dr-shell/src/workspace/undo.rs` | ⌘Z / ⇧⌘Z 在正文外面交给书、按书撤销和重做（一次一个）、听撤销栈的新记录给移动出纸条、写出撤了什么 |
 | `crates/dr-shell/src/workspace/` | 工作区根（`mod.rs`：状态、读书目、F3 事件、沉浸写作、挪章节、全书里的位置链接）、每个标签的编辑器（`editors.rs`：单章和全书、样式、键盘、实时字数、阅读位置）、查找栏和替换（`find.rs`）、章节面板的排序和格子读数（`chapter_sort.rs`）、页面能做的事（`page_actions.rs`：⋯ 菜单和悬停卡共用）、选区批注的撰写框（`review.rs`）、稿纸右下角（`corner.rs`）、大纲栏（`outline.rs`）、窗口边角与拖动区（`chrome.rs`）、侧栏（`sidebar.rs`）、标签坞（`dock.rs`）、稿纸（`stage.rs`）、Super View（`super_view.rs`） |
 | `crates/dr-shell/tests/`、`examples/shell-capture.rs` | GPUI 测试平台上的行为测试（含《慢钟》库上的 6 个）、孤儿键检查；离屏截图与测量（写测量证据） |
 | `app/drifting/src/main.rs`、`probe.rs`、`check.rs` | 入口：F7 的顺序不变，加上读设置、在线程上开库、装 dr-ui、交给外壳；启动探针多了 `library_opened`、`shell_ready`；开发构建的真窗口自检 `DRIFTING_CHECK` |

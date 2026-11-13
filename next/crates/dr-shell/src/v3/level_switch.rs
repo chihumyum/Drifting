@@ -1,16 +1,21 @@
 //! Guarded UI flow for the entry `层级` switch (`entry.set_level`, kernel-v4 §3).
 //!
-//! Turning the switch on, or turning it off when nothing lives underneath,
-//! commits immediately under record preconditions on `entries/<id>` and
-//! `children_of(<id>)`. Turning it off when resident children exist opens a
-//! confirmation dialog naming the exact count `N`; if another writer changes
-//! those children before confirmation commits, the guarded write conflicts,
-//! re-reads the live count and asks the author again without overwriting.
+//! Turning the switch on, or off when turning it off hides nothing, commits
+//! immediately under record preconditions. Turning it off asks first when
+//! anything stops showing (author 2026-11-13): entries living underneath
+//! (they move to the top level), entries assigned to it, or its lane in a
+//! timeline view. If what the dialog said changes before the author
+//! confirms, the dialog shows the new numbers and asks again, with no
+//! further words; the write is guarded on `entries/<id>`,
+//! `children_of(<id>)` and the book's memberships and timeline views, so
+//! nothing changes between the last read and the write either. After it is
+//! off, a notice offers 「撤销」 (`workspace/toast.rs`).
 
 use crate::{
     actions::Dismiss,
     pages::PageViewHost,
     strings::{t, tp},
+    workspace::toast::offer_undo_after,
 };
 use dr_doc::v3::BorrowedBookV3;
 use dr_i18n::keys;
@@ -22,20 +27,81 @@ use dr_ui::{
 };
 use dr_workspace::{Actor, RecordKey, Workspace, WritePreconditions, WsError};
 use gpui::{prelude::*, *};
-use serde_json::json;
+use serde_json::{Value, json};
 
-/// Consistent snapshot of an entry's `层级` switch, live direct resident child
-/// count, and record preconditions read from the same Loro frontier.
+/// Consistent snapshot of an entry's `层级` switch and of what turning it
+/// off hides, with the record preconditions, read from the same Loro
+/// frontier.
 #[derive(Clone, Debug)]
 pub struct SwitchInspection {
     pub level: bool,
     pub child_count: u64,
+    /// The entries living directly under it, in order (they move).
+    pub children: Vec<String>,
+    /// The entries validly assigned to it, by id (they stop showing under
+    /// it).
+    pub members: Vec<String>,
+    /// It is a lane of a timeline view (the lane stops showing).
+    pub lane: bool,
     pub preconditions: WritePreconditions,
 }
 
-/// Reads `entry_id`'s current switch state, resident child count, and
-/// `RecordKey::entry` + `RecordKey::children_of(Some(entry_id))` digests in one
-/// holder read job.
+impl SwitchInspection {
+    /// Turning it off hides something: the author is asked first.
+    pub fn needs_confirmation(&self) -> bool {
+        self.level && (self.child_count > 0 || !self.members.is_empty() || self.lane)
+    }
+
+    /// Whether `self` and `other` would ask the author the same thing.
+    fn asks_the_same(&self, other: &SwitchInspection) -> bool {
+        self.level == other.level
+            && self.children == other.children
+            && self.members == other.members
+            && self.lane == other.lane
+    }
+
+    /// Turning it on writes only its switch: held to the entry and its
+    /// children, as before, not to the book's memberships or views.
+    fn turn_on_preconditions(&self) -> WritePreconditions {
+        let mut p = self.preconditions.clone();
+        p.records.retain(|r| r.key.collection == "entries");
+        p
+    }
+
+    /// The dialog's words for what turning it off does.
+    pub fn body_text(&self, cx: &App) -> SharedString {
+        let members = self.members.len() as u64;
+        if self.child_count > 0 {
+            tp(
+                cx,
+                keys::v3_shell::TURN_OFF_LEVEL_BODY,
+                self.child_count,
+                &[("count", &self.child_count)],
+            )
+        } else if members > 0 && self.lane {
+            tp(
+                cx,
+                keys::v3_shell::TURN_OFF_LEVEL_MEMBERS_LANE_BODY,
+                members,
+                &[("count", &members)],
+            )
+        } else if members > 0 {
+            tp(
+                cx,
+                keys::v3_shell::TURN_OFF_LEVEL_MEMBERS_BODY,
+                members,
+                &[("count", &members)],
+            )
+        } else {
+            t(cx, keys::v3_shell::TURN_OFF_LEVEL_LANE_BODY)
+        }
+    }
+}
+
+/// Reads `entry_id`'s current switch, its resident children, its valid
+/// members and whether it is a lane, and the `RecordKey::entry`,
+/// `RecordKey::children_of(Some(entry_id))`, `memberships` and
+/// `timeline_views` digests, in one holder read job.
 pub fn inspect_level_switch(
     lib: &Workspace,
     book_id: &str,
@@ -54,18 +120,88 @@ pub fn inspect_level_switch(
                 what: "entry",
                 id: entry_key.clone(),
             })?;
-        let child_count = view.structure_snapshot().children_of(Some(&eid)).len() as u64;
+        let structure = view.structure_snapshot();
+        let children: Vec<String> = structure
+            .children_of(Some(&eid))
+            .iter()
+            .map(|e| e.id.to_string())
+            .collect();
+        let mut members: Vec<String> = structure
+            .members_of(&eid)
+            .iter()
+            .map(|e| e.id.to_string())
+            .collect();
+        members.sort();
+        let lane = entry.is_level()
+            && view
+                .timeline_views()
+                .iter()
+                .filter(|v| v.deleted_at.is_none())
+                .any(|v| v.lanes.iter().any(|l| l.entry == eid));
         let keys = [
             RecordKey::entry(&entry_key),
             RecordKey::children_of(Some(&entry_key)),
+            RecordKey::collection("memberships"),
+            RecordKey::collection("timeline_views"),
         ];
         let observations =
             dr_workspace::observe_records_in(&format!("book:{bid}"), doc, &bid, &keys)?;
         Ok(SwitchInspection {
             level: entry.is_level(),
-            child_count,
+            child_count: children.len() as u64,
+            children,
+            members,
+            lane,
             preconditions: WritePreconditions::from_records(observations),
         })
+    })
+}
+
+/// How a turn-off went.
+enum TurnOff {
+    /// It is off: what `entry.set_level` returned.
+    Done(Value),
+    /// It was already off.
+    Gone,
+    /// It hides something other than `shown` said: ask again.
+    Ask(SwitchInspection),
+}
+
+/// Turns `entry_id` off when it still hides what `shown` said (or nothing
+/// that needs asking), reading again right before the guarded write; a
+/// write refused because the book moved on in between reads and tries
+/// again, up to three times.
+fn turn_off(
+    lib: &Workspace,
+    book_id: &str,
+    entry_id: &str,
+    shown: &SwitchInspection,
+) -> Result<TurnOff, WsError> {
+    let mut fresh = inspect_level_switch(lib, book_id, entry_id)?;
+    for _ in 0..3 {
+        if !fresh.level {
+            return Ok(TurnOff::Gone);
+        }
+        if fresh.needs_confirmation() && !fresh.asks_the_same(shown) {
+            return Ok(TurnOff::Ask(fresh));
+        }
+        match lib.call_guarded(
+            &Actor::User,
+            "entry.set_level",
+            json!({ "book": book_id, "id": entry_id, "level": false }),
+            fresh.preconditions.clone(),
+        ) {
+            Ok(answer) => return Ok(TurnOff::Done(answer)),
+            Err(WsError::Conflict(_)) => {
+                fresh = inspect_level_switch(lib, book_id, entry_id)?;
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(if fresh.level {
+        TurnOff::Ask(fresh)
+    } else {
+        TurnOff::Gone
     })
 }
 
@@ -100,16 +236,22 @@ fn toast_save_failed(host: &PageViewHost, cx: &mut App) {
     });
 }
 
+/// 「撤销」 for the turn-off `answer` recorded.
+fn offer_undo(host: &PageViewHost, entry_id: &str, answer: &Value, cx: &mut App) {
+    let label = t(cx, keys::v3_shell::TURN_OFF_LEVEL_TITLE);
+    offer_undo_after(host, label, entry_id, answer, cx);
+}
+
 fn show_dialog_in(
     handle: AnyWindowHandle,
     host: PageViewHost,
     entry_id: String,
     info: SwitchInspection,
-    conflict: bool,
+    refreshed: bool,
     window: &mut Window,
     cx: &mut App,
 ) {
-    let view = cx.new(|cx| TurnOffLevelDialog::new(host, entry_id, info, conflict, cx));
+    let view = cx.new(|cx| TurnOffLevelDialog::new(host, entry_id, info, refreshed, cx));
     let focus = view.read(cx).focus.clone();
     window.focus(&focus, cx);
     crate::dialogs::show_in(handle, cx, view.into());
@@ -142,28 +284,25 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                         return;
                     }
                 };
-                if info.level && info.child_count > 0 {
+                if info.needs_confirmation() {
                     show_dialog_in(handle, host, entry_id, info, false, window, cx);
                     return;
                 }
-                let target_level = !info.level;
-                let preconditions = info.preconditions;
+                let turning_on = !info.level;
                 let lib = host.library.clone();
                 let book_id = host.book_id.clone();
                 let eid = entry_id.clone();
                 let write_job = cx.background_executor().spawn(async move {
-                    let res = lib.call_guarded(
-                        &Actor::User,
-                        "entry.set_level",
-                        json!({ "book": book_id, "id": eid, "level": target_level }),
-                        preconditions,
-                    );
-                    match res {
-                        Ok(_) => Ok(None),
-                        Err(WsError::Conflict(_)) if !target_level => {
-                            inspect_level_switch(&lib, &book_id, &eid).map(Some)
-                        }
-                        Err(err) => Err(err),
+                    if turning_on {
+                        lib.call_guarded(
+                            &Actor::User,
+                            "entry.set_level",
+                            json!({ "book": book_id, "id": eid, "level": true }),
+                            info.turn_on_preconditions(),
+                        )
+                        .map(TurnOff::Done)
+                    } else {
+                        turn_off(&lib, &book_id, &eid, &info)
                     }
                 });
                 window
@@ -174,11 +313,15 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                                 return;
                             }
                             match outcome {
-                                Ok(None) => {}
-                                Ok(Some(next)) if next.level && next.child_count > 0 => {
+                                Ok(TurnOff::Done(answer)) => {
+                                    if !turning_on {
+                                        offer_undo(&host, &entry_id, &answer, cx);
+                                    }
+                                }
+                                Ok(TurnOff::Gone) => {}
+                                Ok(TurnOff::Ask(next)) => {
                                     show_dialog_in(handle, host, entry_id, next, true, window, cx);
                                 }
-                                Ok(Some(_)) => toast_save_failed(&host, cx),
                                 Err(error) => {
                                     log::warn!("v4 level switch write failed: {error}");
                                     toast_save_failed(&host, cx);
@@ -194,16 +337,15 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
         .detach();
 }
 
-/// Confirmation modal shown when turning off `层级` on an entry with resident
-/// children underneath (`kernel-v4.md` §3).
+/// Confirmation modal shown when turning off `层级` hides something
+/// (`kernel-v4.md` §3; author 2026-11-13).
 pub struct TurnOffLevelDialog {
     host: PageViewHost,
     entry_id: String,
-    child_count: u64,
-    preconditions: WritePreconditions,
+    info: SwitchInspection,
     focus: FocusHandle,
     busy: bool,
-    conflict: bool,
+    refreshed: bool,
     error: bool,
 }
 
@@ -212,17 +354,16 @@ impl TurnOffLevelDialog {
         host: PageViewHost,
         entry_id: String,
         info: SwitchInspection,
-        conflict: bool,
+        refreshed: bool,
         cx: &mut Context<Self>,
     ) -> Self {
         Self {
             host,
             entry_id,
-            child_count: info.child_count,
-            preconditions: info.preconditions,
+            info,
             focus: cx.focus_handle(),
             busy: false,
-            conflict,
+            refreshed,
             error: false,
         }
     }
@@ -232,11 +373,28 @@ impl TurnOffLevelDialog {
     }
 
     pub fn child_count(&self) -> u64 {
-        self.child_count
+        self.info.child_count
     }
 
+    /// How many entries assigned to it the dialog says stop showing.
+    pub fn member_count(&self) -> usize {
+        self.info.members.len()
+    }
+
+    /// The dialog says its lane stops showing.
+    pub fn is_lane(&self) -> bool {
+        self.info.lane
+    }
+
+    /// The dialog's words, as it shows them.
+    pub fn body_text(&self, cx: &App) -> SharedString {
+        self.info.body_text(cx)
+    }
+
+    /// What it said changed before the author confirmed, and it shows the
+    /// new numbers (no words of its own about that).
     pub fn has_conflict(&self) -> bool {
-        self.conflict
+        self.refreshed
     }
 
     pub fn is_busy(&self) -> bool {
@@ -261,24 +419,11 @@ impl TurnOffLevelDialog {
         let lib = self.host.library.clone();
         let book_id = self.host.book_id.clone();
         let eid = self.entry_id.clone();
-        let preconditions = self.preconditions.clone();
+        let shown = self.info.clone();
         let (tx, rx) = futures::channel::oneshot::channel();
         cx.background_executor()
             .spawn(async move {
-                let res = lib.call_guarded(
-                    &Actor::User,
-                    "entry.set_level",
-                    json!({ "book": book_id, "id": eid, "level": false }),
-                    preconditions,
-                );
-                let out = match res {
-                    Ok(_) => Ok(None),
-                    Err(WsError::Conflict(_)) => {
-                        inspect_level_switch(&lib, &book_id, &eid).map(Some)
-                    }
-                    Err(err) => Err(err),
-                };
-                let _ = tx.send(out);
+                let _ = tx.send(turn_off(&lib, &book_id, &eid, &shown));
             })
             .detach();
         cx.spawn_in(window, async move |this, cx| {
@@ -288,17 +433,15 @@ impl TurnOffLevelDialog {
             let _ = this.update(cx, |this, cx| {
                 this.busy = false;
                 match outcome {
-                    Ok(None) => this.cancel(cx),
-                    Ok(Some(next)) => {
-                        if !next.level {
-                            this.cancel(cx);
-                        } else {
-                            this.child_count = next.child_count;
-                            this.preconditions = next.preconditions;
-                            this.conflict = true;
-                            this.error = false;
-                            cx.notify();
-                        }
+                    Ok(TurnOff::Done(answer)) => {
+                        this.cancel(cx);
+                        offer_undo(&this.host, &this.entry_id, &answer, cx);
+                    }
+                    Ok(TurnOff::Gone) => this.cancel(cx),
+                    Ok(TurnOff::Ask(next)) => {
+                        this.info = next;
+                        this.refreshed = true;
+                        cx.notify();
                     }
                     Err(error) => {
                         log::warn!("v4 turn off level failed: {error}");
@@ -317,12 +460,7 @@ impl Render for TurnOffLevelDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
-        let body_copy = tp(
-            cx,
-            keys::v3_shell::TURN_OFF_LEVEL_BODY,
-            self.child_count,
-            &[("count", &self.child_count)],
-        );
+        let body_copy = self.info.body_text(cx);
         let mut body = div()
             .id("v3-turn-off-level-body")
             .flex()
@@ -335,17 +473,6 @@ impl Render for TurnOffLevelDialog {
                     .aria_label(body_copy.clone())
                     .child(wrapped(body_copy)),
             );
-        if self.conflict {
-            let msg = t(cx, keys::v3_shell::TURN_OFF_LEVEL_CONFLICT);
-            body = body.child(
-                div()
-                    .id("v3-turn-off-level-conflict")
-                    .role(gpui::Role::Alert)
-                    .aria_label(msg.clone())
-                    .text_color(p.danger.solid())
-                    .child(wrapped(msg)),
-            );
-        }
         if self.error {
             let msg = t(cx, keys::common::SAVE_FAILED);
             body = body.child(

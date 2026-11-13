@@ -121,7 +121,7 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         assert!(is_uuid_v7(id.as_str()), "expected uuidv7 root id, got {id}");
     }
     assert!(is_uuid_v7(roots.narrative_view.as_str()));
-    assert_eq!(v.novel_roots(), Some(roots.clone()));
+    assert_eq!(find_novel_roots(&v), Some(roots.clone()));
     assert_eq!(
         v.root_entry_by_template(&tid(TPL_MANUSCRIPT)).map(|e| e.id),
         Some(roots.manuscript.clone())
@@ -415,7 +415,7 @@ fn novel_roots_are_found_by_template_after_renaming() {
     })
     .0
     .unwrap();
-    assert_eq!(doc.view().novel_roots(), Some(roots));
+    assert_eq!(find_novel_roots(&doc.view()), Some(roots));
 }
 
 #[test]
@@ -1350,16 +1350,19 @@ fn the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_und
     assert_eq!(parts.len(), 2);
     assert_eq!(parts[0].root.id, roots.manuscript);
     let prose = || vec![MOD_PROSE.to_string()];
+    // 「甲」 lives under 「第一卷」, which has book prose of its own: it keeps
+    // its place and prose but has no number (author 2026-11-13,
+    // `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
     assert_eq!(
         read(&parts[0]),
         vec![
             ("书稿".into(), 0, None, vec![]),
             ("第一卷".into(), 1, Some(1), prose()),
-            ("甲".into(), 2, Some(2), prose()),
+            ("甲".into(), 2, None, prose()),
             ("分组".into(), 1, None, vec![]),
-            ("丙".into(), 2, Some(3), prose()),
-            ("乙".into(), 1, Some(4), prose()),
-            ("丁".into(), 1, Some(5), prose()),
+            ("丙".into(), 2, Some(2), prose()),
+            ("乙".into(), 1, Some(3), prose()),
+            ("丁".into(), 1, Some(4), prose()),
         ]
     );
     assert_eq!(parts[1].root.id, eid("appendix"));
@@ -1367,10 +1370,11 @@ fn the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_und
         read(&parts[1]),
         vec![
             ("附录".into(), 0, None, vec![]),
-            ("戊".into(), 1, Some(6), prose())
+            ("戊".into(), 1, Some(5), prose())
         ]
     );
-    assert_eq!(s.ordinal(&eid("ch-c")), Some(3));
+    assert_eq!(s.ordinal(&eid("ch-c")), Some(2));
+    assert_eq!(s.ordinal(&eid("ch-a")), None);
     assert_eq!(s.ordinal(&eid("grp")), None);
     assert_eq!(s.ordinal(&eid("gone")), None);
     assert_eq!(
@@ -1392,6 +1396,151 @@ fn the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_und
     assert_eq!(description[0].module, mid(MOD_DESCRIPTION));
     assert!(!description[0].in_book);
     assert_eq!(description[0].name, "说明");
+}
+
+#[test]
+fn entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number() {
+    let chapter = tid(TPL_CHAPTER);
+    let group = tid(TPL_GROUP);
+    let (doc, roots) = novel_book(72, |t, roots| {
+        let ms = Some(&roots.manuscript);
+        // 第一章 with its switch on and three entries with book prose under
+        // it, one of them a level with an entry of its own, and a group
+        // (no book prose) with a chapter under it.
+        t.entries()
+            .create(&eid("one"), ms, "第一章", Some(&chapter), true)?;
+        for (id, title) in [("s1", "一"), ("s2", "二"), ("s3", "三")] {
+            t.entries().create(
+                &eid(id),
+                Some(&eid("one")),
+                title,
+                Some(&chapter),
+                id == "s2",
+            )?;
+        }
+        t.entries().create(
+            &eid("deep"),
+            Some(&eid("s2")),
+            "二之一",
+            Some(&chapter),
+            false,
+        )?;
+        t.entries()
+            .create(&eid("inner"), Some(&eid("one")), "小组", Some(&group), true)?;
+        t.entries().create(
+            &eid("inner-ch"),
+            Some(&eid("inner")),
+            "四",
+            Some(&chapter),
+            false,
+        )?;
+        t.entries()
+            .create(&eid("two"), ms, "第二章", Some(&chapter), false)?;
+        // 第一卷 has no book prose: it stops nothing below it being numbered.
+        t.entries()
+            .create(&eid("vol"), ms, "第一卷", Some(&group), true)?;
+        t.entries().create(
+            &eid("three"),
+            Some(&eid("vol")),
+            "第三章",
+            Some(&chapter),
+            false,
+        )?;
+        t.entries().create(
+            &eid("four"),
+            Some(&eid("vol")),
+            "第四章",
+            Some(&chapter),
+            false,
+        )?;
+        t.entries()
+            .create(&eid("five"), ms, "第五章", Some(&chapter), false)?;
+        // A second manuscript whose own level has book prose (a preface):
+        // it is numbered, and so are the chapters under it.
+        t.entries()
+            .create(&eid("extra"), None, "番外", Some(&chapter), true)?
+            .overrides(Some(&LevelSettingsOverride {
+                is_manuscript: Some(true),
+                ..LevelSettingsOverride::default()
+            }))?;
+        t.entries().create(
+            &eid("extra-1"),
+            Some(&eid("extra")),
+            "番外一",
+            Some(&chapter),
+            false,
+        )?;
+        t.entries().create(
+            &eid("extra-2"),
+            Some(&eid("extra")),
+            "番外二",
+            Some(&chapter),
+            false,
+        )?;
+        Ok(())
+    });
+    let s = doc.view().structure_snapshot();
+    let parts = s.manuscript();
+    assert_eq!(parts.len(), 2);
+    assert_eq!(parts[0].root.id, roots.manuscript);
+    let read: Vec<(&str, u32, Option<u32>, usize)> = parts[0]
+        .entries
+        .iter()
+        .map(|e| (e.entry.id.as_str(), e.depth, e.ordinal, e.prose.len()))
+        .collect();
+    assert_eq!(
+        read,
+        vec![
+            (roots.manuscript.as_str(), 0, None, 0),
+            ("one", 1, Some(1), 1),
+            ("s1", 2, None, 1),
+            ("s2", 2, None, 1),
+            ("deep", 3, None, 1),
+            ("s3", 2, None, 1),
+            ("inner", 2, None, 0),
+            ("inner-ch", 3, None, 1),
+            ("two", 1, Some(2), 1),
+            ("vol", 1, None, 0),
+            ("three", 2, Some(3), 1),
+            ("four", 2, Some(4), 1),
+            ("five", 1, Some(5), 1),
+        ]
+    );
+    assert_eq!(parts[1].root.id, eid("extra"));
+    let extra: Vec<(&str, u32, Option<u32>)> = parts[1]
+        .entries
+        .iter()
+        .map(|e| (e.entry.id.as_str(), e.depth, e.ordinal))
+        .collect();
+    assert_eq!(
+        extra,
+        vec![
+            ("extra", 0, Some(6)),
+            ("extra-1", 1, Some(7)),
+            ("extra-2", 1, Some(8)),
+        ]
+    );
+    assert_eq!(s.ordinal(&eid("two")), Some(2));
+    assert_eq!(s.ordinal(&eid("s1")), None);
+    assert_eq!(s.ordinal(&eid("inner-ch")), None);
+    // The sequence, its documents (export, the word count) and the entries
+    // that carry book prose are the same as when every one was numbered.
+    let body = |id: &str| DocId::Body(BodyDocId::new(eid(id), mid(MOD_PROSE)));
+    let with_prose = [
+        "one", "s1", "s2", "deep", "s3", "inner-ch", "two", "three", "four", "five", "extra",
+        "extra-1", "extra-2",
+    ];
+    assert_eq!(
+        s.manuscript_docs(),
+        with_prose.iter().map(|id| body(id)).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        s.manuscript_entries()
+            .iter()
+            .map(|e| e.id.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        with_prose.map(str::to_owned)
+    );
 }
 
 #[test]

@@ -298,7 +298,7 @@
       "params": {
         "label": "${entries.[template=tpl-character].title}"
       },
-      "note": "岛屿分类框里列出实际叶子；用唯一的要素名，避免匹配到模板集合中的同名分类"
+      "note": "岛屿分类框里列出实际条目；用唯一的要素名，避免匹配到模板集合中的同名分类"
     },
     {
       "app": "ui.press",

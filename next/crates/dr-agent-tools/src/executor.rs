@@ -279,7 +279,7 @@ impl AgentTools {
     pub fn catalog_for_book(&self, ws: &Workspace, book: &BookId) -> Result<Arc<Catalog>> {
         if !is_v3_book(ws, book)? {
             return Err(Error::Invalid(
-                "only canonical v3 books support tools".into(),
+                "only books in the current format support tools".into(),
             ));
         }
         let book_doc = format!("book:{book}");
@@ -301,7 +301,7 @@ impl AgentTools {
             ws.read_book_v3(book.as_str(), move |doc, live_version| {
                 Ok((|| -> Result<(String, CatalogStamp, Arc<Catalog>)> {
                     let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
-                        .map_err(|e| Error::Invalid(format!("invalid v3 book {book_id}: {e}")))?;
+                        .map_err(|e| Error::Invalid(format!("invalid book {book_id}: {e}")))?;
                     let view = borrowed.view();
                     let (stamp, headers, ordered_levels) = catalog_inputs(&view);
                     if let Some(prev) = prev
@@ -487,7 +487,7 @@ impl AgentTools {
             .map_err(|e| Error::Invalid(format!("invalid book id: {e}")))?;
         if !is_v3_book(ws, &book_id)? {
             return Err(Error::Invalid(
-                "only canonical v3 books support tools".into(),
+                "only books in the current format support tools".into(),
             ));
         }
         // Equal versions before and after mean the query, the comments and

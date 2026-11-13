@@ -351,7 +351,7 @@ impl Shelf {
                 WsEvent::Removed(_) | WsEvent::Prose(_) => true,
                 // The words of a document that has text. (The book document
                 // has an index row too, always empty and written after every
-                // commit to it, a saved checkpoint included.)
+                // commit to it.)
                 WsEvent::Local(change) => dr_workspace::is_text_index(change),
             };
             if counts {

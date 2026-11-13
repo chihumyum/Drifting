@@ -253,6 +253,7 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
             library: ws.library.clone(),
             book_id: ws.book_id.clone(),
             book: ws.book.clone(),
+            view: SuperView::ReviewMaterials,
         });
         cx.new(|cx| ShelfReviewView::new(&host, window, cx))
     });
@@ -412,12 +413,25 @@ fn shelf_review_isolates_books_and_drains_on_release(cx: &mut TestAppContext) {
         })
     });
 
+    // The view follows the workspace only while the stage shows it, and
+    // opening a book closes the stage: show it again after every switch.
+    let show = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| {
+            shell.update(cx, |ws, cx| {
+                ws.super_view = Some(SuperView::ReviewMaterials);
+                cx.notify();
+            });
+        });
+    };
+    show(cx);
+
     let view: Entity<ShelfReviewView> = cx.update(|window, cx| {
         let host = shell.read_with(cx, |ws, _| SuperViewHost {
             workspace: shell.downgrade(),
             library: ws.library.clone(),
             book_id: ws.book_id.clone(),
             book: ws.book.clone(),
+            view: SuperView::ReviewMaterials,
         });
         cx.new(|cx| ShelfReviewView::new(&host, window, cx))
     });
@@ -441,6 +455,7 @@ fn shelf_review_isolates_books_and_drains_on_release(cx: &mut TestAppContext) {
     cx.update(|window, cx| {
         shell.update(cx, |ws, cx| ws.open_book(&book_b, window, cx));
     });
+    show(cx);
     wait(cx, |cx| {
         shell.read_with(cx, |ws, _| {
             ws.book_id == book_b && ws.book.v3().is_some() && ws.book_memory_ready()
@@ -455,6 +470,7 @@ fn shelf_review_isolates_books_and_drains_on_release(cx: &mut TestAppContext) {
     cx.update(|window, cx| {
         shell.update(cx, |ws, cx| ws.open_book(&book_a, window, cx));
     });
+    show(cx);
     wait(cx, |cx| {
         shell.read_with(cx, |ws, _| {
             ws.book_id == book_a && ws.book.v3().is_some() && ws.book_memory_ready()
@@ -465,6 +481,17 @@ fn shelf_review_isolates_books_and_drains_on_release(cx: &mut TestAppContext) {
     });
 
     // Release barrier via real library::replace drains cleanly and resumes services.
+    // The stage covers the window, so a library is replaced from outside it:
+    // close it first. (Replacing while it is on screen fails today, with or
+    // without this view following the workspace: m23 「待协调」.)
+    cx.update(|_, cx| {
+        shell.update(cx, |ws, cx| {
+            ws.super_view = None;
+            cx.notify();
+        });
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
     let dir_replacement = tempfile::tempdir().expect("replacement tempdir");
     let repl_path = dir_replacement.path().to_path_buf();
     let replaced = std::rc::Rc::new(std::cell::Cell::new(false));
@@ -482,6 +509,123 @@ fn shelf_review_isolates_books_and_drains_on_release(cx: &mut TestAppContext) {
         );
     });
     wait(cx, |_| replaced.get());
+    cx.update(|_, cx| {
+        dr_view_review::release(cx);
+    });
+}
+
+/// The stage keeps the view it made while it is closed. A kept view that is
+/// not on screen does not follow the book, and catches up when shown again.
+#[gpui::test]
+fn a_closed_shelf_review_does_not_follow_the_book_and_catches_up_when_shown(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store =
+        dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).expect("store");
+    let seed = dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Tiny,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .expect("seed");
+    let book_id = seed.books[0].book_id().to_string();
+    seed.write_to(&store).expect("write seed");
+    let lib = Library::open(store, WorkspaceOptions::default()).expect("open workspace");
+
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(Appearance::Light),
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(book_id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_material::init(cx);
+        dr_view_shelf_review::init(cx);
+    });
+
+    let (shell, cx) = cx.add_window_view(Workspace::new);
+    wait(cx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let show = |cx: &mut VisualTestContext, view: Option<SuperView>| {
+        cx.update(|_, cx| {
+            shell.update(cx, |ws, cx| {
+                ws.super_view = view;
+                cx.notify();
+            });
+        });
+    };
+    show(cx, Some(SuperView::ReviewMaterials));
+
+    let view: Entity<ShelfReviewView> = cx.update(|window, cx| {
+        let host = shell.read_with(cx, |ws, _| SuperViewHost {
+            workspace: shell.downgrade(),
+            library: ws.library.clone(),
+            book_id: ws.book_id.clone(),
+            book: ws.book.clone(),
+            view: SuperView::ReviewMaterials,
+        });
+        cx.new(|cx| ShelfReviewView::new(&host, window, cx))
+    });
+    wait(cx, |cx| view.read_with(cx, |v, cx| v.is_ready(cx)));
+
+    show(cx, None);
+    cx.run_until_parked();
+
+    let added = lib
+        .run::<MaterialCreate>(
+            &Actor::User,
+            MaterialCreateIn {
+                book: book_id,
+                kind: "text".into(),
+                title: "Synthetic note made while the stage is closed".into(),
+                asset: None,
+                folder: None,
+                place: None,
+                description: String::new(),
+                text: None,
+            },
+        )
+        .expect("create a material while the stage is closed")
+        .output
+        .id;
+
+    // The shell has the new book; the closed view still holds the old one.
+    wait(cx, |cx| {
+        shell.read_with(cx, |ws, _| {
+            ws.book.material_items().iter().any(|m| m.id == added)
+        })
+    });
+    cx.run_until_parked();
+    cx.update(|_, cx| {
+        view.update(cx, |v, cx| {
+            assert!(v.orphan_materials(cx).iter().all(|m| m.id != added));
+        });
+    });
+
+    show(cx, Some(SuperView::ReviewMaterials));
+    wait(cx, |cx| {
+        cx.update(|_, cx| {
+            view.update(cx, |v, cx| {
+                v.orphan_materials(cx).iter().any(|m| m.id == added)
+            })
+        })
+    });
+
+    show(cx, None);
+    cx.run_until_parked();
     cx.update(|_, cx| {
         dr_view_review::release(cx);
     });

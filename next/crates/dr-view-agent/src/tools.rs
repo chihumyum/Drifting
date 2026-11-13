@@ -18,8 +18,14 @@ pub struct CompanionTools {
 
 impl CompanionTools {
     pub fn with_plugins(slot: dr_mcp::PluginSlot) -> Self {
+        Self::shared(AgentTools::new(), slot)
+    }
+
+    /// Book tools shared with the MCP endpoint: clones of one `AgentTools`
+    /// share its catalog cache, so MCP lists exactly what chat resolves.
+    pub fn shared(book: AgentTools, slot: dr_mcp::PluginSlot) -> Self {
         Self {
-            book: AgentTools::new(),
+            book,
             plugins: Some(dr_mcp::PluginTools::new(slot)),
         }
     }

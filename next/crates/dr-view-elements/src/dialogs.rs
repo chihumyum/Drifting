@@ -587,15 +587,30 @@ pub mod v3 {
                 .update(cx, |field, cx| field.set_disabled(true, cx));
             self.error = false;
             cx.notify();
+            // Changing the template offers 「撤销」 once it is done.
+            let offer = (name == "entry.update").then(|| host.clone());
+            let origin = self.origin.clone();
             let lib = host.library;
-            let job = background_edit(lib, edit, cx);
+            let (tx, job) = futures::channel::oneshot::channel();
+            cx.background_executor()
+                .spawn(async move {
+                    let _ = tx.send(edit.commit_answer(&lib));
+                })
+                .detach();
             cx.spawn_in(window, async move |this, cx| {
-                let result = job.await.unwrap_or_else(|_| {
+                let answer = job.await.unwrap_or_else(|_| {
                     Err(dr_workspace::WsError::Internal(
                         "entry write worker stopped".into(),
                     ))
                 });
                 let _ = this.update(cx, |this, cx| {
+                    if let (Some(host), Ok(answer)) = (&offer, &answer) {
+                        let label = t(cx, keys::v3_shell::CHANGE_TEMPLATE);
+                        dr_shell::workspace::toast::offer_undo_after(
+                            host, label, &origin, answer, cx,
+                        );
+                    }
+                    let result = answer.map(|a| a["output"].clone());
                     this.busy = false;
                     this.name
                         .update(cx, |field, cx| field.set_disabled(false, cx));

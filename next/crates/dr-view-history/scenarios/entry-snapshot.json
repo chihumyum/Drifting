@@ -143,6 +143,22 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      },
+      "note": "The entry's history is on its card's hover card in the left sidebar."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
         "role": "TextArea",
@@ -160,35 +176,36 @@
       "save": "ui_before_18"
     },
     {
-      "app": "ui.press",
+      "app": "ui.hover",
       "params": {
-        "role": "Button",
-        "label": "More actions"
+        "label": "G1 Snapshot Before",
+        "role": "Group"
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 800
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
+        "label": "Snapshot history",
         "role": "MenuItem",
-        "label": "History snapshots…",
-        "hover_ms": 0
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Snapshot history",
+        "role": "MenuItem"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/history": true
+          "/dialog": true
         },
         "timeout_ms": 10000
-      }
+      },
+      "note": "The entry's history opens as the workspace dialog (/dialog), not the retired prose history (/history)."
     },
     {
       "app": "ui.wait",
@@ -229,7 +246,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/history": false
+          "/dialog": false
         },
         "timeout_ms": 10000
       }
@@ -237,6 +254,15 @@
     {
       "app": "window.focus",
       "params": {}
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "nth": 0,
+        "dy": 40
+      },
+      "note": "Back into the body: the history dialog held the keyboard."
     },
     {
       "app": "ui.wait",
@@ -315,32 +341,32 @@
       "save": "ui_before_40"
     },
     {
-      "app": "ui.press",
+      "app": "ui.hover",
       "params": {
-        "role": "Button",
-        "label": "More actions"
+        "label": "G1 Snapshot After",
+        "role": "Group"
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 800
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
+        "label": "Snapshot history",
         "role": "MenuItem",
-        "label": "History snapshots…",
-        "hover_ms": 0
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Snapshot history",
+        "role": "MenuItem"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/history": true
+          "/dialog": true
         },
         "timeout_ms": 10000
       }
@@ -487,7 +513,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/history": false
+          "/dialog": false
         },
         "timeout_ms": 10000
       }

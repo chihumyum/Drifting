@@ -2,7 +2,7 @@
 
 2026-11-13 起草，同日监管会话审查通过（补了第 5 节「命令层的预防」一段）；第 13 节的问题等作者白天定，实现先按各条「不等答复时」的做法。
 
-实现进度：第 12 节的 2a（写作日和快照点清单挪进两篇小文档、书目格式 4、书文件格式 4）已合进 `main`；2b（只有一种条目）已在分支 `chihumyum/next-unified-entry-7d55f5` 实现，待审。数据层留给各轨道的缺口和最终的接口名字见第 14 节；正文里的接口名字已经和实现对齐。它取代 [kernel-v3.md](kernel-v3.md) 的「概念」「数据结构」「不变量」三节；v3 那页的其余部分（小说项目模板的样子、帮手、旧库导入的映射、不做的）照旧有效，下文写明了哪些地方跟着变。现在到哪一步见 [progress.md](progress.md)。
+实现进度：第 12 节的 2a（写作日和快照点清单挪进两篇小文档、书目格式 4、书文件格式 4）、2b（只有一种条目）和之后的八条轨道都已合进 `main`（2026-11-13）；收尾（`cutover` 门禁的模板 id 规则、`terms` 的禁用词）已打开。数据层留给各轨道的缺口和最终的接口名字见第 14 节；正文里的接口名字已经和实现对齐。它取代 [kernel-v3.md](kernel-v3.md) 的「概念」「数据结构」「不变量」三节；v3 那页的其余部分（小说项目模板的样子、帮手、旧库导入的映射、不做的）照旧有效，下文写明了哪些地方跟着变。现在到哪一步见 [progress.md](progress.md)。
 
 输入是作者 2026-11-13 的决定（九条）和监管会话替作者定下的几条，原文在本页末尾「输入」一节。设计里凡是和输入不一样的地方，都在「和输入不一样的地方」一节单列。
 
@@ -196,7 +196,7 @@
 条目页（以后还有左栏）上的开关：
 
 - 打开：直接调。
-- 关掉：界面先用 `entry.get` 读到「下面」（含子条目和归属成员），下面有条目时弹一次确认：「下面的 N 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。」继续才调，并带上它读到的 `children_of` 摘要。冲突时重读、再问。
+- 关掉：界面先用 `entry.get` 读到「下面」（含子条目和归属成员），下面有条目时弹一次确认：「下面的 N 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。」继续才调，并带上它读到的 `children_of` 摘要。冲突时重读、再问。（作者 2026-11-13 定：下面没有住着的条目、但有归属进来的成员或者它在某个视图里当泳道时也确认，用「归属到它的 N 个条目和它在时间线里的泳道先不显示，再打开就回来。」及其去掉一半的两种说法；确认框里说的变了时只把数字换成最新的再问一次，不另加提示。见 [k4-g1-pages.md](modules/k4-g1-pages.md) 的「作者 2026-11-13 定的四条」。）
 - 命令本身不再问：帮手和 MCP 直接调（作者 11-06 定的「Agent 一律最高权限」），靠写前快照和撤销兜底。
 
 ## 4. 数据结构
@@ -371,11 +371,12 @@ v4 的做法：
 | `LEVEL-DEFAULT-FROM-TEMPLATE` | **加** | `the_switch_starts_from_the_template_and_never_follows_it_afterwards` |
 | `MANUSCRIPT-OWN-PROSE-FIRST` | **加** | `the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it` |
 | `FLATTEN-MEMBERS-ONCE` | **加**（作者 2026-11-13 定的「挂名的也算」）：带归属的摊平先住处后归属、每个条目只出现一次、成书序列不带归属 | `flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone` |
+| `MANUSCRIPT-NUMBER-OUTERMOST-PROSE` | **加**（作者 2026-11-13 定，轨道合完以后）：带成书正文的条目下面的条目不再单独编号，位置、导出、字数不变 | `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number` |
 | `SIDE-DOC-NOT-PROSE` | **加** | `stats_and_checkpoints_are_neither_prose_nor_the_book` |
 | `SIDE-DOC-QUIET` | **加** | `writing_days_and_checkpoints_leave_the_book_document_alone` |
 | `BOOK-FORMAT-4-ONLY` | **加**（v3 切换时这条只有 `dr-workspace/tests/cutover.rs` 的测试，清单里没有对应的契约；`DOC-IDENTITY` 管的是「字节只当它自己那篇文档载入」，不是版本） | `cutover.rs` 里的拒开测试改成也拒 v3，并入清单 |
 
-`ACTIVE_CONTRACTS` 从 76 变成 83（删 1、加 8）。2a 已加其中三条（两篇小文档的两条和 `BOOK-FORMAT-4-ONLY`），现在是 79。不变量的 id 都还带 `V3-` 前缀：id 只是清单里的字符串，改它不影响测试，留到第 4 节的改名那一路一起改成不带版本的名字。
+`ACTIVE_CONTRACTS` 从 76 变成 83（删 1、加 8）。2a 已加其中三条（两篇小文档的两条和 `BOOK-FORMAT-4-ONLY`），现在是 79。2026-11-13 加 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE` 以后是 84。不变量的 id 都还带 `V3-` 前缀：id 只是清单里的字符串，改它不影响测试，留到第 4 节的改名那一路一起改成不带版本的名字。
 
 ## 6. 命令、帮手工具和 MCP
 
@@ -432,7 +433,7 @@ v4 的做法：
 
 - 少 `level.get`；多 `entry.set_level`（开放给帮手，靠写前快照和撤销兜底）。`entry.get`、`entry.list` 的输入输出 schema 变了。
 - 动作：只在开着开关的条目上绑定；删诊断 `leaf_template_verb`；`invalid_membership_binding` 去掉模板限制和「泳道只收叶子」那一半。
-- 记账（`dr-agent-tools/src/records.rs`）：`level:<id>` 这种 subject 删，`entry:<id>` 读了 `below` 时背后多一条 `children_of(<id>)`。
+- 记账（`dr-agent-tools/src/records.rs`）：`level:<id>` 这种 subject 留着，改由带着「下面」读到的 `entry.get`、`entry.list {below}` 记，背后是条目记录加 `children_of(<id>)`；「下面」里每个归属进来的条目记成那一条归属（第 14 节 T3）。
 - 写前快照选条目：`entry.set_level` 关掉时，选这个条目和它的直接子条目。
 - MCP 没有自己的一套：它暴露的就是这个目录，变化跟着走；注册表快照、能力清单、MCP 的 schema 快照由现有生成器重新生成，不手改。
 
@@ -448,7 +449,7 @@ pub struct FlatEntry<'a> {
     pub depth: u32,
     /// 这个条目自己的正文，按模板里模块的顺序；没有模板就没有。
     pub prose: Vec<FlatProse>,
-    /// 只在成书序列里有：带着成书正文的条目从 1 起编号。
+    /// 只在成书序列里有：带着成书正文的条目从 1 起编号，住在带成书正文的条目下面的不编。
     pub ordinal: Option<u32>,
 }
 pub struct FlatProse {
@@ -473,7 +474,7 @@ impl BookStructureV3 {
     pub fn manuscript(&self) -> Vec<ManuscriptPart<'_>>;
     /// 成书序列里全部正文文档，按顺序。
     pub fn manuscript_docs(&self) -> Vec<DocId>;
-    /// 成书序列里带成书正文（有编号）的条目，按顺序，自有拷贝。
+    /// 成书序列里带成书正文的条目（有没有编号都算），按顺序，自有拷贝。
     pub fn manuscript_entries(&self) -> Vec<Entry>;
     /// 一个条目在成书序列里的编号。
     pub fn ordinal(&self, id: &EntryId) -> Option<u32>;
@@ -497,7 +498,7 @@ pub struct NotALevel(pub EntryId);
 - 放进回收站的条目连同下面的都不出现；合并后挂在开关关着的条目下面的，按第 5 节的读法出现在最近一个开着开关的祖先下面，和左栏的树一致。
 - 没有正文的条目也出现（`prose` 为空），让视图能画出它的标题和层次，比如「第一卷」。
 - 只给模板里的正文模块；换模板以后留着的旧正文不在序列里（它们在条目页的「原来的内容」里）。
-- `ordinal`：在 `manuscript()` 里，所有成书部分连着编，只给至少有一篇成书正文的条目编号。默认结构下就是现在的「第 N 章」。
+- `ordinal`：在 `manuscript()` 里，所有成书部分连着编，只给至少有一篇成书正文的条目编号。默认结构下就是现在的「第 N 章」。条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号：它们在成书序列里的位置、导出的内容、全书字数都不变，页眉显示模板名，和别的没有编号的条目一样；自己没有成书正文的中间层（比如「第一卷」）不拦住下面的条目编号（作者 2026-11-13 定，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。成书层级本身（比如书稿）有成书正文（前言）时，它照旧编号，也不拦住下面的章：这一条是实现时补的，否则加一篇前言全书就没有编号了，待作者确认。
 
 **谁怎么用：**
 
@@ -731,7 +732,7 @@ pub struct NotALevel(pub EntryId);
 
 ## 14. 数据层交回：留给各轨道的缺口
 
-2b 交回时写（2026-11-14）。数据层（`dr-model`、`dr-doc`、`dr-workspace`、`dr-testkit`）的接口到此定下；界面、帮手、导入、导出只做了「能编译、测试能过」的最小改动，下面按轨道列出每一处：在哪个文件、现在的最小改动是什么、轨道要把它做成什么、该用数据层的哪个接口。和 [handoff/v4-tracks.md](handoff/v4-tracks.md) 说法不一致时以本节为准。
+2b 交回时写（2026-11-14）。数据层（`dr-model`、`dr-doc`、`dr-workspace`、`dr-testkit`）的接口到此定下；界面、帮手、导入、导出只做了「能编译、测试能过」的最小改动，下面按轨道列出每一处：在哪个文件、现在的最小改动是什么、轨道要把它做成什么、该用数据层的哪个接口。（当时的任务书 `handoff/v4-tracks.md` 已在收尾时删掉，仍然有效的规矩在 [handoff/README.md](handoff/README.md)。）
 
 ### 最终的接口名字
 

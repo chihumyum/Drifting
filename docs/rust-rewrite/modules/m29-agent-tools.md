@@ -1,5 +1,7 @@
 # M29 帮手工具
 
+> 2026-11-13 内核 v4：`level.get`、`level.list` 退役，并进 `entry.get`、`entry.list {below}`；新增 `entry.set_level`（关开关前对条目和每个直接子条目各存一个写前快照）。给帮手的结构说明里没有 `kind`、`allow`、`about`，有 `level`、`linkable`、`lane`；报错和工具说明不再把当前格式叫「v3」。见 [kernel-v4.md](../kernel-v4.md) 第 6 节和第 14 节 T3。
+
 交回状态：分支 `codex/m29-agent-tools`；最后实现提交 `4d55f081`（本行交回记录单独提交）；此次审查修正由第二十五批接收（交回记录 `44357606`）。结构化正文编辑、转换的完整守卫、隐藏记录级联删除和历史恢复点仍需要 F3 后续接口，当前能力与差异见下文。
 
 2026-11-08。实现 M29 任务书（`handoff/m29-agent-tools.md`，已随过程文档清理删除，在 git 历史里），接在 [M27](m27-agent-runtime.md) 的工具执行器和 F3 注册表上。旧版逐项对照见 [工具映射表](m29-tool-mapping.md)。

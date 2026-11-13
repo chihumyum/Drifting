@@ -243,3 +243,81 @@ fn an_actor_keeps_its_newest_rows() {
     );
     assert_eq!(e.ws().journal(Some("agent:s"), 10).unwrap().len(), 1);
 }
+
+/// The window's undo (⌘Z outside the prose, the notice's 「撤销」): within
+/// one book, only the row it was offered for when it names one, never the
+/// book's creation, never an Agent's command.
+#[test]
+fn undo_in_a_book_takes_back_that_books_latest_command_of_the_author_only() {
+    let e = env();
+    let a = e.book();
+    let b = e.book();
+    let u = Actor::User;
+    let agent = Actor::agent("s", 1, "c");
+    let root = |book: &str| common::acceptance::novel_root(e.ws(), &book, "tpl-manuscript");
+    let made = e.call(
+        "entry.create",
+        json!({"book": a, "parent": root(&a), "template": "tpl-chapter", "title": "A"}),
+    );
+    let seq = made["journal"].as_i64().expect("a journal row");
+    let id = made["output"]["id"].as_str().unwrap().to_owned();
+    // Later: the author in the other book, an Agent in this one.
+    e.out(
+        "entry.create",
+        json!({"book": b, "parent": root(&b), "template": "tpl-chapter", "title": "B"}),
+    );
+    call(
+        e.ws(),
+        &agent,
+        "entry.update",
+        json!({"book": a, "id": id, "title": "Agent's"}),
+    );
+    let live = |book: &str| {
+        field(
+            &e.out("entry.list", json!({"book": book, "parent": root(book)})),
+            "title",
+        )
+    };
+    // An offer for another row undoes nothing.
+    assert!(e.ws().undo_in(&u, &a, Some(seq + 1000)).unwrap().is_none());
+    assert_eq!(live(&a), [json!("Agent's")]);
+    // The author's latest in this book: the create, not the other book's,
+    // not the Agent's (which is on its own stack).
+    let undone = e.ws().undo_in(&u, &a, Some(seq)).unwrap().unwrap();
+    assert_eq!(undone.entry.seq, seq);
+    assert_eq!(undone.entry.command, "entry.create");
+    assert_eq!(undone.entry.book.as_deref(), Some(a.as_str()));
+    assert_eq!(undone.entry.state, "undone");
+    assert!(
+        undone
+            .entry
+            .effects
+            .iter()
+            .any(|f| f.kind == "entry" && f.id == id && f.name.as_deref() == Some("A"))
+    );
+    assert!(live(&a).is_empty());
+    assert_eq!(live(&b), [json!("B")]);
+    assert_eq!(
+        e.ws().journal(Some("agent:s"), 10).unwrap()[0].state,
+        "live",
+        "the Agent's command is not undone by the author"
+    );
+    // Then nothing: the book's own creation is never undone from inside it.
+    assert!(e.ws().undo_in(&u, &a, None).unwrap().is_none());
+    assert!(
+        e.out("book.list", json!({}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|book| book["id"] == a.as_str()),
+        "the book is still on the shelf"
+    );
+    // Redo, the same row only.
+    assert!(e.ws().redo_in(&u, &a, Some(seq + 1)).unwrap().is_none());
+    assert!(e.ws().redo_in(&u, &b, None).unwrap().is_none());
+    let redone = e.ws().redo_in(&u, &a, Some(seq)).unwrap().unwrap();
+    assert_eq!(redone.entry.seq, seq);
+    assert_eq!(redone.entry.state, "live");
+    assert_eq!(live(&a), [json!("Agent's")]);
+    assert!(e.ws().redo_in(&u, &a, None).unwrap().is_none());
+}

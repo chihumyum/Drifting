@@ -188,13 +188,9 @@ impl PageEnd {
                     Ok(new_doc) => {
                         cx.update(|cx| {
                             NewTitles::add(new_doc.clone(), cx);
-                            let target = if let Some((id, module)) = dr_editor::v3::body(&new_doc) {
+                            let target = dr_editor::v3::body(&new_doc).and_then(|(id, module)| {
                                 Target::from_key(&format!("entry:{id}/{module}"))
-                            } else {
-                                new_doc
-                                    .strip_prefix("node:")
-                                    .and_then(|id| Target::from_key(&format!("chapter:{id}")))
-                            };
+                            });
                             if let (false, Some(target)) = (in_book, target) {
                                 workspace
                                     .update(cx, |ws, cx| ws.open(target, Open::KEEP.at_title(), cx))

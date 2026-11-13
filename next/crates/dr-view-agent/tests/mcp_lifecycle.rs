@@ -9,7 +9,7 @@ use std::{
 
 use dr_agent::driver::scripted::ScriptedDriver;
 use dr_agent_providers::{HttpClient, ProviderDriver, credentials::Credentials};
-use dr_mcp::{ClientPaths, GrantPaths};
+use dr_mcp::{ClientPaths, GrantPaths, host::Host};
 use dr_platform::secrets::SecretStore;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace as ShellWorkspace};
 use dr_testkit::seed::{self, Preset};
@@ -87,8 +87,11 @@ fn setup(cx: &mut TestAppContext) -> (tempfile::TempDir, Vec<String>) {
     cx.run_until_parked();
     cx.update(|cx| {
         let provider = ProviderDriver::new(HttpClient::new().unwrap(), Credentials::new(secrets));
-        let tools = Arc::new(CompanionTools::with_plugins(
-            cx.global::<McpGlobal>().slot.clone(),
+        // As production: the companion's book tools are the endpoint's.
+        let global = cx.global::<McpGlobal>();
+        let tools = Arc::new(CompanionTools::shared(
+            global.tools.clone(),
+            global.slot.clone(),
         ));
         dr_view_agent::init_with(provider, Arc::new(ScriptedDriver::new(vec![])), tools, cx);
     });
@@ -109,6 +112,24 @@ fn ready(cx: &mut VisualTestContext, book: &str) -> bool {
                 .map(|id| id.as_str())
                 == Some(book)
     })
+}
+
+/// The endpoint's catalog for the open book, read through the adapter's
+/// source, must be the very catalog (same cached instance) the companion's
+/// book tools resolve: MCP keeps no second catalog.
+fn assert_lists_the_companion_catalog(cx: &mut VisualTestContext, host: &Host) {
+    let selection = host.selection();
+    let book = selection.book.clone().unwrap();
+    let listed = futures::executor::block_on(host.catalog(&book, selection.epoch)).unwrap();
+    assert!(!listed.actions().is_empty());
+    let chat = cx.read(|cx| {
+        let ws = cx.global::<Services>().library.clone().unwrap();
+        cx.global::<McpGlobal>()
+            .tools
+            .catalog_for_book(&ws, &book)
+            .unwrap()
+    });
+    assert!(Arc::ptr_eq(&listed, &chat));
 }
 
 fn close(cx: &mut VisualTestContext, shell: Entity<ShellWorkspace>) {
@@ -138,6 +159,7 @@ fn selection_tracks_book_loading_shelf_and_return_without_a_companion(cx: &mut T
     wait(cx, |cx| ready(cx, &books[0]));
     assert!(cx.read(|cx| dr_view_agent::panels(cx).is_empty()));
     let host = cx.read(|cx| cx.global::<McpGlobal>().service.read(cx).host().unwrap());
+    assert_lists_the_companion_catalog(cx, &host);
     let initial = host.selection().epoch;
     shell.update_in(cx, |shell, window, cx| {
         shell.open_book(&books[1], window, cx)
@@ -204,6 +226,9 @@ fn library_replacement_settles_old_manager_and_rebuilds_under_the_same_endpoint(
         assert!(!service.manager().unwrap().is_closed());
         assert!(old.snapshot().closed);
     });
+    // The rebuilt backend reads the new library's catalog.
+    let host = cx.read(|cx| cx.global::<McpGlobal>().service.read(cx).host().unwrap());
+    assert_lists_the_companion_catalog(cx, &host);
     // Retaining an old UI handle must not retain a Library and block F6.
     drop(old);
     close(cx, shell);

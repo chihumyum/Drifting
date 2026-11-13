@@ -364,6 +364,10 @@ pub struct ShelfReviewView {
     pub(crate) entry_links_cache: HashMap<String, Vec<dr_view_material::v3::EntryLink>>,
     entry_links_loading: HashSet<String>,
     relations_loaded: bool,
+    /// The stage's view this is, and whether the book changed while the
+    /// stage was not showing it (redone when it is shown again).
+    shown_as: dr_shell::workspace::SuperView,
+    links_stale: bool,
     rel_serial: u64,
     mat_state_rev: u64,
     rel_task: Option<Task<()>>,
@@ -444,6 +448,8 @@ impl ShelfReviewView {
             entry_links_cache: HashMap::new(),
             entry_links_loading: HashSet::new(),
             relations_loaded: false,
+            shown_as: host.view,
+            links_stale: false,
             rel_serial: 0,
             mat_state_rev: 0,
             rel_task: None,
@@ -473,12 +479,18 @@ impl ShelfReviewView {
         // `Workspace` is borrowed while building the Super View page; attach
         // observation and read `book_memory` on the next microtask.
         let ws_weak = host.workspace.clone();
+        let shown_as = host.view;
         cx.spawn(async move |view, cx| {
             view.update(cx, |this, cx| {
                 if let Some(ws) = ws_weak.upgrade() {
-                    this._ws_sub = Some(cx.observe(&ws, |this, ws, cx| {
-                        this.sync_from_workspace(ws, cx);
-                    }));
+                    // Kept by the stage while closed or behind another view:
+                    // it follows the workspace only while it is shown.
+                    this._ws_sub = Some(dr_shell::pages::follow_super_view(
+                        &ws,
+                        shown_as,
+                        cx,
+                        |this, ws, cx| this.sync_from_workspace(ws, cx),
+                    ));
                     this.sync_from_workspace(ws, cx);
                 }
             })
@@ -805,6 +817,7 @@ impl ShelfReviewView {
         let book_changed = self.book_id != ws_book_id;
         let rev_changed = self.book.v3().map(|b| &b.revision) != ws_book.v3().map(|b| &b.revision)
             || self.book.material_items().len() != ws_book.material_items().len();
+        let stale = std::mem::take(&mut self.links_stale);
 
         if book_changed || lib_changed {
             self.book_id = ws_book_id;
@@ -836,11 +849,15 @@ impl ShelfReviewView {
             }
             self.mat_state_rev += 1;
             self.bind_review(cx);
-            if rev_changed {
+            if rev_changed || stale {
                 self.entry_links_cache.clear();
                 self.entry_links_loading.clear();
                 self.reload_relations(cx);
             }
+        } else if stale {
+            self.entry_links_cache.clear();
+            self.entry_links_loading.clear();
+            self.reload_relations(cx);
         }
 
         if mem_ready && self.memory_loaded_for.as_deref() != Some(self.book_id.as_str()) {
@@ -930,6 +947,10 @@ impl ShelfReviewView {
                 while rx.try_recv().is_ok() {}
                 if view
                     .update(cx, |this, cx| {
+                        if !dr_shell::pages::super_view_shown(&this.ws, this.shown_as, cx) {
+                            this.links_stale = true;
+                            return;
+                        }
                         this.entry_links_cache.clear();
                         this.entry_links_loading.clear();
                         this.reload_relations(cx);

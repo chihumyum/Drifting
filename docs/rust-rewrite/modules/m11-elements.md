@@ -515,3 +515,8 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 
 新增永久回归见 `dr-view-elements/tests/v3_levels.rs`（`lane` 覆盖切换与还原、`allow` 拒绝、条目卡 `entry-toggle-level` 状态）。
 
+## 内核 v4 收尾（2026-11-13）
+
+- 书稿列表「按故事线」分组收的是成书序列里有编号的条目（`BookV3::manuscript_number`），按编号排，不管「层级」开关：开着开关的章照旧在它的故事线下面；没有成书正文的中间层（比如「第一卷」）不列。永久测试 `tests/v3_levels.rs` 的 `grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane`。
+- 「下面」的设置面板里，「成书」只在这个条目是最外层的成书层级时显示开启（`BookV3::is_manuscript_root`）；从上面继承来的成书设置不算，来源显示为默认。
+- 书架上「要素」的计数按模板认装内容的条目（`linkable`，没有模板的也算），不按开关（`dr-workspace/src/commands/book.rs`，测试 `tests/shelf.rs`）。

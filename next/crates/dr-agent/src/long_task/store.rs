@@ -233,12 +233,14 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
         .flat_map(|p| &p.entries)
         .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
         .collect();
-    // Entries the sequence numbers also keep the prose an earlier template
-    // left them, under its own module, as before the one kind of entry.
+    // Entries carrying book prose also keep the prose an earlier template
+    // left them, under its own module, as before the one kind of entry
+    // (numbered or not: one under an entry with book prose of its own has
+    // no number since 2026-11-13).
     let numbered: BTreeSet<&dr_model::id::EntryId> = manuscript
         .iter()
         .flat_map(|p| &p.entries)
-        .filter(|e| e.ordinal.is_some())
+        .filter(|e| !e.prose.is_empty())
         .map(|e| &e.entry.id)
         .collect();
     let mut manifest = Vec::new();
@@ -262,7 +264,7 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
             .collect();
         for target in modules.iter().filter(|t| {
             if manuscript.is_empty() {
-                !entry.is_level()
+                entry.is_linkable(&templates)
             } else {
                 t.doc.as_ref().is_some_and(|d| book_docs.contains(d))
                     || (numbered.contains(&entry.id) && !defined.contains(&t.id))

@@ -26,7 +26,7 @@ use dr_model::id::ConversationId;
 use dr_model::{DocId, Origin};
 use loro::{
     CommitOptions, ContainerID, ContainerType, ExportMode, Frontiers, JsonListOp, JsonMapOp,
-    JsonOpContent, LoroDoc, LoroValue, ValueOrContainer, VersionVector,
+    JsonOpContent, LoroDoc, LoroList, LoroValue, ValueOrContainer, VersionVector,
 };
 
 use crate::core::{Committed, Core, Imported, check_borrowed, configured};
@@ -100,17 +100,83 @@ fn read(doc: &LoroDoc) -> (Vec<ConversationEntry>, ConversationProblems) {
     (entries, problems)
 }
 
-fn append(doc: &LoroDoc, entry: &ConversationEntry) -> Result<bool> {
+/// Where each event id first appears in the entry list, kept between
+/// appends so that an append does not parse the entries already there (a
+/// session of M events used to cost O(M²) parses; now an append of a new
+/// event parses none and a replayed one parses only the stored entry it is
+/// compared with).
+///
+/// A cache of one document's list, never stored. It names the list it
+/// describes by its length and last value. The list only grows: nothing
+/// deletes from it ([`validate_update`] refuses an update that does, and no
+/// API makes one), so a list of the same length is the same list, and the
+/// last value guards against a list replaced underneath. Any other list (an
+/// import, another writer, another device's entries merged in) rebuilds the
+/// index once, by the same reading as [`ConversationDoc::entries`]: the
+/// first readable entry of each id counts.
+#[derive(Clone, Debug, Default)]
+pub struct EntryIndex {
+    len: usize,
+    last: Option<String>,
+    first: HashMap<String, usize>,
+    parsed: usize,
+}
+
+impl EntryIndex {
+    /// How many stored entries this index has parsed: each entry once per
+    /// rebuild, plus the stored entry a replayed event is compared with.
+    pub fn parsed(&self) -> usize {
+        self.parsed
+    }
+
+    fn sync(&mut self, list: &LoroList) {
+        let len = list.len();
+        let same_last = match (last_raw(list, len), &self.last) {
+            (Some(raw), Some(last)) => raw.as_str() == last,
+            (raw, last) => raw.is_none() && last.is_none(),
+        };
+        if len == self.len && same_last {
+            return;
+        }
+        self.first.clear();
+        let mut i = 0;
+        list.for_each(|v| {
+            if let Some(entry) = parse(&v) {
+                self.first.entry(entry.id).or_insert(i);
+            }
+            self.parsed += 1;
+            i += 1;
+        });
+        self.len = i;
+        self.last = last_raw(list, i).map(|raw| raw.to_string());
+    }
+}
+
+fn last_raw(list: &LoroList, len: usize) -> Option<loro::LoroStringValue> {
+    match list.get(len.checked_sub(1)?)? {
+        ValueOrContainer::Value(LoroValue::String(raw)) => Some(raw),
+        _ => None,
+    }
+}
+
+fn append(doc: &LoroDoc, index: &mut EntryIndex, entry: &ConversationEntry) -> Result<bool> {
     entry.validate().map_err(invalid)?;
-    if let Some(existing) = read(doc).0.iter().find(|value| value.id == entry.id) {
-        return if existing == entry {
+    let list = doc.get_list(schema::conversation::ENTRIES);
+    index.sync(&list);
+    if let Some(&at) = index.first.get(&entry.id) {
+        index.parsed += 1;
+        let existing = list.get(at).as_ref().and_then(parse);
+        return if existing.as_ref() == Some(entry) {
             Ok(false)
         } else {
             Err(invalid(format!("event {} is immutable", entry.id)))
         };
     }
     let raw = serde_json::to_string(entry).map_err(invalid)?;
-    doc.get_list(schema::conversation::ENTRIES).push(raw)?;
+    list.push(raw.as_str())?;
+    index.first.insert(entry.id.clone(), index.len);
+    index.len += 1;
+    index.last = Some(raw);
     Ok(true)
 }
 
@@ -118,6 +184,7 @@ fn append(doc: &LoroDoc, entry: &ConversationEntry) -> Result<bool> {
 pub struct ConversationDoc {
     core: Core,
     id: ConversationId,
+    index: EntryIndex,
 }
 
 impl ConversationDoc {
@@ -134,7 +201,11 @@ impl ConversationDoc {
             schema::meta::DOC,
         )?;
         BorrowedConversation::new(&core.doc, &id)?;
-        Ok(Self { core, id })
+        Ok(Self {
+            core,
+            id,
+            index: EntryIndex::default(),
+        })
     }
 
     pub fn conversation_id(&self) -> &ConversationId {
@@ -170,8 +241,8 @@ impl ConversationDoc {
         origin: Origin,
         entry: &ConversationEntry,
     ) -> (Result<bool>, Option<Committed>) {
-        self.core
-            .transact(&origin, None, || append(&self.core.doc, entry))
+        let (core, index) = (&self.core, &mut self.index);
+        core.transact(&origin, None, || append(&core.doc, index, entry))
     }
 
     /// Import remote bytes after [`validate_update`] accepted them (the same
@@ -301,8 +372,20 @@ impl<'a> BorrowedConversation<'a> {
         read(self.doc).1
     }
 
+    /// Append, reading the whole list to look for a replay; a writer that
+    /// appends again keeps an [`EntryIndex`] and calls [`Self::append_indexed`].
     pub fn append(&self, entry: &ConversationEntry) -> Result<bool> {
-        append(self.doc, entry)
+        self.append_indexed(&mut EntryIndex::default(), entry)
+    }
+
+    /// Append with `index`, which this document's earlier appends (or none)
+    /// left; the list is parsed again only when someone else changed it.
+    pub fn append_indexed(
+        &self,
+        index: &mut EntryIndex,
+        entry: &ConversationEntry,
+    ) -> Result<bool> {
+        append(self.doc, index, entry)
     }
 }
 

@@ -472,7 +472,7 @@ fn reconcile(cx: &mut App) {
                 .as_ref()
                 .is_none_or(|current_root| *current_root != svc.state.active_library_dir) =>
         {
-            // Another local library (e.g. an M10 `reimport-v3-*` destination) is
+            // Another local library (e.g. an M10 `reimport-v4-*` destination) is
             // currently open instead of the account library: keep Hosted Sync
             // paused in `SignedOut` mode on this workspace.
             if ws_root.is_none() {

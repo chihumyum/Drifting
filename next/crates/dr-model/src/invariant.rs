@@ -875,8 +875,15 @@ pub const INVARIANTS: &[Invariant] = &[
         "MANUSCRIPT-OWN-PROSE-FIRST",
         "成书序列：从最外层成书层级按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；回收站里的连同下面都不算",
         [Structure, Read],
-        "只有 BookStructureV3::manuscript 算成书序列（导出、全书字数、章节编号都用它），ordinal 只编给有成书正文的条目",
+        "只有 BookStructureV3::manuscript 算成书序列（导出、全书字数、章节编号都用它），ordinal 只编给有成书正文的条目（哪些不编见 MANUSCRIPT-NUMBER-OUTERMOST-PROSE）",
         ["the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it"]
+    ),
+    inv!(
+        "MANUSCRIPT-NUMBER-OUTERMOST-PROSE",
+        "章节编号：条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，在成书序列里的位置、导出的内容、全书字数都不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定）；成书层级本身的正文（前言）照旧编号，也不拦住下面的章",
+        [Structure, Read],
+        "BookStructureV3::manuscript 按先序走时记住正在里面的那个有编号条目的深度（成书层级本身深度为 0，不记），回到同一深度或更浅才出来；manuscript_entries 仍按「带成书正文」收，不看编号",
+        ["entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number"]
     ),
     inv!(
         "FLATTEN-MEMBERS-ONCE",
@@ -938,7 +945,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 83;
+pub const ACTIVE_CONTRACTS: usize = 84;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

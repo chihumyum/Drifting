@@ -32,7 +32,7 @@ pub(crate) fn resolve_with_catalog(
 ) -> Result<ResolvedCall> {
     if !crate::catalog::is_v3_book(ws, book)? {
         return Err(Error::Invalid(
-            "only canonical v3 books support tools".into(),
+            "only books in the current format support tools".into(),
         ));
     }
     v3::resolve_v3(ws, book, catalog, name, args)

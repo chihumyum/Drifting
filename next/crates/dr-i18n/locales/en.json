@@ -163,9 +163,7 @@
     }
   },
   "bottomStatusBar": {
-    "collapseTimeline": "Collapse Storyline Timeline",
     "elements": "Elements",
-    "expandTimeline": "Expand Storyline Timeline",
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
@@ -243,10 +241,6 @@
       "deleteMaterial": "Delete material",
       "moveMaterialToFolder": "Move to folder…",
       "openMaterialInSystem": "Open in default app"
-    },
-    "outlineRailMode": {
-      "hidden": "Hide TOC",
-      "visible": "Show TOC"
     },
     "status": {
       "discarded": "Discarded",
@@ -425,8 +419,8 @@
     "entry_count_one": "{{count}} entry",
     "entry_count_other": "{{count}} entries",
     "entry_titles": "Entry titles",
+    "entry_total": "Entry count",
     "entry_words": "Entry words",
-    "leaf_count": "Leaf count",
     "material_words": "Material words",
     "retained_content": "Retained content",
     "selected_entries": "Selected entries",
@@ -625,6 +619,10 @@
     }
   },
   "mobileWorkspace": {
+    "editorAccessory": {
+      "redo": "Redo",
+      "undo": "Undo"
+    },
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
@@ -694,6 +692,7 @@
     "insertColumnRight": "Insert a column to the right",
     "insertRowAbove": "Insert a row above",
     "insertRowBelow": "Insert a row below",
+    "move": "Move",
     "moveDown": "Move down",
     "moveLeft": "Move left",
     "moveRight": "Move right",
@@ -900,6 +899,9 @@
     "delete": "Delete relation type",
     "description": "Description",
     "directed": "Directed",
+    "genericAssociation": {
+      "name": "Association"
+    },
     "name": "Name",
     "sourceRole": "Source role",
     "swap": "Swap relation endpoints",
@@ -1442,7 +1444,7 @@
     "add_module": "Add module",
     "agent_preview": "What the Agent sees",
     "aliases": "Aliases",
-    "auto_link": "Auto-link",
+    "auto_link": "Automatic links",
     "board": "Board",
     "children": "Entries below",
     "choose_template": "Choose template",
@@ -1468,7 +1470,7 @@
     "instructions": "Instructions",
     "island": "Islands",
     "kv": "Key-value table",
-    "lane": "Lane",
+    "lane": "Swimlane",
     "level": "Level",
     "level_hint": "Allows entries below when on",
     "linkable": "Include name in auto-links",
@@ -1583,24 +1585,32 @@
     "bookView": "Book view",
     "changeTemplate": "Change template",
     "childrenEntries": "Entries below",
+    "collapseTimeline": "Collapse Storyline Timeline",
     "editTemplate": "Edit template",
     "entries": "Entries",
     "entryUntemplated": "Entry",
+    "expandTimeline": "Expand Storyline Timeline",
     "grid": "Grid",
+    "hideOutline": "Hide TOC",
     "islands": "Islands",
     "levelSwitch": "Level",
-    "levelSwitchHint": "Allow entries underneath",
+    "levelSwitchHint": "Allows entries below when on",
     "list": "List",
     "newEntry": "New",
     "newTemplate": "New template",
     "open": "Open",
     "settings": "Settings",
+    "showOutline": "Show TOC",
     "templates": "Templates",
     "trash": "Move to Recently Deleted",
     "turnOffLevelBody_one": "{{count}} entry below will move to the top level along with everything under it. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelBody_other": "{{count}} entries below will move to the top level along with everything under them. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelConfirm": "Turn off",
-    "turnOffLevelConflict": "Entries below changed while this dialog was open. Review the updated count and confirm again.",
+    "turnOffLevelLaneBody": "Its timeline swimlane will be hidden until you turn Level back on.",
+    "turnOffLevelMembersBody_one": "{{count}} entry assigned to it will be hidden until you turn Level back on.",
+    "turnOffLevelMembersBody_other": "{{count}} entries assigned to it will be hidden until you turn Level back on.",
+    "turnOffLevelMembersLaneBody_one": "{{count}} entry assigned to it and its timeline swimlane will be hidden until you turn Level back on.",
+    "turnOffLevelMembersLaneBody_other": "{{count}} entries assigned to it and its timeline swimlane will be hidden until you turn Level back on.",
     "turnOffLevelTitle": "Turn off Level",
     "untitledEntry": "Untitled entry",
     "untitledNamed": "Untitled {{name}}"

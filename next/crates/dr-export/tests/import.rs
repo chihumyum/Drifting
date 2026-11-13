@@ -449,6 +449,98 @@ fn target_level_inherits_default_template_and_refuses_non_level_or_missing_defau
 }
 
 #[test]
+fn the_text_goes_into_the_first_book_prose_else_the_first_prose() {
+    use dr_doc::v3::novel;
+
+    let e = env();
+    let templates = out(&e.ws, "entry_template.list", json!({"book": e.book}));
+    let chapter = templates
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == novel::TPL_CHAPTER)
+        .unwrap();
+    let module = chapter["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == novel::MOD_PROSE)
+        .unwrap()
+        .clone();
+    // The chapter's own prose stops counting; a second one after it counts.
+    let mut first = module.clone();
+    first["config"]["in_book"] = json!(false);
+    let mut second = module;
+    second["id"] = json!("synthetic-book-body");
+    second["name"] = json!("Synthetic book body");
+    second["config"]["in_book"] = json!(true);
+    for module in [first, second] {
+        out(
+            &e.ws,
+            "entry_template.put_module",
+            json!({"book": e.book, "template": novel::TPL_CHAPTER, "module": module}),
+        );
+    }
+    let manuscript =
+        dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, novel::TPL_MANUSCRIPT);
+    let imported = import_docs(
+        &e.ws,
+        &Actor::User,
+        &e.book,
+        &ImportTarget::new(manuscript.clone()),
+        &[(
+            String::new(),
+            parse_bytes("雾.md", "# 雾\n\n桥上起雾了。".as_bytes()).unwrap(),
+        )],
+        None,
+    )
+    .unwrap();
+    let made = imported[0].result.clone().expect("two prose bodies");
+    assert_eq!(made.doc, format!("body:{}/synthetic-book-body", made.id));
+    assert_eq!(
+        prose(&e.ws, &made.doc),
+        vec![para(vec![run("桥上起雾了。")])]
+    );
+
+    // A level whose new entries' prose counts nowhere: the first prose.
+    let level = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "template": novel::TPL_GROUP,
+            "level": true,
+            "title": "分类夹"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "entry.update",
+        json!({"book": e.book, "id": level, "overrides": {"default_template": novel::TPL_CATEGORY}}),
+    );
+    let imported = import_docs(
+        &e.ws,
+        &Actor::User,
+        &e.book,
+        &ImportTarget::new(level),
+        &[(
+            String::new(),
+            parse_bytes("说明.txt", "一段说明".as_bytes()).unwrap(),
+        )],
+        None,
+    )
+    .unwrap();
+    let made = imported[0].result.clone().expect("description only");
+    assert_eq!(
+        made.doc,
+        format!("body:{}/{}", made.id, novel::MOD_DESCRIPTION)
+    );
+}
+
+#[test]
 fn warnings_travel_with_the_file() {
     let parsed = parse_bytes("a.md", "![图](p.png) 字".as_bytes()).unwrap();
     assert_eq!(parsed.warnings, vec![ImportWarning::ImagesDropped(1)]);

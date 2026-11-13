@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::time::{Duration, Instant};
 
 use dr_model::id::{BookId, ConversationId, new_uuid_v7};
 use dr_store::agent::AgentEventAppend;
@@ -27,12 +28,20 @@ pub use external::{
 #[derive(Clone, Debug)]
 pub struct Options {
     pub max_parallel_reads: usize,
+    /// How long streamed text may stay out of the journal: a block's
+    /// consecutive deltas are written as one event at most this long after
+    /// the first of them arrived, or sooner when any other event is written.
+    /// A crash loses at most this much of the message being streamed; the
+    /// panel, which reads the journal, sees new text at this pace. Zero
+    /// writes every delta as it arrives.
+    pub stream_flush: Duration,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             max_parallel_reads: 4,
+            stream_flush: Duration::from_millis(100),
         }
     }
 }
@@ -287,6 +296,7 @@ impl Runtime {
                     stopping: false,
                     aborting: false,
                     seen_calls: HashSet::new(),
+                    flush_timer: FlushTimer::default(),
                 };
                 let result = futures::executor::block_on(
                     std::panic::AssertUnwindSafe(worker.run()).catch_unwind(),
@@ -295,6 +305,13 @@ impl Runtime {
                 let result = match result {
                     Ok(state) => Ok(state),
                     Err(error) => {
+                        // A run can fail mid-stream with text still buffered.
+                        // Write it before reconciling the partial message from
+                        // the journal; if even that fails, it is the tail a
+                        // crash would have lost, and the journal stays whole.
+                        if worker.journal.flush().is_err() {
+                            worker.journal.discard_unflushed();
+                        }
                         if let Ok(log) = events(&worker.journal.lib, &worker.journal.session, 0) {
                             let _ = reconcile(&mut worker.journal, &log);
                         }
@@ -349,10 +366,42 @@ impl Runtime {
     /// Startup recovery, before creating runs. Replays the conversation
     /// projection, settles unknown tool outcomes from F2 receipts, and closes
     /// interrupted runs. Never repeats a tool or revives an old permission.
+    ///
+    /// A session replayed in full is remembered as settled with the journal
+    /// sequence it ended at; while its journal still ends there it is not
+    /// replayed again, since a replay would change nothing (see [`SETTLED`]).
     pub fn recover(&self) -> Result<Vec<RecoveredRun>> {
         let _lifecycle = self.inner.lifecycle.lock().expect("runtime lifecycle");
+        let lib = self.inner.ws.library();
+        let marks: HashMap<String, String> = lib
+            .local_entries(SETTLED, None)?
+            .into_iter()
+            .map(|entry| (entry.key, entry.value))
+            .collect();
+        let mut settled = Vec::new();
+        let recovered = self.recover_sessions(&marks, &mut settled);
+        // What was replayed in full stays settled even if a later session
+        // failed to recover. The marks only save work: if they cannot be
+        // written, those sessions are replayed again next time.
+        if !settled.is_empty() {
+            let _ = lib.local_write(|tx| {
+                for (session, book, seq) in &settled {
+                    tx.set_state(SETTLED, session, &settled_mark(*seq), Some(book))?;
+                }
+                Ok(())
+            });
+        }
+        recovered
+    }
+
+    fn recover_sessions(
+        &self,
+        marks: &HashMap<String, String>,
+        settled: &mut Vec<(String, String, i64)>,
+    ) -> Result<Vec<RecoveredRun>> {
+        let lib = self.inner.ws.library();
         let mut recovered = Vec::new();
-        for session in self.inner.ws.library().agent_sessions(None)? {
+        for session in lib.agent_sessions(None)? {
             if self
                 .inner
                 .active
@@ -362,8 +411,10 @@ impl Runtime {
             {
                 continue;
             }
-            let mut journal = Journal::open(self.inner.ws.library().clone(), &session.session)?;
-            let log = events(&journal.lib, &session.session, 0)?;
+            if is_settled(lib, &session.session, marks.get(&session.session))? {
+                continue;
+            }
+            let (mut journal, log) = Journal::open_with_log(lib.clone(), &session.session)?;
             let state = log.iter().rev().find_map(|e| {
                 if let Event::StateChanged { state } = e.event {
                     Some(state)
@@ -372,24 +423,56 @@ impl Runtime {
                 }
             });
             reconcile(&mut journal, &log)?;
-            if state.is_some_and(State::is_terminal) {
-                continue;
+            if !state.is_some_and(State::is_terminal) {
+                // Steering received before a crash remains visible and available
+                // for an explicit new run; no unfinished run executes on restart.
+                journal.append(Event::Recovered)?;
+                journal.append(Event::StateChanged {
+                    state: State::Interrupted,
+                })?;
+                let settlements = settlement_refs(&journal.lib, &journal.session, 0, None)?;
+                recovered.push(RecoveredRun {
+                    session: session.session.clone(),
+                    state: State::Interrupted,
+                    settlements,
+                });
             }
-            // Steering received before a crash remains visible and available
-            // for an explicit new run; no unfinished run executes on restart.
-            journal.append(Event::Recovered)?;
-            journal.append(Event::StateChanged {
-                state: State::Interrupted,
-            })?;
-            let settlements = settlement_refs(&journal.lib, &journal.session, 0, None)?;
-            recovered.push(RecoveredRun {
-                session: session.session,
-                state: State::Interrupted,
-                settlements,
-            });
+            settled.push((session.session, session.book_id, journal.seq));
         }
         Ok(recovered)
     }
+}
+
+/// `local_state` scope of the sessions `recover` replayed in full: key the
+/// session, value [`settled_mark`] of the journal sequence the replay ended
+/// at. After such a replay every event of the journal is projected, the
+/// partial message and every open call are closed, and the session is
+/// terminal; journals and conversations only grow and terminal sessions take
+/// no new events, so while the journal still ends at that sequence another
+/// replay would write nothing. A session that grew, a mark of another format
+/// or protocol, or no mark (journals from before marks) is replayed as it
+/// always was. Rows are tied to the book and go when it is purged.
+const SETTLED: &str = "agent.settled";
+
+/// Change when `Journal::project` or `reconcile` would write something for
+/// a journal they already replayed: every session is then replayed once more.
+const SETTLED_FORMAT: u32 = 1;
+
+fn settled_mark(seq: i64) -> String {
+    format!("{SETTLED_FORMAT}:{PROTOCOL_VERSION}:{seq}")
+}
+
+/// Whether the session's journal still ends exactly at its settled mark.
+fn is_settled(lib: &dr_store::Library, session: &str, mark: Option<&String>) -> Result<bool> {
+    let prefix = format!("{SETTLED_FORMAT}:{PROTOCOL_VERSION}:");
+    let Some(seq) = mark
+        .and_then(|mark| mark.strip_prefix(&prefix))
+        .and_then(|seq| seq.parse::<i64>().ok())
+        .filter(|seq| *seq >= 1)
+    else {
+        return Ok(false);
+    };
+    Ok(lib.agent_event(session, seq)?.is_some() && lib.agent_events(session, seq)?.is_empty())
 }
 
 fn reconcile(journal: &mut Journal, log: &[JournalEvent]) -> Result<()> {
@@ -519,6 +602,47 @@ struct Worker {
     stopping: bool,
     aborting: bool,
     seen_calls: HashSet<String>,
+    flush_timer: FlushTimer,
+}
+
+/// Wakes a run when its buffered text is due, without an async timer
+/// runtime: one sleeping thread per run, started by the first deadline and
+/// ended with the run. It holds no library resources. Deadlines arrive in
+/// increasing order (each buffer starts after the previous one was written),
+/// so serving them first come, first served never wakes one late.
+#[derive(Default)]
+struct FlushTimer {
+    requests: Option<std::sync::mpsc::Sender<(Instant, oneshot::Sender<()>)>>,
+}
+
+impl FlushTimer {
+    /// A receiver completed at `at`, or `None` when no timer thread can run.
+    fn at(&mut self, at: Instant) -> Option<oneshot::Receiver<()>> {
+        if self.requests.is_none() {
+            let (requests, incoming) = std::sync::mpsc::channel::<(Instant, oneshot::Sender<()>)>();
+            std::thread::Builder::new()
+                .name("dr-agent-flush".into())
+                .spawn(move || {
+                    while let Ok((at, wake)) = incoming.recv() {
+                        let now = Instant::now();
+                        if at > now {
+                            std::thread::sleep(at - now);
+                        }
+                        let _ = wake.send(());
+                    }
+                })
+                .ok()?;
+            self.requests = Some(requests);
+        }
+        let (wake, woken) = oneshot::channel();
+        match self.requests.as_ref()?.send((at, wake)) {
+            Ok(()) => Some(woken),
+            Err(_) => {
+                self.requests = None;
+                None
+            }
+        }
+    }
 }
 
 impl Worker {
@@ -742,7 +866,32 @@ impl Worker {
             .fuse();
         let mut message = AssistantMessage::default();
         let mut calls = Vec::new();
+        // Streamed text is buffered by the journal (see `Journal`); this
+        // alarm writes it when it is due while the stream is quiet. Every
+        // other event below, and the closing `AssistantMessage`, writes it
+        // first in its own transaction.
+        let interval = self.inner.options.stream_flush;
+        let mut alarm: Option<(Instant, oneshot::Receiver<()>)> = None;
         let result = loop {
+            match self.journal.flush_due(interval) {
+                None => alarm = None,
+                Some(at) if alarm.as_ref().is_none_or(|(armed, _)| *armed != at) => {
+                    alarm = None;
+                    match self.flush_timer.at(at) {
+                        Some(woken) => alarm = Some((at, woken)),
+                        None => self.journal.flush()?,
+                    }
+                }
+                Some(_) => {}
+            }
+            let due = async {
+                match alarm.as_mut() {
+                    Some((_, woken)) => {
+                        let _ = woken.await;
+                    }
+                    None => futures::future::pending::<()>().await,
+                }
+            };
             futures::select_biased! {
                 command = next_command(&mut self.commands).fuse() => {
                     if let Some(command) = command { self.command(command, None)?; }
@@ -757,11 +906,11 @@ impl Worker {
                     match event {
                         DriverEvent::TextDelta { index, text } => {
                             add_delta(&mut message, index, &text, false)?;
-                            self.journal.append(Event::TextDelta { index, text })?;
+                            self.journal.stream(false, index, &text, interval, Instant::now())?;
                         }
                         DriverEvent::ThinkingDelta { index, text } => {
                             add_delta(&mut message, index, &text, true)?;
-                            self.journal.append(Event::ThinkingDelta { index, text })?;
+                            self.journal.stream(true, index, &text, interval, Instant::now())?;
                         }
                         DriverEvent::ThinkingSignature { index, signature, replay } => {
                             add_delta(&mut message, index, "", true)?;
@@ -796,7 +945,11 @@ impl Worker {
                             break Ok(());
                         }
                     }
-                }
+                },
+                () = due.fuse() => {
+                    alarm = None;
+                    self.journal.flush()?;
+                },
             }
         };
         self.journal.append(Event::AssistantMessage { message })?;

@@ -46,6 +46,7 @@ mod history_folders;
 pub mod material_links;
 pub mod membership;
 pub mod module;
+mod novel_book;
 pub mod plot;
 pub mod project;
 pub mod recent;

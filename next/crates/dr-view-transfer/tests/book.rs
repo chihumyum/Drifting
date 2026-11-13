@@ -142,6 +142,25 @@ fn a_file_that_is_not_a_book_is_refused(cx: &mut TestAppContext) {
     assert!(shown(&view, cx).is_none());
 }
 
+#[gpui::test]
+fn a_refused_file_closes_with_escape(cx: &mut TestAppContext) {
+    let (dir, lib, _) = library();
+    let (view, cx) = setup(cx, lib.clone());
+    let file = dir.path().join("notes.driftingbook");
+    std::fs::write(&file, "just text").unwrap();
+    let dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
+    wait_for(cx, |cx| !dialog.read_with(cx, |d, _| d.is_working()));
+    assert!(matches!(
+        dialog.read_with(cx, |d, _| d.state.clone()),
+        State::Failed { .. }
+    ));
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(shown(&view, cx).is_none());
+}
+
 fn stored_zip(name: &[u8], body: &[u8]) -> Vec<u8> {
     let mut crc = !0u32;
     for &b in body {

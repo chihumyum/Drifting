@@ -44,15 +44,22 @@ jobs:
           - platform: macos
             runner: macos-26
             target: aarch64-apple-darwin
+            minutes: 90
           - platform: windows-x64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
+            minutes: 240
           - platform: windows-arm64
             runner: windows-11-arm
             target: aarch64-pc-windows-msvc
+            minutes: 240
     runs-on: ${{ matrix.runner }}
-    # A cold GPUI build takes several minutes on a desktop Mac.
-    timeout-minutes: 90
+    # A cold GPUI build takes several minutes on a desktop Mac. The Windows
+    # runners are far slower: at a35c2222a the test binaries alone took 45
+    # minutes to build, the 0.1 import tests ran 18 minutes in one binary,
+    # and both jobs were cancelled at 90 minutes after 72 of some 335 test
+    # binaries, none of them failing.
+    timeout-minutes: ${{ matrix.minutes }}
     defaults:
       run:
         working-directory: next

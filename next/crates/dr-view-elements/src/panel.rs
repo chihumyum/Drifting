@@ -60,22 +60,33 @@ pub mod v3 {
         };
         let mut out = Vec::new();
         if grouped && display == Display::List {
-            let mut leaves = Vec::new();
+            // The entries carrying book prose under this level, in the
+            // manuscript sequence's order, whatever their switch; numbered
+            // or not (an entry under one with book prose of its own has no
+            // number since 2026-11-13, and is still listed).
+            let mut place = std::collections::BTreeMap::new();
+            for (i, body) in v.manuscript.iter().enumerate() {
+                place.entry(body.entry.as_str()).or_insert(i);
+            }
+            let mut numbered = Vec::new();
             let mut pending: Vec<_> = root.children.iter().rev().cloned().collect();
             let mut seen = BTreeSet::new();
             while let Some(id) = pending.pop() {
                 if !seen.insert(id.clone()) {
                     continue;
                 }
+                if let Some(n) = place.get(id.as_str()) {
+                    numbered.push((*n, id.clone()));
+                }
                 if let Some(l) = v.levels.get(&id) {
                     pending.extend(l.children.iter().rev().cloned());
-                } else {
-                    leaves.push(id);
                 }
             }
+            numbered.sort();
+            let numbered: Vec<String> = numbered.into_iter().map(|(_, id)| id).collect();
             let mut used = BTreeSet::new();
             for lane in v.entries.iter().filter(|e| v.is_lane(&e.id)) {
-                let members: Vec<_> = leaves
+                let members: Vec<_> = numbered
                     .iter()
                     .filter(|id| {
                         let accepted: BTreeSet<_> = v
@@ -104,7 +115,10 @@ pub mod v3 {
                     }
                 }
             }
-            let loose: Vec<_> = leaves.into_iter().filter(|id| !used.contains(id)).collect();
+            let loose: Vec<_> = numbered
+                .into_iter()
+                .filter(|id| !used.contains(id))
+                .collect();
             if !loose.is_empty() {
                 out.push(Row::Section(Section::Unassigned));
                 out.extend(loose.into_iter().map(|id| Row::Entry { id, depth: 0 }));

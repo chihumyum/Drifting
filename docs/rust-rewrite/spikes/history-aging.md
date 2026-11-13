@@ -658,3 +658,13 @@ cargo test -p dr-export --test book_file_v3_snapshots
 cargo test -p dr-view-history --lib automatic
 cargo test -p dr-testkit --test aging
 ```
+
+## 挪出之后（2026-11-13）
+
+内核 v4 的 2a 把写作日和快照点清单挪出了书目文档，各进每本书旁边的一篇小文档（`stats:<书>`、`checkpoints:<书>`，[kernel-v4.md](../kernel-v4.md) 第 8 节）。老化模型（`dr-testkit/src/aging/book.rs`）跟着把写作日和存点写进这两篇，`bench book-aging` 按落在哪篇文档分开报提交；没有留「旧布局」的开关，改前的数就是本页上面那些。
+
+- 书目文档不再随写作日和存点变长：三年的书，书目文档从 26.2 MB（快照点清单还在里面时）降到 3.1 MB（kernel-v4.md 第 14 节「量到的」，同一本书、release 构建，量的时候机器很忙，只看量级）。
+- 写作和存点不再推进书目的版本：外壳、编辑器不再被「书变了」惊动，统计、书架、主页只听写作日文档，历史对话框只听清单文档。
+- 正文文档的老化（本页「用旧了的章节」和撤销四条路）不受影响，结论照旧。
+- 这一节没有重新量正文和撤销；要重量照上面「怎么复现」跑。
+

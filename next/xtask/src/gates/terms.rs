@@ -6,6 +6,9 @@
 //! - H1, H2 and H3 are called H1, H2 and H3 only (AGENTS.md "UI rules"):
 //!   no product string, Agent prompt or export template calls a heading
 //!   level a scene or a beat, in English or Chinese.
+//! - There is one kind of entry (`kernel-v4.md`): no product string speaks
+//!   of level or leaf templates, or counts leaves. 「层级」 itself is the
+//!   name of the switch and stays.
 //!
 //! "Product strings" are the string literals of Rust code outside tests,
 //! fixtures and benchmarks, plus locale, prompt and template files. Comments
@@ -38,6 +41,18 @@ pub fn string_rules() -> Vec<(&'static str, Regex)> {
                 ["be", "at"].concat(),
                 ["场", "景"].concat(),
                 ["节", "拍"].concat()
+            ))
+            .expect("regex"),
+        ),
+        (
+            "one kind of entry: no level or leaf templates, no leaves",
+            Regex::new(&format!(
+                r"(?i){}|{}|{}|\b{}s?\b|\b{}s?\b",
+                ["叶子", "模板"].concat(),
+                ["层级", "模板"].concat(),
+                ["叶子", "数量"].concat(),
+                ["leaf", " ", "template"].concat(),
+                ["level", " ", "template"].concat()
             ))
             .expect("regex"),
         ),
@@ -136,6 +151,31 @@ mod tests {
         );
         assert_eq!(fails("a.rs", "let s = gpui::Scene::new();"), 0);
         assert_eq!(fails("notes.md", &scene), 0);
+    }
+
+    #[test]
+    fn one_kind_of_entry() {
+        let words = [
+            ["叶子", "模板"].concat(),
+            ["层级", "模板"].concat(),
+            ["叶子", "数量"].concat(),
+            ["Leaf", " template"].concat(),
+            ["level", " templates"].concat(),
+        ];
+        for w in &words {
+            assert_eq!(fails("a.rs", &format!("t(\"{w}\")")), 1, "{w}");
+        }
+        assert_eq!(
+            fails(
+                "crates/x/locales/zh-CN.json",
+                &format!("{{\"k\": \"{}\"}}", words[0])
+            ),
+            1
+        );
+        // The switch is 「层级」; comments and identifiers are free.
+        assert_eq!(fails("a.rs", "t(\"层级\")"), 0);
+        assert_eq!(fails("a.rs", &format!("// {}", words[3])), 0);
+        assert_eq!(fails("a.rs", "let level_template = 1;"), 0);
     }
 
     #[test]

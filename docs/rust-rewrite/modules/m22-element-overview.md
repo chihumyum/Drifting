@@ -23,6 +23,8 @@
 
 - 注册 `dr_shell::release` 释放钩子：`before_release` 同步置位冻结门（拦截拖动固定、跨岛拖放、建边与展开编辑器），卸载内嵌 `EntryPage`、取消过渡动画并释放 `Workspace` 引用，确保换库或退出时 `try_shutdown` 零泄漏通过；`after_release` 从当前 `Services` 重新绑定并恢复交互。
 
+- **只在显示时跟着书变（2026-11-13）**：全景经 `dr_shell::pages::follow_super_view` 跟工作区。以前舞台关掉以后，每次书目变动它仍在主线程整份重读（岛屿、布局、关系、全书共现查询）；现在关着时什么都不读，再显示时一次补齐。切到另一本书时，给上一本书留着的全景不再跟过去，新书的全景由舞台另做。测试 `a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown`。
+
 ## `showcase` 样书实拍（《慢钟》）
 
 | 模式 | 浅色（Light） | 深色（Dark） |
@@ -46,3 +48,8 @@
 ## 待协调／待作者
 
 - 旧版扁平「章节出现带」已按规范移除；在 canonical v3 任意深度文稿树下，要素浮岛小卡是否需要新增可选的文稿树提及分布摘要，已记入 [progress.md 的「等作者的事」](../progress.md#等作者的事)（作者 2026-11-11 定：暂缓，并入视觉打磨），本模块不自行设计替代条带。
+
+## 内核 v4 收尾（2026-11-13）
+
+群岛和关系两种视图按条目的模板认「出卡片还是当分组」，不按「层级」开关（`kernel-v4.md` 第 2 节）：模板 `linkable` 开着（装内容的，没有模板的也算）的条目总是一张卡片；开着开关的内容条目（比如给阿Q下面挂了条目）照旧出卡片，住在它下面的条目在同一座岛里成一组，组名是它的名字。只有整理用的模板（分类、分组等）当岛屿或组。判断在外壳的 `BookV3::is_content`。永久测试 `tests/isles.rs`。关系类型的名字经 `dr_view_relations::type_name` 显示：内置的通用关联用界面语言（0.1 的 `relationTypes.genericAssociation.name`），不再显示英文原名。
+
