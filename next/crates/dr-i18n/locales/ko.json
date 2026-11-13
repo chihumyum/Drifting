@@ -385,11 +385,11 @@
       }
     },
     "v3": {
-      "destination": "별도의 새 v3 보관함을 만듭니다. 현재 보관함과 0.1 원본 보관함은 그대로 유지됩니다.",
+      "destination": "별도의 새 보관함을 만듭니다. 현재 보관함과 0.1 원본 보관함은 그대로 유지됩니다.",
       "pending": "가져오기 전에 매핑 선택이 필요합니다",
       "start": "새 보관함으로 가져오기",
-      "switching": "완료된 v3 보관함을 여는 중",
-      "title": "v3로 다시 가져오기"
+      "switching": "완료된 보관함을 여는 중",
+      "title": "새 보관함으로 다시 가져오기"
     }
   },
   "importDialog": {
@@ -1454,6 +1454,7 @@
     "aliases": "별칭",
     "auto_link": "자동 링크",
     "board": "보드",
+    "children": "아래 항목",
     "choose_template": "템플릿 선택",
     "color": "색상",
     "conflict": "다른 곳에서 템플릿이 변경되었습니다",
@@ -1472,15 +1473,15 @@
     "grid": "그리드",
     "home": "새 항목의 위치",
     "image": "이미지",
+    "in_book": "글자 수 및 내보내기에 포함",
     "inherit": "상속",
     "instructions": "주의 사항",
     "island": "섬",
     "kv": "키-값 표",
     "lane": "레인",
-    "leaf": "리프",
-    "leaf_template": "리프 템플릿",
     "level": "계층",
-    "level_template": "계층 템플릿",
+    "level_hint": "켜면 아래에 항목을 둘 수 있습니다",
+    "linkable": "자동 링크에 이름 포함",
     "list": "목록",
     "long_text": "긴 텍스트",
     "manuscript": "원고",

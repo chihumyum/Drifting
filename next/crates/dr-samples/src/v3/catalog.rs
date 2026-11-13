@@ -19,7 +19,7 @@ pub(crate) fn invalid(message: impl Into<String>) -> DocError {
     DocError::Loro(loro::LoroError::ArgErr(message.into().into()))
 }
 
-/// The mapping's required templates. Unused built-in leaf templates are
+/// The mapping's required templates. Unused built-in entry templates are
 /// harmless, but default category entries must never be added on import.
 fn templates(source: &BookView<'_>, manuscript: &EntryId) -> Result<Vec<EntryTemplate>> {
     let mut all = novel_project_templates();

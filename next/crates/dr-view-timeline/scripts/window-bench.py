@@ -112,7 +112,8 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("target/acceptance/k4-g3-heavy"))
     args = parser.parse_args()
     report = {"method": "Visible real window, debug build. Open = book.open + ui.wait; scrolling = 48 input.scroll CLI/bridge round trips, forward and back. Includes process/IPC overhead; not layout/paint or presented frame time.", "system": platform.system(), "architecture": platform.machine(), "cases": []}
-    for seed, version in (("heavy", 4),):
+    # Debug bridge state `/book/version` reflects `Snapshot::V3` (3) until the post-v4 suffix rename.
+    for seed, version in (("heavy", 3),):
         report["cases"].append(run_case(args.cli.resolve(), args.app.resolve(), args.out.resolve() / seed, seed, version))
     (args.out / "measurement.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

@@ -35,7 +35,7 @@ fn call(ws: &Workspace, name: &str, input: Value) -> Value {
 #[test]
 fn leaf_manifest_roundtrips_all_types_names_and_fractional_order() {
     let (_dir, ws, book) = seed();
-    let mut t = model::blank("leaf", "Synthetic template".into());
+    let mut t = model::blank("Synthetic template".into());
     t.mark = Some("future-mark".into());
     for kind in model::MODULES.iter().chain(model::FIELDS) {
         model::add_module(&mut t, model::module(kind, format!("Synthetic {kind}")));
@@ -67,7 +67,7 @@ fn leaf_manifest_roundtrips_all_types_names_and_fractional_order() {
 #[test]
 fn removal_keeps_entry_values_and_multiple_prose_documents() {
     let (_dir, ws, book) = seed();
-    let mut t = model::blank("leaf", "Synthetic template".into());
+    let mut t = model::blank("Synthetic template".into());
     for kind in ["prose", "text", "prose"] {
         model::add_module(&mut t, model::module(kind, kind.into()));
     }
@@ -141,7 +141,7 @@ fn concurrent_disjoint_edits_merge_and_overlapping_edits_refuse() {
 
 #[test]
 fn concurrent_module_deletion_cannot_hide_another_authors_edit() {
-    let mut t = model::blank("leaf", "Synthetic".into());
+    let mut t = model::blank("Synthetic".into());
     model::add_module(&mut t, model::module("text", "Synthetic".into()));
     let mut mine = t.clone();
     mine.modules.clear();
@@ -153,7 +153,7 @@ fn concurrent_module_deletion_cannot_hide_another_authors_edit() {
 #[test]
 fn moving_between_equal_position_keys_never_drops_a_module() {
     let (_dir, ws, book) = seed();
-    let mut template = model::blank("leaf", "Synthetic tied positions".into());
+    let mut template = model::blank("Synthetic tied positions".into());
     for kind in ["prose", "text", "kv"] {
         let mut module = model::module(kind, kind.into());
         module.pos = Some("a0".into());
@@ -185,19 +185,23 @@ fn moving_between_equal_position_keys_never_drops_a_module() {
 #[test]
 fn resetting_nullable_settings_merges_an_unrelated_remote_setting() {
     let (_dir, ws, book) = seed();
-    let mut template = model::blank("level", "Synthetic inheritance".into());
+    let mut template = model::blank("Synthetic inheritance".into());
+    template.level = true;
     template.settings.default_template = Some(None);
     template.settings.home = Some(None);
+    template.settings.lane = Some(true);
     let template = model::save(&ws, &book, None, &template).unwrap();
     let mut mine = template.clone();
     mine.settings.default_template = None;
     mine.settings.home = None;
+    mine.settings.lane = None;
     let mut remote = template.clone();
     remote.settings.display = Some("grid".into());
     model::save(&ws, &book, Some(&template), &remote).unwrap();
     let merged = model::save(&ws, &book, Some(&template), &mine).unwrap();
     assert_eq!(merged.settings.default_template, None);
     assert_eq!(merged.settings.home, None);
+    assert_eq!(merged.settings.lane, None);
     assert_eq!(merged.settings.display.as_deref(), Some("grid"));
     assert_eq!(
         templates(&ws, &book)
@@ -211,14 +215,16 @@ fn resetting_nullable_settings_merges_an_unrelated_remote_setting() {
 #[test]
 fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
     let (_dir, ws, book) = seed();
-    let home_template = model::blank("level", "Synthetic residence".into());
+    let mut home_template = model::blank("Synthetic residence".into());
+    home_template.level = true;
     let home_template = model::save(&ws, &book, None, &home_template).unwrap();
     let home = call(
         &ws,
         "entry.create",
         json!({"book":book,"title":"Synthetic home","template":home_template.id}),
     );
-    let mut template = model::blank("level", "Synthetic lane".into());
+    let mut template = model::blank("Synthetic lane".into());
+    template.level = true;
     for kind in model::FIELDS.iter().copied().chain(["kv"]) {
         model::add_module(&mut template, model::module(kind, kind.into()));
     }
@@ -285,7 +291,8 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
 #[test]
 fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write() {
     let (_dir, ws, book) = seed();
-    let mut template = model::blank("level", "Synthetic actions".into());
+    let mut template = model::blank("Synthetic actions".into());
+    template.level = true;
     let saved = model::save(&ws, &book, None, &template).unwrap();
     let action = TemplateVerb {
         id: dr_model::id::new_uuid_v7(),
@@ -314,7 +321,7 @@ fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write()
     let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
     assert_eq!(saved.verbs[0].id, action.id);
     assert_eq!(saved.verbs[0].description, action.description);
-    let target = model::blank("leaf", "Synthetic action target".into());
+    let target = model::blank("Synthetic action target".into());
     let target = model::save(&ws, &book, None, &target).unwrap();
     template.verbs[0].target_template = Some(target.id.clone());
     let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
@@ -332,5 +339,209 @@ fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write()
     template.verbs.clear();
     let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
     assert!(saved.verbs.is_empty());
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn default_level_switch_collapses_without_erasing_settings_and_never_mutates_existing_entries() {
+    let (_dir, ws, book) = seed();
+    let mut template = model::blank("Synthetic switchable template".into());
+    template.level = true;
+    template.settings.lane = Some(true);
+    template.settings.display = Some("board".into());
+    template.settings.default_template = Some(Some("tpl-chapter".into()));
+    template.verbs.push(TemplateVerb {
+        id: dr_model::id::new_uuid_v7(),
+        name: "Synthetic level action".into(),
+        description: "Synthetic action kept while collapsed".into(),
+        target_template: Some("tpl-chapter".into()),
+        pos: Some("a0".into()),
+    });
+    let saved_on = model::save(&ws, &book, None, &template).unwrap();
+    assert!(saved_on.level);
+
+    let entry_a = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"title":"Synthetic created while on","template":saved_on.id}),
+    );
+    assert_eq!(entry_a["level"], true);
+    let get_a = call(&ws, "entry.get", json!({"book":book,"id":entry_a["id"]}));
+    assert_eq!(get_a["below"]["settings"]["lane"], true);
+    assert_eq!(get_a["below"]["settings"]["display"], "board");
+
+    // Turning off the template's default level switch keeps stored settings and
+    // actions, and never retrofits existing entries.
+    let mut collapsed = saved_on.clone();
+    collapsed.level = false;
+    let saved_off = model::save(&ws, &book, Some(&saved_on), &collapsed).unwrap();
+    assert!(!saved_off.level);
+    assert_eq!(saved_off.settings.lane, Some(true));
+    assert_eq!(saved_off.settings.display.as_deref(), Some("board"));
+    assert_eq!(saved_off.verbs.len(), 1);
+
+    let get_a_after = call(&ws, "entry.get", json!({"book":book,"id":entry_a["id"]}));
+    assert_eq!(get_a_after["level"], true);
+    assert_eq!(get_a_after["below"]["settings"]["lane"], true);
+    assert_eq!(get_a_after["below"]["settings"]["display"], "board");
+
+    let entry_b = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"title":"Synthetic created while off","template":saved_off.id}),
+    );
+    assert_eq!(entry_b["level"], false);
+    let get_b = call(&ws, "entry.get", json!({"book":book,"id":entry_b["id"]}));
+    assert!(get_b["below"].is_null());
+
+    // Re-enabling the template's default level switch leaves entry B untouched.
+    let mut reopened = saved_off.clone();
+    reopened.level = true;
+    let saved_reopened = model::save(&ws, &book, Some(&saved_off), &reopened).unwrap();
+    assert!(saved_reopened.level);
+    let get_b_after = call(&ws, "entry.get", json!({"book":book,"id":entry_b["id"]}));
+    assert_eq!(get_b_after["level"], false);
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn prose_in_book_children_module_and_linkable_govern_manuscript_and_autolinks() {
+    let (_dir, ws, book) = seed();
+    let (manuscript_id, category_id) = {
+        let copy = ws.library().load_copy(&format!("book:{book}")).unwrap();
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &book.parse().unwrap()).unwrap();
+        let entries = borrowed.view().entries();
+        let manuscript = entries
+            .iter()
+            .find(|e| e.template.as_ref().map(|t| t.as_str()) == Some("tpl-manuscript"))
+            .unwrap()
+            .id
+            .to_string();
+        let category = entries
+            .iter()
+            .find(|e| e.template.as_ref().map(|t| t.as_str()) == Some("tpl-category"))
+            .unwrap()
+            .id
+            .to_string();
+        (manuscript, category)
+    };
+
+    let mut template = model::blank("Synthetic dual prose".into());
+    template.linkable = false;
+    let body = model::module("prose", "Synthetic body".into());
+    let body_id = body.id.clone();
+    model::add_module(&mut template, body);
+    let children = model::module("children", "Synthetic entries below".into());
+    let children_id = children.id.clone();
+    model::add_module(&mut template, children);
+    let mut notes = model::module("prose", "Synthetic private notes".into());
+    notes.config.in_book = false;
+    let notes_id = notes.id.clone();
+    model::add_module(&mut template, notes);
+
+    let saved = model::save(&ws, &book, None, &template).unwrap();
+    assert!(!saved.linkable);
+    assert_eq!(saved.modules[1].id, children_id);
+    assert_eq!(saved.modules[1].kind, "children");
+    assert!(saved.modules[0].config.in_book);
+    assert!(!saved.modules[2].config.in_book);
+
+    let chapter = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":manuscript_id,"title":"Synthetic dual chapter","template":saved.id}),
+    );
+    let chapter_id = chapter["id"].as_str().unwrap().to_string();
+    call(
+        &ws,
+        "module.set_prose",
+        json!({"book":book,"owner":chapter_id,"module":body_id,"paragraphs":[{"text":"Synthetic counted prose"}]}),
+    );
+    call(
+        &ws,
+        "module.set_prose",
+        json!({"book":book,"owner":chapter_id,"module":notes_id,"paragraphs":[{"text":"Synthetic uncounted notes"}]}),
+    );
+
+    let manuscript_prose_for = |ws: &Workspace, book: &str, entry_id: &str| -> Vec<String> {
+        let copy = ws.library().load_copy(&format!("book:{book}")).unwrap();
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &book.parse().unwrap()).unwrap();
+        let view = borrowed.view();
+        let snapshot = view.structure_snapshot();
+        snapshot
+            .manuscript()
+            .into_iter()
+            .flat_map(|part| {
+                part.entries
+                    .into_iter()
+                    .filter(|e| e.entry.id.as_str() == entry_id)
+                    .flat_map(|e| {
+                        e.prose
+                            .into_iter()
+                            .map(|p| p.module.to_string())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    };
+    assert_eq!(
+        manuscript_prose_for(&ws, &book, &chapter_id),
+        vec![body_id.clone()]
+    );
+
+    let mut flipped = saved.clone();
+    flipped.modules[0].config.in_book = false;
+    flipped.modules[2].config.in_book = true;
+    let saved = model::save(&ws, &book, Some(&saved), &flipped).unwrap();
+    assert_eq!(
+        manuscript_prose_for(&ws, &book, &chapter_id),
+        vec![notes_id]
+    );
+
+    // Linkable governs auto-link name participation and uniqueness checks.
+    let _existing = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":category_id,"title":"Synthetic Shared Autolink","template":"tpl-character"}),
+    );
+    let custom_entry = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":category_id,"title":"Synthetic Shared Autolink","template":saved.id}),
+    );
+    let custom_entry_id: dr_model::id::EntryId =
+        custom_entry["id"].as_str().unwrap().parse().unwrap();
+
+    let is_linked = |ws: &Workspace, book: &str, id: &dr_model::id::EntryId| -> bool {
+        let copy = ws.library().load_copy(&format!("book:{book}")).unwrap();
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &book.parse().unwrap()).unwrap();
+        let view = borrowed.view();
+        let entries: std::collections::BTreeMap<_, _> = view
+            .entries()
+            .into_iter()
+            .map(|e| (e.id.clone(), e))
+            .collect();
+        let names = dr_model::v3::AutolinkNames::of(
+            &entries,
+            &view.memberships_raw(),
+            &view.templates_map(),
+        );
+        names.is_linked(id)
+    };
+    assert!(!is_linked(&ws, &book, &custom_entry_id));
+
+    let mut make_linkable = saved.clone();
+    make_linkable.linkable = true;
+    assert!(model::save(&ws, &book, Some(&saved), &make_linkable).is_err());
+
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":custom_entry_id.as_str(),"title":"Synthetic Unique Autolink"}),
+    );
+    let saved = model::save(&ws, &book, Some(&saved), &make_linkable).unwrap();
+    assert!(saved.linkable);
+    assert!(is_linked(&ws, &book, &custom_entry_id));
     ws.shutdown().unwrap();
 }

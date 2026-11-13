@@ -390,11 +390,11 @@
       }
     },
     "v3": {
-      "destination": "Une bibliothèque v3 distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
+      "destination": "Une nouvelle bibliothèque distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
       "pending": "Choix de correspondance requis avant l’import",
       "start": "Importer dans une nouvelle bibliothèque",
-      "switching": "Ouverture de la bibliothèque v3 terminée",
-      "title": "Réimporter en v3"
+      "switching": "Ouverture de la bibliothèque terminée",
+      "title": "Réimporter dans une nouvelle bibliothèque"
     }
   },
   "importDialog": {
@@ -1470,6 +1470,7 @@
     "aliases": "Alias",
     "auto_link": "Liens automatiques",
     "board": "Tableau",
+    "children": "Entrées ci-dessous",
     "choose_template": "Choisir un modèle",
     "color": "Couleur",
     "conflict": "Le modèle a été modifié ailleurs",
@@ -1488,15 +1489,15 @@
     "grid": "Grille",
     "home": "Emplacement des nouvelles entrées",
     "image": "Image",
+    "in_book": "Compter les mots et exporter",
     "inherit": "Hériter",
     "instructions": "Consignes",
     "island": "Îles",
     "kv": "Table clé-valeur",
     "lane": "Couloir",
-    "leaf": "Feuille",
-    "leaf_template": "Modèle de feuille",
     "level": "Niveau",
-    "level_template": "Modèle de niveau",
+    "level_hint": "Activé, des entrées peuvent se trouver dessous",
+    "linkable": "Inclure le nom dans les liens automatiques",
     "list": "Liste",
     "long_text": "Texte long",
     "manuscript": "Manuscrit",

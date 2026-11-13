@@ -1,5 +1,5 @@
 {
-  "about": "K5 公共 StructureContext 预览：副屏 lite 冒烟，新建未使用的叶子草稿、说明与模块身份、预览不写回、保存后重开。",
+  "about": "K5 公共 StructureContext 预览：副屏 lite 冒烟，新建未使用的模板草稿、说明与模块身份、预览不写回、保存后重开。",
   "steps": [
     {
       "seed": "lite"
@@ -104,13 +104,6 @@
       "app": "ui.press",
       "params": {
         "label": "New template"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Leaf template",
-        "role": "MenuItem"
       }
     },
     {

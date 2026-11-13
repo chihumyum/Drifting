@@ -598,6 +598,19 @@ fn library_without_act_drift_imports_with_default_choices(cx: &mut TestAppContex
 fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_or_paths() {
     use dr_i18n::{I18n, Locale, Platform, keys};
     let en = I18n::new(Locale::En, Platform::Mac);
+    let banned = [
+        "MappingChoices",
+        "reimport-v3-",
+        "reimport-v4-",
+        "v2",
+        "v3",
+        "层级模板",
+        "叶子模板",
+        "层级模版",
+        "叶子模版",
+        "leaf template",
+        "level template",
+    ];
     for locale in Locale::ALL {
         let i18n = I18n::new(locale, Platform::Mac);
         for key in [
@@ -606,19 +619,26 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
             keys::import::v3::START,
             keys::import::v3::PENDING,
             keys::import::v3::SWITCHING,
+            keys::import::v1::action::DOWNLOAD_LAST_RELEASE,
+            keys::import::v1::action::IMPORT_ANYWAY,
+            keys::import::v1::blocked::GET_LAST_RELEASE,
+            keys::import::v1::blocked::NO_HANDOFF,
+            keys::import::v1::blocked::SYNC,
+            keys::import::v1::blocked::TITLE,
+            keys::import::v1::notice::CARRY_ON,
+            keys::import::v1::summary::ALREADY_IMPORTED,
+            keys::import::v1::summary::ALREADY_IN_LIBRARY,
+            keys::import::v1::summary::CARRIES_ON,
         ] {
             let text = i18n.t(key);
             assert!(!text.is_empty(), "{locale:?} {}", key.name());
-            assert!(
-                !text.contains("MappingChoices"),
-                "{locale:?} {} leaked MappingChoices: {text}",
-                key.name()
-            );
-            assert!(
-                !text.contains("reimport-v4-"),
-                "{locale:?} {} leaked internal target folder: {text}",
-                key.name()
-            );
+            for term in banned {
+                assert!(
+                    !text.to_lowercase().contains(&term.to_lowercase()),
+                    "{locale:?} {} contained retired/internal term {term:?}: {text}",
+                    key.name()
+                );
+            }
             if locale != Locale::En {
                 assert_ne!(
                     text,
@@ -629,4 +649,147 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
             }
         }
     }
+}
+
+#[test]
+fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resume_them() {
+    let (dir, ws) = library();
+    let data = dir.path().to_path_buf();
+    let original = ws.library().paths().root.clone();
+    ws.shutdown().unwrap();
+
+    let old = common::build_v3(true);
+    let source_before = source_files(&old.root);
+    let picked = dr_import_v1::locate::resolve(&old.root).unwrap();
+
+    // Seed an unfinished earlier-format (`reimport-v3-…`) target directory,
+    // manifest, and pending pointer inside the same data directory.
+    let old_v3_id = "reimport-v3-01900000-0000-7000-8000-0000000000a1";
+    let old_v3_dir = data.join(old_v3_id);
+    std::fs::create_dir_all(&old_v3_dir).unwrap();
+    std::fs::write(old_v3_dir.join("library.sqlite"), b"unfinished-v3-sqlite").unwrap();
+    let old_v3_manifest = data.join(format!("{old_v3_id}.json"));
+    let old_v3_job = Destination {
+        data: data.clone(),
+        id: old_v3_id.into(),
+        original: original.clone(),
+        database: picked.database.clone(),
+        source_root: picked.root.clone(),
+        left: picked.left.clone(),
+        choices: common::v3_choices(),
+        completed: false,
+    };
+    std::fs::write(
+        &old_v3_manifest,
+        serde_json::to_vec_pretty(&old_v3_job).unwrap(),
+    )
+    .unwrap();
+    let old_v3_pending = data.join("reimport-v3-pending.json");
+    std::fs::write(&old_v3_pending, serde_json::to_vec(&old_v3_id).unwrap()).unwrap();
+
+    let file_state = |p: &std::path::Path| {
+        let meta = std::fs::metadata(p).unwrap();
+        let bytes = std::fs::read(p).unwrap();
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        (common::sha256_bytes(&bytes), meta.len(), mtime)
+    };
+    let v3_artifacts_before = (
+        source_files(&old_v3_dir),
+        file_state(&old_v3_manifest),
+        file_state(&old_v3_pending),
+    );
+
+    // 1. Startup unfinished check ignores `reimport-v3-pending.json` and leaves it untouched.
+    assert!(Destination::unfinished(&original).unwrap().is_none());
+
+    // 2. Direct attempt to execute an earlier `reimport-v3-…` Destination is refused.
+    let refused = dr_view_import::reimport::import(
+        old_v3_job,
+        VERSION,
+        dr_import_v1::gate::Accept::NOTHING,
+        Default::default(),
+        &mut |_| {},
+    );
+    assert!(matches!(
+        refused,
+        Err(dr_import_v1::ImportError::Invalid(_))
+    ));
+
+    // 3. `prepare` ignores `reimport-v3-pending.json`, allocates a `reimport-v4-…`
+    //    destination, interrupts cleanly, records `reimport-v4-pending.json`, and
+    //    resumes the same `reimport-v4-…` destination to completion.
+    let mut first_v4 = Destination::prepare(&original, &picked).unwrap();
+    assert!(first_v4.id.starts_with("reimport-v4-"));
+    assert_ne!(first_v4.id, old_v3_id);
+    first_v4.set_choices(common::v3_choices()).unwrap();
+
+    let cancel = dr_import_v1::run::Cancel::default();
+    let stopper = cancel.clone();
+    let partial = dr_view_import::reimport::import(
+        first_v4.clone(),
+        VERSION,
+        dr_import_v1::gate::Accept::NOTHING,
+        cancel,
+        &mut |p| {
+            if p.step == dr_import_v1::progress::Step::Bodies && p.done == 1 {
+                stopper.now();
+            }
+        },
+    )
+    .unwrap();
+    let ResultOfImport::Imported {
+        job: partial_job, ..
+    } = partial
+    else {
+        panic!("expected interrupted partial import")
+    };
+    assert!(!partial_job.completed);
+    let found_unfinished = Destination::unfinished(&original)
+        .unwrap()
+        .expect("unfinished v4 job must be surfaced");
+    assert_eq!(found_unfinished.id, first_v4.id);
+
+    let resumed_v4 = Destination::prepare(&original, &picked).unwrap();
+    assert_eq!(resumed_v4.id, first_v4.id);
+    let finished = dr_view_import::reimport::import(
+        resumed_v4,
+        VERSION,
+        dr_import_v1::gate::Accept::NOTHING,
+        Default::default(),
+        &mut |_| {},
+    )
+    .unwrap();
+    let ResultOfImport::Imported {
+        job: completed_job, ..
+    } = finished
+    else {
+        panic!("expected resumed import to complete")
+    };
+    assert!(completed_job.completed);
+    assert_eq!(completed_job.id, first_v4.id);
+
+    // 4. Even if `reimport-v4-pending.json` is tampered to point at `reimport-v3-…`,
+    //    both `unfinished` and `prepare` reject it cleanly without touching old files.
+    std::fs::write(
+        data.join("reimport-v4-pending.json"),
+        serde_json::to_vec(&old_v3_id).unwrap(),
+    )
+    .unwrap();
+    assert!(Destination::unfinished(&original).is_err());
+    assert!(Destination::prepare(&original, &picked).is_err());
+
+    // 5. All `reimport-v3-…` files AND the 0.1 source directory remain byte-for-byte
+    //    and mtime-for-mtime identical!
+    let v3_artifacts_after = (
+        source_files(&old_v3_dir),
+        file_state(&old_v3_manifest),
+        file_state(&old_v3_pending),
+    );
+    assert_eq!(v3_artifacts_after, v3_artifacts_before);
+    assert_eq!(source_files(&old.root), source_before);
 }
