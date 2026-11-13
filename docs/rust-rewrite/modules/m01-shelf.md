@@ -195,3 +195,8 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
 
 1. 打开书时的整窗等待（字海的「Loading」）是外壳的（`open_book` 时按住「等待」），书架这边不用动。
 2. 冷启动：书架的数据现在等窗口建好才开始读。库本来就在自己的线程上和 AppKit 启动同时打开（F6），书架可以在那时就开始读，书卡和第一帧一起出来；机器空闲时用真程序把「进程启动到书卡出现」量一次。
+
+## 统一条目 v4 与小文档分流（2026-11-13，T6）
+
+- **字数与章数走成书序列（[kernel-v4.md](../kernel-v4.md) §7）。** `book.shelf` 的字数和章数只算成书序列（最外层成书层级下按住处先序遍历、排除回收站，只计 `in_book == true` 即「计入字数和导出」打开的正文模块），与右栏统计面板、作品主页和封面的字数一致。
+- **写作日与快照清单分流（[kernel-v4.md](../kernel-v4.md) §8）。** 写作日存在 `stats:<书>`，书架订阅 `WsEvent::Stats`（热力图和书卡近 30 天砂条跟着更新）；条目快照清单存在 `checkpoints:<书>`（`WsEvent::Checkpoints`），存快照点或修剪自动点不会唤醒书架重读（`dr-view-shelf/tests/quiet.rs`、`dr-view-home/tests/quiet.rs`）。

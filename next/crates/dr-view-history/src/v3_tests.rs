@@ -184,3 +184,194 @@ fn modal_owns_keyboard_and_blocks_close_while_writing(cx: &mut TestAppContext) {
     });
     assert_eq!(closed.get(), 1);
 }
+
+fn wait_until(
+    d: &Entity<EntryHistoryDialog>,
+    cx: &mut VisualTestContext,
+    what: &str,
+    done: impl Fn(&EntryHistoryDialog) -> bool,
+) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.run_until_parked();
+        cx.update(|w, cx| {
+            w.simulate_next_frame(cx);
+            w.draw(cx).clear(cx);
+        });
+        if d.read_with(cx, |d, _| !d.busy && done(d)) {
+            return;
+        }
+        assert!(Instant::now() < deadline, "history timed out: {what}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[gpui::test]
+fn checkpoints_refresh_open_dialog_and_thinning_clears_removed_preview(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_dir, ws, target) = setup();
+    let book = target.book.clone();
+    let entry = target.entry.clone();
+    let library = ws.clone();
+    let opened = target.clone();
+    let (d, cx) = cx.add_window_view(move |_, cx| {
+        EntryHistoryDialog::new(
+            library,
+            opened,
+            "History".into(),
+            Locale::En,
+            Platform::Mac,
+            cx,
+        )
+    });
+    wait_until(&d, cx, "initial empty list", |d| {
+        d.points().is_some_and(<[api::Point]>::is_empty)
+    });
+
+    // A checkpoint saved outside the dialog updates the open list on its own.
+    let p1 = ws
+        .run::<api::Create>(&Actor::User, target.clone())
+        .unwrap()
+        .output
+        .id;
+    wait_until(&d, cx, "first checkpoint arrives", |d| {
+        d.points()
+            .is_some_and(|pts| pts.len() == 1 && pts[0].id == p1)
+    });
+
+    // Selecting p1 opens its preview; a newer checkpoint refreshes the list
+    // without closing the preview of p1.
+    d.update(cx, |d, cx| d.select(p1.clone(), cx));
+    settle(&d, cx);
+    assert!(d.read_with(cx, |d, _| {
+        d.preview.as_ref().is_some_and(|p| p.point.id == p1)
+    }));
+
+    call(
+        &ws,
+        "module.set_prose",
+        json!({"book":book,"owner":entry,"module":"mod-prose","paragraphs":[{"text":"Draft two"}]}),
+    );
+    let auto = ws
+        .run::<api::Capture>(
+            &Actor::User,
+            api::CaptureIn {
+                target: target.clone(),
+                reason: api::CaptureReason::Close,
+            },
+        )
+        .unwrap()
+        .output
+        .id;
+    wait_until(
+        &d,
+        cx,
+        "automatic capture arrives while preview is open",
+        |d| {
+            d.points()
+                .is_some_and(|pts| pts.len() == 2 && pts.iter().any(|pt| pt.id == auto))
+        },
+    );
+    assert!(
+        d.read_with(cx, |d, _| {
+            d.preview.as_ref().is_some_and(|p| p.point.id == p1)
+        }),
+        "an un-thinned preview stays open across list refresh"
+    );
+
+    // Select the automatic point, then thin it from checkpoints:<book>: the
+    // open dialog refreshes and drops the stale preview.
+    d.update(cx, |d, cx| d.select(auto.clone(), cx));
+    settle(&d, cx);
+    assert!(d.read_with(cx, |d, _| {
+        d.preview.as_ref().is_some_and(|p| p.point.id == auto)
+    }));
+    let book_id = book.parse().unwrap();
+    let removed = auto.clone();
+    ws.library()
+        .open_doc(&format!("checkpoints:{book}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Command, move |doc| {
+            dr_doc::side::BorrowedCheckpoints::new(doc, &book_id)
+                .unwrap()
+                .txn()
+                .remove_entry_checkpoint(&removed)
+                .unwrap()
+        })
+        .unwrap();
+    wait_until(&d, cx, "thinned point leaves the open dialog", |d| {
+        d.points()
+            .is_some_and(|pts| pts.len() == 1 && pts[0].id == p1)
+    });
+    assert!(
+        d.read_with(cx, |d, _| d.selected.is_none() && d.preview.is_none()),
+        "removing the previewed checkpoint clears its selection and preview"
+    );
+    ws.close();
+}
+
+#[gpui::test]
+fn writing_days_and_other_books_checkpoints_do_not_wake_the_dialog(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_dir, ws, target) = setup();
+    ws.run::<api::Create>(&Actor::User, target.clone()).unwrap();
+    let book = target.book.clone();
+    let library = ws.clone();
+    let (d, cx) = cx.add_window_view(move |_, cx| {
+        EntryHistoryDialog::new(
+            library,
+            target,
+            "History".into(),
+            Locale::En,
+            Platform::Mac,
+            cx,
+        )
+    });
+    wait_until(&d, cx, "initial point loaded", |d| {
+        d.points().is_some_and(|pts| pts.len() == 1)
+    });
+    let before = d.read_with(cx, |d, _| d.reads());
+
+    // Recording writing days in stats:<book> must not wake the history dialog.
+    for words in [240, 510] {
+        call(
+            &ws,
+            "writing_day.record",
+            json!({"book":book,"device":"device-000000000000000000000002","day":"2026-11-12","words":words}),
+        );
+    }
+    // Saving checkpoints in another book must not wake this book's dialog.
+    let other_book = call(&ws, "project.create", json!({"name":"Other"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let other_root = call(&ws, "entry.list", json!({"book":other_book,"all":true}))
+        .as_array()
+        .unwrap()[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    ws.run::<api::Create>(
+        &Actor::User,
+        api::EntryIn {
+            book: other_book,
+            entry: other_root,
+        },
+    )
+    .unwrap();
+
+    for _ in 0..15 {
+        cx.run_until_parked();
+        cx.update(|w, cx| {
+            w.simulate_next_frame(cx);
+            w.draw(cx).clear(cx);
+        });
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(
+        d.read_with(cx, |d, _| d.reads()),
+        before,
+        "neither writing days nor another book's checkpoints make the dialog read again"
+    );
+    ws.close();
+}
