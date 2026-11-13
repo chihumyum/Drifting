@@ -708,8 +708,8 @@ fn build_v3_actions(
                     template: tpl.id.to_string(),
                     verb: verb.id.clone(),
                     message: format!(
-                        "action {:?} on level {:?} ({}) resides in {:?} but level cannot accept target template {}",
-                        verb.name, level.title, level.id, residence, target_id
+                        "action {:?} on level {:?} ({}) resides in {:?} but level does not accept entries from elsewhere",
+                        verb.name, level.title, level.id, residence
                     ),
                 });
                 continue;
