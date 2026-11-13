@@ -180,6 +180,13 @@ impl BookV3 {
     pub fn manuscript_number(&self, id: &str) -> Option<u32> {
         self.ordinals.get(id).copied()
     }
+    /// Whether `id` holds content rather than organising it: its template
+    /// is `linkable` (`kernel-v4.md` §2), and an entry without a template
+    /// counts as content. A content entry is shown as a card whether or not
+    /// its switch is on; only an organising entry is shown as a group.
+    pub fn is_content(&self, id: &str) -> bool {
+        self.entry(id).is_some() && self.template_of(id).is_none_or(|t| t.linkable)
+    }
     /// Metadata for every entry surface. Marks keep the template's vocabulary;
     /// the sand renderer maps the built-in marks to the existing visual family.
     pub fn appearance(&self, id: &str) -> Option<Appearance> {

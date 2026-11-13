@@ -586,6 +586,49 @@ fn v3_manifest_keeps_each_body_and_retained_module_as_a_distinct_target() {
 }
 
 #[test]
+fn without_a_manuscript_the_book_text_is_every_content_entrys_prose_whatever_its_switch() {
+    use dr_doc::v3::novel::{MOD_DESCRIPTION, MOD_PROSE, TPL_IDEA, TPL_IDEAS, TPL_MANUSCRIPT};
+    let f = Fixture::new();
+    let call = |name: &str, input: serde_json::Value| {
+        f.ws.call(&Actor::User, name, input).unwrap()["output"].clone()
+    };
+    let entries = call("entry.list", json!({"book":f.book,"all":true}));
+    let find = |template: &str| {
+        entries
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["template"] == template)
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let (manuscript, ideas, idea) = (find(TPL_MANUSCRIPT), find(TPL_IDEAS), find(TPL_IDEA));
+    call(
+        "entry.update",
+        json!({"book":f.book,"id":manuscript,"overrides":{"is_manuscript":false}}),
+    );
+    call(
+        "entry.set_level",
+        json!({"book":f.book,"id":idea,"level":true}),
+    );
+    f.create(WorkKind::Review);
+    let manifest: std::collections::BTreeSet<String> = f
+        .plan()
+        .manifest
+        .iter()
+        .map(|m| m.target.id.clone())
+        .collect();
+    // An idea is content whether or not its switch is on; the ideas board
+    // organises, so its description is not the book's text.
+    assert!(manifest.contains(&format!("{idea}/{MOD_PROSE}")));
+    assert!(!manifest.contains(&format!("{ideas}/{MOD_DESCRIPTION}")));
+    assert!(!manifest.contains(&format!("{manuscript}/{MOD_DESCRIPTION}")));
+    f.ws.close();
+}
+
+#[test]
 fn write_proof_skips_side_docs_and_retired_about_body() {
     let f = Fixture::new();
     let entries =

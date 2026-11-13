@@ -40,7 +40,10 @@ fn the_shelf_in_one_read() {
         .unwrap()
         .to_string();
     common::acceptance::novel_entry(e.ws(), &b, "tpl-storyline", "Main", None);
-    common::acceptance::novel_entry(e.ws(), &b, "tpl-character", "Anna", None);
+    let anna = common::acceptance::novel_entry(e.ws(), &b, "tpl-character", "Anna", None)["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let id = b.parse().unwrap();
     let h = e
         .ws()
@@ -82,6 +85,23 @@ fn the_shelf_in_one_read() {
     assert_eq!(mine["elements"], 2);
     // Only chapters count (the idea's text does not).
     assert_eq!(mine["words"], 3);
+    // The counts follow what an entry holds, not its switch.
+    for id in [&a, &anna] {
+        e.out(
+            "entry.set_level",
+            json!({"book": b, "id": id, "level": true}),
+        );
+    }
+    let shelf = e.out("book.shelf", json!({}));
+    let switched = shelf
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == b)
+        .unwrap();
+    for count in ["chapters", "storylines", "elements", "words"] {
+        assert_eq!(switched[count], mine[count], "{count}");
+    }
     assert!(mine["created_at"].as_i64().is_some());
     assert!(mine["updated_at"].as_i64().unwrap() >= mine["created_at"].as_i64().unwrap());
     assert_eq!(mine["deleted_at"], Value::Null);
