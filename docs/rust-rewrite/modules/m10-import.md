@@ -1,8 +1,53 @@
 # M10 旧库导入
 
-> 2026-11-10 切换实施更新：GUI 显式 MappingChoices、新目标后台导入、结构化 pending、取消续导／退出排空和目录 checkpoint 已接线。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
+> 2026-11-13 统一条目（内核 v4）更新：0.1 导入目标已切到书格式 4（`reimport-v4-`、内核续传标记 `4:<sha256>`），原四类分组／轨道条目带层级开关（`level = true`），章／构想／要素及合成幕条目不带层级开关（`level = false`），层级说明进入「说明」模块（`in_book = false`），写作日写入独立 `stats:<book>`，`checkpoints:<book>` 仅写创世提交，九语导入对话框与中文摘要文案均已去掉旧模板二分与旧格式号。规范见 [统一条目（内核 v4）](../kernel-v4.md) 与 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
+
+## 内核 v4：统一条目导入收尾（T4，2026-11-13）
+
+### 做了什么（大白话）
+
+1. **0.1 旧库直接导入成统一条目模型（书格式 4）。** 原书稿／构想／要素／故事线四个根、幕分组、构想分组、分类、要素分组、故事线、有幕时顶层创建的「幕」轨道、按需创建的「未归属」泳道都打开条目自己的「层级」开关；章节、构想、要素以及未绑定构想的合成幕条目都关闭「层级」开关。
+2. **说明、写作日与检查点各归其位。** 分类与故事线的旧说明写进条目模板的「说明」正文模块（`body:<entry>/mod-description`，`in_book = false`，不参与成书字数与导出），不再产生单独的 `/about` 文档；写作日写入书旁边的 `stats:<book>`；`checkpoints:<book>` 只写确定性创世提交，不为 0.1 历史编造整条目检查点。
+3. **续传与旧前缀隔离。** 新导入目标目录和待续传指针使用 `reimport-v4-` 前缀，内核级续传标记使用 `4:<sha256>`。此前留下的 `reimport-v3-` 未完成目录、清单与指针原封保留在磁盘上，既不删改也不续传。
+4. **界面与摘要文案切到新模型。** 九种语言的导入对话框（标题、独立新库说明、切换提示）不再把新库称为 `v3` 库；`import-v1/summary.md` 中文摘要改为「旧版正文模板写成了条目模板的初始正文，新建条目照它开头」，不再提旧模板二分。
+
+### 定下的事
+
+- 按 `kernel-v4.md` §10、§11、§14 落地：模板不再二分、条目不再写每条目的允许模板列表（`allow` 已取消）、有幕时复用每本书自带的内置「幕」模板（`TPL_ACT_TRACK`）创建顶层「幕」条目并挂入默认时间线视图顶部。
+- 源 0.1 资料库在首次导入、重复导入跳过、取消与续传全过程中保持只读：字节长度、SHA-256 与文件修改时间（`mtime`）均不变化。
+
+### 接口／存储变化
+
+- `dr-view-import/src/reimport.rs`：目标目录前缀 `reimport-v4-`，待续传指针 `reimport-v4-pending.json`；拒绝非 `reimport-v4-` 身份的目标与篡改指针，保留既有 `reimport-v3-` 文件不动。
+- `dr-import-v1/src/v3.rs`：`mapping_key` 前缀从 `3:` 升为 `4:`，阻止对旧格式中断目录误续传。
+- `dr-import-v1/src/run.rs`、`tables.rs`：每本书落盘前先写入 `stats:<book>` 与仅含创世提交的 `checkpoints:<book>`，再写格式 4 的 `book:<book>`；`writing_day` 归属 `stats-doc`。
+- `dr-i18n/own/*.json`（经 `sync-locales.py` 同步到 `locales/*.json`）与 `dr-import-v1/src/receipt.rs`：更新九语导入对话框文案与 `summary_zh` 模板说明。
+
+### 测试
+
+- `dr-import-v1/tests/v3_import.rs`：
+  - `compare` 逐项核对导入后全部原层级条目 `is_level() == true`、全部章／构想／要素／合成幕条目 `is_level() == false`、四类内置层级模板「说明」模块 `in_book == false`、库内不存在任何 `body:<entry>/about` 文档、`stats:<book>` 写作日一致、`checkpoints:<book>` 为空且版本向量等于创世提交；
+  - `every_inventory_row_imports_into_real_v3_documents_with_history` 在首次导入与重复导入后核对源目录全部文件的哈希、字节数与 `mtime` 不变；
+  - `unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard` 核对零写作日旧书仍写出仅含创世提交的 `stats:<book>` 与 `checkpoints:<book>`、`summary.md` 文案不含退役术语、以及带 `3:` 旧标记的中断目录被拒绝续传且不改动源目录。
+- `dr-view-import/tests/import.rs`：
+  - `reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resume_them` 核对 `reimport-v4-` 中断续传成功，同时同目录下的 `reimport-v3-` 未完成目录、清单、指针与 0.1 源目录的哈希、字节数和 `mtime` 完全不变，且直接调用或篡改指针指向 `reimport-v3-` 均被拒绝；
+  - `reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_or_paths` 核对全部九种语言的导入文案均不含 `v2`、`v3`、旧模板二分词或内部目录前缀。
+
+### 真窗口冒烟
+
+- 在副屏（`DRIFTING_WINDOW_DISPLAY=secondary`）与独立开发 profile 下，使用合成 0.1 夹具（`sample-v3`，《阿Q正传》）驱动真实窗口走完「打开导入就绪对话框 → 点击『导入到新库』 → 完成后书架显示『过去一年 1234 字／在写 1 天』与新书卡片 → 点击『完成』 → 打开导入后的《阿Q正传》核对『幕』／『未归属』／『人物』的 `level = true`、章节与要素的 `level = false`、正文与底部时间线『幕／主线／未归属』三轨渲染 → 正常退出」，22 步全部通过。
+
+### 代码位置
+
+| 路径 | 职责 |
+| --- | --- |
+| `next/crates/dr-samples/src/v3/catalog.rs` | 0.1 书目与历史元数据回放为统一条目（`level`、「说明」模块、内置「幕」模板、伴随侧文档） |
+| `next/crates/dr-import-v1/src/{v3.rs,run.rs,tables.rs,receipt.rs}` | `4:` 续传标记、`stats:<book>`／`checkpoints:<book>` 落盘顺序、`writing_day` 映射与中文摘要 |
+| `next/crates/dr-view-import/src/{reimport.rs,flow.rs,view.rs}` | `reimport-v4-` 独立目标库准备、续传、旧前缀隔离与导入对话框 |
+| `next/crates/dr-i18n/own/*.json` | 九语导入对话框文案源（由 `script/sync-locales.py` 生成 `locales/*.json`） |
+| `next/crates/dr-import-v1/tests/v3_import.rs`、`next/crates/dr-view-import/tests/import.rs` | 统一条目导入、`reimport-v4-` 续传与源库只读永久回归测试 |
 
 ## K3 前半段：旧库的 v3 导入清单（2026-11-09）
 
@@ -809,7 +854,7 @@ cargo xtask check
 
 ## 附：100 张旧表的去向
 
-由 `cargo run -p dr-import-v1 --bin m10-import -- mapping-md` 从 `tables.rs` 生成；测试保证它和已发布迁移建出来的表完全一致，多一张少一张都会失败。去向：`book-doc` 书目文档，`prose-doc` 正文文档，`prose-evidence` 只用来判断缓存新鲜度，`assets` 资源文件，`history` 快照历史，`local` 本机状态（在 `import-v1/receipt.sqlite`），`agent-archive` 帮手对话只读存档，`rebuild` 导入后重建，`drop` 不导入（旧机制，或留在旧库里的记录）。
+由 `cargo run -p dr-import-v1 --bin m10-import -- mapping-md` 从 `tables.rs` 生成；测试保证它和已发布迁移建出来的表完全一致，多一张少一张都会失败。去向：`book-doc` 书目文档，`stats-doc` 统计文档（`stats:<书>`），`prose-doc` 正文文档，`prose-evidence` 只用来判断缓存新鲜度，`assets` 资源文件，`history` 快照历史，`local` 本机状态（在 `import-v1/receipt.sqlite`），`agent-archive` 帮手对话只读存档，`rebuild` 导入后重建，`drop` 不导入（旧机制，或留在旧库里的记录）。
 
 | 旧表 | 去向 | 落到哪里 / 为什么 |
 | --- | --- | --- |
@@ -907,7 +952,7 @@ cargo xtask check
 | `timeline_marker` | book-doc | 书目文档：时间钉 |
 | `workspace_projection_change` | drop | 界面失效提示 |
 | `workspace_projection_clock` | drop | 界面失效提示 |
-| `writing_day` | book-doc | 书目文档：写作日，按（设备，日期） |
+| `writing_day` | stats-doc | 统计文档 stats:<书>：写作日，按（设备，日期） |
 | `yjs_document_revision` | prose-evidence | 每篇的版本号：判断缓存是否最新 |
 | `yjs_document_revision_provenance` | drop | 每个版本由谁写的本机审计 |
 | `yjs_prose_command_receipt` | drop | Agent 幂等回执 |
