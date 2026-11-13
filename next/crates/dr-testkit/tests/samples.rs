@@ -92,12 +92,16 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
         let ms = v
             .root_entry_by_template(&tpl_ms)
             .expect("manuscript root entry");
+        assert_eq!(
+            v.project().book.as_ref().map(|b| &b.root),
+            Some(&dr_model::v3::BookRoot::Entry {
+                entry: ms.id.clone(),
+            })
+        );
         let numbered = v
             .structure_snapshot()
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .filter(|p| p.root.id == ms.id)
-            .flat_map(|p| p.entries)
             .filter(|e| e.ordinal.is_some())
             .count();
         assert_eq!(numbered, chapters, "{name}");

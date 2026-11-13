@@ -261,8 +261,14 @@ id_type!(
     reserved = ['/', ':']
 );
 id_type!(
-    /// A timeline view (时间线视图) in `timeline_views` (`v3`).
+    /// A view (`timeline_views`) in a book document.
     TimelineViewId
+);
+id_type!(
+    /// A left-sidebar tab in `project.tabs`.
+    /// `/` is reserved because history keys address tabs as `tabs/<id>`.
+    TabId,
+    reserved = ['/']
 );
 
 /// The `<entry_id>/<module_id>` payload of a v3 `body:` prose document id.

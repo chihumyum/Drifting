@@ -978,8 +978,7 @@ pub mod v3 {
                     .page
                     .book
                     .v3()
-                    .and_then(|v| v.levels.get(&self.host.level))
-                    .is_some_and(|l| l.settings.is_manuscript)
+                    .is_some_and(|v| v.is_book_root_entry(&self.host.level))
             {
                 let weak = cx.entity().downgrade();
                 root = root.child(

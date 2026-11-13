@@ -12,9 +12,7 @@ fn stale_prose_observation_cannot_anchor_a_comment_to_new_text() {
     let book = &seed.books[0];
     let bid = book.book_id().to_string();
     let view = book.book.view();
-    let entry = view.structure_snapshot().manuscript_entries()[0]
-        .id
-        .to_string();
+    let entry = view.structure_snapshot().book_entries()[0].id.to_string();
     let module = dr_doc::v3::novel::MOD_PROSE;
     let doc = format!("body:{entry}/{module}");
     let book_doc = format!("book:{bid}");
@@ -85,9 +83,7 @@ impl Fixture {
         seed.write_to(&lib).unwrap();
         let book = seed.books[0].book_id().to_string();
         let view = seed.books[0].book.view();
-        let entry = view.structure_snapshot().manuscript_entries()[0]
-            .id
-            .to_string();
+        let entry = view.structure_snapshot().book_entries()[0].id.to_string();
         let doc = format!("body:{entry}/{}", dr_doc::v3::novel::MOD_PROSE);
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         ws.set_auto_links(false);

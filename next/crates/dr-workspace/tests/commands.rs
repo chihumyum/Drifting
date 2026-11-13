@@ -19,9 +19,10 @@ fn books_create_list_update_trash() {
     let b = e.book();
     let list = e.out("book.list", json!({}));
     assert_eq!(ids(&list), std::slice::from_ref(&b));
+    e.call("book.update", json!({"book": b, "name": "Renamed"}));
     e.call(
-        "book.update",
-        json!({"book": b, "name": "Renamed", "word_target": 0, "daily_word_target": 800}),
+        "project.update",
+        json!({"book": b, "word_target": 0, "daily_word_target": 800}),
     );
     let got = e.out("book.get", json!({"book": b}));
     assert_eq!(got["name"], "Renamed");

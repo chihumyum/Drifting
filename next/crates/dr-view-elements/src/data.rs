@@ -91,7 +91,6 @@ pub mod v3 {
             "auto_link",
             "accept",
             "home",
-            "is_manuscript",
             "lane",
             "format_shortcuts",
         ]

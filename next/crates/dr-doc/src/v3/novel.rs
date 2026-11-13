@@ -1,14 +1,16 @@
-//! Built-in novel project template (`小说项目模板`, `docs/rust-rewrite/kernel-v4.md`).
+//! Built-in writing project template (`写书项目模板`, `docs/rust-rewrite/kernel-v5.md`).
 //!
-//! Built-in template IDs and module IDs are stable constants. Every entry ID
-//! (including default root levels `书稿`/`构想`/`要素`/`故事线` and default categories
-//! `人物`/`地点`/`道具`/`组织`) is generated fresh per book so `body:<entry_id>/*`
+//! Built-in template IDs and module IDs are stable constants. Every entry ID,
+//! view ID and tab ID is generated fresh per book so `body:<entry_id>/*`
 //! document IDs are unique across books in a library (`V3-DOCID-LIBRARY-UNIQUE`).
 //!
-//! The templates are copied into a new book and go their own way there: a
-//! later change here never reaches an existing book (author, 2026-11-13).
+//! The project template (`项目定义 + 条目模板 + 起始条目 + 起始视图`) is copied
+//! into a new book and goes its own way there: a later change here never
+//! reaches an existing book (author, 2026-11-13).
 
-use dr_model::id::{EntryId, EntryTemplateId, ModuleId, TimelineViewId};
+use std::collections::{BTreeMap, HashSet};
+
+use dr_model::id::{EntryId, EntryTemplateId, ModuleId, TabId, TimelineViewId};
 use dr_model::pos::PosKey;
 use dr_model::v3::*;
 
@@ -17,7 +19,7 @@ use crate::v3::read::BookViewV3;
 use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
-pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 2;
+pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 3;
 
 // ---- Stable built-in template IDs ----------------------------------------
 
@@ -50,10 +52,11 @@ pub const MOD_PLOT_GRID: &str = "mod-plot-grid";
 pub const MOD_PATCHES: &str = "mod-patches";
 pub const MOD_RELATIONS: &str = "mod-relations";
 
-/// Root and default category entry IDs created by [`apply_novel_project_template`].
+/// Root, default category, view and tab IDs created by [`apply_novel_project_template`].
 ///
-/// Generated fresh per book (`EntryId::new_v7()`, `TimelineViewId::new_v7()`) so
-/// two books in the same library never share `body:<entry_id>/*` document IDs.
+/// Generated fresh per book (`EntryId::new_v7()`, `TimelineViewId::new_v7()`,
+/// `TabId::new_v7()`) so two books in the same library never share `body:<entry_id>/*`
+/// document IDs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NovelRootEntries {
     pub manuscript: EntryId,
@@ -65,6 +68,10 @@ pub struct NovelRootEntries {
     pub cat_item: EntryId,
     pub cat_organization: EntryId,
     pub narrative_view: TimelineViewId,
+    pub tab_manuscript: TabId,
+    pub tab_ideas: TabId,
+    pub tab_elements: TabId,
+    pub tab_storylines: TabId,
 }
 
 impl Default for NovelRootEntries {
@@ -74,7 +81,7 @@ impl Default for NovelRootEntries {
 }
 
 impl NovelRootEntries {
-    /// Generate fresh UUIDv7 entry and timeline view IDs for a new novel book.
+    /// Generate fresh UUIDv7 entry, view and tab IDs for a new book.
     pub fn new() -> Self {
         Self {
             manuscript: EntryId::new_v7(),
@@ -86,6 +93,10 @@ impl NovelRootEntries {
             cat_item: EntryId::new_v7(),
             cat_organization: EntryId::new_v7(),
             narrative_view: TimelineViewId::new_v7(),
+            tab_manuscript: TabId::new_v7(),
+            tab_ideas: TabId::new_v7(),
+            tab_elements: TabId::new_v7(),
+            tab_storylines: TabId::new_v7(),
         }
     }
 }
@@ -194,7 +205,6 @@ pub fn act_track_template() -> EntryTemplate {
             auto_link: Some(false),
             accept: Some(true),
             home: None,
-            is_manuscript: Some(false),
             format_shortcuts: Some(FormatShortcuts::Notes),
             lane: Some(true),
         },
@@ -275,6 +285,7 @@ fn element_template(id_str: &str, name: &str, description: &str) -> EntryTemplat
                 config: ModuleConfig {
                     show_outline: true,
                     task_todos: true,
+                    in_book: false,
                     ..ModuleConfig::default()
                 },
                 agent: agent_instructions("设定详述正文，内联标题 H1/H2/H3 含义由作者自定。"),
@@ -304,7 +315,17 @@ fn element_template(id_str: &str, name: &str, description: &str) -> EntryTemplat
     }
 }
 
-/// All built-in [`EntryTemplate`] definitions of the novel project template,
+/// Whole-project Agent instructions for the built-in writing project template
+/// (`project.agent`, moved out of `tpl-manuscript` per `kernel-v5.md` §2).
+pub fn novel_project_agent() -> TemplateAgentConfig {
+    TemplateAgentConfig {
+        name: "写书".into(),
+        description: "以成书为目标的小说或长篇写作项目。".into(),
+        instructions: "这是一个写书项目。默认结构是书稿 / 章 / H1 / H2 / H3；成书序列从项目设定的成书起点读取（默认起点是「书稿」文件夹），幕不内置，作者添加的层级由作者命名。H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有成书正文、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复开放批注或重提已定事项；帮手或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
+    }
+}
+
+/// All built-in [`EntryTemplate`] definitions of the writing project template,
 /// in deterministic ID order.
 pub fn novel_project_templates() -> Vec<EntryTemplate> {
     let ch_mod_pos = pos_chain(3);
@@ -315,7 +336,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
     let sl_field_pos = pos_chain(2);
 
     let mut templates = vec![
-        // 1. 书稿 (switch on, manuscript = true)
+        // 1. 书稿 (switch on, default chapters folder)
         EntryTemplate {
             id: tid(TPL_MANUSCRIPT),
             name: "书稿".into(),
@@ -323,8 +344,8 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "书稿".into(),
-                description: "小说成书所在的顶层层级，下面的章按文稿顺序组成成书。".into(),
-                instructions: "这是一部小说。默认大纲是书稿 / 章 / H1 / H2 / H3；幕不内置，作者添加的层级由作者命名。书稿下的章按树上顺序组成书，H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有书稿、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复开放待办或重提已定事项；帮手或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
+                description: "存放章节与分卷的文件夹层级。".into(),
+                instructions: "下面的条目按文件夹手动先后排列；正文进不进成书由正文模块上的开关决定。".into(),
             }),
             modules: with_description(Vec::new()),
             level: true,
@@ -335,7 +356,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
-                is_manuscript: Some(true),
                 format_shortcuts: Some(FormatShortcuts::Plain),
                 lane: None,
             },
@@ -368,7 +388,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
-                is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
                 lane: None,
             },
@@ -422,7 +441,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
-                is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
                 lane: None,
             },
@@ -455,7 +473,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 auto_link: Some(true),
                 accept: Some(true),
                 home: None,
-                is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
                 lane: None,
             },
@@ -500,7 +517,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 auto_link: Some(false),
                 accept: Some(false),
                 home: None,
-                is_manuscript: Some(false),
                 format_shortcuts: Some(FormatShortcuts::Notes),
                 lane: None,
             },
@@ -574,7 +590,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 auto_link: None,
                 accept: Some(true),
                 home: None,
-                is_manuscript: Some(false),
                 format_shortcuts: None,
                 lane: Some(true),
             },
@@ -714,6 +729,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     config: ModuleConfig {
                         show_outline: false,
                         task_todos: true,
+                        in_book: false,
                         ..ModuleConfig::default()
                     },
                     agent: agent_instructions("构想草稿正文。区分未定想法和已确认内容；访谈时让作者决定，创作或改写时遵循本轮要求。"),
@@ -780,6 +796,22 @@ pub fn find_novel_roots(view: &BookViewV3<'_>) -> Option<NovelRootEntries> {
     let cat_item = find_cat(TPL_ITEM)?;
     let cat_organization = find_cat(TPL_ORGANIZATION)?;
     let narrative_view = view.timeline_views().into_iter().next()?.id;
+    let tabs = view.project().tabs;
+    let find_tab = |entry: &EntryId| -> TabId {
+        tabs.iter()
+            .find(|t| {
+                t.mount
+                    == TabMount::Entry {
+                        entry: entry.clone(),
+                    }
+            })
+            .map(|t| t.id.clone())
+            .unwrap_or_else(TabId::new_v7)
+    };
+    let tab_manuscript = find_tab(&manuscript);
+    let tab_ideas = find_tab(&ideas);
+    let tab_elements = find_tab(&elements);
+    let tab_storylines = find_tab(&storylines);
 
     Some(NovelRootEntries {
         manuscript,
@@ -791,86 +823,221 @@ pub fn find_novel_roots(view: &BookViewV3<'_>) -> Option<NovelRootEntries> {
         cat_item,
         cat_organization,
         narrative_view,
+        tab_manuscript,
+        tab_ideas,
+        tab_elements,
+        tab_storylines,
     })
 }
 
-/// Copy the built-in novel project template (`templates`, root level entries
-/// `书稿`/`构想`/`要素`/`故事线`, default categories `人物`/`地点`/`道具`/`组织`,
-/// and the default timeline view `叙事时间线`) into `txn`, generating fresh
-/// UUIDv7 entry and timeline view IDs (or reusing the book's existing novel
-/// roots if already initialized).
-pub fn apply_novel_project_template(txn: &mut BookTxnV3<'_>) -> Result<NovelRootEntries> {
-    let ids = find_novel_roots(&txn.view()).unwrap_or_default();
-    apply_novel_project_template_with(txn, ids)
+/// Build the built-in writing [`ProjectTemplate`] with fresh UUIDv7 IDs.
+pub fn novel_project_template() -> ProjectTemplate {
+    novel_project_template_with(&NovelRootEntries::new())
 }
 
-/// Copy the built-in novel project template into `txn` using the caller-provided
-/// `ids` (for deterministic test seeds or idempotent re-application).
-pub fn apply_novel_project_template_with(
-    txn: &mut BookTxnV3<'_>,
-    ids: NovelRootEntries,
-) -> Result<NovelRootEntries> {
-    txn.meta().project_template(Some(&ProjectTemplateRef {
-        id: NOVEL_PROJECT_TEMPLATE_ID.into(),
-        version: NOVEL_PROJECT_TEMPLATE_VERSION,
-    }))?;
-
-    for mut tpl in novel_project_templates() {
+/// Build the built-in writing [`ProjectTemplate`] using caller-supplied `ids`
+/// (`kernel-v5.md` §2, §3, §5 & §15).
+pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
+    let mut templates = novel_project_templates();
+    for tpl in &mut templates {
         if tpl.id.as_str() == TPL_STORYLINE {
             tpl.settings.home = Some(Some(ids.manuscript.clone()));
         }
-        txn.template(&tpl.id)?.set_full(&tpl)?;
     }
-
-    let existing_entries: std::collections::HashSet<EntryId> =
-        txn.view().entries_raw().into_iter().map(|e| e.id).collect();
-    let ensure_level = |txn: &mut BookTxnV3<'_>,
-                        id: &EntryId,
-                        parent: Option<&EntryId>,
-                        title: &str,
-                        tpl: &str|
-     -> Result<()> {
-        let tpl_id = tid(tpl);
-        if !existing_entries.contains(id) {
-            txn.entries()
-                .create(id, parent, title, Some(&tpl_id), true)?;
-        }
-        Ok(())
+    let tab_pos = pos_chain(4);
+    let tabs = vec![
+        ProjectTab {
+            id: ids.tab_manuscript.clone(),
+            name: "书稿".into(),
+            pos: Some(tab_pos[0].clone()),
+            mount: TabMount::Entry {
+                entry: ids.manuscript.clone(),
+            },
+        },
+        ProjectTab {
+            id: ids.tab_ideas.clone(),
+            name: "构想".into(),
+            pos: Some(tab_pos[1].clone()),
+            mount: TabMount::Entry {
+                entry: ids.ideas.clone(),
+            },
+        },
+        ProjectTab {
+            id: ids.tab_elements.clone(),
+            name: "要素".into(),
+            pos: Some(tab_pos[2].clone()),
+            mount: TabMount::Entry {
+                entry: ids.elements.clone(),
+            },
+        },
+        ProjectTab {
+            id: ids.tab_storylines.clone(),
+            name: "故事线".into(),
+            pos: Some(tab_pos[3].clone()),
+            mount: TabMount::Entry {
+                entry: ids.storylines.clone(),
+            },
+        },
+    ];
+    let project = ProjectDefinition {
+        source: Some(ProjectTemplateRef {
+            id: NOVEL_PROJECT_TEMPLATE_ID.into(),
+            version: NOVEL_PROJECT_TEMPLATE_VERSION,
+        }),
+        agent: Some(novel_project_agent()),
+        book: Some(ProjectBook {
+            root: BookRoot::Entry {
+                entry: ids.manuscript.clone(),
+            },
+            word_target_set: None,
+            daily_word_target_set: None,
+        }),
+        tabs,
     };
 
-    ensure_level(txn, &ids.manuscript, None, "书稿", TPL_MANUSCRIPT)?;
-    ensure_level(txn, &ids.ideas, None, "构想", TPL_IDEAS)?;
-    ensure_level(txn, &ids.elements, None, "要素", TPL_ELEMENTS)?;
-    ensure_level(txn, &ids.storylines, None, "故事线", TPL_STORYLINES)?;
-
     let fmod = mid(MOD_FIELDS);
+    let mut entries = vec![
+        ProjectSeedEntry {
+            id: ids.manuscript.clone(),
+            parent: None,
+            title: "书稿".into(),
+            template: Some(tid(TPL_MANUSCRIPT)),
+            level: true,
+            overrides: None,
+            fields: BTreeMap::new(),
+        },
+        ProjectSeedEntry {
+            id: ids.ideas.clone(),
+            parent: None,
+            title: "构想".into(),
+            template: Some(tid(TPL_IDEAS)),
+            level: true,
+            overrides: None,
+            fields: BTreeMap::new(),
+        },
+        ProjectSeedEntry {
+            id: ids.elements.clone(),
+            parent: None,
+            title: "要素".into(),
+            template: Some(tid(TPL_ELEMENTS)),
+            level: true,
+            overrides: None,
+            fields: BTreeMap::new(),
+        },
+        ProjectSeedEntry {
+            id: ids.storylines.clone(),
+            parent: None,
+            title: "故事线".into(),
+            template: Some(tid(TPL_STORYLINES)),
+            level: true,
+            overrides: None,
+            fields: BTreeMap::new(),
+        },
+    ];
     for (cat_id, title, element_tpl, color) in [
         (&ids.cat_character, "人物", TPL_CHARACTER, "#C86D51"),
         (&ids.cat_location, "地点", TPL_LOCATION, "#4F7C6B"),
         (&ids.cat_item, "道具", TPL_ITEM, "#B38B45"),
         (&ids.cat_organization, "组织", TPL_ORGANIZATION, "#5B6E94"),
     ] {
-        if !existing_entries.contains(cat_id) {
-            let cat_tpl = tid(TPL_CATEGORY);
-            let element_tid = tid(element_tpl);
-            let w =
-                txn.entries()
-                    .create(cat_id, Some(&ids.elements), title, Some(&cat_tpl), true)?;
-            w.overrides(Some(&LevelSettingsOverride {
-                default_template: Some(Some(element_tid)),
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            fmod.clone(),
+            BTreeMap::from([("color".into(), FieldValue::Text(color.into()))]),
+        );
+        entries.push(ProjectSeedEntry {
+            id: cat_id.clone(),
+            parent: Some(ids.elements.clone()),
+            title: title.into(),
+            template: Some(tid(TPL_CATEGORY)),
+            level: true,
+            overrides: Some(LevelSettingsOverride {
+                default_template: Some(Some(tid(element_tpl))),
                 ..LevelSettingsOverride::default()
-            }))?
-            .set_field(
-                &fmod,
-                "color",
-                Some(&FieldValue::Text(color.to_string())),
-            )?;
-        }
+            }),
+            fields,
+        });
     }
 
-    txn.timeline_view(&ids.narrative_view)?
-        .name("叙事时间线")?
-        .pos(Some(&PosKey::first()))?;
+    let views = vec![TimelineView {
+        id: ids.narrative_view.clone(),
+        name: "叙事时间线".into(),
+        pos: Some(PosKey::first()),
+        lanes: Vec::new(),
+        placements: Vec::new(),
+        pins: Vec::new(),
+        deleted_at: None,
+    }];
 
+    ProjectTemplate {
+        project,
+        templates,
+        entries,
+        views,
+    }
+}
+
+/// Apply any [`ProjectTemplate`] (`project` definition, `templates`, initial
+/// `entries` and initial `views`) into `txn`.
+pub fn apply_project_template(txn: &mut BookTxnV3<'_>, pt: &ProjectTemplate) -> Result<()> {
+    txn.project().set_full(&pt.project)?;
+    for tpl in &pt.templates {
+        txn.template(&tpl.id)?.set_full(tpl)?;
+    }
+    let existing_entries: HashSet<EntryId> =
+        txn.view().entries_raw().into_iter().map(|e| e.id).collect();
+    for entry in &pt.entries {
+        if existing_entries.contains(&entry.id) {
+            continue;
+        }
+        let w = txn.entries().create(
+            &entry.id,
+            entry.parent.as_ref(),
+            &entry.title,
+            entry.template.as_ref(),
+            entry.level,
+        )?;
+        if entry.overrides.is_some() {
+            w.overrides(entry.overrides.as_ref())?;
+        }
+        for (mod_id, map) in &entry.fields {
+            for (field, val) in map {
+                w.set_field(mod_id, field, Some(val))?;
+            }
+        }
+    }
+    for view in &pt.views {
+        let w = txn.timeline_view(&view.id)?;
+        w.name(&view.name)?.pos(view.pos.as_ref())?;
+        for lane in &view.lanes {
+            w.put_lane(&lane.entry, lane.pos.as_ref())?
+                .set_lane_act_track(&lane.entry, lane.act_track)?;
+        }
+        for p in &view.placements {
+            w.put_placement(&p.entry, p.at, p.span)?;
+        }
+        for pin in &view.pins {
+            w.put_pin(pin)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copy the built-in writing project template into `txn`, generating fresh
+/// UUIDv7 entry, view and tab IDs (or reusing the book's existing roots if
+/// already initialized).
+pub fn apply_novel_project_template(txn: &mut BookTxnV3<'_>) -> Result<NovelRootEntries> {
+    let ids = find_novel_roots(&txn.view()).unwrap_or_default();
+    apply_novel_project_template_with(txn, ids)
+}
+
+/// Copy the built-in writing project template into `txn` using the caller-provided
+/// `ids` (for deterministic test seeds or idempotent re-application).
+pub fn apply_novel_project_template_with(
+    txn: &mut BookTxnV3<'_>,
+    ids: NovelRootEntries,
+) -> Result<NovelRootEntries> {
+    let pt = novel_project_template_with(&ids);
+    apply_project_template(txn, &pt)?;
     Ok(ids)
 }

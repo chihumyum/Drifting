@@ -1060,7 +1060,6 @@ fn settings_digest_value(s: &dr_model::v3::LevelSettings) -> Value {
         "auto_link": s.auto_link,
         "accept": s.accept,
         "home": s.home.as_ref().map(ToString::to_string),
-        "is_manuscript": s.is_manuscript,
         "format_shortcuts": format!("{:?}", s.format_shortcuts),
         "lane": s.lane,
     })
@@ -1104,6 +1103,12 @@ fn decode_verb_segment(encoded: &str) -> Option<String> {
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     // Public F3 additions must not bypass the facade's read coverage and
     // restore protocol merely by acquiring a book-scoped input schema.
+    if matches!(
+        spec.name,
+        "project.get" | "project.update" | "tab.put" | "tab.remove" | "tab.move" | "book.sequence"
+    ) {
+        return Some("project, tab, and book sequence commands need T7 facade read coverage");
+    }
     if spec.name.starts_with("entry_snapshot.") {
         return Some("entry snapshots need facade coverage and guarded whole-entry restore wiring");
     }

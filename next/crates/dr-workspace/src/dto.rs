@@ -263,15 +263,15 @@ impl From<&Memory> for MemoryInfo {
     }
 }
 
-impl From<&dr_model::v3::BookMetaV3> for BookInfo {
-    fn from(m: &dr_model::v3::BookMetaV3) -> Self {
+impl BookInfo {
+    pub fn from_book(m: &dr_model::v3::BookMetaV3, p: &dr_model::v3::ProjectDefinition) -> Self {
         BookInfo {
             id: m.id.to_string(),
             name: m.name.clone(),
             summary: m.summary.clone(),
             trashed: m.deleted_at.is_some(),
-            word_target: m.word_target(),
-            daily_word_target: m.daily_word_target(),
+            word_target: p.word_target(),
+            daily_word_target: p.daily_word_target(),
             created_at: m.created_at.map(|t| t.0),
         }
     }

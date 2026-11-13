@@ -605,10 +605,7 @@ fn without_a_manuscript_the_book_text_is_every_content_entrys_prose_whatever_its
             .to_owned()
     };
     let (manuscript, ideas, idea) = (find(TPL_MANUSCRIPT), find(TPL_IDEAS), find(TPL_IDEA));
-    call(
-        "entry.update",
-        json!({"book":f.book,"id":manuscript,"overrides":{"is_manuscript":false}}),
-    );
+    call("project.update", json!({"book":f.book,"has_book":false}));
     call(
         "entry.set_level",
         json!({"book":f.book,"id":idea,"level":true}),

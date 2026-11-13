@@ -326,7 +326,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "关系类型的方向是 directed/symmetric，system_key 只有 generic-association，锁定的才有 system_key",
         [Read, Structure],
         "开放枚举；system_key 和 locked 只由创世写",
-        ["book_genesis_sets_version_4_and_locked_generic_relation_type"]
+        ["book_genesis_sets_version_5_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-DEFINITION",
@@ -354,7 +354,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "每本书有且只有一个内置关系类型，id 是 system:generic-association:<书 id>",
         [Structure],
         "书目文档的创世写它；所有设备的创世字节相同，Loro 去重",
-        ["book_genesis_sets_version_4_and_locked_generic_relation_type"]
+        ["book_genesis_sets_version_5_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-LOCKED",
@@ -792,16 +792,6 @@ pub const INVARIANTS: &[Invariant] = &[
         ["v3_timeline_targets_filter_deleted_entries"]
     ),
     inv!(
-        "V3-MANUSCRIPT-NO-NEST",
-        "成书的层级（开着开关的条目）不嵌套：命令层预防；读取时只认最外层",
-        [Command, Read],
-        "命令层用 dr_model::v3::check_new_violations 比较改前改后的嵌套对（manuscript_nest_pairs），只拒绝这次写入新造成的嵌套；合并冲突下 effective_manuscript_levels 只认最外层，旧的嵌套不挡无关的写入",
-        [
-            "v3_manuscript_levels_never_nest_and_read_outermost",
-            "a_nested_manuscript_a_merge_left_blocks_no_unrelated_write"
-        ]
-    ),
-    inv!(
         "V3-CROSS-DOC-ORDER",
         "v3 跨文档写入的先后：先写正文文档（body: / template:），再写书目文档（book:）",
         [Command],
@@ -831,19 +821,19 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "SIDE-DOC-QUIET",
-        "记写作日、存快照点、修剪快照点都不写书目文档：书目版本不变，不发书目事件",
+        "记写作日（仅在项目开着成书时记）、存快照点、修剪快照点都不写书目文档：书目版本不变，不发书目事件",
         [Command],
-        "writing_day.record 经 Cx::write_stats 只写 stats:<书>；entry_snapshot.* 在原子事务里只把清单写进 checkpoints:<书>，书目只读；工作区给两篇文档各发自己的事件（WsEvent::Stats / Checkpoints）",
+        "writing_day.record 在 project.book 关闭时不记录，开启时经 Cx::write_stats 只写 stats:<书>；entry_snapshot.* 在原子事务里只把清单写进 checkpoints:<书>，书目只读；工作区给两篇文档各发自己的事件（WsEvent::Stats / Checkpoints）",
         [
             "writing_days_and_checkpoints_leave_the_book_document_alone",
             "writing_days_dispatch_by_version_preserve_other_books_and_do_not_enter_undo"
         ]
     ),
     inv!(
-        "BOOK-FORMAT-4-ONLY",
-        "只开 meta.v == 4 的书；别的版本（v3 和更早）原样拒开，不改不删，也不经同步进来",
+        "BOOK-FORMAT-5-ONLY",
+        "只开 meta.v == 5 的书；别的版本（v4 和更早）原样拒开，不改不删，也不经同步进来",
         [Command, Read],
-        "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 4 的书目更新；书文件只读格式 4",
+        "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 5 的书目更新；书文件只读格式 5",
         [
             "a_book_of_format_3_is_refused_as_it_is_and_cannot_arrive_by_sync",
             "old_catalog_and_old_prose_are_refused_without_repair_or_mutation",
@@ -873,24 +863,44 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "MANUSCRIPT-OWN-PROSE-FIRST",
-        "成书序列：从最外层成书层级按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；回收站里的连同下面都不算",
+        "成书序列：文件夹和根起点按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；视图和泳道起点只沿刻度取泳道成员；回收站里的连同下面都不算",
         [Structure, Read],
-        "只有 BookStructureV3::manuscript 算成书序列（导出、全书字数、章节编号都用它），ordinal 只编给有成书正文的条目（哪些不编见 MANUSCRIPT-NUMBER-OUTERMOST-PROSE）",
+        "BookStructureV3::sequence 与 book_sequence 共用同一个读取器（导出、全书字数、章节编号、书架都用它），ordinal 只编给有成书正文的条目（哪些不编见 MANUSCRIPT-NUMBER-OUTERMOST-PROSE）",
         ["the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it"]
     ),
     inv!(
         "MANUSCRIPT-NUMBER-OUTERMOST-PROSE",
-        "章节编号：条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，在成书序列里的位置、导出的内容、全书字数都不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定）；成书层级本身的正文（前言）照旧编号，也不拦住下面的章",
+        "章节编号：条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，在成书序列里的位置、导出的内容、全书字数都不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定）；条目起点本身的正文（前言）照旧编号，也不拦住下面的章",
         [Structure, Read],
-        "BookStructureV3::manuscript 按先序走时记住正在里面的那个有编号条目的深度（成书层级本身深度为 0，不记），回到同一深度或更浅才出来；manuscript_entries 仍按「带成书正文」收，不看编号",
+        "BookStructureV3::sequence 按先序走时记住正在里面的那个有编号条目的深度（BookRoot::Entry 起点本身深度为 0，不记），回到同一深度或更浅才出来；book_entries 仍按「带成书正文」收，不看编号",
         ["entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number"]
     ),
     inv!(
         "FLATTEN-MEMBERS-ONCE",
-        "整书视图带归属摊平：每个层级先住在下面的、再归属进来的（按归属自己的顺序），每个条目只出现一次；成书序列不带归属",
+        "成书序列和整书视图共用同一个读法：文件夹和根起点在每个层级下先走住在下面的、再走归属进来的，每个条目只出现一次",
         [Structure, Read],
-        "BookStructureV3::flatten 的 include_members 用已访问集合挡住重复和环；manuscript() 恒不带归属",
+        "BookStructureV3::sequence 用已访问集合挡住重复和环，整书视图（in_book_only = false）与成书序列（in_book_only = true）是同一个读法",
         ["flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone"]
+    ),
+    inv!(
+        "BOOK-ROOT-VALID",
+        "成书的起点是根，或一个活着的、开着层级的条目，或一个没删的视图，或这个视图里的一条有效泳道：命令层预防；读取时不满足就读作没有成书内容，数据留着",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_book_root 校验起点；读取时 BookStructureV3::book_sequence 在没有成书或起点失效时返回空，不改数据",
+        [
+            "v5_book_root_and_tab_mount_validate_all_four_kinds",
+            "project_book_root_reads_all_four_starts_and_tolerates_missing"
+        ]
+    ),
+    inv!(
+        "TAB-MOUNT-VALID",
+        "Tab 挂的是根、一个活着的开着层级的条目、一个没删的视图，或成书序列（项目开着成书时）：命令层预防；读取时不满足就显示为失效，数据留着",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_tab_mount 校验 Tab 挂载；读取时保留原记录并标出 mount_valid = false",
+        [
+            "v5_book_root_and_tab_mount_validate_all_four_kinds",
+            "project_tabs_mount_four_targets_and_keep_invalid_mounts"
+        ]
     ),
 ];
 
@@ -945,7 +955,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 84;
+pub const ACTIVE_CONTRACTS: usize = 85;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

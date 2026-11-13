@@ -73,7 +73,7 @@ fn main() -> anyhow::Result<()> {
         call(
             "book-write",
             "book.update",
-            json!({"summary":"K6 synthetic window update","word_target":0,"daily_word_target":240}),
+            json!({"summary":"K6 synthetic window update"}),
         ),
         call("entry-read", "entry.get", json!({"id":entry})),
         call(

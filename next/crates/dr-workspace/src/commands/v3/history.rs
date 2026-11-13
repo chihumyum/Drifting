@@ -4,7 +4,7 @@ pub(crate) fn register(r: &mut Registry) {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Key {
-    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory or material_folders.
+    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory, material_folders or project.
     pub collection: String,
     pub id: String,
 }
@@ -98,6 +98,28 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 }
             }
             "material_folders" => {}
+            "project" => {
+                if !matches!(
+                    target.id.as_str(),
+                    "source"
+                        | "agent"
+                        | "book"
+                        | "book/root"
+                        | "book/word_target"
+                        | "book/daily_word_target"
+                ) && !target.id.starts_with("tabs/")
+                {
+                    return Err(WsError::invalid("unsupported project history key"));
+                }
+                if let Some(tab_id) = target.id.strip_prefix("tabs/") {
+                    let _: TabId = pid("tab", tab_id)?;
+                }
+                plans.push(Plan::Map(
+                    CollectionV3::Project,
+                    target.id.clone(),
+                    old.map_snapshot(CollectionV3::Project, &target.id),
+                ));
+            }
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
             | "relations" | "relation_types" | "materials" | "comments" | "facts" | "memory" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
@@ -209,10 +231,13 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
     });
     let book = s.book.clone();
     let restored = Replaces::records(input.targets.iter().filter_map(|target| {
-        Some(rec(
-            CollectionV3::from_root(&target.collection)?,
-            &target.id,
-        ))
+        let c = CollectionV3::from_root(&target.collection)?;
+        if c == CollectionV3::Project
+            && let Some(tab_id) = target.id.strip_prefix("tabs/")
+        {
+            return Some(rec(c, "tabs").at([tab_id]));
+        }
+        Some(rec(c, &target.id))
     }));
     let (_, before) = cx.write_book_v3(&s, restored, move |t| {
         let shared = plans

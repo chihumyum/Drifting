@@ -232,10 +232,14 @@ fn v3_structure_validation_happens_before_writes() {
     );
     assert_eq!(at, version(&e, &b));
     let group = create(&e, &b, &ms, "Group", "tpl-group");
+    e.call(
+        "entry.set_level",
+        json!({"book":b,"id":group,"level":false}),
+    );
     assert!(
         e.try_call(
-            "entry.update",
-            json!({"book":b,"id":group,"overrides":{"is_manuscript":true}})
+            "project.update",
+            json!({"book":b,"root":{"kind":"entry","entry":group}})
         )
         .is_err()
     );
@@ -918,7 +922,7 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
     for row in &levels {
         let single = get(&e, &b, row["id"].as_str().unwrap());
         assert_eq!(row["below"], single["below"]);
-        assert_eq!(row["below"]["sources"].as_object().unwrap().len(), 8);
+        assert_eq!(row["below"]["sources"].as_object().unwrap().len(), 7);
     }
     // Without `below`, nothing below.
     assert!(
@@ -935,7 +939,7 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
         json!({"kind":"override","entry":group})
     );
     assert_eq!(
-        g["below"]["sources"]["is_manuscript"],
+        g["below"]["sources"]["display"],
         json!({"kind":"template","entry":ms,"template":"tpl-manuscript"})
     );
     assert_eq!(g["below"]["children"][0]["title"], "One");

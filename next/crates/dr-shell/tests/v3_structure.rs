@@ -48,7 +48,7 @@ fn checked_load(ws: &Workspace, id: &str) -> Book {
         let below = &row["below"];
         assert_eq!(json!(level.settings), below["settings"]);
         assert_eq!(json!(level.sources), below["sources"]);
-        assert_eq!(level.sources.len(), 8);
+        assert_eq!(level.sources.len(), 7);
         for (actual, field) in [(&level.children, "children"), (&level.members, "members")] {
             let expected: Vec<_> = below[field]
                 .as_array()
@@ -101,7 +101,7 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
         json!({"book":id,"id":manuscript,"overrides":{
             "default_template":"tpl-chapter","display":"board",
             "auto_link":true,"accept":true,"home":manuscript,
-            "is_manuscript":true,"format_shortcuts":"plain"
+            "format_shortcuts":"plain"
         }}),
     );
     let changed = checked_load(&ws, &id);
@@ -111,7 +111,7 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
         json!({
             "default_template":"tpl-chapter","display":"board",
             "auto_link":true,"accept":true,"home":manuscript,
-            "is_manuscript":true,"format_shortcuts":"plain","lane":false
+            "format_shortcuts":"plain","lane":false
         })
     );
     for (key, source) in &level.sources {

@@ -13,10 +13,10 @@ use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_doc::side::{CheckpointsDoc, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
-    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
-    NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_CATEGORY,
-    TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA, TPL_IDEA_GROUP, TPL_IDEAS,
-    TPL_MANUSCRIPT, TPL_STORYLINE, TPL_STORYLINES, novel_project_templates,
+    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE, NovelRootEntries,
+    TPL_CATEGORY, TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA, TPL_IDEA_GROUP,
+    TPL_IDEAS, TPL_MANUSCRIPT, TPL_STORYLINE, TPL_STORYLINES, novel_project_template_with,
+    novel_project_templates,
 };
 use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, book_genesis};
 use dr_doc::{DocError, Result};
@@ -319,6 +319,8 @@ fn deterministic_novel_roots(book: &BookId) -> NovelRootEntries {
     let b = book.as_str();
     let gen_entry =
         |idx: usize| EntryId::parse(&super::build::id(0, b, "v3-root", idx)).expect("valid id");
+    let gen_tab =
+        |idx: usize| TabId::parse(&super::build::id(0, b, "v3-tab", idx)).expect("valid id");
     let narrative_view =
         TimelineViewId::parse(&super::build::id(0, b, "v3-view", 0)).expect("valid id");
     NovelRootEntries {
@@ -331,17 +333,19 @@ fn deterministic_novel_roots(book: &BookId) -> NovelRootEntries {
         cat_item: gen_entry(6),
         cat_organization: gen_entry(7),
         narrative_view,
+        tab_manuscript: gen_tab(0),
+        tab_ideas: gen_tab(1),
+        tab_elements: gen_tab(2),
+        tab_storylines: gen_tab(3),
     }
 }
 
-/// Initialize the novel project templates, root level entries (`书稿`, `构想`,
-/// `要素`, `故事线`), and default narrative timeline view (`叙事时间线`),
-/// leaving category creation to the seed plan or sample book.
+/// Initialize the novel project definition, templates, root level entries
+/// (`书稿`, `构想`, `要素`, `故事线`), and default narrative timeline view
+/// (`叙事时间线`), leaving category creation to the seed plan or sample book.
 fn init_novel_roots(txn: &mut BookTxnV3<'_>, ids: &NovelRootEntries) -> Result<()> {
-    txn.meta().project_template(Some(&ProjectTemplateRef {
-        id: NOVEL_PROJECT_TEMPLATE_ID.into(),
-        version: NOVEL_PROJECT_TEMPLATE_VERSION,
-    }))?;
+    let pt = novel_project_template_with(ids);
+    txn.project().set_full(&pt.project)?;
     for mut tpl in novel_project_templates() {
         if tpl.id.as_str() == TPL_STORYLINE {
             tpl.settings.home = Some(Some(ids.manuscript.clone()));
@@ -391,9 +395,14 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
         t.meta()
             .name(&p.name)?
             .summary(plan::BOOK_SUMMARY)?
-            .created_at(Some(Timestamp(T0)))?
-            .word_target(Some(p.word_target))?
-            .daily_word_target(Some(p.daily_word_target))?;
+            .created_at(Some(Timestamp(T0)))?;
+        t.project().book(Some(&ProjectBook {
+            root: BookRoot::Entry {
+                entry: roots.manuscript.clone(),
+            },
+            word_target_set: Some(p.word_target),
+            daily_word_target_set: Some(p.daily_word_target),
+        }))?;
         for (i, (id, s)) in p.storylines.iter().enumerate() {
             let entry_id = eid(id.as_str());
             t.entries()
@@ -761,9 +770,14 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
         let m = t.meta();
         m.name(&meta.name)?
             .summary(&meta.summary)?
-            .created_at(meta.created_at)?
-            .word_target(meta.word_target_set)?
-            .daily_word_target(meta.daily_word_target_set)?;
+            .created_at(meta.created_at)?;
+        t.project().book(Some(&ProjectBook {
+            root: BookRoot::Entry {
+                entry: roots.manuscript.clone(),
+            },
+            word_target_set: meta.word_target_set,
+            daily_word_target_set: meta.daily_word_target_set,
+        }))?;
         for f in &facts {
             t.put_fact(f)?;
         }
@@ -1524,12 +1538,13 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             .collect(),
     );
 
+    let project = v.project();
     Ok(json!({
         "meta": {
             "name": meta.name,
             "summary": meta.summary,
-            "wordTarget": meta.word_target_set.is_some(),
-            "dailyWordTarget": meta.daily_word_target_set.is_some(),
+            "wordTarget": project.book.as_ref().is_some_and(|b| b.word_target_set.is_some()),
+            "dailyWordTarget": project.book.as_ref().is_some_and(|b| b.daily_word_target_set.is_some()),
         },
         "facts": facts,
         "storylines": storylines,

@@ -13,9 +13,9 @@ use dr_model::{
     DocId,
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
-        Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
-        ProjectTemplateRef, effective_ancestors, effective_manuscript_levels, effective_parent_id,
-        resolve_level_settings, resolve_level_settings_with_sources,
+        BookRoot, Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
+        ProjectTemplateRef, effective_ancestors, effective_parent_id, resolve_level_settings,
+        resolve_level_settings_with_sources,
     },
 };
 use dr_store::Library;
@@ -271,7 +271,6 @@ impl StructureContext {
         existing_catalog: Option<&Catalog>,
         focus: Option<&FocusRequest>,
     ) -> Result<Self> {
-        let meta = view.meta();
         let templates_map = view.templates_map();
         let entries_map = view.entry_headers_with(&BTreeMap::new());
         let ordered_ids = crate::catalog::ordered_entry_ids(view, &entries_map);
@@ -432,13 +431,17 @@ impl StructureContext {
             })
             .collect();
 
-        // 6. Manuscript roots in tree order.
-        let manuscript_set = effective_manuscript_levels(&entries_map, &templates_map);
-        let manuscript_roots: Vec<String> = live_entries
-            .iter()
-            .filter(|e| manuscript_set.contains(&e.id))
-            .map(|e| e.id.to_string())
-            .collect();
+        let proj = view.project();
+        let manuscript_roots: Vec<String> = match proj.book.as_ref().map(|b| &b.root) {
+            Some(BookRoot::Entry { entry })
+                if entries_map
+                    .get(entry)
+                    .is_some_and(|e| !e.is_trashed() && e.is_level()) =>
+            {
+                vec![entry.to_string()]
+            }
+            _ => Vec::new(),
+        };
 
         let catalog_revision = catalog.revision();
         let digest_payload = json!({
@@ -460,7 +463,7 @@ impl StructureContext {
             schema_version: 3,
             structure_revision,
             catalog_revision,
-            project_template_source: meta.project_template,
+            project_template_source: proj.source,
             roots,
             templates,
             levels,

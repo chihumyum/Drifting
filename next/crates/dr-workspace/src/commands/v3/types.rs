@@ -118,9 +118,6 @@ pub struct LevelSettings {
     /// `None` means they reside under this level itself.
     #[serde(default)]
     pub home: Option<String>,
-    /// Whether what lives under this level in tree order forms a manuscript (`成书`).
-    #[serde(default)]
-    pub is_manuscript: bool,
     /// Editor formatting shortcut profile for prose under this level (`格式快捷输入`).
     #[serde(default)]
     pub format_shortcuts: String,
@@ -151,8 +148,6 @@ pub struct LevelSettingsOverride {
         deserialize_with = "crate::commands::double_option"
     )]
     pub home: Option<Option<String>>,
-    #[serde(default)]
-    pub is_manuscript: Option<bool>,
     #[serde(default)]
     pub format_shortcuts: Option<String>,
     /// `None` leaves it to the template (on an entry) or off (on a template).
@@ -519,7 +514,6 @@ impl From<&dr_model::v3::LevelSettings> for LevelSettings {
             auto_link: v.auto_link,
             accept: v.accept,
             home: v.home.as_ref().map(ToString::to_string),
-            is_manuscript: v.is_manuscript,
             format_shortcuts: v.format_shortcuts.as_str().to_owned(),
             lane: v.lane,
         }
@@ -537,7 +531,6 @@ impl From<&dr_model::v3::LevelSettingsOverride> for LevelSettingsOverride {
             auto_link: v.auto_link,
             accept: v.accept,
             home: v.home.as_ref().map(|o| o.as_ref().map(ToString::to_string)),
-            is_manuscript: v.is_manuscript,
             format_shortcuts: v.format_shortcuts.as_ref().map(|f| f.as_str().to_owned()),
             lane: v.lane,
         }
@@ -687,4 +680,215 @@ impl From<&dr_model::v3::TimelineView> for TimelineView {
             deleted_at: v.deleted_at.map(|t| t.0),
         }
     }
+}
+
+// ---- project definition & book sequence (`kernel-v5.md` §2, §3, §5 & §10) ----
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateRef {
+    pub id: String,
+    pub version: i64,
+}
+
+impl From<&dr_model::v3::ProjectTemplateRef> for ProjectTemplateRef {
+    fn from(v: &dr_model::v3::ProjectTemplateRef) -> Self {
+        Self {
+            id: v.id.clone(),
+            version: v.version,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BookRoot {
+    Root,
+    Entry { entry: String },
+    View { view: String },
+    Lane { view: String, entry: String },
+}
+
+impl From<&dr_model::v3::BookRoot> for BookRoot {
+    fn from(v: &dr_model::v3::BookRoot) -> Self {
+        match v {
+            dr_model::v3::BookRoot::Root => Self::Root,
+            dr_model::v3::BookRoot::Entry { entry } => Self::Entry {
+                entry: entry.to_string(),
+            },
+            dr_model::v3::BookRoot::View { view } => Self::View {
+                view: view.to_string(),
+            },
+            dr_model::v3::BookRoot::Lane { view, entry } => Self::Lane {
+                view: view.to_string(),
+                entry: entry.to_string(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectBook {
+    pub root: BookRoot,
+    /// Effective whole-book word target (`None` when turned off).
+    #[serde(default)]
+    pub word_target: Option<i64>,
+    /// Effective daily word target (`None` when turned off).
+    #[serde(default)]
+    pub daily_word_target: Option<i64>,
+    /// Stored whole-book word target (`None` = default, `Some(0)` = off).
+    #[serde(default)]
+    pub word_target_set: Option<i64>,
+    /// Stored daily word target (`None` = default, `Some(0)` = off).
+    #[serde(default)]
+    pub daily_word_target_set: Option<i64>,
+}
+
+impl From<&dr_model::v3::ProjectBook> for ProjectBook {
+    fn from(v: &dr_model::v3::ProjectBook) -> Self {
+        Self {
+            root: (&v.root).into(),
+            word_target: v.word_target(),
+            daily_word_target: v.daily_word_target(),
+            word_target_set: v.word_target_set,
+            daily_word_target_set: v.daily_word_target_set,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TabMount {
+    Root,
+    Entry { entry: String },
+    View { view: String },
+    Book,
+}
+
+impl From<&dr_model::v3::TabMount> for TabMount {
+    fn from(v: &dr_model::v3::TabMount) -> Self {
+        match v {
+            dr_model::v3::TabMount::Root => Self::Root,
+            dr_model::v3::TabMount::Entry { entry } => Self::Entry {
+                entry: entry.to_string(),
+            },
+            dr_model::v3::TabMount::View { view } => Self::View {
+                view: view.to_string(),
+            },
+            dr_model::v3::TabMount::Book => Self::Book,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTab {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub pos: Option<String>,
+    pub mount: TabMount,
+    /// Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).
+    #[serde(default = "default_true")]
+    pub mount_valid: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Project {
+    #[serde(default)]
+    pub source: Option<ProjectTemplateRef>,
+    #[serde(default)]
+    pub agent: Option<TemplateAgentConfig>,
+    #[serde(default)]
+    pub book: Option<ProjectBook>,
+    /// Whether `book.root` currently points to a valid start (`true` when `book` is `None`).
+    #[serde(default = "default_true")]
+    pub book_root_valid: bool,
+    #[serde(default)]
+    pub tabs: Vec<ProjectTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectSeedEntry {
+    pub id: String,
+    #[serde(default)]
+    pub parent: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub template: Option<String>,
+    #[serde(default)]
+    pub level: bool,
+    #[serde(default)]
+    pub overrides: Option<LevelSettingsOverride>,
+    #[serde(default)]
+    pub fields: BTreeMap<String, BTreeMap<String, FieldValue>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplate {
+    #[serde(default)]
+    pub project: ProjectDefinitionInput,
+    #[serde(default)]
+    pub templates: Vec<EntryTemplate>,
+    #[serde(default)]
+    pub entries: Vec<ProjectSeedEntry>,
+    #[serde(default)]
+    pub views: Vec<TimelineView>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectDefinitionInput {
+    #[serde(default)]
+    pub source: Option<ProjectTemplateRef>,
+    #[serde(default)]
+    pub agent: Option<TemplateAgentConfig>,
+    #[serde(default)]
+    pub book: Option<ProjectBook>,
+    #[serde(default)]
+    pub tabs: Vec<ProjectTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SequenceProse {
+    pub module: String,
+    pub name: String,
+    pub doc: String,
+    pub in_book: bool,
+}
+
+impl From<&dr_doc::v3::FlatProse> for SequenceProse {
+    fn from(v: &dr_doc::v3::FlatProse) -> Self {
+        Self {
+            module: v.module.to_string(),
+            name: v.name.clone(),
+            doc: v.doc.to_string(),
+            in_book: v.in_book,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SequenceEntry {
+    pub entry: Entry,
+    pub depth: u32,
+    /// 1-based chapter ordinal when `prose` has at least one `in_book` prose module; `None` otherwise.
+    pub ordinal: Option<u32>,
+    pub prose: Vec<SequenceProse>,
+}
+
+impl From<&dr_doc::v3::FlatEntry<'_>> for SequenceEntry {
+    fn from(v: &dr_doc::v3::FlatEntry<'_>) -> Self {
+        Self {
+            entry: v.entry.into(),
+            depth: v.depth,
+            ordinal: v.ordinal,
+            prose: v.prose.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BookSequenceOut {
+    pub has_book: bool,
+    pub root: Option<BookRoot>,
+    pub root_valid: bool,
+    pub entries: Vec<SequenceEntry>,
 }

@@ -1,4 +1,4 @@
-//! Unified-entry import (book format 4, `kernel-v4.md` §10). Source catalogs
+//! Unified-entry import (book format 5, `kernel-v5.md` §13). Source catalogs
 //! are replayed only in memory. The pipeline owns staging, prose history,
 //! anchors, receipts, assets and resume. Unresolved policy and malformed source
 //! rows stop before target writes.
@@ -26,7 +26,7 @@ pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
-        "4:{:x}",
+        "5:{:x}",
         Sha256::digest(serde_json::to_vec(&options.v3)?)
     ))
 }

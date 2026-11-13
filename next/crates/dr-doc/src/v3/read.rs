@@ -137,7 +137,6 @@ pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride 
         auto_link: f.bool("auto_link"),
         accept: f.bool("accept"),
         home,
-        is_manuscript: f.bool("is_manuscript"),
         format_shortcuts: f.kind("format_shortcuts"),
         lane: f.bool("lane"),
     }
@@ -470,7 +469,53 @@ impl<'a> BookViewV3<'a> {
     pub fn meta(&self) -> BookMetaV3 {
         let v = self.doc.get_map(book_v3::META).get_deep_value();
         let f = F(&v);
-        let project_template = f.sub("project_template").and_then(|pt| {
+        BookMetaV3 {
+            id: self.book.clone(),
+            schema_version: f.i64("v").unwrap_or(0),
+            name: f.string("name"),
+            summary: f.string("summary"),
+            deleted_at: f.ts("deleted_at"),
+            created_at: f.ts("created_at"),
+        }
+    }
+
+    pub(super) fn read_book_root(f: F<'_>) -> Option<BookRoot> {
+        match f.string("kind").as_str() {
+            "root" => Some(BookRoot::Root),
+            "entry" => Some(BookRoot::Entry {
+                entry: f.id("entry")?,
+            }),
+            "view" => Some(BookRoot::View {
+                view: f.id("view")?,
+            }),
+            "lane" => Some(BookRoot::Lane {
+                view: f.id("view")?,
+                entry: f.id("entry")?,
+            }),
+            _ => None,
+        }
+    }
+
+    pub(super) fn read_tab_mount(f: F<'_>) -> Option<TabMount> {
+        match f.string("kind").as_str() {
+            "root" => Some(TabMount::Root),
+            "entry" => Some(TabMount::Entry {
+                entry: f.id("entry")?,
+            }),
+            "view" => Some(TabMount::View {
+                view: f.id("view")?,
+            }),
+            "book" => Some(TabMount::Book),
+            _ => None,
+        }
+    }
+
+    pub(super) fn read_project(v: Option<&LoroValue>) -> ProjectDefinition {
+        let Some(v) = v else {
+            return ProjectDefinition::default();
+        };
+        let f = F(v);
+        let source = f.sub("source").and_then(|pt| {
             let id = pt.string("id");
             if id.is_empty() {
                 None
@@ -481,17 +526,56 @@ impl<'a> BookViewV3<'a> {
                 })
             }
         });
-        BookMetaV3 {
-            id: self.book.clone(),
-            schema_version: f.i64("v").unwrap_or(0),
-            name: f.string("name"),
-            summary: f.string("summary"),
-            deleted_at: f.ts("deleted_at"),
-            created_at: f.ts("created_at"),
-            word_target_set: f.i64("word_target"),
-            daily_word_target_set: f.i64("daily_word_target"),
-            project_template,
+        let agent = f.sub("agent").and_then(|a| {
+            let cfg = TemplateAgentConfig {
+                name: a.string("name"),
+                description: a.string("description"),
+                instructions: a.string("instructions"),
+            };
+            if cfg.name.is_empty() && cfg.description.is_empty() && cfg.instructions.is_empty() {
+                None
+            } else {
+                Some(cfg)
+            }
+        });
+        let book = f.sub("book").map(|bf| {
+            let root = bf
+                .sub("root")
+                .and_then(Self::read_book_root)
+                .unwrap_or(BookRoot::Root);
+            ProjectBook {
+                root,
+                word_target_set: bf.i64("word_target"),
+                daily_word_target_set: bf.i64("daily_word_target"),
+            }
+        });
+        let mut tabs: Vec<ProjectTab> = match f.get("tabs") {
+            Some(LoroValue::Map(m)) => m
+                .iter()
+                .filter_map(|(id, tv)| {
+                    let tf = F(tv);
+                    Some(ProjectTab {
+                        id: TabId::parse(id).ok()?,
+                        name: tf.string("name"),
+                        pos: tf.pos("pos"),
+                        mount: Self::read_tab_mount(tf.sub("mount")?)?,
+                    })
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        sort_project_tabs(&mut tabs);
+        ProjectDefinition {
+            source,
+            agent,
+            book,
+            tabs,
         }
+    }
+
+    pub fn project(&self) -> ProjectDefinition {
+        let v = self.doc.get_map(book_v3::PROJECT).get_deep_value();
+        Self::read_project(Some(&v))
     }
 
     pub fn trashed_at(&self) -> Option<Timestamp> {
@@ -990,18 +1074,11 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
-    ///Resolved level settings for `level_id` (`entry.overrides > template.settings > nearest ancestor > default`).
+    /// Resolved level settings for `level_id` (`entry.overrides > template.settings > nearest ancestor > default`).
     pub fn level_settings(&self, level_id: Option<&EntryId>) -> LevelSettings {
         let templates = self.templates_map();
         let entries = self.entry_headers_with(&templates);
         resolve_level_settings(level_id, &entries, &templates)
-    }
-
-    /// Outermost live manuscript levels (`V3-MANUSCRIPT-NO-NEST`).
-    pub fn manuscript_levels(&self) -> BTreeSet<EntryId> {
-        let templates = self.templates_map();
-        let entries = self.entry_headers_with(&templates);
-        effective_manuscript_levels(&entries, &templates)
     }
 
     /// Auto-linked entries whose title or alias collides with an earlier
@@ -1084,7 +1161,7 @@ impl<'a> BookViewV3<'a> {
 
     // ---- timeline views --------------------------------------------------
 
-    fn read_timeline_view_raw(id: &str, v: &LoroValue) -> Option<TimelineView> {
+    pub(super) fn read_timeline_view_raw(id: &str, v: &LoroValue) -> Option<TimelineView> {
         let f = F(v);
         let vid = TimelineViewId::parse(id).ok()?;
         let mut lanes: Vec<TimelineLane> = match f.get("lanes") {
@@ -2134,9 +2211,41 @@ impl<'a> BookViewV3<'a> {
     /// Snapshot of a v3 structural map record, including nested maps.
     /// Patch text is restored through its mergeable text container by the writer.
     pub fn map_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntrySnapshotV3> {
+        if collection == CollectionV3::Project
+            && let Some(sub_key) = id.strip_prefix("book/")
+        {
+            let root = self.doc.get_map(book_v3::PROJECT);
+            let Some(loro::ValueOrContainer::Container(loro::Container::Map(book_map))) =
+                root.get("book")
+            else {
+                return None;
+            };
+            return book_map.get(sub_key).map(|voc| EntrySnapshotV3 {
+                value: voc.get_deep_value(),
+            });
+        }
+        if collection == CollectionV3::Project
+            && let Some(tab_id) = id.strip_prefix("tabs/")
+        {
+            let root = self.doc.get_map(book_v3::PROJECT);
+            let Some(loro::ValueOrContainer::Container(loro::Container::Map(tabs))) =
+                root.get("tabs")
+            else {
+                return None;
+            };
+            return match tabs.get(tab_id)? {
+                loro::ValueOrContainer::Container(loro::Container::Map(m)) => {
+                    Some(EntrySnapshotV3 {
+                        value: m.get_deep_value(),
+                    })
+                }
+                _ => None,
+            };
+        }
         if !matches!(
             collection,
-            CollectionV3::Templates
+            CollectionV3::Project
+                | CollectionV3::Templates
                 | CollectionV3::Memberships
                 | CollectionV3::TimelineViews
                 | CollectionV3::Patches

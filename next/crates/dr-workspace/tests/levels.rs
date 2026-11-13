@@ -326,63 +326,270 @@ fn a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves
 }
 
 #[test]
-fn a_nested_manuscript_a_merge_left_blocks_no_unrelated_write() {
-    let a = env();
-    let z = env();
-    let b = a.book();
-    let ms = root(&a, &b, "tpl-manuscript");
-    let chapter = create(&a, &b, &ms, "第一章", "tpl-chapter");
-    let appendix = a.out(
+fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
+    let e = env();
+    let b = e.book();
+    let ms = root(&e, &b, "tpl-manuscript");
+    let sl_root = root(&e, &b, "tpl-storylines");
+    let chapter = create(&e, &b, &ms, "第一章", "tpl-chapter");
+    e.call(
+        "module.set_prose",
+        json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"潮水退去之后。"}]}),
+    );
+    let view = e.out("timeline_view.list", json!({"book":b}))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane = e.out(
+        "entry.create",
+        json!({"book":b,"parent":sl_root,"title":"主线","template":"tpl-storyline","level":true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book":b,"view":view,"lane":lane}),
+    );
+
+    // Default novel project: book root is 书稿, 4 default tabs all valid.
+    let proj = e.out("project.get", json!({"book":b}));
+    assert_eq!(proj["source"]["id"], "builtin:novel");
+    assert_eq!(proj["book"]["root"], json!({"kind":"entry","entry":ms}));
+    assert_eq!(proj["book_root_valid"], true);
+    assert_eq!(proj["tabs"].as_array().unwrap().len(), 4);
+    assert!(
+        proj["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["mount_valid"] == true)
+    );
+
+    // Put tabs for all four mount targets: root, entry, view, book.
+    let t_root = e.out(
+        "tab.put",
+        json!({"book":b,"name":"全项目","mount":{"kind":"root"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let t_view = e.out(
+        "tab.put",
+        json!({"book":b,"name":"主视图","mount":{"kind":"view","view":view}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let t_book = e.out(
+        "tab.put",
+        json!({"book":b,"name":"成书","mount":{"kind":"book"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "tab.move",
+        json!({"book":b,"id":t_book,"place":{"before":proj["tabs"][0]["id"]}}),
+    );
+    let tabs_now = e.out("project.get", json!({"book":b}))["tabs"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(tabs_now[0]["id"], t_book);
+    assert!(tabs_now.iter().all(|t| t["mount_valid"] == true));
+
+    // Invalid mounts are refused on write.
+    refused(
+        &e,
+        "tab.put",
+        json!({"book":b,"name":"非层级","mount":{"kind":"entry","entry":chapter}}),
+        "TAB-MOUNT-VALID",
+    );
+    refused(
+        &e,
+        "tab.put",
+        json!({"book":b,"name":"假视图","mount":{"kind":"view","view":"tv-missing"}}),
+        "TAB-MOUNT-VALID",
+    );
+
+    // Invalid book roots are refused on write; all four valid kinds work.
+    refused(
+        &e,
+        "project.update",
+        json!({"book":b,"root":{"kind":"entry","entry":chapter}}),
+        "BOOK-ROOT-VALID",
+    );
+    refused(
+        &e,
+        "project.update",
+        json!({"book":b,"root":{"kind":"lane","view":view,"entry":ms}}),
+        "BOOK-ROOT-VALID",
+    );
+    for valid_root in [
+        json!({"kind":"root"}),
+        json!({"kind":"view","view":view}),
+        json!({"kind":"lane","view":view,"entry":lane}),
+        json!({"kind":"entry","entry":ms}),
+    ] {
+        e.call("project.update", json!({"book":b,"root":valid_root}));
+        let seq = e.out("book.sequence", json!({"book":b}));
+        assert_eq!(seq["has_book"], true);
+        assert_eq!(seq["root_valid"], true);
+    }
+    let seq = e.out("book.sequence", json!({"book":b}));
+    assert_eq!(seq["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(seq["entries"][0]["entry"]["id"], ms);
+    assert!(seq["entries"][0]["ordinal"].is_null());
+    assert_eq!(seq["entries"][1]["entry"]["id"], chapter);
+    assert_eq!(seq["entries"][1]["ordinal"], 1);
+
+    // Trashing an entry mounted on a tab and used as book root keeps both stored,
+    // marks them invalid on read, reads book.sequence as empty, and blocks no unrelated write.
+    let appendix = e.out(
         "entry.create",
         json!({"book":b,"title":"附录","template":"tpl-group"}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    sync(a.ws(), z.ws());
-    // Apart: one device makes 附录 a manuscript of its own (allowed, it is at
-    // the root), the other moves it into 书稿 (allowed, it is no manuscript
-    // there). Together they make a nested pair.
-    z.call(
-        "entry.update",
-        json!({"book":b,"id":appendix,"overrides":{"is_manuscript":true}}),
+    let t_app = e.out(
+        "tab.put",
+        json!({"book":b,"name":"附录栏","mount":{"kind":"entry","entry":appendix}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "project.update",
+        json!({"book":b,"root":{"kind":"entry","entry":appendix}}),
     );
-    a.call("entry.move", json!({"book":b,"id":appendix,"parent":ms}));
-    sync(z.ws(), a.ws());
-    let manuscripts = |e: &Env| -> Vec<String> {
-        e.out("entry.list", json!({"book":b,"all":true,"below":true}))
+    e.call("entry.trash", json!({"book":b,"id":appendix}));
+    let proj_trashed = e.out("project.get", json!({"book":b}));
+    assert_eq!(proj_trashed["book_root_valid"], false);
+    assert_eq!(
+        proj_trashed["tabs"]
             .as_array()
             .unwrap()
             .iter()
-            .filter(|r| r["below"]["settings"]["is_manuscript"] == true)
-            .map(|r| r["id"].as_str().unwrap().to_owned())
-            .collect()
-    };
-    assert_eq!(get(&a, &b, &appendix)["parent"], json!(ms));
-    assert!(manuscripts(&a).contains(&appendix));
-    // Unrelated writes go through, the nested one too.
-    a.call(
+            .find(|t| t["id"] == t_app)
+            .unwrap()["mount_valid"],
+        false
+    );
+    let empty_seq = e.out("book.sequence", json!({"book":b}));
+    assert_eq!(empty_seq["root_valid"], false);
+    assert_eq!(empty_seq["entries"], json!([]));
+    // Unrelated writes and renaming the invalid-mounted tab without changing mount succeed.
+    e.call(
         "entry.update",
         json!({"book":b,"id":chapter,"title":"第一章 改"}),
     );
-    a.call(
-        "entry.update",
-        json!({"book":b,"id":appendix,"title":"附录一"}),
+    e.call("tab.put", json!({"book":b,"id":t_app,"name":"旧附录栏"}));
+    e.call("tab.remove", json!({"book":b,"id":t_root}));
+    e.call("tab.remove", json!({"book":b,"id":t_view}));
+
+    // Turning the book off keeps `{kind: "book"}` tab stored with `mount_valid == false`,
+    // hides shelf words & daily target, and makes `writing_day.record` a no-op.
+    e.call("project.update", json!({"book":b,"has_book":false}));
+    let proj_no_book = e.out("project.get", json!({"book":b}));
+    assert!(proj_no_book["book"].is_null());
+    assert_eq!(
+        proj_no_book["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == t_book)
+            .unwrap()["mount_valid"],
+        false
     );
-    let inner = create(&a, &b, &appendix, "分卷", "tpl-group");
-    // Another nested pair is new: refused.
     refused(
-        &a,
-        "entry.update",
-        json!({"book":b,"id":inner,"overrides":{"is_manuscript":true}}),
-        "V3-MANUSCRIPT-NO-NEST",
+        &e,
+        "tab.put",
+        json!({"book":b,"name":"新成书","mount":{"kind":"book"}}),
+        "TAB-MOUNT-VALID",
     );
-    // Turning the inner manuscript off resolves the old pair.
-    a.call(
-        "entry.update",
-        json!({"book":b,"id":appendix,"overrides":{"is_manuscript":false}}),
+    let shelf = e.out("book.shelf", json!({}));
+    assert!(
+        shelf
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == b)
+            .unwrap()["words"]
+            .is_null()
     );
-    assert!(!manuscripts(&a).contains(&appendix));
+    let stats_before = e.ws().observe(&format!("stats:{b}")).unwrap().version;
+    e.call(
+        "writing_day.record",
+        json!({"book":b,"device":"dev-1","day":"2026-11-13","words":500}),
+    );
+    assert_eq!(
+        e.ws().observe(&format!("stats:{b}")).unwrap().version,
+        stats_before,
+        "writing_day.record does not write when project.book is off"
+    );
+    let days = e.out("book.writing_days", json!({"book":b,"today":"2026-11-13"}));
+    assert!(days["daily_word_target"].is_null());
+    assert_eq!(days["today"], 0);
+    assert_eq!(days["week"], 0);
+
+    // Undo turning the book off restores `project.book` and makes `t_book` valid again.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    let restored = e.out("project.get", json!({"book":b}));
+    assert!(!restored["book"].is_null());
+    assert_eq!(
+        restored["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == t_book)
+            .unwrap()["mount_valid"],
+        true
+    );
+
+    // Custom non-book project template via `project.create`.
+    let custom = e.out(
+        "project.create",
+        json!({
+            "name": "研究卡片库",
+            "template": {
+                "project": {
+                    "source": {"id": "research-cards", "version": 1},
+                    "agent": {"name": "研究助手", "description": "整理文献", "instructions": "按主题归档"},
+                    "book": null,
+                    "tabs": [
+                        {"id": "tab-all", "name": "全部卡片", "mount": {"kind": "root"}}
+                    ]
+                },
+                "templates": [
+                    {
+                        "id": "tpl-card",
+                        "name": "卡片",
+                        "modules": [
+                            {"id": "mod-prose", "kind": "prose", "name": "笔记", "config": {"in_book": false}}
+                        ]
+                    }
+                ],
+                "entries": [
+                    {
+                        "id": "ent-first-card",
+                        "title": "第一张卡片",
+                        "template": "tpl-card",
+                        "level": false
+                    }
+                ],
+                "views": []
+            }
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let custom_proj = e.out("project.get", json!({"book":custom}));
+    assert_eq!(custom_proj["source"]["id"], "research-cards");
+    assert!(custom_proj["book"].is_null());
+    assert_eq!(custom_proj["tabs"].as_array().unwrap().len(), 1);
+    assert_eq!(custom_proj["tabs"][0]["name"], "全部卡片");
 }
 
 #[test]

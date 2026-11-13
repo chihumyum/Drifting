@@ -674,6 +674,7 @@ impl Shelf {
                                 BookCreateIn {
                                     name: if typed.is_empty() { untitled } else { typed },
                                     summary,
+                                    template: None,
                                 },
                             )
                             .map(|o| Some(o.output.id)),
@@ -685,8 +686,6 @@ impl Shelf {
                                     name: (!typed.is_empty() && typed != book.name)
                                         .then_some(typed),
                                     summary: (summary != book.summary).then_some(summary),
-                                    word_target: None,
-                                    daily_word_target: None,
                                 },
                             )
                             .map(|_| None),

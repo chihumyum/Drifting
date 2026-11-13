@@ -27,6 +27,9 @@ pub struct BookCreateIn {
     pub name: String,
     #[serde(default)]
     pub summary: String,
+    /// Optional project template; omitted uses the built-in writing template.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template: Option<crate::commands::v3::types::ProjectTemplate>,
 }
 
 op! {
@@ -39,9 +42,10 @@ op! {
             let raw = cx.workspace().library().load_copy(&d.doc_id)?;
             if !dr_doc::v3::is_book_doc(&raw) { continue; }
             let slot = cx.workspace().book_slot(&super::pid("book", id)?)?;
-            let m = slot.reader_v3.view().meta();
+            let v = slot.reader_v3.view();
+            let m = v.meta();
             if m.deleted_at.is_none() || input.trashed {
-                out.push(BookInfo::from(&m));
+                out.push(BookInfo::from_book(&m, &v.project()));
             }
         }
         Ok(out)
@@ -132,42 +136,42 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
                 .iter()
                 .all(|id| entries.get(id).is_some_and(|a| !a.is_trashed()))
     };
-    // The manuscript sequence: the book's words are its book prose, its
-    // chapters the entries it numbers.
-    let manuscript: Vec<_> = structure
-        .manuscript()
-        .into_iter()
-        .flat_map(|p| p.entries)
-        .collect();
-    let numbered: std::collections::BTreeSet<_> = manuscript
+    // The book sequence (`project.book`): when `成书` is enabled, the book's
+    // words are its book prose and its chapters are the entries it numbers;
+    // when `成书` is off (`project.book` is `None`), word counts are absent.
+    let project = structure.project();
+    let sequence = structure.book_sequence();
+    let numbered: std::collections::BTreeSet<_> = sequence
         .iter()
         .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.id.clone())
         .collect();
     // Every entry carrying book prose, numbered or not (one under an entry
     // with book prose of its own has no number since 2026-11-13).
-    let with_prose: std::collections::BTreeSet<_> = manuscript
+    let with_prose: std::collections::BTreeSet<_> = sequence
         .iter()
         .filter(|e| !e.prose.is_empty())
         .map(|e| e.entry.id.clone())
         .collect();
-    let mut words = Some(0u64);
-    for doc in manuscript
-        .iter()
-        .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
-    {
-        let count = if lib.doc_info(&doc)?.is_none() {
-            Some(0)
-        } else {
-            match lib.head(&doc)? {
-                None => Some(0),
-                Some(head) => lib
-                    .doc_stats(&doc)?
-                    .filter(|s| s.indexed_seq == head.seq)
-                    .map(|s| s.words),
-            }
-        };
-        words = words.zip(count).map(|(a, b)| a + b);
+    let mut words = project.book.is_some().then_some(0u64);
+    if words.is_some() {
+        for doc in sequence
+            .iter()
+            .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
+        {
+            let count = if lib.doc_info(&doc)?.is_none() {
+                Some(0)
+            } else {
+                match lib.head(&doc)? {
+                    None => Some(0),
+                    Some(head) => lib
+                        .doc_stats(&doc)?
+                        .filter(|s| s.indexed_seq == head.seq)
+                        .map(|s| s.words),
+                }
+            };
+            words = words.zip(count).map(|(a, b)| a + b);
+        }
     }
     let mut docs: Vec<String> = lib
         .docs(Some(id.as_str()), None)?
@@ -185,7 +189,7 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
     let deleted_at = m.deleted_at.map(|t| t.0);
     let due = deleted_at.map(|d| purge_due(d, now));
     Ok(ShelfBook {
-        info: BookInfo::from(&m),
+        info: BookInfo::from_book(&m, project),
         subtitle: v
             .facts()
             .iter()

@@ -1,19 +1,26 @@
-//! Immutable, explicit structural reads. No cache is stored in the live view.
+//! Immutable, explicit structural reads (`docs/rust-rewrite/kernel-v5.md`).
+//! No cache is stored in the live view.
+
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+use dr_model::DocId;
+use dr_model::id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId};
+use dr_model::v3::*;
+use loro::LoroValue;
+
 use super::BookViewV3;
 use crate::catalog::fields::F;
 use crate::catalog::read::forest_value;
 use crate::schema::book_v3;
-use dr_model::DocId;
-use dr_model::id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId};
-use dr_model::v3::*;
-use loro::LoroValue;
-use std::collections::{BTreeMap, BTreeSet};
 
-/// One atomic read of entries, templates and memberships. A snapshot remains
-/// unchanged; a new snapshot sees pending transaction writes, imports or checkouts.
-/// It does not commit the Loro transaction or retain an internally mutable document.
+/// One atomic read of project definition, entries, templates, memberships and
+/// views. A snapshot remains unchanged; a new snapshot sees pending transaction
+/// writes, imports or checkouts. It does not commit the Loro transaction or
+/// retain an internally mutable document.
 pub struct BookStructureV3 {
     book: BookId,
+    project: ProjectDefinition,
     ordered: Vec<EntryId>,
     entries: BTreeMap<EntryId, Entry>,
     templates: BTreeMap<EntryTemplateId, EntryTemplate>,
@@ -21,25 +28,28 @@ pub struct BookStructureV3 {
     children: BTreeMap<Option<EntryId>, Vec<EntryId>>,
     memberships: Vec<Membership>,
     members: BTreeMap<EntryId, Vec<EntryId>>,
+    timeline_views: BTreeMap<TimelineViewId, TimelineView>,
+    ordered_views: Vec<TimelineViewId>,
     settings: BTreeMap<EntryId, ResolvedLevelSettings>,
-    manuscripts: Vec<EntryId>,
 }
 
-/// One entry in a flattened walk ([`BookStructureV3::flatten`],
-/// [`BookStructureV3::manuscript`]).
+/// One entry in a sequence walk ([`BookStructureV3::sequence`],
+/// [`BookStructureV3::book_sequence`], [`BookStructureV3::flatten`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FlatEntry<'a> {
     pub entry: &'a Entry,
-    /// The starting level is 0, what lies directly below it 1, and so on.
+    /// For `Root`: top-level entries are 0. For `Entry`: the starting level is
+    /// 0, what lies directly below it 1, and so on. For `View` and `Lane`: 0.
     pub depth: u32,
     /// The entry's own prose, in its template's module order (none without a
     /// template). Only the template's prose modules: prose kept from an
     /// earlier template is not part of the sequence.
     pub prose: Vec<FlatProse>,
-    /// Only in [`BookStructureV3::manuscript`]: entries with book prose are
-    /// numbered from 1 across every manuscript part, except those living
-    /// (at any depth) under an entry inside the part that has book prose of
-    /// its own.
+    /// Set when `in_book_only` is true (`sequence(..., true)` /
+    /// [`BookStructureV3::book_sequence`]): entries with book prose are numbered
+    /// from 1 across the sequence, except those living (at any depth) under an
+    /// entry inside the sequence that has book prose of its own
+    /// (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
     pub ordinal: Option<u32>,
 }
 
@@ -52,22 +62,12 @@ pub struct FlatProse {
     pub in_book: bool,
 }
 
-/// How to flatten ([`BookStructureV3::flatten`]).
+/// Options for [`BookStructureV3::flatten`]. Whole-book view and book sequence
+/// share the same walk (`FLATTEN-MEMBERS-ONCE`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Flatten {
     /// Only prose whose module is `in_book`.
     pub in_book_only: bool,
-    /// After the entries living under each level, the entries that belong
-    /// to it (author 2026-11-13: what belongs to a level counts). On by
-    /// default for the whole-book view; never for the manuscript.
-    pub include_members: bool,
-}
-
-/// One outermost manuscript level and what it holds, in sequence.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ManuscriptPart<'a> {
-    pub root: &'a Entry,
-    pub entries: Vec<FlatEntry<'a>>,
 }
 
 /// [`BookStructureV3::flatten`] starts at a live entry whose switch is on.
@@ -82,9 +82,22 @@ impl std::fmt::Display for NotALevel {
 
 impl std::error::Error for NotALevel {}
 
+/// [`BookStructureV3::sequence`] requires a valid [`BookRoot`] (`BOOK-ROOT-VALID`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvalidBookRoot(pub BookRoot);
+
+impl std::fmt::Display for InvalidBookRoot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid sequence root {:?}", self.0)
+    }
+}
+
+impl std::error::Error for InvalidBookRoot {}
+
 impl BookStructureV3 {
     pub(super) fn from_value(book: BookId, value: &LoroValue) -> Self {
         let f = F(value);
+        let project = BookViewV3::read_project(f.get(book_v3::PROJECT));
         let templates: BTreeMap<_, _> = match f.get(book_v3::TEMPLATES) {
             Some(LoroValue::Map(m)) => m
                 .iter()
@@ -105,6 +118,20 @@ impl BookStructureV3 {
         let raw_memberships = BookViewV3::read_memberships(f.get(book_v3::MEMBERSHIPS));
         resolve_autolink_name_conflicts(&mut entries, &raw_memberships, &templates);
         let memberships = filter_valid_memberships(&raw_memberships, &entries, &templates);
+
+        let mut raw_views: Vec<TimelineView> = match f.get(book_v3::TIMELINE_VIEWS) {
+            Some(LoroValue::Map(m)) => m
+                .iter()
+                .filter_map(|(id, v)| BookViewV3::read_timeline_view_raw(id, v))
+                .filter(|v| v.deleted_at.is_none())
+                .collect(),
+            _ => Vec::new(),
+        };
+        sort_timeline_views(&mut raw_views);
+        let ordered_views: Vec<TimelineViewId> = raw_views.iter().map(|v| v.id.clone()).collect();
+        let timeline_views: BTreeMap<_, _> =
+            raw_views.into_iter().map(|v| (v.id.clone(), v)).collect();
+
         let parents: BTreeMap<_, _> = entries
             .values()
             .map(|e| (e.id.clone(), effective_parent_id(e, &entries)))
@@ -119,14 +146,10 @@ impl BookStructureV3 {
                 )
             })
             .collect();
-        let outermost = effective_manuscript_levels(&entries, &templates);
-        let manuscripts = ordered
-            .iter()
-            .filter(|id| outermost.contains(*id))
-            .cloned()
-            .collect();
+
         let mut out = Self {
             book,
+            project,
             ordered,
             entries,
             templates,
@@ -134,8 +157,9 @@ impl BookStructureV3 {
             children: BTreeMap::new(),
             memberships,
             members: BTreeMap::new(),
+            timeline_views,
+            ordered_views,
             settings,
-            manuscripts,
         };
         for id in &out.ordered {
             if !out.entries[id].is_trashed() {
@@ -153,25 +177,44 @@ impl BookStructureV3 {
         }
         out
     }
+
     pub fn book_id(&self) -> &BookId {
         &self.book
     }
+
+    pub fn project(&self) -> &ProjectDefinition {
+        &self.project
+    }
+
     pub fn entry(&self, id: &EntryId) -> Option<&Entry> {
         self.entries.get(id)
     }
+
     pub fn entries(&self) -> impl Iterator<Item = &Entry> {
         self.ordered.iter().map(|id| &self.entries[id])
     }
+
     pub fn entries_map(&self) -> &BTreeMap<EntryId, Entry> {
         &self.entries
     }
+
     pub fn templates_map(&self) -> &BTreeMap<EntryTemplateId, EntryTemplate> {
         &self.templates
     }
+
+    pub fn timeline_views_map(&self) -> &BTreeMap<TimelineViewId, TimelineView> {
+        &self.timeline_views
+    }
+
+    pub fn timeline_views(&self) -> impl Iterator<Item = &TimelineView> {
+        self.ordered_views.iter().map(|id| &self.timeline_views[id])
+    }
+
     pub fn effective_parent(&self, id: &EntryId) -> Option<&EntryId> {
         self.parents.get(id).and_then(Option::as_ref)
     }
-    /// Live entries whose effective residence is `parent`, in manuscript order.
+
+    /// Live entries whose effective residence is `parent`, in folder order.
     pub fn children_of(&self, parent: Option<&EntryId>) -> Vec<&Entry> {
         self.children
             .get(&parent.cloned())
@@ -180,9 +223,11 @@ impl BookStructureV3 {
             .map(|id| &self.entries[id])
             .collect()
     }
+
     pub fn memberships(&self) -> &[Membership] {
         &self.memberships
     }
+
     /// Entries validly belonging to `host`, in the memberships' own order.
     pub fn members_of(&self, host: &EntryId) -> Vec<&Entry> {
         self.members
@@ -192,13 +237,31 @@ impl BookStructureV3 {
             .map(|id| &self.entries[id])
             .collect()
     }
-    /// Live entries whose switch is on, in manuscript order.
+
+    /// Live entries whose switch is on, in folder order.
     pub fn levels(&self) -> impl Iterator<Item = &Entry> {
         self.entries().filter(|e| self.settings.contains_key(&e.id))
     }
+
     /// Resolved settings of a live entry whose switch is on.
     pub fn level_settings(&self, id: &EntryId) -> Option<&ResolvedLevelSettings> {
         self.settings.get(id)
+    }
+
+    /// Whether `root` currently satisfies `BOOK-ROOT-VALID`.
+    pub fn is_valid_book_root(&self, root: &BookRoot) -> bool {
+        check_book_root(root, &self.entries, &self.templates, &self.timeline_views).is_ok()
+    }
+
+    /// Whether `mount` currently satisfies `TAB-MOUNT-VALID`.
+    pub fn is_valid_tab_mount(&self, mount: &TabMount) -> bool {
+        check_tab_mount(
+            mount,
+            self.project.book.is_some(),
+            &self.entries,
+            &self.timeline_views,
+        )
+        .is_ok()
     }
 
     fn prose_of(&self, entry: &Entry, in_book_only: bool) -> Vec<FlatProse> {
@@ -220,123 +283,230 @@ impl BookStructureV3 {
         &'a self,
         id: &EntryId,
         depth: u32,
-        how: Flatten,
+        in_book_only: bool,
         seen: &mut BTreeSet<EntryId>,
         out: &mut Vec<FlatEntry<'a>>,
     ) {
-        if !seen.insert(id.clone()) {
+        if !is_entry_live(id, &self.entries) || !seen.insert(id.clone()) {
             return;
         }
         let entry = &self.entries[id];
         out.push(FlatEntry {
             entry,
             depth,
-            prose: self.prose_of(entry, how.in_book_only),
+            prose: self.prose_of(entry, in_book_only),
             ordinal: None,
         });
         if !entry.is_level() {
             return;
         }
         let residents = self.children.get(&Some(id.clone())).into_iter().flatten();
-        let members = how
-            .include_members
-            .then(|| self.members.get(id))
-            .flatten()
-            .into_iter()
-            .flatten();
+        let members = self.members.get(id).into_iter().flatten();
         for next in residents.chain(members) {
-            self.walk(next, depth + 1, how, seen, out);
+            self.walk(next, depth + 1, in_book_only, seen, out);
         }
     }
 
-    /// Flatten what lies below `from` (`kernel-v4.md` §7): `from` first, then
-    /// depth first, each entry's own prose before what lies below it. Below a
-    /// level come the entries living under it in manuscript order, then (with
-    /// `include_members`) the entries validly belonging to it in the
-    /// memberships' order. Each entry appears once, where it is first reached;
-    /// trashed entries and what lives under them do not appear; an entry
-    /// a merge left under an entry whose switch is off appears under the
-    /// nearest level, as in the sidebar. Entries without prose appear too.
-    pub fn flatten(&self, from: &EntryId, how: Flatten) -> Result<Vec<FlatEntry<'_>>, NotALevel> {
-        let start = self
-            .entries
-            .get(from)
-            .filter(|e| !e.is_trashed() && e.is_level())
-            .ok_or_else(|| NotALevel(from.clone()))?;
-        let mut out = Vec::new();
-        self.walk(&start.id, 0, how, &mut BTreeSet::new(), &mut out);
-        Ok(out)
-    }
-
-    /// The manuscript sequence (`成书序列`): one part per outermost manuscript
-    /// level, in tree order, each flattened with book prose only and no
-    /// memberships. Entries with book prose are numbered from 1 across all
-    /// parts (`ordinal`), except what lives under an entry with book prose
-    /// of its own (author 2026-11-13): those keep their place, their prose
-    /// and their words, without a number. An entry without book prose (a
-    /// 「第一卷」) numbers nothing and stops nothing below it being numbered;
-    /// nor does a part's own level, whose own prose (a preface) is numbered
-    /// as before while the chapters under it keep theirs.
-    /// Export, the book's word count and chapter numbers all read this.
-    pub fn manuscript(&self) -> Vec<ManuscriptPart<'_>> {
-        let how = Flatten {
-            in_book_only: true,
-            include_members: false,
-        };
-        let mut ordinal = 0;
-        self.manuscripts
+    fn view_sequence<'a>(&'a self, view: &TimelineView, in_book_only: bool) -> Vec<FlatEntry<'a>> {
+        let mut lanes = effective_timeline_lanes(&view.lanes, &self.entries, &self.templates);
+        lanes.sort_by_key(|l| !l.is_act_track());
+        let placement_at: HashMap<&EntryId, f64> = view
+            .placements
             .iter()
-            .filter_map(|root| {
-                let mut entries = self.flatten(root, how).ok()?;
-                // The depth of the numbered entry the walk is inside of; the
-                // walk is depth first, so it has left that entry once it is
-                // back at the same depth or above.
-                let mut inside: Option<u32> = None;
-                for e in &mut entries {
-                    if inside.is_some_and(|depth| e.depth <= depth) {
-                        inside = None;
-                    }
-                    if inside.is_none() && !e.prose.is_empty() {
-                        ordinal += 1;
-                        e.ordinal = Some(ordinal);
-                        if e.depth > 0 {
-                            inside = Some(e.depth);
-                        }
-                    }
+            .filter(|p| p.at.is_finite())
+            .map(|p| (&p.entry, p.at))
+            .collect();
+        let mut min_lane_idx: HashMap<EntryId, usize> = HashMap::new();
+        let mut unique: Vec<EntryId> = Vec::new();
+        for (lane_idx, lane) in lanes.iter().enumerate() {
+            for member in self.members.get(&lane.entry).into_iter().flatten() {
+                if !is_entry_live(member, &self.entries) {
+                    continue;
                 }
-                Some(ManuscriptPart {
-                    root: &self.entries[root],
-                    entries,
+                min_lane_idx.entry(member.clone()).or_insert_with(|| {
+                    unique.push(member.clone());
+                    lane_idx
+                });
+            }
+        }
+        unique.sort_by(|a, b| {
+            let pa = placement_at.get(a);
+            let pb = placement_at.get(b);
+            pa.is_none()
+                .cmp(&pb.is_none())
+                .then_with(|| match (pa, pb) {
+                    (Some(xa), Some(xb)) => xa.total_cmp(xb),
+                    _ => Ordering::Equal,
                 })
+                .then_with(|| min_lane_idx[a].cmp(&min_lane_idx[b]))
+                .then_with(|| a.cmp(b))
+        });
+        unique
+            .into_iter()
+            .map(|id| {
+                let entry = &self.entries[&id];
+                FlatEntry {
+                    entry,
+                    depth: 0,
+                    prose: self.prose_of(entry, in_book_only),
+                    ordinal: None,
+                }
             })
             .collect()
     }
 
-    /// The entries of the manuscript sequence that carry book prose
-    /// (chapters, in the default structure), in order, numbered or not.
-    pub fn manuscript_entries(&self) -> Vec<Entry> {
-        self.manuscript()
+    fn lane_in_view_sequence<'a>(
+        &'a self,
+        view: &TimelineView,
+        lane_id: &EntryId,
+        in_book_only: bool,
+    ) -> Vec<FlatEntry<'a>> {
+        let placement_at: HashMap<&EntryId, f64> = view
+            .placements
+            .iter()
+            .filter(|p| p.at.is_finite())
+            .map(|p| (&p.entry, p.at))
+            .collect();
+        let mut seen = BTreeSet::new();
+        let mut unique: Vec<EntryId> = self
+            .members
+            .get(lane_id)
             .into_iter()
-            .flat_map(|p| p.entries)
+            .flatten()
+            .filter(|m| is_entry_live(m, &self.entries) && seen.insert((*m).clone()))
+            .cloned()
+            .collect();
+        unique.sort_by(|a, b| {
+            let pa = placement_at.get(a);
+            let pb = placement_at.get(b);
+            pa.is_none()
+                .cmp(&pb.is_none())
+                .then_with(|| match (pa, pb) {
+                    (Some(xa), Some(xb)) => xa.total_cmp(xb),
+                    _ => Ordering::Equal,
+                })
+                .then_with(|| a.cmp(b))
+        });
+        unique
+            .into_iter()
+            .map(|id| {
+                let entry = &self.entries[&id];
+                FlatEntry {
+                    entry,
+                    depth: 0,
+                    prose: self.prose_of(entry, in_book_only),
+                    ordinal: None,
+                }
+            })
+            .collect()
+    }
+
+    /// Unified sequence reader across all four [`BookRoot`] kinds (`kernel-v5.md` §3):
+    /// - `Root` and `Entry`: preorder walk (own prose, then residents in folder
+    ///   order, then valid members), visiting each entry at most once.
+    /// - `View`: all valid members of all effective swimlanes in `view`, ordered
+    ///   along `view`'s scale (unplaced entries last, ties broken by lane order
+    ///   top-to-bottom then entry id), each entry once.
+    /// - `Lane`: valid members of `entry` ordered along `view`'s scale (unplaced
+    ///   last, ties broken by entry id).
+    pub fn sequence(
+        &self,
+        root: &BookRoot,
+        in_book_only: bool,
+    ) -> Result<Vec<FlatEntry<'_>>, InvalidBookRoot> {
+        if !self.is_valid_book_root(root) {
+            return Err(InvalidBookRoot(root.clone()));
+        }
+        let mut entries = match root {
+            BookRoot::Root => {
+                let mut seen = BTreeSet::new();
+                let mut out = Vec::new();
+                for top in self.children.get(&None).into_iter().flatten() {
+                    self.walk(top, 0, in_book_only, &mut seen, &mut out);
+                }
+                out
+            }
+            BookRoot::Entry { entry } => {
+                let mut seen = BTreeSet::new();
+                let mut out = Vec::new();
+                self.walk(entry, 0, in_book_only, &mut seen, &mut out);
+                out
+            }
+            BookRoot::View { view } => self.view_sequence(&self.timeline_views[view], in_book_only),
+            BookRoot::Lane { view, entry } => {
+                self.lane_in_view_sequence(&self.timeline_views[view], entry, in_book_only)
+            }
+        };
+        if in_book_only {
+            // Entries with book prose are numbered from 1 across the sequence,
+            // except what lives under an entry with book prose of its own
+            // (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`). For `BookRoot::Entry`, the
+            // starting level itself (`depth == 0`) may carry a preface without
+            // stopping the chapters under it from being numbered.
+            let start_is_entry = matches!(root, BookRoot::Entry { .. });
+            let mut ordinal = 0u32;
+            let mut inside: Option<u32> = None;
+            for e in &mut entries {
+                if inside.is_some_and(|depth| e.depth <= depth) {
+                    inside = None;
+                }
+                if inside.is_none() && !e.prose.is_empty() {
+                    ordinal += 1;
+                    e.ordinal = Some(ordinal);
+                    if !(start_is_entry && e.depth == 0) {
+                        inside = Some(e.depth);
+                    }
+                }
+            }
+        }
+        Ok(entries)
+    }
+
+    /// Flatten what lies below `from` (`BookRoot::Entry`): delegates to the
+    /// unified [`Self::sequence`] reader.
+    pub fn flatten(&self, from: &EntryId, how: Flatten) -> Result<Vec<FlatEntry<'_>>, NotALevel> {
+        self.sequence(
+            &BookRoot::Entry {
+                entry: from.clone(),
+            },
+            how.in_book_only,
+        )
+        .map_err(|_| NotALevel(from.clone()))
+    }
+
+    /// The project's book sequence (`成书序列`, `kernel-v5.md` §3): reads from
+    /// `project.book.root` with `in_book_only = true` and numbers entries with
+    /// book prose from 1 (`ordinal`). Returns empty when the project has no
+    /// book (`project.book == None`) or when `project.book.root` is invalid.
+    pub fn book_sequence(&self) -> Vec<FlatEntry<'_>> {
+        let Some(book) = &self.project.book else {
+            return Vec::new();
+        };
+        self.sequence(&book.root, true).unwrap_or_default()
+    }
+
+    /// The entries of [`Self::book_sequence`] that carry book prose, in order,
+    /// numbered or not (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
+    pub fn book_entries(&self) -> Vec<Entry> {
+        self.book_sequence()
+            .into_iter()
             .filter(|e| !e.prose.is_empty())
             .map(|e| e.entry.clone())
             .collect()
     }
 
-    /// Every document of the manuscript sequence, in order.
-    pub fn manuscript_docs(&self) -> Vec<DocId> {
-        self.manuscript()
+    /// Every document of [`Self::book_sequence`], in order.
+    pub fn book_docs(&self) -> Vec<DocId> {
+        self.book_sequence()
             .into_iter()
-            .flat_map(|p| p.entries)
             .flat_map(|e| e.prose.into_iter().map(|p| p.doc))
             .collect()
     }
 
-    /// The chapter number of `id` in the manuscript sequence, if it has one.
+    /// The 1-based number of `id` in [`Self::book_sequence`], if it has one.
     pub fn ordinal(&self, id: &EntryId) -> Option<u32> {
-        self.manuscript()
+        self.book_sequence()
             .into_iter()
-            .flat_map(|p| p.entries)
             .find(|e| &e.entry.id == id)
             .and_then(|e| e.ordinal)
     }

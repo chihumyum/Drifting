@@ -185,12 +185,17 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         view.meta().schema_version,
         dr_doc::schema::BOOK_SCHEMA_VERSION
     );
+    let proj = view.project();
+    assert_eq!(
+        proj.book.as_ref().map(|b| &b.root),
+        Some(&dr_model::v3::BookRoot::Entry {
+            entry: entry_id(view, &manifest::Entry::Manuscript),
+        })
+    );
     assert_eq!(
         view.structure_snapshot()
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .filter(|p| p.root.id == entry_id(view, &manifest::Entry::Manuscript))
-            .flat_map(|p| p.entries)
             .filter(|e| e.ordinal.is_some())
             .map(|e| e.entry.clone())
             .collect::<Vec<_>>()
@@ -211,9 +216,10 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .collect::<Vec<_>>(),
         [fixture::CHAPTER_BEFORE, "act-1", "act-2"]
     );
-    assert_eq!(view.meta().word_target_set, expected.settings.word_target);
+    let book_cfg = proj.book.as_ref().expect("imported book config");
+    assert_eq!(book_cfg.word_target_set, expected.settings.word_target);
     assert_eq!(
-        view.meta().daily_word_target_set,
+        book_cfg.daily_word_target_set,
         expected.settings.daily_word_target
     );
     for level in &expected.levels {
@@ -3129,13 +3135,13 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
             )
             .unwrap();
         assert!(
-            cur.starts_with("4:"),
-            "v4 kernel marker must use prefix 4:, got {cur}"
+            cur.starts_with("5:"),
+            "v5 kernel marker must use prefix 5:, got {cur}"
         );
-        let legacy_v3_marker = cur.replacen("4:", "3:", 1);
+        let legacy_v4_marker = cur.replacen("5:", "4:", 1);
         conn.execute(
             "UPDATE local_state SET value = ?1 WHERE scope = 'import-v1-kernel' AND key = ?2",
-            rusqlite::params![&legacy_v3_marker, BOOK],
+            rusqlite::params![&legacy_v4_marker, BOOK],
         )
         .unwrap();
     }

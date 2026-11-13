@@ -63,6 +63,7 @@ pub struct ManuscriptBody {
 #[derive(Default, Serialize)]
 pub struct BookV3 {
     pub revision: String,
+    pub project: types::Project,
     pub manuscript: Vec<ManuscriptBody>,
     /// Effective tree traversal order; each row preserves its raw parent.
     pub entries: Vec<types::Entry>,
@@ -83,9 +84,6 @@ pub struct BookV3 {
     colors: BTreeMap<String, String>,
     #[serde(skip)]
     ordinals: BTreeMap<String, u32>,
-    /// The outermost manuscript levels, the only ones `is_manuscript` counts on.
-    #[serde(skip)]
-    manuscript_roots: BTreeSet<String>,
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
@@ -186,18 +184,19 @@ impl BookV3 {
     pub fn manuscript_number(&self, id: &str) -> Option<u32> {
         self.ordinals.get(id).copied()
     }
-    /// Whether `id` is an outermost level that declares itself a manuscript:
-    /// the only kind `is_manuscript` counts on (`kernel-v4.md` "成书"),
-    /// whatever the settings below it resolve to.
-    pub fn is_manuscript_root(&self, id: &str) -> bool {
-        self.manuscript_roots.contains(id)
-    }
     /// Whether `id` holds content rather than organising it: its template
     /// is `linkable` (`kernel-v4.md` §2), and an entry without a template
     /// counts as content. A content entry is shown as a card whether or not
     /// its switch is on; only an organising entry is shown as a group.
     pub fn is_content(&self, id: &str) -> bool {
         self.entry(id).is_some() && self.template_of(id).is_none_or(|t| t.linkable)
+    }
+    /// Whether `id` is the entry currently configured as `project.book.root`.
+    pub fn is_book_root_entry(&self, id: &str) -> bool {
+        matches!(
+            self.project.book.as_ref().map(|b| &b.root),
+            Some(types::BookRoot::Entry { entry }) if entry == id
+        )
     }
     /// Metadata for every entry surface. Marks keep the template's vocabulary;
     /// the sand renderer maps the built-in marks to the existing visual family.
@@ -314,24 +313,40 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             })
             .collect();
 
-        // The manuscript sequence: each entry's own book prose before what
-        // lives under it.
+        // The book sequence (`project.book`): entries with book prose, in sequence order.
+        let p = structure.project();
+        let project = types::Project {
+            source: p.source.as_ref().map(Into::into),
+            agent: p.agent.as_ref().map(Into::into),
+            book: p.book.as_ref().map(Into::into),
+            book_root_valid: p
+                .book
+                .as_ref()
+                .is_none_or(|b| structure.is_valid_book_root(&b.root)),
+            tabs: p
+                .tabs
+                .iter()
+                .map(|t| types::ProjectTab {
+                    id: t.id.to_string(),
+                    name: t.name.clone(),
+                    pos: t.pos.as_ref().map(|k| k.as_str().to_owned()),
+                    mount: (&t.mount).into(),
+                    mount_valid: structure.is_valid_tab_mount(&t.mount),
+                })
+                .collect(),
+        };
         let mut manuscript = Vec::new();
         let mut ordinals = BTreeMap::new();
-        let mut manuscript_roots = BTreeSet::new();
-        for part in structure.manuscript() {
-            manuscript_roots.insert(part.root.id.to_string());
-            for e in part.entries {
-                if let Some(n) = e.ordinal {
-                    ordinals.insert(e.entry.id.to_string(), n);
-                }
-                for prose in e.prose {
-                    manuscript.push(ManuscriptBody {
-                        entry: e.entry.id.to_string(),
-                        module: prose.module.to_string(),
-                        title: e.entry.title.clone(),
-                    });
-                }
+        for e in structure.book_sequence() {
+            if let Some(n) = e.ordinal {
+                ordinals.insert(e.entry.id.to_string(), n);
+            }
+            for prose in e.prose {
+                manuscript.push(ManuscriptBody {
+                    entry: e.entry.id.to_string(),
+                    module: prose.module.to_string(),
+                    title: e.entry.title.clone(),
+                });
             }
         }
 
@@ -394,10 +409,10 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             meta.name,
             BookV3 {
                 revision: version,
+                project,
                 shown,
                 manuscript,
                 ordinals,
-                manuscript_roots,
                 entries,
                 templates,
                 roots,

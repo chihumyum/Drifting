@@ -154,9 +154,10 @@ fn a_handed_off_library_imports_completely() {
 
     // The book, its targets from the handoff, its facts in projection order.
     let meta = v.meta();
+    let project = v.project();
     assert_eq!(meta.name, "阿Q正传");
-    assert_eq!(meta.word_target(), Some(80000));
-    assert_eq!(meta.daily_word_target(), None, "0 turns it off");
+    assert_eq!(project.word_target(), Some(80000));
+    assert_eq!(project.daily_word_target(), None, "0 turns it off");
     let facts: Vec<String> = v.facts().into_iter().map(|f| f.key).collect();
     assert_eq!(facts, ["类型", "视角"]);
     let storyline_template = v
@@ -880,6 +881,13 @@ fn catalog_state(n: &New) -> serde_json::Value {
         ordered.sort_by_key(|(_, v)| v["pos"].as_str().unwrap_or(""));
         for (i, (id, _)) in ordered.into_iter().enumerate() {
             names.insert(id.clone(), format!("allocated-timeline:{i}"));
+        }
+    }
+    if let Some(tabs) = value["project"]["tabs"].as_object() {
+        let mut ordered = tabs.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|(_, t)| t["pos"].as_str().unwrap_or(""));
+        for (i, (id, _)) in ordered.into_iter().enumerate() {
+            names.insert(id.clone(), format!("allocated-tab:{i}"));
         }
     }
     fn rename(

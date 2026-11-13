@@ -89,7 +89,7 @@ fn measure(mode: Mode, legacy: bool) -> Result<Bench, String> {
         .filter_map(|e| e["id"].as_str())
         .collect();
     let complete = |below: &Value| {
-        below["sources"].as_object().is_some_and(|s| s.len() == 8)
+        below["sources"].as_object().is_some_and(|s| s.len() == 7)
             && below["children"].is_array()
             && below["members"].is_array()
     };

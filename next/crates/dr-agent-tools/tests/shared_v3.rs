@@ -124,7 +124,8 @@ fn directory_projects_v3_input_output_and_revision_for_shared_names() {
     let create = cat.descriptor("comment.create").unwrap();
     assert!(create.input_schema["properties"]["module"].is_object());
     let book = cat.descriptor("book.update").unwrap();
-    assert!(book.input_schema["properties"]["word_target"].is_object());
+    assert!(book.input_schema["properties"]["summary"].is_object());
+    assert!(book.input_schema["properties"].get("word_target").is_none());
 }
 
 #[test]
@@ -134,35 +135,25 @@ fn book_metadata_requires_read_and_old_frontier_never_overwrites_author_update()
         f.call("book.update", json!({"name":"unread"})),
         Err(Error::ReadRequired(_))
     ));
-    f.call("book.get", json!({})).unwrap();
-    f.call(
-        "book.update",
-        json!({"name":"Synthetic book","word_target":0,"daily_word_target":230}),
-    )
-    .unwrap();
+    let initial = f.call("book.get", json!({})).unwrap();
+    assert_eq!(initial["word_target"], 3000);
+    f.call("book.update", json!({"name":"Synthetic book"}))
+        .unwrap();
     let book = f.call("book.get", json!({})).unwrap();
     assert_eq!(book["name"], "Synthetic book");
-    assert!(book["word_target"].is_null());
-    assert_eq!(
-        f.ws.observe(&format!("book:{}", f.book)).unwrap().value["meta"]["word_target"],
-        0
-    );
-    assert_eq!(book["daily_word_target"], 230);
+    assert_eq!(book["word_target"], initial["word_target"]);
     f.out("book.update", json!({"summary":"author edit"}));
     assert!(matches!(
         f.call("book.update", json!({"name":"stale"})),
         Err(Error::Conflict(_))
     ));
     f.call("book.get", json!({})).unwrap();
-    f.call(
-        "book.update",
-        json!({"word_target":null,"daily_word_target":null}),
-    )
-    .unwrap();
+    f.call("book.update", json!({"summary":"agent edit"}))
+        .unwrap();
     let book = f.call("book.get", json!({})).unwrap();
     assert_eq!(book["name"], "Synthetic book");
-    assert_eq!(book["summary"], "author edit");
-    assert_eq!(book["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
+    assert_eq!(book["summary"], "agent edit");
+    assert_eq!(book["word_target"], initial["word_target"]);
 }
 
 #[test]

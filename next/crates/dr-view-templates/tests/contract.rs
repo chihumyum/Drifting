@@ -234,7 +234,6 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
         auto_link: Some(true),
         accept: Some(false),
         home: Some(Some(home["id"].as_str().unwrap().into())),
-        is_manuscript: Some(false),
         format_shortcuts: Some("notes".into()),
         lane: Some(true),
     };
@@ -469,18 +468,13 @@ fn prose_in_book_children_module_and_linkable_govern_manuscript_and_autolinks() 
         let view = borrowed.view();
         let snapshot = view.structure_snapshot();
         snapshot
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .flat_map(|part| {
-                part.entries
+            .filter(|e| e.entry.id.as_str() == entry_id)
+            .flat_map(|e| {
+                e.prose
                     .into_iter()
-                    .filter(|e| e.entry.id.as_str() == entry_id)
-                    .flat_map(|e| {
-                        e.prose
-                            .into_iter()
-                            .map(|p| p.module.to_string())
-                            .collect::<Vec<_>>()
-                    })
+                    .map(|p| p.module.to_string())
                     .collect::<Vec<_>>()
             })
             .collect()

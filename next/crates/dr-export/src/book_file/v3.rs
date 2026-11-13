@@ -122,6 +122,7 @@ impl Paths {
 fn plain_identity(path: &[String]) -> bool {
     matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts"))
         || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
+        || matches!(path, [root, field] if root == "project" && field == "tabs")
 }
 
 fn each_key(changes: &[JsonChange], paths: &Paths, mut f: impl FnMut(&[String], &str)) {
@@ -553,6 +554,27 @@ impl Rewriter<'_> {
                         _ => v.clone(),
                     })
                     .collect::<Vec<_>>()
+                    .into(),
+            );
+        }
+        if ((path == ["project", "book"] && key == "root")
+            || (matches!(path, [root, field, _] if root == "project" && field == "tabs")
+                && key == "mount"))
+            && let LoroValue::Map(m) = value
+        {
+            return LoroValue::Map(
+                m.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            if matches!(k.as_str(), "entry" | "view") {
+                                self.refs(v)
+                            } else {
+                                v.clone()
+                            },
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
                     .into(),
             );
         }

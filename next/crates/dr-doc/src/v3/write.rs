@@ -141,13 +141,56 @@ pub(crate) fn write_level_settings_override(
             }
         }
     }
-    set(map, "is_manuscript", ov.is_manuscript)?;
     set(map, "format_shortcuts", ov.format_shortcuts.as_ref())?;
     set(map, "lane", ov.lane)?;
     Ok(())
 }
 
-/// Writes `meta` of a v3 book document.
+pub(crate) fn encode_book_root(root: &BookRoot) -> LoroValue {
+    let mut m = std::collections::HashMap::<String, LoroValue>::new();
+    match root {
+        BookRoot::Root => {
+            m.insert("kind".into(), "root".into());
+        }
+        BookRoot::Entry { entry } => {
+            m.insert("kind".into(), "entry".into());
+            m.insert("entry".into(), entry.as_str().into());
+        }
+        BookRoot::View { view } => {
+            m.insert("kind".into(), "view".into());
+            m.insert("view".into(), view.as_str().into());
+        }
+        BookRoot::Lane { view, entry } => {
+            m.insert("kind".into(), "lane".into());
+            m.insert("view".into(), view.as_str().into());
+            m.insert("entry".into(), entry.as_str().into());
+        }
+    }
+    LoroValue::from(m)
+}
+
+pub(crate) fn encode_tab_mount(mount: &TabMount) -> LoroValue {
+    let mut m = std::collections::HashMap::<String, LoroValue>::new();
+    match mount {
+        TabMount::Root => {
+            m.insert("kind".into(), "root".into());
+        }
+        TabMount::Entry { entry } => {
+            m.insert("kind".into(), "entry".into());
+            m.insert("entry".into(), entry.as_str().into());
+        }
+        TabMount::View { view } => {
+            m.insert("kind".into(), "view".into());
+            m.insert("view".into(), view.as_str().into());
+        }
+        TabMount::Book => {
+            m.insert("kind".into(), "book".into());
+        }
+    }
+    LoroValue::from(m)
+}
+
+/// Writes `meta` of a book document (`v = 5`).
 pub struct MetaWriterV3 {
     map: LoroMap,
 }
@@ -172,29 +215,125 @@ impl MetaWriterV3 {
         set(&self.map, "created_at", v)?;
         Ok(self)
     }
+}
 
-    pub fn word_target(&self, v: Option<i64>) -> Result<&Self> {
-        set(&self.map, "word_target", v)?;
-        Ok(self)
-    }
+/// Writes `project` of a book document (`kernel-v5.md` §2 & §10).
+pub struct ProjectWriterV3 {
+    map: LoroMap,
+}
 
-    pub fn daily_word_target(&self, v: Option<i64>) -> Result<&Self> {
-        set(&self.map, "daily_word_target", v)?;
-        Ok(self)
-    }
-
-    pub fn project_template(&self, pt: Option<&ProjectTemplateRef>) -> Result<&Self> {
+impl ProjectWriterV3 {
+    pub fn source(&self, pt: Option<&ProjectTemplateRef>) -> Result<&Self> {
         match pt {
             Some(pt) => {
-                let m = self.map.ensure_mergeable_map("project_template")?;
+                let m = self.map.ensure_mergeable_map("source")?;
                 set(&m, "id", pt.id.as_str())?;
                 set(&m, "version", pt.version)?;
             }
             None => {
-                if self.map.get("project_template").is_some() {
-                    self.map.delete("project_template")?;
+                if self.map.get("source").is_some() {
+                    self.map.delete("source")?;
                 }
             }
+        }
+        Ok(self)
+    }
+
+    pub fn agent(&self, cfg: Option<&TemplateAgentConfig>) -> Result<&Self> {
+        match cfg {
+            Some(cfg)
+                if !(cfg.name.is_empty()
+                    && cfg.description.is_empty()
+                    && cfg.instructions.is_empty()) =>
+            {
+                let m = self.map.ensure_mergeable_map("agent")?;
+                set(&m, "name", cfg.name.as_str())?;
+                set(&m, "description", cfg.description.as_str())?;
+                set(&m, "instructions", cfg.instructions.as_str())?;
+            }
+            _ => {
+                if self.map.get("agent").is_some() {
+                    self.map.delete("agent")?;
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn book(&self, book: Option<&ProjectBook>) -> Result<&Self> {
+        match book {
+            Some(b) => {
+                let m = self.map.ensure_mergeable_map("book")?;
+                m.insert("root", encode_book_root(&b.root))?;
+                set(&m, "word_target", b.word_target_set)?;
+                set(&m, "daily_word_target", b.daily_word_target_set)?;
+            }
+            None => {
+                if self.map.get("book").is_some() {
+                    self.map.delete("book")?;
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn book_root(&self, root: &BookRoot) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        m.insert("root", encode_book_root(root))?;
+        Ok(self)
+    }
+
+    pub fn book_word_target(&self, wt: Option<i64>) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        set(&m, "word_target", wt)?;
+        Ok(self)
+    }
+
+    pub fn book_daily_word_target(&self, dwt: Option<i64>) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        set(&m, "daily_word_target", dwt)?;
+        Ok(self)
+    }
+
+    pub fn put_tab(&self, tab: &ProjectTab) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        let t = tabs.ensure_mergeable_map(tab.id.as_str())?;
+        set(&t, "name", tab.name.as_str())?;
+        set(&t, "pos", tab.pos.as_ref())?;
+        t.insert("mount", encode_tab_mount(&tab.mount))?;
+        Ok(self)
+    }
+
+    pub fn move_tab(&self, id: &TabId, pos: Option<&PosKey>) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        let t = tabs.ensure_mergeable_map(id.as_str())?;
+        set(&t, "pos", pos)?;
+        Ok(self)
+    }
+
+    pub fn remove_tab(&self, id: &TabId) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        if tabs.get(id.as_str()).is_some() {
+            tabs.delete(id.as_str())?;
+        }
+        Ok(self)
+    }
+
+    pub fn set_full(&self, def: &ProjectDefinition) -> Result<&Self> {
+        self.source(def.source.as_ref())?
+            .agent(def.agent.as_ref())?
+            .book(def.book.as_ref())?;
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        let want: std::collections::HashSet<&str> =
+            def.tabs.iter().map(|t| t.id.as_str()).collect();
+        let have: Vec<String> = tabs.keys().map(|k| k.to_string()).collect();
+        for k in have {
+            if !want.contains(k.as_str()) {
+                tabs.delete(&k)?;
+            }
+        }
+        for tab in &def.tabs {
+            self.put_tab(tab)?;
         }
         Ok(self)
     }
@@ -1272,6 +1411,12 @@ impl<'a> BookTxnV3<'a> {
         }
     }
 
+    pub fn project(&mut self) -> ProjectWriterV3 {
+        ProjectWriterV3 {
+            map: self.view.doc.get_map(book_v3::PROJECT),
+        }
+    }
+
     pub fn template(&mut self, id: &EntryTemplateId) -> Result<TemplateWriterV3> {
         Ok(TemplateWriterV3 {
             map: self.entity(book_v3::TEMPLATES, id.as_str())?,
@@ -1877,9 +2022,45 @@ impl<'a> BookTxnV3<'a> {
         id: &str,
         old: Option<&EntrySnapshotV3>,
     ) -> Result<()> {
+        if collection == CollectionV3::Project
+            && let Some(sub_key) = id.strip_prefix("book/")
+        {
+            let root = self.view.doc.get_map(book_v3::PROJECT);
+            let Some(loro::ValueOrContainer::Container(loro::Container::Map(book_map))) =
+                root.get("book")
+            else {
+                return Ok(());
+            };
+            if let Some(old) = old {
+                book_map.insert(sub_key, old.value.clone())?;
+            } else if book_map.get(sub_key).is_some() {
+                book_map.delete(sub_key)?;
+            }
+            return Ok(());
+        }
+        if collection == CollectionV3::Project
+            && let Some(tab_id) = id.strip_prefix("tabs/")
+        {
+            let tabs = self
+                .view
+                .doc
+                .get_map(book_v3::PROJECT)
+                .ensure_mergeable_map("tabs")?;
+            if let Some(old) = old {
+                let LoroValue::Map(want) = &old.value else {
+                    return Err(DocError::NotInProfile("snapshot is not a map"));
+                };
+                let map = tabs.ensure_mergeable_map(tab_id)?;
+                sync_record_with_values(&map, want, None, &["mount"])?;
+            } else if tabs.get(tab_id).is_some() {
+                tabs.delete(tab_id)?;
+            }
+            return Ok(());
+        }
         if !matches!(
             collection,
-            CollectionV3::Templates
+            CollectionV3::Project
+                | CollectionV3::Templates
                 | CollectionV3::Memberships
                 | CollectionV3::TimelineViews
                 | CollectionV3::Patches
@@ -1911,10 +2092,10 @@ impl<'a> BookTxnV3<'a> {
                     CollectionV3::Materials => Some("description"),
                     _ => None,
                 },
-                if collection == CollectionV3::Comments {
-                    &["region"]
-                } else {
-                    &[]
+                match collection {
+                    CollectionV3::Comments => &["region"],
+                    CollectionV3::Project if id == "book" => &["root"],
+                    _ => &[],
                 },
             )?;
         } else if root.get(id).is_some() {

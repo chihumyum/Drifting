@@ -22,7 +22,7 @@ use crate::check::Violation;
 pub use crate::id::{
     AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EntryId, EntryTemplateId, KvEntryId,
     MaterialFolderId, MaterialId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
-    RelationTypeId, TemplateId, TimePinId, TimelineViewId,
+    RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
 };
 use crate::kind::{
     CommentAuthorKind, CommentKind, CommentPriority, CommentSource, CommentStatus, EntityKind,
@@ -515,9 +515,6 @@ pub struct LevelSettings {
     /// `None` means they reside under this level itself.
     #[serde(default)]
     pub home: Option<EntryId>,
-    /// Whether what lives under this level in tree order forms a manuscript (`成书`).
-    #[serde(default)]
-    pub is_manuscript: bool,
     /// Editor formatting shortcut profile for prose under this level (`格式快捷输入`).
     #[serde(default)]
     pub format_shortcuts: FormatShortcuts,
@@ -562,8 +559,6 @@ pub struct LevelSettingsOverride {
     )]
     pub home: Option<Option<EntryId>>,
     #[serde(default)]
-    pub is_manuscript: Option<bool>,
-    #[serde(default)]
     pub format_shortcuts: Option<FormatShortcuts>,
     /// `None` leaves it to the template (an entry's override) or off (a template).
     #[serde(default)]
@@ -577,7 +572,6 @@ impl LevelSettingsOverride {
             && self.auto_link.is_none()
             && self.accept.is_none()
             && self.home.is_none()
-            && self.is_manuscript.is_none()
             && self.format_shortcuts.is_none()
             && self.lane.is_none()
     }
@@ -594,7 +588,6 @@ impl LevelSettingsOverride {
             auto_link: self.auto_link.or(lower.auto_link),
             accept: self.accept.or(lower.accept),
             home: self.home.clone().or_else(|| lower.home.clone()),
-            is_manuscript: self.is_manuscript.or(lower.is_manuscript),
             format_shortcuts: self
                 .format_shortcuts
                 .clone()
@@ -617,7 +610,6 @@ impl LevelSettingsOverride {
             auto_link: self.auto_link.unwrap_or(def.auto_link),
             accept: lane || self.accept.unwrap_or(def.accept),
             home: self.home.clone().unwrap_or(def.home),
-            is_manuscript: self.is_manuscript.unwrap_or(def.is_manuscript),
             format_shortcuts: self
                 .format_shortcuts
                 .clone()
@@ -1207,15 +1199,16 @@ impl CommentV3 {
     }
 }
 
-/// Which project template initialized the book (`meta.project_template`).
+/// Which project template initialized the book (`project.source`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectTemplateRef {
     pub id: String,
     pub version: i64,
 }
 
-/// Book metadata in schema v3 (`meta` container, `v = 3`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Book metadata in schema v5 (`meta` container, `v = 5`).
+/// Word targets and project source live in `project` ([`ProjectDefinition`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BookMetaV3 {
     pub id: BookId,
     pub schema_version: i64,
@@ -1223,12 +1216,37 @@ pub struct BookMetaV3 {
     pub summary: String,
     pub deleted_at: Option<Timestamp>,
     pub created_at: Option<Timestamp>,
-    pub word_target_set: Option<i64>,
-    pub daily_word_target_set: Option<i64>,
-    pub project_template: Option<ProjectTemplateRef>,
 }
 
-impl BookMetaV3 {
+/// Starting point of the project's book sequence (`project.book.root`, `kernel-v5.md` §3 & §10).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BookRoot {
+    Root,
+    Entry {
+        entry: EntryId,
+    },
+    View {
+        view: TimelineViewId,
+    },
+    Lane {
+        view: TimelineViewId,
+        entry: EntryId,
+    },
+}
+
+/// Book configuration inside `project.book` (`kernel-v5.md` §3 & §10).
+/// Absence of `project.book` means the project has no book.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectBook {
+    pub root: BookRoot,
+    #[serde(default)]
+    pub word_target_set: Option<i64>,
+    #[serde(default)]
+    pub daily_word_target_set: Option<i64>,
+}
+
+impl ProjectBook {
     pub fn word_target(&self) -> Option<i64> {
         match self.word_target_set.unwrap_or(DEFAULT_WORD_TARGET) {
             0 => None,
@@ -1245,6 +1263,86 @@ impl BookMetaV3 {
             n => Some(n.max(0)),
         }
     }
+}
+
+/// Target mounted on a left-sidebar tab (`project.tabs.<id>.mount`, `kernel-v5.md` §5 & §10).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TabMount {
+    Root,
+    Entry { entry: EntryId },
+    View { view: TimelineViewId },
+    Book,
+}
+
+/// One left-sidebar tab in `project.tabs` (`kernel-v5.md` §5 & §10).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectTab {
+    pub id: TabId,
+    pub name: String,
+    #[serde(default)]
+    pub pos: Option<PosKey>,
+    pub mount: TabMount,
+}
+
+/// Sort project tabs deterministically by `(pos, id)`.
+pub fn sort_project_tabs(tabs: &mut [ProjectTab]) {
+    tabs.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
+}
+
+/// Project-level definition in the `project` root container (`kernel-v5.md` §2 & §10).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectDefinition {
+    #[serde(default)]
+    pub source: Option<ProjectTemplateRef>,
+    #[serde(default)]
+    pub agent: Option<TemplateAgentConfig>,
+    #[serde(default)]
+    pub book: Option<ProjectBook>,
+    #[serde(default)]
+    pub tabs: Vec<ProjectTab>,
+}
+
+impl ProjectDefinition {
+    /// Effective whole-book word target (`None` when the project has no book or turned it off).
+    pub fn word_target(&self) -> Option<i64> {
+        self.book.as_ref().and_then(ProjectBook::word_target)
+    }
+
+    /// Effective daily word target (`None` when the project has no book or turned it off).
+    pub fn daily_word_target(&self) -> Option<i64> {
+        self.book.as_ref().and_then(ProjectBook::daily_word_target)
+    }
+}
+
+/// Initial entry seeded by a [`ProjectTemplate`] (`kernel-v5.md` §2).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProjectSeedEntry {
+    pub id: EntryId,
+    #[serde(default)]
+    pub parent: Option<EntryId>,
+    pub title: String,
+    #[serde(default)]
+    pub template: Option<EntryTemplateId>,
+    #[serde(default)]
+    pub level: bool,
+    #[serde(default)]
+    pub overrides: Option<LevelSettingsOverride>,
+    #[serde(default)]
+    pub fields: BTreeMap<ModuleId, BTreeMap<String, FieldValue>>,
+}
+
+/// Self-contained project template (`项目定义 + 条目模板 + 起始条目 + 起始视图`, `kernel-v5.md` §2).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ProjectTemplate {
+    #[serde(default)]
+    pub project: ProjectDefinition,
+    #[serde(default)]
+    pub templates: Vec<EntryTemplate>,
+    #[serde(default)]
+    pub entries: Vec<ProjectSeedEntry>,
+    #[serde(default)]
+    pub views: Vec<TimelineView>,
 }
 
 // ============================================================================
@@ -1323,13 +1421,12 @@ pub struct ResolvedLevelSettings {
     pub settings: LevelSettings,
     pub sources: BTreeMap<String, LevelSettingSource>,
 }
-pub const LEVEL_SETTING_KEYS: [&str; 8] = [
+pub const LEVEL_SETTING_KEYS: [&str; 7] = [
     "default_template",
     "display",
     "auto_link",
     "accept",
     "home",
-    "is_manuscript",
     "format_shortcuts",
     "lane",
 ];
@@ -1393,7 +1490,6 @@ fn inherit_settings(
             auto_link,
             accept,
             home,
-            is_manuscript,
             format_shortcuts
         );
     }
@@ -2069,73 +2165,127 @@ pub fn effective_timeline_pins(
     out
 }
 
-/// Whether `level_id` directly declares `is_manuscript == true` in its own
-/// `overrides` or its own `EntryTemplate.settings` (before inheritance and
-/// outermost deduplication). Only a live entry whose switch is on can.
-pub fn directly_declares_manuscript(
-    level_id: &EntryId,
-    entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> bool {
-    let Some(entry) = entries.get(level_id) else {
+/// Whether `entry_id` exists in `entries` and neither it nor any ancestor in
+/// its tree chain is trashed.
+pub fn is_entry_live(entry_id: &EntryId, entries: &BTreeMap<EntryId, Entry>) -> bool {
+    let Some(entry) = entries.get(entry_id) else {
         return false;
     };
-    if entry.is_trashed() || !entry.is_level() {
+    if entry.is_trashed() {
         return false;
     }
-    if let Some(ov) = entry.overrides.as_ref()
-        && let Some(flag) = ov.is_manuscript
-    {
-        return flag;
-    }
-    entry
-        .effective_template(templates)
-        .and_then(|t| t.settings.is_manuscript)
-        .unwrap_or(false)
+    !ancestors_without_cycle(entries, entry_id)
+        .iter()
+        .any(|a| entries.get(a).is_some_and(Entry::is_trashed))
 }
 
-/// Invariant 12 (`V3-MANUSCRIPT-NO-NEST`): every pair `(outer, inner)` of
-/// levels that both declare `is_manuscript`, the outer one an effective
-/// ancestor of the inner one. A book with no violation has none.
-pub fn manuscript_nest_pairs(
+/// Invariant `BOOK-ROOT-VALID` (`kernel-v5.md` §11): a book root must be the
+/// root, a live entry whose switch is on, a non-deleted view, or an effective
+/// swimlane in that view.
+pub fn check_book_root(
+    root: &BookRoot,
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> BTreeSet<(EntryId, EntryId)> {
-    let declared: BTreeSet<&EntryId> = entries
-        .keys()
-        .filter(|id| directly_declares_manuscript(id, entries, templates))
-        .collect();
-    let mut pairs = BTreeSet::new();
-    for inner in &declared {
-        for outer in effective_ancestors(entries, inner) {
-            if declared.contains(&outer) {
-                pairs.insert((outer, (*inner).clone()));
+    views: &BTreeMap<TimelineViewId, TimelineView>,
+) -> Result<(), Violation> {
+    match root {
+        BookRoot::Root => Ok(()),
+        BookRoot::Entry { entry } => {
+            if !is_entry_live(entry, entries) {
+                return fail(
+                    "BOOK-ROOT-VALID",
+                    format!("book root entry {entry} is not live"),
+                );
             }
+            if !entries[entry].is_level() {
+                return fail(
+                    "BOOK-ROOT-VALID",
+                    format!("book root entry {entry} has its switch off"),
+                );
+            }
+            Ok(())
+        }
+        BookRoot::View { view } => {
+            if views.get(view).is_none_or(|v| v.deleted_at.is_some()) {
+                return fail(
+                    "BOOK-ROOT-VALID",
+                    format!("book root view {view} does not exist"),
+                );
+            }
+            Ok(())
+        }
+        BookRoot::Lane { view, entry } => {
+            let Some(v) = views.get(view).filter(|v| v.deleted_at.is_none()) else {
+                return fail(
+                    "BOOK-ROOT-VALID",
+                    format!("book root view {view} does not exist"),
+                );
+            };
+            if !is_entry_live(entry, entries) {
+                return fail(
+                    "BOOK-ROOT-VALID",
+                    format!("book root swimlane {entry} is not live"),
+                );
+            }
+            let in_view = effective_timeline_lanes(&v.lanes, entries, templates)
+                .iter()
+                .any(|l| &l.entry == entry);
+            if !in_view {
+                return fail(
+                    "BOOK-ROOT-VALID",
+                    format!("entry {entry} is not an effective swimlane in view {view}"),
+                );
+            }
+            Ok(())
         }
     }
-    pairs
 }
 
-/// Read-side resolution for Invariant 12 (`V3-MANUSCRIPT-NO-NEST`): if a remote
-/// merge leaves both an outer level and an inner descendant level with
-/// `is_manuscript == true`, only the outermost (`最外层`) level is recognized.
-pub fn effective_manuscript_levels(
+/// Invariant `TAB-MOUNT-VALID` (`kernel-v5.md` §5 & §11): a tab mount must be
+/// the root, a live entry whose switch is on, a non-deleted view, or the book
+/// sequence when `has_book` is on.
+pub fn check_tab_mount(
+    mount: &TabMount,
+    has_book: bool,
     entries: &BTreeMap<EntryId, Entry>,
-    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-) -> BTreeSet<EntryId> {
-    let raw: BTreeSet<EntryId> = entries
-        .keys()
-        .filter(|id| directly_declares_manuscript(id, entries, templates))
-        .cloned()
-        .collect();
-    raw.iter()
-        .filter(|id| {
-            let anc = effective_ancestors(entries, id);
-            !anc.iter()
-                .any(|a| entries.get(a).is_some_and(Entry::is_trashed) || raw.contains(a))
-        })
-        .cloned()
-        .collect()
+    views: &BTreeMap<TimelineViewId, TimelineView>,
+) -> Result<(), Violation> {
+    match mount {
+        TabMount::Root => Ok(()),
+        TabMount::Entry { entry } => {
+            if !is_entry_live(entry, entries) {
+                return fail(
+                    "TAB-MOUNT-VALID",
+                    format!("tab mount entry {entry} is not live"),
+                );
+            }
+            if !entries[entry].is_level() {
+                return fail(
+                    "TAB-MOUNT-VALID",
+                    format!("tab mount entry {entry} has its switch off"),
+                );
+            }
+            Ok(())
+        }
+        TabMount::View { view } => {
+            if views.get(view).is_none_or(|v| v.deleted_at.is_some()) {
+                return fail(
+                    "TAB-MOUNT-VALID",
+                    format!("tab mount view {view} does not exist"),
+                );
+            }
+            Ok(())
+        }
+        TabMount::Book => {
+            if !has_book {
+                return fail(
+                    "TAB-MOUNT-VALID",
+                    "cannot mount the book sequence when the project has no book",
+                );
+            }
+            Ok(())
+        }
+    }
 }
 
 /// What the structural invariants look at in one read of a book: its
@@ -2151,14 +2301,12 @@ pub struct BookGraph<'a> {
 
 /// The command layer's check of a write (`kernel-v4.md` "命令层的预防：只拒绝这次
 /// 写入新造成的违规"): `after` is refused only for a violation `before` did not
-/// have. A duplicate auto-link name or a nested manuscript a merge left behind
-/// is tolerated by readers and blocks no unrelated write; a write that
-/// resolves it (a rename, a move, turning a manuscript off) passes.
+/// have. A duplicate auto-link name a merge left behind is tolerated by readers
+/// and blocks no unrelated write; a write that resolves it (a rename, a move)
+/// passes.
 ///
 /// - `V3-AUTOLINK-NAME-UNIQUE`: a name claimed by more than one auto-linked
 ///   entry after the write, at least one of which did not claim it before.
-/// - `V3-MANUSCRIPT-NO-NEST`: a nested pair of manuscripts after the write
-///   that was not there before.
 ///
 /// Writes that change many entries at once (a template switch, a template's
 /// `linkable` or settings, an entry's overrides, a move, a restore, turning a
@@ -2180,16 +2328,6 @@ pub fn check_new_violations(before: BookGraph<'_>, after: BookGraph<'_>) -> Resu
                 ),
             );
         }
-    }
-    let was = manuscript_nest_pairs(before.entries, before.templates);
-    if let Some((outer, inner)) = manuscript_nest_pairs(after.entries, after.templates)
-        .into_iter()
-        .find(|pair| !was.contains(pair))
-    {
-        return fail(
-            "V3-MANUSCRIPT-NO-NEST",
-            format!("manuscript {inner} would nest inside manuscript {outer}"),
-        );
     }
     Ok(())
 }
@@ -2569,7 +2707,7 @@ mod tests {
             resolved.settings,
             resolve_level_settings(Some(&eid("lane")), &entries, &templates)
         );
-        assert_eq!(resolved.sources.len(), 8);
+        assert_eq!(resolved.sources.len(), 7);
         assert!(resolved.settings.accept);
         assert!(resolved.settings.lane);
         assert!(!resolved.settings.auto_link);
@@ -3340,58 +3478,153 @@ mod tests {
     }
 
     #[test]
-    fn v3_manuscript_levels_never_nest_and_read_outermost() {
-        let mut tpl_ms = level_template("tpl-ms", "书稿", false);
-        tpl_ms.settings.is_manuscript = Some(true);
-        let tpl_vol = level_template("tpl-vol", "卷", false);
-        let templates = BTreeMap::from([(tid("tpl-ms"), tpl_ms), (tid("tpl-vol"), tpl_vol)]);
+    fn v5_book_root_and_tab_mount_validate_all_four_kinds() {
+        let mut tpl_lane = level_template("tpl-lane", "故事线", false);
+        tpl_lane.settings.lane = Some(true);
+        let tpl_folder = level_template("tpl-folder", "文件夹", false);
+        let templates =
+            BTreeMap::from([(tid("tpl-lane"), tpl_lane), (tid("tpl-folder"), tpl_folder)]);
 
-        let mut entries = BTreeMap::new();
-        entries.insert(eid("ms"), level_with("ms", None, "书稿", Some("tpl-ms")));
-        entries.insert(
-            eid("vol-1"),
-            level_with("vol-1", Some("ms"), "第一卷", Some("tpl-vol")),
-        );
-        let none = Vec::new();
+        let mut trashed_parent = level_with("trashed-folder", None, "旧卷", Some("tpl-folder"));
+        trashed_parent.deleted_at = Some(Timestamp(10));
+        let entries = BTreeMap::from([
+            (
+                eid("ms"),
+                level_with("ms", None, "书稿", Some("tpl-folder")),
+            ),
+            (eid("leaf"), entry_with("leaf", Some("ms"), "甲", None)),
+            (
+                eid("lane-a"),
+                level_with("lane-a", None, "主线", Some("tpl-lane")),
+            ),
+            (
+                eid("lane-out"),
+                level_with("lane-out", None, "支线", Some("tpl-lane")),
+            ),
+            (eid("trashed-folder"), trashed_parent),
+            (
+                eid("nested-under-trash"),
+                level_with(
+                    "nested-under-trash",
+                    Some("trashed-folder"),
+                    "子夹",
+                    Some("tpl-folder"),
+                ),
+            ),
+        ]);
 
-        // `ms` already declares `is_manuscript`, so declaring it on descendant `vol-1` is refused.
-        let mut nested = entries.clone();
-        nested.get_mut(&eid("vol-1")).unwrap().overrides = Some(LevelSettingsOverride {
-            is_manuscript: Some(true),
-            ..LevelSettingsOverride::default()
-        });
-        assert_eq!(
-            check_new_violations(
-                graph(&entries, &templates, &none),
-                graph(&nested, &templates, &none)
-            )
-            .unwrap_err()
-            .invariant,
-            "V3-MANUSCRIPT-NO-NEST"
-        );
-        assert_eq!(
-            manuscript_nest_pairs(&nested, &templates),
-            BTreeSet::from([(eid("ms"), eid("vol-1"))])
-        );
+        let view_id = TimelineViewId::parse("v-main").unwrap();
+        let views = BTreeMap::from([(
+            view_id.clone(),
+            TimelineView {
+                id: view_id.clone(),
+                name: "主刻度".into(),
+                pos: None,
+                lanes: vec![TimelineLane {
+                    entry: eid("lane-a"),
+                    pos: None,
+                    act_track: None,
+                }],
+                placements: Vec::new(),
+                pins: Vec::new(),
+                deleted_at: None,
+            },
+        )]);
 
-        // If a merge leaves both with `is_manuscript == true`,
-        // `effective_manuscript_levels` recognizes only the outermost one (`ms`),
-        // and the old pair blocks no unrelated write.
-        let eff = effective_manuscript_levels(&nested, &templates);
-        assert_eq!(eff, BTreeSet::from([eid("ms")]));
-        let mut renamed = nested.clone();
-        renamed.get_mut(&eid("vol-1")).unwrap().title = "卷一".into();
+        assert!(check_book_root(&BookRoot::Root, &entries, &templates, &views).is_ok());
         assert!(
-            check_new_violations(
-                graph(&nested, &templates, &none),
-                graph(&renamed, &templates, &none)
+            check_book_root(
+                &BookRoot::Entry { entry: eid("ms") },
+                &entries,
+                &templates,
+                &views
             )
             .is_ok()
         );
-        // A level whose switch is off declares nothing.
-        let mut off = nested.clone();
-        off.get_mut(&eid("vol-1")).unwrap().level = false;
-        assert!(manuscript_nest_pairs(&off, &templates).is_empty());
+        assert!(
+            check_book_root(
+                &BookRoot::View {
+                    view: view_id.clone()
+                },
+                &entries,
+                &templates,
+                &views
+            )
+            .is_ok()
+        );
+        assert!(
+            check_book_root(
+                &BookRoot::Lane {
+                    view: view_id.clone(),
+                    entry: eid("lane-a")
+                },
+                &entries,
+                &templates,
+                &views
+            )
+            .is_ok()
+        );
+
+        for bad in [
+            BookRoot::Entry { entry: eid("leaf") },
+            BookRoot::Entry {
+                entry: eid("nested-under-trash"),
+            },
+            BookRoot::View {
+                view: TimelineViewId::parse("v-gone").unwrap(),
+            },
+            BookRoot::Lane {
+                view: view_id.clone(),
+                entry: eid("lane-out"),
+            },
+        ] {
+            assert_eq!(
+                check_book_root(&bad, &entries, &templates, &views)
+                    .unwrap_err()
+                    .invariant,
+                "BOOK-ROOT-VALID"
+            );
+        }
+
+        assert!(check_tab_mount(&TabMount::Root, false, &entries, &views).is_ok());
+        assert!(
+            check_tab_mount(
+                &TabMount::Entry { entry: eid("ms") },
+                false,
+                &entries,
+                &views
+            )
+            .is_ok()
+        );
+        assert!(
+            check_tab_mount(
+                &TabMount::View {
+                    view: view_id.clone()
+                },
+                false,
+                &entries,
+                &views
+            )
+            .is_ok()
+        );
+        assert!(check_tab_mount(&TabMount::Book, true, &entries, &views).is_ok());
+        assert_eq!(
+            check_tab_mount(&TabMount::Book, false, &entries, &views)
+                .unwrap_err()
+                .invariant,
+            "TAB-MOUNT-VALID"
+        );
+        assert_eq!(
+            check_tab_mount(
+                &TabMount::Entry { entry: eid("leaf") },
+                true,
+                &entries,
+                &views
+            )
+            .unwrap_err()
+            .invariant,
+            "TAB-MOUNT-VALID"
+        );
     }
 
     #[test]

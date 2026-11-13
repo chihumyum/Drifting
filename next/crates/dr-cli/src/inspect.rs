@@ -73,12 +73,11 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
         let book = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(err)?;
         let v = book.view();
         let templates = v.templates_map();
-        // The manuscript sequence: the entries with book prose, and that prose.
+        // The book sequence: the entries with book prose, and that prose.
         let structure = v.structure_snapshot();
         let manuscript: Vec<_> = structure
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .flat_map(|p| p.entries)
             .filter(|e| !e.prose.is_empty())
             .collect();
         let chapters = manuscript.len();

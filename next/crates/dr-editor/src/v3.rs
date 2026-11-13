@@ -73,13 +73,7 @@ pub fn flatten_book(
     from: &dr_model::id::EntryId,
 ) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
     let structure = view.structure_snapshot();
-    let flat = structure.flatten(
-        from,
-        dr_doc::v3::Flatten {
-            in_book_only: true,
-            include_members: true,
-        },
-    )?;
+    let flat = structure.flatten(from, dr_doc::v3::Flatten { in_book_only: true })?;
     let mut out = Vec::new();
     for e in flat {
         let entry = e.entry.id.to_string();
@@ -105,14 +99,15 @@ pub fn flatten_book(
     Ok(out)
 }
 
-/// Outermost manuscript level entries of the book, in manuscript order.
+/// Level entry configured as the project's book start (`project.book.root`), when applicable.
 pub fn manuscript_roots(view: &BookViewV3<'_>) -> Vec<dr_model::id::EntryId> {
     let structure = view.structure_snapshot();
-    structure
-        .manuscript()
-        .into_iter()
-        .map(|p| p.root.id.clone())
-        .collect()
+    match structure.project().book.as_ref().map(|b| &b.root) {
+        Some(r @ dr_model::v3::BookRoot::Entry { entry }) if structure.is_valid_book_root(r) => {
+            vec![entry.clone()]
+        }
+        _ => Vec::new(),
+    }
 }
 
 pub(crate) fn page_infos(
@@ -126,9 +121,8 @@ pub(crate) fn page_infos(
         let entries = structure.entries_map();
         let templates = structure.templates_map();
         let number_by_id: std::collections::HashMap<dr_model::id::EntryId, u32> = structure
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .flat_map(|p| p.entries)
             .filter_map(|e| Some((e.entry.id.clone(), e.ordinal?)))
             .collect();
         docs.iter()

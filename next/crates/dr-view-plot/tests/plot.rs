@@ -56,7 +56,7 @@ fn seeded() -> Setup {
     let chapters = borrowed
         .view()
         .structure_snapshot()
-        .manuscript_entries()
+        .book_entries()
         .into_iter()
         .map(|e| e.id.to_string())
         .collect();

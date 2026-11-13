@@ -143,7 +143,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -210,7 +210,7 @@ expression: json
       "title": "BookInfo",
       "type": "object"
     },
-    "summary": "Read book metadata and word targets; aggregate counts use the statistics adapter."
+    "summary": "Read book metadata and project word targets; aggregate counts use the statistics adapter."
   },
   {
     "access": "read",
@@ -404,6 +404,748 @@ expression: json
   },
   {
     "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "$defs": {
+        "BookRoot": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "in_book_only": {
+          "default": true,
+          "description": "When `true` (default), include only prose modules with `in_book == true` and number entries.\nSet `false` for whole-book view (`整书视图`) to include all prose modules along the walk.",
+          "type": "boolean"
+        },
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BookRoot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional start override (e.g. for whole-book view or previewing a start).\nWhen omitted, reads from `project.book.root` (empty when `project.book` is off)."
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookSequenceIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "book.sequence",
+    "output": {
+      "$defs": {
+        "Below": {
+          "description": "What lies below a level (`下面`).",
+          "properties": {
+            "children": {
+              "description": "Live entries living under it, in manuscript order.",
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "members": {
+              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettings"
+            },
+            "sources": {
+              "additionalProperties": {
+                "$ref": "#/$defs/SettingSource"
+              },
+              "description": "Where each resolved setting comes from.",
+              "type": "object"
+            }
+          },
+          "required": [
+            "settings",
+            "sources",
+            "children",
+            "members"
+          ],
+          "type": "object"
+        },
+        "BookRoot": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Entry": {
+          "properties": {
+            "below": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Below"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What lies below an entry whose switch is on (`entry.get`, and\n`entry.list` with `below`): resolved settings with where each comes\nfrom, resident children and accepted members. Absent otherwise."
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fields": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                "type": "object"
+              },
+              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kv": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/KvEntry"
+                },
+                "type": "array"
+              },
+              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+              "type": "object"
+            },
+            "layout": {
+              "$ref": "#/$defs/EntryLayout"
+            },
+            "level": {
+              "default": false,
+              "description": "The entry's own switch (`层级`): whether entries can live under it.",
+              "type": "boolean"
+            },
+            "name_conflict": {
+              "default": null,
+              "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "overrides": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LevelSettingsOverride"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Overrides of the settings for what lives below (kept, but not used,\nwhile the switch is off)."
+            },
+            "parent": {
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries read an entry under one whose switch is off as living\nunder the nearest level.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pos": {
+              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+              "type": "string"
+            },
+            "primary": {
+              "description": "Stored primary membership host; membership queries filter invalid records.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "description": "The template shaping this entry (`None` = untemplated entry).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "parent",
+            "pos",
+            "title",
+            "template",
+            "level",
+            "overrides",
+            "fields",
+            "kv",
+            "primary",
+            "layout",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "name_conflict"
+          ],
+          "type": "object"
+        },
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lane": {
+              "default": false,
+              "description": "Whether this level is a timeline swimlane (never inherited).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "display",
+            "auto_link",
+            "accept",
+            "format_shortcuts",
+            "lane"
+          ],
+          "type": "object"
+        },
+        "SequenceEntry": {
+          "properties": {
+            "depth": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "$ref": "#/$defs/Entry"
+            },
+            "ordinal": {
+              "description": "1-based chapter ordinal when `prose` has at least one `in_book` prose module; `None` otherwise.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "prose": {
+              "items": {
+                "$ref": "#/$defs/SequenceProse"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "entry",
+            "depth",
+            "ordinal",
+            "prose"
+          ],
+          "type": "object"
+        },
+        "SequenceProse": {
+          "properties": {
+            "doc": {
+              "type": "string"
+            },
+            "in_book": {
+              "type": "boolean"
+            },
+            "module": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "module",
+            "name",
+            "doc",
+            "in_book"
+          ],
+          "type": "object"
+        },
+        "SettingSource": {
+          "description": "Where one resolved setting comes from (the same precedence as its value).",
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "default",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "override",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "template",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "`accept` is on because the level is a swimlane.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/SequenceEntry"
+          },
+          "type": "array"
+        },
+        "has_book": {
+          "type": "boolean"
+        },
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BookRoot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "root_valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "has_book",
+        "root",
+        "root_valid",
+        "entries"
+      ],
+      "title": "BookSequenceOut",
+      "type": "object"
+    },
+    "summary": "Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start)."
+  },
+  {
+    "access": "read",
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -586,20 +1328,12 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
         "book": {
           "type": "string"
-        },
-        "daily_word_target": {
-          "description": "Omit to keep it, zero to turn it off, null to restore the default.",
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
         },
         "name": {
           "type": [
@@ -610,14 +1344,6 @@ expression: json
         "summary": {
           "type": [
             "string",
-            "null"
-          ]
-        },
-        "word_target": {
-          "description": "Omit to keep it, zero to turn it off, null to restore the default.",
-          "format": "int64",
-          "type": [
-            "integer",
             "null"
           ]
         }
@@ -767,7 +1493,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "$defs": {
@@ -869,7 +1595,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -1066,7 +1792,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -1104,7 +1830,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "$defs": {
@@ -1372,7 +2098,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -1439,7 +2165,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -1509,7 +2235,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -1756,11 +2482,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": false,
-              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
-              "type": "boolean"
-            },
             "lane": {
               "default": false,
               "description": "Whether this level is a timeline swimlane (never inherited).",
@@ -1773,7 +2494,6 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -1823,13 +2543,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -1843,7 +2556,6 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -2056,7 +2768,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "One entity of a book.",
@@ -2273,11 +2985,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": false,
-              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
-              "type": "boolean"
-            },
             "lane": {
               "default": false,
               "description": "Whether this level is a timeline swimlane (never inherited).",
@@ -2290,7 +2997,6 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -2340,13 +3046,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -2360,7 +3059,6 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -2573,7 +3271,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -2944,11 +3642,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": false,
-              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
-              "type": "boolean"
-            },
             "lane": {
               "default": false,
               "description": "Whether this level is a timeline swimlane (never inherited).",
@@ -2961,7 +3654,6 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -3011,13 +3703,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -3031,7 +3716,6 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -3118,7 +3802,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -3171,7 +3855,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -3209,7 +3893,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -3262,7 +3946,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -3300,7 +3984,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -3413,13 +4097,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -3500,14 +4177,14 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
         "Key": {
           "properties": {
             "collection": {
-              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory or material_folders.",
+              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory, material_folders or project.",
               "type": "string"
             },
             "id": {
@@ -3570,7 +4247,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -3603,7 +4280,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -3641,7 +4318,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -3761,7 +4438,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -3866,7 +4543,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -3962,7 +4639,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -4045,7 +4722,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -4149,7 +4826,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -4240,7 +4917,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -4354,7 +5031,6 @@ expression: json
                 "auto_link": null,
                 "display": null,
                 "format_shortcuts": null,
-                "is_manuscript": null,
                 "lane": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
@@ -4533,13 +5209,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -4553,7 +5222,6 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -4940,7 +5608,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -4995,7 +5663,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -5033,7 +5701,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -5121,7 +5789,6 @@ expression: json
                 "auto_link": null,
                 "display": null,
                 "format_shortcuts": null,
-                "is_manuscript": null,
                 "lane": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
@@ -5300,13 +5967,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -5320,7 +5980,6 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -5588,7 +6247,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -5661,7 +6320,6 @@ expression: json
                 "auto_link": null,
                 "display": null,
                 "format_shortcuts": null,
-                "is_manuscript": null,
                 "lane": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
@@ -5824,13 +6482,6 @@ expression: json
               "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
                 "null"
               ]
             },
@@ -6101,7 +6752,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -6413,7 +7064,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -6454,7 +7105,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -6510,7 +7161,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -6623,7 +7274,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -7323,7 +7974,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -7627,7 +8278,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -7675,7 +8326,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -7737,7 +8388,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -7780,7 +8431,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -7821,7 +8472,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -7889,7 +8540,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -7968,7 +8619,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -8070,7 +8721,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -8108,7 +8759,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -8146,7 +8797,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -8202,7 +8853,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -8276,7 +8927,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -8396,7 +9047,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "One entity of a book.",
@@ -8758,7 +9409,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -8804,7 +9455,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -8927,7 +9578,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -9000,7 +9651,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -9065,7 +9716,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -9135,7 +9786,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -9600,11 +10251,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": false,
-              "description": "Whether what lives under this level in tree order forms a manuscript (`成书`).",
-              "type": "boolean"
-            },
             "lane": {
               "default": false,
               "description": "Whether this level is a timeline swimlane (never inherited).",
@@ -9617,7 +10263,6 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -9667,13 +10312,6 @@ expression: json
                 "null"
               ]
             },
-            "is_manuscript": {
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "lane": {
               "default": null,
               "description": "`None` leaves it to the template (on an entry) or off (on a template).",
@@ -9687,7 +10325,6 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "is_manuscript",
             "format_shortcuts",
             "lane"
           ],
@@ -10189,7 +10826,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -10282,7 +10919,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -10327,7 +10964,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -10372,7 +11009,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -10417,7 +11054,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -10491,7 +11128,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -10565,7 +11202,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -10640,9 +11277,968 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "library",
     "input": {
+      "$defs": {
+        "BookRoot": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "EntryTemplate": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Skill-style Agent instructions (`写给帮手的说明`)."
+            },
+            "color": {
+              "default": null,
+              "description": "Optional display color (`颜色`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "level": {
+              "default": false,
+              "description": "Whether a new entry of this template starts with its switch on.\nChanging it never touches existing entries.",
+              "type": "boolean"
+            },
+            "linkable": {
+              "default": true,
+              "description": "Whether entries of this template take part in auto-linking.",
+              "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "description": "Optional badge/icon mark (`记号`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modules": {
+              "default": [],
+              "description": "Ordered module manifest (`modules`), any kinds.",
+              "items": {
+                "$ref": "#/$defs/ModuleSpec"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettingsOverride",
+              "default": {
+                "accept": null,
+                "auto_link": null,
+                "display": null,
+                "format_shortcuts": null,
+                "lane": null
+              },
+              "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
+            },
+            "verbs": {
+              "default": [],
+              "description": "Declared actions, shown on entries of this template whose switch is on.",
+              "items": {
+                "$ref": "#/$defs/TemplateVerb"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        },
+        "FieldDef": {
+          "properties": {
+            "default_value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional initial value copied into newly created entries of this template."
+            },
+            "field_type": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "description": "Candidate options for `select` and `multi_select`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Optional target template filter when `field_type == \"entity_ref\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "field_type"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lane": {
+              "default": null,
+              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "ModuleAgentConfig": {
+          "properties": {
+            "instructions": {
+              "default": "",
+              "description": "One-sentence instruction for the Agent when reading or writing this module.",
+              "type": "string"
+            },
+            "read_tier": {
+              "default": null,
+              "description": "Context assembly tier (e.g. `\"summary\"`, `\"on_demand\"`, `\"full\"`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "writable": {
+              "default": true,
+              "description": "Whether the Agent may write to this module.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "ModuleConfig": {
+          "properties": {
+            "aliases_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "color_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the display color.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default_cols": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial column count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "default_rows": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial row count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defs": {
+              "default": [],
+              "description": "For `fields` modules: ordered field definitions.",
+              "items": {
+                "$ref": "#/$defs/FieldDef"
+              },
+              "type": "array"
+            },
+            "in_book": {
+              "default": true,
+              "description": "For `prose` modules: whether this prose is part of the book (`成书`:\nexport, the book's word count, chapter numbering). On by default.",
+              "type": "boolean"
+            },
+            "initial_kv": {
+              "default": [],
+              "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
+              "items": {
+                "$ref": "#/$defs/KvEntry"
+              },
+              "type": "array"
+            },
+            "portrait_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "show_outline": {
+              "default": false,
+              "description": "For `prose` modules: whether H1/H2/H3 outline headings appear in the outline tree.",
+              "type": "boolean"
+            },
+            "status_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the status badge.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the summary text.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "default": false,
+              "description": "For `prose` modules: whether checklist items project into TODOs.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "ModuleSpec": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "config": {
+              "$ref": "#/$defs/ModuleConfig",
+              "default": {
+                "aliases_field": null,
+                "color_field": null,
+                "default_cols": 3,
+                "default_rows": 3,
+                "defs": [],
+                "in_book": true,
+                "initial_kv": [],
+                "portrait_field": null,
+                "show_outline": false,
+                "status_field": null,
+                "summary_field": null,
+                "task_todos": false
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        },
+        "ProjectBook": {
+          "properties": {
+            "daily_word_target": {
+              "default": null,
+              "description": "Effective daily word target (`None` when turned off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "daily_word_target_set": {
+              "default": null,
+              "description": "Stored daily word target (`None` = default, `Some(0)` = off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "root": {
+              "$ref": "#/$defs/BookRoot"
+            },
+            "word_target": {
+              "default": null,
+              "description": "Effective whole-book word target (`None` when turned off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "word_target_set": {
+              "default": null,
+              "description": "Stored whole-book word target (`None` = default, `Some(0)` = off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "root"
+          ],
+          "type": "object"
+        },
+        "ProjectDefinitionInput": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "book": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectBook"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateRef"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tabs": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ProjectTab"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectSeedEntry": {
+          "properties": {
+            "fields": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                "type": "object"
+              },
+              "default": {},
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "level": {
+              "default": false,
+              "type": "boolean"
+            },
+            "overrides": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LevelSettingsOverride"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "parent": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title"
+          ],
+          "type": "object"
+        },
+        "ProjectTab": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "mount": {
+              "$ref": "#/$defs/TabMount"
+            },
+            "mount_valid": {
+              "default": true,
+              "description": "Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).",
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "mount"
+          ],
+          "type": "object"
+        },
+        "ProjectTemplate": {
+          "properties": {
+            "entries": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ProjectSeedEntry"
+              },
+              "type": "array"
+            },
+            "project": {
+              "$ref": "#/$defs/ProjectDefinitionInput",
+              "default": {
+                "agent": null,
+                "book": null,
+                "source": null,
+                "tabs": []
+              }
+            },
+            "templates": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTemplate"
+              },
+              "type": "array"
+            },
+            "views": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelineView"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateRef": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "version": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "type": "object"
+        },
+        "TabMount": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "book",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "TemplateAgentConfig": {
+          "properties": {
+            "description": {
+              "default": "",
+              "description": "One-sentence description of what this template is and when to use it.",
+              "type": "string"
+            },
+            "instructions": {
+              "default": "",
+              "description": "Detailed instructions on what to pay attention to when reading or writing.",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "Name the Agent uses for entries of this template.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "TemplateVerb": {
+          "properties": {
+            "description": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Template used when this verb creates or converts an entry.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        },
+        "TimelineLane": {
+          "properties": {
+            "act_track": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "entry": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "entry"
+          ],
+          "type": "object"
+        },
+        "TimelinePin": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "entry": {
+              "default": null,
+              "description": "Optional entry bound to this pin (`V3-TIMELINE-TARGETS-LIVE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "at",
+            "label"
+          ],
+          "type": "object"
+        },
+        "TimelinePlacement": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "span": {
+              "default": null,
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "entry",
+            "at"
+          ],
+          "type": "object"
+        },
+        "TimelineView": {
+          "properties": {
+            "deleted_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "lanes": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelineLane"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pins": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelinePin"
+              },
+              "type": "array"
+            },
+            "placements": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelinePlacement"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      },
       "properties": {
         "name": {
           "type": "string"
@@ -10650,6 +12246,17 @@ expression: json
         "summary": {
           "default": "",
           "type": "string"
+        },
+        "template": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional project template; omitted uses the built-in writing template."
         }
       },
       "required": [
@@ -10677,7 +12284,509 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Create a project using the novel template."
+    "summary": "Create a project from a project template (defaults to the built-in writing template)."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "project.get",
+    "output": {
+      "$defs": {
+        "BookRoot": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "ProjectBook": {
+          "properties": {
+            "daily_word_target": {
+              "default": null,
+              "description": "Effective daily word target (`None` when turned off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "daily_word_target_set": {
+              "default": null,
+              "description": "Stored daily word target (`None` = default, `Some(0)` = off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "root": {
+              "$ref": "#/$defs/BookRoot"
+            },
+            "word_target": {
+              "default": null,
+              "description": "Effective whole-book word target (`None` when turned off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "word_target_set": {
+              "default": null,
+              "description": "Stored whole-book word target (`None` = default, `Some(0)` = off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "root",
+            "word_target",
+            "daily_word_target",
+            "word_target_set",
+            "daily_word_target_set"
+          ],
+          "type": "object"
+        },
+        "ProjectTab": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "mount": {
+              "$ref": "#/$defs/TabMount"
+            },
+            "mount_valid": {
+              "default": true,
+              "description": "Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).",
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "pos",
+            "mount",
+            "mount_valid"
+          ],
+          "type": "object"
+        },
+        "ProjectTemplateRef": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "version": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "type": "object"
+        },
+        "TabMount": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "book",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "TemplateAgentConfig": {
+          "properties": {
+            "description": {
+              "default": "",
+              "description": "One-sentence description of what this template is and when to use it.",
+              "type": "string"
+            },
+            "instructions": {
+              "default": "",
+              "description": "Detailed instructions on what to pay attention to when reading or writing.",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "Name the Agent uses for entries of this template.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "instructions"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateAgentConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "book": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectBook"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "book_root_valid": {
+          "default": true,
+          "description": "Whether `book.root` currently points to a valid start (`true` when `book` is `None`).",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplateRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tabs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProjectTab"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "agent",
+        "book",
+        "book_root_valid",
+        "tabs"
+      ],
+      "title": "Project",
+      "type": "object"
+    },
+    "summary": "Read the project definition: template source, Agent instructions, book switch/start/word targets, and left-sidebar tabs."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "BookRoot": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "TemplateAgentConfig": {
+          "properties": {
+            "description": {
+              "default": "",
+              "description": "One-sentence description of what this template is and when to use it.",
+              "type": "string"
+            },
+            "instructions": {
+              "default": "",
+              "description": "Detailed instructions on what to pay attention to when reading or writing.",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "Name the Agent uses for entries of this template.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateAgentConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Project-level Agent instructions (`None` = keep, `Some(None)` = clear, `Some(Some(cfg))` = set)."
+        },
+        "book": {
+          "type": "string"
+        },
+        "daily_word_target": {
+          "description": "Daily word target: omit to keep, `0` to turn off, `null` to restore default.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "has_book": {
+          "description": "Turn the book (`成书`) on (`Some(true)`) or off (`Some(false)`). Omit to keep.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BookRoot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Book sequence start (`成书起点`). Required when turning `has_book` from off to on."
+        },
+        "word_target": {
+          "description": "Whole-book word target: omit to keep, `0` to turn off, `null` to restore default.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ProjectUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets."
   },
   {
     "access": "write",
@@ -11156,7 +13265,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "properties": {
@@ -11236,7 +13345,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -11298,7 +13407,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -11376,7 +13485,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -11414,7 +13523,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "$defs": {
@@ -11520,7 +13629,305 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "place": {
+          "$ref": "#/$defs/Place"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "place"
+      ],
+      "title": "TabMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "tab.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change a left-sidebar tab's position."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "TabMount": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "root",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "entry",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "view",
+                  "type": "string"
+                },
+                "view": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "view"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "book",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "description": "Existing tab id to update; omitted to create a new tab.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TabMount"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Target mounted on this tab (required on create; omit on update to keep)."
+        },
+        "name": {
+          "description": "Tab display name (required on create; omit on update to keep).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where the tab goes (a new tab goes last by default)."
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "TabPutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "tab.put",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create or edit a left-sidebar tab (root, level entry, view or book sequence)."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "tab.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a left-sidebar tab."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -11623,7 +14030,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "description": "One entity of a book.",
@@ -11661,7 +14068,7 @@ expression: json
   },
   {
     "access": "read",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "shared",
     "input": {
       "description": "A book.",
@@ -11836,7 +14243,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -11925,7 +14332,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -11987,7 +14394,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -12161,7 +14568,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -12239,7 +14646,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -12284,7 +14691,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -12325,7 +14732,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -12366,7 +14773,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -12407,7 +14814,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -12543,7 +14950,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -12588,7 +14995,7 @@ expression: json
   },
   {
     "access": "write",
-    "book_version": 4,
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "$defs": {

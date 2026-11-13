@@ -384,12 +384,24 @@ pub fn sync_catalog(
         .name(&meta.name)?
         .summary(&meta.summary)?
         .created_at(meta.created_at)?
-        .deleted_at(meta.deleted_at)?
-        .word_target(meta.word_target_set)?
-        .daily_word_target(meta.daily_word_target_set)?
-        .project_template(Some(&ProjectTemplateRef {
+        .deleted_at(meta.deleted_at)?;
+    let existing_root = txn
+        .view()
+        .project()
+        .book
+        .map(|b| b.root)
+        .unwrap_or_else(|| BookRoot::Entry {
+            entry: roots.manuscript.clone(),
+        });
+    txn.project()
+        .source(Some(&ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
+        }))?
+        .book(Some(&ProjectBook {
+            root: existing_root,
+            word_target_set: meta.word_target_set,
+            daily_word_target_set: meta.daily_word_target_set,
         }))?;
     for template in templates(source, &roots.manuscript)? {
         // The 幕 template comes with the novel templates; one the book

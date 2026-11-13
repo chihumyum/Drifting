@@ -198,7 +198,25 @@ fn check_v3_invariants(book: &seed::SeededBookV3) {
     for m in &memberships {
         assert!(dr_model::v3::check_membership(&m.host, &m.member, &entries, &templates).is_ok());
     }
-    assert_eq!(view.manuscript_levels().len(), 1);
+    let views_map: std::collections::BTreeMap<_, _> = view
+        .timeline_views_raw()
+        .into_iter()
+        .map(|tv| (tv.id.clone(), tv))
+        .collect();
+    let proj = view.project();
+    assert!(proj.book.is_some());
+    assert!(
+        dr_model::v3::check_book_root(
+            &proj.book.as_ref().unwrap().root,
+            &entries,
+            &templates,
+            &views_map,
+        )
+        .is_ok()
+    );
+    for tab in &proj.tabs {
+        assert!(dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &views_map).is_ok());
+    }
     for tv in view.timeline_views_raw() {
         for l in &tv.lanes {
             assert!(dr_model::v3::check_timeline_lane(&l.entry, &entries, &templates).is_ok());
@@ -265,12 +283,16 @@ fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
     let ms = view
         .root_entry_by_template(&tpl_ms)
         .expect("manuscript root entry");
+    assert_eq!(
+        view.project().book.as_ref().map(|b| &b.root),
+        Some(&dr_model::v3::BookRoot::Entry {
+            entry: ms.id.clone(),
+        })
+    );
     let structure = view.structure_snapshot();
     let leaves: Vec<_> = structure
-        .manuscript()
+        .book_sequence()
         .into_iter()
-        .filter(|p| p.root.id == ms.id)
-        .flat_map(|p| p.entries)
         .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.clone())
         .collect();
@@ -352,12 +374,16 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
     let ms = view
         .root_entry_by_template(&tpl_ms)
         .expect("manuscript root entry");
+    assert_eq!(
+        view.project().book.as_ref().map(|b| &b.root),
+        Some(&dr_model::v3::BookRoot::Entry {
+            entry: ms.id.clone(),
+        })
+    );
     let structure = view.structure_snapshot();
     let chapters: Vec<_> = structure
-        .manuscript()
+        .book_sequence()
         .into_iter()
-        .filter(|p| p.root.id == ms.id)
-        .flat_map(|p| p.entries)
         .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.clone())
         .collect();

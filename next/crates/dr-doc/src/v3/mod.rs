@@ -35,12 +35,13 @@ use crate::schema::{self, BOOK_GENESIS_VERSION, BOOK_SCHEMA_VERSION, book_v3};
 pub use novel::{
     NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_ACT_TRACK,
     act_track_template, apply_novel_project_template, apply_novel_project_template_with,
-    find_novel_roots, novel_project_templates,
+    apply_project_template, find_novel_roots, novel_project_template, novel_project_template_with,
+    novel_project_templates,
 };
 pub use raw::raw_document_state;
 pub use read::{BookGraphV3, BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 pub use record::{RecordKeyV3, RecordReaderV3, RecordStateV3};
-pub use structure::{BookStructureV3, FlatEntry, FlatProse, Flatten, ManuscriptPart, NotALevel};
+pub use structure::{BookStructureV3, FlatEntry, FlatProse, Flatten, InvalidBookRoot, NotALevel};
 pub use write::BookTxnV3;
 
 /// Whether `doc` is a book document of the current format
@@ -106,10 +107,11 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         .expect("export v3 genesis")
 }
 
-/// A root container of the v3 book document.
+/// A root container of the book document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CollectionV3 {
     Meta,
+    Project,
     Entries,
     Templates,
     Memberships,
@@ -127,8 +129,9 @@ pub enum CollectionV3 {
 }
 
 impl CollectionV3 {
-    pub const ALL: [CollectionV3; 15] = [
+    pub const ALL: [CollectionV3; 16] = [
         CollectionV3::Meta,
+        CollectionV3::Project,
         CollectionV3::Entries,
         CollectionV3::Templates,
         CollectionV3::Memberships,
@@ -148,6 +151,7 @@ impl CollectionV3 {
     pub fn root(self) -> &'static str {
         match self {
             CollectionV3::Meta => book_v3::META,
+            CollectionV3::Project => book_v3::PROJECT,
             CollectionV3::Entries => book_v3::ENTRIES,
             CollectionV3::Templates => book_v3::TEMPLATES,
             CollectionV3::Memberships => book_v3::MEMBERSHIPS,

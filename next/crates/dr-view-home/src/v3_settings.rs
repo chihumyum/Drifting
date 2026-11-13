@@ -10,6 +10,7 @@ use dr_view_stats::v3::Loaded;
 use dr_workspace::{
     Actor, Workspace, WsError,
     commands::book::{BookUpdate, BookUpdateIn},
+    commands::v3::project::{ProjectUpdate, ProjectUpdateIn},
 };
 use gpui::{
     AppContext as _, Context, Entity, Focusable, IntoElement, ParentElement, Render, Styled,
@@ -25,7 +26,11 @@ struct Values {
 }
 
 impl Values {
-    fn update(&self, book: &str, baseline: &Self) -> Result<BookUpdateIn, WsError> {
+    fn update(
+        &self,
+        book: &str,
+        baseline: &Self,
+    ) -> Result<(Option<BookUpdateIn>, Option<ProjectUpdateIn>), WsError> {
         let target = |s: &str| -> Result<i64, WsError> {
             if s.trim().is_empty() {
                 return Ok(0);
@@ -39,17 +44,27 @@ impl Values {
         if self.name.trim().is_empty() {
             return Err(WsError::Invalid("empty book name".into()));
         }
-        Ok(BookUpdateIn {
+        let name = (self.name != baseline.name).then(|| self.name.trim().to_owned());
+        let summary = (self.summary != baseline.summary).then(|| self.summary.clone());
+        let word_target = (self.goal != baseline.goal)
+            .then(|| target(&self.goal).map(Some))
+            .transpose()?;
+        let daily_word_target = (self.daily != baseline.daily)
+            .then(|| target(&self.daily).map(Some))
+            .transpose()?;
+        let book_up = (name.is_some() || summary.is_some()).then(|| BookUpdateIn {
             book: book.into(),
-            name: (self.name != baseline.name).then(|| self.name.trim().to_owned()),
-            summary: (self.summary != baseline.summary).then(|| self.summary.clone()),
-            word_target: (self.goal != baseline.goal)
-                .then(|| target(&self.goal).map(Some))
-                .transpose()?,
-            daily_word_target: (self.daily != baseline.daily)
-                .then(|| target(&self.daily).map(Some))
-                .transpose()?,
-        })
+            name,
+            summary,
+        });
+        let proj_up =
+            (word_target.is_some() || daily_word_target.is_some()).then(|| ProjectUpdateIn {
+                book: book.into(),
+                word_target,
+                daily_word_target,
+                ..Default::default()
+            });
+        Ok((book_up, proj_up))
     }
 }
 
@@ -144,19 +159,15 @@ impl SettingsDialog {
             goal: self.goal.read(cx).text().to_owned(),
             daily: self.daily.read(cx).text().to_owned(),
         };
-        let input = match values.update(&self.book, &self.baseline) {
-            Ok(input) => input,
+        let (book_up, proj_up) = match values.update(&self.book, &self.baseline) {
+            Ok(pair) => pair,
             Err(_) => {
                 self.error = true;
                 cx.notify();
                 return;
             }
         };
-        if input.name.is_none()
-            && input.summary.is_none()
-            && input.word_target.is_none()
-            && input.daily_word_target.is_none()
-        {
+        if book_up.is_none() && proj_up.is_none() {
             self.close(cx);
             return;
         }
@@ -167,7 +178,15 @@ impl SettingsDialog {
         cx.spawn(async move |this, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move { lib.run::<BookUpdate>(&Actor::User, input) })
+                .spawn(async move {
+                    if let Some(input) = book_up {
+                        lib.run::<BookUpdate>(&Actor::User, input)?;
+                    }
+                    if let Some(input) = proj_up {
+                        lib.run::<ProjectUpdate>(&Actor::User, input)?;
+                    }
+                    Ok::<(), WsError>(())
+                })
                 .await;
             this.update(cx, |d, cx| {
                 d.busy = false;
@@ -313,7 +332,13 @@ mod tests {
         ws.call(
             &Actor::User,
             "book.update",
-            json!({"book":book,"summary":original.title,"word_target":12345}),
+            json!({"book":book,"summary":original.title}),
+        )
+        .unwrap();
+        ws.call(
+            &Actor::User,
+            "project.update",
+            json!({"book":book,"word_target":12345}),
         )
         .unwrap();
         faults.arm("after_prose");

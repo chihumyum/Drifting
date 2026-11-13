@@ -39,9 +39,9 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
         .iter()
         .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
         .unwrap();
-    assert!(v.levels[&root.id].settings.is_manuscript);
+    assert_eq!(v.levels[&root.id].settings.display, "list");
     assert_eq!(
-        v.levels[&root.id].sources["is_manuscript"],
+        v.levels[&root.id].sources["display"],
         SettingSource::Template {
             entry: root.id.clone(),
             template: "tpl-manuscript".into()
@@ -76,17 +76,14 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
         }
     );
     assert_eq!(
-        level.sources["is_manuscript"],
+        level.sources["format_shortcuts"],
         SettingSource::Template {
             entry: root.id.clone(),
             template: "tpl-manuscript".into()
         }
     );
-    // The setting resolves down the tree, but only the outermost level's own
-    // declaration makes a manuscript.
-    assert!(level.settings.is_manuscript);
-    assert!(v.is_manuscript_root(&root.id));
-    assert!(!v.is_manuscript_root(child));
+    assert!(v.is_book_root_entry(&root.id));
+    assert!(!v.is_book_root_entry(child));
     assert_ne!(v.revision, b.v3().unwrap().revision);
     let legacy = dr_testkit::seed::acceptance::empty_source(ws.library());
     let before = ws.library().head(&format!("book:{legacy}")).unwrap();

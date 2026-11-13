@@ -31,7 +31,6 @@ impl TemplateEditor {
             "auto_link" => settings.auto_link = None,
             "accept" => settings.accept = None,
             "home" => settings.home = None,
-            "is_manuscript" => settings.is_manuscript = None,
             "format_shortcuts" => settings.format_shortcuts = None,
             "lane" => settings.lane = None,
             _ => {}
@@ -88,7 +87,7 @@ impl TemplateEditor {
             "auto_link" => settings.auto_link,
             "accept" => settings.accept,
             "lane" => settings.lane,
-            _ => settings.is_manuscript,
+            _ => None,
         };
         let forced = key == "accept" && self.draft.settings.lane == Some(true);
         let entity = cx.entity();
@@ -118,7 +117,7 @@ impl TemplateEditor {
                                     "auto_link" => this.draft.settings.auto_link = Some(value),
                                     "accept" => this.draft.settings.accept = Some(value),
                                     "lane" => this.draft.settings.lane = Some(value),
-                                    _ => this.draft.settings.is_manuscript = Some(value),
+                                    _ => {}
                                 };
                                 cx.notify();
                             })
@@ -258,7 +257,6 @@ impl TemplateEditor {
             self.draft.settings.home.is_some(),
             cx,
         ));
-        section = section.child(self.bool_setting("is_manuscript", k::MANUSCRIPT, true, cx));
         let formats = ["full", "notes", "plain"];
         let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
         choices.extend(
