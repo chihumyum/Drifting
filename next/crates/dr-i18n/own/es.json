@@ -264,6 +264,11 @@
     "turnOffLevelBody_one": "{{count}} entrada debajo se moverá al nivel superior junto con todo lo que contiene. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
     "turnOffLevelBody_other": "{{count}} entradas debajo se moverán al nivel superior junto con todo lo que contienen. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
     "turnOffLevelConfirm": "Desactivar",
+    "turnOffLevelLaneBody": "Su carril en la línea de tiempo se ocultará hasta que vuelvas a activarlo.",
+    "turnOffLevelMembersBody_one": "{{count}} entrada asignada se ocultará hasta que vuelvas a activarlo.",
+    "turnOffLevelMembersBody_other": "{{count}} entradas asignadas se ocultarán hasta que vuelvas a activarlo.",
+    "turnOffLevelMembersLaneBody_one": "{{count}} entrada asignada y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
+    "turnOffLevelMembersLaneBody_other": "{{count}} entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
     "turnOffLevelTitle": "Desactivar nivel",
     "untitledEntry": "Entrada sin título",
     "untitledNamed": "{{name}} sin título"

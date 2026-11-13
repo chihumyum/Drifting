@@ -1,12 +1,14 @@
 //! Guarded UI flow for the entry `层级` switch (`entry.set_level`, kernel-v4 §3).
 //!
-//! Turning the switch on, or turning it off when nothing lives underneath,
-//! commits immediately under record preconditions on `entries/<id>` and
-//! `children_of(<id>)`. Turning it off when resident children exist opens a
-//! confirmation dialog naming the exact count `N`. If those children change
-//! before the author confirms, the dialog shows the new number and asks
-//! again, with no further words (author 2026-11-13); the write is guarded,
-//! so nothing changes between the last read and the write either.
+//! Turning the switch on, or off when turning it off hides nothing, commits
+//! immediately under record preconditions. Turning it off asks first when
+//! anything stops showing (author 2026-11-13): entries living underneath
+//! (they move to the top level), entries assigned to it, or its lane in a
+//! timeline view. If what the dialog said changes before the author
+//! confirms, the dialog shows the new numbers and asks again, with no
+//! further words; the write is guarded on `entries/<id>`,
+//! `children_of(<id>)` and the book's memberships and timeline views, so
+//! nothing changes between the last read and the write either.
 
 use crate::{
     actions::Dismiss,
@@ -25,42 +27,79 @@ use dr_workspace::{Actor, RecordKey, Workspace, WritePreconditions, WsError};
 use gpui::{prelude::*, *};
 use serde_json::json;
 
-/// Consistent snapshot of an entry's `层级` switch, its live direct resident
-/// children, and record preconditions read from the same Loro frontier.
+/// Consistent snapshot of an entry's `层级` switch and of what turning it
+/// off hides, with the record preconditions, read from the same Loro
+/// frontier.
 #[derive(Clone, Debug)]
 pub struct SwitchInspection {
     pub level: bool,
     pub child_count: u64,
     /// The entries living directly under it, in order (they move).
     pub children: Vec<String>,
+    /// The entries validly assigned to it, by id (they stop showing under
+    /// it).
+    pub members: Vec<String>,
+    /// It is a lane of a timeline view (the lane stops showing).
+    pub lane: bool,
     pub preconditions: WritePreconditions,
 }
 
 impl SwitchInspection {
-    /// Turning it off moves entries: the author is asked first.
+    /// Turning it off hides something: the author is asked first.
     pub fn needs_confirmation(&self) -> bool {
-        self.level && self.child_count > 0
+        self.level && (self.child_count > 0 || !self.members.is_empty() || self.lane)
     }
 
     /// Whether `self` and `other` would ask the author the same thing.
     fn asks_the_same(&self, other: &SwitchInspection) -> bool {
-        self.level == other.level && self.children == other.children
+        self.level == other.level
+            && self.children == other.children
+            && self.members == other.members
+            && self.lane == other.lane
+    }
+
+    /// Turning it on writes only its switch: held to the entry and its
+    /// children, as before, not to the book's memberships or views.
+    fn turn_on_preconditions(&self) -> WritePreconditions {
+        let mut p = self.preconditions.clone();
+        p.records.retain(|r| r.key.collection == "entries");
+        p
     }
 
     /// The dialog's words for what turning it off does.
     pub fn body_text(&self, cx: &App) -> SharedString {
-        tp(
-            cx,
-            keys::v3_shell::TURN_OFF_LEVEL_BODY,
-            self.child_count,
-            &[("count", &self.child_count)],
-        )
+        let members = self.members.len() as u64;
+        if self.child_count > 0 {
+            tp(
+                cx,
+                keys::v3_shell::TURN_OFF_LEVEL_BODY,
+                self.child_count,
+                &[("count", &self.child_count)],
+            )
+        } else if members > 0 && self.lane {
+            tp(
+                cx,
+                keys::v3_shell::TURN_OFF_LEVEL_MEMBERS_LANE_BODY,
+                members,
+                &[("count", &members)],
+            )
+        } else if members > 0 {
+            tp(
+                cx,
+                keys::v3_shell::TURN_OFF_LEVEL_MEMBERS_BODY,
+                members,
+                &[("count", &members)],
+            )
+        } else {
+            t(cx, keys::v3_shell::TURN_OFF_LEVEL_LANE_BODY)
+        }
     }
 }
 
-/// Reads `entry_id`'s current switch, its resident children, and the
-/// `RecordKey::entry` + `RecordKey::children_of(Some(entry_id))` digests in
-/// one holder read job.
+/// Reads `entry_id`'s current switch, its resident children, its valid
+/// members and whether it is a lane, and the `RecordKey::entry`,
+/// `RecordKey::children_of(Some(entry_id))`, `memberships` and
+/// `timeline_views` digests, in one holder read job.
 pub fn inspect_level_switch(
     lib: &Workspace,
     book_id: &str,
@@ -85,9 +124,23 @@ pub fn inspect_level_switch(
             .iter()
             .map(|e| e.id.to_string())
             .collect();
+        let mut members: Vec<String> = structure
+            .members_of(&eid)
+            .iter()
+            .map(|e| e.id.to_string())
+            .collect();
+        members.sort();
+        let lane = entry.is_level()
+            && view
+                .timeline_views()
+                .iter()
+                .filter(|v| v.deleted_at.is_none())
+                .any(|v| v.lanes.iter().any(|l| l.entry == eid));
         let keys = [
             RecordKey::entry(&entry_key),
             RecordKey::children_of(Some(&entry_key)),
+            RecordKey::collection("memberships"),
+            RecordKey::collection("timeline_views"),
         ];
         let observations =
             dr_workspace::observe_records_in(&format!("book:{bid}"), doc, &bid, &keys)?;
@@ -95,6 +148,8 @@ pub fn inspect_level_switch(
             level: entry.is_level(),
             child_count: children.len() as u64,
             children,
+            members,
+            lane,
             preconditions: WritePreconditions::from_records(observations),
         })
     })
@@ -235,7 +290,7 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                             &Actor::User,
                             "entry.set_level",
                             json!({ "book": book_id, "id": eid, "level": true }),
-                            info.preconditions.clone(),
+                            info.turn_on_preconditions(),
                         )
                         .map(|_| TurnOff::Done)
                     } else {
@@ -269,8 +324,8 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
         .detach();
 }
 
-/// Confirmation modal shown when turning off `层级` on an entry with resident
-/// children underneath (`kernel-v4.md` §3).
+/// Confirmation modal shown when turning off `层级` hides something
+/// (`kernel-v4.md` §3; author 2026-11-13).
 pub struct TurnOffLevelDialog {
     host: PageViewHost,
     entry_id: String,
@@ -306,6 +361,16 @@ impl TurnOffLevelDialog {
 
     pub fn child_count(&self) -> u64 {
         self.info.child_count
+    }
+
+    /// How many entries assigned to it the dialog says stop showing.
+    pub fn member_count(&self) -> usize {
+        self.info.members.len()
+    }
+
+    /// The dialog says its lane stops showing.
+    pub fn is_lane(&self) -> bool {
+        self.info.lane
     }
 
     /// The dialog's words, as it shows them.

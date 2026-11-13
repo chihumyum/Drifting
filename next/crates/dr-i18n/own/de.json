@@ -264,6 +264,11 @@
     "turnOffLevelBody_one": "{{count}} untergeordneter Eintrag wird samt allem darunter auf die oberste Ebene verschoben. Zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
     "turnOffLevelBody_other": "{{count}} untergeordnete Einträge werden samt allem darunter auf die oberste Ebene verschoben. Zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
     "turnOffLevelConfirm": "Ausschalten",
+    "turnOffLevelLaneBody": "Die Schwimmbahn in der Zeitleiste wird ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelMembersBody_one": "{{count}} zugeordneter Eintrag wird ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelMembersBody_other": "{{count}} zugeordnete Einträge werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelMembersLaneBody_one": "{{count}} zugeordneter Eintrag und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelMembersLaneBody_other": "{{count}} zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
     "turnOffLevelTitle": "Ebene ausschalten",
     "untitledEntry": "Unbenannter Eintrag",
     "untitledNamed": "{{name}} ohne Titel"
