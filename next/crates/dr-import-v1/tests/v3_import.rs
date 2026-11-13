@@ -283,6 +283,11 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     assert!(patch_rt.target_templates.is_empty());
     for leaf in &expected.leaves {
         let actual = view.entry(&entry_id(view, &leaf.entry)).unwrap();
+        assert!(
+            !actual.is_level(),
+            "{:?} must keep its level switch off",
+            leaf.entry
+        );
         assert_eq!(actual.title, leaf.title);
         assert_eq!(actual.parent, leaf.home.as_ref().map(|e| entry_id(view, e)));
         assert_eq!(actual.template, leaf.template.as_ref().map(template_id));
@@ -585,6 +590,51 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         writing_days.len(),
         expected.source_rows["writing_day"].len()
     );
+    // `checkpoints:<book>` is created with its deterministic genesis only:
+    // 0.1 had no entry checkpoints, so no post-genesis update is written.
+    let checkpoints_id = format!("checkpoints:{}", view.book_id());
+    let (cp_entries, cp_vv) = {
+        let h = lib
+            .open_doc(&checkpoints_id, dr_store::OpenDoc::Existing)
+            .unwrap();
+        let book = view.book_id().clone();
+        let res = h
+            .read(move |d| {
+                let entries = dr_doc::side::BorrowedCheckpoints::new(d, &book)
+                    .unwrap()
+                    .view()
+                    .entry_checkpoints();
+                (entries, d.oplog_vv())
+            })
+            .unwrap();
+        h.close();
+        res
+    };
+    assert!(cp_entries.is_empty());
+    let fresh_cp =
+        dr_doc::side::CheckpointsDoc::create(view.book_id().clone(), random_device_peer()).unwrap();
+    assert_eq!(cp_vv, fresh_cp.version());
+    // Level descriptions sit in the `说明` prose module (`in_book = false`),
+    // never in a separate `/about` document.
+    for tpl_id in [TPL_CATEGORY, TPL_STORYLINE, TPL_IDEA_GROUP, TPL_GROUP] {
+        let tpl = view.template(&tid(tpl_id)).unwrap();
+        let desc = tpl
+            .modules
+            .iter()
+            .find(|m| m.id.as_str() == MOD_DESCRIPTION)
+            .unwrap();
+        assert_eq!(desc.name, "说明");
+        assert!(!desc.config.in_book);
+    }
+    for entry in view.entries_raw() {
+        assert!(
+            lib.doc_info(&format!("body:{}/about", entry.id))
+                .unwrap()
+                .is_none(),
+            "no /about prose doc for {}",
+            entry.id
+        );
+    }
     for row in &expected.source_rows["library_item"] {
         let actual = view
             .materials()
@@ -771,13 +821,18 @@ fn undecided_mapping_stops_before_target_or_device_writes() {
 fn every_inventory_row_imports_into_real_v3_documents_with_history() {
     let old = fixture::build();
     let expected = manifest::read(&old.db, BOOK).unwrap();
-    let before = sha256_bytes(&std::fs::read(&old.db).unwrap());
+    let before = source_tree_snapshot(&old.root);
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("library");
     let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
     let Outcome::Imported(receipt) = outcome else {
         panic!("not imported")
     };
+    assert_eq!(
+        source_tree_snapshot(&old.root),
+        before,
+        "source bytes, sizes and mtimes must never change"
+    );
     assert_eq!(receipt.books[0].status, "imported");
     assert_eq!(receipt.books[0].history_meta_checked, 3);
     assert_eq!(receipt.books[0].assets_copied, 1);
@@ -815,7 +870,11 @@ fn every_inventory_row_imports_into_real_v3_documents_with_history() {
     lib.close().unwrap();
     let (second, _) = run::import(&old.db, &root, &options(&old)).unwrap();
     assert!(matches!(second,Outcome::Imported(r) if r.books[0].status == "already-imported"));
-    assert_eq!(sha256_bytes(&std::fs::read(&old.db).unwrap()), before);
+    assert_eq!(
+        source_tree_snapshot(&old.root),
+        before,
+        "source bytes, sizes and mtimes must never change on repeat import"
+    );
 }
 
 #[test]
@@ -2956,4 +3015,138 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
         .find(|e| e.title == "彩幕")
         .expect("synthetic colored act leaf");
     assert_eq!(text(&cleaf, "act_color").as_deref(), Some("#336699"));
+}
+
+#[test]
+fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
+    // 1. Even when a 0.1 book has zero writing_day rows, both `stats:<book>` and
+    //    `checkpoints:<book>` are stored at their deterministic genesis only,
+    //    `summary_zh` reflects the unified-entry model without retired template
+    //    split terms, and the source directory stays untouched (bytes + mtime).
+    let old = fixture::build();
+    {
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.execute("DELETE FROM writing_day", []).unwrap();
+    }
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library-zero-writing-days");
+    let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported")
+    };
+    assert_eq!(
+        source_tree_snapshot(&old.root),
+        before,
+        "source bytes, sizes and mtimes must never change"
+    );
+
+    let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+    assert_eq!(summary_md, dr_import_v1::receipt::summary_zh(&receipt));
+    assert!(summary_md.contains("条目模板的初始正文，新建条目照它开头"));
+    for banned in [
+        "层级模板",
+        "叶子模板",
+        "层级模版",
+        "叶子模版",
+        "leaf template",
+        "level template",
+        "v2",
+        "v3",
+    ] {
+        assert!(
+            !summary_md.contains(banned),
+            "summary.md must not mention {banned:?}: {summary_md}"
+        );
+    }
+
+    let book_id = BookId::parse(BOOK).unwrap();
+    let lib = open(&root);
+    let stats_vv = {
+        let h = lib
+            .open_doc(&format!("stats:{BOOK}"), dr_store::OpenDoc::Existing)
+            .unwrap();
+        let b = book_id.clone();
+        let (days, vv) = h
+            .read(move |d| {
+                let days = dr_doc::side::BorrowedStats::new(d, &b)
+                    .unwrap()
+                    .view()
+                    .writing_days();
+                (days, d.oplog_vv())
+            })
+            .unwrap();
+        h.close();
+        assert!(days.is_empty());
+        vv
+    };
+    let fresh_stats =
+        dr_doc::side::StatsDoc::create(book_id.clone(), random_device_peer()).unwrap();
+    assert_eq!(stats_vv, fresh_stats.version());
+
+    let cp_vv = {
+        let h = lib
+            .open_doc(&format!("checkpoints:{BOOK}"), dr_store::OpenDoc::Existing)
+            .unwrap();
+        let b = book_id.clone();
+        let (entries, vv) = h
+            .read(move |d| {
+                let entries = dr_doc::side::BorrowedCheckpoints::new(d, &b)
+                    .unwrap()
+                    .view()
+                    .entry_checkpoints();
+                (entries, d.oplog_vv())
+            })
+            .unwrap();
+        h.close();
+        assert!(entries.is_empty());
+        vv
+    };
+    let fresh_cp = dr_doc::side::CheckpointsDoc::create(book_id, random_device_peer()).unwrap();
+    assert_eq!(cp_vv, fresh_cp.version());
+    lib.close().unwrap();
+
+    // 2. An interrupted target directory carrying an earlier format-3 kernel
+    //    marker (`3:<sha256>`) is refused before resuming, leaving source untouched.
+    let interrupted = temp.path().join("library-interrupted-v3");
+    let opts = options(&old);
+    let cancel = opts.cancel.clone();
+    let (first, _) = run::import_with(&old.db, &interrupted, &opts, &mut |p| {
+        if p.step == dr_import_v1::progress::Step::Bodies && p.done == 1 {
+            cancel.now();
+        }
+    })
+    .unwrap();
+    assert!(matches!(first, Outcome::Imported(r) if r.books[0].status == "importing"));
+    {
+        let db_path = dr_store::LibraryPaths::new(&interrupted).db;
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let cur: String = conn
+            .query_row(
+                "SELECT value FROM local_state WHERE scope = 'import-v1-kernel' AND key = ?1",
+                [BOOK],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            cur.starts_with("4:"),
+            "v4 kernel marker must use prefix 4:, got {cur}"
+        );
+        let legacy_v3_marker = cur.replacen("4:", "3:", 1);
+        conn.execute(
+            "UPDATE local_state SET value = ?1 WHERE scope = 'import-v1-kernel' AND key = ?2",
+            rusqlite::params![&legacy_v3_marker, BOOK],
+        )
+        .unwrap();
+    }
+    let err = run::import(&old.db, &interrupted, &options(&old)).unwrap_err();
+    assert!(
+        matches!(&err, dr_import_v1::ImportError::Invalid(m) if m.contains("mapping policy")),
+        "expected format-3 target refusal, got {err:?}"
+    );
+    assert_eq!(
+        source_tree_snapshot(&old.root),
+        before,
+        "source bytes, sizes and mtimes must never change"
+    );
 }

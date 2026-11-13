@@ -1,4 +1,4 @@
-//! Import a 0.1 source into a separately named canonical v3 library.
+//! Import a 0.1 source into a separately named library.
 //! MappingChoices are explicit, pending is structured, and source/current
 //! libraries stay intact. The cancellable background worker closes its target
 //! before the shared release protocol performs a short controlled activation.
