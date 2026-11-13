@@ -2616,6 +2616,88 @@ fn an_entry_page_opened_at_its_body_keeps_its_head(cx: &mut TestAppContext) {
     );
 }
 
+/// The section an entry page holds in view and ⌘Z do not get in each other's
+/// way. With the caret in the body of a page opened at it, ⌘Z still undoes
+/// only the typing, the book's latest command untouched. With the keyboard
+/// on a page held at another module but outside any prose, ⌘Z undoes the
+/// book's latest command, and the page lets go of the section as it does
+/// for any key the author presses in it.
+#[gpui::test]
+fn a_page_holding_a_section_in_view_and_cmd_z_leave_each_other_alone(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let writer = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (entry, module) = long_body_entry(&writer, &view, cx, true, 160);
+    wait_for(&view, cx, |ws| ws.book.v3().is_some());
+    cx.simulate_resize(gpui::size(gpui::px(1100.), gpui::px(800.)));
+    let book = view.read_with(cx, |ws, _| ws.book_id.clone());
+    let title = || {
+        out(&writer, "entry.get", json!({"book": book, "id": entry}))["title"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let original = title();
+    // The book's latest command of the author's: a rename.
+    out(
+        &writer,
+        "entry.update",
+        json!({"book": book, "id": entry, "title": "改过的名字"}),
+    );
+    wait_for(&view, cx, |ws| {
+        ws.book.v3().unwrap().entry(&entry).unwrap().title == "改过的名字"
+    });
+    let pinned = |cx: &mut VisualTestContext, target: &Target| {
+        view.read_with(cx, |ws, cx| {
+            ws.editors
+                .get(&target.key())
+                .and_then(|p| p.v3.as_ref())
+                .and_then(|p| p.read(cx).pinned().map(str::to_owned))
+        })
+    };
+
+    // Opened at its body: the body is held in view and has the keyboard.
+    let body = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+    view.update(cx, |ws, cx| ws.open(body.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &body);
+    assert_eq!(pinned(cx, &body).as_deref(), Some("mod-prose"));
+    let doc = format!("body:{entry}/mod-prose");
+    let before = stored(&writer, &doc);
+    cx.update(|window, cx| assert!(!view.read(cx).structure_has_keyboard(window, cx)));
+    type_text(cx, "钟");
+    assert_eq!(stored(&writer, &doc)[0], format!("钟{}", before[0]));
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(stored(&writer, &doc), before, "⌘Z undid the typing");
+    assert_eq!(title(), "改过的名字", "and left the book's command alone");
+
+    // Opened at another module, the keyboard on the page itself: ⌘Z undoes
+    // the rename and the page lets go of the module.
+    let other = Target::from_key(&format!("entry:{entry}/{module}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(other.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &other);
+    assert_eq!(pinned(cx, &other).as_deref(), Some(module.as_str()));
+    cx.update(|window, cx| {
+        let page = view.read(cx).editors[&other.key()].v3.clone().unwrap();
+        let handle = page.read(cx).focus.clone();
+        handle.focus(window, cx);
+    });
+    draw(cx);
+    cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
+    assert_eq!(
+        pinned(cx, &other).as_deref(),
+        Some(module.as_str()),
+        "taking the keyboard is not taking the page"
+    );
+    keys(cx, "cmd-z");
+    wait_for(&view, cx, |ws| {
+        ws.book.v3().unwrap().entry(&entry).unwrap().title == original
+    });
+    draw(cx);
+    assert_eq!(pinned(cx, &other), None, "⌘Z let go of the module");
+}
+
 /// Author 2026-11-13: the book's structure undoes from the window. With the
 /// caret in the prose, ⌘Z stays the editor's and undoes only its typing; in
 /// the find bar's field and in a dialog it undoes nothing of the book's.

@@ -106,6 +106,13 @@ impl EntryPage {
     pub fn pinned(&self) -> Option<&str> {
         self.pinned.as_deref()
     }
+    /// The author took the page (a scroll, a press, a key): the section is
+    /// no longer held in view.
+    pub fn release_pin(&mut self, cx: &mut Context<Self>) {
+        if self.pinned.take().is_some() {
+            cx.notify();
+        }
+    }
     /// Brings the page's child `ix` (a section) into view at the next frame,
     /// once the page has been laid out with it: one that fits as little as
     /// needed to show all of it; one taller than the page (a body as tall as
@@ -604,15 +611,12 @@ impl Render for EntryPage {
             .track_scroll(&self.scroll)
             .when(self.pinned.is_some(), |page| {
                 // The author takes the page: the named section is no longer
-                // held in view.
-                let unpin = |this: &mut Self, cx: &mut Context<Self>| {
-                    if this.pinned.take().is_some() {
-                        cx.notify();
-                    }
-                };
-                page.capture_any_mouse_down(cx.listener(move |this, _, _, cx| unpin(this, cx)))
-                    .on_scroll(cx.listener(move |this, _, _, cx| unpin(this, cx)))
-                    .capture_key_down(cx.listener(move |this, _, _, cx| unpin(this, cx)))
+                // held in view. GPUI hands a key to these listeners only when
+                // no action took it; the workspace lets go for ⌘Z / ⇧⌘Z it
+                // takes for the book (`workspace/undo.rs`).
+                page.capture_any_mouse_down(cx.listener(|this, _, _, cx| this.release_pin(cx)))
+                    .on_scroll(cx.listener(|this, _, _, cx| this.release_pin(cx)))
+                    .capture_key_down(cx.listener(|this, _, _, cx| this.release_pin(cx)))
             })
             .px_8()
             .pt_16()

@@ -65,6 +65,16 @@ impl Workspace {
             cx.propagate();
             return;
         }
+        // Taken here, the key no longer reaches the entry page's own key
+        // listener, which lets go of a section held in view when the author
+        // presses a key in the page (`EntryPage::pinned`): let go for it, as
+        // before, when the keyboard is in that page.
+        let pages: Vec<_> = self.editors.values().filter_map(|p| p.v3.clone()).collect();
+        for page in pages {
+            if page.read(cx).focus.contains_focused(window, cx) {
+                page.update(cx, |page, cx| page.release_pin(cx));
+            }
+        }
         self.undo_in_book(redo, None, None, cx);
     }
 
