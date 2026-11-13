@@ -468,9 +468,6 @@ fn v3_outline_editor(
         Target::Book => get(None),
         Target::Entry { id, module } => {
             let mut modules = Vec::new();
-            if v.levels.contains_key(id.as_str()) {
-                modules.push("about".to_owned());
-            }
             if let Some(template) = v.template_of(id.as_str()) {
                 modules.extend(
                     template

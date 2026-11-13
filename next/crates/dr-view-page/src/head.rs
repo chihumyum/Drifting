@@ -68,15 +68,11 @@ impl PageHead {
         cx: &mut Context<Self>,
     ) -> Self {
         let id = |what: &str| ElementId::Name(format!("page-{what}-{}", page.doc).into());
-        let untitled = if page.kind == PageKind::Idea {
-            keys::chapter_editor::UNTITLED_DRIFT
-        } else {
-            keys::chapter_editor::UNTITLED_CHAPTER
-        };
+        let untitled = title_placeholder_of(page, cx);
         let title = cx.new(|cx| {
             TextArea::new(id("title"), window, cx)
                 .submit_on_enter()
-                .placeholder(t(cx, untitled))
+                .placeholder(untitled)
                 .with_text(page.title.clone())
         });
         let synopsis = cx.new(|cx| {
@@ -135,9 +131,19 @@ impl PageHead {
         &self.synopsis
     }
 
-    /// The idea's groups, top down, as shown in its folio line.
+    /// The entry's enclosing levels, top down, as shown in its folio line.
     pub fn group_path(&self) -> Option<&str> {
         self.group_path.as_deref()
+    }
+
+    /// The folio label shown at the start of the folio line.
+    pub fn folio_label(&self, cx: &gpui::App) -> SharedString {
+        folio_label_of(&self.page, cx)
+    }
+
+    /// The placeholder shown when the title field is empty.
+    pub fn title_placeholder(&self, cx: &gpui::App) -> SharedString {
+        title_placeholder_of(&self.page, cx)
     }
 
     fn refresh_group_path(&mut self, cx: &gpui::App) -> bool {
@@ -285,10 +291,40 @@ impl PageHead {
     }
 }
 
-/// Like NodeEditorView's `driftGroupChain`: follow parents, stop at a
-/// missing group or a cycle, and show the surviving chain from the top.
+fn title_placeholder_of(page: &PageInfo, cx: &gpui::App) -> SharedString {
+    if !page.template_name.is_empty() {
+        tf(
+            cx,
+            keys::v3_shell::UNTITLED_NAMED,
+            &[("name", &page.template_name)],
+        )
+    } else if page.kind == PageKind::Chapter {
+        t(cx, keys::chapter_editor::UNTITLED_CHAPTER)
+    } else {
+        t(cx, keys::v3_shell::UNTITLED_ENTRY)
+    }
+}
+
+fn folio_label_of(page: &PageInfo, cx: &gpui::App) -> SharedString {
+    match (page.kind, page.number) {
+        (PageKind::Chapter, Some(n)) => {
+            tf(cx, keys::node_editor::folio::CHAPTER_NUMBER, &[("n", &n)])
+        }
+        (PageKind::Chapter, None) => t(cx, keys::node_editor::folio::CHAPTER),
+        (PageKind::Other, _) => {
+            if !page.template_name.is_empty() {
+                SharedString::from(page.template_name.clone())
+            } else {
+                t(cx, keys::v3_shell::ENTRY_UNTEMPLATED)
+            }
+        }
+    }
+}
+
+/// Follow active enclosing levels above a non-manuscript entry, stopping at
+/// the top-level root or any cycle, and show the surviving chain top-down.
 fn read_group_path(host: &PageHost, page: &PageInfo, cx: &gpui::App) -> Option<String> {
-    if page.kind != PageKind::Idea {
+    if page.kind != PageKind::Other {
         return None;
     }
     let (id, _) = dr_editor::v3::body(&page.doc)?;
@@ -298,7 +334,7 @@ fn read_group_path(host: &PageHost, page: &PageInfo, cx: &gpui::App) -> Option<S
     let mut seen = std::collections::HashSet::new();
     let mut chain = Vec::new();
     while let Some(id) = parent {
-        if !seen.insert(id) {
+        if !seen.insert(id) || !book.levels.contains_key(id) {
             break;
         }
         let entry = book.entry(id)?;
@@ -384,12 +420,37 @@ impl Render for PageHead {
         let p = theme.palette;
         let body = editor_settings(cx).font_size;
         let page = &self.page;
-        // The folio line: 「第 N 章」, the storyline's dash and name, the words.
-        let number: SharedString = match (page.kind, page.number) {
-            (PageKind::Idea, _) => t(cx, keys::node_editor::folio::DRIFT),
-            (_, Some(n)) => tf(cx, keys::node_editor::folio::CHAPTER_NUMBER, &[("n", &n)]),
-            (_, None) => t(cx, keys::node_editor::folio::CHAPTER),
-        };
+        // The folio line: 「第 N 章」 or the template name, the storyline's dash and name, the words.
+        let number = folio_label_of(page, cx);
+        let entry_mark = page
+            .color
+            .as_deref()
+            .filter(|c| page.storyline.as_ref().map(|s| s.color.as_str()) != Some(*c))
+            .and_then(dr_shell::book::color_of)
+            .map(|rgb| {
+                let kind = dr_editor::v3::body(&page.doc)
+                    .and_then(|(id, _)| dr_shell::v3::entry_target(&id))
+                    .and_then(|target| {
+                        self.host
+                            .workspace
+                            .upgrade()
+                            .map(|ws| ws.read(cx).book.mark(&target).0)
+                            .or_else(|| self.book.as_ref().map(|b| b.mark(&target).0))
+                    })
+                    .unwrap_or(sand::Kind::Element);
+                KindMark::new(
+                    ElementId::Name(format!("page-folio-entry-mark-{}", page.doc).into()),
+                    kind,
+                )
+                .color(rgb)
+            });
+        let lead = div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(tk::FOLIO_MARK_GAP))
+            .when_some(entry_mark, |el, m| el.child(m))
+            .child(number);
         let words = tf(
             cx,
             keys::node_editor::meta::WORDS,
@@ -433,7 +494,7 @@ impl Render for PageHead {
             .font_role(Role::Index)
             .type_px(tk::FOLIO_SIZE, tk::FOLIO_LINE)
             .text_color(p.ink(4).solid())
-            .child(number)
+            .child(lead)
             .when_some(storyline, |el, s| {
                 el.child(div().flex().flex_row().items_center().child(dot()).child(s))
             })
@@ -471,17 +532,22 @@ impl Render for PageHead {
                     .font_role(Role::Prose)
                     .type_px(tk::TITLE_SIZE, tk::TITLE_SIZE * tk::TITLE_LINE)
                     .text_color(p.ink(1).solid())
-                    .child(self.title.clone()),
+                    .child(self.title.clone())
+                    .when(!page.has_synopsis && self.drafts.is_some(), |d| {
+                        d.child(self.errors_v3(cx))
+                    }),
             )
-            .child(
-                div()
-                    .mb(px(tk::SYNOPSIS_GAP))
-                    .font_role(Role::Prose)
-                    .type_px(synopsis_size, synopsis_size * tk::SYNOPSIS_LINE)
-                    .text_color(p.ink(3).solid())
-                    .child(self.synopsis.clone())
-                    .when(self.drafts.is_some(), |d| d.child(self.errors_v3(cx))),
-            )
+            .when(page.has_synopsis, |el| {
+                el.child(
+                    div()
+                        .mb(px(tk::SYNOPSIS_GAP))
+                        .font_role(Role::Prose)
+                        .type_px(synopsis_size, synopsis_size * tk::SYNOPSIS_LINE)
+                        .text_color(p.ink(3).solid())
+                        .child(self.synopsis.clone())
+                        .when(self.drafts.is_some(), |d| d.child(self.errors_v3(cx))),
+                )
+            })
             .child(div().mb(px(tk::RULE_GAP)).h(px(1.0)).bg(p.rule.solid()));
         // The act this chapter opens (the whole book).
 

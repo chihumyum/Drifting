@@ -36,6 +36,7 @@ pub mod v3 {
                 "accept" => keys::v3_levels::ACCEPT,
                 "home" => keys::v3_levels::HOME,
                 "is_manuscript" => keys::v3_levels::IS_MANUSCRIPT,
+                "lane" => keys::v3_levels::LANE,
                 _ => keys::v3_levels::FORMAT_SHORTCUTS,
             },
         )
@@ -48,6 +49,7 @@ pub mod v3 {
             "accept" => s.accept.is_some(),
             "home" => s.home.is_some(),
             "is_manuscript" => s.is_manuscript.is_some(),
+            "lane" => s.lane.is_some(),
             "format_shortcuts" => s.format_shortcuts.is_some(),
             _ => false,
         })
@@ -118,6 +120,7 @@ pub mod v3 {
             "auto_link" => on(s.auto_link),
             "accept" => on(s.accept),
             "is_manuscript" => on(s.is_manuscript),
+            "lane" => on(s.lane),
             "home" => s
                 .home
                 .as_deref()
@@ -155,6 +158,7 @@ pub mod v3 {
                 "accept",
                 "home",
                 "is_manuscript",
+                "lane",
                 "format_shortcuts",
             ] {
                 let label = label(key, cx);

@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Kurzfassung…",
-    "untitledChapter": "Unbenanntes Kapitel",
-    "untitledDrift": "Unbenannte Idee"
+    "untitledChapter": "Unbenanntes Kapitel"
   },
   "chapterEnd": {
     "defaultTitle": "Neues Kapitel",
@@ -636,8 +635,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Kapitel",
-      "chapterNumber": "Kapitel {{n}}",
-      "drift": "Idee"
+      "chapterNumber": "Kapitel {{n}}"
     },
     "meta": {
       "words": "{{count}} Wörter"
@@ -1557,6 +1555,7 @@
     "formatShortcuts": "Formatierungskürzel",
     "home": "Ablage neuer Einträge",
     "isManuscript": "Manuskript",
+    "lane": "Schwimmbahn",
     "manuscriptOrder": "Manuskriptreihenfolge",
     "members": "Zugeordnete Einträge",
     "none": "Keine",
@@ -1583,21 +1582,31 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Beschreibung",
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
     "changeTemplate": "Vorlage wechseln",
+    "childrenEntries": "Untergeordnete Einträge",
     "editTemplate": "Vorlage bearbeiten",
     "entries": "Einträge",
+    "entryUntemplated": "Eintrag",
     "grid": "Raster",
     "islands": "Inseln",
+    "levelSwitch": "Ebene",
+    "levelSwitchHint": "Aktivieren, um darunter Einträge abzulegen",
     "list": "Liste",
     "newEntry": "Neu",
     "newTemplate": "Neue Vorlage",
     "open": "Öffnen",
     "settings": "Einstellungen",
     "templates": "Vorlagen",
-    "trash": "Zu „Zuletzt gelöscht“ verschieben"
+    "trash": "Zu „Zuletzt gelöscht“ verschieben",
+    "turnOffLevelBody_one": "{{count}} untergeordneter Eintrag wird samt allem darunter auf die oberste Ebene verschoben. Zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelBody_other": "{{count}} untergeordnete Einträge werden samt allem darunter auf die oberste Ebene verschoben. Zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelConfirm": "Ausschalten",
+    "turnOffLevelConflict": "Die untergeordneten Einträge haben sich geändert. Bitte prüfe die neue Anzahl und bestätige erneut.",
+    "turnOffLevelTitle": "Ebene ausschalten",
+    "untitledEntry": "Unbenannter Eintrag",
+    "untitledNamed": "{{name}} ohne Titel"
   },
   "v3Timeline": {
     "actLevelName": "Akte",

@@ -951,3 +951,583 @@ fn level_refresh_retains_live_prose_input_selection_scroll_and_page_instance(
             .any(|p| p["text"].as_str().unwrap().contains("结构刷新"))
     );
 }
+
+#[gpui::test]
+fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        pages::PageViewHost,
+        v3::{
+            self, Rendered,
+            page::{TurnOffLevelDialog, toggle_level},
+        },
+    };
+    use gpui::{prelude::*, *};
+    use std::time::{Duration, Instant};
+
+    struct DummyPart;
+    impl Render for DummyPart {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+
+    let (_dir, lib, id) = seed();
+    let initial = Book::load(&lib, &id).unwrap();
+    let b0 = initial.v3().unwrap();
+    let chapter_id = b0
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap()
+        .id
+        .clone();
+    let member_id = b0
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .unwrap()
+        .id
+        .clone();
+
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        for display in ["list", "board", "grid", "table"] {
+            v3::add_level_display(cx, display, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+        }
+        v3::add_level_settings(cx, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+    });
+
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let pump = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    let wait_book = |cx: &mut VisualTestContext,
+                     pred: &dyn Fn(&dr_shell::book::v3::BookV3) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            pump(cx);
+            if view.read_with(cx, |ws, _| ws.book.v3().is_some_and(pred)) {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for book refresh"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait_book(cx, &|_| true);
+
+    let make_host = |cx: &VisualTestContext| {
+        let book = view.read_with(cx, |ws, _| ws.book.clone());
+        PageViewHost {
+            workspace: view.downgrade(),
+            library: lib.clone(),
+            book_id: id.clone(),
+            book,
+        }
+    };
+
+    // 1. Turning `层级` ON and OFF when N == 0 commits directly with no dialog.
+    let chapter_target = Target::from_key(&format!("entry:{chapter_id}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(chapter_target.clone(), Open::KEEP, cx));
+    pump(cx);
+    view.read_with(cx, |ws, cx| {
+        let page = ws.editors[&chapter_target.key()]
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx);
+        assert!(
+            !page
+                .sections
+                .iter()
+                .any(|s| s.id == "display" || s.id == "settings")
+        );
+    });
+
+    let host = make_host(cx);
+    let ch = chapter_id.clone();
+    cx.update(|window, cx| toggle_level(host, ch, window, cx));
+    wait_book(cx, &|v| v.levels.contains_key(&chapter_id));
+    view.read_with(cx, |ws, cx| {
+        assert!(
+            ws.dialog.is_none(),
+            "opening level switch never shows a dialog"
+        );
+        let page = ws.editors[&chapter_target.key()]
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx);
+        let ids: Vec<_> = page.sections.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids[ids.len() - 2..], ["display", "settings"]);
+    });
+
+    let host = make_host(cx);
+    let ch = chapter_id.clone();
+    cx.update(|window, cx| toggle_level(host, ch, window, cx));
+    wait_book(cx, &|v| !v.levels.contains_key(&chapter_id));
+    view.read_with(cx, |ws, cx| {
+        assert!(
+            ws.dialog.is_none(),
+            "closing level switch with N == 0 never shows a dialog"
+        );
+        let page = ws.editors[&chapter_target.key()]
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx);
+        assert!(
+            !page
+                .sections
+                .iter()
+                .any(|s| s.id == "display" || s.id == "settings")
+        );
+    });
+
+    // 2. Root organizing entry with N > 0 children (one itself a level with a grandchild),
+    //    overrides, swimlane identity, and an affiliated member.
+    let group = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": null, "template": "tpl-group", "title": "卷一", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": id, "id": group, "overrides": {"lane": true, "accept": true, "display": "board"}}),
+    );
+    call(
+        &lib,
+        "membership.add",
+        json!({"book": id, "host": group, "member": member_id}),
+    );
+    let c1 = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": group, "template": "tpl-group", "title": "上篇", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let gc1 = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": c1, "template": "tpl-chapter", "title": "楔子"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let c2 = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": group, "template": "tpl-chapter", "title": "终章"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    wait_book(cx, &|v| {
+        v.levels.get(&group).is_some_and(|l| l.children.len() == 2)
+    });
+
+    let group_target = Target::from_key(&format!("entry:{group}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(group_target.clone(), Open::KEEP, cx));
+    pump(cx);
+
+    // Cancel leaves everything untouched.
+    let host = make_host(cx);
+    let g = group.clone();
+    cx.update(|window, cx| toggle_level(host, g, window, cx));
+    let wait_dialog = |cx: &mut VisualTestContext| -> Entity<TurnOffLevelDialog> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            pump(cx);
+            if let Some(d) = view.read_with(cx, |ws, _| {
+                ws.dialog
+                    .as_ref()
+                    .and_then(|d| d.clone().downcast::<TurnOffLevelDialog>().ok())
+            }) {
+                return d;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for TurnOffLevelDialog"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    let dialog = wait_dialog(cx);
+    dialog.read_with(cx, |d, _| {
+        assert_eq!(d.entry_id(), group);
+        assert_eq!(d.child_count(), 2);
+        assert!(!d.has_conflict());
+    });
+    dialog.update(cx, |d, cx| d.cancel(cx));
+    pump(cx);
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        assert!(ws.book.v3().unwrap().levels.contains_key(&group));
+    });
+
+    // Re-open dialog, mutate direct children concurrently -> confirm conflicts, re-reads N == 3, asks again.
+    let host = make_host(cx);
+    let g = group.clone();
+    cx.update(|window, cx| toggle_level(host, g, window, cx));
+    let dialog = wait_dialog(cx);
+    assert_eq!(dialog.read_with(cx, |d, _| d.child_count()), 2);
+
+    let c3 = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": group, "template": "tpl-chapter", "title": "附录"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        pump(cx);
+        if dialog.read_with(cx, |d, _| !d.is_busy() && d.has_conflict()) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for conflict refresh"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    dialog.read_with(cx, |d, _| {
+        assert_eq!(
+            d.child_count(),
+            3,
+            "dialog re-read live child count after conflict"
+        );
+        assert!(d.has_conflict());
+    });
+    assert!(
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .levels
+            .contains_key(&group),
+        "conflicted confirm must not turn off level"
+    );
+
+    // Confirming after re-read moves direct children [c1, c2, c3] to root right after `group`,
+    // keeps `gc1` under `c1`, and hides dormant swimlane / settings.
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait_book(cx, &|v| !v.levels.contains_key(&group));
+    view.read_with(cx, |ws, cx| {
+        assert!(ws.dialog.is_none());
+        let v = ws.book.v3().unwrap();
+        assert!(!v.entry(&group).unwrap().level);
+        assert!(!v.is_lane(&group));
+        let pos = v.roots.iter().position(|r| r == &group).unwrap();
+        assert_eq!(
+            &v.roots[pos..pos + 4],
+            &[group.clone(), c1.clone(), c2.clone(), c3.clone()]
+        );
+        assert_eq!(v.entry(&gc1).unwrap().parent.as_deref(), Some(c1.as_str()));
+        assert!(v.levels.contains_key(&c1));
+        let page = ws.editors[&group_target.key()]
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx);
+        assert!(
+            !page
+                .sections
+                .iter()
+                .any(|s| s.id == "display" || s.id == "settings")
+        );
+    });
+
+    // Single-step Undo restores `level == true`, all children's parent + order, lane, and overrides.
+    lib.undo(&Actor::User).unwrap();
+    wait_book(cx, &|v| v.levels.contains_key(&group));
+    view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        assert!(v.entry(&group).unwrap().level);
+        assert!(v.is_lane(&group));
+        assert_eq!(v.levels[&group].settings.display, "board");
+        assert_eq!(
+            v.levels[&group].children,
+            vec![c1.clone(), c2.clone(), c3.clone()]
+        );
+        assert!(
+            v.memberships
+                .iter()
+                .any(|m| m.host == group && m.member == member_id)
+        );
+    });
+
+    // Turning off and back on restores preserved overrides and memberships.
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": id, "id": group, "level": false}),
+    );
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": id, "id": group, "level": true}),
+    );
+    wait_book(cx, &|v| {
+        v.levels.contains_key(&group) && v.levels[&group].children.is_empty()
+    });
+    view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        assert!(v.is_lane(&group));
+        assert_eq!(v.levels[&group].settings.display, "board");
+        assert!(
+            v.memberships
+                .iter()
+                .any(|m| m.host == group && m.member == member_id)
+        );
+    });
+}
+
+#[gpui::test]
+fn v4_children_module_placement_and_mod_description_ordinary_prose(cx: &mut gpui::TestAppContext) {
+    use dr_editor::{ChapterEditor, EditorSettings};
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        v3::{self, Rendered},
+    };
+    use gpui::{prelude::*, *};
+    use std::{
+        cell::RefCell,
+        rc::Rc,
+        time::{Duration, Instant},
+    };
+
+    struct DummyPart;
+    impl Render for DummyPart {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+
+    let (_dir, lib, id) = seed();
+    call(
+        &lib,
+        "entry_template.put",
+        json!({
+            "book": id,
+            "template": {
+                "id": "custom-hub",
+                "name": "枢纽",
+                "level": true,
+                "modules": [
+                    {"id": "mod-lead", "kind": "prose", "name": "引言", "pos": "a0", "config": {"in_book": false}},
+                    {"id": "mod-kids", "kind": "children", "name": "下属条目", "pos": "a1"},
+                    {"id": "mod-meta", "kind": "fields", "name": "属性", "pos": "a2"}
+                ]
+            }
+        }),
+    );
+    let hub = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": null, "template": "custom-hub", "title": "北城枢纽"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let ms = Book::load(&lib, &id)
+        .unwrap()
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+
+    let mounted = Rc::new(RefCell::new(Vec::new()));
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        let mounted = mounted.clone();
+        v3::add_module_view(cx, "prose", move |host, window, cx| {
+            let doc = format!("body:{}/{}", host.entry, host.module.id);
+            let source = dr_editor::v3::prepare_body(
+                &host.page.library,
+                &host.page.book_id,
+                &host.entry,
+                &host.module.id,
+            )
+            .unwrap();
+            let editor = cx.new(|cx| {
+                ChapterEditor::with_session(
+                    host.page.library.clone(),
+                    &host.page.book_id,
+                    &doc,
+                    source,
+                    EditorSettings::default(),
+                    window,
+                    cx,
+                )
+            });
+            mounted
+                .borrow_mut()
+                .push((host.entry, host.module.id, editor.clone()));
+            let focus = editor.read(cx).editor().focus_handle(cx);
+            Rendered::new(editor).focus(focus)
+        });
+        v3::add_module_view(cx, "fields", |_, _, cx| {
+            Rendered::new(cx.new(|_| DummyPart))
+        });
+        v3::add_level_display(cx, "list", |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+        v3::add_level_settings(cx, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+    });
+
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let pump = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    let wait_book = |cx: &mut VisualTestContext,
+                     pred: &dyn Fn(&dr_shell::book::v3::BookV3) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            pump(cx);
+            if view.read_with(cx, |ws, _| ws.book.v3().is_some_and(pred)) {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for book refresh"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait_book(cx, &|_| true);
+
+    // Template WITH `children` module mounts it in template order (between mod-lead and mod-meta)
+    // and omits it + settings when `level` is turned off.
+    let hub_target = Target::from_key(&format!("entry:{hub}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(hub_target.clone(), Open::KEEP, cx));
+    pump(cx);
+    view.read_with(cx, |ws, cx| {
+        let page = ws.editors[&hub_target.key()].v3.as_ref().unwrap().read(cx);
+        let summary: Vec<_> = page
+            .sections
+            .iter()
+            .map(|s| (s.id.as_str(), s.kind.as_str(), s.name.as_str()))
+            .collect();
+        let settings_label =
+            dr_shell::strings::t(cx, dr_i18n::keys::v3_shell::SETTINGS).to_string();
+        assert_eq!(
+            summary,
+            vec![
+                ("mod-lead", "prose", "引言"),
+                ("mod-kids", "list", "下属条目"),
+                ("mod-meta", "fields", "属性"),
+                ("settings", "settings", settings_label.as_str()),
+            ]
+        );
+    });
+
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": id, "id": hub, "level": false}),
+    );
+    wait_book(cx, &|v| !v.levels.contains_key(&hub));
+    view.read_with(cx, |ws, cx| {
+        let page = ws.editors[&hub_target.key()].v3.as_ref().unwrap().read(cx);
+        let ids: Vec<_> = page.sections.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, vec!["mod-lead", "mod-meta"]);
+    });
+
+    // Former organizing levels render `mod-description` (`说明`) as ordinary prose, with no synthetic `about`.
+    let ms_target = Target::from_key(&format!("entry:{ms}/mod-description")).unwrap();
+    view.update(cx, |ws, cx| ws.open(ms_target.clone(), Open::KEEP, cx));
+    for _ in 0..3 {
+        pump(cx);
+    }
+    view.read_with(cx, |ws, cx| {
+        let page = ws.editors[&ms_target.key()].v3.as_ref().unwrap().read(cx);
+        assert!(
+            !page
+                .sections
+                .iter()
+                .any(|s| s.id == "about" || s.kind == "about")
+        );
+        assert_eq!(page.sections[0].id, "mod-description");
+        assert_eq!(page.sections[0].kind, "prose");
+    });
+
+    let ms_editor = mounted
+        .borrow()
+        .iter()
+        .find(|(e, m, _)| e == &ms && m == "mod-description")
+        .unwrap()
+        .2
+        .clone();
+    let prose = ms_editor.read_with(cx, |e, _| e.editor().clone());
+    cx.update(|window, cx| {
+        prose.update(cx, |p, cx| {
+            p.select(0, 0..0, window, cx);
+            p.replace_text_in_range(None, "书稿层级说明正文", window, cx);
+        });
+    });
+    pump(cx);
+    let stored = call(
+        &lib,
+        "module.read_prose",
+        json!({"book": id, "owner": ms, "module": "mod-description"}),
+    );
+    assert!(
+        stored["paragraphs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["text"].as_str().unwrap().contains("书稿层级说明正文"))
+    );
+}

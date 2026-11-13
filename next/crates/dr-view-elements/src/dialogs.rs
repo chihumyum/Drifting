@@ -138,7 +138,6 @@ pub mod v3 {
             self.busy = true;
             self.error = false;
             let (id, key) = (self.level.clone(), self.key);
-            let close = key != "allow" || value.is_none();
             let edit = match crate::data::v3::prepare_override(&host.book, &id, key, value) {
                 Ok(edit) => edit,
                 Err(error) => {
@@ -164,7 +163,7 @@ pub mod v3 {
                     if let Err(error) = &result {
                         log::warn!("v3 level setting: {error}");
                     }
-                    if result.is_ok() && close {
+                    if result.is_ok() {
                         this.close(cx);
                     } else {
                         cx.notify();
@@ -198,11 +197,12 @@ pub mod v3 {
                         )
                     })
                     .collect(),
-                "auto_link" | "accept" | "is_manuscript" => {
+                "auto_link" | "accept" | "is_manuscript" | "lane" => {
                     let current = match self.key {
                         "auto_link" => s.auto_link,
                         "accept" => s.accept,
-                        _ => s.is_manuscript,
+                        "is_manuscript" => s.is_manuscript,
+                        _ => s.lane,
                     };
                     [true, false]
                         .into_iter()

@@ -95,3 +95,12 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
      - 构想页的 `PageInfo` 是 `kind: PageKind::Idea`，带 `title`、`synopsis` 和 `status`（`drifting` / `resting`）。所以 dr-view-page 可以照章节页接管构想页的标题和梗概。构想页没有 ⁂ 的完成和新建下一章（`set_finished` / `new_chapter_after` 仍只对章节）。
 5. **M30（Agent）：** ⁂ 菜单里的「帮手审阅」。
 6. ~~**F4（dr-editor）：** 构想页的页眉要构想所在的组。~~ 已在本模块补齐：直接读外壳已有的书目快照并监听更新，不必扩展 `PageInfo`。
+
+## 内核 v4 · 统一条目页眉与章末（T1，2026-11-13）
+
+按 `kernel-v4.md` 第 9、14 节去掉按固定模板 id（如章节／构想模板 id）区分页面的分支：
+
+- **`PageKind` 收为两种**：在成书序列（`BookStructureV3::manuscript`）里拿到编号 `ordinal` 的主成书正文为 `PageKind::Chapter`（页眉写「第 N 章」）；其余主成书正文一律为 `PageKind::Other`（页眉写条目当前模板名，无模板时写「条目」）。标题为空时的占位文案统一拼模板名（「无标题<模板名>」，无模板时写「无标题条目」）。
+- **颜色与路径**：`PageInfo::color` 与外壳 `BookV3::appearance` 一致，优先取条目自身颜色角色字段值，其次模板色，最后取开关开着的有效泳道颜色；条目有自身颜色且不带有效泳道线标时，页眉前沿展示该颜色记号。非成书条目的分组路径沿当前开着「层级」开关的上层住处链拼接。
+- **角色驱动的梗概与章末动作**：模板声明了摘要角色字段（`summary_field`）时才渲染梗概框并参与退出排空；模板声明了状态角色字段（`status_field`）时 ⁂ 才提供「标为完成／改回草稿」，成书条目始终保留「新建下一章」（沿用当前条目的模板 id，不硬编码内置章节模板）。`in_book = false` 的说明正文与同一条目的第二篇起的正文不挂接章首章末（`page.chrome = false`）。
+

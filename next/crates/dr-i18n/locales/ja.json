@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
-    "untitledChapter": "無題の章",
-    "untitledDrift": "無題のアイデア"
+    "untitledChapter": "無題の章"
   },
   "chapterEnd": {
     "defaultTitle": "新しい章",
@@ -629,8 +628,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章",
-      "chapterNumber": "第{{n}}章",
-      "drift": "アイデア"
+      "chapterNumber": "第{{n}}章"
     },
     "meta": {
       "words": "{{count}}文字"
@@ -1550,6 +1548,7 @@
     "formatShortcuts": "書式ショートカット",
     "home": "新しい項目の置き場所",
     "isManuscript": "原稿",
+    "lane": "スイムレーン",
     "manuscriptOrder": "原稿順",
     "members": "所属する項目",
     "none": "なし",
@@ -1576,21 +1575,30 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "説明",
     "belongTo": "所属先",
     "board": "ボード",
     "changeTemplate": "テンプレートを変更",
+    "childrenEntries": "下の項目",
     "editTemplate": "テンプレートを編集",
     "entries": "項目",
+    "entryUntemplated": "項目",
     "grid": "グリッド",
     "islands": "アイランド",
+    "levelSwitch": "階層",
+    "levelSwitchHint": "オンにすると下に項目を置けます",
     "list": "リスト",
     "newEntry": "新規作成",
     "newTemplate": "新規テンプレート",
     "open": "開く",
     "settings": "設定",
     "templates": "テンプレート",
-    "trash": "最近削除した項目に移動"
+    "trash": "最近削除した項目に移動",
+    "turnOffLevelBody_other": "下の {{count}} 件の項目は、それぞれの下にあるものと一緒に最上位へ移ります。ここに所属する項目とタイムラインのレーンは一時的に隠れ、再びオンにすると戻ります。",
+    "turnOffLevelConfirm": "オフにする",
+    "turnOffLevelConflict": "下の項目が変更されました。最新の件数を確認してからもう一度実行してください。",
+    "turnOffLevelTitle": "階層をオフにする",
+    "untitledEntry": "無題の項目",
+    "untitledNamed": "無題の{{name}}"
   },
   "v3Timeline": {
     "actLevelName": "幕",

@@ -406,10 +406,8 @@ settings.about.feedback
 userMenu.feedback
 nodeEditor.folio.chapter
 nodeEditor.folio.chapterNumber
-nodeEditor.folio.drift
 nodeEditor.meta.words
 chapterEditor.untitledChapter
-chapterEditor.untitledDrift
 chapterEditor.synopsisPlaceholder
 chapterEnd.trigger
 chapterEnd.triggerFinished

@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopsis…",
-    "untitledChapter": "Capítulo sin título",
-    "untitledDrift": "Idea sin título"
+    "untitledChapter": "Capítulo sin título"
   },
   "chapterEnd": {
     "defaultTitle": "Nuevo capítulo",
@@ -638,8 +637,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Capítulo",
-      "chapterNumber": "Capítulo {{n}}",
-      "drift": "Idea"
+      "chapterNumber": "Capítulo {{n}}"
     },
     "meta": {
       "words": "{{count}} palabras"
@@ -1566,6 +1564,7 @@
     "formatShortcuts": "Atajos de formato",
     "home": "Ubicación de las nuevas entradas",
     "isManuscript": "Manuscrito",
+    "lane": "Carril",
     "manuscriptOrder": "Orden del manuscrito",
     "members": "Entradas asignadas",
     "none": "Ninguna",
@@ -1592,21 +1591,31 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Descripción",
     "belongTo": "Asignar a",
     "board": "Tablero",
     "changeTemplate": "Cambiar plantilla",
+    "childrenEntries": "Entradas debajo",
     "editTemplate": "Editar plantilla",
     "entries": "Entradas",
+    "entryUntemplated": "Entrada",
     "grid": "Cuadrícula",
     "islands": "Islas",
+    "levelSwitch": "Nivel",
+    "levelSwitchHint": "Permite colocar entradas debajo",
     "list": "Lista",
     "newEntry": "Nuevo",
     "newTemplate": "Nueva plantilla",
     "open": "Abrir",
     "settings": "Ajustes",
     "templates": "Plantillas",
-    "trash": "Mover a Eliminados recientemente"
+    "trash": "Mover a Eliminados recientemente",
+    "turnOffLevelBody_one": "{{count}} entrada debajo se moverá al nivel superior junto con todo lo que contiene. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
+    "turnOffLevelBody_other": "{{count}} entradas debajo se moverán al nivel superior junto con todo lo que contienen. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
+    "turnOffLevelConfirm": "Desactivar",
+    "turnOffLevelConflict": "Las entradas debajo acaban de cambiar. Revisa la cantidad actualizada y vuelve a confirmar.",
+    "turnOffLevelTitle": "Desactivar nivel",
+    "untitledEntry": "Entrada sin título",
+    "untitledNamed": "{{name}} sin título"
   },
   "v3Timeline": {
     "actLevelName": "Actos",

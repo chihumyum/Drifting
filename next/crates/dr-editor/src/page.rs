@@ -37,10 +37,9 @@ use serde_json::{Value, json};
 /// What kind of page a prose document is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PageKind {
+    /// An entry in the manuscript sequence (numbered as 「第 N 章」).
     Chapter,
-    /// An idea (构想).
-    Idea,
-    /// Anything else with prose (an element, a storyline …): no folio facts.
+    /// Any other prose page (shows its template name).
     Other,
 }
 
@@ -56,16 +55,26 @@ pub struct StorylineMark {
 /// The facts of one page, for its head and end.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PageInfo {
-    /// The prose document (`node:<id>`, …).
+    /// The prose document (`body:<entry>/<module>`, …).
     pub doc: String,
     pub kind: PageKind,
-    /// 「第 N 章」: the chapter's place among live chapters in reading order.
+    /// Whether the host's page head and end chrome belong on this document.
+    pub chrome: bool,
+    /// 「第 N 章」: the entry's place in the manuscript sequence.
     pub number: Option<u32>,
+    /// The entry's effective template name (empty when untemplated).
+    pub template_name: String,
+    /// The entry's resolved colour (`#rrggbb`), own colour field first, then
+    /// template colour, then active primary/first lane colour.
+    pub color: Option<String>,
     pub title: String,
+    /// Whether the template exposes a summary/synopsis role field.
+    pub has_synopsis: bool,
     /// The synopsis (梗概).
     pub synopsis: String,
-    /// `draft`, `finished` or `discarded` for a chapter; `drifting` or
-    /// `resting` for an idea; empty otherwise.
+    /// Whether the template exposes a status role field.
+    pub has_status: bool,
+    /// Status value (`draft` / `finished` / …) when `has_status` is true.
     pub status: String,
     pub storyline: Option<StorylineMark>,
     /// Words in the text (prose-metrics' rule), as the editor holds it.
@@ -79,9 +88,14 @@ impl PageInfo {
         PageInfo {
             doc: doc.to_owned(),
             kind: PageKind::Other,
+            chrome: false,
             number: None,
+            template_name: String::new(),
+            color: None,
             title: String::new(),
+            has_synopsis: false,
             synopsis: String::new(),
+            has_status: false,
             status: String::new(),
             storyline: None,
             words: 0,

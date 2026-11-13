@@ -79,6 +79,8 @@ pub struct BookV3 {
     template_index: BTreeMap<String, usize>,
     #[serde(skip)]
     hosts_by_member: BTreeMap<String, BTreeSet<String>>,
+    #[serde(skip)]
+    ordinals: BTreeMap<String, u32>,
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
@@ -173,6 +175,11 @@ impl BookV3 {
             Target::Material(id) => self.materials.iter().any(|m| m.id == id.as_str()),
         }
     }
+    /// The 1-based chapter ordinal of `id` when it carries book prose in the
+    /// manuscript sequence.
+    pub fn manuscript_number(&self, id: &str) -> Option<u32> {
+        self.ordinals.get(id).copied()
+    }
     /// Metadata for every entry surface. Marks keep the template's vocabulary;
     /// the sand renderer maps the built-in marks to the existing visual family.
     pub fn appearance(&self, id: &str) -> Option<Appearance> {
@@ -187,11 +194,11 @@ impl BookV3 {
             let primary = entry
                 .primary
                 .as_deref()
-                .filter(|&p| valid.is_some_and(|s| s.contains(p)))
-                .or_else(|| valid.and_then(|s| s.first().map(String::as_str)));
-            primary
-                .filter(|p| self.is_lane(p))
-                .and_then(|lane| self.own_color(lane))
+                .filter(|&p| valid.is_some_and(|s| s.contains(p)) && self.is_lane(p))
+                .or_else(|| {
+                    valid.and_then(|s| s.iter().map(String::as_str).find(|&p| self.is_lane(p)))
+                });
+            primary.and_then(|lane| self.own_color(lane))
         };
         Some(Appearance {
             mark: template.and_then(|t| t.mark.clone()),
@@ -309,8 +316,12 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         // The manuscript sequence: each entry's own book prose before what
         // lives under it.
         let mut manuscript = Vec::new();
+        let mut ordinals = BTreeMap::new();
         for part in structure.manuscript() {
             for e in part.entries {
+                if let Some(n) = e.ordinal {
+                    ordinals.insert(e.entry.id.to_string(), n);
+                }
                 for prose in e.prose {
                     manuscript.push(ManuscriptBody {
                         entry: e.entry.id.to_string(),
@@ -382,6 +393,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 revision: version,
                 shown,
                 manuscript,
+                ordinals,
                 entries,
                 templates,
                 roots,
