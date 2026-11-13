@@ -389,6 +389,7 @@ impl ElementOverview {
         let weak_self = cx.entity().downgrade();
         cx.default_global::<crate::Registry>().views.push(weak_self);
 
+        let shown_as = host.view;
         let mut view = Self {
             ws: host.workspace.clone(),
             lib: host.library,
@@ -448,13 +449,16 @@ impl ElementOverview {
 
         // SuperView construction happens inside `Workspace::render`, so never borrow
         // `host.workspace` synchronously here; attach observation in a microtask.
+        // The stage keeps this view while it is closed or showing another
+        // one; it follows the workspace only while it is the view shown.
         let ws_weak = host.workspace;
         cx.spawn(async move |this, cx| {
             let _ = this.update(cx, |v, cx| {
                 if let Some(ws) = ws_weak.upgrade() {
-                    let sub = cx.observe(&ws, |this, ws, cx| {
-                        this.sync_from_workspace(ws, cx);
-                    });
+                    let sub =
+                        dr_shell::pages::follow_super_view(&ws, shown_as, cx, |this, ws, cx| {
+                            this.sync_from_workspace(ws, cx);
+                        });
                     v._subs.push(sub);
                     v.sync_from_workspace(ws, cx);
                 }
