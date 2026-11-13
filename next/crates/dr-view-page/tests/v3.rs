@@ -550,3 +550,225 @@ fn body_module_expands_flat_beyond_720px_without_inner_clamp(cx: &mut TestAppCon
     );
     e.ws.close();
 }
+
+#[gpui::test]
+fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContext) {
+    use dr_editor::page::PageKind;
+
+    let mut e = env();
+    call(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "custom-interlude",
+                "name": "幕间",
+                "level": false,
+                "modules": [
+                    {"id": "mod-prose", "kind": "prose", "name": "正文", "pos": "a0", "config": {"in_book": true}},
+                    {"id": "mod-notes", "kind": "prose", "name": "附记", "pos": "a1", "config": {"in_book": true}},
+                    {"id": "mod-description", "kind": "prose", "name": "说明", "pos": "a2", "config": {"in_book": false}},
+                    {
+                        "id": "mod-fields",
+                        "kind": "fields",
+                        "name": "属性",
+                        "pos": "a3",
+                        "config": {
+                            "defs": [
+                                {"id": "tint", "name": "颜色", "field_type": "text", "pos": "a0"}
+                            ],
+                            "color_field": "tint"
+                        }
+                    }
+                ]
+            }
+        }),
+    );
+
+    let initial = Book::load(&e.ws, &e.book).unwrap();
+    let v0 = initial.v3().unwrap();
+    let ms_root = v0
+        .entries
+        .iter()
+        .find(|x| x.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+    let ideas_root = v0
+        .entries
+        .iter()
+        .find(|x| x.template.as_deref() == Some("tpl-ideas"))
+        .unwrap()
+        .id
+        .clone();
+    let lane_host = v0
+        .entries
+        .iter()
+        .find(|x| v0.is_lane(&x.id))
+        .unwrap()
+        .id
+        .clone();
+    call(
+        &e.ws,
+        "module.set_field",
+        json!({"book": e.book, "entry": lane_host, "module": "mod-fields", "field": "color", "value": "#2a6f97"}),
+    );
+
+    // 1. Custom non-built-in template inside manuscript gets Chapter folio, ordinal, and same-template Next sibling.
+    let ms_custom = call(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "parent": ms_root, "template": "custom-interlude", "title": "幕间一"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.entry = ms_custom.clone();
+
+    let (primary_view, mut vcx1) = open(cx, &e, "mod-prose");
+    let primary_doc = format!("body:{ms_custom}/mod-prose");
+    wait(&mut vcx1, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&primary_doc, cx).is_some())
+    });
+    let info = primary_view
+        .read_with(&vcx1, |v, _| v.editor().unwrap())
+        .read_with(&vcx1, |v, _| v.page_info().unwrap());
+    assert_eq!(info.kind, PageKind::Chapter);
+    assert!(info.chrome);
+    assert!(info.number.is_some());
+    assert_eq!(info.template_name, "幕间");
+    assert!(!info.has_synopsis);
+    assert!(!info.has_status);
+
+    let next_doc =
+        dr_editor::page::new_chapter_after(&e.ws, &e.book, &primary_doc, "下一节").unwrap();
+    let next_id = next_doc
+        .strip_prefix("body:")
+        .unwrap()
+        .split('/')
+        .next()
+        .unwrap();
+    assert_eq!(
+        call(&e.ws, "entry.get", json!({"book": e.book, "id": next_id}))["template"],
+        "custom-interlude",
+        "creating next manuscript sibling preserves the entry's custom template"
+    );
+
+    // Secondary in-book prose and non-book `mod-description` do not mount duplicate folio chrome.
+    let (secondary_view, vcx2) = open(&mut vcx1.cx.clone(), &e, "mod-notes");
+    let secondary_doc = format!("body:{ms_custom}/mod-notes");
+    let sec_info = secondary_view
+        .read_with(&vcx2, |v, _| v.editor().unwrap())
+        .read_with(&vcx2, |v, _| v.page_info().unwrap());
+    assert!(!sec_info.chrome);
+    assert!(
+        vcx2.cx
+            .update(|cx| dr_view_page::page_views(&secondary_doc, cx).is_none())
+    );
+
+    let (desc_view, vcx3) = open(&mut vcx1.cx.clone(), &e, "mod-description");
+    let desc_doc = format!("body:{ms_custom}/mod-description");
+    let desc_info = desc_view
+        .read_with(&vcx3, |v, _| v.editor().unwrap())
+        .read_with(&vcx3, |v, _| v.page_info().unwrap());
+    assert!(!desc_info.chrome);
+    assert!(
+        vcx3.cx
+            .update(|cx| dr_view_page::page_views(&desc_doc, cx).is_none())
+    );
+
+    // 2. Outside manuscript: `PageKind::Other`, template name folio, and entry color precedence
+    //    (own color_field > active lane color > None when lane's level switch is off).
+    let note_id = call(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "parent": ideas_root, "template": "custom-interlude", "title": "城北剪影"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &e.ws,
+        "membership.add",
+        json!({"book": e.book, "host": lane_host, "member": note_id}),
+    );
+    e.entry = note_id.clone();
+
+    let (note_view, mut vcx4) = open(&mut vcx1.cx.clone(), &e, "mod-prose");
+    let note_doc = format!("body:{note_id}/mod-prose");
+    wait(&mut vcx4, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&note_doc, cx).is_some())
+    });
+    let note_ed = note_view.read_with(&vcx4, |v, _| v.editor().unwrap());
+    let note_info = note_ed.read_with(&vcx4, |v, _| v.page_info().unwrap());
+    assert_eq!(note_info.kind, PageKind::Other);
+    assert!(note_info.chrome);
+    assert_eq!(note_info.number, None);
+    assert_eq!(note_info.template_name, "幕间");
+    assert!(note_info.storyline.is_some());
+    assert_eq!(note_info.color.as_deref(), Some("#2a6f97"));
+
+    call(
+        &e.ws,
+        "module.set_field",
+        json!({"book": e.book, "entry": note_id, "module": "mod-fields", "field": "tint", "value": "#d97706"}),
+    );
+    wait(&mut vcx4, |cx| {
+        note_ed.read_with(cx, |v, _| {
+            v.page_info()
+                .is_some_and(|p| p.color.as_deref() == Some("#d97706"))
+        })
+    });
+    assert_eq!(
+        Book::load(&e.ws, &e.book)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .appearance(&note_id)
+            .unwrap()
+            .color
+            .as_deref(),
+        Some("#d97706")
+    );
+
+    call(
+        &e.ws,
+        "module.set_field",
+        json!({"book": e.book, "entry": note_id, "module": "mod-fields", "field": "tint", "value": null}),
+    );
+    call(
+        &e.ws,
+        "entry.set_level",
+        json!({"book": e.book, "id": lane_host, "level": false}),
+    );
+    wait(&mut vcx4, |cx| {
+        note_ed.read_with(cx, |v, _| {
+            v.page_info()
+                .is_some_and(|p| p.storyline.is_none() && p.color.is_none())
+        })
+    });
+    assert_eq!(
+        Book::load(&e.ws, &e.book)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .appearance(&note_id)
+            .unwrap()
+            .color,
+        None
+    );
+
+    call(
+        &e.ws,
+        "entry.set_level",
+        json!({"book": e.book, "id": lane_host, "level": true}),
+    );
+    wait(&mut vcx4, |cx| {
+        note_ed.read_with(cx, |v, _| {
+            v.page_info()
+                .is_some_and(|p| p.storyline.is_some() && p.color.as_deref() == Some("#2a6f97"))
+        })
+    });
+    e.ws.close();
+}
