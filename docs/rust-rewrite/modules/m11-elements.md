@@ -503,3 +503,15 @@ workspace/all-targets Clippy（locked／`-D warnings`）、workspace test
 G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和样式按既定阶段处理，不计本轮
 通过。此前 490／1／3、第十轮回滚失败、AX 角色诊断及早期大纲失败原件全部保留；旧绿测不替代
 本轮结果。G2 本轮没有新增产品文案，原文案均在 own 九语及生成检查内。未合回 main，未推送。
+
+## 内核 v4 · T1 层级设置与开关入口（2026-11-13）
+
+按 `kernel-v4.md` 第 2、3、14 节更新 `dr-view-elements` 与 `dr-view-element-overview`：
+
+- **设置面板按条目「层级」开关挂载**：外壳只在 `entry.level == true`（`book.v3().levels` 存在该条目）时挂载 `category::v3` 的设置面板；开关关着时不渲染「下面」的设置，保留的覆盖值留在数据层不动。
+- **移除 `allow`，露出 `lane`（泳道）**：清理原残留在值转换路径中的 `allow` 分支，`prepare_override` 拒绝 `allow`；在设置面板与覆盖选择器中新增布尔项 `lane`（「泳道」，九语 `v3Levels.lane`），支持开启、关闭与还原继承来源，使任意开着「层级」开关的条目都可按设置成为或退出时间线泳道。泳道开启时「接收归属」照内核规则显示强制开启。
+- **公共条目卡开关入口**：`menu::v3::register` 通过 `add_entry_card_rows` 为所有条目登记 `entry-toggle-level`（「层级」，勾选态反映 `entry.level`），点击复用外壳 `dr_shell::v3::page::toggle_level` 的同一套前置守卫、子条目确认与一步撤销流程。
+- **全景泳道判定**：`dr-view-element-overview` 与 `dr-view-elements` 的列表分组、泳道筛选统一通过 `BookV3::is_lane` 判断（仅认开关开着且有效 `lane == true` 的条目）。
+
+新增永久回归见 `dr-view-elements/tests/v3_levels.rs`（`lane` 覆盖切换与还原、`allow` 拒绝、条目卡 `entry-toggle-level` 状态）。
+

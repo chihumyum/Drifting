@@ -581,3 +581,14 @@ metadata 的外部纯文本仍走既有 F4c 路径并有对照契约。无法保
 拒绝；完整历史对无法保真嵌套树的已接首次真实提交前整批拒绝保持，后续技术能力归
 G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅度暂缓，不记为通过；
 不宣称 G1 全部完成或 autopilot 终点。原作者树／WIP、progress.md、旧客户端不改。
+
+## 内核 v4 · T1 外壳与条目页（2026-11-13）
+
+按 `kernel-v4.md` 第 3、7、9、14 节将外壳与条目页收束为统一条目模型：
+
+- **条目页顶部与「层级」开关**（`dr-shell/src/v3/page.rs`、`level_switch.rs`）：顶部左侧画带条目解析颜色的记号与标题，右侧画 `#v3-entry-level-toggle`（「层级」／「打开后下面能放条目」）。打开开关，或下面没有直接住处子条目时关开关，均在同一轮持有者读取中观测 `RecordKey::entry` 与 `RecordKey::children_of(Some(id))`，经 `call_guarded` 直接调 `entry.set_level`。下面有直接住处子条目时弹 `TurnOffLevelDialog`（精确写出子条目个数 `N` 及移动到根层级、保留各自子树与归属的说明）；若确认提交前子条目顺序或条目状态并发变化，前置守卫返回冲突，对话框重读最新 `N` 并提示重新确认，不覆盖并发改动。关掉后一步 `Workspace::undo` 即可恢复原开关、子条目住处与顺序；重新打开开关会恢复保留的覆盖、归属与泳道身份。
+- **「下面的条目」模块与普通「说明」正文**：外壳不再额外塞入固定的 `about` 节，也不在左栏大纲里特殊拼装 `about`；原组织条目的「说明」（`mod-description`，`in_book = false`）作为模板里的普通 `prose` 模块挂载与编辑。条目开着「层级」开关时，若模板含有 `children` 模块则按模板顺序挂载四类显示器之一；若模板不含 `children` 模块则以「下面的条目」（`id = "display"`）排在所有内容模块之后、「设置」之前。开关关着时不挂载「下面的条目」与「设置」面板。根层级下开关关着的条目在左栏树底部独立列出（`#v3-loose-roots`），不吞没关开关后移到根层级的子条目。
+- **正文页眉章首统一**（`dr-editor/src/page.rs`、`dr-editor/src/v3.rs`、`dr-view-page`）：不再按固定模板 id 区分页面种类，`PageKind` 收束为两类（成书序列中有编号的 `Chapter` 与其余 `Other`）。单条目页只在模板第一篇 `in_book = true` 的正文模块挂接章首与章末，避免多篇正文或 `mod-description` 重复渲染标题头；状态与梗概输入按模板角色字段存在性按需挂载。
+
+永久回归见 `dr-shell/tests/v3.rs`、`dr-view-page/tests/v3.rs` 与 `dr-editor/tests/page.rs`。
+
