@@ -1,11 +1,14 @@
 //! The app owns its local MCP endpoint. Each library owns one plugin manager,
 //! and every external author call borrows the same Agent controller as chat.
+//! The endpoint lists the open book's catalog from the companion's own book
+//! tools, read under that controller's lease.
 
 use std::sync::Arc;
 
+use dr_agent_tools::AgentTools;
 use dr_mcp::{
     GrantPaths, GrantStore, PluginSlot, Result,
-    host::{Host, ScopeOpener},
+    host::{Backend, CatalogSource, Host, ScopeOpener},
     inbound::Server,
     outbound::Manager,
     transport::Listener,
@@ -33,6 +36,8 @@ type Opening = Shared<BoxFuture<'static, Result<Network>>>;
 pub struct McpGlobal {
     pub service: Entity<McpService>,
     pub slot: PluginSlot,
+    /// The companion's book tools (see `CompanionTools::shared`).
+    pub tools: AgentTools,
 }
 impl Global for McpGlobal {}
 
@@ -43,6 +48,10 @@ pub struct McpService {
     network: Option<Network>,
     manager: Option<Manager>,
     slot: PluginSlot,
+    tools: AgentTools,
+    /// The attached library's book edits, so the Host can announce a change
+    /// to the open book's catalog. Dropped before the library is released.
+    follow: Option<dr_workspace::Subscription>,
     secrets: Arc<SecretStore>,
     selected: Option<BookId>,
     active: Option<(WindowId, WeakEntity<Workspace>)>,
@@ -89,6 +98,7 @@ impl McpService {
         paths: Result<GrantPaths>,
         secrets: Arc<SecretStore>,
         slot: PluginSlot,
+        tools: AgentTools,
         cx: &mut Context<Self>,
     ) -> Self {
         let reactor = tokio::runtime::Builder::new_multi_thread()
@@ -103,6 +113,8 @@ impl McpService {
             network: None,
             manager: None,
             slot,
+            tools,
+            follow: None,
             secrets,
             selected: None,
             active: None,
@@ -199,17 +211,39 @@ impl McpService {
         else {
             return;
         };
-        let Some(library) = cx
-            .try_global::<Services>()
-            .and_then(|services| services.library.as_ref())
-            .map(|ws| ws.library().clone())
-        else {
-            return;
-        };
         let (Some(reactor), Some(host)) = (&self.reactor, &self.host) else {
             return;
         };
+        let Some((library, follow)) = cx
+            .try_global::<Services>()
+            .and_then(|services| services.library.as_ref())
+            .map(|ws| (ws.library().clone(), host.follow(ws)))
+        else {
+            return;
+        };
         let handle = reactor.handle().clone();
+        // The companion's book tools under the controller's read lease: the
+        // same catalog and cache chat uses, and a release waits for the read.
+        let catalog: CatalogSource = {
+            let (controller, tools, handle) =
+                (controller.clone(), self.tools.clone(), handle.clone());
+            Arc::new(move |book| {
+                let (controller, tools) = (controller.clone(), tools.clone());
+                let worker = handle.spawn_blocking(move || {
+                    controller.with_workspace_read(|workspace| {
+                        tools
+                            .catalog_for_book(workspace, &book)
+                            .map_err(|error| error.to_string())
+                    })
+                });
+                async move {
+                    worker
+                        .await
+                        .map_err(|_| "MCP catalog read ended".to_owned())?
+                }
+                .boxed()
+            })
+        };
         let opener: ScopeOpener = Arc::new(move |start| {
             let controller = controller.clone();
             let worker = handle.spawn_blocking(move || controller.open_external(start));
@@ -233,7 +267,8 @@ impl McpService {
         self.manager = Some(manager);
         self.attached = true;
         self.generation += 1;
-        host.replace(self.selected.clone(), Some(opener));
+        host.replace(self.selected.clone(), Some(Backend { opener, catalog }));
+        self.follow = Some(follow);
         self.activate_plugins(cx);
         cx.notify();
     }
@@ -313,6 +348,7 @@ impl McpService {
         if let Some(host) = &self.host {
             host.suspend();
         }
+        self.follow = None;
         self.slot.replace(None);
         let closing = self.manager.take().map(|manager| manager.begin_close());
         self.activation_task = None;
@@ -381,6 +417,7 @@ impl Drop for McpService {
         if let Some(host) = &self.host {
             host.suspend();
         }
+        self.follow = None;
         self.slot.replace(None);
         self.activation_task = None;
         if let Some(manager) = self.manager.take() {
@@ -412,10 +449,12 @@ pub fn init(identity: &Identity, dirs: Option<&AppDirs>, cx: &mut App) {
 /// Synthetic acceptance supplies isolated paths and a memory secret backend.
 pub fn init_with(paths: Result<GrantPaths>, secrets: Arc<SecretStore>, cx: &mut App) {
     let slot = PluginSlot::default();
-    let service = cx.new(|cx| McpService::new(paths, secrets, slot.clone(), cx));
+    let tools = AgentTools::new();
+    let service = cx.new(|cx| McpService::new(paths, secrets, slot.clone(), tools.clone(), cx));
     cx.set_global(McpGlobal {
         service: service.clone(),
         slot,
+        tools,
     });
     crate::mcp_settings::init(service.clone(), cx);
     let weak = service.downgrade();
@@ -530,6 +569,7 @@ mod tests {
                 Err("Synthetic inbound warning".into()),
                 Arc::new(SecretStore::in_memory()),
                 PluginSlot::default(),
+                AgentTools::new(),
                 cx,
             )
         });

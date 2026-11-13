@@ -23,6 +23,8 @@
 
 - 注册 `dr_shell::release` 释放钩子：`before_release` 同步置位冻结门（拦截拖动固定、跨岛拖放、建边与展开编辑器），卸载内嵌 `EntryPage`、取消过渡动画并释放 `Workspace` 引用，确保换库或退出时 `try_shutdown` 零泄漏通过；`after_release` 从当前 `Services` 重新绑定并恢复交互。
 
+- **只在显示时跟着书变（2026-11-13）**：全景经 `dr_shell::pages::follow_super_view` 跟工作区。以前舞台关掉以后，每次书目变动它仍在主线程整份重读（岛屿、布局、关系、全书共现查询）；现在关着时什么都不读，再显示时一次补齐。切到另一本书时，给上一本书留着的全景不再跟过去，新书的全景由舞台另做。测试 `a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown`。
+
 ## `showcase` 样书实拍（《慢钟》）
 
 | 模式 | 浅色（Light） | 深色（Dark） |

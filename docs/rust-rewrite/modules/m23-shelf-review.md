@@ -18,9 +18,15 @@
 - **归属校验（`Owner`）**：导航跳转与 `book_memory` 写回均核对 `(book_id, Book::v3, Library ptr)`，切书或换库后的旧异步回调不会误跳页或污染新书记忆。
 - **释放屏障（`dr_shell::release`）**：`before_release` 同步冻结新写入，异步等待本视图与内嵌 `ReviewView` 的全部在途写入落盘后释放 `Workspace` 句柄、事件订阅与 `dr_view_material::previews` 缓存，确保整库恢复或退出时 `try_shutdown` 零泄漏通过；`after_release` 从当前 `Services` 重新绑定。
 
+- **只在显示时跟着书变（2026-11-13）**：视图经 `dr_shell::pages::follow_super_view` 跟工作区，舞台关着或显示别的视图时不重读；这期间书库来的书目事件只记一笔 `links_stale`，再显示时清掉关联缓存、重读关系。见 [f6-shell.md](../foundations/f6-shell.md) 的 `add_super_view` 一条。
+
+## 待协调
+
+- **舞台正显示「审阅与素材」时换库会失败**（2026-11-13 查出，和上一条无关，改之前就是这样）：只打开这个舞台再调 `dr_shell::library::replace`，报 `the library could not be closed: internal: other clones of the workspace are alive`；先关掉舞台、画过一帧再换就成功。舞台盖住整个窗口，作者点不到换库的入口，所以平时碰不到；由程序发起的换库（同步监督换库、恢复备份）如果赶上舞台开着就会失败。没查到底是谁握着那份书库，怀疑是最后一帧里的点击回调。测试 `shelf_review_isolates_books_and_drains_on_release` 现在先关舞台再换库。要素全景没有这个问题（`focus_peek_isolate_sheet_entry_page_and_release_barrier` 是开着舞台换的）。
+
 ## 验证
 
-- 纯模型与 GPUI 契约测试：`next/crates/dr-view-shelf-review/tests/shelf_review.rs`（覆盖列宽比例与夹紧、统一搜索、类型片与 `Entry` 关系筛选、关联／解除关联驱动待整理抽屉、完成与重开驱动已解决抽屉、多书隔离与按书记忆恢复、以及 `dr_shell::library::replace` 释放屏障）。
+- 纯模型与 GPUI 契约测试：`next/crates/dr-view-shelf-review/tests/shelf_review.rs`（覆盖列宽比例与夹紧、统一搜索、类型片与 `Entry` 关系筛选、关联／解除关联驱动待整理抽屉、完成与重开驱动已解决抽屉、多书隔离与按书记忆恢复、`dr_shell::library::replace` 释放屏障、舞台关着时不跟着书变而再显示时补上）。
 - 调试桥副屏真窗口验收：在 `showcase` 种子的《慢钟》上以独立临时 profile 走通打开 `SuperView::ReviewMaterials`、展开底部抽屉、拖动调整待办栏宽度、浅色与深色双轮重启并验证 `book_memory` 恢复。
 - 字符串门禁：`dr-i18n/keys.txt` 新增的 `memoMaterial.super.*`、`memoMaterial.todo.empty`、`memoMaterial.dialog.*` 与 `reviewPanel.newComment` 九语种对齐并由 `dr-shell` 字符串测试校验。
 - **`Preset::Heavy` release 空闲实测与优化对比**（100 章约 165 万字符、96 条待办、64 条批注、60 篇素材；`cargo test --release --locked -p dr-view-shelf-review --test shelf_review heavy_seed_reference_timings -- --ignored --nocapture`，机器空闲 `load1m < 4.0`）：

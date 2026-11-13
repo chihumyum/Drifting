@@ -162,7 +162,10 @@ fn default_relate_determinism_mode_memory_and_two_book_isolation(
         );
     });
 
-    // 4. Switching to Book 1 isolates memory and resets mode to Book 1's default `Relate`.
+    // 4. Switching to Book 1 isolates memory: the overview the stage shows for
+    // Book 1 starts in Book 1's default `Relate` with nothing focused. Opening
+    // a book closes the stage, and the overview kept for Book 0 follows
+    // nothing while it is not shown, so Book 1 gets one of its own.
     let book_1 = books_a[1].clone();
     vcx_a.update(|window, cx| {
         ov_a_reopened.update(cx, |v, cx| {
@@ -174,14 +177,13 @@ fn default_relate_determinism_mode_memory_and_two_book_isolation(
     wait(vcx_a, |cx| {
         shell_a.read_with(cx, |ws, _| {
             ws.book_id == book_1 && ws.book.v3().is_some() && ws.book_memory_ready()
-        }) && ov_a_reopened.read_with(cx, |v, _| v.is_ready())
+        })
     });
+    let ov_book_1 = mount_overview(&shell_a, vcx_a);
+    assert_ne!(ov_book_1, ov_a_reopened);
     vcx_a.update(|_, cx| {
-        assert_eq!(
-            ov_a_reopened.read(cx).layout_mode(),
-            ElementLayoutMode::Relate
-        );
-        assert_eq!(ov_a_reopened.read(cx).focused_element(), None);
+        assert_eq!(ov_book_1.read(cx).layout_mode(), ElementLayoutMode::Relate);
+        assert_eq!(ov_book_1.read(cx).focused_element(), None);
     });
 }
 
@@ -537,6 +539,87 @@ fn shift_click_relation_create_legend_filter_and_delete(cx: &mut TestAppContext)
     vcx.update(|_, cx| {
         assert_eq!(ov.read(cx).relations().len(), initial_rel_count);
     });
+}
+
+/// The stage keeps the overview it made while it is closed. A kept overview
+/// that is not on screen does not follow the book: nothing is read again for
+/// it until the stage shows it, and then it catches up in one step.
+#[gpui::test]
+fn a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Lite);
+    let book_id = books[0].clone();
+
+    init_test_shell(lib.clone(), book_id.clone(), cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+
+    // An element as the overview shows it, to make a sibling of.
+    let (count, parent, template) = vcx.update(|_, cx| {
+        let v = ov.read(cx);
+        let shown = v.elements()[0].id.clone();
+        let v3 = shell.read(cx).book.v3().expect("v3 book");
+        let entry = v3
+            .entries
+            .iter()
+            .find(|e| e.id == shown)
+            .expect("shown element");
+        (
+            v.elements().len(),
+            entry.parent.clone(),
+            entry.template.clone(),
+        )
+    });
+
+    vcx.update(|_, cx| {
+        shell.update(cx, |ws, cx| {
+            ws.super_view = None;
+            cx.notify();
+        });
+    });
+    vcx.run_until_parked();
+
+    let added = lib
+        .run::<EntryCreate>(
+            &Actor::User,
+            EntryCreateIn {
+                book: book_id,
+                title: "离屏时新建的要素".into(),
+                parent,
+                template,
+                level: None,
+                bodies: BTreeMap::new(),
+            },
+        )
+        .expect("create an element while the stage is closed")
+        .output
+        .id;
+
+    // The shell has the new book; the closed overview still holds the old one.
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| {
+            ws.book
+                .v3()
+                .is_some_and(|v3| v3.entries.iter().any(|e| e.id == added))
+        })
+    });
+    vcx.run_until_parked();
+    vcx.update(|_, cx| {
+        let v = ov.read(cx);
+        assert_eq!(v.elements().len(), count);
+        assert!(v.elements().iter().all(|e| e.id != added));
+    });
+
+    // Shown again, the same overview reads the book once and has it.
+    let reopened = mount_overview(&shell, vcx);
+    assert_eq!(reopened, ov);
+    wait(vcx, |cx| {
+        ov.read_with(cx, |v, _| v.elements().iter().any(|e| e.id == added))
+    });
+    vcx.update(|_, cx| assert_eq!(ov.read(cx).elements().len(), count + 1));
 }
 
 #[gpui::test]
