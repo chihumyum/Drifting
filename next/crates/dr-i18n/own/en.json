@@ -130,7 +130,7 @@
     "add_module": "Add module",
     "agent_preview": "What the Agent sees",
     "aliases": "Aliases",
-    "auto_link": "Auto-link",
+    "auto_link": "Automatic links",
     "board": "Board",
     "children": "Entries below",
     "choose_template": "Choose template",
@@ -198,7 +198,7 @@
   },
   "v3Levels": {
     "accept": "Accept entries from elsewhere",
-    "autoLink": "Auto-link",
+    "autoLink": "Automatic links",
     "byStoryline": "By storyline",
     "collapse": "Collapse {{name}}",
     "create": "Create",
