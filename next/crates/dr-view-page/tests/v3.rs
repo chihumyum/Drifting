@@ -551,6 +551,84 @@ fn body_module_expands_flat_beyond_720px_without_inner_clamp(cx: &mut TestAppCon
     e.ws.close();
 }
 
+/// Author 2026-11-13: an entry with book prose of its own numbers what lives
+/// under it too. 第一章 with its switch on and three entries with book prose
+/// under it: 第二章 is still 「第 2 章」, the three show their template's name
+/// like any entry without a number.
+#[gpui::test]
+fn entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own(
+    cx: &mut TestAppContext,
+) {
+    use dr_editor::page::PageKind;
+
+    let mut e = env();
+    let initial = Book::load(&e.ws, &e.book).unwrap();
+    let v0 = initial.v3().unwrap();
+    let numbered = |n: u32| {
+        v0.entries
+            .iter()
+            .find(|x| v0.manuscript_number(&x.id) == Some(n))
+            .unwrap()
+            .id
+            .clone()
+    };
+    let (first, second) = (numbered(1), numbered(2));
+    let chapter_name = v0.template_of(&first).unwrap().name.clone();
+    call(
+        &e.ws,
+        "entry.set_level",
+        json!({"book": e.book, "id": first, "level": true}),
+    );
+    let below: Vec<String> = ["一", "二", "三"]
+        .into_iter()
+        .map(|title| {
+            call(
+                &e.ws,
+                "entry.create",
+                json!({"book": e.book, "parent": first, "template": "tpl-chapter", "title": title}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    let after = Book::load(&e.ws, &e.book).unwrap();
+    let v = after.v3().unwrap();
+    assert_eq!(v.manuscript_number(&first), Some(1));
+    assert_eq!(v.manuscript_number(&second), Some(2));
+    for id in &below {
+        assert_eq!(v.manuscript_number(id), None);
+        // Still in the manuscript sequence, in place, right after 第一章.
+        assert!(v.manuscript.iter().any(|b| &b.entry == id));
+    }
+    let place = |id: &str| v.manuscript.iter().position(|b| b.entry == id).unwrap();
+    assert!(place(&first) < place(&below[0]));
+    assert!(place(&below[2]) < place(&second));
+
+    let page = |e: &Env, cx: &mut TestAppContext| {
+        let (view, mut vcx) = open(cx, e, "mod-prose");
+        let editor = view.read_with(&vcx, |v, _| v.editor().unwrap());
+        wait(&mut vcx, |cx| {
+            editor.read_with(cx, |v, _| v.page_info().is_some())
+        });
+        editor.read_with(&vcx, |v, _| v.page_info().unwrap())
+    };
+    e.entry = second.clone();
+    let info = page(&e, cx);
+    assert_eq!((info.kind, info.number), (PageKind::Chapter, Some(2)));
+    e.entry = first.clone();
+    let info = page(&e, cx);
+    assert_eq!((info.kind, info.number), (PageKind::Chapter, Some(1)));
+    for id in &below {
+        e.entry = id.clone();
+        let info = page(&e, cx);
+        assert_eq!((info.kind, info.number), (PageKind::Other, None));
+        assert!(info.chrome);
+        assert_eq!(info.template_name, chapter_name);
+    }
+    e.ws.close();
+}
+
 #[gpui::test]
 fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContext) {
     use dr_editor::page::PageKind;

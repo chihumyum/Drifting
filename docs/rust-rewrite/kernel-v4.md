@@ -371,11 +371,12 @@ v4 的做法：
 | `LEVEL-DEFAULT-FROM-TEMPLATE` | **加** | `the_switch_starts_from_the_template_and_never_follows_it_afterwards` |
 | `MANUSCRIPT-OWN-PROSE-FIRST` | **加** | `the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it` |
 | `FLATTEN-MEMBERS-ONCE` | **加**（作者 2026-11-13 定的「挂名的也算」）：带归属的摊平先住处后归属、每个条目只出现一次、成书序列不带归属 | `flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone` |
+| `MANUSCRIPT-NUMBER-OUTERMOST-PROSE` | **加**（作者 2026-11-13 定，轨道合完以后）：带成书正文的条目下面的条目不再单独编号，位置、导出、字数不变 | `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number` |
 | `SIDE-DOC-NOT-PROSE` | **加** | `stats_and_checkpoints_are_neither_prose_nor_the_book` |
 | `SIDE-DOC-QUIET` | **加** | `writing_days_and_checkpoints_leave_the_book_document_alone` |
 | `BOOK-FORMAT-4-ONLY` | **加**（v3 切换时这条只有 `dr-workspace/tests/cutover.rs` 的测试，清单里没有对应的契约；`DOC-IDENTITY` 管的是「字节只当它自己那篇文档载入」，不是版本） | `cutover.rs` 里的拒开测试改成也拒 v3，并入清单 |
 
-`ACTIVE_CONTRACTS` 从 76 变成 83（删 1、加 8）。2a 已加其中三条（两篇小文档的两条和 `BOOK-FORMAT-4-ONLY`），现在是 79。不变量的 id 都还带 `V3-` 前缀：id 只是清单里的字符串，改它不影响测试，留到第 4 节的改名那一路一起改成不带版本的名字。
+`ACTIVE_CONTRACTS` 从 76 变成 83（删 1、加 8）。2a 已加其中三条（两篇小文档的两条和 `BOOK-FORMAT-4-ONLY`），现在是 79。2026-11-13 加 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE` 以后是 84。不变量的 id 都还带 `V3-` 前缀：id 只是清单里的字符串，改它不影响测试，留到第 4 节的改名那一路一起改成不带版本的名字。
 
 ## 6. 命令、帮手工具和 MCP
 
@@ -448,7 +449,7 @@ pub struct FlatEntry<'a> {
     pub depth: u32,
     /// 这个条目自己的正文，按模板里模块的顺序；没有模板就没有。
     pub prose: Vec<FlatProse>,
-    /// 只在成书序列里有：带着成书正文的条目从 1 起编号。
+    /// 只在成书序列里有：带着成书正文的条目从 1 起编号，住在带成书正文的条目下面的不编。
     pub ordinal: Option<u32>,
 }
 pub struct FlatProse {
@@ -473,7 +474,7 @@ impl BookStructureV3 {
     pub fn manuscript(&self) -> Vec<ManuscriptPart<'_>>;
     /// 成书序列里全部正文文档，按顺序。
     pub fn manuscript_docs(&self) -> Vec<DocId>;
-    /// 成书序列里带成书正文（有编号）的条目，按顺序，自有拷贝。
+    /// 成书序列里带成书正文的条目（有没有编号都算），按顺序，自有拷贝。
     pub fn manuscript_entries(&self) -> Vec<Entry>;
     /// 一个条目在成书序列里的编号。
     pub fn ordinal(&self, id: &EntryId) -> Option<u32>;
@@ -497,7 +498,7 @@ pub struct NotALevel(pub EntryId);
 - 放进回收站的条目连同下面的都不出现；合并后挂在开关关着的条目下面的，按第 5 节的读法出现在最近一个开着开关的祖先下面，和左栏的树一致。
 - 没有正文的条目也出现（`prose` 为空），让视图能画出它的标题和层次，比如「第一卷」。
 - 只给模板里的正文模块；换模板以后留着的旧正文不在序列里（它们在条目页的「原来的内容」里）。
-- `ordinal`：在 `manuscript()` 里，所有成书部分连着编，只给至少有一篇成书正文的条目编号。默认结构下就是现在的「第 N 章」。
+- `ordinal`：在 `manuscript()` 里，所有成书部分连着编，只给至少有一篇成书正文的条目编号。默认结构下就是现在的「第 N 章」。条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号：它们在成书序列里的位置、导出的内容、全书字数都不变，页眉显示模板名，和别的没有编号的条目一样；自己没有成书正文的中间层（比如「第一卷」）不拦住下面的条目编号（作者 2026-11-13 定，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。成书层级本身（比如书稿）有成书正文（前言）时，它照旧编号，也不拦住下面的章：这一条是实现时补的，否则加一篇前言全书就没有编号了，待作者确认。
 
 **谁怎么用：**
 

@@ -60,8 +60,14 @@ pub mod v3 {
         };
         let mut out = Vec::new();
         if grouped && display == Display::List {
-            // The entries the manuscript sequence numbers under this level,
-            // in that order, whatever their switch.
+            // The entries carrying book prose under this level, in the
+            // manuscript sequence's order, whatever their switch; numbered
+            // or not (an entry under one with book prose of its own has no
+            // number since 2026-11-13, and is still listed).
+            let mut place = std::collections::BTreeMap::new();
+            for (i, body) in v.manuscript.iter().enumerate() {
+                place.entry(body.entry.as_str()).or_insert(i);
+            }
             let mut numbered = Vec::new();
             let mut pending: Vec<_> = root.children.iter().rev().cloned().collect();
             let mut seen = BTreeSet::new();
@@ -69,8 +75,8 @@ pub mod v3 {
                 if !seen.insert(id.clone()) {
                     continue;
                 }
-                if let Some(n) = v.manuscript_number(&id) {
-                    numbered.push((n, id.clone()));
+                if let Some(n) = place.get(id.as_str()) {
+                    numbered.push((*n, id.clone()));
                 }
                 if let Some(l) = v.levels.get(&id) {
                     pending.extend(l.children.iter().rev().cloned());

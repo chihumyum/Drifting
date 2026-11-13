@@ -37,7 +37,9 @@ pub struct FlatEntry<'a> {
     /// earlier template is not part of the sequence.
     pub prose: Vec<FlatProse>,
     /// Only in [`BookStructureV3::manuscript`]: entries with book prose are
-    /// numbered from 1 across every manuscript part.
+    /// numbered from 1 across every manuscript part, except those living
+    /// (at any depth) under an entry inside the part that has book prose of
+    /// its own.
     pub ordinal: Option<u32>,
 }
 
@@ -269,8 +271,13 @@ impl BookStructureV3 {
     /// The manuscript sequence (`成书序列`): one part per outermost manuscript
     /// level, in tree order, each flattened with book prose only and no
     /// memberships. Entries with book prose are numbered from 1 across all
-    /// parts (`ordinal`). Export, the book's word count and chapter numbers
-    /// all read this.
+    /// parts (`ordinal`), except what lives under an entry with book prose
+    /// of its own (author 2026-11-13): those keep their place, their prose
+    /// and their words, without a number. An entry without book prose (a
+    /// 「第一卷」) numbers nothing and stops nothing below it being numbered;
+    /// nor does a part's own level, whose own prose (a preface) is numbered
+    /// as before while the chapters under it keep theirs.
+    /// Export, the book's word count and chapter numbers all read this.
     pub fn manuscript(&self) -> Vec<ManuscriptPart<'_>> {
         let how = Flatten {
             in_book_only: true,
@@ -281,10 +288,20 @@ impl BookStructureV3 {
             .iter()
             .filter_map(|root| {
                 let mut entries = self.flatten(root, how).ok()?;
+                // The depth of the numbered entry the walk is inside of; the
+                // walk is depth first, so it has left that entry once it is
+                // back at the same depth or above.
+                let mut inside: Option<u32> = None;
                 for e in &mut entries {
-                    if !e.prose.is_empty() {
+                    if inside.is_some_and(|depth| e.depth <= depth) {
+                        inside = None;
+                    }
+                    if inside.is_none() && !e.prose.is_empty() {
                         ordinal += 1;
                         e.ordinal = Some(ordinal);
+                        if e.depth > 0 {
+                            inside = Some(e.depth);
+                        }
                     }
                 }
                 Some(ManuscriptPart {
@@ -295,13 +312,13 @@ impl BookStructureV3 {
             .collect()
     }
 
-    /// The entries of the manuscript sequence that carry book prose (the
-    /// numbered ones: chapters, in the default structure), in order.
+    /// The entries of the manuscript sequence that carry book prose
+    /// (chapters, in the default structure), in order, numbered or not.
     pub fn manuscript_entries(&self) -> Vec<Entry> {
         self.manuscript()
             .into_iter()
             .flat_map(|p| p.entries)
-            .filter(|e| e.ordinal.is_some())
+            .filter(|e| !e.prose.is_empty())
             .map(|e| e.entry.clone())
             .collect()
     }

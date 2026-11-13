@@ -594,6 +594,14 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 
 永久回归见 `dr-shell/tests/v3.rs`、`dr-view-page/tests/v3.rs` 与 `dr-editor/tests/page.rs`。
 
+### 作者 2026-11-13 定的四条（v4 收尾）
+
+第三条里页眉的编号已改：
+
+- **页眉的编号**：条目自己有成书正文时，住在它下面的条目（隔几层都算）不再单独编号，页眉显示模板名；位置、导出、字数不变（`kernel-v4.md` 第 7 节，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。书稿列表「按故事线」分组改按成书序列的位置收「带成书正文」的条目，有没有编号都列出来；书架的「N 章」按编号数，要素数改为不算带成书正文的条目。
+
+测试：`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。
+
 ## 正文随页铺开、按视口画（2026-11-13，编辑器回归修复）
 
 **大白话。** 11-12 第一轮手测修复（`ed6bff096`）按作者的意见，把条目页正文从「半个窗口高（240–720px）的小滚动框」改成随页面铺开。做法是给正文开了 `fit_content`，这个选项原本给表格格子用：不用虚拟列表、每帧把每一段都排版画出来。于是长章节每一帧、每按一个键都要把整章排一遍（上面待协调 3 早就说过不能这样做）；冒烟报告的两个回归都出在这里：
