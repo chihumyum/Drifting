@@ -294,7 +294,9 @@ impl PageHead {
 impl Drafts for PageHead {
     fn drain(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Drain {
         self.save_v3(false, false, cx);
-        self.save_v3(true, false, cx);
+        if self.page.has_synopsis {
+            self.save_v3(true, false, cx);
+        }
         let state = self.drafts.as_ref().unwrap();
         if state.title.writing || state.synopsis.writing {
             return Drain::Pending;

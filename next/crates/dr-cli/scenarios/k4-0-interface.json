@@ -217,7 +217,7 @@
       "app": "ui.wait",
       "params": {
         "page": {
-          "/composition/sections/0/id": "about",
+          "/composition/sections/0/id": "mod-description",
           "/composition/sections/1/id": "display",
           "/composition/sections/2/id": "settings"
         }

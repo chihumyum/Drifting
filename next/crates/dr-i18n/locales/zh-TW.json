@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
-    "untitledChapter": "未命名章節",
-    "untitledDrift": "未命名構想"
+    "untitledChapter": "未命名章節"
   },
   "chapterEnd": {
     "defaultTitle": "新章節",
@@ -386,15 +385,14 @@
       }
     },
     "v3": {
-      "destination": "將建立獨立的新 v3 資料庫，並保留目前資料庫與 0.1 來源資料庫。",
+      "destination": "將建立獨立的新資料庫，並保留目前資料庫與 0.1 來源資料庫。",
       "pending": "匯入前需要選擇對應方式",
       "start": "匯入至新資料庫",
-      "switching": "正在開啟已完成的 v3 資料庫",
-      "title": "重新匯入為 v3"
+      "switching": "正在開啟已完成的新資料庫",
+      "title": "重新匯入至新資料庫"
     }
   },
   "importDialog": {
-    "categoryTitle": "類目",
     "chooseFiles": "選擇檔案",
     "chooseFolder": "選擇資料夾",
     "clear": "清除",
@@ -406,24 +404,10 @@
       "parsing": "解析中",
       "ready": "已就緒"
     },
-    "storylineTitle": "故事線",
     "summary": {
       "done": "完成",
       "failed": "失敗",
       "ok": "已匯入"
-    },
-    "targets": {
-      "chapter": {
-        "label": "章節"
-      },
-      "element": {
-        "desc": "人物、地點、物品等參考資料，需選擇類目。",
-        "label": "要素"
-      },
-      "idea": {
-        "desc": "獨立於故事線的浮動構想卡片。",
-        "label": "構想"
-      }
     },
     "title": "匯入檔案",
     "warnings": {
@@ -491,6 +475,7 @@
     "format": "格式",
     "loadFailed": "無法讀取章節，請重試。",
     "loading": "正在讀取章節…",
+    "manuscript": "成書",
     "menu": "匯出書稿",
     "removeCover": "移除",
     "retry": "重試",
@@ -643,8 +628,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章節",
-      "chapterNumber": "第 {{n}} 章",
-      "drift": "構想"
+      "chapterNumber": "第 {{n}} 章"
     },
     "meta": {
       "words": "{{count}} 字"
@@ -941,7 +925,6 @@
       "review": "作品 · 審閱",
       "stats": {
         "all-chapters": "全書 · 節奏",
-        "category": "此類目 · 詳細統計",
         "chapter": "此章 · 詳細統計",
         "element": "此要素 · 詳細統計",
         "material": "此素材 · 詳情",
@@ -950,7 +933,6 @@
       }
     },
     "stats": {
-      "category": "類目",
       "chapter": "章節",
       "dialogueRatio": "對話比例",
       "name": "名稱",
@@ -1456,6 +1438,7 @@
     "aliases": "別名",
     "auto_link": "自動連結",
     "board": "看板",
+    "children": "下面的項目",
     "choose_template": "選擇範本",
     "color": "顏色",
     "conflict": "範本已在別處變更",
@@ -1474,15 +1457,15 @@
     "grid": "網格",
     "home": "新項目住在",
     "image": "圖片",
+    "in_book": "計入字數與匯出",
     "inherit": "繼承",
     "instructions": "注意事項",
     "island": "島嶼",
     "kv": "鍵值表",
     "lane": "泳道",
-    "leaf": "葉節點",
-    "leaf_template": "葉節點範本",
     "level": "層級",
-    "level_template": "層級範本",
+    "level_hint": "開啟後下面能放項目",
+    "linkable": "名字參與自動連結",
     "list": "清單",
     "long_text": "長文字",
     "manuscript": "成書",
@@ -1565,6 +1548,7 @@
     "formatShortcuts": "格式快捷輸入",
     "home": "新條目放在",
     "isManuscript": "成書",
+    "lane": "泳道",
     "manuscriptOrder": "文稿順序",
     "members": "歸屬到這裡",
     "none": "無",
@@ -1591,21 +1575,30 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "說明",
     "belongTo": "歸屬至",
     "board": "看板",
     "changeTemplate": "更換範本",
+    "childrenEntries": "下面的條目",
     "editTemplate": "編輯範本",
     "entries": "條目",
+    "entryUntemplated": "條目",
     "grid": "網格",
     "islands": "島嶼",
+    "levelSwitch": "層級",
+    "levelSwitchHint": "開啟後下面可放條目",
     "list": "清單",
     "newEntry": "新增",
     "newTemplate": "新增範本",
     "open": "開啟",
     "settings": "設定",
     "templates": "範本集合",
-    "trash": "移至最近刪除"
+    "trash": "移至最近刪除",
+    "turnOffLevelBody_other": "下面的 {{count}} 個條目會移到最外層，各自下面的內容跟著走。歸屬到它的條目和它在時間線裡的泳道先不顯示，再打開就回來。",
+    "turnOffLevelConfirm": "關閉層級",
+    "turnOffLevelConflict": "下面的條目剛剛發生了變化，請確認最新數量後再關閉。",
+    "turnOffLevelTitle": "關閉層級",
+    "untitledEntry": "無標題條目",
+    "untitledNamed": "無標題{{name}}"
   },
   "v3Timeline": {
     "actLevelName": "幕",
@@ -1635,7 +1628,6 @@
     "views": "時間線視圖"
   },
   "v3Transfer": {
-    "chapterDesc": "書稿章節，可放入時間線並計入字數。",
     "filesTitle": "檔案",
     "targetTitle": "目標"
   },

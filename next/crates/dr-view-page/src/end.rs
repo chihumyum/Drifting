@@ -156,6 +156,9 @@ impl PageEnd {
         if self.page.kind != PageKind::Chapter {
             return;
         }
+        if action == EndAction::Finish && !self.page.has_status {
+            return;
+        }
         self.hide(window, cx);
         let (lib, book, doc) = (
             self.host.library.clone(),
@@ -312,8 +315,9 @@ impl Render for PageEnd {
             });
         // The actions, one column centred on ⁂, folded onto its line until
         // they open.
-        let actions = [
-            (
+        let mut actions = Vec::with_capacity(2);
+        if self.page.has_status {
+            actions.push((
                 EndAction::Finish,
                 if finished {
                     Icon::BrushLifted
@@ -328,13 +332,13 @@ impl Render for PageEnd {
                         keys::chapter_end::MARK_FINISHED
                     },
                 ),
-            ),
-            (
-                EndAction::Next,
-                Icon::Sprout,
-                t(cx, keys::chapter_end::INSERT_AFTER),
-            ),
-        ];
+            ));
+        }
+        actions.push((
+            EndAction::Next,
+            Icon::Sprout,
+            t(cx, keys::chapter_end::INSERT_AFTER),
+        ));
         let rows = actions.len() as f32;
         let menu = (chapter && (self.open || k > 0.0)).then(|| {
             let middle = (rows - 1.0) / 2.0;

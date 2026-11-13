@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
-    "untitledChapter": "無題の章",
-    "untitledDrift": "無題のアイデア"
+    "untitledChapter": "無題の章"
   },
   "chapterEnd": {
     "defaultTitle": "新しい章",
@@ -386,15 +385,14 @@
       }
     },
     "v3": {
-      "destination": "別の新しい v3 ライブラリを作成します。現在のライブラリと 0.1 の元データはそのまま残ります。",
+      "destination": "別の新しいライブラリを作成します。現在のライブラリと 0.1 の元データはそのまま残ります。",
       "pending": "読み込み前にマッピングの指定が必要です",
       "start": "新しいライブラリに読み込む",
-      "switching": "読み込み済みの v3 ライブラリを開いています",
-      "title": "v3 として再読み込み"
+      "switching": "読み込み済みのライブラリを開いています",
+      "title": "新しいライブラリに再読み込み"
     }
   },
   "importDialog": {
-    "categoryTitle": "カテゴリ",
     "chooseFiles": "ファイルを選択",
     "chooseFolder": "フォルダを選択",
     "clear": "消去",
@@ -406,24 +404,10 @@
       "parsing": "解析中",
       "ready": "準備完了"
     },
-    "storylineTitle": "ストーリーライン",
     "summary": {
       "done": "完了",
       "failed": "失敗",
       "ok": "インポート済み"
-    },
-    "targets": {
-      "chapter": {
-        "label": "章"
-      },
-      "element": {
-        "desc": "人物・場所・物などの設定資料です。カテゴリが必要です。",
-        "label": "要素"
-      },
-      "idea": {
-        "desc": "ストーリーラインから独立したアイデアカード。",
-        "label": "アイデア"
-      }
     },
     "title": "ファイルをインポート",
     "warnings": {
@@ -491,6 +475,7 @@
     "format": "形式",
     "loadFailed": "章を読み込めませんでした。再試行してください。",
     "loading": "章を読み込み中…",
+    "manuscript": "原稿",
     "menu": "原稿をエクスポート",
     "removeCover": "削除",
     "retry": "再試行",
@@ -643,8 +628,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章",
-      "chapterNumber": "第{{n}}章",
-      "drift": "アイデア"
+      "chapterNumber": "第{{n}}章"
     },
     "meta": {
       "words": "{{count}}文字"
@@ -941,7 +925,6 @@
       "review": "作品・レビュー",
       "stats": {
         "all-chapters": "全編・ペース",
-        "category": "このカテゴリ・詳細統計",
         "chapter": "この章・詳細統計",
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
@@ -950,7 +933,6 @@
       }
     },
     "stats": {
-      "category": "カテゴリ",
       "chapter": "章",
       "dialogueRatio": "会話の割合",
       "name": "名前",
@@ -1456,6 +1438,7 @@
     "aliases": "別名",
     "auto_link": "自動リンク",
     "board": "ボード",
+    "children": "下の項目",
     "choose_template": "テンプレートを選択",
     "color": "色",
     "conflict": "テンプレートが別の場所で変更されました",
@@ -1474,15 +1457,15 @@
     "grid": "グリッド",
     "home": "新しい項目の保存先",
     "image": "画像",
+    "in_book": "文字数と書き出しに含める",
     "inherit": "継承",
     "instructions": "注意事項",
     "island": "島",
     "kv": "キーと値の表",
     "lane": "レーン",
-    "leaf": "リーフ",
-    "leaf_template": "リーフテンプレート",
     "level": "階層",
-    "level_template": "階層テンプレート",
+    "level_hint": "オンにすると下に項目を置けます",
+    "linkable": "名前を自動リンクに含める",
     "list": "リスト",
     "long_text": "長文",
     "manuscript": "原稿",
@@ -1565,6 +1548,7 @@
     "formatShortcuts": "書式ショートカット",
     "home": "新しい項目の置き場所",
     "isManuscript": "原稿",
+    "lane": "スイムレーン",
     "manuscriptOrder": "原稿順",
     "members": "所属する項目",
     "none": "なし",
@@ -1591,21 +1575,30 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "説明",
     "belongTo": "所属先",
     "board": "ボード",
     "changeTemplate": "テンプレートを変更",
+    "childrenEntries": "下の項目",
     "editTemplate": "テンプレートを編集",
     "entries": "項目",
+    "entryUntemplated": "項目",
     "grid": "グリッド",
     "islands": "アイランド",
+    "levelSwitch": "階層",
+    "levelSwitchHint": "オンにすると下に項目を置けます",
     "list": "リスト",
     "newEntry": "新規作成",
     "newTemplate": "新規テンプレート",
     "open": "開く",
     "settings": "設定",
     "templates": "テンプレート",
-    "trash": "最近削除した項目に移動"
+    "trash": "最近削除した項目に移動",
+    "turnOffLevelBody_other": "下の {{count}} 件の項目は、それぞれの下にあるものと一緒に最上位へ移ります。ここに所属する項目とタイムラインのレーンは一時的に隠れ、再びオンにすると戻ります。",
+    "turnOffLevelConfirm": "オフにする",
+    "turnOffLevelConflict": "下の項目が変更されました。最新の件数を確認してからもう一度実行してください。",
+    "turnOffLevelTitle": "階層をオフにする",
+    "untitledEntry": "無題の項目",
+    "untitledNamed": "無題の{{name}}"
   },
   "v3Timeline": {
     "actLevelName": "幕",
@@ -1635,7 +1628,6 @@
     "views": "タイムラインビュー"
   },
   "v3Transfer": {
-    "chapterDesc": "原稿の章です。タイムラインに配置でき、文字数に計上します。",
     "filesTitle": "ファイル",
     "targetTitle": "対象"
   },

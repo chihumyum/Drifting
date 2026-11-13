@@ -87,6 +87,7 @@ pub mod v3 {
             "accept",
             "home",
             "is_manuscript",
+            "lane",
             "format_shortcuts",
         ]
         .contains(&key)

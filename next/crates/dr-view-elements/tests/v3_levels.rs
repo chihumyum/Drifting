@@ -546,3 +546,127 @@ fn picker_host_rejects_book_or_library_replacement(cx: &mut gpui::TestAppContext
     });
     drop((host, lib, other));
 }
+
+#[test]
+fn lane_setting_override_toggles_swimlane_and_allow_is_retired() {
+    use dr_shell::book::v3::SettingSource;
+    use dr_view_elements::data::v3::prepare_override;
+
+    let (_dir, ws, book) = seed();
+    let initial = Book::load(&ws, &book).unwrap();
+    let group = call(
+        &ws,
+        "entry.create",
+        json!({"book": book, "parent": initial.v3().unwrap().roots[0], "template": "tpl-group", "title": "分卷", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let snap = Book::load(&ws, &book).unwrap();
+    assert!(
+        prepare_override(&snap, &group, "allow", None).is_err(),
+        "retired allow setting must be rejected by prepare_override"
+    );
+    assert!(
+        prepare_override(&snap, &group, "allow", Some(json!([]))).is_err(),
+        "retired allow setting must be rejected even with an array payload"
+    );
+    assert!(!snap.v3().unwrap().is_lane(&group));
+
+    prepare_override(&snap, &group, "lane", Some(json!(true)))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let enabled = Book::load(&ws, &book).unwrap();
+    let v = enabled.v3().unwrap();
+    assert!(v.is_lane(&group));
+    assert!(v.levels[&group].settings.lane);
+    assert_eq!(
+        v.levels[&group].sources["lane"],
+        SettingSource::Override {
+            entry: group.clone()
+        }
+    );
+
+    prepare_override(&enabled, &group, "lane", Some(json!(false)))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let disabled = Book::load(&ws, &book).unwrap();
+    assert!(!disabled.v3().unwrap().is_lane(&group));
+    assert!(!disabled.v3().unwrap().levels[&group].settings.lane);
+
+    prepare_override(&disabled, &group, "lane", None)
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let restored = Book::load(&ws, &book).unwrap();
+    let v = restored.v3().unwrap();
+    assert!(!v.is_lane(&group));
+    assert_eq!(v.levels[&group].sources["lane"], SettingSource::Default);
+    ws.shutdown().unwrap();
+}
+
+#[gpui::test]
+fn entry_card_exposes_level_switch_row_for_every_entry(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{Services, ShellInfo, nav::Target, pages::PageMenuHost, settings::SettingsFile};
+    use gpui::WeakEntity;
+    use std::rc::Rc;
+
+    let (_dir, lib, book) = seed();
+    let snapshot = Rc::new(Book::load(&lib, &book).unwrap());
+    let v = snapshot.v3().unwrap();
+    let level_entry = v.roots[0].clone();
+    let non_level_entry = v.entries.iter().find(|e| !e.level).unwrap().id.clone();
+
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services::default(),
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_elements::init(cx);
+
+        let host = PageMenuHost {
+            workspace: WeakEntity::new_invalid(),
+            library: Some(lib.clone()),
+            book_id: book.clone(),
+            book: snapshot.clone(),
+        };
+
+        let on_rows = dr_shell::v3::entry_card_rows(
+            &Target::from_key(&format!("entry:{level_entry}")).unwrap(),
+            &host,
+            cx,
+        );
+        let on_item = on_rows
+            .before_danger
+            .iter()
+            .flat_map(|s| &s.items)
+            .find(|i| i.id.as_ref() == "entry-toggle-level")
+            .expect("entry-toggle-level row on level entry");
+        assert!(on_item.checked);
+
+        let off_rows = dr_shell::v3::entry_card_rows(
+            &Target::from_key(&format!("entry:{non_level_entry}")).unwrap(),
+            &host,
+            cx,
+        );
+        let off_item = off_rows
+            .before_danger
+            .iter()
+            .flat_map(|s| &s.items)
+            .find(|i| i.id.as_ref() == "entry-toggle-level")
+            .expect("entry-toggle-level row on non-level entry");
+        assert!(!off_item.checked);
+    });
+    lib.shutdown().unwrap();
+}

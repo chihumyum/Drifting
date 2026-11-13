@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 
 use crate::{
     Error, Result,
-    catalog::{ActionRef, ActionTarget, Catalog, Search, is_v3_book},
+    catalog::{ActionRef, ActionTarget, Catalog, CatalogStamp, Search, catalog_inputs, is_v3_book},
     prose::{self, Projection},
     resolve::{self, ResolvedCall},
     structure::{FocusRequest, StructureContext},
@@ -216,7 +216,14 @@ struct CatalogCacheKey {
     book: String,
 }
 
-type V3CatalogCache = HashMap<CatalogCacheKey, (String, Arc<Catalog>)>;
+#[derive(Clone)]
+struct CachedCatalog {
+    last_version: String,
+    stamp: CatalogStamp,
+    catalog: Arc<Catalog>,
+}
+
+type V3CatalogCache = HashMap<CatalogCacheKey, CachedCatalog>;
 
 #[derive(Clone)]
 pub struct AgentTools {
@@ -262,7 +269,11 @@ impl AgentTools {
         book: &BookId,
         focus: Option<&FocusRequest>,
     ) -> Result<Option<StructureContext>> {
-        StructureContext::for_book(ws, book, focus)
+        if !is_v3_book(ws, book)? {
+            return StructureContext::for_book(ws, book, focus);
+        }
+        let catalog = self.catalog_for_book(ws, book)?;
+        StructureContext::for_book_with_catalog(ws, book, Some(catalog), focus)
     }
 
     pub fn catalog_for_book(&self, ws: &Workspace, book: &BookId) -> Result<Arc<Catalog>> {
@@ -276,24 +287,45 @@ impl AgentTools {
         let cache_key = CatalogCacheKey {
             book: book.to_string(),
         };
-        if let Some((cached_version, cached)) = self
-            .v3_cache
-            .lock()
-            .expect("v3 catalog cache")
-            .get(&cache_key)
-            .cloned()
-            && cached_version == version
-        {
-            return Ok(cached);
-        }
-        let catalog = Arc::new(Catalog::for_book(ws, book)?);
-        let after = ws.version(&book_doc)?;
-        if after == version {
-            self.v3_cache
-                .lock()
-                .expect("v3 catalog cache")
-                .insert(cache_key, (version, Arc::clone(&catalog)));
-        }
+        let prev = {
+            let cache = self.v3_cache.lock().expect("v3 catalog cache");
+            if let Some(cached) = cache.get(&cache_key)
+                && cached.last_version == version
+            {
+                return Ok(Arc::clone(&cached.catalog));
+            }
+            cache.get(&cache_key).cloned()
+        };
+        let book_id = book.clone();
+        let (live_version, stamp, catalog) =
+            ws.read_book_v3(book.as_str(), move |doc, live_version| {
+                Ok((|| -> Result<(String, CatalogStamp, Arc<Catalog>)> {
+                    let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                        .map_err(|e| Error::Invalid(format!("invalid v3 book {book_id}: {e}")))?;
+                    let view = borrowed.view();
+                    let (stamp, headers, ordered_levels) = catalog_inputs(&view);
+                    if let Some(prev) = prev
+                        && (prev.last_version == live_version || prev.stamp == stamp)
+                    {
+                        return Ok((live_version, prev.stamp, prev.catalog));
+                    }
+                    let catalog = Arc::new(Catalog::from_v3_parts(
+                        &book_id,
+                        &stamp.templates,
+                        &headers,
+                        &ordered_levels,
+                    ));
+                    Ok((live_version, stamp, catalog))
+                })())
+            })??;
+        self.v3_cache.lock().expect("v3 catalog cache").insert(
+            cache_key,
+            CachedCatalog {
+                last_version: live_version,
+                stamp,
+                catalog: Arc::clone(&catalog),
+            },
+        );
         Ok(catalog)
     }
 
@@ -388,7 +420,13 @@ impl AgentTools {
         }
         let canonical_name = request.canonical_name_in(&catalog, book)?;
         let key = turn_key(book, actor);
-        let mut resolved = resolve::resolve(ws, book, &canonical_name, request.arguments)?;
+        let mut resolved = resolve::resolve_with_catalog(
+            ws,
+            book,
+            Some(&catalog),
+            &canonical_name,
+            request.arguments,
+        )?;
         if descriptor.access == ToolAccess::Read {
             if request.edited_text.is_some() {
                 return Err(Error::Invalid(
@@ -856,6 +894,18 @@ impl AgentTools {
         }
         match result {
             Ok(value) => {
+                if call.name == "entry.set_level"
+                    && let Some(moved) = value["output"]["moved"].as_array()
+                    && !moved.is_empty()
+                {
+                    turn.book.forget("entry:roots");
+                    turn.book.forget("entry:*");
+                    turn.book.forget("entry:all");
+                    for child in moved.iter().filter_map(Value::as_str) {
+                        turn.book.forget(&format!("entry:{child}"));
+                        turn.book.forget(&format!("level:{child}"));
+                    }
+                }
                 turn.checkpointed.extend(captured);
                 Ok(value)
             }
@@ -922,14 +972,18 @@ fn needed(call: &ResolvedCall) -> Vec<String> {
 /// replaces nothing, ordering one that exists replaces its order, and
 /// without a read of it the workspace refuses that replacement.
 fn offered(call: &ResolvedCall) -> Vec<String> {
-    match (
-        call.name.as_str(),
-        call.arguments["host"].as_str(),
-        call.arguments["member"].as_str(),
-    ) {
-        ("membership.add", Some(host), Some(member)) => {
-            vec![format!("membership:{host}|{member}")]
-        }
+    match call.name.as_str() {
+        "membership.add" => match (
+            call.arguments["host"].as_str(),
+            call.arguments["member"].as_str(),
+        ) {
+            (Some(host), Some(member)) => vec![format!("membership:{host}|{member}")],
+            _ => Vec::new(),
+        },
+        "entry.set_level" if call.arguments["level"] == false => call.arguments["id"]
+            .as_str()
+            .map(|id| vec![format!("level:{id}")])
+            .unwrap_or_default(),
         _ => Vec::new(),
     }
 }
@@ -1141,7 +1195,7 @@ fn search_descriptor() -> ToolDescriptor {
     ToolDescriptor{name:"tool_search".into(),revision:"m29-search-v1".into(),description:"Find registered book tools by name or description. Search before calling an unfamiliar tool.".into(),input_schema:json!({"type":"object","properties":{"query":{"type":"string"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":50}},"additionalProperties":false}),access:ToolAccess::Read,policy:ToolPolicy::Local}
 }
 fn call_descriptor() -> ToolDescriptor {
-    ToolDescriptor{name:"call_tool".into(),revision:"m29-call-v1".into(),description:"Call a discovered book tool or level template action. Read a target before editing it; reread after any conflict. For prose.replace, edited_text may contain the edited projection returned by prose.read. Structural prose edits are not available.".into(),input_schema:json!({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"object","properties":{"level":{"type":"string"},"path":{"type":"array","items":{"type":"string"},"minItems":1},"verb":{"type":"string"}},"required":["verb"],"additionalProperties":false},"arguments":{"type":"object"},"revision":{"type":"string"},"edited_text":{"type":"string"}},"required":["arguments"],"oneOf":[{"required":["name"]},{"required":["action"]}],"additionalProperties":false}),access:ToolAccess::Write,policy:ToolPolicy::Local}
+    ToolDescriptor{name:"call_tool".into(),revision:"m29-call-v1".into(),description:"Call a discovered book tool or template action. Read a target before editing it; reread after any conflict. For prose.replace, edited_text may contain the edited projection returned by prose.read. Structural prose edits are not available.".into(),input_schema:json!({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"object","properties":{"level":{"type":"string"},"path":{"type":"array","items":{"type":"string"},"minItems":1},"verb":{"type":"string"}},"required":["verb"],"additionalProperties":false},"arguments":{"type":"object"},"revision":{"type":"string"},"edited_text":{"type":"string"}},"required":["arguments"],"oneOf":[{"required":["name"]},{"required":["action"]}],"additionalProperties":false}),access:ToolAccess::Write,policy:ToolPolicy::Local}
 }
 
 #[cfg(test)]

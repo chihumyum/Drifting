@@ -3,8 +3,9 @@
 //! word target and last change, and the books in Recently Deleted with the
 //! days they have left.
 //!
-//! - Words are the live chapters' words in the derived index, as the 0.1
-//!   shelf counted them: only chapters, not ideas, elements or notes.
+//! - Words are the manuscript sequence's words (`in_book` prose modules) in
+//!   the derived index: off-manuscript entries and prose modules with `in_book`
+//!   turned off are excluded.
 //! - The last change is the newest stored change of any of the book's
 //!   documents; the book document holds no `updated_at`
 //!   (simplifications.md, 第一节第 13 条).

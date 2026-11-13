@@ -13,6 +13,7 @@ pub mod card;
 mod drag;
 mod editor;
 pub mod history;
+pub mod level_switch;
 pub mod page;
 pub mod sidebar;
 
@@ -24,7 +25,6 @@ pub(crate) use editor::{registered_editor, registered_editor_status};
 pub struct ModuleHost {
     pub page: PageViewHost,
     pub entry: String,
-    /// `about` is the built-in level description, passed to the prose renderer.
     pub module: ModuleSpec,
 }
 

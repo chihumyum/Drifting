@@ -265,8 +265,20 @@ fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
     });
     let p = view.read_with(cx, |v, _| v.page_info()).unwrap();
     assert_eq!(
-        (p.kind, p.title.as_str(), p.synopsis.as_str()),
-        (PageKind::Idea, "钟楼里的人", "一个关于时间的构想")
+        (
+            p.kind,
+            p.chrome,
+            p.template_name.as_str(),
+            p.title.as_str(),
+            p.synopsis.as_str(),
+        ),
+        (
+            PageKind::Other,
+            true,
+            "构想",
+            "钟楼里的人",
+            "一个关于时间的构想",
+        )
     );
 }
 

@@ -2,19 +2,21 @@
 //! list of operations. Only book-scoped author operations are exposed.
 
 use dr_agent::{ToolAccess, ToolDescriptor, ToolPolicy};
-use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_book_doc};
+use dr_doc::v3::{BookViewV3, BorrowedBookV3, CollectionV3, RecordKeyV3, RecordReaderV3};
 use dr_model::{
     id::{BookId, EntryId},
     v3::{
-        Entry as V3Entry, EntryTemplate, EntryTemplateId, check_parent_is_level,
-        effective_parent_id, resolve_level_settings, resolve_new_entry_residence,
+        Entry as V3Entry, EntryTemplate, EntryTemplateId, LevelSettingsOverride,
+        check_parent_is_level, effective_parent_id, resolve_level_settings,
+        resolve_new_entry_residence,
     },
 };
 use dr_workspace::{Access, Concurrency, Spec, Workspace, registry};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 /// Change this when facade handler semantics change without a schema change.
 /// Versioned facade revision for universal kernel v3 books and template verbs.
@@ -225,29 +227,44 @@ impl Default for Catalog {
 
 impl Catalog {
     pub fn new() -> Self {
-        Self::build_base(BookKernelVersion::V3)
+        Self::new_v3()
     }
 
     pub fn new_v3() -> Self {
-        Self::build_base(BookKernelVersion::V3)
+        static BASE_V3: OnceLock<Catalog> = OnceLock::new();
+        BASE_V3
+            .get_or_init(|| Self::build_base(BookKernelVersion::V3))
+            .clone()
     }
 
     pub fn for_book(ws: &Workspace, book: &BookId) -> crate::Result<Self> {
-        let doc = ws
-            .library()
-            .load_copy(&format!("book:{book}"))
-            .map_err(dr_workspace::WsError::from)?;
-        if !is_book_doc(&doc) {
+        if !is_v3_book(ws, book)? {
             return Err(crate::Error::Invalid(
                 "only canonical v3 books have a tool catalog".into(),
             ));
         }
-        let borrowed = BorrowedBookV3::new(&doc, book)
-            .map_err(|e| crate::Error::Invalid(format!("invalid v3 book {book}: {e}")))?;
-        Ok(Self::from_v3_view(book, &borrowed.view()))
+        let book_id = book.clone();
+        ws.read_book_v3(book.as_str(), move |doc, _| {
+            Ok((|| -> crate::Result<Self> {
+                let borrowed = BorrowedBookV3::new(doc, &book_id).map_err(|e| {
+                    crate::Error::Invalid(format!("invalid v3 book {book_id}: {e}"))
+                })?;
+                Ok(Self::from_v3_view(&book_id, &borrowed.view()))
+            })())
+        })?
     }
 
     pub fn from_v3_view(book: &BookId, view: &BookViewV3<'_>) -> Self {
+        let (stamp, headers, ordered_levels) = catalog_inputs(view);
+        Self::from_v3_parts(book, &stamp.templates, &headers, &ordered_levels)
+    }
+
+    pub(crate) fn from_v3_parts(
+        book: &BookId,
+        templates_map: &BTreeMap<EntryTemplateId, EntryTemplate>,
+        entries_map: &BTreeMap<EntryId, V3Entry>,
+        ordered_levels: &[EntryId],
+    ) -> Self {
         let mut catalog = Self::new_v3();
         let Some(create_entry) = catalog
             .entries
@@ -257,7 +274,13 @@ impl Catalog {
         else {
             return catalog;
         };
-        let (actions, diagnostics) = build_v3_actions(book, view, &create_entry);
+        let (actions, diagnostics) = build_v3_actions(
+            book,
+            templates_map,
+            entries_map,
+            ordered_levels,
+            &create_entry,
+        );
         catalog.entries.extend(actions);
         catalog.diagnostics = diagnostics;
         catalog
@@ -608,17 +631,223 @@ pub fn is_v3_book(ws: &Workspace, book: &BookId) -> crate::Result<bool> {
     Ok(ws.is_v3_book(book)?)
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LevelHeaderStamp {
+    pub id: EntryId,
+    pub effective_parent: Option<EntryId>,
+    pub title: String,
+    pub template: Option<EntryTemplateId>,
+    pub overrides: Option<LevelSettingsOverride>,
+}
+
+/// Exact structural inputs to [`Catalog::from_v3_view`]: templates and live
+/// `level == true` entries in depth-first tree order. Editing ordinary entries,
+/// module fields, KV rows, prose, comments or side records leaves this stamp
+/// unchanged so [`crate::AgentTools::catalog_for_book`] reuses the built
+/// catalog without rebuilding schemas or action revisions.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct CatalogStamp {
+    pub templates: BTreeMap<EntryTemplateId, EntryTemplate>,
+    pub levels: Vec<LevelHeaderStamp>,
+}
+
+pub(crate) fn catalog_inputs(
+    view: &BookViewV3<'_>,
+) -> (CatalogStamp, BTreeMap<EntryId, V3Entry>, Vec<EntryId>) {
+    let templates = view.templates_map();
+    let headers = view.entry_headers_with(&BTreeMap::new());
+    let ordered_levels = ordered_live_levels(view, &headers);
+    let levels = ordered_levels
+        .iter()
+        .filter_map(|id| {
+            let e = headers.get(id)?;
+            Some(LevelHeaderStamp {
+                id: e.id.clone(),
+                effective_parent: effective_parent_id(e, &headers),
+                title: e.title.clone(),
+                template: e.template.clone(),
+                overrides: e.overrides.clone(),
+            })
+        })
+        .collect();
+    (CatalogStamp { templates, levels }, headers, ordered_levels)
+}
+
+fn ordered_live_levels(
+    view: &BookViewV3<'_>,
+    headers: &BTreeMap<EntryId, V3Entry>,
+) -> Vec<EntryId> {
+    let mut branch_parents: BTreeSet<Option<EntryId>> = BTreeSet::new();
+    let mut has_any = false;
+    for entry in headers.values().filter(|e| !e.is_trashed() && e.is_level()) {
+        has_any = true;
+        let mut cur = entry.parent.clone();
+        let mut seen = BTreeSet::new();
+        while let Some(pid) = cur {
+            if !seen.insert(pid.clone()) {
+                break;
+            }
+            branch_parents.insert(Some(pid.clone()));
+            cur = headers.get(&pid).and_then(|p| p.parent.clone());
+        }
+        branch_parents.insert(None);
+    }
+    if !has_any {
+        return Vec::new();
+    }
+
+    let mut reader = RecordReaderV3::new(view);
+    let mut children_by_parent: BTreeMap<Option<EntryId>, Vec<EntryId>> = BTreeMap::new();
+    for parent in &branch_parents {
+        let key =
+            RecordKeyV3::children(CollectionV3::Entries, parent.as_ref().map(EntryId::as_str));
+        let list: Vec<EntryId> = reader
+            .state(&key)
+            .value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .filter_map(|s| EntryId::parse(s).ok())
+            .collect();
+        children_by_parent.insert(parent.clone(), list);
+    }
+
+    let mut ordered = Vec::new();
+    let mut visited = BTreeSet::new();
+    fn dfs(
+        parent: Option<EntryId>,
+        children_by_parent: &BTreeMap<Option<EntryId>, Vec<EntryId>>,
+        headers: &BTreeMap<EntryId, V3Entry>,
+        visited: &mut BTreeSet<EntryId>,
+        ordered: &mut Vec<EntryId>,
+    ) {
+        let Some(children) = children_by_parent.get(&parent) else {
+            return;
+        };
+        for child in children {
+            let Some(entry) = headers.get(child) else {
+                continue;
+            };
+            if entry.parent != parent || !visited.insert(child.clone()) {
+                continue;
+            }
+            if !entry.is_trashed() && entry.is_level() {
+                ordered.push(child.clone());
+            }
+            if children_by_parent.contains_key(&Some(child.clone())) {
+                dfs(
+                    Some(child.clone()),
+                    children_by_parent,
+                    headers,
+                    visited,
+                    ordered,
+                );
+            }
+        }
+    }
+    dfs(
+        None,
+        &children_by_parent,
+        headers,
+        &mut visited,
+        &mut ordered,
+    );
+    for (id, entry) in headers {
+        if !entry.is_trashed() && entry.is_level() && visited.insert(id.clone()) {
+            ordered.push(id.clone());
+        }
+    }
+    ordered
+}
+
+pub(crate) fn ordered_entry_ids(
+    view: &BookViewV3<'_>,
+    headers: &BTreeMap<EntryId, V3Entry>,
+) -> Vec<EntryId> {
+    if headers.is_empty() {
+        return Vec::new();
+    }
+    let mut parents: BTreeSet<Option<EntryId>> = BTreeSet::new();
+    parents.insert(None);
+    for entry in headers.values() {
+        parents.insert(entry.parent.clone());
+    }
+    let mut reader = RecordReaderV3::new(view);
+    let mut children_by_parent: BTreeMap<Option<EntryId>, Vec<EntryId>> = BTreeMap::new();
+    for parent in &parents {
+        let key =
+            RecordKeyV3::children(CollectionV3::Entries, parent.as_ref().map(EntryId::as_str));
+        let list: Vec<EntryId> = reader
+            .state(&key)
+            .value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .filter_map(|s| EntryId::parse(s).ok())
+            .collect();
+        children_by_parent.insert(parent.clone(), list);
+    }
+    let mut ordered = Vec::with_capacity(headers.len());
+    let mut visited = BTreeSet::new();
+    fn dfs(
+        parent: Option<EntryId>,
+        children_by_parent: &BTreeMap<Option<EntryId>, Vec<EntryId>>,
+        headers: &BTreeMap<EntryId, V3Entry>,
+        visited: &mut BTreeSet<EntryId>,
+        ordered: &mut Vec<EntryId>,
+    ) {
+        let Some(children) = children_by_parent.get(&parent) else {
+            return;
+        };
+        for child in children {
+            let Some(entry) = headers.get(child) else {
+                continue;
+            };
+            if entry.parent != parent || !visited.insert(child.clone()) {
+                continue;
+            }
+            ordered.push(child.clone());
+            if children_by_parent.contains_key(&Some(child.clone())) {
+                dfs(
+                    Some(child.clone()),
+                    children_by_parent,
+                    headers,
+                    visited,
+                    ordered,
+                );
+            }
+        }
+    }
+    dfs(
+        None,
+        &children_by_parent,
+        headers,
+        &mut visited,
+        &mut ordered,
+    );
+    for id in headers.keys() {
+        if visited.insert(id.clone()) {
+            ordered.push(id.clone());
+        }
+    }
+    ordered
+}
+
 fn build_v3_actions(
     book: &BookId,
-    view: &BookViewV3<'_>,
+    templates_map: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    entries_map: &BTreeMap<EntryId, V3Entry>,
+    ordered_levels: &[EntryId],
     create_entry: &Entry,
 ) -> (Vec<Entry>, Vec<ActionDiagnostic>) {
-    let entries_list = view.entries();
-    let entries_map: BTreeMap<EntryId, V3Entry> = entries_list
-        .iter()
-        .map(|e| (e.id.clone(), e.clone()))
-        .collect();
-    let templates_map: BTreeMap<EntryTemplateId, EntryTemplate> = view.templates_map();
+    if !templates_map
+        .values()
+        .any(|t| !t.is_trashed() && !t.verbs.is_empty())
+    {
+        return (Vec::new(), Vec::new());
+    }
     let mut actions = Vec::new();
     let mut diagnostics = Vec::new();
 
@@ -626,7 +855,10 @@ fn build_v3_actions(
         crate::resolve::action_input_schema_v3(create_entry.input_schema.clone());
     let action_output_schema = create_entry.output_schema.clone();
 
-    for level in &entries_list {
+    for level_id in ordered_levels {
+        let Some(level) = entries_map.get(level_id) else {
+            continue;
+        };
         if level.is_trashed() {
             continue;
         }
@@ -640,8 +872,8 @@ fn build_v3_actions(
         if !level.is_level() || tpl.verbs.is_empty() {
             continue;
         }
-        let path = entry_path(&entries_map, &level.id);
-        let effective = resolve_level_settings(Some(&level.id), &entries_map, &templates_map);
+        let path = entry_path(entries_map, &level.id);
+        let effective = resolve_level_settings(Some(&level.id), entries_map, templates_map);
         for verb in &tpl.verbs {
             if verb.id.trim().is_empty() || verb.name.trim().is_empty() {
                 diagnostics.push(ActionDiagnostic {
@@ -687,8 +919,8 @@ fn build_v3_actions(
                 continue;
             };
             let residence =
-                resolve_new_entry_residence(Some(&level.id), &entries_map, &templates_map);
-            if let Err(err) = check_parent_is_level(residence.as_ref(), &entries_map) {
+                resolve_new_entry_residence(Some(&level.id), entries_map, templates_map);
+            if let Err(err) = check_parent_is_level(residence.as_ref(), entries_map) {
                 diagnostics.push(ActionDiagnostic {
                     code: "invalid_residence_binding".into(),
                     level: Some(level.id.to_string()),
@@ -708,8 +940,8 @@ fn build_v3_actions(
                     template: tpl.id.to_string(),
                     verb: verb.id.clone(),
                     message: format!(
-                        "action {:?} on level {:?} ({}) resides in {:?} but level cannot accept target template {}",
-                        verb.name, level.title, level.id, residence, target_id
+                        "action {:?} on level {:?} ({}) resides in {:?} but level does not accept entries from elsewhere",
+                        verb.name, level.title, level.id, residence
                     ),
                 });
                 continue;
@@ -737,7 +969,7 @@ fn build_v3_actions(
             };
             let home_settings = residence
                 .as_ref()
-                .map(|h| resolve_level_settings(Some(h), &entries_map, &templates_map));
+                .map(|h| resolve_level_settings(Some(h), entries_map, templates_map));
             let revision = digest(&json!({
                 "facade": FACADE_REVISION_V3,
                 "command": "entry.create",

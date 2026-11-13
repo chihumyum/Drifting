@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Kurzfassung…",
-    "untitledChapter": "Unbenanntes Kapitel",
-    "untitledDrift": "Unbenannte Idee"
+    "untitledChapter": "Unbenanntes Kapitel"
   },
   "chapterEnd": {
     "defaultTitle": "Neues Kapitel",
@@ -391,15 +390,14 @@
       }
     },
     "v3": {
-      "destination": "Eine separate v3-Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
+      "destination": "Eine separate neue Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
       "pending": "Vor dem Import sind Zuordnungen erforderlich",
       "start": "In neue Bibliothek importieren",
-      "switching": "Die fertige v3-Bibliothek wird geöffnet",
-      "title": "Als v3 erneut importieren"
+      "switching": "Die fertige Bibliothek wird geöffnet",
+      "title": "In neue Bibliothek erneut importieren"
     }
   },
   "importDialog": {
-    "categoryTitle": "Kategorie",
     "chooseFiles": "Dateien auswählen",
     "chooseFolder": "Ordner auswählen",
     "clear": "Leeren",
@@ -411,24 +409,10 @@
       "parsing": "wird eingelesen",
       "ready": "bereit"
     },
-    "storylineTitle": "Handlungsstrang",
     "summary": {
       "done": "Fertig",
       "failed": "fehlgeschlagen",
       "ok": "importiert"
-    },
-    "targets": {
-      "chapter": {
-        "label": "Kapitel"
-      },
-      "element": {
-        "desc": "Referenzmaterial wie Figuren, Orte oder Gegenstände. Kategorie erforderlich.",
-        "label": "Element"
-      },
-      "idea": {
-        "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen.",
-        "label": "Idee"
-      }
     },
     "title": "Dateien importieren",
     "warnings": {
@@ -498,6 +482,7 @@
     "format": "Format",
     "loadFailed": "Die Kapitel konnten nicht gelesen werden. Bitte erneut versuchen.",
     "loading": "Kapitel werden gelesen…",
+    "manuscript": "Manuskript",
     "menu": "Manuskript exportieren",
     "removeCover": "Entfernen",
     "retry": "Erneut versuchen",
@@ -650,8 +635,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Kapitel",
-      "chapterNumber": "Kapitel {{n}}",
-      "drift": "Idee"
+      "chapterNumber": "Kapitel {{n}}"
     },
     "meta": {
       "words": "{{count}} Wörter"
@@ -948,7 +932,6 @@
       "review": "Projekt · Prüfung",
       "stats": {
         "all-chapters": "Ganzes Buch · Tempo",
-        "category": "Diese Kategorie · Detailstatistik",
         "chapter": "Dieses Kapitel · Detailstatistik",
         "element": "Dieses Element · Detailstatistik",
         "material": "Dieses Material · Details",
@@ -957,7 +940,6 @@
       }
     },
     "stats": {
-      "category": "Kategorie",
       "chapter": "Kapitel",
       "dialogueRatio": "Dialoganteil",
       "name": "Name",
@@ -1463,6 +1445,7 @@
     "aliases": "Aliasse",
     "auto_link": "Automatisch verknüpfen",
     "board": "Tafel",
+    "children": "Einträge darunter",
     "choose_template": "Vorlage auswählen",
     "color": "Farbe",
     "conflict": "Vorlage wurde andernorts geändert",
@@ -1481,15 +1464,15 @@
     "grid": "Raster",
     "home": "Ablage neuer Einträge",
     "image": "Bild",
+    "in_book": "Bei Wortzahl und Export mitzählen",
     "inherit": "Erben",
     "instructions": "Hinweise",
     "island": "Inseln",
     "kv": "Schlüssel-Wert-Tabelle",
     "lane": "Bahn",
-    "leaf": "Blatt",
-    "leaf_template": "Blattvorlage",
     "level": "Ebene",
-    "level_template": "Ebenenvorlage",
+    "level_hint": "Aktiviert können darunter Einträge liegen",
+    "linkable": "Namen in automatische Links aufnehmen",
     "list": "Liste",
     "long_text": "Langer Text",
     "manuscript": "Manuskript",
@@ -1572,6 +1555,7 @@
     "formatShortcuts": "Formatierungskürzel",
     "home": "Ablage neuer Einträge",
     "isManuscript": "Manuskript",
+    "lane": "Schwimmbahn",
     "manuscriptOrder": "Manuskriptreihenfolge",
     "members": "Zugeordnete Einträge",
     "none": "Keine",
@@ -1598,21 +1582,31 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Beschreibung",
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
     "changeTemplate": "Vorlage wechseln",
+    "childrenEntries": "Untergeordnete Einträge",
     "editTemplate": "Vorlage bearbeiten",
     "entries": "Einträge",
+    "entryUntemplated": "Eintrag",
     "grid": "Raster",
     "islands": "Inseln",
+    "levelSwitch": "Ebene",
+    "levelSwitchHint": "Aktivieren, um darunter Einträge abzulegen",
     "list": "Liste",
     "newEntry": "Neu",
     "newTemplate": "Neue Vorlage",
     "open": "Öffnen",
     "settings": "Einstellungen",
     "templates": "Vorlagen",
-    "trash": "Zu „Zuletzt gelöscht“ verschieben"
+    "trash": "Zu „Zuletzt gelöscht“ verschieben",
+    "turnOffLevelBody_one": "{{count}} untergeordneter Eintrag wird samt allem darunter auf die oberste Ebene verschoben. Zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelBody_other": "{{count}} untergeordnete Einträge werden samt allem darunter auf die oberste Ebene verschoben. Zugeordnete Einträge und die Schwimmbahn in der Zeitleiste werden ausgeblendet, bis die Ebene wieder aktiviert wird.",
+    "turnOffLevelConfirm": "Ausschalten",
+    "turnOffLevelConflict": "Die untergeordneten Einträge haben sich geändert. Bitte prüfe die neue Anzahl und bestätige erneut.",
+    "turnOffLevelTitle": "Ebene ausschalten",
+    "untitledEntry": "Unbenannter Eintrag",
+    "untitledNamed": "{{name}} ohne Titel"
   },
   "v3Timeline": {
     "actLevelName": "Akte",
@@ -1642,7 +1636,6 @@
     "views": "Zeitleistenansichten"
   },
   "v3Transfer": {
-    "chapterDesc": "Manuskriptkapitel: kann auf der Zeitleiste platziert werden und zählt zur Wortstatistik.",
     "filesTitle": "Dateien",
     "targetTitle": "Ziel"
   },

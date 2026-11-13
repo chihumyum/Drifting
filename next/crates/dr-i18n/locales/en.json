@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
-    "untitledChapter": "Untitled chapter",
-    "untitledDrift": "Untitled idea"
+    "untitledChapter": "Untitled chapter"
   },
   "chapterEnd": {
     "defaultTitle": "New chapter",
@@ -391,15 +390,14 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "destination": "A separate new library will be created. The current library and 0.1 source are preserved.",
       "pending": "Mapping choices required before import",
       "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "switching": "Opening the completed library",
+      "title": "Reimport into new library"
     }
   },
   "importDialog": {
-    "categoryTitle": "Category",
     "chooseFiles": "Choose files",
     "chooseFolder": "Choose folder",
     "clear": "Clear",
@@ -411,24 +409,10 @@
       "parsing": "parsing",
       "ready": "ready"
     },
-    "storylineTitle": "Storyline",
     "summary": {
       "done": "Done",
       "failed": "failed",
       "ok": "imported"
-    },
-    "targets": {
-      "chapter": {
-        "label": "Chapter"
-      },
-      "element": {
-        "desc": "Reference material such as characters, places, or items. Requires a category.",
-        "label": "Element"
-      },
-      "idea": {
-        "desc": "Floating idea card — independent from storylines.",
-        "label": "Idea"
-      }
     },
     "title": "Import files",
     "warnings": {
@@ -498,6 +482,7 @@
     "format": "Format",
     "loadFailed": "Could not read the chapters. Please retry.",
     "loading": "Reading chapters…",
+    "manuscript": "Manuscript",
     "menu": "Export manuscript",
     "removeCover": "Remove",
     "retry": "Retry",
@@ -650,8 +635,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Chapter",
-      "chapterNumber": "Chapter {{n}}",
-      "drift": "Idea"
+      "chapterNumber": "Chapter {{n}}"
     },
     "meta": {
       "words": "{{count}} words"
@@ -948,7 +932,6 @@
       "review": "Project · Review",
       "stats": {
         "all-chapters": "Whole book · pacing",
-        "category": "This category · detailed stats",
         "chapter": "This chapter · detailed stats",
         "element": "This element · detailed stats",
         "material": "This material · Details",
@@ -957,7 +940,6 @@
       }
     },
     "stats": {
-      "category": "Category",
       "chapter": "Chapter",
       "dialogueRatio": "Dialogue ratio",
       "name": "Name",
@@ -1463,6 +1445,7 @@
     "aliases": "Aliases",
     "auto_link": "Auto-link",
     "board": "Board",
+    "children": "Entries below",
     "choose_template": "Choose template",
     "color": "Color",
     "conflict": "Template changed elsewhere",
@@ -1481,15 +1464,15 @@
     "grid": "Grid",
     "home": "New entries reside in",
     "image": "Image",
+    "in_book": "Count words and export",
     "inherit": "Inherit",
     "instructions": "Instructions",
     "island": "Islands",
     "kv": "Key-value table",
     "lane": "Lane",
-    "leaf": "Leaf",
-    "leaf_template": "Leaf template",
     "level": "Level",
-    "level_template": "Level template",
+    "level_hint": "Allows entries below when on",
+    "linkable": "Include name in auto-links",
     "list": "List",
     "long_text": "Long text",
     "manuscript": "Manuscript",
@@ -1572,6 +1555,7 @@
     "formatShortcuts": "Formatting shortcuts",
     "home": "New entries reside in",
     "isManuscript": "Manuscript",
+    "lane": "Swimlane",
     "manuscriptOrder": "Manuscript order",
     "members": "Assigned entries",
     "none": "None",
@@ -1598,21 +1582,31 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Description",
     "belongTo": "Assign to",
     "board": "Board",
     "changeTemplate": "Change template",
+    "childrenEntries": "Entries below",
     "editTemplate": "Edit template",
     "entries": "Entries",
+    "entryUntemplated": "Entry",
     "grid": "Grid",
     "islands": "Islands",
+    "levelSwitch": "Level",
+    "levelSwitchHint": "Allow entries underneath",
     "list": "List",
     "newEntry": "New",
     "newTemplate": "New template",
     "open": "Open",
     "settings": "Settings",
     "templates": "Templates",
-    "trash": "Move to Recently Deleted"
+    "trash": "Move to Recently Deleted",
+    "turnOffLevelBody_one": "{{count}} entry below will move to the top level along with everything under it. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
+    "turnOffLevelBody_other": "{{count}} entries below will move to the top level along with everything under them. Assigned entries and its timeline swimlane will be hidden until you turn Level back on.",
+    "turnOffLevelConfirm": "Turn off",
+    "turnOffLevelConflict": "Entries below changed while this dialog was open. Review the updated count and confirm again.",
+    "turnOffLevelTitle": "Turn off Level",
+    "untitledEntry": "Untitled entry",
+    "untitledNamed": "Untitled {{name}}"
   },
   "v3Timeline": {
     "actLevelName": "Acts",
@@ -1642,7 +1636,6 @@
     "views": "Timeline views"
   },
   "v3Transfer": {
-    "chapterDesc": "Manuscript chapter — can be placed on the timeline and counts toward word stats.",
     "filesTitle": "Files",
     "targetTitle": "Target"
   },

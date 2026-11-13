@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
-    "untitledChapter": "无标题章节",
-    "untitledDrift": "无标题构想"
+    "untitledChapter": "无标题章节"
   },
   "chapterEnd": {
     "defaultTitle": "新章节",
@@ -386,15 +385,14 @@
       }
     },
     "v3": {
-      "destination": "导入到独立的新 v3 库，保留当前库和 0.1 源库。",
+      "destination": "导入到独立的新库，保留当前库和 0.1 源库。",
       "pending": "导入前需要映射选择",
       "start": "导入到新库",
-      "switching": "正在打开已完成的 v3 库",
-      "title": "重新导入为 v3"
+      "switching": "正在打开已完成的新库",
+      "title": "重新导入到新库"
     }
   },
   "importDialog": {
-    "categoryTitle": "归属类别",
     "chooseFiles": "选择文件",
     "chooseFolder": "选择文件夹",
     "clear": "清空",
@@ -406,24 +404,10 @@
       "parsing": "解析中",
       "ready": "就绪"
     },
-    "storylineTitle": "归属故事线",
     "summary": {
       "done": "完成",
       "failed": "失败",
       "ok": "成功"
-    },
-    "targets": {
-      "chapter": {
-        "label": "章节"
-      },
-      "element": {
-        "desc": "人物 / 地点 / 物件等参考资料。需选择类别。",
-        "label": "要素"
-      },
-      "idea": {
-        "desc": "构想卡 — 不归属任何故事线，独立悬浮。",
-        "label": "构想"
-      }
     },
     "title": "导入文件",
     "warnings": {
@@ -490,6 +474,7 @@
     "format": "格式",
     "loadFailed": "未能读取章节，请重试。",
     "loading": "正在读取章节…",
+    "manuscript": "成书",
     "menu": "导出成稿",
     "removeCover": "移除",
     "retry": "重试",
@@ -642,8 +627,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章节",
-      "chapterNumber": "第 {{n}} 章",
-      "drift": "构想"
+      "chapterNumber": "第 {{n}} 章"
     },
     "meta": {
       "words": "{{count}} 字"
@@ -935,7 +919,6 @@
       "review": "全项目 · 审阅",
       "stats": {
         "all-chapters": "全书 · 节奏统计",
-        "category": "本类目 · 详细统计",
         "chapter": "本章 · 详细统计",
         "element": "本要素 · 详细统计",
         "material": "这份素材 · 详细统计",
@@ -944,7 +927,6 @@
       }
     },
     "stats": {
-      "category": "类目",
       "chapter": "章节",
       "dialogueRatio": "对白比",
       "name": "名称",
@@ -1450,6 +1432,7 @@
     "aliases": "别名",
     "auto_link": "自动链接",
     "board": "看板",
+    "children": "下面的条目",
     "choose_template": "选择模板",
     "color": "颜色",
     "conflict": "模板已在别处更改",
@@ -1468,15 +1451,15 @@
     "grid": "网格",
     "home": "新条目住在",
     "image": "图片",
+    "in_book": "计入字数和导出",
     "inherit": "继承",
     "instructions": "注意事项",
     "island": "岛屿",
     "kv": "键值表",
     "lane": "泳道",
-    "leaf": "叶子",
-    "leaf_template": "叶子模板",
     "level": "层级",
-    "level_template": "层级模板",
+    "level_hint": "打开后下面能放条目",
+    "linkable": "名字参与自动链接",
     "list": "列表",
     "long_text": "长文字",
     "manuscript": "成书",
@@ -1559,6 +1542,7 @@
     "formatShortcuts": "格式快捷输入",
     "home": "新条目住在",
     "isManuscript": "成书",
+    "lane": "泳道",
     "manuscriptOrder": "文稿顺序",
     "members": "归属到这里",
     "none": "无",
@@ -1585,21 +1569,30 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "说明",
     "belongTo": "归属到",
     "board": "看板",
     "changeTemplate": "换模板",
+    "childrenEntries": "下面的条目",
     "editTemplate": "编辑模板",
     "entries": "条目",
+    "entryUntemplated": "条目",
     "grid": "网格",
     "islands": "岛屿",
+    "levelSwitch": "层级",
+    "levelSwitchHint": "打开后下面能放条目",
     "list": "列表",
     "newEntry": "新建",
     "newTemplate": "新建模板",
     "open": "打开",
     "settings": "设置",
     "templates": "模板集合",
-    "trash": "放进最近删除"
+    "trash": "放进最近删除",
+    "turnOffLevelBody_other": "下面的 {{count}} 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。",
+    "turnOffLevelConfirm": "关闭层级",
+    "turnOffLevelConflict": "下面的条目刚刚发生了变化，请确认最新数量后再关闭。",
+    "turnOffLevelTitle": "关闭层级",
+    "untitledEntry": "无标题条目",
+    "untitledNamed": "无标题{{name}}"
   },
   "v3Timeline": {
     "actLevelName": "幕",
@@ -1629,9 +1622,8 @@
     "views": "时间线视图"
   },
   "v3Transfer": {
-    "chapterDesc": "书稿章节 — 可放入时间线，参与字数统计。",
     "filesTitle": "文件",
-    "targetTitle": "类型"
+    "targetTitle": "目标"
   },
   "voiceAgent": {
     "error": {

@@ -53,16 +53,16 @@ impl Values {
     }
 }
 
-pub(crate) struct SettingsDialog {
+pub struct SettingsDialog {
     lib: Workspace,
     book: String,
     baseline: Values,
-    name: Entity<TextField>,
-    summary: Entity<TextArea>,
-    goal: Entity<TextField>,
-    daily: Entity<TextField>,
-    busy: bool,
-    error: bool,
+    pub name: Entity<TextField>,
+    pub summary: Entity<TextArea>,
+    pub goal: Entity<TextField>,
+    pub daily: Entity<TextField>,
+    pub busy: bool,
+    pub error: bool,
     _events: Vec<Subscription>,
 }
 
@@ -134,7 +134,7 @@ impl SettingsDialog {
         self.summary
             .update(cx, |f, cx| f.set_disabled(disabled, cx));
     }
-    fn save(&mut self, cx: &mut Context<Self>) {
+    pub fn save(&mut self, cx: &mut Context<Self>) {
         if self.busy {
             return;
         }

@@ -3,7 +3,7 @@ pub mod v3 {
     use crate::dialogs::v3::EntryMode;
     use dr_shell::{
         nav::Target,
-        pages::{PageViewHost, RunRow},
+        pages::{CardRows, PageMenuItem, PageMenuSection, PageViewHost, RunRow},
         v3::card::EntryAction,
     };
     use gpui::App;
@@ -48,5 +48,42 @@ pub mod v3 {
                 }) as RunRow)
             });
         }
+        dr_shell::v3::add_entry_card_rows(cx, |target, host, cx| {
+            let Target::Entry { id, .. } = target else {
+                return Default::default();
+            };
+            let Some(v) = host.book.v3() else {
+                return Default::default();
+            };
+            let Some(entry) = v.entry(id.as_str()) else {
+                return Default::default();
+            };
+            let Some(library) = host.library.clone() else {
+                return Default::default();
+            };
+            let page = PageViewHost {
+                workspace: host.workspace.clone(),
+                library,
+                book_id: host.book_id.clone(),
+                book: host.book.clone(),
+            };
+            let id = id.to_string();
+            CardRows {
+                before_danger: vec![PageMenuSection {
+                    title: None,
+                    items: vec![PageMenuItem {
+                        id: "entry-toggle-level".into(),
+                        icon: dr_ui::sand::Icon::Layers.into(),
+                        label: dr_shell::strings::t(cx, dr_i18n::keys::v3_shell::LEVEL_SWITCH),
+                        checked: entry.level,
+                        danger: false,
+                        run: Rc::new(move |window, cx| {
+                            dr_shell::v3::page::toggle_level(page.clone(), id.clone(), window, cx);
+                        }),
+                    }],
+                }],
+                ..Default::default()
+            }
+        });
     }
 }

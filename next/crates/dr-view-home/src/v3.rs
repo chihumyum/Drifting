@@ -189,6 +189,11 @@ pub struct Home {
 }
 
 impl Home {
+    /// How many times Home has started reading the book's numbers (for tests).
+    pub fn reads(&self) -> u64 {
+        self.generation
+    }
+
     pub fn new(ws: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
         let mut this = Self {
@@ -316,6 +321,25 @@ impl Home {
         dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.clone().into());
         Some(dialog)
     }
+
+    pub fn ask_settings(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<crate::v3_settings::SettingsDialog>> {
+        let lib = self.lib.clone()?;
+        let ws = self.ws.upgrade()?;
+        let data = self.loaded.as_ref()?.clone();
+        let source_book = self.source.as_ref()?.id.clone();
+        let book = ws.read(cx).book_id.clone();
+        if book != source_book {
+            return None;
+        }
+        let dialog =
+            cx.new(|cx| crate::v3_settings::SettingsDialog::new(lib, book, &data, window, cx));
+        dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.clone().into());
+        Some(dialog)
+    }
 }
 
 impl Render for Home {
@@ -431,9 +455,7 @@ impl Render for Home {
                 )
             };
             column = column.child(today_text);
-            let ws = self.ws.clone();
-            let data = loaded.clone();
-            let lib = self.lib.clone();
+            let home = cx.entity();
             let settings_book = book.id.clone();
             column = column.child(
                 Button::new(
@@ -442,16 +464,11 @@ impl Render for Home {
                 )
                 .text()
                 .on_click(move |_, window, cx| {
-                    if let (Some(lib), Some(ws)) = (lib.clone(), ws.upgrade()) {
-                        let book = ws.read(cx).book_id.clone();
-                        if book != settings_book {
-                            return;
+                    home.update(cx, |h, cx| {
+                        if h.source.as_ref().is_some_and(|b| b.id == settings_book) {
+                            let _ = h.ask_settings(window, cx);
                         }
-                        let dialog = cx.new(|cx| {
-                            crate::v3_settings::SettingsDialog::new(lib, book, &data, window, cx)
-                        });
-                        dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.into());
-                    }
+                    });
                 }),
             );
             let mut pages = self.recent.clone();

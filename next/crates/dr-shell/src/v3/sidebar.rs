@@ -175,7 +175,70 @@ impl Render for Sidebar {
         } else {
             div().into_any_element()
         };
+        let loose_roots: Vec<AnyElement> = v
+            .roots
+            .iter()
+            .filter(|id| !v.levels.contains_key(*id))
+            .filter_map(|id| {
+                let entry = v.entry(id)?;
+                let target = super::entry_target(id)?;
+                let weak = self.host.workspace.clone();
+                let (mark, color) = book.mark(&target);
+                let selected = weak
+                    .upgrade()
+                    .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
+                let card_target = target.clone();
+                let card_ws = weak.upgrade();
+                let cell = SandCell::new(
+                    SharedString::from(format!("v3-root-row-{id}")),
+                    entry.title.clone(),
+                )
+                .mark(mark)
+                .color_opt(color)
+                .selected(selected)
+                .on_click(move |event, _, cx| {
+                    if let Some(ws) = weak.upgrade() {
+                        ws.update(cx, |ws, cx| {
+                            ws.open(
+                                target.clone(),
+                                if event.click_count() > 1 {
+                                    Open::KEEP
+                                } else {
+                                    Open::PREVIEW
+                                },
+                                cx,
+                            )
+                        });
+                    }
+                });
+                Some(match card_ws {
+                    Some(ws) => crate::workspace::page_hover_card(
+                        format!("v3-root-entry-{id}"),
+                        cell,
+                        &card_target,
+                        &ws,
+                        Default::default(),
+                        cx,
+                    ),
+                    None => cell.into_any_element(),
+                })
+            })
+            .collect();
         content = content.child(div().flex_1().min_h_0().px_2().py_2().child(body));
+        if !loose_roots.is_empty() {
+            content = content.child(
+                div()
+                    .id("v3-loose-roots")
+                    .flex_shrink_0()
+                    .max_h(px(144.0))
+                    .overflow_y_scroll()
+                    .px_2()
+                    .py_1()
+                    .flex()
+                    .flex_col()
+                    .children(loose_roots),
+            );
+        }
         let mut templates = div()
             .id("v3-template-list")
             .overflow_y_scroll()

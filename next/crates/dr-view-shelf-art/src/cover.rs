@@ -68,10 +68,10 @@ pub fn cover_key(id: &str, style: CoverStyle, request: &CoverRequest) -> String 
     )
 }
 
-/// A book's cover request from F3 (`chapter.list`, `storyline.list`): its
-/// live chapters in reading order with their words, its first six live
-/// storylines in the author's order with the chapters each carries. Run it
-/// off the main thread.
+/// A book's cover request from F3: the entries of its manuscript sequence
+/// (`in_book` prose only) in reading order with their words, and its first six
+/// live lanes in the author's order with the entries each carries. Run it off
+/// the main thread.
 pub fn cover_request(ws: &Workspace, book: &str, title: &str) -> CoverRequest {
     let empty = || CoverRequest {
         seed: cover_seed(book),

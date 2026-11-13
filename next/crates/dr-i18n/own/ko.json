@@ -37,20 +37,14 @@
       }
     },
     "v3": {
-      "destination": "별도의 새 v3 보관함을 만듭니다. 현재 보관함과 0.1 원본 보관함은 그대로 유지됩니다.",
+      "destination": "별도의 새 보관함을 만듭니다. 현재 보관함과 0.1 원본 보관함은 그대로 유지됩니다.",
       "pending": "가져오기 전에 매핑 선택이 필요합니다",
       "start": "새 보관함으로 가져오기",
-      "switching": "완료된 v3 보관함을 여는 중",
-      "title": "v3로 다시 가져오기"
+      "switching": "완료된 보관함을 여는 중",
+      "title": "새 보관함으로 다시 가져오기"
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "스토리라인과 독립된 아이디어 카드입니다.",
-        "label": "아이디어"
-      }
-    },
     "warnings": {
       "imagesDropped": "이미지 {{count}}개는 가져오지 않았습니다",
       "notUtf8": "UTF-8 텍스트가 아니어서 일부 문자를 바꿨습니다"
@@ -80,6 +74,9 @@
     "saveFailed": "저장할 수 없음",
     "title": "제목",
     "unset": "설정 안 됨"
+  },
+  "manuscriptExport": {
+    "manuscript": "원고"
   },
   "positionLink": {
     "copied": "위치 링크를 복사했습니다"
@@ -128,6 +125,7 @@
     "aliases": "별칭",
     "auto_link": "자동 링크",
     "board": "보드",
+    "children": "아래 항목",
     "choose_template": "템플릿 선택",
     "color": "색상",
     "conflict": "다른 곳에서 템플릿이 변경되었습니다",
@@ -146,15 +144,15 @@
     "grid": "그리드",
     "home": "새 항목의 위치",
     "image": "이미지",
+    "in_book": "글자 수 및 내보내기에 포함",
     "inherit": "상속",
     "instructions": "주의 사항",
     "island": "섬",
     "kv": "키-값 표",
     "lane": "레인",
-    "leaf": "리프",
-    "leaf_template": "리프 템플릿",
     "level": "계층",
-    "level_template": "계층 템플릿",
+    "level_hint": "켜면 아래에 항목을 둘 수 있습니다",
+    "linkable": "자동 링크에 이름 포함",
     "list": "목록",
     "long_text": "긴 텍스트",
     "manuscript": "원고",
@@ -206,6 +204,7 @@
     "formatShortcuts": "서식 단축 입력",
     "home": "새 항목의 위치",
     "isManuscript": "원고",
+    "lane": "스윔레인",
     "manuscriptOrder": "원고 순서",
     "members": "소속된 항목",
     "none": "없음",
@@ -232,21 +231,30 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "설명",
     "belongTo": "소속 지정",
     "board": "보드",
     "changeTemplate": "템플릿 변경",
+    "childrenEntries": "하위 항목",
     "editTemplate": "템플릿 편집",
     "entries": "항목",
+    "entryUntemplated": "항목",
     "grid": "그리드",
     "islands": "섬",
+    "levelSwitch": "계층",
+    "levelSwitchHint": "켜면 아래에 항목을 둘 수 있습니다",
     "list": "목록",
     "newEntry": "새로 만들기",
     "newTemplate": "새 템플릿",
     "open": "열기",
     "settings": "설정",
     "templates": "템플릿",
-    "trash": "최근 삭제 항목으로 이동"
+    "trash": "최근 삭제 항목으로 이동",
+    "turnOffLevelBody_other": "아래의 항목 {{count}}개가 각 하위 내용과 함께 최상위로 이동합니다. 여기에 소속된 항목과 타임라인의 스윔레인은 잠시 숨겨지며 다시 켜면 돌아옵니다.",
+    "turnOffLevelConfirm": "끄기",
+    "turnOffLevelConflict": "하위 항목이 방금 변경되었습니다. 최신 개수를 확인한 뒤 다시 진행해 주세요.",
+    "turnOffLevelTitle": "계층 끄기",
+    "untitledEntry": "제목 없는 항목",
+    "untitledNamed": "제목 없는 {{name}}"
   },
   "v3Timeline": {
     "actLevelName": "막",
@@ -276,7 +284,6 @@
     "views": "타임라인 보기"
   },
   "v3Transfer": {
-    "chapterDesc": "원고 장으로 타임라인에 배치할 수 있으며 글자 수에 포함됩니다.",
     "filesTitle": "파일",
     "targetTitle": "대상"
   }

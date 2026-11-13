@@ -42,20 +42,14 @@
       }
     },
     "v3": {
-      "destination": "Se creará una biblioteca v3 independiente. La biblioteca actual y el origen 0.1 se conservan.",
+      "destination": "Se creará una biblioteca nueva independiente. La biblioteca actual y el origen 0.1 se conservan.",
       "pending": "Se requieren opciones de asignación antes de importar",
       "start": "Importar en una biblioteca nueva",
-      "switching": "Abriendo la biblioteca v3 completada",
-      "title": "Reimportar como v3"
+      "switching": "Abriendo la biblioteca completada",
+      "title": "Reimportar en una biblioteca nueva"
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Tarjeta de idea flotante, independiente de las tramas.",
-        "label": "Idea"
-      }
-    },
     "warnings": {
       "imagesDropped_one": "No se importó {{count}} imagen",
       "imagesDropped_other": "No se importaron {{count}} imágenes",
@@ -87,6 +81,9 @@
     "saveFailed": "No se pudo guardar",
     "title": "Título",
     "unset": "Sin definir"
+  },
+  "manuscriptExport": {
+    "manuscript": "Manuscrito"
   },
   "positionLink": {
     "copied": "Enlace de posición copiado"
@@ -135,6 +132,7 @@
     "aliases": "Alias",
     "auto_link": "Enlaces automáticos",
     "board": "Tablero",
+    "children": "Entradas debajo",
     "choose_template": "Elegir plantilla",
     "color": "Color",
     "conflict": "La plantilla cambió en otro lugar",
@@ -153,15 +151,15 @@
     "grid": "Cuadrícula",
     "home": "Ubicación de nuevas entradas",
     "image": "Imagen",
+    "in_book": "Contar palabras y exportar",
     "inherit": "Heredar",
     "instructions": "Instrucciones",
     "island": "Islas",
     "kv": "Tabla de claves y valores",
     "lane": "Carril",
-    "leaf": "Hoja",
-    "leaf_template": "Plantilla de hoja",
     "level": "Nivel",
-    "level_template": "Plantilla de nivel",
+    "level_hint": "Al activarlo, admite entradas debajo",
+    "linkable": "Incluir el nombre en enlaces automáticos",
     "list": "Lista",
     "long_text": "Texto largo",
     "manuscript": "Manuscrito",
@@ -213,6 +211,7 @@
     "formatShortcuts": "Atajos de formato",
     "home": "Ubicación de las nuevas entradas",
     "isManuscript": "Manuscrito",
+    "lane": "Carril",
     "manuscriptOrder": "Orden del manuscrito",
     "members": "Entradas asignadas",
     "none": "Ninguna",
@@ -239,21 +238,31 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Descripción",
     "belongTo": "Asignar a",
     "board": "Tablero",
     "changeTemplate": "Cambiar plantilla",
+    "childrenEntries": "Entradas debajo",
     "editTemplate": "Editar plantilla",
     "entries": "Entradas",
+    "entryUntemplated": "Entrada",
     "grid": "Cuadrícula",
     "islands": "Islas",
+    "levelSwitch": "Nivel",
+    "levelSwitchHint": "Permite colocar entradas debajo",
     "list": "Lista",
     "newEntry": "Nuevo",
     "newTemplate": "Nueva plantilla",
     "open": "Abrir",
     "settings": "Ajustes",
     "templates": "Plantillas",
-    "trash": "Mover a Eliminados recientemente"
+    "trash": "Mover a Eliminados recientemente",
+    "turnOffLevelBody_one": "{{count}} entrada debajo se moverá al nivel superior junto con todo lo que contiene. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
+    "turnOffLevelBody_other": "{{count}} entradas debajo se moverán al nivel superior junto con todo lo que contienen. Las entradas asignadas y su carril en la línea de tiempo se ocultarán hasta que vuelvas a activarlo.",
+    "turnOffLevelConfirm": "Desactivar",
+    "turnOffLevelConflict": "Las entradas debajo acaban de cambiar. Revisa la cantidad actualizada y vuelve a confirmar.",
+    "turnOffLevelTitle": "Desactivar nivel",
+    "untitledEntry": "Entrada sin título",
+    "untitledNamed": "{{name}} sin título"
   },
   "v3Timeline": {
     "actLevelName": "Actos",
@@ -283,7 +292,6 @@
     "views": "Vistas de cronología"
   },
   "v3Transfer": {
-    "chapterDesc": "Capítulo del manuscrito: puede colocarse en la cronología y cuenta en las estadísticas.",
     "filesTitle": "Archivos",
     "targetTitle": "Destino"
   }

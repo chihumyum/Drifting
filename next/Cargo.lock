@@ -2614,6 +2614,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "color_quant",
+ "dr-doc",
  "dr-i18n",
  "dr-model",
  "dr-shell",

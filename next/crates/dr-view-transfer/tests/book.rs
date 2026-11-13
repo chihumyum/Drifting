@@ -142,6 +142,91 @@ fn a_file_that_is_not_a_book_is_refused(cx: &mut TestAppContext) {
     assert!(shown(&view, cx).is_none());
 }
 
+fn stored_zip(name: &[u8], body: &[u8]) -> Vec<u8> {
+    let mut crc = !0u32;
+    for &b in body {
+        crc ^= u32::from(b);
+        for _ in 0..8 {
+            crc = (crc >> 1) ^ (0xedb8_8320 * (crc & 1));
+        }
+    }
+    let crc = !crc;
+    let len = body.len() as u32;
+    let nlen = name.len() as u16;
+    let mut out = Vec::new();
+    out.extend_from_slice(b"PK\x03\x04");
+    out.extend_from_slice(&20u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&crc.to_le_bytes());
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(&nlen.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(name);
+    out.extend_from_slice(body);
+    let cd_offset = out.len() as u32;
+    out.extend_from_slice(b"PK\x01\x02");
+    out.extend_from_slice(&20u16.to_le_bytes());
+    out.extend_from_slice(&20u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&crc.to_le_bytes());
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(&nlen.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(name);
+    let cd_size = out.len() as u32 - cd_offset;
+    out.extend_from_slice(b"PK\x05\x06");
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&cd_size.to_le_bytes());
+    out.extend_from_slice(&cd_offset.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out
+}
+
+#[gpui::test]
+fn a_format_3_book_file_is_refused_without_writing_anything(cx: &mut TestAppContext) {
+    assert_eq!(dr_export::book_file::FORMAT_VERSION, 4);
+    let (dir, lib, _) = library();
+    let docs_before = lib.library().docs(None, None).unwrap().len();
+    let (view, cx) = setup(cx, lib.clone());
+    let file = dir.path().join("format3.driftingbook");
+    std::fs::write(
+        &file,
+        stored_zip(
+            b"manifest.json",
+            br#"{"format":"drifting.book","formatVersion":3}"#,
+        ),
+    )
+    .unwrap();
+    let dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
+    assert!(shown(&view, cx).is_some());
+    wait_for(cx, |cx| !dialog.read_with(cx, |d, _| d.is_working()));
+    let state = dialog.read_with(cx, |d, _| d.state.clone());
+    let State::Failed { title, reason, .. } = state else {
+        panic!("{state:?}")
+    };
+    use dr_i18n::keys::project_picker::book_transfer as k;
+    assert_eq!((title, reason), (k::IMPORT_FAILED_TITLE, k::OLDER));
+    assert_eq!(books(&lib), 1);
+    assert_eq!(lib.library().docs(None, None).unwrap().len(), docs_before);
+    cx.cx.update(|cx| dialog.update(cx, |d, cx| d.close(cx)));
+    cx.run_until_parked();
+    assert!(shown(&view, cx).is_none());
+}
+
 #[gpui::test]
 fn a_v3_book_uses_the_same_save_and_import_flow(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().unwrap();

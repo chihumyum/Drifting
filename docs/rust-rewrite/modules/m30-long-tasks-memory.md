@@ -67,3 +67,5 @@
 `novel_starters_keep_existing_translations` 与已有 onboarding／proactive 契约覆盖模板搬移；工具冻结断言保持三个内建入口。M30 机制提交：`5b97462b`。
 
 轨道 3 全量复核补充：原生 onboarding 保留生成 Key 的类型适配，契约逐项核对集中模板的键名，防止与唯一翻译来源漂移；移除未呈现的暂停状态／记忆说明所对应的冗余翻译登记，没有修改翻译正文。
+
+统一条目（内核 v4，T3，2026-11-13）补充：`dr-agent/src/evidence.rs` 的 `capture_settlements` 在核对步骤写入目标时显式跳过 `checkpoints:<book>`、`stats:<book>` 等非书目／非正文侧文档回执，避免写前自动 `entry_snapshot` 打点产生的侧文档回执在长任务证明阶段触发 `WrongKind`，同时保持对 `book:<id>` 与正文文档目标的严格核对。`dr-view-agent` 主动建议的 `checkin_project` 同步改走 `Workspace::read_book_v3` 活文档读取，避免大书历史重放。

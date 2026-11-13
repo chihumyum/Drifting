@@ -21,22 +21,49 @@ pub struct Entry {
     pub prose: Vec<DocId>,
 }
 
+/// One outermost manuscript level (`ManuscriptPart`) and the entries with book
+/// prose inside it, in manuscript order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Part {
+    pub id: String,
+    pub title: String,
+    /// Ancestor titles from the top of the tree down to this manuscript root.
+    pub path: Vec<String>,
+    pub mark: Option<String>,
+    pub color: Option<String>,
+    pub entries: Vec<Entry>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Outline {
     pub book: String,
     pub title: String,
+    pub parts: Vec<Part>,
     pub entries: Vec<Entry>,
 }
 
 impl Outline {
     /// Share the existing picker layout without assigning acts to v3 levels.
     pub fn picker(&self) -> crate::Outline {
+        self.picker_for(None)
+    }
+
+    /// Picker layout scoped to `manuscript` (`Part::id`), or across every
+    /// manuscript part when `None`.
+    pub fn picker_for(&self, manuscript: Option<&str>) -> crate::Outline {
+        let entries: &[Entry] = match manuscript {
+            Some(id) => self
+                .parts
+                .iter()
+                .find(|p| p.id == id)
+                .map_or(&[], |p| p.entries.as_slice()),
+            None => &self.entries,
+        };
         crate::Outline {
             book: self.book.clone(),
             title: self.title.clone(),
             acts: Vec::new(),
-            chapters: self
-                .entries
+            chapters: entries
                 .iter()
                 .map(|entry| crate::ChapterEntry {
                     id: entry.id.clone(),
@@ -47,6 +74,42 @@ impl Outline {
                 .collect(),
         }
     }
+}
+
+fn path_of(structure: &dr_doc::v3::BookStructureV3, id: &dr_model::id::EntryId) -> Vec<String> {
+    let mut chain = Vec::new();
+    let mut seen = HashSet::new();
+    let mut cur = Some(id);
+    while let Some(entry_id) = cur {
+        if !seen.insert(entry_id.clone()) {
+            break;
+        }
+        let Some(entry) = structure.entry(entry_id) else {
+            break;
+        };
+        chain.push(entry.title.clone());
+        cur = structure.effective_parent(entry_id);
+    }
+    chain.reverse();
+    chain
+}
+
+fn color_of(
+    entry: &dr_model::v3::Entry,
+    template: Option<&dr_model::v3::EntryTemplate>,
+) -> Option<String> {
+    let template = template?;
+    template
+        .modules
+        .iter()
+        .find_map(|m| {
+            let field = m.config.color_field.as_ref()?;
+            match entry.fields.get(&m.id)?.get(field)? {
+                dr_model::v3::FieldValue::Text(s) if !s.is_empty() => Some(s.clone()),
+                _ => None,
+            }
+        })
+        .or_else(|| template.color.clone())
 }
 
 fn invalid(e: impl ToString) -> ExportError {
@@ -84,31 +147,48 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
             // (an organizing level, say) do not appear.
             let structure = view.structure_snapshot();
             let templates = structure.templates_map();
-            let entries = structure
+            let parts: Vec<Part> = structure
                 .manuscript()
                 .into_iter()
-                .flat_map(|p| p.entries)
-                .filter(|e| !e.prose.is_empty())
-                .map(|e| Entry {
-                    id: e.entry.id.to_string(),
-                    title: e.entry.title.clone(),
-                    mark: e
-                        .entry
-                        .effective_template(templates)
-                        .and_then(|t| t.mark.clone()),
-                    prose: e.prose.iter().map(|p| p.doc.clone()).collect(),
+                .map(|p| {
+                    let root_tpl = p.root.effective_template(templates);
+                    let entries = p
+                        .entries
+                        .into_iter()
+                        .filter(|e| !e.prose.is_empty())
+                        .map(|e| Entry {
+                            id: e.entry.id.to_string(),
+                            title: e.entry.title.clone(),
+                            mark: e
+                                .entry
+                                .effective_template(templates)
+                                .and_then(|t| t.mark.clone()),
+                            prose: e.prose.iter().map(|p| p.doc.clone()).collect(),
+                        })
+                        .collect();
+                    Part {
+                        id: p.root.id.to_string(),
+                        title: p.root.title.clone(),
+                        path: path_of(&structure, &p.root.id),
+                        mark: root_tpl.and_then(|t| t.mark.clone()),
+                        color: color_of(p.root, root_tpl),
+                        entries,
+                    }
                 })
                 .collect();
+            let entries = parts.iter().flat_map(|p| p.entries.clone()).collect();
             Ok(Outline {
                 book: id.to_string(),
                 title: meta.name,
+                parts,
                 entries,
             })
         })
         .map_err(invalid)?
 }
 
-/// Uses the existing manuscript options and writers. `chapters` selects leaf
+/// Uses the existing manuscript options and writers. `manuscript` selects one
+/// outermost manuscript part when a book has multiple; `chapters` selects
 /// entry ids; `act_titles` has no v3 meaning and adds no invented hierarchy.
 /// Module content is concatenated without inserting module headings or copy.
 #[allow(clippy::too_many_arguments)]
@@ -122,8 +202,18 @@ pub fn read_manuscript(
     now: SystemTime,
 ) -> Result<Manuscript> {
     let outline = outline(ws, book)?;
-    let entries: Vec<_> = outline
-        .entries
+    let source_entries: &[Entry] = match options.manuscript.as_deref() {
+        Some(part_id) => {
+            let part = outline
+                .parts
+                .iter()
+                .find(|p| p.id == part_id)
+                .ok_or_else(|| ExportError::NotFound(format!("manuscript {part_id}")))?;
+            &part.entries
+        }
+        None => &outline.entries,
+    };
+    let entries: Vec<_> = source_entries
         .iter()
         .filter(|e| {
             options

@@ -6,15 +6,16 @@
 //! constants after book creation.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
-use dr_doc::v3::{BookViewV3, BorrowedBookV3, is_book_doc};
+use dr_doc::v3::{BookViewV3, BorrowedBookV3};
 use dr_model::{
     DocId,
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
         Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
-        ProjectTemplateRef, effective_ancestors, resolve_level_settings,
-        resolve_level_settings_with_sources,
+        ProjectTemplateRef, effective_ancestors, effective_manuscript_levels, effective_parent_id,
+        resolve_level_settings, resolve_level_settings_with_sources,
     },
 };
 use dr_store::Library;
@@ -219,27 +220,36 @@ impl StructureContext {
         book: &BookId,
         focus: Option<&FocusRequest>,
     ) -> Result<Option<Self>> {
-        let book_doc = format!("book:{book}");
-        for _ in 0..3 {
-            let before = ws.version(&book_doc)?;
-            let copy = ws.library().load_copy(&book_doc)?;
-            if !is_book_doc(&copy) {
-                return Ok(None);
-            }
-            let borrowed =
-                BorrowedBookV3::new(&copy, book).map_err(|e| Error::Workspace(e.into()))?;
-            let view = borrowed.view();
-            if view.trashed_at().is_some() {
-                return Err(Error::Invalid("book is unavailable".into()));
-            }
-            let built = Self::from_v3_view(Some(ws.library()), &view, &before, focus)?;
-            if before == ws.version(&book_doc)? {
-                return Ok(Some(built));
-            }
-        }
-        Err(Error::Conflict(
-            "book structure changed while assembling context; read again".into(),
-        ))
+        Self::for_book_with_catalog(ws, book, None, focus)
+    }
+
+    pub(crate) fn for_book_with_catalog(
+        ws: &Workspace,
+        book: &BookId,
+        catalog: Option<Arc<Catalog>>,
+        focus: Option<&FocusRequest>,
+    ) -> Result<Option<Self>> {
+        let book_id = book.clone();
+        let lib = ws.library().clone();
+        let focus = focus.cloned();
+        let built = ws.read_book_v3(book.as_str(), move |doc, version| {
+            Ok((|| -> Result<Self> {
+                let borrowed =
+                    BorrowedBookV3::new(doc, &book_id).map_err(|e| Error::Workspace(e.into()))?;
+                let view = borrowed.view();
+                if view.trashed_at().is_some() {
+                    return Err(Error::Invalid("book is unavailable".into()));
+                }
+                Self::from_v3_view_with_catalog(
+                    Some(&lib),
+                    &view,
+                    &version,
+                    catalog.as_deref(),
+                    focus.as_ref(),
+                )
+            })())
+        })??;
+        Ok(Some(built))
     }
 
     /// Assemble a `StructureContext` from an already-opened `BookViewV3`.
@@ -251,14 +261,42 @@ impl StructureContext {
         book_version: &str,
         focus: Option<&FocusRequest>,
     ) -> Result<Self> {
-        let catalog = Catalog::from_v3_view(view.book_id(), view);
+        Self::from_v3_view_with_catalog(lib, view, book_version, None, focus)
+    }
+
+    fn from_v3_view_with_catalog(
+        lib: Option<&Library>,
+        view: &BookViewV3<'_>,
+        book_version: &str,
+        existing_catalog: Option<&Catalog>,
+        focus: Option<&FocusRequest>,
+    ) -> Result<Self> {
         let meta = view.meta();
-        let ordered_entries = view.entries();
-        let entries_map: BTreeMap<EntryId, Entry> = ordered_entries
-            .iter()
-            .map(|e| (e.id.clone(), e.clone()))
-            .collect();
         let templates_map = view.templates_map();
+        let entries_map = view.entry_headers_with(&BTreeMap::new());
+        let ordered_ids = crate::catalog::ordered_entry_ids(view, &entries_map);
+        let ordered_levels: Vec<EntryId> = ordered_ids
+            .iter()
+            .filter(|id| {
+                entries_map
+                    .get(*id)
+                    .is_some_and(|e| !e.is_trashed() && e.is_level())
+            })
+            .cloned()
+            .collect();
+        let owned_catalog;
+        let catalog = match existing_catalog {
+            Some(c) => c,
+            None => {
+                owned_catalog = Catalog::from_v3_parts(
+                    view.book_id(),
+                    &templates_map,
+                    &entries_map,
+                    &ordered_levels,
+                );
+                &owned_catalog
+            }
+        };
         let live_templates: BTreeMap<EntryTemplateId, EntryTemplate> = templates_map
             .iter()
             .filter(|(_, t)| !t.is_trashed())
@@ -270,10 +308,16 @@ impl StructureContext {
             diagnostics.push(action_diagnostic_to_structure(diag));
         }
 
+        let live_entries: Vec<&Entry> = ordered_ids
+            .iter()
+            .filter_map(|id| entries_map.get(id))
+            .filter(|e| !e.is_trashed())
+            .collect();
+
         // 1. Roots: top-level live entries in manuscript order.
-        let roots: Vec<RootSummary> = view
-            .children_of(None)
-            .into_iter()
+        let roots: Vec<RootSummary> = live_entries
+            .iter()
+            .filter(|e| effective_parent_id(e, &entries_map).is_none())
             .map(|e| {
                 let effective = e.effective_template(&templates_map);
                 let missing_template = e
@@ -283,7 +327,7 @@ impl StructureContext {
                     .map(ToString::to_string);
                 RootSummary {
                     id: e.id.to_string(),
-                    title: e.title,
+                    title: e.title.clone(),
                     template: effective.map(|t| t.id.to_string()),
                     missing_template,
                     level: e.level,
@@ -293,8 +337,6 @@ impl StructureContext {
 
         // 2. Collect relevant live templates and record missing-template diagnostics.
         let mut included_templates = BTreeSet::new();
-        let live_entries: Vec<&Entry> =
-            ordered_entries.iter().filter(|e| !e.is_trashed()).collect();
 
         for e in &live_entries {
             if let Some(tid) = &e.template {
@@ -349,7 +391,7 @@ impl StructureContext {
         let templates: Vec<TemplateSummary> = included_templates
             .iter()
             .filter_map(|tid| live_templates.get(tid))
-            .map(|template| summarize_template(template, &catalog))
+            .map(|template| summarize_template(template, catalog))
             .collect();
 
         // 5. Build LevelSummary list for all live levels in manuscript tree order.
@@ -391,7 +433,7 @@ impl StructureContext {
             .collect();
 
         // 6. Manuscript roots in tree order.
-        let manuscript_set = view.manuscript_levels();
+        let manuscript_set = effective_manuscript_levels(&entries_map, &templates_map);
         let manuscript_roots: Vec<String> = live_entries
             .iter()
             .filter(|e| manuscript_set.contains(&e.id))
@@ -590,7 +632,8 @@ fn build_focus(
     let mut ctx = FocusContext::default();
 
     if let Some(raw_entry) = &req.entry {
-        let entry = resolve_focus_entry(entries_map, raw_entry)?;
+        let header = resolve_focus_entry(entries_map, raw_entry)?;
+        let entry = view.entry_raw(&header.id).unwrap_or(header);
         let effective_tpl = entry.effective_template(templates_map);
         let missing_template = entry
             .template
@@ -600,7 +643,7 @@ fn build_focus(
         if let Some(tpl) = effective_tpl {
             included_templates.insert(tpl.id.clone());
         }
-        let home = view.effective_parent(&entry.id);
+        let home = effective_parent_id(&entry, entries_map);
         for anc_id in effective_ancestors(entries_map, &entry.id) {
             if let Some(anc) = entries_map.get(&anc_id)
                 && let Some(tpl) = anc.effective_template(templates_map)

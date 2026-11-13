@@ -55,6 +55,19 @@ fn main() -> anyhow::Result<()> {
         .unwrap()
         .id;
     seeded.write_to(ws.library())?;
+    let parent_level = ws.call(
+        &dr_workspace::Actor::User,
+        "entry.create",
+        json!({"book":book,"title":"V4 smoke parent","level":true}),
+    )?["output"]["id"]
+        .as_str()
+        .expect("smoke parent id")
+        .to_owned();
+    ws.call(
+        &dr_workspace::Actor::User,
+        "entry.create",
+        json!({"book":book,"title":"V4 smoke child","parent":parent_level,"level":false}),
+    )?;
     let scripts = vec![
         call("book-read", "book.get", json!({})),
         call(
@@ -82,6 +95,12 @@ fn main() -> anyhow::Result<()> {
             "comment-read",
             "comment.list",
             json!({"target":{"kind":"entry","id":entry},"module":MOD_PROSE}),
+        ),
+        call("level-read", "entry.get", json!({"id":"V4 smoke parent"})),
+        call(
+            "level-off",
+            "entry.set_level",
+            json!({"id":"V4 smoke parent","level":false}),
         ),
         vec![
             Step::Event(E::TextDelta {

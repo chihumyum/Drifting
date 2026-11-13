@@ -171,8 +171,7 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
-    "untitledChapter": "Chapitre sans titre",
-    "untitledDrift": "Idée sans titre"
+    "untitledChapter": "Chapitre sans titre"
   },
   "chapterEnd": {
     "defaultTitle": "Nouveau chapitre",
@@ -391,15 +390,14 @@
       }
     },
     "v3": {
-      "destination": "Une bibliothèque v3 distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
+      "destination": "Une nouvelle bibliothèque distincte sera créée. La bibliothèque actuelle et la source 0.1 sont conservées.",
       "pending": "Choix de correspondance requis avant l’import",
       "start": "Importer dans une nouvelle bibliothèque",
-      "switching": "Ouverture de la bibliothèque v3 terminée",
-      "title": "Réimporter en v3"
+      "switching": "Ouverture de la bibliothèque terminée",
+      "title": "Réimporter dans une nouvelle bibliothèque"
     }
   },
   "importDialog": {
-    "categoryTitle": "Catégorie",
     "chooseFiles": "Choisir des fichiers",
     "chooseFolder": "Choisir un dossier",
     "clear": "Effacer",
@@ -411,24 +409,10 @@
       "parsing": "analyse",
       "ready": "prêt"
     },
-    "storylineTitle": "Intrigue",
     "summary": {
       "done": "Terminé",
       "failed": "échec",
       "ok": "importé"
-    },
-    "targets": {
-      "chapter": {
-        "label": "Chapitre"
-      },
-      "element": {
-        "desc": "Documentation sur personnages, lieux ou objets. Catégorie requise.",
-        "label": "Élément"
-      },
-      "idea": {
-        "desc": "Carte d’idée flottante, indépendante des intrigues.",
-        "label": "Idée"
-      }
     },
     "title": "Importer des fichiers",
     "warnings": {
@@ -500,6 +484,7 @@
     "format": "Format",
     "loadFailed": "Impossible de lire les chapitres. Réessayez.",
     "loading": "Lecture des chapitres…",
+    "manuscript": "Manuscrit",
     "menu": "Exporter le manuscrit",
     "removeCover": "Retirer",
     "retry": "Réessayer",
@@ -652,8 +637,7 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Chapitre",
-      "chapterNumber": "Chapitre {{n}}",
-      "drift": "Idée"
+      "chapterNumber": "Chapitre {{n}}"
     },
     "meta": {
       "words": "{{count}} mots"
@@ -957,7 +941,6 @@
       "review": "Projet · Relecture",
       "stats": {
         "all-chapters": "Livre entier · rythme",
-        "category": "Cette catégorie · statistiques détaillées",
         "chapter": "Ce chapitre · statistiques détaillées",
         "element": "Cet élément · statistiques détaillées",
         "material": "Cette ressource · Détails",
@@ -966,7 +949,6 @@
       }
     },
     "stats": {
-      "category": "Catégorie",
       "chapter": "Chapitre",
       "dialogueRatio": "Part de dialogue",
       "name": "Nom",
@@ -1472,6 +1454,7 @@
     "aliases": "Alias",
     "auto_link": "Liens automatiques",
     "board": "Tableau",
+    "children": "Entrées ci-dessous",
     "choose_template": "Choisir un modèle",
     "color": "Couleur",
     "conflict": "Le modèle a été modifié ailleurs",
@@ -1490,15 +1473,15 @@
     "grid": "Grille",
     "home": "Emplacement des nouvelles entrées",
     "image": "Image",
+    "in_book": "Compter les mots et exporter",
     "inherit": "Hériter",
     "instructions": "Consignes",
     "island": "Îles",
     "kv": "Table clé-valeur",
     "lane": "Couloir",
-    "leaf": "Feuille",
-    "leaf_template": "Modèle de feuille",
     "level": "Niveau",
-    "level_template": "Modèle de niveau",
+    "level_hint": "Activé, des entrées peuvent se trouver dessous",
+    "linkable": "Inclure le nom dans les liens automatiques",
     "list": "Liste",
     "long_text": "Texte long",
     "manuscript": "Manuscrit",
@@ -1581,6 +1564,7 @@
     "formatShortcuts": "Raccourcis de mise en forme",
     "home": "Emplacement des nouvelles entrées",
     "isManuscript": "Manuscrit",
+    "lane": "Couloir",
     "manuscriptOrder": "Ordre du manuscrit",
     "members": "Entrées rattachées",
     "none": "Aucun",
@@ -1607,21 +1591,31 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
-    "about": "Description",
     "belongTo": "Rattacher à",
     "board": "Tableau",
     "changeTemplate": "Changer de modèle",
+    "childrenEntries": "Entrées en dessous",
     "editTemplate": "Modifier le modèle",
     "entries": "Entrées",
+    "entryUntemplated": "Entrée",
     "grid": "Grille",
     "islands": "Îles",
+    "levelSwitch": "Niveau",
+    "levelSwitchHint": "Permet de placer des entrées en dessous",
     "list": "Liste",
     "newEntry": "Nouveau",
     "newTemplate": "Nouveau modèle",
     "open": "Ouvrir",
     "settings": "Réglages",
     "templates": "Modèles",
-    "trash": "Déplacer vers les suppressions récentes"
+    "trash": "Déplacer vers les suppressions récentes",
+    "turnOffLevelBody_one": "{{count}} entrée en dessous sera déplacée au premier niveau avec tout ce qu’elle contient. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
+    "turnOffLevelBody_other": "{{count}} entrées en dessous seront déplacées au premier niveau avec tout ce qu’elles contiennent. Les entrées rattachées et son couloir dans la chronologie seront masqués jusqu’à sa réactivation.",
+    "turnOffLevelConfirm": "Désactiver",
+    "turnOffLevelConflict": "Les entrées en dessous viennent de changer. Vérifiez le nouveau nombre puis confirmez à nouveau.",
+    "turnOffLevelTitle": "Désactiver le niveau",
+    "untitledEntry": "Entrée sans titre",
+    "untitledNamed": "{{name}} sans titre"
   },
   "v3Timeline": {
     "actLevelName": "Actes",
@@ -1651,7 +1645,6 @@
     "views": "Vues chronologiques"
   },
   "v3Transfer": {
-    "chapterDesc": "Chapitre du manuscrit : peut figurer sur la chronologie et compte dans les statistiques.",
     "filesTitle": "Fichiers",
     "targetTitle": "Destination"
   },

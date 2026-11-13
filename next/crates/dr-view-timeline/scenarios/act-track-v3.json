@@ -1,5 +1,5 @@
 {
-  "about": "幕轨道（第 22 条，作者已定 11-11）真窗口往返验收：新建幕轨道 → 在里面建条目 → 拖一个外部条目进来 → 拉长短 → 关掉重开，数据都在。",
+  "about": "幕轨道与泳道层级开关（内核 v4 T8）真窗口往返验收：按默认泳道模板选建幕轨道 → 在里面建条目 → 拖一个外部条目进来 → 拉长短 → 关掉重开 → 关掉与重开层级开关，泳道与摆放原样恢复。",
   "steps": [
     {
       "seed": "tiny"
@@ -48,6 +48,11 @@
       }
     },
     {
+      "app": "app.info",
+      "params": {},
+      "save": "env_launch_1"
+    },
+    {
       "app": "book.open",
       "params": {
         "book": "${books.0.id}"
@@ -75,8 +80,15 @@
       "params": {
         "label": "New act track",
         "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "幕",
+        "role": "MenuItem"
       },
-      "note": "1. 新建幕轨道：在树顶层创建 Acts 层级并加入当前视图顶部。"
+      "note": "1. 新建幕轨道：从默认开着泳道的模板里选「幕」，在树顶层创建 Acts 层级并加入当前视图顶部。"
     },
     {
       "app": "ui.find",
@@ -122,7 +134,7 @@
         "label": "New entry",
         "role": "MenuItem"
       },
-      "note": "2. 在幕轨道里新建条目：默认用构想叶子模板住在幕下，并直接赋予区间长度。"
+      "note": "2. 在幕轨道里新建条目：默认用构想模板住在幕下，并直接赋予区间长度。"
     },
     {
       "app": "ui.find",
@@ -309,6 +321,11 @@
       }
     },
     {
+      "app": "app.info",
+      "params": {},
+      "save": "env_launch_2"
+    },
+    {
       "app": "book.open",
       "params": {
         "book": "${books.0.id}"
@@ -378,6 +395,96 @@
     {
       "app": "ui.screenshot",
       "png": "02-act-track-after-reopen.png"
+    },
+    {
+      "call": "entry.set_level",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${after_track.0.lanes.0.entry}",
+        "level": false
+      },
+      "note": "6. 关掉泳道条目的层级开关：幕轨道与孤立摆放暂时收起，重新打开开关后原样恢复。"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "views_level_off"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${views_level_off}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane Acts",
+        "role": "Group",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-act-track-level-off.png"
+    },
+    {
+      "call": "entry.set_level",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${after_track.0.lanes.0.entry}",
+        "level": true
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${before_quit_views}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane Acts",
+        "role": "Group",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Untitled",
+        "role": "Button",
+        "within": {
+          "label": "Lane Acts",
+          "role": "Group"
+        },
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane Acts",
+          "role": "Group"
+        },
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-act-track-level-restored.png"
     },
     {
       "app": "app.quit"
