@@ -3,12 +3,13 @@
 //! - **`.driftingbook`** ([`book`]): the bookshelf card's export icon
 //!   ([`dr_view_shelf::ExportBook`]) and 「导入书（.driftingbook）」
 //!   ([`dr_view_shelf::ImportBook`]), as the 0.1 shelf; the file is
-//!   `dr_export::book_file` (format version 2).
+//!   `dr_export::book_file` (format version 4).
 //!
 //! - **Importing documents** ([`documents`]): Markdown, text and Word
-//!   files into the open book as chapters, elements or ideas, from the
-//!   account menu's 「导入」 ([`dr_shell::actions::ImportDocuments`]); the
-//!   reading and writing are `dr_export::import`.
+//!   files into a chosen level of the open book using its resolved default
+//!   template, from the account menu's 「导入」
+//!   ([`dr_shell::actions::ImportDocuments`]); the reading and writing are
+//!   `dr_export::import`.
 //! - **Backup and restore** ([`backup`]): the whole library as one
 //!   `.drifting` file and back, on `dr_store::backup`, from Settings →
 //!   本地数据 ([`dr_shell::actions::BackupLibrary`], `RestoreLibrary`);

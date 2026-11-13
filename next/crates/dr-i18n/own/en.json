@@ -50,12 +50,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Floating idea card — independent from storylines.",
-        "label": "Idea"
-      }
-    },
     "warnings": {
       "imagesDropped_one": "{{count}} image wasn't imported",
       "imagesDropped_other": "{{count}} images weren't imported",
@@ -286,7 +280,6 @@
     "views": "Timeline views"
   },
   "v3Transfer": {
-    "chapterDesc": "Manuscript chapter — can be placed on the timeline and counts toward word stats.",
     "filesTitle": "Files",
     "targetTitle": "Target"
   }

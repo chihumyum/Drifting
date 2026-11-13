@@ -1,14 +1,16 @@
-//! 「导入文件」: Markdown, text and Word files into the open book (the 0.1
-//! client's `ImportDialog`, on `dr_export::import`).
+//! 「导入文件」: Markdown, text and Word files into the open book (on
+//! `dr_export::import`).
 //!
-//! One kind per import, as in 0.1: chapters (in the chosen storyline, after
-//! the last chapter), elements (in the chosen category) or ideas. Files come
-//! from the file panel or a whole folder (only `.md`, `.markdown`, `.txt`,
-//! `.docx`, in natural name order); each is read on its own thread as it is
-//! added, its title (an opening H1, else the file name) can be changed, and
-//! 「开始导入」 writes them in that order. Each file stands alone: one that
-//! fails says why and the rest go in.
+//! The target selector lists every live entry whose level switch is on, as its
+//! path in the tree; each imported file becomes a new entry under that level
+//! using its resolved default template. Files come from the file panel or a
+//! whole folder (only `.md`, `.markdown`, `.txt`, `.docx`, in natural name
+//! order); each is read on its own thread as it is added, its title (an
+//! opening H1, else the file name) can be changed, and 「开始导入」 writes
+//! them in that order. Each file stands alone: one that fails says why and the
+//! rest go in.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use dr_export::import::{
@@ -16,7 +18,7 @@ use dr_export::import::{
     import_docs, order_import_files, parse_file,
 };
 use dr_i18n::{I18n, Key, keys};
-use dr_ui::components::{Button, Choice, Dialog, RowIcon, Segmented, Select};
+use dr_ui::components::{Button, Choice, Dialog, RowIcon, Select};
 use dr_ui::input::{FieldEvent, TextField};
 use dr_ui::sand::{self, Icon};
 use dr_ui::style::DrStyled;
@@ -35,32 +37,13 @@ use keys::import_dialog as k;
 pub const WIDTH: f32 = 560.0;
 const LIST_MAX_HEIGHT: f32 = 280.0;
 
-/// What the files become.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
-    Chapter,
-    Element,
-    Idea,
-}
-
-impl Kind {
-    pub const ALL: [Kind; 3] = [Kind::Chapter, Kind::Element, Kind::Idea];
-
-    pub fn label(self) -> Key {
-        match self {
-            Kind::Chapter => k::targets::chapter::LABEL,
-            Kind::Element => k::targets::element::LABEL,
-            Kind::Idea => k::targets::idea::LABEL,
-        }
-    }
-
-    pub fn desc(self) -> Key {
-        match self {
-            Kind::Chapter => keys::v3_transfer::CHAPTER_DESC,
-            Kind::Element => k::targets::element::DESC,
-            Kind::Idea => k::targets::idea::DESC,
-        }
-    }
+/// One live entry whose level switch is on, in effective tree order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LevelOption {
+    pub id: String,
+    pub path: String,
+    pub mark: sand::Kind,
+    pub color: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,17 +81,55 @@ pub struct DocumentsDialog {
     lib: Workspace,
     book: String,
     i18n: I18n,
-    pub kind: Kind,
-    pub storylines: Vec<(String, String, Option<String>)>,
-    pub categories: Vec<(String, String, Option<String>)>,
-    pub storyline: usize,
-    pub category: usize,
+    pub levels: Vec<LevelOption>,
+    pub level: usize,
     pub items: Vec<Item>,
     pub running: bool,
     /// After an import: how many went in and how many did not.
     pub summary: Option<(usize, usize)>,
     next: usize,
     tasks: Vec<Task<()>>,
+}
+
+fn collect_levels(b: &dr_shell::book::v3::BookV3, i18n: &I18n) -> Vec<LevelOption> {
+    fn walk<'a>(
+        b: &'a dr_shell::book::v3::BookV3,
+        ids: &'a [String],
+        ancestors: &mut Vec<String>,
+        seen: &mut BTreeSet<&'a str>,
+        untitled: &str,
+        out: &mut Vec<LevelOption>,
+    ) {
+        for id in ids {
+            let Some(level) = b.levels.get(id.as_str()) else {
+                continue;
+            };
+            if !seen.insert(id.as_str()) {
+                continue;
+            };
+            let title = b
+                .entry(id)
+                .map(|e| e.title.trim())
+                .filter(|t| !t.is_empty())
+                .unwrap_or(untitled);
+            ancestors.push(title.to_owned());
+            let appearance = b.appearance(id);
+            out.push(LevelOption {
+                id: id.clone(),
+                path: ancestors.join(" / "),
+                mark: appearance.as_ref().map_or(sand::Kind::Element, |a| a.sand),
+                color: appearance.and_then(|a| a.color),
+            });
+            walk(b, &level.children, ancestors, seen, untitled, out);
+            ancestors.pop();
+        }
+    }
+    let mut out = Vec::new();
+    let mut ancestors = Vec::new();
+    let mut seen = BTreeSet::new();
+    let untitled = i18n.t(keys::k4_book::UNTITLED_ENTRY);
+    walk(b, &b.roots, &mut ancestors, &mut seen, untitled, &mut out);
+    out
 }
 
 /// The menu row's action: the dialog over the open book.
@@ -138,37 +159,16 @@ impl DocumentsDialog {
     pub fn new(lib: Workspace, book: String, cx: &mut Context<Self>) -> DocumentsDialog {
         let strings = dr_shell::Strings::get(cx);
         let i18n = I18n::new(strings.locale(), strings.platform());
-        let snapshot = dr_shell::book::Book::load(&lib, &book).ok();
-        let collect = |template: &str| {
-            snapshot
-                .as_ref()
-                .and_then(|b| b.v3())
-                .map(|b| {
-                    b.entries
-                        .iter()
-                        .filter(|e| e.template.as_deref() == Some(template))
-                        .map(|e| {
-                            (
-                                e.id.clone(),
-                                e.title.clone(),
-                                b.appearance(&e.id).and_then(|a| a.color),
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
-        let storylines = collect("tpl-storyline");
-        let categories = collect("tpl-category");
+        let levels = dr_shell::book::Book::load(&lib, &book)
+            .ok()
+            .and_then(|b| b.v3().map(|v3| collect_levels(v3, &i18n)))
+            .unwrap_or_default();
         DocumentsDialog {
             lib,
             book,
             i18n,
-            kind: Kind::Chapter,
-            storylines,
-            categories,
-            storyline: 0,
-            category: 0,
+            levels,
+            level: 0,
             items: Vec::new(),
             running: false,
             summary: None,
@@ -264,7 +264,7 @@ impl DocumentsDialog {
     }
 
     pub fn can_start(&self) -> bool {
-        !self.running && self.ready() > 0
+        !self.running && self.ready() > 0 && self.levels.get(self.level).is_some()
     }
 
     pub fn clear(&mut self, cx: &mut Context<Self>) {
@@ -275,16 +275,10 @@ impl DocumentsDialog {
         }
     }
 
-    fn target(&self) -> ImportTarget {
-        match self.kind {
-            Kind::Chapter => ImportTarget::Chapter {
-                storyline: self.storylines.get(self.storyline).map(|s| s.0.clone()),
-            },
-            Kind::Element => ImportTarget::Element {
-                category: self.categories.get(self.category).map(|c| c.0.clone()),
-            },
-            Kind::Idea => ImportTarget::Idea,
-        }
+    fn target(&self) -> Option<ImportTarget> {
+        self.levels
+            .get(self.level)
+            .map(|l| ImportTarget::new(l.id.clone()))
     }
 
     /// 「开始导入」: every ready file, in order, off the main thread.
@@ -292,6 +286,9 @@ impl DocumentsDialog {
         if !self.can_start() {
             return;
         }
+        let Some(target) = self.target() else {
+            return;
+        };
         let picked: Vec<usize> = (0..self.items.len())
             .filter(|i| self.items[*i].status == Status::Ready)
             .collect();
@@ -305,7 +302,7 @@ impl DocumentsDialog {
                 )
             })
             .collect();
-        let (lib, book, target) = (self.lib.clone(), self.book.clone(), self.target());
+        let (lib, book) = (self.lib.clone(), self.book.clone());
         self.running = true;
         cx.notify();
         let job = cx
@@ -423,88 +420,33 @@ impl Render for DocumentsDialog {
         };
         let running = self.running;
 
-        let kind_index = Kind::ALL.iter().position(|x| *x == self.kind).unwrap_or(0);
-        let set_kind = this.clone();
-        let kind = section(t(keys::v3_transfer::TARGET_TITLE))
-            .child(
-                Segmented::new(
-                    "import-kind",
-                    Kind::ALL.iter().map(|x| t(x.label())),
-                    kind_index,
-                )
-                .disabled(running)
+        let choices: Vec<Choice> = self
+            .levels
+            .iter()
+            .map(|opt| {
+                let rgb = opt
+                    .color
+                    .as_deref()
+                    .and_then(|c| c.strip_prefix('#'))
+                    .and_then(|c| u32::from_str_radix(c, 16).ok())
+                    .map(dr_ui::tokens::Rgb::hex);
+                Choice::new(RowIcon::Mark(opt.mark, rgb), opt.path.clone())
+            })
+            .collect();
+        let set_level = this.clone();
+        let target = section(t(keys::v3_transfer::TARGET_TITLE)).child(
+            Select::new("import-target", choices, self.level)
+                .max_menu_height(LIST_MAX_HEIGHT)
+                .disabled(running || self.levels.is_empty())
                 .on_change(move |i, _, cx| {
-                    set_kind.update(cx, |d, cx| {
-                        d.kind = Kind::ALL[i.min(2)];
-                        cx.notify();
-                    })
-                }),
-            )
-            .child(
-                div()
-                    .font_role(Role::Ui)
-                    .type_px(s.secondary, s.line_body)
-                    .text_color(p.ink(2).solid())
-                    .child(t(self.kind.desc())),
-            );
-
-        let place = |title: Key,
-                     kind: sand::Kind,
-                     options: &[(String, String, Option<String>)],
-                     selected: usize,
-                     element: bool| {
-            let choices: Vec<Choice> = options
-                .iter()
-                .map(|(_, name, color)| {
-                    let rgb = color
-                        .as_deref()
-                        .and_then(|c| c.strip_prefix('#'))
-                        .and_then(|c| u32::from_str_radix(c, 16).ok())
-                        .map(dr_ui::tokens::Rgb::hex);
-                    Choice::new(RowIcon::Mark(kind, rgb), name.clone())
-                })
-                .collect();
-            let set = this.clone();
-            section(t(title)).child(
-                Select::new(
-                    if element {
-                        "import-category"
-                    } else {
-                        "import-storyline"
-                    },
-                    choices,
-                    selected,
-                )
-                .disabled(running)
-                .on_change(move |i, _, cx| {
-                    set.update(cx, |d, cx| {
-                        if element {
-                            d.category = i;
-                        } else {
-                            d.storyline = i;
+                    set_level.update(cx, |d, cx| {
+                        if i < d.levels.len() {
+                            d.level = i;
+                            cx.notify();
                         }
-                        cx.notify();
                     })
                 }),
-            )
-        };
-        let target = match self.kind {
-            Kind::Chapter if !self.storylines.is_empty() => Some(place(
-                k::STORYLINE_TITLE,
-                sand::Kind::Storyline,
-                &self.storylines,
-                self.storyline,
-                false,
-            )),
-            Kind::Element if !self.categories.is_empty() => Some(place(
-                k::CATEGORY_TITLE,
-                sand::Kind::Category,
-                &self.categories,
-                self.category,
-                true,
-            )),
-            _ => None,
-        };
+        );
 
         let (files_btn, folder_btn, clear_btn) = (this.clone(), this.clone(), this.clone());
         let mut pickers = div()
@@ -594,8 +536,7 @@ impl Render for DocumentsDialog {
             .flex()
             .flex_col()
             .gap(px(space::S6))
-            .child(kind)
-            .children(target)
+            .child(target)
             .child(files);
 
         let status = if running {

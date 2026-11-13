@@ -12,8 +12,8 @@
 //! - [`order_import_files`] puts picked files in natural order (`2` before
 //!   `10`), as the 0.1 dialog did; [`files_in_folder`] lists a folder's
 //!   importable files that way.
-//! - [`import_docs`] creates one chapter, idea or element per file through
-//!   F3 and writes its text (`write.rs`).
+//! - [`import_docs`] creates one entry per file under the chosen level using
+//!   its resolved default template through F3 and writes its text (`write.rs`).
 //!
 //! Parsing is pure and blocking; run it off the main thread.
 

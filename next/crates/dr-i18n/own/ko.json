@@ -45,12 +45,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "스토리라인과 독립된 아이디어 카드입니다.",
-        "label": "아이디어"
-      }
-    },
     "warnings": {
       "imagesDropped": "이미지 {{count}}개는 가져오지 않았습니다",
       "notUtf8": "UTF-8 텍스트가 아니어서 일부 문자를 바꿨습니다"
@@ -279,7 +273,6 @@
     "views": "타임라인 보기"
   },
   "v3Transfer": {
-    "chapterDesc": "원고 장으로 타임라인에 배치할 수 있으며 글자 수에 포함됩니다.",
     "filesTitle": "파일",
     "targetTitle": "대상"
   }

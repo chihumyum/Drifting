@@ -15,24 +15,39 @@ use crate::{ExportError, Result};
 /// The longest name a file gives what it becomes (the 0.1 dialog's 200).
 pub const MAX_NAME: usize = 200;
 
-/// What each file becomes.
+/// Which level entry each imported file is created under.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ImportTarget {
-    /// A chapter after the last one, on `storyline` when given.
-    Chapter { storyline: Option<String> },
-    /// An idea (构想).
-    Idea,
-    /// An element in `category` when given.
-    Element { category: Option<String> },
+pub struct ImportTarget {
+    pub level: String,
+}
+
+impl ImportTarget {
+    pub fn new(level: impl Into<String>) -> Self {
+        Self {
+            level: level.into(),
+        }
+    }
+}
+
+impl From<&str> for ImportTarget {
+    fn from(level: &str) -> Self {
+        Self::new(level)
+    }
+}
+
+impl From<String> for ImportTarget {
+    fn from(level: String) -> Self {
+        Self::new(level)
+    }
 }
 
 /// What one file became.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportedEntity {
     pub id: String,
-    /// The final name (a taken chapter or idea title gets a suffix).
+    /// The final name.
     pub name: String,
-    /// Its prose document (`node:<id>`, `element:<id>`).
+    /// Its prose document (`body:<entry>/<module>`).
     pub doc: String,
 }
 
@@ -211,58 +226,39 @@ fn import_one(
         .collect::<Vec<_>>()
         .join("\n");
     let text = (!text.is_empty()).then_some(text);
-    // These are the existing novel import destinations. Their actual dynamic
-    // roots, level defaults, home and membership are resolved by the v3 kernel.
-    use dr_doc::v3::novel;
     let book_id = book
         .parse()
         .map_err(|e: dr_model::id::IdError| ExportError::Invalid(e.to_string()))?;
+    let level_id: dr_model::id::EntryId = target
+        .level
+        .trim()
+        .parse()
+        .map_err(|e: dr_model::id::IdError| ExportError::Invalid(e.to_string()))?;
     // The copy below is read between two equal versions; the new entry is
-    // then held to the level and the template it was resolved from.
+    // then held to the level, its ancestor chain, its residence and the
+    // template it was resolved from.
     let doc = format!("book:{book}");
     let before = ws.version(&doc)?;
     let copy = ws
         .library()
-        .load_copy(&format!("book:{book}"))
+        .load_copy(&doc)
         .map_err(dr_workspace::WsError::from)?;
     if !dr_doc::v3::is_book_doc(&copy) {
-        return Err(ExportError::Invalid("canonical v3 book required".into()));
+        return Err(ExportError::Invalid("current book format required".into()));
     }
     let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id)
         .map_err(|e| ExportError::Invalid(e.to_string()))?;
     let view = borrowed.view();
     let entries = view.entries_map();
     let templates = view.templates_map();
-    let root = |template: &str| -> Result<String> {
-        let rows: Vec<_> = entries
-            .values()
-            .filter(|e| {
-                !e.is_trashed() && e.template.as_ref().is_some_and(|t| t.as_str() == template)
-            })
-            .collect();
-        match rows.as_slice() {
-            [e] => Ok(e.id.to_string()),
-            _ => Err(ExportError::Invalid(
-                "choose an unambiguous v3 import level".into(),
-            )),
-        }
-    };
-    let parent = match target {
-        ImportTarget::Chapter {
-            storyline: Some(id),
-        } => id.clone(),
-        ImportTarget::Chapter { storyline: None } => root(novel::TPL_MANUSCRIPT)?,
-        ImportTarget::Idea => root(novel::TPL_IDEAS)?,
-        ImportTarget::Element { category: Some(id) } => id.clone(),
-        ImportTarget::Element { category: None } => root(novel::TPL_ELEMENTS)?,
-    };
-    let level_id = parent
-        .parse()
-        .map_err(|e: dr_model::id::IdError| ExportError::Invalid(e.to_string()))?;
+    dr_model::v3::check_parent_is_level(Some(&level_id), &entries)
+        .map_err(|e| ExportError::Invalid(e.to_string()))?;
     let settings = dr_model::v3::resolve_level_settings(Some(&level_id), &entries, &templates);
-    let template_id = settings.default_template.ok_or_else(|| {
-        ExportError::Invalid("import level needs an explicit default template".into())
-    })?;
+    let template_id = settings
+        .default_template
+        .ok_or_else(|| ExportError::Invalid("import level needs a default template".into()))?;
+    dr_model::v3::check_entry_template(&templates, Some(&template_id))
+        .map_err(|e| ExportError::Invalid(e.to_string()))?;
     let template = templates
         .get(&template_id)
         .ok_or_else(|| ExportError::Invalid("import template missing".into()))?;
@@ -273,18 +269,45 @@ fn import_one(
         ));
     };
     let module = module.id.to_string();
-    let resolved = ws.observe_records(
-        &doc,
-        &[
-            dr_workspace::RecordKey::entry(&parent),
-            dr_workspace::RecordKey::template(template_id.as_str()),
-        ],
-    )?;
+    let mut guard_keys = Vec::new();
+    let mut seen_keys = std::collections::HashSet::new();
+    let mut push_key = |key: dr_workspace::RecordKey| {
+        if seen_keys.insert(key.clone()) {
+            guard_keys.push(key);
+        }
+    };
+    let mut push_chain = |start: &dr_model::id::EntryId| {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut cur = Some(start);
+        while let Some(id) = cur {
+            if !seen.insert(id.clone()) {
+                break;
+            }
+            push_key(dr_workspace::RecordKey::entry(id.as_str()));
+            let Some(e) = entries.get(id) else {
+                break;
+            };
+            if let Some(tpl) = &e.template {
+                push_key(dr_workspace::RecordKey::template(tpl.as_str()));
+            }
+            cur = e.parent.as_ref();
+        }
+    };
+    push_chain(&level_id);
+    if let Some(home) =
+        dr_model::v3::resolve_new_entry_residence(Some(&level_id), &entries, &templates)
+        && home != level_id
+    {
+        push_chain(&home);
+    }
+    push_key(dr_workspace::RecordKey::template(template_id.as_str()));
+    let resolved = ws.observe_records(&doc, &guard_keys)?;
     if ws.version(&doc)? != before {
         return Err(ExportError::Invalid(
             "import target changed; select it again".into(),
         ));
     }
+    let parent = level_id.to_string();
     let created = ws.call_guarded(
         actor,
         "entry.create",

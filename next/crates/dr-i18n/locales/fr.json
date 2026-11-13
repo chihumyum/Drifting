@@ -399,7 +399,6 @@
     }
   },
   "importDialog": {
-    "categoryTitle": "Catégorie",
     "chooseFiles": "Choisir des fichiers",
     "chooseFolder": "Choisir un dossier",
     "clear": "Effacer",
@@ -411,24 +410,10 @@
       "parsing": "analyse",
       "ready": "prêt"
     },
-    "storylineTitle": "Intrigue",
     "summary": {
       "done": "Terminé",
       "failed": "échec",
       "ok": "importé"
-    },
-    "targets": {
-      "chapter": {
-        "label": "Chapitre"
-      },
-      "element": {
-        "desc": "Documentation sur personnages, lieux ou objets. Catégorie requise.",
-        "label": "Élément"
-      },
-      "idea": {
-        "desc": "Carte d’idée flottante, indépendante des intrigues.",
-        "label": "Idée"
-      }
     },
     "title": "Importer des fichiers",
     "warnings": {
@@ -958,7 +943,6 @@
       "review": "Projet · Relecture",
       "stats": {
         "all-chapters": "Livre entier · rythme",
-        "category": "Cette catégorie · statistiques détaillées",
         "chapter": "Ce chapitre · statistiques détaillées",
         "element": "Cet élément · statistiques détaillées",
         "material": "Cette ressource · Détails",
@@ -967,7 +951,6 @@
       }
     },
     "stats": {
-      "category": "Catégorie",
       "chapter": "Chapitre",
       "dialogueRatio": "Part de dialogue",
       "name": "Nom",
@@ -1652,7 +1635,6 @@
     "views": "Vues chronologiques"
   },
   "v3Transfer": {
-    "chapterDesc": "Chapitre du manuscrit : peut figurer sur la chronologie et compte dans les statistiques.",
     "filesTitle": "Fichiers",
     "targetTitle": "Destination"
   },

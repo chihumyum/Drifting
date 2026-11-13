@@ -394,7 +394,6 @@
     }
   },
   "importDialog": {
-    "categoryTitle": "분류",
     "chooseFiles": "파일 선택",
     "chooseFolder": "폴더 선택",
     "clear": "지우기",
@@ -406,24 +405,10 @@
       "parsing": "분석 중",
       "ready": "준비됨"
     },
-    "storylineTitle": "스토리라인",
     "summary": {
       "done": "완료",
       "failed": "실패",
       "ok": "가져옴"
-    },
-    "targets": {
-      "chapter": {
-        "label": "장"
-      },
-      "element": {
-        "desc": "인물·장소·물건 등의 참고 자료로 분류가 필요합니다.",
-        "label": "요소"
-      },
-      "idea": {
-        "desc": "스토리라인과 독립된 아이디어 카드입니다.",
-        "label": "아이디어"
-      }
     },
     "title": "파일 가져오기",
     "warnings": {
@@ -942,7 +927,6 @@
       "review": "작품 · 검토",
       "stats": {
         "all-chapters": "작품 전체 · 리듬",
-        "category": "이 분류 · 상세 통계",
         "chapter": "이 장 · 상세 통계",
         "element": "이 요소 · 상세 통계",
         "material": "이 자료 · 상세",
@@ -951,7 +935,6 @@
       }
     },
     "stats": {
-      "category": "분류",
       "chapter": "장",
       "dialogueRatio": "대화 비율",
       "name": "이름",
@@ -1636,7 +1619,6 @@
     "views": "타임라인 보기"
   },
   "v3Transfer": {
-    "chapterDesc": "원고 장으로 타임라인에 배치할 수 있으며 글자 수에 포함됩니다.",
     "filesTitle": "파일",
     "targetTitle": "대상"
   },
