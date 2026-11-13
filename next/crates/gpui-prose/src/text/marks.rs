@@ -61,6 +61,10 @@ impl Marks {
         self.has(inline::STRIKE)
     }
 
+    pub fn code(&self) -> bool {
+        self.has(inline::CODE)
+    }
+
     /// The link URL, if the run is a link.
     pub fn link(&self) -> Option<&str> {
         match self.get(inline::LINK) {

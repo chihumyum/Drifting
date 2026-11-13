@@ -196,8 +196,8 @@ impl SlashAction {
     }
 }
 
-/// A material note's own entries of the slash menu (M19's note profile:
-/// the 0.1 note's insert group, in its order, after 分隔线).
+/// Insert-group formats of the slash menu (lists, tasks, tables, code blocks,
+/// inline code, callouts, highlights, plus `插入素材…` in material notes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoteChoice {
     Bullet,
@@ -205,21 +205,36 @@ pub enum NoteChoice {
     Task,
     Table,
     Code,
+    InlineCode,
     Callout,
     Highlight,
     Material,
 }
 
 impl NoteChoice {
-    pub const ALL: [NoteChoice; 8] = [
+    pub const ALL: [NoteChoice; 9] = [
         NoteChoice::Bullet,
         NoteChoice::Ordered,
         NoteChoice::Task,
         NoteChoice::Table,
         NoteChoice::Code,
+        NoteChoice::InlineCode,
         NoteChoice::Callout,
         NoteChoice::Highlight,
         NoteChoice::Material,
+    ];
+
+    /// Every unified prose format (all except `插入素材…`, which stays on
+    /// `material:<id>` until D / T5).
+    pub const PROSE: [NoteChoice; 8] = [
+        NoteChoice::Bullet,
+        NoteChoice::Ordered,
+        NoteChoice::Task,
+        NoteChoice::Table,
+        NoteChoice::Code,
+        NoteChoice::InlineCode,
+        NoteChoice::Callout,
+        NoteChoice::Highlight,
     ];
 
     pub fn label(self) -> &'static str {
@@ -229,6 +244,7 @@ impl NoteChoice {
             NoteChoice::Task => "待办清单",
             NoteChoice::Table => "表格",
             NoteChoice::Code => "代码块",
+            NoteChoice::InlineCode => "行内代码",
             NoteChoice::Callout => "提示块",
             NoteChoice::Highlight => "高亮",
             NoteChoice::Material => "插入素材…",
@@ -242,6 +258,7 @@ impl NoteChoice {
             NoteChoice::Task => &["task", "todo", "checklist", "[]"],
             NoteChoice::Table => &["table", "grid"],
             NoteChoice::Code => &["code", "```"],
+            NoteChoice::InlineCode => &["inline code", "inline-code", "inline", "code", "`"],
             NoteChoice::Callout => &["callout", "note", "tip"],
             NoteChoice::Highlight => &["highlight", "mark", "=="],
             NoteChoice::Material => &["material", "image", "pdf", "图片", "素材"],
@@ -254,7 +271,7 @@ impl NoteChoice {
             NoteChoice::Ordered => Icon::ListOrdered,
             NoteChoice::Task => Icon::Checklist,
             NoteChoice::Table => Icon::Table,
-            NoteChoice::Code => Icon::Code,
+            NoteChoice::Code | NoteChoice::InlineCode => Icon::Code,
             NoteChoice::Callout => Icon::StickyNote,
             NoteChoice::Highlight => Icon::Highlight,
             NoteChoice::Material => Icon::ImagePlus,
@@ -900,39 +917,60 @@ impl Assist {
 
     fn rows(&mut self, kind: MenuKind, chapter: usize, query: &str) -> Vec<MenuRow> {
         match kind {
-            MenuKind::Slash if self.note => {
-                // A note: the formats, the rule and the note's own entries,
-                // then Drifting's (its task list stands in for 待办, and a
-                // note has no location links).
-                BlockChoice::ALL
-                    .into_iter()
-                    .filter(|c| c.matches(query))
-                    .map(MenuRow::Block)
-                    .chain(
-                        NoteChoice::ALL
-                            .into_iter()
-                            .filter(|c| c.matches(query))
-                            .map(MenuRow::Note),
-                    )
-                    .chain(
-                        [SlashAction::Mention, SlashAction::Comment]
-                            .into_iter()
-                            .filter(|a| a.matches(query))
-                            .map(MenuRow::Action),
-                    )
-                    .collect()
-            }
-            MenuKind::Slash => BlockChoice::ALL
-                .into_iter()
-                .filter(|c| c.matches(query))
-                .map(MenuRow::Block)
-                .chain(
-                    SlashAction::ALL
+            MenuKind::Slash => {
+                let mut rows: Vec<MenuRow> = if self.note {
+                    // A material note: the formats, the rule and all insert-group
+                    // entries (including 插入素材…), then 人物链接 / 批注.
+                    BlockChoice::ALL
                         .into_iter()
-                        .filter(|a| a.matches(query))
-                        .map(MenuRow::Action),
-                )
-                .collect(),
+                        .filter(|c| c.matches(query))
+                        .map(MenuRow::Block)
+                        .chain(
+                            NoteChoice::ALL
+                                .into_iter()
+                                .filter(|c| c.matches(query))
+                                .map(MenuRow::Note),
+                        )
+                        .chain(
+                            [SlashAction::Mention, SlashAction::Comment]
+                                .into_iter()
+                                .filter(|a| a.matches(query))
+                                .map(MenuRow::Action),
+                        )
+                        .collect()
+                } else {
+                    BlockChoice::ALL
+                        .into_iter()
+                        .filter(|c| c.matches(query))
+                        .map(MenuRow::Block)
+                        .chain(
+                            NoteChoice::PROSE
+                                .into_iter()
+                                .filter(|c| c.matches(query))
+                                .map(MenuRow::Note),
+                        )
+                        .chain(
+                            SlashAction::ALL
+                                .into_iter()
+                                .filter(|a| a.matches(query))
+                                .map(MenuRow::Action),
+                        )
+                        .collect()
+                };
+                if !query.is_empty() {
+                    let q = query.to_lowercase();
+                    rows.sort_by_key(|r| {
+                        let label: SharedString = match r {
+                            MenuRow::Block(c) => self.block_label(*c),
+                            MenuRow::Note(c) => c.label().into(),
+                            MenuRow::Action(a) => a.label().into(),
+                            _ => SharedString::default(),
+                        };
+                        label.to_lowercase() != q
+                    });
+                }
+                rows
+            }
             MenuKind::Material => self.material_rows(),
             MenuKind::Mention => {
                 let Some(names) = self.names() else {
@@ -1101,13 +1139,16 @@ impl Assist {
                     block_attr(block::CALLOUT, "note".into()),
                 );
             }
-            NoteChoice::Highlight | NoteChoice::Table | NoteChoice::Material => {
+            NoteChoice::Highlight
+            | NoteChoice::InlineCode
+            | NoteChoice::Table
+            | NoteChoice::Material => {
                 self.write(chapter, HostStep::Own, window, cx, |doc| {
                     doc.delete(range.clone(), ORIGIN_USER);
                     Some(range.start)
                 });
                 match choice {
-                    // At the caret: what is typed next is highlighted.
+                    // At the caret: what is typed next carries the mark.
                     NoteChoice::Highlight => self.editor.update(cx, |e, cx| {
                         e.toggle_mark_value(
                             crate::highlight::KEY,
@@ -1116,6 +1157,9 @@ impl Assist {
                             cx,
                         )
                     }),
+                    NoteChoice::InlineCode => self
+                        .editor
+                        .update(cx, |e, cx| e.toggle_mark(inline::CODE, window, cx)),
                     NoteChoice::Table => cx.emit(AssistEvent::InsertTable { chapter }),
                     _ => {
                         let rows = self.material_rows();
@@ -1259,7 +1303,17 @@ impl Assist {
             match choice {
                 BlockChoice::Body => {
                     doc.set_kind(ix, BlockKind::Body, ORIGIN_USER);
-                    quote(doc, ix, false);
+                    for key in [
+                        block::QUOTE,
+                        block::LIST,
+                        block::LIST_LEVEL,
+                        block::CHECKED,
+                        block::TODO,
+                        block::CODE_BLOCK,
+                        block::CALLOUT,
+                    ] {
+                        doc.set_block_attr(ix, key, None, ORIGIN_USER);
+                    }
                 }
                 BlockChoice::H1 => doc.set_kind(ix, BlockKind::H1, ORIGIN_USER),
                 BlockChoice::H2 => doc.set_kind(ix, BlockKind::H2, ORIGIN_USER),
@@ -1290,7 +1344,16 @@ impl Assist {
                         let end = doc.line_start(rule_ix) + doc.line(rule_ix).chars;
                         doc.split(end, ORIGIN_USER);
                     }
-                    for key in [block::HEADING, block::QUOTE] {
+                    for key in [
+                        block::HEADING,
+                        block::QUOTE,
+                        block::LIST,
+                        block::LIST_LEVEL,
+                        block::CHECKED,
+                        block::TODO,
+                        block::CODE_BLOCK,
+                        block::CALLOUT,
+                    ] {
                         doc.set_block_attr(rule_ix, key, None, ORIGIN_USER);
                     }
                     doc.set_block_attr(
@@ -1612,11 +1675,12 @@ impl Assist {
                 {
                     list = list.separator(&theme);
                 }
-                // A note's entries open the insert group when the rule is
-                // filtered out.
+                // Insert-group entries open their group when the rule is
+                // filtered out or an exact action match sorted first.
                 MenuRow::Note(_)
                     if ix > 0
-                        && matches!(menu.rows[ix - 1], MenuRow::Block(c) if c != BlockChoice::Rule) =>
+                        && (matches!(menu.rows[ix - 1], MenuRow::Block(c) if c != BlockChoice::Rule)
+                            || matches!(menu.rows[ix - 1], MenuRow::Action(_))) =>
                 {
                     list = list.separator(&theme);
                 }
@@ -1667,6 +1731,8 @@ impl Assist {
                 inline::ITALIC,
                 inline::UNDERLINE,
                 inline::STRIKE,
+                inline::CODE,
+                crate::highlight::KEY,
             ]
             .iter()
             .map(|k| e.mark_active(k))
@@ -1687,6 +1753,8 @@ impl Assist {
             (inline::ITALIC, Icon::FmtItalic, "斜体"),
             (inline::UNDERLINE, Icon::FmtUnderline, "下划线"),
             (inline::STRIKE, Icon::FmtStrike, "删除线"),
+            (inline::CODE, Icon::Code, "行内代码"),
+            (crate::highlight::KEY, Icon::Highlight, "高亮"),
         ];
         let rule = || div().w(px(0.5)).h(px(18.)).mx(px(2.)).bg(p.hairline());
         let mut row = div().flex().flex_row().items_center().p(px(BAR_PAD));
@@ -1739,7 +1807,7 @@ impl Assist {
 
     /// The bar's width (its buttons are a fixed size).
     fn bar_size() -> gpui::Size<Pixels> {
-        let buttons = 10.;
+        let buttons = 12.;
         size(
             px(buttons * BAR_BUTTON + 2. * 4.5 + 2. * BAR_PAD),
             px(BAR_BUTTON + 2. * BAR_PAD),

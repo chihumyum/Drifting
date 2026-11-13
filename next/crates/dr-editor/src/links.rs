@@ -173,7 +173,11 @@ impl ProseExtension for DriftingExtension {
         markdown_rule(typed).or_else(|| {
             self.note
                 .get()
-                .then(|| crate::rules::highlight_rule(typed))
+                .then(|| {
+                    crate::rules::note_block_rule(typed)
+                        .or_else(|| crate::rules::highlight_rule(typed))
+                        .or_else(|| crate::rules::inline_code_rule(typed))
+                })
                 .flatten()
         })
     }

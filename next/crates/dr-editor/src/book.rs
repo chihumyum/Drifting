@@ -244,6 +244,38 @@ impl PreparedBook {
     }
 }
 
+struct BookEmbeds(Vec<Option<Rc<crate::embeds::NoteEmbeds>>>);
+
+impl gpui_prose::EmbedViews for BookEmbeds {
+    fn view(
+        &self,
+        chapter: usize,
+        id: &str,
+        selected: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<gpui::AnyElement> {
+        self.0
+            .get(chapter)?
+            .as_ref()?
+            .view(chapter, id, selected, window, cx)
+    }
+
+    fn enter(
+        &self,
+        chapter: usize,
+        id: &str,
+        from_below: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        self.0
+            .get(chapter)
+            .and_then(Option::as_ref)
+            .is_some_and(|e| e.enter(chapter, id, from_below, window, cx))
+    }
+}
+
 /// A flattened book view, being read and edited.
 pub struct BookEditor {
     ws: Workspace,
@@ -257,6 +289,8 @@ pub struct BookEditor {
     settings: EditorSettings,
     extension: Rc<DriftingExtension>,
     editor: Entity<ProseEditor>,
+    embeds: Vec<Option<Rc<crate::embeds::NoteEmbeds>>>,
+    note_shortcuts: Vec<bool>,
     empty_scroll: ScrollHandle,
     todos: HashMap<usize, Vec<TodoMarker>>,
     /// Each chapter page's facts, section headings and the host's chrome (M03).
@@ -346,7 +380,8 @@ impl BookEditor {
             book: book.to_owned(),
         }) as Box<dyn LinkTargets>);
         let extension = Rc::new(DriftingExtension::new(targets));
-        let (chapters, editor, events) = Self::install(prepared, &style, &extension, window, cx);
+        let (chapters, editor, events, embeds) =
+            Self::install(&ws, prepared, &style, &extension, window, cx);
         let pages: crate::page::Pages = Default::default();
         pages.set_style(style, &editor, cx);
         pages.set_headings(headings.clone(), &editor, cx);
@@ -357,15 +392,17 @@ impl BookEditor {
             .map(|(i, c)| (c.doc.clone(), i))
             .collect();
         let docs: Vec<String> = chapters.iter().map(|c| c.doc.clone()).collect();
+        let note_shortcuts = crate::v3::book_note_shortcuts(&ws, book, &docs);
         let assist = cx.new(|cx| {
             let mut a =
                 crate::assist::Assist::new(ws.clone(), book, editor.clone(), docs, window, cx);
             a.set_auto_links(settings.auto_entity_links);
             a
         });
-        let assist_events = cx.subscribe(
+        let assist_events = cx.subscribe_in(
             &assist,
-            |this: &mut BookEditor, _, event: &crate::assist::AssistEvent, cx| match event {
+            window,
+            |this: &mut BookEditor, _, event: &crate::assist::AssistEvent, window, cx| match event {
                 crate::assist::AssistEvent::Comment { chapter, range } => {
                     let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) else {
                         return;
@@ -398,9 +435,10 @@ impl BookEditor {
                         });
                     }
                 }
-                // A note's entries: the whole book has no notes.
-                crate::assist::AssistEvent::InsertTable { .. }
-                | crate::assist::AssistEvent::InsertMaterial { .. } => {}
+                crate::assist::AssistEvent::InsertTable { chapter } => {
+                    this.insert_table(*chapter, window, cx);
+                }
+                crate::assist::AssistEvent::InsertMaterial { .. } => {}
             },
         );
         let decor = crate::decor::Decor::for_book(
@@ -425,6 +463,8 @@ impl BookEditor {
             immersive: false,
             extension,
             editor,
+            embeds,
+            note_shortcuts,
             empty_scroll: ScrollHandle::new(),
             todos: HashMap::new(),
             pages,
@@ -434,6 +474,7 @@ impl BookEditor {
             _editor_events: events,
             _ws_events: ws_events,
         };
+        this.sync_chapter_shortcuts(cx);
         this.todos = (0..this.chapters.len())
             .map(|c| (c, this.find_todos(c, cx)))
             .filter(|(_, t)| !t.is_empty())
@@ -443,13 +484,31 @@ impl BookEditor {
 
     #[allow(clippy::type_complexity)]
     fn install(
+        ws: &Workspace,
         prepared: PreparedBook,
         style: &ProseStyle,
         extension: &Rc<DriftingExtension>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> (Vec<Listed>, Entity<ProseEditor>, Subscription) {
-        let PreparedBook { listed, docs, .. } = prepared;
+    ) -> (
+        Vec<Listed>,
+        Entity<ProseEditor>,
+        Subscription,
+        Vec<Option<Rc<crate::embeds::NoteEmbeds>>>,
+    ) {
+        let PreparedBook {
+            book: book_id,
+            listed,
+            docs,
+            ..
+        } = prepared;
+        let sessions: Vec<_> = docs
+            .iter()
+            .map(|doc| {
+                doc.source_as::<SessionSource>()
+                    .map(|s| (s.shared_session(), s.handle().clone()))
+            })
+            .collect();
         let book = Book::new(
             docs.into_iter()
                 .zip(&listed)
@@ -459,12 +518,50 @@ impl BookEditor {
                 })
                 .collect(),
         );
-        let style = style.clone();
-        let extension = extension.clone();
+        let body_style = style.clone();
+        let ext = extension.clone();
         let editor = cx.new(|cx| {
-            let mut editor = ProseEditor::new(book, style, window, cx);
-            editor.set_extension(extension);
+            let mut editor = ProseEditor::new(book, body_style, window, cx);
+            editor.set_extension(ext);
             editor
+        });
+        let weak = cx.weak_entity();
+        let embeds: Vec<Option<Rc<crate::embeds::NoteEmbeds>>> = listed
+            .iter()
+            .zip(sessions)
+            .enumerate()
+            .map(|(chapter, (c, sh))| {
+                let (session, handle) = sh?;
+                let weak = weak.clone();
+                let host = crate::embeds::NoteHost {
+                    ws: ws.clone(),
+                    book: book_id.clone(),
+                    doc_id: c.doc.clone(),
+                    session,
+                    handle,
+                    body: editor.downgrade(),
+                    chapter,
+                    style: std::cell::RefCell::new(style.clone()),
+                    extension: extension.clone(),
+                    notify: Rc::new(move |event: crate::embeds::NoteEvent, cx: &mut App| {
+                        let weak = weak.clone();
+                        cx.defer(move |cx| {
+                            if let Some(this) = weak.upgrade() {
+                                this.update(cx, |this, cx| this.on_note(chapter, event, cx));
+                            }
+                        });
+                    }),
+                };
+                Some(Rc::new(crate::embeds::NoteEmbeds::new(Rc::new(host))))
+            })
+            .collect();
+        let chapter_count = listed.len();
+        let views: Rc<dyn gpui_prose::EmbedViews> = Rc::new(BookEmbeds(embeds.clone()));
+        editor.update(cx, |e, cx| {
+            e.set_embed_views(Some(views), cx);
+            for ch in 0..chapter_count {
+                crate::highlight::decorate(e, ch, cx);
+            }
         });
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
             this.on_editor(event, cx)
@@ -474,7 +571,35 @@ impl BookEditor {
                 cx.emit(crate::view::WritingTyped { doc: c.doc.clone() });
             }
         });
-        (listed, editor, Subscription::join(events, typed))
+        (listed, editor, Subscription::join(events, typed), embeds)
+    }
+
+    fn on_note(&mut self, chapter: usize, event: crate::embeds::NoteEvent, cx: &mut Context<Self>) {
+        match event {
+            crate::embeds::NoteEvent::OpenLinkV3(link) => self
+                .assist
+                .update(cx, |a, cx| a.open_entity_link_v3(link, cx)),
+            crate::embeds::NoteEvent::Edited => {
+                self.pages.edited(chapter, &self.editor, cx);
+                if let Some(doc) = self.chapters.get(chapter).map(|c| c.doc.clone()) {
+                    cx.emit(BookEditorEvent::Edited { doc });
+                }
+            }
+            crate::embeds::NoteEvent::Typed => {
+                if let Some(c) = self.chapters.get(chapter) {
+                    cx.emit(crate::view::WritingTyped { doc: c.doc.clone() });
+                }
+            }
+            crate::embeds::NoteEvent::OpenMaterial(_) => {}
+        }
+    }
+
+    fn sync_chapter_shortcuts(&self, cx: &mut Context<Self>) {
+        let chapter = self.editor.read(cx).selection().chapter;
+        let shortcuts = self.note_shortcuts.get(chapter).copied().unwrap_or(false);
+        self.extension.set_note(shortcuts);
+        self.editor
+            .update(cx, |e, _| e.set_list_shortcuts(shortcuts));
     }
 
     /// The workspace's events, moved to the main thread.
@@ -529,13 +654,24 @@ impl BookEditor {
             // The author's own edits are already in; this drains the rest.
             self.editor
                 .update(cx, |e, cx| e.refresh_chapter(chapter, cx));
+            if let Some(Some(embeds)) = self.embeds.get(chapter) {
+                embeds.refresh(cx);
+            }
+            self.editor
+                .update(cx, |e, cx| crate::highlight::decorate(e, chapter, cx));
             self.update_todos(chapter, cx);
             self.pages.edited(chapter, &self.editor, cx);
         }
         if notices.contains(&Notice::Book) {
+            for embeds in self.embeds.iter().flatten() {
+                embeds.book_changed(cx);
+            }
             self.extension.invalidate();
             self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             self.follow_book(window, cx);
+            let docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
+            self.note_shortcuts = crate::v3::book_note_shortcuts(&self.ws, &self.book, &docs);
+            self.sync_chapter_shortcuts(cx);
             if self.pages.has_chrome() {
                 self.refresh_pages(cx);
             }
@@ -605,7 +741,8 @@ impl BookEditor {
         );
         let focused = self.editor.read(cx).focus_handle(cx).is_focused(window);
         let (listed, headings) = partition(&sections);
-        let (chapters, editor, events) = Self::install(
+        let (chapters, editor, events, embeds) = Self::install(
+            &self.ws,
             PreparedBook {
                 book: self.book.clone(),
                 from: self.from.clone(),
@@ -628,7 +765,10 @@ impl BookEditor {
             .collect();
         self.chapters = chapters;
         self.editor = editor;
+        self.embeds = embeds;
         self._editor_events = events;
+        let shortcut_docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
+        self.note_shortcuts = crate::v3::book_note_shortcuts(&self.ws, &self.book, &shortcut_docs);
         self.todos.clear();
         self.pages.set_style(style, &self.editor, cx);
         self.pages.set_headings(headings, &self.editor, cx);
@@ -668,6 +808,7 @@ impl BookEditor {
         if focused {
             self.editor.read(cx).focus_handle(cx).focus(window, cx);
         }
+        self.sync_chapter_shortcuts(cx);
 
         if let Some(at) = at {
             self.restore(&at, cx);
@@ -727,8 +868,16 @@ impl BookEditor {
                 if let Some(doc) = self.chapters.get(*chapter).map(|c| c.doc.clone()) {
                     cx.emit(BookEditorEvent::Edited { doc });
                 }
+                if let Some(Some(embeds)) = self.embeds.get(*chapter) {
+                    embeds.refresh(cx);
+                }
+                self.editor
+                    .update(cx, |e, cx| crate::highlight::decorate(e, *chapter, cx));
                 self.update_todos(*chapter, cx);
                 self.pages.edited(*chapter, &self.editor, cx);
+            }
+            EditorEvent::SelectionChanged => {
+                self.sync_chapter_shortcuts(cx);
             }
             EditorEvent::AnchorsChanged { chapter, changes } => {
                 if let Some(doc) = self.chapters.get(*chapter).map(|c| c.doc.clone()) {
@@ -739,7 +888,6 @@ impl BookEditor {
                     cx.emit(BookEditorEvent::AnchorsChanged { doc, changes });
                 }
             }
-            _ => {}
         }
     }
 
@@ -1029,6 +1177,9 @@ impl BookEditor {
         }
         self.settings = settings;
         let style = self.settings.style_for(&self.base_style, self.immersive);
+        for embeds in self.embeds.iter().flatten() {
+            embeds.restyle(style.clone(), cx);
+        }
         self.pages.set_style(style.clone(), &self.editor, cx);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
@@ -1044,9 +1195,61 @@ impl BookEditor {
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
         self.base_style = style;
         let style = self.settings.style_for(&self.base_style, self.immersive);
+        for embeds in self.embeds.iter().flatten() {
+            embeds.restyle(style.clone(), cx);
+        }
         self.pages.set_style(style.clone(), &self.editor, cx);
-        self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        let chapter_count = self.chapters.len();
+        self.editor.update(cx, |e, cx| {
+            e.set_style(style, cx);
+            for ch in 0..chapter_count {
+                crate::highlight::decorate(e, ch, cx);
+            }
+        });
         cx.notify();
+    }
+
+    /// Inserts a 3 × 3 table at the caret in `chapter`.
+    pub fn insert_table(
+        &mut self,
+        chapter: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(Some(embeds)) = self.embeds.get(chapter).cloned() else {
+            return false;
+        };
+        let offset = self.editor.read(cx).selection().head;
+        crate::embeds::insert_table(&embeds, offset, Vec::new(), Vec::new(), window, cx).is_some()
+    }
+
+    fn focused_prose(&self, window: &Window, cx: &App) -> Option<Entity<ProseEditor>> {
+        if self.editor.read(cx).focus_handle(cx).is_focused(window) {
+            return Some(self.editor.clone());
+        }
+        self.embeds
+            .iter()
+            .flatten()
+            .flat_map(|e| e.tables())
+            .find_map(|t| t.read(cx).focused_editor(window, cx))
+    }
+
+    pub fn toggle_highlight(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor = self
+            .focused_prose(window, cx)
+            .unwrap_or_else(|| self.editor.clone());
+        editor.update(cx, |e, cx| {
+            e.toggle_mark_value(crate::highlight::KEY, crate::highlight::value(), window, cx)
+        });
+    }
+
+    pub fn toggle_inline_code(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor = self
+            .focused_prose(window, cx)
+            .unwrap_or_else(|| self.editor.clone());
+        editor.update(cx, |e, cx| {
+            e.toggle_mark(gpui_prose::schema::inline::CODE, window, cx)
+        });
     }
 
     /// Immersive writing (M26): as [`crate::ChapterEditor::set_immersive`].
@@ -1118,6 +1321,16 @@ impl Render for BookEditor {
                 this.redo(window, cx);
                 cx.stop_propagation();
             }))
+            .on_action(
+                cx.listener(|this, _: &crate::highlight::ToggleHighlight, window, cx| {
+                    this.toggle_highlight(window, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::highlight::ToggleInlineCode, window, cx| {
+                    this.toggle_inline_code(window, cx)
+                }),
+            )
             .child({
                 crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
                     .into_any_element()

@@ -350,7 +350,7 @@ fn unsupported_typed_clipboard_preserves_selection_values_and_versions(cx: &mut 
     let data = durable(&e);
     for (key, value) in [
         ("entity:future", json!(["container", "future-reference"])),
-        ("code", json!(["bool", true])),
+        ("unknown", json!(["bool", true])),
     ] {
         cx.write_to_clipboard(ClipboardItem::new_string_with_json_metadata(
             "x".into(),
@@ -373,6 +373,23 @@ fn unsupported_typed_clipboard_preserves_selection_values_and_versions(cx: &mut 
     assert_eq!(e.ws.observe(&e.doc).unwrap().version, before.version);
     assert_eq!(editor.read_with(cx, |p, _| p.selection().range()), 1..4);
     assert_eq!(notices.get(), 3);
+    // Unified prose profile: `code` and `highlight` marks paste cleanly into an entry body.
+    cx.write_to_clipboard(ClipboardItem::new_string_with_json_metadata(
+        "码亮".into(),
+        json!({KEY:{"version":1,"text":"码亮","marks":[
+            [0,1,"code",["bool",true]],
+            [1,2,"highlight",["string",""]]
+        ]}}),
+    ));
+    cx.update(|w, cx| assert!(paste(&editor, w, cx)));
+    draw(cx);
+    assert_eq!(notices.get(), 3);
+    assert_eq!(durable(&e).0, "前码亮末\n");
+    editor.read_with(cx, |p, _| {
+        let doc = &p.book().chapters[0].doc;
+        assert!(doc.range_has_mark(1..2, "code"));
+        assert!(doc.range_has_mark(2..3, "highlight"));
+    });
 }
 
 #[gpui::test]
