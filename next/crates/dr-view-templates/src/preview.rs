@@ -20,10 +20,9 @@ pub struct Projection {
     /// Also present for a new or unused template, which the runtime context
     /// intentionally does not include until entries/defaults/actions use it.
     pub template: TemplateSummary,
+    pub book_prose_modules: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level_defaults: Option<dr_workspace::commands::v3::types::LevelSettingsOverride>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lane: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_actions: Option<Vec<dr_workspace::commands::v3::types::TemplateVerb>>,
     pub structure: StructureContext,
@@ -48,8 +47,11 @@ pub fn project(workspace: &Workspace, request: &Request) -> Result<Projection, W
             source_frontier: request.frontier.clone(),
             draft_frontier: frontier.into(),
             template: TemplateSummary::from_v3_template(&template),
+            book_prose_modules: template
+                .book_prose_modules()
+                .map(|m| m.id.to_string())
+                .collect(),
             level_defaults: level.then(|| request.draft.settings.clone()),
-            lane: level.then_some(request.draft.settings.lane == Some(true)),
             declared_actions: level.then(|| request.draft.verbs.clone()),
             structure,
         })
@@ -169,7 +171,7 @@ mod tests {
         remote.name = "Synthetic later chapter".into();
         model::save(&workspace, &book, Some(&original), &remote).unwrap();
         let live = workspace.observe(&format!("book:{book}")).unwrap();
-        let mut draft = model::blank("leaf", "Synthetic unpublished template".into());
+        let mut draft = model::blank("Synthetic unpublished template".into());
         model::add_module(
             &mut draft,
             model::module("prose", "Synthetic duplicate name".into()),
@@ -294,7 +296,7 @@ mod tests {
         let old = Request {
             book: "synthetic-book-a".into(),
             frontier: "frontier-a".into(),
-            draft: model::blank("leaf", "Synthetic old draft".into()),
+            draft: model::blank("Synthetic old draft".into()),
         };
         let mut cache = Cache::default();
         assert!(cache.start(old.clone()));
@@ -330,7 +332,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let before = workspace.observe(&format!("book:{book}")).unwrap();
-        let mut draft = model::blank("leaf", "Synthetic unused preview".into());
+        let mut draft = model::blank("Synthetic unused preview".into());
         draft.agent = Some(TemplateAgentConfig {
             name: "Synthetic \"quoted\" helper".into(),
             description: "Synthetic description".into(),
@@ -342,6 +344,7 @@ mod tests {
                 model::module("prose", "Synthetic same name".into()),
             );
         }
+        draft.modules[1].config.in_book = false;
         draft.modules[0].agent = Some(ModuleAgentConfig {
             writable: false,
             read_tier: Some("on_demand".into()),
@@ -355,6 +358,10 @@ mod tests {
         let preview = project(&workspace, &request).unwrap();
         assert_eq!(preview.source_frontier, before.version);
         assert_eq!(preview.template.id, draft.id);
+        assert_eq!(
+            preview.book_prose_modules,
+            vec![draft.modules[0].id.clone()]
+        );
         assert_eq!(
             preview.template.agent.instructions,
             draft.agent.as_ref().unwrap().instructions
@@ -443,7 +450,8 @@ mod tests {
                 .unwrap(),
             persisted
         );
-        let mut unused_level = model::blank("level", "Synthetic unused level".into());
+        let mut unused_level = model::blank("Synthetic unused level".into());
+        unused_level.level = true;
         unused_level.settings.default_template = Some(None);
         unused_level.settings.home = Some(None);
         model::add_module(
@@ -463,7 +471,8 @@ mod tests {
             projected.level_defaults.as_ref(),
             Some(&unused_level.settings)
         );
-        assert_eq!(projected.lane, Some(false));
+        assert!(!projected.template.lane);
+        assert_eq!(projected.level_defaults.as_ref().unwrap().lane, None);
         assert!(
             !projected
                 .structure
@@ -509,7 +518,8 @@ mod tests {
         };
         let preview = project(&workspace, &request).unwrap();
         assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
-        assert_eq!(preview.lane, Some(true));
+        assert!(preview.template.lane);
+        assert_eq!(preview.level_defaults.as_ref().unwrap().lane, Some(true));
         assert_eq!(preview.declared_actions.as_ref().unwrap(), &draft.verbs);
         let levels: Vec<_> = preview
             .structure
