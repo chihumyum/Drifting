@@ -386,11 +386,11 @@
       }
     },
     "v3": {
-      "destination": "导入到独立的新 v3 库，保留当前库和 0.1 源库。",
+      "destination": "导入到独立的新库，保留当前库和 0.1 源库。",
       "pending": "导入前需要映射选择",
       "start": "导入到新库",
-      "switching": "正在打开已完成的 v3 库",
-      "title": "重新导入为 v3"
+      "switching": "正在打开已完成的新库",
+      "title": "重新导入到新库"
     }
   },
   "importDialog": {
@@ -1450,6 +1450,7 @@
     "aliases": "别名",
     "auto_link": "自动链接",
     "board": "看板",
+    "children": "下面的条目",
     "choose_template": "选择模板",
     "color": "颜色",
     "conflict": "模板已在别处更改",
@@ -1468,15 +1469,15 @@
     "grid": "网格",
     "home": "新条目住在",
     "image": "图片",
+    "in_book": "计入字数和导出",
     "inherit": "继承",
     "instructions": "注意事项",
     "island": "岛屿",
     "kv": "键值表",
     "lane": "泳道",
-    "leaf": "叶子",
-    "leaf_template": "叶子模板",
     "level": "层级",
-    "level_template": "层级模板",
+    "level_hint": "打开后下面能放条目",
+    "linkable": "名字参与自动链接",
     "list": "列表",
     "long_text": "长文字",
     "manuscript": "成书",

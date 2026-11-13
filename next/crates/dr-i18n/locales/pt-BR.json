@@ -391,11 +391,11 @@
       }
     },
     "v3": {
-      "destination": "Uma biblioteca v3 separada será criada. A biblioteca atual e a origem 0.1 são preservadas.",
+      "destination": "Uma nova biblioteca separada será criada. A biblioteca atual e a origem 0.1 são preservadas.",
       "pending": "Opções de mapeamento necessárias antes da importação",
       "start": "Importar para nova biblioteca",
-      "switching": "Abrindo a biblioteca v3 concluída",
-      "title": "Reimportar como v3"
+      "switching": "Abrindo a biblioteca concluída",
+      "title": "Reimportar para nova biblioteca"
     }
   },
   "importDialog": {
@@ -1472,6 +1472,7 @@
     "aliases": "Apelidos",
     "auto_link": "Links automáticos",
     "board": "Quadro",
+    "children": "Entradas abaixo",
     "choose_template": "Escolher modelo",
     "color": "Cor",
     "conflict": "O modelo foi alterado em outro lugar",
@@ -1490,15 +1491,15 @@
     "grid": "Grade",
     "home": "Local de novas entradas",
     "image": "Imagem",
+    "in_book": "Contar palavras e exportar",
     "inherit": "Herdar",
     "instructions": "Instruções",
     "island": "Ilhas",
     "kv": "Tabela de chaves e valores",
     "lane": "Raia",
-    "leaf": "Folha",
-    "leaf_template": "Modelo de folha",
     "level": "Nível",
-    "level_template": "Modelo de nível",
+    "level_hint": "Quando ativado, permite entradas abaixo",
+    "linkable": "Incluir o nome nos links automáticos",
     "list": "Lista",
     "long_text": "Texto longo",
     "manuscript": "Manuscrito",

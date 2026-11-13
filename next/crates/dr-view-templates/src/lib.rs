@@ -1,5 +1,4 @@
-//! K5's v3 template editor. No v2.2 template routes are registered here.
-mod create;
+//! K5's entry template editor. No v2.2 template routes are registered here.
 pub mod model;
 pub mod preview;
 mod view;
@@ -14,12 +13,17 @@ pub fn init(cx: &mut App) {
             return None;
         };
         let template = host.book.v3()?.template(id.as_str())?.clone();
-        let editor = cx.new(|cx| TemplateEditor::new(host, Some(template), "leaf", window, cx));
+        let editor = cx.new(|cx| TemplateEditor::new(host, Some(template), window, cx));
         let focus = editor.focus_handle(cx);
         Some(ModulePage {
             view: editor.into(),
             focus,
         })
     });
-    dr_shell::v3::add_template_creator(cx, create::open);
+    dr_shell::v3::add_template_creator(cx, |host, window, cx| {
+        let editor = cx.new(|cx| TemplateEditor::new(host, None, window, cx));
+        let focus = editor.focus_handle(cx);
+        window.focus(&focus, cx);
+        dr_shell::dialogs::show_in(window.window_handle(), cx, editor.into());
+    });
 }

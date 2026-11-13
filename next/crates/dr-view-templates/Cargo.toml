@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "V3 leaf and level template editor (K5)"
+description = "Entry template editor (K5)"
 
 [dependencies]
 dr-agent-tools.workspace = true

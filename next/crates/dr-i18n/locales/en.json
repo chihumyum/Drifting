@@ -391,11 +391,11 @@
       }
     },
     "v3": {
-      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "destination": "A separate new library will be created. The current library and 0.1 source are preserved.",
       "pending": "Mapping choices required before import",
       "start": "Import into new library",
-      "switching": "Opening the completed v3 library",
-      "title": "Reimport as v3"
+      "switching": "Opening the completed library",
+      "title": "Reimport into new library"
     }
   },
   "importDialog": {
@@ -1463,6 +1463,7 @@
     "aliases": "Aliases",
     "auto_link": "Auto-link",
     "board": "Board",
+    "children": "Entries below",
     "choose_template": "Choose template",
     "color": "Color",
     "conflict": "Template changed elsewhere",
@@ -1481,15 +1482,15 @@
     "grid": "Grid",
     "home": "New entries reside in",
     "image": "Image",
+    "in_book": "Count words and export",
     "inherit": "Inherit",
     "instructions": "Instructions",
     "island": "Islands",
     "kv": "Key-value table",
     "lane": "Lane",
-    "leaf": "Leaf",
-    "leaf_template": "Leaf template",
     "level": "Level",
-    "level_template": "Level template",
+    "level_hint": "Allows entries below when on",
+    "linkable": "Include name in auto-links",
     "list": "List",
     "long_text": "Long text",
     "manuscript": "Manuscript",

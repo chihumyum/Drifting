@@ -42,11 +42,11 @@
       }
     },
     "v3": {
-      "destination": "Eine separate v3-Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
+      "destination": "Eine separate neue Bibliothek wird erstellt. Die aktuelle Bibliothek und die 0.1-Quelle bleiben erhalten.",
       "pending": "Vor dem Import sind Zuordnungen erforderlich",
       "start": "In neue Bibliothek importieren",
-      "switching": "Die fertige v3-Bibliothek wird geöffnet",
-      "title": "Als v3 erneut importieren"
+      "switching": "Die fertige Bibliothek wird geöffnet",
+      "title": "In neue Bibliothek erneut importieren"
     }
   },
   "importDialog": {
@@ -135,6 +135,7 @@
     "aliases": "Aliasse",
     "auto_link": "Automatisch verknüpfen",
     "board": "Tafel",
+    "children": "Einträge darunter",
     "choose_template": "Vorlage auswählen",
     "color": "Farbe",
     "conflict": "Vorlage wurde andernorts geändert",
@@ -153,15 +154,15 @@
     "grid": "Raster",
     "home": "Ablage neuer Einträge",
     "image": "Bild",
+    "in_book": "Bei Wortzahl und Export mitzählen",
     "inherit": "Erben",
     "instructions": "Hinweise",
     "island": "Inseln",
     "kv": "Schlüssel-Wert-Tabelle",
     "lane": "Bahn",
-    "leaf": "Blatt",
-    "leaf_template": "Blattvorlage",
     "level": "Ebene",
-    "level_template": "Ebenenvorlage",
+    "level_hint": "Aktiviert können darunter Einträge liegen",
+    "linkable": "Namen in automatische Links aufnehmen",
     "list": "Liste",
     "long_text": "Langer Text",
     "manuscript": "Manuskript",

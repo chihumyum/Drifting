@@ -1,5 +1,5 @@
 {
-  "about": "K5 第二次交回：共享 lite 真窗口，层级模板、字段限制、八项设置与还原、泳道、动作、帮手说明与预览、重开持久化。",
+  "about": "K5 统一模板编辑器回归：副屏 lite 真窗口，默认层级开关（展开与收起保留值）、计入字数与自动链接开关、任意模块（含正文与下面的条目）、八项下面设置（含泳道与还原）、动作、帮手说明与预览、重开持久化。",
   "steps": [
     {
       "seed": "lite"
@@ -19,6 +19,7 @@
     {
       "launch": {
         "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
           "DRIFTING_APPEARANCE": "light"
         },
         "settings": {
@@ -101,10 +102,9 @@
       }
     },
     {
-      "app": "ui.press",
+      "app": "ui.find",
       "params": {
-        "label": "Level template",
-        "role": "MenuItem"
+        "contains": "Allows entries below when on"
       }
     },
     {
@@ -128,6 +128,31 @@
     {
       "app": "ui.press",
       "params": {
+        "label": "Level",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Include name in auto-links",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Count words and export",
+        "role": "CheckBox",
+        "within": {
+          "role": "Group",
+          "label": "Prose"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
         "label": "Save"
       }
     },
@@ -144,8 +169,10 @@
       },
       "save": "created",
       "expect": {
-        "/[name=Acceptance level]/kind": "level",
-        "/[name=Acceptance level]/modules": []
+        "/[name=Acceptance level]/level": true,
+        "/[name=Acceptance level]/linkable": false,
+        "/[name=Acceptance level]/modules/0/kind": "prose",
+        "/[name=Acceptance level]/modules/0/config/in_book": false
       }
     },
     {
@@ -159,15 +186,27 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Add field"
+        "label": "Add module"
       }
     },
     {
       "app": "ui.find",
       "params": {
         "label": "Prose",
-        "role": "MenuItem",
-        "absent": true
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Entries below",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
       }
     },
     {
@@ -180,7 +219,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Add field"
+        "label": "Add module"
       }
     },
     {
@@ -207,7 +246,7 @@
       "params": {
         "x": 590,
         "y": 480,
-        "dy": 200
+        "dy": 450
       }
     },
     {
@@ -225,17 +264,6 @@
       "params": {
         "label": "章",
         "role": "MenuItem"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "章",
-        "role": "CheckBox",
-        "within": {
-          "role": "Group",
-          "label": "Allowed templates"
-        }
       }
     },
     {
@@ -410,24 +438,32 @@
       "expect": {
         "/[id=${created.[name=Acceptance level].id}]/settings": {
           "default_template": "tpl-chapter",
-          "allow": [
-            "tpl-chapter"
-          ],
           "display": "list",
           "auto_link": true,
           "accept": false,
           "home": "${homes.[template=tpl-manuscript].id}",
           "is_manuscript": false,
-          "format_shortcuts": "notes"
+          "format_shortcuts": "notes",
+          "lane": true
         },
-        "/[id=${created.[name=Acceptance level].id}]/lane": true,
-        "/[id=${created.[name=Acceptance level].id}]/modules/0/kind": "fields",
-        "/[id=${created.[name=Acceptance level].id}]/modules/1/kind": "kv"
+        "/[id=${created.[name=Acceptance level].id}]/modules/0/kind": "prose",
+        "/[id=${created.[name=Acceptance level].id}]/modules/0/config/in_book": false,
+        "/[id=${created.[name=Acceptance level].id}]/modules/1/kind": "children",
+        "/[id=${created.[name=Acceptance level].id}]/modules/2/kind": "fields",
+        "/[id=${created.[name=Acceptance level].id}]/modules/3/kind": "kv"
       }
     },
     {
       "app": "ui.screenshot",
       "png": "01-level-settings.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 250
+      }
     },
     {
       "app": "ui.press",
@@ -590,6 +626,71 @@
       "params": {
         "x": 590,
         "y": 480,
+        "dy": -10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Level",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Add action",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/level": false,
+        "/[id=${created.[name=Acceptance level].id}]/settings/lane": true,
+        "/[id=${created.[name=Acceptance level].id}]/settings/default_template": "tpl-chapter",
+        "/[id=${created.[name=Acceptance level].id}]/verbs/0/name": "Acceptance renamed action"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Level",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
         "dy": 10000
       }
     },
@@ -708,6 +809,16 @@
       }
     },
     {
+      "app": "ui.find",
+      "params": {
+        "contains": "book_prose_modules",
+        "within": {
+          "label": "What the Agent sees",
+          "role": "Group"
+        }
+      }
+    },
+    {
       "app": "ui.screenshot",
       "png": "02-helper-preview.png"
     },
@@ -735,9 +846,9 @@
           "description": "Synthetic helper description",
           "instructions": "Synthetic author instructions\nH1 H2 H3"
         },
-        "/[id=${created.[name=Acceptance level].id}]/modules/0/agent/instructions": "Synthetic field guidance",
-        "/[id=${created.[name=Acceptance level].id}]/modules/0/agent/writable": true,
-        "/[id=${created.[name=Acceptance level].id}]/modules/1/agent/instructions": "Synthetic table guidance"
+        "/[id=${created.[name=Acceptance level].id}]/modules/2/agent/instructions": "Synthetic field guidance",
+        "/[id=${created.[name=Acceptance level].id}]/modules/2/agent/writable": true,
+        "/[id=${created.[name=Acceptance level].id}]/modules/3/agent/instructions": "Synthetic table guidance"
       }
     },
     {
@@ -753,7 +864,7 @@
       "params": {
         "x": 590,
         "y": 480,
-        "dy": 200
+        "dy": 550
       }
     },
     {
@@ -764,17 +875,6 @@
         "within": {
           "role": "Group",
           "label": "Default template"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore",
-        "role": "Button",
-        "within": {
-          "role": "Group",
-          "label": "Allowed templates"
         }
       }
     },
@@ -847,8 +947,12 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Lane",
-        "role": "CheckBox"
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Lane"
+        }
       }
     },
     {
@@ -870,14 +974,13 @@
       },
       "expect": {
         "/[id=${created.[name=Acceptance level].id}]/settings": {
-          "allow": null,
           "display": null,
           "auto_link": null,
           "accept": null,
           "is_manuscript": null,
-          "format_shortcuts": null
-        },
-        "/[id=${created.[name=Acceptance level].id}]/lane": false
+          "format_shortcuts": null,
+          "lane": null
+        }
       }
     },
     {
@@ -917,17 +1020,6 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Any template",
-        "role": "Button",
-        "within": {
-          "role": "Group",
-          "label": "Allowed templates"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
         "label": "Save"
       }
     },
@@ -944,8 +1036,7 @@
       },
       "expect": {
         "/[id=${created.[name=Acceptance level].id}]/settings/default_template": null,
-        "/[id=${created.[name=Acceptance level].id}]/settings/home": null,
-        "/[id=${created.[name=Acceptance level].id}]/settings/allow": []
+        "/[id=${created.[name=Acceptance level].id}]/settings/home": null
       }
     },
     {
@@ -953,6 +1044,10 @@
     },
     {
       "launch": {
+        "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APPEARANCE": "light"
+        },
         "settings": {
           "device": {
             "modules": {
@@ -1003,7 +1098,7 @@
       "params": {
         "x": 590,
         "y": 480,
-        "dy": 200
+        "dy": 450
       }
     },
     {

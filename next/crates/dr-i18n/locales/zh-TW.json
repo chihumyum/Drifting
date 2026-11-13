@@ -386,11 +386,11 @@
       }
     },
     "v3": {
-      "destination": "將建立獨立的新 v3 資料庫，並保留目前資料庫與 0.1 來源資料庫。",
+      "destination": "將建立獨立的新資料庫，並保留目前資料庫與 0.1 來源資料庫。",
       "pending": "匯入前需要選擇對應方式",
       "start": "匯入至新資料庫",
-      "switching": "正在開啟已完成的 v3 資料庫",
-      "title": "重新匯入為 v3"
+      "switching": "正在開啟已完成的新資料庫",
+      "title": "重新匯入至新資料庫"
     }
   },
   "importDialog": {
@@ -1456,6 +1456,7 @@
     "aliases": "別名",
     "auto_link": "自動連結",
     "board": "看板",
+    "children": "下面的項目",
     "choose_template": "選擇範本",
     "color": "顏色",
     "conflict": "範本已在別處變更",
@@ -1474,15 +1475,15 @@
     "grid": "網格",
     "home": "新項目住在",
     "image": "圖片",
+    "in_book": "計入字數與匯出",
     "inherit": "繼承",
     "instructions": "注意事項",
     "island": "島嶼",
     "kv": "鍵值表",
     "lane": "泳道",
-    "leaf": "葉節點",
-    "leaf_template": "葉節點範本",
     "level": "層級",
-    "level_template": "層級範本",
+    "level_hint": "開啟後下面能放項目",
+    "linkable": "名字參與自動連結",
     "list": "清單",
     "long_text": "長文字",
     "manuscript": "成書",
