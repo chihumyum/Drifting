@@ -45,12 +45,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "构想卡 — 不归属任何故事线，独立悬浮。",
-        "label": "构想"
-      }
-    },
     "warnings": {
       "imagesDropped": "{{count}} 张图片没有导入",
       "notUtf8": "不是 UTF-8 文本，有些字符被替换了"
@@ -80,6 +74,9 @@
     "saveFailed": "未能保存",
     "title": "标题",
     "unset": "未设置"
+  },
+  "manuscriptExport": {
+    "manuscript": "成书"
   },
   "positionLink": {
     "copied": "已复制位置链接"
@@ -277,8 +274,7 @@
     "views": "时间线视图"
   },
   "v3Transfer": {
-    "chapterDesc": "书稿章节 — 可放入时间线，参与字数统计。",
     "filesTitle": "文件",
-    "targetTitle": "类型"
+    "targetTitle": "目标"
   }
 }

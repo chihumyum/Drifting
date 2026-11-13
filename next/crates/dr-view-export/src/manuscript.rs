@@ -9,7 +9,9 @@ use std::time::SystemTime;
 use base64::Engine as _;
 use dr_export::{Cover, Format, Labels, Options, Outline};
 use dr_i18n::{I18n, keys};
-use dr_ui::components::{Button, Dialog, Loading, SandCell, Segmented, Switch};
+use dr_ui::components::{
+    Button, Choice, Dialog, Loading, RowIcon, SandCell, Segmented, Select, Switch,
+};
 use dr_ui::input::{FieldEvent, TextField};
 use dr_ui::sand::{self, Icon};
 use dr_ui::style::DrStyled;
@@ -49,6 +51,7 @@ type Marks = BTreeMap<String, Option<String>>;
 
 struct Loaded {
     outline: Outline,
+    parts: Vec<dr_export::v3::Part>,
     marks: Option<Marks>,
 }
 
@@ -59,6 +62,8 @@ pub struct ManuscriptState {
     /// Opened from this chapter: 「选中章节」 starts with it alone.
     from_chapter: Option<String>,
     pub outline: Option<Outline>,
+    pub manuscripts: Vec<dr_export::v3::Part>,
+    pub manuscript: usize,
     pub v3: bool,
     v3_marks: Box<Marks>,
     pub load_failed: bool,
@@ -105,6 +110,8 @@ impl ManuscriptState {
             selected: chapter.iter().cloned().collect(),
             from_chapter: chapter,
             outline: None,
+            manuscripts: Vec::new(),
+            manuscript: 0,
             v3: false,
             v3_marks: Box::default(),
             load_failed: false,
@@ -143,13 +150,16 @@ impl ManuscriptState {
                             .iter()
                             .map(|e| (e.id.clone(), e.mark.clone()))
                             .collect();
+                        let picker = outline.picker();
                         Ok(Loaded {
-                            outline: outline.picker(),
+                            outline: picker,
+                            parts: outline.parts,
                             marks: Some(marks),
                         })
                     } else {
                         dr_export::outline(&lib, &book).map(|outline| Loaded {
                             outline,
+                            parts: Vec::new(),
                             marks: None,
                         })
                     }
@@ -173,7 +183,11 @@ impl ManuscriptState {
         cx: &mut Context<ExportDialog>,
     ) {
         match read {
-            Ok(Loaded { outline, marks }) => {
+            Ok(Loaded {
+                outline,
+                parts,
+                marks,
+            }) => {
                 self.v3 = marks.is_some();
                 *self.v3_marks = marks.unwrap_or_default();
                 let title = prefs
@@ -186,6 +200,22 @@ impl ManuscriptState {
                         f.set_text(title, cx)
                     }
                 });
+                let manuscript = self
+                    .from_chapter
+                    .as_deref()
+                    .and_then(|ch| {
+                        parts
+                            .iter()
+                            .position(|p| p.entries.iter().any(|e| e.id == ch))
+                    })
+                    .unwrap_or(0);
+                let outline = if let Some(part) = parts.get(manuscript) {
+                    picker_of(&self.book, &outline.title, part)
+                } else {
+                    outline
+                };
+                self.manuscripts = parts;
+                self.manuscript = manuscript;
                 if self.from_chapter.is_none() {
                     self.selected = dr_export::default_chapters(&outline).into_iter().collect();
                 }
@@ -198,6 +228,34 @@ impl ManuscriptState {
         }
     }
 
+    /// Switches which manuscript part the dialog exports when a book has more
+    /// than one.
+    pub fn select_manuscript(&mut self, index: usize) {
+        let Some(part) = self.manuscripts.get(index) else {
+            return;
+        };
+        if index == self.manuscript {
+            return;
+        }
+        let book_title = self
+            .outline
+            .as_ref()
+            .map(|o| o.title.clone())
+            .unwrap_or_default();
+        let outline = picker_of(&self.book, &book_title, part);
+        self.manuscript = index;
+        self.selected = dr_export::default_chapters(&outline).into_iter().collect();
+        self.outline = Some(outline);
+    }
+
+    /// Display labels for [`Self::manuscripts`], as tree paths.
+    pub fn part_labels(&self) -> Vec<String> {
+        self.manuscripts
+            .iter()
+            .map(|p| part_label(p, &self.i18n))
+            .collect()
+    }
+
     pub fn is_busy(&self) -> bool {
         self.busy.is_some()
     }
@@ -206,15 +264,7 @@ impl ManuscriptState {
         if !self.v3 {
             return sand::Kind::Chapter(seal_of(id));
         }
-        match self.v3_marks.get(id).and_then(|m| m.as_deref()) {
-            Some("book") => sand::Kind::All,
-            Some("file-text") => sand::Kind::Chapter(seal_of(id)),
-            Some("lightbulb" | "sparkles") => sand::Kind::Drift { loose: false },
-            Some("folder" | "tag") => sand::Kind::Category,
-            Some("compass" | "route") => sand::Kind::Storyline,
-            Some("git-branch") => sand::Kind::DriftGroup,
-            _ => sand::Kind::Element,
-        }
+        v3_mark(self.v3_marks.get(id).and_then(|m| m.as_deref()), id)
     }
 
     /// The chapters the export takes, in book order.
@@ -273,6 +323,7 @@ impl ManuscriptState {
         let has_acts = self.outline.as_ref().is_some_and(Outline::has_acts);
         (
             Options {
+                manuscript: self.manuscripts.get(self.manuscript).map(|p| p.id.clone()),
                 chapters: (!self.whole_book).then(|| self.chapters()),
                 act_titles: has_acts && self.act_titles,
                 chapter_titles: self.chapter_titles,
@@ -448,6 +499,57 @@ fn seal_of(id: &str) -> u8 {
     ((hash as i64).abs() % 6) as u8
 }
 
+fn v3_mark(mark: Option<&str>, id: &str) -> sand::Kind {
+    match mark {
+        Some("book") => sand::Kind::All,
+        Some("file-text") => sand::Kind::Chapter(seal_of(id)),
+        Some("lightbulb" | "sparkles") => sand::Kind::Drift { loose: false },
+        Some("folder" | "tag") => sand::Kind::Category,
+        Some("compass" | "route") => sand::Kind::Storyline,
+        Some("git-branch") => sand::Kind::DriftGroup,
+        _ => sand::Kind::Element,
+    }
+}
+
+fn picker_of(book: &str, title: &str, part: &dr_export::v3::Part) -> Outline {
+    Outline {
+        book: book.to_owned(),
+        title: title.to_owned(),
+        acts: Vec::new(),
+        chapters: part
+            .entries
+            .iter()
+            .map(|entry| dr_export::ChapterEntry {
+                id: entry.id.clone(),
+                title: entry.title.clone(),
+                status: String::new(),
+                act: None,
+            })
+            .collect(),
+    }
+}
+
+fn part_label(part: &dr_export::v3::Part, i18n: &I18n) -> String {
+    fn seg<'a>(s: &'a str, untitled: &'a str) -> &'a str {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            untitled
+        } else {
+            trimmed
+        }
+    }
+    let untitled = i18n.t(keys::k4_book::UNTITLED_ENTRY);
+    if part.path.is_empty() {
+        seg(&part.title, untitled).to_owned()
+    } else {
+        part.path
+            .iter()
+            .map(|s| seg(s, untitled))
+            .collect::<Vec<_>>()
+            .join(" / ")
+    }
+}
+
 /// A section of the dialog: its label in index type, then its controls.
 fn section(theme: &Theme, label: SharedString) -> gpui::Div {
     let s = theme.scale;
@@ -553,6 +655,40 @@ pub(crate) fn render(
                     })
                 }),
             );
+
+            let manuscript = (m.manuscripts.len() > 1).then(|| {
+                let choices: Vec<Choice> = m
+                    .manuscripts
+                    .iter()
+                    .map(|part| {
+                        let rgb = part
+                            .color
+                            .as_deref()
+                            .and_then(|c| c.strip_prefix('#'))
+                            .and_then(|c| u32::from_str_radix(c, 16).ok())
+                            .map(dr_ui::tokens::Rgb::hex);
+                        Choice::new(
+                            RowIcon::Mark(v3_mark(part.mark.as_deref(), &part.id), rgb),
+                            part_label(part, i18n),
+                        )
+                    })
+                    .collect();
+                let set_manuscript = this.clone();
+                section(&theme, t(mx::MANUSCRIPT)).child(
+                    Select::new("export-manuscript", choices, m.manuscript)
+                        .in_dialog()
+                        .max_menu_height(CHAPTERS_MAX_HEIGHT)
+                        .disabled(running)
+                        .on_change(move |i, _, cx| {
+                            set_manuscript.update(cx, |d, cx| {
+                                if let Some(m) = d.manuscript_mut() {
+                                    m.select_manuscript(i);
+                                }
+                                cx.notify();
+                            })
+                        }),
+                )
+            });
 
             let set_scope = this.clone();
             let mut scope = section(&theme, t(mx::SCOPE)).child(
@@ -783,6 +919,7 @@ pub(crate) fn render(
                 .flex_col()
                 .gap(px(space::S6))
                 .child(format)
+                .children(manuscript)
                 .child(scope)
                 .child(contents)
                 .child(info)

@@ -45,12 +45,6 @@
     }
   },
   "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "ストーリーラインから独立したアイデアカード。",
-        "label": "アイデア"
-      }
-    },
     "warnings": {
       "imagesDropped": "{{count}} 枚の画像はインポートされませんでした",
       "notUtf8": "UTF-8 のテキストではないため、一部の文字を置き換えました"
@@ -80,6 +74,9 @@
     "saveFailed": "保存できませんでした",
     "title": "タイトル",
     "unset": "未設定"
+  },
+  "manuscriptExport": {
+    "manuscript": "原稿"
   },
   "positionLink": {
     "copied": "位置リンクをコピーしました"
@@ -277,7 +274,6 @@
     "views": "タイムラインビュー"
   },
   "v3Transfer": {
-    "chapterDesc": "原稿の章です。タイムラインに配置でき、文字数に計上します。",
     "filesTitle": "ファイル",
     "targetTitle": "対象"
   }

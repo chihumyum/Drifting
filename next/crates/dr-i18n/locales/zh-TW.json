@@ -394,7 +394,6 @@
     }
   },
   "importDialog": {
-    "categoryTitle": "類目",
     "chooseFiles": "選擇檔案",
     "chooseFolder": "選擇資料夾",
     "clear": "清除",
@@ -406,24 +405,10 @@
       "parsing": "解析中",
       "ready": "已就緒"
     },
-    "storylineTitle": "故事線",
     "summary": {
       "done": "完成",
       "failed": "失敗",
       "ok": "已匯入"
-    },
-    "targets": {
-      "chapter": {
-        "label": "章節"
-      },
-      "element": {
-        "desc": "人物、地點、物品等參考資料，需選擇類目。",
-        "label": "要素"
-      },
-      "idea": {
-        "desc": "獨立於故事線的浮動構想卡片。",
-        "label": "構想"
-      }
     },
     "title": "匯入檔案",
     "warnings": {
@@ -491,6 +476,7 @@
     "format": "格式",
     "loadFailed": "無法讀取章節，請重試。",
     "loading": "正在讀取章節…",
+    "manuscript": "成書",
     "menu": "匯出書稿",
     "removeCover": "移除",
     "retry": "重試",
@@ -941,7 +927,6 @@
       "review": "作品 · 審閱",
       "stats": {
         "all-chapters": "全書 · 節奏",
-        "category": "此類目 · 詳細統計",
         "chapter": "此章 · 詳細統計",
         "element": "此要素 · 詳細統計",
         "material": "此素材 · 詳情",
@@ -950,7 +935,6 @@
       }
     },
     "stats": {
-      "category": "類目",
       "chapter": "章節",
       "dialogueRatio": "對話比例",
       "name": "名稱",
@@ -1636,7 +1620,6 @@
     "views": "時間線視圖"
   },
   "v3Transfer": {
-    "chapterDesc": "書稿章節，可放入時間線並計入字數。",
     "filesTitle": "檔案",
     "targetTitle": "目標"
   },

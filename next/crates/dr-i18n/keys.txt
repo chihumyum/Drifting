@@ -15,7 +15,6 @@ rightSidebar.kickers.stats.all-chapters
 rightSidebar.kickers.stats.chapter
 rightSidebar.kickers.stats.storyline
 rightSidebar.kickers.stats.element
-rightSidebar.kickers.stats.category
 rightSidebar.kickers.stats.none
 rightSidebar.kickers.stats.material
 sidebarLayout.split
@@ -182,7 +181,6 @@ rightSidebar.stats.wordRhythm
 rightSidebar.stats.paragraphSentence
 rightSidebar.stats.paragraphSentenceValue
 rightSidebar.stats.dialogueRatio
-rightSidebar.stats.category
 rightSidebar.stats.name
 rightSidebar.stats.updated
 rightSidebar.status.draft
@@ -512,15 +510,10 @@ settings.sync.backup.errors.invalid
 settings.sync.backup.errors.newer
 settings.sync.backup.errors.unknown
 importDialog.title
-importDialog.storylineTitle
-importDialog.categoryTitle
 importDialog.chooseFiles
 importDialog.clear
 importDialog.importing
 importDialog.start
-importDialog.targets.chapter.label
-importDialog.targets.element.label
-importDialog.targets.element.desc
 importDialog.status.parsing
 importDialog.status.ready
 importDialog.status.error

@@ -252,3 +252,125 @@ fn from_a_chapter_the_choice_starts_with_it(cx: &mut TestAppContext) {
         assert_eq!(d.manuscript().unwrap().feedback, None)
     });
 }
+
+#[gpui::test]
+fn multiple_manuscript_parts_let_the_author_choose_which_to_export(cx: &mut TestAppContext) {
+    use std::time::SystemTime;
+
+    let e = env();
+    let extra_box = out(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "template": "tpl-group", "level": true, "title": "外集"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let side_root = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": extra_box,
+            "template": "tpl-manuscript",
+            "level": true,
+            "title": "番外",
+            "bodies": {"mod-description": "番外说明不导出"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let epilogue = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": side_root,
+            "template": "tpl-chapter",
+            "title": "后记",
+            "bodies": {"mod-prose": "灯火渐熄。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // Opened from an entry in the second manuscript part: pre-selects that part.
+    let (from_side, cx_side) = open(
+        cx,
+        &e,
+        Request::Manuscript {
+            chapter: Some(epilogue.clone()),
+        },
+    );
+    wait_for(cx_side, |cx| {
+        from_side.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    from_side.read_with(cx_side, |d, cx| {
+        let m = d.manuscript().unwrap();
+        assert_eq!(m.manuscripts.len(), 2);
+        assert_eq!(m.part_labels(), ["书稿", "外集 / 番外"]);
+        assert_eq!(m.manuscript, 1);
+        assert!(!m.whole_book);
+        assert_eq!(m.chapters(), vec![epilogue.clone()]);
+        assert_eq!(
+            m.options(cx).0.manuscript.as_deref(),
+            Some(side_root.as_str())
+        );
+    });
+
+    // Opened for the book: starts on the first manuscript part, then switches to
+    // the second and writes only that manuscript's EPUB.
+    let (dialog, cx) = open(cx, &e, Request::Manuscript { chapter: None });
+    wait_for(cx, |cx| {
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    let (chosen_opts, chosen_labels) = dialog.update(cx, |d, cx| {
+        let m = d.manuscript_mut().unwrap();
+        assert_eq!(m.manuscripts.len(), 2);
+        assert_eq!(m.manuscript, 0);
+        assert_eq!(m.chapters(), e.chapters[..2].to_vec());
+        m.select_manuscript(1);
+        assert_eq!(m.manuscript, 1);
+        assert_eq!(m.chapters(), vec![epilogue.clone()]);
+        let (opts, labels) = m.options(cx);
+        assert_eq!(opts.manuscript.as_deref(), Some(side_root.as_str()));
+        m.export(cx);
+        (opts, labels)
+    });
+    let read_back = dr_export::v3::read_manuscript(
+        &e.ws,
+        &e.book,
+        &chosen_opts,
+        &chosen_labels,
+        "zh-CN",
+        None,
+        SystemTime::UNIX_EPOCH,
+    )
+    .unwrap();
+    assert_eq!(read_back.sections.len(), 1);
+    match &read_back.sections[0] {
+        dr_export::Section::Chapter { title, blocks, .. } => {
+            assert_eq!(title, "后记");
+            assert_eq!(blocks.len(), 1);
+        }
+        other => panic!("unexpected section: {other:?}"),
+    }
+
+    cx.run_until_parked();
+    let epub = e.dir.path().join("番外.epub");
+    cx.simulate_new_path_selection({
+        let epub = epub.clone();
+        move |_| Some(epub)
+    });
+    wait_for(cx, |cx| {
+        dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
+    });
+    assert_eq!(
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().feedback.clone()),
+        Some(dr_view_export::ManuscriptFeedback::Saved)
+    );
+    let bytes = std::fs::read(&epub).unwrap();
+    assert_eq!(&bytes[..2], b"PK");
+}

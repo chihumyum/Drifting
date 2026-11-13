@@ -93,6 +93,9 @@ pub fn default_chapters(outline: &Outline) -> Vec<String> {
 /// What the author chose in the dialog.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Options {
+    /// Root entry ID (`v3::Part::id`) of the manuscript part to export when a
+    /// book has more than one; `None` takes every manuscript part in order.
+    pub manuscript: Option<String>,
     /// `None` exports the whole book ([`default_chapters`]).
     pub chapters: Option<Vec<String>>,
     /// Act titles get pages (sections) of their own. Without acts this has
