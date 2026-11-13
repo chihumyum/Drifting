@@ -82,6 +82,7 @@ impl Workspace {
             library: self.library.clone(),
             book_id: self.book_id.clone(),
             book: self.book.clone(),
+            view,
         };
         let made = crate::pages::super_view_for(view, &host, window, cx);
         self.super_views

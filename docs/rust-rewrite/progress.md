@@ -90,21 +90,21 @@
 | M19 素材 | 已验收 | 素材夹选择行和删除确认按钮没有键盘焦点；素材笔记里的任务行自动变成待办没做 | [m19](modules/m19-materials.md) |
 | M20 统计面板 | 已验收† | | [m20](modules/m20-stats.md) |
 | M21 故事图 | 暂缓 | 作者 2026-11-11 定：等新的层级结构落地再说。四个没定的产品问题见「等作者的事」 | — |
-| M22 要素全景 | 已验收† | 2026-11-11 接到 v3，重型书上量过首帧。浮岛小卡上的提及分布暂缓，并入视觉打磨 | [m22](modules/m22-element-overview.md) |
-| M23 审阅与素材 Super View | 已验收† | 2026-11-11 接到 v3，重型书上量过首帧 | [m23](modules/m23-shelf-review.md) |
+| M22 要素全景 | 已验收† | 2026-11-11 接到 v3，重型书上量过首帧。舞台关着时不再跟着书重读（2026-11-13）。浮岛小卡上的提及分布暂缓，并入视觉打磨 | [m22](modules/m22-element-overview.md) |
+| M23 审阅与素材 Super View | 已验收† | 2026-11-11 接到 v3，重型书上量过首帧。舞台关着时不再跟着书重读（2026-11-13）。舞台正显示它时换库会失败，见 m23 的「待协调」 | [m23](modules/m23-shelf-review.md) |
 | M24 字海、加载与首次体验 | 已验收† | **工作区导览现在不会出现**：它在 v3 的书上一律不显示，而现在只有 v3 的书。样书认领的一个旧问题没核实，见「技术上还开着的事」 | [m24](modules/m24-sea.md) |
 | M25 书架封面与写作热力图 | 已验收† | | [m25](modules/m25-shelf-art.md) |
 | M26 沉浸写作与打字机滚动 | 已验收† | 整体观感要作者在真窗口里看 | [m26](modules/m26-immersive.md) |
-| M27 Agent 运行时 | 只在合成环境验过 | 没调过真实模型。恢复时每次开库重放全部会话，日志只增不减，还没做保留策略 | [m27](modules/m27-agent-runtime.md) |
+| M27 Agent 运行时 | 只在合成环境验过 | 没调过真实模型。流式文字分批落盘（约 0.1 秒一次，面板也按这个节奏刷新），对话追加不再重解析整条会话，开库恢复跳过已经完整重放过的会话（2026-11-13）。日志只增不减，还没做保留策略 | [m27](modules/m27-agent-runtime.md) |
 | M28 模型接入 | 只在合成环境验过 | 合成流和本机假服务。真实账号、订阅的设备码登录、各家的模型目录和联网搜索都没现场验过 | [m28](modules/m28-model-providers.md) |
 | M29 Agent 工具 | 只在合成环境验过 | 工具清单从命令注册表生成；同 K6。有几条命令还显式排除在目录外，见「技术上还开着的事」 | [m29](modules/m29-agent-tools.md)、[k6](modules/k6-agent-tools.md) |
 | M30 长任务、记忆与主动建议 | 只在合成环境验过 | 只有机制。还没接的：计划和工作记忆的模型工具没注册；主页的建议卡没有落点；章末 ⁂ 交给 Agent 审阅、把待办交给 Agent 两个入口没做。重启后不自动续跑 | [m30](modules/m30-long-tasks-memory.md) |
 | M31 Agent 面板与改动显现 | 只在合成环境验过 | 真窗口走过，对面是合成的模型流。Agent 写入时逐字显现的播放接口有了，产品里没启用 | [m31](modules/m31-agent-panel.md) |
-| M32 MCP | 只在合成环境验过 | 没用真实的 Codex、Claude Code、Antigravity 客户端连过；Windows 上没跑过。审计日志的保留和分页没做 | [m32](modules/m32-mcp.md) |
+| M32 MCP | 只在合成环境验过 | 没用真实的 Codex、Claude Code、Antigravity 客户端连过；Windows 上没跑过。入站目录按打开的书给，带上这本书模板声明的动作，目录变了通知客户端重新列（2026-11-13）。审计日志的保留和分页没做 | [m32](modules/m32-mcp.md) |
 | M33 生图 | 没做 | 也没有结论文档。当时任务书定的做法：候选图进本机收件箱，留下的经 `material.create`、`asset.put` 成为素材，界面挂在要素页。端点的实测在 [docs/image-generation.md](../image-generation.md) | — |
 | M34 口述 | 只在合成环境验过 | 没用真实麦克风录过；系统授权、设备切换、Windows 录音都要手测 | [m34](modules/m34-dictation.md) |
 | M35 账号与登录 | 只在合成环境验过 | 本机假服务。真实 Hosted、浏览器登录和深链、系统钥匙串都没验 | [m35](modules/m35-account.md) |
-| M36 同步 v2 | 只在合成环境验过 | 两个真窗口对着本机假服务自动同步往返、关窗排空、重开收敛都过了。服务端的 `loro-v2` 没部署，见「等作者的事」 | [m36](modules/m36-sync-v2.md) |
+| M36 同步 v2 | 只在合成环境验过 | 两个真窗口对着本机假服务自动同步往返、关窗排空、重开收敛都过了。收到还缺依赖的更新不再确认、从头重放一次；同步进度存在书库里，恢复旧备份后会接着补拉（2026-11-13）。服务端的 `loro-v2` 没部署，见「等作者的事」 | [m36](modules/m36-sync-v2.md) |
 | M37 偏好同步 | 只在合成环境验过 | 本机假服务 | [m37](modules/m37-preference-sync.md) |
 | M38 分享链接 | 暂缓 | 作者决定；分享链接的语义要作者先定。当时任务书定的做法：停笔后自动推送靠订阅 F3 的提交事件，不轮询正文；读者的评论回流成 M18 的审阅条目；正文转 HTML 和 `dr-export` 共用一份。读者规则见 [docs/share-links.md](../share-links.md) | — |
 | M39 反馈与崩溃上报 | 只在合成环境验过 | 只对本机假服务发过；对真服务发要作者同意 | [m39](modules/m39-feedback.md) |
@@ -172,7 +172,7 @@
 - **M30 的三样**：见上面模块表（章末 ⁂ 现在只有「标为完成」和「新建下一章」两个动作）。[m30](modules/m30-long-tasks-memory.md)、[k6](modules/k6-agent-tools.md)
 - **工作区导览**在 v3 的书上不显示。[f6](foundations/f6-shell.md)，`dr-shell/src/workspace/sea.rs`
 - **Agent 工具目录里还排除着的命令**：`comment.delete`、`material.delete`、`patch.delete`、`relation_type.delete`（等一个能列全受影响对象的查询）、`history.restore_point`、`material.set_entry_link`、时间线的局部命令。`entry_snapshot.*` 是有意不开放给模型的，不算缺口。[k6](modules/k6-agent-tools.md)，`dr-agent-tools/src/catalog.rs`
-- **Agent 的日志只增不减**：运行时每次开库重放全部会话；MCP 的审计日志没有保留期和分页。[m27](modules/m27-agent-runtime.md)、[m32](modules/m32-mcp.md)
+- **Agent 的日志只增不减**：没有保留策略；开库时只重放还没完整重放过的会话（2026-11-13 起）。MCP 的审计日志没有保留期和分页。[m27](modules/m27-agent-runtime.md)、[m32](modules/m32-mcp.md)
 - **M18、M19 比旧版少的那几样**，以及禁用按钮的读屏状态：见上面两张表。
 - **调试桥的鼠标事件不带修饰键**，验不了按住 Shift 点这类操作。要求写在 [handoff/README.md](handoff/README.md#真窗口验收)。
 - **单文档旧增量的折叠**（同步服务端）：`isSnapshot: true` 时折叠旧增量是可选的后续优化，没做。[m36](modules/m36-sync-v2.md)
