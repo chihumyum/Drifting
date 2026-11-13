@@ -119,7 +119,8 @@ pub mod v3 {
             "display" => dr_shell::v3::page::display_name(&s.display, cx),
             "auto_link" => on(s.auto_link),
             "accept" => on(s.accept),
-            "is_manuscript" => on(s.is_manuscript),
+            // Only an outermost level's own declaration makes a manuscript.
+            "is_manuscript" => on(v.is_manuscript_root(level)),
             "lane" => on(s.lane),
             "home" => s
                 .home
@@ -206,8 +207,23 @@ pub mod v3 {
                         }),
                     );
                 }
+                // A manuscript setting inherited from a level above does not
+                // make this one a manuscript: its source is the default.
+                let inherited_manuscript = key == "is_manuscript"
+                    && !v.is_manuscript_root(&self.host.level)
+                    && level.sources.get(key).is_some_and(|s| match s {
+                        SettingSource::Override { entry }
+                        | SettingSource::Template { entry, .. }
+                        | SettingSource::Lane { entry } => *entry != self.host.level,
+                        SettingSource::Default => false,
+                    });
+                let shown_source = if inherited_manuscript {
+                    Some(&SettingSource::Default)
+                } else {
+                    level.sources.get(key)
+                };
                 settings = settings.child(div().flex().flex_col().gap_1().child(row).children(
-                    level.sources.get(key).map(|s| {
+                    shown_source.map(|s| {
                         let provenance = source(&book, s, cx);
                         div()
                             .id(SharedString::from(format!("g2-setting-source-{key}")))

@@ -7,13 +7,19 @@
 //! [`UndoConfig::merge_interval`] of a step's first edit join it, and one
 //! undo pops every item of the step. Enter, an input-method commit, a paste
 //! or a format change start a new step ([`AuthorUndo::force_new_step`]).
+//! The time is the host's clock when it gives one ([`crate::ProseDoc::set_clock`]:
+//! the editor gives GPUI's, which is the system's in the app and a test's own
+//! in tests), the system's otherwise.
 //!
 //! Each Loro item also records the text it deleted that held an edge of an
 //! anchor. Undo puts deleted text back as new characters, which the anchor's
 //! old cursors cannot find; after undoing an item the document finds where
 //! its deleted text came back and re-anchors those anchors there.
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use super::{anchor::AnchorId, mirror::TextOp};
 
@@ -97,7 +103,12 @@ pub(crate) struct AuthorUndo {
     /// Deletions made since the last commit.
     pub pending: ItemRecord,
     merge_interval: Duration,
+    /// Where the time comes from (`None`: the system clock).
+    pub clock: Option<UndoClock>,
 }
+
+/// A clock for the undo history ([`crate::ProseDoc::set_clock`]).
+pub type UndoClock = Arc<dyn Fn() -> Instant + Send + Sync>;
 
 impl AuthorUndo {
     pub fn new(config: &UndoConfig) -> AuthorUndo {
@@ -108,7 +119,15 @@ impl AuthorUndo {
             join_last_step: false,
             pending: ItemRecord::default(),
             merge_interval: config.merge_interval,
+            clock: None,
         }
+    }
+
+    /// Now, by the history's clock.
+    pub fn now(&self) -> Instant {
+        self.clock
+            .as_ref()
+            .map_or_else(Instant::now, |clock| clock())
     }
 
     /// Folds `pushed` new Loro items (from the commit just made) into the
@@ -122,7 +141,7 @@ impl AuthorUndo {
         }
         let mut items: Vec<ItemRecord> = (1..pushed).map(|_| ItemRecord::default()).collect();
         items.push(record);
-        let now = Instant::now();
+        let now = self.now();
         match self.steps.last_mut() {
             Some(step) if join => step.items.extend(items),
             Some(step) if !split && now.duration_since(step.started) < self.merge_interval => {
@@ -138,10 +157,9 @@ impl AuthorUndo {
     }
 
     /// A redone step never merges with later typing.
-    pub fn long_ago() -> Instant {
-        Instant::now()
-            .checked_sub(Duration::from_secs(3600))
-            .unwrap_or_else(Instant::now)
+    pub fn long_ago(&self) -> Instant {
+        let now = self.now();
+        now.checked_sub(Duration::from_secs(3600)).unwrap_or(now)
     }
 
     pub fn needs_ops(record: &ItemRecord) -> bool {

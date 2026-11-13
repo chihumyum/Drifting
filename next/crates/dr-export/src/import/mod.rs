@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 
 use crate::manuscript::{Block, Run};
 
-pub use write::{ImportTarget, ImportedEntity, ImportedItem, import_docs};
+pub use write::{ImportTarget, ImportedEntity, ImportedItem, import_docs, import_module};
 
 /// The longest file read (Word, Markdown or text), in bytes.
 pub const MAX_IMPORT_BYTES: u64 = 64 * 1024 * 1024;

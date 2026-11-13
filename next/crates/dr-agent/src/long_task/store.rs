@@ -262,7 +262,7 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
             .collect();
         for target in modules.iter().filter(|t| {
             if manuscript.is_empty() {
-                !entry.is_level()
+                entry.is_linkable(&templates)
             } else {
                 t.doc.as_ref().is_some_and(|d| book_docs.contains(d))
                     || (numbered.contains(&entry.id) && !defined.contains(&t.id))

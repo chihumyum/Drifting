@@ -1168,7 +1168,7 @@ pub struct RelationTypeV3 {
 }
 
 /// A comment or TODO in v3: adds `target_module` when targeting a prose module
-/// of an entry (`body:<entry_id>/<module_id>` or `body:<entry_id>/about`).
+/// of an entry (`body:<entry_id>/<module_id>`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CommentV3 {
     pub id: CommentId,
@@ -1757,6 +1757,88 @@ pub fn prune_placement_if_not_in_view_lanes(
     false
 }
 
+/// The lane an entry is coloured and marked by (`kernel-v4.md` §9): its
+/// primary membership's host when that is a swimlane, else the first
+/// swimlane it belongs to, in `memberships` order. `memberships` are the
+/// valid ones ([`filter_valid_memberships`]).
+pub fn primary_lane<'a>(
+    entry: &Entry,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    memberships: &'a [Membership],
+) -> Option<&'a EntryId> {
+    let is_lane = |host: &EntryId| entries.get(host).is_some_and(|h| h.is_lane(templates));
+    let mut hosts = memberships
+        .iter()
+        .filter(|m| m.member == entry.id)
+        .map(|m| &m.host);
+    hosts
+        .clone()
+        .find(|h| entry.primary.as_ref() == Some(*h) && is_lane(h))
+        .or_else(|| hosts.find(|h| is_lane(h)))
+}
+
+/// The value of an entry's own colour field (a `fields` module's
+/// `color_field`), when it has one.
+pub fn own_color(
+    entry: &Entry,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> Option<String> {
+    entry
+        .effective_template(templates)?
+        .modules
+        .iter()
+        .find_map(|m| {
+            let field = m.config.color_field.as_ref()?;
+            entry
+                .fields
+                .get(&m.id)?
+                .get(field)?
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+        })
+}
+
+/// The colour of a lane as its members show it: its own colour field, else
+/// its template's colour.
+pub fn lane_color(
+    lane: &Entry,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> Option<String> {
+    own_color(lane, templates).or_else(|| template_color(lane, templates))
+}
+
+fn template_color(
+    entry: &Entry,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> Option<String> {
+    entry
+        .effective_template(templates)?
+        .color
+        .clone()
+        .filter(|s| !s.is_empty())
+}
+
+/// The colour an entry is shown in (`kernel-v4.md` §9), whatever its
+/// switch: its own colour field when it has a value, else its primary
+/// lane's colour ([`primary_lane`], [`lane_color`]), else its template's
+/// colour. `memberships` are the valid ones.
+pub fn entry_color(
+    entry: &Entry,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    memberships: &[Membership],
+) -> Option<String> {
+    own_color(entry, templates)
+        .or_else(|| {
+            primary_lane(entry, entries, templates, memberships)
+                .and_then(|lane| entries.get(lane))
+                .and_then(|lane| lane_color(lane, templates))
+        })
+        .or_else(|| template_color(entry, templates))
+}
+
 /// Whether `entry` auto-links (`kernel-v4.md` "自动链接"): it is live, its
 /// template is `linkable` (an entry without an active template is), and the
 /// level it resides in, or any level it validly belongs to, resolves
@@ -2310,6 +2392,79 @@ mod tests {
             }],
         ));
         t
+    }
+
+    #[test]
+    fn entry_colour_is_its_own_field_else_its_primary_lane_else_its_template() {
+        let coloured = |id: &str, colour: Option<&str>| {
+            let mut t = template(id, id);
+            let mut fields = ModuleSpec::fields(mid("mod-fields"), "字段", Vec::new());
+            fields.config.color_field = Some("color".into());
+            t.modules.push(fields);
+            t.color = colour.map(str::to_owned);
+            t
+        };
+        let mut lane_tpl = coloured("tpl-lane", Some("#lanetpl"));
+        lane_tpl.level = true;
+        lane_tpl.linkable = false;
+        lane_tpl.settings.lane = Some(true);
+        lane_tpl.settings.accept = Some(true);
+        let templates = BTreeMap::from([
+            (tid("tpl-lane"), lane_tpl),
+            (
+                tid("tpl-chapter"),
+                coloured("tpl-chapter", Some("#chapter")),
+            ),
+        ]);
+        let paint = |e: &mut Entry, colour: &str| {
+            e.fields.insert(
+                mid("mod-fields"),
+                BTreeMap::from([("color".to_owned(), FieldValue::Text(colour.into()))]),
+            );
+        };
+        let mut red = level_with("lane-red", None, "红线", Some("tpl-lane"));
+        paint(&mut red, "#red");
+        let blue = level_with("lane-blue", None, "蓝线", Some("tpl-lane"));
+        let mut chapter = entry_with("chapter", None, "一", Some("tpl-chapter"));
+        chapter.primary = Some(eid("lane-red"));
+        let entries: BTreeMap<_, _> = [red, blue, chapter.clone()]
+            .into_iter()
+            .map(|e| (e.id.clone(), e))
+            .collect();
+        let memberships = vec![
+            membership("lane-blue", "chapter"),
+            membership("lane-red", "chapter"),
+        ];
+        let colour = |e: &Entry, entries: &BTreeMap<EntryId, Entry>, ms: &[Membership]| {
+            entry_color(e, entries, &templates, ms)
+        };
+        // The primary lane's own colour comes before the entry's template's.
+        assert_eq!(
+            primary_lane(&chapter, &entries, &templates, &memberships),
+            Some(&eid("lane-red"))
+        );
+        assert_eq!(
+            colour(&chapter, &entries, &memberships).as_deref(),
+            Some("#red")
+        );
+        // Without a primary: the first lane it belongs to, whose colour is
+        // its template's when it has none of its own.
+        let mut loose = chapter.clone();
+        loose.primary = None;
+        assert_eq!(
+            colour(&loose, &entries, &memberships).as_deref(),
+            Some("#lanetpl")
+        );
+        // Its own colour wins whatever its switch.
+        let mut own = chapter.clone();
+        own.level = true;
+        paint(&mut own, "#own");
+        assert_eq!(
+            colour(&own, &entries, &memberships).as_deref(),
+            Some("#own")
+        );
+        // No lane: its template's colour.
+        assert_eq!(colour(&chapter, &entries, &[]).as_deref(), Some("#chapter"));
     }
 
     #[test]

@@ -131,6 +131,17 @@ pub fn actions(book: &Book) -> Vec<CreateAction> {
     out
 }
 
+/// The button text of `action` among `all`: its name, followed by the
+/// title of the level that declares it when another action has the same
+/// name (a book with several manuscripts has a 「新建章节」 for each).
+pub fn action_label(all: &[CreateAction], action: &CreateAction) -> String {
+    if all.iter().filter(|a| a.name == action.name).count() > 1 {
+        format!("{} · {}", action.name, action.level_title)
+    } else {
+        action.name.clone()
+    }
+}
+
 /// A new entry is a partial operation. No read snapshot is ever written back.
 /// Re-check a dialog's declaration before creating; changed actions keep the
 /// title draft and report a conflict rather than silently choosing a new kind.
@@ -521,14 +532,15 @@ impl Render for Home {
             }
         }
         let mut creations = div().flex().flex_wrap().gap(px(12.0));
-        for action in actions(&book) {
+        let all = actions(&book);
+        for action in all.clone() {
             let home = cx.entity();
             creations = creations.child(
                 Button::new(
                     ElementId::Name(
                         format!("v3-home-create-{}-{}", action.level, action.id).into(),
                     ),
-                    action.name.clone(),
+                    action_label(&all, &action),
                 )
                 .on_click(move |_, window, cx| {
                     home.update(cx, |h, cx| {

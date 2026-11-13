@@ -168,8 +168,9 @@ impl TemplateEditor {
         };
         let entity = cx.entity();
         let ids: Vec<_> = options.iter().map(|(id, _)| id.clone()).collect();
-        let select =
-            Select::new("k5-default-template", choices, selected).on_change(move |ix, _, cx| {
+        let select = self
+            .select("k5-default-template", choices, selected)
+            .on_change(move |ix, _, cx| {
                 entity.update(cx, |this, cx| {
                     this.draft.settings.default_template = match ix {
                         0 => None,
@@ -201,12 +202,14 @@ impl TemplateEditor {
             .and_then(|value| displays.iter().position(|d| *d == value))
             .map_or(0, |ix| ix + 1);
         let entity = cx.entity();
-        let select = Select::new("k5-display", choices, selected).on_change(move |ix, _, cx| {
-            entity.update(cx, |this, cx| {
-                this.draft.settings.display = ix.checked_sub(1).map(|ix| displays[ix].into());
-                cx.notify();
-            })
-        });
+        let select = self
+            .select("k5-display", choices, selected)
+            .on_change(move |ix, _, cx| {
+                entity.update(cx, |this, cx| {
+                    this.draft.settings.display = ix.checked_sub(1).map(|ix| displays[ix].into());
+                    cx.notify();
+                })
+            });
         section = section.child(self.setting_row(
             "display",
             k::DISPLAY,
@@ -240,12 +243,14 @@ impl TemplateEditor {
             .and_then(|value| homes.iter().position(|(id, _)| id == value))
             .map_or(0, |ix| ix + 1);
         let entity = cx.entity();
-        let select = Select::new("k5-home", choices, selected).on_change(move |ix, _, cx| {
-            entity.update(cx, |this, cx| {
-                this.draft.settings.home = ix.checked_sub(1).map(|ix| homes[ix].0.clone());
-                cx.notify();
-            })
-        });
+        let select = self
+            .select("k5-home", choices, selected)
+            .on_change(move |ix, _, cx| {
+                entity.update(cx, |this, cx| {
+                    this.draft.settings.home = ix.checked_sub(1).map(|ix| homes[ix].0.clone());
+                    cx.notify();
+                })
+            });
         section = section.child(self.setting_row(
             "home",
             k::HOME,
@@ -269,13 +274,15 @@ impl TemplateEditor {
             .and_then(|value| formats.iter().position(|f| *f == value))
             .map_or(0, |ix| ix + 1);
         let entity = cx.entity();
-        let select = Select::new("k5-format", choices, selected).on_change(move |ix, _, cx| {
-            entity.update(cx, |this, cx| {
-                this.draft.settings.format_shortcuts =
-                    ix.checked_sub(1).map(|ix| formats[ix].into());
-                cx.notify();
-            })
-        });
+        let select = self
+            .select("k5-format", choices, selected)
+            .on_change(move |ix, _, cx| {
+                entity.update(cx, |this, cx| {
+                    this.draft.settings.format_shortcuts =
+                        ix.checked_sub(1).map(|ix| formats[ix].into());
+                    cx.notify();
+                })
+            });
         section = section.child(self.setting_row(
             "format_shortcuts",
             k::FORMAT_SHORTCUTS,
@@ -318,19 +325,23 @@ impl TemplateEditor {
             let entity = cx.entity();
             let change = id.clone();
             let remove = id.clone();
-            let select = Select::new(
-                SharedString::from(format!("k5-action-target-{id}")),
-                choices,
-                selected,
-            )
-            .on_change(move |ix, _, cx| {
-                entity.update(cx, |this, cx| {
-                    if let Some(verb) = this.draft.verbs.iter_mut().find(|verb| verb.id == change) {
-                        verb.target_template = ix.checked_sub(1).map(|ix| targets[ix].0.clone());
-                    }
-                    cx.notify();
-                })
-            });
+            let select = self
+                .select(
+                    SharedString::from(format!("k5-action-target-{id}")),
+                    choices,
+                    selected,
+                )
+                .on_change(move |ix, _, cx| {
+                    entity.update(cx, |this, cx| {
+                        if let Some(verb) =
+                            this.draft.verbs.iter_mut().find(|verb| verb.id == change)
+                        {
+                            verb.target_template =
+                                ix.checked_sub(1).map(|ix| targets[ix].0.clone());
+                        }
+                        cx.notify();
+                    })
+                });
             section = section.child(
                 div()
                     .id(SharedString::from(format!("k5-action-{id}")))

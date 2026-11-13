@@ -87,7 +87,7 @@ frontier 读取独立历史副本，再 fork 成可编辑的临时文档；只�
   对成书序列的控制、`linkable` 对自动链接参与和重名校验的控制、默认「层级」开关收起保留
   设置且永不改动已有条目、八项「下面」设置（含 `settings.lane`）及可空设置还原合并、
   动作校验、删除后正文与字段值保留、并发互不相干修改合并与冲突拒绝，以及未知记号保留。
-- `next/crates/dr-cli/scenarios/k5-leaf.json`：v3-lite 副屏真窗口输入路径，
+- `next/crates/dr-cli/scenarios/k5-modules.json`（原名 `k5-leaf.json`）：v3-lite 副屏真窗口输入路径，
   包括直接新建模板、`linkable` 与每篇正文 `in_book` 开关、两篇正文、「下面的条目」与全部模块
   及九种字段、真实鼠标拖动、删除、并发刷新和重开。
 - `next/crates/dr-cli/scenarios/k5-level.json`：v3-lite 副屏真窗口统一模板回归，
@@ -104,7 +104,7 @@ frontier 读取独立历史副本，再 fork 成可编辑的临时文档；只�
 ```bash
 cd next
 CARGO_BUILD_JOBS=3 cargo build -p drifting -p dr-cli --features drifting/debug-bridge --locked
-CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-leaf.json \
+CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-modules.json \
   --app target/debug/drifting
 CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-level.json \
   --app target/debug/drifting
@@ -265,3 +265,11 @@ heavy、性能预算、截图目检和样式打磨按最新口径暂缓，没有
 `"叶子模板"`／`"层级模板"`／`"leaf template"`／`"level template"`；当前 `main` 上
 `dr-agent-tools/src/executor.rs` 仍有一处待 T3 清理的 `"level template"` 字面量，
 本轮按保守口径未跨改 `xtask` 或 `dr-agent-tools`，留待 T2 与 T3 合入后统一加门禁。
+
+## 内核 v4 收尾（2026-11-13）
+
+- 新建模板对话框（`k5-create`）里，「添加模块」菜单和各个下拉（字段类型、这一层的默认模板、显示、新条目住在、格式快捷输入、动作目标）浮在对话框之上：编辑器在对话框里时，下拉用 `Select::in_dialog()`，菜单用 `dr_ui` 新加的 `overlay::float_in_dialog`。对话框右上角的 × 有了名字（`Dialog::close_label`，新加），进了无障碍树。
+- 一个模板只能有一个「下面的条目」模块：`model::add_module` 不加第二个，「添加模块」菜单在已有时不列出它。
+- 测试：`view.rs` 的两条 GPUI 测试（添加模块菜单、「这一层」的下拉在对话框上可点）、`tests/contract.rs` 的 `a_template_places_the_children_module_once`。
+- 场景 `k5-leaf.json` 改名 `k5-modules.json`；`k5-level.json` 在点最后一行「还原」之前先滚动。
+

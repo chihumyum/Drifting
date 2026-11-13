@@ -19,7 +19,7 @@ use dr_ui::{
 };
 use dr_workspace::commands::v3::types::*;
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, EntityId, FocusHandle, Focusable,
+    AnyElement, App, AppContext as _, Context, ElementId, Entity, EntityId, FocusHandle, Focusable,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, ScrollHandle, SharedString,
     StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
 };
@@ -499,11 +499,12 @@ impl TemplateEditor {
         let (which, at) = self.picker.clone()?;
         let values = match which {
             Picker::Mark => model::MARKS.to_vec(),
-            // Any template takes any module.
+            // Any template takes any module, 「下面的条目」 once.
             Picker::Add => model::MODULES
                 .iter()
                 .chain(model::FIELDS)
                 .copied()
+                .filter(|kind| *kind != "children" || !model::has_children_module(&self.draft))
                 .collect(),
         };
         let mut menu = Menu::new("k5-picker");
@@ -538,23 +539,37 @@ impl TemplateEditor {
                     })),
             );
         }
-        Some(
-            overlay::float(
-                Place::Point(at),
-                Layer::Popover,
-                div()
-                    .id("k5-menu-scroll")
-                    .max_h(px(560.))
-                    .overflow_y_scroll()
-                    .occlude()
-                    .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                        this.picker = None;
-                        cx.notify();
-                    }))
-                    .child(menu),
-            )
-            .into_any_element(),
-        )
+        let list = div()
+            .id("k5-menu-scroll")
+            .max_h(px(560.))
+            .overflow_y_scroll()
+            .occlude()
+            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                this.picker = None;
+                cx.notify();
+            }))
+            .child(menu);
+        Some(if self.in_dialog() {
+            overlay::float_in_dialog(Place::Point(at), list).into_any_element()
+        } else {
+            overlay::float(Place::Point(at), Layer::Popover, list).into_any_element()
+        })
+    }
+
+    /// While creating, the editor sits in the 「新建模板」 dialog: its menus
+    /// and the lists of its selects float above that dialog.
+    fn in_dialog(&self) -> bool {
+        self.creating
+    }
+
+    /// A select of this editor ([`Self::in_dialog`]).
+    fn select(&self, id: impl Into<ElementId>, choices: Vec<Choice>, selected: usize) -> Select {
+        let select = Select::new(id, choices, selected);
+        if self.in_dialog() {
+            select.in_dialog()
+        } else {
+            select
+        }
     }
 
     fn module_row(
@@ -700,7 +715,7 @@ impl TemplateEditor {
                     .gap(px(8.))
                     .child(name)
                     .child(
-                        Select::new(
+                        self.select(
                             SharedString::from(format!("k5-field-type-{mid}-{fid}")),
                             options,
                             selected,
@@ -961,6 +976,7 @@ impl Render for TemplateEditor {
         if self.creating {
             let close = cx.entity_id();
             Dialog::new("k5-create", t(cx, k::NEW_TEMPLATE))
+                .close_label(t(cx, common::CLOSE))
                 .width(760.)
                 .body(div().h(px(500.)).child(page))
                 .on_close(move |_, cx| dr_shell::dialogs::hide(cx, close))
@@ -1022,6 +1038,10 @@ mod tests {
         };
         let (editor, cx) = cx.add_window_view(|window, cx| {
             TemplateEditor::new(host, Some(original.clone()), window, cx)
+        });
+        // An existing template's editor is a page, not in a dialog.
+        editor.read_with(cx, |e, _| {
+            assert!(!e.select("probe", Vec::new(), 0).is_in_dialog())
         });
         let field = editor.update_in(cx, |editor, window, cx| {
             let _ = editor.field(Binding::Name, "Synthetic name".into(), false, window, cx);
@@ -1356,6 +1376,155 @@ mod tests {
             );
             assert!(persisted.modules[0].config.in_book);
             assert!(!persisted.modules[2].config.in_book);
+        });
+    }
+
+    fn creating_editor(
+        cx: &mut gpui::TestAppContext,
+    ) -> (
+        tempfile::TempDir,
+        Entity<TemplateEditor>,
+        &mut gpui::VisualTestContext,
+    ) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("0.2.0-dev"))
+            .unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let id = seed.books[0].book_id().to_string();
+        seed.write_to(&store).unwrap();
+        store.close().unwrap();
+        let lib = dr_workspace::Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+        let book = Rc::new(Book::load(&lib, &id).unwrap());
+        cx.update(|cx| {
+            let _ = dr_ui::init(cx);
+            dr_shell::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: Some(dr_ui::Appearance::Light),
+                },
+                Services {
+                    library: Some(lib.clone()),
+                    book: Some(id.clone()),
+                    ..Services::default()
+                },
+                SettingsFile::in_memory(),
+                cx,
+            )
+        });
+        let shell = cx.add_window(dr_shell::Workspace::new).root(cx).unwrap();
+        let host = PageViewHost {
+            workspace: shell.downgrade(),
+            library: lib,
+            book_id: id,
+            book,
+        };
+        let (editor, cx) =
+            cx.add_window_view(|window, cx| TemplateEditor::new(host, None, window, cx));
+        cx.simulate_resize(gpui::size(px(1200.), px(900.)));
+        draw(cx);
+        (dir, editor, cx)
+    }
+
+    fn draw(cx: &mut gpui::VisualTestContext) {
+        for _ in 0..3 {
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                w.simulate_next_frame(cx);
+                w.draw(cx).clear(cx);
+            });
+        }
+    }
+
+    /// Scrolls the editor's body until `id` sits near its top; its bounds.
+    fn reveal(
+        editor: &Entity<TemplateEditor>,
+        cx: &mut gpui::VisualTestContext,
+        id: &'static str,
+    ) -> gpui::Bounds<gpui::Pixels> {
+        let at = cx.debug_bounds(id).unwrap();
+        let (viewport, offset) =
+            editor.read_with(cx, |e, _| (e.scroll.bounds(), e.scroll.offset()));
+        let shift = at.top() - viewport.top() - px(40.);
+        editor.update(cx, |e, _| {
+            e.scroll.set_offset(gpui::point(offset.x, offset.y - shift))
+        });
+        draw(cx);
+        cx.debug_bounds(id).unwrap()
+    }
+
+    /// Opens 「添加模块」 where the pointer is, over the dialog's card.
+    fn open_add_menu(editor: &Entity<TemplateEditor>, cx: &mut gpui::VisualTestContext) {
+        cx.simulate_mouse_move(
+            gpui::point(px(600.), px(450.)),
+            None,
+            gpui::Modifiers::default(),
+        );
+        editor.update_in(cx, |e, window, cx| e.show_picker(Picker::Add, window, cx));
+        draw(cx);
+    }
+
+    #[gpui::test]
+    fn the_add_module_menu_of_the_new_template_dialog_floats_above_it(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (_dir, editor, cx) = creating_editor(cx);
+        open_add_menu(&editor, cx);
+        let pick = cx.debug_bounds("k5-pick-kv").unwrap();
+        cx.simulate_click(pick.center(), gpui::Modifiers::default());
+        draw(cx);
+        editor.read_with(cx, |e, _| {
+            assert!(e.draft.modules.iter().any(|m| m.kind == "kv"));
+            assert!(e.picker.is_none());
+        });
+        // 「下面的条目」 is offered until the template has it.
+        open_add_menu(&editor, cx);
+        let pick = cx.debug_bounds("k5-pick-children").unwrap();
+        cx.simulate_click(pick.center(), gpui::Modifiers::default());
+        draw(cx);
+        open_add_menu(&editor, cx);
+        assert!(cx.debug_bounds("k5-pick-kv").is_some());
+        assert!(cx.debug_bounds("k5-pick-children").is_none());
+        editor.read_with(cx, |e, _| {
+            assert_eq!(
+                e.draft
+                    .modules
+                    .iter()
+                    .filter(|m| m.kind == "children")
+                    .count(),
+                1
+            );
+        });
+    }
+
+    #[gpui::test]
+    fn the_level_selects_of_the_new_template_dialog_float_above_it(cx: &mut gpui::TestAppContext) {
+        let (_dir, editor, cx) = creating_editor(cx);
+        editor.update(cx, |e, cx| {
+            e.draft.level = true;
+            cx.notify();
+        });
+        draw(cx);
+        let trigger = reveal(&editor, cx, "k5-display");
+        cx.simulate_click(trigger.center(), gpui::Modifiers::default());
+        draw(cx);
+        // The fifth choice ("island") of the select's list (`<select>-choice-<n>`).
+        let row = cx.debug_bounds("k5-display-choice-4").unwrap();
+        cx.simulate_click(row.center(), gpui::Modifiers::default());
+        draw(cx);
+        editor.read_with(cx, |e, _| {
+            assert_eq!(e.draft.settings.display.as_deref(), Some("island"));
+            // Clicks reach a list painted under the dialog too (GPUI hit-tests
+            // nested floats on top): what keeps it visible is its layer, see
+            // dr-ui's `tests/layers.rs`.
+            assert!(e.select("probe", Vec::new(), 0).is_in_dialog());
         });
     }
 }

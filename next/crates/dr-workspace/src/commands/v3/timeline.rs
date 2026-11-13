@@ -5,13 +5,6 @@ pub use edit::{
     LaneSetActTrack, RenameIn, RestoreFields, RestoreFieldsIn, ViewRename,
 };
 
-/// The built-in swimlane template for an act track (`tpl-act-track`), which
-/// every new book has from the novel template.
-pub fn act_track_template(name: String) -> types::EntryTemplate {
-    let mut tpl = dr_doc::v3::act_track_template();
-    tpl.name = name;
-    convert(tpl).expect("valid built-in act track template")
-}
 pub(crate) fn register(r: &mut Registry) {
     edit::register(r);
     r.add::<ViewList>()

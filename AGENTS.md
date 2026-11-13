@@ -75,8 +75,8 @@ Guidance for coding agents working in this standalone Drifting client repository
 
   `cargo xtask check` runs the new workspace's gates: privacy and
   credentials, large files, retired products, terms (H1/H2/H3 are never
-  scenes or beats), the current-format cutover and retired commands
-  (`cutover`; once the v4 tracks are in, it also keeps product code from
+  scenes or beats; no level or leaf templates), the current-format cutover
+  and retired commands (`cutover`; it also keeps product code from
   recognizing built-in template ids), pinned migrations,
   licences, dependency direction, debug-bridge / hot-reload isolation,
   measured evidence and `cargo audit` (`--skip audit` offline). See

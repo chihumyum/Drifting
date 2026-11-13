@@ -67,6 +67,15 @@ impl ProseDoc {
         }
     }
 
+    /// Where the undo history reads the time from when it decides whether
+    /// an edit joins the last step (the merge interval): the host's clock.
+    /// [`crate::ProseEditor`] gives its documents GPUI's executor clock, the
+    /// system's in the app and a test's own (held still until the test moves
+    /// it) under GPUI's test platform. Without one, the system clock.
+    pub fn set_clock(&mut self, clock: super::undo::UndoClock) {
+        self.undo.clock = Some(clock);
+    }
+
     /// A new standalone body text with one empty paragraph.
     pub fn new() -> ProseDoc {
         ProseDoc::open(Box::new(LoroSource::empty()))
@@ -362,7 +371,7 @@ impl ProseDoc {
     pub(crate) fn record_host_group_marker(&mut self, group: u64) {
         self.undo.steps.push(Step {
             items: Vec::new(),
-            started: AuthorUndo::long_ago(),
+            started: self.undo.long_ago(),
             group: Some(group),
         });
         self.undo.redo.clear();
@@ -593,7 +602,7 @@ impl ProseDoc {
             changed |= self.source.redo_item();
         }
         self.drain();
-        step.started = AuthorUndo::long_ago();
+        step.started = self.undo.long_ago();
         self.undo.steps.push(step);
         (changed || host_marker).then(|| self.cursor_after(before))
     }

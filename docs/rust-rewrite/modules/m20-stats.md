@@ -182,3 +182,7 @@ v2.2 新增或删除测试；统计实现提交为 `404207ce`。按 11-10 规则
 
 - **成书序列与 `in_book` 开关（[kernel-v4.md](../kernel-v4.md) §7）。** `v3::load_at` 直接读 `BookStructureV3::manuscript()`：不论条目自己的开关开着还是关着，只要它在成书序列里且带有 `in_book == true`（「计入字数和导出」打开）的正文模块，就按住处先序进入整书字数（条目自己的正文排在它下面条目的前面）；`in_book == false` 的说明或备忘模块只在单看该条目（`Scope::Entry`）时列出，不进 `book_words`、全书目标进度和写作日记录器。
 - **事件隔离（[kernel-v4.md](../kernel-v4.md) §8）。** 面板订阅 `WsEvent::Book`、`WsEvent::Stats` 和正文索引更新，忽略 `WsEvent::Checkpoints`（`dr-view-stats/tests/quiet.rs`、`dr-view-home/tests/quiet.rs`）。
+
+## 内核 v4 收尾（2026-11-13）
+
+统计里「写作进度 · 叶子数量」改叫「条目数量」（`k4Book.entry_total`，九种语言），数的是成书序列里带成书正文的条目；`Loaded.leaves` 改名 `entries`。

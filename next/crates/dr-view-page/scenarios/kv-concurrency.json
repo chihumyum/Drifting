@@ -16,7 +16,6 @@
         "template": {
           "id": "g1-record-page",
           "name": "Synthetic record page",
-          "kind": "leaf",
           "modules": [
             {
               "id": "records",

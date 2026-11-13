@@ -168,7 +168,7 @@ impl Render for View {
                 first = first.child(ui.stroke("today", f, None));
             }
             progress =
-                progress.child(ui.row(ui.t(keys::k4_book::LEAF_COUNT), data.leaves.to_string()));
+                progress.child(ui.row(ui.t(keys::k4_book::ENTRY_TOTAL), data.entries.to_string()));
             if let Some(f) = data
                 .book_words(live)
                 .and_then(|n| crate::model::progress(n.words, data.word_target))

@@ -225,7 +225,7 @@ impl ElementOverview {
             .map(|r| {
                 let incoming = !(r.from.kind == "entry" && r.from.id == element_id);
                 let other = if incoming { &r.from } else { &r.to };
-                let type_label = self.relation_type_label(&r.relation_type);
+                let type_label = self.relation_type_label(&r.relation_type, cx);
                 let type_color = self.relation_type_color(&r.relation_type, window, cx);
                 let other_name = self.endpoint_label(&other.kind, &other.id);
                 let other_kind = other.kind.clone();

@@ -137,7 +137,7 @@ pub(crate) fn book_names(slot: &BookSlot) -> Arc<Vec<LinkName<LinkTarget>>> {
 }
 
 /// [`matcher`] excluding `self_id`, reusing the book's compiled automaton
-/// whenever `self_id` is not itself an auto-link leaf.
+/// whenever `self_id` is not itself an auto-linked entry.
 pub(crate) fn book_matcher_for_owner(
     slot: &BookSlot,
     self_id: &str,

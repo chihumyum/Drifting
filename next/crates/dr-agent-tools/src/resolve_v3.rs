@@ -67,7 +67,7 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
         if let Some(properties) = value.get_mut("properties").and_then(Value::as_object_mut) {
             if let Some(doc) = properties.get_mut("doc") {
                 *doc = json!({
-                    "description": "An authored v3 document id, or an entry/template/material selector.",
+                    "description": "An authored document id, or an entry/template/material selector.",
                     "anyOf": [
                         doc.clone(),
                         {
@@ -203,7 +203,7 @@ pub(crate) fn resolve_v3(
     let spec = registry()
         .get(name)
         .filter(|spec| allowed_v3(spec))
-        .ok_or_else(|| invalid(format!("tool {name:?} is not in this book's v3 catalog")))?;
+        .ok_or_else(|| invalid(format!("tool {name:?} is not in this book's tool catalog")))?;
     let schema = input_schema_for(spec, BookKernelVersion::V3);
     let has_book_prop = schema["properties"].get("book").is_some();
     {
@@ -226,7 +226,7 @@ pub(crate) fn resolve_v3(
         Ok((|| -> Result<ResolvedCall> {
             let name = tool_name.as_str();
             let borrowed = BorrowedBookV3::new(doc, &book_id)
-                .map_err(|e| invalid(format!("invalid v3 book {book_id}: {e}")))?;
+                .map_err(|e| invalid(format!("invalid book {book_id}: {e}")))?;
             let cx = ResolveCtx::new(&lib, &book_id, borrowed.view());
             let obj = args.as_object_mut().expect("validated object");
 
@@ -1018,7 +1018,7 @@ fn resolve_action(
     let resolved_bodies = ws.read_book_v3(book.as_str(), move |doc, _| {
         Ok((|| -> Result<Option<Map<String, Value>>> {
             let borrowed = BorrowedBookV3::new(doc, &book_id)
-                .map_err(|e| invalid(format!("invalid v3 book {book_id}: {e}")))?;
+                .map_err(|e| invalid(format!("invalid book {book_id}: {e}")))?;
             let view = borrowed.view();
             let target_tpl = view
                 .template(&target_tpl_id)
@@ -1985,7 +1985,7 @@ fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
         }
         other => {
             return Err(invalid(format!(
-                "unsupported v3 endpoint kind {other:?}; use entry, material, comment, or patch"
+                "unsupported endpoint kind {other:?}; use entry, material, comment, or patch"
             )));
         }
     };

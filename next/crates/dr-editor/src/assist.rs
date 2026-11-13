@@ -1851,7 +1851,7 @@ pub fn wrap_module(assist: &Entity<Assist>, editor: impl IntoElement) -> impl In
     wrap_at(assist, editor, true, false)
 }
 
-/// [`wrap_module`] for a natural-height (`fit_content`) prose module inside an
+/// [`wrap_module`] for a natural-height (`flow`) prose module inside an
 /// outer scrolling page (`EntryPage`), sizing horizontally (`w_full`) without
 /// clamping height.
 pub fn wrap_flat_module(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoElement {

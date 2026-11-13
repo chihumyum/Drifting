@@ -121,7 +121,7 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         assert!(is_uuid_v7(id.as_str()), "expected uuidv7 root id, got {id}");
     }
     assert!(is_uuid_v7(roots.narrative_view.as_str()));
-    assert_eq!(v.novel_roots(), Some(roots.clone()));
+    assert_eq!(find_novel_roots(&v), Some(roots.clone()));
     assert_eq!(
         v.root_entry_by_template(&tid(TPL_MANUSCRIPT)).map(|e| e.id),
         Some(roots.manuscript.clone())
@@ -415,7 +415,7 @@ fn novel_roots_are_found_by_template_after_renaming() {
     })
     .0
     .unwrap();
-    assert_eq!(doc.view().novel_roots(), Some(roots));
+    assert_eq!(find_novel_roots(&doc.view()), Some(roots));
 }
 
 #[test]

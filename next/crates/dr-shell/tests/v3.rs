@@ -82,6 +82,11 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
             template: "tpl-manuscript".into()
         }
     );
+    // The setting resolves down the tree, but only the outermost level's own
+    // declaration makes a manuscript.
+    assert!(level.settings.is_manuscript);
+    assert!(v.is_manuscript_root(&root.id));
+    assert!(!v.is_manuscript_root(child));
     assert_ne!(v.revision, b.v3().unwrap().revision);
     let legacy = dr_testkit::seed::acceptance::empty_source(ws.library());
     let before = ws.library().head(&format!("book:{legacy}")).unwrap();
@@ -865,10 +870,27 @@ fn level_refresh_retains_live_prose_input_selection_scroll_and_page_instance(
             });
             mounted.borrow_mut().push(editor.clone());
             let focus = editor.read(cx).editor().focus_handle(cx);
-            Rendered::new(editor).focus(focus)
+            // As dr-view-page's body module: the body is part of the page and
+            // scrolls it.
+            let page_editor = editor.clone();
+            Rendered::new(editor)
+                .focus(focus)
+                .on_page_scroll(move |page, cx| {
+                    page_editor.update(cx, |e, cx| e.set_page_scroll(Some(page), cx));
+                })
         });
     });
+    // A body several windows long, so scrolling moves its text.
+    let paragraphs: Vec<Value> = (0..80)
+        .map(|i| json!({ "text": format!("第{i}段。潮水退去以后，堤岸上的水线还会留下片刻。") }))
+        .collect();
+    call(
+        &lib,
+        "module.set_prose",
+        json!({"book":id,"owner":entry,"module":"mod-prose","paragraphs":paragraphs}),
+    );
     let (view, cx) = cx.add_window_view(Shell::new);
+    cx.simulate_resize(size(px(1100.), px(800.)));
     let wait = |cx: &mut VisualTestContext, revision: Option<&str>| {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
@@ -902,9 +924,11 @@ fn level_refresh_retains_live_prose_input_selection_scroll_and_page_instance(
     });
     cx.run_until_parked();
     cx.update(|window, cx| window.draw(cx).clear(cx));
+    // The page scrolls the body's text up by more than what is above it.
     prose.update(cx, |p, cx| {
-        p.scroll_by_estimate(96.0, cx);
+        p.scroll_by_estimate(1200.0, cx);
     });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
     cx.update(|window, cx| window.draw(cx).clear(cx));
     let (text, selection, scroll) = prose.read_with(cx, |p, _| {
         (

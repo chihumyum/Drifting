@@ -42,8 +42,9 @@ impl ProseEditor {
                 {
                     return crate::slots::slot_item(ix, self.heights.clone(), Some(head));
                 }
-                // A small editor that fits its text without slots has no title rows.
-                if self.options.fit_content {
+                // A small editor that fits its text, or one that is part of a
+                // page, has no title rows without slots.
+                if self.options.fit_content || self.options.flow {
                     return crate::slots::slot_item(ix, self.heights.clone(), None);
                 }
                 let title = self.book.chapters[chapter].title.clone();

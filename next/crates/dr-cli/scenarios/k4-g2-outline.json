@@ -73,19 +73,20 @@
         "module": "mod-prose",
         "paragraphs": [
           {
-            "text": "${original.paragraphs.0.text}",
+            "text": "G2H${original.paragraphs.0.text}",
             "heading": 1
           },
           {
-            "text": "${original.paragraphs.1.text}",
+            "text": "G2H${original.paragraphs.1.text}",
             "heading": 2
           },
           {
-            "text": "${original.paragraphs.2.text}",
+            "text": "G2H${original.paragraphs.2.text}",
             "heading": 3
           }
         ]
-      }
+      },
+      "note": "The whole book outline lists every chapter’s headings, and the seed corpus repeats heading texts across chapters: the headings set here carry a G2H prefix so that each is found once in the whole book too."
     },
     {
       "call": "module.set_prose",
@@ -95,15 +96,15 @@
         "module": "outline-second",
         "paragraphs": [
           {
-            "text": "${original.paragraphs.3.text}",
+            "text": "G2H${original.paragraphs.3.text}",
             "heading": 1
           },
           {
-            "text": "${original.paragraphs.4.text}",
+            "text": "G2H${original.paragraphs.4.text}",
             "heading": 2
           },
           {
-            "text": "${original.paragraphs.5.text}",
+            "text": "G2H${original.paragraphs.5.text}",
             "heading": 3
           }
         ]
@@ -220,7 +221,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -237,7 +238,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2A1${original.paragraphs.0.text}",
+        "label": "G2A1G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -254,7 +255,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "G2A1${original.paragraphs.0.text}"
+        "/paragraphs/0/text": "G2A1G2H${original.paragraphs.0.text}"
       }
     },
     {
@@ -266,7 +267,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -283,13 +284,13 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "${original.paragraphs.0.text}"
+        "/paragraphs/0/text": "G2H${original.paragraphs.0.text}"
       }
     },
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.1.text}",
+        "label": "G2H${original.paragraphs.1.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -306,7 +307,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2A2${original.paragraphs.1.text}",
+        "label": "G2A2G2H${original.paragraphs.1.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -323,7 +324,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/1/text": "G2A2${original.paragraphs.1.text}"
+        "/paragraphs/1/text": "G2A2G2H${original.paragraphs.1.text}"
       }
     },
     {
@@ -335,7 +336,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.1.text}",
+        "label": "G2H${original.paragraphs.1.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -352,13 +353,13 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/1/text": "${original.paragraphs.1.text}"
+        "/paragraphs/1/text": "G2H${original.paragraphs.1.text}"
       }
     },
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.2.text}",
+        "label": "G2H${original.paragraphs.2.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -375,7 +376,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2A3${original.paragraphs.2.text}",
+        "label": "G2A3G2H${original.paragraphs.2.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -392,7 +393,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/2/text": "G2A3${original.paragraphs.2.text}"
+        "/paragraphs/2/text": "G2A3G2H${original.paragraphs.2.text}"
       }
     },
     {
@@ -404,7 +405,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.2.text}",
+        "label": "G2H${original.paragraphs.2.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -421,7 +422,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/2/text": "${original.paragraphs.2.text}"
+        "/paragraphs/2/text": "G2H${original.paragraphs.2.text}"
       }
     },
     {
@@ -449,7 +450,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -461,7 +462,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -478,7 +479,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2B${original.paragraphs.3.text}",
+        "label": "G2BG2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -495,7 +496,7 @@
         "module": "outline-second"
       },
       "expect": {
-        "/paragraphs/0/text": "G2B${original.paragraphs.3.text}"
+        "/paragraphs/0/text": "G2BG2H${original.paragraphs.3.text}"
       }
     },
     {
@@ -507,7 +508,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -524,7 +525,7 @@
         "module": "outline-second"
       },
       "expect": {
-        "/paragraphs/0/text": "${original.paragraphs.3.text}"
+        "/paragraphs/0/text": "G2H${original.paragraphs.3.text}"
       }
     },
     {
@@ -792,7 +793,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -804,7 +805,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -881,7 +882,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -893,7 +894,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -956,7 +957,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -968,7 +969,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1021,7 +1022,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1033,7 +1034,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1050,7 +1051,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2Reopened${original.paragraphs.3.text}",
+        "label": "G2ReopenedG2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1067,7 +1068,7 @@
         "module": "outline-second"
       },
       "expect": {
-        "/paragraphs/0/text": "G2Reopened${original.paragraphs.3.text}"
+        "/paragraphs/0/text": "G2ReopenedG2H${original.paragraphs.3.text}"
       }
     },
     {
@@ -1079,7 +1080,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1096,7 +1097,7 @@
         "module": "outline-second"
       },
       "expect": {
-        "/paragraphs/0/text": "${original.paragraphs.3.text}"
+        "/paragraphs/0/text": "G2H${original.paragraphs.3.text}"
       }
     },
     {
@@ -1149,7 +1150,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1161,7 +1162,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1178,7 +1179,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2Whole${original.paragraphs.0.text}",
+        "label": "G2WholeG2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1195,7 +1196,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "G2Whole${original.paragraphs.0.text}"
+        "/paragraphs/0/text": "G2WholeG2H${original.paragraphs.0.text}"
       }
     },
     {
@@ -1207,7 +1208,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1224,7 +1225,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "${original.paragraphs.0.text}"
+        "/paragraphs/0/text": "G2H${original.paragraphs.0.text}"
       }
     },
     {
@@ -1270,7 +1271,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1282,7 +1283,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1299,7 +1300,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2Reloaded${original.paragraphs.0.text}",
+        "label": "G2ReloadedG2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1316,7 +1317,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "G2Reloaded${original.paragraphs.0.text}"
+        "/paragraphs/0/text": "G2ReloadedG2H${original.paragraphs.0.text}"
       }
     },
     {
@@ -1328,7 +1329,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1345,7 +1346,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "${original.paragraphs.0.text}"
+        "/paragraphs/0/text": "G2H${original.paragraphs.0.text}"
       }
     },
     {
@@ -1396,7 +1397,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1408,7 +1409,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.3.text}",
+        "label": "G2H${original.paragraphs.3.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1467,7 +1468,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.0.text}",
+        "label": "G2H${original.paragraphs.0.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1479,7 +1480,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${original.paragraphs.1.text}",
+        "label": "G2H${original.paragraphs.1.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1496,7 +1497,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "G2AfterConfig${original.paragraphs.1.text}",
+        "label": "G2AfterConfigG2H${original.paragraphs.1.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1513,7 +1514,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/1/text": "G2AfterConfig${original.paragraphs.1.text}"
+        "/paragraphs/1/text": "G2AfterConfigG2H${original.paragraphs.1.text}"
       }
     },
     {
@@ -1525,7 +1526,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${original.paragraphs.1.text}",
+        "label": "G2H${original.paragraphs.1.text}",
         "role": "Link",
         "within": {
           "label": "Outline"
@@ -1542,7 +1543,7 @@
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/1/text": "${original.paragraphs.1.text}"
+        "/paragraphs/1/text": "G2H${original.paragraphs.1.text}"
       }
     },
     {

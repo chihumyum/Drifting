@@ -32,8 +32,8 @@ fn manuscript_uses_residence_and_live_prose_once_per_module() {
     let (_dir, ws, book) = fixture();
     let before = ws.observe(&format!("book:{book}")).unwrap().version;
     let data = v3::load(&ws, &book, Scope::Book).unwrap();
-    assert!(data.leaves > 0);
-    assert_eq!(data.documents.len(), data.leaves);
+    assert!(data.entries > 0);
+    assert_eq!(data.documents.len(), data.entries);
     assert!(
         data.documents
             .iter()
@@ -56,7 +56,7 @@ fn manuscript_uses_residence_and_live_prose_once_per_module() {
     let baseline = data.book_words(&Live::default()).unwrap();
     call(&ws, "entry.trash", json!({"book":book,"id":entry}));
     let trashed = v3::load(&ws, &book, Scope::Book).unwrap();
-    assert_eq!(trashed.leaves + 1, data.leaves);
+    assert_eq!(trashed.entries + 1, data.entries);
     assert_eq!(
         trashed.book_words(&Live::default()).unwrap().words + first.metrics.unwrap().words,
         baseline.words

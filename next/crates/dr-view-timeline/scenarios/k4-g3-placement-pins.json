@@ -17,6 +17,16 @@
       "save": "entries"
     },
     {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-idea].id}",
+        "parent": null,
+        "index": 0
+      },
+      "note": "The place-entry list shows every entry in tree order: the idea dragged below goes first in the tree, so it is the list's first entry and needs no scrolling."
+    },
+    {
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
@@ -204,14 +214,6 @@
       "save": "picker"
     },
     {
-      "app": "input.scroll",
-      "params": {
-        "x": "${picker.nodes.0.center.0}",
-        "y": "${picker.nodes.0.center.1}",
-        "dy": 1000
-      }
-    },
-    {
       "app": "ui.find",
       "params": {
         "label": "${source.title}",
@@ -238,6 +240,14 @@
         "steps": 12
       },
       "note": "G3 摆放：从候选条目真拖到第一条泳道；写入归属与当前位置。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      },
+      "note": "Let the timeline take the first drop's write before the clip is dragged again."
     },
     {
       "app": "ui.find",
@@ -294,7 +304,24 @@
       "params": {
         "label": "${source.title}",
         "role": "Button",
-        "count": 2
+        "count": 1,
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
+        }
+      },
+      "note": "Both lanes show the entry (the idea is also a root entry on Project Home, so look inside the lanes)."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Lane ${second.title}",
+          "role": "Group"
+        }
       }
     },
     {
@@ -554,8 +581,13 @@
       "app": "ui.press",
       "params": {
         "label": "${entries.[template=tpl-manuscript].title}",
-        "role": "Button"
-      }
+        "role": "Button",
+        "within": {
+          "label": "Attach entry",
+          "role": "Group"
+        }
+      },
+      "note": "Inside the attach list: Project Home behind it has a button of the same name."
     },
     {
       "app": "ui.wait",
@@ -597,7 +629,11 @@
       "params": {
         "label": "${source.title}",
         "role": "Button",
-        "count": 1
+        "count": 1,
+        "within": {
+          "label": "Lane ${second.title}",
+          "role": "Group"
+        }
       }
     },
     {
@@ -620,7 +656,23 @@
       "params": {
         "label": "${source.title}",
         "role": "Button",
-        "absent": true
+        "absent": true,
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "absent": true,
+        "within": {
+          "label": "Lane ${second.title}",
+          "role": "Group"
+        }
       }
     },
     {

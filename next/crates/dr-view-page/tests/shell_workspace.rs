@@ -2461,3 +2461,157 @@ fn sea_opening_wait_prepares_v3_entry_modules_without_stalling(cx: &mut TestAppC
         "{sections:?}"
     );
 }
+
+/// An entry with a long body: `(entry, module)`, the module after the body
+/// (`after_body`) or a chapter's body itself, the body given `paragraphs`
+/// paragraphs.
+fn long_body_entry(
+    lib: &Library,
+    view: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+    after_body: bool,
+    paragraphs: usize,
+) -> (String, String) {
+    let (book, entry, module) = view.read_with(cx, |ws, _| {
+        let v3 = ws.book.v3().unwrap();
+        v3.entries
+            .iter()
+            .find_map(|e| {
+                let modules = &v3.template_of(&e.id)?.modules;
+                let body = modules.iter().position(|m| m.id == "mod-prose")?;
+                let module = if after_body {
+                    modules.get(body + 1)?.id.clone()
+                } else if e.template.as_deref() == Some("tpl-chapter") {
+                    "mod-prose".to_owned()
+                } else {
+                    return None;
+                };
+                Some((ws.book_id.clone(), e.id.clone(), module))
+            })
+            .expect("an entry with a body")
+    });
+    let text = "钟表铺的门推开时，铜铃在头顶响了一声，柜台后面的老人没有抬头，只是把放大镜往眼前又推近了一点。";
+    let paragraphs: Vec<Value> = (0..paragraphs)
+        .map(|i| json!({ "text": format!("第{i}段。{text}") }))
+        .collect();
+    out(
+        lib,
+        "module.set_prose",
+        json!({ "book": book, "owner": entry, "module": "mod-prose", "paragraphs": paragraphs }),
+    );
+    (entry, module)
+}
+
+/// Draws until the entry page of `target` has its body editor and has drawn
+/// it a few times since.
+fn settle_entry_page(view: &Entity<Workspace>, cx: &mut VisualTestContext, target: &Target) {
+    let owner = view.entity_id();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        cx.run_until_parked();
+        let ready = view.read_with(cx, |ws, cx| {
+            let key = target.key();
+            ws.editors
+                .get(&key)
+                .is_some_and(|page| ws.page_status(owner, &key, page, cx).0)
+        });
+        if ready {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the entry page did not settle");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    for _ in 0..8 {
+        draw(cx);
+        cx.run_until_parked();
+    }
+}
+
+/// An entry page opened at a module (`entry:<id>/<module>`) shows that
+/// module, and keeps showing it while the body above it loads and grows to
+/// its text's height; a body is as tall as its text, the page scrolling it
+/// (not a box of its own; gpui-prose's `render::flow_tests` check that only
+/// what the window shows of it is laid out). Scrolling the page lets the
+/// module go.
+#[gpui::test]
+fn an_entry_page_opened_at_a_module_keeps_it_in_view_while_the_body_grows(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let writer = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (entry, module) = long_body_entry(&writer, &view, cx, true, 160);
+    wait_for(&view, cx, |ws| ws.book.v3().is_some());
+    cx.simulate_resize(gpui::size(gpui::px(1100.), gpui::px(800.)));
+    let target = Target::from_key(&format!("entry:{entry}/{module}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &target);
+    let body = cx
+        .debug_bounds(Box::leak(
+            format!("v3-body-{entry}-mod-prose").into_boxed_str(),
+        ))
+        .expect("the body");
+    assert!(
+        body.size.height > gpui::px(4000.),
+        "the body is as tall as its text: {body:?}"
+    );
+    let section = cx
+        .debug_bounds(Box::leak(format!("v3-section-{module}").into_boxed_str()))
+        .expect("the module");
+    assert!(
+        section.top() >= gpui::px(0.) && section.top() < gpui::px(800.),
+        "{module} is in view: {section:?} (body {body:?})"
+    );
+    let pinned = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |ws, cx| {
+            ws.editors
+                .get(&target.key())
+                .and_then(|p| p.v3.as_ref())
+                .and_then(|p| p.read(cx).pinned().map(str::to_owned))
+        })
+    };
+    assert_eq!(pinned(cx).as_deref(), Some(module.as_str()));
+    // The author scrolls: the page is theirs.
+    cx.simulate_event(gpui::ScrollEvent {
+        position: gpui::point(gpui::px(600.), gpui::px(400.)),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(gpui::px(0.), gpui::px(-200.))),
+        ..Default::default()
+    });
+    draw(cx);
+    assert_eq!(pinned(cx), None);
+}
+
+/// An entry page opened at a chapter's body keeps the page head above it
+/// when the body starts on screen: the page does not scroll the head away to
+/// put the (long) body's top at the window's top.
+#[gpui::test]
+fn an_entry_page_opened_at_its_body_keeps_its_head(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let writer = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (entry, _) = long_body_entry(&writer, &view, cx, false, 160);
+    cx.simulate_resize(gpui::size(gpui::px(1100.), gpui::px(800.)));
+    let target = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    settle_entry_page(&view, cx, &target);
+    let body = cx
+        .debug_bounds(Box::leak(
+            format!("v3-body-{entry}-mod-prose").into_boxed_str(),
+        ))
+        .expect("the body");
+    let section = cx
+        .debug_bounds("v3-section-mod-prose")
+        .expect("the body's section");
+    assert!(
+        body.size.height > gpui::px(4000.),
+        "the body is as tall as its text: {body:?}"
+    );
+    // The page head shows, and the body's section starts under it.
+    let head = cx.debug_bounds("v3-entry-head").expect("the page head");
+    assert!(head.top() >= gpui::px(0.), "{head:?}");
+    assert!(
+        head.bottom() <= section.top() && section.top() < gpui::px(400.),
+        "head {head:?}, body section {section:?}"
+    );
+}

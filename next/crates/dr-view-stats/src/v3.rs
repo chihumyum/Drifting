@@ -1,4 +1,4 @@
-//! V3 counts: manuscript leaves, one entry/module, or one material.
+//! V3 counts: the manuscript sequence, one entry/module, or one material.
 //! The legacy NavTarget::Book sentinel cannot select a v3 entry.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,7 +38,8 @@ pub struct Loaded {
     pub summary: String,
     pub documents: Vec<Document>,
     pub manuscript: Vec<Document>,
-    pub leaves: usize,
+    /// Entries the manuscript sequence numbers (those with book prose).
+    pub entries: usize,
     pub word_target: Option<i64>,
     pub daily_word_target: Option<i64>,
     /// Read from the selected prose, independent of index lag.
@@ -249,7 +250,7 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         summary: meta.summary.clone(),
         documents,
         manuscript,
-        leaves: sequence.len(),
+        entries: sequence.len(),
         word_target: meta.word_target(),
         daily_word_target: meta.daily_word_target(),
         shape,

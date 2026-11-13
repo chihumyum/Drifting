@@ -375,3 +375,57 @@ fn writing_days_and_other_books_checkpoints_do_not_wake_the_dialog(cx: &mut Test
     );
     ws.close();
 }
+
+#[test]
+fn preview_shows_each_body_once_by_its_module_name() {
+    let (_dir, ws, target) = setup();
+    let book = target.book.clone();
+    // A second body on the chapter template, written before the point.
+    let templates = call(&ws, "entry_template.list", json!({"book":book}));
+    let mut module = templates
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "tpl-chapter")
+        .unwrap()["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == "mod-prose")
+        .unwrap()
+        .clone();
+    module["id"] = json!("synthetic-aside");
+    module["name"] = json!("Synthetic aside");
+    module["config"]["in_book"] = json!(false);
+    call(
+        &ws,
+        "entry_template.put_module",
+        json!({"book":book,"template":"tpl-chapter","module":module}),
+    );
+    call(
+        &ws,
+        "module.set_prose",
+        json!({"book":book,"owner":target.entry,"module":"synthetic-aside","paragraphs":[{"text":"Synthetic aside text"}]}),
+    );
+    let point = call(
+        &ws,
+        "entry_snapshot.create",
+        json!({"book":book,"entry":target.entry}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let preview = ws
+        .run::<api::Preview>(&Actor::User, api::PointIn { target, point })
+        .unwrap()
+        .output;
+    assert!(preview.bodies.len() >= 2);
+    let sections = super::preview_sections(&preview);
+    assert!(!sections.iter().any(|(title, _)| title.starts_with("body:")));
+    let shown: Vec<_> = sections
+        .iter()
+        .filter(|(t, _)| t == "Synthetic aside")
+        .collect();
+    assert_eq!(shown.len(), 1);
+    assert!(shown[0].1.contains("Synthetic aside text"));
+}

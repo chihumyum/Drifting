@@ -68,9 +68,9 @@
         "book": "${books.0.id}",
         "parent": "${a.id}",
         "template": "tpl-chapter",
-        "title": "Synthetic moved leaf"
+        "title": "Synthetic moved entry"
       },
-      "save": "leaf"
+      "save": "moved"
     },
     {
       "call": "entry.create",
@@ -255,7 +255,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic moved leaf",
+        "label": "Synthetic moved entry",
         "role": "Group",
         "count": 1
       },
@@ -294,7 +294,7 @@
         "/v3/levels/${b.id}/children": [
           "${host.id}",
           "${sibling.id}",
-          "${leaf.id}"
+          "${moved.id}"
         ]
       }
     },
@@ -302,7 +302,7 @@
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${leaf.id}"
+        "id": "${moved.id}"
       },
       "expect": {
         "/parent": "${b.id}"
@@ -334,7 +334,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic moved leaf",
+        "label": "Synthetic moved entry",
         "role": "Group",
         "count": 1
       },
@@ -363,7 +363,7 @@
       "expect": {
         "/v3/levels/${b.id}/children": [
           "${host.id}",
-          "${leaf.id}",
+          "${moved.id}",
           "${sibling.id}"
         ]
       }
@@ -442,7 +442,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic moved leaf",
+        "label": "Synthetic moved entry",
         "role": "Group",
         "count": 1
       },
@@ -479,7 +479,7 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${leaf.id}"
+          "${moved.id}"
         ]
       }
     },
@@ -487,7 +487,7 @@
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${leaf.id}"
+        "id": "${moved.id}"
       },
       "expect": {
         "/parent": "${b.id}"
@@ -845,7 +845,7 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${leaf.id}",
+          "${moved.id}",
           "${created.0.id}"
         ]
       }
@@ -930,7 +930,7 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${leaf.id}"
+          "${moved.id}"
         ]
       }
     },

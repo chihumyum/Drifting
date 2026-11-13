@@ -250,7 +250,7 @@ impl Render for EntryRelations {
                 .types
                 .iter()
                 .find(|t| t.definition.id == row.relation_type)
-                .map(|t| t.definition.name.clone())
+                .map(|t| crate::type_name(t, cx))
                 .unwrap_or_default();
             let ws = self.host.page.workspace.clone();
             let (mark, color) = self.host.page.book.mark(&target);
@@ -328,7 +328,7 @@ impl Render for EntryRelations {
             .types
             .iter()
             .filter(|t| !t.locked && self.allows(&t.definition))
-            .map(|t| (t.definition.id.clone(), t.definition.name.clone()))
+            .map(|t| (t.definition.id.clone(), crate::type_name(t, cx)))
             .collect();
         let selected = self
             .relation_type

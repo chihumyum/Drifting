@@ -1,7 +1,7 @@
 //! M22: Element Overview Super View (`SuperView::Elements`, `⌘⌥4`) on canonical v3.
 //!
-//! Provides two synchronised canvas layouts over canonical v3 element levels and leaf
-//! entries:
+//! Provides two synchronised canvas layouts over canonical v3 element levels and the
+//! content entries in them:
 //! - `关系` (`ElementLayoutMode::Relate`, default): deterministic force-directed graph
 //!   pulled by explicit canonical relations and true shared-paragraph prose co-occurrence
 //!   (`Workspace::entry_cooccurrences`), with author pins stored on

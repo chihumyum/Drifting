@@ -68,9 +68,9 @@
         "book": "${books.0.id}",
         "parent": "${a.id}",
         "template": "tpl-chapter",
-        "title": "Synthetic moved leaf"
+        "title": "Synthetic moved entry"
       },
-      "save": "leaf"
+      "save": "moved"
     },
     {
       "call": "entry.create",
@@ -188,7 +188,7 @@
         "body": "Synthetic review module",
         "target": {
           "kind": "entry",
-          "id": "${leaf.id}"
+          "id": "${moved.id}"
         },
         "module": "mod-prose"
       },
@@ -201,7 +201,7 @@
         "body": "Synthetic review entry",
         "target": {
           "kind": "entry",
-          "id": "${leaf.id}"
+          "id": "${moved.id}"
         }
       },
       "save": "reviewEntry"
@@ -324,7 +324,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic moved leaf",
+        "label": "Synthetic moved entry",
         "role": "Group",
         "count": 1
       },
@@ -363,7 +363,7 @@
         "/v3/levels/${b.id}/children": [
           "${host.id}",
           "${sibling.id}",
-          "${leaf.id}"
+          "${moved.id}"
         ]
       }
     },
@@ -371,7 +371,7 @@
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${leaf.id}"
+        "id": "${moved.id}"
       },
       "expect": {
         "/parent": "${b.id}"
@@ -403,7 +403,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic moved leaf",
+        "label": "Synthetic moved entry",
         "role": "Group",
         "count": 1
       },
@@ -432,7 +432,7 @@
       "expect": {
         "/v3/levels/${b.id}/children": [
           "${host.id}",
-          "${leaf.id}",
+          "${moved.id}",
           "${sibling.id}"
         ]
       }
@@ -511,7 +511,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic moved leaf",
+        "label": "Synthetic moved entry",
         "role": "Group",
         "count": 1
       },
@@ -548,7 +548,7 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${leaf.id}"
+          "${moved.id}"
         ]
       }
     },
@@ -556,7 +556,7 @@
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${leaf.id}"
+        "id": "${moved.id}"
       },
       "expect": {
         "/parent": "${b.id}"
@@ -906,7 +906,7 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${leaf.id}",
+          "${moved.id}",
           "${created.0.id}"
         ]
       }
@@ -987,7 +987,7 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${leaf.id}"
+          "${moved.id}"
         ]
       }
     },
@@ -1262,14 +1262,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "entry:${leaf.id}"
+        "target": "entry:${moved.id}"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "entry:${leaf.id}"
+          "/page": "entry:${moved.id}"
         },
         "timeout_ms": 15000
       }
@@ -1360,14 +1360,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "entry:${leaf.id}/mod-prose"
+        "target": "entry:${moved.id}/mod-prose"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "entry:${leaf.id}/mod-prose"
+          "/page": "entry:${moved.id}/mod-prose"
         },
         "timeout_ms": 15000
       }
@@ -1400,14 +1400,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "entry:${leaf.id}/mod-fields"
+        "target": "entry:${moved.id}/mod-fields"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "entry:${leaf.id}/mod-fields"
+          "/page": "entry:${moved.id}/mod-fields"
         },
         "timeout_ms": 15000
       }

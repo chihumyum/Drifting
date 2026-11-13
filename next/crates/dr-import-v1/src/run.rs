@@ -525,7 +525,7 @@ pub fn import_into_library(
 ) -> Result<(Outcome, Timing)> {
     if lib.options().deriver.is_some() {
         return Err(ImportError::Blocked(
-            "v3 import requires a separate target without an active index deriver".into(),
+            "import requires a separate target without an active index deriver".into(),
         ));
     }
     let mut reporter = Reporter::new(progress);

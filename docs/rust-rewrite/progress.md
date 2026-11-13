@@ -8,7 +8,7 @@
 
 - `next/` 是 Rust + GPUI + Loro 的桌面客户端：54 个 crate 加可执行程序和 `xtask`，约 39 万行。结构见 [README.md 的「架构」](README.md#架构)。
 - **只运行 canonical v3**（2026-11-11 切换）：书里所有东西都是条目，放在一棵树里，长什么样由模板定；小说是第一个项目模板。新建、打开、书架、同步都只认 v3 的书；旧书原样拒开，不修、不删。方案见 [kernel-v3.md](kernel-v3.md)，切换的范围和证据见 [v3-cutover.md](v3-cutover.md)。
-- **书目格式是 4，只有一种条目（2026-11-13）。** 作者 11-13 推翻了层级/叶子两分：任何条目都可以由模板随意拼模块，「下面能不能放东西」是条目自己的开关，界面上叫「层级」（[kernel-v4.md](kernel-v4.md)）。数据层两段都已合进 `main`：写作日和快照点清单在每本书旁边的小文档里（`stats:<书>`、`checkpoints:<书>`）；`TemplateKind`、「允许的模板」、固定的 `about` 说明都删了；`level.get`、`level.list` 并进 `entry.get`、`entry.list {below}`，新增 `entry.set_level`。格式 3 的书原样拒开，开发库要从 0.1 重新导入。**界面、帮手、导入、导出现在只做了能编译、测试能过的最小改动**，剩下的缺口按八条轨道写在 kernel-v4.md 第 14 节，任务书是 [handoff/v4-tracks.md](handoff/v4-tracks.md)，各轨道的开工信号是本地分支指针 `ready/kernel-v4-data-layer`。模板编辑器的真窗口场景 `k5-level` 在 T2 重写之前会失败。
+- **书目格式是 4，只有一种条目（2026-11-13）。** 作者 11-13 推翻了层级/叶子两分：任何条目都可以由模板随意拼模块，「下面能不能放东西」是条目自己的开关，界面上叫「层级」（[kernel-v4.md](kernel-v4.md)）。数据层两段都已合进 `main`：写作日和快照点清单在每本书旁边的小文档里（`stats:<书>`、`checkpoints:<书>`）；`TemplateKind`、「允许的模板」、固定的 `about` 说明都删了；`level.get`、`level.list` 并进 `entry.get`、`entry.list {below}`，新增 `entry.set_level`。格式 3 的书原样拒开，开发库要从 0.1 重新导入。数据层之后的八条轨道（外壳与条目页、模板编辑器、帮手工具、导入 0.1、导出与书文件、统计与小文档的界面、整书视图、时间线）11-13 都已合进 `main`，任务书已删、仍有效的规矩并回 [handoff/README.md](handoff/README.md)。合并后做了一次只读审计和一次真窗口全流程冒烟：13 步全流程走通，没有发现丢数据的问题；查出的界面问题里，开着「层级」的内容条目从要素全景和「按故事线」列表消失、对话框里的菜单被盖住、条目页正文每帧排整章（见下面「技术上还开着的事」）都已修并合进 `main`；结构改动在界面上的撤销入口、只有挂名成员的层级关开关的确认、章节编号规则、一句多余的提示这四件，作者 11-13 定了做法，正在做（分支 `chihumyum/next-v4-decisions-*`）。代码里带 `V3` 的名字的纯改名等内核 v5 各路合完再做。下一轮是内核 v5（[kernel-v5.md](kernel-v5.md)，设计稿；任务书 [handoff/v5-tracks.md](handoff/v5-tracks.md)）。
 - **还没发给任何人。** 开发构建用自己的身份 `cc.drifting.next.dev`，不碰装着的正式版。作者日常写作仍然用 0.1 客户端；开发库随时可以从 0.1 重新导入到一个新目录。
 - GPUI 钉在 Zed `v1.27.0`，工具链 1.98.1，Loro `=1.17.1`。开发构建开着 GPUI 的 `runtime_shaders`（本机没装 Xcode 的 Metal Toolchain）；正式打包要预编译着色器，得先装那个组件，装之前问作者。
 - 0.1 客户端（`src/`、`src-tauri/`、`crates/`、`drizzle/`）照常维护到 F7 的交接，和 `next/` 互不依赖。
@@ -24,6 +24,7 @@
 | 本机 macOS，再合入「书目事件说明碰了什么」之后的 `main`（2026-11-13 凌晨，监管会话在合并后的树上重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check` 全过；测试 2327 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | 本机 macOS，合入内核 v4 数据层第一段（两篇小文档、书目格式 4）之后的 `main`（2026-11-13，监管会话在合并后的树上用自己的构建目录重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 和四份退役验收的 vitest 全过；测试 2336 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
 | 本机 macOS，合入内核 v4 数据层第二段（一种条目）之后的 `main`（2026-11-13，监管会话在合并后的树上用自己的构建目录重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`sync-locales.py --check`、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 和四份退役验收的 vitest 全过；测试 2347 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`） |
+| 本机 macOS，八条 v4 轨道、Windows 编译修复、v4 修复与收尾、两处编辑器回归都合入之后的 `main`（2026-11-13 夜，监管会话在合并后的树上用自己的构建目录重跑） | `cargo fmt`、Clippy、`cargo xtask check`（12 道门禁，含漏洞审计）、`sync-locales.py --check`、`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 全过；测试 2432 通过、0 失败、22 忽略（`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`）。真窗口：全流程 13 步和改过的 27 个场景由各路在自己的树上跑通，合并后的树上没有再跑一遍真窗口 |
 | GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。原因和修法见「技术上还开着的事」的第一条 |
 
 本地 `main` 领先 `origin/main`：11-12 第一轮手测的修复，加上 11-12 到 11-13 合进来的各路（切换遗留清理、老化实测、CI 修复、写入守卫、自动快照点修复、书目事件、帮手拷贝开销、内核 v4 数据层两段，以及别的会话合进来的公告和欢迎页改动），都没推。
@@ -200,7 +201,7 @@
 
 没核实、拿不准的：
 
-- **真窗口场景 `g1-before-release` 在 `main` 自己的构建上第 30 步失败**（`input.key secondary-a` 没被处理）。写入守卫那一路 11-12 跑冒烟时报的，说和它的改动无关；监管会话没复跑，不知道是场景过时还是调试桥的按键名变了。
+- **条目页的正文从 11-12 到 11-13 每一帧都排整章：已修（2026-11-13）。** 11-12 修第一轮手测问题的 `ed6bff096` 让正文随页面铺开（作者要的），做法是打开编辑器给表格格子用的 `fit_content`：不虚拟化，每帧把每一段排一遍。重型种子最长的一章（22031 字）每键约 8 ms（之前 0.3 ms）、每滚一帧约 4 ms；「恢复后打字再 ⌘Z 只撤回最后一个词」和「打开到模块不滚到位」都是它的副作用（打一串字超过了撤销分组的 500 ms）。现在正文仍随页铺开，但只排版、绘制页面露出来的部分（`gpui-prose` 的 `flow`），每键约 0.7 ms；打字到窗口底边页面跟着光标走、拖选过边缘滚动也恢复了。数字是负载约 10 时量的，空闲时重量：`cargo run --release -p dr-editor --example prose-bench -- page`。[k4-g1](modules/k4-g1-pages.md)。原来记在这里的 `g1-before-release` 场景失败是场景过时（底部时间线挡住了输入框），已随 v4 修复改好。
 - **M24 样书认领**。切换前记过一个问题：清理成功但释放标记没落盘时，后来同一个 id 的用户书会被样书覆盖；修复在一条没合的冻结分支上。`main` 的 `dr-samples` 仍然用固定的样书 id 加 `Creating` 标记，没有同 id 用户书的回归测试。没在 v3 上复现过，也没有关掉它的记录。
 - **M35 换库失败时**，账号栏显示的账号和实际打开的书库可能对不上。之后的同步监督接管了换库并带重试，但没有哪条记录说这个问题关了。[m35](modules/m35-account.md)
 - **M31 的「本轮改动」**对记忆、项目事实、模板正文这些的定位：文档里列的还是切换前的种类，v3 下还缺哪些没更新。[m31](modules/m31-agent-panel.md)

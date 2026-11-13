@@ -247,3 +247,8 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 随后覆盖门禁要求内核内有调用，已补真实守卫测试，未改白名单。失败日志保留，未手改生成证据。
 文本素材的 `book-writes-v3` 窗口此前停于撰写框，仍交 F6 路由续接，未记为通过。
 关联的并发、幂等、跨书拒写、撤销、隐藏数据和失败保留选择均有永久契约。没有删除 v2.2 测试。
+
+## 内核 v4 收尾（2026-11-13）
+
+素材「关联」对话框的条目列表浮在对话框之上（`Select::in_dialog()`，列表限高 280）；永久测试 `associations.rs` 的 `the_entry_list_floats_above_its_dialog`。`book-media-writes-v3.json` 要先造库再带 `--profile` 跑，步骤写在场景说明和 [handoff/README.md](../handoff/README.md)「真窗口验收」。
+

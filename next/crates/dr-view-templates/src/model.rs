@@ -140,9 +140,19 @@ fn ensure_positions(t: &mut EntryTemplate) {
     }
 }
 
+/// Adds `module` at the end. A template has at most one 「下面的条目」
+/// (`children`) module: a second one is not added.
 pub fn add_module(t: &mut EntryTemplate, module: ModuleSpec) {
+    if module.kind == "children" && has_children_module(t) {
+        return;
+    }
     t.modules.push(module);
     ensure_positions(t);
+}
+
+/// Whether `t` already places 「下面的条目」.
+pub fn has_children_module(t: &EntryTemplate) -> bool {
+    t.modules.iter().any(|m| m.kind == "children")
 }
 
 fn conflict() -> WsError {
