@@ -264,3 +264,105 @@ fn conversation_import_rejects_reordered_existing_entries() {
     );
     assert_eq!(doc.entries().unwrap(), vec![entry(1), entry(2)]);
 }
+
+/// An append looks for a replay without parsing the entries already in the
+/// list: appending a new event parses none, a replayed one only the stored
+/// entry it is compared with. A conversation of M appends used to parse
+/// M(M-1)/2 entries.
+#[test]
+fn appending_to_a_long_conversation_parses_none_of_its_entries() {
+    const M: u32 = 2_000;
+    let mut doc = ConversationDoc::create(id(), 1).unwrap();
+    for sequence in 0..M {
+        assert!(doc.append(Origin::User, &entry(sequence)).0.unwrap());
+    }
+    assert_eq!(doc.index.parsed(), 0, "the warm index never reparsed");
+    let before = doc.version();
+    assert!(!doc.append(Origin::User, &entry(7)).0.unwrap());
+    assert_eq!(
+        doc.index.parsed(),
+        1,
+        "a replay parses only its stored entry"
+    );
+    let mut changed = entry(7);
+    changed.payload = json!({"sequence": "changed"});
+    assert!(doc.append(Origin::User, &changed).0.is_err());
+    assert_eq!(doc.index.parsed(), 2);
+    assert_eq!(doc.version(), before);
+
+    // A writer on a document held elsewhere keeps the index between appends:
+    // one rebuild when it first meets the list, none after.
+    let raw = raw_copy(&doc, 2);
+    let borrowed = BorrowedConversation::new(&raw, &id()).unwrap();
+    let mut index = EntryIndex::default();
+    assert!(borrowed.append_indexed(&mut index, &entry(M)).unwrap());
+    assert_eq!(index.parsed(), M as usize);
+    for sequence in M + 1..M + 100 {
+        assert!(
+            borrowed
+                .append_indexed(&mut index, &entry(sequence))
+                .unwrap()
+        );
+    }
+    assert!(!borrowed.append_indexed(&mut index, &entry(3)).unwrap());
+    assert_eq!(index.parsed(), M as usize + 1);
+    raw.commit();
+    let mut all: Vec<_> = (0..M + 100).map(entry).collect();
+    assert_eq!(borrowed.entries().unwrap(), all);
+    all.truncate(M as usize);
+    assert_eq!(doc.entries().unwrap(), all);
+}
+
+/// The index notices a list that changed under it (entries merged in from
+/// another device) and answers as a full reading would: the first readable
+/// entry of an id decides, and a replay is still a no-op.
+#[test]
+fn an_index_follows_a_list_that_changed_under_it() {
+    let mut a = ConversationDoc::create(id(), 1).unwrap();
+    let mut b = ConversationDoc::create(id(), 2).unwrap();
+    for sequence in 0..3 {
+        a.append(Origin::User, &entry(sequence)).0.unwrap();
+    }
+    let other = |sequence: u32| ConversationEntry {
+        id: format!("session-2:{sequence}"),
+        session: "session-2".into(),
+        ..entry(sequence)
+    };
+    for sequence in 0..3 {
+        b.append(Origin::User, &other(sequence)).0.unwrap();
+    }
+    // The same event appended on both devices, with other content on b
+    // (only a bug makes one): after the merge both read whichever is first.
+    let mut conflict = entry(9);
+    conflict.payload = json!({"sequence": "b"});
+    b.append(Origin::User, &conflict).0.unwrap();
+    a.append(Origin::User, &entry(9)).0.unwrap();
+    a.import(&b.export_snapshot().unwrap(), Origin::Sync)
+        .unwrap();
+    let merged = a.entries().unwrap();
+    assert_eq!(merged.len(), 7);
+    let parsed = a.index.parsed();
+    for e in &merged {
+        assert!(!a.append(Origin::User, e).0.unwrap(), "{} replays", e.id);
+    }
+    // One rebuild of the eight stored values, then one per replay.
+    assert_eq!(a.index.parsed(), parsed + 8 + merged.len());
+    let first = merged.iter().find(|e| e.id == entry(9).id).unwrap();
+    let second = if *first == conflict {
+        entry(9)
+    } else {
+        conflict.clone()
+    };
+    assert!(a.append(Origin::User, &second).0.is_err());
+    assert!(a.append(Origin::User, &entry(10)).0.unwrap());
+    let mut expected = merged;
+    expected.push(entry(10));
+    assert_eq!(a.entries().unwrap(), expected);
+    // A fresh index reads the same list the same way.
+    let raw = raw_copy(&a, 3);
+    let fresh = BorrowedConversation::new(&raw, &id()).unwrap();
+    assert!(fresh.append(&second).is_err());
+    for e in &expected {
+        assert!(!fresh.append(e).unwrap());
+    }
+}
