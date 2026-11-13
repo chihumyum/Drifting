@@ -60,16 +60,12 @@ pub fn init(identity: &dr_platform::Identity, cx: &mut App) {
     speech::init(http.clone(), secrets.clone(), cx);
     let credentials = Credentials::new(secrets);
     let provider = ProviderDriver::new(http, credentials);
-    init_with(
-        provider.clone(),
-        Arc::new(provider),
-        Arc::new(tools::CompanionTools::with_plugins(
-            cx.try_global::<mcp::McpGlobal>()
-                .map(|global| global.slot.clone())
-                .unwrap_or_default(),
-        )),
-        cx,
-    );
+    // The MCP endpoint lists the catalog these same book tools resolve.
+    let tools = cx
+        .try_global::<mcp::McpGlobal>()
+        .map(|global| tools::CompanionTools::shared(global.tools.clone(), global.slot.clone()))
+        .unwrap_or_else(|| tools::CompanionTools::with_plugins(Default::default()));
+    init_with(provider.clone(), Arc::new(provider), Arc::new(tools), cx);
 }
 
 /// Injection seam for synthetic desktop acceptance and later runtime tool

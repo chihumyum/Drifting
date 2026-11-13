@@ -8,7 +8,7 @@
 
 外部代理通过 `drifting --mcp --connection <文件>` 接入已经运行的应用。这个进程只在标准输入输出和本机连接之间转发协议，不开窗口，不获取应用单实例锁，也不启动日志或崩溃上报。macOS 使用私有 Unix socket，Windows 使用本机回环端口。连接使用当前打开的书；回到书架时没有可用书，切书后必须重新读取，不能把上一本书的观察带回来。
 
-外部代理看到的工具目录跟着打开的书走。没开书时是注册表的基础目录；开着书时就是帮手为这本书用的那份目录：基础工具，加上这本书的模板声明、绑在开着「层级」开关的条目上的动作（例如小说模板书稿上的「新建章节」）。动作的工具名是稳定标识 `action:<书>/<条目>/<模板>/<动作>`，作者起的名字放在 MCP 的 `title`，描述里带所在路径和目标模板。切书、回书架或换库时，应用发 `notifications/tools/list_changed`，客户端重新列。
+外部代理看到的工具目录跟着打开的书走。没开书时是注册表的基础目录；开着书时就是帮手为这本书用的那份目录：基础工具，加上这本书的模板声明、绑在开着「层级」开关的条目上的动作（例如小说模板书稿上的「新建章节」）。动作的工具名是稳定标识 `action:<书>/<条目>/<模板>/<动作>`，作者起的名字放在 MCP 的 `title`，描述里带所在路径和目标模板。切书、回书架或换库时，以及作者改了这本书的模板或层级、使列表变了时，应用发 `notifications/tools/list_changed`，客户端重新列。只是列目录不留任何记录，也不开外部会话。
 
 设置里有 Codex、Claude Code、Antigravity 的连接、重新配置、配置和撤销，以及手动连接。没有只读／允许修改档位，读旧授权时丢弃这类字段。复制或写入客户端的配置只有应用路径及连接文件参数，令牌留在私有文件中。
 
@@ -18,11 +18,11 @@
 
 **对外调用仍进入同一个 Runtime。** 网络层把目录中的名称包装成现有 `call_tool`，交给应用的 `AgentController::open_external`。外部 scope 和聊天共享工具执行器及读写调度器；没有绕过 M29 的读取覆盖、版本检查、冲突停止、来源回执及 `history.undo_agent`。外部入口仅接受目录中的 Local 工具，不暴露提问、插件调用、模型设置或长任务控制。
 
-**目录就是帮手的目录，MCP 不另存一份。** 没开书（或授权只限另一本书）时，`tools/list` 给 `Catalog::new()` 的基础目录，不开 scope。开着书时，`tools/list` 经这条连接当前代次的外部 scope 调同一个 Runtime 的 `tool_search`，每页 50 项翻完；结果就是 Runtime 自己的 `AgentTools::catalog_for_book`，同一个实例、同一份缓存，所以聊天和 MCP 的名字、说明、Schema 与 revision 天然一致。dr-mcp 拿不到 Workspace，应用适配（dr-view-agent）也只交给它 ScopeOpener，这是不改适配层就能读到每本书目录的唯一通路。代价写明：开着书列一次目录会先开这一代次的 scope，并在外部审计里留几条只读的 `tool_search`（accepted／started／结束），也要排共享调度器；它不记读取覆盖，被取消的翻页不结束 scope。
+**目录就是帮手的目录，MCP 不另存一份。** 没开书（或授权只限另一本书）时，`tools/list` 给 `Catalog::new()` 的基础目录。开着书时，`tools/list` 经 Host 的目录来源直接读 `AgentTools::catalog_for_book`：应用适配把帮手（`CompanionTools::shared`）用的同一个 `AgentTools`（克隆共享同一份缓存）交给 `McpGlobal`，在 Agent controller 的读租约下、MCP 反应器的阻塞线程上读，所以聊天和 MCP 的名字、说明、Schema 与 revision 天然一致，换库释放也会等这次读完。列目录不开外部 scope、不写审计或 journal、不排共享调度器；只有调用进入 Runtime。
 
-**调用和列出的一致。** 调用按这条连接在当前代次列出的那一项进入：基础工具照旧用 `name`，动作改用 `call_tool` 的 `action` 字段（M29 不许用 `name` 叫动作），两者都带列出时的 revision。还没列过时，基础工具取注册表的 revision，动作在书里按精确名字查一次。动作标识里的书不是打开的书，进入 Runtime 前就拒绝，说明它属于哪本书；本书没有绑定的动作也拒绝。列目录不确认切书：切书后即使客户端已经重新列过，第一次调用仍报「书变了」，再调用才进入新 scope。
+**调用和列出的一致。** 调用先在打开的书的当前目录里找这个名字，找到才开 scope：基础工具照旧用 `name`，动作改用 `call_tool` 的 `action` 字段（M29 不许用 `name` 叫动作），都带当前目录的 revision。这条连接在本代次列过、而那一项的 revision 已经变了，就在进入 Runtime 前拒绝（「列出之后已经变了，请重新列」），不按客户端没见过的绑定执行。动作标识里的书不是打开的书，同样在进入前拒绝并说明它属于哪本书；本书没有绑定的动作和未注册的名字也拒绝。列目录不确认切书：切书后即使客户端已经重新列过，第一次调用仍报「书变了」，再调用才进入新 scope。
 
-**目录变化的通知。** 服务器声明 `tools.listChanged`。每个选择代次（切书、回书架、换库或 Host 重挂）都发一次 `notifications/tools/list_changed`；连接初始化前订阅，初始化期间的切换也不漏。书内的变化（作者改模板、开关层级，使动作重新绑定或消失）不即时推送：dr-mcp 收不到书目变更信号，又不能为比较 revision 反复走留审计的 `tool_search`。这种情况下，旧列表里的动作按旧 revision 调用会被 Runtime 拒绝、不重放；随后连接在书里重查这一项，发现已经没有或 revision 变了，就发一次 `list_changed`，客户端重新列后再读再调。客户端调了列表里没有、书里却已经有的动作，同样照常执行并通知列表过期。即时推送见「待协调」。
+**目录变化的通知。** 服务器声明 `tools.listChanged`。每个选择代次（切书、回书架、换库或 Host 重挂）都发一次 `notifications/tools/list_changed`；连接初始化前订阅，初始化期间的变化也不漏。书内的变化也发：Host 记着本代次最后读出的目录，再读到不一样的（名字、顺序、revision、说明或动作名称有别）就把目录代数加一，每条连接各发一次。比较的时机有三个：应用适配用 `Host::follow` 订阅这本库的书目事件（`WsEvent::Book`），打开的书一有改动、且有客户端连着，就在 150 ms 内合并后读一次目录（`catalog_for_book` 按书目版本缓存，模板和层级没变时结构戳相同、直接复用原目录，比较只是指针相等）；列目录和调用时也各读一次；Runtime 拒绝一次动作调用后再读一次，以防查找和执行之间刚好变了，调用本身从不重试。改普通条目、正文、字段这些不改目录的编辑不发通知。
 
 **外部审计不冒充聊天。** 每条连接／书代次有独立 session，工具 call id 由 Runtime 生成，外部 JSON-RPC id 不能控制写入来源。日志在 F2 的 `local_state`，scope 为 `agent.external.sessions`／`agent.external.events`，关联书 id；不建虚假 ConversationDoc、不加数据库迁移、不上传本机日志。accepted、started、回执和终态按序落盘；恢复核对真实 F3 回执并标记中断，不重跑工具。单项大结果只保存字节数和 SHA-256 摘要，完整回执按页保存，结束事件与最后一批回执同事务提交。损坏／缺号事件不能被当作成功恢复，已清除的书不能因追加日志复活。
 
@@ -69,9 +69,10 @@ stdio 清理在排入异步回收任务之前立即终止进程组／Job；尚�
 - `dr_mcp::bridge::run(path)`：`Launch::Mcp` 的无窗口入口；转发停止后关闭 runtime，不等待仍打开的客户端 stdin。
 - `GrantStore`：应用身份级授权与串行文件操作。`connect/create_manual/revoke/repair_owned` 在返回 future 前已入队，丢弃等待者不丢弃文件收尾；`authenticate/validate` 只读短内存快照，`drain` 是队列屏障。
 - `Host`：当前书与代次，`replace/select/suspend/open_external`；ScopeOpener 必须接 M31 同一个 Controller。
-- `inbound::Server`：接受认证后的 rmcp 会话，`close` 同步取消入口、异步等连接和 scope 收尾。每条连接订阅 `Host::watch`，代次一变就发 `tools/list_changed`；列目录和调用都按 `Host::selection` 当下的书与代次。
+- `inbound::Server`：接受认证后的 rmcp 会话，`close` 同步取消入口、异步等连接和 scope 收尾。每条连接订阅 `Host::watch` 和 `Host::catalog_changes`，任一变化就发 `tools/list_changed`；列目录和调用都按 `Host::selection` 当下的书与代次。
+- `Host::replace(book, Backend { opener, catalog })`：后端由应用适配一次给齐，`suspend` 一并收回；`Host::catalog(book, epoch)` 是列目录与调用共用的读取，`Host::follow(workspace)` 返回书目事件订阅，释放库之前丢掉。
 - `outbound::Manager`：库级插件配置、目录及连接；`activate` 选择设置页显示的书，调用权限仍取 `ToolContext.book`。`PluginSlot` 在库边界替换，`PluginTools` 只新增 `mcp_search`、`mcp_call`。
-- `dr_view_agent::mcp::init` 在 Agent 初始化前登记 release hook。它观察真实 Workspace 的书、书架与窗口激活，即使没打开帮手面板也工作；切到外部客户端不会清空最后激活窗口的书。切库后等新的 AgentHub 就绪，重建 Manager 和 Host 后端。
+- `dr_view_agent::mcp::init` 在 Agent 初始化前登记 release hook，并建一个共享的 `AgentTools` 放进 `McpGlobal`，`dr_view_agent::init` 用 `CompanionTools::shared` 交给帮手。它观察真实 Workspace 的书、书架与窗口激活，即使没打开帮手面板也工作；切到外部客户端不会清空最后激活窗口的书。切库后等新的 AgentHub 就绪，重建 Manager、Host 后端（开 scope 与读目录都经新的 controller）和书目订阅；`prepare_close` 先丢订阅再交出库。
 - AgentHub 发布后显式调用 `attach_agent` 注册观察者，不能依赖 `cx.defer` 跨模块初始化：原生启动会在下一个实体创建时冲刷回调。回归把两个初始化拆开，覆盖真实窗口发现的这一时序差异。
 - `mcp_settings` 通过 F6 `agent.mcpAccess`／`agent.extensions` 两个声明式设置入口呈现；按窗口缓存视图，关闭设置清空表单中的秘密输入。
 - 扩展配置加载失败显示旧版错误文案，不冒充空列表。加载 ACK 与入站配置警告分开，按库代次、书和请求序号过滤；切到别书、返回原书或释放旧库后，迟到结果不能覆盖新状态。丢弃界面等待者不会丢弃 Manager 的后台操作与释放屏障。
@@ -81,7 +82,8 @@ stdio 清理在排入异步回收任务之前立即终止进程组／Job；尚�
 契约用 Rust 测试，正文只取 F8 种子；授权和客户端文件写临时目录，提供商与外部 MCP 服务只用本机合成服务。配置快照由测试生成。
 
 - 入站集成测试经真实 Unix／回环连接列出 M29 目录、完整读章、修改段落并按来源撤回；还覆盖重复请求 id、长度限制、撤销、切书及切回、取消、断线、延迟创建 scope 和关闭时的实际写入结算。
-- 书的目录（`tests/inbound.rs`，F8 小种子的两本书，动作从种子书的目录里找，不写死模板 id）：开着书时列出的名字、顺序、说明和 Schema 与 `AgentTools::catalog_for_book` 一致，动作带作者名称作 title、不含另一本书的动作；书稿上的动作未读先拒（`read_required`），读后经同一 Runtime 新建条目并留下本 session 的回执，不发多余通知。没开书时是基础目录，调动作报「没有打开的书」，不开 scope、不留审计。另一本书的动作在进入 Runtime 前拒绝并说明属于哪本书，本书未绑定的动作和未注册的名字也拒绝，审计里只有发现用的 `tool_search`，没有 `call_tool`、没有回执。切书和回书架各收到一次 `list_changed`，重新列出的就是新书或基础目录；列过之后第一次调用仍报切书。作者在应用里关掉动作住处的层级开关后，按旧列表调用被拒、不重放，并收到一次 `list_changed`；重新列出、重读后按新绑定在动作自己的层级下建成。
+- 书的目录（`tests/inbound.rs`，F8 小种子的两本书，动作从种子书的目录里找，不写死模板 id；夹具的目录来源读夹具 Runtime 自己的 `AgentTools`，并用 `Host::follow` 跟书目事件）：开着书时列出的名字、顺序、说明和 Schema 与 `catalog_for_book` 一致，动作带作者名称作 title、不含另一本书的动作；列目录前后 scope 为零，外部会话、审计事件与 workspace journal 的行数不变。书稿上的动作未读先拒（`read_required`）且不发通知，读后经同一 Runtime 新建条目并留下本 session 的回执。没开书时是基础目录，调动作报「没有打开的书」，不开 scope、不留审计。另一本书的动作、本书未绑定的动作和未注册的名字都在进入前拒绝：没有 scope、没有审计、没有回执。切书和回书架各收到一次 `list_changed`，重新列出的就是新书或基础目录；列过之后第一次调用仍报切书。改名一个普通条目不发通知；作者关掉动作住处的层级开关后，客户端什么都没调就收到一次 `list_changed`，按旧列表调用在进入前被拒、不重放；重新列出、重读后按新绑定在动作自己的层级下建成，前后只通知一次。
+- 应用适配（`dr-view-agent/tests/mcp_lifecycle.rs`）：经适配层的目录来源读到的目录，与 `McpGlobal` 里帮手共享的 `AgentTools` 为同一本书算出的是同一个缓存实例（指针相等）；换库后重建的后端读新库的目录。
 - 出站集成测试运行合成 stdio／HTTP 服务，覆盖发现、分页、秘密引用、每次批准与配置修订失效、取消、子进程退出、过期会话不重放、无尾斜线 URL、配置回滚及删除书后不复活。
 - 清理故障注入经真实 Runtime 许可及 HTTP 调用，验证等待清理期间就失效旧目录，清理失败与状态 CAS 失败都保留原未知结果，错误原文不泄露，也不重发调用。
 - 应用二进制回归验证：远端 EOF 后，即使客户端保留 stdin 打开，`--mcp` 进程仍退出；不打开 GUI、stdout 没有非协议文字。
@@ -109,7 +111,6 @@ Windows `x86_64-pc-windows-msvc` 的 `dr-mcp --all-targets` 已用 cargo-xwin、
 3. **轨道 3：** 外部审计目前随库保留并在书清除时移除；日志保留与分页整理待统一设计，不为提速跳过未结算回执恢复。
 4. **轨道 4 的 M43／作者：** Windows 的原生启动、作业对象退出与安装目录手测；本模块提供回环测试及交叉编译证据。
 5. **轨道 2 的 F5：** `Button::disabled` 当前禁用点击并变灰，但原生 AX 仍报告 enabled；GPUI 没有现成的 disabled builder。本模块窗口验收检查实际表单／列表变化与截图，未把 AX enabled 当成就绪证据；通用无障碍禁用状态由 F5 统一补，不阻挡 M32 接收。
-6. **书内目录变化的即时通知（适配层）：** 要在作者改模板或层级时立刻发 `list_changed`，dr-mcp 需要两样它现在拿不到的东西：书目变更信号（应用适配把这本书的 `WsEvent::Book` 转给 Host，或外部 scope 带出），以及不留审计的目录修订号读取（例如 `ToolExecutor` 增加一个由 `AgentTools` 实现、`CompanionTools` 转发的目录读取）。这两处都在 dr-view-agent／dr-agent 的适配层；有了以后，列目录也可以改走这条不留审计的读取，不再经过 `tool_search`。在此之前旧列表最多导致一次被 revision 拒绝的调用，见「目录变化的通知」。
 
 ## 代码位置
 

@@ -17,14 +17,14 @@ use dr_agent_tools::{
 };
 use dr_mcp::{
     ClientPaths, Credential, GrantPaths, GrantStore, bridge,
-    host::{Host, ScopeOpener},
+    host::{Backend, CatalogSource, Host, ScopeOpener},
     inbound::Server,
     transport::{self, Listener, LocalStream},
 };
 use dr_model::id::BookId;
 use dr_store::Library;
 use dr_testkit::seed::{self, Preset};
-use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
+use dr_workspace::{Actor, Subscription, Workspace, WorkspaceOptions, library_options};
 use futures::{FutureExt, future::join_all};
 use rmcp::{
     ClientHandler, Peer, RoleClient, ServiceExt,
@@ -50,14 +50,34 @@ struct Book {
 struct Fixture {
     _dir: tempfile::TempDir,
     ws: Workspace,
+    /// The runtime's own book tools: the Host's catalog source reads these,
+    /// as the app adapter reads the companion's.
+    tools: AgentTools,
     runtime: Runtime,
     books: Vec<Book>,
     host: Host,
+    follow: Subscription,
     server: Server,
     grants: GrantStore,
     grant: String,
     credential: Credential,
     scopes: Arc<Mutex<Vec<ExternalScope>>>,
+}
+
+fn catalog_source(tools: AgentTools, ws: Workspace) -> CatalogSource {
+    Arc::new(move |book| {
+        let (tools, ws) = (tools.clone(), ws.clone());
+        async move {
+            tokio::task::spawn_blocking(move || {
+                tools
+                    .catalog_for_book(&ws, &book)
+                    .map_err(|error| error.to_string())
+            })
+            .await
+            .map_err(|error| error.to_string())?
+        }
+        .boxed()
+    })
 }
 
 fn opener(runtime: Runtime, scopes: Arc<Mutex<Vec<ExternalScope>>>) -> ScopeOpener {
@@ -108,10 +128,11 @@ impl Fixture {
                 Book { id, doc, paragraph }
             })
             .collect::<Vec<_>>();
+        let tools = AgentTools::new();
         let runtime = Runtime::new(
             ws.clone(),
             Arc::new(ScriptedDriver::new(vec![])),
-            Arc::new(AgentTools::new()),
+            Arc::new(tools.clone()),
             Options::default(),
         )
         .unwrap();
@@ -136,15 +157,21 @@ impl Fixture {
         let scopes = Arc::new(Mutex::new(Vec::new()));
         host.replace(
             Some(books[0].id.clone()),
-            Some(opener(runtime.clone(), scopes.clone())),
+            Some(Backend {
+                opener: opener(runtime.clone(), scopes.clone()),
+                catalog: catalog_source(tools.clone(), ws.clone()),
+            }),
         );
+        let follow = host.follow(&ws);
         let server = Server::start(listener, grants.clone(), host.clone(), &Handle::current());
         Self {
             _dir: dir,
             ws,
+            tools,
             runtime,
             books,
             host,
+            follow,
             server,
             grants,
             grant: description.grant.id,
@@ -165,11 +192,18 @@ impl Fixture {
         .unwrap()
         .unwrap()
     }
-    /// The catalog the in-app Agent resolves for a book: what MCP must list.
+    /// The catalog the Agent resolves for a book: what MCP must list.
     fn catalog(&self, index: usize) -> Arc<Catalog> {
-        AgentTools::new()
+        self.tools
             .catalog_for_book(&self.ws, &self.books[index].id)
             .unwrap()
+    }
+    /// The fixture's backend with another scope opener.
+    fn backend(&self, opener: ScopeOpener) -> Backend {
+        Backend {
+            opener,
+            catalog: catalog_source(self.tools.clone(), self.ws.clone()),
+        }
     }
     fn write(&self, index: usize) -> Value {
         let book = &self.books[index];
@@ -193,10 +227,12 @@ impl Fixture {
                 .unwrap()
                 .is_empty()
         );
+        drop(self.follow);
         drop(self.server);
         drop(self.host);
         drop(self.scopes);
         drop(self.runtime);
+        drop(self.tools);
         drop(self.grants);
         self.ws.try_shutdown().unwrap();
     }
@@ -407,6 +443,24 @@ fn external_calls(f: &Fixture) -> Vec<String> {
         .map(|event| event["request"]["name"].as_str().unwrap().to_owned())
         .collect()
 }
+/// Every durable trace an external call leaves: the scope's session header,
+/// its audit events and the workspace journal.
+fn traces(f: &Fixture) -> (usize, usize, usize) {
+    let lib = f.ws.library();
+    (
+        lib.local_entries("agent.external.sessions", None)
+            .unwrap()
+            .len(),
+        lib.local_entries("agent.external.events", None)
+            .unwrap()
+            .len(),
+        f.ws.journal(None, 100_000).unwrap().len(),
+    )
+}
+/// Longer than the Host takes to compare the catalog after a book edit.
+async fn settle() {
+    tokio::time::sleep(Duration::from_millis(600)).await;
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn open_book_lists_its_template_actions_and_an_action_writes_through_the_runtime() {
@@ -414,7 +468,12 @@ async fn open_book_lists_its_template_actions_and_an_action_writes_through_the_r
     let watcher = Watcher::default();
     let mut client = f.client_with(watcher.clone()).await;
     let catalog = f.catalog(0);
+    let before = traces(&f);
     let listed = client.list_tools(None).await.unwrap().tools;
+    // Listing reads the catalog: no scope, no audit or journal rows.
+    assert!(f.scopes.lock().unwrap().is_empty());
+    assert_eq!(traces(&f), before);
+    assert_eq!(before.0 + before.1, 0);
     // The Agent's catalog for this book, in its order, with its descriptions
     // and schemas: base tools and the template actions the book binds.
     assert_eq!(names(&listed), entry_names(&catalog));
@@ -455,6 +514,8 @@ async fn open_book_lists_its_template_actions_and_an_action_writes_through_the_r
     let unread: Value = serde_json::from_str(text(&unread)).unwrap();
     assert_eq!(unread["output"]["error"]["code"], "read_required");
     reply(&call(&client, "entry.list", json!({"all":true})).await);
+    // The refusal changed nothing the book binds: nothing announced.
+    assert_eq!(watcher.seen(), 0);
     let created = reply(&call(&client, &action.id, json!({"title":title})).await);
     // Committed through the shared Runtime with this session's receipts.
     assert_eq!(created["session"], unread["session"]);
@@ -482,8 +543,6 @@ async fn open_book_lists_its_template_actions_and_an_action_writes_through_the_r
         Some(action.target_template.as_str())
     );
     assert_eq!(entry["parent"].as_str(), action.home.as_deref());
-    // Neither the refusal nor the write changed what the book binds.
-    assert_eq!(watcher.seen(), 0);
     client.close().await.unwrap();
     drop(client);
     f.finish().await;
@@ -545,10 +604,9 @@ async fn actions_of_another_book_and_unbound_verbs_are_refused_before_any_call_e
     );
     let refused = call(&client, "entry.create_anything", json!({})).await;
     assert!(text(&refused).contains("not in Drifting's author-tool catalog"));
-    // Only discovery entered the Runtime; no call_tool, no write.
-    let calls = external_calls(&f);
-    assert!(!calls.is_empty());
-    assert!(calls.iter().all(|name| name == "tool_search"), "{calls:?}");
+    // None of them entered the Runtime: no scope, no audit, no write.
+    assert!(f.scopes.lock().unwrap().is_empty());
+    assert!(external_calls(&f).is_empty());
     assert!(f.ws.library().settlements(None, None).unwrap().is_empty());
     client.close().await.unwrap();
     drop(client);
@@ -599,12 +657,35 @@ async fn switching_books_announces_list_changed_and_the_list_follows_the_open_bo
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn an_action_rebound_after_listing_is_refused_and_announced_until_listed_again() {
+async fn an_action_rebound_after_listing_is_announced_and_refused_until_listed_again() {
     let f = Fixture::new(false, library_options("m32-inbound-stale-action")).await;
     let watcher = Watcher::default();
     let mut client = f.client_with(watcher.clone()).await;
     client.list_tools(None).await.unwrap();
     let catalog = f.catalog(0);
+    // An edit that leaves the catalog as it was announces nothing.
+    let entries =
+        f.ws.call(
+            &Actor::User,
+            "entry.list",
+            json!({"book":f.books[0].id,"all":true}),
+        )
+        .unwrap()["output"]
+            .clone();
+    let ordinary = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["level"] != true)
+        .expect("the seeded book has an entry without the level switch");
+    f.ws.call(
+        &Actor::User,
+        "entry.update",
+        json!({"book":f.books[0].id,"id":ordinary["id"],"title":"改名不改目录"}),
+    )
+    .unwrap();
+    settle().await;
+    assert_eq!(watcher.seen(), 0);
     // An action bound on one level that creates its entries in another.
     let action = catalog
         .actions()
@@ -632,10 +713,19 @@ async fn an_action_rebound_after_listing_is_refused_and_announced_until_listed_a
         rebound.descriptor(&action.id).unwrap().revision,
         listed_revision
     );
+    // Announced from the book edit itself, before the client calls anything.
+    wait(|| watcher.seen() >= 1).await;
     let stale_title = "按旧绑定不会创建";
+    let entered = external_calls(&f).len();
     let stale = call(&client, &action.id, json!({"title":stale_title})).await;
     assert_eq!(stale.is_error, Some(true));
-    wait(|| watcher.seen() >= 1).await;
+    assert!(
+        text(&stale).contains("changed after tools were listed"),
+        "{}",
+        text(&stale)
+    );
+    // Refused before the Runtime and never replayed.
+    assert_eq!(external_calls(&f).len(), entered);
     let entries =
         f.ws.call(
             &Actor::User,
@@ -651,11 +741,13 @@ async fn an_action_rebound_after_listing_is_refused_and_announced_until_listed_a
             .iter()
             .all(|entry| entry["title"] != stale_title)
     );
-    // Listed again, the current binding is callable after a fresh read.
+    // Listed again, the current binding is callable after a fresh read. The
+    // change was announced once.
     assert_eq!(
         names(&client.list_tools(None).await.unwrap().tools),
         entry_names(&rebound)
     );
+    assert_eq!(watcher.seen(), 1);
     reply(&call(&client, "entry.list", json!({"all":true})).await);
     let created = reply(&call(&client, &action.id, json!({"title":"按新绑定创建"})).await);
     let id = created["output"]["output"]["id"].as_str().unwrap();
@@ -671,7 +763,6 @@ async fn an_action_rebound_after_listing_is_refused_and_announced_until_listed_a
         entry["parent"].as_str(),
         Some(action.reference.level.as_str())
     );
-    assert_eq!(watcher.seen(), 1);
     client.close().await.unwrap();
     drop(client);
     f.finish().await;
@@ -955,7 +1046,7 @@ async fn abandoned_host_opening_closes_the_late_scope_instead_of_leaking_library
     let blocked = release.clone();
     f.host.replace(
         Some(f.books[0].id.clone()),
-        Some(Arc::new(move |start| {
+        Some(f.backend(Arc::new(move |start| {
             let normal = normal.clone();
             let notify = notify.clone();
             let blocked = blocked.clone();
@@ -965,7 +1056,7 @@ async fn abandoned_host_opening_closes_the_late_scope_instead_of_leaking_library
                 normal(start).await
             }
             .boxed()
-        })),
+        }))),
     );
     let opening = f.host.open_external(ExternalStart {
         client_id: f.grant.clone(),
@@ -1005,7 +1096,7 @@ async fn server_close_waits_for_a_scope_still_being_initialized() {
     let blocked = release.clone();
     f.host.replace(
         Some(f.books[0].id.clone()),
-        Some(Arc::new(move |start| {
+        Some(f.backend(Arc::new(move |start| {
             let normal = normal.clone();
             let notify = notify.clone();
             let blocked = blocked.clone();
@@ -1015,7 +1106,7 @@ async fn server_close_waits_for_a_scope_still_being_initialized() {
                 normal(start).await
             }
             .boxed()
-        })),
+        }))),
     );
     let client = f.client().await;
     let peer = client.peer().clone();

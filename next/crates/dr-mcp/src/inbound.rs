@@ -2,27 +2,22 @@
 //! M29's projection; execution enters the application's existing Runtime.
 //!
 //! Without an open book the list is the registry's base catalog. With one,
-//! it is that book's catalog as the shared Runtime resolves it (base tools
-//! plus the template actions its levels bind), read through the facade's own
-//! discovery entry, so MCP never keeps a second catalog.
+//! it is that book's catalog (base tools plus the template actions its
+//! levels bind), read through the Host from the `AgentTools` chat uses, so
+//! MCP never keeps a second catalog. Listing opens no scope and writes no
+//! audit; only calls enter the Runtime.
 
 use std::{
     collections::HashSet,
     io,
     sync::{
-        Arc, Mutex as SyncMutex, OnceLock,
+        Arc, Mutex as SyncMutex,
         atomic::{AtomicBool, Ordering},
     },
 };
 
-use dr_agent::{
-    ExternalCall, ExternalScope, ExternalStart, ToolAccess, ToolDescriptor, ToolExecutor as _,
-    ToolStatus,
-};
-use dr_agent_tools::{
-    AgentTools,
-    catalog::{ActionRef, Catalog, Entry},
-};
+use dr_agent::{ExternalCall, ExternalScope, ExternalStart, ToolAccess, ToolStatus};
+use dr_agent_tools::catalog::{ActionRef, Catalog, Entry};
 use dr_model::id::BookId;
 use futures::{
     FutureExt as _,
@@ -39,8 +34,8 @@ use rmcp::{
     service::{RequestContext, RxJsonRpcMessage, TxJsonRpcMessage},
     transport::{Transport, async_rw::AsyncRwTransport},
 };
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
+use serde::Serialize;
+use serde_json::json;
 use tokio::{
     io::{AsyncWriteExt as _, BufReader},
     runtime::Handle,
@@ -58,9 +53,6 @@ use crate::{
 const CONNECTIONS: usize = 32;
 const CALLS: usize = 8;
 const REQUEST_IDS: usize = 4096;
-/// The facade's largest discovery page, and a bound on how many a listing reads.
-const PAGE: usize = 50;
-const PAGES: usize = 64;
 
 pub struct Server {
     stop: CancellationToken,
@@ -161,17 +153,18 @@ async fn serve_connection(
     .map_err(|_| "MCP authentication reply timed out".to_owned())?
     .map_err(|error| error.to_string())?;
     let ended = CancellationToken::new();
-    // Subscribed before initialization, so a switch while the client is still
+    // Subscribed before initialization, so a change while the client is still
     // initializing is announced as soon as it can receive notifications.
     let mut selection = host.watch();
+    let mut catalogs = host.catalog_changes();
     let peer = Peer(Arc::new(PeerInner {
         session: Mutex::new(Session {
             epoch: host.selection().epoch,
             scope: None,
-            listed: None,
         }),
         host,
         catalog: Catalog::new(),
+        listed: SyncMutex::new(None),
         store: store.clone(),
         lease: lease.clone(),
         requests: Semaphore::new(CALLS),
@@ -200,25 +193,30 @@ async fn serve_connection(
         }
     };
     let notifier = service.peer().clone();
-    let mut following = true;
+    let (mut following, mut counting) = (true, true);
     loop {
-        tokio::select! {
+        // Every selection epoch (another book, the shelf, a library switch)
+        // is another catalog, and so is an in-book change the Host noticed
+        // to templates or levels: the client lists again.
+        let changed = tokio::select! {
             _ = stop.cancelled() => break,
             _ = ended.cancelled() => break,
             _ = lease.revoked() => break,
             changed = selection.changed(), if following => {
-                if changed.is_err() {
-                    following = false;
-                    continue;
-                }
-                // Every selection epoch (another book, the shelf, a library
-                // switch) is another catalog: the client lists it again.
-                tokio::select! {
-                    _ = stop.cancelled() => break,
-                    _ = ended.cancelled() => break,
-                    _ = lease.revoked() => break,
-                    _ = notifier.notify_tool_list_changed() => {},
-                }
+                following = changed.is_ok();
+                following
+            }
+            changed = catalogs.changed(), if counting => {
+                counting = changed.is_ok();
+                counting
+            }
+        };
+        if changed {
+            tokio::select! {
+                _ = stop.cancelled() => break,
+                _ = ended.cancelled() => break,
+                _ = lease.revoked() => break,
+                _ = notifier.notify_tool_list_changed() => {},
             }
         }
     }
@@ -233,17 +231,16 @@ struct Session {
     /// The selection epoch this connection's calls last acknowledged. A
     /// listing never acknowledges a switch: the next call still reports it.
     epoch: u64,
-    /// The scope of the selection it was opened in. A listing may open the
-    /// current selection's scope before a call has acknowledged the switch.
+    /// Opened by the first call that enters this epoch's book.
     scope: Option<ExternalScope>,
-    /// The open book's catalog as this connection last listed it, by epoch.
-    listed: Option<(u64, Arc<[Listed]>)>,
 }
 struct PeerInner {
     host: Host,
     /// The base catalog: the whole list without a book, and the names a call
     /// may use besides a template action's canonical id.
     catalog: Catalog,
+    /// The open book's catalog as this connection last listed it, by epoch.
+    listed: SyncMutex<Option<(u64, Arc<Catalog>)>>,
     store: GrantStore,
     lease: GrantLease,
     session: Mutex<Session>,
@@ -351,18 +348,11 @@ impl Peer {
                 action.book
             ));
         }
-        let scope = self.scope(&mut session, &selected, &book, &context).await?;
+        // Resolved before any scope opens: a refused name enters nothing.
         let tool = self
-            .resolve(
-                &mut session,
-                &scope,
-                &selected,
-                &book,
-                &request.name,
-                action.is_some(),
-                &context,
-            )
+            .resolve(&selected, &book, &request.name, action.is_some(), &context)
             .await?;
+        let scope = self.scope(&mut session, &selected, &book, &context).await?;
         self.0.store.validate(&self.0.lease)?;
         if self.0.closed.load(Ordering::Acquire)
             || self.0.host.selection().epoch != selected.epoch
@@ -374,7 +364,7 @@ impl Peer {
         let arguments = request.arguments.unwrap_or_default();
         // M29's call envelope addresses a template action by its reference,
         // never by name; both carry the revision the client listed.
-        let envelope = if tool.action {
+        let envelope = if tool.action.is_some() {
             json!({"action":tool.name,"arguments":arguments,"revision":tool.revision})
         } else {
             json!({"name":tool.name,"arguments":arguments,"revision":tool.revision})
@@ -409,9 +399,11 @@ impl Peer {
             }
             result = &mut finished => result.map_err(|error| error.to_string())?,
         };
-        if tool.action && result.status != ToolStatus::Success {
-            self.recheck(&mut session, &scope, &selected, &book, &tool, &context)
-                .await;
+        if tool.action.is_some() && result.status != ToolStatus::Success {
+            // The Runtime may have refused a binding that changed after the
+            // lookup above. Reading the catalog again announces a change to
+            // every connection; the call itself is never retried.
+            let _ = self.0.host.catalog(&book, selected.epoch).await;
         }
         #[derive(Serialize)]
         struct Reply<'a> {
@@ -453,35 +445,43 @@ impl Peer {
     }
 
     /// The tools this connection may see now: the base catalog without an
-    /// open book, otherwise the open book's catalog from the shared Runtime.
-    async fn list(&self, context: &RequestContext<RoleServer>) -> Result<Vec<Listed>> {
+    /// open book, otherwise the open book's catalog. A plain read of the
+    /// catalog: no scope, no audit, no wait for the shared tool scheduler.
+    async fn list(&self, context: &RequestContext<RoleServer>) -> Result<Vec<Tool>> {
         let _permit = self
             .0
             .requests
             .try_acquire()
             .map_err(|_| "too many pending MCP calls".to_owned())?;
-        let base = || self.0.catalog.entries().iter().map(Listed::base).collect();
-        if self.0.host.selection().book.is_none() {
-            return Ok(base());
-        }
-        let mut session = self.session(context).await?;
-        self.0.store.validate(&self.0.lease)?;
         if self.0.closed.load(Ordering::Acquire) {
             return Err("MCP connection closed".into());
         }
         let selected = self.0.host.selection();
-        let Some(book) = selected.book.clone() else {
-            return Ok(base());
+        let book = selected
+            .book
+            .clone()
+            // A connection limited to another book enters none of this one.
+            .filter(|book| self.0.lease.check_book(book.as_str()).is_ok());
+        let Some(book) = book else {
+            return Ok(self.0.catalog.entries().iter().map(tool).collect());
         };
-        if self.0.lease.check_book(book.as_str()).is_err() {
-            // A connection limited to another book enters none of this one,
-            // so it opens no scope here either.
-            return Ok(base());
+        let catalog = self.catalog(&selected, &book, context).await?;
+        *self.0.listed.lock().expect("MCP listed catalog") =
+            Some((selected.epoch, catalog.clone()));
+        Ok(catalog.entries().iter().map(tool).collect())
+    }
+
+    async fn catalog(
+        &self,
+        selected: &Selection,
+        book: &BookId,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Arc<Catalog>> {
+        tokio::select! {
+            _ = context.ct.cancelled() => Err("MCP request canceled".into()),
+            _ = self.0.lease.revoked() => Err("MCP access revoked".into()),
+            catalog = self.0.host.catalog(book, selected.epoch) => catalog,
         }
-        let scope = self.scope(&mut session, &selected, &book, context).await?;
-        let tools = self.page(&scope, &selected, &book, context).await?;
-        session.listed = Some((selected.epoch, tools.clone().into()));
-        Ok(tools)
     }
 
     async fn session(
@@ -519,7 +519,6 @@ impl Peer {
         book: &BookId,
         context: &RequestContext<RoleServer>,
     ) -> Result<ExternalScope> {
-        self.retire(session, selected.epoch).await?;
         if let Some(scope) = &session.scope {
             if scope.is_closed() {
                 // In particular, never reopen automatically after a second CAS
@@ -593,280 +592,59 @@ impl Peer {
         })
     }
 
-    /// One discovery page through the scope: the Runtime's own tool executor,
-    /// so the result is `catalog_for_book` with the cache chat uses.
-    async fn search(
-        &self,
-        scope: &ExternalScope,
-        selected: &Selection,
-        book: &BookId,
-        arguments: Value,
-        context: &RequestContext<RoleServer>,
-    ) -> Result<Page> {
-        let search = search_descriptor();
-        let finished = scope
-            .call_checked(
-                ExternalCall {
-                    name: search.name.clone(),
-                    arguments,
-                    revision: search.revision.clone(),
-                },
-                self.guard(selected.epoch, book.clone()),
-            )
-            .map_err(|error| error.to_string())?
-            .finish();
-        // Discovery records no read coverage, so an abandoned page leaves the
-        // scope usable; dropping the handle cancels it.
-        let result = tokio::select! {
-            biased;
-            _ = context.ct.cancelled() => return Err("MCP request canceled".into()),
-            _ = self.0.lease.revoked() => return Err("MCP access revoked".into()),
-            result = finished => result.map_err(|error| error.to_string())?,
-        };
-        if result.status != ToolStatus::Success {
-            return Err(format!(
-                "the open book's tool catalog could not be read: {}",
-                result.output
-            ));
-        }
-        serde_json::from_value(result.output)
-            .map_err(|_| "the open book's tool catalog has an unexpected shape".to_owned())
-    }
-
-    /// The open book's complete catalog, page by page.
-    async fn page(
-        &self,
-        scope: &ExternalScope,
-        selected: &Selection,
-        book: &BookId,
-        context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Listed>> {
-        let mut tools = Vec::new();
-        let mut names = HashSet::new();
-        let mut offset = 0;
-        for _ in 0..PAGES {
-            let page = self
-                .search(
-                    scope,
-                    selected,
-                    book,
-                    json!({"query":"","offset":offset,"limit":PAGE}),
-                    context,
-                )
-                .await?;
-            for found in page.tools {
-                let tool = Listed::try_from(found)?;
-                if names.insert(tool.name.clone()) {
-                    tools.push(tool);
-                }
-            }
-            match page.next_offset {
-                None => return Ok(tools),
-                Some(next) if next > offset => offset = next,
-                Some(_) => break,
-            }
-        }
-        Err("the open book's tool catalog did not finish paging".into())
-    }
-
-    /// One tool of the open book's current catalog, by its exact name.
-    async fn find(
-        &self,
-        scope: &ExternalScope,
-        selected: &Selection,
-        book: &BookId,
-        name: &str,
-        context: &RequestContext<RoleServer>,
-    ) -> Result<Option<Listed>> {
-        let page = self
-            .search(
-                scope,
-                selected,
-                book,
-                json!({"query":name,"limit":PAGE}),
-                context,
-            )
-            .await?;
-        page.tools
-            .into_iter()
-            .find(|found| found.name == name)
-            .map(Listed::try_from)
-            .transpose()
-    }
-
-    /// What a call enters: the tool as this connection listed it in the
-    /// current selection, so listing and calling agree. Without a listing, a
-    /// base tool is the registry's and an action is looked up in the book.
-    #[allow(clippy::too_many_arguments)]
+    /// What a call enters: the tool in the open book's current catalog. A
+    /// tool this connection listed in this epoch under another revision has
+    /// changed since; it is refused rather than entered under a binding the
+    /// client has not seen. Reading the catalog announces such a change.
     async fn resolve(
         &self,
-        session: &mut Session,
-        scope: &ExternalScope,
         selected: &Selection,
         book: &BookId,
         name: &str,
         action: bool,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Listed> {
-        let listed = session
-            .listed
-            .as_ref()
-            .filter(|(epoch, _)| *epoch == selected.epoch)
-            .map(|(_, tools)| tools.clone());
-        if let Some(tool) = listed
-            .as_ref()
-            .and_then(|tools| tools.iter().find(|tool| tool.name == name))
-        {
-            return Ok(tool.clone());
-        }
-        if !action {
-            if listed.is_some() {
-                return Err("this tool is not in the open book's catalog; list tools again".into());
+    ) -> Result<Entry> {
+        let catalog = self.catalog(selected, book, context).await?;
+        let Some(entry) = catalog.entries().iter().find(|entry| entry.name == name) else {
+            return Err(if action {
+                "this template action is not available in the open book; list tools again"
+            } else {
+                "this tool is not in the open book's catalog; list tools again"
             }
-            let entry = self
-                .0
-                .catalog
-                .entries()
-                .iter()
-                .find(|entry| entry.name == name)
-                .expect("screened base tool");
-            return Ok(Listed::base(entry));
-        }
-        let found = self.find(scope, selected, book, name, context).await?;
-        if found.is_some() && listed.is_some() {
-            // The book bound this action after the connection listed it.
-            session.listed = None;
-            let _ = context.peer.notify_tool_list_changed().await;
-        }
-        found.ok_or_else(|| {
-            "this template action is not available in the open book; list tools again".into()
-        })
-    }
-
-    /// A refused action may have been listed before its book's templates or
-    /// levels changed. If its binding is gone or has another revision now,
-    /// the client's list is stale: announce it. Never retry the call.
-    async fn recheck(
-        &self,
-        session: &mut Session,
-        scope: &ExternalScope,
-        selected: &Selection,
-        book: &BookId,
-        tool: &Listed,
-        context: &RequestContext<RoleServer>,
-    ) {
-        if let Ok(current) = self.find(scope, selected, book, &tool.name, context).await
-            && current.is_none_or(|current| current.revision != tool.revision)
-        {
-            session.listed = None;
-            let _ = context.peer.notify_tool_list_changed().await;
-        }
-    }
-}
-
-/// The facade's discovery entry, as the Runtime's tool executor declares it.
-fn search_descriptor() -> &'static ToolDescriptor {
-    static SEARCH: OnceLock<ToolDescriptor> = OnceLock::new();
-    SEARCH.get_or_init(|| {
-        AgentTools::new()
-            .descriptors()
-            .into_iter()
-            .find(|descriptor| descriptor.name == "tool_search")
-            .expect("M29 discovery entry")
-    })
-}
-
-/// One tool as a connection lists and calls it.
-#[derive(Clone, Debug)]
-struct Listed {
-    name: String,
-    /// The author's name for a template action; its `name` is the canonical id.
-    title: Option<String>,
-    description: String,
-    revision: String,
-    access: ToolAccess,
-    input_schema: Map<String, Value>,
-    action: bool,
-}
-
-impl Listed {
-    fn base(entry: &Entry) -> Self {
-        Self {
-            name: entry.name.clone(),
-            title: entry
-                .action
-                .as_ref()
-                .map(|action| action.display_name.clone()),
-            description: entry.description.clone(),
-            revision: entry.revision.clone(),
-            access: entry.access,
-            input_schema: entry
-                .input_schema
-                .as_object()
-                .expect("M29 object schema")
-                .clone(),
-            action: entry.action.is_some(),
-        }
-    }
-
-    fn tool(&self) -> Tool {
-        let tool = Tool::new(
-            self.name.clone(),
-            self.description.clone(),
-            self.input_schema.clone(),
-        )
-        .with_annotations(
-            ToolAnnotations::new()
-                .read_only(self.access == ToolAccess::Read)
-                .open_world(false),
-        );
-        match &self.title {
-            Some(title) => tool.with_title(title.clone()),
-            None => tool,
-        }
-    }
-}
-
-/// A discovery page, read leniently: only what MCP lists is required.
-#[derive(Deserialize)]
-struct Page {
-    tools: Vec<Found>,
-    #[serde(default)]
-    next_offset: Option<usize>,
-}
-#[derive(Deserialize)]
-struct Found {
-    name: String,
-    description: String,
-    revision: String,
-    access: ToolAccess,
-    input_schema: Value,
-    #[serde(default)]
-    action: Option<FoundAction>,
-}
-#[derive(Deserialize)]
-struct FoundAction {
-    display_name: String,
-}
-
-impl TryFrom<Found> for Listed {
-    type Error = String;
-    fn try_from(found: Found) -> Result<Self> {
-        let Value::Object(input_schema) = found.input_schema else {
-            return Err(format!("tool {} has no object input schema", found.name));
+            .into());
         };
-        Ok(Self {
-            title: found
-                .action
-                .as_ref()
-                .map(|action| action.display_name.clone()),
-            action: found.action.is_some(),
-            name: found.name,
-            description: found.description,
-            revision: found.revision,
-            access: found.access,
-            input_schema,
-        })
+        let listed = self.0.listed.lock().expect("MCP listed catalog").clone();
+        if let Some((epoch, listed)) = listed
+            && epoch == selected.epoch
+            && let Some(was) = listed.entries().iter().find(|entry| entry.name == name)
+            && was.revision != entry.revision
+        {
+            return Err("this tool changed after tools were listed; list tools again".into());
+        }
+        Ok(entry.clone())
+    }
+}
+
+/// One catalog entry as MCP lists it. A template action's name is its
+/// canonical id; the author's name for it is the title.
+fn tool(entry: &Entry) -> Tool {
+    let tool = Tool::new(
+        entry.name.clone(),
+        entry.description.clone(),
+        entry
+            .input_schema
+            .as_object()
+            .expect("M29 object schema")
+            .clone(),
+    )
+    .with_annotations(
+        ToolAnnotations::new()
+            .read_only(entry.access == ToolAccess::Read)
+            .open_world(false),
+    );
+    match &entry.action {
+        Some(action) => tool.with_title(action.display_name.clone()),
+        None => tool,
     }
 }
 
@@ -908,9 +686,7 @@ impl ServerHandler for Peer {
             .list(&context)
             .await
             .map_err(|error| ErrorData::internal_error(error, None))?;
-        Ok(ListToolsResult::with_all_items(
-            tools.iter().map(Listed::tool).collect(),
-        ))
+        Ok(ListToolsResult::with_all_items(tools))
     }
 
     async fn call_tool(
