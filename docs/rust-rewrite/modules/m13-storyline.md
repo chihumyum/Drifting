@@ -1,5 +1,7 @@
 # M13 故事线页（第一个里程碑）
 
+> 2026-11-13 内核 v4：故事线是开着「层级」开关、解析后「泳道」为真的条目（`lane` 是「下面」的一项设置，条目可以自己覆盖，不往下继承）。关掉一条故事线的开关，它在时间线上暂时不当泳道画，挂名的成员也暂不显示，再打开就回来；数据不删。见 [kernel-v4.md](../kernel-v4.md) 第 2 节「时间线与泳道」。下文是切换前的记录。
+
 2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（main `60d510a6` 之后，和 M11 第二个里程碑在同一个分支上；第三轮在 `77a957d3` 之后，⋯ 那一行登记进外壳；第四轮在 `2eb865fa` 之后，加了「章节模版」一节、色标能点开取色器）。计划见 [modules.md](../modules.md)。旧版是 `views/StorylineEditorView.tsx`、`KvEditor.tsx`，产品规则见 components.md 的「实体编辑器」。代码和 M11 放在一起（`next/crates/dr-view-elements/src/storyline.rs`）：故事线页和要素页、类目页是同一套实体页，共用页眉、节头、字段列表、对话框；外壳没有改，和 M11 一样经 `pages::add_page_chrome` 认 `Target::Storyline`。
 
 ## 一句话

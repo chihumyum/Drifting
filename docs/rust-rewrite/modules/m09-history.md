@@ -366,3 +366,6 @@ snapshots::checkpoint_history_fingerprint(&docs, &target)             // 现在�
 - 原子性不变：存点和恢复仍是一个原子事务，预留「书目 + 这个条目的全部正文 + 清单文档」，清单文档建书时就建好。书目只读（读版本和条目状态算指纹）。回执和预览的 `expected` 只含书目和正文。恢复时在预留的拷贝上再确认一次要恢复的点还在、清单没变。
 - 上面第 7 条「旧指纹两种都认」删掉了：新格式的库里没有旧指纹的点（v3 的书原样拒开，开发库从 0.1 重新导入，0.1 不产生条目快照点），`checkpoint_history_matches` 只认现在的指纹，两条只为旧指纹存在的测试也删了。
 
+## 内核 v4 收尾（2026-11-13）
+
+快照预览里每篇正文只按模块名显示一遍，不再另以 `body:<条目>/<模块>` 加原始 JSON 再显示一遍（`preview_sections`，测试 `v3_tests.rs` 的 `preview_shows_each_body_once_by_its_module_name`）。

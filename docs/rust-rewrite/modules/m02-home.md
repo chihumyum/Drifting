@@ -159,3 +159,7 @@ v3 读取和记录器。切换统一正确性验收由整合者安排，heavy �
 
 - **整书字数与目标进度走成书序列（[kernel-v4.md](../kernel-v4.md) §7）。** `dr_view_home::v3::Home` 复用 `dr_view_stats::v3::load_at`，整书字数只算成书序列里 `in_book == true`（「计入字数和导出」打开）的正文模块，和统计面板、书架、封面的字数一致；设定对话框改全书目标与每日目标后三处同步更新（`dr-view-home/tests/words_parity.rs`）。新建入口只看住处树上开关开着的活条目及其模板声明的动作。
 - **事件隔离（[kernel-v4.md](../kernel-v4.md) §8）。** 主页直接订阅 `WsEvent::Stats`（别的设备或外部记下的写作日不再靠外壳重读书目文档传递）及正文索引更新，忽略 `WsEvent::Checkpoints`：记一个写作日只唤醒统计、书架、作品主页，外壳（`dr-shell`）和打开着的正文编辑器（`dr-editor`）不动；存一个快照点则连作品主页也不重读（`dr-view-home/tests/quiet.rs`）。
+
+## 内核 v4 收尾（2026-11-13）
+
+作品主页的新建按钮来自模板声明的动作；同名的动作多于一个时（几处成书、每条故事线各有「新建章节」），按钮上带上声明它的层级的标题（「新建章节 · 书稿」），只有一个时照旧（`v3::action_label`，测试 `tests/v3.rs` 的 `same_named_actions_carry_the_titles_of_their_levels`）。

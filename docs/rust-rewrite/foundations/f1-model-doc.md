@@ -1,5 +1,7 @@
 # F1：dr-model 与 dr-doc
 
+> 2026-11-13 内核 v4：书目格式升到 4。只有一种条目：`TemplateKind`、层级模板／叶子模板、「允许的模板」（`allow`）和固定的 `about` 说明都删了；条目自己带「层级」开关（`Entry::level`），模板给新建时的默认值（`level`）和「名字参与自动链接」（`linkable`），每篇正文各有 `in_book`。写作日和快照点清单挪进每本书旁边的两篇小文档（`stats:<书>`、`checkpoints:<书>`，`dr_doc::side`）。设计和最终接口见 [kernel-v4.md](../kernel-v4.md)；下文凡是层级／叶子、`about`、书目里的 `writing_days` 的说法，都是当时的记录。
+
 > 2026-11-10 切换实施更新：共享 catalog 和源格式内存回放已拆分，App 不再调用旧书运行时。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
 > 2026-11-12 更新：旧的按种类 id、枚举和退役取值映射（下文的 `NodeId`、`NodeKind`、`legacy` 等）已收进 `dr_model::import_v1`；`dr_model::invariant` 只剩活动契约，下文提到的 `NOT_CARRIED`、旧出处和条数是当时的记录。现状见 [v3-cutover.md 的「仍保留的源格式边界」](../v3-cutover.md#仍保留的源格式边界)。
