@@ -10,7 +10,14 @@ use dr_workspace::{
 };
 use serde_json::{Value, json};
 
-pub const MODULES: &[&str] = &["prose", "kv", "patches", "plot_grid", "relations"];
+pub const MODULES: &[&str] = &[
+    "prose",
+    "kv",
+    "patches",
+    "plot_grid",
+    "relations",
+    "children",
+];
 pub const FIELDS: &[&str] = &[
     "text",
     "long_text",
@@ -33,8 +40,8 @@ pub const MARKS: &[&str] = &[
     "square",
 ];
 
-/// A new template; `kind` `"level"` starts new entries with the switch on.
-pub fn blank(kind: &str, name: String) -> EntryTemplate {
+/// A new template; new entries start with the switch off and auto-linking on.
+pub fn blank(name: String) -> EntryTemplate {
     EntryTemplate {
         id: dr_model::v3::EntryTemplateId::new_v7().to_string(),
         name,
@@ -42,7 +49,7 @@ pub fn blank(kind: &str, name: String) -> EntryTemplate {
         color: None,
         agent: None,
         modules: Vec::new(),
-        level: kind == "level",
+        level: false,
         linkable: true,
         settings: LevelSettingsOverride::default(),
         verbs: Vec::new(),
@@ -248,7 +255,7 @@ pub fn validate_actions(
                 .is_none_or(|target| !live(target))
         {
             return Err(WsError::Invalid(
-                "action needs a unique id, a name and an allowed live target template".into(),
+                "action needs a unique id, a name and a live target template".into(),
             ));
         }
     }

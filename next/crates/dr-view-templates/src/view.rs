@@ -11,7 +11,7 @@ use dr_shell::{
 use dr_ui::{
     Theme,
     components::overlay::{self, Layer, Place},
-    components::{Button, Choice, Dialog, Menu, MenuItem, Select},
+    components::{Button, Choice, Dialog, Menu, MenuItem, Select, Switch},
     fonts::Role,
     input::{FieldEvent, TextArea, TextField},
     sand::{self, Icon},
@@ -198,6 +198,7 @@ pub fn type_label(kind: &str, cx: &App) -> SharedString {
         "patches" => k::PATCHES,
         "plot_grid" => k::PLOT_GRID,
         "relations" => k::RELATIONS,
+        "children" => k::CHILDREN,
         "text" => k::TEXT,
         "long_text" => k::LONG_TEXT,
         "number" => k::NUMBER,
@@ -207,8 +208,6 @@ pub fn type_label(kind: &str, cx: &App) -> SharedString {
         "image" => k::IMAGE,
         "entity_ref" => k::ENTITY_REF,
         "aliases" => k::ALIASES,
-        "level" => k::LEVEL,
-        "leaf" => k::LEAF,
         _ => return kind.to_owned().into(),
     };
     t(cx, key)
@@ -233,19 +232,16 @@ impl TemplateEditor {
     pub fn new(
         host: PageViewHost,
         template: Option<EntryTemplate>,
-        kind: &str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let creating = template.is_none();
         let draft = template.clone().unwrap_or_else(|| {
-            let mut draft = model::blank(kind, t(cx, common::UNTITLED).to_string());
-            if kind == "leaf" {
-                model::add_module(
-                    &mut draft,
-                    model::module("prose", type_label("prose", cx).to_string()),
-                );
-            }
+            let mut draft = model::blank(t(cx, common::UNTITLED).to_string());
+            model::add_module(
+                &mut draft,
+                model::module("prose", type_label("prose", cx).to_string()),
+            );
             draft
         });
         let mut this = Self {
@@ -631,6 +627,47 @@ impl TemplateEditor {
                     })),
                 ),
         );
+        if module.kind == "prose" {
+            let on = module.config.in_book;
+            let entity = cx.entity();
+            let target = mid.clone();
+            let switch_label = t(cx, k::IN_BOOK);
+            row = row.child(
+                div()
+                    .pl(px(22.))
+                    .flex()
+                    .items_center()
+                    .gap(px(12.))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("k5-in-book-toggle-{mid}")))
+                            .role(gpui::Role::CheckBox)
+                            .aria_label(switch_label.clone())
+                            .aria_toggled(if on {
+                                gpui::Toggled::True
+                            } else {
+                                gpui::Toggled::False
+                            })
+                            .child(
+                                Switch::new(
+                                    SharedString::from(format!("k5-in-book-switch-{mid}")),
+                                    on,
+                                )
+                                .on_change(move |value, _, cx| {
+                                    entity.update(cx, |this, cx| {
+                                        if let Some(m) =
+                                            this.draft.modules.iter_mut().find(|m| m.id == target)
+                                        {
+                                            m.config.in_book = value;
+                                            cx.notify();
+                                        }
+                                    })
+                                }),
+                            ),
+                    )
+                    .child(switch_label),
+            );
+        }
         for field in &module.config.defs {
             let fid = field.id.clone();
             let mut types = model::FIELDS.to_vec();
@@ -737,10 +774,6 @@ impl Render for TemplateEditor {
                     .child(sand::KindMark::new("k5-mark-symbol", mark).scale(1.5)),
             )
             .child(div().flex_1().min_w_0().type_px(28., 40.).child(name))
-            .child(type_label(
-                if self.draft.level { "level" } else { "leaf" },
-                cx,
-            ))
             .child(
                 div()
                     .id("k5-status")
@@ -777,14 +810,88 @@ impl Render for TemplateEditor {
                     .on_click(cx.listener(|this, _, _, cx| this.restore(cx))),
             )
             .child(save);
-        let mut content = div().flex().flex_col().gap(px(16.)).child(
-            div()
-                .flex()
-                .gap(px(12.))
-                .items_center()
-                .child(t(cx, k::COLOR))
-                .child(color),
-        );
+        let entity = cx.entity();
+        let level_on = self.draft.level;
+        let level_switch = div()
+            .id("k5-level")
+            .role(gpui::Role::Group)
+            .aria_label(t(cx, k::LEVEL))
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .child(
+                div()
+                    .id("k5-toggle-level")
+                    .role(gpui::Role::CheckBox)
+                    .aria_label(t(cx, k::LEVEL))
+                    .aria_toggled(if level_on {
+                        gpui::Toggled::True
+                    } else {
+                        gpui::Toggled::False
+                    })
+                    .child(Switch::new("k5-switch-level", level_on).on_change(
+                        move |value, _, cx| {
+                            entity.update(cx, |this, cx| {
+                                this.draft.level = value;
+                                cx.notify();
+                            })
+                        },
+                    )),
+            )
+            .child(t(cx, k::LEVEL))
+            .child(
+                div()
+                    .id("k5-level-hint")
+                    .role(gpui::Role::Label)
+                    .aria_label(t(cx, k::LEVEL_HINT))
+                    .font_role(Role::Ui)
+                    .type_px(theme.scale.caption, theme.scale.line_caption)
+                    .text_color(p.muted().solid())
+                    .child(t(cx, k::LEVEL_HINT)),
+            );
+        let entity = cx.entity();
+        let linkable_on = self.draft.linkable;
+        let linkable_switch = div()
+            .id("k5-linkable")
+            .role(gpui::Role::Group)
+            .aria_label(t(cx, k::LINKABLE))
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .child(
+                div()
+                    .id("k5-toggle-linkable")
+                    .role(gpui::Role::CheckBox)
+                    .aria_label(t(cx, k::LINKABLE))
+                    .aria_toggled(if linkable_on {
+                        gpui::Toggled::True
+                    } else {
+                        gpui::Toggled::False
+                    })
+                    .child(Switch::new("k5-switch-linkable", linkable_on).on_change(
+                        move |value, _, cx| {
+                            entity.update(cx, |this, cx| {
+                                this.draft.linkable = value;
+                                cx.notify();
+                            })
+                        },
+                    )),
+            )
+            .child(t(cx, k::LINKABLE));
+        let mut content = div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .child(
+                div()
+                    .flex()
+                    .gap(px(12.))
+                    .items_center()
+                    .child(t(cx, k::COLOR))
+                    .child(color),
+            )
+            .child(level_switch)
+            .child(linkable_switch);
         {
             content = content.child(t(cx, k::MODULES));
             for module in self.draft.modules.clone() {
@@ -914,7 +1021,7 @@ mod tests {
             book,
         };
         let (editor, cx) = cx.add_window_view(|window, cx| {
-            TemplateEditor::new(host, Some(original.clone()), "leaf", window, cx)
+            TemplateEditor::new(host, Some(original.clone()), window, cx)
         });
         let field = editor.update_in(cx, |editor, window, cx| {
             let _ = editor.field(Binding::Name, "Synthetic name".into(), false, window, cx);
@@ -1048,7 +1155,8 @@ mod tests {
             let request = crate::preview::Request { draft: level.clone(), ..editor.preview_request().unwrap() };
             let preview = crate::preview::project(&lib, &request).unwrap();
             assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
-            assert_eq!(preview.lane, Some(true));
+            assert!(preview.template.lane);
+            assert_eq!(preview.level_defaults.as_ref().unwrap().lane, Some(true));
             let levels: Vec<_> = preview.structure.levels.iter()
                 .filter(|entry| entry.template.as_deref() == Some(&level.id)).collect();
             assert!(!levels.is_empty());
@@ -1100,6 +1208,154 @@ mod tests {
             assert_eq!(editor.draft.agent.as_ref().unwrap().instructions, text);
             editor.preview_open = false;
             editor.preview_task = None;
+        });
+    }
+
+    #[gpui::test]
+    fn unified_editor_switches_children_module_and_collapsed_level_settings(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("0.2.0-dev"))
+            .unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let id = seed.books[0].book_id().to_string();
+        seed.write_to(&store).unwrap();
+        store.close().unwrap();
+        let lib = dr_workspace::Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+        let book = Rc::new(Book::load(&lib, &id).unwrap());
+        cx.update(|cx| {
+            dr_shell::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: None,
+                },
+                Services {
+                    library: Some(lib.clone()),
+                    book: Some(id.clone()),
+                    ..Services::default()
+                },
+                SettingsFile::in_memory(),
+                cx,
+            )
+        });
+        let shell = cx.add_window(dr_shell::Workspace::new).root(cx).unwrap();
+        let host = PageViewHost {
+            workspace: shell.downgrade(),
+            library: lib.clone(),
+            book_id: id.clone(),
+            book,
+        };
+        let (editor, cx) =
+            cx.add_window_view(|window, cx| TemplateEditor::new(host, None, window, cx));
+        let (first_prose, children_id, second_prose) = editor.update(cx, |editor, cx| {
+            assert!(editor.creating);
+            assert!(!editor.draft.level);
+            assert!(editor.draft.linkable);
+            assert_eq!(editor.draft.modules.len(), 1);
+            assert_eq!(editor.draft.modules[0].kind, "prose");
+            assert!(editor.draft.modules[0].config.in_book);
+            assert_eq!(editor.draft.settings.lane, None);
+
+            let first_prose = editor.draft.modules[0].id.clone();
+            let mut second = model::module("prose", "Synthetic notes prose".into());
+            second.config.in_book = false;
+            let second_prose = second.id.clone();
+            model::add_module(&mut editor.draft, second);
+            let children = model::module("children", "Synthetic below".into());
+            let children_id = children.id.clone();
+            model::add_module(&mut editor.draft, children);
+            model::move_module(&mut editor.draft, &children_id, Some(&second_prose));
+
+            editor.draft.level = true;
+            editor.draft.settings.lane = Some(true);
+            editor.draft.settings.accept = Some(false);
+            editor.draft.settings.display = Some("board".into());
+            editor.draft.verbs.push(TemplateVerb {
+                id: dr_model::id::new_uuid_v7(),
+                name: "Synthetic child action".into(),
+                description: String::new(),
+                target_template: Some("tpl-chapter".into()),
+                pos: Some("a0".into()),
+            });
+            cx.notify();
+            (first_prose, children_id, second_prose)
+        });
+        cx.run_until_parked();
+        editor.update(cx, |editor, cx| {
+            let preview =
+                crate::preview::project(&lib, &editor.preview_request().unwrap()).unwrap();
+            assert!(preview.template.level);
+            assert!(preview.template.linkable);
+            assert!(preview.template.lane);
+            assert_eq!(preview.book_prose_modules, vec![first_prose.clone()]);
+            assert_eq!(preview.template.modules.len(), 3);
+            assert_eq!(preview.template.modules[1].id, children_id);
+            assert_eq!(preview.template.modules[1].kind, "children");
+            assert_eq!(
+                preview.template.modules[1].capabilities.read_tools,
+                vec!["module.read", "entry.get"]
+            );
+            assert!(
+                preview.template.modules[1]
+                    .capabilities
+                    .write_tools
+                    .is_empty()
+            );
+            assert_eq!(preview.level_defaults.as_ref().unwrap().lane, Some(true));
+            assert_eq!(preview.declared_actions.as_ref().unwrap().len(), 1);
+
+            editor.reset_setting("lane");
+            assert_eq!(editor.draft.settings.lane, None);
+            editor.draft.settings.lane = Some(true);
+
+            // Collapsing the default level switch hides level settings and actions
+            // in the editor without erasing their stored values.
+            editor.draft.level = false;
+            editor.draft.linkable = false;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        editor.read_with(cx, |editor, _| {
+            let preview =
+                crate::preview::project(&lib, &editor.preview_request().unwrap()).unwrap();
+            assert!(!preview.template.level);
+            assert!(!preview.template.linkable);
+            assert!(preview.template.lane);
+            assert!(preview.level_defaults.is_none());
+            assert!(preview.declared_actions.is_none());
+
+            let saved = model::save(&lib, &id, None, &editor.draft).unwrap();
+            let loaded_book = Book::load(&lib, &id).unwrap();
+            let persisted = loaded_book.v3().unwrap().template(&saved.id).unwrap();
+            assert!(!persisted.level);
+            assert!(!persisted.linkable);
+            assert_eq!(persisted.settings.lane, Some(true));
+            assert_eq!(persisted.settings.accept, Some(false));
+            assert_eq!(persisted.settings.display.as_deref(), Some("board"));
+            assert_eq!(persisted.verbs.len(), 1);
+            assert_eq!(
+                persisted
+                    .modules
+                    .iter()
+                    .map(|m| m.id.as_str())
+                    .collect::<Vec<_>>(),
+                vec![
+                    first_prose.as_str(),
+                    children_id.as_str(),
+                    second_prose.as_str()
+                ]
+            );
+            assert!(persisted.modules[0].config.in_book);
+            assert!(!persisted.modules[2].config.in_book);
         });
     }
 }

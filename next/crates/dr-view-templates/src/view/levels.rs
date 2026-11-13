@@ -1,5 +1,4 @@
 use super::*;
-use dr_ui::components::Switch;
 
 pub(super) fn display_label(value: &str, cx: &App) -> SharedString {
     t(
@@ -24,7 +23,7 @@ pub(super) fn format_label(value: &str, cx: &App) -> SharedString {
 }
 
 impl TemplateEditor {
-    fn reset_setting(&mut self, key: &str) {
+    pub(super) fn reset_setting(&mut self, key: &str) {
         let settings = &mut self.draft.settings;
         match key {
             "default_template" => settings.default_template = None,
@@ -34,6 +33,7 @@ impl TemplateEditor {
             "home" => settings.home = None,
             "is_manuscript" => settings.is_manuscript = None,
             "format_shortcuts" => settings.format_shortcuts = None,
+            "lane" => settings.lane = None,
             _ => {}
         }
     }
@@ -80,12 +80,14 @@ impl TemplateEditor {
         &self,
         key: &'static str,
         label: dr_i18n::Key,
+        inherits: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let settings = &self.draft.settings;
         let own = match key {
             "auto_link" => settings.auto_link,
             "accept" => settings.accept,
+            "lane" => settings.lane,
             _ => settings.is_manuscript,
         };
         let forced = key == "accept" && self.draft.settings.lane == Some(true);
@@ -115,6 +117,7 @@ impl TemplateEditor {
                                 match key {
                                     "auto_link" => this.draft.settings.auto_link = Some(value),
                                     "accept" => this.draft.settings.accept = Some(value),
+                                    "lane" => this.draft.settings.lane = Some(value),
                                     _ => this.draft.settings.is_manuscript = Some(value),
                                 };
                                 cx.notify();
@@ -122,7 +125,7 @@ impl TemplateEditor {
                         }),
                     ),
             )
-            .children((own.is_none() && !forced).then(|| t(cx, k::INHERIT)));
+            .children((inherits && own.is_none() && !forced).then(|| t(cx, k::INHERIT)));
         self.setting_row(key, label, control.into_any_element(), own.is_some(), cx)
     }
     fn template_options(&self) -> Vec<(String, String)> {
@@ -212,8 +215,8 @@ impl TemplateEditor {
             cx,
         ));
         section = section
-            .child(self.bool_setting("auto_link", k::AUTO_LINK, cx))
-            .child(self.bool_setting("accept", k::ACCEPT, cx));
+            .child(self.bool_setting("auto_link", k::AUTO_LINK, true, cx))
+            .child(self.bool_setting("accept", k::ACCEPT, true, cx));
         let mut homes: Vec<(Option<String>, SharedString)> = vec![(None, t(cx, k::THIS_LEVEL))];
         if let Some(book) = self.host.book.v3() {
             homes.extend(
@@ -250,7 +253,7 @@ impl TemplateEditor {
             self.draft.settings.home.is_some(),
             cx,
         ));
-        section = section.child(self.bool_setting("is_manuscript", k::MANUSCRIPT, cx));
+        section = section.child(self.bool_setting("is_manuscript", k::MANUSCRIPT, true, cx));
         let formats = ["full", "notes", "plain"];
         let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
         choices.extend(
@@ -280,37 +283,7 @@ impl TemplateEditor {
             self.draft.settings.format_shortcuts.is_some(),
             cx,
         ));
-        let entity = cx.entity();
-        section = section.child(
-            div()
-                .id("k5-lane")
-                .role(gpui::Role::Group)
-                .aria_label(t(cx, k::LANE))
-                .flex()
-                .items_center()
-                .gap(px(16.))
-                .child(div().w(px(170.)).child(t(cx, k::LANE)))
-                .child(
-                    div()
-                        .id("k5-lane-toggle")
-                        .role(gpui::Role::CheckBox)
-                        .aria_label(t(cx, k::LANE))
-                        .aria_toggled(if self.draft.settings.lane == Some(true) {
-                            gpui::Toggled::True
-                        } else {
-                            gpui::Toggled::False
-                        })
-                        .child(
-                            Switch::new("k5-lane-switch", self.draft.settings.lane == Some(true))
-                                .on_change(move |value, _, cx| {
-                                    entity.update(cx, |this, cx| {
-                                        this.draft.settings.lane = Some(value);
-                                        cx.notify();
-                                    })
-                                }),
-                        ),
-                ),
-        );
+        section = section.child(self.bool_setting("lane", k::LANE, false, cx));
         section.into_any_element()
     }
     pub(super) fn actions(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
