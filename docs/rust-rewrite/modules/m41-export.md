@@ -373,5 +373,5 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 
 - **成稿导出（`dr-export::v3`、`dr-view-export`）**：按 `BookStructureV3::manuscript()` 收集所有成书部分。只导出开着「算进全书」（`in_book`）的正文模块；各层「说明」（`in_book = false`）与没有成书正文的中间层都不进入成稿；一个层级若自己也有成书正文，排在它的子条目之前；H1、H2、H3 照旧全导出，无开关。一本书只有一个成书部分时不增加额外控件；有多个成书部分时，「导出成稿」对话框顶部增加「成书」下拉框（`manuscriptExport.manuscript`），按树路径让作者选择要导出的成书部分（从某一成书部分里的条目打开时，默认选中该部分）。
 - **导入文档（`dr-export::import`、`dr-view-transfer`）**：去掉写死的「章 / 要素 / 构想」目标枚举与内置模板 id（`tpl-*`）。`ImportTarget` 直接收目标层级的条目 id；写入时校验目标是开着「层级」开关（`level = true`）的活条目，按 `resolve_level_settings` 取它的默认模板（含祖先层级与模板继承），并在模板有 `home` 泳道（如故事线层级）时把导入的新条目建在泳道住处且挂上该层级归属，同时对整条层级祖先链、模板和住处做前置条件守卫。若目标默认模板没有正文模块或有多个正文模块，单篇报错拒绝而不猜测写入哪个模块。「导入文件」对话框顶部用下拉框按树路径列出全书所有开着「层级」开关的活条目（如 `书稿`、`要素 / 人物`、`故事线 / 支线`），中文标签由「类型」改为「目标」，不加选项说明文字。
-- **书文件对话框回归（`dr-view-transfer`）**：书架导入对话框遇到 `formatVersion: 3` 的 `.driftingbook` 时报 `projectPicker.bookTransfer.older` 且不写入任何文档；格式 4 导出导入继续携带 `stats:<书>`、`checkpoints:<书>` 与全部正文和历史。
+- **书文件对话框回归（`dr-view-transfer`）**：书架导入对话框遇到 `formatVersion: 3` 的 `.driftingbook` 时报 `projectPicker.bookTransfer.older` 且不写入任何文档；格式 4 导出导入继续携带 `stats:<书>`、`checkpoints:<书>` 与全部正文和历史。另为模态对话框里的 `Select`（导出成稿的「成书」与导入文件的「目标」）补上 `Select::in_dialog()` 浮层优先级，使下拉列表浮在 `Dialog` 之上且点击列表项不误触遮罩。
 

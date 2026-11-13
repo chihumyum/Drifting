@@ -676,6 +676,7 @@ pub(crate) fn render(
                 let set_manuscript = this.clone();
                 section(&theme, t(mx::MANUSCRIPT)).child(
                     Select::new("export-manuscript", choices, m.manuscript)
+                        .in_dialog()
                         .max_menu_height(CHAPTERS_MAX_HEIGHT)
                         .disabled(running)
                         .on_change(move |i, _, cx| {

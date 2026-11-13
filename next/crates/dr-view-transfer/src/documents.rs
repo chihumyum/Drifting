@@ -436,6 +436,7 @@ impl Render for DocumentsDialog {
         let set_level = this.clone();
         let target = section(t(keys::v3_transfer::TARGET_TITLE)).child(
             Select::new("import-target", choices, self.level)
+                .in_dialog()
                 .max_menu_height(LIST_MAX_HEIGHT)
                 .disabled(running || self.levels.is_empty())
                 .on_change(move |i, _, cx| {
