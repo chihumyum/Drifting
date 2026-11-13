@@ -7,10 +7,10 @@ book.get [read] Read book metadata and project word targets; aggregate counts us
 book.update [write] Update selected book metadata fields without replacing other book data.
 book.writing_days [read] A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 comment.anchors [read] The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
-comment.create [write] Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating. Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.
-comment.list [read] List comments and TODOs (a target in the trash or gone shows as unlocated).
+comment.create [write] Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating. Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.
+comment.list [read] List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo). Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.
-comment.update [write] Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
+comment.update [write] Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation.
 entry.create [write] Create an entry with its template, switch, residence, membership and initial module content.
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -87,11 +87,11 @@ asset.get shared 378a3ed63e83acf065476364837813a8a5a74343c540e59aa9cd2bd3d244773
 book.get shared 7aa7dad72cc42adaea132950a7e50ab758a08978ac83e2b7da205924c46f55d1
 book.update book 9a90277657c4441ee61bc8c4cb8ccda16ae8bd0eea2307ce5466e07125dd16e6
 book.writing_days shared 7456fa20c292ff01ba5948cbf25cf60c4419d0c70a0beccb8ccacac14a6c9c6d
-comment.anchors shared ae4b75e05a845f7a7e92cd0ca11873f2c9cc550cc3af0a5c11ed23b352353f9d
-comment.create book ca05f62e61ba2c81d0bb016879e3c99cbfc90a8721d224741d62425d244eb849
-comment.list shared 140b7ee43cdffb2b34897feb0c23f5ef32ad60a6972f7dad84876c45224d2855
+comment.anchors shared 52fd34fc356a80c9401c7cd84918c22c38c1411e3a381fa8c8c64a7aa49d4bb9
+comment.create book 8a0cccde2a6685c0a5722b224279799710b96b3fb7ad4957437062b3cd262b3b
+comment.list shared 7137f0699c0b4bc399c76b90a98d99f19d94679f81a274a9599857bd6ad6b878
 comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
-comment.update book 2159b0d5d27e0a40e7fe78280a9daee648155debf39195627eb7a26b88274000
+comment.update book 52acb1f028f0b975bdbaeaea68fdb25bfbe722f457ec1f04bc091f70c9353292
 entry.create book 9d4dcb34b5a0bd0f83a11407bdb0298234e538c82f10f14a1a0d63aa23611fa5
 entry.get shared 94c069049123012ff7755d17d697631ed8cb347e92c4392f7fc8199c49a47195
 entry.list shared a1fefbd59fc69a3f8f13ecec143b083a803dc1dfbc8f4f63a9bd2a75a4f19014
@@ -174,6 +174,7 @@ book.sequence: project, tab, and book sequence commands need T7 facade read cove
 book.shelf: no current-book input boundary
 book.trash: book lifecycle belongs to the library
 comment.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+comment.project: storage, editor, or derived-state maintenance
 entry_snapshot.capture: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.create: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.create_with_receipt: entry snapshots need facade coverage and guarded whole-entry restore wiring
@@ -200,5 +201,4 @@ timeline_view.remove_lane: local timeline edits need exact lane, placement, and 
 timeline_view.rename: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.restore_fields: scoped timeline undo is internal until K6 provides a guarded facade
 timeline_view.set_lane_act_track: local timeline edits need exact lane, placement, and pin read coverage
-todo.project: storage, editor, or derived-state maintenance
 writing_day.record: storage, editor, or derived-state maintenance

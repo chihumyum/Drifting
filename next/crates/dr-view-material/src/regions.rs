@@ -83,7 +83,7 @@ pub struct Listed {
 
 impl Listed {
     pub fn region(&self) -> Option<&Region> {
-        self.item.region.as_ref()
+        self.item.region()
     }
 
     /// The PDF page its region is on (`None`: an image, or no region).
@@ -92,7 +92,7 @@ impl Listed {
     }
 
     pub fn todo(&self) -> bool {
-        self.item.kind == "todo"
+        matches!(self.item.origin.as_str(), "marker" | "task")
     }
 
     pub fn resolved(&self) -> bool {
@@ -111,7 +111,7 @@ pub fn listed(items: &[CommentInfo], id: &str) -> Vec<Listed> {
                 .is_some_and(|t| t.kind == "material" && t.id == id)
         })
         .collect();
-    let order = |c: &CommentInfo| match &c.region {
+    let order = |c: &CommentInfo| match c.region() {
         Some(r) => f64::from(r.page.unwrap_or(1)) * 10.0 + r.y,
         None => f64::INFINITY,
     };
@@ -153,11 +153,12 @@ mod tests {
     fn comment(id: &str, on: &str, region: Option<Region>, at: i64) -> CommentInfo {
         CommentInfo {
             id: id.into(),
-            kind: "note".into(),
             target: Some(Target {
                 kind: "material".into(),
                 id: on.into(),
             }),
+            module: None,
+            part: region.map(|region| dr_workspace::dto::CommentPartDto::Region { region }),
             unlocated: false,
             target_block: None,
             anchored: false,
@@ -168,9 +169,9 @@ mod tests {
             author_kind: "user".into(),
             author_name: None,
             source: "manual".into(),
+            origin: "manual".into(),
             agent_conversation: None,
             projection: None,
-            region,
             created_at: Some(at),
             updated_at: None,
         }

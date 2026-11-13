@@ -674,34 +674,30 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     b.edit_book(|t| {
         for (k, (c, (block, anchor))) in p.comments.iter().zip(&placed).enumerate() {
             let w = t.comment(&c.id)?;
-            w.kind(if c.todo {
-                &CommentKind::Todo
-            } else {
-                &CommentKind::Note
-            })?
-            .author_kind(&CommentAuthorKind::User)?
-            .status(if c.resolved {
-                &CommentStatus::Resolved
-            } else {
-                &CommentStatus::Open
-            })?
-            .source(&CommentSource::Manual)?
-            .target(Some(&EntityRef::new(
-                EntityKind::Entry,
-                p.chapters[c.chapter].id.as_str(),
-            )))?
-            .module(Some(&prose_mod))?
-            .target_block(block.as_ref())?
-            .anchor(anchor.as_ref())?
-            .quote(Some(&c.quote))?
-            .snapshots(&[BlockSnapshot {
-                block: block.clone(),
-                text: c.snapshot.clone(),
-            }])?
-            .body(&c.body)?
-            .created_at(Some(Timestamp(T0 + k as i64)))?
-            .updated_at(Some(Timestamp(T0 + k as i64)))?
-            .resolved_at(c.resolved.then_some(Timestamp(T0 + k as i64 + 60)))?;
+            w.origin(&CommentOrigin::Manual)?
+                .author_kind(&CommentAuthorKind::User)?
+                .status(if c.resolved {
+                    &CommentStatus::Resolved
+                } else {
+                    &CommentStatus::Open
+                })?
+                .source(&CommentSource::Manual)?
+                .target(Some(&EntityRef::new(
+                    EntityKind::Entry,
+                    p.chapters[c.chapter].id.as_str(),
+                )))?
+                .module(Some(&prose_mod))?
+                .target_block(block.as_ref())?
+                .anchor(anchor.as_ref())?
+                .quote(Some(&c.quote))?
+                .snapshots(&[BlockSnapshot {
+                    block: block.clone(),
+                    text: c.snapshot.clone(),
+                }])?
+                .body(&c.body)?
+                .created_at(Some(Timestamp(T0 + k as i64)))?
+                .updated_at(Some(Timestamp(T0 + k as i64)))?
+                .resolved_at(c.resolved.then_some(Timestamp(T0 + k as i64 + 60)))?;
             if let Some(pr) = c.priority {
                 w.priority(Some(&CommentPriority::parse(pr)))?;
             }
@@ -1118,8 +1114,22 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
 
     b.edit_book(|t| {
         for (c, placed) in comments.iter().zip(&located_comments) {
+            let origin = match &c.projection {
+                Some(p) => match &p.kind {
+                    ProjectionKind::Marker => CommentOrigin::Marker,
+                    ProjectionKind::NoteTask => CommentOrigin::Task,
+                    ProjectionKind::Other(o) => CommentOrigin::parse(o),
+                },
+                None => match c.author_kind {
+                    CommentAuthorKind::Ai => CommentOrigin::Agent,
+                    CommentAuthorKind::External => CommentOrigin::Reader,
+                    _ => CommentOrigin::Manual,
+                },
+            };
+            let part = c.region.map(|region| CommentPart::Region { region });
             let w = t.comment(&c.id)?;
-            w.kind(&c.kind)?
+            w.origin(&origin)?
+                .part(part.as_ref())?
                 .author_kind(&c.author_kind)?
                 .status(&c.status)?
                 .source(&c.source)?
@@ -1523,7 +1533,7 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         .into_iter()
         .map(|c| {
             json!({
-                "kind": c.kind.as_str(),
+                "origin": c.origin.as_str(),
                 "status": c.status.as_str(),
                 "priority": c.priority.as_ref().map(|p| p.as_str().to_string()),
                 "target": c.target.as_ref().map(|t| names.entity(t)),

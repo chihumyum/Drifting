@@ -332,6 +332,9 @@ impl<'a> CatalogTxn<'a> {
         for key in keys {
             match old.value(key) {
                 None => set(&map, key, None::<&str>)?,
+                Some(LoroValue::Map(want)) if root == book::COMMENTS && *key == "part" => {
+                    map.insert(key, LoroValue::Map(want.clone()))?;
+                }
                 Some(LoroValue::Map(want)) => {
                     // A set or a key/value list: make the members equal.
                     let sub = map.ensure_mergeable_map(key)?;

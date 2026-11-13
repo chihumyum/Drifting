@@ -522,7 +522,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             actual.target,
             comment.target.as_ref().map(|e| endpoint(view, e))
         );
-        assert_eq!(actual.kind.as_str(), comment.kind);
+        assert_eq!(actual.origin.as_str(), comment.origin);
         if let Some(body) = &comment.body
             && let DocId::Body(id) = body_id(view, body)
         {

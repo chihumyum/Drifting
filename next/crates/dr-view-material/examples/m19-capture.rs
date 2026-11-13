@@ -104,11 +104,12 @@ fn region(
     region: Value,
     body: &str,
 ) -> Result<String> {
+    let origin = if kind == "todo" { "marker" } else { "manual" };
     Ok(id(&out(
         ws,
         "comment.create",
-        json!({"book": book, "kind": kind, "target": {"kind": "material", "id": on},
-               "region": region, "body": body}),
+        json!({"book": book, "origin": origin, "target": {"kind": "material", "id": on},
+               "part": {"kind": "region", "region": region}, "body": body}),
     )?))
 }
 

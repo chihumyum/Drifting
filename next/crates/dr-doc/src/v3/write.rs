@@ -4,8 +4,7 @@ use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::shared::{
-    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, PLOT_DEFAULT_LINES,
-    normalize_relation_type_name,
+    Asset, BlockSnapshot, EntityRef, KvEntry, PLOT_DEFAULT_LINES, normalize_relation_type_name,
 };
 use dr_model::v3::*;
 use dr_model::{DocId, Timestamp};
@@ -16,7 +15,7 @@ use loro::{
 
 use crate::anchor::Anchor;
 use crate::catalog::EntitySnapshot;
-use crate::catalog::fields::set;
+use crate::catalog::fields::{comment_part_to_loro, set};
 use crate::catalog::read::forest;
 use crate::catalog::write::{MaterialWriter, MemoryWriter, PlotGridWriter, RelationWriter};
 use crate::error::{DocError, Result};
@@ -25,11 +24,11 @@ use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 
-const TODO_SEED_V3: &str = "todo-v3-1";
+const TODO_SEED_V3: &str = "comment-v5-1";
 const PLOT_GRID_SEED_V3: &str = "plot-grid-v3-1";
 
 const TODO_SEED_KEYS_V3: &[&str] = &[
-    "kind",
+    "origin",
     "target_kind",
     "target",
     "module",
@@ -1182,14 +1181,14 @@ impl RelationTypeWriterV3 {
     }
 }
 
-/// Writes one v3 comment or TODO (`comments` map).
+/// Writes one comment (`comments` map, schema v5).
 pub struct CommentWriterV3 {
     pub(crate) map: LoroMap,
 }
 
 impl CommentWriterV3 {
-    pub fn kind(&self, v: &CommentKind) -> Result<&Self> {
-        set(&self.map, "kind", v)?;
+    pub fn origin(&self, v: &CommentOrigin) -> Result<&Self> {
+        set(&self.map, "origin", v)?;
         Ok(self)
     }
 
@@ -1200,6 +1199,14 @@ impl CommentWriterV3 {
 
     pub fn module(&self, m: Option<&ModuleId>) -> Result<&Self> {
         set(&self.map, "module", m)?;
+        Ok(self)
+    }
+
+    pub fn part(&self, p: Option<&CommentPart>) -> Result<&Self> {
+        match p {
+            Some(p) => self.map.insert("part", comment_part_to_loro(p))?,
+            None => set(&self.map, "part", None::<&str>)?,
+        }
         Ok(self)
     }
 
@@ -1283,25 +1290,6 @@ impl CommentWriterV3 {
         Ok(self)
     }
 
-    pub fn region(&self, r: Option<&MaterialRegion>) -> Result<&Self> {
-        match r {
-            Some(r) => {
-                let mut m: Vec<(String, LoroValue)> = vec![
-                    ("x".into(), r.x.into()),
-                    ("y".into(), r.y.into()),
-                    ("w".into(), r.w.into()),
-                    ("h".into(), r.h.into()),
-                ];
-                if let Some(p) = r.page {
-                    m.push(("page".into(), (p as i64).into()));
-                }
-                self.map.insert("region", LoroValue::Map(m.into()))?;
-            }
-            None => set(&self.map, "region", None::<&str>)?,
-        }
-        Ok(self)
-    }
-
     pub fn anchor(&self, a: Option<&Anchor>) -> Result<&Self> {
         put_anchor(&self.map, "anchor", a)?;
         Ok(self)
@@ -1313,6 +1301,14 @@ impl CommentWriterV3 {
     }
 }
 
+fn projection_origin(kind: &ProjectionKind) -> CommentOrigin {
+    match kind {
+        ProjectionKind::Marker => CommentOrigin::Marker,
+        ProjectionKind::NoteTask => CommentOrigin::Task,
+        ProjectionKind::Other(o) => CommentOrigin::parse(o),
+    }
+}
+
 fn projection_target_v3(doc: &DocId) -> Result<(EntityRef, Option<ModuleId>)> {
     match doc {
         DocId::Body(b) => Ok((
@@ -1321,7 +1317,7 @@ fn projection_target_v3(doc: &DocId) -> Result<(EntityRef, Option<ModuleId>)> {
         )),
         DocId::Material(m) => Ok((EntityRef::new(EntityKind::Material, m.as_str()), None)),
         _ => Err(DocError::NotInProfile(
-            "a v3 TODO projected from a document that is not body: or material:",
+            "a comment projected from a document that is not body: or material:",
         )),
     }
 }
@@ -1334,7 +1330,8 @@ fn write_todo_v3(
     task: &str,
 ) -> Result<()> {
     let (target, module) = projection_target_v3(doc)?;
-    w.kind(&CommentKind::Todo)?
+    let origin = projection_origin(kind);
+    w.origin(&origin)?
         .target(Some(&target))?
         .module(module.as_ref())?
         .target_block(Some(block))?
@@ -1599,7 +1596,7 @@ impl<'a> BookTxnV3<'a> {
         Ok((id.clone(), self.comment(&id)?))
     }
 
-    /// Write a projected TODO as ordinary changes (for deterministic imports).
+    /// Write a projected comment as ordinary changes (for deterministic imports).
     pub fn projected_todo(
         &mut self,
         kind: &ProjectionKind,
@@ -1607,9 +1604,10 @@ impl<'a> BookTxnV3<'a> {
         block: &BlockId,
     ) -> Result<(CommentId, CommentWriterV3)> {
         let (target, module) = projection_target_v3(doc)?;
+        let origin = projection_origin(kind);
         let id = CommentId::for_projection(kind, doc, block);
         let w = self.comment(&id)?;
-        w.kind(&CommentKind::Todo)?
+        w.origin(&origin)?
             .target(Some(&target))?
             .module(module.as_ref())?
             .target_block(Some(block))?;
@@ -2093,7 +2091,7 @@ impl<'a> BookTxnV3<'a> {
                     _ => None,
                 },
                 match collection {
-                    CollectionV3::Comments => &["region"],
+                    CollectionV3::Comments => &["part"],
                     CollectionV3::Project if id == "book" => &["root"],
                     _ => &[],
                 },

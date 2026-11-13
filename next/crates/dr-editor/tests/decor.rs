@@ -51,11 +51,12 @@ fn chapter(e: &Env, text: &str) -> String {
 
 fn comment(e: &Env, doc: &str, kind: &str, range: (usize, usize)) -> String {
     let id = doc.trim_start_matches("body:").split('/').next().unwrap();
+    let origin = if kind == "todo" { "marker" } else { "manual" };
     out(
         &e.ws,
         &Actor::User,
         "comment.create",
-        json!({"book": e.book, "kind": kind, "target": {"kind": "entry", "id": id}, "module":"mod-prose", "range": [range.0, range.1], "body": "批注"}),
+        json!({"book": e.book, "origin": origin, "target": {"kind": "entry", "id": id}, "module":"mod-prose", "range": [range.0, range.1], "body": "批注"}),
     )["id"]
         .as_str()
         .unwrap()
@@ -355,7 +356,7 @@ fn todos(e: &Env, doc: &str) -> usize {
         &e.ws,
         &Actor::User,
         "comment.list",
-        json!({"book": e.book, "kind": "todo", "target": {"kind": "entry", "id": id}}),
+        json!({"book": e.book, "origin": "marker", "target": {"kind": "entry", "id": id}}),
     )
     .as_array()
     .unwrap()
@@ -556,7 +557,7 @@ fn task_items_tick_their_box_or_their_todo(cx: &mut TestAppContext) {
         &e.ws,
         &Actor::User,
         "comment.create",
-        json!({"book": e.book, "kind": "todo", "body": "问钟楼的年代"}),
+        json!({"book": e.book, "origin": "task", "body": "问钟楼的年代"}),
     )["id"]
         .as_str()
         .unwrap()
@@ -647,7 +648,7 @@ fn a_comments_original_passage_says_when_the_prose_changed() {
         &e.ws,
         &Actor::User,
         "comment.create",
-        json!({"book": e.book, "kind": "note", "body": "浮动"}),
+        json!({"book": e.book, "body": "浮动"}),
     )["id"]
         .as_str()
         .unwrap()

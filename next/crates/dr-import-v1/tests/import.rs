@@ -310,6 +310,7 @@ fn a_handed_off_library_imports_completely() {
     );
     assert_eq!(bc.priority, Some(CommentPriority::High));
     let t = v.comment(&note_todo).unwrap();
+    assert_eq!(t.origin, dr_model::kind::CommentOrigin::Task);
     assert_eq!(t.projection.as_ref().map(|p| p.block.as_str()), Some("tp1"));
     assert_eq!(t.target_block.as_ref().map(|b| b.as_str()), Some("tp1"));
     assert!(
@@ -322,10 +323,11 @@ fn a_handed_off_library_imports_completely() {
         &BlockId::parse("p2").unwrap(),
     );
     let m = v.comment(&marker).unwrap();
+    assert_eq!(m.origin, dr_model::kind::CommentOrigin::Marker);
     assert_eq!(m.agent_conversation.as_deref(), Some("conv-1"));
     assert!(m.is_done());
     let region = v.comment(&CommentId::parse("region-1").unwrap()).unwrap();
-    assert_eq!(region.region.map(|r| r.w), Some(0.3));
+    assert_eq!(region.region().map(|r| r.w), Some(0.3));
 
     // The patch, its anchor in the chapter.
     let patch = v

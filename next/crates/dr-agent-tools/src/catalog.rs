@@ -1168,7 +1168,7 @@ fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static 
             | "recent.touch"
             | "writing_day.record"
             | "patch.check_sources"
-            | "todo.project"
+            | "comment.project"
             | "note_tasks.project"
     ) || spec.name.ends_with("_template.document")
     {
@@ -1259,7 +1259,7 @@ fn digest(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dr_workspace::{Cx, Op, Registry, commands::comment::TodoProjectIn};
+    use dr_workspace::{Cx, Op, Registry, commands::comment::CommentProjectIn};
 
     // Reserve the M19 maintenance name before its owner implementation is
     // merged. A recognized doc boundary alone must never open it to agents.
@@ -1270,7 +1270,7 @@ mod tests {
         const ACCESS: Access = Access::Write;
         const CONCURRENCY: Concurrency = Concurrency::Book;
         const SUMMARY: &'static str = "Internal note task projection";
-        type Input = TodoProjectIn;
+        type Input = CommentProjectIn;
         type Output = Value;
 
         fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {

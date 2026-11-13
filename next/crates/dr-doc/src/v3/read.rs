@@ -19,6 +19,12 @@ use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::{DocError, Result};
 
+type CommentPartLookup = (
+    BTreeMap<EntryTemplateId, EntryTemplate>,
+    HashMap<String, Entry>,
+    HashMap<String, MaterialKind>,
+);
+
 /// Stored metadata of a v3 [`Entry`] at a history point (`BookReaderV3::load_at`),
 /// for restoring per-entry metadata (`BookTxnV3::restore_entry`).
 #[derive(Clone, Debug, PartialEq)]
@@ -1720,29 +1726,184 @@ impl<'a> BookViewV3<'a> {
         }
     }
 
+    fn comment_part_missing(
+        &self,
+        target: Option<&EntityRef>,
+        target_module: Option<&ModuleId>,
+        part: &CommentPart,
+        lookup: Option<&CommentPartLookup>,
+    ) -> bool {
+        match part {
+            CommentPart::Region { .. } => {
+                let Some(t) = target.filter(|t| t.kind == EntityKind::Material) else {
+                    return true;
+                };
+                match lookup {
+                    Some((_, _, mats)) => !mats.get(&t.id).is_some_and(|k| k.needs_asset()),
+                    None => !self
+                        .entity_map(book_v3::MATERIALS, &t.id)
+                        .and_then(|m| match m.get("kind")? {
+                            loro::ValueOrContainer::Value(LoroValue::String(s)) => {
+                                Some(MaterialKind::from(s.as_str()))
+                            }
+                            _ => None,
+                        })
+                        .is_some_and(|k| k.needs_asset()),
+                }
+            }
+            _ => {
+                let (Some(t), Some(mod_id)) = (
+                    target.filter(|t| t.kind == EntityKind::Entry),
+                    target_module,
+                ) else {
+                    return true;
+                };
+                let owned_entry;
+                let owned_templates;
+                let (templates, entry) = match lookup {
+                    Some((tpls, entries, _)) => {
+                        let Some(e) = entries.get(&t.id) else {
+                            return true;
+                        };
+                        (tpls, e)
+                    }
+                    None => {
+                        let Ok(eid) = EntryId::parse(&t.id) else {
+                            return true;
+                        };
+                        let Some(e) = self.entry(&eid) else {
+                            return true;
+                        };
+                        owned_entry = e;
+                        owned_templates = self.templates_map();
+                        (&owned_templates, &owned_entry)
+                    }
+                };
+                if entry.is_trashed() {
+                    return true;
+                }
+                let Some(mod_def) = entry
+                    .effective_template(templates)
+                    .and_then(|et| et.modules.iter().find(|m| &m.id == mod_id))
+                else {
+                    return true;
+                };
+                if check_comment_part_kind(part, &mod_def.kind).is_err() {
+                    return true;
+                }
+                match part {
+                    CommentPart::Embed { .. } => false,
+                    CommentPart::Field { field } => !mod_def.config.defs.iter().any(|d| d.id == *field),
+                    CommentPart::KvRow { row } => !entry
+                        .kv
+                        .get(mod_id)
+                        .is_some_and(|rows| rows.iter().any(|r| &r.id == row)),
+                    CommentPart::PlotCell { row, col } => {
+                        if let Some(g) = self.plot_grid(&entry.id, mod_id) {
+                            !g.rows.iter().any(|r| &r.id == row)
+                                || !g.cols.iter().any(|c| &c.id == col)
+                        } else {
+                            !(1..=mod_def.config.default_rows).any(|n| {
+                                &PlotGridV3::default_row_id(&entry.id, mod_id, n as usize) == row
+                            }) || !(1..=mod_def.config.default_cols).any(|n| {
+                                &PlotGridV3::default_col_id(&entry.id, mod_id, n as usize) == col
+                            })
+                        }
+                    }
+                    CommentPart::Patch { patch } => !self
+                        .entity_map(book_v3::PATCHES, patch.as_str())
+                        .is_some_and(|m| {
+                            matches!(
+                                (m.get("entry"), m.get("module")),
+                                (
+                                    Some(loro::ValueOrContainer::Value(LoroValue::String(e))),
+                                    Some(loro::ValueOrContainer::Value(LoroValue::String(mo))),
+                                ) if e.as_str() == entry.id.as_str() && mo.as_str() == mod_id.as_str()
+                            )
+                        }),
+                    CommentPart::Media { .. } | CommentPart::Region { .. } => true,
+                }
+            }
+        }
+    }
+
+    fn comment_part_lookup(&self) -> CommentPartLookup {
+        let templates = self.templates_map();
+        let entries = self
+            .entries()
+            .into_iter()
+            .map(|e| (e.id.to_string(), e))
+            .collect();
+        let mats = entities(self.doc, book_v3::MATERIALS)
+            .into_iter()
+            .map(|(id, v)| {
+                let k = F(&v)
+                    .kind::<MaterialKind>("kind")
+                    .unwrap_or(MaterialKind::Text);
+                (id, k)
+            })
+            .collect();
+        (templates, entries, mats)
+    }
+
     fn read_comment_with(
         &self,
         id: &str,
         v: &LoroValue,
         entries: Option<&(HashSet<String>, HashSet<String>)>,
+        lookup: Option<&CommentPartLookup>,
     ) -> Option<CommentV3> {
         let f = F(v);
         let target = f.entity_ref("target_kind", "target");
-        let target_missing = target
+        let target_module: Option<ModuleId> = f.id("module");
+        let raw_has_part = f.get("part").is_some() || f.get("region").is_some();
+        let part = f.comment_part("part");
+        let mut target_missing = target
             .as_ref()
             .is_some_and(|t| !self.entity_exists_with(t, entries));
+        if !target_missing {
+            if raw_has_part && part.is_none() {
+                target_missing = true;
+            } else if let Some(ref p) = part {
+                target_missing =
+                    self.comment_part_missing(target.as_ref(), target_module.as_ref(), p, lookup);
+            }
+        }
+        let author_kind = f.kind("author_kind").unwrap_or(CommentAuthorKind::User);
+        let projection = match (
+            f.kind::<ProjectionKind>("projection"),
+            f.id::<BlockId>("projection_block"),
+        ) {
+            (Some(kind), Some(block)) => Some(TodoProjection { kind, block }),
+            _ => None,
+        };
+        let origin = f.kind("origin").unwrap_or(match &projection {
+            Some(TodoProjection {
+                kind: ProjectionKind::Marker,
+                ..
+            }) => CommentOrigin::Marker,
+            Some(TodoProjection {
+                kind: ProjectionKind::NoteTask,
+                ..
+            }) => CommentOrigin::Task,
+            _ => match author_kind {
+                CommentAuthorKind::Ai => CommentOrigin::Agent,
+                CommentAuthorKind::External => CommentOrigin::Reader,
+                _ => CommentOrigin::Manual,
+            },
+        });
         Some(CommentV3 {
             id: CommentId::parse(id).ok()?,
-            kind: f.kind("kind").unwrap_or(CommentKind::Note),
             target,
-            target_module: f.id("module"),
+            target_module,
+            part,
             target_missing,
             target_block: f.id("target_block"),
             anchor: f.anchor("anchor"),
             quote: f.opt_string("quote"),
             snapshots: f.snapshots("snapshots"),
-            region: f.region("region"),
-            author_kind: f.kind("author_kind").unwrap_or(CommentAuthorKind::User),
+            origin,
+            author_kind,
             author: f.opt_string("author"),
             author_name: f.opt_string("author_name"),
             body: f
@@ -1753,13 +1914,7 @@ impl<'a> BookViewV3<'a> {
             source: f.kind("source").unwrap_or(CommentSource::Manual),
             metadata: f.opt_string("metadata"),
             agent_conversation: f.opt_string("agent_conversation"),
-            projection: match (
-                f.kind::<ProjectionKind>("projection"),
-                f.id::<BlockId>("projection_block"),
-            ) {
-                (Some(kind), Some(block)) => Some(TodoProjection { kind, block }),
-                _ => None,
-            },
+            projection,
             resolved_at: f.ts("resolved_at"),
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
@@ -1768,7 +1923,7 @@ impl<'a> BookViewV3<'a> {
 
     pub fn comment(&self, id: &CommentId) -> Option<CommentV3> {
         let v = entity(self.doc, book_v3::COMMENTS, id.as_str())?;
-        self.read_comment_with(id.as_str(), &v, None)
+        self.read_comment_with(id.as_str(), &v, None, None)
     }
 
     pub fn comments(&self) -> Vec<CommentV3> {
@@ -1780,9 +1935,13 @@ impl<'a> BookViewV3<'a> {
             F(v).entity_ref("target_kind", "target")
                 .is_some_and(|t| matches!(t.kind, EntityKind::Entry | EntityKind::Patch))
         });
+        let needs_parts = raw
+            .iter()
+            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
         let entries = needs_entries.then(|| self.entry_existence_sets());
+        let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
-            .filter_map(|(id, v)| self.read_comment_with(id, v, entries.as_ref()))
+            .filter_map(|(id, v)| self.read_comment_with(id, v, entries.as_ref(), lookup.as_ref()))
             .collect()
     }
 
@@ -1794,8 +1953,12 @@ impl<'a> BookViewV3<'a> {
         if raw.is_empty() {
             return Vec::new();
         }
+        let needs_parts = raw
+            .iter()
+            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
+        let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
-            .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries)))
+            .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries), lookup.as_ref()))
             .collect()
     }
 

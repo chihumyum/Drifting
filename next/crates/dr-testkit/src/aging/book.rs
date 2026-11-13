@@ -48,7 +48,7 @@ use dr_doc::v3::{BookDocV3, BookTxnV3};
 use dr_model::id::{
     CommentId, DeviceKey, EntryId, EntryTemplateId, KvEntryId, ModuleId, TimePinId, TimelineViewId,
 };
-use dr_model::kind::{CommentAuthorKind, CommentKind, CommentSource, CommentStatus, EntityKind};
+use dr_model::kind::{CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind};
 use dr_model::pos::PosKey;
 use dr_model::shared::{BlockSnapshot, EntityRef, KvEntry};
 use dr_model::v3::{FieldValue, TimelinePin};
@@ -495,17 +495,17 @@ impl World {
             }
             if self.rng.below(45) == 0 {
                 let id = CommentId::parse(&self.new_id("comment", ts)).expect("valid id");
-                let todo = self.rng.chance(0.4);
+                let marker = self.rng.chance(0.4);
                 let (quote, body, block) =
                     (self.sentence(24), self.sentence(40), self.sentence(150));
                 let target = chapter.clone();
                 self.stats.comments += 1;
                 self.commit(doc, device, ts, Kind::Comment, |t| {
                     t.comment(&id)?
-                        .kind(if todo {
-                            &CommentKind::Todo
+                        .origin(if marker {
+                            &CommentOrigin::Marker
                         } else {
-                            &CommentKind::Note
+                            &CommentOrigin::Manual
                         })?
                         .author_kind(&CommentAuthorKind::User)?
                         .status(&CommentStatus::Open)?

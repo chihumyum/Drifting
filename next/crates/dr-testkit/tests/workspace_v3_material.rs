@@ -90,8 +90,11 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
         e.out("asset.get", json!({"book":b,"id":stored.asset_id}))["size"],
         stored.size
     );
-    let mark=item(e.out("comment.create",json!({"book":b,"target":{"kind":"material","id":pic},"body":"Synthetic region","region":{"x":0.1,"y":0.2,"w":0.3,"h":0.4}})));
-    assert_eq!(raw(&e, &b)["comments"][&mark]["region"]["w"], 0.3);
+    let mark = item(e.out(
+        "comment.create",
+        json!({"book":b,"target":{"kind":"material","id":pic},"body":"Synthetic region","part":{"kind":"region","region":{"x":0.1,"y":0.2,"w":0.3,"h":0.4}}}),
+    ));
+    assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
     e.call("material.delete", json!({"book":b,"id":pic}));
     assert!(
         e.ws()
@@ -106,7 +109,7 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
     );
     undo(&e);
     assert_eq!(raw(&e, &b)["comments"][&mark]["target"], pic);
-    assert_eq!(raw(&e, &b)["comments"][&mark]["region"]["w"], 0.3);
+    assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
     let other_note = item(e.out(
         "material.create",
         json!({"book":other,"kind":"text","text":"Synthetic other book"}),

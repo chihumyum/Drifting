@@ -1,27 +1,30 @@
-//! Comments on v3 entries and their selected prose modules, or materials.
-//! Typed v2.2 inputs remain in `commands::comment`; named calls dispatch by book version.
+//! Comments on v5 entries, any of their modules, or module sub-parts (`part`).
+//! Typed inputs live here; `commands::comment` re-exports them.
 use super::*;
 pub use crate::commands::comment_shared::{
-    CommentReanchorIn, CommentUpdateIn, EMPTY_MARKER_TASK, TodoMarkerIn, TodoProjected,
+    CommentProjected, CommentReanchorIn, CommentTaskIn, CommentUpdateIn, EMPTY_MARKER_TASK,
+    TodoMarkerIn,
 };
 use crate::commands::comment_shared::{
-    MARKER_META_KIND, ProjectionMeta, anchor_known_in, decode_anchor, has_seen,
+    MARKER_META_KIND, ProjectionMeta, TASK_META_KIND, anchor_known_in, decode_anchor, has_seen,
 };
 use crate::commands::{materials, purge_fallout};
-use crate::dto::{AnchorBytes, CommentAnchor, Region};
-use dr_doc::prose::BorrowedProse;
+use crate::dto::{AnchorBytes, CommentAnchor, CommentPartDto, Region};
+use dr_doc::prose::{BorrowedProse, EmbedView};
 use dr_model::DocId;
+use dr_model::id::{BodyDocId, EmbedId};
 use dr_model::kind::{
-    CommentAuthorKind, CommentKind, CommentPriority, CommentSource, CommentStatus, EntityKind,
+    CommentAuthorKind, CommentOrigin, CommentPriority, CommentSource, CommentStatus, EntityKind,
     ProjectionKind,
 };
 use dr_model::shared::{BlockSnapshot, EntityRef};
-use dr_model::v3::CommentV3 as Comment;
-use std::collections::HashSet;
+use dr_model::v3::{CommentPart, CommentV3 as Comment, ModuleKind, check_comment_part_kind};
+use std::collections::{HashMap, HashSet};
 
 fn comments(slot: &BookSlot) -> Vec<Comment> {
     slot.reader_v3.view().comments()
 }
+
 fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
     if !matches!(kind, EntityKind::Entry | EntityKind::Material)
         || !slot
@@ -33,6 +36,7 @@ fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
     }
     Ok(())
 }
+
 fn prose_of(cx: &Cx<'_>, slot: &BookSlot, target: &Target, module: Option<&str>) -> Result<DocId> {
     require_live(slot, EntityKind::from(target.kind.as_str()), &target.id)?;
     if target.kind == "entry" {
@@ -62,25 +66,37 @@ fn prose_of(cx: &Cx<'_>, slot: &BookSlot, target: &Target, module: Option<&str>)
         ))
     }
 }
-fn target_module(
-    cx: &Cx<'_>,
+
+fn active_entry_module(
     slot: &BookSlot,
-    target: Option<&Target>,
-    module: Option<&str>,
-    needs_prose: bool,
-) -> Result<Option<ModuleId>> {
-    if let Some(t) = target {
-        require_live(slot, EntityKind::from(t.kind.as_str()), &t.id)?;
-    }
-    if module.is_some() || needs_prose {
-        prose_of(
-            cx,
-            slot,
-            target.ok_or_else(|| WsError::invalid("a prose target is required"))?,
-            module,
-        )?;
-    }
-    module.map(|m| pid("module", m)).transpose()
+    entry_id: &str,
+    module_id: &str,
+) -> Result<(dr_model::v3::Entry, dr_model::v3::ModuleSpec)> {
+    let v = slot.reader_v3.view();
+    let eid: EntryId = pid("entry", entry_id)?;
+    let mid: ModuleId = pid("module", module_id)?;
+    let entry = v
+        .entry(&eid)
+        .filter(|e| !e.is_trashed())
+        .ok_or_else(|| WsError::not_found("comment target", entry_id))?;
+    let templates = v.templates_map();
+    let spec = entry
+        .effective_template(&templates)
+        .and_then(|et| et.modules.iter().find(|m| m.id == mid).cloned())
+        .ok_or_else(|| WsError::not_found("module", module_id))?;
+    Ok((entry, spec))
+}
+
+fn file_embeds_in_prose(cx: &Cx<'_>, doc: &DocId) -> HashSet<EmbedId> {
+    let Ok(ps) = cx.prose(doc) else {
+        return HashSet::new();
+    };
+    let view = cx.prose_view(&ps);
+    view.embed_refs()
+        .into_iter()
+        .map(|(_, eid)| eid)
+        .filter(|eid| matches!(view.embed(eid), Some(EmbedView::Material { .. })))
+        .collect()
 }
 
 /// A comment target. Old structural kinds are not accepted.
@@ -106,11 +122,16 @@ impl From<&EntityRef> for Target {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[schemars(rename = "TodoProjectInV3")]
-pub struct TodoProjectIn {
+#[schemars(rename = "CommentProjectIn")]
+pub struct CommentProjectIn {
     /// `body:<entry>/<module>` or `material:<id>` of a book.
     pub doc: String,
-    pub markers: Vec<crate::commands::comment_shared::TodoMarkerIn>,
+    /// Paragraphs starting with TODO / 待办 markers.
+    #[serde(default)]
+    pub markers: Vec<TodoMarkerIn>,
+    /// Task list items (`- [ ]` / `- [x]`) when task projection is active on this prose document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tasks: Option<Vec<CommentTaskIn>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editing: Option<String>,
 }
@@ -119,12 +140,12 @@ pub struct TodoProjectIn {
 #[schemars(rename = "CommentInfoV3")]
 pub struct CommentInfo {
     pub id: String,
-    /// The entry prose module; null for whole-entry, material or floating comments.
+    /// Module on `target` (any module kind); null for whole-entry, material or floating comments.
     pub module: Option<String>,
-    /// `note` or `todo`.
-    pub kind: String,
+    /// Sub-part inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`).
+    pub part: Option<CommentPartDto>,
     pub target: Option<Target>,
-    /// The target is in the trash or gone: show as unlocated.
+    /// The target or module sub-part is in the trash or gone: show as unlocated.
     pub unlocated: bool,
     pub target_block: Option<String>,
     pub anchored: bool,
@@ -133,6 +154,8 @@ pub struct CommentInfo {
     /// `open` or `resolved`.
     pub status: String,
     pub priority: Option<String>,
+    /// `manual`, `marker`, `task`, `agent` or `reader`.
+    pub origin: String,
     /// `user`, `ai` or `external`.
     pub author_kind: String,
     pub author_name: Option<String>,
@@ -141,17 +164,21 @@ pub struct CommentInfo {
     pub agent_conversation: Option<String>,
     /// Generated from prose (`marker` or `note_task`).
     pub projection: Option<String>,
-    /// The rectangle it marks on an image or a PDF page.
-    pub region: Option<Region>,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
+}
+impl CommentInfo {
+    /// Image or PDF rectangle carried by `part`, if any.
+    pub fn region(&self) -> Option<&Region> {
+        self.part.as_ref().and_then(CommentPartDto::region)
+    }
 }
 impl From<&Comment> for CommentInfo {
     fn from(c: &Comment) -> Self {
         Self {
             module: c.target_module.as_ref().map(ToString::to_string),
+            part: c.part.as_ref().map(CommentPartDto::from),
             id: c.id.to_string(),
-            kind: c.kind.as_str().into(),
             target: c.target.as_ref().map(Target::from),
             unlocated: c.target_missing,
             target_block: c.target_block.as_ref().map(ToString::to_string),
@@ -160,12 +187,12 @@ impl From<&Comment> for CommentInfo {
             body: c.body.clone(),
             status: c.status.as_str().into(),
             priority: c.priority.as_ref().map(|p| p.as_str().into()),
+            origin: c.origin.as_str().into(),
             author_kind: c.author_kind.as_str().into(),
             author_name: c.author_name.clone(),
             source: c.source.as_str().into(),
             agent_conversation: c.agent_conversation.clone(),
             projection: c.projection.as_ref().map(|p| p.kind.as_str().into()),
-            region: c.region.as_ref().map(Region::from),
             created_at: c.created_at.map(|t| t.0),
             updated_at: c.updated_at.map(|t| t.0),
         }
@@ -176,12 +203,12 @@ impl From<&Comment> for CommentInfo {
 #[schemars(rename = "CommentListInV3")]
 pub struct CommentListIn {
     pub book: String,
-    /// The entry's prose module (required for ranges, blocks and anchors); omit for a material.
+    /// Optional module filter (requires an `entry` target).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
-    /// `note` or `todo`.
+    /// `manual`, `marker`, `task`, `agent` or `reader`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
+    pub origin: Option<String>,
     /// `open` or `resolved`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -194,27 +221,27 @@ pub struct CommentListIn {
 #[schemars(rename = "CommentCreateInV3")]
 pub struct CommentCreateIn {
     pub book: String,
-    /// The entry's prose module (required for ranges, blocks and anchors); omit for a material.
+    /// Module on `target` (any module kind on an entry).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
-    /// `note` (default) or `todo`.
+    /// Specific sub-item inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
+    pub part: Option<CommentPartDto>,
+    /// `manual`, `marker`, `task`, `agent` or `reader`; defaults from the caller.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
     /// What it is on; omitted: a floating comment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<Target>,
-    /// The paragraph it sits on (needs a target).
+    /// The paragraph it sits on (needs a prose target).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block_id: Option<String>,
     /// Anchor it to characters `[start, end)` of the target's prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<(usize, usize)>,
-    /// Stable cursors captured in the selected prose; mutually exclusive with range and region.
+    /// Stable cursors captured in the selected prose; mutually exclusive with range and part.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anchor: Option<AnchorBytes>,
-    /// Mark a rectangle on an image or PDF material (its target).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub region: Option<Region>,
     #[serde(default)]
     pub body: String,
     /// `low`, `med` or `high`.
@@ -228,7 +255,7 @@ pub struct CommentCreateIn {
 #[schemars(rename = "CommentAnchorsInV3")]
 pub struct CommentAnchorsIn {
     pub book: String,
-    /// The entry's prose module (required for ranges, blocks and anchors); omit for a material.
+    /// The entry's prose module; omit for a material.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
     /// The entity whose prose the anchors are in.
@@ -237,7 +264,7 @@ pub struct CommentAnchorsIn {
 
 op! {
     CommentList = "comment.list", Read, Shared,
-    "List comments and TODOs (a target in the trash or gone shows as unlocated).",
+    "List comments (a target or module sub-part in the trash or gone shows as unlocated).",
     fn(cx, input: CommentListIn) -> Vec<CommentInfo> {
         let slot = cx.book_v3(&input.book)?;
         if input.module.is_some() && input.target.as_ref().is_none_or(|t| t.kind != "entry") {
@@ -245,48 +272,166 @@ op! {
         }
         let module = input.module.as_deref().map(|id| pid::<ModuleId>("module", id)).transpose()?;
         let t = input.target.as_ref().map(Target::to_ref);
+        let mut prose_embeds: HashMap<DocId, HashSet<EmbedId>> = HashMap::new();
         Ok(comments(&slot).iter()
-            .filter(|c| input.kind.as_ref().is_none_or(|k| c.kind.as_str() == k))
+            .filter(|c| input.origin.as_ref().is_none_or(|o| c.origin.as_str() == o))
             .filter(|c| input.status.as_ref().is_none_or(|s| c.status.as_str() == s))
             .filter(|c| t.as_ref().is_none_or(|t| c.target.as_ref() == Some(t)))
             .filter(|c| module.as_ref().is_none_or(|m| c.target_module.as_ref() == Some(m)))
-            .map(CommentInfo::from).collect())
+            .map(|c| {
+                let mut info = CommentInfo::from(c);
+                if !info.unlocated
+                    && let (Some(target), Some(mod_id), Some(CommentPart::Embed { embed, .. })) =
+                        (&c.target, &c.target_module, &c.part)
+                    && target.kind == EntityKind::Entry
+                    && let Ok(entry_id) = EntryId::parse(&target.id)
+                {
+                    let doc = DocId::Body(BodyDocId::new(entry_id, mod_id.clone()));
+                    let embeds = prose_embeds
+                        .entry(doc.clone())
+                        .or_insert_with(|| file_embeds_in_prose(cx, &doc));
+                    if !embeds.contains(embed) {
+                        info.unlocated = true;
+                    }
+                }
+                info
+            })
+            .collect())
     }
 }
 
 op! {
     CommentCreate = "comment.create", Write, Book,
-    "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.",
+    "Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating.",
     fn(cx, input: CommentCreateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
-        let kind = CommentKind::parse(input.kind.as_deref().unwrap_or("note"));
+        let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
+        let origin = match input.origin.as_deref() {
+            Some(o) => {
+                let parsed = CommentOrigin::parse(o);
+                if !parsed.is_known() {
+                    return Err(WsError::invalid(format!("unknown comment origin {:?}", parsed.as_str())));
+                }
+                parsed
+            }
+            None => if agent { CommentOrigin::Agent } else { CommentOrigin::Manual },
+        };
         if input.range.is_some() && input.anchor.is_some() {
             return Err(WsError::invalid("a comment has a range or an anchor, not both"));
         }
-        if !kind.is_known() { return Err(WsError::invalid(format!("unknown comment kind {:?}", kind.as_str()))); }
         let target = input.target.as_ref().map(Target::to_ref);
         let block = input.block_id.as_deref().map(|b| pid::<BlockId>("block", b)).transpose()?;
-        let module = target_module(cx, &slot, input.target.as_ref(), input.module.as_deref(), block.is_some() || input.range.is_some() || input.anchor.is_some())?;
-        if let Some(t) = &target { require_live(&slot, t.kind.clone(), &t.id)?; }
+        let part = input.part.as_ref().map(CommentPartDto::to_model).transpose()?;
+        let needs_prose = block.is_some() || input.range.is_some() || input.anchor.is_some();
+
+        if part.is_some() && (input.range.is_some() || input.anchor.is_some()) {
+            return Err(WsError::invalid("a comment on a module part cannot also carry a prose range or anchor"));
+        }
+
+        let module = match &input.target {
+            None => {
+                if input.module.is_some() || part.is_some() || needs_prose {
+                    return Err(WsError::invalid("a floating comment cannot set module, part, block, range or anchor"));
+                }
+                None
+            }
+            Some(t) if t.kind == "entry" => {
+                require_live(&slot, EntityKind::Entry, &t.id)?;
+                match input.module.as_deref() {
+                    None => {
+                        if part.is_some() || needs_prose {
+                            return Err(WsError::invalid("an entry part or prose target requires a module"));
+                        }
+                        None
+                    }
+                    Some(mod_str) => {
+                        let (entry, mod_spec) = active_entry_module(&slot, &t.id, mod_str)?;
+                        if needs_prose && mod_spec.kind != ModuleKind::Prose {
+                            return Err(WsError::invalid("block, range and anchor require a prose module"));
+                        }
+                        if mod_spec.kind == ModuleKind::Prose && (needs_prose || matches!(part, Some(CommentPart::Embed { .. }))) {
+                            prose_of(cx, &slot, t, Some(mod_str))?;
+                        }
+                        if let Some(ref p) = part {
+                            check_comment_part_kind(p, &mod_spec.kind)?;
+                            let v = slot.reader_v3.view();
+                            match p {
+                                CommentPart::Embed { embed, .. } => {
+                                    let doc = DocId::Body(BodyDocId::new(entry.id.clone(), mod_spec.id.clone()));
+                                    if !file_embeds_in_prose(cx, &doc).contains(embed) {
+                                        return Err(WsError::not_found("embed", embed.as_str()));
+                                    }
+                                }
+                                CommentPart::Field { field } => {
+                                    if !mod_spec.config.defs.iter().any(|d| d.id == *field) {
+                                        return Err(WsError::not_found("field", field));
+                                    }
+                                }
+                                CommentPart::KvRow { row } => {
+                                    if !entry.kv.get(&mod_spec.id).is_some_and(|rows| rows.iter().any(|r| &r.id == row)) {
+                                        return Err(WsError::not_found("kv_row", row.as_str()));
+                                    }
+                                }
+                                CommentPart::PlotCell { row, col } => {
+                                    let grid = super::content::grid(&v, &entry.id, &mod_spec);
+                                    if !grid.rows.iter().any(|r| r.id == row.as_str())
+                                        || !grid.columns.iter().any(|c| c.id == col.as_str())
+                                    {
+                                        return Err(WsError::not_found("plot_cell", format!("{row}/{col}")));
+                                    }
+                                }
+                                CommentPart::Patch { patch } => {
+                                    if !v.patches_of(&entry.id, &mod_spec.id).iter().any(|pa| &pa.id == patch) {
+                                        return Err(WsError::not_found("patch", patch.as_str()));
+                                    }
+                                }
+                                CommentPart::Media { .. } | CommentPart::Region { .. } => {
+                                    return Err(WsError::invalid("comment part is not supported on this module"));
+                                }
+                            }
+                        }
+                        Some(mod_spec.id)
+                    }
+                }
+            }
+            Some(t) if t.kind == "material" => {
+                require_live(&slot, EntityKind::Material, &t.id)?;
+                if input.module.is_some() {
+                    return Err(WsError::invalid("only entries have modules; materials have no module"));
+                }
+                match &part {
+                    Some(CommentPart::Region { .. }) => {
+                        if needs_prose {
+                            return Err(WsError::invalid("an image or PDF region comment cannot carry prose anchors"));
+                        }
+                        let is_file = materials(&slot)
+                            .iter()
+                            .find(|m| m.id.as_str() == t.id)
+                            .is_some_and(|m| m.kind.needs_asset());
+                        if !is_file {
+                            return Err(WsError::invalid("a region is on an image or PDF material"));
+                        }
+                    }
+                    Some(_) => {
+                        return Err(WsError::invalid("material comments only support region parts"));
+                    }
+                    None => {
+                        if needs_prose {
+                            prose_of(cx, &slot, t, None)?;
+                        }
+                    }
+                }
+                None
+            }
+            Some(t) => return Err(WsError::not_found("comment target", &t.id)),
+        };
+
         let priority = input.priority.as_deref().map(CommentPriority::parse);
         if let Some(p) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
         // Anchor, quote and block snapshots from the target's prose.
         let mut anchor = None;
         let mut quote = None;
         let mut snapshots = Vec::new();
-        let region = match &input.region {
-            None => None,
-            Some(r) => {
-                let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a region needs a target"))?;
-                if input.range.is_some() { return Err(WsError::invalid("a comment has a range or a region, not both")); }
-                if input.anchor.is_some() { return Err(WsError::invalid("a comment has an anchor or a region, not both")); }
-                let file = (t.kind == "material")
-                    .then(|| materials(&slot).iter().find(|m| m.id.as_str() == t.id).map(|m| m.kind.needs_asset()))
-                    .flatten();
-                if file != Some(true) { return Err(WsError::invalid("a region is on an image or PDF material")); }
-                Some(r.to_model().ok_or_else(|| WsError::invalid("the region does not fit its picture or page"))?)
-            }
-        };
         if let Some((start, end)) = input.range {
             let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a range needs a target"))?;
             let doc = prose_of(cx, &slot, t, input.module.as_deref())?;
@@ -315,8 +460,6 @@ op! {
             let doc = prose_of(cx, &slot, t, input.module.as_deref())?;
             let ps = cx.prose(&doc)?;
             let bytes = bytes.clone();
-            // Decode, resolve, quote and snapshot under one holder read. A
-            // partial deletion may update the cursors but is still valid.
             let (stored, text, blocks) = cx.read_prose_source(&ps, move |state| -> Result<_> {
                 let a = decode_anchor(&bytes)?;
                 anchor_known_in(&state.oplog_vv(), &doc, &a)?;
@@ -349,18 +492,17 @@ op! {
             })?;
         }
         let id = CommentId::new_v7();
-        let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
         let (i2, body, an) = (id.clone(), input.body.clone(), input.author_name.clone());
         cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let w = txn.comment(&i2)?;
-            w.kind(&kind)?.target(target.as_ref())?.module(module.as_ref())?.target_block(block.as_ref())?.anchor(anchor.as_ref())?
+            w.origin(&origin)?.target(target.as_ref())?.module(module.as_ref())?.part(part.as_ref())?
+                .target_block(block.as_ref())?.anchor(anchor.as_ref())?
                 .quote(quote.as_deref())?.body(&body)?.status(&CommentStatus::Open)?.priority(priority.as_ref())?
                 .author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
                 .author_name(an.as_deref())?
                 .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
                 .created_at(Some(now()))?.updated_at(Some(now()))?;
             if !snapshots.is_empty() { w.snapshots(&snapshots)?; }
-            if region.is_some() { w.region(region.as_ref())?; }
             Ok(())
         })?;
         cx.effect(EffectAction::Created, "comment", id.as_str(), None);
@@ -371,15 +513,13 @@ op! {
 
 op! {
     CommentUpdate = "comment.update", Write, Book,
-    "Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.",
+    "Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation.",
     fn(cx, input: CommentUpdateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let old = comments(&slot).iter().find(|c| c.id.as_str() == input.id).cloned()
             .ok_or_else(|| WsError::not_found("comment", &input.id))?;
         let status = input.status.as_deref().map(CommentStatus::parse);
         if let Some(s) = &status && !s.is_known() { return Err(WsError::invalid(format!("unknown status {:?}", s.as_str()))); }
-        let kind = input.kind.as_deref().map(CommentKind::parse);
-        if let Some(k) = &kind && !k.is_known() { return Err(WsError::invalid(format!("unknown kind {:?}", k.as_str()))); }
         let priority: Option<Option<CommentPriority>> = input.priority.as_ref().map(|p| p.as_deref().map(CommentPriority::parse));
         if let Some(Some(p)) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
         let (id, i) = (old.id.clone(), input.clone());
@@ -389,7 +529,6 @@ op! {
             if let Some(s) = &status {
                 w.status(s)?.resolved_at((*s == CommentStatus::Resolved).then(now))?;
             }
-            if let Some(k) = &kind { w.kind(k)?; }
             if let Some(p) = &priority { w.priority(p.as_ref())?; }
             if let Some(a) = &i.agent_conversation { w.agent_conversation(a.as_deref())?; }
             w.updated_at(Some(now()))?;
@@ -401,7 +540,6 @@ op! {
             body: input.body.as_ref().map(|_| old.body.clone()),
             status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
             priority: input.priority.as_ref().map(|_| old.priority.as_ref().map(|p| p.as_str().to_string())),
-            kind: input.kind.as_ref().map(|_| old.kind.as_str().to_string()),
             agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
         }));
         Ok(Done { id: input.id })
@@ -410,7 +548,7 @@ op! {
 
 op! {
     CommentDelete = "comment.delete", Write, Book,
-    "Delete a comment or TODO (its relations go with it).",
+    "Delete a comment (its relations go with it).",
     fn(cx, input: EntityIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: CommentId = pid("comment", &input.id)?;
@@ -437,13 +575,14 @@ op! {
     "The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).",
     fn(cx, input: CommentAnchorsIn) -> Vec<CommentAnchor> {
         let slot = cx.book_v3(&input.book)?;
-        let module = target_module(cx, &slot, Some(&input.target), input.module.as_deref(), true)?;
+        prose_of(cx, &slot, &input.target, input.module.as_deref())?;
+        let module = input.module.as_deref().map(|m| pid("module", m)).transpose()?;
         let t = input.target.to_ref();
         Ok(comments(&slot).iter()
             .filter(|c| c.target.as_ref() == Some(&t) && c.target_module == module)
             .filter_map(|c| Some(CommentAnchor {
                 id: c.id.to_string(),
-                kind: c.kind.as_str().to_string(),
+                origin: c.origin.as_str().to_string(),
                 status: c.status.as_str().to_string(),
                 anchor: AnchorBytes::from(c.anchor.as_ref()?),
             }))
@@ -496,21 +635,22 @@ op! {
 }
 
 op! {
-    TodoProject = "todo.project", Write, Book,
-    "Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.",
-    fn(cx, input: TodoProjectIn) -> TodoProjected {
+    CommentProject = "comment.project", Write, Book,
+    "Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or task gets a comment, an open one whose source line is gone is deleted, resolved ones stay; deterministic ids merge across devices.",
+    fn(cx, input: CommentProjectIn) -> CommentProjected {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
         let (owner, module) = match &doc {
             DocId::Body(b) => (EntityRef::new(EntityKind::Entry, b.entry().as_str()), Some(b.module().clone())),
             DocId::Material(id) => (EntityRef::new(EntityKind::Material, id.as_str()), None),
-            _ => return Err(WsError::invalid("TODO markers require entry prose or a material note")),
+            _ => return Err(WsError::invalid("projected comments require entry prose or a material note")),
         };
         let ps = cx.prose(&doc)?;
         let book = ps.book.clone().ok_or_else(|| WsError::invalid(format!("{} belongs to no book", input.doc)))?;
         let slot = cx.book_v3(book.as_str())?;
         prose_of(cx, &slot, &Target::from(&owner), module.as_ref().map(|m| m.as_str()))?;
         require_live(&slot, owner.kind.clone(), &owner.id)?;
-        // The input, deduplicated (the first marker of a block wins).
+
+        // Markers, deduplicated (first marker of a block wins).
         let mut markers: Vec<(BlockId, String)> = Vec::new();
         for m in &input.markers {
             let b: BlockId = pid("block", &m.block)?;
@@ -518,30 +658,61 @@ op! {
                 markers.push((b, m.task.trim().to_string()));
             }
         }
+        // Tasks, deduplicated if provided.
+        let tasks: Option<Vec<(BlockId, String, bool)>> = match &input.tasks {
+            None => None,
+            Some(list) => {
+                let mut dedup: Vec<(BlockId, String, bool)> = Vec::new();
+                for t in list {
+                    let b: BlockId = pid("block", &t.block)?;
+                    if !dedup.iter().any(|(x, _, _)| x == &b) {
+                        dedup.push((b, t.task.trim().to_string(), t.checked));
+                    }
+                }
+                Some(dedup)
+            }
+        };
         let editing = input.editing.as_deref().map(|b| pid::<BlockId>("block", b)).transpose()?;
+
         // The document now: its blocks and its version.
         let view = cx.prose_view(&ps);
         let blocks: HashSet<BlockId> = view.blocks().into_iter().filter_map(|b| b.id).collect();
         let vv = ps.handle.doc().with_doc(|d| d.oplog_vv());
-        // The TODOs projected from this document, by block.
-        let existing: BTreeMap<BlockId, Comment> = comments(&slot).iter()
+
+        let doc_comments: Vec<Comment> = comments(&slot)
+            .into_iter()
             .filter(|c| c.target.as_ref() == Some(&owner) && c.target_module == module)
+            .collect();
+
+        let existing_markers: BTreeMap<BlockId, Comment> = doc_comments
+            .iter()
             .filter_map(|c| {
                 let p = c.projection.as_ref().filter(|p| p.kind == ProjectionKind::Marker)?;
                 Some((p.block.clone(), c.clone()))
             })
             .collect();
-        let mut out = TodoProjected::default();
-        let mut create: Vec<(BlockId, String)> = Vec::new();
+
+        let existing_tasks: BTreeMap<BlockId, Comment> = doc_comments
+            .iter()
+            .filter_map(|c| {
+                let p = c.projection.as_ref().filter(|p| p.kind == ProjectionKind::NoteTask)?;
+                Some((p.block.clone(), c.clone()))
+            })
+            .collect();
+
+        let mut out = CommentProjected::default();
+        let mut create: Vec<(ProjectionKind, BlockId, String, bool)> = Vec::new();
+        let mut sync_tasks: Vec<(CommentId, Option<String>, Option<CommentStatus>)> = Vec::new();
+        let mut remove: Vec<CommentId> = Vec::new();
+
         for (b, task) in &markers {
-            if existing.contains_key(b) || editing.as_ref() == Some(b) || !blocks.contains(b) {
+            if existing_markers.contains_key(b) || editing.as_ref() == Some(b) || !blocks.contains(b) {
                 continue;
             }
             let body = if task.is_empty() { EMPTY_MARKER_TASK.to_string() } else { task.clone() };
-            create.push((b.clone(), body));
+            create.push((ProjectionKind::Marker, b.clone(), body, false));
         }
-        let mut remove: Vec<CommentId> = Vec::new();
-        for (b, c) in &existing {
+        for (b, c) in &existing_markers {
             if c.status != CommentStatus::Open || markers.iter().any(|(x, _)| x == b) {
                 continue;
             }
@@ -551,8 +722,38 @@ op! {
                 out.waiting.push(c.id.to_string());
             }
         }
+
+        if let Some(ref tasks) = tasks {
+            for (b, task, checked) in tasks {
+                let body = if task.is_empty() { EMPTY_MARKER_TASK.to_string() } else { task.clone() };
+                if let Some(existing) = existing_tasks.get(b) {
+                    let want_status = if *checked { CommentStatus::Resolved } else { CommentStatus::Open };
+                    let status_change = (existing.status != want_status).then_some(want_status);
+                    let body_change = (editing.as_ref() != Some(b) && existing.body != body).then_some(body);
+                    if status_change.is_some() || body_change.is_some() {
+                        sync_tasks.push((existing.id.clone(), body_change, status_change));
+                    }
+                    continue;
+                }
+                if editing.as_ref() == Some(b) || !blocks.contains(b) {
+                    continue;
+                }
+                create.push((ProjectionKind::NoteTask, b.clone(), body, *checked));
+            }
+            for (b, c) in &existing_tasks {
+                if c.status != CommentStatus::Open || tasks.iter().any(|(x, _, _)| x == b) {
+                    continue;
+                }
+                if has_seen(&vv, c.metadata.as_deref()) {
+                    remove.push(c.id.clone());
+                } else {
+                    out.waiting.push(c.id.to_string());
+                }
+            }
+        }
+
         cx.follows_prose();
-        if create.is_empty() && remove.is_empty() {
+        if create.is_empty() && sync_tasks.is_empty() && remove.is_empty() {
             cx.undo_nothing();
             return Ok(out);
         }
@@ -563,27 +764,42 @@ op! {
         }
         let prose_vv: BTreeMap<String, i64> =
             vv.iter().map(|(p, c)| (p.to_string(), i64::from(*c))).collect();
-        let meta = serde_json::to_string(&ProjectionMeta {
+        let marker_meta = serde_json::to_string(&ProjectionMeta {
             kind: MARKER_META_KIND.to_string(),
+            prose_vv: prose_vv.clone(),
+        }).map_err(|e| WsError::Internal(e.to_string()))?;
+        let task_meta = serde_json::to_string(&ProjectionMeta {
+            kind: TASK_META_KIND.to_string(),
             prose_vv,
         }).map_err(|e| WsError::Internal(e.to_string()))?;
         let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
-        let (d2, c2, r2, rm2) = (doc.clone(), create.clone(), rels.clone(), remove.clone());
-        // Projected from the prose it follows, under ids derived from it.
+        let (d2, c2, s2, r2, rm2) = (doc.clone(), create.clone(), sync_tasks.clone(), rels.clone(), remove.clone());
         let created = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let mut ids = Vec::new();
-            // dr-doc's seed change writes kind, target, block, the task as
-            // the body and the status, the same on every device; only the
-            // rest is ordinary writes. (The holder set this write's commit
-            // options before it ran, so the seed's import barrier commits
-            // nothing without an origin; see `crate::holder`.)
-            for (b, task) in &c2 {
-                let (id, w) = txn.project_todo(&ProjectionKind::Marker, &d2, b, task)?;
+            for (kind, b, task, checked) in &c2 {
+                let (id, w) = txn.project_todo(kind, &d2, b, task)?;
+                let meta = match kind {
+                    ProjectionKind::NoteTask => &task_meta,
+                    _ => &marker_meta,
+                };
                 w.author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
                     .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
-                    .metadata(Some(&meta))?
+                    .metadata(Some(meta))?
                     .created_at(Some(now()))?.updated_at(Some(now()))?;
+                if *checked {
+                    w.status(&CommentStatus::Resolved)?.resolved_at(Some(now()))?;
+                }
                 ids.push(id);
+            }
+            for (id, body_change, status_change) in &s2 {
+                let w = txn.comment(id)?;
+                if let Some(body) = body_change {
+                    w.body(body)?;
+                }
+                if let Some(status) = status_change {
+                    w.status(status)?.resolved_at((*status == CommentStatus::Resolved).then(now))?;
+                }
+                w.updated_at(Some(now()))?;
             }
             for r in &r2 { txn.purge(CollectionV3::Relations, r.as_str())?; }
             for c in &rm2 { txn.purge(CollectionV3::Comments, c.as_str())?; }
@@ -592,6 +808,9 @@ op! {
         for id in &created {
             cx.effect(EffectAction::Created, "comment", id.as_str(), None);
             out.created.push(id.to_string());
+        }
+        for (id, _, _) in &sync_tasks {
+            cx.effect(EffectAction::Updated, "comment", id.as_str(), None);
         }
         for r in &rels { cx.effect(EffectAction::Purged, "relation", r.as_str(), None); }
         for id in &remove {

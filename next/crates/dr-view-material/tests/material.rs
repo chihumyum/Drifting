@@ -98,7 +98,7 @@ fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> S
         &e.ws,
         "comment.create",
         json!({"book": e.book, "target": {"kind": "material", "id": on},
-               "region": region, "body": body}),
+               "part": {"kind": "region", "region": region}, "body": body}),
     )["id"]
         .as_str()
         .unwrap()
@@ -437,7 +437,7 @@ fn a_rectangle_drawn_on_a_page_becomes_a_region_comment(cx: &mut TestAppContext)
     let listed = out(&e.ws, "comment.list", json!({"book": e.book}));
     let stored = &listed.as_array().unwrap()[0];
     assert_eq!(stored["body"], "这一段潮位要核对");
-    assert_eq!(stored["region"]["page"], 2);
+    assert_eq!(stored["part"]["region"]["page"], 2);
     assert!(page.read_with(cx, |p, _| p.composer().is_none() && !p.drawing()));
     let new = stored["id"].as_str().unwrap().to_owned();
     assert_eq!(

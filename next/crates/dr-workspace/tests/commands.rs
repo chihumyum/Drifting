@@ -56,11 +56,11 @@ fn comments_with_anchors_and_metadata() {
         .clone();
     let cm = e.out(
         "comment.create",
-        json!({"book": b, "kind": "todo", "target": {"kind": "entry", "id": c},
+        json!({"book": b, "origin": "marker", "target": {"kind": "entry", "id": c},
         "module":"mod-prose", "range": [0, 2], "body": "rename?", "priority": "high"}),
     )["id"]
         .clone();
-    let got = &e.out("comment.list", json!({"book": b, "kind": "todo"}))[0];
+    let got = &e.out("comment.list", json!({"book": b, "origin": "marker"}))[0];
     assert_eq!(
         (
             got["quote"].clone(),
@@ -405,14 +405,15 @@ fn region_comments_sit_on_image_and_pdf_materials() {
         .clone();
     let on = |id: &Value| json!({"kind": "material", "id": id});
     let region = json!({"page": 2, "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4});
+    let part = json!({"kind": "region", "region": region});
     let c = e.out(
         "comment.create",
-        json!({"book": b, "target": on(&pdf), "region": region, "body": "tide"}),
+        json!({"book": b, "target": on(&pdf), "part": part, "body": "tide"}),
     )["id"]
         .clone();
     let listed = e.out("comment.list", json!({"book": b}));
     assert_eq!(listed[0]["id"], c);
-    assert_eq!(listed[0]["region"], region);
+    assert_eq!(listed[0]["part"], part);
     assert!(!listed[0]["anchored"].as_bool().unwrap());
     let refused = |input: Value| {
         matches!(
@@ -421,23 +422,23 @@ fn region_comments_sit_on_image_and_pdf_materials() {
         )
     };
     assert!(refused(
-        json!({"book": b, "region": region, "body": "floating"})
+        json!({"book": b, "part": part, "body": "floating"})
     ));
     assert!(refused(
-        json!({"book": b, "target": on(&note), "region": region, "body": "text"})
+        json!({"book": b, "target": on(&note), "part": part, "body": "text"})
     ));
     let chapter = chapter(&e, b.as_str().unwrap(), "One");
     assert!(refused(
         json!({"book": b, "target": {"kind": "entry", "id": chapter},
-                           "region": region, "body": "prose"})
+                           "part": part, "body": "prose"})
     ));
     assert!(refused(
         json!({"book": b, "target": on(&pdf), "body": "outside",
-                           "region": {"x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}})
+                           "part": {"kind": "region", "region": {"x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}}})
     ));
     assert!(refused(
         json!({"book": b, "target": on(&pdf), "body": "both",
-                           "region": region, "range": [0, 1]})
+                           "part": part, "range": [0, 1]})
     ));
 }
 

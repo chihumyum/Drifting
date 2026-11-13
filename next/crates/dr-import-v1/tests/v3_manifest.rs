@@ -367,7 +367,7 @@ fn retained_data_includes_targets_rich_json_anchors_and_grid_keys() {
         && c.target == Some(Endpoint::Entry(Entry::Node(CHAPTER.into())))
         && c.body == Some(Body::Leaf(Entry::Node(CHAPTER.into())))));
     assert!(m.comments.iter().any(|c| c.old_id == NOTE_TODO
-        && c.kind == "todo"
+        && c.origin == "task"
         && c.body == Some(Body::Material(NOTE.into()))));
     assert!(m.comments.iter().any(|c| c.old_id == "region-1"
         && c.target == Some(Endpoint::Material(IMAGE.into()))

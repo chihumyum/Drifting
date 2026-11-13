@@ -306,22 +306,25 @@ impl CommentComposer {
         self.field
             .update(cx, |field, cx| field.set_disabled(true, cx));
         let body = self.field.read(cx).text();
-        let (range, region) = match self.anchor {
+        let (range, part) = match self.anchor {
             Anchor::Range(start, end) => (Some((start, end)), None),
-            Anchor::Region(r) => (None, Some(r)),
+            Anchor::Region(r) => (
+                None,
+                Some(dr_workspace::dto::CommentPartDto::Region { region: r }),
+            ),
         };
         let input = CommentCreateIn {
             book: self.book.clone(),
-            kind: Some(if self.todo { "todo" } else { "note" }.into()),
+            origin: Some(if self.todo { "marker" } else { "manual" }.into()),
             target: Some(dr_workspace::commands::v3::comment::Target {
                 kind: self.target.kind.clone(),
                 id: self.target.id.clone(),
             }),
             module: self.module.clone(),
+            part,
             anchor: None,
             block_id: None,
             range,
-            region,
             body,
             priority: None,
             author_name: None,

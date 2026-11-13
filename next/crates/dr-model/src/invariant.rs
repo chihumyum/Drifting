@@ -379,7 +379,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "CMT-ENUMS",
-        "批注的种类、状态、作者种类、来源、优先级取值固定",
+        "批注的状态、作者种类、写入渠道、来源（origin）、优先级取值固定",
         [Read],
         "开放枚举；旧值（如 copilot）照读",
         [
@@ -912,6 +912,13 @@ pub const INVARIANTS: &[Invariant] = &[
             "joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos"
         ]
     ),
+    inv!(
+        "COMMENT-PART-IN-MODULE",
+        "批注的「哪一处」（part）属于它说的那个模块：命令层预防；读取时模块或那一处不在了就标成 target_missing（找不到原处），数据留着",
+        [Command, Read],
+        "comment.create 用 check_comment_part_kind 并核对条目当前模板里的字段、键值行、情节规划格子、补丁、正文嵌入；读取时 BookViewV3 与 comment.list 找不到原处即标 target_missing / unlocated = true",
+        ["comment_parts_validate_against_modules_and_degrade_to_unlocated"]
+    ),
 ];
 
 pub const DIVERGENCES: &[Divergence] = &[
@@ -965,7 +972,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 86;
+pub const ACTIVE_CONTRACTS: usize = 87;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

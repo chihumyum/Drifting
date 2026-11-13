@@ -21,10 +21,7 @@ pub struct CommentUpdateIn {
         deserialize_with = "crate::commands::double_option"
     )]
     pub priority: Option<Option<String>>,
-    /// `note` or `todo`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// The Agent conversation started from this TODO.
+    /// The Agent conversation started from this comment.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -66,15 +63,26 @@ pub struct TodoMarkerIn {
     #[serde(default)]
     pub task: String,
 }
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct CommentTaskIn {
+    /// The task list paragraph's block id.
+    pub block: String,
+    /// The task text.
+    #[serde(default)]
+    pub task: String,
+    /// Whether the task item's checkbox is checked (`true` -> `resolved`, `false` -> `open`).
+    #[serde(default)]
+    pub checked: bool,
+}
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
-pub struct TodoProjected {
-    /// TODOs made for new markers.
+pub struct CommentProjected {
+    /// Comments made for new markers or task items.
     pub created: Vec<String>,
-    /// Open TODOs whose marker or paragraph is gone, deleted.
+    /// Open projected comments whose marker or task item is gone, deleted.
     pub removed: Vec<String>,
-    /// Open TODOs whose marker is missing here, kept because this device
-    /// has not yet received the prose they were made from (sync brings the
-    /// book and the prose separately).
+    /// Open projected comments whose marker or task item is missing here, kept
+    /// because this device has not yet received the prose they were made from
+    /// (sync brings the book and the prose separately).
     pub waiting: Vec<String>,
 }
 /// What a projected TODO keeps in its metadata: the version of the prose
@@ -122,3 +130,4 @@ pub(crate) fn has_seen(vv: &loro::VersionVector, meta: Option<&str>) -> bool {
 }
 pub const EMPTY_MARKER_TASK: &str = "（此处待办）";
 pub(crate) const MARKER_META_KIND: &str = "todo-autoparse";
+pub(crate) const TASK_META_KIND: &str = "note-task";

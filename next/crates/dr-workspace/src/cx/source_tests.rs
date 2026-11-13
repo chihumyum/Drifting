@@ -1,7 +1,7 @@
 use super::*;
 use crate::{WorkspaceOptions, WritePreconditions, library_options};
 use dr_model::id::{CommentId, ModuleId};
-use dr_model::kind::{CommentKind, EntityKind};
+use dr_model::kind::{CommentOrigin, EntityKind};
 use dr_model::shared::{BlockSnapshot, EntityRef};
 use dr_store::{Library, Origin};
 use serde_json::json;
@@ -107,7 +107,7 @@ fn guarded_source_read_serializes_a_real_concurrent_writer_and_keeps_historical_
     let key = id.to_string();
     cx.write_book_v3(&book_slot, Replaces::nothing(), move |txn| {
         txn.comment(&id)?
-            .kind(&CommentKind::Note)?
+            .origin(&CommentOrigin::Manual)?
             .target(Some(&EntityRef::new(EntityKind::Entry, entry)))?
             .module(Some(&ModuleId::parse("mod-prose").unwrap()))?
             .anchor(Some(&anchor))?

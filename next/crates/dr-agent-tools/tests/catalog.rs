@@ -104,7 +104,7 @@ fn descriptors_are_generated_stable_and_book_scoped() {
         "book.purge_expired",
         "writing_day.record",
         "recent.touch",
-        "todo.project",
+        "comment.project",
         "note_tasks.project",
         "history.restore_point",
         "chapter.purge",

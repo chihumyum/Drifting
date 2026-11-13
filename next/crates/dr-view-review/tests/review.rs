@@ -57,7 +57,8 @@ fn chapter(e: &Env, title: &str, text: &str) -> String {
 }
 
 fn comment(e: &Env, on: Option<&str>, kind: &str, body: &str) -> String {
-    let mut input = json!({"book": e.book, "kind": kind, "body": body});
+    let origin = if kind == "todo" { "marker" } else { "manual" };
+    let mut input = json!({"book": e.book, "origin": origin, "body": body});
     if let Some(id) = on {
         input["target"] = json!({"kind": "entry", "id": id});
         input["range"] = json!([0, 2]);
@@ -290,7 +291,7 @@ fn the_composer_writes_a_comment_on_the_selection(cx: &mut TestAppContext) {
     });
     assert!(wait_for(cx, |_| listed(&e).len() == 1));
     let made = &listed(&e)[0];
-    assert_eq!(made["kind"], "todo");
+    assert_eq!(made["origin"], "marker");
     assert_eq!(made["body"], "钟楼要写清楚");
     assert_eq!(made["anchored"], true);
     // Written: chosen, so the editor draws its sand along its rows.
@@ -327,11 +328,11 @@ fn the_source_card_says_where_and_its_rows_act(cx: &mut TestAppContext) {
     let original = view.read_with(cx, |v, _| v.original_of(&note).cloned().unwrap());
     assert_eq!(original.text, "雨夜");
     assert_eq!(original.changed, Some(false));
-    // 转 TODO, then 删除.
-    view.update(cx, |v, cx| v.set_kind(&note, "todo", cx));
+    // 解决, then 删除 (`kind` conversion is retired in schema v5).
+    view.update(cx, |v, cx| v.set_done(&note, true, cx));
     assert!(wait_for(cx, |_| listed(&e)
         .iter()
-        .any(|c| c["id"] == note.as_str() && c["kind"] == "todo")));
+        .any(|c| c["id"] == note.as_str() && c["status"] == "resolved")));
     view.update(cx, |v, cx| v.delete(&floating, cx));
     assert!(wait_for(cx, |_| listed(&e).len() == 1));
     redraw(cx);
@@ -464,7 +465,7 @@ fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppConte
         &e.ws,
         "comment.create",
         json!({
-            "book": e.book, "kind": "note", "body": title, "target": {"kind": "material", "id": id}
+            "book": e.book, "body": title, "target": {"kind": "material", "id": id}
         }),
     )["id"]
         .as_str()

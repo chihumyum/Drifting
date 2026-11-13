@@ -950,6 +950,19 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         }
     }
     for comment in source.comments() {
+        let origin = match &comment.projection {
+            Some(p) => match &p.kind {
+                ProjectionKind::Marker => CommentOrigin::Marker,
+                ProjectionKind::NoteTask => CommentOrigin::Task,
+                ProjectionKind::Other(o) => CommentOrigin::parse(o),
+            },
+            None => match comment.author_kind {
+                CommentAuthorKind::Ai => CommentOrigin::Agent,
+                CommentAuthorKind::External => CommentOrigin::Reader,
+                _ => CommentOrigin::Manual,
+            },
+        };
+        let part = comment.region.map(|region| CommentPart::Region { region });
         let w = if let (Some(projection), Some(target)) = (&comment.projection, &comment.target) {
             let old = target_doc(target);
             let new = old
@@ -961,14 +974,14 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         } else {
             txn.comment(&comment.id)?
         };
-        w.kind(&comment.kind)?
+        w.origin(&origin)?
             .target(comment.target.as_ref().map(map).as_ref())?
             .module(comment.target.as_ref().and_then(target_module).as_ref())?
+            .part(part.as_ref())?
             .target_block(comment.target_block.as_ref())?
             .anchor(comment.anchor.as_ref().and_then(Anchor::decode).as_ref())?
             .quote(comment.quote.as_deref())?
             .snapshots(&comment.snapshots)?
-            .region(comment.region.as_ref())?
             .author_kind(&comment.author_kind)?
             .author(comment.author.as_deref())?
             .author_name(comment.author_name.as_deref())?

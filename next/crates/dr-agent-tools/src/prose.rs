@@ -49,9 +49,7 @@ pub fn comment_anchors(doc: &str, list: &Value) -> Vec<CommentAnchor> {
             if comment["target"]["kind"].as_str() != Some(doc.kind().prefix())
                 || comment["target"]["id"].as_str() != Some(doc.entity_id())
                 || comment["unlocated"] != false
-                || comment
-                    .get("region")
-                    .is_some_and(|region| !region.is_null())
+                || comment.get("part").is_some_and(|part| !part.is_null())
             {
                 return None;
             }
@@ -80,7 +78,7 @@ pub fn comment_anchors_v3(doc: &str, comments: &[dr_model::v3::CommentV3]) -> Ve
     comments
         .iter()
         .filter_map(|comment| {
-            if comment.target_missing || comment.region.is_some() {
+            if comment.target_missing || comment.part.is_some() {
                 return None;
             }
             let target = comment.target.as_ref()?;

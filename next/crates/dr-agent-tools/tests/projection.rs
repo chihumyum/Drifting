@@ -312,12 +312,12 @@ fn malformed_read_metadata_fails_before_exposing_an_editable_projection() {
 fn comment_list_uses_exact_targets_and_never_guesses_cursor_locations() {
     let comment = |id: &str, kind: &str, target: &str, block: Option<&str>| {
         json!({"id":id,"target":{"kind":kind,"id":target},"unlocated":false,
-            "target_block":block,"anchored":true,"region":null})
+            "target_block":block,"anchored":true,"part":null})
     };
     let mut unlocated = comment("gone", "node", "target", Some("block-1"));
     unlocated["unlocated"] = true.into();
     let mut region = comment("region", "node", "target", None);
-    region["region"] = json!({"page":1,"x":0,"y":0,"width":0.1,"height":0.1});
+    region["part"] = json!({"kind":"region","region":{"page":1,"x":0,"y":0,"w":0.1,"h":0.1}});
     let comments = json!([
         comment("block-comment", "node", "target", Some("block-1")),
         comment("cursor-comment", "node", "target", None),

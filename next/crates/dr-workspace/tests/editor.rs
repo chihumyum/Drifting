@@ -239,7 +239,7 @@ fn project(e: &Env, ch: &Chapter, markers: &[(usize, &str)], editing: Option<usi
     if let Some(i) = editing {
         input["editing"] = json!(ch.blocks[i]);
     }
-    e.call("todo.project", input)
+    e.call("comment.project", input)
 }
 
 fn todo_id(ch: &Chapter, i: usize) -> String {
@@ -254,7 +254,7 @@ fn todo_id(ch: &Chapter, i: usize) -> String {
 fn todos(e: &Env, ch: &Chapter) -> Vec<Value> {
     e.out(
         "comment.list",
-        json!({"book": ch.book, "kind": "todo", "target": {"kind": "entry", "id": ch.id}, "module":"mod-prose"}),
+        json!({"book": ch.book, "origin": "marker", "target": {"kind": "entry", "id": ch.id}, "module":"mod-prose"}),
     )
     .as_array()
     .unwrap()
@@ -315,14 +315,14 @@ fn markers_project_into_todos_by_the_old_rules() {
     assert_eq!(todos(&e, &ch).len(), 1);
     // A marker in a paragraph that is not there (a stale list) makes nothing.
     let o = e.call(
-        "todo.project",
+        "comment.project",
         json!({"doc": ch.doc, "markers": [{"block": "gone-block", "task": "x"}]}),
     );
     assert!(effects(&o).is_empty());
     // Refused: no markers in a book or a material, a malformed block id.
     assert_eq!(
         e.try_call(
-            "todo.project",
+            "comment.project",
             json!({"doc": format!("book:{b}"), "markers": []})
         )
         .unwrap_err()
@@ -331,7 +331,7 @@ fn markers_project_into_todos_by_the_old_rules() {
     );
     assert_eq!(
         e.try_call(
-            "todo.project",
+            "comment.project",
             json!({"doc": ch.doc, "markers": [{"block": "", "task": ""}]})
         )
         .unwrap_err()

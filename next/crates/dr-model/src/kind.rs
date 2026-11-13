@@ -176,11 +176,22 @@ open_enum!(
 );
 
 open_enum!(
-    /// A margin note or a TODO. Old values other than these are kept as
-    /// written (`loro-schema.md`: "旧值原样").
+    /// Source-format (0.1 import replay) comment kind (`note` or `todo`).
+    /// Canonical v5 comments have no `kind` (`kernel-v5.md` §7).
     CommentKind {
         Note = "note",
         Todo = "todo",
+    }
+);
+
+open_enum!(
+    /// How a comment came to be (`origin` in `comments`, `kernel-v5.md` §7 & §10).
+    CommentOrigin {
+        Manual = "manual",
+        Marker = "marker",
+        Task = "task",
+        Agent = "agent",
+        Reader = "reader",
     }
 );
 
@@ -313,6 +324,22 @@ mod tests {
         let json = serde_json::to_string(&k).unwrap();
         assert_eq!(json, "\"suggestion\"");
         assert_eq!(serde_json::from_str::<CommentKind>(&json).unwrap(), k);
+
+        for (raw, expected) in [
+            ("manual", CommentOrigin::Manual),
+            ("marker", CommentOrigin::Marker),
+            ("task", CommentOrigin::Task),
+            ("agent", CommentOrigin::Agent),
+            ("reader", CommentOrigin::Reader),
+        ] {
+            let parsed = CommentOrigin::parse(raw);
+            assert_eq!(parsed, expected);
+            assert!(parsed.is_known());
+            assert_eq!(parsed.as_str(), raw);
+        }
+        let custom = CommentOrigin::parse("future_origin");
+        assert!(!custom.is_known());
+        assert_eq!(custom.as_str(), "future_origin");
     }
 
     #[test]

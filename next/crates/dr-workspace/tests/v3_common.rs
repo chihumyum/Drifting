@@ -471,7 +471,7 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
 fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
     use dr_workspace::{
         Actor,
-        commands::comment::{TodoProject, TodoProjectIn},
+        commands::comment::{CommentProject, CommentProjectIn},
     };
     let e = env();
     let b = project(&e);
@@ -556,15 +556,15 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         let args = json!({"doc":doc,"markers":[{"block":block,"task":"Synthetic task"}]});
         let mut editing_args = args.clone();
         editing_args["editing"] = block.clone().into();
-        let deferred = e.call("todo.project", editing_args.clone());
+        let deferred = e.call("comment.project", editing_args.clone());
         assert!(deferred["output"]["created"].as_array().unwrap().is_empty());
         assert!(deferred["journal"].is_null());
-        let input: TodoProjectIn = serde_json::from_value(args.clone()).unwrap();
-        let got = e.ws().run::<TodoProject>(&Actor::User, input).unwrap();
+        let input: CommentProjectIn = serde_json::from_value(args.clone()).unwrap();
+        let got = e.ws().run::<CommentProject>(&Actor::User, input).unwrap();
         assert_eq!(got.output.created.len(), 1);
         let id = got.output.created[0].clone();
         editing_args["markers"][0]["task"] = "Still typing".into();
-        let kept = e.call("todo.project", editing_args);
+        let kept = e.call("comment.project", editing_args);
         assert!(kept["output"]["removed"].as_array().unwrap().is_empty());
         assert!(kept["journal"].is_null());
         let listed = e.out("comment.list", json!({"book":b}));
@@ -575,7 +575,8 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
             .find(|c| c["id"] == id)
             .unwrap();
         assert_eq!(projected["body"], "Synthetic task");
-        let again = e.call("todo.project", args.clone());
+        assert_eq!(projected["origin"], "marker");
+        let again = e.call("comment.project", args.clone());
         assert!(again["output"]["created"].as_array().unwrap().is_empty());
         assert!(again["journal"].is_null());
         projections.push((doc, args, id));
@@ -587,7 +588,7 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         "comment.update",
         json!({"book":b,"id":keep,"body":"Author edited task","status":"resolved"}),
     );
-    e.call("todo.project", args.clone());
+    e.call("comment.project", args.clone());
     assert_eq!(raw(&e, &b)["comments"][keep]["body"], "Author edited task");
     let (doc, _, remove) = &projections[0];
     let set_meta = |metadata: &str| {
@@ -610,11 +611,11 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         .unwrap();
     };
     set_meta(r#"{"kind":"todo-autoparse","prose_vv":{"999":999}}"#);
-    let waiting = e.out("todo.project", json!({"doc":doc,"markers":[]}));
+    let waiting = e.out("comment.project", json!({"doc":doc,"markers":[]}));
     assert_eq!(waiting["waiting"], json!([remove]));
     assert!(!raw(&e, &b)["comments"][remove].is_null());
     set_meta(r#"{"kind":"todo-autoparse","prose_vv":{}}"#);
-    e.call("todo.project", json!({"doc":doc,"markers":[]}));
+    e.call("comment.project", json!({"doc":doc,"markers":[]}));
     let state = raw(&e, &b);
     assert!(state["comments"][remove].is_null());
     assert!(!state["comments"][keep].is_null());
@@ -754,4 +755,344 @@ fn entry_template_field_default_values_validate_and_initialize_new_entries() {
     assert_eq!(got["fields"]["mod-fields"]["role"], "短工");
     assert_eq!(got["fields"]["mod-fields"]["aliases"], json!(["阿贵"]));
     assert!(got["fields"]["mod-fields"]["notes"].is_null());
+}
+
+#[test]
+fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
+    use dr_doc::prose::EmbedKind;
+    use dr_model::id::{EmbedId, MaterialId};
+
+    let mut e = env();
+    let b = project(&e);
+    let root = e
+        .out("entry.list", json!({"book": b, "all": true}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["template"] == "tpl-manuscript")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-parts",
+                "name": "Parts",
+                "modules": [
+                    {"id": "mod-prose", "kind": "prose", "name": "正文", "pos": "a0"},
+                    {
+                        "id": "mod-fields",
+                        "kind": "fields",
+                        "name": "字段",
+                        "pos": "a1",
+                        "config": {
+                            "defs": [
+                                {"id": "origin", "name": "出身", "field_type": "text", "pos": "a0"},
+                                {"id": "age", "name": "年龄", "field_type": "number", "pos": "a1"}
+                            ]
+                        }
+                    },
+                    {"id": "mod-kv", "kind": "kv", "name": "键值", "pos": "a2"},
+                    {
+                        "id": "mod-plot",
+                        "kind": "plot_grid",
+                        "name": "情节",
+                        "pos": "a3",
+                        "config": {"default_rows": 2, "default_cols": 2}
+                    },
+                    {"id": "mod-patches", "kind": "patches", "name": "补丁", "pos": "a4"}
+                ]
+            }
+        }),
+    );
+
+    let entry = item(e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": root,
+            "template": "tpl-parts",
+            "title": "Parts target",
+            "bodies": {"mod-prose": "Opening paragraph"}
+        }),
+    ));
+    let target = json!({"kind": "entry", "id": entry});
+
+    e.call(
+        "module.put_kv",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-kv",
+            "row": {"id": "row-1", "key": "线索", "value": "钟表"}
+        }),
+    );
+    let patch = item(e.out(
+        "module.put_patch",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-patches",
+            "title": "草稿",
+            "body": "补一段雨声"
+        }),
+    ));
+
+    let entry_id = dr_model::id::EntryId::parse(&entry).unwrap();
+    let plot_mod = dr_model::id::ModuleId::parse("mod-plot").unwrap();
+    let default_row = dr_model::v3::PlotGridV3::default_row_id(&entry_id, &plot_mod, 1).to_string();
+    let default_col = dr_model::v3::PlotGridV3::default_col_id(&entry_id, &plot_mod, 2).to_string();
+
+    let sha = "c".repeat(64);
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-map",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 16,
+            "sha256": sha,
+            "width": 100,
+            "height": 80
+        }),
+    );
+    let img_mat = item(e.out(
+        "material.create",
+        json!({"book": b, "kind": "image", "title": "Map", "asset": "asset-map"}),
+    ));
+    let doc_id = format!("body:{entry}/mod-prose");
+    let file_embed = EmbedId::parse("emb-map-1").unwrap();
+    let table_embed = EmbedId::parse("emb-tbl-1").unwrap();
+    {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        let mat_id = MaterialId::parse(&img_mat).unwrap();
+        s.edit(move |t| {
+            t.insert_embed(0, &file_embed, &EmbedKind::Material(mat_id))?;
+            t.insert_embed(0, &table_embed, &EmbedKind::Table)?;
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    // Whole non-prose module comment (`part = None`) is valid.
+    let c_whole = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-fields",
+            "origin": "reader",
+            "body": "Check all fields"
+        }),
+    ));
+    let c_field = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-fields",
+            "part": {"kind": "field", "field": "origin"},
+            "body": "Verify hometown"
+        }),
+    ));
+    let c_kv = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-kv",
+            "part": {"kind": "kv_row", "row": "row-1"},
+            "body": "Verify clue"
+        }),
+    ));
+    let c_plot = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-plot",
+            "part": {"kind": "plot_cell", "row": default_row, "col": default_col},
+            "body": "Verify beat cell"
+        }),
+    ));
+    let c_patch = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-patches",
+            "part": {"kind": "patch", "patch": patch},
+            "body": "Verify patch"
+        }),
+    ));
+    let c_embed = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-prose",
+            "part": {
+                "kind": "embed",
+                "embed": "emb-map-1",
+                "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}
+            },
+            "body": "Verify map corner"
+        }),
+    ));
+
+    // Rejections (`COMMENT-PART-IN-MODULE`).
+    for bad in [
+        // Wrong module kind for part.
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-fields", "part": {"kind": "kv_row", "row": "row-1"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-fields", "range": [0, 1], "body": "bad"}),
+        // Missing sub-items inside matching module.
+        json!({"book": b, "target": target, "module": "mod-fields", "part": {"kind": "field", "field": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-kv", "part": {"kind": "kv_row", "row": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-plot", "part": {"kind": "plot_cell", "row": default_row, "col": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-patches", "part": {"kind": "patch", "patch": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "missing"}, "body": "bad"}),
+        // Table embed is not a file embed.
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "emb-tbl-1"}, "body": "bad"}),
+        // Combining part with prose range, omitting module, or floating with part.
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "emb-map-1"}, "range": [0, 1], "body": "bad"}),
+        json!({"book": b, "target": target, "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
+        json!({"book": b, "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
+    ] {
+        assert!(
+            e.try_call("comment.create", bad.clone()).is_err(),
+            "accepted {bad}"
+        );
+    }
+
+    let find = |e: &Env, id: &str| -> serde_json::Value {
+        e.out("comment.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(find(&e, &c_whole)["origin"], "reader");
+    for id in [&c_whole, &c_field, &c_kv, &c_plot, &c_patch, &c_embed] {
+        assert_eq!(find(&e, id)["unlocated"], false, "{id} should be located");
+    }
+
+    // Delete each addressed sub-item: comments stay intact and degrade to unlocated.
+    e.call(
+        "entry_template.put_module",
+        json!({
+            "book": b,
+            "template": "tpl-parts",
+            "module": {
+                "id": "mod-fields",
+                "kind": "fields",
+                "name": "字段",
+                "pos": "a1",
+                "config": {
+                    "defs": [
+                        {"id": "age", "name": "年龄", "field_type": "number", "pos": "a1"}
+                    ]
+                }
+            }
+        }),
+    );
+    assert_eq!(find(&e, &c_field)["unlocated"], true);
+    assert_eq!(find(&e, &c_whole)["unlocated"], false);
+
+    e.call(
+        "module.remove_kv",
+        json!({"book": b, "entry": entry, "module": "mod-kv", "row": "row-1"}),
+    );
+    assert_eq!(find(&e, &c_kv)["unlocated"], true);
+
+    e.call(
+        "module.put_grid",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-plot",
+            "grid": {
+                "cell_w": 220.0,
+                "cell_h": 140.0,
+                "rows": [{"id": "custom-r1", "pos": "a0", "label": "R1"}],
+                "columns": [{"id": "custom-c1", "pos": "a0", "label": "C1"}],
+                "cells": []
+            }
+        }),
+    );
+    assert_eq!(find(&e, &c_plot)["unlocated"], true);
+
+    e.call(
+        "module.remove_patch",
+        json!({"book": b, "entry": entry, "module": "mod-patches", "id": patch}),
+    );
+    assert_eq!(find(&e, &c_patch)["unlocated"], true);
+
+    {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        s.edit(|t| {
+            // Delete the two embed paragraphs at the top (`emb-tbl-1` at 0..2, `emb-map-1` at 2..4 -> after first delete 0..2).
+            t.delete(0..4)?;
+            Ok(())
+        })
+        .unwrap();
+    }
+    assert_eq!(find(&e, &c_embed)["unlocated"], true);
+
+    // Checklist task projection via `comment.project` sets `origin = "task"` and syncs checked status.
+    let block = {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        s.reader()
+            .view()
+            .paragraphs()
+            .next()
+            .unwrap()
+            .id
+            .unwrap()
+            .to_string()
+    };
+    let projected = e.out(
+        "comment.project",
+        json!({
+            "doc": doc_id,
+            "markers": [],
+            "tasks": [{"block": block, "task": "Checklist item", "checked": false}]
+        }),
+    );
+    let task_id = projected["created"][0].as_str().unwrap().to_string();
+    assert_eq!(find(&e, &task_id)["origin"], "task");
+    assert_eq!(find(&e, &task_id)["status"], "open");
+
+    e.call(
+        "comment.project",
+        json!({
+            "doc": doc_id,
+            "markers": [],
+            "tasks": [{"block": block, "task": "Checklist item updated", "checked": true}]
+        }),
+    );
+    assert_eq!(find(&e, &task_id)["body"], "Checklist item updated");
+    assert_eq!(find(&e, &task_id)["status"], "resolved");
+
+    // Reopen + verify persistence of CommentPart round-trip in Loro.
+    e.reopen();
+    assert_eq!(
+        find(&e, &c_field)["part"],
+        json!({"kind": "field", "field": "origin"})
+    );
+    assert_eq!(
+        find(&e, &c_embed)["part"],
+        json!({
+            "kind": "embed",
+            "embed": "emb-map-1",
+            "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}
+        })
+    );
 }

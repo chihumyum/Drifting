@@ -177,7 +177,7 @@ pub struct Relation {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Comment {
     pub old_id: String,
-    pub kind: String,
+    pub origin: String,
     pub target: Option<Endpoint>,
     /// Which prose module owns the old anchor (if it targets prose).
     pub body: Option<Body>,
@@ -885,9 +885,34 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             }
             _ => None,
         });
+        let meta: serde_json::Value = comment
+            .metadata_json
+            .as_deref()
+            .and_then(|m| serde_json::from_str(m).ok())
+            .unwrap_or(serde_json::Value::Null);
+        let old_block = meta
+            .get("blockId")
+            .and_then(serde_json::Value::as_str)
+            .or(comment.target_block_id.as_deref());
+        let has_prose_target = target.is_some_and(|(tk, _)| {
+            matches!(
+                tk,
+                "node" | "element" | "category" | "storyline" | "library_item"
+            )
+        });
+        let origin = match meta.get("kind").and_then(serde_json::Value::as_str) {
+            Some("todo-autoparse") if has_prose_target && old_block.is_some() => "marker",
+            Some("note-task") if has_prose_target && old_block.is_some() => "task",
+            _ => match dr_model::import_v1::legacy::comment_author_kind(&comment.author_kind) {
+                dr_model::kind::CommentAuthorKind::Ai => "agent",
+                dr_model::kind::CommentAuthorKind::External => "reader",
+                _ => "manual",
+            },
+        }
+        .to_string();
         out.comments.push(Comment {
             old_id: comment.id.clone(),
-            kind: comment.kind.clone(),
+            origin,
             target: target.map(|(kind, id)| endpoint(kind, id)),
             body,
         });

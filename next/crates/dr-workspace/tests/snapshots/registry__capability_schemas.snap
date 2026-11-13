@@ -1520,7 +1520,7 @@ expression: json
           "type": "string"
         },
         "module": {
-          "description": "The entry's prose module (required for ranges, blocks and anchors); omit for a material.",
+          "description": "The entry's prose module; omit for a material.",
           "type": [
             "string",
             "null"
@@ -1567,8 +1567,8 @@ expression: json
             "id": {
               "type": "string"
             },
-            "kind": {
-              "description": "`note` or `todo`.",
+            "origin": {
+              "description": "`manual`, `marker`, `task`, `agent` or `reader`.",
               "type": "string"
             },
             "status": {
@@ -1578,7 +1578,7 @@ expression: json
           },
           "required": [
             "id",
-            "kind",
+            "origin",
             "status",
             "anchor"
           ],
@@ -1614,6 +1614,154 @@ expression: json
             "end"
           ],
           "type": "object"
+        },
+        "CommentPart": {
+          "description": "Where inside `module` a comment sits (`part` in schema v5).",
+          "oneOf": [
+            {
+              "description": "An embedded file inside a `prose` module, optionally with a region on it.",
+              "properties": {
+                "embed": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "embed",
+                  "type": "string"
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Region"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "embed"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A field definition inside a `fields` module.",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "field",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "field"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A row inside a `key_value` module.",
+              "properties": {
+                "kind": {
+                  "const": "kv_row",
+                  "type": "string"
+                },
+                "row": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "row"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A cell inside a `plot_grid` module.",
+              "properties": {
+                "col": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "plot_cell",
+                  "type": "string"
+                },
+                "row": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "row",
+                "col"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A patch inside a `patches` module.",
+              "properties": {
+                "kind": {
+                  "const": "patch",
+                  "type": "string"
+                },
+                "patch": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "patch"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A file inside a `media` module, optionally with a region on the image or PDF page.",
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "media",
+                  "type": "string"
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Region"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "item"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Region on an image or PDF material (transitional until Step 4).",
+              "properties": {
+                "kind": {
+                  "const": "region",
+                  "type": "string"
+                },
+                "region": {
+                  "$ref": "#/$defs/Region"
+                }
+              },
+              "required": [
+                "kind",
+                "region"
+              ],
+              "type": "object"
+            }
+          ]
         },
         "CommentTargetV3": {
           "description": "A comment target. Old structural kinds are not accepted.",
@@ -1680,7 +1828,7 @@ expression: json
               "type": "null"
             }
           ],
-          "description": "Stable cursors captured in the selected prose; mutually exclusive with range and region."
+          "description": "Stable cursors captured in the selected prose; mutually exclusive with range and part."
         },
         "author_name": {
           "type": [
@@ -1689,7 +1837,7 @@ expression: json
           ]
         },
         "block_id": {
-          "description": "The paragraph it sits on (needs a target).",
+          "description": "The paragraph it sits on (needs a prose target).",
           "type": [
             "string",
             "null"
@@ -1702,19 +1850,30 @@ expression: json
         "book": {
           "type": "string"
         },
-        "kind": {
-          "description": "`note` (default) or `todo`.",
+        "module": {
+          "description": "Module on `target` (any module kind on an entry).",
           "type": [
             "string",
             "null"
           ]
         },
-        "module": {
-          "description": "The entry's prose module (required for ranges, blocks and anchors); omit for a material.",
+        "origin": {
+          "description": "`manual`, `marker`, `task`, `agent` or `reader`; defaults from the caller.",
           "type": [
             "string",
             "null"
           ]
+        },
+        "part": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommentPart"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Specific sub-item inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`)."
         },
         "priority": {
           "description": "`low`, `med` or `high`.",
@@ -1743,17 +1902,6 @@ expression: json
             "array",
             "null"
           ]
-        },
-        "region": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Region"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Mark a rectangle on an image or PDF material (its target)."
         },
         "target": {
           "anyOf": [
@@ -1788,7 +1936,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating."
+    "summary": "Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating."
   },
   {
     "access": "write",
@@ -1826,7 +1974,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a comment or TODO (its relations go with it)."
+    "summary": "Delete a comment (its relations go with it)."
   },
   {
     "access": "read",
@@ -1856,15 +2004,15 @@ expression: json
         "book": {
           "type": "string"
         },
-        "kind": {
-          "description": "`note` or `todo`.",
+        "module": {
+          "description": "Optional module filter (requires an `entry` target).",
           "type": [
             "string",
             "null"
           ]
         },
-        "module": {
-          "description": "The entry's prose module (required for ranges, blocks and anchors); omit for a material.",
+        "origin": {
+          "description": "`manual`, `marker`, `task`, `agent` or `reader`.",
           "type": [
             "string",
             "null"
@@ -1933,16 +2081,27 @@ expression: json
             "id": {
               "type": "string"
             },
-            "kind": {
-              "description": "`note` or `todo`.",
-              "type": "string"
-            },
             "module": {
-              "description": "The entry prose module; null for whole-entry, material or floating comments.",
+              "description": "Module on `target` (any module kind); null for whole-entry, material or floating comments.",
               "type": [
                 "string",
                 "null"
               ]
+            },
+            "origin": {
+              "description": "`manual`, `marker`, `task`, `agent` or `reader`.",
+              "type": "string"
+            },
+            "part": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CommentPart"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sub-part inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`)."
             },
             "priority": {
               "type": [
@@ -1962,17 +2121,6 @@ expression: json
                 "string",
                 "null"
               ]
-            },
-            "region": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/Region"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "The rectangle it marks on an image or a PDF page."
             },
             "source": {
               "description": "`manual` or `api`.",
@@ -1999,7 +2147,7 @@ expression: json
               ]
             },
             "unlocated": {
-              "description": "The target is in the trash or gone: show as unlocated.",
+              "description": "The target or module sub-part is in the trash or gone: show as unlocated.",
               "type": "boolean"
             },
             "updated_at": {
@@ -2013,7 +2161,7 @@ expression: json
           "required": [
             "id",
             "module",
-            "kind",
+            "part",
             "target",
             "unlocated",
             "target_block",
@@ -2022,16 +2170,164 @@ expression: json
             "body",
             "status",
             "priority",
+            "origin",
             "author_kind",
             "author_name",
             "source",
             "agent_conversation",
             "projection",
-            "region",
             "created_at",
             "updated_at"
           ],
           "type": "object"
+        },
+        "CommentPart": {
+          "description": "Where inside `module` a comment sits (`part` in schema v5).",
+          "oneOf": [
+            {
+              "description": "An embedded file inside a `prose` module, optionally with a region on it.",
+              "properties": {
+                "embed": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "embed",
+                  "type": "string"
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Region"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "embed"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A field definition inside a `fields` module.",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "field",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "field"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A row inside a `key_value` module.",
+              "properties": {
+                "kind": {
+                  "const": "kv_row",
+                  "type": "string"
+                },
+                "row": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "row"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A cell inside a `plot_grid` module.",
+              "properties": {
+                "col": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "plot_cell",
+                  "type": "string"
+                },
+                "row": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "row",
+                "col"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A patch inside a `patches` module.",
+              "properties": {
+                "kind": {
+                  "const": "patch",
+                  "type": "string"
+                },
+                "patch": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "patch"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A file inside a `media` module, optionally with a region on the image or PDF page.",
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "media",
+                  "type": "string"
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Region"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "item"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Region on an image or PDF material (transitional until Step 4).",
+              "properties": {
+                "kind": {
+                  "const": "region",
+                  "type": "string"
+                },
+                "region": {
+                  "$ref": "#/$defs/Region"
+                }
+              },
+              "required": [
+                "kind",
+                "region"
+              ],
+              "type": "object"
+            }
+          ]
         },
         "CommentTargetV3": {
           "description": "A comment target. Old structural kinds are not accepted.",
@@ -2094,7 +2390,125 @@ expression: json
       "title": "Array_of_CommentInfoV3",
       "type": "array"
     },
-    "summary": "List comments and TODOs (a target in the trash or gone shows as unlocated)."
+    "summary": "List comments (a target or module sub-part in the trash or gone shows as unlocated)."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "CommentTaskIn": {
+          "properties": {
+            "block": {
+              "description": "The task list paragraph's block id.",
+              "type": "string"
+            },
+            "checked": {
+              "default": false,
+              "description": "Whether the task item's checkbox is checked (`true` -> `resolved`, `false` -> `open`).",
+              "type": "boolean"
+            },
+            "task": {
+              "default": "",
+              "description": "The task text.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "block"
+          ],
+          "type": "object"
+        },
+        "TodoMarkerIn": {
+          "properties": {
+            "block": {
+              "description": "The paragraph's block id.",
+              "type": "string"
+            },
+            "task": {
+              "default": "",
+              "description": "The task text after the marker.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "block"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "doc": {
+          "description": "`body:<entry>/<module>` or `material:<id>` of a book.",
+          "type": "string"
+        },
+        "editing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "markers": {
+          "default": [],
+          "description": "Paragraphs starting with TODO / 待办 markers.",
+          "items": {
+            "$ref": "#/$defs/TodoMarkerIn"
+          },
+          "type": "array"
+        },
+        "tasks": {
+          "description": "Task list items (`- [ ]` / `- [x]`) when task projection is active on this prose document.",
+          "items": {
+            "$ref": "#/$defs/CommentTaskIn"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "CommentProjectIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "comment.project",
+    "output": {
+      "properties": {
+        "created": {
+          "description": "Comments made for new markers or task items.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "removed": {
+          "description": "Open projected comments whose marker or task item is gone, deleted.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "waiting": {
+          "description": "Open projected comments whose marker or task item is missing here, kept\nbecause this device has not yet received the prose they were made from\n(sync brings the book and the prose separately).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "created",
+        "removed",
+        "waiting"
+      ],
+      "title": "CommentProjected",
+      "type": "object"
+    },
+    "summary": "Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or task gets a comment, an open one whose source line is gone is deleted, resolved ones stay; deterministic ids merge across devices."
   },
   {
     "access": "write",
@@ -2170,7 +2584,7 @@ expression: json
     "input": {
       "properties": {
         "agent_conversation": {
-          "description": "The Agent conversation started from this TODO.",
+          "description": "The Agent conversation started from this comment.",
           "type": [
             "string",
             "null"
@@ -2187,13 +2601,6 @@ expression: json
         },
         "id": {
           "type": "string"
-        },
-        "kind": {
-          "description": "`note` or `todo`.",
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "priority": {
           "type": [
@@ -2231,7 +2638,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation."
+    "summary": "Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation."
   },
   {
     "access": "write",
@@ -14992,91 +15399,6 @@ expression: json
       "type": "object"
     },
     "summary": "Switch whether a stored lane in a view is displayed as a top act track."
-  },
-  {
-    "access": "write",
-    "book_version": 5,
-    "concurrency": "book",
-    "input": {
-      "$defs": {
-        "TodoMarkerIn": {
-          "properties": {
-            "block": {
-              "description": "The paragraph's block id.",
-              "type": "string"
-            },
-            "task": {
-              "default": "",
-              "description": "The task text after the marker.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "block"
-          ],
-          "type": "object"
-        }
-      },
-      "properties": {
-        "doc": {
-          "description": "`body:<entry>/<module>` or `material:<id>` of a book.",
-          "type": "string"
-        },
-        "editing": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "markers": {
-          "items": {
-            "$ref": "#/$defs/TodoMarkerIn"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "doc",
-        "markers"
-      ],
-      "title": "TodoProjectInV3",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "todo.project",
-    "output": {
-      "properties": {
-        "created": {
-          "description": "TODOs made for new markers.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "removed": {
-          "description": "Open TODOs whose marker or paragraph is gone, deleted.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "waiting": {
-          "description": "Open TODOs whose marker is missing here, kept because this device\nhas not yet received the prose they were made from (sync brings the\nbook and the prose separately).",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "created",
-        "removed",
-        "waiting"
-      ],
-      "title": "TodoProjected",
-      "type": "object"
-    },
-    "summary": "Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device."
   },
   {
     "access": "write",

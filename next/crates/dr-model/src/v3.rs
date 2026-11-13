@@ -20,12 +20,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::check::Violation;
 pub use crate::id::{
-    AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EntryId, EntryTemplateId, KvEntryId,
-    MaterialFolderId, MaterialId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
-    RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
+    AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId, EntryTemplateId,
+    KvEntryId, MaterialFolderId, MaterialId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId,
+    PlotRowId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
 };
 use crate::kind::{
-    CommentAuthorKind, CommentKind, CommentPriority, CommentSource, CommentStatus, EntityKind,
+    CommentAuthorKind, CommentOrigin, CommentPriority, CommentSource, CommentStatus, EntityKind,
     RelationOrientation, SystemRelationKey,
 };
 use crate::order::cmp_order;
@@ -1174,21 +1174,63 @@ pub struct RelationTypeV3 {
     pub target_templates: Vec<EntryTemplateId>,
 }
 
-/// A comment or TODO in v3: adds `target_module` when targeting a prose module
-/// of an entry (`body:<entry_id>/<module_id>`).
+/// Where inside `target_module` a comment sits (`comments.<id>.part`, `kernel-v5.md` §7 & §10).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CommentPart {
+    /// An embedded file inside a `prose` module, optionally with a region on it.
+    Embed {
+        embed: EmbedId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<MaterialRegion>,
+    },
+    /// A field definition inside a `fields` module.
+    Field { field: String },
+    /// A row inside a `key_value` module.
+    KvRow { row: KvEntryId },
+    /// A cell inside a `plot_grid` module.
+    PlotCell { row: PlotRowId, col: PlotColId },
+    /// A patch inside a `patches` module.
+    Patch { patch: PatchId },
+    /// A file inside a `media` module, optionally with a region on the image or PDF page.
+    Media {
+        item: MediaItemId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<MaterialRegion>,
+    },
+    /// Region on an image/PDF material (transitional until Step 4 maps materials to `media` modules).
+    Region { region: MaterialRegion },
+}
+
+impl CommentPart {
+    /// Image or PDF rectangle carried by this part, if any.
+    pub fn region(&self) -> Option<&MaterialRegion> {
+        match self {
+            CommentPart::Embed { region, .. } | CommentPart::Media { region, .. } => {
+                region.as_ref()
+            }
+            CommentPart::Region { region } => Some(region),
+            _ => None,
+        }
+    }
+}
+
+/// A comment in schema v5 (`comments` map, `kernel-v5.md` §7 & §10).
+/// Targets `(target, target_module, part)`, any prefix of which may be omitted.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CommentV3 {
     pub id: CommentId,
-    pub kind: CommentKind,
     pub target: Option<EntityRef>,
-    /// When `target` is an entry's prose module, names that module (`module` in Loro).
+    /// Module on `target` (`module` in Loro): any module kind on the entry.
     pub target_module: Option<ModuleId>,
+    /// Specific sub-item inside `target_module` (`part` in Loro).
+    pub part: Option<CommentPart>,
     pub target_missing: bool,
     pub target_block: Option<BlockId>,
     pub anchor: Option<EncodedAnchor>,
     pub quote: Option<String>,
     pub snapshots: Vec<BlockSnapshot>,
-    pub region: Option<MaterialRegion>,
+    pub origin: CommentOrigin,
     pub author_kind: CommentAuthorKind,
     pub author: Option<String>,
     pub author_name: Option<String>,
@@ -1205,13 +1247,38 @@ pub struct CommentV3 {
 }
 
 impl CommentV3 {
-    pub fn is_todo(&self) -> bool {
-        self.kind == CommentKind::Todo
-    }
-
     pub fn is_done(&self) -> bool {
         self.status == CommentStatus::Resolved
     }
+
+    pub fn region(&self) -> Option<&MaterialRegion> {
+        self.part.as_ref().and_then(CommentPart::region)
+    }
+}
+
+/// Invariant `COMMENT-PART-IN-MODULE` (`kernel-v5.md` §7 & §11): a comment's
+/// `part` kind must match the kind of `module` it addresses.
+pub fn check_comment_part_kind(
+    part: &CommentPart,
+    module_kind: &ModuleKind,
+) -> Result<(), Violation> {
+    let ok = match part {
+        CommentPart::Embed { .. } => *module_kind == ModuleKind::Prose,
+        CommentPart::Field { field } => {
+            !field.trim().is_empty() && *module_kind == ModuleKind::Fields
+        }
+        CommentPart::KvRow { .. } => *module_kind == ModuleKind::KeyValue,
+        CommentPart::PlotCell { .. } => *module_kind == ModuleKind::PlotGrid,
+        CommentPart::Patch { .. } => *module_kind == ModuleKind::Patches,
+        CommentPart::Media { .. } | CommentPart::Region { .. } => false,
+    };
+    if !ok {
+        return fail(
+            "COMMENT-PART-IN-MODULE",
+            format!("comment part {part:?} does not belong to a {module_kind} module"),
+        );
+    }
+    Ok(())
 }
 
 /// Which project template initialized the book (`project.source`).

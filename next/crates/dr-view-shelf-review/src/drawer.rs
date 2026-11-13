@@ -306,7 +306,7 @@ impl ShelfReviewView {
                         };
                         let theme = Theme::of(window, cx);
                         let (p, s) = (theme.palette, theme.scale);
-                        let todo = item.kind == "todo";
+                        let todo = matches!(item.origin.as_str(), "marker" | "task");
                         let badge_color = if todo {
                             p.story(Story::S4).mix(p.ink(1), 0.16)
                         } else {

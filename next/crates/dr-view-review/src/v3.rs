@@ -65,8 +65,9 @@ impl Item {
         let c = &self.comment;
         dr_workspace::dto::CommentInfo {
             id: c.id.to_string(),
-            kind: c.kind.as_str().into(),
             target: c.target.as_ref().map(dr_workspace::dto::Target::from),
+            module: c.target_module.as_ref().map(ToString::to_string),
+            part: c.part.as_ref().map(dr_workspace::dto::CommentPartDto::from),
             unlocated: self.place == Place::Gone,
             target_block: c.target_block.as_ref().map(ToString::to_string),
             anchored: c.anchor.is_some(),
@@ -74,12 +75,12 @@ impl Item {
             body: c.body.clone(),
             status: c.status.as_str().into(),
             priority: c.priority.as_ref().map(|p| p.as_str().into()),
+            origin: c.origin.as_str().into(),
             author_kind: c.author_kind.as_str().into(),
             author_name: c.author_name.clone(),
             source: c.source.as_str().into(),
             agent_conversation: c.agent_conversation.clone(),
             projection: c.projection.as_ref().map(|p| p.kind.as_str().into()),
-            region: c.region.as_ref().map(dr_workspace::dto::Region::from),
             created_at: c.created_at.map(|t| t.0),
             updated_at: c.updated_at.map(|t| t.0),
         }
@@ -194,10 +195,8 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                                 t.modules.iter().find(|m| m.id.as_str() == module)
                                             });
                                         module_name = definition.map(|m| m.name.clone());
-                                        let prose = definition
-                                            .is_some_and(|m| m.kind == m::ModuleKind::Prose);
-                                        if prose {
-                                            true
+                                        if comment.part.is_some() || definition.is_some() {
+                                            !comment.target_missing
                                         } else {
                                             pending_retained
                                                 .push((idx, format!("body:{id}/{module}")));
@@ -332,10 +331,14 @@ impl Snapshot {
             .items
             .iter()
             .filter(|item| {
+                let is_projected = matches!(
+                    item.comment.origin,
+                    dr_model::kind::CommentOrigin::Marker | dr_model::kind::CommentOrigin::Task
+                );
                 let matches_kind = match filter {
                     Filter::All => true,
-                    Filter::Comments => !item.comment.is_todo(),
-                    Filter::Todos => item.comment.is_todo(),
+                    Filter::Comments => !is_projected,
+                    Filter::Todos => is_projected,
                 };
                 matches_kind
                     && scope.is_none_or(|scope| {

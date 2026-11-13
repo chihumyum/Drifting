@@ -2,7 +2,7 @@ use dr_doc::prose::ProseDoc;
 use dr_model::{
     DocId, Origin,
     id::{BodyDocId, CommentId, ModuleId},
-    kind::{CommentKind, CommentStatus, EntityKind},
+    kind::{CommentOrigin, CommentStatus, EntityKind},
     shared::EntityRef,
     v3::ModuleSpec,
 };
@@ -87,13 +87,13 @@ fn fixture() -> Fixture {
                 .target(original.target.as_ref())?
                 .module(Some(&module))?
                 .body(&original.body)?
-                .kind(&CommentKind::Todo)?
+                .origin(&CommentOrigin::Marker)?
                 .status(&CommentStatus::Resolved)?
                 .anchor(Some(&anchor))?
                 .quote(Some(&quote))?;
             t.comment(&floating)?
                 .body(&original.body)?
-                .kind(&CommentKind::Todo)?;
+                .origin(&CommentOrigin::Marker)?;
             t.comment(&missing)?
                 .target(original.target.as_ref())?
                 .module(Some(&ModuleId::parse("missing-body").unwrap()))?

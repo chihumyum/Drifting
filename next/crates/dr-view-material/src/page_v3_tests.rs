@@ -225,7 +225,7 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
         json!({"book":book_id,"target":{"kind":"material","id":id}}),
     );
     assert_eq!(comments[0]["target"]["id"], id);
-    assert!((comments[0]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
+    assert!((comments[0]["part"]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
     assert_eq!(comments[0]["body"], sample_title);
     let row = call(&ws, "material.list", json!({"book":book_id}));
     let row = row
