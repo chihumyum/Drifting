@@ -762,8 +762,6 @@
       "deleting": "삭제 중…"
     },
     "desk": {
-      "chaptersUnit_one": "장",
-      "chaptersUnit_other": "장",
       "coverStyle": {
         "names": {
           "bauhaus": "바우하우스",
@@ -848,7 +846,7 @@
       "writing": "집필 중"
     },
     "trash": {
-      "body": "작품({{words}}자 · {{nodes}}장 · 요소 {{elements}}개)을 책장에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
+      "bodyWithoutChapters": "작품({{words}}자 · 요소 {{elements}}개)을 책장에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "confirm": "최근 삭제 항목으로 이동",
       "deleteNow": "지금 삭제",
       "expiresIn_one": "{{count}}일 후 영구 삭제",
@@ -926,7 +924,6 @@
       "library": "작품 · 자료실",
       "review": "작품 · 검토",
       "stats": {
-        "chapter": "이 장 · 상세 통계",
         "element": "이 요소 · 상세 통계",
         "material": "이 자료 · 상세",
         "none": "작품 · 상세 통계",
@@ -934,7 +931,6 @@
       }
     },
     "stats": {
-      "chapter": "장",
       "dialogueRatio": "대화 비율",
       "name": "이름",
       "paragraphSentence": "문단 / 문장",

@@ -1335,17 +1335,6 @@ fn card(
             .child(
                 div()
                     .flex()
-                    .child(number(book.chapters as u64))
-                    .child(unit(tp(
-                        cx,
-                        keys::project_picker::desk::CHAPTERS_UNIT,
-                        book.chapters as u64,
-                        &[],
-                    ))),
-            )
-            .child(
-                div()
-                    .flex()
                     .child(number(book.storylines as u64))
                     .child(unit(tp(
                         cx,
@@ -1836,7 +1825,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
             )
             .body(div().child(tf(
                 cx,
-                keys::project_picker::trash::BODY,
+                keys::project_picker::trash::BODY_WITHOUT_CHAPTERS,
                 &[
                     (
                         "words",
@@ -1844,7 +1833,6 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                             t(cx, keys::workspace_word_tally::COUNTING).to_string()
                         }),
                     ),
-                    ("nodes", &book.chapters),
                     ("elements", &book.elements),
                 ],
             )))

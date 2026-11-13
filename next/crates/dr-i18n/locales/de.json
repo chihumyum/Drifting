@@ -769,8 +769,6 @@
       "deleting": "Wird gelöscht…"
     },
     "desk": {
-      "chaptersUnit_one": "Kapitel",
-      "chaptersUnit_other": "Kapitel",
       "coverStyle": {
         "names": {
           "bauhaus": "Bauhaus",
@@ -855,7 +853,7 @@
       "writing": "In Arbeit"
     },
     "trash": {
-      "body": "Dieses Buch ({{words}} Wörter · {{nodes}} Kapitel · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
+      "bodyWithoutChapters": "Dieses Buch ({{words}} Wörter · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
       "confirm": "Zu kürzlich Gelöscht verschieben",
       "deleteNow": "Jetzt löschen",
       "expiresIn_one": "Endgültige Löschung in {{count}} Tag",
@@ -933,7 +931,6 @@
       "library": "Projekt · Materialsammlung",
       "review": "Projekt · Prüfung",
       "stats": {
-        "chapter": "Dieses Kapitel · Detailstatistik",
         "element": "Dieses Element · Detailstatistik",
         "material": "Dieses Material · Details",
         "none": "Projekt · Detailstatistik",
@@ -941,7 +938,6 @@
       }
     },
     "stats": {
-      "chapter": "Kapitel",
       "dialogueRatio": "Dialoganteil",
       "name": "Name",
       "paragraphSentence": "Absätze / Sätze",

@@ -761,7 +761,6 @@
       "deleting": "删除中…"
     },
     "desk": {
-      "chaptersUnit": "章",
       "coverStyle": {
         "names": {
           "bauhaus": "包豪斯",
@@ -842,7 +841,7 @@
       "writing": "在写"
     },
     "trash": {
-      "body": "这本书（{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
+      "bodyWithoutChapters": "这本书（{{words}} 字 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "confirm": "移到最近删除",
       "deleteNow": "立即删除",
       "expiresIn_one": "{{count}} 天后永久删除",
@@ -920,7 +919,6 @@
       "library": "全项目 · 素材库",
       "review": "全项目 · 审阅",
       "stats": {
-        "chapter": "本章 · 详细统计",
         "element": "本要素 · 详细统计",
         "material": "这份素材 · 详细统计",
         "none": "本项目 · 详细统计",
@@ -928,7 +926,6 @@
       }
     },
     "stats": {
-      "chapter": "章节",
       "dialogueRatio": "对白比",
       "name": "名称",
       "paragraphSentence": "段落 / 句",

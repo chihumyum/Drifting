@@ -772,9 +772,6 @@
       "deleting": "Suppression…"
     },
     "desk": {
-      "chaptersUnit_many": "chapitres",
-      "chaptersUnit_one": "chapitre",
-      "chaptersUnit_other": "chapitres",
       "coverStyle": {
         "names": {
           "bauhaus": "Bauhaus",
@@ -863,7 +860,7 @@
       "writing": "En écriture"
     },
     "trash": {
-      "body": "Ce livre ({{words}} mots · {{nodes}} chapitres · {{elements}} éléments) quitte la bibliothèque. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
+      "bodyWithoutChapters": "Ce livre ({{words}} mots · {{elements}} éléments) quitte la bibliothèque. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
       "confirm": "Déplacer dans les suppressions récentes",
       "deleteNow": "Supprimer maintenant",
       "expiresIn_many": "Suppression définitive dans {{count}} jours",
@@ -942,7 +939,6 @@
       "library": "Projet · Documentation",
       "review": "Projet · Relecture",
       "stats": {
-        "chapter": "Ce chapitre · statistiques détaillées",
         "element": "Cet élément · statistiques détaillées",
         "material": "Cette ressource · Détails",
         "none": "Projet · statistiques détaillées",
@@ -950,7 +946,6 @@
       }
     },
     "stats": {
-      "chapter": "Chapitre",
       "dialogueRatio": "Part de dialogue",
       "name": "Nom",
       "paragraphSentence": "Paragraphes / phrases",

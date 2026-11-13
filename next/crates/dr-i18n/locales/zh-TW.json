@@ -762,8 +762,6 @@
       "deleting": "正在刪除…"
     },
     "desk": {
-      "chaptersUnit_one": "章",
-      "chaptersUnit_other": "章",
       "coverStyle": {
         "names": {
           "bauhaus": "包浩斯",
@@ -848,7 +846,7 @@
       "writing": "寫作中"
     },
     "trash": {
-      "body": "此作品（{{words}} 字 · {{nodes}} 章 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。",
+      "bodyWithoutChapters": "此作品（{{words}} 字 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "confirm": "移至最近刪除",
       "deleteNow": "立即刪除",
       "expiresIn_one": "{{count}} 天後永久刪除",
@@ -926,7 +924,6 @@
       "library": "作品 · 素材庫",
       "review": "作品 · 審閱",
       "stats": {
-        "chapter": "此章 · 詳細統計",
         "element": "此要素 · 詳細統計",
         "material": "此素材 · 詳情",
         "none": "作品 · 詳細統計",
@@ -934,7 +931,6 @@
       }
     },
     "stats": {
-      "chapter": "章節",
       "dialogueRatio": "對話比例",
       "name": "名稱",
       "paragraphSentence": "段落／句子",
