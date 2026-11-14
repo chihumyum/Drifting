@@ -1,6 +1,6 @@
-# Loro 文档结构：书目格式 4（含 v3、v2.2 历史对照）
+# Loro 文档结构：书目格式 5（含格式 4、v3、v2.2 历史对照）
 
-2026-11-07 由 P0-C 探针定下 v0，同日 F1 实现时改成 v1，再按监管会话的数据层审查改成 v2；2026-11-08 F1 第五轮加了几样向后兼容的东西（正文模板文档、种子变更、待办的任务文字），记成 v2.1；同日 M27（帮手运行时）加了 Agent 对话文档，F1 第七轮审过，记成 v2.2；2026-11-09 K1+K2 增加通用条目书目 v3；2026-11-11 第 70 批完成切换后，`next/` 应用与工作区命令只运行 canonical v3（`meta.v = 3`），v2.2 应用页面与命令已移除（见 [v3-cutover.md](v3-cutover.md)）。下文保留 v2.2 书目结构作为演进与旧测试夹具对照。2026-11-13 起按 [kernel-v4.md](kernel-v4.md) 改成书目格式 4：写作日和快照点清单挪进书旁边的两篇文档，只有一种条目（自己的开关决定下面能不能放条目），`meta.v = 4`。以后任何改动都要升版本号，并在这里写明从哪一版改成哪一版、旧文档怎么读。
+2026-11-07 由 P0-C 探针定下 v0，同日 F1 实现时改成 v1，再按监管会话的数据层审查改成 v2；2026-11-08 F1 第五轮加了几样向后兼容的东西（正文模板文档、种子变更、待办的任务文字），记成 v2.1；同日 M27（帮手运行时）加了 Agent 对话文档，F1 第七轮审过，记成 v2.2；2026-11-09 K1+K2 增加通用条目书目 v3；2026-11-11 第 70 批完成切换后，`next/` 应用与工作区命令只运行 canonical v3（`meta.v = 3`），v2.2 应用页面与命令已移除（见 [v3-cutover.md](v3-cutover.md)）。下文保留 v2.2 书目结构作为演进与旧测试夹具对照。2026-11-13 起按 [kernel-v4.md](kernel-v4.md) 改成书目格式 4：写作日和快照点清单挪进书旁边的两篇文档，只有一种条目（自己的开关决定下面能不能放条目），`meta.v = 4`。2026-11-15 起按 [kernel-v5.md](kernel-v5.md) 升到书目格式 5（`meta.v = 5`）：加入项目定义 `project`（来源、帮手说明、成书配置与左栏 Tab）、视图刻度接管泳道顺序、统一批注、媒体模块与内置素材库（`assets`）、画布坐标外移到第三篇小文档 `layout:<书>`，以及拆开的「层级」与「收别处的条目」两个开关。以后任何改动都要升版本号，并在这里写明从哪一版改成哪一版、旧文档怎么读。
 
 - 正式实现：`next/crates/dr-doc/`（类型化的书目文档、正文文档和对话文档）和 `next/crates/dr-model/`（领域类型、不变量清单），说明见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)。
 - 探针的实现和测试：`next/spikes/loro-model/`（包名 `loro-model-spike`），只读保留。
@@ -22,22 +22,23 @@
 | v2.2 要素正文 | `element:<要素 id>` | 每个要素 1 |
 | v2.2 故事线说明 | `storyline:<故事线 id>` | 每条故事线 1 |
 | v2.2 分类说明 | `category:<分类 id>` | 每个分类 1 |
-| 素材笔记 | `material:<素材 id>` | 每篇文本素材 1 |
+| v2.2–格式 4 素材笔记（已退役） | `material:<素材 id>` | 格式 5 退役；文本素材是普通条目正文 |
 | v2.2 正文模板（v2.1 起） | `template:category:<分类 id>`（要素模板）、`template:storyline:<故事线 id>`（章节模板） | 每个分类、每条故事线最多 1 |
-| 条目正文 | `body:<条目 id>/<模块 id>` | 每个条目的每个正文模块各 1；说明是普通正文模块（小说模板的「说明」是 `mod-description`），格式 4 没有 `about` |
+| 条目正文 | `body:<条目 id>/<模块 id>` | 每个条目的每个正文模块各 1；说明是普通正文模块（写书模板的「说明」是 `mod-description`），没有 `about` |
 | 模板正文初值 | `template:<书 id>/<模板 id>/<模块 id>` | 每个模板的正文模块各 1 |
 | Agent 对话（v2.2 起） | `conversation:<对话 id>` | 每个对话 1；属于哪本书由存储的文档记录记着 |
 | 写作日（书目格式 4 起） | `stats:<书 id>` | 1，建书时就建 |
 | 快照点清单（书目格式 4 起） | `checkpoints:<书 id>` | 1，建书时就建 |
+| 画布坐标（书目格式 5 起） | `layout:<书 id>` | 1，建书时就建 |
 
 - 沿用实体的 id 在旧库导入后不变；新建的条目（包括默认根与分类）生成 UUIDv7，新增映射遵循导入方案。文档 id 在整个库中唯一；v3 模板正文必须包含书 id。
-- 正文文档有两种编辑配置：`material:` 用「笔记」配置，其余用「正文」配置（和旧版 `editor-schema-profile.ts` 一样，配置跟着文档走，不跟着视图走）。模板用「正文」配置，和用它新建的章节、要素一样。
-- **正文模板**是一篇普通的正文文档，结构、创世、写入规则和别的正文完全一样，只是 id 由主人算出（v2.2 用 `TemplateOwner::doc_id`，v3 将带书 id 的 `TemplateId::for_entry_module` 包为 `DocId::Template`）：例如 v2.2 两台设备同时开始写同一个分类的模板，写的是同一篇，会合并。它不是书的正文：不进搜索、不计字数、不导出（`DocKind::is_book_text`）。新建要素、新建章节时把它整篇抄进新正文（`ProseTxn::insert_copy`：段落属性、行内标记、人物链接、表格、素材嵌入都抄，块 ID 和嵌入 id 换新的）。v2.2 分类、故事线彻底删除以后，它的模板文档就没有主人了（`BookView::owns_prose` 按主人认）；v3 模板正文则按所属书及模板记录判断所有权，详见 v3 一节。
+- 格式 5 起正文文档只有一种编辑配置（`ProseProfile::Prose`）：原来仅素材笔记支持的列表、任务、代码块、提示框、高亮、行内代码、表格与文件嵌入对所有条目正文和模板正文初值开放。
+- **正文模板**是一篇普通的正文文档，结构、创世、写入规则和别的正文完全一样，只是 id 由主人算出（v2.2 用 `TemplateOwner::doc_id`，v3 将带书 id 的 `TemplateId::for_entry_module` 包为 `DocId::Template`）：例如 v2.2 两台设备同时开始写同一个分类的模板，写的是同一篇，会合并。它不是书的正文：不进搜索、不计字数、不导出（`DocKind::is_book_text`）。新建要素、新建章节时把它整篇抄进新正文（`ProseTxn::insert_copy`：段落属性、行内标记、人物链接、表格、文件嵌入都抄，块 ID 和嵌入 id 换新的）。v2.2 分类、故事线彻底删除以后，它的模板文档就没有主人了（`BookView::owns_prose` 按主人认）；v3 模板正文则按所属书及模板记录判断所有权，详见下文书目一节。
 - **Agent 对话**不是正文：没有编辑配置，不进搜索、不计字数、不导出、不进 Markdown 文件夹、不投待办。它只追加，结构见「对话文档」。它直接属于书（像书目文档一样），不会被当成没主人的正文清掉。
 
 ### 版本号
 
-- 每个文档的 `meta` 映射里有 `v`：书目为 `4`（v3 的书是 `3`，原样拒开），书旁边的两篇文档为 `1`，v2.2 书目以及共用正文／对话仍为 `2`（见「版本」）。v2.1、v2.2 只加了向后兼容的东西；v3 不改变已有 v2 文档的创世。
+- 每个文档的 `meta` 映射里有 `v`：书目为 `5`（格式 4 的 `4`、v3 的 `3` 及更早版本原样拒开），书旁边的三篇小文档为 `1`，v2.2 书目以及共用正文／对话仍为 `2`（见「版本」）。v2.1、v2.2 只加了向后兼容的东西；格式 5 不改变正文／对话文档的创世版本。
 - 下文的样式表（每个标记键的 `ExpandType`）也是结构的一部分，规则见下面「样式表」一节。
 
 ### 样式表：只有一个来源
@@ -63,10 +64,10 @@
 - 写入者是一个专用的「创世对等方」，ID 由文档 id 和创世版本号算出（FNV-1a 64 位，最高位置 1；见 `ids::genesis_peer`）；
 - 时间戳为 0，不带提交信息；
 - 正文文档的创世内容：`meta.v = 2`、`meta.doc = <文档 id>`，`body` 里一个 `\n`，它的块 ID 是 `0@<创世对等方>`；
-- 书目文档的创世内容：v2.2 为 `meta.v = 2`，v3 为 `meta.v = 3`，现在为 `meta.v = 4`；都有 `meta.book = <书 id>` 及各版本内置的锁定关系类型（见各自书目一节）；
+- 书目文档的创世内容：v2.2 为 `meta.v = 2`，v3 为 `meta.v = 3`，格式 4 为 `meta.v = 4`，现在为 `meta.v = 5`；都有 `meta.book = <书 id>` 及各版本内置的锁定关系类型（格式 5 的 `system:generic-association:<书 id>` 允许 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`）；
 - 对话文档的创世内容：`meta.v = 2`、`meta.doc = <文档 id>`，没有别的（v2.2）；
-- 书旁边的两篇文档的创世内容：`meta.v = 1`、`meta.doc = <文档 id>`，没有别的。
-- 创世版本号：书目为 `4`（v3 是 `3`），书旁边的两篇文档为 `1`，v2.2 书目和共用正文／对话仍为 `2`（v0 是 `0`，v1 是 `1`）。
+- 书旁边的三篇文档（`stats:<书>`、`checkpoints:<书>`、`layout:<书>`）的创世内容：`meta.v = 1`、`meta.doc = <文档 id>`，没有别的。
+- 创世版本号：书目为 `5`（格式 4 是 `4`，v3 是 `3`），书旁边的三篇文档为 `1`，v2.2 书目和共用正文／对话仍为 `2`（v0 是 `0`，v1 是 `1`）。
 
 **为什么**：任何一台设备都可以独立生成同一份创世变更，字节完全相同。Loro 按操作 ID 去重，所以两台设备同时初始化同一篇空正文，合并后仍然只有一个空段落，不会多出一段；内置关系类型也只会有一个。
 
@@ -96,7 +97,7 @@
 
 | 种子 | 键 | 写什么 |
 | --- | --- | --- |
-| 投出的待办（`BookTxn::project_todo`） | `todo-v1`、待办 id、文档、块、任务文字 | `kind = todo`、目标、`target_block`、`projection` / `projection_block`、`status = open`、`projection_text` |
+| 投出的批注（`BookTxn::project_todo`） | `todo-v1`（v2.2–格式 4）／格式 5 为 `comment-proj-v5`、批注 id、条目与模块、块、任务文字 | 格式 5 不写 `kind`，写 `origin = marker | task`、目标条目、`module`、正文段落 `part`、`projection_block`、`status = open`、`projection_text` |
 | 新情节规划表（`BookTxn::create_plot_grid`） | `plot-grid-v1`、章节 id、行列数 | 表本身，三行三列的 `pos`（id 见 `PlotRowId::default_for` / `PlotColId::default_for`：`<章节 id>:r1`…、`<章节 id>:c1`…）；不写标签、不写尺寸（没写就读成空标签、默认 184 × 96） |
 
 ### 对等方 ID
@@ -127,7 +128,7 @@
 | 根容器 | 类型 | 内容 |
 | --- | --- | --- |
 | `body` | LoroText | 整篇正文 |
-| `embeds` | LoroMap | 表格和素材嵌入的内容，键是嵌入 id |
+| `embeds` | LoroMap | 表格和文件嵌入的内容，键是嵌入 id |
 | `meta` | LoroMap | `v`、`doc` |
 
 ### 段落
@@ -147,12 +148,12 @@
 | `indent` | 1–8 | 都有 | 缩进；没有就是 0 |
 | `align` | `center` / `right` | 都有 | 没有就是左对齐 |
 | `rule` | true | 都有 | 分隔线段落（内容为空） |
-| `list` | `bullet` / `ordered` / `task` | 笔记 | 列表项，一段一项 |
-| `list_level` | 0 起 | 笔记 | 列表嵌套层级；没有就是 0 |
-| `checked` | bool | 笔记 | 没链接待办的任务是否勾上。**链接了待办（有 `todo`）就不存、读时忽略**：显示待办自己的状态，待办是唯一的真相（v2） |
-| `todo` | 待办 id | 笔记 | 任务项链接的待办 |
-| `code_block` | 语言（可为空串） | 笔记 | 代码块；相邻的代码段画成一块 |
-| `callout` | 种类 | 笔记 | 提示框；相邻同种的段画成一块 |
+| `list` | `bullet` / `ordered` / `task` | 都有（格式 5 起） | 列表项，一段一项 |
+| `list_level` | 0 起 | 都有（格式 5 起） | 列表嵌套层级；没有就是 0 |
+| `checked` | bool | 都有（格式 5 起） | 没链接批注的任务是否勾上。**链接了批注（有 `todo`）就不存、读时忽略**：显示批注自己的状态，批注是唯一的真相（v2） |
+| `todo` | 批注 id | 都有（格式 5 起） | 任务项链接的批注 |
+| `code_block` | 语言（可为空串） | 都有（格式 5 起） | 代码块；相邻的代码段画成一块 |
+| `callout` | 种类 | 都有（格式 5 起） | 提示框；相邻同种的段画成一块 |
 
 H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
@@ -163,8 +164,8 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `bold` `italic` `underline` `strike` | true | After | 都有 |
 | `link` | 网址 | None | 都有 |
 | `entity:<目标 id>` | `{kind, block?, end_block?}`；v3 另有 `module?` | None（按前缀 `entity` 配置） | 都有 |
-| `highlight` | 颜色 | None | 笔记 |
-| `code` | true | None | 笔记 |
+| `highlight` | 颜色 | None | 都有（格式 5 起） |
+| `code` | true | None | 都有（格式 5 起） |
 | `embed` | 嵌入 id | None | 都有（只打在 U+FFFC 上） |
 
 ### 写入规则
@@ -188,82 +189,93 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ### 人物链接
 
-- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。v3 通用自动链接写 `kind = entry`，当前只链接条目。v3 显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 接受 `entry`／`material`，条目链接指定正文再加独立的 `module`，素材不带模块；`block`／`end_block` 仍为独立字段。旧共享 `EntityLink` 与旧读写接口冻结不变。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
+- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。格式 5 的通用自动链接和显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 只接受 `kind = entry`（素材目标已在格式 5 退役，0.1 导入时指向图片和 PDF 的链接转为普通文字并记入报告），条目链接指定正文再加独立的 `module`；`block`／`end_block` 仍为独立字段。旧共享 `EntityLink` 与源回放接口仅留作 0.1 导入边界。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
 - ExpandType `None`：在链接的前后打字不会扩进链接；在链接中间打字算链接的一部分。
 - **重叠**：不同目标用不同的键，所以可以任意重叠，比如「安娜·卡列尼娜」链一个要素、其中「卡列尼娜」链另一个。v2.2 指向同一目标的两段相邻链接会合成一段。v3 查询还要求 kind、module、block、end_block 一致才合并；原始标记各段的未知数据仍分别保留。
 - 断开链接：`unmark(range, entity:<目标 id>)`。
 - 旧版的键 `entityLink--<哈希>` 只在导入时读一次属性值，不进新结构。
 
-### 表格和素材嵌入
+### 表格和文件嵌入
 
 - 正文里放一个 U+FFFC，单独成段；字符上打 `embed = <嵌入 id>`。
 - 内容放在 `embeds[<嵌入 id>]`（mergeable 映射）：
   - 表格：`kind = "table"`；`cols` 是映射（列 id → `{pos}`），`rows` 是映射（行 id → `{pos, cells}`），`pos` 是分数索引位置键（v2，v1 是数字 `order`），`cells` 是映射（列 id → LoroText，单元格内只有行内标记，换行用 U+2028）。两台设备同时建同一个单元格会合成同一段文本。
-  - 素材嵌入：`kind = "material"`，`material = <素材 id>`。
+  - 文件嵌入（格式 5 起）：`kind = "asset"`，`asset = <资源 id>`（指向本书 `assets` 素材库清单中的文件；v2.2–格式 4 的 `kind = "material"` 已退役）。若该资源在素材库中被移入最近删除或尚未同步到本地，读取时保留占位并由 `missing_embeds` 标出，恢复后立即回到原位。
 - 删掉占位字符时不删条目，这样撤销能把嵌入带回来；没有占位指向的条目在读取时忽略，后台清理时再删。
 - 复制一个嵌入要深拷贝成新的嵌入 id。
 
-## 书目文档（格式 4）：通用条目内核
+## 书目文档（格式 5）：通用项目内核
 
-`next/` 当前唯一运行的书目结构，方案以 [kernel-v4.md](kernel-v4.md) 为准（它在 [kernel-v3.md](kernel-v3.md) 上改；后面的 v2.2 一节仅作历史对照）。只有 `meta.v == 4` 的书才由 `dr_model::v3`／`dr_doc::v3` 打开（模块名里的 `v3` 是历史名字，见 kernel-v4.md 第 4 节）；旧书不原地改写或删除，应用显式拒开。`book:<书 id>` 的创世使用创世版本 `4`；正文、素材笔记和对话继续用原有结构与创世版本 `2`，样式表不变。
+`next/` 当前唯一运行的书目结构，方案以 [kernel-v5.md](kernel-v5.md) 为准（在 [kernel-v4.md](kernel-v4.md) 之上演进；下文保留 v2.2 一节作为历史对照）。只有 `meta.v == 5` 的书才由 `dr_model::v3`／`dr_doc::v3` 打开（`BOOK-FORMAT-5-ONLY`；模块名里的 `v3` 是历史名字）；格式 4 及更早的书不原地改写或删除，应用显式拒开。`book:<书 id>` 的创世使用创世版本 `5`；正文和对话继续用创世版本 `2`，书旁边的三篇小文档用创世版本 `1`。
+
+### v4 → v5
+
+1. **创世与版本门禁**：`book:<书>` 创世版本升为 `5`，`meta.v = 5`；内置锁定关系类型 `system:generic-association:<书>` 的允许端点更新为 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`。写作日只在项目开着成书（`project.book` 非空）时记录。
+2. **项目定义根 `project`**：取代散落在 `meta` 里的模板来源与全书目标，集中保存：
+   - `source`：`{id, version}`（内置「写书」模板为 `builtin:novel` 版本 `3`）；
+   - `agent`（子映射 `{name, description, instructions}`）：整本项目的帮手说明（从原「书稿」条目模板挪入）；
+   - `book`（可选子映射，关闭成书时为空）：`root`（成书起点：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, entry}` 四种）、`word_target`、`daily_word_target`。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；成书序列与整书视图共用同一套遍历规则（条目与根先序遍历并带挂名且每条目只收一次；视图与泳道沿刻度排）；
+   - `tabs`（id → `{name, pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。
+3. **视图刻度接管顺序**：`timeline_views`（视图）的刻度是泳道在视图内期间唯一的顺序权威。条目挂进泳道或直接住进作为泳道的层级时，自动落在包含该泳道的各活视图刻度末尾（已有最后一格右端 `+ 1.0`，空视图为 `0.0`，见 `timeline_scale_end`）；条目（开着「层级」或「收别处的条目」）第一次加入某视图作泳道时，其直接子条目（手动先后）与挂名成员（按 `memberships.pos`）依次自动落位。在视图内期间不读不写 `memberships.pos` 或文件夹手动先后；当泳道离开它所在的**最后一个**活视图（移出泳道或删除视图）时，将该视图刻度上的先后一次性写回 `memberships.pos` 与直接子条目的手动先后，同一次提交、一步撤销。
+4. **批注与待办合并**：`comments` 去掉 `kind`（批注与待办合一）；`origin` 区分 `manual`、`marker`（正文 `TODO:`）、`task`（正文任务清单项）、`agent`、`reader`；`target_kind` 为 `entry` 或 `asset`：
+   - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处（正文锚点与块快照直接存在批注字段上）：字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`{kind: "kv_row", row}`）、情节规划格（`{kind: "plot_cell", row, col}`）、补丁（`{kind: "patch", patch}`）、媒体项（`{kind: "media", item, region?}`）、正文嵌入（`{kind: "embed", embed, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
+   - 目标直接为素材库文件（`target_kind = "asset"`）时，不带条目和模块，`part` 可为 `{kind: "region", region}`（`region` 为 `{page?, x, y, w, h}`）框选图片或 PDF 页上的一块。
+5. **媒体模块、正文文件嵌入与内置素材库**：
+   - 模板模块种类新增 `media`（条目节点 meta 下 `media:<模块 id>` 存 `{id, asset, caption, pos}`）和纯展示的 `members`（挂在这里的条目，不另存容器）；
+   - 正文只有一种格式档，所有正文支持列表、任务、代码块、提示框、高亮、行内代码、表格与文件嵌入（`embeds` 中 `kind = "asset", asset = <资源 id>`）；
+   - 退役 `materials`、`material_folders`、`material:<id>` 文档及全部 `material.*`／`material_folder.*` 命令；「写书」项目模板不再建「素材」根层级；
+   - `assets` 即项目内置素材库清单：每条记录含 `kind`、`mime`、`size`、`sha256`、`width`、`height`、`name`、`created_at`、`folder`（导入保留的原素材夹路径）、`deleted_at`。未被引用的文件保留在素材库中，不再自动清理（`ASSET-LIBRARY-KEEPS-UNREFERENCED`）；删除进最近删除（引用处读作占位），彻底清除（`asset.purge`）才删底层字节。关系端点支持 `asset`。
+6. **条目记号与画布坐标外移**：条目新增可选 `mark`（砂笔图标名或单个字符，覆盖模板 `mark`），模板 `mark` 同样放开；条目上的 `layout` 字段移除，看板、岛屿、关系图等自由摆放坐标迁入第三篇小文档 `layout:<书 id>`，拖动画布不再改动书目文档版本。
+7. **「层级」与「收别处的条目」拆开**：
+   - `Entry.level` 只管下面能不能**住**子条目；`accept`（「收别处的条目」）和 `home`（「新条目住在」）只读条目自己的 `overrides` 与自身模板的 `settings`，不沿树继承，也不要求 `level` 打开；去掉 `lane` 设置（任何开着 `level` 或 `accept` 的活条目都能放进视图当泳道）；其余「下面」的设置（`default_template`、`display`、`auto_link`、`format_shortcuts`）照旧沿祖先继承；
+   - **自动链接只看住处**：`is_autolinked` 与 `AutolinkNames` 只检查条目住处所在的有效父链是否解析出 `auto_link = true`，不再看挂名；挂名增删不触发名字冲突检查或正文重扫；
+   - **关掉层级开关（`entry.set_level(false)`）**：住在下面的活子孙条目在同一次提交里标记 `deleted_at` 进最近删除，留在原父节点下不搬家，一步撤销全恢复；挂在它上面的记录和它在视图里的泳道身份保持有效。单独恢复（`entry.restore`）时若原父节点已不能住，自动落到往上最近一个开着层级的祖先（没有则落到根）。
 
 ### 根容器与身份
 
-| 根容器 | 类型 | v3 内容 |
+| 根容器 | 类型 | 格式 5 内容 |
 | --- | --- | --- |
-| `meta` | LoroMap | 书名、梗概、目标等共用元数据；`v = 4`、`book`；`project_template = {id, version}` 只记录来源 |
-| `entries` | LoroTree | 一个条目树；节点 meta 有 `id`、`title`、`template`、`level`（开关，缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`primary`、`layout`、时间戳；兄弟顺序即文稿顺序 |
-| `templates` | LoroMap | 模板 id → 模板：`name`、`mark`、`color`、`agent`、`modules`、`level`（新条目开关的默认值，缺键读作关）、`linkable`（缺键读作开）、`settings`（「下面」的设置，含 `lane`）、`verbs`、`deleted_at`；没有 `kind`、`allow`，`lane` 不在模板顶层 |
-| `memberships` | LoroMap | `<层级 id>\|<条目 id>` → `{host, member, pos, created_at}`；归属不改变住处 |
-| `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；三个子表分别按泳道条目 id、条目 id、时间钉 id 寻址；`lanes[<泳道条目 id>]` 含 `{pos, act_track?}` |
-| `patches` | LoroMap | 补丁 id → `{entry, module, source_entry, source_module, source_block, source_text, anchor, invalidated_at, title, body, pos}`；`body` 仍是可合并文本 |
-| `plot_grids` | LoroMap | `<条目 id>/<模块 id>` → 行、列、格子和尺寸；内容格式沿用 v2.2 |
-| `relation_types` | LoroMap | 共用关系类型字段，另有 `source_templates`／`target_templates`；端点种类为 entry／material／comment／patch |
-| `relations` | LoroMap | 共用关系表；关联模块是按条目筛选的投影，不再复制一套关系数据 |
-| `comments` | LoroMap | 共用批注／待办字段；目标为条目时可带 `module`，块与锚点继续定位其正文 |
-| `materials`、`assets`、`facts`、`memory` | LoroMap | 沿用既有含义，素材、批注、待办不放进条目树 |
-| `material_folders` | LoroTree | 素材目录，沿用既有结构 |
+| `meta` | LoroMap | 书名、梗概、创建时间、删除时间等元数据；`v = 5`、`book` |
+| `project` | LoroMap | 项目定义：`source`（`{id, version}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{name, pos, mount}`） |
+| `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`primary`、时间戳；没有 `layout` |
+| `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
+| `memberships` | LoroMap | `<宿主条目 id>\|<成员条目 id>` → `{host, member, pos, created_at}`；宿主只要求活着且 `accept` 为真；宿主不在任何活视图里时按 `pos` 排 |
+| `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；泳道条目须活着且 `level \|\| accept`，在视图内期间刻度 `placements` 是成员与直接子条目的唯一顺序权威 |
+| `patches` | LoroMap | 补丁 id → `{entry, module, source_entry, source_module, source_block, source_text, anchor, invalidated_at, title, body, pos}` |
+| `plot_grids` | LoroMap | `<条目 id>/<模块 id>` → 行、列、格子和尺寸 |
+| `relation_types` | LoroMap | 关系类型定义，另有 `source_templates`／`target_templates`；端点种类为 `entry`／`asset`／`comment`／`patch` |
+| `relations` | LoroMap | 共用关系表；关联模块按条目投影 |
+| `comments` | LoroMap | 统一批注（无 `kind`）：`origin`、`target_kind`（`entry`／`asset`）、`target`、`module?`、`part?`、作者、正文（LoroText）、状态、优先级、`agent_conversation?`、投影字段与时间戳 |
+| `assets` | LoroMap | 内置素材库文件清单：`kind`、`mime`、`size`、`sha256`、`width?`、`height?`、`name`、`created_at`、`folder?`、`deleted_at?` |
+| `facts`、`memory` | LoroMap | 项目设定与帮手记忆，沿用既有结构 |
 
-没有 `nodes`、`acts`、`storylines`、`elements`、`categories`、`drift_groups`、全书 `time_pins` 这些 v2.2 根；旧文档保留原根，不双写。条目 `layout` 保存看板、网格和关系图位置；时间线位置只在指定视图的 `placements` 中。
+没有 `materials`、`material_folders`（格式 5 退役），也没有 `nodes`、`acts`、`storylines`、`elements`、`categories`、`drift_groups`、全书 `time_pins` 这些 v2.2 根。
 
-**文档 id 是全库主键，不能只在书内唯一。** 默认小说模板每次应用都生成新的条目 id，返回实际根 id 给调用方；模板 id 与模块 id 可以在不同书里相同。找书稿等根用模板身份，不依赖名称或固定的根 id。
+**文档 id 是全库主键，不能只在书内唯一。** 内置「写书」项目模板每次建书都生成新的条目 id 与视图 id；找根与起始条目通过 `project` 定义或模板结构，不依赖固定条目 id。
 
-| 正文用途 | id |
+| 正文与对话用途 | id |
 | --- | --- |
 | 条目的一个正文模块 | `body:<条目 id>/<模块 id>` |
 | 模板的正文初值 | `template:<书 id>/<模板 id>/<模块 id>` |
-| 素材笔记／对话 | `material:<素材 id>`／`conversation:<对话 id>`，沿用原约定 |
+| Agent 对话 | `conversation:<对话 id>` |
 
-`owns_prose` 认条目是否还存在、模板是否还属于本书，不因切换模板而丢掉旧模块。彻底删除书时以存储中该书的实际文档清单为准，包含模板、保留内容、素材和对话；不能从当前模板反推删除清单。种子可以按书 id 确定生成条目 id，以便复现；真实新建使用 UUIDv7。
+`owns_prose` 认条目是否还存在、模板是否还属于本书，不因切换模板而丢掉旧模块。彻底删除书时以存储中该书的实际文档清单为准，包含三篇小文档、模板正文、保留内容、对话与全部资源字节。
 
-### 开关、模板和模块
+## 书旁边的三篇文档（书目格式 4 / 5 起）
 
-只有一种条目。条目自己的 `level` 决定下面能不能放条目；模板的 `level` 只是新建时的默认值，之后改模板不影响已有条目。任何模板都可以拼装正文、字段、键值表、补丁、情节规划、关联、「下面的条目」（`children`）七种模块。`modules` 按模块 id 寻址，`pos` 排序；正文可以有多篇且同名，调用始终用稳定 id；正文模块的配置有 `in_book`（缺省开：进成书、导出和全书字数）。字段值写在 `fields.<模块 id>.<字段 id>`，键值行写在 `kv:<模块 id>`。模板的键值初值及正文初值只在新建时复制，正文块与嵌入换新 id，不随模板后续编辑覆盖作者内容。
+写作日、条目快照点清单（格式 4 起，[kernel-v4.md](kernel-v4.md) §8）和自由摆放画布坐标（格式 5 起，[kernel-v5.md](kernel-v5.md) §8）不在书目文档里，各在一篇自己的小文档。记一次写作日、存或修剪快照点、在看板／岛屿／关系图上拖卡片，书目文档的版本不变，也没有 `WsEvent::Book`。
 
-「下面」的设置依次从根默认值、开着开关的祖先的模板／覆盖、当前模板／覆盖解析；`lane` 只看条目自己的覆盖和模板，不往下继承。覆盖中的缺键表示继承，`default_template`／`home` 的显式 `null` 表示清空。泳道一定接收归属。新建时从所选层级取默认模板与 `home`：住处可落到别的层级，同时给所选层级增加归属，在一个书目提交中完成。只有开着开关的条目下面能住条目，成书层级不能嵌套，参与自动链接的条目（模板 `linkable`，且住处或归属的层级开着自动链接）标题与别名不能冲突；命令层只拒绝这次写入新造成的违规。
+| | `stats:<书 id>` | `checkpoints:<书 id>` | `layout:<书 id>`（格式 5 起） |
+| --- | --- | --- | --- |
+| 根容器 | `meta`（`v = 1`、`doc`），`writing_days` 映射 | `meta`（`v = 1`、`doc`），`entry_checkpoints` 映射 | `meta`（`v = 1`、`doc`），`positions` 映射 |
+| 内容 | `"<设备>\|<日期>"` → 字数；项目开着成书时才记；各设备只写自己的键，负数记成 0，坏键坏值跳过 | 快照点 id → 不可覆写的格式 1 JSON 清单：书／条目身份、毫秒时间、来源、书 frontier、全部登记正文 frontier、内容指纹与校验和；修剪删键。详见 [M09](modules/m09-history.md) | `positions[<范围>/<模式>][<条目 id>] = {x, y}`（如 `<层级 id>/board`、`<层级 id>/island`、`relations/graph`）；非有限数拒写、坏值跳过 |
+| 事件 | `WsEvent::Stats` | `WsEvent::Checkpoints` | `WsEvent::Layout` |
+| 是不是正文 | 不是：没有编辑配置，不计字数、不搜索、不导出、不投批注 | 同左 | 同左 |
+| 属于谁 | id 里的那本书；登记在书名下，导出书文件、彻底删除都带上 | 同左 | 同左 |
 
-换模板只换定义引用，不动开关，原字段、键值、补丁、格子和正文保留；换回后重新可用。关开关（`entry.set_level`）把直接子条目（含回收站里的）各带子树挪到顶层祖先后面，一次提交；设置、归属、泳道身份留着，再开就回来。删模板先检查使用者。合并后不满足约束时依 `dr_model::v3` 的有效读取规则显示／忽略，不偷偷改原数据：开关关着的条目下的子条目提升到最近的层级，存在开关关着的条目上的设置和归属读作没有，已删模板按无模板读取，成书只认最外层，名字冲突标出。
-
-每种模块必须说明的六项边界（存储、帮手读写、搜索与字数、导出、Markdown、撤销）见 [kernel-v3.md 的模块表](kernel-v3.md#模块)。数据结构和命令可用不等于对应界面、导出、Markdown 或帮手已接回；这些适配按 K4–K6 后续完成。模板正文不是书稿，不进正文搜索、字数、成书导出。
-
-### 归属与时间线
-
-一个条目只有一个树上住处，可以归属多个接收层级；`primary` 必须是有效归属。视图的泳道引用开着开关、解析后 `lane` 为真的条目，泳道顺序独立于树；`lanes[<泳道条目 id>]` 的可选布尔字段 `act_track` 标记该泳道在当前视图顶部作为幕轨道按区间长度展示（缺省为普通泳道，每个时间线视图可有零到多条，新书默认没有）。树上住在泳道下不自动构成时间线归属。位置按条目保存，同一视图中多个泳道共用一个位置，不同视图互不影响；拿出最后一个有效泳道时连同该视图的位置清除，共享泳道影响的所有视图一起处理。时间钉有 `at`、`label`、`color` 和可选条目引用，不是内置幕；删除视图不删除泳道条目。
-
-## 书旁边的两篇文档（书目格式 4 起）
-
-写作日和条目快照点清单不在书目文档里，各在一篇自己的小文档（[kernel-v4.md](kernel-v4.md) §8）。记一次写作日、存或修剪一个快照点，书目文档的版本不变，也没有书目事件。
-
-| | `stats:<书 id>` | `checkpoints:<书 id>` |
-| --- | --- | --- |
-| 根容器 | `meta`（`v = 1`、`doc`），`writing_days` 映射 | `meta`（`v = 1`、`doc`），`entry_checkpoints` 映射 |
-| 内容 | `"<设备>\|<日期>"` → 字数；各设备只写自己的键，负数记成 0，读取时坏键、坏值跳过 | 快照点 id → 不可覆写的格式 1 JSON 清单：书／条目身份、毫秒时间、来源、书 frontier、全部登记正文 frontier、内容指纹与校验和；修剪删键。详见 [M09](modules/m09-history.md) |
-| 是不是正文 | 不是：没有编辑配置，不计字数、不搜索、不导出、不投待办 | 同左 |
-| 属于谁 | id 里的那本书；登记在书名下，导出书文件、彻底删除都带上 | 同左 |
-
-- 创世确定（创世版本 `1`），建书、导入、样书、种子都同时建这两篇，两台设备各建一篇合并后是同一篇。
+- 创世确定（创世版本 `1`），建书、导入、样书、种子都同时建这三篇，两台设备各建一篇合并后是同一篇。
 - 存快照点和恢复是一个原子事务：书目和条目的各篇正文、加上 `checkpoints:<书>` 一起预留；存点时书目只读，清单写进清单文档。
-- 两篇都不参加写入守卫，也不做导入校验（读的一方本来就容错）。
+- 三篇都不参加书目写入守卫，也不做导入校验（读的一方本来就容错）。
 
 ## 书目文档（v2.2）
 
@@ -405,7 +417,7 @@ v2.1 起，设备自己投出的待办写成种子变更（`BookTxn::project_tod
 
 v3 条目树、模块保留、归属、时间线和全库文档 id 的约束见 [kernel-v3.md 的不变量](kernel-v3.md#不变量)及上方 v3 书目一节；以下保留共用及 v2.2 的摘要。
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 第一段后 79 条，第二段（只有一种条目）后 83 条，加 3 条界面和 Agent 做法不一样、已由 F3 统一的）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |

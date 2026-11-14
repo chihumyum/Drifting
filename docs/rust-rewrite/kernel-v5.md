@@ -576,3 +576,125 @@
 19. 对「没开成书的项目，卡片上显示什么」：「你定吧。笔记数量、最近修改情况之类的都行。」
 
 2026-11-13，会话「Rust 迁移和 Entity v4 审查」转来一份外部架构审查的核对结论。和这页重叠的几处（素材并成条目、成书设置的继承、画布坐标存在书里、故事线页的批注入口）已经对过，结论并在上面各节里。
+
+## 17. 数据层交回：留给各路的缺口
+
+D（`d-data-layer`）交回时写（2026-11-15）。格式 5 的数据层（`dr-model`、`dr-doc`、`dr-store`、`dr-index`、`dr-workspace`、`dr-testkit`）以及保证种子、样书、0.1 导入映射正确的 `dr-import-v1`、`dr-samples` 到此定下；界面、帮手、导出、书文件只做了「能编译、测试能过」的最小桥接改动。下面先列定下来的接口名字，再按 [handoff/v5-tracks.md](handoff/v5-tracks.md) 的 T1–T8 逐处列出最小改动与待完成的缺口。
+
+### 最终的接口名字
+
+**`dr_model`（领域类型与不变量）**
+
+- 版本与文档种类：`v3::BOOK_FORMAT_VERSION = 5`（创世版本 `5`，`BOOK-FORMAT-5-ONLY`）；`DocId::Layout(BookId)`（`layout:<书 id>`，创世版本 `1`）；`DocId::Material` 与 `DocKind::Material` 退役；`ProseProfile` 只保留单一格式档 `ProseProfile::Prose`；正文嵌入为 `ProseEmbed::Asset { asset: AssetId }`（`kind = "asset"`）；正文链接 `v3::EntityLinkV3` 只指向 `EntryId`。
+- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种。
+- 拆开的两个开关与设置（`dr_model::v3`）：
+  - `Entry { level: bool, mark: Option<String>, media: BTreeMap<ModuleId, Vec<MediaItem>>, … }`（没有 `layout`）；`is_valid_mark(s)` 校验砂笔图标名或单个字符；
+  - `LevelSettings` 与 `LevelSettingsOverride` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts` 共 6 项（`LEVEL_SETTING_KEYS` = 6，去掉 `is_manuscript` 和 `lane`）；
+  - `Entry::is_level()` 管能不能住子条目；`Entry::accepts_members(templates)` 与 `Entry::own_home(templates)` 只读条目自己的覆盖和自身模板，不沿树继承、不看 `level`；`Entry::has_below(templates)` 为 `level || accepts_members`；`resolve_level_settings` 对开着 `level` 或 `accept` 的条目均解析其余继承项；
+  - `ModuleKind::Media`（`"media"`）、`ModuleKind::Members`（`"members"`，纯展示模块，不另存容器）；字段定义 `FieldDef.id` 使用强类型 `FieldId`（序列化透明）。
+- 视图刻度与泳道顺序（`dr_model::v3`）：`check_timeline_lane` 只要求条目活着且 `has_below`；`effective_timeline_placements(view, memberships, entries, templates)` 收集泳道上的直接子条目（`level` 开时）与有效挂名成员（`accept` 开时，每条目去重）；`lane_page_order(lane_id, views, memberships, entries, templates, preferred_view)` 统一给出泳道／在视图内文件夹的读取顺序；`timeline_scale_end` 计算末尾自动落位刻度；`entry_color(entry, entries, templates, memberships, views)` 在条目无自身颜色时仅从已在活视图中作泳道的主归属取色。
+- 自动链接（`dr_model::v3`）：`is_autolinked(entry, entries, templates)` 与 `AutolinkNames::of(entries, templates)` 只看住处父链是否解析出 `auto_link = true`，不再读 `memberships`。已核对内置「写书」项目模板、0.1 导入、样书与 `dr_testkit::seed` 四档种子：所有开 `auto_link` 的层级均为「要素」及下面各分类／子分组，要素一律直接住在分类或分类子分组下，故事线 `auto_link = false`，**没有任何条目只靠挂名才被自动链接**。
+- 统一批注与内置素材库（`dr_model::v3`、`dr_model::shared`）：
+  - `CommentV3` 无 `kind`；`origin: CommentOrigin`（`Manual | Marker | Task | Agent | Reader | Other`）；`target: Option<EntityRef>`（`EntityKind::Entry` 或 `EntityKind::Asset`），`target_module: Option<ModuleId>`（任意模块），`part: Option<CommentPart>`（`Field { field: FieldId }`、`KvRow`、`PlotCell`、`Patch`、`Media`、`Embed`、`Region { region }`），`target_missing: bool`；
+  - `Asset` 含 `id`、`kind`、`mime`、`size`、`sha256`、`width`、`height`、`name`、`created_at`、`folder`、`deleted_at` 及 `is_trashed()`；`EntityKind::Asset`（`"asset"`）可用于批注目标和关系端点；活动契约共 87 条（含 `ASSET-LIBRARY-KEEPS-UNREFERENCED`）。
+
+**`dr_doc`（文档读写）**
+
+- `dr_doc::v3::book_genesis(book_id)` 写创世版本 `5`（`meta.v = 5`）；`dr_doc::side::{LayoutDoc, BorrowedLayout, LayoutView, layout_genesis}` 读写 `layout:<书 id>` 的 `positions[<scope>/<mode>][<entry>] = (x, y)`。
+- `BookStructureV3`：`project()`、`is_valid_book_root(&BookRoot)`、`is_valid_tab_mount(&TabMount)`、`book_sequence() -> Vec<FlatEntry>`、`book_prose_docs() -> Vec<DocId>`、`flatten(from, Flatten)`、`flatten_view(view_id, Flatten)`、`flatten_lane(view_id, lane_id, Flatten)`、`children_of(parent)`（父文件夹在活视图中作泳道时自动按刻度顺序返回，优先采用 `project.book.root` 指定的视图）。
+- `BookTxnV3`：`project()`（`source`、`agent`、`book`、`book_root`、`book_word_target`、`book_daily_word_target`、`put_tab`、`remove_tab`）；`switch_level_off(id, deleted_at) -> Vec<EntryId>`（将下面所有活子孙原地标 `deleted_at`，不挪父节点）；`restore_entry(id)`（原父节点不可住时落到最近开着 `level` 的祖先或根）；`EntryWriterV3::{mark, put_media, remove_media}`；`put_asset`／`asset(id)`（支持 `name`、`created_at`、`folder`、`deleted_at`）；`novel::apply_novel_project_template`（内置「写书」模板 `NOVEL_PROJECT_TEMPLATE_ID = "builtin:novel"`，版本 `3`：无「素材」根层级，故事线默认 `level = false, accept = true`）。
+
+**`dr-workspace`（命令、DTO 与事件）**
+
+- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { agent?, has_book?, root?, word_target?, daily_word_target? }`、`book.sequence`；`tab.put`（新建或改名／改挂载）、`tab.move`、`tab.remove`。
+- 条目、归属与视图：`entry.create` 区分 `parent`（住进）与 `host`（挂到，按第 16 节落住处并挂名），支持 `mark`；`entry.update` 支持 `mark`；`entry.set_level` 关层级时输出 `trashed` 列表且一步撤销恢复；`entry.move` 带 `index` 移入视图中的文件夹时同步落到对应刻度位置；`entry.get` 与 `entry.list { below: true }` 在 `level` 开时给 `below.children`、在 `accept` 开时给 `below.members`；`membership.add/remove/primary` 与 `timeline_view.add_lane/remove_lane/move_lane/delete` 自动维护入视图末尾落位与出最后一个活视图时的 `pos`／手动先后写回。
+- 媒体模块、正文嵌入与素材库：`module.put_media`（新增、改说明或调先后）、`module.remove_media`；`ProseTxn::insert_embed(ProseEmbed::Asset { asset })`（`prose.shape` 返回 `missing_embeds`）；`asset.put`、`asset.rename`、`asset.trash`、`asset.restore`、`asset.purge`、`asset.get`、`asset.list`（每项带实时 `usages`：`Media`、`Embed`、`Relation`）；`material.*` 与 `material_folder.*` 全部退役并由 `xtask check` 的 `cutover` 门禁拦截。
+- 统一批注与画布坐标：`comment.create`、`comment.update`（改内容、状态、优先级或绑定 `agent_conversation`）、`comment.delete`、`comment.list`、`comment.anchors`、`comment.reanchor`、`comment.project`；`layout.get`、`layout.put`、`layout.clear`，变更发 `WsEvent::Layout(LayoutChanged)`；`stats.record_writing_day` 在 `project.book` 未开启时静默跳过。
+
+### T1 外壳：左栏 Tab 与条目记号（`t1-shell`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-shell/src/book/v3.rs` | `BookV3` 快照加了 `project`、`layouts`（从 `layout:<书>` 解析）、`accepts_members(id)`、`has_below(id)`、`is_lane(id)`（查是否在任一活视图的 `lanes` 中）、`is_book_root_entry(id)`；`appearance(id)` 优先读 `entry.mark` 再退回模板 `mark`；`levels` 覆盖所有 `has_below` 的活条目；`materials` 临时从条目媒体模块投影以兼容未迁完的旧调用方 | 左栏从 `project.tabs` 驱动（根、层级、视图、成书序列四种挂载及增删改名调序与失效空态）；左栏树支持展开只开 `accept` 的条目看挂名成员；清理过渡期的 `materials` 投影 | `project.get`、`tab.*`、`BookV3::{project, has_below, accepts_members}` |
+| `dr-shell/src/workspace/mod.rs`、`sidebar.rs`、`links.rs`、`recent.rs`、`nav/mod.rs` | 订阅 `WsEvent::Layout` 刷新画布坐标；退役 `material:` 文档地址与路由；侧栏／最近访问适配 `has_below` 与去 `lane`（单字 `mark` 目前仍走砂笔图标回退占位） | 同一个条目（带不带模块）只开一个标签页；故事线／泳道页里的说明正文按 `(entry, module)` 收编进外壳（查找、字数、批注）；页头收成一处「可点选砂笔／单字记号 + 可编辑标题」（区分砂笔名与单字直接画文字） | `entry.update { title, mark }`、`is_valid_mark` |
+| `dr-shell/src/v3/level_switch.rs` | 适配 `entry.set_level` 返回 `trashed` 以及去 `lane` 后的状态读取 | 关层级确认框统一收成一种（「下面的 N 个条目会放进最近删除。」，N 数下面全部活条目），删掉 v4 为挂名／泳道拆分的旧分支和文案键 | `entry.set_level` |
+| `dr-view-page/src/v3.rs` | 编译适配：识别 `ModuleKind::Media` 与 `ModuleKind::Members` 分支占位、去 `lane` 设置字段 | 页头合并可编辑标题与记号选择器；「层级」和「收别处的条目」两个开关并排（「新条目住在」跟后者，层级关着时隐藏「自动链接」）；条目页分块渲染「下面的条目」（调 `parent`）和「挂在这里的条目」（调 `host`，既住又挂只列一次） | `entry.set_level`、`entry.update`、`entry.create { parent / host }`、`ModuleKind::Members` |
+| `dr-view-templates/src/view.rs`、`view/levels.rs`、`preview.rs` | 模块选择器补 `media`/`members` 编译分支；去掉 `settings.lane` 读写 | 模板记号放开砂笔库与单字；「收别处的条目」从「下面」设置挪出与默认「层级」开关并排，去掉泳道开关 | `entry_template.put`、`ModuleKind::{Media, Members}` |
+| `dr-view-elements/src/panel.rs`、`category.rs`、`dialogs.rs`、`data.rs`、`fields/v3.rs` | 去掉 `lane` 设置；看板／岛屿坐标改读写 `layout.put`／`BookV3::layout_position`；字段定义读取适配 `FieldId` | 层级列表改成「先画树，再按树顺序把树外挂着树内条目的宿主各列一组」，去掉「全书顺序／按故事线」切换与「未归属」组；核对在视图内的文件夹拖动传 `index` 落到刻度 | `entry.move { index }`、`BookV3::has_below` |
+| `dr-cli/scenarios/k4-*.json`、`k5-level.json` | 最小更新退役的 `lane`／`is_manuscript` 字段名以过门禁 | 按新左栏 Tab、双开关与模板编辑器更新真窗口场景 | — |
+
+### T2 项目主页里的项目模板（`t2-project`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-home/src/v3.rs`、`v3_settings.rs` | 字数目标改从 `project.book` 读、写走 `project.update`；新建条目适配 `parent`/`host` 与 `mark: None` | 项目主页新增「项目模板」区块：成书总开关、四种成书起点选择器（根／开着层级或收别处条目的条目／视图／视图里的泳道，失效时提示重选）、成书开启时才显示全书与每日字数目标、整本项目的帮手说明编辑 | `project.get`、`project.update`、`BookV3::project` |
+| `dr-view-shelf/src/projects.rs`、`view.rs` | 新建项目走 `project.create`（默认内置 `"builtin:novel"` 模板）；适配 `WsEvent::Layout` 不触发书架重读 | 新建项目入口接项目模板（配合 T3 处理未开成书项目的卡片展示） | `project.create` |
+
+### T3 成书的消费方（`t3-book`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-export/src/v3.rs` | `outline` 改读 `structure.book_sequence()`（单序列，删掉按多个 `ManuscriptPart` 切分的旧逻辑）；正文嵌入分支适配 `ProseEmbed::Asset`（暂未打包图片字节） | 成书正文里嵌的图片在 EPUB、DOCX、PDF 三种格式中一并导出；嵌的 PDF 导出为一行文件名；项目未开成书时隐藏导出成书入口 | `BookStructureV3::book_sequence`、`ProseEmbed::Asset`、`asset.get` |
+| `dr-view-export`（仅删旧多部分测试） | 导出对话框单成书序列最小适配 | 去掉「选哪一处成书」选择器；未开成书时禁入或隐藏 | `BookV3::project` |
+| `dr-view-stats/src/v3.rs` | 全书字数与章节数改读 `structure.book_sequence()`；项目未开成书时成书字数读作 0 | 项目未开成书时隐藏全书／每日字数目标、统计面板字数与写作热力图中的该项目格子 | `BookStructureV3::book_sequence`、`project.book` |
+| `dr-view-shelf-art`、`dr-view-shelf`、`dr-workspace/src/commands/book.rs` | `book.shelf` 从 `book_sequence()` 算字数，故事线数按在活视图中的泳道计 | 项目未开成书时，项目卡片不显示字数和热力图，改显示条目数与最近修改时间，悬停展开列最近改过的条目 | `book.shelf`、`recent.list` |
+| `dr-view-page`（页眉编号） | 章节编号从 `BookV3::manuscript_number`（来自 `book_sequence()`）读取 | 项目未开成书时不显示章节编号 | `BookV3::manuscript_number` |
+
+### T4 视图的刻度当权威（`t4-views`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-timeline/src/v3/mod.rs`、`model.rs`、`render.rs`、`write.rs` | 泳道判定改用 `has_below`（`level \|\| accept`），去掉 `lane` 设置读取；`create_entry_in_lane` 在泳道开 `accept` 时传 `host`、只开 `level` 时传 `parent` | 支持把已有层级拖进视图当泳道；新建泳道可选默认开 `level` 或 `accept` 的模板；泳道同时展示直接子条目与挂名成员（去重）；视图和泳道提供「设为成书起点」入口；界面文案不再把刻度叫作时间 | `timeline_view.add_lane`、`effective_timeline_placements`、`project.update { root }` |
+| `dr-view-elements`（泳道页） | 仍沿用现有列表装配 | 泳道页的「下面的条目」和「挂在这里的条目」统一按视图刻度顺序（`lane_page_order`）展示 | `lane_page_order`、`entry.get` |
+| `dr-editor/src/v3.rs` | `manuscript_docs` 改读 `structure.book_sequence()` | 整书视图支持从任意视图（`flatten_view`）或视图内泳道（`flatten_lane`）打开，沿刻度阅读 | `BookStructureV3::{flatten, flatten_view, flatten_lane}` |
+
+### T5 文件（`t5-files`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-material/src/*`、`dr-cli/scenarios/material-actions.json` | 拆掉全部 `material.*`／`material_folder.*` 调用以通过编译与 `cutover` 门禁：`import.rs` 暂改为调 `asset.put`，其余面板／菜单保留空态或基于媒体模块投影的最小只读桩 | 右栏改造成项目内置素材库面板：展示 `asset.list` 全部图片与 PDF、每项列出全部引用去处（媒体模块、正文嵌入、关系）并支持点击跳转、「当前」筛本页关联文件；支持直接导入文件、改名、移入最近删除、恢复与彻底清除 | `asset.{put, rename, trash, restore, purge, get, list}` |
+| `dr-editor/src/assist.rs`、`embeds.rs`、`decor/mod.rs`、`link_card.rs`、`material.rs`、`v3_link.rs`、`view.rs` | 正文嵌入类型从 `Material` 切到 `ProseEmbed::Asset { asset }`；去掉指向素材的 `EntityLinkV3` 分支；全正文开放统一 `ProseProfile::Prose` | 任意正文支持通过斜杠菜单、拖放、粘贴插入图片与 PDF（编辑会话插入 `ProseEmbed::Asset`）；文件在最近删除中时渲染占位并在恢复后复原 | `ProseEmbed::Asset`、`ProseShapeOut::missing_embeds`、`asset.get` |
+| `dr-view-page`（新文件） | `v3.rs` 仅留 `ModuleKind::Media` 空分支 | 条目页实现媒体模块组件：拖入／选择文件（同时进素材库）、移除、拖拽调序、编辑说明文字、复用图片／PDF 查看器 | `module.{put_media, remove_media}`、`asset.put` |
+| `dr-view-shelf-review/src/drawer.rs`、`model.rs`、`shelf.rs`、`view.rs` | 去掉 `material.*` 调用，保留最小可编译数据源 | 全书「审阅与素材」舞台的素材一侧对接内置素材库 `asset.list` 与引用跳转 | `asset.list` |
+
+### T6 审阅（`t6-review`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-view-review/src/panel.rs`、`composer.rs`、`v3.rs`、`scenarios/*.json` | 适配去掉 `CommentKind` 后的 `comment.*` DTO（`origin`、`module`、`part`、`target_missing`），保留单列表编译桥接 | 审阅栏合并为单一列表，按状态与 `origin` 筛选（清单项 `task` 默认收成一组），去掉批注／待办切换与「转成待办」；支持跳回各模块子处与素材库文件，原处缺失标「找不到原处」；每张卡常驻「交给帮手」（`comment.update` 写 `agent_conversation`） | `comment.{create, update, delete, list, anchors, reanchor}`、`CommentPart` |
+| `dr-editor`（批注画层与标记投射） | 投射命令改调 `comment.project`（写 `origin = marker \| task`） | 核对正文嵌文件上的批注锚定与跳转 | `comment.project`、`CommentPart::Embed` |
+| `dr-view-page`、`dr-view-plot`、`dr-view-material`、`dr-view-shelf-review` | 测试与参数适配无 `kind` 的批注 DTO 和 `EntityKind::Asset` 区域批注 | 字段（按 `FieldId`）、键值行、情节规划格、补丁、媒体项、正文嵌入、素材库图片／PDF 框选区域的批注入口；全书审阅视图两栏并一栏 | `CommentPart::{Field, KvRow, PlotCell, Patch, Media, Embed, Region}` |
+
+### T7 帮手工具与 MCP（`t7-agent`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-agent-tools/src/catalog.rs`、`executor.rs`、`prose.rs`、`records.rs`、`resolve.rs`、`resolve_v3.rs`、`checkpoint_selection_tests.rs` | 随工作区注册表更新工具目录快照（移除 `material.*`，加入 `project.*`、`tab.*`、`layout.*`、`module.*_media`、`asset.*` 等）；动作绑定适配 `accept` 不看 `level` | 检查新写命令（媒体模块、字段／子处批注、素材库、Tab、项目定义）的写前快照与守卫记账；`entry.set_level(false)` 写前快照覆盖全部跟着进最近删除的子孙条目；动作绑定区分「住进」与「挂到」 | `BookStructureV3`、`entry_snapshot`、`entry.create { parent / host }` |
+| `dr-agent-tools/src/structure.rs` | 去掉 `lane`、`is_manuscript` 和素材统计，编译适配格式 5 | 结构说明加入 `project`（帮手说明、成书开关与起点、左栏 Tab），版本号改用 `BOOK_FORMAT_VERSION`（顺带改 `dr-debug-bridge/src/methods.rs` 里写死的 `"version": 3`），层级多时只给按模板计数以控制重型种子体积 | `BOOK_FORMAT_VERSION`、`BookStructureV3::project` |
+| `dr-agent/src/long_task/store.rs`、`evidence.rs`、`proactive/delta.rs`、`dr-view-agent` | `long_task` 改读 `book_prose_docs()`，口述名字上下文适配只看住处的 `AutolinkNames::of(&entries, &templates)`，去掉素材分支（按任务书不动 `long_task` 其余在途逻辑） | 帮手运行时读取 `project.agent` 作为整本项目的帮手说明 | `ProjectDefinition::agent` |
+| `dr-mcp` | 重新生成工具目录快照并通过入站测试 | 随 T7 工具目录与说明核对 MCP 暴露面 | — |
+
+### T8 导入、样书、书文件（`t8-import`）
+
+| 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
+| --- | --- | --- | --- |
+| `dr-import-v1`、`dr-samples` | **数据映射已在 D 做完并带回归测试**：写书项目模板 v5、笔记迁入最外层「文本素材」（含原笔记文件夹子层级，关 `accept`）、图片与 PDF 进 `assets` 素材库并保留原素材夹路径 `folder`、图／PDF 上的区域批注直接挂 `asset`、关系端点改 `asset`、指向图／PDF 的正文链接退化为纯文本并写入回执 `unlinked_asset_mentions` 与 `summary.md`、故事线与未归属泳道建成 `level = false, accept = true` | 核对 `dr-view-import` 界面展示与导入报告文案（待办已并入批注、文本素材层级、素材库与退化链接明细），用合成 0.1 库跑真窗口导入 | `ImportReceipt::unlinked_asset_mentions` |
+| `dr-export/src/book_file.rs`、`book_file/v3.rs` | 书文件重写器最小补上 `layout:<书>` 文档 id 改写与 `project`／`assets` 根保留，使现有往返测试通过 | 书文件格式号正式升到 5，只读格式 5（格式 4 及更早报「这是以前格式的书文件」且不落盘任何数据），完整核对 `project`、三篇小文档与素材库字节往返 | `BOOK_FORMAT_VERSION`、`DocId::Layout` |
+| `dr-export/src/import/write.rs`、`dr-view-transfer/src/documents.rs` | 适配 `has_below`（只开 `accept` 的故事线也能作为导入目标挂入章节）及无「素材」根层级的默认树 | 随书文件格式 5 一起跑真窗口导出／导入验收 | — |
+
+**附：与 P1、P2、PT1 的衔接备注**
+
+- **P1（`p1-reorder`）**：`entry.move` 带 `index` 时，若目标父文件夹正作为泳道存在于活视图中，数据层已自动把 `index` 换算落到视图刻度上，移出最后一个活视图时再写回手动先后；P1／T1 在左栏与条目页接拖拽时直接传 `index` 即可。
+- **P2（`p2-prose-profile`）**：D 第四步已在 `dr-model`／`dr-doc`／`dr-index` 合并为单一 `ProseProfile::Prose` 并退役 `material:` 文档；P2 若尚未合入，只需补齐 `dr-editor` 与 `dr-export` 对代码块、提示块、任务清单、表格的渲染和成书导出。
+- **PT1（`pt1-template-data`）**：`project.source`、`EntryTemplate`（无 `lane`，`accept`／`home` 不继承）、两个独立开关与 `BookRoot`／`TabMount` 四种取值均已稳定；按 `v5-tracks.md` 约定在现有签名上只加不改即可。
+
+### 量到的
+
+2026-11-15，release 构建，以作者身份调用、不带守卫，各热身 1 次后连测 7 次取中位数，单位毫秒。语料为 `dr_testkit::seed` 的 Heavy 种子（格式 5 下 698 个活条目，成书序列含 105 个条目，书目文档快照 0.77 MB）。测量时机器有并行编译负载（一分钟负载 12.5–12.7，与格式 4 测量时的负载 11–15 同量级；括号内附本轮无争用样本最小值供对照）。测量程序为临时脚本，跑完已删，未提交。
+
+| 操作 | 重型 v4（负载 11–15） | 重型 v5（负载 12.5–12.7） | 说明 |
+| --- | ---: | ---: | --- |
+| `entry.update`（改章标题） | 6.95 | 12.98（最小 9.00） | 只读条目头扫自动链接名字表（格式 5 起自动链接不再读 `memberships`）并单字段落盘 |
+| `module.set_field` | 1.95 | 4.92（最小 1.87） | 不触碰名字表与树结构，无争用时约 1.9 ms，与 v4 持平 |
+| 成书序列读取（已建 `BookStructureV3` 快照上调 `book_sequence()`） | — | 0.054（最小 0.052） | 外壳每次书目修订只建一次 `structure_snapshot()`，在其上遍历成书序列与编号约 54 µs |
+| 成书序列读取（含 `read_book_v3` 整本解码 `structure_snapshot()` + `book_sequence()`） | — | 18.06（最小 16.53） | 从热持有者完整解码 698 个条目（含字段、键值、媒体、视图）再取序列的总耗时 |
