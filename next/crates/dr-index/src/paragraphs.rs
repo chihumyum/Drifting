@@ -29,35 +29,54 @@ pub struct Block {
     pub(crate) material: Option<String>,
 }
 
+fn count_links<'a>(
+    runs: impl IntoIterator<Item = &'a dr_doc::prose::Run>,
+    links: &mut BTreeMap<(String, String), u32>,
+) {
+    // A span starts where a target appears that the previous run did
+    // not link to (dr-doc merges adjacent runs of one target).
+    let mut previous: HashSet<(String, String)> = HashSet::new();
+    for r in runs {
+        let here: HashSet<(String, String)> = r
+            .marks
+            .entities
+            .iter()
+            .map(|l| (l.kind.as_str().to_string(), l.target.clone()))
+            .collect();
+        for t in &here {
+            if !previous.contains(t) {
+                *links.entry(t.clone()).or_insert(0) += 1;
+            }
+        }
+        previous = here;
+    }
+}
+
 impl Block {
     pub(crate) fn read(view: &ProseView<'_>, p: &Paragraph) -> Self {
         let text = block_text(view, p);
         let m = text_metrics(&text);
         let mut links = BTreeMap::new();
-        // A span starts where a target appears that the previous run did
-        // not link to (dr-doc merges adjacent runs of one target).
-        let mut previous: HashSet<(String, String)> = HashSet::new();
-        for r in &p.runs {
-            let here: HashSet<(String, String)> = r
-                .marks
-                .entities
-                .iter()
-                .map(|l| (l.kind.as_str().to_string(), l.target.clone()))
-                .collect();
-            for t in &here {
-                if !previous.contains(t) {
-                    *links.entry(t.clone()).or_insert(0) += 1;
-                }
-            }
-            previous = here;
-        }
+        count_links(&p.runs, &mut links);
         let embed = p.embed().cloned();
-        let material = embed.as_ref().and_then(|id| match view.embed(id) {
-            Some(EmbedView::Material {
-                material: Some(m), ..
-            }) => Some(m.as_str().to_string()),
-            _ => None,
-        });
+        let mut material = None;
+        if let Some(id) = &embed {
+            match view.embed(id) {
+                Some(EmbedView::Material {
+                    material: Some(m), ..
+                }) => material = Some(m.as_str().to_string()),
+                Some(EmbedView::Table { rows, cols, .. }) => {
+                    for row in &rows {
+                        for col in &cols {
+                            if let Some(cell_runs) = view.table_cell(id, &row.id, &col.id) {
+                                count_links(&cell_runs, &mut links);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
         Self {
             len: p.range.len() + usize::from(p.terminated),
             terminated: p.terminated,

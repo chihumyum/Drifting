@@ -750,11 +750,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             &lines,
             &blocks,
             &dr_import_v1::prose::Context {
-                profile: if matches!(body.target, manifest::Body::Material(_)) {
-                    ProseProfile::Note
-                } else {
-                    ProseProfile::Prose
-                },
+                profile: ProseProfile::Prose,
                 span: &|old| spans.get(old).cloned(),
                 todo: &|id| Some(comment_id(id)),
             },
@@ -1272,8 +1268,8 @@ fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import(
                                 "type": "paragraph",
                                 "content": [{
                                     "type": "text",
-                                    "text": "正文表格禁高亮",
-                                    "marks": [{"type": "highlight", "attrs": {"color": "#ff0"}}]
+                                    "text": "正文表格禁未知标记",
+                                    "marks": [{"type": "subscript"}]
                                 }]
                             }]
                         }]

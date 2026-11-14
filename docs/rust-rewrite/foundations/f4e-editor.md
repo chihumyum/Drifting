@@ -6,6 +6,15 @@
 - **`gpui-prose` 的改动**：只加了挂钩，见「对 `gpui-prose` 的改动」。
 - **截图**：在 [f4e/](f4e/)，由 `cargo run -p dr-editor --example page-capture -- docs/rust-rewrite/foundations/f4e` 不开窗口画出来。
 
+## 内核 v5 P2：正文只有一种格式档（2026-11-14）
+
+按 [kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档)，正文的「稿纸／笔记」双档退役，`ChapterEditor` 和全书模式 `BookEditor` 对所有正文文档（`body:<entry>/<module>`、`template:<book>/<tpl>/<mod>` 等）统一开放全部格式：
+
+- **块与嵌入**：H1/H2/H3、引文、分隔线、圆点列表、编号列表、任务列表（支持挂待办与 ⌘↩ 勾选）、代码块、提示框、表格（含单元格富文本、人物链接、整格选区与制表符／网格粘贴）。
+- **行内标记**：粗体、斜体、下划线、删除线、高亮（⌘⇧H、选区浮条、斜杠菜单）、行内代码（⌘E、选区浮条、`gpui-prose` `RunStyle.code` 以等宽字族加浅底洗色绘制，不用竖条）、网址链接与人物链接。
+- **层级 `format_shortcuts` 只管打字顺手度**：从条目当前的 `entry.parent` 经 `dr_model::v3::resolve_level_settings` 取父层级的 `format_shortcuts`（顶层条目落默认 `Full`）：`Full` 与 `Notes` 打开段首列表／任务／代码块（`- `、`1. `、`[ ] `、` ``` `）及行内高亮／代码（`==`、`` ` ``）打字转换，`Plain`（如默认书稿层级）把这些输入保留为字面文字。任何档位都不限制文档能存、能画或经斜杠菜单／浮条／快捷键／粘贴施加的格式。
+- **边界**：斜杠菜单里的「插入素材…」与 `ChapterEditor::insert_material` 在 T5（正文嵌文件）落地前仍只对 `material:<id>` 开放。回归见 `dr-editor/tests/note.rs`。
+
 ## 轨道 2：公共播放接点（2026-11-09）
 
 `dr_editor::{CommitPlaybackOptions, CommitPlaybackStatus}` 重新导出 F4 的提交后播放器。`ChapterEditor`、`BookEditor` 的 `editor()` 返回的实体均可开启：

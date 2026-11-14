@@ -549,9 +549,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "PROFILE",
-        "列表、任务、代码块、提示框、高亮、行内代码只在素材笔记里",
+        "所有正文文档共用同一种正文格式档，列表、任务、代码块、提示块、高亮、行内代码与表格对全部正文开放",
         [Command, Read],
-        "ProseTxn 拒绝（DocError::NotInProfile）；读取时正文配置里的这些属性忽略",
+        "ProseProfile 仅保留 Prose，ProseTxn 与读取路径对所有正文文档同等放行全部段落属性、行内标记与表格嵌入；非正文文档 profile() 为 None",
         [
             "inline_styles_skip_newlines_and_respect_the_profile",
             "inheritance_follows_the_schema"

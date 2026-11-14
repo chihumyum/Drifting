@@ -151,17 +151,9 @@ impl BlockAttrs {
         }
     }
 
-    /// Drop what `profile` does not allow (note-only attributes in a prose
-    /// document).
-    pub fn restricted_to(mut self, profile: crate::id::ProseProfile) -> Self {
-        if profile == crate::id::ProseProfile::Prose {
-            self.list = None;
-            self.list_level = 0;
-            self.checked = false;
-            self.todo = None;
-            self.code_block = None;
-            self.callout = None;
-        }
+    /// Restrict attributes to `profile` (all prose documents now share the
+    /// single unified `ProseProfile::Prose`).
+    pub fn restricted_to(self, _profile: crate::id::ProseProfile) -> Self {
         self
     }
 }
@@ -189,7 +181,6 @@ pub struct InlineMarks {
     /// Entity links covering this run, sorted by target. They may overlap
     /// (different targets use different keys).
     pub entities: Vec<EntityLink>,
-    // Note profile only.
     pub highlight: Option<String>,
     pub code: bool,
     /// Only on a U+FFFC placeholder: the embed it stands for.
@@ -210,21 +201,15 @@ pub enum InlineStyle {
     Underline,
     Strike,
     Link(String),
-    /// Note profile only.
     Highlight(String),
-    /// Note profile only.
     Code,
 }
 
 impl InlineStyle {
-    /// Whether `profile` allows this style.
-    pub fn allowed_in(&self, profile: crate::id::ProseProfile) -> bool {
-        match self {
-            InlineStyle::Highlight(_) | InlineStyle::Code => {
-                profile == crate::id::ProseProfile::Note
-            }
-            _ => true,
-        }
+    /// Whether `profile` allows this style (every style is allowed in the
+    /// unified prose profile).
+    pub fn allowed_in(&self, _profile: crate::id::ProseProfile) -> bool {
+        true
     }
 }
 
@@ -273,8 +258,8 @@ mod tests {
         assert_eq!(end.list, Some(ListKind::Task));
         assert_eq!(end.callout.as_deref(), Some("note"));
         let prose = a.clone().restricted_to(ProseProfile::Prose);
-        assert_eq!(prose.list, None);
-        assert_eq!(prose.heading, Some(Heading::H2));
-        assert_eq!(a.clone().restricted_to(ProseProfile::Note), a);
+        assert_eq!(prose, a);
+        assert!(InlineStyle::Highlight("yellow".into()).allowed_in(ProseProfile::Prose));
+        assert!(InlineStyle::Code.allowed_in(ProseProfile::Prose));
     }
 }

@@ -309,14 +309,11 @@ impl ChapterEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> EditorParts {
-        // A material note draws its tables and materials (`embeds.rs`); they
-        // write through the note's own session.
-        let note = dr_model::DocId::parse(doc_id)
-            .ok()
-            .and_then(|d| d.profile())
-            == Some(dr_model::ProseProfile::Note);
-        let shared = note.then(|| (source.shared_session(), source.handle().clone()));
-        extension.set_note(note);
+        // Every prose document draws tables (`embeds.rs`; material blocks in
+        // `material:<id>`) and highlights; they write through its own session.
+        let shortcuts = crate::v3::uses_note_shortcuts(ws, book, doc_id);
+        let (session, handle) = (source.shared_session(), source.handle().clone());
+        extension.set_note(shortcuts);
         let mut doc = ProseDoc::open(Box::new(source));
         match anchors::comment_anchors(ws, book, doc_id) {
             Ok(found) => {
@@ -332,8 +329,8 @@ impl ChapterEditor {
         }]);
         let body_style = style.clone();
         let ext = extension.clone();
-        // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
-        // lists (material notes); never in chapters.
+        // Typed `- `, `1. `, `[ ] `, `==字==`, `` `code` `` follow the resident
+        // parent level's `format_shortcuts` (`kernel-v4.md` §3, `kernel-v5.md` §6).
         // A v3 body is part of its entry page: as tall as its text, the page
         // scrolling it, only what the page shows drawn.
         let flow = crate::v3::body(doc_id).is_some();
@@ -349,7 +346,7 @@ impl ChapterEditor {
                 cx,
             );
             editor.set_extension(ext);
-            editor.set_list_shortcuts(note);
+            editor.set_list_shortcuts(shortcuts);
             editor
         });
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
@@ -361,7 +358,7 @@ impl ChapterEditor {
             })
         });
         let events = Subscription::join(events, typed);
-        let embeds = shared.map(|(session, handle)| {
+        let embeds = {
             let weak = cx.weak_entity();
             let host = NoteHost {
                 ws: ws.clone(),
@@ -390,8 +387,8 @@ impl ChapterEditor {
                 e.set_embed_views(Some(views), cx);
                 crate::highlight::decorate(e, 0, cx);
             });
-            embeds
-        });
+            Some(embeds)
+        };
         (editor, events, embeds)
     }
 
@@ -400,7 +397,10 @@ impl ChapterEditor {
             NoteEvent::OpenLinkV3(link) => self
                 .assist
                 .update(cx, |a, cx| a.open_entity_link_v3(link, cx)),
-            NoteEvent::Edited => cx.emit(ChapterEditorEvent::Edited),
+            NoteEvent::Edited => {
+                self.pages.edited(0, &self.editor, cx);
+                cx.emit(ChapterEditorEvent::Edited);
+            }
             NoteEvent::OpenMaterial(material) => cx.emit(MaterialOpened {
                 doc: self.doc_id.clone(),
                 material,
@@ -454,6 +454,10 @@ impl ChapterEditor {
             if let Some(embeds) = &self.embeds {
                 embeds.book_changed(cx);
             }
+            let shortcuts = crate::v3::uses_note_shortcuts(&self.ws, &self.book, &self.doc_id);
+            self.extension.set_note(shortcuts);
+            self.editor
+                .update(cx, |e, _| e.set_list_shortcuts(shortcuts));
             self.extension.invalidate();
             self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             if self.pages.has_chrome() {
@@ -693,12 +697,11 @@ impl ChapterEditor {
     }
 }
 
-/// Whether `doc_id` is a material note (the note profile).
+/// Whether `doc_id` is a material note (`material:<id>`).
 fn is_note(doc_id: &str) -> bool {
     dr_model::DocId::parse(doc_id)
         .ok()
-        .and_then(|d| d.profile())
-        == Some(dr_model::ProseProfile::Note)
+        .is_some_and(|d| d.kind() == dr_model::DocKind::Material)
 }
 
 impl ChapterEditor {
@@ -737,6 +740,9 @@ impl ChapterEditor {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if !is_note(&self.doc_id) {
+            return false;
+        }
         let (Some(embeds), Ok(id)) = (
             self.embeds.clone(),
             dr_model::id::MaterialId::parse(material),
@@ -747,8 +753,8 @@ impl ChapterEditor {
         crate::embeds::insert_material(&embeds, offset, id, cx).is_some()
     }
 
-    /// ⌘⇧H in a material note: the highlight on the selection (or for what
-    /// is typed next), in the body or the cell the author is in.
+    /// ⌘⇧H: toggle highlight on the selection (or for what is typed next), in
+    /// the body or the cell the author is in.
     pub fn toggle_highlight(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.embeds.is_none() {
             return;
@@ -758,6 +764,17 @@ impl ChapterEditor {
             .unwrap_or_else(|| self.editor.clone());
         editor.update(cx, |e, cx| {
             e.toggle_mark_value(crate::highlight::KEY, crate::highlight::value(), window, cx)
+        });
+    }
+
+    /// ⌘⇧E: toggle inline code on the selection (or for what is typed next),
+    /// in the body or the cell the author is in.
+    pub fn toggle_inline_code(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor = self
+            .focused_prose(window, cx)
+            .unwrap_or_else(|| self.editor.clone());
+        editor.update(cx, |e, cx| {
+            e.toggle_mark(gpui_prose::schema::inline::CODE, window, cx)
         });
     }
 
@@ -918,6 +935,11 @@ impl Render for ChapterEditor {
             .on_action(
                 cx.listener(|this, _: &crate::highlight::ToggleHighlight, window, cx| {
                     this.toggle_highlight(window, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::highlight::ToggleInlineCode, window, cx| {
+                    this.toggle_inline_code(window, cx)
                 }),
             )
             .child(inner)

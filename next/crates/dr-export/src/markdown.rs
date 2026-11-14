@@ -22,6 +22,7 @@
 //!   non-empty cell lines become paragraphs, a material leaves an empty block.
 
 use dr_doc::prose::{EmbedView, Paragraph, ProseView, Run as ProseRun};
+use dr_model::kind::ListKind;
 use dr_model::prose::{LINE_BREAK, OBJECT_CHAR};
 
 use crate::files::readable_stem;
@@ -64,29 +65,152 @@ pub fn summary(text: &str) -> String {
 
 /// One document's prose, its H1/H2/H3 moved `offset` levels down.
 pub fn prose(view: &ProseView<'_>, offset: usize) -> String {
+    let paragraphs: Vec<Paragraph> = view.paragraphs().collect();
     let mut blocks: Vec<String> = Vec::new();
-    let mut quote: Option<Vec<String>> = None;
-    for p in view.paragraphs() {
+    let mut i = 0;
+    while i < paragraphs.len() {
+        let p = &paragraphs[i];
         if p.attrs.quote && p.embed().is_none() {
-            // A quote's paragraphs are one block; headings and rules inside
-            // it keep only their words (0.1's flattening).
-            let inner = if p.attrs.rule {
-                String::new()
-            } else {
-                inline(&p.runs)
-            };
-            quote.get_or_insert_with(Vec::new).push(inner);
+            let mut q = Vec::new();
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.quote
+                && paragraphs[i].embed().is_none()
+            {
+                let inner = if paragraphs[i].attrs.rule {
+                    String::new()
+                } else {
+                    inline(&paragraphs[i].runs)
+                };
+                q.push(inner);
+                i += 1;
+            }
+            blocks.push(format!("> {}", q.join("<br><br>")));
             continue;
         }
-        if let Some(q) = quote.take() {
-            blocks.push(format!("> {}", q.join("<br><br>")));
+        if let Some(kind) = p.attrs.callout.as_deref()
+            && p.embed().is_none()
+        {
+            let mut c = Vec::new();
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.callout.as_deref() == Some(kind)
+                && !paragraphs[i].attrs.quote
+                && paragraphs[i].embed().is_none()
+            {
+                let inner = if paragraphs[i].attrs.rule {
+                    String::new()
+                } else {
+                    inline(&paragraphs[i].runs)
+                };
+                c.push(inner);
+                i += 1;
+            }
+            blocks.push(format!("> {}", c.join("<br><br>")));
+            continue;
         }
-        block(view, &p, offset, &mut blocks);
-    }
-    if let Some(q) = quote.take() {
-        blocks.push(format!("> {}", q.join("<br><br>")));
+        if let Some(lang) = p.attrs.code_block.as_deref()
+            && p.embed().is_none()
+        {
+            let mut lines = Vec::new();
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.code_block.as_deref() == Some(lang)
+                && !paragraphs[i].attrs.quote
+                && paragraphs[i].attrs.callout.is_none()
+                && paragraphs[i].embed().is_none()
+            {
+                let raw: String = paragraphs[i]
+                    .runs
+                    .iter()
+                    .flat_map(|r| r.text.chars())
+                    .filter(|&c| c != OBJECT_CHAR)
+                    .map(|c| if c == LINE_BREAK { '\n' } else { c })
+                    .collect();
+                lines.push(raw);
+                i += 1;
+            }
+            let body = lines.join("\n");
+            let fence = code_fence(&body);
+            let info = lang.trim();
+            blocks.push(format!("{fence}{info}\n{body}\n{fence}"));
+            continue;
+        }
+        if let Some(list_kind) = p.attrs.list.as_ref()
+            && p.embed().is_none()
+        {
+            let mut items = Vec::new();
+            let mut counters = [0usize; 9];
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.list.as_ref() == Some(list_kind)
+                && !paragraphs[i].attrs.quote
+                && paragraphs[i].attrs.callout.is_none()
+                && paragraphs[i].embed().is_none()
+            {
+                let item = &paragraphs[i];
+                let lvl = (item.attrs.list_level as usize).min(8);
+                for c in &mut counters[lvl + 1..] {
+                    *c = 0;
+                }
+                let indent = "  ".repeat(lvl);
+                let marker = match list_kind {
+                    ListKind::Bullet | ListKind::Other(_) => "- ".to_string(),
+                    ListKind::Ordered => {
+                        counters[lvl] += 1;
+                        format!("{}. ", counters[lvl])
+                    }
+                    ListKind::Task => {
+                        if item.attrs.checked {
+                            "- [x] ".to_string()
+                        } else {
+                            "- [ ] ".to_string()
+                        }
+                    }
+                };
+                items.push(format!("{indent}{marker}{}", inline(&item.runs)));
+                i += 1;
+            }
+            blocks.push(items.join("\n"));
+            continue;
+        }
+        block(view, p, offset, &mut blocks);
+        i += 1;
     }
     blocks.join("\n\n")
+}
+
+fn code_fence(text: &str) -> String {
+    let mut max_run = 0usize;
+    let mut cur = 0usize;
+    for c in text.chars() {
+        if c == '`' {
+            cur += 1;
+            max_run = max_run.max(cur);
+        } else {
+            cur = 0;
+        }
+    }
+    "`".repeat((max_run + 1).max(3))
+}
+
+fn code_span(text: &str) -> String {
+    let clean = text.replace('\r', "").replace('\n', " ");
+    let mut max_run = 0usize;
+    let mut cur = 0usize;
+    for c in clean.chars() {
+        if c == '`' {
+            cur += 1;
+            max_run = max_run.max(cur);
+        } else {
+            cur = 0;
+        }
+    }
+    let ticks = "`".repeat(max_run + 1);
+    let pad = clean.starts_with('`')
+        || clean.ends_with('`')
+        || (clean.starts_with(' ') && clean.ends_with(' ') && clean.chars().any(|c| c != ' '));
+    if pad {
+        format!("{ticks} {clean} {ticks}")
+    } else {
+        format!("{ticks}{clean}{ticks}")
+    }
 }
 
 fn block(view: &ProseView<'_>, p: &Paragraph, offset: usize, out: &mut Vec<String>) {
@@ -94,19 +218,32 @@ fn block(view: &ProseView<'_>, p: &Paragraph, offset: usize, out: &mut Vec<Strin
         match view.embed(id) {
             Some(EmbedView::Table {
                 cols, rows, cells, ..
-            }) => {
-                for row in &rows {
-                    for col in &cols {
-                        let Some(text) = cells.get(&(row.id.clone(), col.id.clone())) else {
-                            continue;
-                        };
-                        for line in text.split(['\n', LINE_BREAK]) {
-                            if !line.trim().is_empty() {
-                                out.push(protect_block_prefix(&escape(line)));
+            }) if !rows.is_empty() && !cols.is_empty() => {
+                let mut table_lines = Vec::with_capacity(rows.len() + 1);
+                for (row_idx, row) in rows.iter().enumerate() {
+                    let rendered: Vec<String> = cols
+                        .iter()
+                        .map(|col| {
+                            if let Some(cell_runs) = view.table_cell(id, &row.id, &col.id) {
+                                inline(&cell_runs)
+                            } else if let Some(text) = cells.get(&(row.id.clone(), col.id.clone()))
+                            {
+                                text.split(['\n', LINE_BREAK])
+                                    .map(escape)
+                                    .collect::<Vec<_>>()
+                                    .join("<br>")
+                            } else {
+                                String::new()
                             }
-                        }
+                        })
+                        .collect();
+                    table_lines.push(format!("| {} |", rendered.join(" | ")));
+                    if row_idx == 0 {
+                        let sep = vec!["---"; cols.len()].join(" | ");
+                        table_lines.push(format!("| {sep} |"));
                     }
                 }
+                out.push(table_lines.join("\n"));
             }
             _ => out.push(String::new()),
         }
@@ -132,6 +269,8 @@ struct Marks {
     italic: bool,
     strike: bool,
     underline: bool,
+    code: bool,
+    highlight: bool,
     link: Option<String>,
 }
 
@@ -142,7 +281,7 @@ enum Piece {
 }
 
 /// Runs as inline Markdown: neighbours with the same marks merged, then
-/// escaped and wrapped (bold, italic, strike, underline, link).
+/// escaped and wrapped (code, highlight, bold, italic, strike, underline, link).
 fn inline(runs: &[ProseRun]) -> String {
     let mut pieces: Vec<Piece> = Vec::new();
     for r in runs {
@@ -151,6 +290,8 @@ fn inline(runs: &[ProseRun]) -> String {
             italic: r.marks.italic,
             strike: r.marks.strike,
             underline: r.marks.underline,
+            code: r.marks.code,
+            highlight: r.marks.highlight.is_some(),
             link: r.marks.link.as_deref().and_then(markdown_link),
         };
         for (i, segment) in r.text.split(LINE_BREAK).enumerate() {
@@ -176,11 +317,14 @@ fn inline(runs: &[ProseRun]) -> String {
             }
             Piece::Text(text, m) => (text, m),
         };
-        let mut value = text
-            .split('\n')
-            .map(|l| escape(l.strip_suffix('\r').unwrap_or(l)))
-            .collect::<Vec<_>>()
-            .join("<br>");
+        let mut value = if m.code {
+            code_span(&text)
+        } else {
+            text.split('\n')
+                .map(|l| escape(l.strip_suffix('\r').unwrap_or(l)))
+                .collect::<Vec<_>>()
+                .join("<br>")
+        };
         if m.bold {
             value = format!("**{value}**");
         }
@@ -189,6 +333,9 @@ fn inline(runs: &[ProseRun]) -> String {
         }
         if m.strike {
             value = format!("~~{value}~~");
+        }
+        if m.highlight {
+            value = format!("=={value}==");
         }
         if m.underline {
             value = format!("<u>{value}</u>");
@@ -367,5 +514,90 @@ mod tests {
             markdown_filename(&"长".repeat(50)),
             format!("{}.md", "长".repeat(35))
         );
+    }
+
+    #[test]
+    fn unified_prose_formats_render_to_markdown_without_dropping_text() {
+        use dr_doc::prose::{EmbedKind, ProseDoc};
+        use dr_model::id::EmbedId;
+        use dr_model::pos::PosKey;
+        use dr_model::prose::{BlockAttrs, InlineStyle};
+        use dr_model::{DocId, Origin};
+
+        let mut doc = ProseDoc::create(
+            DocId::parse("body:entry-1/mod-body").unwrap(),
+            dr_doc::peer::random_device_peer(),
+        )
+        .unwrap();
+        doc.edit(Origin::User, |txn| {
+            txn.insert_paragraphs(
+                0,
+                "高亮与行内代码\n无序一\n有序一\n待办一\nfn demo() {}\n提示段\n",
+            )?;
+            txn.set_style(0..2, &InlineStyle::Highlight("yellow".into()))?;
+            txn.set_style(3..7, &InlineStyle::Code)?;
+            let starts: Vec<usize> = txn.view().paragraphs().map(|p| p.range.start).collect();
+            txn.set_block_attrs(
+                starts[1],
+                &BlockAttrs {
+                    list: Some(ListKind::Bullet),
+                    ..BlockAttrs::default()
+                },
+            )?;
+            txn.set_block_attrs(
+                starts[2],
+                &BlockAttrs {
+                    list: Some(ListKind::Ordered),
+                    ..BlockAttrs::default()
+                },
+            )?;
+            txn.set_block_attrs(
+                starts[3],
+                &BlockAttrs {
+                    list: Some(ListKind::Task),
+                    checked: true,
+                    ..BlockAttrs::default()
+                },
+            )?;
+            txn.set_block_attrs(
+                starts[4],
+                &BlockAttrs {
+                    code_block: Some("rust".into()),
+                    ..BlockAttrs::default()
+                },
+            )?;
+            txn.set_block_attrs(
+                starts[5],
+                &BlockAttrs {
+                    callout: Some("info".into()),
+                    ..BlockAttrs::default()
+                },
+            )?;
+            let table_at = txn.view().paragraphs().last().unwrap().range.start;
+            let tid = EmbedId::new_v7();
+            let w = txn.insert_embed(table_at, &tid, &EmbedKind::Table)?;
+            let (c1, c2) = (PosKey::first(), PosKey::first().after());
+            w.add_col("c1", &c1)?;
+            w.add_col("c2", &c2)?;
+            w.add_row("r1", &c1)?;
+            w.set_cell("r1", "c1", "表左")?;
+            w.set_cell("r1", "c2", "表右")?;
+            Ok(())
+        })
+        .0
+        .unwrap();
+        let md = prose(&doc.view(), 1);
+        for expected in [
+            "==高亮==",
+            "`行内代码`",
+            "- 无序一",
+            "1. 有序一",
+            "- [x] 待办一",
+            "```rust\nfn demo() {}\n```",
+            "> 提示段",
+            "| 表左 | 表右 |",
+        ] {
+            assert!(md.contains(expected), "missing {expected:?} in:\n{md}");
+        }
     }
 }

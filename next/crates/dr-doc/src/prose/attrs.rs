@@ -119,29 +119,10 @@ pub(crate) fn encode_block(
     ]
 }
 
-/// Whether `b` uses note-only attributes.
-pub(crate) fn note_only_block(b: &BlockAttrs) -> Option<&'static str> {
-    if b.list.is_some() {
-        Some("list")
-    } else if b.list_level > 0 {
-        Some("list_level")
-    } else if b.checked {
-        Some("checked")
-    } else if b.todo.is_some() {
-        Some("todo")
-    } else if b.code_block.is_some() {
-        Some("code_block")
-    } else if b.callout.is_some() {
-        Some("callout")
-    } else {
-        None
-    }
-}
-
 /// Inline marks from the attributes of a non-newline run. Block keys are
 /// ignored (a paragraph mark that a concurrent insert left on ordinary
 /// characters reads as nothing).
-pub(crate) fn decode_inline(a: &RawAttrs, profile: ProseProfile) -> InlineMarks {
+pub(crate) fn decode_inline(a: &RawAttrs, _profile: ProseProfile) -> InlineMarks {
     let mut m = InlineMarks::default();
     for (k, v) in a {
         if block::is_block_key(k) {
@@ -153,10 +134,8 @@ pub(crate) fn decode_inline(a: &RawAttrs, profile: ProseProfile) -> InlineMarks 
             inline::UNDERLINE => m.underline = truthy(v),
             inline::STRIKE => m.strike = truthy(v),
             inline::LINK => m.link = as_str(v).map(str::to_string),
-            inline::HIGHLIGHT if profile == ProseProfile::Note => {
-                m.highlight = as_str(v).map(str::to_string)
-            }
-            inline::CODE if profile == ProseProfile::Note => m.code = truthy(v),
+            inline::HIGHLIGHT => m.highlight = as_str(v).map(str::to_string),
+            inline::CODE => m.code = truthy(v),
             inline::EMBED => m.embed = as_str(v).and_then(|s| EmbedId::parse(s).ok()),
             key => {
                 if let Some(target) = inline::entity_target(key)

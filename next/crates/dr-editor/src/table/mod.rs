@@ -1486,6 +1486,13 @@ impl Render for TableView {
                     }
                 }),
             )
+            .capture_action(
+                cx.listener(|t, _: &crate::highlight::ToggleInlineCode, _, cx| {
+                    if t.format_cells(inline::CODE, true.into(), cx) {
+                        cx.stop_propagation();
+                    }
+                }),
+            )
             .capture_key_down(cx.listener(|t, e: &KeyDownEvent, _, cx| {
                 if e.keystroke.key == "escape" && t.escape(cx) {
                     cx.stop_propagation();

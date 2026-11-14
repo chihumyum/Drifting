@@ -354,7 +354,7 @@ fn v3_template_copy_preserves_body_and_table_modules_materials_and_unknown_field
         reopened.view().entity_links_v3(),
         source.view().entity_links_v3()
     );
-    // A profile mismatch is detected before copying even an earlier valid paragraph.
+    // List formats in a copied source now succeed in entry bodies under the unified profile.
     let mut note = doc("material:note", 4);
     user(&mut note, |t| {
         t.insert_paragraphs(0, "甲\n乙")?;
@@ -366,14 +366,13 @@ fn v3_template_copy_preserves_body_and_table_modules_materials_and_unknown_field
             },
         )
     });
-    let before = target.inner.core.doc.get_deep_value();
-    assert!(
-        target
-            .edit(Origin::User, |t| t.insert_copy_v3(0, &note.view()))
-            .0
-            .is_err()
+    let mut list_target = doc("body:list-target/prose", 5);
+    user(&mut list_target, |t| t.insert_copy_v3(0, &note.view()));
+    assert_eq!(
+        list_target.view().paragraphs().nth(1).unwrap().attrs.list,
+        Some(dr_model::kind::ListKind::Bullet)
     );
-    assert_eq!(target.inner.core.doc.get_deep_value(), before);
+    let before = target.inner.core.doc.get_deep_value();
     source
         .inner
         .embeds
@@ -452,19 +451,44 @@ fn set_table_cell_runs_v3_and_remove_cell_preserve_rich_marks_links_and_prefligh
     );
     assert_eq!(read_runs[2].marks.entities[0].kind, EntityKind::Material);
 
-    // Preflight rejects invalid profile mark, newline, missing cell, or bad link before mutating.
-    let snap_before = d.inner.core.doc.get_deep_value();
-    let ver_before = d.version();
-    let bad_highlight = vec![Run {
-        text: "x".into(),
+    // Highlight and inline code are allowed in entry table cells under the unified profile.
+    let rich_highlight_code = vec![Run {
+        text: "高亮代码".into(),
         marks: InlineMarks {
             highlight: Some("#ff0".into()),
+            code: true,
             ..InlineMarks::default()
         },
     }];
+    user(&mut d, |t| {
+        t.set_table_cell_runs_v3(&table, "r0", "c0", &rich_highlight_code, &[])
+    });
+    assert_eq!(
+        d.view().table_cell(&table, "r0", "c0"),
+        Some(rich_highlight_code)
+    );
+
+    // Preflight rejects bad link, out-of-bounds link range, newline, or missing cell before mutating.
+    let snap_before = d.inner.core.doc.get_deep_value();
+    let ver_before = d.version();
+    let plain_one = vec![Run {
+        text: "x".into(),
+        marks: InlineMarks::default(),
+    }];
+    let bad_link = EntityLinkV3 {
+        kind: EntityKind::Patch,
+        ..link("patch-a", None)
+    };
     assert!(
         d.edit(Origin::User, |t| {
-            t.set_table_cell_runs_v3(&table, "r0", "c0", &bad_highlight, &[])
+            t.set_table_cell_runs_v3(&table, "r0", "c0", &plain_one, &[(0..1, bad_link)])
+        })
+        .0
+        .is_err()
+    );
+    assert!(
+        d.edit(Origin::User, |t| {
+            t.set_table_cell_runs_v3(&table, "r0", "c0", &plain_one, &[(0..5, mat.clone())])
         })
         .0
         .is_err()

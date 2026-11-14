@@ -498,19 +498,24 @@ fn inline_styles_skip_newlines_and_respect_the_profile() {
             .paragraphs()
             .all(|p| p.runs.iter().all(|r| !r.marks.bold))
     );
-    // Highlight is a note-profile mark; lists are note-profile attributes.
-    let (r, _) = p.edit(Origin::User, |t| {
-        t.set_style(0..1, &InlineStyle::Highlight("yellow".into()))
+    // Every prose document shares the unified ProseProfile::Prose and accepts
+    // highlights, inline code, lists, tasks, code blocks, and callouts.
+    user(&mut p, |t| {
+        t.set_style(0..1, &InlineStyle::Highlight("yellow".into()))?;
+        t.set_style(1..2, &InlineStyle::Code)
     });
-    assert!(matches!(r, Err(DocError::NotInProfile(_))));
     let list = BlockAttrs {
         list: Some(ListKind::Bullet),
         ..BlockAttrs::default()
     };
-    let (r, _) = p.edit(Origin::User, |t| t.set_block_attrs(0, &list));
-    assert!(matches!(r, Err(DocError::NotInProfile(_))));
+    user(&mut p, |t| t.set_block_attrs(0, &list));
+    let first = p.view().paragraphs().next().unwrap();
+    assert_eq!(first.attrs, list);
+    assert_eq!(first.runs[0].marks.highlight.as_deref(), Some("yellow"));
+    assert!(first.runs[1].marks.code);
+
     let mut note = ProseDoc::create(DocId::parse("material:n").unwrap(), 7).unwrap();
-    assert_eq!(note.profile(), ProseProfile::Note);
+    assert_eq!(note.profile(), ProseProfile::Prose);
     let task = BlockAttrs {
         list: Some(ListKind::Task),
         todo: Some(CommentId::parse("todo-1").unwrap()),
@@ -1322,8 +1327,11 @@ fn templates_merge_and_copy_into_new_documents() {
         )
     });
     let mut chap = doc("tpl2", 6);
-    let (r, _) = chap.edit(Origin::User, |t| t.insert_copy(0, &note.view()));
-    assert!(matches!(r, Err(DocError::NotInProfile(_))));
+    user(&mut chap, |t| t.insert_copy(0, &note.view()));
+    assert_eq!(
+        chap.view().paragraphs().next().unwrap().attrs.list,
+        Some(ListKind::Bullet)
+    );
 }
 
 /// A table as a material note's editor writes it (dr-editor's `CellSource`:
@@ -1459,6 +1467,24 @@ fn a_copied_tables_cells_keep_their_marks() {
         (vec![link("el-lin")], true)
     );
     let mut chap = doc("cells", 5);
-    let (r, _) = chap.edit(Origin::User, |t| t.insert_copy(0, &note.view()));
-    assert!(matches!(r, Err(DocError::NotInProfile(_))));
+    user(&mut chap, |t| t.insert_copy(0, &note.view()));
+    let c_tbl = chap
+        .view()
+        .paragraphs()
+        .nth(1)
+        .unwrap()
+        .embed()
+        .unwrap()
+        .clone();
+    assert!(
+        chap.view().table_cell(&c_tbl, "r0", "c1").unwrap()[0]
+            .marks
+            .code
+    );
+    assert_eq!(
+        chap.view().table_cell(&c_tbl, "r0", "c0").unwrap()[2]
+            .marks
+            .highlight,
+        Some(String::new())
+    );
 }

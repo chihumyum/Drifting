@@ -16,7 +16,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::book;
-use crate::legacy::{BookRows, Legacy, ProseKind};
+use crate::legacy::{BookRows, Legacy};
 use crate::meta::{Fields, Owner};
 use crate::prose::Notes;
 use crate::run::Options;
@@ -464,22 +464,14 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
     for (source, json, profile) in owners
         .iter()
         .filter_map(|o| {
-            let profile = if o.kind == ProseKind::LibraryItem {
-                dr_model::ProseProfile::Note
-            } else {
-                dr_model::ProseProfile::Prose
-            };
-            o.cache.as_deref().map(|j| (o.old_doc_id(), j, profile))
+            o.cache
+                .as_deref()
+                .map(|j| (o.old_doc_id(), j, dr_model::ProseProfile::Prose))
         })
         .chain(history.iter().filter_map(|h| {
-            let profile = if ProseKind::from_doc_id(&h.old_doc_id())
-                .is_some_and(|(k, _)| k == ProseKind::LibraryItem)
-            {
-                dr_model::ProseProfile::Note
-            } else {
-                dr_model::ProseProfile::Prose
-            };
-            h.preview.as_deref().map(|j| (h.id.clone(), j, profile))
+            h.preview
+                .as_deref()
+                .map(|j| (h.id.clone(), j, dr_model::ProseProfile::Prose))
         }))
     {
         inspect_json(&source, json, profile, &mut pending);
@@ -582,20 +574,13 @@ fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pe
 fn inspect_json(
     source: &str,
     json: &str,
-    profile: dr_model::ProseProfile,
+    _profile: dr_model::ProseProfile,
     pending: &mut Vec<Pending>,
 ) {
     if json.trim().is_empty() {
         return;
     }
-    fn walk(
-        v: &Value,
-        source: &str,
-        profile: dr_model::ProseProfile,
-        in_table: bool,
-        is_mark: bool,
-        pending: &mut Vec<Pending>,
-    ) {
+    fn walk(v: &Value, source: &str, in_table: bool, is_mark: bool, pending: &mut Vec<Pending>) {
         if let Some(object) = v.as_object() {
             let kind = object.get("type").and_then(Value::as_str);
             if is_mark {
@@ -603,13 +588,14 @@ fn inspect_json(
                     inspect_entity_link(object.get("attrs"), source, pending);
                 } else if in_table {
                     let allowed = match kind {
-                        Some("bold" | "italic" | "underline" | "strike") => true,
+                        Some("bold" | "italic" | "underline" | "strike" | "highlight" | "code") => {
+                            true
+                        }
                         Some("link") => object
                             .get("attrs")
                             .and_then(|a| a.get("href"))
                             .and_then(Value::as_str)
                             .is_some(),
-                        Some("highlight" | "code") => profile == dr_model::ProseProfile::Note,
                         _ => false,
                     };
                     if !allowed {
@@ -642,23 +628,23 @@ fn inspect_json(
             }
             if let Some(marks) = object.get("marks").and_then(Value::as_array) {
                 for mark in marks {
-                    walk(mark, source, profile, in_table, true, pending);
+                    walk(mark, source, in_table, true, pending);
                 }
             }
             for (k, value) in object {
                 if k == "marks" || k == "attrs" {
                     continue;
                 }
-                walk(value, source, profile, in_table, false, pending);
+                walk(value, source, in_table, false, pending);
             }
         } else if let Some(array) = v.as_array() {
             for value in array {
-                walk(value, source, profile, in_table, is_mark, pending);
+                walk(value, source, in_table, is_mark, pending);
             }
         }
     }
     match serde_json::from_str(json) {
-        Ok(value) => walk(&value, source, profile, false, false, pending),
+        Ok(value) => walk(&value, source, false, false, pending),
         Err(_) => pending.push(Pending {
             code: "unreadable-source-prose".into(),
             source: source.into(),

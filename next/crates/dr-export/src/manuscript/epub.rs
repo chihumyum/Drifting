@@ -6,7 +6,7 @@ use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 
 use super::text::{book_uuid, xml};
-use super::{Align, Block, Book, Run, Section};
+use super::{Align, Block, Book, ListKind, Run, Section};
 
 const XHTML_HEAD: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE html>\n";
 
@@ -40,6 +40,8 @@ fn runs_html(runs: &[Run], out: &mut String) {
             close.push("</a>");
         }
         for (on, tag) in [
+            (run.highlight, "mark"),
+            (run.code, "code"),
             (run.bold, "strong"),
             (run.italic, "em"),
             (run.underline, "u"),
@@ -48,6 +50,8 @@ fn runs_html(runs: &[Run], out: &mut String) {
             if on {
                 open.push_str(&format!("<{tag}>"));
                 close.push(match tag {
+                    "mark" => "</mark>",
+                    "code" => "</code>",
                     "strong" => "</strong>",
                     "em" => "</em>",
                     "u" => "</u>",
@@ -119,6 +123,66 @@ fn blocks_html(blocks: &[Block], heading_base: u8, first: &mut bool, out: &mut S
                 out.push_str("</p>\n");
                 *first = false;
             }
+            Block::List { kind, items } => {
+                let (open_tag, close_tag) = match kind {
+                    ListKind::Bullet => ("<ul class=\"prose-list\">\n", "</ul>\n"),
+                    ListKind::Ordered => ("<ol class=\"prose-list\">\n", "</ol>\n"),
+                    ListKind::Task => ("<ul class=\"prose-list task-list\">\n", "</ul>\n"),
+                };
+                out.push_str(open_tag);
+                for item in items {
+                    if item.level > 0 {
+                        out.push_str(&format!("<li class=\"list-level-{}\">", item.level.min(8)));
+                    } else {
+                        out.push_str("<li>");
+                    }
+                    if *kind == ListKind::Task {
+                        out.push_str(if item.checked {
+                            "<span class=\"task-box\">☑ </span>"
+                        } else {
+                            "<span class=\"task-box\">☐ </span>"
+                        });
+                    }
+                    runs_html(&item.runs, out);
+                    out.push_str("</li>\n");
+                }
+                out.push_str(close_tag);
+                *first = true;
+            }
+            Block::CodeBlock { language, text } => {
+                if language.trim().is_empty() {
+                    out.push_str("<pre class=\"code-block\"><code>");
+                } else {
+                    out.push_str(&format!(
+                        "<pre class=\"code-block\" data-lang=\"{}\"><code>",
+                        xml(language.trim())
+                    ));
+                }
+                out.push_str(&xml(text));
+                out.push_str("</code></pre>\n");
+                *first = true;
+            }
+            Block::Callout { blocks, .. } => {
+                out.push_str("<aside class=\"callout\">\n");
+                let mut inner_first = true;
+                blocks_html(blocks, heading_base, &mut inner_first, out);
+                out.push_str("</aside>\n");
+                *first = true;
+            }
+            Block::Table { rows } => {
+                out.push_str("<table class=\"prose-table\">\n<tbody>\n");
+                for row in rows {
+                    out.push_str("<tr>");
+                    for cell in row {
+                        out.push_str("<td>");
+                        runs_html(cell, out);
+                        out.push_str("</td>");
+                    }
+                    out.push_str("</tr>\n");
+                }
+                out.push_str("</tbody>\n</table>\n");
+                *first = true;
+            }
             Block::Quote { blocks } => {
                 out.push_str("<blockquote>\n");
                 let mut inner_first = true;
@@ -150,6 +214,17 @@ fn stylesheet(book: &Book<'_>) -> String {
          .level-2 { margin: 1.2em 0 0.6em; font-size: 1em; }\n\
          .level-3 { margin: 1em 0 0.5em; font-size: 0.95em; }\n\
          blockquote { margin: 0.8em 2em; }\n\
+         code { font-family: monospace; font-size: 0.92em; background-color: rgba(128, 128, 128, 0.1); padding: 0.05em 0.25em; border-radius: 0.2em; }\n\
+         mark { background-color: rgba(245, 198, 66, 0.35); color: inherit; padding: 0 0.1em; }\n\
+         .prose-list { margin: 0.6em 0; padding-left: 1.8em; text-indent: 0; }\n\
+         .prose-list li { margin: 0.2em 0; text-indent: 0; text-align: left; }\n\
+         .task-list { list-style: none; padding-left: 0.6em; }\n\
+         pre.code-block { margin: 0.8em 0; padding: 0.7em 0.9em; font-family: monospace; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; text-align: left; text-indent: 0; background-color: rgba(128, 128, 128, 0.08); border-radius: 0.3em; }\n\
+         pre.code-block code { background: none; padding: 0; font-size: 1em; }\n\
+         aside.callout { margin: 0.8em 0; padding: 0.65em 1em; background-color: rgba(128, 128, 128, 0.08); border-radius: 0.35em; }\n\
+         aside.callout p { text-indent: 0; }\n\
+         table.prose-table { width: 100%; margin: 0.8em 0; border-collapse: collapse; text-indent: 0; }\n\
+         table.prose-table td { border: 1px solid rgba(128, 128, 128, 0.3); padding: 0.35em 0.55em; vertical-align: top; text-align: left; text-indent: 0; }\n\
          hr.separator { width: 20%; margin: 1.5em auto; border: none; border-top: 1px solid currentColor; }\n\
          .titlepage { margin-top: 30%; text-align: center; }\n\
          .titlepage .book-title { font-size: 1.8em; margin: 0 0 1.2em; }\n\
@@ -161,8 +236,10 @@ fn stylesheet(book: &Book<'_>) -> String {
     );
     for level in 1..=8 {
         css.push_str(&format!(
-            ".indent-{level} {{ margin-left: {}em; }}\n",
-            level * 2
+            ".indent-{level} {{ margin-left: {}em; }}\n\
+             .list-level-{level} {{ margin-left: {}em; }}\n",
+            level * 2,
+            f32::from(level as u8) * 1.5
         ));
     }
     if book.language.is_cjk() {

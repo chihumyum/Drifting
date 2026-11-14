@@ -187,12 +187,10 @@ fn rewrite(txn: &mut ProseTxn<'_>, pos: usize, c: &Para, t: &Para) -> Result<()>
                 StyleKey::Underline,
                 StyleKey::Strike,
                 StyleKey::Link,
+                StyleKey::Highlight,
+                StyleKey::Code,
             ] {
                 txn.clear_style(range.clone(), key)?;
-            }
-            if txn.view().profile() == dr_model::ProseProfile::Note {
-                txn.clear_style(range.clone(), StyleKey::Highlight)?;
-                txn.clear_style(range.clone(), StyleKey::Code)?;
             }
             let targets: BTreeSet<String> = now
                 .runs
@@ -475,12 +473,10 @@ fn rewrite_v3(txn: &mut ProseTxn<'_>, pos: usize, c: &Para, t: &Para) -> Result<
                 StyleKey::Underline,
                 StyleKey::Strike,
                 StyleKey::Link,
+                StyleKey::Highlight,
+                StyleKey::Code,
             ] {
                 txn.clear_style(range.clone(), key)?;
-            }
-            if txn.view().profile() == dr_model::ProseProfile::Note {
-                txn.clear_style(range.clone(), StyleKey::Highlight)?;
-                txn.clear_style(range.clone(), StyleKey::Code)?;
             }
             let targets: BTreeSet<String> = now
                 .runs

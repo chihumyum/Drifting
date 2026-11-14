@@ -1166,6 +1166,8 @@ fn flatten(nodes: Vec<Node>) -> Vec<Run> {
             italic: m.italic,
             underline: m.underline,
             strike: m.strike,
+            code: false,
+            highlight: false,
             href: m.href.clone(),
         };
         match runs.last_mut() {

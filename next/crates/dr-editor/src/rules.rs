@@ -60,9 +60,8 @@ fn block_rule(typed: &Typed<'_>) -> Option<InputRule> {
     })
 }
 
-/// A material note's `==text==`: the highlight (the 0.1 note's input rule,
-/// here with the same CJK freedom as `**`: the marker may follow any
-/// character but `=`).
+/// `==text==`: highlight mark (with the same CJK freedom as `**`: the marker
+/// may follow any character but `=`).
 pub fn highlight_rule(typed: &Typed<'_>) -> Option<InputRule> {
     if !typed.typed.ends_with('=') {
         return None;
@@ -93,6 +92,56 @@ pub fn highlight_rule(typed: &Typed<'_>) -> Option<InputRule> {
         close,
         key: inline::HIGHLIGHT.to_owned(),
         value: crate::highlight::value(),
+    })
+}
+
+/// `` `code` ``: inline code mark (with CJK freedom: may follow any character
+/// except `` ` ``).
+pub fn inline_code_rule(typed: &Typed<'_>) -> Option<InputRule> {
+    if !typed.typed.ends_with('`') {
+        return None;
+    }
+    let chars: Vec<char> = typed.before.chars().collect();
+    if !chars.ends_with(&['`']) {
+        return None;
+    }
+    let close = chars.len() - 1..chars.len();
+    let k = chars[..close.start].iter().rposition(|&x| x == '`')?;
+    if k > 0 && chars[k - 1] == '`' {
+        return None;
+    }
+    let (open, inner) = (k..k + 1, k + 1..close.start);
+    if inner.is_empty() {
+        return None;
+    }
+    let (first, last) = (chars[inner.start], chars[inner.end - 1]);
+    if first.is_whitespace() || last.is_whitespace() {
+        return None;
+    }
+    Some(InputRule::Mark {
+        open,
+        inner,
+        close,
+        key: inline::CODE.to_owned(),
+        value: LoroValue::Bool(true),
+    })
+}
+
+/// ```` ``` ```` or ```` ```lang ```` followed by space at the start of a
+/// paragraph: turns the paragraph into a code block.
+pub fn note_block_rule(typed: &Typed<'_>) -> Option<InputRule> {
+    if !typed.typed.ends_with(' ') || !typed.before.starts_with("```") {
+        return None;
+    }
+    let lang = &typed.before[3..typed.before.len() - 1];
+    if lang.contains('`') || lang.chars().any(char::is_whitespace) {
+        return None;
+    }
+    let len = typed.before.chars().count();
+    Some(InputRule::Block {
+        prefix: 0..len,
+        key: block::CODE_BLOCK,
+        value: LoroValue::String(lang.into()),
     })
 }
 
@@ -273,5 +322,57 @@ mod tests {
             kind: BlockKind::H1,
         });
         assert_eq!(same, None, "already an H1");
+    }
+
+    #[test]
+    fn inline_code_and_fenced_code_block_shortcuts() {
+        let code = |before: &str| {
+            inline_code_rule(&Typed {
+                before,
+                typed: "`",
+                kind: BlockKind::Body,
+            })
+        };
+        match code("调用`inline_fn`") {
+            Some(InputRule::Mark {
+                open,
+                inner,
+                close,
+                key,
+                value,
+            }) => {
+                assert_eq!((open, inner, close), (2..3, 3..12, 12..13));
+                assert_eq!(key, inline::CODE);
+                assert_eq!(value, LoroValue::Bool(true));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(code("``"), None);
+        assert_eq!(code("` a `"), None);
+        assert_eq!(code("``foo`"), None);
+
+        let fence = |before: &str| {
+            note_block_rule(&Typed {
+                before,
+                typed: " ",
+                kind: BlockKind::Body,
+            })
+        };
+        assert_eq!(
+            fence("``` "),
+            Some(InputRule::Block {
+                prefix: 0..4,
+                key: block::CODE_BLOCK,
+                value: LoroValue::String("".into()),
+            })
+        );
+        assert_eq!(
+            fence("```rust "),
+            Some(InputRule::Block {
+                prefix: 0..8,
+                key: block::CODE_BLOCK,
+                value: LoroValue::String("rust".into()),
+            })
+        );
     }
 }

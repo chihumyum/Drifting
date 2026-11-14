@@ -160,12 +160,14 @@ impl SessionSource {
         doc_id: &str,
         verified_v3: bool,
     ) -> Result<SessionSource, WsError> {
-        if !matches!(
-            dr_model::DocId::parse(doc_id),
-            Ok(dr_model::DocId::Body(_) | dr_model::DocId::Material(_))
-        ) {
+        let editable = match dr_model::DocId::parse(doc_id) {
+            Ok(dr_model::DocId::Body(_) | dr_model::DocId::Material(_)) => true,
+            Ok(dr_model::DocId::Template(t)) => t.entry_module().is_some(),
+            _ => false,
+        };
+        if !editable {
             return Err(WsError::Invalid(
-                "only canonical body and material documents can be edited".into(),
+                "only canonical body, template prose, and material documents can be edited".into(),
             ));
         }
         if !verified_v3
