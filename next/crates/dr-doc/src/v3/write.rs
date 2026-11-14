@@ -1654,6 +1654,13 @@ impl<'a> BookTxnV3<'a> {
         .put_asset(a)
     }
 
+    pub fn asset(&mut self, id: &AssetId) -> Result<crate::catalog::write::AssetWriter> {
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
+        }
+        .asset(id)
+    }
+
     pub fn memory(&mut self, id: &MemoryId) -> Result<MemoryWriter> {
         crate::catalog::write::CatalogTxn {
             view: crate::catalog::read::CatalogView { doc: self.view.doc },
@@ -1866,7 +1873,10 @@ impl<'a> BookTxnV3<'a> {
         for (collection, id) in records {
             if !matches!(
                 collection,
-                CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
+                CollectionV3::Facts
+                    | CollectionV3::Memory
+                    | CollectionV3::Relations
+                    | CollectionV3::Assets
             ) {
                 return Err(DocError::NotInProfile("not a shared history record"));
             }
@@ -2015,6 +2025,7 @@ impl<'a> BookTxnV3<'a> {
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
                 | CollectionV3::Comments
+                | CollectionV3::Assets
         ) {
             return Err(DocError::NotInProfile("not a structural v3 map"));
         }

@@ -145,9 +145,6 @@ pub(crate) fn now() -> dr_model::Timestamp {
     dr_model::Timestamp::now()
 }
 
-pub(crate) fn assets(slot: &BookSlot) -> Arc<Vec<Asset>> {
-    Arc::new(slot.reader_v3.view().assets())
-}
 pub(crate) fn relations_raw(slot: &BookSlot) -> Arc<Vec<Relation>> {
     Arc::new(slot.reader_v3.view().relations_raw())
 }

@@ -38,11 +38,11 @@ fn book_genesis_sets_version_5_and_locked_generic_relation_type() {
     assert!(rts[0].locked);
     assert_eq!(
         rts[0].source_kinds,
-        vec![EntityKind::Comment, EntityKind::Entry]
+        vec![EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]
     );
     assert_eq!(
         rts[0].target_kinds,
-        vec![EntityKind::Entry, EntityKind::Patch]
+        vec![EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]
     );
 }
 
@@ -115,7 +115,6 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         TPL_GROUP,
         TPL_STORYLINES,
         TPL_STORYLINE,
-        TPL_MATERIALS,
         TPL_CHAPTER,
         TPL_IDEA,
         TPL_CHARACTER,
@@ -124,13 +123,14 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         TPL_ORGANIZATION,
         TPL_ELEMENT,
         TPL_NOTE,
-        TPL_MEDIA,
     ] {
         assert!(
             tpls.contains_key(&tid(id)),
             "missing built-in template {id}"
         );
     }
+    assert!(!tpls.contains_key(&tid("tpl-materials")));
+    assert!(!tpls.contains_key(&tid("tpl-media")));
     // One kind of template: `level` and `accept` are independent switches, and
     // every organizing template (`level == true || accept == Some(true)`)
     // carries a 「说明」 prose module that is not part of the book.
@@ -169,13 +169,12 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         }
     }
 
-    // Root entries in manuscript order: 书稿, 构想, 要素, 故事线, 素材 (all fresh UUIDv7).
+    // Root entries in manuscript order: 书稿, 构想, 要素, 故事线 (all fresh UUIDv7; no 素材 root).
     for id in [
         &roots.manuscript,
         &roots.ideas,
         &roots.elements,
         &roots.storylines,
-        &roots.materials,
         &roots.cat_character,
         &roots.cat_location,
         &roots.cat_item,
@@ -205,7 +204,6 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             roots.ideas.clone(),
             roots.elements.clone(),
             roots.storylines.clone(),
-            roots.materials.clone(),
         ]
     );
 
@@ -2172,18 +2170,43 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         sha256: "a".repeat(64),
         width: Some(800),
         height: Some(600),
+        created_at: Some(Timestamp(1234)),
+        folder: Some("参考图/城防".into()),
+        deleted_at: None,
     };
     let item_1 = MediaItemId::parse("mi-1").unwrap();
     let item_2 = MediaItemId::parse("mi-2").unwrap();
     let cid = CommentId::parse("c-media").unwrap();
+    let asset_cid = CommentId::parse("c-asset-region").unwrap();
 
     let (mut doc, _roots) = novel_book(77, |t, roots| {
         t.put_asset(&img)?;
+        t.template(&tid("tpl-custom-media"))?
+            .set_full(&EntryTemplate {
+                id: tid("tpl-custom-media"),
+                name: "图集".into(),
+                mark: None,
+                color: None,
+                agent: None,
+                modules: vec![ModuleSpec {
+                    id: mid(MOD_MEDIA),
+                    kind: ModuleKind::Media,
+                    name: "文件".into(),
+                    pos: Some(PosKey::first()),
+                    config: ModuleConfig::default(),
+                    agent: None,
+                }],
+                level: false,
+                linkable: true,
+                settings: LevelSettingsOverride::default(),
+                verbs: Vec::new(),
+                deleted_at: None,
+            })?;
         let w = t.entries().create(
             &eid("m-map"),
-            Some(&roots.materials),
+            Some(&roots.ideas),
             "古地图",
-            Some(&tid(TPL_MEDIA)),
+            Some(&tid("tpl-custom-media")),
             false,
         )?;
         w.put_media(
@@ -2213,6 +2236,13 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
                 region: Some(MaterialRegion::new(None, 0.1, 0.2, 0.3, 0.4).unwrap()),
             }))?
             .body("城门位置")?;
+        let ac = t.comment(&asset_cid)?;
+        ac.origin(&CommentOrigin::Manual)?
+            .target(Some(&EntityRef::new(EntityKind::Asset, img_id.as_str())))?
+            .part(Some(&CommentPart::Region {
+                region: MaterialRegion::new(None, 0.2, 0.3, 0.4, 0.5).unwrap(),
+            }))?
+            .body("北门水闸")?;
         Ok(())
     });
 
@@ -2224,6 +2254,12 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         Err(crate::error::DocError::Locked(_))
     ));
     assert_eq!(doc.view().assets()[0].name, "地图.png");
+    assert_eq!(doc.view().assets()[0].created_at, Some(Timestamp(1234)));
+    assert_eq!(
+        doc.view().assets()[0].folder.as_deref(),
+        Some("参考图/城防")
+    );
+    assert!(!doc.view().comment(&asset_cid).unwrap().target_missing);
 
     // Media items sort by (pos, id), keep unregistered asset ids on read without dropping rows,
     // and CommentPart::Media locates item_1 cleanly.
@@ -2238,7 +2274,27 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
             .collect::<Vec<_>>(),
         vec!["mi-2", "mi-1"]
     );
-    assert!(!doc.view().comments()[0].target_missing);
+    assert!(!doc.view().comment(&cid).unwrap().target_missing);
+
+    // Trashing the asset hides it from assets() and marks its direct comment target_missing,
+    // while restoring it brings both back.
+    doc.edit(Origin::User, |t| {
+        t.asset(&img_id)?
+            .deleted_at(Some(Timestamp(2000)))
+            .map(|_| ())
+    })
+    .0
+    .unwrap();
+    assert!(doc.view().assets().is_empty());
+    assert_eq!(doc.view().assets_raw().len(), 1);
+    assert!(doc.view().comment(&asset_cid).unwrap().target_missing);
+    doc.edit(Origin::User, |t| {
+        t.asset(&img_id)?.deleted_at(None).map(|_| ())
+    })
+    .0
+    .unwrap();
+    assert_eq!(doc.view().assets().len(), 1);
+    assert!(!doc.view().comment(&asset_cid).unwrap().target_missing);
 
     // Snapshot before removal, remove item_1 -> comment degrades to target_missing,
     // then restore_entry brings item_1 back!
@@ -2252,7 +2308,7 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
     })
     .0
     .unwrap();
-    assert!(doc.view().comments()[0].target_missing);
+    assert!(doc.view().comment(&cid).unwrap().target_missing);
 
     let reader_before = BookReaderV3::load_at(bid(), &[snap_bytes], &f_before).unwrap();
     let saved = reader_before.view().entry_snapshot(&eid("m-map")).unwrap();
@@ -2263,5 +2319,5 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         doc.view().entry(&eid("m-map")).unwrap().media[&mid(MOD_MEDIA)].len(),
         2
     );
-    assert!(!doc.view().comments()[0].target_missing);
+    assert!(!doc.view().comment(&cid).unwrap().target_missing);
 }

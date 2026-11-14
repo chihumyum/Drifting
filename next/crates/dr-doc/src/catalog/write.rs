@@ -120,6 +120,16 @@ impl MemoryWriter {
     }
 }
 
+pub struct AssetWriter {
+    pub(crate) map: LoroMap,
+}
+setters!(AssetWriter {
+    name: &str => "name",
+    folder: Option<&str> => "folder",
+    created_at: Option<Timestamp> => "created_at",
+    deleted_at: Option<Timestamp> => "deleted_at",
+});
+
 impl CatalogTxn<'_> {
     pub(super) fn entity(&self, root: &str, id: &str) -> Result<LoroMap> {
         Ok(self.view.doc.get_map(root).ensure_mergeable_map(id)?)
@@ -129,12 +139,26 @@ impl CatalogTxn<'_> {
             map: self.entity(book::RELATIONS, id.as_str())?,
         })
     }
+    pub fn asset(&mut self, id: &AssetId) -> Result<AssetWriter> {
+        Ok(AssetWriter {
+            map: self.entity(book::ASSETS, id.as_str())?,
+        })
+    }
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
-        if let Some(have) = self.view.assets().into_iter().find(|x| x.id == a.id) {
+        if let Some(have) = self.view.assets_raw().into_iter().find(|x| x.id == a.id) {
             if have.same_file(a) {
+                let m = self.entity(book::ASSETS, a.id.as_str())?;
                 if have.name.is_empty() && !a.name.is_empty() {
-                    let m = self.entity(book::ASSETS, a.id.as_str())?;
                     set(&m, "name", a.name.as_str())?;
+                }
+                if have.created_at.is_none() && a.created_at.is_some() {
+                    set(&m, "created_at", a.created_at)?;
+                }
+                if have.folder.is_none() && a.folder.is_some() {
+                    set(&m, "folder", a.folder.as_deref())?;
+                }
+                if have.is_trashed() && !a.is_trashed() {
+                    set(&m, "deleted_at", None::<Timestamp>)?;
                 }
                 return Ok(());
             }
@@ -148,6 +172,9 @@ impl CatalogTxn<'_> {
         set(&m, "sha256", a.sha256.as_str())?;
         set(&m, "width", a.width)?;
         set(&m, "height", a.height)?;
+        set(&m, "created_at", a.created_at)?;
+        set(&m, "folder", a.folder.as_deref())?;
+        set(&m, "deleted_at", a.deleted_at)?;
         Ok(())
     }
     pub fn memory(&mut self, id: &MemoryId) -> Result<MemoryWriter> {

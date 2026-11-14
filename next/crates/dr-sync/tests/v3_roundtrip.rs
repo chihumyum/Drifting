@@ -913,14 +913,24 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         }),
     )
     .unwrap();
-    let materials_a = seed::acceptance::novel_root(&ws_a, &book_a, "tpl-materials");
+    call_out(
+        &ws_a,
+        "entry_template.put",
+        json!({
+            "book": &book_a,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let mat_img_a = call_out(
         &ws_a,
         "entry.create",
         json!({
             "book": &book_a,
-            "template": "tpl-media",
-            "parent": &materials_a,
+            "template": "tpl-custom-media",
             "title": "A书封面图"
         }),
     )["id"]
@@ -989,14 +999,24 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         }),
     )
     .unwrap();
-    let materials_b = seed::acceptance::novel_root(&ws_a, &book_b, "tpl-materials");
+    call_out(
+        &ws_a,
+        "entry_template.put",
+        json!({
+            "book": &book_b,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let mat_img_b = call_out(
         &ws_a,
         "entry.create",
         json!({
             "book": &book_b,
-            "template": "tpl-media",
-            "parent": &materials_b,
+            "template": "tpl-custom-media",
             "title": "B书海图"
         }),
     )["id"]

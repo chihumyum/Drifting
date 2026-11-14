@@ -45,11 +45,10 @@ fn env() -> Env {
 
 /// A note entry whose prose body reads `text`: its document id.
 fn note(e: &Env, text: &str) -> String {
-    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
     let id = out(
         &e.ws,
         "entry.create",
-        json!({"book": e.book, "parent": parent, "template": "tpl-note", "title": "读书笔记", "bodies": {"mod-prose": text}}),
+        json!({"book": e.book, "template": "tpl-note", "title": "读书笔记", "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()

@@ -365,7 +365,7 @@ fn store_doc(
 /// an interruption stores the same updates again without change. Returns
 /// how many were written.
 fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
-    use dr_model::id::{AssetId, EntryId};
+    use dr_model::id::AssetId;
     use dr_model::import_v1::MaterialKind;
     use dr_model::kind::AssetKind;
     let mut asset_kinds = HashMap::new();
@@ -376,7 +376,7 @@ fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
     }
     let mut out = HashMap::new();
     for m in &rows.materials {
-        if EntryId::parse(&m.id).is_err() {
+        if m.id.is_empty() {
             continue;
         }
         let want = match MaterialKind::parse(&m.kind) {
@@ -400,8 +400,10 @@ fn write_templates(
     rows: &BookRows,
     span: &dyn Fn(&str) -> Option<BlockSpan>,
     asset: &dyn Fn(&str) -> Option<dr_model::id::AssetId>,
+    non_text_material: &dyn Fn(&str) -> Option<String>,
     ts: i64,
     notes: &mut Notes,
+    unlinked_out: &mut Vec<receipt::UnlinkedAssetLink>,
     options: &Options,
 ) -> Result<usize> {
     let owners = rows
@@ -431,14 +433,25 @@ fn write_templates(
             span,
             todo: &|_| None,
             asset,
+            non_text_material,
         };
         let planned = prose::plan_v3(&lines, &blocks, &ctx);
         if planned.paras.iter().all(Para::is_empty) {
             continue;
         }
         notes.merge(&planned.notes);
+        let old_id = owner.doc_id().to_string();
         let doc_id = crate::v3::doc_id(options, book, &owner.doc_id());
         let id_s = doc_id.to_string();
+        for (material_id, material_title, text) in &planned.unlinked_asset_links {
+            unlinked_out.push(receipt::UnlinkedAssetLink {
+                doc_id: id_s.clone(),
+                old_doc_id: old_id.clone(),
+                material_id: material_id.clone(),
+                material_title: material_title.clone(),
+                text: text.clone(),
+            });
+        }
         let mut doc = ProseDoc::create(doc_id.clone(), import_peer(&id_s))?;
         let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| {
             write::sync_v3(t, &planned.paras)
@@ -918,7 +931,18 @@ fn write_library(
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
         let material_assets = material_asset_map(&rows);
+        rec.material_assets = material_assets
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), v.to_string()))
+            .collect();
+        rec.non_text_materials = rows
+            .materials
+            .iter()
+            .filter(|m| m.kind != "text")
+            .map(|m| (m.id.clone(), m.title.clone()))
+            .collect();
         let asset = |old: &str| material_assets.get(old).cloned();
+        let non_text_material = |old: &str| rec.non_text_materials.get(old).cloned();
 
         // Pass 2: plan, write, check and store every body, history first.
         let mut anchors_made: HashMap<String, Anchor> = HashMap::new();
@@ -937,6 +961,7 @@ fn write_library(
                 span: &span,
                 todo: &todo,
                 asset: &asset,
+                non_text_material: &non_text_material,
             };
             let current = prose::plan_v3(&b.lines, &b.blocks, &ctx);
             let mut versions: Vec<(Plan, &HistoryRow, i64)> = Vec::new();
@@ -1114,6 +1139,15 @@ fn write_library(
             timing.store_ms += ms(t1);
             let mut doc_notes = current.notes.clone();
             notes.merge(&doc_notes);
+            for (material_id, material_title, text) in &current.unlinked_asset_links {
+                rec.unlinked_asset_links.push(receipt::UnlinkedAssetLink {
+                    doc_id: id_s.clone(),
+                    old_doc_id: old.clone(),
+                    material_id: material_id.clone(),
+                    material_title: material_title.clone(),
+                    text: text.clone(),
+                });
+            }
             if repaired > 0 {
                 doc_notes.add("block-id-assigned");
             }
@@ -1147,7 +1181,16 @@ fn write_library(
         let t0 = Instant::now();
         let changed = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
         rec.templates = write_templates(
-            lib, &book_id, &rows, &span, &asset, changed, &mut notes, options,
+            lib,
+            &book_id,
+            &rows,
+            &span,
+            &asset,
+            &non_text_material,
+            changed,
+            &mut notes,
+            &mut rec.unlinked_asset_links,
+            options,
         )?;
         timing.prose_ms += ms(t0);
 

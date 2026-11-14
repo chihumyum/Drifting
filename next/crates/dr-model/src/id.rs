@@ -265,6 +265,11 @@ id_type!(
     /// An item inside an entry's `media` module (`media:<module>`).
     MediaItemId
 );
+id_type!(
+    /// A field definition inside a template's `fields` module (`FieldDef.id`,
+    /// never `FieldDef.name`).
+    FieldId
+);
 
 /// The `<entry_id>/<module_id>` payload of a v3 `body:` prose document id.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

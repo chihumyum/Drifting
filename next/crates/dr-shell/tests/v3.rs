@@ -35,7 +35,19 @@ fn seed() -> (tempfile::TempDir, Workspace, String) {
         .unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
-    let materials_root = dr_testkit::seed::acceptance::novel_root(&ws, &id, "tpl-materials");
+    let notes_root = dr_testkit::seed::acceptance::novel_root(&ws, &id, "tpl-group");
+    call(
+        &ws,
+        "entry_template.put",
+        json!({
+            "book": &id,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     call(
         &ws,
         "asset.put",
@@ -53,7 +65,7 @@ fn seed() -> (tempfile::TempDir, Workspace, String) {
     let media_entry = call(
         &ws,
         "entry.create",
-        json!({"book": &id, "template": "tpl-media", "parent": materials_root, "title": "示例图片"}),
+        json!({"book": &id, "template": "tpl-custom-media", "parent": notes_root, "title": "示例图片"}),
     )["id"]
         .as_str()
         .unwrap()

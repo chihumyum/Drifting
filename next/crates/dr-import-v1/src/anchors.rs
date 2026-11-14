@@ -350,6 +350,7 @@ mod tests {
                 span: &|_| None,
                 todo: &|_| None,
                 asset: &|_| None,
+                non_text_material: &|_| None,
             },
         );
         let starts = p.starts();

@@ -21,7 +21,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::check::Violation;
 pub use crate::id::{
     AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId, EntryTemplateId,
-    KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
+    FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
     RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
 };
 use crate::kind::{
@@ -1268,7 +1268,7 @@ pub struct RelationTypeV3 {
     pub target_templates: Vec<EntryTemplateId>,
 }
 
-/// Where inside `target_module` a comment sits (`comments.<id>.part`, `kernel-v5.md` §7 & §10).
+/// Where inside `target_module` (or directly on an asset) a comment sits (`comments.<id>.part`, `kernel-v5.md` §6, §7 & §10).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CommentPart {
@@ -1278,8 +1278,8 @@ pub enum CommentPart {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<MaterialRegion>,
     },
-    /// A field definition inside a `fields` module.
-    Field { field: String },
+    /// A field definition inside a `fields` module, keyed by `FieldDef.id` (never `FieldDef.name`).
+    Field { field: FieldId },
     /// A row inside a `key_value` module.
     KvRow { row: KvEntryId },
     /// A cell inside a `plot_grid` module.
@@ -1292,6 +1292,8 @@ pub enum CommentPart {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<MaterialRegion>,
     },
+    /// A rectangle on an image or PDF page when commenting directly on an asset in the asset library.
+    Region { region: MaterialRegion },
 }
 
 impl CommentPart {
@@ -1301,6 +1303,7 @@ impl CommentPart {
             CommentPart::Embed { region, .. } | CommentPart::Media { region, .. } => {
                 region.as_ref()
             }
+            CommentPart::Region { region } => Some(region),
             _ => None,
         }
     }
@@ -1349,19 +1352,20 @@ impl CommentV3 {
 
 /// Invariant `COMMENT-PART-IN-MODULE` (`kernel-v5.md` §7 & §11): a comment's
 /// `part` kind must match the kind of `module` it addresses.
+/// `CommentPart::Region` only applies to comments directly targeting an asset
+/// (`target_module == None`) and never belongs to an entry module.
 pub fn check_comment_part_kind(
     part: &CommentPart,
     module_kind: &ModuleKind,
 ) -> Result<(), Violation> {
     let ok = match part {
         CommentPart::Embed { .. } => *module_kind == ModuleKind::Prose,
-        CommentPart::Field { field } => {
-            !field.trim().is_empty() && *module_kind == ModuleKind::Fields
-        }
+        CommentPart::Field { .. } => *module_kind == ModuleKind::Fields,
         CommentPart::KvRow { .. } => *module_kind == ModuleKind::KeyValue,
         CommentPart::PlotCell { .. } => *module_kind == ModuleKind::PlotGrid,
         CommentPart::Patch { .. } => *module_kind == ModuleKind::Patches,
         CommentPart::Media { .. } => *module_kind == ModuleKind::Media,
+        CommentPart::Region { .. } => false,
     };
     if !ok {
         return fail(

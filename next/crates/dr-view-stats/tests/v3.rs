@@ -132,7 +132,18 @@ fn material_and_nonmanuscript_entry_never_fall_back_to_whole_book() {
     .unwrap();
     assert_eq!(note_data.documents.len(), 1);
     assert_eq!(note_data.documents[0].id, format!("body:{note}/mod-prose"));
-    let materials_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-materials");
+    call(
+        &ws,
+        "entry_template.put",
+        json!({
+            "book": book,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     call(
         &ws,
         "asset.put",
@@ -150,7 +161,7 @@ fn material_and_nonmanuscript_entry_never_fall_back_to_whole_book() {
     let media_entry = call(
         &ws,
         "entry.create",
-        json!({"book": book, "template": "tpl-media", "parent": materials_root, "title": "附图"}),
+        json!({"book": book, "template": "tpl-custom-media", "title": "附图"}),
     )["id"]
         .as_str()
         .unwrap()

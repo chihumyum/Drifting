@@ -306,12 +306,10 @@ fn shared_anchored_links_are_canonical_and_refuse_foreign_or_richer_marks_prewri
     );
     e.call("prose.unlink", args.clone());
     e.ws().undo(&Actor::User).unwrap();
-    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
     let note = e.out(
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
             "template": "tpl-note",
             "title": "Synthetic link target",
             "bodies": {"mod-prose": "Synthetic note"}

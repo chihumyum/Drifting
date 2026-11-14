@@ -54,8 +54,8 @@ pub fn is_book_doc(doc: &LoroDoc) -> bool {
     }
 }
 
-/// Deterministic genesis of a book document (`meta.v = 4` and the built-in
-/// locked relation type whose target kinds are `entry` and `patch`).
+/// Deterministic genesis of a book document (`meta.v = 5` and the built-in
+/// locked relation type whose endpoints include `entry`, `patch`, `comment`, and `asset`).
 pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
     let doc = LoroDoc::new();
     doc.config_text_style(schema::style_config());
@@ -93,11 +93,11 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         ("target_role", "Target".into()),
         (
             "source_kinds",
-            kinds(&[EntityKind::Comment, EntityKind::Entry]),
+            kinds(&[EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]),
         ),
         (
             "target_kinds",
-            kinds(&[EntityKind::Entry, EntityKind::Patch]),
+            kinds(&[EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]),
         ),
     ] {
         rt.insert(k, v).expect("relation type field");

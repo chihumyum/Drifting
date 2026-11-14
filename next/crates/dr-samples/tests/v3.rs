@@ -72,7 +72,13 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
             entries.values().filter(|e| !e.is_level()).count(),
             source.book.view().nodes().len()
                 + source.book.view().elements().len()
-                + source.book.view().materials().len()
+                + source
+                    .book
+                    .view()
+                    .materials()
+                    .into_iter()
+                    .filter(|m| m.kind == dr_model::import_v1::MaterialKind::Text)
+                    .count()
                 + synthetic_act_leaves
                 + storyline_entries
         );
@@ -129,13 +135,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         let all = dr_doc::loro_types::VersionVector::default();
         let repeat = convert(&source, &choices).unwrap();
         validate(&repeat.book.view()).unwrap();
-        for template in [
-            TPL_MANUSCRIPT,
-            TPL_IDEAS,
-            TPL_ELEMENTS,
-            TPL_STORYLINES,
-            TPL_MATERIALS,
-        ] {
+        for template in [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES] {
             let a = view.root_entry_by_template(&tid(template)).unwrap();
             let b = repeat
                 .book

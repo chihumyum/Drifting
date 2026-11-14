@@ -1055,7 +1055,6 @@ fn module_put_relation_checks_book_observations_before_writing() {
     let e = env();
     let book = project(&e);
     let entry = root(&e, &book, "tpl-manuscript");
-    let materials_root = root(&e, &book, "tpl-materials");
     e.call(
         "entry_template.put_module",
         json!({
@@ -1068,7 +1067,6 @@ fn module_put_relation_checks_book_observations_before_writing() {
         "entry.create",
         json!({
             "book": book,
-            "parent": materials_root,
             "template": "tpl-note",
             "title": "笔记"
         }),
@@ -1371,4 +1369,227 @@ fn v3_field_edits_write_only_what_they_name() {
         "not_found"
     );
     assert_eq!(at, version(&e, &b));
+}
+
+#[test]
+fn field_rename_keeps_comment_on_field_id() {
+    let e = env();
+    let b = e.book();
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-person-custom",
+                "name": "人物卡",
+                "modules": [{
+                    "id": "mod-fields",
+                    "kind": "fields",
+                    "name": "属性",
+                    "config": {
+                        "defs": [{"id": "f-age", "name": "年龄", "field_type": "text"}]
+                    }
+                }]
+            }
+        }),
+    );
+    let person = e.out(
+        "entry.create",
+        json!({"book": b, "template": "tpl-person-custom", "title": "林川"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let cid = e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "entry", "id": person},
+            "module": "mod-fields",
+            "part": {"kind": "field", "field": "f-age"},
+            "body": "核实出生年份"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        e.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        false
+    );
+
+    // Rename the field's display label while keeping its stable FieldId ("f-age").
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-person-custom",
+                "name": "人物卡",
+                "modules": [{
+                    "id": "mod-fields",
+                    "kind": "fields",
+                    "name": "属性",
+                    "config": {
+                        "defs": [{"id": "f-age", "name": "周岁", "field_type": "text"}]
+                    }
+                }]
+            }
+        }),
+    );
+    let listed = e.out("comment.list", json!({"book": b}));
+    let c = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == cid)
+        .unwrap();
+    assert_eq!(c["unlocated"], false);
+    assert_eq!(c["part"], json!({"kind": "field", "field": "f-age"}));
+}
+
+#[test]
+fn asset_direct_region_comment_and_relation_survive_reopen() {
+    let mut e = env();
+    let b = e.book();
+    let sha_img = "1".repeat(64);
+    let sha_pdf = "2".repeat(64);
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-img-1",
+            "name": "街景.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 128,
+            "sha256": sha_img,
+            "width": 800,
+            "height": 600
+        }),
+    );
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-pdf-1",
+            "name": "档案.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": 256,
+            "sha256": sha_pdf
+        }),
+    );
+
+    // Image asset rejects `page` in region, accepts normalized box without module/entry.
+    assert_eq!(
+        e.try_call(
+            "comment.create",
+            json!({
+                "book": b,
+                "target": {"kind": "asset", "id": "asset-img-1"},
+                "part": {"kind": "region", "region": {"page": 1, "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
+                "body": "图片不该有页码"
+            })
+        )
+        .unwrap_err()
+        .code(),
+        "invalid"
+    );
+    let img_comment = e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "asset", "id": "asset-img-1"},
+            "part": {"kind": "region", "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
+            "body": "注意门牌号"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let pdf_comment = e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "asset", "id": "asset-pdf-1"},
+            "part": {"kind": "region", "region": {"page": 2, "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.2}},
+            "body": "第二页批语"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let manuscript = common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
+    let ch = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-chapter", "title": "序章"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let generic_rt = format!("system:generic-association:{b}");
+    let rel = e.out(
+        "relation.create",
+        json!({
+            "book": b,
+            "relation_type": generic_rt,
+            "from": {"kind": "asset", "id": "asset-img-1"},
+            "to": {"kind": "entry", "id": ch}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    e.reopen();
+    let comments = e.out("comment.list", json!({"book": b}));
+    let ic = comments
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == img_comment)
+        .unwrap();
+    assert_eq!(ic["target"], json!({"kind": "asset", "id": "asset-img-1"}));
+    assert!(ic["module"].is_null());
+    assert_eq!(ic["unlocated"], false);
+    assert_eq!(
+        ic["part"],
+        json!({"kind": "region", "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}})
+    );
+    let pc = comments
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == pdf_comment)
+        .unwrap();
+    assert_eq!(pc["unlocated"], false);
+    assert_eq!(pc["part"]["region"]["page"], 2);
+    assert_eq!(e.out("relation.list", json!({"book": b}))[0]["id"], rel);
+
+    // Trashing the asset marks its direct comment unlocated and hides its relation; restoring recovers both.
+    e.call("asset.trash", json!({"book": b, "id": "asset-img-1"}));
+    let ic_trashed = e
+        .out("comment.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == img_comment)
+        .unwrap()
+        .clone();
+    assert_eq!(ic_trashed["unlocated"], true);
+    assert_eq!(e.out("relation.list", json!({"book": b})), json!([]));
+
+    e.call("asset.restore", json!({"book": b, "id": "asset-img-1"}));
+    let ic_restored = e
+        .out("comment.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == img_comment)
+        .unwrap()
+        .clone();
+    assert_eq!(ic_restored["unlocated"], false);
+    assert_eq!(e.out("relation.list", json!({"book": b}))[0]["id"], rel);
 }

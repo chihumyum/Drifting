@@ -691,7 +691,7 @@ impl<'a> BookView<'a> {
             }),
             EntityKind::Comment => self.entity_map(book::COMMENTS, &r.id).is_some(),
             EntityKind::Material => self.entity_map(book::MATERIALS, &r.id).is_some(),
-            EntityKind::Entry | EntityKind::Other(_) => false,
+            EntityKind::Entry | EntityKind::Asset | EntityKind::Other(_) => false,
         }
     }
 
@@ -938,6 +938,9 @@ impl<'a> BookView<'a> {
                     sha256: f.string("sha256"),
                     width: f.i64("width"),
                     height: f.i64("height"),
+                    created_at: f.ts("created_at"),
+                    folder: f.opt_string("folder").filter(|s| !s.is_empty()),
+                    deleted_at: f.ts("deleted_at"),
                 })
             })
             .collect()

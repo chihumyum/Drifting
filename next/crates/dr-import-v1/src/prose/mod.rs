@@ -32,6 +32,7 @@ pub fn round_trips(paras: &[Para], profile: ProseProfile) -> bool {
         span: &|_| None,
         todo: &|_| None,
         asset: &|_| None,
+        non_text_material: &|_| None,
     };
     plan(&lines, &blocks, &ctx).paras == paras
 }
@@ -49,6 +50,7 @@ pub fn round_trips_v3(paras: &[Para], profile: ProseProfile) -> bool {
         span: &|_| None,
         todo: &|_| None,
         asset: &|_| None,
+        non_text_material: &|_| None,
     };
     plan_v3(&lines, &blocks, &ctx).paras == paras
 }
@@ -73,6 +75,7 @@ mod tests {
                 asset: &|id| {
                     (id == "lib-1").then(|| dr_model::id::AssetId::parse("asset-1").unwrap())
                 },
+                non_text_material: &|_| None,
             },
         )
     }
@@ -136,6 +139,7 @@ mod tests {
                     span: &|_| None,
                     todo: &|_| None,
                     asset: &|_| None,
+                    non_text_material: &|_| None,
                 },
             )
             .paras

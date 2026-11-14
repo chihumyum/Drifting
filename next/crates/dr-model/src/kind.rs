@@ -89,7 +89,7 @@ open_enum!(
     /// v0 names materials `material` (the root container is `materials`); the
     /// old `library_item` is read as [`EntityKind::Material`].
     ///
-    /// A canonical reference names `entry`, `comment` or `patch`
+    /// A canonical reference names `entry`, `comment`, `patch` or `asset`
     /// (`kernel-v5.md`). `node`, `element`, `category`, `storyline` and
     /// `material` are the 0.1 source format's values. They stay known here, not in
     /// `import_v1`, because this is the stored vocabulary and shared code
@@ -111,6 +111,8 @@ open_enum!(
         Comment = "comment",
         /// Source format only.
         Material = "material" | "library_item",
+        /// A file in the project's asset library (`assets`, `kernel-v5.md` §6).
+        Asset = "asset",
     }
 );
 
@@ -132,13 +134,17 @@ impl EntityKind {
     /// Kinds a relation may start *from*: structural ones plus comments and
     /// materials (author-side scaffolding links out, never in).
     pub fn may_start_relation(&self) -> bool {
-        self.is_structural() || matches!(self, EntityKind::Comment | EntityKind::Material)
+        self.is_structural()
+            || matches!(
+                self,
+                EntityKind::Comment | EntityKind::Material | EntityKind::Asset
+            )
     }
 
     /// Kinds a comment may target: structural ones plus materials (region
     /// comments on images and PDFs, margin comments on notes).
     pub fn may_be_commented(&self) -> bool {
-        self.is_structural() || matches!(self, EntityKind::Material)
+        self.is_structural() || matches!(self, EntityKind::Material | EntityKind::Asset)
     }
 
     /// Kinds an inline entity link (`entity:<id>`) may point at.
@@ -153,22 +159,25 @@ impl EntityKind {
         )
     }
 
-    /// Kinds a canonical v5 relation may point *to* (`entry` or `patch`).
+    /// Kinds a canonical v5 relation may point *to* (`entry`, `patch`, or `asset`).
     pub fn is_structural_v3(&self) -> bool {
-        matches!(self, EntityKind::Entry | EntityKind::Patch)
-    }
-
-    /// Kinds a canonical v5 relation may start *from* (`entry`, `patch`, or `comment`).
-    pub fn may_start_relation_v3(&self) -> bool {
         matches!(
             self,
-            EntityKind::Entry | EntityKind::Patch | EntityKind::Comment
+            EntityKind::Entry | EntityKind::Patch | EntityKind::Asset
         )
     }
 
-    /// Kinds a canonical v5 comment may target (`entry` only, `kernel-v5.md` §7 & §10).
+    /// Kinds a canonical v5 relation may start *from* (`entry`, `patch`, `comment`, or `asset`).
+    pub fn may_start_relation_v3(&self) -> bool {
+        matches!(
+            self,
+            EntityKind::Entry | EntityKind::Patch | EntityKind::Comment | EntityKind::Asset
+        )
+    }
+
+    /// Kinds a canonical v5 comment may target (`entry` or `asset`, `kernel-v5.md` §6, §7 & §10).
     pub fn may_be_commented_v3(&self) -> bool {
-        matches!(self, EntityKind::Entry)
+        matches!(self, EntityKind::Entry | EntityKind::Asset)
     }
 
     /// Kinds a canonical inline link may point at (`entry` only, `kernel-v5.md` §6 & §10).
@@ -380,6 +389,10 @@ mod tests {
         assert!(EntityKind::Entry.is_structural_v3());
         assert!(!EntityKind::Material.is_structural_v3());
         assert!(EntityKind::Entry.may_be_commented_v3());
+        assert!(EntityKind::Asset.may_be_commented_v3());
+        assert!(EntityKind::Asset.may_start_relation_v3());
+        assert!(EntityKind::Asset.is_structural_v3());
+        assert!(!EntityKind::Asset.may_be_linked_v3());
         assert!(!EntityKind::Material.may_be_commented_v3());
     }
 }

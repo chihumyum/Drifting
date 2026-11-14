@@ -425,6 +425,9 @@ pub struct ProseShapeOut {
     pub done: u32,
     /// The assets it embeds, in order (repeats kept).
     pub embeds: Vec<String>,
+    /// Embedded asset IDs whose asset is missing or trashed in the book's asset library (shown as placeholders).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_embeds: Vec<String>,
 }
 
 op! {
@@ -452,6 +455,25 @@ op! {
             }
             texts.push(dr_text::block_text(&view, &p));
         }
+        let missing_embeds = if !embeds.is_empty()
+            && let Some(ref book_id) = slot.book
+            && let Ok(book_slot) = cx.book(book_id.as_str())
+        {
+            let live: std::collections::HashSet<String> = book_slot
+                .reader_v3
+                .view()
+                .assets()
+                .into_iter()
+                .map(|a| a.id.to_string())
+                .collect();
+            embeds
+                .iter()
+                .filter(|id| !live.contains(*id))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
         let shape = dr_text::prose_shape(texts.iter().map(String::as_str));
         Ok(ProseShapeOut {
             paragraphs: shape.paragraphs,
@@ -460,6 +482,7 @@ op! {
             tasks,
             done,
             embeds,
+            missing_embeds,
         })
     }
 }

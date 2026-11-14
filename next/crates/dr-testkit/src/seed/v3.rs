@@ -13,10 +13,10 @@ use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_doc::side::{CheckpointsDoc, LayoutDoc, LayoutTxn, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
-    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_MEDIA, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
-    NovelRootEntries, TPL_CATEGORY, TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA,
-    TPL_IDEA_GROUP, TPL_IDEAS, TPL_MANUSCRIPT, TPL_MATERIALS, TPL_MEDIA, TPL_NOTE, TPL_STORYLINE,
-    TPL_STORYLINES, novel_project_template_with, novel_project_templates,
+    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE, NovelRootEntries,
+    TPL_CATEGORY, TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA, TPL_IDEA_GROUP,
+    TPL_IDEAS, TPL_MANUSCRIPT, TPL_NOTE, TPL_STORYLINE, TPL_STORYLINES,
+    novel_project_template_with, novel_project_templates,
 };
 use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, book_genesis};
 use dr_doc::{DocError, Result};
@@ -60,6 +60,7 @@ fn map_entity_kind_v3(k: &EntityKind) -> EntityKind {
     match k {
         EntityKind::Comment => EntityKind::Comment,
         EntityKind::Patch => EntityKind::Patch,
+        EntityKind::Asset => EntityKind::Asset,
         EntityKind::Node
         | EntityKind::Element
         | EntityKind::Storyline
@@ -348,7 +349,6 @@ fn deterministic_novel_roots(book: &BookId) -> NovelRootEntries {
         ideas: gen_entry(1),
         elements: gen_entry(2),
         storylines: gen_entry(3),
-        materials: gen_entry(8),
         cat_character: gen_entry(4),
         cat_location: gen_entry(5),
         cat_item: gen_entry(6),
@@ -361,8 +361,12 @@ fn deterministic_novel_roots(book: &BookId) -> NovelRootEntries {
     }
 }
 
+fn deterministic_text_materials_root(book: &BookId) -> EntryId {
+    EntryId::parse(&super::build::id(0, book.as_str(), "v3-root", 8)).expect("valid id")
+}
+
 /// Initialize the novel project definition, templates, root level entries
-/// (`书稿`, `构想`, `要素`, `故事线`, `素材`), and default narrative timeline view
+/// (`书稿`, `构想`, `要素`, `故事线`), and default narrative timeline view
 /// (`叙事时间线`), leaving category creation to the seed plan or sample book.
 fn init_novel_roots(txn: &mut BookTxnV3<'_>, ids: &NovelRootEntries) -> Result<()> {
     let pt = novel_project_template_with(ids);
@@ -391,16 +395,22 @@ fn init_novel_roots(txn: &mut BookTxnV3<'_>, ids: &NovelRootEntries) -> Result<(
         Some(&tid(TPL_STORYLINES)),
         true,
     )?;
-    txn.entries().create(
-        &ids.materials,
-        None,
-        "素材",
-        Some(&tid(TPL_MATERIALS)),
-        true,
-    )?;
     txn.timeline_view(&ids.narrative_view)?
         .name("叙事时间线")?
         .pos(Some(&PosKey::first()))?;
+    Ok(())
+}
+
+fn init_text_materials_root(txn: &mut BookTxnV3<'_>, id: &EntryId) -> Result<()> {
+    let w = txn
+        .entries()
+        .create(id, None, "文本素材", Some(&tid(TPL_GROUP)), true)?;
+    w.overrides(Some(&LevelSettingsOverride {
+        default_template: Some(Some(tid(TPL_NOTE))),
+        format_shortcuts: Some(FormatShortcuts::Notes),
+        accept: Some(false),
+        ..Default::default()
+    }))?;
     Ok(())
 }
 
@@ -682,41 +692,54 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
         )?;
     }
 
-    b.edit_book(|t| {
-        for (id, name) in &p.folders {
-            t.entries().create(
-                &eid(id.as_str()),
-                Some(&roots.materials),
-                name,
-                Some(&tid(TPL_GROUP)),
-                true,
-            )?;
-        }
-        let plain_tpl = if p.materials.iter().any(|m| !m.task_todos) {
-            Some(ensure_plain_note_template(t)?)
-        } else {
-            None
-        };
-        for m in &p.materials {
-            let parent_id = m
-                .folder
-                .map(|f| eid(p.folders[f].0.as_str()))
-                .unwrap_or_else(|| roots.materials.clone());
-            let tpl = if m.task_todos {
-                tid(TPL_NOTE)
+    if !p.materials.is_empty() {
+        let text_materials_root = deterministic_text_materials_root(&p.book);
+        let used_folders: std::collections::BTreeSet<usize> =
+            p.materials.iter().filter_map(|m| m.folder).collect();
+        b.edit_book(|t| {
+            init_text_materials_root(t, &text_materials_root)?;
+            for (idx, (id, name)) in p.folders.iter().enumerate() {
+                if !used_folders.contains(&idx) {
+                    continue;
+                }
+                let fw = t.entries().create(
+                    &eid(id.as_str()),
+                    Some(&text_materials_root),
+                    name,
+                    Some(&tid(TPL_GROUP)),
+                    true,
+                )?;
+                fw.overrides(Some(&LevelSettingsOverride {
+                    accept: Some(false),
+                    ..Default::default()
+                }))?;
+            }
+            let plain_tpl = if p.materials.iter().any(|m| !m.task_todos) {
+                Some(ensure_plain_note_template(t)?)
             } else {
-                plain_tpl.clone().expect("plain note template")
+                None
             };
-            t.entries().create(
-                &eid(m.id.as_str()),
-                Some(&parent_id),
-                &m.title,
-                Some(&tpl),
-                false,
-            )?;
-        }
-        Ok(())
-    })?;
+            for m in &p.materials {
+                let parent_id = m
+                    .folder
+                    .map(|f| eid(p.folders[f].0.as_str()))
+                    .unwrap_or_else(|| text_materials_root.clone());
+                let tpl = if m.task_todos {
+                    tid(TPL_NOTE)
+                } else {
+                    plain_tpl.clone().expect("plain note template")
+                };
+                t.entries().create(
+                    &eid(m.id.as_str()),
+                    Some(&parent_id),
+                    &m.title,
+                    Some(&tpl),
+                    false,
+                )?;
+            }
+            Ok(())
+        })?;
+    }
 
     for m in &p.materials {
         b.prose(
@@ -1067,6 +1090,33 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     Some(&FieldValue::Text(d.status.as_str().into())),
                 )?;
         }
+        let non_text_assets: BTreeMap<&str, Option<&AssetId>> = materials
+            .iter()
+            .filter(|m| m.kind != MaterialKind::Text)
+            .map(|m| (m.id.as_str(), m.asset.as_ref()))
+            .collect();
+        let map_endpoint = |r: &EntityRef| -> Option<EntityRef> {
+            if r.kind == EntityKind::Material
+                && let Some(asset) = non_text_assets.get(r.id.as_str())
+            {
+                return asset
+                    .as_ref()
+                    .map(|a| EntityRef::new(EntityKind::Asset, a.as_str()));
+            }
+            Some(map_entity_ref_v3(r))
+        };
+        let map_kinds = |kinds: &[EntityKind]| -> Vec<EntityKind> {
+            let mut out = std::collections::BTreeSet::new();
+            for k in kinds {
+                if *k == EntityKind::Material {
+                    out.insert(EntityKind::Entry);
+                    out.insert(EntityKind::Asset);
+                } else {
+                    out.insert(map_entity_kind_v3(k));
+                }
+            }
+            out.into_iter().collect()
+        };
         let symmetric_types: std::collections::HashSet<RelationTypeId> = relation_types
             .iter()
             .filter(|rt| rt.orientation == RelationOrientation::Symmetric)
@@ -1076,10 +1126,8 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             if rt.locked || rt.system_key.is_some() {
                 continue;
             }
-            let src_kinds: Vec<EntityKind> =
-                rt.source_kinds.iter().map(map_entity_kind_v3).collect();
-            let tgt_kinds: Vec<EntityKind> =
-                rt.target_kinds.iter().map(map_entity_kind_v3).collect();
+            let src_kinds = map_kinds(&rt.source_kinds);
+            let tgt_kinds = map_kinds(&rt.target_kinds);
             let w = t.relation_type(&rt.id)?;
             w.name(&rt.name)?
                 .description(&rt.description)?
@@ -1089,35 +1137,56 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .source_kinds(&src_kinds)?
                 .target_kinds(&tgt_kinds)?;
         }
+        let mut seen_relations = std::collections::BTreeSet::new();
         for r in &relations {
-            let from = map_entity_ref_v3(&r.from);
-            let to = map_entity_ref_v3(&r.to);
+            let (Some(from), Some(to)) = (map_endpoint(&r.from), map_endpoint(&r.to)) else {
+                continue;
+            };
             let (a, z) = if symmetric_types.contains(&r.relation_type) {
                 canonical_symmetric(from, to)
             } else {
                 (from, to)
             };
+            if a == z || !seen_relations.insert((r.relation_type.clone(), a.clone(), z.clone())) {
+                continue;
+            }
             t.relation(&r.id)?
                 .ends(&a, &z)?
                 .relation_type(&r.relation_type)?
                 .created_at(r.created_at)?;
         }
-        let folder_ids: std::collections::BTreeSet<_> =
-            material_folders.iter().map(|f| f.id.clone()).collect();
-        for f in &material_folders {
-            let parent_id = f
-                .parent
-                .as_ref()
-                .filter(|p| folder_ids.contains(*p))
-                .map(|p| eid(p.as_str()))
-                .unwrap_or_else(|| roots.materials.clone());
-            t.entries().create(
-                &eid(f.id.as_str()),
-                Some(&parent_id),
-                &f.name,
-                Some(&tid(TPL_GROUP)),
-                true,
-            )?;
+        let note_folder_ids =
+            dr_samples::v3::note_material_folder_ids(&material_folders, &materials);
+        let text_materials_root = if materials.iter().any(|m| m.kind == MaterialKind::Text) {
+            let id = deterministic_text_materials_root(src.book_id());
+            init_text_materials_root(t, &id)?;
+            Some(id)
+        } else {
+            None
+        };
+        if let Some(root_id) = &text_materials_root {
+            for f in &material_folders {
+                if !note_folder_ids.contains(&f.id) {
+                    continue;
+                }
+                let parent_id = f
+                    .parent
+                    .as_ref()
+                    .filter(|p| note_folder_ids.contains(*p))
+                    .map(|p| eid(p.as_str()))
+                    .unwrap_or_else(|| root_id.clone());
+                let fw = t.entries().create(
+                    &eid(f.id.as_str()),
+                    Some(&parent_id),
+                    &f.name,
+                    Some(&tid(TPL_GROUP)),
+                    true,
+                )?;
+                fw.overrides(Some(&LevelSettingsOverride {
+                    accept: Some(false),
+                    ..Default::default()
+                }))?;
+            }
         }
         let plain_tpl = if materials
             .iter()
@@ -1128,19 +1197,29 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             None
         };
         let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
+        let mut first_folder_by_asset: BTreeMap<&AssetId, String> = BTreeMap::new();
         for m in &materials {
             if let Some(asset) = &m.asset {
                 first_title_by_asset
                     .entry(asset)
                     .or_insert(m.title.as_str());
+                if !first_folder_by_asset.contains_key(asset)
+                    && let Some(fid) = &m.folder
+                    && let Some(path) = dr_samples::v3::material_folder_path(&material_folders, fid)
+                {
+                    first_folder_by_asset.insert(asset, path);
+                }
             }
-            let parent_id = m
-                .folder
-                .as_ref()
-                .filter(|f| folder_ids.contains(*f))
-                .map(|f| eid(f.as_str()))
-                .unwrap_or_else(|| roots.materials.clone());
             if m.kind == MaterialKind::Text {
+                let root_id = text_materials_root
+                    .as_ref()
+                    .expect("text materials root created");
+                let parent_id = m
+                    .folder
+                    .as_ref()
+                    .filter(|f| note_folder_ids.contains(*f))
+                    .map(|f| eid(f.as_str()))
+                    .unwrap_or_else(|| root_id.clone());
                 let tpl = if m.task_todos {
                     tid(TPL_NOTE)
                 } else {
@@ -1153,25 +1232,6 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     Some(&tpl),
                     false,
                 )?;
-            } else {
-                let w = t.entries().create(
-                    &eid(m.id.as_str()),
-                    Some(&parent_id),
-                    &m.title,
-                    Some(&tid(TPL_MEDIA)),
-                    false,
-                )?;
-                if let Some(asset) = &m.asset {
-                    w.put_media(
-                        &mid(MOD_MEDIA),
-                        &MediaItem {
-                            id: MediaItemId::parse(m.id.as_str()).expect("valid id"),
-                            asset: asset.clone(),
-                            caption: m.description.clone(),
-                            pos: Some(PosKey::first()),
-                        },
-                    )?;
-                }
             }
         }
         for mut asset in v.assets() {
@@ -1182,6 +1242,9 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     .unwrap_or_default()
                     .to_string();
             }
+            if asset.folder.is_none() {
+                asset.folder = first_folder_by_asset.get(&asset.id).cloned();
+            }
             t.put_asset(&asset)?;
         }
         for mem in &memory {
@@ -1191,19 +1254,33 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .source(&mem.source)?
                 .status(&mem.status)?
                 .origin_ref(mem.origin_ref.as_deref())?;
-            if let Some(target) = &mem.target {
-                w.target(Some(&map_entity_ref_v3(target)))?;
-            }
-            if let Some(block) = &mem.target_block {
-                w.target_block(Some(block))?;
+            if let Some(target) = &mem.target
+                && let Some(mapped) = map_endpoint(target)
+            {
+                w.target(Some(&mapped))?;
+                if mapped.kind == EntityKind::Entry
+                    && let Some(block) = &mem.target_block
+                {
+                    w.target_block(Some(block))?;
+                }
             }
         }
         Ok(())
     })?;
 
     // Convert prose documents in creation order.
+    let non_text_material_ids: std::collections::BTreeSet<String> = materials
+        .iter()
+        .filter(|m| m.kind != MaterialKind::Text)
+        .map(|m| m.id.to_string())
+        .collect();
     let mut chapter_prose_by_id: HashMap<String, usize> = HashMap::new();
     for p in &src.prose {
+        if let DocId::Material(id) = p.doc_id()
+            && non_text_material_ids.contains(id.as_str())
+        {
+            continue;
+        }
         let new_id = match p.doc_id() {
             DocId::Storyline(id) => body_doc_id(id.as_str(), MOD_DESCRIPTION),
             DocId::Category(id) => body_doc_id(id.as_str(), MOD_DESCRIPTION),
@@ -1213,7 +1290,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             other => other.clone(),
         };
         let ts = b.tick();
-        let doc = clone_prose_to_v3(p, new_id, ts)?;
+        let doc = clone_prose_to_v3(p, new_id, ts, &non_text_material_ids)?;
         if let DocId::Node(id) = p.doc_id() {
             chapter_prose_by_id.insert(id.to_string(), b.prose.len());
         }
@@ -1271,23 +1348,26 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     _ => CommentOrigin::Manual,
                 },
             };
-            let (module, part) = match &c.target {
+            let (mapped_target, module, part) = match &c.target {
                 Some(tgt) if tgt.kind == EntityKind::Material => {
                     match materials_by_id.get(tgt.id.as_str()) {
-                        Some(m) if m.kind != MaterialKind::Text => (
-                            Some(mid(MOD_MEDIA)),
-                            m.asset.as_ref().map(|_| CommentPart::Media {
-                                item: MediaItemId::parse(&tgt.id).expect("valid media id"),
-                                region: c.region,
-                            }),
-                        ),
-                        _ => (Some(prose_mod.clone()), None),
+                        Some(m) if m.kind != MaterialKind::Text => {
+                            let asset_id =
+                                m.asset.as_ref().map_or(tgt.id.as_str(), AssetId::as_str);
+                            (
+                                Some(EntityRef::new(EntityKind::Asset, asset_id)),
+                                None,
+                                c.region.map(|region| CommentPart::Region { region }),
+                            )
+                        }
+                        _ => (Some(map_entity_ref_v3(tgt)), Some(prose_mod.clone()), None),
                     }
                 }
                 Some(tgt) if map_entity_kind_v3(&tgt.kind) == EntityKind::Entry => {
-                    (Some(prose_mod.clone()), None)
+                    (Some(map_entity_ref_v3(tgt)), Some(prose_mod.clone()), None)
                 }
-                _ => (None, None),
+                Some(tgt) => (Some(map_entity_ref_v3(tgt)), None, None),
+                None => (None, None, None),
             };
             let w = t.comment(&c.id)?;
             w.origin(&origin)?
@@ -1300,9 +1380,8 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .created_at(c.created_at)?
                 .updated_at(c.updated_at)?
                 .resolved_at(c.resolved_at)?;
-            if let Some(target) = &c.target {
-                let mapped = map_entity_ref_v3(target);
-                w.target(Some(&mapped))?;
+            if let Some(mapped) = &mapped_target {
+                w.target(Some(mapped))?;
                 if let Some(m) = &module {
                     w.module(Some(m))?;
                 }
@@ -1368,7 +1447,12 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
     Ok(b.finish())
 }
 
-fn clone_prose_to_v3(src: &ProseDoc, new_doc_id: DocId, ts: i64) -> Result<ProseDoc> {
+fn clone_prose_to_v3(
+    src: &ProseDoc,
+    new_doc_id: DocId,
+    ts: i64,
+    non_text_materials: &std::collections::BTreeSet<String>,
+) -> Result<ProseDoc> {
     let v = src.view();
     let paras: Vec<_> = v.paragraphs().collect();
     let links = v.entity_links();
@@ -1415,6 +1499,9 @@ fn clone_prose_to_v3(src: &ProseDoc, new_doc_id: DocId, ts: i64) -> Result<Prose
             start += p.text().chars().count() + 1;
         }
         for (range, l) in &links {
+            if l.kind == EntityKind::Material && non_text_materials.contains(l.target.as_str()) {
+                continue;
+            }
             t.link_entity(
                 range.clone(),
                 &EntityLink {
@@ -1709,7 +1796,15 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         .collect::<std::result::Result<_, String>>()?;
     ideas.sort_by_key(|i| i["title"].to_string());
 
-    let mat_root = v.root_entry_by_template(&tid(TPL_MATERIALS)).map(|e| e.id);
+    let mat_root = entries
+        .iter()
+        .find(|e| {
+            !e.is_trashed()
+                && e.parent.is_none()
+                && e.template.as_ref() == Some(&tid(TPL_GROUP))
+                && e.title == "文本素材"
+        })
+        .map(|e| e.id.clone());
     let parent_by_id: BTreeMap<&str, Option<&str>> = entries
         .iter()
         .map(|e| (e.id.as_str(), e.parent.as_ref().map(EntryId::as_str)))
@@ -1733,8 +1828,6 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         false
     };
     let templates_map = v.templates_map();
-    let assets_map: BTreeMap<AssetId, AssetKind> =
-        v.assets().into_iter().map(|a| (a.id, a.kind)).collect();
     let folders: BTreeMap<String, String> = entries
         .iter()
         .filter(|e| !e.is_trashed() && e.is_level() && under_materials(e.parent.as_ref()))
@@ -1745,38 +1838,30 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         .filter(|e| !e.is_trashed() && !e.is_level() && under_materials(e.parent.as_ref()))
         .map(|m| {
             let folder = m.parent.as_ref().and_then(|f| folders.get(f.as_str()));
-            if m.template.as_ref() == Some(&tid(TPL_MEDIA)) {
-                let kind = m
-                    .media
-                    .get(&mid(MOD_MEDIA))
-                    .and_then(|items| items.first())
-                    .and_then(|it| assets_map.get(&it.asset))
-                    .map(|k| k.as_str())
-                    .unwrap_or("other");
-                Ok(json!({
-                    "title": m.title,
-                    "kind": kind,
-                    "folder": folder,
-                    "taskTodos": false,
-                    "body": Value::Null,
-                }))
-            } else {
-                let task_todos = m
-                    .template
-                    .as_ref()
-                    .and_then(|t| templates_map.get(t))
-                    .and_then(|t| t.modules.iter().find(|md| md.id.as_str() == MOD_PROSE))
-                    .is_none_or(|md| md.config.task_todos);
-                Ok(json!({
-                    "title": m.title,
-                    "kind": "text",
-                    "folder": folder,
-                    "taskTodos": task_todos,
-                    "body": prose(body_doc_id(m.id.as_str(), MOD_PROSE))?,
-                }))
-            }
+            let task_todos = m
+                .template
+                .as_ref()
+                .and_then(|t| templates_map.get(t))
+                .and_then(|t| t.modules.iter().find(|md| md.id.as_str() == MOD_PROSE))
+                .is_none_or(|md| md.config.task_todos);
+            Ok(json!({
+                "title": m.title,
+                "kind": "text",
+                "folder": folder,
+                "taskTodos": task_todos,
+                "body": prose(body_doc_id(m.id.as_str(), MOD_PROSE))?,
+            }))
         })
         .collect::<std::result::Result<_, String>>()?;
+    for a in v.assets() {
+        materials.push(json!({
+            "title": a.name,
+            "kind": a.kind.as_str(),
+            "folder": a.folder,
+            "taskTodos": false,
+            "body": Value::Null,
+        }));
+    }
     materials.sort_by_key(|m| (m["title"].to_string(), m["folder"].to_string()));
 
     let mut comments: Vec<Value> = v
@@ -1841,6 +1926,12 @@ impl NamesV3 {
             map.insert(
                 (EntityKind::Entry.as_str().to_string(), e.id.to_string()),
                 e.title,
+            );
+        }
+        for a in v.assets() {
+            map.insert(
+                (EntityKind::Asset.as_str().to_string(), a.id.to_string()),
+                a.name,
             );
         }
         Self { map }

@@ -26,8 +26,123 @@ expression: json
     "kind": "query",
     "name": "asset.get",
     "output": {
-      "description": "An asset's recorded metadata.",
+      "$defs": {
+        "AssetUsage": {
+          "description": "One live place in the book where an asset is used (`kernel-v5.md` §6).",
+          "oneOf": [
+            {
+              "description": "An item in a live entry's active `media` module.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "item": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "media",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module",
+                "item"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A file embed block inside a live entry's active `prose` module.",
+              "properties": {
+                "block": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "embed",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A relation where one end is this asset and the other end is live.",
+              "properties": {
+                "kind": {
+                  "const": "relation",
+                  "type": "string"
+                },
+                "other": {
+                  "$ref": "#/$defs/Ref"
+                },
+                "relation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "relation",
+                "other"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Ref": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "An asset's recorded metadata and live usages in the book.",
       "properties": {
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "deleted_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "folder": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "height": {
           "format": "int64",
           "type": [
@@ -56,6 +171,12 @@ expression: json
           "format": "int64",
           "type": "integer"
         },
+        "usages": {
+          "items": {
+            "$ref": "#/$defs/AssetUsage"
+          },
+          "type": "array"
+        },
         "width": {
           "format": "int64",
           "type": [
@@ -72,27 +193,34 @@ expression: json
         "size",
         "sha256",
         "width",
-        "height"
+        "height",
+        "created_at",
+        "usages"
       ],
       "title": "AssetInfo",
       "type": "object"
     },
-    "summary": "Read an asset's recorded metadata: name, kind, media type, size, sha256 and pixel dimensions."
+    "summary": "Read an asset's metadata and live usages in the book."
   },
   {
     "access": "read",
     "concurrency": "shared",
     "input": {
-      "description": "A book.",
+      "description": "A list query's filter on the trash.",
       "properties": {
         "book": {
           "type": "string"
+        },
+        "trashed": {
+          "default": false,
+          "description": "Include what is in the trash.",
+          "type": "boolean"
         }
       },
       "required": [
         "book"
       ],
-      "title": "BookIn",
+      "title": "ListIn",
       "type": "object"
     },
     "kind": "query",
@@ -100,8 +228,28 @@ expression: json
     "output": {
       "$defs": {
         "AssetInfo": {
-          "description": "An asset's recorded metadata.",
+          "description": "An asset's recorded metadata and live usages in the book.",
           "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "folder": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "height": {
               "format": "int64",
               "type": [
@@ -130,6 +278,12 @@ expression: json
               "format": "int64",
               "type": "integer"
             },
+            "usages": {
+              "items": {
+                "$ref": "#/$defs/AssetUsage"
+              },
+              "type": "array"
+            },
             "width": {
               "format": "int64",
               "type": [
@@ -146,7 +300,102 @@ expression: json
             "size",
             "sha256",
             "width",
-            "height"
+            "height",
+            "created_at",
+            "usages"
+          ],
+          "type": "object"
+        },
+        "AssetUsage": {
+          "description": "One live place in the book where an asset is used (`kernel-v5.md` §6).",
+          "oneOf": [
+            {
+              "description": "An item in a live entry's active `media` module.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "item": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "media",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module",
+                "item"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A file embed block inside a live entry's active `prose` module.",
+              "properties": {
+                "block": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "embed",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A relation where one end is this asset and the other end is live.",
+              "properties": {
+                "kind": {
+                  "const": "relation",
+                  "type": "string"
+                },
+                "other": {
+                  "$ref": "#/$defs/Ref"
+                },
+                "relation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "relation",
+                "other"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Ref": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
           ],
           "type": "object"
         }
@@ -157,7 +406,44 @@ expression: json
       "title": "Array_of_AssetInfo",
       "type": "array"
     },
-    "summary": "List every asset recorded in the book, sorted by asset id."
+    "summary": "List assets in the project's built-in asset library (sorted by asset id), each with its live usages (media modules, prose embeds, relations). Set `trashed: true` to include Recently Deleted."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Permanently purge a trashed asset from the book manifest and delete its stored bytes."
   },
   {
     "access": "write",
@@ -166,6 +452,13 @@ expression: json
       "properties": {
         "book": {
           "type": "string"
+        },
+        "folder": {
+          "description": "Original 0.1 material folder path when imported (optional).",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "height": {
           "format": "int64",
@@ -232,7 +525,125 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Record an imported asset's metadata in the book (written once; the bytes are in storage)."
+    "summary": "Record an imported asset in the project's built-in asset library (bytes live in storage)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "name"
+      ],
+      "title": "AssetRenameIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset.rename",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename a live asset in the built-in asset library."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Restore a trashed asset from Recently Deleted back into the asset library."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset.trash",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain."
   },
   {
     "access": "read",
@@ -1542,13 +1953,13 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
+          "description": "A comment target (`entry` or `asset`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry`.",
+              "description": "`entry` or `asset`.",
               "type": "string"
             }
           },
@@ -1660,7 +2071,7 @@ expression: json
           "type": "object"
         },
         "CommentPart": {
-          "description": "Where inside `module` a comment sits (`part` in schema v5).",
+          "description": "Where inside `module` (or directly on an asset) a comment sits (`part` in schema v5).",
           "oneOf": [
             {
               "description": "An embedded file inside a `prose` module, optionally with a region on it.",
@@ -1690,7 +2101,7 @@ expression: json
               "type": "object"
             },
             {
-              "description": "A field definition inside a `fields` module.",
+              "description": "A field definition inside a `fields` module (`FieldDef.id`, never `FieldDef.name`).",
               "properties": {
                 "field": {
                   "type": "string"
@@ -1787,17 +2198,34 @@ expression: json
                 "item"
               ],
               "type": "object"
+            },
+            {
+              "description": "A rectangle on an image or PDF page when commenting directly on an asset in the asset library.",
+              "properties": {
+                "kind": {
+                  "const": "region",
+                  "type": "string"
+                },
+                "region": {
+                  "$ref": "#/$defs/Region"
+                }
+              },
+              "required": [
+                "kind",
+                "region"
+              ],
+              "type": "object"
             }
           ]
         },
         "CommentTargetV3": {
-          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
+          "description": "A comment target (`entry` or `asset`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry`.",
+              "description": "`entry` or `asset`.",
               "type": "string"
             }
           },
@@ -2010,13 +2438,13 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
+          "description": "A comment target (`entry` or `asset`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry`.",
+              "description": "`entry` or `asset`.",
               "type": "string"
             }
           },
@@ -2209,7 +2637,7 @@ expression: json
           "type": "object"
         },
         "CommentPart": {
-          "description": "Where inside `module` a comment sits (`part` in schema v5).",
+          "description": "Where inside `module` (or directly on an asset) a comment sits (`part` in schema v5).",
           "oneOf": [
             {
               "description": "An embedded file inside a `prose` module, optionally with a region on it.",
@@ -2239,7 +2667,7 @@ expression: json
               "type": "object"
             },
             {
-              "description": "A field definition inside a `fields` module.",
+              "description": "A field definition inside a `fields` module (`FieldDef.id`, never `FieldDef.name`).",
               "properties": {
                 "field": {
                   "type": "string"
@@ -2336,17 +2764,34 @@ expression: json
                 "item"
               ],
               "type": "object"
+            },
+            {
+              "description": "A rectangle on an image or PDF page when commenting directly on an asset in the asset library.",
+              "properties": {
+                "kind": {
+                  "const": "region",
+                  "type": "string"
+                },
+                "region": {
+                  "$ref": "#/$defs/Region"
+                }
+              },
+              "required": [
+                "kind",
+                "region"
+              ],
+              "type": "object"
             }
           ]
         },
         "CommentTargetV3": {
-          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
+          "description": "A comment target (`entry` or `asset`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry`.",
+              "description": "`entry` or `asset`.",
               "type": "string"
             }
           },
@@ -12894,6 +13339,13 @@ expression: json
         },
         "embeds": {
           "description": "The assets it embeds, in order (repeats kept).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing_embeds": {
+          "description": "Embedded asset IDs whose asset is missing or trashed in the book's asset library (shown as placeholders).",
           "items": {
             "type": "string"
           },

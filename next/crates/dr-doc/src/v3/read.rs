@@ -1627,6 +1627,9 @@ impl<'a> BookViewV3<'a> {
                 )
             }),
             EntityKind::Comment => self.entity_map(book_v3::COMMENTS, &r.id).is_some(),
+            EntityKind::Asset => self
+                .entity_map(book_v3::ASSETS, &r.id)
+                .is_some_and(|m| F(&m.get_deep_value()).ts("deleted_at").is_none()),
             _ => false,
         }
     }
@@ -1774,6 +1777,9 @@ impl<'a> BookViewV3<'a> {
         part: &CommentPart,
         lookup: Option<&CommentPartLookup>,
     ) -> bool {
+        if target.is_some_and(|t| t.kind == EntityKind::Asset) {
+            return target_module.is_some() || !matches!(part, CommentPart::Region { .. });
+        }
         let (Some(t), Some(mod_id)) = (
             target.filter(|t| t.kind == EntityKind::Entry),
             target_module,
@@ -1815,7 +1821,9 @@ impl<'a> BookViewV3<'a> {
         }
         match part {
             CommentPart::Embed { .. } => false,
-            CommentPart::Field { field } => !mod_def.config.defs.iter().any(|d| d.id == *field),
+            CommentPart::Field { field } => {
+                !mod_def.config.defs.iter().any(|d| d.id == field.as_str())
+            }
             CommentPart::KvRow { row } => !entry
                 .kv
                 .get(mod_id)
@@ -1846,6 +1854,7 @@ impl<'a> BookViewV3<'a> {
                 .media
                 .get(mod_id)
                 .is_some_and(|items| items.iter().any(|i| &i.id == item)),
+            CommentPart::Region { .. } => true,
         }
     }
 
@@ -1875,7 +1884,10 @@ impl<'a> BookViewV3<'a> {
             .as_ref()
             .is_some_and(|t| !self.entity_exists_with(t, entries));
         if !target_missing {
-            if raw_has_part && part.is_none() {
+            if (target.as_ref().is_some_and(|t| t.kind == EntityKind::Asset)
+                && target_module.is_some())
+                || (raw_has_part && part.is_none())
+            {
                 target_missing = true;
             } else if let Some(ref p) = part {
                 target_missing =
@@ -1997,23 +2009,21 @@ impl<'a> BookViewV3<'a> {
 
     // ---- assets, facts, memory, writing days ----------------------------
 
+    pub fn assets_raw(&self) -> Vec<Asset> {
+        crate::catalog::read::CatalogView { doc: self.doc }.assets_raw()
+    }
+
     pub fn assets(&self) -> Vec<Asset> {
-        entities(self.doc, book_v3::ASSETS)
-            .iter()
-            .filter_map(|(id, v)| {
-                let f = F(v);
-                Some(Asset {
-                    id: AssetId::parse(id).ok()?,
-                    name: f.string("name"),
-                    kind: f.kind("kind")?,
-                    mime: f.string("mime"),
-                    size: f.i64("size").unwrap_or(0),
-                    sha256: f.string("sha256"),
-                    width: f.i64("width"),
-                    height: f.i64("height"),
-                })
-            })
-            .collect()
+        crate::catalog::read::CatalogView { doc: self.doc }.assets()
+    }
+
+    pub fn asset_raw(&self, id: &AssetId) -> Option<Asset> {
+        let v = entity(self.doc, book_v3::ASSETS, id.as_str())?;
+        crate::catalog::read::decode_asset(id.as_str(), &v)
+    }
+
+    pub fn asset(&self, id: &AssetId) -> Option<Asset> {
+        self.asset_raw(id).filter(|a| !a.is_trashed())
     }
 
     pub fn facts(&self) -> Vec<KvEntry> {
@@ -2348,6 +2358,7 @@ impl<'a> BookViewV3<'a> {
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
                 | CollectionV3::Comments
+                | CollectionV3::Assets
                 | CollectionV3::Facts
                 | CollectionV3::Memory
         ) {

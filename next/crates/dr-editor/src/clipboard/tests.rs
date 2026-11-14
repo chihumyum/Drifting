@@ -245,18 +245,16 @@ fn malformed_paste_and_stale_copy_cannot_authorize_overwriting_new_body(cx: &mut
     assert_eq!(durable(&e).0, "concurrent author value\n");
 }
 fn note_doc(e: &Env, title: &str) -> String {
-    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
-    let id = e
-        .ws
-        .call(
+    let id =
+        e.ws.call(
             &Actor::User,
             "entry.create",
-            json!({"book":e.book,"parent":parent,"template":"tpl-note","title":title,"bodies":{"mod-prose":""}}),
+            json!({"book":e.book,"template":"tpl-note","title":title,"bodies":{"mod-prose":""}}),
         )
         .unwrap()["output"]["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+            .as_str()
+            .unwrap()
+            .to_owned();
     format!("body:{id}/mod-prose")
 }
 

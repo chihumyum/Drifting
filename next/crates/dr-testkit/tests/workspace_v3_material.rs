@@ -82,9 +82,22 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
     let mut wrong = args.clone();
     wrong["book"] = json!(other);
     assert!(e.try_call("asset.put", wrong).is_err());
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [
+                    {"id": "mod-media", "kind": "media", "name": "附件"}
+                ]
+            }
+        }),
+    );
     let pic = item(e.out(
         "entry.create",
-        json!({"book":b,"title":"Synthetic image","template":"tpl-media"}),
+        json!({"book":b,"title":"Synthetic image","template":"tpl-custom-media"}),
     ));
     let media = "media-synthetic-1";
     e.call(

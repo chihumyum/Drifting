@@ -2,7 +2,10 @@
 source: crates/dr-agent-tools/tests/catalog.rs
 expression: table
 ---
-asset.get [read] Read an asset's recorded metadata: name, kind, media type, size, sha256 and pixel dimensions.
+asset.get [read] Read an asset's metadata and live usages in the book.
+asset.rename [write] Rename a live asset in the built-in asset library.
+asset.restore [write] Restore a trashed asset from Recently Deleted back into the asset library.
+asset.trash [write] Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.
 book.get [read] Read book metadata and project word targets; aggregate counts use the statistics adapter.
 book.update [write] Update selected book metadata fields without replacing other book data.
 book.writing_days [read] A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
@@ -75,13 +78,16 @@ timeline_view.remove [write] Remove an entry from a timeline lane and prune posi
 timeline_view.remove_pin [write] Remove a time pin from a timeline view.
 
 Schema and facade revisions:
-asset.get shared f0b382efc1ff420f6a23775e86c32e6b42e517ccd7e44163016bca4606db5a8b
+asset.get shared 86848edbd6295ee4e2688ffd3e2f99bad631da551ee55c6cbd2b518d22ecc063
+asset.rename book 0d99dea52617c118145d8da7716b5dfe05eeb866c85a4a9d39fb463801ec673a
+asset.restore book 45d90626e170d4e6b38ba56c722dae97274647adb8d438dc5a1b99d6035adbcb
+asset.trash book a354ecaf7cb70406b0fcff636b5222d82d64f66a3a453183f2c08e07163ca060
 book.get shared 7aa7dad72cc42adaea132950a7e50ab758a08978ac83e2b7da205924c46f55d1
 book.update book 9a90277657c4441ee61bc8c4cb8ccda16ae8bd0eea2307ce5466e07125dd16e6
 book.writing_days shared 7456fa20c292ff01ba5948cbf25cf60c4419d0c70a0beccb8ccacac14a6c9c6d
-comment.anchors shared 19fc9304aa69690889dbc9b18d3a48340f675102abacaad8ba1fbe4d24172784
-comment.create book c51cccd98c96f9270b7a8270663513d31f32144612a85341e42bbef1230b673a
-comment.list shared b9f099f13fe40aae1b21ed736aae62cd2bba006ff830d242b2705a79e83ce736
+comment.anchors shared 6037013e3822f940bf6e909320a500a43e849931fa263b3f288d524f512b3296
+comment.create book 6cb992634ed617b18497c3f2c3010c7cf79269768ca44144b18d2712d5b686aa
+comment.list shared 5a21a7bbf82df1da64f0220d4d2cc0113d5ee2ec0c6c50c71c1e74d92e0d14df
 comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
 comment.update book 52acb1f028f0b975bdbaeaea68fdb25bfbe722f457ec1f04bc091f70c9353292
 entry.create book 1b07f814a96f7e1b44e61334354f78811de49be4ce982e2ca83ea2ccdb81222f
@@ -133,7 +139,7 @@ prose.link book 6c03a9a67d332f49af1ec3c40f90a71d79bec4589b1a471ca0690e6a1f1f5824
 prose.read shared 1f00cfcf0d0b223435c53a2520fd5d3cd8a9ca87303b1b3d3fee400916de486d
 prose.replace book 0a4a1a7d57351546552a8c9a1fb1e19cd3bd3d8fe974dfb820810729a5b77e9e
 prose.restore book 934bad1bf84f97302d2d488c41c7dd2ad571923c8aee94c06cebdedf9d4e75be
-prose.shape shared 0e9a10efb5c45c28b7bcd053ea5e8cd91cb78243739bd2b89f29384fd5e4358b
+prose.shape shared 79278d06167df60b727305ad3cdd0f8fc656e6e55b9a5a4944dbc0e670ac29ec
 prose.unlink book 3457b6a41761025177ffb71174c995f5191c7781664c29377dfc5c879a6a2292
 recent.list shared 16d9f49bf144526e2694761d2b79c2969bb2662e828d97878ef857ad58f65e33
 relation.create book 58b8d33e8f2e30658a54f582007d9a33c7598d2ac405196c288d4f9760aacc48
@@ -150,6 +156,7 @@ timeline_view.remove_pin book cc25490f33a9fef480568b9e42108e475e2c36ef1ff60b31b7
 
 Excluded registry operations:
 asset.list: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+asset.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 asset.put: storage, editor, or derived-state maintenance
 book.list: no current-book input boundary
 book.purge: library-wide lifecycle operation

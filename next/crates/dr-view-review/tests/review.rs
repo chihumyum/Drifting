@@ -447,7 +447,18 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
 #[gpui::test]
 fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppContext) {
     let e = sample_env();
-    let materials_root = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let asset = "00000000-0000-7000-8000-000000000071";
     out(
         &e.ws,
@@ -467,7 +478,7 @@ fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppConte
     let entry_id = out(
         &e.ws,
         "entry.create",
-        json!({"book": e.book, "template": "tpl-media", "parent": materials_root, "title": title}),
+        json!({"book": e.book, "template": "tpl-custom-media", "title": title}),
     )["id"]
         .as_str()
         .unwrap()

@@ -213,12 +213,79 @@ fn text(w: &dr_doc::v3::write::EntryWriterV3, key: &str, value: &str) -> Result<
 }
 
 fn restrictions(kinds: &[EntityKind]) -> Vec<EntityKind> {
-    kinds
-        .iter()
-        .map(map_kind)
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
+    let mut out = BTreeSet::new();
+    for kind in kinds {
+        if *kind == EntityKind::Material {
+            out.insert(EntityKind::Entry);
+            out.insert(EntityKind::Asset);
+        } else {
+            out.insert(map_kind(kind));
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// Join ancestor 0.1 `material_folder` names with `/` (`kernel-v5.md` §13).
+pub fn material_folder_path(
+    folders: &[dr_model::import_v1::MaterialFolder],
+    folder_id: &dr_model::import_v1::MaterialFolderId,
+) -> Option<String> {
+    let by_id: BTreeMap<
+        &dr_model::import_v1::MaterialFolderId,
+        &dr_model::import_v1::MaterialFolder,
+    > = folders.iter().map(|f| (&f.id, f)).collect();
+    let mut parts = Vec::new();
+    let mut cur = Some(folder_id);
+    let mut seen = BTreeSet::new();
+    while let Some(fid) = cur {
+        let Some(f) = by_id.get(fid) else {
+            break;
+        };
+        if !seen.insert(fid.clone()) {
+            break;
+        }
+        if !f.name.is_empty() {
+            parts.push(f.name.as_str());
+        }
+        cur = f.parent.as_ref();
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        parts.reverse();
+        Some(parts.join("/"))
+    }
+}
+
+/// Every 0.1 `material_folder` holding a text material directly or via child
+/// folders (`kernel-v5.md` §13).
+pub fn note_material_folder_ids(
+    folders: &[dr_model::import_v1::MaterialFolder],
+    materials: &[dr_model::import_v1::Material],
+) -> BTreeSet<dr_model::import_v1::MaterialFolderId> {
+    let by_id: BTreeMap<
+        &dr_model::import_v1::MaterialFolderId,
+        &dr_model::import_v1::MaterialFolder,
+    > = folders.iter().map(|f| (&f.id, f)).collect();
+    let mut out = BTreeSet::new();
+    for m in materials {
+        if m.kind != MaterialKind::Text {
+            continue;
+        }
+        let mut cur = m.folder.as_ref();
+        let mut seen = BTreeSet::new();
+        while let Some(fid) = cur {
+            let Some(f) = by_id.get(fid) else {
+                break;
+            };
+            if !seen.insert(fid.clone()) {
+                break;
+            }
+            out.insert(fid.clone());
+            cur = f.parent.as_ref();
+        }
+    }
+    out
 }
 
 /// Import replaces the default categories with the source categories. After
@@ -229,7 +296,6 @@ struct Roots {
     ideas: EntryId,
     elements: EntryId,
     storylines: EntryId,
-    materials: EntryId,
     narrative_view: TimelineViewId,
 }
 
@@ -241,7 +307,6 @@ fn roots(txn: &mut BookTxnV3<'_>) -> Result<Roots> {
             ideas: ids.ideas,
             elements: ids.elements,
             storylines: ids.storylines,
-            materials: ids.materials,
             narrative_view: ids.narrative_view,
         });
     }
@@ -260,7 +325,6 @@ fn roots(txn: &mut BookTxnV3<'_>) -> Result<Roots> {
         ideas: root(TPL_IDEAS)?,
         elements: root(TPL_ELEMENTS)?,
         storylines: root(TPL_STORYLINES)?,
-        materials: root(TPL_MATERIALS)?,
         narrative_view: views[0].id.clone(),
     })
 }
@@ -464,7 +528,6 @@ pub fn sync_catalog(
                         &roots.ideas,
                         &roots.elements,
                         &roots.storylines,
-                        &roots.materials,
                     ]
                     .contains(&&e.id)
             })
@@ -481,9 +544,34 @@ pub fn sync_catalog(
                         &roots.ideas,
                         &roots.elements,
                         &roots.storylines,
-                        &roots.materials,
                     ]
                     .contains(&&e.id)
+            })
+            .map_or_else(EntryId::new_v7, |e| e.id.clone())
+    });
+    let source_folders = source.material_folders();
+    let source_materials = source.materials();
+    let note_folders = note_material_folder_ids(&source_folders, &source_materials);
+    let has_text_materials = source_materials
+        .iter()
+        .any(|m| m.kind == MaterialKind::Text);
+    let text_materials_root = has_text_materials.then(|| {
+        existing
+            .iter()
+            .find(|e| {
+                e.parent.is_none()
+                    && e.template.as_ref() == Some(&tid(TPL_GROUP))
+                    && e.title == "文本素材"
+                    && ![
+                        &roots.manuscript,
+                        &roots.ideas,
+                        &roots.elements,
+                        &roots.storylines,
+                    ]
+                    .contains(&&e.id)
+                    && !acts.iter().any(|a| a.id.as_str() == e.id.as_str())
+                    && !nodes.iter().any(|n| n.id.as_str() == e.id.as_str())
+                    && !note_folders.iter().any(|f| f.as_str() == e.id.as_str())
             })
             .map_or_else(EntryId::new_v7, |e| e.id.clone())
     });
@@ -512,7 +600,6 @@ pub fn sync_catalog(
     entries.put(&roots.ideas, None, "构想", &tid(TPL_IDEAS))?;
     entries.put(&roots.elements, None, "要素", &tid(TPL_ELEMENTS))?;
     entries.put(&roots.storylines, None, "故事线", &tid(TPL_STORYLINES))?;
-    entries.put(&roots.materials, None, "素材", &tid(TPL_MATERIALS))?;
     struct ResolvedActEntry {
         entry_id: EntryId,
         interval: Option<(f64, f64)>,
@@ -733,33 +820,45 @@ pub fn sync_catalog(
             &tid(TPL_STORYLINE),
         )?;
     }
-    let folder_ids: BTreeSet<_> = source
-        .material_folders()
-        .into_iter()
-        .map(|f| f.id)
-        .collect();
-    for folder in source.material_folders() {
-        let parent = folder
-            .parent
-            .as_ref()
-            .filter(|p| folder_ids.contains(*p))
-            .map(|p| eid(p.as_str()))
-            .unwrap_or_else(|| roots.materials.clone());
-        entries.put(
-            &eid(folder.id.as_str()),
-            Some(&parent),
-            &folder.name,
-            &tid(TPL_GROUP),
-        )?;
-    }
-    for material in source.materials() {
-        let parent = material
-            .folder
-            .as_ref()
-            .filter(|f| folder_ids.contains(*f))
-            .map(|f| eid(f.as_str()))
-            .unwrap_or_else(|| roots.materials.clone());
-        if material.kind == MaterialKind::Text {
+    if let Some(text_root) = &text_materials_root {
+        let w = entries.put(text_root, None, "文本素材", &tid(TPL_GROUP))?;
+        w.overrides(Some(&LevelSettingsOverride {
+            default_template: Some(Some(tid(TPL_NOTE))),
+            format_shortcuts: Some(FormatShortcuts::Notes),
+            accept: Some(false),
+            ..Default::default()
+        }))?;
+        for folder in &source_folders {
+            if !note_folders.contains(&folder.id) {
+                continue;
+            }
+            let parent = folder
+                .parent
+                .as_ref()
+                .filter(|p| note_folders.contains(*p))
+                .map(|p| eid(p.as_str()))
+                .unwrap_or_else(|| text_root.clone());
+            let fw = entries.put(
+                &eid(folder.id.as_str()),
+                Some(&parent),
+                &folder.name,
+                &tid(TPL_GROUP),
+            )?;
+            fw.overrides(Some(&LevelSettingsOverride {
+                accept: Some(false),
+                ..Default::default()
+            }))?;
+        }
+        for material in &source_materials {
+            if material.kind != MaterialKind::Text {
+                continue;
+            }
+            let parent = material
+                .folder
+                .as_ref()
+                .filter(|f| note_folders.contains(*f))
+                .map(|f| eid(f.as_str()))
+                .unwrap_or_else(|| text_root.clone());
             let tpl = if material.task_todos {
                 tid(TPL_NOTE)
             } else {
@@ -771,25 +870,6 @@ pub fn sync_catalog(
                 &material.title,
                 &tpl,
             )?;
-        } else {
-            let w = entries.put(
-                &eid(material.id.as_str()),
-                Some(&parent),
-                &material.title,
-                &tid(TPL_MEDIA),
-            )?;
-            if let Some(asset) = &material.asset {
-                w.put_media(
-                    &mid(MOD_MEDIA),
-                    &MediaItem {
-                        id: MediaItemId::parse(material.id.as_str())
-                            .map_err(|e| invalid(e.to_string()))?,
-                        asset: asset.clone(),
-                        caption: material.description.clone(),
-                        pos: Some(PosKey::first()),
-                    },
-                )?;
-            }
         }
     }
     entries.finish()?;
@@ -959,6 +1039,50 @@ fn node_fields(
 }
 
 fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
+    let folders = source.material_folders();
+    let materials = source.materials();
+    let materials_by_id: BTreeMap<&str, &dr_model::import_v1::Material> =
+        materials.iter().map(|m| (m.id.as_str(), m)).collect();
+    let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
+    let mut first_folder_by_asset: BTreeMap<&AssetId, String> = BTreeMap::new();
+    for m in &materials {
+        if let Some(asset) = &m.asset {
+            if !m.title.is_empty() {
+                first_title_by_asset
+                    .entry(asset)
+                    .or_insert(m.title.as_str());
+            }
+            if let Some(fid) = &m.folder
+                && let Some(path) = material_folder_path(&folders, fid)
+            {
+                first_folder_by_asset.entry(asset).or_insert(path);
+            }
+        }
+    }
+    let wanted_assets: BTreeSet<_> = source.assets().into_iter().map(|a| a.id).collect();
+    for old in txn.view().assets_raw() {
+        if !wanted_assets.contains(&old.id) {
+            txn.purge(dr_doc::v3::CollectionV3::Assets, old.id.as_str())?;
+        }
+    }
+    for mut asset in source.assets() {
+        if asset.name.is_empty() {
+            asset.name = first_title_by_asset
+                .get(&asset.id)
+                .copied()
+                .unwrap_or_default()
+                .to_string();
+        }
+        if asset.folder.is_none() {
+            asset.folder = first_folder_by_asset.get(&asset.id).cloned();
+        }
+        txn.put_asset(&asset)?;
+        txn.asset(&asset.id)?
+            .name(&asset.name)?
+            .folder(asset.folder.as_deref())?
+            .deleted_at(asset.deleted_at)?;
+    }
+
     let comment_ids: BTreeMap<_, _> = source
         .comments()
         .iter()
@@ -975,14 +1099,25 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             ))
         })
         .collect();
-    let map = |r: &EntityRef| {
+    let map = |r: &EntityRef| -> Option<EntityRef> {
+        if r.kind == EntityKind::Material {
+            if let Some(m) = materials_by_id.get(r.id.as_str())
+                && m.kind != MaterialKind::Text
+            {
+                return m
+                    .asset
+                    .as_ref()
+                    .map(|a| EntityRef::new(EntityKind::Asset, a.as_str()));
+            }
+            return Some(EntityRef::new(EntityKind::Entry, &r.id));
+        }
         let mut new = map_ref(r);
         if r.kind == EntityKind::Comment
             && let Some(id) = comment_ids.get(&r.id)
         {
             new.id = id.to_string();
         }
-        new
+        Some(new)
     };
     for rt in source.relation_types() {
         if rt.locked || rt.system_key.is_some() {
@@ -1006,18 +1141,32 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         .filter(|r| r.orientation == RelationOrientation::Symmetric)
         .map(|r| r.id)
         .collect();
+    let mut seen_relations: BTreeSet<(EntityRef, EntityRef, RelationTypeId)> = BTreeSet::new();
+    let mut wanted_relations: BTreeSet<RelationId> = BTreeSet::new();
     for relation in source.relations_raw() {
-        let from = map(&relation.from);
-        let to = map(&relation.to);
+        let (Some(from), Some(to)) = (map(&relation.from), map(&relation.to)) else {
+            continue;
+        };
         let (from, to) = if symmetric.contains(&relation.relation_type) {
             canonical_symmetric(from, to)
         } else {
             (from, to)
         };
+        if from == to
+            || !seen_relations.insert((from.clone(), to.clone(), relation.relation_type.clone()))
+        {
+            continue;
+        }
+        wanted_relations.insert(relation.id.clone());
         txn.relation(&relation.id)?
             .ends(&from, &to)?
             .relation_type(&relation.relation_type)?
             .created_at(relation.created_at)?;
+    }
+    for old in txn.view().relations_raw() {
+        if !wanted_relations.contains(&old.id) {
+            txn.purge(dr_doc::v3::CollectionV3::Relations, old.id.as_str())?;
+        }
     }
     for patch in source.patches() {
         txn.patch(&patch.id)?
@@ -1033,17 +1182,6 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .body(&patch.body)?;
         if let Some(pos) = patch.pos {
             txn.patch(&patch.id)?.pos(&pos)?;
-        }
-    }
-    let materials = source.materials();
-    let materials_by_id: BTreeMap<&str, &dr_model::import_v1::Material> =
-        materials.iter().map(|m| (m.id.as_str(), m)).collect();
-    let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
-    for m in &materials {
-        if let Some(asset) = &m.asset {
-            first_title_by_asset
-                .entry(asset)
-                .or_insert(m.title.as_str());
         }
     }
     for comment in source.comments() {
@@ -1062,14 +1200,8 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         let (module, part) = match &comment.target {
             Some(t) if t.kind == EntityKind::Material => match materials_by_id.get(t.id.as_str()) {
                 Some(m) if m.kind != MaterialKind::Text => (
-                    Some(mid(MOD_MEDIA)),
-                    match &m.asset {
-                        Some(_) => Some(CommentPart::Media {
-                            item: MediaItemId::parse(&t.id).map_err(|e| invalid(e.to_string()))?,
-                            region: comment.region,
-                        }),
-                        None => None,
-                    },
+                    None,
+                    comment.region.map(|region| CommentPart::Region { region }),
                 ),
                 _ => (Some(mid(MOD_PROSE)), None),
             },
@@ -1086,8 +1218,18 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         } else {
             txn.comment(&comment.id)?
         };
+        let mapped_comment_target = comment.target.as_ref().and_then(|t| {
+            if t.kind == EntityKind::Material
+                && let Some(m) = materials_by_id.get(t.id.as_str())
+                && m.kind != MaterialKind::Text
+            {
+                let asset_id = m.asset.as_ref().map_or(t.id.as_str(), AssetId::as_str);
+                return Some(EntityRef::new(EntityKind::Asset, asset_id));
+            }
+            map(t)
+        });
         w.origin(&origin)?
-            .target(comment.target.as_ref().map(map).as_ref())?
+            .target(mapped_comment_target.as_ref())?
             .module(module.as_ref())?
             .part(part.as_ref())?
             .target_block(comment.target_block.as_ref())?
@@ -1107,16 +1249,6 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .created_at(comment.created_at)?
             .updated_at(comment.updated_at)?;
     }
-    for mut asset in source.assets() {
-        if asset.name.is_empty() {
-            asset.name = first_title_by_asset
-                .get(&asset.id)
-                .copied()
-                .unwrap_or_default()
-                .to_string();
-        }
-        txn.put_asset(&asset)?;
-    }
     let wanted: BTreeSet<_> = source.facts().iter().map(|f| f.id.clone()).collect();
     for old in txn.view().facts() {
         if !wanted.contains(&old.id) {
@@ -1130,7 +1262,7 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         txn.memory(&memory.id)?
             .kind(&memory.kind)?
             .body(&memory.body)?
-            .target(memory.target.as_ref().map(map_ref).as_ref())?
+            .target(memory.target.as_ref().and_then(&map).as_ref())?
             .target_block(memory.target_block.as_ref())?
             .source(&memory.source)?
             .origin_ref(memory.origin_ref.as_deref())?
@@ -1254,7 +1386,7 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             .any(|kind| {
                 !matches!(
                     kind,
-                    EntityKind::Entry | EntityKind::Comment | EntityKind::Patch
+                    EntityKind::Entry | EntityKind::Comment | EntityKind::Patch | EntityKind::Asset
                 )
             })
         {

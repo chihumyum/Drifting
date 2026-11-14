@@ -720,6 +720,9 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             sha256: a.sha256.clone(),
             width: a.width,
             height: a.height,
+            created_at: parse_iso(&a.created_at),
+            folder: None,
+            deleted_at: None,
         })?;
     }
     for (m, pos) in r.materials.iter().zip(ranks(r.materials.len())) {
@@ -760,14 +763,12 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             if rich {
                 notes.add("material-description-formatting-kept-as-text");
             }
-            if rich || kind == MaterialKind::Text {
-                originals.push((
-                    "materials",
-                    m.id.clone(),
-                    "description",
-                    notes_json.to_string(),
-                ));
-            }
+            originals.push((
+                "materials",
+                m.id.clone(),
+                "description",
+                notes_json.to_string(),
+            ));
             w.description(&text)?;
         }
     }

@@ -82,8 +82,10 @@ pub struct TodoProjection {
     pub block: BlockId,
 }
 
-/// An asset's metadata (`assets` in the book document, `kernel-v5.md` §6 & §10).
-/// The bytes are in SQLite / files, addressed by sha256; metadata is written once.
+/// An asset's record in the project's built-in asset library (`assets` in the
+/// book document, `kernel-v5.md` §6 & §10).
+/// The bytes are in SQLite / files, addressed by sha256; the binary identity is
+/// written once, while `name`, `folder`, and `deleted_at` manage library state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
     pub id: AssetId,
@@ -96,6 +98,15 @@ pub struct Asset {
     pub sha256: String,
     pub width: Option<i64>,
     pub height: Option<i64>,
+    /// When the file was added to the asset library.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<Timestamp>,
+    /// Original 0.1 material folder path recorded during import, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    /// Set when trashed from the asset library; bytes stay until purged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<Timestamp>,
 }
 
 impl Asset {
@@ -109,6 +120,10 @@ impl Asset {
             && self.sha256 == other.sha256
             && self.width == other.width
             && self.height == other.height
+    }
+
+    pub fn is_trashed(&self) -> bool {
+        self.deleted_at.is_some()
     }
 }
 

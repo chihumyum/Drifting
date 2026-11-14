@@ -554,6 +554,9 @@ fn materials_folders_and_assets() {
         sha256: "a".repeat(64),
         width: Some(2),
         height: Some(3),
+        created_at: None,
+        folder: None,
+        deleted_at: None,
     };
     let m1 = MaterialId::parse("m1").unwrap();
     let m2 = MaterialId::parse("m2").unwrap();
@@ -767,6 +770,9 @@ fn references_to_missing_entities_read_as_none() {
             sha256: "b".repeat(64),
             width: None,
             height: None,
+            created_at: None,
+            folder: None,
+            deleted_at: None,
         })?;
         t.element(&e)?
             .name("安")?

@@ -19,7 +19,7 @@ pub enum Entry {
     Ideas,
     Elements,
     Storylines,
-    Materials,
+    TextMaterials,
     ActTrack,
     Act(String),
     ActLeaf { act: String, synthetic_rank: usize },
@@ -40,7 +40,6 @@ pub enum LeafTemplate {
     Idea,
     Note,
     NotePlain,
-    Media,
     Category(String),
     Storyline(String),
 }
@@ -163,6 +162,7 @@ pub struct Prose {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum Endpoint {
     Entry(Entry),
+    Asset(String),
     Comment(String),
     Patch(String),
     Unresolved { kind: String, id: String },
@@ -323,13 +323,6 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                 field_projection: None,
                 initial_body: None,
             },
-            Template {
-                template: LeafTemplate::Media,
-                name: "媒体".into(),
-                fields: vec![],
-                field_projection: None,
-                initial_body: None,
-            },
         ],
         memberships: Vec::new(),
         relations: Vec::new(),
@@ -391,7 +384,6 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         (Entry::Ideas, "构想", Some(LeafTemplate::Idea)),
         (Entry::Elements, "要素", None),
         (Entry::Storylines, "故事线", None),
-        (Entry::Materials, "素材", Some(LeafTemplate::Note)),
     ] {
         out.levels.push(level(
             entry,
@@ -400,6 +392,19 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             None,
             template,
+            true,
+            false,
+            None,
+        ));
+    }
+    if rows.materials.iter().any(|m| m.kind == "text") {
+        out.levels.push(level(
+            Entry::TextMaterials,
+            None,
+            "文本素材".into(),
+            None,
+            None,
+            Some(LeafTemplate::Note),
             true,
             false,
             None,
@@ -887,22 +892,43 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             deleted_at: element.deleted_at.clone(),
         });
     }
+    let folders_by_id: BTreeMap<&str, _> =
+        rows.folders.iter().map(|f| (f.id.as_str(), f)).collect();
+    let mut note_folder_ids: BTreeSet<&str> = BTreeSet::new();
+    for m in rows.materials.iter().filter(|m| m.kind == "text") {
+        let mut cur = m.folder.as_deref();
+        let mut seen = BTreeSet::new();
+        while let Some(fid) = cur {
+            let Some(f) = folders_by_id.get(fid) else {
+                break;
+            };
+            if !seen.insert(fid) {
+                break;
+            }
+            note_folder_ids.insert(fid);
+            cur = f.parent.as_deref();
+        }
+    }
     for folder in &rows.folders {
+        if !note_folder_ids.contains(folder.id.as_str()) {
+            continue;
+        }
         out.levels.push(level(
             Entry::MaterialFolder(folder.id.clone()),
             Some(
                 folder
                     .parent
                     .as_ref()
+                    .filter(|p| note_folder_ids.contains(p.as_str()))
                     .map(|p| Entry::MaterialFolder(p.clone()))
-                    .unwrap_or(Entry::Materials),
+                    .unwrap_or(Entry::TextMaterials),
             ),
             folder.name.clone(),
             folder.order,
             folder.color.clone(),
             Some(LeafTemplate::Note),
             true,
-            true,
+            false,
             None,
         ));
     }
@@ -910,10 +936,10 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         let template = match material.kind.as_str() {
             "text" if material.task_todos => Some(LeafTemplate::Note),
             "text" => Some(LeafTemplate::NotePlain),
-            "image" | "pdf" => Some(LeafTemplate::Media),
+            "image" | "pdf" => continue,
             _ => {
                 pending(&mut out, "unknown-material-kind", &material.id);
-                None
+                continue;
             }
         };
         let summary = material
@@ -928,8 +954,9 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                 material
                     .folder
                     .as_ref()
+                    .filter(|f| note_folder_ids.contains(f.as_str()))
                     .map(|f| Entry::MaterialFolder(f.clone()))
-                    .unwrap_or(Entry::Materials),
+                    .unwrap_or(Entry::TextMaterials),
             ),
             template,
             title: material.title.clone(),
@@ -956,8 +983,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
     for relation in &rows.relations {
         out.relations.push(Relation {
             old_id: relation.id.clone(),
-            from: endpoint(&relation.from_kind, &relation.from_id),
-            to: endpoint(&relation.to_kind, &relation.to_id),
+            from: endpoint(&relation.from_kind, &relation.from_id, &rows.materials),
+            to: endpoint(&relation.to_kind, &relation.to_id, &rows.materials),
             relation_type: relation.relation_type.clone(),
             orientation: rows
                 .relation_types
@@ -1015,7 +1042,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         out.comments.push(Comment {
             old_id: comment.id.clone(),
             origin,
-            target: target.map(|(kind, id)| endpoint(kind, id)),
+            target: target.map(|(kind, id)| endpoint(kind, id, &rows.materials)),
             body,
         });
     }
@@ -1129,13 +1156,22 @@ fn fields(
         .collect())
 }
 
-fn endpoint(kind: &str, id: &str) -> Endpoint {
+fn endpoint(kind: &str, id: &str, materials: &[dr_import_v1::legacy::MaterialRow]) -> Endpoint {
     match kind {
         "node" => Endpoint::Entry(Entry::Node(id.into())),
         "element" => Endpoint::Entry(Entry::Element(id.into())),
         "category" => Endpoint::Entry(Entry::Category(id.into())),
         "storyline" => Endpoint::Entry(Entry::Storyline(id.into())),
-        "library_item" => Endpoint::Entry(Entry::Material(id.into())),
+        "library_item" => match materials.iter().find(|m| m.id == id) {
+            Some(m) if matches!(m.kind.as_str(), "image" | "pdf") => match &m.asset {
+                Some(asset_id) => Endpoint::Asset(asset_id.clone()),
+                None => Endpoint::Unresolved {
+                    kind: kind.into(),
+                    id: id.into(),
+                },
+            },
+            _ => Endpoint::Entry(Entry::Material(id.into())),
+        },
         "comment" => Endpoint::Comment(id.into()),
         "patch" => Endpoint::Patch(id.into()),
         _ => Endpoint::Unresolved {
@@ -1186,6 +1222,9 @@ fn validate_references(out: &mut Manifest) {
     }
     let endpoint_exists = |endpoint: &Endpoint| match endpoint {
         Endpoint::Entry(e) => entries.contains(e),
+        Endpoint::Asset(id) => out.source_rows["project_asset"]
+            .iter()
+            .any(|r| r["id"] == *id),
         Endpoint::Comment(id) => out.source_rows["comment"].iter().any(|r| r["id"] == *id),
         Endpoint::Patch(id) => out.source_rows["element_patch"]
             .iter()

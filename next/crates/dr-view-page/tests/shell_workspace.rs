@@ -52,17 +52,19 @@ fn add_media_item(lib: &Library) {
         .as_str()
         .unwrap()
         .to_owned();
-    let parent = lib
-        .call(&Actor::User, "entry.list", json!({"book":&book,"all":true}))
-        .unwrap()["output"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|e| e["template"] == "tpl-materials")
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    lib.call(
+        &Actor::User,
+        "entry_template.put",
+        json!({
+            "book": &book,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    )
+    .unwrap();
     let asset = "00000000-0000-7000-8000-000000000099";
     lib.call(
         &Actor::User,
@@ -83,7 +85,7 @@ fn add_media_item(lib: &Library) {
         .call(
             &Actor::User,
             "entry.create",
-            json!({"book":&book,"template":"tpl-media","parent":parent,"title":"慢钟示意图"}),
+            json!({"book":&book,"template":"tpl-custom-media","title":"慢钟示意图"}),
         )
         .unwrap()["output"]["id"]
         .as_str()

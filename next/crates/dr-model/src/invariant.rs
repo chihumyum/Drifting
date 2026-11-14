@@ -246,14 +246,15 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "REL-KINDS",
-        "关系从条目、补丁或批注出发，指向条目或补丁",
+        "关系从条目、补丁、批注或文件出发，指向条目、补丁或文件",
         [Command, Read],
         "EntityKind::may_start_relation_v3 / is_structural_v3；读取时不合规的不显示",
         [
             "relations_are_shown_only_when_whole",
             "todo_links_through_the_builtin_type",
             "entity_kind_roles_match_the_old_vocabulary",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "asset_direct_region_comment_and_relation_survive_reopen"
         ]
     ),
     inv!(
@@ -368,13 +369,14 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "CMT-TARGET",
-        "批注的目标要么全空（浮动），要么种类和 id 都有，且是可批注的种类",
+        "批注的目标要么全空（浮动），要么种类和 id 都有，且是可批注的种类（条目或素材库里的文件）",
         [Command, Read],
-        "check::comment_target；读取时目标不在或在废纸篓就标 target_missing，显示为「未定位」，不丢",
+        "EntityKind::may_be_commented_v3；直接挂在素材库文件上的批注不带模块、可带图或 PDF 页的区域；读取时目标不在或在最近删除里就标 target_missing，显示为「未定位」，不丢",
         [
             "comments_keep_unlocated_targets_and_anchor_into_prose",
             "v3_comments_address_modules_validate_anchors_and_restore_after_reopen",
-            "comments_with_anchors_and_metadata"
+            "comments_with_anchors_and_metadata",
+            "asset_direct_region_comment_and_relation_survive_reopen"
         ]
     ),
     inv!(
@@ -396,10 +398,20 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "AST-IMMUTABLE",
-        "资源的元数据写一次就不变",
+        "资源的二进制身份（种类、MIME、大小、sha256、尺寸）写一次就不变",
         [Command],
-        "BookTxnV3::put_asset：同一 id 不同二进制身份拒绝；没有改资源的写入接口",
-        ["assets_and_media_modules"]
+        "BookTxnV3::put_asset：同一 id 不同二进制身份拒绝；asset.rename / asset.trash / asset.restore 只改名字或删除时间，不改二进制身份",
+        [
+            "assets_and_media_modules",
+            "asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"
+        ]
+    ),
+    inv!(
+        "ASSET-LIBRARY-KEEPS-UNREFERENCED",
+        "素材库里的文件不因为没人引用而被清掉；只有从素材库删掉、又从最近删除清掉的文件才删字节",
+        [Structure, Command, Read],
+        "assets 就是素材库的清单；删除只写 deleted_at（进最近删除，用到它的媒体模块、正文嵌入、关系、批注读作占位或隐藏），asset.restore 清掉 deleted_at 后恢复，只有 asset.purge 删键并清本机资源字节，collect_asset_garbage 只清未完成导入的临时目录",
+        ["asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"]
     ),
     inv!(
         "AST-SHAPE",
@@ -889,17 +901,24 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "COMMENT-PART-IN-MODULE",
-        "批注的「哪一处」（part）属于它说的那个模块：命令层预防；读取时模块或那一处不在了就标成 target_missing（找不到原处），数据留着",
+        "批注的「哪一处」（part）属于它说的那个模块（字段记 id 不记名字），或直接框在素材库文件上",
         [Command, Read],
-        "comment.create 用 check_comment_part_kind 并核对条目当前模板里的字段、键值行、情节规划格子、补丁、媒体文件与正文嵌入；读取时 BookViewV3 与 comment.list 找不到原处即标 target_missing / unlocated = true",
-        ["comment_parts_validate_against_modules_and_degrade_to_unlocated"]
+        "comment.create 用 check_comment_part_kind 并核对条目当前模板里的字段 id、键值行、情节规划格子、补丁、媒体文件与正文嵌入（直接挂在 asset 上只接受空或 region）；读取时 BookViewV3 与 comment.list 找不到原处即标 target_missing / unlocated = true",
+        [
+            "comment_parts_validate_against_modules_and_degrade_to_unlocated",
+            "field_rename_keeps_comment_on_field_id",
+            "asset_direct_region_comment_and_relation_survive_reopen"
+        ]
     ),
     inv!(
         "MEDIA-AND-EMBED-ASSET-EXISTS",
-        "媒体模块里的文件、正文嵌入指向的文件都在；读取时不在就显示占位",
+        "媒体模块里的文件、正文嵌入指向的文件都在素材库且未删除；读取时不在或已删就显示占位",
         [Command, Read],
-        "命令层在 module.put_media 校验 asset 已登记在书目 assets；读取时 module.read 与正文嵌入照实暴露缺失的 asset（missing = true 或找不到资产元数据），由界面显示占位，不丢记录",
-        ["media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_on_read"]
+        "命令层在 module.put_media 校验 asset 在素材库且未进最近删除；读取时 module.read 与正文嵌入照实暴露缺失或已删的 asset（missing = true 或 missing_embeds），由界面显示占位，恢复后重新显示",
+        [
+            "media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_on_read",
+            "asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"
+        ]
     ),
 ];
 
@@ -954,7 +973,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 86;
+pub const ACTIVE_CONTRACTS: usize = 87;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

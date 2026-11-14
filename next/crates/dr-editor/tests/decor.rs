@@ -543,12 +543,11 @@ fn task_items_tick_their_box_or_their_todo(cx: &mut TestAppContext) {
     use gpui_prose::schema::block;
     let e = env();
     // Lists live in notes.
-    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
     let note = out(
         &e.ws,
         &Actor::User,
         "entry.create",
-        json!({"book": e.book, "parent": parent, "template": "tpl-note", "title": "清单", "bodies": {"mod-prose": "买灯芯\n问钟楼的年代"}}),
+        json!({"book": e.book, "template": "tpl-note", "title": "清单", "bodies": {"mod-prose": "买灯芯\n问钟楼的年代"}}),
     )["id"]
         .as_str()
         .unwrap()
@@ -664,12 +663,11 @@ fn a_comments_original_passage_says_when_the_prose_changed() {
 fn code_blocks_and_callouts_are_written_in_notes(cx: &mut TestAppContext) {
     use gpui_prose::schema::block;
     let e = env();
-    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
     let note = out(
         &e.ws,
         &Actor::User,
         "entry.create",
-        json!({"book": e.book, "parent": parent, "template": "tpl-note", "title": "笔记", "bodies": {"mod-prose": "后盖    左上格\n拆之前先拍一张照。"}}),
+        json!({"book": e.book, "template": "tpl-note", "title": "笔记", "bodies": {"mod-prose": "后盖    左上格\n拆之前先拍一张照。"}}),
     )["id"]
         .as_str()
         .unwrap()

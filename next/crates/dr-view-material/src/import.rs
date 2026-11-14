@@ -27,6 +27,7 @@ use dr_store::asset::{
 use dr_workspace::commands::asset::{AssetPut, AssetPutIn};
 use dr_workspace::commands::v3::entry::{CreateIn as EntryCreateIn, EntryCreate};
 use dr_workspace::commands::v3::module::{In as ModuleIn, MediaPut, MediaPutIn};
+use dr_workspace::commands::v3::template::{PutIn as TemplatePutIn, TemplatePut};
 use dr_workspace::commands::v3::types;
 use dr_workspace::{Actor, Workspace as Library};
 use image::{DynamicImage, GenericImageView as _, ImageFormat};
@@ -238,50 +239,85 @@ fn record(
                 .flatten()
                 .filter(|&h| h > 0)
                 .map(i64::from),
+            folder: None,
         },
     )
     .map_err(|e| e.to_string())?;
     let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
     let requested_folder = folder.map(str::to_owned);
-    let (template_id, module_id, parent) = store
+    let (found_tpl, chosen_parent) = store
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(|e| e.to_string())?
-        .read(
-            move |doc| -> Result<(String, String, Option<String>), String> {
-                let b = BorrowedBookV3::new(doc, &book_id).map_err(|e| e.to_string())?;
-                let snap = b.view().structure_snapshot();
-                let (tpl_id, mod_id) = snap
-                    .templates_map()
-                    .values()
-                    .filter(|t| t.deleted_at.is_none())
-                    .find_map(|t| {
-                        t.modules
-                            .iter()
-                            .find(|m| m.kind == ModuleKind::Media)
-                            .map(|m| (t.id.clone(), m.id.to_string()))
+        .read(move |doc| {
+            let b = BorrowedBookV3::new(doc, &book_id).map_err(|e| e.to_string())?;
+            let snap = b.view().structure_snapshot();
+            let found = snap
+                .templates_map()
+                .values()
+                .filter(|t| t.deleted_at.is_none())
+                .find_map(|t| {
+                    t.modules
+                        .iter()
+                        .find(|m| m.kind == ModuleKind::Media)
+                        .map(|m| (t.id.to_string(), m.id.to_string()))
+                });
+            let chosen_parent = if let Some(ref f) = requested_folder
+                && let Ok(fid) = dr_model::id::EntryId::parse(f)
+                && snap.entry(&fid).is_some_and(|e| !e.is_trashed() && e.level)
+            {
+                Some(f.clone())
+            } else {
+                snap.children_of(None)
+                    .into_iter()
+                    .find(|e| {
+                        e.level
+                            && snap.level_settings(&e.id).is_some_and(|ls| {
+                                ls.settings.format_shortcuts == dr_model::v3::FormatShortcuts::Full
+                            })
                     })
-                    .ok_or_else(|| "book has no media template".to_owned())?;
-                let chosen_parent = if let Some(ref f) = requested_folder
-                    && let Ok(fid) = dr_model::id::EntryId::parse(f)
-                    && snap.entry(&fid).is_some_and(|e| !e.is_trashed() && e.level)
-                {
-                    Some(f.clone())
-                } else {
-                    snap.children_of(None)
-                        .into_iter()
-                        .find(|e| {
-                            e.level
-                                && snap.level_settings(&e.id).is_some_and(|ls| {
-                                    ls.settings.format_shortcuts
-                                        == dr_model::v3::FormatShortcuts::Full
-                                })
-                        })
-                        .map(|e| e.id.to_string())
-                };
-                Ok((tpl_id.to_string(), mod_id, chosen_parent))
-            },
-        )
+                    .map(|e| e.id.to_string())
+            };
+            Ok::<_, String>((found, chosen_parent))
+        })
         .map_err(|e| e.to_string())??;
+    let (template_id, module_id) = match found_tpl {
+        Some(pair) => pair,
+        None => {
+            // Minimal pre-T6 bridge: built-in `tpl-media` retired in format 5; T6 will switch
+            // `dr-view-material` to `asset.*` commands directly.
+            let tpl_id = "media-entry".to_owned();
+            let mod_id = "media".to_owned();
+            lib.run::<TemplatePut>(
+                &Actor::User,
+                TemplatePutIn {
+                    book: book.to_owned(),
+                    template: types::EntryTemplate {
+                        id: tpl_id.clone(),
+                        name: "媒体".to_owned(),
+                        mark: None,
+                        color: None,
+                        modules: vec![types::ModuleSpec {
+                            id: mod_id.clone(),
+                            kind: "media".to_owned(),
+                            name: "附件".to_owned(),
+                            pos: None,
+                            config: Default::default(),
+                            agent: None,
+                        }],
+                        level: false,
+                        linkable: false,
+                        settings: Default::default(),
+                        agent: None,
+                        verbs: Vec::new(),
+                        deleted_at: None,
+                    },
+                },
+            )
+            .map_err(|e| e.to_string())?;
+            (tpl_id, mod_id)
+        }
+    };
+    let parent = chosen_parent;
     let display_title = title.to_owned();
     let entry_id = lib
         .run::<EntryCreate>(

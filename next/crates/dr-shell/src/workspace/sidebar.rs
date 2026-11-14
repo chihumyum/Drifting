@@ -1639,8 +1639,21 @@ mod v3_panel_tests {
         made.write_to(&store).unwrap();
         store.close().unwrap();
         let library = dr_workspace::Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
-        let materials_root =
-            dr_testkit::seed::acceptance::novel_root(&library, &book, "tpl-materials");
+        let notes_root = dr_testkit::seed::acceptance::novel_root(&library, &book, "tpl-group");
+        library
+            .call(
+                &dr_workspace::Actor::User,
+                "entry_template.put",
+                serde_json::json!({
+                    "book": &book,
+                    "template": {
+                        "id": "tpl-custom-media",
+                        "name": "自定义媒体",
+                        "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+                    }
+                }),
+            )
+            .unwrap();
         library
             .call(
                 &dr_workspace::Actor::User,
@@ -1663,8 +1676,8 @@ mod v3_panel_tests {
                 "entry.create",
                 serde_json::json!({
                     "book": &book,
-                    "template": "tpl-media",
-                    "parent": materials_root,
+                    "template": "tpl-custom-media",
+                    "parent": notes_root,
                     "title": "附图"
                 }),
             )

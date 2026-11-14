@@ -134,13 +134,6 @@ fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after
         .find(|v| v["template"] == "tpl-manuscript")
         .unwrap()["id"]
         .clone();
-    let materials_root = entries
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|v| v["template"] == "tpl-materials")
-        .unwrap()["id"]
-        .clone();
     e.call("entry_template.put_module", json!({"book":b,"template":"tpl-chapter","module":{"id":"test-relations","kind":"relations","name":"Synthetic relations"}}));
     let entry = item(e.out(
         "entry.create",
@@ -150,7 +143,6 @@ fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
             "title": "Synthetic note",
             "template": "tpl-note",
             "bodies": {"mod-prose": "Preserve my note"}
@@ -222,7 +214,10 @@ fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after
 fn v3_material_level_entries_restore_order_ancestry_and_only_selected_records() {
     let mut e = env();
     let b = project(&e);
-    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    let materials_root = item(e.out(
+        "entry.create",
+        json!({"book":b,"template":"tpl-group","level":true,"title":"文本素材"}),
+    ));
     let a = item(e.out(
         "entry.create",
         json!({"book":b,"parent":materials_root,"template":"tpl-group","level":true,"title":"A"}),
@@ -470,12 +465,10 @@ fn v3_entry_comments_and_typed_todo_projection_keep_document_scope() {
     let e = env();
     let b = project(&e);
     let entry = prose_entry(&e, &b);
-    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
     let note = item(e.out(
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
             "template": "tpl-note",
             "title": "Synthetic note",
             "bodies": {"mod-prose": "Synthetic material"}

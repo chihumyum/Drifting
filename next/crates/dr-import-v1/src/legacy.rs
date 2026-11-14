@@ -649,6 +649,7 @@ pub struct AssetRow {
     pub sha256: String,
     pub width: Option<i64>,
     pub height: Option<i64>,
+    pub created_at: String,
 }
 
 /// Every authored row of one book.
@@ -1022,7 +1023,7 @@ impl Legacy {
             },
         )?;
         b.assets = self.rows(
-            "SELECT id, kind, source_mime, source_size_bytes, source_sha256, width, height FROM project_asset WHERE project_id = ?1 ORDER BY id",
+            "SELECT id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at FROM project_asset WHERE project_id = ?1 ORDER BY id",
             p,
             |r| {
                 Ok(AssetRow {
@@ -1033,6 +1034,7 @@ impl Legacy {
                     sha256: r.get(4)?,
                     width: r.get(5)?,
                     height: r.get(6)?,
+                    created_at: r.get(7)?,
                 })
             },
         )?;

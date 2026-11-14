@@ -2,9 +2,13 @@
 source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
-asset.get                    query    shared   Read an asset's recorded metadata: name, kind, media type, size, sha256 and pixel dimensions.
-asset.list                   query    shared   List every asset recorded in the book, sorted by asset id.
-asset.put                    command  book     Record an imported asset's metadata in the book (written once; the bytes are in storage).
+asset.get                    query    shared   Read an asset's metadata and live usages in the book.
+asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its live usages (media modules, prose embeds, relations). Set `trashed: true` to include Recently Deleted.
+asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
+asset.put                    command  book     Record an imported asset in the project's built-in asset library (bytes live in storage).
+asset.rename                 command  book     Rename a live asset in the built-in asset library.
+asset.restore                command  book     Restore a trashed asset from Recently Deleted back into the asset library.
+asset.trash                  command  book     Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.
 book.get                     query    shared   Read book metadata and project word targets; aggregate counts use the statistics adapter.
 book.list                    query    shared   List the library's books (trashed ones when asked).
 book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.

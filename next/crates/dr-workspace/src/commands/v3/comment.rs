@@ -85,11 +85,11 @@ fn file_embeds_in_prose(cx: &Cx<'_>, doc: &DocId) -> HashSet<EmbedId> {
         .collect()
 }
 
-/// A comment target (`entry`). Old structural kinds and `material` are not accepted.
+/// A comment target (`entry` or `asset`). Old structural kinds and `material` are not accepted.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CommentTargetV3")]
 pub struct Target {
-    /// `entry`.
+    /// `entry` or `asset`.
     pub kind: String,
     pub id: String,
 }
@@ -349,8 +349,8 @@ op! {
                                     }
                                 }
                                 CommentPart::Field { field } => {
-                                    if !mod_spec.config.defs.iter().any(|d| d.id == *field) {
-                                        return Err(WsError::not_found("field", field));
+                                    if !mod_spec.config.defs.iter().any(|d| d.id == field.as_str()) {
+                                        return Err(WsError::not_found("field", field.as_str()));
                                     }
                                 }
                                 CommentPart::KvRow { row } => {
@@ -380,11 +380,35 @@ op! {
                                         return Err(WsError::not_found("media", item.as_str()));
                                     }
                                 }
+                                CommentPart::Region { .. } => {
+                                    return Err(WsError::invalid("region part only applies to asset targets"));
+                                }
                             }
                         }
                         Some(mod_spec.id)
                     }
                 }
+            }
+            Some(t) if t.kind == "asset" => {
+                require_live(&slot, EntityKind::Asset, &t.id)?;
+                if input.module.is_some() || needs_prose {
+                    return Err(WsError::invalid("a comment on an asset cannot set module, block, range or anchor"));
+                }
+                if let Some(ref p) = part {
+                    match p {
+                        CommentPart::Region { region } => {
+                            let aid: AssetId = pid("asset", &t.id)?;
+                            if let Some(asset) = slot.reader_v3.view().asset(&aid)
+                                && asset.kind == dr_model::kind::AssetKind::Image
+                                && region.page.is_some()
+                            {
+                                return Err(WsError::invalid("an image region cannot set page"));
+                            }
+                        }
+                        _ => return Err(WsError::invalid("a comment on an asset only accepts a region part")),
+                    }
+                }
+                None
             }
             Some(t) => return Err(WsError::not_found("comment target", &t.id)),
         };

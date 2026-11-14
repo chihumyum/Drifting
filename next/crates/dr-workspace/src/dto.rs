@@ -137,7 +137,7 @@ impl CommentInfo {
     }
 }
 
-/// Where inside `module` a comment sits (`part` in schema v5).
+/// Where inside `module` (or directly on an asset) a comment sits (`part` in schema v5).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[schemars(rename = "CommentPart")]
@@ -148,7 +148,7 @@ pub enum CommentPartDto {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<Region>,
     },
-    /// A field definition inside a `fields` module.
+    /// A field definition inside a `fields` module (`FieldDef.id`, never `FieldDef.name`).
     Field { field: String },
     /// A row inside a `key_value` module.
     KvRow { row: String },
@@ -162,12 +162,15 @@ pub enum CommentPartDto {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<Region>,
     },
+    /// A rectangle on an image or PDF page when commenting directly on an asset in the asset library.
+    Region { region: Region },
 }
 
 impl CommentPartDto {
     pub fn region(&self) -> Option<&Region> {
         match self {
             Self::Embed { region, .. } | Self::Media { region, .. } => region.as_ref(),
+            Self::Region { region } => Some(region),
             _ => None,
         }
     }
@@ -185,14 +188,9 @@ impl CommentPartDto {
                 embed: pid("embed", embed)?,
                 region: region.as_ref().map(to_reg).transpose()?,
             },
-            Self::Field { field } => {
-                if field.trim().is_empty() {
-                    return Err(crate::WsError::invalid("field id cannot be empty"));
-                }
-                CommentPart::Field {
-                    field: field.clone(),
-                }
-            }
+            Self::Field { field } => CommentPart::Field {
+                field: pid("field", field.trim())?,
+            },
             Self::KvRow { row } => CommentPart::KvRow {
                 row: pid("kv_row", row)?,
             },
@@ -207,6 +205,9 @@ impl CommentPartDto {
                 item: pid("media_item", item)?,
                 region: region.as_ref().map(to_reg).transpose()?,
             },
+            Self::Region { region } => CommentPart::Region {
+                region: to_reg(region)?,
+            },
         })
     }
 }
@@ -220,7 +221,7 @@ impl From<&dr_model::v3::CommentPart> for CommentPartDto {
                 region: region.as_ref().map(Region::from),
             },
             CommentPart::Field { field } => Self::Field {
-                field: field.clone(),
+                field: field.to_string(),
             },
             CommentPart::KvRow { row } => Self::KvRow {
                 row: row.to_string(),
@@ -235,6 +236,9 @@ impl From<&dr_model::v3::CommentPart> for CommentPartDto {
             CommentPart::Media { item, region } => Self::Media {
                 item: item.to_string(),
                 region: region.as_ref().map(Region::from),
+            },
+            CommentPart::Region { region } => Self::Region {
+                region: Region::from(region),
             },
         }
     }

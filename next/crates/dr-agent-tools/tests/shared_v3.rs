@@ -304,14 +304,12 @@ fn reading_module_prose_does_not_authorize_entry_metadata_replacement() {
 #[test]
 fn material_metadata_and_text_use_current_book_scope_and_source_coverage() {
     let f = Fixture::new();
-    let parent = dr_testkit::seed::acceptance::novel_root(&f.ws, &f.book, "tpl-materials");
     f.call("entry.list", json!({"all":true})).unwrap();
     let note = f
         .call(
             "entry.create",
             json!({
                 "template":"tpl-note",
-                "parent":parent,
                 "title":"Synthetic material",
                 "bodies":{"mod-prose":"First material paragraph.\nSecond material paragraph."}
             }),
@@ -328,7 +326,7 @@ fn material_metadata_and_text_use_current_book_scope_and_source_coverage() {
     assert!(matches!(f.call("prose.replace",json!({"doc":doc,"block_id":second["block_id"],"find":second["text"],"replace":"unread"})),Err(Error::ReadRequired(_))));
     let first = &body["paragraphs"][0];
     f.call("prose.replace",json!({"doc":doc,"block_id":first["block_id"],"find":first["text"],"replace":"Read material revision."})).unwrap();
-    f.call("entry.list", json!({"parent":parent})).unwrap();
+    f.call("entry.list", json!({"parent":null})).unwrap();
     f.call(
         "entry.update",
         json!({"id":"Synthetic material","title":"Renamed material"}),

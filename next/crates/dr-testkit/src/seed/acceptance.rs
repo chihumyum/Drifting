@@ -52,16 +52,16 @@ pub fn novel_entry_as(
             .id
             .clone()
     };
-    let parent = match template {
-        "tpl-chapter" | "tpl-group" => root("tpl-manuscript"),
-        "tpl-idea" | "tpl-idea-group" => root("tpl-ideas"),
-        "tpl-storyline" => root("tpl-storylines"),
-        "tpl-category" => root("tpl-elements"),
-        "tpl-element" | "tpl-character" => cat("tpl-character"),
-        "tpl-location" => cat("tpl-location"),
-        "tpl-item" => cat("tpl-item"),
-        "tpl-organization" => cat("tpl-organization"),
-        "tpl-note" | "tpl-media" => root("tpl-materials"),
+    let parent: Option<dr_model::id::EntryId> = match template {
+        "tpl-chapter" | "tpl-group" => Some(root("tpl-manuscript")),
+        "tpl-idea" | "tpl-idea-group" => Some(root("tpl-ideas")),
+        "tpl-storyline" => Some(root("tpl-storylines")),
+        "tpl-category" => Some(root("tpl-elements")),
+        "tpl-element" | "tpl-character" => Some(cat("tpl-character")),
+        "tpl-location" => Some(cat("tpl-location")),
+        "tpl-item" => Some(cat("tpl-item")),
+        "tpl-organization" => Some(cat("tpl-organization")),
+        "tpl-note" => None,
         _ => panic!("explicit fixture template required"),
     };
     let mut input =

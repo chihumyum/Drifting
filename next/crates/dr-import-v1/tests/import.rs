@@ -355,18 +355,25 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(m.agent_conversation.as_deref(), Some("conv-1"));
     assert!(m.is_done());
     let region = v.comment(&CommentId::parse("region-1").unwrap()).unwrap();
+    assert_eq!(
+        region.target,
+        Some(dr_model::shared::EntityRef::new(
+            dr_model::kind::EntityKind::Asset,
+            ASSET,
+        ))
+    );
+    assert_eq!(region.target_module, None);
     assert_eq!(region.region().map(|r| r.w), Some(0.3));
     assert_eq!(
         region.part,
-        Some(dr_model::v3::CommentPart::Media {
-            item: MediaItemId::parse(IMAGE).unwrap(),
-            region: Some(dr_model::shared::MaterialRegion {
+        Some(dr_model::v3::CommentPart::Region {
+            region: dr_model::shared::MaterialRegion {
                 page: None,
                 x: 0.1,
                 y: 0.2,
                 w: 0.3,
                 h: 0.4,
-            }),
+            },
         })
     );
 
@@ -383,22 +390,30 @@ fn a_handed_off_library_imports_completely() {
         "引文"
     );
 
-    // Materials and folders imported into entries under 素材, plus the asset and its bytes.
-    let materials_root = v
-        .root_entry_by_template(&EntryTemplateId::parse(TPL_MATERIALS).unwrap())
+    // Text materials and note folders import under 文本素材; image materials go into assets.
+    let text_materials_root = v
+        .entries()
+        .into_iter()
+        .find(|e| {
+            e.parent.is_none()
+                && e.template.as_ref().map(|t| t.as_str()) == Some(TPL_GROUP)
+                && e.title == "文本素材"
+        })
         .unwrap();
     let folder = v.entry(&EntryId::parse(FOLDER).unwrap()).unwrap();
-    assert_eq!(folder.parent.as_ref(), Some(&materials_root.id));
+    assert_eq!(folder.parent.as_ref(), Some(&text_materials_root.id));
     let note = v.entry(&EntryId::parse(NOTE).unwrap()).unwrap();
     assert_eq!(note.parent.as_ref().map(|f| f.as_str()), Some(FOLDER));
     assert_eq!(note.template.as_ref().map(|t| t.as_str()), Some(TPL_NOTE));
-    let image = v.entry(&EntryId::parse(IMAGE).unwrap()).unwrap();
-    assert_eq!(image.parent.as_ref(), Some(&materials_root.id));
-    let image_items = &image.media[&ModuleId::parse(MOD_MEDIA).unwrap()];
-    assert_eq!(image_items.len(), 1);
-    assert_eq!(image_items[0].asset.as_str(), ASSET);
-    assert_eq!(image_items[0].caption, "未庄的土谷祠");
+    assert!(v.entry(&EntryId::parse(IMAGE).unwrap()).is_none());
+    assert_eq!(v.assets()[0].id.as_str(), ASSET);
+    assert_eq!(v.assets()[0].name, "插图");
     assert_eq!(v.assets()[0].sha256, sha256_bytes(IMAGE_BYTES));
+    assert!(
+        r.originals
+            .iter()
+            .any(|(c, id, f, _)| c == "materials" && id == IMAGE && f == "description")
+    );
     let stored = lib
         .asset(ASSET, dr_store::asset::Variant::Source)
         .unwrap()

@@ -91,6 +91,9 @@ mod tests {
             sha256: "0".repeat(64),
             width: Some(1),
             height: Some(1),
+            created_at: None,
+            folder: None,
+            deleted_at: None,
         };
         assert!(asset_shape(&img).is_ok());
         let mut pdf = img.clone();

@@ -119,7 +119,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 ));
             }
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
-            | "relations" | "relation_types" | "comments" | "facts" | "memory" => {
+            | "relations" | "relation_types" | "comments" | "assets" | "facts" | "memory" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;

@@ -140,7 +140,7 @@ fn owns(cx: &Cx<'_>, slot: &BookSlot, doc: &DocId) -> Result<()> {
     }
     Ok(())
 }
-fn undo(cx: &Cx<'_>, slot: &BookSlot, at: &loro::Frontiers, keys: Vec<history::Key>) {
+pub(crate) fn undo(cx: &Cx<'_>, slot: &BookSlot, at: &loro::Frontiers, keys: Vec<history::Key>) {
     cx.undo_with(Invocation::new(
         "entry_history.restore",
         history::RestoreIn {
@@ -150,7 +150,7 @@ fn undo(cx: &Cx<'_>, slot: &BookSlot, at: &loro::Frontiers, keys: Vec<history::K
         },
     ));
 }
-fn key(collection: &str, id: impl ToString) -> history::Key {
+pub(crate) fn key(collection: &str, id: impl ToString) -> history::Key {
     history::Key {
         collection: collection.into(),
         id: id.to_string(),

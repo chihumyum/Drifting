@@ -271,10 +271,9 @@ impl<'a> F<'a> {
                 embed: p.id("embed")?,
                 region: p.region("region"),
             }),
-            "field" => {
-                let field = p.str("field")?.to_string();
-                (!field.trim().is_empty()).then_some(CommentPart::Field { field })
-            }
+            "field" => Some(CommentPart::Field {
+                field: p.id("field")?,
+            }),
             "kv_row" => Some(CommentPart::KvRow { row: p.id("row")? }),
             "plot_cell" => Some(CommentPart::PlotCell {
                 row: p.id("row")?,
@@ -286,6 +285,9 @@ impl<'a> F<'a> {
             "media" => Some(CommentPart::Media {
                 item: p.id("item")?,
                 region: p.region("region"),
+            }),
+            "region" => Some(CommentPart::Region {
+                region: p.region("region")?,
             }),
             _ => None,
         }
@@ -418,6 +420,10 @@ pub(crate) fn comment_part_to_loro(part: &dr_model::v3::CommentPart) -> LoroValu
             if let Some(r) = region {
                 m.push(("region".into(), region_to_loro(r)));
             }
+        }
+        CommentPart::Region { region } => {
+            m.push(("kind".into(), "region".into()));
+            m.push(("region".into(), region_to_loro(region)));
         }
     }
     LoroValue::Map(m.into())

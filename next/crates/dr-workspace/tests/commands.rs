@@ -185,19 +185,16 @@ fn assets_and_media_modules() {
         Err(WsError::Violation(_))
     ));
     let got = e.out("asset.get", json!({"book": b, "id": "asset-1"}));
-    assert_eq!(
-        got,
-        json!({
-            "id": "asset-1",
-            "name": "harbor.png",
-            "kind": "image",
-            "mime": "image/png",
-            "size": 10,
-            "sha256": sha,
-            "width": 2,
-            "height": 2
-        })
-    );
+    assert!(got["created_at"].as_i64().is_some());
+    assert_eq!(got["id"], "asset-1");
+    assert_eq!(got["name"], "harbor.png");
+    assert_eq!(got["kind"], "image");
+    assert_eq!(got["mime"], "image/png");
+    assert_eq!(got["size"], 10);
+    assert_eq!(got["sha256"], sha);
+    assert_eq!(got["width"], 2);
+    assert_eq!(got["height"], 2);
+    assert_eq!(got["usages"], json!([]));
     let listed = e.out("asset.list", json!({"book": b}));
     assert_eq!(listed, json!([got]));
     assert!(matches!(
@@ -205,13 +202,22 @@ fn assets_and_media_modules() {
         Err(WsError::NotFound { .. })
     ));
 
-    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let media_entry = e.out(
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
-            "template": "tpl-media",
+            "template": "tpl-custom-media",
             "title": "港湾照片"
         }),
     )["id"]
@@ -275,13 +281,22 @@ fn media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_o
 
     let e = env();
     let b = e.book();
-    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let media_entry = e.out(
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
-            "template": "tpl-media",
+            "template": "tpl-custom-media",
             "title": "海图"
         }),
     )["id"]
@@ -308,7 +323,6 @@ fn media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_o
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
             "template": "tpl-note",
             "title": "航行笔记",
             "bodies": {"mod-prose": "记录"}
@@ -596,13 +610,22 @@ fn region_comments_sit_on_media_items_and_file_embeds() {
             "sha256": sha
         }),
     );
-    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let pdf_entry = e.out(
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
-            "template": "tpl-media",
+            "template": "tpl-custom-media",
             "title": "notes"
         }),
     )["id"]
@@ -620,7 +643,6 @@ fn region_comments_sit_on_media_items_and_file_embeds() {
         "entry.create",
         json!({
             "book": b,
-            "parent": materials_root,
             "template": "tpl-note",
             "title": "note",
             "bodies": {"mod-prose": "a note"}
@@ -757,4 +779,274 @@ fn layout_side_doc_put_get_and_clear() {
         ),
         json!({})
     );
+}
+
+#[test]
+fn asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge() {
+    use dr_model::id::{AssetId, EmbedId};
+    use dr_store::asset::{SourceImport, Variant};
+
+    let mut e = env();
+    let b = e.book();
+
+    // New "写书" project has no top-level "素材" entry and no tpl-materials / tpl-media.
+    let roots = e.out("entry.list", json!({"book": b}));
+    let root_titles: Vec<&str> = roots
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["title"].as_str().unwrap())
+        .collect();
+    assert_eq!(root_titles, ["书稿", "构想", "要素", "故事线"]);
+    let tpl_ids = ids(&e.out("entry_template.list", json!({"book": b})));
+    assert!(
+        !tpl_ids
+            .iter()
+            .any(|t| t == "tpl-materials" || t == "tpl-media")
+    );
+    assert!(tpl_ids.iter().any(|t| t == "tpl-note"));
+
+    // Import real bytes into storage and put an unreferenced asset into the asset library.
+    let src_file = e.dir.path().join("north-map.png");
+    std::fs::write(&src_file, b"\x89PNG\r\n\x1a\nsynthetic-map-bytes").unwrap();
+    let stored = e
+        .ws()
+        .library()
+        .import_asset(&SourceImport {
+            book_id: &b,
+            asset_id: "asset-lib-1",
+            source: &src_file,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((4, 3)),
+            limit: 1024 * 1024,
+        })
+        .unwrap();
+    let stored_path = stored.path.clone();
+    assert!(stored_path.exists());
+
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-lib-1",
+            "name": "北岸地图.png",
+            "kind": "image",
+            "mime": stored.mime,
+            "size": stored.size,
+            "sha256": stored.sha256,
+            "width": 4,
+            "height": 3,
+            "folder": "地图/北岸"
+        }),
+    );
+
+    // Unreferenced file survives workspace close & reopen (ASSET-LIBRARY-KEEPS-UNREFERENCED).
+    e.reopen();
+    let listed = e.out("asset.list", json!({"book": b}));
+    assert_eq!(listed.as_array().unwrap().len(), 1);
+    assert_eq!(listed[0]["id"], "asset-lib-1");
+    assert_eq!(listed[0]["name"], "北岸地图.png");
+    assert_eq!(listed[0]["folder"], "地图/北岸");
+    assert!(listed[0]["created_at"].is_i64());
+    assert!(listed[0]["deleted_at"].is_null());
+    assert_eq!(listed[0]["usages"], json!([]));
+    assert!(
+        e.ws()
+            .library()
+            .asset("asset-lib-1", Variant::Source)
+            .unwrap()
+            .is_some()
+    );
+
+    // Rename + Undo/Redo preserves binary identity (AST-IMMUTABLE).
+    e.call(
+        "asset.rename",
+        json!({"book": b, "id": "asset-lib-1", "name": "北岸详图.png"}),
+    );
+    assert_eq!(
+        e.out("asset.get", json!({"book": b, "id": "asset-lib-1"}))["name"],
+        "北岸详图.png"
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("asset.get", json!({"book": b, "id": "asset-lib-1"}))["name"],
+        "北岸地图.png"
+    );
+    e.ws().redo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("asset.get", json!({"book": b, "id": "asset-lib-1"}))["name"],
+        "北岸详图.png"
+    );
+
+    // Embed into 2 prose bodies, attach to 1 media module, and link 1 relation.
+    let manuscript = common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
+    let ch1 = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-chapter", "title": "第一章", "bodies": {"mod-prose": "甲"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ch2 = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-chapter", "title": "第二章", "bodies": {"mod-prose": "乙"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc1 = format!("body:{ch1}/mod-prose");
+    let doc2 = format!("body:{ch2}/mod-prose");
+    let aid = AssetId::parse("asset-lib-1").unwrap();
+    e.ws()
+        .prose_session(&doc1)
+        .unwrap()
+        .insert_asset_embed(0, &EmbedId::parse("emb-ch1").unwrap(), &aid)
+        .unwrap();
+    e.ws()
+        .prose_session(&doc2)
+        .unwrap()
+        .insert_asset_embed(0, &EmbedId::parse("emb-ch2").unwrap(), &aid)
+        .unwrap();
+
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-gallery",
+                "name": "图册",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
+    let gallery = e.out(
+        "entry.create",
+        json!({"book": b, "template": "tpl-gallery", "title": "附图"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "module.put_media",
+        json!({
+            "book": b,
+            "entry": gallery,
+            "module": "mod-media",
+            "item": {"id": "m-1", "asset": "asset-lib-1", "caption": "海岸线"}
+        }),
+    );
+    let generic_rt = format!("system:generic-association:{b}");
+    let rel = e.out(
+        "relation.create",
+        json!({
+            "book": b,
+            "relation_type": generic_rt,
+            "from": {"kind": "entry", "id": ch1},
+            "to": {"kind": "asset", "id": "asset-lib-1"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let usages = e.out("asset.list", json!({"book": b}))[0]["usages"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(usages.len(), 4);
+    assert_eq!(usages.iter().filter(|u| u["kind"] == "embed").count(), 2);
+    assert_eq!(
+        usages
+            .iter()
+            .filter(|u| u["kind"] == "media" && u["entry"] == gallery && u["item"] == "m-1")
+            .count(),
+        1
+    );
+    assert_eq!(
+        usages
+            .iter()
+            .filter(|u| u["kind"] == "relation" && u["relation"] == rel)
+            .count(),
+        1
+    );
+
+    // Live asset cannot be purged before trashing.
+    assert!(matches!(
+        e.try_call("asset.purge", json!({"book": b, "id": "asset-lib-1"})),
+        Err(WsError::Invalid(_))
+    ));
+
+    // Trash moves to Recently Deleted; embeds and media read as placeholders, relation hides, bytes remain.
+    e.call("asset.trash", json!({"book": b, "id": "asset-lib-1"}));
+    assert_eq!(e.out("asset.list", json!({"book": b})), json!([]));
+    let trashed_list = e.out("asset.list", json!({"book": b, "trashed": true}));
+    assert_eq!(trashed_list.as_array().unwrap().len(), 1);
+    assert!(trashed_list[0]["deleted_at"].is_i64());
+    assert_eq!(
+        e.out("prose.shape", json!({"doc": doc1}))["missing_embeds"],
+        json!(["asset-lib-1"])
+    );
+    assert_eq!(
+        e.out("prose.shape", json!({"doc": doc2}))["missing_embeds"],
+        json!(["asset-lib-1"])
+    );
+    assert_eq!(
+        e.out(
+            "module.read",
+            json!({"book": b, "entry": gallery, "module": "mod-media"})
+        )["media"][0]["missing"],
+        true
+    );
+    assert_eq!(e.out("relation.list", json!({"book": b})), json!([]));
+    assert!(stored_path.exists());
+
+    // Restore brings everything back; undo of trash also restores.
+    e.call("asset.restore", json!({"book": b, "id": "asset-lib-1"}));
+    assert!(e.out("prose.shape", json!({"doc": doc1}))["missing_embeds"].is_null());
+    assert!(e.out("prose.shape", json!({"doc": doc2}))["missing_embeds"].is_null());
+    assert!(
+        e.out(
+            "module.read",
+            json!({"book": b, "entry": gallery, "module": "mod-media"})
+        )["media"][0]["missing"]
+            .is_null()
+    );
+    assert_eq!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    e.call("asset.trash", json!({"book": b, "id": "asset-lib-1"}));
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("asset.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Trash + Purge permanently removes manifest record, dangling relation, and stored bytes.
+    e.call("asset.trash", json!({"book": b, "id": "asset-lib-1"}));
+    e.call("asset.purge", json!({"book": b, "id": "asset-lib-1"}));
+    assert!(matches!(
+        e.try_call("asset.get", json!({"book": b, "id": "asset-lib-1"})),
+        Err(WsError::NotFound { .. })
+    ));
+    assert_eq!(
+        e.out("asset.list", json!({"book": b, "trashed": true})),
+        json!([])
+    );
+    assert!(
+        e.ws()
+            .library()
+            .asset("asset-lib-1", Variant::Source)
+            .unwrap()
+            .is_none()
+    );
+    assert!(!stored_path.exists());
 }
