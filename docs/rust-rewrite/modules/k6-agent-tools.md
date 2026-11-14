@@ -74,15 +74,18 @@ v3 需要换掉目录内部按种类的命令和解析器：帮手操作条目�
 
 ## 每次请求的“这本书的结构说明”
 
-来源是**当前书已复制并由作者维护的模板**：`TemplateAgentConfig::{name,description,instructions}`，加各模块 `agent.instructions`，并配上当前条目／层级、有效设置和可发现动作。不能根据 `meta.project_template` 回到 App 里拿最新小说提示词；该字段记录来源与版本，不代表持续绑定 App 模板。
+来源是**当前书已复制并由作者维护的模板**：`TemplateAgentConfig::{name,description,instructions}`，加各模块 `agent.instructions`，并配上当前条目／层级、有效设置和可发现动作。不能根据 `project.source` 回到 App 里拿最新小说提示词；该字段记录来源与版本，不代表持续绑定 App 模板。
+
+格式 5 起，整本项目的帮手说明在项目定义里（`project.agent`，`kernel-v5.md` 第 2 节），结构说明照原样带上它（`StructureContext::project_agent`，形状同模板的 `agent`；没有时不出现），它也进 `structure_revision` 的摘要（2026-11-15 DX 修补；数据层第一步把说明挪进项目定义时漏了这一处）。`schema_version` 取 `dr_doc::schema::BOOK_SCHEMA_VERSION`（现在是 5），不再写死；调试桥 `state.get` 的 `book.version` 同一个常量。成书起点和左栏 Tab 进结构说明归 T7。测试：`tests/structure.rs` 的 `novel_guidance_is_copied_once_and_clearing_it_survives_reopen`（恢复原断言：帮手的上下文里有这段说明）、`structure_names_the_book_format_and_follows_the_project_guidance`。
 
 同一次规范读取快照产出 `StructureContext` 和目录依赖版本。下面只是请求上下文的投影示意，字段不是新增的 Loro 根容器或持久 Schema；省略号代表示例未列出，实际装载不能靠省略号丢弃固定指导：
 
 ```yaml
 book: <当前书的 opaque id>
-schema_version: 3
+schema_version: 5
 structure_revision: <书目 frontier 与模板依赖摘要>
 project_template_source: <来源 id 与复制版本，仅供说明>
+project_agent: {name, description, instructions}  # 整本项目的帮手说明原文
 roots: [<顶层条目的引用、作者标题、模板引用和层级／叶子类别>]
 templates:
   - ref: <书内模板 id>
