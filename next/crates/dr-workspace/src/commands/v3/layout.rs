@@ -69,13 +69,16 @@ op! {
         if input.positions.is_empty() {
             return Err(WsError::invalid("positions must not be empty"));
         }
+        let v = slot.reader_v3.view();
         let mut parsed: Vec<(EntryId, (f64, f64))> = Vec::with_capacity(input.positions.len());
         for (raw_id, (x, y)) in &input.positions {
             if !x.is_finite() || !y.is_finite() {
                 return Err(WsError::invalid("layout coordinates must be finite"));
             }
-            parsed.push((pid("entry", raw_id)?, (*x, *y)));
+            // Only a live entry has a place on a canvas.
+            parsed.push((live(&v, raw_id)?.id, (*x, *y)));
         }
+        let stored: BTreeSet<EntryId> = v.entries_raw().into_iter().map(|e| e.id).collect();
         let unchanged = match cx
             .workspace()
             .side_slot(&DocId::Layout(slot.book.clone()), &slot.book, false)?
@@ -95,6 +98,9 @@ op! {
                 for (id, (x, y)) in &parsed {
                     txn.put_position(&k, id, *x, *y)?;
                 }
+                // Collect the coordinates of entries gone from the book for
+                // good (deleted from its tree, not in Recently Deleted).
+                txn.forget_entries(|id| !stored.contains(id))?;
                 Ok(())
             })?;
         }
