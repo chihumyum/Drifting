@@ -315,7 +315,7 @@ impl ChapterEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> EditorParts {
-        // Every prose document draws tables and embedded files (`embeds.rs`)
+        // Every prose document draws tables and embedded assets (`embeds.rs`)
         // and highlights; they write through its own session.
         let shortcuts = crate::v3::uses_note_shortcuts(ws, book, doc_id);
         let (session, handle) = (source.shared_session(), source.handle().clone());
@@ -714,14 +714,13 @@ impl ChapterEditor {
     }
 }
 
-/// Whether `doc_id` gets a note's slash entries (its level's format
-/// shortcuts are on).
+/// Whether `doc_id` enables note format shortcuts and slash entries.
 fn is_note(ws: &Workspace, book: &str, doc_id: &str) -> bool {
     crate::v3::uses_note_shortcuts(ws, book, doc_id)
 }
 
 impl ChapterEditor {
-    /// A material note's tables and materials (`None` for other documents).
+    /// A prose document's tables and embedded assets (`None` for other documents).
     pub fn note_embeds(&self) -> Option<&Rc<NoteEmbeds>> {
         self.embeds.as_ref()
     }
@@ -738,7 +737,7 @@ impl ChapterEditor {
             .find_map(|t| t.read(cx).focused_editor(window, cx))
     }
 
-    /// The slash menu's 表格 in a material note: a 3 × 3 table at the caret,
+    /// The slash menu's 表格: a 3 × 3 table at the caret,
     /// the caret in its first cell. Returns whether one was inserted.
     pub fn insert_table(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(embeds) = self.embeds.clone() else {
@@ -748,8 +747,8 @@ impl ChapterEditor {
         crate::embeds::insert_table(&embeds, offset, Vec::new(), Vec::new(), window, cx).is_some()
     }
 
-    /// Embeds material `material` (an image or a PDF) at the caret of a
-    /// material note. Returns whether it was.
+    /// Embeds asset `material` (an image or a PDF) at the caret.
+    /// Returns whether it was.
     pub fn insert_material(
         &mut self,
         material: &str,
