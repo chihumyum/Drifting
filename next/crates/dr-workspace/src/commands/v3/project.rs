@@ -1,6 +1,7 @@
 //! Project definition (`project.get` / `project.update`), left-sidebar tabs
 //! (`tab.*`), book sequence (`book.sequence`), shared project facts and
 //! Project Memory.
+use super::book::BookUpdateIn;
 use super::*;
 use crate::dto::{FieldInfo, MemoryInfo, Target};
 use crate::naming::{Place, pos_for};
@@ -295,6 +296,12 @@ op! {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectUpdateIn {
     pub book: String,
+    /// The project's name (as `book.update` sets it); omit to keep.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// The project's profile (as `book.update` sets it); omit to keep.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
     /// Project-level Agent instructions (`None` = keep, `Some(None)` = clear, `Some(Some(cfg))` = set).
     #[serde(
         default,
@@ -326,9 +333,12 @@ pub struct ProjectUpdateIn {
 
 op! {
     ProjectUpdate = "project.update", Write, Book,
-    "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets.",
+    "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.",
     fn(cx, input: ProjectUpdateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
+        if let Some(n) = &input.name {
+            name_ok(n)?;
+        }
         if [input.word_target, input.daily_word_target]
             .into_iter()
             .flatten()
@@ -406,15 +416,34 @@ op! {
             },
         };
 
+        let meta = v.meta();
+        let name = input
+            .name
+            .as_ref()
+            .map(|n| n.trim().to_owned())
+            .filter(|n| *n != meta.name);
+        let summary = input.summary.clone().filter(|s| *s != meta.summary);
         let agent_changed = next_agent != proj.agent;
         let book_changed = next_book != proj.book;
-        if !agent_changed && !book_changed {
+        let meta_changed = name.is_some() || summary.is_some();
+        if !agent_changed && !book_changed && !meta_changed {
             cx.undo_nothing();
             return Ok(Done { id: input.book });
         }
 
         let mut replaced = Vec::new();
         let mut undo_keys = Vec::new();
+        if name.is_some() {
+            replaced.push(rec(CollectionV3::Meta, "name"));
+        }
+        if summary.is_some() {
+            replaced.push(rec(CollectionV3::Meta, "summary"));
+        }
+        let old_meta = BookUpdateIn {
+            book: input.book.clone(),
+            name: name.as_ref().map(|_| meta.name.clone()),
+            summary: summary.as_ref().map(|_| meta.summary.clone()),
+        };
         if agent_changed {
             replaced.push(rec(CollectionV3::Project, "agent"));
             undo_keys.push(key("project", "agent"));
@@ -429,15 +458,15 @@ op! {
         };
         if let Some((root_ch, wt_ch, dwt_ch)) = book_sub_changes {
             if root_ch {
-                replaced.push(rec(CollectionV3::Project, "book/root"));
+                replaced.push(rec(CollectionV3::Project, "book").at(["root"]));
                 undo_keys.push(key("project", "book/root"));
             }
             if wt_ch {
-                replaced.push(rec(CollectionV3::Project, "book/word_target"));
+                replaced.push(rec(CollectionV3::Project, "book").at(["word_target"]));
                 undo_keys.push(key("project", "book/word_target"));
             }
             if dwt_ch {
-                replaced.push(rec(CollectionV3::Project, "book/daily_word_target"));
+                replaced.push(rec(CollectionV3::Project, "book").at(["daily_word_target"]));
                 undo_keys.push(key("project", "book/daily_word_target"));
             }
         } else if book_changed {
@@ -445,7 +474,14 @@ op! {
             undo_keys.push(key("project", "book"));
         }
 
+        let (new_name, new_summary) = (name.clone(), summary.clone());
         let (_, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |txn| {
+            if let Some(n) = &new_name {
+                txn.meta().name(n)?;
+            }
+            if let Some(s) = &new_summary {
+                txn.meta().summary(s)?;
+            }
             let w = txn.project();
             if agent_changed {
                 w.agent(next_agent.as_ref())?;
@@ -467,8 +503,14 @@ op! {
             }
             Ok(())
         })?;
-        undo(cx, &slot, &at, undo_keys);
-        cx.effect(EffectAction::Updated, "project", &input.book, None);
+        if !undo_keys.is_empty() {
+            undo(cx, &slot, &at, undo_keys);
+            cx.effect(EffectAction::Updated, "project", &input.book, None);
+        }
+        if meta_changed {
+            cx.undo_with(Invocation::new("book.update", old_meta));
+            cx.effect(EffectAction::Updated, "book", &input.book, name.as_deref());
+        }
         Ok(Done { id: input.book })
     }
 }

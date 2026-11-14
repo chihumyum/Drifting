@@ -200,6 +200,8 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
                             entries: entries.clone(),
                         }]
                     }
+                    // Never a valid start.
+                    dr_model::v3::BookRoot::Unset => Vec::new(),
                     dr_model::v3::BookRoot::Lane { entry, .. } => structure
                         .entry(entry)
                         .map(|lane| {

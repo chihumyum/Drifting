@@ -1410,6 +1410,13 @@ pub enum BookRoot {
         view: TimelineViewId,
         entry: EntryId,
     },
+    /// What a reader makes of a stored book start it cannot read (missing,
+    /// or not one of the kinds above), for instance after history restored
+    /// the start of a version when the book was off: it names nothing, so
+    /// the book reads as having no content until the author picks a start
+    /// again (`kernel-v5.md` §3: never replaced by another start). Never a
+    /// valid start; writing it removes the stored start.
+    Unset,
 }
 
 /// Book configuration inside `project.book` (`kernel-v5.md` §3 & §10).
@@ -1576,6 +1583,7 @@ impl ProjectTemplate {
                     view: view(v),
                     entry: entry(e),
                 },
+                BookRoot::Unset => BookRoot::Unset,
             };
         }
         for tab in &mut out.project.tabs {
@@ -2537,6 +2545,7 @@ pub fn check_book_root(
 ) -> Result<(), Violation> {
     match root {
         BookRoot::Root => Ok(()),
+        BookRoot::Unset => fail("BOOK-ROOT-VALID", "the book start is missing"),
         BookRoot::Entry { entry } => {
             if !is_entry_live(entry, entries) {
                 return fail(

@@ -749,8 +749,8 @@ D（`d-data-layer`）交回时写（2026-11-15）。格式 5 的数据层（`dr-
 
 **`dr_model`（领域类型与不变量）**
 
-- 版本与文档种类：`v3::BOOK_FORMAT_VERSION = 5`（创世版本 `5`，`BOOK-FORMAT-5-ONLY`）；`DocId::Layout(BookId)`（`layout:<书 id>`，创世版本 `1`）；`DocId::Material` 与 `DocKind::Material` 退役；`ProseProfile` 只保留单一格式档 `ProseProfile::Prose`；正文嵌入为 `ProseEmbed::Asset { asset: AssetId }`（`kind = "asset"`）；正文链接 `v3::EntityLinkV3` 只指向 `EntryId`。
-- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种。
+- 版本与文档种类：`dr_doc::schema::BOOK_SCHEMA_VERSION = 5`（创世版本 `5`，`BOOK-FORMAT-5-ONLY`；本节和下表别处写的 `BOOK_FORMAT_VERSION` 指的就是它，代码里没有那个名字，DX 2026-11-15 核对）；`DocId::Layout(BookId)`（`layout:<书 id>`，创世版本 `1`）；`DocId::Material` 与 `DocKind::Material` 退役；`ProseProfile` 只保留单一格式档 `ProseProfile::Prose`；正文嵌入为 `ProseEmbed::Asset { asset: AssetId }`（`kind = "asset"`）；正文链接 `v3::EntityLinkV3` 只指向 `EntryId`。
+- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种，另有只在读取时出现的 `Unset`（存着的起点缺了或读不出来：读作没有成书内容、永远无效，写它就是去掉存着的起点；DX 2026-11-15 加）；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种。
 - 拆开的两个开关与设置（`dr_model::v3`）：
   - `Entry { level: bool, mark: Option<String>, media: BTreeMap<ModuleId, Vec<MediaItem>>, … }`（没有 `layout`）；`is_valid_mark(s)` 校验砂笔图标名或单个字符；
   - `LevelSettings` 与 `LevelSettingsOverride` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts` 共 6 项（`LEVEL_SETTING_KEYS` = 6，去掉 `is_manuscript` 和 `lane`）；
@@ -770,7 +770,7 @@ D（`d-data-layer`）交回时写（2026-11-15）。格式 5 的数据层（`dr-
 
 **`dr-workspace`（命令、DTO 与事件）**
 
-- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { agent?, has_book?, root?, word_target?, daily_word_target? }`、`book.sequence`；`tab.put`（新建或改名／改挂载）、`tab.move`、`tab.remove`。
+- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { name?, summary?, agent?, has_book?, root?, word_target?, daily_word_target? }`（`name`、`summary` 是 DX 2026-11-15 加的，让项目主页的设定一步存完）、`book.sequence`；`tab.put`（新建或改名／改挂载）、`tab.move`、`tab.remove`。
 - 条目、归属与视图：`entry.create` 区分 `parent`（住进）与 `host`（挂到，按第 16 节落住处并挂名），支持 `mark`；`entry.update` 支持 `mark`；`entry.set_level` 关层级时输出 `trashed` 列表且一步撤销恢复；`entry.move` 带 `index` 移入视图中的文件夹时同步落到对应刻度位置；`entry.get` 与 `entry.list { below: true }` 在 `level` 开时给 `below.children`、在 `accept` 开时给 `below.members`；`membership.add/remove/primary` 与 `timeline_view.add_lane/remove_lane/move_lane/delete` 自动维护入视图末尾落位与出最后一个活视图时的 `pos`／手动先后写回。
 - 媒体模块、正文嵌入与素材库：`module.put_media`（新增、改说明或调先后）、`module.remove_media`；`ProseTxn::insert_embed(ProseEmbed::Asset { asset })`（`prose.shape` 返回 `missing_embeds`）；`asset.put`、`asset.rename`、`asset.trash`、`asset.restore`、`asset.purge`、`asset.get`、`asset.list`（每项带实时 `usages`：`Media`、`Embed`、`Relation`）；`material.*` 与 `material_folder.*` 全部退役并由 `xtask check` 的 `cutover` 门禁拦截。
 - 统一批注与画布坐标：`comment.create`、`comment.update`（改内容、状态、优先级或绑定 `agent_conversation`）、`comment.delete`、`comment.list`、`comment.anchors`、`comment.reanchor`、`comment.project`；`layout.get`、`layout.put`、`layout.clear`，变更发 `WsEvent::Layout(LayoutChanged)`；`stats.record_writing_day` 在 `project.book` 未开启时静默跳过。
