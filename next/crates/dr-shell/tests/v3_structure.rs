@@ -471,11 +471,25 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
         }
         assert_eq!(json!(shell.memberships), json!(structure.memberships()));
         assert_eq!(json!(shell.timeline_views), json!(view.timeline_views()));
-        let expected_media_ids: Vec<String> = structure
+        let mut expected_media_ids: Vec<String> = structure
             .entries()
             .filter(|e| !e.is_trashed())
             .flat_map(|e| e.media.values().flatten().map(|m| m.id.to_string()))
             .collect();
+        // Library files no media module holds are materials of their own.
+        let placed: std::collections::BTreeSet<String> = structure
+            .entries()
+            .filter(|e| !e.is_trashed())
+            .flat_map(|e| e.media.values().flatten().map(|m| m.asset.to_string()))
+            .collect();
+        let mut unplaced: Vec<String> = view
+            .assets()
+            .into_iter()
+            .map(|a| a.id.to_string())
+            .filter(|a| !placed.contains(a))
+            .collect();
+        unplaced.sort();
+        expected_media_ids.extend(unplaced);
         assert_eq!(
             shell
                 .materials

@@ -2,7 +2,7 @@
 source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
-asset.get                    query    shared   Read an asset's metadata and live usages in the book.
+asset.get                    query    shared   Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
 asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its live usages (media modules, prose embeds, relations). Set `trashed: true` to include Recently Deleted.
 asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
 asset.put                    command  book     Record an imported asset in the project's built-in asset library (bytes live in storage).

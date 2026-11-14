@@ -1,12 +1,11 @@
-//! Files into materials: what is dropped on the library or pasted into it,
-//! and what the 「从文件导入图片或 PDF…」 picker brings (the 0.1 client's
-//! `createLibraryItem` with a staged source).
+//! Files into the asset library: what is dropped on the library or pasted
+//! into it, and what the 「从文件导入图片或 PDF…」 picker brings.
 //!
 //! - An image (PNG, JPEG, GIF, WebP, BMP, TIFF) or a PDF is copied into the
 //!   library as the asset's source (dr-store: an atomic write, its SHA-256),
-//!   then its metadata goes into the book (`asset.put`) and a material is
-//!   made on it (`material.create`), filed in the folder it was dropped on,
-//!   titled with the file's name without its extension.
+//!   then its record goes into the book's asset library (`asset.put`), named
+//!   with the file's name without its extension. Nothing else is made: no
+//!   template, no entry (`kernel-v5.md` §6 素材库).
 //! - Kept beside the source: for an image a display copy (at most 2048 px a
 //!   side) and a thumbnail (at most 256 px); for a PDF a thumbnail of its
 //!   first page. Failing to make them does not fail the import (the viewer
@@ -18,17 +17,10 @@
 
 use std::path::{Path, PathBuf};
 
-use dr_doc::v3::BorrowedBookV3;
-use dr_model::{id::BookId, v3::ModuleKind};
-use dr_store::OpenDoc;
 use dr_store::asset::{
     Derived, ImageDeriver, MAX_COPY_BYTES, MAX_WRITE_BYTES, SourceImport, Variant, VariantBytes,
 };
 use dr_workspace::commands::asset::{AssetPut, AssetPutIn};
-use dr_workspace::commands::v3::entry::{CreateIn as EntryCreateIn, EntryCreate};
-use dr_workspace::commands::v3::module::{In as ModuleIn, MediaPut, MediaPutIn};
-use dr_workspace::commands::v3::template::{PutIn as TemplatePutIn, TemplatePut};
-use dr_workspace::commands::v3::types;
 use dr_workspace::{Actor, Workspace as Library};
 use image::{DynamicImage, GenericImageView as _, ImageFormat};
 
@@ -93,9 +85,10 @@ pub fn kind_of_bytes(bytes: &[u8]) -> Option<FileKind> {
     })
 }
 
-/// A material made from a file.
+/// A file put into the asset library.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Imported {
+    /// The file's asset id (the library's material id for it).
     pub material: String,
     pub title: String,
 }
@@ -219,146 +212,75 @@ fn record(
     if let Err(e) = made {
         log::warn!("material: {asset}: no display copy or thumbnail: {e}");
     }
-    lib.run::<AssetPut>(
-        &Actor::User,
-        AssetPutIn {
-            book: book.to_owned(),
-            id: asset.to_owned(),
-            name: title.to_owned(),
-            kind: kind.kind.to_owned(),
-            mime: source.mime.clone(),
-            size: source.size as i64,
-            sha256: source.sha256.clone(),
-            width: (kind.kind == "image")
-                .then_some(source.width)
-                .flatten()
-                .filter(|&w| w > 0)
-                .map(i64::from),
-            height: (kind.kind == "image")
-                .then_some(source.height)
-                .flatten()
-                .filter(|&h| h > 0)
-                .map(i64::from),
-            folder: None,
-        },
-    )
-    .map_err(|e| e.to_string())?;
-    let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
-    let requested_folder = folder.map(str::to_owned);
-    let (found_tpl, chosen_parent) = store
-        .open_doc(&format!("book:{book}"), OpenDoc::Existing)
-        .map_err(|e| e.to_string())?
-        .read(move |doc| {
-            let b = BorrowedBookV3::new(doc, &book_id).map_err(|e| e.to_string())?;
-            let snap = b.view().structure_snapshot();
-            let found = snap
-                .templates_map()
-                .values()
-                .filter(|t| t.deleted_at.is_none())
-                .find_map(|t| {
-                    t.modules
-                        .iter()
-                        .find(|m| m.kind == ModuleKind::Media)
-                        .map(|m| (t.id.to_string(), m.id.to_string()))
-                });
-            let chosen_parent = if let Some(ref f) = requested_folder
-                && let Ok(fid) = dr_model::id::EntryId::parse(f)
-                && snap.entry(&fid).is_some_and(|e| !e.is_trashed() && e.level)
-            {
-                Some(f.clone())
-            } else {
-                snap.children_of(None)
-                    .into_iter()
-                    .find(|e| {
-                        e.level
-                            && snap.level_settings(&e.id).is_some_and(|ls| {
-                                ls.settings.format_shortcuts == dr_model::v3::FormatShortcuts::Full
-                            })
-                    })
-                    .map(|e| e.id.to_string())
-            };
-            Ok::<_, String>((found, chosen_parent))
-        })
-        .map_err(|e| e.to_string())??;
-    let (template_id, module_id) = match found_tpl {
-        Some(pair) => pair,
-        None => {
-            // Minimal pre-T6 bridge: built-in `tpl-media` retired in format 5; T6 will switch
-            // `dr-view-material` to `asset.*` commands directly.
-            let tpl_id = "media-entry".to_owned();
-            let mod_id = "media".to_owned();
-            lib.run::<TemplatePut>(
-                &Actor::User,
-                TemplatePutIn {
-                    book: book.to_owned(),
-                    template: types::EntryTemplate {
-                        id: tpl_id.clone(),
-                        name: "媒体".to_owned(),
-                        mark: None,
-                        color: None,
-                        modules: vec![types::ModuleSpec {
-                            id: mod_id.clone(),
-                            kind: "media".to_owned(),
-                            name: "附件".to_owned(),
-                            pos: None,
-                            config: Default::default(),
-                            agent: None,
-                        }],
-                        level: false,
-                        linkable: false,
-                        settings: Default::default(),
-                        agent: None,
-                        verbs: Vec::new(),
-                        deleted_at: None,
-                    },
-                },
-            )
-            .map_err(|e| e.to_string())?;
-            (tpl_id, mod_id)
-        }
-    };
-    let parent = chosen_parent;
-    let display_title = title.to_owned();
-    let entry_id = lib
-        .run::<EntryCreate>(
+    // Only into the asset library (`kernel-v5.md` §6 素材库): no template,
+    // no entry. Media modules and prose embeds use the file from there.
+    let _ = folder;
+    let put = lib
+        .run::<AssetPut>(
             &Actor::User,
-            EntryCreateIn {
+            AssetPutIn {
                 book: book.to_owned(),
-                title: display_title.clone(),
-                mark: None,
-                parent,
-                host: None,
-                template: Some(template_id),
-                level: None,
-                bodies: std::collections::BTreeMap::new(),
+                id: asset.to_owned(),
+                name: title.to_owned(),
+                kind: kind.kind.to_owned(),
+                mime: source.mime.clone(),
+                size: source.size as i64,
+                sha256: source.sha256.clone(),
+                width: (kind.kind == "image")
+                    .then_some(source.width)
+                    .flatten()
+                    .filter(|&w| w > 0)
+                    .map(i64::from),
+                height: (kind.kind == "image")
+                    .then_some(source.height)
+                    .flatten()
+                    .filter(|&h| h > 0)
+                    .map(i64::from),
+                folder: None,
             },
         )
-        .map_err(|e| e.to_string())?
-        .output
-        .id;
-    let item_id = dr_model::id::new_uuid_v7();
-    lib.run::<MediaPut>(
-        &Actor::User,
-        MediaPutIn {
-            target: ModuleIn {
-                book: book.to_owned(),
-                entry: entry_id,
-                module: module_id,
-            },
-            item: types::MediaItem {
-                id: item_id.clone(),
-                asset: asset.to_owned(),
-                caption: String::new(),
-                pos: None,
-                missing: false,
-            },
-        },
-    )
-    .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
     Ok(Imported {
-        material: item_id,
-        title: display_title,
+        material: put.output.id,
+        title: title.to_owned(),
     })
+}
+
+/// The media entry tests and acceptance fixtures put a library file in:
+/// a template with one media module (made once), an entry of it titled
+/// `title`, and an item holding `asset`. Returns `(entry, module, item)`.
+/// (The import itself puts files into the asset library only.)
+#[doc(hidden)]
+pub fn place_in_media_entry(
+    lib: &Library,
+    book: &str,
+    asset: &str,
+    title: &str,
+) -> Result<(String, String, String), String> {
+    let call = |name: &str, input: serde_json::Value| {
+        lib.call(&Actor::User, name, input)
+            .map(|v| v["output"].clone())
+            .map_err(|e| format!("{name}: {e}"))
+    };
+    call(
+        "entry_template.put",
+        serde_json::json!({"book": book, "template": {"id": "tpl-test-media", "name": "媒体",
+            "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]}}),
+    )?;
+    let entry = call(
+        "entry.create",
+        serde_json::json!({"book": book, "template": "tpl-test-media", "title": title}),
+    )?["id"]
+        .as_str()
+        .ok_or("entry.create gave no id")?
+        .to_owned();
+    let item = dr_model::id::new_uuid_v7();
+    call(
+        "module.put_media",
+        serde_json::json!({"book": book, "entry": entry, "module": "mod-media",
+            "item": {"id": item, "asset": asset, "caption": ""}}),
+    )?;
+    Ok((entry, "mod-media".to_owned(), item))
 }
 
 /// One file into a material in `folder`.

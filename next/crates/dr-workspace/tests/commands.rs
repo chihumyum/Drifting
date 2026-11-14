@@ -54,13 +54,25 @@ fn comments_with_anchors_and_metadata() {
         "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": "安娜走进了房间。"}}),
     )["id"]
         .clone();
+    // Marker and checklist comments are only projected from prose: a caller
+    // cannot write those origins (DY fix 7).
+    for origin in ["marker", "task"] {
+        assert!(matches!(
+            e.try_call(
+                "comment.create",
+                json!({"book": b, "origin": origin, "target": {"kind": "entry", "id": c},
+                "module":"mod-prose", "range": [0, 2], "body": "x"}),
+            ),
+            Err(WsError::Invalid(_))
+        ));
+    }
     let cm = e.out(
         "comment.create",
-        json!({"book": b, "origin": "marker", "target": {"kind": "entry", "id": c},
+        json!({"book": b, "origin": "manual", "target": {"kind": "entry", "id": c},
         "module":"mod-prose", "range": [0, 2], "body": "rename?", "priority": "high"}),
     )["id"]
         .clone();
-    let got = &e.out("comment.list", json!({"book": b, "origin": "marker"}))[0];
+    let got = &e.out("comment.list", json!({"book": b, "origin": "manual"}))[0];
     assert_eq!(
         (
             got["quote"].clone(),
@@ -194,6 +206,9 @@ fn assets_and_media_modules() {
     assert_eq!(got["sha256"], sha);
     assert_eq!(got["width"], 2);
     assert_eq!(got["height"], 2);
+    // In no folder of the library and not in Recently Deleted (DY fix 14).
+    assert!(got["folder"].is_null(), "{got}");
+    assert!(got["deleted_at"].is_null(), "{got}");
     assert_eq!(got["usages"], json!([]));
     let listed = e.out("asset.list", json!({"book": b}));
     assert_eq!(listed, json!([got]));
@@ -667,25 +682,110 @@ fn region_comments_sit_on_media_items_and_file_embeds() {
     assert_eq!(listed[0]["id"], c);
     assert_eq!(listed[0]["part"], part);
     assert!(!listed[0]["anchored"].as_bool().unwrap());
-    let refused = |input: Value| e.try_call("comment.create", input).is_err();
-    assert!(refused(
-        json!({"book": b, "part": part, "body": "floating"})
+    let refused = |input: Value| e.try_call("comment.create", input).unwrap_err();
+    // DY fix 14: each refusal is the error it should be.
+    assert!(matches!(
+        refused(json!({"book": b, "part": part, "body": "floating"})),
+        WsError::Invalid(_)
     ));
-    assert!(refused(
-        json!({"book": b, "target": on(&note), "module": "mod-prose", "part": part, "body": "text"})
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&note), "module": "mod-prose", "part": part, "body": "text"})
+        ),
+        WsError::Violation(_)
     ));
     let chapter = chapter(&e, b.as_str().unwrap(), "One");
-    assert!(refused(
-        json!({"book": b, "target": {"kind": "entry", "id": chapter},
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": {"kind": "entry", "id": chapter},
                            "part": part, "body": "no-module"})
+        ),
+        WsError::Invalid(_)
     ));
-    assert!(refused(
-        json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "outside",
-                           "part": {"kind": "media", "item": "pdf-item-1", "region": {"x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}}})
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "outside",
+                           "part": {"kind": "media", "item": "pdf-item-1", "region": {"page": 1, "x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}}})
+        ),
+        WsError::Invalid(_)
     ));
-    assert!(refused(
-        json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "both",
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "both",
                            "part": part, "range": [0, 1]})
+        ),
+        WsError::Invalid(_)
+    ));
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "gone",
+                           "part": {"kind": "media", "item": "no-such-item"}})
+        ),
+        WsError::NotFound { .. }
+    ));
+    // DY fix 18: a region on a PDF names its page.
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "no page",
+                           "part": {"kind": "media", "item": "pdf-item-1", "region": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}}})
+        ),
+        WsError::Invalid(_)
+    ));
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": {"kind": "asset", "id": "asset-pdf"}, "body": "no page",
+                       "part": {"kind": "region", "region": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}}})
+        ),
+        WsError::Invalid(_)
+    ));
+    // The file embed the test is named for: a region on a picture embedded in
+    // prose, listed with it; an embed that is not there is refused.
+    e.call(
+        "asset.put",
+        json!({"book": b, "id": "asset-pic", "name": "pic.png", "kind": "image",
+               "mime": "image/png", "size": 10, "sha256": "c".repeat(64), "width": 4, "height": 3}),
+    );
+    let doc = format!("body:{chapter}/mod-prose");
+    e.ws()
+        .prose_session(&doc)
+        .unwrap()
+        .insert_asset_embed(
+            0,
+            &dr_model::id::EmbedId::parse("emb-pic").unwrap(),
+            &dr_model::id::AssetId::parse("asset-pic").unwrap(),
+        )
+        .unwrap();
+    let embed_part = json!({"kind": "embed", "embed": "emb-pic",
+                            "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}});
+    let on_embed = e.out(
+        "comment.create",
+        json!({"book": b, "target": on(&json!(chapter)), "module": "mod-prose",
+               "part": embed_part, "body": "钟楼"}),
+    )["id"]
+        .clone();
+    let listed = e.out("comment.list", json!({"book": b}));
+    let got = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == on_embed)
+        .unwrap();
+    assert_eq!(got["part"], embed_part);
+    assert_eq!(got["unlocated"], false);
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&json!(chapter)), "module": "mod-prose", "body": "x",
+                       "part": {"kind": "embed", "embed": "emb-none"}})
+        ),
+        WsError::NotFound { .. }
+    ));
+    assert!(matches!(
+        refused(
+            json!({"book": b, "target": on(&json!(chapter)), "module": "mod-prose", "body": "x",
+                       "part": {"kind": "embed", "embed": "emb-pic",
+                                "region": {"page": 1, "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}}})
+        ),
+        WsError::Invalid(_)
     ));
 }
 
@@ -1049,4 +1149,309 @@ fn asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge() {
             .is_none()
     );
     assert!(!stored_path.exists());
+}
+
+/// Real bytes for `asset` in `book`, recorded in its asset library.
+fn stored_asset(e: &Env, book: &str, asset: &str, name: &str, bytes: &[u8]) -> Value {
+    use dr_store::asset::SourceImport;
+    let src = e.dir.path().join(format!("{asset}.png"));
+    std::fs::write(&src, bytes).unwrap();
+    let stored = e
+        .ws()
+        .library()
+        .import_asset(&SourceImport {
+            book_id: book,
+            asset_id: asset,
+            source: &src,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((2, 2)),
+            limit: 1 << 20,
+        })
+        .unwrap();
+    e.call(
+        "asset.put",
+        json!({
+            "book": book, "id": asset, "name": name, "kind": "image",
+            "mime": stored.mime, "size": stored.size, "sha256": stored.sha256,
+            "width": 2, "height": 2
+        }),
+    );
+    json!({"path": stored.path, "sha256": stored.sha256, "size": stored.size})
+}
+
+/// DY fix 1: purging a trashed file retires the undo steps that would bring
+/// its record back, and history refuses to revive a purged record, so the
+/// library never shows a file whose bytes are gone.
+#[test]
+fn a_purged_file_does_not_come_back_through_undo_or_entry_history() {
+    use dr_store::asset::Variant;
+    let e = env();
+    let b = e.book();
+    stored_asset(
+        &e,
+        &b,
+        "asset-gone",
+        "gone.png",
+        b"\x89PNG\r\n\x1a\npurged-bytes",
+    );
+    e.call(
+        "asset.rename",
+        json!({"book": b, "id": "asset-gone", "name": "renamed.png"}),
+    );
+    let before = e.out("entry_history.version", json!({"book": b}))["version"].clone();
+    e.call("asset.trash", json!({"book": b, "id": "asset-gone"}));
+    e.call("asset.purge", json!({"book": b, "id": "asset-gone"}));
+    assert!(
+        e.ws().undo_in(&Actor::User, &b, None).unwrap().is_none(),
+        "neither the trash nor the rename can be undone into an empty file"
+    );
+    assert!(matches!(
+        e.try_call("asset.get", json!({"book": b, "id": "asset-gone"})),
+        Err(WsError::NotFound { .. })
+    ));
+    assert_eq!(
+        e.out("asset.list", json!({"book": b, "trashed": true})),
+        json!([])
+    );
+    let revived = e.try_call(
+        "entry_history.restore",
+        json!({"book": b, "at": before, "targets": [{"collection": "assets", "id": "asset-gone"}]}),
+    );
+    assert!(matches!(revived, Err(WsError::Invalid(_))), "{revived:?}");
+    assert!(
+        e.ws()
+            .library()
+            .asset("asset-gone", Variant::Source)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        e.out("asset.list", json!({"book": b, "trashed": true})),
+        json!([])
+    );
+}
+
+/// DY fix 12: a book's purge deletes only its own bytes, never another
+/// book's file stored under the same id (a record that arrived by sync).
+#[test]
+fn purging_a_file_never_deletes_another_books_bytes() {
+    use dr_store::asset::Variant;
+    let e = env();
+    let a = e.book();
+    let c = e.book();
+    let stored = stored_asset(
+        &e,
+        &a,
+        "asset-shared",
+        "map.png",
+        b"\x89PNG\r\n\x1a\nshared",
+    );
+    let record = dr_model::shared::Asset {
+        id: dr_model::id::AssetId::parse("asset-shared").unwrap(),
+        name: "map.png".into(),
+        kind: dr_model::kind::AssetKind::Image,
+        mime: "image/png".into(),
+        size: stored["size"].as_i64().unwrap(),
+        sha256: stored["sha256"].as_str().unwrap().into(),
+        width: Some(2),
+        height: Some(2),
+        created_at: None,
+        folder: None,
+        deleted_at: None,
+    };
+    let id = c.parse().unwrap();
+    e.ws()
+        .library()
+        .open_doc(&format!("book:{c}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Import, move |doc| {
+            dr_doc::v3::BorrowedBookV3::new(doc, &id)
+                .unwrap()
+                .txn()
+                .put_asset(&record)
+                .unwrap();
+        })
+        .unwrap();
+    e.call("asset.trash", json!({"book": c, "id": "asset-shared"}));
+    e.call("asset.purge", json!({"book": c, "id": "asset-shared"}));
+    assert!(std::path::Path::new(stored["path"].as_str().unwrap()).exists());
+    assert!(
+        e.ws()
+            .library()
+            .asset("asset-shared", Variant::Source)
+            .unwrap()
+            .is_some_and(|r| r.book_id == a)
+    );
+    assert_eq!(
+        e.out("asset.get", json!({"book": a, "id": "asset-shared"}))["name"],
+        "map.png"
+    );
+}
+
+/// DY fix 13: entry history refuses a restore that would trash (or leave
+/// absent) an entry that still has live entries under it, both when the
+/// entry did not exist yet and when it was in the trash then.
+#[test]
+fn entry_history_refuses_to_trash_an_entry_with_live_children() {
+    let e = env();
+    let b = e.book();
+    let manuscript = common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
+    let version = |e: &Env| e.out("entry_history.version", json!({"book": b}))["version"].clone();
+    let restore = |e: &Env, at: &Value, id: &str| {
+        e.try_call(
+            "entry_history.restore",
+            json!({"book": b, "at": at, "targets": [{"collection": "entries", "id": id}]}),
+        )
+    };
+    let before_group = version(&e);
+    let group = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-group", "title": "第一卷"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let child = chapter_in(&e, &b, &group, "一");
+    let refused = restore(&e, &before_group, &group);
+    assert!(matches!(refused, Err(WsError::Invalid(_))), "{refused:?}");
+    // In the trash then, with a chapter under it now.
+    let other = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-group", "title": "第二卷"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call("entry.trash", json!({"book": b, "id": other}));
+    let trashed_then = version(&e);
+    e.call("entry.restore", json!({"book": b, "id": other}));
+    chapter_in(&e, &b, &other, "二");
+    let refused = restore(&e, &trashed_then, &other);
+    assert!(matches!(refused, Err(WsError::Invalid(_))), "{refused:?}");
+    for id in [&group, &other, &child] {
+        assert!(
+            e.out("entry.get", json!({"book": b, "id": id}))["deleted_at"].is_null(),
+            "{id} untouched"
+        );
+    }
+}
+
+/// DY fix 13: an entry restored into the trash is not asked whether its
+/// parent can still hold entries (it does not live there any more).
+#[test]
+fn entry_history_restores_an_entry_into_the_trash_under_a_parent_that_is_no_level() {
+    let e = env();
+    let b = e.book();
+    let manuscript = common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
+    let folder = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-group", "title": "第一卷"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let child = chapter_in(&e, &b, &folder, "一");
+    e.call(
+        "entry.update",
+        json!({"book": b, "id": child, "title": "一（旧）"}),
+    );
+    e.call("entry.trash", json!({"book": b, "id": child}));
+    let trashed_then = e.out("entry_history.version", json!({"book": b}))["version"].clone();
+    e.call("entry.restore", json!({"book": b, "id": child}));
+    e.call(
+        "entry.update",
+        json!({"book": b, "id": child, "title": "一（新）"}),
+    );
+    // The folder's switch off: what lived in it goes to Recently Deleted.
+    e.call(
+        "entry.set_level",
+        json!({"book": b, "id": folder, "level": false}),
+    );
+    e.call(
+        "entry_history.restore",
+        json!({"book": b, "at": trashed_then, "targets": [{"collection": "entries", "id": child}]}),
+    );
+    let got = e.out("entry.get", json!({"book": b, "id": child}));
+    assert_eq!(got["title"], "一（旧）");
+    assert!(got["deleted_at"].is_i64());
+    assert_eq!(got["parent"], folder.as_str());
+}
+
+fn chapter_in(e: &Env, book: &str, parent: &str, title: &str) -> String {
+    e.out(
+        "entry.create",
+        json!({"book": book, "parent": parent, "template": "tpl-chapter", "title": title}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// DY fix 2: an image field holding a file is one of the file's usages; while
+/// the file is in Recently Deleted the field reads as a placeholder; purging
+/// the file clears the field so no value points at bytes that are gone.
+#[test]
+fn image_fields_are_file_usages_placeholders_and_are_cleared_on_purge() {
+    let e = env();
+    let b = e.book();
+    stored_asset(&e, &b, "asset-face", "face.png", b"\x89PNG\r\n\x1a\nface");
+    e.call(
+        "entry_template.put",
+        json!({"book": b, "template": {
+            "id": "tpl-portrait", "name": "肖像",
+            "modules": [{"id": "mod-fields", "kind": "fields", "name": "资料", "config": {
+                "defs": [{"id": "f-face", "name": "头像", "field_type": "image"},
+                         {"id": "f-note", "name": "备注", "field_type": "text"}]
+            }}]
+        }}),
+    );
+    let who = e.out(
+        "entry.create",
+        json!({"book": b, "template": "tpl-portrait", "title": "安"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let target = json!({"book": b, "entry": who, "module": "mod-fields"});
+    let set = |field: &str, value: Value| {
+        let mut input = target.clone();
+        input["field"] = json!(field);
+        input["value"] = value;
+        e.call("module.set_field", input);
+    };
+    set("f-face", json!("asset-face"));
+    set("f-note", json!("备注"));
+    let usages = e.out("asset.get", json!({"book": b, "id": "asset-face"}))["usages"].clone();
+    assert_eq!(
+        usages,
+        json!([{"kind": "field", "entry": who, "module": "mod-fields", "field": "f-face"}])
+    );
+    assert_eq!(
+        e.out(
+            "asset.get",
+            json!({"book": b, "id": "asset-face", "usages": false})
+        )["usages"],
+        json!([])
+    );
+    e.call("asset.trash", json!({"book": b, "id": "asset-face"}));
+    let got = e.out("entry.get", json!({"book": b, "id": who}));
+    assert_eq!(got["missing_files"], json!({"mod-fields": ["f-face"]}));
+    assert_eq!(got["fields"]["mod-fields"]["f-face"], "asset-face");
+    assert_eq!(
+        e.out("module.read", target.clone())["missing_files"],
+        json!(["f-face"])
+    );
+    e.call("asset.restore", json!({"book": b, "id": "asset-face"}));
+    assert!(e.out("entry.get", json!({"book": b, "id": who}))["missing_files"].is_null());
+    assert_eq!(
+        e.out("module.read", target.clone())["missing_files"],
+        json!([])
+    );
+    e.call("asset.trash", json!({"book": b, "id": "asset-face"}));
+    e.call("asset.purge", json!({"book": b, "id": "asset-face"}));
+    let got = e.out("entry.get", json!({"book": b, "id": who}));
+    assert!(got["fields"]["mod-fields"].get("f-face").is_none(), "{got}");
+    assert_eq!(got["fields"]["mod-fields"]["f-note"], "备注");
+    assert!(got["missing_files"].is_null());
 }

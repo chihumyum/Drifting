@@ -1858,6 +1858,36 @@ impl<'a> BookViewV3<'a> {
         }
     }
 
+    /// Whether `module` is gone from the live entry `target`'s active
+    /// template (a comment on the whole module then has no place).
+    fn comment_module_missing(
+        &self,
+        target: &EntityRef,
+        module: &ModuleId,
+        lookup: Option<&CommentPartLookup>,
+    ) -> bool {
+        if target.kind != EntityKind::Entry {
+            return true;
+        }
+        let has = |e: &Entry, templates: &BTreeMap<EntryTemplateId, EntryTemplate>| {
+            !e.is_trashed()
+                && e.effective_template(templates)
+                    .is_some_and(|t| t.modules.iter().any(|m| &m.id == module))
+        };
+        match lookup {
+            Some((templates, entries)) => {
+                entries.get(&target.id).is_none_or(|e| !has(e, templates))
+            }
+            None => {
+                let Ok(eid) = EntryId::parse(&target.id) else {
+                    return true;
+                };
+                self.entry(&eid)
+                    .is_none_or(|e| !has(&e, &self.templates_map()))
+            }
+        }
+    }
+
     fn comment_part_lookup(&self) -> CommentPartLookup {
         let templates = self.templates_map();
         let entries = self
@@ -1892,6 +1922,12 @@ impl<'a> BookViewV3<'a> {
             } else if let Some(ref p) = part {
                 target_missing =
                     self.comment_part_missing(target.as_ref(), target_module.as_ref(), p, lookup);
+            } else if let (Some(t), Some(mod_id)) = (target.as_ref(), target_module.as_ref())
+                && whole_module(&f)
+            {
+                // A comment on the whole module: gone with the module
+                // (the template switched, the module was removed).
+                target_missing = self.comment_module_missing(t, mod_id, lookup);
             }
         }
         let author_kind = f.kind("author_kind").unwrap_or(CommentAuthorKind::User);
@@ -1960,9 +1996,7 @@ impl<'a> BookViewV3<'a> {
             F(v).entity_ref("target_kind", "target")
                 .is_some_and(|t| matches!(t.kind, EntityKind::Entry | EntityKind::Patch))
         });
-        let needs_parts = raw
-            .iter()
-            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
+        let needs_parts = raw.iter().any(|(_, v)| needs_place_lookup(v));
         let entries = needs_entries.then(|| self.entry_existence_sets());
         let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
@@ -1978,13 +2012,31 @@ impl<'a> BookViewV3<'a> {
         if raw.is_empty() {
             return Vec::new();
         }
-        let needs_parts = raw
-            .iter()
-            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
+        let needs_parts = raw.iter().any(|(_, v)| needs_place_lookup(v));
         let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
             .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries), lookup.as_ref()))
             .collect()
+    }
+
+    /// The book's comments (with `entries`, [`Self::comments_with_entries`]),
+    /// also marking a comment on a prose embed `target_missing` when that
+    /// prose no longer holds the embed (`kernel-v5.md` §7: the place is gone).
+    /// The book does not see inside prose: `embeds` gives the file embeds of
+    /// `body:<entry>/<module>`, or `None` when that prose is not known here,
+    /// and the comment then reads as the book alone says. Asked once per
+    /// prose that a comment on an embed points into.
+    pub fn comments_with_embeds(
+        &self,
+        entries: Option<&(HashSet<String>, HashSet<String>)>,
+        embeds: &mut dyn FnMut(&EntryId, &ModuleId) -> Option<HashSet<EmbedId>>,
+    ) -> Vec<CommentV3> {
+        let mut out = match entries {
+            Some(e) => self.comments_with_entries(e),
+            None => self.comments(),
+        };
+        mark_missing_embeds(&mut out, embeds);
+        out
     }
 
     /// `(id, target, target_module, anchor)` for every anchored comment without
@@ -2460,6 +2512,53 @@ fn retained_record_state(
         Some(_) => unreachable!("map container id"),
     };
     Ok((parent.get(key).is_some(), retained))
+}
+
+/// A comment on a whole module: it names a module and no place in it (no
+/// part, no anchored passage, no paragraph).
+fn whole_module(f: &F<'_>) -> bool {
+    f.get("part").is_none()
+        && f.anchor("anchor").is_none()
+        && f.id::<BlockId>("target_block").is_none()
+}
+
+/// Whether reading `v` needs the entries and templates to tell whether its
+/// place is still there (a module part, a region, or a whole module).
+fn needs_place_lookup(v: &LoroValue) -> bool {
+    let f = F(v);
+    f.get("part").is_some()
+        || f.get("region").is_some()
+        || (f.get("module").is_some() && whole_module(&f))
+}
+
+/// Mark every located comment on a prose embed `target_missing` when its
+/// prose no longer holds that embed. `embeds` gives the file embeds of
+/// `body:<entry>/<module>` (`None`: not known here, left as it is); it is
+/// asked once per prose document.
+pub fn mark_missing_embeds(
+    comments: &mut [CommentV3],
+    embeds: &mut dyn FnMut(&EntryId, &ModuleId) -> Option<HashSet<EmbedId>>,
+) {
+    let mut known: HashMap<(EntryId, ModuleId), Option<HashSet<EmbedId>>> = HashMap::new();
+    for c in comments.iter_mut().filter(|c| !c.target_missing) {
+        let (Some(target), Some(module), Some(CommentPart::Embed { embed, .. })) =
+            (&c.target, &c.target_module, &c.part)
+        else {
+            continue;
+        };
+        if target.kind != EntityKind::Entry {
+            continue;
+        }
+        let Ok(entry) = EntryId::parse(&target.id) else {
+            continue;
+        };
+        let present = known
+            .entry((entry.clone(), module.clone()))
+            .or_insert_with(|| embeds(&entry, module));
+        if present.as_ref().is_some_and(|set| !set.contains(embed)) {
+            c.target_missing = true;
+        }
+    }
 }
 
 // An absent empty parent can be created for a new view's first lane. Never

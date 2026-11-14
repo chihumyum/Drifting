@@ -244,16 +244,40 @@ op! {
         }
         let target = EntityRef::new(EntityKind::Asset, input.id.clone());
         let (rels, _) = purge_fallout(&slot, &target);
+        // Image fields holding the file are cleared: no value is left pointing
+        // at bytes that are gone.
+        let fields = image_field_values(&slot, &id);
+        let mut replaced = vec![rec(CollectionV3::Assets, &id)];
+        replaced.extend(fields.iter().map(|(entry, module, field)| {
+            rec(CollectionV3::Entries, entry).at(["fields", module.as_str(), field.as_str()])
+        }));
         let id2 = id.clone();
         let rels2 = rels.clone();
-        cx.write_book_v3(&slot, Replaces::record(CollectionV3::Assets, &id), move |txn| {
+        let fields2 = fields.clone();
+        cx.write_book_v3(&slot, Replaces::records(replaced), move |txn| {
             for r in &rels2 {
                 txn.purge(CollectionV3::Relations, r.as_str())?;
+            }
+            for (entry, module, field) in &fields2 {
+                txn.entries().entry(entry)?.set_field(module, field, None)?;
             }
             txn.purge(CollectionV3::Assets, id2.as_str())?;
             Ok(())
         })?;
-        cx.workspace().library().remove_asset(id.as_str())?;
+        // Only this book's bytes: a record that arrived from elsewhere under
+        // another book's id never deletes that book's file.
+        cx.workspace()
+            .library()
+            .remove_book_asset(slot.book.as_str(), id.as_str())?;
+        // Steps whose undo would bring the record back now have nothing to
+        // bring back: Undo passes over them.
+        cx.workspace()
+            .inner
+            .journal
+            .forget_record(slot.book.as_str(), "assets", id.as_str())?;
+        for (entry, _, _) in &fields {
+            cx.effect(EffectAction::Updated, "entry", entry.as_str(), None);
+        }
         for r in &rels {
             cx.effect(EffectAction::Purged, "relation", r.as_str(), None);
         }
@@ -285,11 +309,61 @@ pub enum AssetUsage {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         block: Option<String>,
     },
+    /// An image field of a live entry's active `fields` module holding this file.
+    Field {
+        entry: String,
+        module: String,
+        field: String,
+    },
     /// A relation where one end is this asset and the other end is live.
     Relation {
         relation: String,
         other: v3::content::Ref,
     },
+}
+
+/// `(module, field)` of every image field any template declares, by template.
+pub(crate) fn image_fields(
+    templates: &BTreeMap<dr_model::id::EntryTemplateId, dr_model::v3::EntryTemplate>,
+) -> BTreeMap<String, BTreeSet<(String, String)>> {
+    let mut out: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
+    for t in templates.values() {
+        for m in t.modules.iter().filter(|m| m.kind == ModuleKind::Fields) {
+            for d in &m.config.defs {
+                if d.field_type == dr_model::v3::FieldType::Image {
+                    out.entry(t.id.to_string())
+                        .or_default()
+                        .insert((m.id.to_string(), d.id.clone()));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every stored image field value (trashed entries and retained modules
+/// included) that holds `asset`: `(entry, module, field)`.
+fn image_field_values(
+    slot: &BookSlot,
+    asset: &AssetId,
+) -> Vec<(dr_model::id::EntryId, dr_model::id::ModuleId, String)> {
+    let view = slot.reader_v3.view();
+    let templates = view.templates_map();
+    let any_image: BTreeSet<(String, String)> =
+        image_fields(&templates).into_values().flatten().collect();
+    let mut out = Vec::new();
+    for e in view.entries_raw() {
+        for (module, values) in &e.fields {
+            for (field, value) in values {
+                if value.as_str() == Some(asset.as_str())
+                    && any_image.contains(&(module.to_string(), field.clone()))
+                {
+                    out.push((e.id.clone(), module.clone(), field.clone()));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// An asset's recorded metadata and live usages in the book.
@@ -359,6 +433,24 @@ fn compute_usages(cx: &Cx<'_>, slot: &BookSlot) -> Result<BTreeMap<AssetId, Vec<
                 if spec.kind == ModuleKind::Prose {
                     active_prose.insert((e.id.to_string(), spec.id.to_string()));
                 }
+                if spec.kind == ModuleKind::Fields
+                    && let Some(values) = e.fields.get(&spec.id)
+                {
+                    for def in &spec.config.defs {
+                        if def.field_type == dr_model::v3::FieldType::Image
+                            && let Some(Ok(aid)) = values
+                                .get(&def.id)
+                                .and_then(|v| v.as_str())
+                                .map(AssetId::parse)
+                        {
+                            by_asset.entry(aid).or_default().push(AssetUsage::Field {
+                                entry: e.id.to_string(),
+                                module: spec.id.to_string(),
+                                field: def.id.clone(),
+                            });
+                        }
+                    }
+                }
             }
         } else {
             untemplated_live.insert(e.id.to_string());
@@ -423,10 +515,25 @@ fn compute_usages(cx: &Cx<'_>, slot: &BookSlot) -> Result<BTreeMap<AssetId, Vec<
     Ok(by_asset)
 }
 
+fn yes() -> bool {
+    true
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct AssetGetIn {
+    pub book: String,
+    pub id: String,
+    /// List where the file is used (the default). `false` reads only the
+    /// record: a caller showing one embedded file does not pay for scanning
+    /// every entry and prose index of the book, and `usages` comes back empty.
+    #[serde(default = "yes")]
+    pub usages: bool,
+}
+
 op! {
     AssetGet = "asset.get", Read, Shared,
-    "Read an asset's metadata and live usages in the book.",
-    fn(cx, input: EntityIn) -> AssetInfo {
+    "Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).",
+    fn(cx, input: AssetGetIn) -> AssetInfo {
         let slot = cx.book(&input.book)?;
         let id: AssetId = pid("asset", &input.id)?;
         let a = slot
@@ -434,6 +541,9 @@ op! {
             .view()
             .asset_raw(&id)
             .ok_or_else(|| WsError::not_found("asset", input.id.clone()))?;
+        if !input.usages {
+            return Ok(AssetInfo::from_asset(&a, Vec::new()));
+        }
         let mut usages = compute_usages(cx, &slot)?;
         Ok(AssetInfo::from_asset(&a, usages.remove(&a.id).unwrap_or_default()))
     }

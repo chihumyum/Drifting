@@ -51,7 +51,10 @@ fn chapter(e: &Env, text: &str) -> String {
 
 fn comment(e: &Env, doc: &str, kind: &str, range: (usize, usize)) -> String {
     let id = doc.trim_start_matches("body:").split('/').next().unwrap();
-    let origin = if kind == "todo" { "marker" } else { "manual" };
+    // Written by hand whatever the kind (there is one kind of comment; the
+    // marker and checklist origins are only projected from prose).
+    let _ = kind;
+    let origin = "manual";
     out(
         &e.ws,
         &Actor::User,
@@ -537,76 +540,80 @@ fn click_mark(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, line: us
     cx.simulate_click(point, gpui::Modifiers::default());
 }
 
+/// Every checklist item becomes a comment (origin `task`), its tick is the
+/// comment's status both ways: a click on the box resolves it, resolving the
+/// comment ticks the box, reopening clears it (DY fix 8, `kernel-v5.md` §7).
 #[gpui::test]
-fn task_items_tick_their_box_or_their_todo(cx: &mut TestAppContext) {
+fn task_items_are_comments_and_their_tick_is_the_status_both_ways(cx: &mut TestAppContext) {
     use gpui_prose::render::ListMark;
     use gpui_prose::schema::block;
     let e = env();
-    // Lists live in notes.
-    let note = out(
-        &e.ws,
-        &Actor::User,
-        "entry.create",
-        json!({"book": e.book, "template": "tpl-note", "title": "清单", "bodies": {"mod-prose": "买灯芯\n问钟楼的年代"}}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let doc = format!("body:{note}/mod-prose");
-    let todo = out(
-        &e.ws,
-        &Actor::User,
-        "comment.create",
-        json!({"book": e.book, "origin": "task", "body": "问钟楼的年代"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    // A chapter's prose: every prose module projects its checklist items.
+    let doc = chapter(&e, "买灯芯\n问钟楼的年代\n");
     let (view, cx) = open(cx, &e, &doc);
     cx.simulate_resize(gpui::size(gpui::px(900.), gpui::px(700.)));
     let editor = prose(&view, cx);
-    // The second item is linked to the TODO (as the notes' task lines are).
-    let id = todo.clone();
+    // The caret on the last, empty paragraph: neither item is being typed.
+    editor.update_in(cx, |p, window, cx| p.select(0, 11..11, window, cx));
     editor.update_in(cx, |e, window, cx| {
         e.edit_chapter(0, gpui_prose::HostStep::Own, window, cx, move |d| {
             for line in [0, 1] {
                 d.set_block_attr(line, block::LIST, Some("task".into()), "user");
             }
-            d.set_block_attr(1, block::TODO, Some(id.as_str().into()), "user");
             None
         });
     });
+    let tasks = |e: &Env| -> Vec<Value> {
+        let mut list: Vec<Value> = out(
+            &e.ws,
+            &Actor::User,
+            "comment.list",
+            json!({"book": e.book, "origin": "task"}),
+        )
+        .as_array()
+        .unwrap()
+        .clone();
+        list.sort_by_key(|c| c["body"].as_str().unwrap().to_owned());
+        list
+    };
+    assert!(wait_for(cx, |_| tasks(&e).len() == 2));
     let mark = |cx: &mut VisualTestContext, line: usize| {
         editor.read_with(cx, |e, _| e.block_look(0, line).list.map(|l| l.mark))
     };
-    assert_eq!(mark(cx, 0), Some(ListMark::Task { done: false }));
-    // The TODO done elsewhere: the linked item shows it.
-    out(
-        &e.ws,
-        &Actor::User,
-        "comment.update",
-        json!({"book": e.book, "id": todo, "status": "resolved"}),
-    );
-    assert!(wait_for(cx, |cx| mark(cx, 1) == Some(ListMark::Task { done: true })));
-    // A click on the plain task's box ticks it.
-    wait_for(cx, |_| true);
-    click_mark(&editor, cx, 0);
-    assert!(wait_for(cx, |cx| mark(cx, 0) == Some(ListMark::Task { done: true })));
-    // A click on the linked one reopens its TODO.
-    click_mark(&editor, cx, 1);
-    let status = |e: &Env| {
-        out(&e.ws, &Actor::User, "comment.list", json!({"book": e.book}))
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|c| c["id"] == todo.as_str())
-            .unwrap()["status"]
+    let status = |e: &Env, body: &str| {
+        tasks(e).iter().find(|c| c["body"] == body).unwrap()["status"]
             .as_str()
             .unwrap()
             .to_owned()
     };
-    assert!(wait_for(cx, |_| status(&e) == "open"));
+    assert_eq!(status(&e, "买灯芯"), "open");
+    // A click on the box ticks the item and resolves its comment.
+    wait_for(cx, |_| true);
+    click_mark(&editor, cx, 0);
+    assert!(wait_for(cx, |cx| mark(cx, 0) == Some(ListMark::Task { done: true })));
+    assert!(wait_for(cx, |_| status(&e, "买灯芯") == "resolved"));
+    // Resolving the other comment ticks its item in the prose; reopening
+    // clears the tick.
+    let other = tasks(&e)
+        .iter()
+        .find(|c| c["body"] == "问钟楼的年代")
+        .unwrap()["id"]
+        .clone();
+    out(
+        &e.ws,
+        &Actor::User,
+        "comment.update",
+        json!({"book": e.book, "id": other, "status": "resolved"}),
+    );
+    assert!(wait_for(cx, |cx| mark(cx, 1) == Some(ListMark::Task { done: true })));
+    out(
+        &e.ws,
+        &Actor::User,
+        "comment.update",
+        json!({"book": e.book, "id": other, "status": "open"}),
+    );
     assert!(wait_for(cx, |cx| mark(cx, 1) == Some(ListMark::Task { done: false })));
+    assert!(wait_for(cx, |_| status(&e, "问钟楼的年代") == "open"));
 }
 
 #[test]

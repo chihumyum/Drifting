@@ -41,6 +41,43 @@ fn gone(target: NavTarget, purged: bool) -> RemovedEntity {
     RemovedEntity { target, purged }
 }
 
+/// An entry purged outright (no command does that; another device's purge
+/// arriving by sync would): the shell is told it is gone for good, so its
+/// tab closes without an offer to restore (DY fix 14: the purge path the
+/// material test used to cover).
+#[test]
+fn a_purged_entry_is_announced_as_purged() {
+    let e = env();
+    let b = e.book();
+    let note = id(&common::acceptance::novel_entry(
+        e.ws(),
+        &b,
+        "tpl-note",
+        "地图",
+        Some("x"),
+    ));
+    e.call("entry.trash", json!({"book":b,"id":note}));
+    let (seen, _sub) = removals(e.ws());
+    let (book, gone_id): (dr_model::id::BookId, dr_model::id::EntryId) =
+        (b.parse().unwrap(), note.parse().unwrap());
+    e.ws()
+        .library()
+        .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::User, move |d| {
+            dr_doc::v3::BorrowedBookV3::new(d, &book)
+                .unwrap()
+                .txn()
+                .entries()
+                .purge_subtree(&gone_id)
+                .unwrap();
+        })
+        .unwrap();
+    // The workspace hears the change (as it would from sync) and announces it.
+    e.out("entry.list", json!({"book":b,"all":true,"trashed":true}));
+    assert_eq!(take(&seen), [gone(chapter(&note), true)]);
+}
+
 #[test]
 fn entry_trash_and_book_trash_are_announced() {
     let e = env();

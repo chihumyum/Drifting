@@ -57,8 +57,10 @@ fn chapter(e: &Env, title: &str, text: &str) -> String {
 }
 
 fn comment(e: &Env, on: Option<&str>, kind: &str, body: &str) -> String {
-    let origin = if kind == "todo" { "marker" } else { "manual" };
-    let mut input = json!({"book": e.book, "origin": origin, "body": body});
+    // Written by hand whatever the kind: marker and checklist comments are
+    // only projected from prose (`comment.create` refuses those origins).
+    let _ = kind;
+    let mut input = json!({"book": e.book, "origin": "manual", "body": body});
     if let Some(id) = on {
         input["target"] = json!({"kind": "entry", "id": id});
         input["range"] = json!([0, 2]);
@@ -68,6 +70,21 @@ fn comment(e: &Env, on: Option<&str>, kind: &str, body: &str) -> String {
         .as_str()
         .unwrap()
         .to_owned()
+}
+
+/// The TODO marker that opens chapter `id`'s prose, projected (as the editor
+/// does when the caret leaves it).
+fn project_marker(e: &Env, id: &str, task: &str) {
+    let doc = format!("body:{id}/mod-prose");
+    let block = out(&e.ws, "prose.read", json!({"doc": doc}))["paragraphs"][0]["block_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "comment.project",
+        json!({"doc": doc, "markers": [{"block": block, "task": task}]}),
+    );
 }
 
 fn listed(e: &Env) -> Vec<Value> {
@@ -173,10 +190,12 @@ fn ids(view: &Entity<ReviewView>, cx: &mut VisualTestContext) -> Vec<Vec<String>
 fn the_tab_filters_scopes_and_groups_by_place(cx: &mut TestAppContext) {
     let e = env();
     let one = chapter(&e, "一", "雨夜，钟楼停了。");
-    let two = chapter(&e, "二", "他在楼下等。");
+    // A TODO comes from the prose (a marker projects it); nobody writes one
+    // by hand any more.
+    let two = chapter(&e, "二", "TODO: 二的待办");
     comment(&e, Some(&one), "note", "一的批注");
-    comment(&e, Some(&two), "todo", "二的待办");
-    comment(&e, None, "todo", "浮动待办");
+    project_marker(&e, &two, "二的待办");
+    comment(&e, None, "note", "浮动批注");
     let target = dr_view_review::v3::Target::Entry {
         id: one.clone(),
         module: Some("mod-prose".into()),
@@ -185,11 +204,10 @@ fn the_tab_filters_scopes_and_groups_by_place(cx: &mut TestAppContext) {
     assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == 3));
     // Grouped by place, the floating one last.
     let groups = ids(&view, cx);
-    assert_eq!(groups.last().unwrap(), &vec!["浮动待办".to_owned()]);
+    assert_eq!(groups.last().unwrap(), &vec!["浮动批注".to_owned()]);
     view.update(cx, |v, cx| v.set_filter(Filter::Todos, cx));
     let todos = ids(&view, cx).concat();
-    assert_eq!(todos.len(), 2);
-    assert!(!todos.contains(&"一的批注".to_owned()));
+    assert_eq!(todos, ["二的待办"]);
     // 当前: only the open tab's chapter.
     view.update(cx, |v, cx| {
         v.set_filter(Filter::All, cx);
@@ -281,7 +299,7 @@ fn the_composer_writes_a_comment_on_the_selection(cx: &mut TestAppContext) {
     });
     assert!(wait_for(cx, |_| listed(&e).len() == 1));
     let made = &listed(&e)[0];
-    assert_eq!(made["origin"], "marker");
+    assert_eq!(made["origin"], "manual", "written in the composer: by hand");
     assert_eq!(made["body"], "钟楼要写清楚");
     assert_eq!(made["anchored"], true);
     // Written: chosen, so the editor draws its sand along its rows.

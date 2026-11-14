@@ -293,6 +293,9 @@ pub struct BookEditor {
     note_shortcuts: Vec<bool>,
     empty_scroll: ScrollHandle,
     todos: HashMap<usize, Vec<TodoMarker>>,
+    /// Each chapter's checklist items last seen (a change asks for the
+    /// projection, as a marker change does).
+    tasks: HashMap<usize, Vec<todo::TaskItem>>,
     /// Each chapter page's facts, section headings and the host's chrome (M03).
     pages: crate::page::Pages,
     /// The pickers, automatic links and the selection bar.
@@ -467,6 +470,7 @@ impl BookEditor {
             note_shortcuts,
             empty_scroll: ScrollHandle::new(),
             todos: HashMap::new(),
+            tasks: HashMap::new(),
             pages,
             assist,
             _assist_events: assist_events,
@@ -477,6 +481,10 @@ impl BookEditor {
         this.sync_chapter_shortcuts(cx);
         this.todos = (0..this.chapters.len())
             .map(|c| (c, this.find_todos(c, cx)))
+            .filter(|(_, t)| !t.is_empty())
+            .collect();
+        this.tasks = (0..this.chapters.len())
+            .map(|c| (c, this.find_tasks(c, cx)))
             .filter(|(_, t)| !t.is_empty())
             .collect();
         this
@@ -770,6 +778,7 @@ impl BookEditor {
         let shortcut_docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
         self.note_shortcuts = crate::v3::book_note_shortcuts(&self.ws, &self.book, &shortcut_docs);
         self.todos.clear();
+        self.tasks.clear();
         self.pages.set_style(style, &self.editor, cx);
         self.pages.set_headings(headings, &self.editor, cx);
         self.pages.attach(&self.editor, cx);
@@ -904,10 +913,30 @@ impl BookEditor {
         )
     }
 
+    fn find_tasks(&self, chapter: usize, cx: &App) -> Vec<todo::TaskItem> {
+        let editor = self.editor.read(cx);
+        let Some(c) = editor.book().chapters.get(chapter) else {
+            return Vec::new();
+        };
+        let doc = &c.doc;
+        todo::task_items(doc.lines()[..doc.visible_lines()].iter())
+    }
+
     fn update_todos(&mut self, chapter: usize, cx: &mut Context<Self>) {
         let found = self.find_todos(chapter, cx);
         let before = self.todos.get(&chapter).cloned().unwrap_or_default();
-        if found != before {
+        let tasks = self.find_tasks(chapter, cx);
+        let tasks_before = self.tasks.get(&chapter).cloned().unwrap_or_default();
+        if tasks != tasks_before {
+            if tasks.is_empty() {
+                self.tasks.remove(&chapter);
+            } else {
+                self.tasks.insert(chapter, tasks);
+            }
+        }
+        // The checklist items project with the markers.
+        if found != before || self.tasks.get(&chapter).cloned().unwrap_or_default() != tasks_before
+        {
             if found.is_empty() {
                 self.todos.remove(&chapter);
             } else {

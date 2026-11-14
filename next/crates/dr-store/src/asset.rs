@@ -909,6 +909,25 @@ impl Library {
         Ok(n > 0)
     }
 
+    /// Remove `book_id`'s asset: rows first, then its directory, durably.
+    /// Bytes stored for another book under the same id are left alone
+    /// (`false`), so purging a record that arrived from elsewhere never
+    /// deletes a different book's file.
+    pub fn remove_book_asset(&self, book_id: &str, asset_id: &str) -> Result<bool> {
+        let owner: Option<String> = self
+            .reader()
+            .query_row(
+                "SELECT book_id FROM asset WHERE asset_id = ?1 LIMIT 1",
+                [asset_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if owner.as_deref() != Some(book_id) {
+            return Ok(false);
+        }
+        self.remove_asset(asset_id)
+    }
+
     /// Remove an asset: rows first, then its directory, durably.
     pub fn remove_asset(&self, asset_id: &str) -> Result<bool> {
         let book: Option<String> = self

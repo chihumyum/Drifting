@@ -26,6 +26,7 @@ use std::collections::{HashMap, HashSet};
 
 use dr_shell::book::{Book, MaterialInfo};
 use dr_workspace::commands::EntityIn;
+use dr_workspace::commands::asset::{AssetRename, AssetRenameIn, AssetTrash};
 use dr_workspace::commands::v3::entry::{EntryTrash, EntryUpdate, UpdateIn as EntryUpdateIn};
 use dr_workspace::commands::v3::module::{In as ModuleIn, MediaRemove, MediaRemoveIn};
 use dr_workspace::dto::GroupInfo;
@@ -478,7 +479,16 @@ pub fn rename_material(lib: &Library, book: &str, id: &str, title: &str) -> Resu
         .find(|m| m.id == id)
         .ok_or_else(|| format!("material not found: {id}"))?;
     let Some(entry) = row.entry.clone() else {
-        return Err(format!("material not found: {id}"));
+        // A library file of its own: its name is the file's.
+        return run::<AssetRename>(
+            lib,
+            AssetRenameIn {
+                book: book.to_owned(),
+                id: id.to_owned(),
+                name: title.to_owned(),
+            },
+        )
+        .map(|_| ());
     };
     run::<EntryUpdate>(
         lib,
@@ -511,7 +521,15 @@ pub fn delete(lib: &Library, book: &str, sel: &Selection) -> Result<(), String> 
             .find(|m| m.id == *id)
             .ok_or_else(|| format!("material not found: {id}"))?;
         let (Some(entry), Some(module)) = (row.entry.clone(), row.module.clone()) else {
-            return Err(format!("material not found: {id}"));
+            // A library file of its own goes to Recently Deleted.
+            run::<AssetTrash>(
+                lib,
+                EntityIn {
+                    book: book.to_owned(),
+                    id: id.clone(),
+                },
+            )?;
+            continue;
         };
         run::<MediaRemove>(
             lib,

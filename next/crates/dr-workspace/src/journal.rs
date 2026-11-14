@@ -247,6 +247,33 @@ impl Journal {
         })?)
     }
 
+    /// Retire every actor's live or undone rows in `book` whose undo or redo
+    /// restores the record `collection/id` from history: once that record is
+    /// purged (an asset's bytes deleted), bringing it back would show an empty
+    /// file, so Undo skips those steps instead of reviving it. Returns how
+    /// many rows turned `dead`.
+    pub(crate) fn forget_record(&self, book: &str, collection: &str, id: &str) -> Result<usize> {
+        let needle = to_json(&serde_json::json!({ "collection": collection, "id": id }))?;
+        Ok(self.lib.local_write(|tx| {
+            let seqs: Vec<i64> = tx
+                .prepare(
+                    "SELECT seq FROM ws_journal WHERE book = ?1 AND state IN ('live', 'undone')
+                     AND (instr(coalesce(undo, ''), ?2) > 0 OR instr(coalesce(redo, ''), ?2) > 0)",
+                )?
+                .query_map(params![book, needle], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            let now = now_ms();
+            for seq in &seqs {
+                tx.execute(
+                    "UPDATE ws_journal SET state = 'dead', changed_ts = ?2 WHERE seq = ?1",
+                    params![seq, now],
+                )?;
+                changed(tx, *seq, LocalChangeKind::Update);
+            }
+            Ok(seqs.len())
+        })?)
+    }
+
     /// Drop a purged book's rows: nothing in them can be undone or redone.
     pub(crate) fn forget_book(&self, book: &str) -> Result<()> {
         Ok(self.lib.local_write(|tx| {

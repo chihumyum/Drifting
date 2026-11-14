@@ -33,7 +33,7 @@ fn entry_associations_remain_read_only_and_survive_hidden_ancestors() {
     seed.write_to(&store).unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
-    let material = dr_view_material::import::import_bytes(
+    let asset = dr_view_material::import::import_bytes(
         &ws,
         &book_id,
         None,
@@ -42,15 +42,10 @@ fn entry_associations_remain_read_only_and_survive_hidden_ancestors() {
     )
     .unwrap()
     .material;
-    let media_entry_id = dr_shell::book::Book::load(&ws, &book_id)
-        .unwrap()
-        .material_items()
-        .iter()
-        .find(|m| m.id == material)
-        .unwrap()
-        .entry
-        .clone()
-        .unwrap();
+    // The file shown as an item of an entry's media module (the import puts
+    // it into the asset library only).
+    let (media_entry_id, _, material) =
+        dr_view_material::import::place_in_media_entry(&ws, &book_id, &asset, "测试图").unwrap();
     let parsed_book = book_id.parse().unwrap();
     let target_entry = entry_id.clone();
     ws.library()
@@ -209,7 +204,7 @@ fn material_entry_links_are_local_partial_and_keep_hidden_relations() {
     let parent = chapter.parent.unwrap().to_string();
     let generic = dr_doc::catalog::generic_relation_type_id(b.book_id());
     seed.write_to(ws.library()).unwrap();
-    let material = dr_view_material::import::import_bytes(
+    let asset = dr_view_material::import::import_bytes(
         &ws,
         &book,
         None,
@@ -218,15 +213,10 @@ fn material_entry_links_are_local_partial_and_keep_hidden_relations() {
     )
     .unwrap()
     .material;
-    let media_entry_id = dr_shell::book::Book::load(&ws, &book)
-        .unwrap()
-        .material_items()
-        .iter()
-        .find(|m| m.id == material)
-        .unwrap()
-        .entry
-        .clone()
-        .unwrap();
+    // The file shown as an item of an entry's media module (the import puts
+    // it into the asset library only).
+    let (media_entry_id, _, material) =
+        dr_view_material::import::place_in_media_entry(&ws, &book, &asset, "测试图").unwrap();
     let parsed_book = book.parse().unwrap();
     let host_entry = media_entry_id.clone();
     let chapter_a = a.clone();

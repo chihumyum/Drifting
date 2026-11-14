@@ -99,6 +99,9 @@ op! {
 pub struct Data {
     pub module: Summary,
     pub fields: BTreeMap<String, types::FieldValue>,
+    /// Image fields whose file is in Recently Deleted or not in the book
+    /// (shown as placeholders; the values stay).
+    pub missing_files: Vec<String>,
     pub kv: Vec<types::KvEntry>,
     pub media: Vec<types::MediaItem>,
     pub patches: Vec<content::Patch>,
@@ -124,7 +127,7 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
         .ok_or_else(|| WsError::not_found("module", &input.module))?;
     let id: ModuleId = pid("module", &input.module)?;
     let definition: Option<m::ModuleSpec> = summary.definition.clone().map(convert).transpose()?;
-    let known_assets: BTreeSet<String> = v.assets().into_iter().map(|a| a.id.to_string()).collect();
+    let files = super::entry::Files::of(&v);
     let grid = if let Some(g) = v.plot_grid(&e.id, &id) {
         Some(content::grid_value(g))
     } else {
@@ -145,10 +148,10 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
     };
     if let Some(b) = &mut below {
         for child in b.children.iter_mut().flatten() {
-            super::entry::mark_missing_media(child, &known_assets);
+            super::entry::mark_missing_media(child, &files);
         }
         for member in b.members.iter_mut().flatten() {
-            super::entry::mark_missing_media(member, &known_assets);
+            super::entry::mark_missing_media(member, &files);
         }
     }
     let relations = if definition.is_some_and(|m| m.kind == m::ModuleKind::Relations) {
@@ -165,11 +168,19 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
         .map(|items| items.iter().map(Into::into).collect())
         .unwrap_or_default();
     for item in &mut media {
-        item.missing = !known_assets.contains(&item.asset);
+        item.missing = !files.live.contains(&item.asset);
     }
+    let fields: BTreeMap<String, types::FieldValue> =
+        convert(e.fields.get(&id).cloned().unwrap_or_default())?;
+    let missing_files = files.missing_fields(
+        e.template.as_ref().map(|t| t.as_str()),
+        id.as_str(),
+        &fields,
+    );
     Ok(Data {
         module: summary,
-        fields: convert(e.fields.get(&id).cloned().unwrap_or_default())?,
+        fields,
+        missing_files,
         kv: convert(e.kv.get(&id).cloned().unwrap_or_default())?,
         media,
         patches: convert(v.patches_of(&e.id, &id))?,

@@ -979,7 +979,8 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
             "part": {
                 "kind": "media",
                 "item": "media-map-1",
-                "region": {"page": 1, "x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
+                // The map is an image: its regions name no page (DY fix 18).
+                "region": {"x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
             },
             "body": "Verify media item region"
         }),
@@ -1096,9 +1097,21 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
     }
     assert_eq!(find(&e, &c_embed)["unlocated"], true);
 
-    // Checklist task projection via `comment.project` sets `origin = "task"` and syncs checked status.
+    // Checklist task projection via `comment.project` sets `origin = "task"`;
+    // the item's text and tick are read from the prose itself (step 8).
     let block = {
         let s = e.ws().prose_session(&doc_id).unwrap();
+        s.edit(|t| {
+            t.insert_paragraphs(0, "Checklist item\n")?;
+            t.set_block_attrs(
+                0,
+                &dr_model::prose::BlockAttrs {
+                    list: Some(dr_model::kind::ListKind::Task),
+                    ..Default::default()
+                },
+            )
+        })
+        .unwrap();
         s.reader()
             .view()
             .paragraphs()
@@ -1120,12 +1133,22 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
     assert_eq!(find(&e, &task_id)["origin"], "task");
     assert_eq!(find(&e, &task_id)["status"], "open");
 
+    // The line edited and ticked in the prose: the comment follows the
+    // prose, whatever an older list says.
+    {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        s.edit(|t| {
+            t.insert_text(14, " updated")?;
+            t.set_checked(0, true)
+        })
+        .unwrap();
+    }
     e.call(
         "comment.project",
         json!({
             "doc": doc_id,
             "markers": [],
-            "tasks": [{"block": block, "task": "Checklist item updated", "checked": true}]
+            "tasks": [{"block": block, "task": "Checklist item", "checked": false}]
         }),
     );
     assert_eq!(find(&e, &task_id)["body"], "Checklist item updated");
@@ -1150,7 +1173,7 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
         json!({
             "kind": "media",
             "item": "media-map-1",
-            "region": {"page": 1, "x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
+            "region": {"x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
         })
     );
 }

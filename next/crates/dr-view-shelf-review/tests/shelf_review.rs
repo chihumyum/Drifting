@@ -125,7 +125,8 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
                 book: book_id.clone(),
                 module: None,
                 part: None,
-                origin: Some("marker".into()),
+                // Written by hand: marker comments are only projected from prose.
+                origin: Some("manual".into()),
                 target: None,
                 block_id: None,
                 range: None,
@@ -174,7 +175,8 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
         &lib,
         &book_id,
         None,
-        dr_testkit::media::png(8, 8),
+        // Other bytes than the linked one: the same bytes would be the same file.
+        dr_testkit::media::png(9, 8),
         "Synthetic Unsorted Sketch",
     )
     .expect("create orphan material")
@@ -277,8 +279,9 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
             v.set_kind_enabled("image", true, cx);
             v.set_search_query("lighthouse", cx);
             let counts = v.counts(cx);
-            assert_eq!(counts.open_todos, 1);
-            assert_eq!(counts.open_comments, 0);
+            // Written by hand, so a comment: TODOs only come from the prose.
+            assert_eq!(counts.open_todos, 0);
+            assert_eq!(counts.open_comments, 1);
             v.set_search_query("", cx);
         });
     });

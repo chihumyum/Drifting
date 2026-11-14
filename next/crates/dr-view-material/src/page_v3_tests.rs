@@ -60,17 +60,11 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
         &sample_title,
     )
     .unwrap();
-    let id = imported.material;
-    let host_info = Book::load(&ws, &book_id)
-        .unwrap()
-        .material_items()
-        .iter()
-        .find(|m| m.id == id)
-        .unwrap()
-        .clone();
-    let host_entry = host_info.entry.clone().unwrap();
-    let host_module = host_info.module.clone().unwrap();
-    let host_asset = host_info.asset.clone().unwrap();
+    // The import puts the file into the asset library only; the page under
+    // test shows it as an item of an entry's media module.
+    let host_asset = imported.material.clone();
+    let (host_entry, host_module, id) =
+        crate::import::place_in_media_entry(&ws, &book_id, &host_asset, &sample_title).unwrap();
     cx.update(|cx| {
         dr_shell::init(
             ShellInfo {

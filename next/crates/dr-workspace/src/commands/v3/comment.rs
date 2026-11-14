@@ -19,10 +19,62 @@ use dr_model::kind::{
 };
 use dr_model::shared::{BlockSnapshot, EntityRef};
 use dr_model::v3::{CommentPart, CommentV3 as Comment, ModuleKind, check_comment_part_kind};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 fn comments(slot: &BookSlot) -> Vec<Comment> {
     slot.reader_v3.view().comments()
+}
+
+/// Tick (`checked`) or clear the checklist item `block` that `comment` was
+/// projected from, and give the metadata the comment keeps: the prose version
+/// with the new tick, so another device follows only once it has that prose.
+fn tick_task(cx: &Cx<'_>, comment: &Comment, block: &BlockId, checked: bool) -> Result<String> {
+    let (Some(target), Some(module)) = (&comment.target, &comment.target_module) else {
+        return Err(WsError::invalid("a checklist comment has no prose"));
+    };
+    let entry: EntryId = pid("entry", &target.id)?;
+    let doc = DocId::Body(BodyDocId::new(entry, module.clone()));
+    let ps = cx.prose(&doc)?;
+    let (doc2, block2) = (doc.clone(), block.clone());
+    let found = cx.write_prose_raw(&ps, move |d| {
+        let prose = BorrowedProse::new(d, &doc2)?;
+        let pos = prose
+            .view()
+            .paragraphs()
+            .find(|p| {
+                p.id.as_ref() == Some(&block2)
+                    && p.attrs.list == Some(dr_model::kind::ListKind::Task)
+            })
+            .map(|p| p.range.start);
+        let Some(pos) = pos else { return Ok(false) };
+        prose.txn().set_checked(pos, checked)?;
+        Ok(true)
+    })?;
+    if !found {
+        return Err(WsError::not_found("checklist item", block.as_str()));
+    }
+    let vv = ps.handle.doc().with_doc(|d| d.oplog_vv());
+    serde_json::to_string(&ProjectionMeta {
+        kind: TASK_META_KIND.to_string(),
+        prose_vv: vv
+            .iter()
+            .map(|(p, c)| (p.to_string(), i64::from(*c)))
+            .collect(),
+    })
+    .map_err(|e| WsError::Internal(e.to_string()))
+}
+
+/// The book's comments with those on an embed their prose no longer holds
+/// marked as not located (`kernel-v5.md` §7).
+fn located_comments(cx: &Cx<'_>, slot: &BookSlot) -> Vec<Comment> {
+    slot.reader_v3
+        .view()
+        .comments_with_embeds(None, &mut |entry, module| {
+            Some(file_embeds_in_prose(
+                cx,
+                &DocId::Body(BodyDocId::new(entry.clone(), module.clone())),
+            ))
+        })
 }
 
 fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
@@ -71,6 +123,20 @@ fn active_entry_module(
         .and_then(|et| et.modules.iter().find(|m| m.id == mid).cloned())
         .ok_or_else(|| WsError::not_found("module", module_id))?;
     Ok((entry, spec))
+}
+
+/// The file the embed `embed` of `doc` shows, if it is a file embed there.
+fn embed_file(cx: &Cx<'_>, doc: &DocId, embed: &EmbedId) -> Option<AssetId> {
+    let ps = cx.prose(doc).ok()?;
+    let view = cx.prose_view(&ps);
+    // Its placeholder must still be in the text.
+    if !view.embed_refs().into_iter().any(|(_, e)| &e == embed) {
+        return None;
+    }
+    match view.embed(embed) {
+        Some(EmbedView::Asset { asset, .. }) => asset,
+        _ => None,
+    }
 }
 
 fn file_embeds_in_prose(cx: &Cx<'_>, doc: &DocId) -> HashSet<EmbedId> {
@@ -258,30 +324,12 @@ op! {
         }
         let module = input.module.as_deref().map(|id| pid::<ModuleId>("module", id)).transpose()?;
         let t = input.target.as_ref().map(Target::to_ref);
-        let mut prose_embeds: HashMap<DocId, HashSet<EmbedId>> = HashMap::new();
-        Ok(comments(&slot).iter()
+        Ok(located_comments(cx, &slot).iter()
             .filter(|c| input.origin.as_ref().is_none_or(|o| c.origin.as_str() == o))
             .filter(|c| input.status.as_ref().is_none_or(|s| c.status.as_str() == s))
             .filter(|c| t.as_ref().is_none_or(|t| c.target.as_ref() == Some(t)))
             .filter(|c| module.as_ref().is_none_or(|m| c.target_module.as_ref() == Some(m)))
-            .map(|c| {
-                let mut info = CommentInfo::from(c);
-                if !info.unlocated
-                    && let (Some(target), Some(mod_id), Some(CommentPart::Embed { embed, .. })) =
-                        (&c.target, &c.target_module, &c.part)
-                    && target.kind == EntityKind::Entry
-                    && let Ok(entry_id) = EntryId::parse(&target.id)
-                {
-                    let doc = DocId::Body(BodyDocId::new(entry_id, mod_id.clone()));
-                    let embeds = prose_embeds
-                        .entry(doc.clone())
-                        .or_insert_with(|| file_embeds_in_prose(cx, &doc));
-                    if !embeds.contains(embed) {
-                        info.unlocated = true;
-                    }
-                }
-                info
-            })
+            .map(CommentInfo::from)
             .collect())
     }
 }
@@ -297,6 +345,14 @@ op! {
                 let parsed = CommentOrigin::parse(o);
                 if !parsed.is_known() {
                     return Err(WsError::invalid(format!("unknown comment origin {:?}", parsed.as_str())));
+                }
+                // Markers and checklist items are projected from prose
+                // (`comment.project`); nobody writes those origins by hand.
+                if matches!(parsed, CommentOrigin::Marker | CommentOrigin::Task) {
+                    return Err(WsError::invalid(format!(
+                        "comments with origin {:?} are only projected from prose",
+                        parsed.as_str()
+                    )));
                 }
                 parsed
             }
@@ -314,6 +370,9 @@ op! {
             return Err(WsError::invalid("a comment on a module part cannot also carry a prose range or anchor"));
         }
 
+        // The file a region is drawn on: a page is required on a PDF and
+        // refused on an image (checked below, once the file is known).
+        let mut region_file: Option<AssetId> = None;
         let module = match &input.target {
             None => {
                 if input.module.is_some() || part.is_some() || needs_prose {
@@ -344,7 +403,8 @@ op! {
                             match p {
                                 CommentPart::Embed { embed, .. } => {
                                     let doc = DocId::Body(BodyDocId::new(entry.id.clone(), mod_spec.id.clone()));
-                                    if !file_embeds_in_prose(cx, &doc).contains(embed) {
+                                    region_file = embed_file(cx, &doc, embed);
+                                    if region_file.is_none() {
                                         return Err(WsError::not_found("embed", embed.as_str()));
                                     }
                                 }
@@ -372,11 +432,12 @@ op! {
                                     }
                                 }
                                 CommentPart::Media { item, .. } => {
-                                    if !entry
+                                    region_file = entry
                                         .media
                                         .get(&mod_spec.id)
-                                        .is_some_and(|items| items.iter().any(|it| &it.id == item))
-                                    {
+                                        .and_then(|items| items.iter().find(|it| &it.id == item))
+                                        .map(|it| it.asset.clone());
+                                    if region_file.is_none() {
                                         return Err(WsError::not_found("media", item.as_str()));
                                     }
                                 }
@@ -396,14 +457,8 @@ op! {
                 }
                 if let Some(ref p) = part {
                     match p {
-                        CommentPart::Region { region } => {
-                            let aid: AssetId = pid("asset", &t.id)?;
-                            if let Some(asset) = slot.reader_v3.view().asset(&aid)
-                                && asset.kind == dr_model::kind::AssetKind::Image
-                                && region.page.is_some()
-                            {
-                                return Err(WsError::invalid("an image region cannot set page"));
-                            }
+                        CommentPart::Region { .. } => {
+                            region_file = Some(pid("asset", &t.id)?);
                         }
                         _ => return Err(WsError::invalid("a comment on an asset only accepts a region part")),
                     }
@@ -412,6 +467,19 @@ op! {
             }
             Some(t) => return Err(WsError::not_found("comment target", &t.id)),
         };
+        if let (Some(region), Some(file)) = (part.as_ref().and_then(CommentPart::region), &region_file)
+            && let Some(asset) = slot.reader_v3.view().asset_raw(file)
+        {
+            match asset.kind {
+                dr_model::kind::AssetKind::Pdf if region.page.is_none() => {
+                    return Err(WsError::invalid("a region on a PDF names its page"));
+                }
+                dr_model::kind::AssetKind::Image if region.page.is_some() => {
+                    return Err(WsError::invalid("an image region cannot set page"));
+                }
+                _ => {}
+            }
+        }
 
         let priority = input.priority.as_deref().map(CommentPriority::parse);
         if let Some(p) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
@@ -509,6 +577,15 @@ op! {
         if let Some(s) = &status && !s.is_known() { return Err(WsError::invalid(format!("unknown status {:?}", s.as_str()))); }
         let priority: Option<Option<CommentPriority>> = input.priority.as_ref().map(|p| p.as_deref().map(CommentPriority::parse));
         if let Some(Some(p)) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
+        // A checklist item's comment is the line's shadow: resolving it ticks
+        // the item in the prose and reopening clears the tick, one ordinary
+        // prose change before the comment follows (`kernel-v5.md` §7).
+        let task_meta = match (&status, &old.projection) {
+            (Some(s), Some(p)) if p.kind == ProjectionKind::NoteTask && *s != old.status => {
+                Some(tick_task(cx, &old, &p.block, *s == CommentStatus::Resolved)?)
+            }
+            _ => None,
+        };
         let (id, i) = (old.id.clone(), input.clone());
         cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
             let w = txn.comment(&id)?;
@@ -516,6 +593,7 @@ op! {
             if let Some(s) = &status {
                 w.status(s)?.resolved_at((*s == CommentStatus::Resolved).then(now))?;
             }
+            if let Some(meta) = &task_meta { w.metadata(Some(meta))?; }
             if let Some(p) = &priority { w.priority(p.as_ref())?; }
             if let Some(a) = &i.agent_conversation { w.agent_conversation(a.as_deref())?; }
             w.updated_at(Some(now()))?;
@@ -644,26 +722,32 @@ op! {
                 markers.push((b, m.task.trim().to_string()));
             }
         }
-        // Tasks, deduplicated if provided.
-        let tasks: Option<Vec<(BlockId, String, bool)>> = match &input.tasks {
-            None => None,
-            Some(list) => {
-                let mut dedup: Vec<(BlockId, String, bool)> = Vec::new();
-                for t in list {
-                    let b: BlockId = pid("block", &t.block)?;
-                    if !dedup.iter().any(|(x, _, _)| x == &b) {
-                        dedup.push((b, t.task.trim().to_string(), t.checked));
-                    }
-                }
-                Some(dedup)
-            }
-        };
+        for t in input.tasks.iter().flatten() {
+            let _: BlockId = pid("block", &t.block)?;
+        }
         let editing = input.editing.as_deref().map(|b| pid::<BlockId>("block", b)).transpose()?;
 
         // The document now: its blocks and its version.
         let view = cx.prose_view(&ps);
         let blocks: HashSet<BlockId> = view.blocks().into_iter().filter_map(|b| b.id).collect();
         let vv = ps.handle.doc().with_doc(|d| d.oplog_vv());
+        // Checklist items (`kernel-v5.md` §7): the document is the truth.
+        // Each item's text and tick are read from it, so a list an editor
+        // sent before a resolve reached it never unticks the item; the list
+        // only asks for the items to be projected.
+        let tasks: Option<Vec<(BlockId, String, bool)>> = input.tasks.as_ref().map(|_| {
+            let mut items: Vec<(BlockId, String, bool)> = Vec::new();
+            for p in view.paragraphs() {
+                if p.attrs.list != Some(dr_model::kind::ListKind::Task) {
+                    continue;
+                }
+                let Some(b) = p.id.clone() else { continue };
+                if !items.iter().any(|(x, _, _)| x == &b) {
+                    items.push((b, p.text().trim().to_string(), p.attrs.checked));
+                }
+            }
+            items
+        });
 
         let doc_comments: Vec<Comment> = comments(&slot)
             .into_iter()
@@ -713,6 +797,13 @@ op! {
             for (b, task, checked) in tasks {
                 let body = if task.is_empty() { EMPTY_MARKER_TASK.to_string() } else { task.clone() };
                 if let Some(existing) = existing_tasks.get(b) {
+                    // A resolve or reopen made on another device writes the
+                    // tick first; until that prose is here the comment is
+                    // not turned back by an older tick.
+                    if !has_seen(&vv, existing.metadata.as_deref()) {
+                        out.waiting.push(existing.id.to_string());
+                        continue;
+                    }
                     let want_status = if *checked { CommentStatus::Resolved } else { CommentStatus::Open };
                     let status_change = (existing.status != want_status).then_some(want_status);
                     let body_change = (editing.as_ref() != Some(b) && existing.body != body).then_some(body);
@@ -726,8 +817,11 @@ op! {
                 }
                 create.push((ProjectionKind::NoteTask, b.clone(), body, *checked));
             }
+            // An item that is gone takes its comment with it, resolved or not
+            // (the comment is only the line's shadow; a marker's resolved
+            // comment stays, a checklist item's does not).
             for (b, c) in &existing_tasks {
-                if c.status != CommentStatus::Open || tasks.iter().any(|(x, _, _)| x == b) {
+                if tasks.iter().any(|(x, _, _)| x == b) {
                     continue;
                 }
                 if has_seen(&vv, c.metadata.as_deref()) {
@@ -785,7 +879,9 @@ op! {
                 if let Some(status) = status_change {
                     w.status(status)?.resolved_at((*status == CommentStatus::Resolved).then(now))?;
                 }
-                w.updated_at(Some(now()))?;
+                // The prose version the item now follows: another device
+                // keeps this until it has that prose too.
+                w.metadata(Some(&task_meta))?.updated_at(Some(now()))?;
             }
             for r in &r2 { txn.purge(CollectionV3::Relations, r.as_str())?; }
             for c in &rm2 { txn.purge(CollectionV3::Comments, c.as_str())?; }

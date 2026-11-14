@@ -154,6 +154,34 @@ fn import_variants_remove_and_collect() {
     assert!(!lib.remove_asset("asset-1").unwrap());
 }
 
+/// Purging one book's file never deletes bytes another book stored under the
+/// same id (`kernel-v5.md` §6 素材库; the store used to delete by id alone).
+#[test]
+fn removing_a_books_asset_leaves_another_books_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("map.png");
+    fs::write(&file, b"synthetic map bytes").unwrap();
+    let lib = open(&dir.path().join("lib"));
+    let assets = lib.paths().assets.clone();
+    lib.import_asset(&source("book-a", "asset-shared", &file, 1024))
+        .unwrap();
+    assert!(!lib.remove_book_asset("book-b", "asset-shared").unwrap());
+    assert!(assets.join("book-a/asset-shared/source.png").exists());
+    assert!(
+        lib.asset("asset-shared", Variant::Source)
+            .unwrap()
+            .is_some_and(|r| r.book_id == "book-a")
+    );
+    assert!(!lib.remove_book_asset("book-a", "asset-missing").unwrap());
+    assert!(lib.remove_book_asset("book-a", "asset-shared").unwrap());
+    assert!(!assets.join("book-a/asset-shared").exists());
+    assert!(
+        lib.asset("asset-shared", Variant::Source)
+            .unwrap()
+            .is_none()
+    );
+}
+
 #[test]
 fn imports_follow_the_marker_protocol() {
     let dir = tempfile::tempdir().unwrap();

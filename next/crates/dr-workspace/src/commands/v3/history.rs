@@ -138,6 +138,27 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                         return Err(WsError::invalid("relation type is in use"));
                     }
                 }
+                if c == CollectionV3::Assets {
+                    // A purged file's bytes are gone: its record is not
+                    // brought back from history as an empty file.
+                    let id: AssetId = pid("asset", &target.id)?;
+                    if current.asset_raw(&id).is_none()
+                        && let Some(was) = old.asset_raw(&id)
+                    {
+                        let kept = cx
+                            .workspace()
+                            .library()
+                            .asset(id.as_str(), dr_store::asset::Variant::Source)?
+                            .is_some_and(|r| {
+                                r.book_id == s.book.as_str() && r.sha256 == was.sha256
+                            });
+                        if !kept {
+                            return Err(WsError::invalid(format!(
+                                "asset {id} was purged; its bytes are gone"
+                            )));
+                        }
+                    }
+                }
                 if matches!(
                     c,
                     CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations

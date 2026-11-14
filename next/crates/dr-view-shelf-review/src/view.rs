@@ -1085,6 +1085,8 @@ impl ShelfReviewView {
         body: String,
         cx: &mut Context<Self>,
     ) {
+        // `kind` only chooses the composer's look until T6 drops it.
+        let _ = kind;
         let book = self.book_id.clone();
         self.spawn_tracked_write(
             move |lib| {
@@ -1094,7 +1096,9 @@ impl ShelfReviewView {
                         book,
                         module: None,
                         part: None,
-                        origin: Some(if kind == "todo" { "marker" } else { "manual" }.into()),
+                        // Written by hand (marker and checklist comments
+                        // are only projected from prose).
+                        origin: Some("manual".into()),
                         target: None,
                         block_id: None,
                         range: None,

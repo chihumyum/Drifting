@@ -7,20 +7,24 @@ expression: json
     "access": "read",
     "concurrency": "shared",
     "input": {
-      "description": "One entity of a book.",
       "properties": {
         "book": {
           "type": "string"
         },
         "id": {
           "type": "string"
+        },
+        "usages": {
+          "default": true,
+          "description": "List where the file is used (the default). `false` reads only the\nrecord: a caller showing one embedded file does not pay for scanning\nevery entry and prose index of the book, and `usages` comes back empty.",
+          "type": "boolean"
         }
       },
       "required": [
         "book",
         "id"
       ],
-      "title": "EntityIn",
+      "title": "AssetGetIn",
       "type": "object"
     },
     "kind": "query",
@@ -79,6 +83,31 @@ expression: json
                 "kind",
                 "entry",
                 "module"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "An image field of a live entry's active `fields` module holding this file.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "field",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module",
+                "field"
               ],
               "type": "object"
             },
@@ -200,7 +229,7 @@ expression: json
       "title": "AssetInfo",
       "type": "object"
     },
-    "summary": "Read an asset's metadata and live usages in the book."
+    "summary": "Read an asset's metadata and live usages in the book (`usages: false` reads the record alone)."
   },
   {
     "access": "read",
@@ -358,6 +387,31 @@ expression: json
                 "kind",
                 "entry",
                 "module"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "An image field of a live entry's active `fields` module holding this file.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "field",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module",
+                "field"
               ],
               "type": "object"
             },
@@ -1192,6 +1246,16 @@ expression: json
               },
               "default": {},
               "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
+            "missing_files": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
               "type": "object"
             },
             "name_conflict": {
@@ -3516,6 +3580,16 @@ expression: json
           "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
           "type": "object"
         },
+        "missing_files": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
+          "type": "object"
+        },
         "name_conflict": {
           "default": null,
           "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -3970,6 +4044,16 @@ expression: json
           "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
           "type": "object"
         },
+        "missing_files": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
+          "type": "object"
+        },
         "name_conflict": {
           "default": null,
           "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -4207,6 +4291,16 @@ expression: json
               },
               "default": {},
               "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
+            "missing_files": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
               "type": "object"
             },
             "name_conflict": {
@@ -10161,6 +10255,16 @@ expression: json
               "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
               "type": "object"
             },
+            "missing_files": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
+              "type": "object"
+            },
             "name_conflict": {
               "default": null,
               "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -10968,6 +11072,13 @@ expression: json
           },
           "type": "array"
         },
+        "missing_files": {
+          "description": "Image fields whose file is in Recently Deleted or not in the book\n(shown as placeholders; the values stay).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "module": {
           "$ref": "#/$defs/Summary"
         },
@@ -10987,6 +11098,7 @@ expression: json
       "required": [
         "module",
         "fields",
+        "missing_files",
         "kv",
         "media",
         "patches",

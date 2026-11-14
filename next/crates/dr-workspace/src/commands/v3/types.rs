@@ -238,6 +238,11 @@ pub struct Entry {
     /// Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.
     #[serde(default)]
     pub media: BTreeMap<String, Vec<MediaItem>>,
+    /// Image fields whose file is in Recently Deleted or not in the book:
+    /// `module_id -> field ids`, shown as placeholders (the value stays).
+    /// Set by readers, ignored on input.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub missing_files: BTreeMap<String, Vec<String>>,
     /// Stored primary membership host; membership queries filter invalid records.
     pub primary: Option<String>,
     pub created_at: Option<i64>,
@@ -623,6 +628,7 @@ impl From<&dr_model::v3::Entry> for Entry {
                 .iter()
                 .map(|(mid, items)| (mid.to_string(), items.iter().map(Into::into).collect()))
                 .collect(),
+            missing_files: BTreeMap::new(),
             primary: v.primary.as_ref().map(ToString::to_string),
             created_at: v.created_at.map(|t| t.0),
             updated_at: v.updated_at.map(|t| t.0),

@@ -132,6 +132,36 @@ fn target(comment: &CommentV3) -> Option<Target> {
 /// creating any prose document. Ancestor trash hides navigation, not comments.
 pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
     let id = BookId::parse(book).map_err(invalid)?;
+    // A comment on a prose embed whose embed is gone is not located: the
+    // book does not see inside prose, so the few prose documents such
+    // comments point into are asked first (`comments_with_embeds`).
+    let embedded: Vec<(m::EntryId, m::ModuleId)> = ws.read_book_v3(book, {
+        let id = id.clone();
+        move |doc, _| {
+            let b = BorrowedBookV3::new(doc, &id).map_err(invalid)?;
+            Ok(b.view()
+                .comments()
+                .into_iter()
+                .filter_map(|c| match (&c.target, &c.target_module, &c.part) {
+                    (Some(t), Some(module), Some(m::CommentPart::Embed { .. }))
+                        if t.kind == EntityKind::Entry =>
+                    {
+                        Some((m::EntryId::parse(&t.id).ok()?, module.clone()))
+                    }
+                    _ => None,
+                })
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect())
+        }
+    })?;
+    let embeds: HashMap<(m::EntryId, m::ModuleId), Option<HashSet<m::EmbedId>>> = embedded
+        .into_iter()
+        .map(|(e, module)| {
+            let set = ws.prose_file_embeds(&e, &module);
+            ((e, module), set)
+        })
+        .collect();
     let (mut items, associations, pending_retained) = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
@@ -154,7 +184,9 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                 }
             }
             let entry_sets = (node_live, node_all);
-            let comments = v.comments_with_entries(&entry_sets);
+            let comments = v.comments_with_embeds(Some(&entry_sets), &mut |e, module| {
+                embeds.get(&(e.clone(), module.clone())).cloned().flatten()
+            });
             let generic = dr_doc::catalog::generic_relation_type_id(&id);
             if comments.is_empty() {
                 let associations = v.relations_matching_with_entries(&entry_sets, |r| {

@@ -114,6 +114,10 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
     ));
     assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
     e.call("entry.trash", json!({"book":b,"id":pic}));
+    // Read through the entry itself (the tree is not a map keyed by id, so a
+    // raw `entries[pic]` lookup is always null; DY fix 14).
+    let deleted_at = |e: &Env| e.out("entry.get", json!({"book":b,"id":pic}))["deleted_at"].clone();
+    assert!(deleted_at(&e).is_i64(), "trashed");
     assert!(
         e.ws()
             .library()
@@ -126,7 +130,7 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
         std::fs::read(&source).unwrap()
     );
     undo(&e);
-    assert!(raw(&e, &b)["entries"][&pic]["deleted_at"].is_null());
+    assert!(deleted_at(&e).is_null(), "restored by the undo");
     assert_eq!(raw(&e, &b)["comments"][&mark]["target"], pic);
     assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
     let other_note = item(e.out(

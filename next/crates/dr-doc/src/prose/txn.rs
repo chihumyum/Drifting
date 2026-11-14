@@ -485,6 +485,30 @@ impl<'a> ProseTxn<'a> {
         Ok(())
     }
 
+    /// Tick or clear the task box of the paragraph containing `pos`, and only
+    /// that key (`kernel-v5.md` §7: a checklist item's tick is its comment's
+    /// status). A stale `todo` link from an older format is dropped with it,
+    /// so the tick alone is the item's state.
+    pub fn set_checked(&mut self, pos: usize, checked: bool) -> Result<()> {
+        if pos >= self.len() {
+            return Err(DocError::BadRange {
+                start: pos,
+                end: pos,
+                len: self.len(),
+            });
+        }
+        let nl = self.newline_at_or_after(pos)?;
+        if checked {
+            self.view
+                .text
+                .mark(nl..nl + 1, block::CHECKED, LoroValue::Bool(true))?;
+        } else {
+            self.view.text.unmark(nl..nl + 1, block::CHECKED)?;
+        }
+        self.view.text.unmark(nl..nl + 1, block::TODO)?;
+        Ok(())
+    }
+
     /// Apply `f` to every non-newline segment of `range`.
     fn per_segment(
         &self,

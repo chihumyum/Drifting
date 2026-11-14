@@ -332,7 +332,9 @@ impl CommentComposer {
         };
         let input = CommentCreateIn {
             book: self.book.clone(),
-            origin: Some(if self.todo { "marker" } else { "manual" }.into()),
+            // Written in the composer: by hand, whatever the toggle says
+            // (marker and checklist comments are only projected from prose).
+            origin: Some("manual".into()),
             target: Some(dr_workspace::commands::v3::comment::Target {
                 kind: self.target.kind.clone(),
                 id: self.target.id.clone(),
