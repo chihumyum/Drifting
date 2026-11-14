@@ -1803,6 +1803,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-workspace",
+ "flate2",
  "fontdb",
  "image",
  "krilla",

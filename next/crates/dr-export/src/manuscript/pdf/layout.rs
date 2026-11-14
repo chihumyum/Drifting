@@ -16,6 +16,8 @@ pub(crate) struct TextStyle {
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
+    pub code: bool,
+    pub highlight: bool,
     pub href: Option<String>,
 }
 
@@ -27,6 +29,8 @@ impl TextStyle {
             italic: false,
             underline: false,
             strike: false,
+            code: false,
+            highlight: false,
             href: None,
         }
     }
@@ -172,7 +176,15 @@ pub(crate) fn font_runs(
         let face = if c == '\n' {
             runs.last().map(|run| run.face).unwrap_or(fonts.chain[0])
         } else {
-            let regular = fonts.face_for(c, latin_flags[index], cjk_book);
+            let regular = if style.code
+                && !FontSet::is_cjk_char(c)
+                && let Some(mono) = fonts.mono
+                && fonts.has_glyph(mono, c)
+            {
+                mono
+            } else {
+                fonts.face_for(c, latin_flags[index], cjk_book)
+            };
             fonts.variant(database, regular, style.bold, style.italic)
         };
         let end = offset + c.len_utf8();

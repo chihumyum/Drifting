@@ -538,7 +538,9 @@ impl DocKind {
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book, conversation, stats, checkpoints and layout documents.
+    /// book, conversation, stats, checkpoints and layout documents. Every prose
+    /// document shares the single `ProseProfile::Prose` (`kernel-v5.md` §6;
+    /// the former note profile is retired).
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
             DocKind::Book

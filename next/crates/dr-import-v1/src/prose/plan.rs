@@ -1471,7 +1471,7 @@ mod tests {
     }
 
     #[test]
-    fn list_attributes_and_marks_survive_and_unknown_marks_and_inlines_are_dropped_in_prose() {
+    fn list_highlight_and_code_keep_while_unknown_marks_and_inlines_drop() {
         let p = plan_of(
             r#"{"type":"doc","content":[{"type":"bulletList","content":[{"type":"listItem","content":[
               {"type":"paragraph","attrs":{"id":"a"},"content":[{"type":"text","text":"x","marks":[{"type":"highlight"},{"type":"code"},{"type":"strange"}]},{"type":"mention","attrs":{"who":"z"}},{"type":"text","text":"y"}]}]}]}]}"#,

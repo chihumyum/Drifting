@@ -1,5 +1,7 @@
 # dr-text 与派生器（dr-index）
 
+> 2026-11-14 内核 v5 P2 更新：正文统一为一种格式档后，条目正文（`body:<entry>/<module>`）中的列表、任务、代码块、提示框、高亮、行内代码与表格统一纳入 `dr-text`（纯文本、字数、`LiveCount`、H1/H2/H3 大纲）与 `dr-index`（全文搜索、字数统计、引用派生）。`dr-index` 读表格段时一并扫描各单元格里的 `EntityLink` 写入 `references` 表，表格里链到的人物／条目不再漏进引用索引。回归见 `dr-text/src/tests.rs` 与 `dr-index/tests/library.rs`。
+
 2026-11-07，第一、二个里程碑。代码在 `next/crates/prose-metrics/`（字数规则）、`next/crates/dr-text/`（文字工具）和 `next/crates/dr-index/`（派生器），测量在 `next/crates/dr-testkit/src/bench/index.rs`。目标架构见 [README.md](../README.md) 里的 `dr-text`，派生索引的存法见 [f2-store.md](f2-store.md)「派生索引」，正文文档的读法见 [f1-model-doc.md](f1-model-doc.md)。
 
 ## 大白话

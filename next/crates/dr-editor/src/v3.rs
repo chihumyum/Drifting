@@ -12,31 +12,64 @@ pub fn body(doc: &str) -> Option<(String, String)> {
     }
 }
 
-/// Whether typing convenience rules (`- `, `1. `, `[ ] `) and note embeds/slash
-/// entries are active for `doc_id`, resolved from its resident parent level's
-/// `format_shortcuts` (`kernel-v4.md` §3, `kernel-v5.md` §6).
+fn doc_uses_note_shortcuts(
+    doc_id: &str,
+    entries: &std::collections::BTreeMap<dr_model::id::EntryId, dr_model::v3::Entry>,
+    templates: &std::collections::BTreeMap<
+        dr_model::id::EntryTemplateId,
+        dr_model::v3::EntryTemplate,
+    >,
+) -> bool {
+    match DocId::parse(doc_id) {
+        Ok(DocId::Template(t)) => t.entry_module().is_some(),
+        Ok(DocId::Body(b)) => {
+            let Some(entry) = entries.get(b.entry()) else {
+                return false;
+            };
+            dr_model::v3::resolve_level_settings(entry.parent.as_ref(), entries, templates)
+                .format_shortcuts
+                != dr_model::v3::FormatShortcuts::Plain
+        }
+        _ => false,
+    }
+}
+
+/// Whether typing convenience rules (`- `, `1. `, `[ ] `, `==字==`, `` `code` ``,
+/// ```` ``` ````) are active for `doc_id`, resolved from its resident parent
+/// level's `format_shortcuts` (`kernel-v4.md` §3, `kernel-v5.md` §6).
 pub fn uses_note_shortcuts(ws: &Workspace, book: &str, doc_id: &str) -> bool {
     match DocId::parse(doc_id) {
         Ok(DocId::Template(t)) => t.entry_module().is_some(),
         Ok(DocId::Body(_)) => {
             let doc = doc_id.to_owned();
             read(ws, book, move |v| {
-                let Ok(DocId::Body(b)) = DocId::parse(&doc) else {
-                    return false;
-                };
                 let entries = v.entries_map();
                 let templates = v.templates_map();
-                let Some(entry) = entries.get(b.entry()) else {
-                    return false;
-                };
-                dr_model::v3::resolve_level_settings(entry.parent.as_ref(), &entries, &templates)
-                    .format_shortcuts
-                    != dr_model::v3::FormatShortcuts::Plain
+                doc_uses_note_shortcuts(&doc, &entries, &templates)
             })
             .unwrap_or(false)
         }
         _ => false,
     }
+}
+
+/// Resolves [`uses_note_shortcuts`] for each chapter document in `docs` in one
+/// book read.
+pub fn book_note_shortcuts(ws: &Workspace, book: &str, docs: &[String]) -> Vec<bool> {
+    if docs.is_empty() {
+        return Vec::new();
+    }
+    let len = docs.len();
+    let owned = docs.to_vec();
+    read(ws, book, move |v| {
+        let entries = v.entries_map();
+        let templates = v.templates_map();
+        owned
+            .iter()
+            .map(|d| doc_uses_note_shortcuts(d, &entries, &templates))
+            .collect()
+    })
+    .unwrap_or_else(|_| vec![false; len])
 }
 
 pub fn read<R: Send + 'static>(

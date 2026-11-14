@@ -305,6 +305,7 @@ fn the_slash_menu_of_a_note_has_its_own_entries(cx: &mut TestAppContext) {
             "待办清单",
             "表格",
             "代码块",
+            "行内代码",
             "提示块",
             "高亮",
             "插入素材…",
@@ -570,20 +571,61 @@ fn an_embedded_material_shows_and_opens(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_chapter_has_none_of_it(cx: &mut TestAppContext) {
+fn a_chapter_has_unified_prose_formats_while_plain_shortcuts_stay_literal(cx: &mut TestAppContext) {
     let e = env();
+    let picture = image_material(&e, "码头旧照");
     let id = out(
         &e.ws,
-        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": "一", "bodies": {"mod-prose": ""}}),
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"),
+            "template": "tpl-chapter",
+            "title": "一",
+            "bodies": {"mod-prose": ""},
+        }),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
     let mut o = open(cx, &e, &format!("body:{id}/mod-prose"));
-    assert!(o.view.read_with(o.cx, |v, _| v.note_embeds().is_none()));
-    assert_eq!(o.slash("表格"), [], "no table in a chapter's slash menu");
-    o.type_text(" ==字==");
-    assert_eq!(o.lines(), ["/表格 ==字=="], "== stays literal");
+    assert!(o.view.read_with(o.cx, |v, _| v.note_embeds().is_some()));
+    assert_eq!(
+        o.slash("素材"),
+        [],
+        "material embedding stays restricted to material notes"
+    );
+    let inserted = o.view.update_in(o.cx, |v, window, cx| {
+        v.insert_material(&picture, window, cx)
+    });
+    assert!(!inserted);
+    o.cx.simulate_keystrokes("escape");
+    for _ in 0..3 {
+        o.action(Backspace);
+    }
+    assert_eq!(o.slash("表格"), [MenuRow::Note(NoteChoice::Table)]);
+    o.cx.simulate_keystrokes("escape");
+    for _ in 0..3 {
+        o.action(Backspace);
+    }
+    o.type_text("- 列 ==字== `码`");
+    assert_eq!(
+        o.lines(),
+        ["- 列 ==字== `码`"],
+        "under 书稿's Plain shortcuts, typed list/highlight/inline-code stay literal"
+    );
+    let (list_attr, has_hl, has_code) = o.editor.read_with(o.cx, |e, _| {
+        let doc = &e.book().chapters[0].doc;
+        (
+            doc.line(0)
+                .block
+                .get(gpui_prose::schema::block::LIST)
+                .cloned(),
+            doc.range_has_mark(5..6, dr_editor::highlight::KEY),
+            doc.range_has_mark(9..10, gpui_prose::schema::inline::CODE),
+        )
+    });
+    assert!(list_attr.is_none() && !has_hl && !has_code);
 }
 
 #[gpui::test]
@@ -836,4 +878,445 @@ fn copied_cells_keep_their_marks(cx: &mut TestAppContext) {
     assert!(marks[2][0].iter().any(|m| m.2 == "bold"));
     assert!(marks[2][1].iter().any(|m| m.2 == KEY));
     assert!(marks[0][0].is_empty());
+}
+
+struct TestChrome;
+impl dr_editor::PageChrome for TestChrome {}
+
+#[gpui::test]
+fn chapter_body_authors_saves_reopens_and_undoes_every_format(cx: &mut TestAppContext) {
+    use dr_editor::highlight::{KEY, ToggleHighlight, ToggleInlineCode};
+    use gpui_prose::input::actions::ToggleTask;
+    use gpui_prose::schema::{block, inline};
+
+    let e = env();
+    let manuscript = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript");
+    let entry = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": manuscript,
+            "template": "tpl-chapter",
+            "title": "格式全集章",
+            "bodies": {"mod-prose": ""},
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc = format!("body:{entry}/mod-prose");
+    let mut o = open(cx, &e, &doc);
+    o.view.update(o.cx, |v, cx| {
+        v.set_chrome(Some(std::rc::Rc::new(TestChrome)), cx)
+    });
+    draw(o.cx);
+
+    // 1. Bullet list
+    assert_eq!(o.slash("无序列表"), [MenuRow::Note(NoteChoice::Bullet)]);
+    o.action(Newline);
+    o.type_text("无序甲");
+    o.action(Newline);
+    o.action(Newline); // empty item leaves list
+
+    // 2. Ordered list
+    assert_eq!(o.slash("有序列表"), [MenuRow::Note(NoteChoice::Ordered)]);
+    o.action(Newline);
+    o.type_text("有序乙");
+    o.action(Newline);
+    o.action(Newline);
+
+    // 3. Task list (checked via ToggleTask)
+    assert_eq!(o.slash("待办清单"), [MenuRow::Note(NoteChoice::Task)]);
+    o.action(Newline);
+    o.type_text("清单丙");
+    o.action(ToggleTask);
+    o.action(Newline);
+    o.action(Newline);
+
+    // 4. Code block
+    assert_eq!(o.slash("代码块"), [MenuRow::Note(NoteChoice::Code)]);
+    o.action(Newline);
+    o.type_text("let x = 42;");
+    o.action(Newline);
+    assert_eq!(
+        o.slash("正文"),
+        [MenuRow::Block(dr_editor::assist::BlockChoice::Body)]
+    );
+    o.action(Newline);
+
+    // 5. Callout
+    assert_eq!(o.slash("提示块"), [MenuRow::Note(NoteChoice::Callout)]);
+    o.action(Newline);
+    o.type_text("提示丁");
+    o.action(Newline);
+    assert_eq!(
+        o.slash("正文"),
+        [MenuRow::Block(dr_editor::assist::BlockChoice::Body)]
+    );
+    o.action(Newline);
+
+    // 6. Inline highlight and inline code
+    assert_eq!(o.slash("高亮"), [MenuRow::Note(NoteChoice::Highlight)]);
+    o.action(Newline);
+    o.type_text("亮戊");
+    let l5 = o
+        .editor
+        .read_with(o.cx, |e, _| e.book().chapters[0].doc.line_start(5));
+    o.editor.read_with(o.cx, |e, _| {
+        let d = &e.book().chapters[0].doc;
+        assert!(d.range_has_mark(l5..l5 + 1, KEY));
+        assert!(!d.range_has_mark(l5 + 1..l5 + 2, KEY));
+    });
+    o.editor
+        .update_in(o.cx, |e, window, cx| e.select(0, l5..l5 + 2, window, cx));
+    o.action(ToggleHighlight);
+    o.caret(l5 + 2);
+    assert_eq!(o.slash("行内代码"), [MenuRow::Note(NoteChoice::InlineCode)]);
+    o.action(Newline);
+    o.type_text("码己");
+    o.editor.read_with(o.cx, |e, _| {
+        let d = &e.book().chapters[0].doc;
+        assert!(d.range_has_mark(l5 + 2..l5 + 3, inline::CODE));
+        assert!(!d.range_has_mark(l5 + 3..l5 + 4, inline::CODE));
+    });
+    o.editor.update_in(o.cx, |e, window, cx| {
+        e.select(0, l5 + 2..l5 + 4, window, cx)
+    });
+    o.action(ToggleInlineCode);
+    o.caret(l5 + 4);
+    o.action(Newline);
+
+    // 7. Table with rich cell marks (bold, highlight, inline code)
+    o.slash_table();
+    o.type_text("表头甲");
+    o.action(SelectAll);
+    o.action(ToggleBold);
+    o.action(IndentListItem);
+    o.type_text("表头乙");
+    o.action(SelectAll);
+    o.action(ToggleHighlight);
+    o.action(IndentListItem);
+    o.type_text("格码丙");
+    o.action(SelectAll);
+    o.action(ToggleInlineCode);
+
+    let words_without_table = o.view.read_with(o.cx, |v, _| v.page_info().unwrap().words);
+    assert!(
+        words_without_table >= 20,
+        "page_info().words counts all blocks and table cells: {words_without_table}"
+    );
+    let expected_lines = vec![
+        "无序甲",
+        "有序乙",
+        "清单丙",
+        "let x = 42;",
+        "提示丁",
+        "亮戊码己",
+        OBJ,
+        "",
+    ];
+    assert_eq!(o.lines(), expected_lines);
+
+    let check_state = |view: &Entity<ChapterEditor>, cx: &mut VisualTestContext| {
+        let editor = view.read_with(cx, |v, _| v.editor().clone());
+        editor.read_with(cx, |e, _| {
+            let d = &e.book().chapters[0].doc;
+            assert_eq!(d.line(0).block.get(block::LIST), Some(&"bullet".into()));
+            assert_eq!(d.line(1).block.get(block::LIST), Some(&"ordered".into()));
+            assert_eq!(d.line(2).block.get(block::LIST), Some(&"task".into()));
+            assert_eq!(d.line(2).block.get(block::CHECKED), Some(&true.into()));
+            assert_eq!(d.line(3).block.get(block::CODE_BLOCK), Some(&"".into()));
+            assert_eq!(d.line(4).block.get(block::CALLOUT), Some(&"note".into()));
+            let l5 = d.line_start(5);
+            assert!(d.range_has_mark(l5..l5 + 2, KEY));
+            assert!(!d.range_has_mark(l5 + 2..l5 + 4, KEY));
+            assert!(d.range_has_mark(l5 + 2..l5 + 4, inline::CODE));
+        });
+        let embed_id = editor.read_with(cx, |e, _| {
+            e.book().chapters[0].doc.line(6).embed().unwrap().to_owned()
+        });
+        let (cells, marks) = view.read_with(cx, |v, _| {
+            v.note_embeds().unwrap().table_grid(&embed_id).unwrap()
+        });
+        assert_eq!(cells[0], ["表头甲", "表头乙", "格码丙"]);
+        assert!(marks[0][0].iter().any(|m| m.2 == inline::BOLD));
+        assert!(marks[0][1].iter().any(|m| m.2 == KEY));
+        assert!(marks[0][2].iter().any(|m| m.2 == inline::CODE));
+    };
+    check_state(&o.view, o.cx);
+
+    // Close window and workspace, reopen from disk, verify identical state, then undo step-by-step.
+    let Open {
+        view,
+        editor,
+        cx: vcx,
+    } = o;
+    vcx.update(|w, _| w.remove_window());
+    vcx.run_until_parked();
+    drop(editor);
+    drop(view);
+    vcx.cx.update(|_| {});
+    vcx.run_until_parked();
+
+    let Env { dir, ws, book } = e;
+    ws.shutdown().unwrap();
+    let reopened_ws = Workspace::open_dir(dir.path(), "test").unwrap();
+    let reopened = Env {
+        dir,
+        ws: reopened_ws,
+        book,
+    };
+    let mut o2 = open(cx, &reopened, &doc);
+    assert_eq!(o2.lines(), expected_lines);
+    check_state(&o2.view, o2.cx);
+
+    // Edit in the reopened session and undo step-by-step across table, marks, and blocks.
+    let table = o2.table();
+    table.update_in(o2.cx, |t, window, cx| t.focus_cell(1, 0, false, window, cx));
+    o2.type_text("新格");
+    assert_eq!(o2.stored()[1][0], "新格");
+    o2.action(Undo);
+    assert_eq!(o2.stored()[1][0], "");
+    let focus = o2.editor.read_with(o2.cx, |e, cx| e.focus_handle(cx));
+    o2.cx.update(|w, cx| w.focus(&focus, cx));
+    let end = o2
+        .editor
+        .read_with(o2.cx, |e, _| e.book().chapters[0].doc.max_cursor());
+    o2.caret(end);
+    assert_eq!(o2.slash("无序列表"), [MenuRow::Note(NoteChoice::Bullet)]);
+    o2.action(Newline);
+    o2.type_text("尾项");
+    assert_eq!(o2.lines().last().map(String::as_str), Some("尾项"));
+    o2.action(Undo); // undo typing "尾项"
+    o2.action(Undo); // undo applying bullet list
+    o2.action(Undo); // undo typing "/无序列表"
+    assert_eq!(o2.lines(), expected_lines);
+}
+
+#[gpui::test]
+fn level_format_shortcuts_govern_typing_convenience_only(cx: &mut TestAppContext) {
+    use gpui_prose::schema::{block, inline};
+
+    let e = env();
+    // 1. Entry under 构想 (`FormatShortcuts::Notes`): typing shortcuts are ON.
+    let ideas = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-ideas");
+    let idea = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": ideas,
+            "template": "tpl-idea",
+            "title": "随想",
+            "bodies": {"mod-prose": ""},
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut oi = open(cx, &e, &format!("body:{idea}/mod-prose"));
+    oi.type_text("- 构想项 ==亮== `码`");
+    assert_eq!(oi.lines(), ["构想项 亮 码"]);
+    oi.editor.read_with(oi.cx, |ed, _| {
+        let d = &ed.book().chapters[0].doc;
+        assert_eq!(d.line(0).block.get(block::LIST), Some(&"bullet".into()));
+        assert!(d.range_has_mark(4..5, dr_editor::highlight::KEY));
+        assert!(d.range_has_mark(6..7, inline::CODE));
+    });
+    oi.cx.update(|w, _| w.remove_window());
+    oi.cx.run_until_parked();
+
+    // 2. Chapter under 书稿 (`FormatShortcuts::Plain`): typing stays literal until level override switches to `full`.
+    let manuscript = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript");
+    let chap = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": manuscript,
+            "template": "tpl-chapter",
+            "title": "首章",
+            "bodies": {"mod-prose": ""},
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut oc = open(cx, &e, &format!("body:{chap}/mod-prose"));
+    oc.type_text("[ ] 原样");
+    assert_eq!(oc.lines(), ["[ ] 原样"]);
+    assert!(oc.editor.read_with(oc.cx, |ed, _| {
+        ed.book().chapters[0]
+            .doc
+            .line(0)
+            .block
+            .get(block::LIST)
+            .is_none()
+    }));
+    oc.action(Newline);
+
+    // Override 书稿's `format_shortcuts` to `full`: the open editor updates live.
+    out(
+        &e.ws,
+        "entry.update",
+        json!({
+            "book": e.book,
+            "id": manuscript,
+            "overrides": {"format_shortcuts": "full"},
+        }),
+    );
+    draw(oc.cx);
+    oc.type_text("[ ] 勾选项 ==重点== `fn()`");
+    assert_eq!(oc.lines(), ["[ ] 原样", "勾选项 重点 fn()"]);
+    oc.editor.read_with(oc.cx, |ed, _| {
+        let d = &ed.book().chapters[0].doc;
+        assert_eq!(d.line(1).block.get(block::LIST), Some(&"task".into()));
+        let s = d.line_start(1);
+        assert!(d.range_has_mark(s + 4..s + 6, dr_editor::highlight::KEY));
+        assert!(d.range_has_mark(s + 7..s + 11, inline::CODE));
+    });
+}
+
+#[gpui::test]
+fn template_initial_prose_copies_all_formats_into_new_entry(cx: &mut TestAppContext) {
+    use dr_editor::highlight::{KEY, ToggleHighlight, ToggleInlineCode};
+    use gpui_prose::input::actions::ToggleTask;
+    use gpui_prose::schema::{block, inline};
+
+    let e = env();
+    let tpl_doc = out(
+        &e.ws,
+        "module.prose_document",
+        json!({"book": e.book, "owner": "tpl-chapter", "module": "mod-prose", "template": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(tpl_doc.starts_with("template:"), "{tpl_doc}");
+
+    let mut ot = open(cx, &e, &tpl_doc);
+    // Template initial prose gets note/full typing shortcuts by default too.
+    ot.type_text("- 模板无序\n");
+    ot.action(Backspace); // exit list
+    ot.type_text("1. 模板有序\n");
+    ot.action(Backspace);
+    ot.type_text("[ ] 模板清单");
+    ot.action(ToggleTask);
+    ot.action(Newline);
+    ot.action(Newline);
+    ot.type_text("```rust ");
+    ot.type_text("fn tpl() {}");
+    ot.action(Newline);
+    assert_eq!(
+        ot.slash("正文"),
+        [MenuRow::Block(dr_editor::assist::BlockChoice::Body)]
+    );
+    ot.action(Newline);
+    assert_eq!(ot.slash("提示块"), [MenuRow::Note(NoteChoice::Callout)]);
+    ot.action(Newline);
+    ot.type_text("模板提示 ==模板高亮== `模板代码`");
+    ot.action(Newline);
+    assert_eq!(
+        ot.slash("正文"),
+        [MenuRow::Block(dr_editor::assist::BlockChoice::Body)]
+    );
+    ot.action(Newline);
+    ot.slash_table();
+    ot.type_text("模表甲");
+    ot.action(SelectAll);
+    ot.action(ToggleHighlight);
+    ot.action(IndentListItem);
+    ot.type_text("模表乙");
+    ot.action(SelectAll);
+    ot.action(ToggleInlineCode);
+    ot.cx.update(|w, _| w.remove_window());
+    ot.cx.run_until_parked();
+
+    // Creating a new chapter without explicit `bodies` copies the template's initial prose faithfully.
+    let manuscript = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript");
+    let created = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": manuscript,
+            "template": "tpl-chapter",
+            "title": "继承模板章",
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let body_doc = format!("body:{created}/mod-prose");
+    let mut ob = open(cx, &e, &body_doc);
+    assert_eq!(
+        ob.lines(),
+        [
+            "模板无序",
+            "模板有序",
+            "模板清单",
+            "fn tpl() {}",
+            "模板提示 模板高亮 模板代码",
+            OBJ,
+            "",
+        ]
+    );
+    ob.editor.read_with(ob.cx, |ed, _| {
+        let d = &ed.book().chapters[0].doc;
+        assert_eq!(d.line(0).block.get(block::LIST), Some(&"bullet".into()));
+        assert_eq!(d.line(1).block.get(block::LIST), Some(&"ordered".into()));
+        assert_eq!(d.line(2).block.get(block::LIST), Some(&"task".into()));
+        assert_eq!(d.line(2).block.get(block::CHECKED), Some(&true.into()));
+        assert_eq!(d.line(3).block.get(block::CODE_BLOCK), Some(&"rust".into()));
+        assert_eq!(d.line(4).block.get(block::CALLOUT), Some(&"note".into()));
+        let s = d.line_start(4);
+        assert!(d.range_has_mark(s + 5..s + 9, KEY));
+        assert!(d.range_has_mark(s + 10..s + 14, inline::CODE));
+    });
+    let embed_id = ob.editor.read_with(ob.cx, |ed, _| {
+        ed.book().chapters[0]
+            .doc
+            .line(5)
+            .embed()
+            .unwrap()
+            .to_owned()
+    });
+    let (cells, marks) = ob.view.read_with(ob.cx, |v, _| {
+        v.note_embeds().unwrap().table_grid(&embed_id).unwrap()
+    });
+    assert_eq!(cells[0][0], "模表甲");
+    assert_eq!(cells[0][1], "模表乙");
+    assert!(marks[0][0].iter().any(|m| m.2 == KEY));
+    assert!(marks[0][1].iter().any(|m| m.2 == inline::CODE));
+
+    // Derived index word counts and search cover every copied format (including table cells).
+    e.ws.library().reindex_doc(&body_doc).unwrap();
+    let stats =
+        e.ws.library()
+            .doc_stats(&body_doc)
+            .unwrap()
+            .expect("indexed stats");
+    assert!(
+        stats.words >= 30,
+        "indexed words include copied table cells and blocks: {:?}",
+        stats
+    );
+    for needle in [
+        "模板无序",
+        "模板有序",
+        "模板清单",
+        "fn tpl()",
+        "模板提示",
+        "模板高亮",
+        "模板代码",
+        "模表甲",
+        "模表乙",
+    ] {
+        let hits = e.ws.library().search(Some(&e.book), needle, 10).unwrap();
+        assert!(
+            hits.iter().any(|h| h.doc_id == body_doc),
+            "search for {needle:?} missed {body_doc}: {hits:?}"
+        );
+    }
 }

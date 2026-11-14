@@ -62,6 +62,20 @@ impl Workspace {
     /// [`structure_has_keyboard`]: Workspace::structure_has_keyboard
     pub(super) fn on_edit_undo(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
         if !self.structure_has_keyboard(window, cx) {
+            // The caret is in a prose editor: hand it the editor's own
+            // undo. A key would fall through to the editor's binding once
+            // this propagates, but the edit menu's item has no key to fall
+            // through with, and an entry page is not wrapped in
+            // `forward_edit_actions` (its fields are the book's to undo).
+            let prose_undo = gpui_prose::input::actions::Undo;
+            if window.is_action_available(&prose_undo, cx) {
+                if redo {
+                    window.dispatch_action(Box::new(gpui_prose::input::actions::Redo), cx);
+                } else {
+                    window.dispatch_action(Box::new(prose_undo), cx);
+                }
+                return;
+            }
             cx.propagate();
             return;
         }

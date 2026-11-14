@@ -2,6 +2,18 @@
 
 > 2026-11-10 切换实施更新：默认新书与单本归档使用 canonical v3；旧分享 Markdown 入口退役，不自造 v3 分享格式。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
+## 内核 v5 P2：全格式成稿导出与 Markdown 分享（2026-11-14）
+
+配合正文统一成一种格式档（[kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档)），`dr-export`（含 v3 `read_manuscript`）把条目正文里的列表、任务、代码块、提示框、高亮、行内代码与表格全部纳入成稿模型并写出，所有格式都不丢字：
+
+- **Loro → 成稿转换（`convert.rs`、`v3.rs`）**：圆点／编号／任务列表保留层级（0–8）与勾选状态（任务段若链了已解决的待办批注则按已勾导出）；相邻代码块段合并为单个 `Block::CodeBlock`，相邻提示框段合并为单个 `Block::Callout`；表格保留行列结构及每个单元格的行内格式（粗体、斜体、下划线、删除线、行内代码、高亮、安全外链）并拆段内换行为单元格内行；行内 `Run` 新增 `code` 与 `highlight`。
+- **三种成稿格式**：
+  - **EPUB（`manuscript/epub.rs`）**：嵌套 `<ul>` / `<ol>`（任务带 `☐ ` / `☑ `）、`<pre class="code-block"><code>`、`<aside class="callout">`（浅底洗色，不用左竖条）、行内 `<code>` 与 `<mark>`、带细框线的 `<table>`。
+  - **Word（`manuscript/docx.rs`）**：按层级缩进的列表段落（圆点、同级连续编号、任务框前缀）、等宽浅底 `CodeBlock` 段落样式、浅底收进 `Callout` 段落样式（无左边框）、行内 `Courier New` 等宽加浅底与黄色 `<w:highlight>`、等宽列 `<w:tbl>` 表格。
+  - **PDF（`manuscript/pdf/`）**：悬挂前缀列表、浅底等宽代码块、浅底提示框、行内等宽字体切换与暖黄底洗色、跨页不断行的网格表格；`FontSet` 新增系统等宽字体探测并以子集嵌入 `/FontFile2` + `/ToUnicode`。
+- **Markdown 分享与目录镜像**：`dr-export/src/markdown.rs` 与 `dr-mirror/src/body.rs` 同步输出列表、任务清单、围栏代码块、提示框、行内反引号、`==高亮==` 与管道表格，不丢文字。
+- **回归**：`dr-export/tests/export.rs` 的 `chapter_with_every_format_exports_to_epub_docx_and_pdf_without_dropping_text` 与 `markdown::tests::unified_prose_formats_render_to_markdown_without_dropping_text`。
+
 ## K4 G4 条目快照随书搬运修复交回（2026-11-10）
 
 第 65 批新增的 `entry_checkpoints` 清单存放在书文档里。整合者提供的未运行

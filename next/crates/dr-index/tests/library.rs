@@ -346,3 +346,175 @@ fn conversations_have_no_prose_index_or_word_count() {
     h.close();
     lib.close().unwrap();
 }
+
+#[test]
+fn entry_body_indexes_counts_searches_and_links_across_all_formats() {
+    use dr_doc::prose::Run;
+    use dr_model::id::{EntryId, ModuleId};
+    use dr_model::kind::ListKind;
+    use dr_model::pos::PosKey;
+    use dr_model::prose::{BlockAttrs, InlineMarks, InlineStyle};
+    use dr_model::v3::EntityLinkV3;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (lib, deriver) = open(dir.path(), true);
+    let deriver = deriver.unwrap();
+    let id = DocId::parse("body:e-chap1/m-prose").unwrap();
+    let doc_id = id.to_string();
+    let h = open_doc(&lib, &id);
+    let mut p = ProseDoc::create(id.clone(), 23).unwrap();
+    let tbl = EmbedId::parse("tbl-1").unwrap();
+
+    write(&h, &mut p, |t| {
+        let lines = [
+            "北塔纪事",
+            "巡礼补给清单",
+            "第一顺位路线",
+            "待核对钟摆刻度",
+            "fn calibrate_pendulum() {}",
+            "注意潮汐倒灌时刻",
+            "林凯在雾里看见发光礁石与beacon_id信号",
+        ];
+        t.insert_paragraphs(0, &lines.join("\n"))?;
+        let starts: Vec<usize> = t.view().paragraphs().map(|b| b.range.start).collect();
+        t.set_heading(starts[0], Some(Heading::H1))?;
+        t.set_block_attrs(
+            starts[1],
+            &BlockAttrs {
+                list: Some(ListKind::Bullet),
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[2],
+            &BlockAttrs {
+                list: Some(ListKind::Ordered),
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[3],
+            &BlockAttrs {
+                list: Some(ListKind::Task),
+                checked: false,
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[4],
+            &BlockAttrs {
+                code_block: Some("rust".into()),
+                ..BlockAttrs::default()
+            },
+        )?;
+        t.set_block_attrs(
+            starts[5],
+            &BlockAttrs {
+                callout: Some("warning".into()),
+                ..BlockAttrs::default()
+            },
+        )?;
+        let rich = starts[6];
+        t.link_entity(rich..rich + 2, &link("lin-kai"))?;
+        t.set_style(
+            rich + 7..rich + 11,
+            &InlineStyle::Highlight("yellow".into()),
+        )?;
+        t.set_style(rich + 12..rich + 21, &InlineStyle::Code)?;
+
+        let end = t.split(t.view().len() - 1)?;
+        let w = t.insert_embed(end, &tbl, &EmbedKind::Table)?;
+        w.add_col("c0", &PosKey::first())?;
+        w.add_col("c1", &PosKey::first().after())?;
+        w.add_row("r0", &PosKey::first())?;
+        w.add_row("r1", &PosKey::first().after())?;
+        w.set_cell("r0", "c0", "观测点")?;
+        w.set_cell("r0", "c1", "读数")?;
+        w.set_cell("r1", "c0", "南侧暗渠")?;
+        w.set_cell("r1", "c1", "零下七度")
+    });
+    assert!(h.reindex_now().unwrap());
+
+    // Incremental edit on a table cell with highlight, inline code, and an entity link!
+    let cell_link = EntityLinkV3 {
+        kind: EntityKind::Entry,
+        target: EntryId::parse("tower-north").unwrap().into(),
+        module: Some(ModuleId::parse("m-prose").unwrap()),
+        block: None,
+        end_block: None,
+    };
+    write(&h, &mut p, |t| {
+        t.set_table_cell_runs_v3(
+            &tbl,
+            "r1",
+            "c1",
+            &[
+                Run {
+                    text: "北塔哨所 ".into(),
+                    marks: InlineMarks {
+                        highlight: Some("amber".into()),
+                        ..InlineMarks::default()
+                    },
+                },
+                Run {
+                    text: "sensor_v2".into(),
+                    marks: InlineMarks {
+                        code: true,
+                        ..InlineMarks::default()
+                    },
+                },
+            ],
+            &[(0..4, cell_link.clone())],
+        )
+    });
+    assert!(h.reindex_now().unwrap());
+    assert!(deriver.stats().incremental >= 1, "{:?}", deriver.stats());
+
+    let want = derive_view(&p.view());
+    let stats = lib.doc_stats(&doc_id).unwrap().unwrap();
+    assert_eq!(
+        (stats.words, stats.chars, stats.paragraphs),
+        (want.words, want.chars, want.blocks.len() as u64)
+    );
+    assert_eq!(
+        stats.words,
+        dr_text::count_words(&dr_text::plain_text(&p.view()))
+    );
+
+    // Search finds text from every format: bullet, ordered, task, code block,
+    // callout, highlight, inline code, and table cells.
+    for query in [
+        "巡礼补给清单",
+        "第一顺位路线",
+        "钟摆刻度",
+        "calibrate_pendulum",
+        "潮汐倒灌",
+        "发光礁石",
+        "beacon_id",
+        "南侧暗渠",
+        "北塔哨所",
+        "sensor_v2",
+    ] {
+        let hits = lib.search(Some("b1"), query, 10).unwrap();
+        assert!(!hits.is_empty(), "search missed {query:?}");
+        assert_eq!(hits[0].doc_id, doc_id);
+    }
+
+    // References capture both body links and table-cell links.
+    let body_refs = lib.references_to("lin-kai").unwrap();
+    assert_eq!(body_refs.len(), 1);
+    assert_eq!((body_refs[0].kind, body_refs[0].count), (RefKind::Link, 1));
+    let cell_refs = lib.references_to("tower-north").unwrap();
+    assert_eq!(cell_refs.len(), 1);
+    assert_eq!((cell_refs[0].kind, cell_refs[0].count), (RefKind::Link, 1));
+
+    let outline = lib.outline(&doc_id).unwrap();
+    assert_eq!(outline.len(), 1);
+    assert_eq!(
+        (outline[0].heading, outline[0].text.as_str()),
+        (1, "北塔纪事")
+    );
+
+    h.close();
+    lib.close().unwrap();
+}

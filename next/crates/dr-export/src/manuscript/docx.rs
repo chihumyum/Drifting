@@ -7,7 +7,7 @@ use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 
 use super::text::{Language, xml};
-use super::{Align, Block, Book, Run, Section};
+use super::{Align, Block, Book, ListKind, Run, Section};
 
 const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -78,6 +78,9 @@ fn run_xml(run: &Run, out: &mut String) {
     if run.href.is_some() {
         properties.push_str("<w:rStyle w:val=\"Hyperlink\"/>");
     }
+    if run.code {
+        properties.push_str("<w:rFonts w:ascii=\"Courier New\" w:hAnsi=\"Courier New\"/>");
+    }
     if run.bold {
         properties.push_str("<w:b/><w:bCs/>");
     }
@@ -87,8 +90,14 @@ fn run_xml(run: &Run, out: &mut String) {
     if run.strike {
         properties.push_str("<w:strike/>");
     }
+    if run.highlight {
+        properties.push_str("<w:highlight w:val=\"yellow\"/>");
+    }
     if run.underline {
         properties.push_str("<w:u w:val=\"single\"/>");
+    }
+    if run.code {
+        properties.push_str("<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F3F3F2\"/>");
     }
     out.push_str("<w:r>");
     if !properties.is_empty() {
@@ -133,6 +142,7 @@ struct Paragraph<'a> {
     page_break_before: bool,
     align: Align,
     indent_level: u8,
+    list_indent: Option<(u32, u32)>,
     /// Latin books start a run of prose without a first-line indent.
     no_first_indent: bool,
 }
@@ -146,7 +156,11 @@ fn paragraph_open(paragraph: &Paragraph<'_>, cjk: bool, out: &mut String) {
         properties.push_str("<w:pageBreakBefore/>");
     }
     let centered = matches!(paragraph.align, Align::Center | Align::Right);
-    if paragraph.indent_level > 0
+    if let Some((left, hanging)) = paragraph.list_indent {
+        properties.push_str(&format!(
+            "<w:ind w:left=\"{left}\" w:hanging=\"{hanging}\"/>"
+        ));
+    } else if paragraph.indent_level > 0
         || paragraph.no_first_indent
         || (centered && paragraph.style.is_none())
     {
@@ -203,6 +217,7 @@ impl Body<'_> {
             page_break_before: std::mem::take(&mut self.pending_break),
             align,
             indent_level: indent,
+            list_indent: None,
             no_first_indent: first && !self.cjk && style.is_none(),
         };
         paragraph_open(&paragraph, self.cjk, &mut self.out);
@@ -210,7 +225,21 @@ impl Body<'_> {
         self.out.push_str("</w:p>\n");
     }
 
-    fn blocks(&mut self, blocks: &[Block], quote: bool, first: &mut bool) {
+    fn list_paragraph(&mut self, style: Option<&str>, left: u32, hanging: u32, runs: &[Run]) {
+        let paragraph = Paragraph {
+            style,
+            page_break_before: std::mem::take(&mut self.pending_break),
+            align: Align::Left,
+            indent_level: 0,
+            list_indent: Some((left, hanging)),
+            no_first_indent: false,
+        };
+        paragraph_open(&paragraph, self.cjk, &mut self.out);
+        runs_xml(runs, &mut self.rels, &mut self.out);
+        self.out.push_str("</w:p>\n");
+    }
+
+    fn blocks(&mut self, blocks: &[Block], container: Option<&str>, first: &mut bool) {
         for block in blocks {
             match block {
                 Block::Heading { level, runs, align } => {
@@ -223,15 +252,95 @@ impl Body<'_> {
                     align,
                     indent,
                 } => {
-                    let style = quote.then_some("Quote");
-                    self.paragraph(style, *align, *indent, *first, runs);
+                    self.paragraph(container, *align, *indent, *first, runs);
                     if runs.iter().any(|run| !run.text.is_empty()) {
                         *first = false;
                     }
                 }
+                Block::List { kind, items } => {
+                    let mut counters = [0usize; 9];
+                    for item in items {
+                        let lvl = usize::from(item.level.min(8));
+                        for c in &mut counters[lvl + 1..] {
+                            *c = 0;
+                        }
+                        let prefix = match kind {
+                            ListKind::Bullet => "• ".to_string(),
+                            ListKind::Ordered => {
+                                counters[lvl] += 1;
+                                format!("{}. ", counters[lvl])
+                            }
+                            ListKind::Task => {
+                                if item.checked {
+                                    "☑ ".to_string()
+                                } else {
+                                    "☐ ".to_string()
+                                }
+                            }
+                        };
+                        let mut runs = Vec::with_capacity(item.runs.len() + 1);
+                        runs.push(Run {
+                            text: prefix,
+                            ..Run::default()
+                        });
+                        runs.extend(item.runs.iter().cloned());
+                        let left = (u32::from(item.level.min(8)) + 1) * 420;
+                        self.list_paragraph(container, left, 260, &runs);
+                    }
+                    *first = true;
+                }
+                Block::CodeBlock { text, .. } => {
+                    for line in text.split('\n') {
+                        let runs = if line.is_empty() {
+                            Vec::new()
+                        } else {
+                            vec![Run {
+                                text: line.to_owned(),
+                                ..Run::default()
+                            }]
+                        };
+                        self.paragraph(Some("CodeBlock"), Align::Left, 0, false, &runs);
+                    }
+                    *first = true;
+                }
+                Block::Callout { blocks, .. } => {
+                    let mut inner = true;
+                    self.blocks(blocks, Some("Callout"), &mut inner);
+                    *first = true;
+                }
+                Block::Table { rows } => {
+                    if std::mem::take(&mut self.pending_break) {
+                        self.out
+                            .push_str("<w:p><w:pPr><w:pageBreakBefore/></w:pPr></w:p>\n");
+                    }
+                    let cols = rows.first().map_or(1, Vec::len).max(1);
+                    let table_w = PAGE_W - 2 * MARGIN_LR;
+                    let col_w = table_w / cols as u32;
+                    self.out.push_str(&format!(
+                        "<w:tbl><w:tblPr><w:tblW w:w=\"{table_w}\" w:type=\"dxa\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D6D3D1\"/><w:left w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D6D3D1\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D6D3D1\"/><w:right w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D6D3D1\"/><w:insideH w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D6D3D1\"/><w:insideV w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D6D3D1\"/></w:tblBorders><w:tblCellMar><w:top w:w=\"80\" w:type=\"dxa\"/><w:left w:w=\"120\" w:type=\"dxa\"/><w:bottom w:w=\"80\" w:type=\"dxa\"/><w:right w:w=\"120\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid>"
+                    ));
+                    for _ in 0..cols {
+                        self.out.push_str(&format!("<w:gridCol w:w=\"{col_w}\"/>"));
+                    }
+                    self.out.push_str("</w:tblGrid>");
+                    let cell_jc = if self.cjk { "left" } else { "start" };
+                    for row in rows {
+                        self.out.push_str("<w:tr>");
+                        for cell in row {
+                            self.out.push_str(&format!(
+                                "<w:tc><w:tcPr><w:tcW w:w=\"{col_w}\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"{cell_jc}\"/></w:pPr>"
+                            ));
+                            runs_xml(cell, &mut self.rels, &mut self.out);
+                            self.out.push_str("</w:p></w:tc>");
+                        }
+                        self.out.push_str("</w:tr>");
+                    }
+                    self.out.push_str("</w:tbl>\n");
+                    *first = true;
+                }
                 Block::Quote { blocks } => {
                     let mut inner = true;
-                    self.blocks(blocks, true, &mut inner);
+                    self.blocks(blocks, Some("Quote"), &mut inner);
                     *first = true;
                 }
                 Block::Break => {
@@ -338,7 +447,7 @@ fn document_xml(book: &Book<'_>) -> (String, Relationships) {
                     body.paragraph(Some(style), Align::Center, 0, false, &runs);
                 }
                 let mut first = true;
-                body.blocks(blocks, false, &mut first);
+                body.blocks(blocks, None, &mut first);
                 if body.pending_break {
                     // An empty chapter without a title still owns its page.
                     body.paragraph(None, Align::Left, 0, false, &[]);
@@ -412,7 +521,7 @@ fn styles_xml(book: &Book<'_>) -> String {
         ));
     }
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:styles xmlns:w=\"{W_NS}\">\n<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"{latin}\" w:hAnsi=\"{latin}\" w:eastAsia=\"{east}\" w:cs=\"{latin}\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/><w:lang w:val=\"{latin_lang}\" w:eastAsia=\"{east_lang}\" w:bidi=\"ar-SA\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"0\" w:line=\"{line}\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>\n<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:widowControl/>{first_line}<w:jc w:val=\"both\"/></w:pPr></w:style>\n<w:style w:type=\"character\" w:default=\"1\" w:styleId=\"DefaultParagraphFont\"><w:name w:val=\"Default Paragraph Font\"/><w:uiPriority w:val=\"1\"/><w:semiHidden/><w:unhideWhenUsed/></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Title\"><w:name w:val=\"Title\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Subtitle\"/><w:uiPriority w:val=\"10\"/><w:qFormat/><w:pPr><w:spacing w:before=\"3600\" w:after=\"600\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:b/><w:bCs/><w:sz w:val=\"52\"/><w:szCs w:val=\"52\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Subtitle\"><w:name w:val=\"Subtitle\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"11\"/><w:qFormat/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"30\"/><w:szCs w:val=\"30\"/></w:rPr></w:style>\n{headings}<w:style w:type=\"paragraph\" w:styleId=\"Quote\"><w:name w:val=\"Quote\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"29\"/><w:qFormat/><w:pPr><w:spacing w:before=\"120\" w:after=\"120\"/><w:ind w:left=\"720\" w:right=\"720\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Separator\"><w:name w:val=\"Separator\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before=\"240\" w:after=\"240\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Footer\"><w:name w:val=\"footer\"/><w:basedOn w:val=\"Normal\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"18\"/><w:szCs w:val=\"18\"/></w:rPr></w:style>\n<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:basedOn w:val=\"DefaultParagraphFont\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>\n</w:styles>\n",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:styles xmlns:w=\"{W_NS}\">\n<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"{latin}\" w:hAnsi=\"{latin}\" w:eastAsia=\"{east}\" w:cs=\"{latin}\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/><w:lang w:val=\"{latin_lang}\" w:eastAsia=\"{east_lang}\" w:bidi=\"ar-SA\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"0\" w:line=\"{line}\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>\n<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:widowControl/>{first_line}<w:jc w:val=\"both\"/></w:pPr></w:style>\n<w:style w:type=\"character\" w:default=\"1\" w:styleId=\"DefaultParagraphFont\"><w:name w:val=\"Default Paragraph Font\"/><w:uiPriority w:val=\"1\"/><w:semiHidden/><w:unhideWhenUsed/></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Title\"><w:name w:val=\"Title\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Subtitle\"/><w:uiPriority w:val=\"10\"/><w:qFormat/><w:pPr><w:spacing w:before=\"3600\" w:after=\"600\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:b/><w:bCs/><w:sz w:val=\"52\"/><w:szCs w:val=\"52\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Subtitle\"><w:name w:val=\"Subtitle\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"11\"/><w:qFormat/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"30\"/><w:szCs w:val=\"30\"/></w:rPr></w:style>\n{headings}<w:style w:type=\"paragraph\" w:styleId=\"Quote\"><w:name w:val=\"Quote\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"29\"/><w:qFormat/><w:pPr><w:spacing w:before=\"120\" w:after=\"120\"/><w:ind w:left=\"720\" w:right=\"720\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Callout\"><w:name w:val=\"Callout\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F5F5F4\"/><w:spacing w:before=\"80\" w:after=\"80\"/><w:ind w:left=\"480\" w:right=\"480\" w:firstLineChars=\"0\" w:firstLine=\"0\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"CodeBlock\"><w:name w:val=\"Code Block\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F5F5F4\"/><w:spacing w:before=\"60\" w:after=\"60\" w:line=\"300\" w:lineRule=\"auto\"/><w:ind w:left=\"360\" w:right=\"360\" w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"left\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Courier New\" w:hAnsi=\"Courier New\"/><w:sz w:val=\"21\"/><w:szCs w:val=\"21\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Separator\"><w:name w:val=\"Separator\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before=\"240\" w:after=\"240\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Footer\"><w:name w:val=\"footer\"/><w:basedOn w:val=\"Normal\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"18\"/><w:szCs w:val=\"18\"/></w:rPr></w:style>\n<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:basedOn w:val=\"DefaultParagraphFont\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>\n</w:styles>\n",
         latin = fonts.latin,
         east = fonts.east_asia,
         east_lang = fonts.east_asia_lang,

@@ -28,21 +28,21 @@ pub const KEY: &str = gpui_prose::schema::inline::HIGHLIGHT;
 /// The decoration group highlights are drawn in.
 pub const GROUP: &str = "highlights";
 
-gpui::actions!(dr_editor, [ToggleHighlight]);
+gpui::actions!(dr_editor, [ToggleHighlight, ToggleInlineCode]);
 
-/// ⌘⇧H (Ctrl+Shift+H off macOS) in the editor's key context, for the
-/// shell's key registry (the 0.1 note's Mod-Shift-H).
+/// ⌘⇧H / ⌘⇧E (Ctrl+Shift+H / Ctrl+Shift+E off macOS) in the editor's key
+/// context, for the shell's key registry.
 pub fn key_bindings() -> Vec<gpui::KeyBinding> {
-    let keys = if cfg!(target_os = "macos") {
-        "cmd-shift-h"
+    let (hl, code) = if cfg!(target_os = "macos") {
+        ("cmd-shift-h", "cmd-shift-e")
     } else {
-        "ctrl-shift-h"
+        ("ctrl-shift-h", "ctrl-shift-e")
     };
-    vec![gpui::KeyBinding::new(
-        keys,
-        ToggleHighlight,
-        Some(gpui_prose::input::actions::KEY_CONTEXT),
-    )]
+    let ctx = Some(gpui_prose::input::actions::KEY_CONTEXT);
+    vec![
+        gpui::KeyBinding::new(hl, ToggleHighlight, ctx),
+        gpui::KeyBinding::new(code, ToggleInlineCode, ctx),
+    ]
 }
 
 /// The value new highlights are written with (the one highlight).

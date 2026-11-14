@@ -3,9 +3,9 @@
 //! Ported from the 0.1 client's `src-tauri/src/manuscript_export` with the
 //! Tauri commands and dialogs left out. [`crate::convert`] reads the book
 //! from Loro and builds one [`Manuscript`]: acts and chapters in book order,
-//! chapter prose already reduced to headings (H1, H2, H3), paragraphs,
-//! quotes and separators. This module only lays that out: it reads neither
-//! the library nor the network and writes no file.
+//! chapter prose reduced to headings (H1, H2, H3), paragraphs, lists, code
+//! blocks, callouts, tables, quotes and separators. This module only lays that
+//! out: it reads neither the library nor the network and writes no file.
 mod docx;
 mod epub;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
@@ -118,6 +118,24 @@ impl Align {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ListKind {
+    Bullet,
+    Ordered,
+    Task,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListItem {
+    pub runs: Vec<Run>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub level: u8,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub checked: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Block {
@@ -135,6 +153,23 @@ pub enum Block {
         align: Align,
         #[serde(default, skip_serializing_if = "is_zero")]
         indent: u8,
+    },
+    List {
+        kind: ListKind,
+        items: Vec<ListItem>,
+    },
+    CodeBlock {
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        language: String,
+        text: String,
+    },
+    Callout {
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        kind: String,
+        blocks: Vec<Block>,
+    },
+    Table {
+        rows: Vec<Vec<Vec<Run>>>,
     },
     Quote {
         blocks: Vec<Block>,
@@ -164,6 +199,10 @@ pub struct Run {
     pub underline: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub strike: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub code: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub highlight: bool,
     /// Only http(s) and mailto links survive validation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub href: Option<String>,
@@ -279,6 +318,32 @@ fn validate_blocks(blocks: &[Block], depth: usize) -> Result<(), String> {
                     return Err("paragraph indent is out of range".into());
                 }
                 validate_runs(runs)?;
+            }
+            Block::List { items, .. } => {
+                if items.is_empty() {
+                    return Err("lists need at least one item".into());
+                }
+                for item in items {
+                    if item.level > 8 {
+                        return Err("list nesting is out of range".into());
+                    }
+                    validate_runs(&item.runs)?;
+                }
+            }
+            Block::CodeBlock { .. } => {}
+            Block::Callout { blocks, .. } => validate_blocks(blocks, depth + 1)?,
+            Block::Table { rows } => {
+                if rows.is_empty()
+                    || rows[0].is_empty()
+                    || rows.iter().any(|row| row.len() != rows[0].len())
+                {
+                    return Err("tables must be a non-empty rectangular grid".into());
+                }
+                for row in rows {
+                    for cell in row {
+                        validate_runs(cell)?;
+                    }
+                }
             }
             Block::Quote { blocks } => validate_blocks(blocks, depth + 1)?,
             Block::Break => {}

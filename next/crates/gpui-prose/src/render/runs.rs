@@ -17,6 +17,7 @@ use crate::{
 pub struct RunStyle {
     pub bold: bool,
     pub italic: bool,
+    pub code: bool,
     pub color: Hsla,
     pub background: Option<Hsla>,
     pub underline: Option<Hsla>,
@@ -27,12 +28,14 @@ impl RunStyle {
     /// The default look of `marks` in `style`.
     pub fn from_marks(marks: &Marks, style: &ProseStyle) -> RunStyle {
         let link = marks.link().is_some();
+        let code = marks.code();
         let color = if link { style.link } else { style.text };
         RunStyle {
             bold: marks.bold(),
             italic: marks.italic(),
+            code,
             color,
-            background: None,
+            background: code.then(|| style.text.opacity(0.06)),
             underline: (marks.underline() || link).then_some(color),
             strike: marks.strike().then_some(color),
         }
@@ -42,6 +45,7 @@ impl RunStyle {
         RunStyle {
             bold: false,
             italic: false,
+            code: false,
             color: style.text,
             background: None,
             underline: None,
@@ -50,9 +54,13 @@ impl RunStyle {
     }
 
     fn run(&self, kind: BlockKind, len: usize, style: &ProseStyle) -> TextRun {
+        let mut font = style.font_for(kind, self.bold, self.italic);
+        if self.code {
+            font.family = style.mono_family.clone();
+        }
         TextRun {
             len,
-            font: style.font_for(kind, self.bold, self.italic),
+            font,
             color: self.color,
             background_color: self.background,
             underline: self.underline.map(|color| UnderlineStyle {
@@ -211,6 +219,15 @@ mod tests {
         assert_eq!(runs[2].color, style.link);
         assert!(runs[2].underline.is_some());
         assert!(runs[3].underline.is_none());
+
+        let code_spans = [Span {
+            range: 2..6,
+            marks: marks(&[("code", true.into())]),
+        }];
+        let code_runs = line_runs(8, &code_spans, BlockKind::Body, &style, None);
+        assert_eq!(code_runs[1].font.family, style.mono_family);
+        assert!(code_runs[1].background_color.is_some());
+        assert_eq!(code_runs[0].font.family, style.font_family);
     }
 
     #[test]

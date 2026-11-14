@@ -1,6 +1,7 @@
 use std::ops::Range;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use dr_model::kind::ListKind as ProseListKind;
 use dr_model::prose::{
     Align as ProseAlign, BlockAttrs, Heading, InlineStyle, LINE_BREAK, MAX_INDENT, OBJECT_CHAR,
 };
@@ -9,7 +10,7 @@ use dr_workspace::commands::book::BookGet;
 use dr_workspace::{Actor, Workspace};
 
 use super::{ParsedDoc, title_from_filename};
-use crate::manuscript::{Align, Block, Run};
+use crate::manuscript::{Align, Block, ListKind, Run};
 use crate::{ExportError, Result};
 
 /// The longest name a file gives what it becomes (the 0.1 dialog's 200).
@@ -101,6 +102,10 @@ fn line(runs: &[Run], attrs: BlockAttrs) -> Line {
         push(r.italic, InlineStyle::Italic);
         push(r.underline, InlineStyle::Underline);
         push(r.strike, InlineStyle::Strike);
+        push(r.code, InlineStyle::Code);
+        if r.highlight {
+            styles.push((range.clone(), InlineStyle::Highlight("yellow".into())));
+        }
         if let Some(h) = r
             .href
             .as_deref()
@@ -119,7 +124,15 @@ fn line(runs: &[Run], attrs: BlockAttrs) -> Line {
     }
 }
 
-fn lines(blocks: &[Block], quote: bool, out: &mut Vec<Line>) {
+fn prose_list_kind(kind: ListKind) -> ProseListKind {
+    match kind {
+        ListKind::Bullet => ProseListKind::Bullet,
+        ListKind::Ordered => ProseListKind::Ordered,
+        ListKind::Task => ProseListKind::Task,
+    }
+}
+
+fn lines(blocks: &[Block], quote: bool, callout: Option<&str>, out: &mut Vec<Line>) {
     for b in blocks {
         match b {
             Block::Heading { level, runs, align } => {
@@ -133,6 +146,7 @@ fn lines(blocks: &[Block], quote: bool, out: &mut Vec<Line>) {
                     BlockAttrs {
                         heading: Some(heading),
                         quote,
+                        callout: callout.map(str::to_owned),
                         align: prose_align(*align),
                         ..BlockAttrs::default()
                     },
@@ -146,17 +160,69 @@ fn lines(blocks: &[Block], quote: bool, out: &mut Vec<Line>) {
                 runs,
                 BlockAttrs {
                     quote,
+                    callout: callout.map(str::to_owned),
                     align: prose_align(*align),
                     indent: (*indent).min(MAX_INDENT),
                     ..BlockAttrs::default()
                 },
             )),
-            Block::Quote { blocks } => lines(blocks, true, out),
+            Block::List { kind, items } => {
+                let list = Some(prose_list_kind(*kind));
+                for item in items {
+                    out.push(line(
+                        &item.runs,
+                        BlockAttrs {
+                            list: list.clone(),
+                            list_level: u32::from(item.level.min(8)),
+                            checked: *kind == ListKind::Task && item.checked,
+                            quote,
+                            callout: callout.map(str::to_owned),
+                            ..BlockAttrs::default()
+                        },
+                    ));
+                }
+            }
+            Block::CodeBlock { language, text } => {
+                for l in text.split('\n') {
+                    out.push(Line {
+                        text: l
+                            .chars()
+                            .filter(|c| *c != OBJECT_CHAR && *c != '\r')
+                            .collect(),
+                        attrs: BlockAttrs {
+                            code_block: Some(language.clone()),
+                            quote,
+                            callout: callout.map(str::to_owned),
+                            ..BlockAttrs::default()
+                        },
+                        styles: Vec::new(),
+                    });
+                }
+            }
+            Block::Callout { kind, blocks } => lines(blocks, quote, Some(kind), out),
+            Block::Table { rows } => {
+                for row in rows {
+                    for cell in row {
+                        if cell.iter().any(|r| !r.text.trim().is_empty()) {
+                            out.push(line(
+                                cell,
+                                BlockAttrs {
+                                    quote,
+                                    callout: callout.map(str::to_owned),
+                                    ..BlockAttrs::default()
+                                },
+                            ));
+                        }
+                    }
+                }
+            }
+            Block::Quote { blocks } => lines(blocks, true, callout, out),
             Block::Break => out.push(Line {
                 text: String::new(),
                 attrs: BlockAttrs {
                     rule: true,
                     quote,
+                    callout: callout.map(str::to_owned),
                     ..BlockAttrs::default()
                 },
                 styles: Vec::new(),
@@ -230,7 +296,7 @@ fn import_one(
     parsed: &ParsedDoc,
 ) -> Result<ImportedEntity> {
     let mut ls = Vec::new();
-    lines(&parsed.blocks, false, &mut ls);
+    lines(&parsed.blocks, false, None, &mut ls);
     let text = ls
         .iter()
         .map(|l| l.text.as_str())
