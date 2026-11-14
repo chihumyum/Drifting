@@ -420,11 +420,7 @@ fn two_devices_editing_the_definition_and_the_tabs_keep_both_sides() {
         );
         let renamed = now.iter().position(|(id, _)| id == &t0).unwrap();
         assert_eq!(now[renamed].1, "正文", "renamed on A: {now:?}");
-        let last_before_added = now
-            .iter()
-            .filter(|(id, _)| id != &added)
-            .next_back()
-            .unwrap();
+        let last_before_added = now.iter().rfind(|(id, _)| id != &added).unwrap();
         assert_eq!(last_before_added.0, t0, "moved last on Z: {now:?}");
     }
 }
