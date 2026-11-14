@@ -212,14 +212,14 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 1. **创世与版本门禁**：`book:<书>` 创世版本升为 `5`，`meta.v = 5`；内置锁定关系类型 `system:generic-association:<书>` 的允许端点更新为 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`。写作日只在项目开着成书（`project.book` 非空）时记录。
 2. **项目定义根 `project`**：取代散落在 `meta` 里的模板来源与全书目标，集中保存：
-   - `source`：`{id, version, name?}`（内置「写书」模板为 `writing` 版本 `1`）；
-   - `agent_guidance`（LoroText）：整本项目的帮手说明（从原「书稿」条目模板挪入）；
-   - `book`（可选子映射）：`enabled`（布尔，关掉时保留 `root` 与目标以便再开）、`root`（成书起点：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, lane}` 四种）、`word_target`、`daily_word_target`。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；成书序列与整书视图共用同一套遍历规则（条目与根先序遍历并带挂名且每条目只收一次；视图与泳道沿刻度排）；
+   - `source`：`{id, version}`（内置「写书」模板为 `builtin:novel` 版本 `3`）；
+   - `agent`（子映射 `{name, description, instructions}`）：整本项目的帮手说明（从原「书稿」条目模板挪入）；
+   - `book`（可选子映射，关闭成书时为空）：`root`（成书起点：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, entry}` 四种）、`word_target`、`daily_word_target`。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；成书序列与整书视图共用同一套遍历规则（条目与根先序遍历并带挂名且每条目只收一次；视图与泳道沿刻度排）；
    - `tabs`（id → `{name, pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。
-3. **视图刻度接管顺序**：`timeline_views`（视图）的刻度是泳道在视图内期间唯一的顺序权威。条目挂进泳道或直接住进作为泳道的层级时，自动落在包含该泳道的各活视图刻度末尾（已有最后一格刻度 `+ 5.0`，空视图为 `5.0`）；条目（开着「层级」或「收别处的条目」）第一次加入某视图作泳道时，其直接子条目（手动先后）与挂名成员（按 `memberships.pos`）依次自动落位。在视图内期间不读不写 `memberships.pos` 或文件夹手动先后；当泳道离开它所在的**最后一个**活视图（移出泳道或删除视图）时，将该视图刻度上的先后一次性写回 `memberships.pos` 与直接子条目的手动先后，同一次提交、一步撤销。
-4. **批注与待办合并**：`comments` 去掉 `kind`（批注与待办合一）；`origin` 区分 `manual`、`marker`（正文 `TODO:`）、`task`（正文任务清单项）、`agent`；`target_kind` 为 `entry` 或 `asset`：
-   - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处：正文锚点与块快照、字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`kv_row`）、情节规划格（`grid_cell {row, col}`）、补丁（`patch`）、媒体项（`media_item {item, page?, region?}`）、正文嵌入（`embed {embed, page?, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
-   - 目标直接为素材库文件（`target_kind = "asset"`）时，不带条目和模块，`part` 可为 `{kind: "region", page?, region}` 框选图片或 PDF 页上的一块。
+3. **视图刻度接管顺序**：`timeline_views`（视图）的刻度是泳道在视图内期间唯一的顺序权威。条目挂进泳道或直接住进作为泳道的层级时，自动落在包含该泳道的各活视图刻度末尾（已有最后一格右端 `+ 1.0`，空视图为 `0.0`，见 `timeline_scale_end`）；条目（开着「层级」或「收别处的条目」）第一次加入某视图作泳道时，其直接子条目（手动先后）与挂名成员（按 `memberships.pos`）依次自动落位。在视图内期间不读不写 `memberships.pos` 或文件夹手动先后；当泳道离开它所在的**最后一个**活视图（移出泳道或删除视图）时，将该视图刻度上的先后一次性写回 `memberships.pos` 与直接子条目的手动先后，同一次提交、一步撤销。
+4. **批注与待办合并**：`comments` 去掉 `kind`（批注与待办合一）；`origin` 区分 `manual`、`marker`（正文 `TODO:`）、`task`（正文任务清单项）、`agent`、`reader`；`target_kind` 为 `entry` 或 `asset`：
+   - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处（正文锚点与块快照直接存在批注字段上）：字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`{kind: "kv_row", row}`）、情节规划格（`{kind: "plot_cell", row, col}`）、补丁（`{kind: "patch", patch}`）、媒体项（`{kind: "media", item, region?}`）、正文嵌入（`{kind: "embed", embed, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
+   - 目标直接为素材库文件（`target_kind = "asset"`）时，不带条目和模块，`part` 可为 `{kind: "region", region}`（`region` 为 `{page?, x, y, w, h}`）框选图片或 PDF 页上的一块。
 5. **媒体模块、正文文件嵌入与内置素材库**：
    - 模板模块种类新增 `media`（条目节点 meta 下 `media:<模块 id>` 存 `{id, asset, caption, pos}`）和纯展示的 `members`（挂在这里的条目，不另存容器）；
    - 正文只有一种格式档，所有正文支持列表、任务、代码块、提示框、高亮、行内代码、表格与文件嵌入（`embeds` 中 `kind = "asset", asset = <资源 id>`）；
@@ -236,7 +236,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | 根容器 | 类型 | 格式 5 内容 |
 | --- | --- | --- |
 | `meta` | LoroMap | 书名、梗概、创建时间、删除时间等元数据；`v = 5`、`book` |
-| `project` | LoroMap | 项目定义：`source`、`agent_guidance`（LoroText）、`book`（`enabled`、`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{name, pos, mount}`） |
+| `project` | LoroMap | 项目定义：`source`（`{id, version}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{name, pos, mount}`） |
 | `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
 | `memberships` | LoroMap | `<宿主条目 id>\|<成员条目 id>` → `{host, member, pos, created_at}`；宿主只要求活着且 `accept` 为真；宿主不在任何活视图里时按 `pos` 排 |
