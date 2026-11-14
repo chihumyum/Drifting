@@ -79,6 +79,14 @@ pub struct RestoreFieldsIn {
     /// State after the recorded write; selected values must still match.
     pub expected: String,
     pub fields: Vec<Field>,
+    /// `(host, member)` pairs whose `pos` was written back when `host` left its
+    /// last live view (`VIEW-LANE-EXIT-RESTORES-ORDER`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub membership_pos: Vec<(String, String)>,
+    /// Folder entry ID whose direct child order was written back when it left
+    /// its last live view (`VIEW-FOLDER-ORDER-FROM-SCALE`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_order: Option<String>,
 }
 
 /// A lane of a view, or one of its fields, as the key of a write guard.
@@ -88,15 +96,22 @@ fn lane_key(view: &TimelineViewId, lane: &EntryId, field: Option<&str>) -> dr_do
         .at(field)
 }
 
+#[derive(Default)]
+struct UndoExtra {
+    membership_pos: Vec<(String, String)>,
+    child_order: Option<String>,
+}
+
 fn finish(
     cx: &Cx<'_>,
     slot: &BookSlot,
     view: String,
     fields: Vec<Field>,
+    extra: UndoExtra,
     before: loro::Frontiers,
     expected: String,
 ) -> Result<Done> {
-    if fields.is_empty() {
+    if fields.is_empty() && extra.membership_pos.is_empty() && extra.child_order.is_none() {
         cx.undo_nothing();
     } else {
         cx.undo_with(Invocation::new(
@@ -107,6 +122,8 @@ fn finish(
                 at: frontiers_hex(&before),
                 expected,
                 fields,
+                membership_pos: extra.membership_pos,
+                child_order: extra.child_order,
             },
         ));
         cx.effect(EffectAction::Updated, "timeline_view", &view, None);
@@ -167,7 +184,7 @@ op! {
             tx.timeline_view(&id)?.name(&name)?;
             Ok((vec![Field::Name], frontiers_hex(&tx.view().state_frontiers())))
         })?;
-        finish(cx, &slot, input.view, fields, before, expected)
+        finish(cx, &slot, input.view, fields, UndoExtra::default(), before, expected)
     }
 }
 op! {
@@ -192,11 +209,11 @@ op! {
             let pos = position(&tv, &lane, &place)?;
             let snapshot = v.structure_snapshot();
             let mut unplaced = Vec::new();
-            for member in snapshot.lane_members_order(&lane) {
-                if v.timeline_field_snapshot(&id, &TimelineFieldV3::Placement(member.id.clone()))?
+            for item in snapshot.lane_entries_order(&lane) {
+                if v.timeline_field_snapshot(&id, &TimelineFieldV3::Placement(item.id.clone()))?
                     .is_none()
                 {
-                    unplaced.push(member.id.clone());
+                    unplaced.push(item.id.clone());
                 }
             }
             let mut fields = vec![Field::Lane {
@@ -222,7 +239,7 @@ op! {
             }
             Ok((fields, frontiers_hex(&tx.view().state_frontiers())))
         })?;
-        finish(cx, &slot, input.target.view, fields, before, expected)
+        finish(cx, &slot, input.target.view, fields, UndoExtra::default(), before, expected)
     }
 }
 op! {
@@ -246,7 +263,7 @@ op! {
             tx.timeline_view(&id)?.set_lane_act_track(&lane, input.act_track.then_some(true))?;
             Ok((vec![Field::LaneActTrack { lane: lane.to_string() }], frontiers_hex(&tx.view().state_frontiers())))
         })?;
-        finish(cx, &slot, input.target.view, fields, before, expected)
+        finish(cx, &slot, input.target.view, fields, UndoExtra::default(), before, expected)
     }
 }
 op! {
@@ -269,40 +286,103 @@ op! {
             tx.timeline_view(&id)?.put_lane(&lane, Some(&pos))?;
             Ok((vec![Field::LanePosition { lane: lane.to_string() }], frontiers_hex(&tx.view().state_frontiers())))
         })?;
-        finish(cx, &slot, input.target.view, fields, before, expected)
+        finish(cx, &slot, input.target.view, fields, UndoExtra::default(), before, expected)
     }
 }
 op! {
     LaneRemove = "timeline_view.remove_lane", Write, Book,
-    "Remove one view lane and newly orphaned visible positions, retaining hidden records and all memberships.",
+    "Remove one view lane and newly orphaned visible positions, saving its scale order back to manual order when leaving its last live view.",
     fn(cx, input: LaneIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: TimelineViewId = pid("timeline view", &input.view)?;
         let lane: EntryId = pid("lane", &input.lane)?;
-        // The lane; positions it orphans are planned in the job below.
+        // The lane; positions it orphans and last-view order writeback are planned below.
         let removed = lane_key(&id, &lane, None);
-        let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::records([removed]), move |tx| {
+        let ((fields, extra, expected), before) = cx.write_book_v3(&slot, Replaces::records([removed]), move |tx| {
             let v = tx.view();
             let tv = view(&v, id.as_str())?;
             if v.timeline_field_snapshot(&id, &TimelineFieldV3::Lane(lane.clone()))?.is_none() {
                 return Err(WsError::not_found("timeline lane", lane.as_str()));
             }
             let ms = v.memberships_raw();
+            let entries_map = v.entries_map();
+            let templates_map = v.templates_map();
             let remaining: BTreeSet<_> = tv.lanes.iter().filter(|l| l.entry != lane).map(|l| &l.entry).collect();
-            let prune: Vec<_> = m::effective_timeline_placements(&tv, &ms, &v.entries_map(), &v.templates_map())
-                .into_iter().filter(|p| {
-                    ms.iter().any(|m| m.host == lane && m.member == p.entry)
-                        && !ms.iter().any(|m| m.member == p.entry && remaining.contains(&m.host))
-                }).map(|p| p.entry).collect();
+            let prune: Vec<_> = m::effective_timeline_placements(&tv, &ms, &entries_map, &templates_map)
+                .into_iter()
+                .filter(|p| {
+                    let was_in_lane = ms.iter().any(|m| m.host == lane && m.member == p.entry)
+                        || entries_map
+                            .get(&p.entry)
+                            .is_some_and(|e| e.parent.as_ref() == Some(&lane));
+                    let in_remaining = ms
+                        .iter()
+                        .any(|m| m.member == p.entry && remaining.contains(&m.host))
+                        || entries_map
+                            .get(&p.entry)
+                            .and_then(|e| e.parent.as_ref())
+                            .is_some_and(|par| remaining.contains(par));
+                    was_in_lane && !in_remaining
+                })
+                .map(|p| p.entry)
+                .collect();
             let mut fields = vec![Field::Lane { lane: lane.to_string() }];
             fields.extend(prune.iter().map(|entry| Field::Placement { entry: entry.to_string() }));
             for field in &fields { v.timeline_field_restore_state(&id, &field.key()?)?; }
-            let w = tx.timeline_view(&id)?;
-            w.remove_lane(&lane)?;
-            for entry in prune { w.remove_placement(&entry)?; }
-            Ok((fields, frontiers_hex(&tx.view().state_frontiers())))
+
+            let was_effective_here = m::effective_timeline_lanes(&tv.lanes, &entries_map, &templates_map)
+                .iter()
+                .any(|l| l.entry == lane);
+            let in_other_live_view = v
+                .timeline_views_raw()
+                .into_iter()
+                .any(|other| {
+                    other.id != id
+                        && !other.is_trashed()
+                        && m::effective_timeline_lanes(&other.lanes, &entries_map, &templates_map)
+                            .iter()
+                            .any(|l| l.entry == lane)
+                });
+            let wb = if was_effective_here && !in_other_live_view {
+                let snapshot = v.structure_snapshot();
+                super::plan_lane_exit_writeback(&v, &snapshot, &tv, &lane)?
+            } else {
+                super::LaneExitWriteback::default()
+            };
+            for (member_id, _) in &wb.member_pos {
+                v.membership_pos_restore_state(&lane, member_id)?;
+            }
+
+            {
+                let w = tx.timeline_view(&id)?;
+                w.remove_lane(&lane)?;
+                for entry in prune { w.remove_placement(&entry)?; }
+            }
+            for (member_id, pos) in &wb.member_pos {
+                tx.restore_membership_pos(
+                    &lane,
+                    member_id,
+                    Some(&loro::LoroValue::from(pos.as_str())),
+                )?;
+            }
+            if let Some(children) = &wb.child_order {
+                tx.entries().reorder_children(Some(&lane), children)?;
+            }
+            let extra = UndoExtra {
+                membership_pos: wb
+                    .member_pos
+                    .into_iter()
+                    .map(|(m, _)| (lane.to_string(), m.to_string()))
+                    .collect(),
+                child_order: wb.child_order.map(|_| lane.to_string()),
+            };
+            Ok((
+                fields,
+                extra,
+                frontiers_hex(&tx.view().state_frontiers()),
+            ))
         })?;
-        finish(cx, &slot, input.view, fields, before, expected)
+        finish(cx, &slot, input.view, fields, extra, before, expected)
     }
 }
 op! {
@@ -343,6 +423,24 @@ op! {
             let want = expected.timeline_field_restore_state(&id, &key)?;
             pairs.push((field, key, value, want));
         }
+        let mut mpos_pairs = Vec::new();
+        for (host_s, member_s) in &input.membership_pos {
+            let host_id: EntryId = pid("host", host_s)?;
+            let member_id: EntryId = pid("member", member_s)?;
+            let old_pos = old.membership_pos_restore_state(&host_id, &member_id)?;
+            let exp_pos = expected.membership_pos_restore_state(&host_id, &member_id)?;
+            mpos_pairs.push((host_id, member_id, old_pos, exp_pos));
+        }
+        let child_order_pair = if let Some(parent_s) = &input.child_order {
+            let parent_id: EntryId = pid("entry", parent_s)?;
+            let old_children = old.direct_child_ids(Some(&parent_id));
+            let exp_children = expected.direct_child_ids(Some(&parent_id));
+            Some((parent_id, old_children, exp_children))
+        } else {
+            None
+        };
+        let mpos_receipt = input.membership_pos;
+        let corder_receipt = input.child_order;
         // An inverse compares every selected field itself, below.
         let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::nothing(), move |tx| {
             let v = tx.view();
@@ -351,12 +449,43 @@ op! {
                     return Err(WsError::Conflict("selected timeline fields changed after the recorded write".into()));
                 }
             }
+            for (host_id, member_id, _, exp_pos) in &mpos_pairs {
+                if v.membership_pos_restore_state(host_id, member_id)? != *exp_pos {
+                    return Err(WsError::Conflict("selected membership order changed after the recorded write".into()));
+                }
+            }
+            if let Some((parent_id, _, exp_children)) = &child_order_pair
+                && v.direct_child_ids(Some(parent_id)) != *exp_children
+            {
+                return Err(WsError::Conflict("selected folder child order changed after the recorded write".into()));
+            }
             // All historical/current paths and retained state pass before
             // any write. Independent fields remain outside this inverse.
-            let w = tx.timeline_view(&id)?;
-            for (_, key, value, _) in &pairs { w.restore_field(key, value.as_ref())?; }
+            {
+                let w = tx.timeline_view(&id)?;
+                for (_, key, value, _) in &pairs { w.restore_field(key, value.as_ref())?; }
+            }
+            for (host_id, member_id, old_pos, _) in &mpos_pairs {
+                if old_pos.0 {
+                    tx.restore_membership_pos(host_id, member_id, old_pos.1.as_ref())?;
+                }
+            }
+            if let Some((parent_id, old_children, _)) = &child_order_pair {
+                tx.entries().reorder_children(Some(parent_id), old_children)?;
+            }
             Ok((pairs.into_iter().map(|(field, _, _, _)| field).collect(), frontiers_hex(&tx.view().state_frontiers())))
         })?;
-        finish(cx, &slot, input.view, fields, before, expected)
+        finish(
+            cx,
+            &slot,
+            input.view,
+            fields,
+            UndoExtra {
+                membership_pos: mpos_receipt,
+                child_order: corder_receipt,
+            },
+            before,
+            expected,
+        )
     }
 }

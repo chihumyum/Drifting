@@ -31,17 +31,32 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
         .iter()
         .filter_map(|l| {
             let e = book.entry(&l.entry).filter(|e| e.deleted_at.is_none())?;
-            if !book.is_lane(&l.entry) {
+            if !book.has_below(&l.entry) {
                 return None;
             }
-            let members = membership.get(l.entry.as_str());
+            let mut in_lane: BTreeSet<&str> = BTreeSet::new();
+            if e.level {
+                for child in &book.entries {
+                    if child.deleted_at.is_none()
+                        && child.parent.as_deref() == Some(l.entry.as_str())
+                    {
+                        in_lane.insert(child.id.as_str());
+                    }
+                }
+            }
+            if book.accepts_members(&l.entry)
+                && let Some(ms) = membership.get(l.entry.as_str())
+            {
+                for &m in ms {
+                    if book.entry(m).is_some_and(|me| me.deleted_at.is_none()) {
+                        in_lane.insert(m);
+                    }
+                }
+            }
             let clips = view
                 .placements
                 .iter()
-                .filter(|p| {
-                    members.is_some_and(|ms| ms.contains(p.entry.as_str()))
-                        && book.entry(&p.entry).is_some_and(|e| e.deleted_at.is_none())
-                })
+                .filter(|p| in_lane.contains(p.entry.as_str()))
                 .cloned()
                 .collect();
             Some(Lane {
@@ -49,7 +64,7 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
                 title: e.title.clone(),
                 color: book.appearance(&e.id).and_then(|a| a.color),
                 act_track: l.act_track == Some(true),
-                members: members.map_or(0, BTreeSet::len),
+                members: in_lane.len(),
                 clips,
             })
         })
@@ -58,12 +73,12 @@ pub fn lanes(book: &BookV3, view: &TimelineView) -> Vec<Lane> {
     out
 }
 
-/// Live templates whose new entries default to active swimlanes (`level` on and
-/// `settings.lane == Some(true)`), recognized by template data rather than ID.
+/// Live templates whose new entries can serve as swimlanes (`level` on or
+/// `settings.accept == Some(true)`), recognized by template data rather than ID.
 pub fn lane_templates(book: &BookV3) -> Vec<&EntryTemplate> {
     book.templates
         .iter()
-        .filter(|t| t.deleted_at.is_none() && t.level && t.settings.lane == Some(true))
+        .filter(|t| t.deleted_at.is_none() && (t.level || t.settings.accept == Some(true)))
         .collect()
 }
 

@@ -8,7 +8,6 @@ use dr_model::{
     v3::{
         Entry as V3Entry, EntryTemplate, EntryTemplateId, LevelSettingsOverride,
         check_parent_is_level, effective_parent_id, resolve_level_settings,
-        resolve_new_entry_residence,
     },
 };
 use dr_workspace::{Access, Concurrency, Spec, Workspace, registry};
@@ -633,6 +632,7 @@ pub fn is_v3_book(ws: &Workspace, book: &BookId) -> crate::Result<bool> {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct LevelHeaderStamp {
     pub id: EntryId,
+    pub level: bool,
     pub effective_parent: Option<EntryId>,
     pub title: String,
     pub template: Option<EntryTemplateId>,
@@ -640,7 +640,7 @@ pub(crate) struct LevelHeaderStamp {
 }
 
 /// Exact structural inputs to [`Catalog::from_v3_view`]: templates and live
-/// `level == true` entries in depth-first tree order. Editing ordinary entries,
+/// `has_below` entries in depth-first tree order. Editing ordinary entries,
 /// module fields, KV rows, prose, comments or side records leaves this stamp
 /// unchanged so [`crate::AgentTools::catalog_for_book`] reuses the built
 /// catalog without rebuilding schemas or action revisions.
@@ -655,13 +655,14 @@ pub(crate) fn catalog_inputs(
 ) -> (CatalogStamp, BTreeMap<EntryId, V3Entry>, Vec<EntryId>) {
     let templates = view.templates_map();
     let headers = view.entry_headers_with(&BTreeMap::new());
-    let ordered_levels = ordered_live_levels(view, &headers);
+    let ordered_levels = ordered_live_levels(view, &headers, &templates);
     let levels = ordered_levels
         .iter()
         .filter_map(|id| {
             let e = headers.get(id)?;
             Some(LevelHeaderStamp {
                 id: e.id.clone(),
+                level: e.is_level(),
                 effective_parent: effective_parent_id(e, &headers),
                 title: e.title.clone(),
                 template: e.template.clone(),
@@ -675,10 +676,14 @@ pub(crate) fn catalog_inputs(
 fn ordered_live_levels(
     view: &BookViewV3<'_>,
     headers: &BTreeMap<EntryId, V3Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> Vec<EntryId> {
     let mut branch_parents: BTreeSet<Option<EntryId>> = BTreeSet::new();
     let mut has_any = false;
-    for entry in headers.values().filter(|e| !e.is_trashed() && e.is_level()) {
+    for entry in headers
+        .values()
+        .filter(|e| !e.is_trashed() && e.has_below(templates))
+    {
         has_any = true;
         let mut cur = entry.parent.clone();
         let mut seen = BTreeSet::new();
@@ -718,6 +723,7 @@ fn ordered_live_levels(
         parent: Option<EntryId>,
         children_by_parent: &BTreeMap<Option<EntryId>, Vec<EntryId>>,
         headers: &BTreeMap<EntryId, V3Entry>,
+        templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
         visited: &mut BTreeSet<EntryId>,
         ordered: &mut Vec<EntryId>,
     ) {
@@ -731,7 +737,7 @@ fn ordered_live_levels(
             if entry.parent != parent || !visited.insert(child.clone()) {
                 continue;
             }
-            if !entry.is_trashed() && entry.is_level() {
+            if !entry.is_trashed() && entry.has_below(templates) {
                 ordered.push(child.clone());
             }
             if children_by_parent.contains_key(&Some(child.clone())) {
@@ -739,6 +745,7 @@ fn ordered_live_levels(
                     Some(child.clone()),
                     children_by_parent,
                     headers,
+                    templates,
                     visited,
                     ordered,
                 );
@@ -749,11 +756,12 @@ fn ordered_live_levels(
         None,
         &children_by_parent,
         headers,
+        templates,
         &mut visited,
         &mut ordered,
     );
     for (id, entry) in headers {
-        if !entry.is_trashed() && entry.is_level() && visited.insert(id.clone()) {
+        if !entry.is_trashed() && entry.has_below(templates) && visited.insert(id.clone()) {
             ordered.push(id.clone());
         }
     }
@@ -867,8 +875,8 @@ fn build_v3_actions(
         let Some(tpl) = templates_map.get(tpl_id).filter(|t| !t.is_trashed()) else {
             continue;
         };
-        // A template's actions show on its entries whose switch is on.
-        if !level.is_level() || tpl.verbs.is_empty() {
+        // A template's actions show on its entries that hold or accept entries below them.
+        if !level.has_below(templates_map) || tpl.verbs.is_empty() {
             continue;
         }
         let path = entry_path(entries_map, &level.id);
@@ -917,8 +925,11 @@ fn build_v3_actions(
                 });
                 continue;
             };
-            let residence =
-                resolve_new_entry_residence(Some(&level.id), entries_map, templates_map);
+            let residence = if !level.is_level() || level.own_home(templates_map).is_some() {
+                dr_model::v3::resolve_host_residence(&level.id, entries_map, templates_map)
+            } else {
+                Some(level.id.clone())
+            };
             if let Err(err) = check_parent_is_level(residence.as_ref(), entries_map) {
                 diagnostics.push(ActionDiagnostic {
                     code: "invalid_residence_binding".into(),
@@ -1061,7 +1072,6 @@ fn settings_digest_value(s: &dr_model::v3::LevelSettings) -> Value {
         "accept": s.accept,
         "home": s.home.as_ref().map(ToString::to_string),
         "format_shortcuts": format!("{:?}", s.format_shortcuts),
-        "lane": s.lane,
     })
 }
 

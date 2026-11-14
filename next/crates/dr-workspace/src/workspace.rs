@@ -128,7 +128,7 @@ pub(crate) struct BookSlot {
     pub book: BookId,
     pub handle: DocHandle,
     pub reader_v3: dr_doc::v3::BookReaderV3,
-    pub link_names: std::sync::Mutex<Option<crate::autolink::SlotLinkCache>>,
+    pub link_names: std::sync::Mutex<(u64, Option<crate::autolink::SlotLinkCache>)>,
 }
 
 impl BookSlot {
@@ -1378,7 +1378,7 @@ impl Workspace {
             book: book.clone(),
             handle,
             reader_v3,
-            link_names: std::sync::Mutex::new(None),
+            link_names: std::sync::Mutex::new((0, None)),
         });
         // dr-doc's deterministic background repair, once per open.
         repair_book(&slot)?;
@@ -1703,6 +1703,16 @@ impl Inner {
                 match &doc {
                     DocId::Book(book) => {
                         let slot = lock(&self.books).get(book).cloned();
+                        if let Some(slot) = &slot {
+                            let names_touched = events::touches_autolink_names(&ev.changes);
+                            let mut guard = lock(&slot.link_names);
+                            if names_touched {
+                                guard.0 = guard.0.wrapping_add(1);
+                                guard.1 = None;
+                            } else if let Some((cached_at, _, _)) = &mut guard.1 {
+                                *cached_at = slot.handle.doc().oplog_frontiers();
+                            }
+                        }
                         let changes = slot.as_ref().map_or_else(
                             || book_changes(&ev.changes, None),
                             |slot| {

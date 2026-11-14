@@ -241,7 +241,7 @@ pub(super) fn validate_project_template(
         if tab.pos.is_none() {
             tab.pos = default_positions.get(idx).cloned();
         }
-        m::check_tab_mount(&tab.mount, has_book, &entries, &views)?;
+        m::check_tab_mount(&tab.mount, has_book, &entries, &templates, &views)?;
     }
     BookGraphV3 {
         entries,
@@ -523,12 +523,13 @@ op! {
             (Some(m_in), _) => {
                 let mount: m::TabMount = convert(m_in)?;
                 let entries = v.entries_map();
+                let templates = v.templates_map();
                 let views: BTreeMap<TimelineViewId, m::TimelineView> = v
                     .timeline_views_raw()
                     .into_iter()
                     .map(|tv| (tv.id.clone(), tv))
                     .collect();
-                m::check_tab_mount(&mount, proj.book.is_some(), &entries, &views)?;
+                m::check_tab_mount(&mount, proj.book.is_some(), &entries, &templates, &views)?;
                 mount
             }
             (None, Some(t)) => t.mount.clone(),

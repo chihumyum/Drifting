@@ -180,6 +180,7 @@ pub(super) fn removals(
     }
     let entries = v.entries_map();
     let templates = v.templates_map();
+    let member_parent = entries.get(member).and_then(|e| e.parent.clone());
     v.timeline_views_raw()
         .into_iter()
         .filter(|tv| {
@@ -193,6 +194,9 @@ pub(super) fn removals(
                         && &m.host != host
                         && tv.lanes.iter().any(|l| l.entry == m.host)
                 })
+                && !member_parent
+                    .as_ref()
+                    .is_some_and(|par| tv.lanes.iter().any(|l| &l.entry == par))
         })
         .map(|tv| tv.id)
         .collect()

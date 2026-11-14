@@ -173,6 +173,7 @@ pub fn create(
             title: title.into(),
             mark: None,
             parent: Some(action.level.clone()),
+            host: None,
             template: action.template.clone(),
             level: None,
             bodies: Default::default(),

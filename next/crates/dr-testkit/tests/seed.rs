@@ -215,7 +215,10 @@ fn check_v3_invariants(book: &seed::SeededBookV3) {
         .is_ok()
     );
     for tab in &proj.tabs {
-        assert!(dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &views_map).is_ok());
+        assert!(
+            dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &templates, &views_map)
+                .is_ok()
+        );
     }
     for tv in view.timeline_views_raw() {
         for l in &tv.lanes {

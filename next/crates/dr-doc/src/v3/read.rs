@@ -143,7 +143,6 @@ pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride 
         accept: f.bool("accept"),
         home,
         format_shortcuts: f.kind("format_shortcuts"),
-        lane: f.bool("lane"),
     }
 }
 
@@ -189,7 +188,6 @@ impl BookGraphV3 {
         BookGraph {
             entries: &self.entries,
             templates: &self.templates,
-            memberships: &self.memberships,
         }
     }
 
@@ -384,6 +382,41 @@ impl<'a> BookViewV3<'a> {
         )
     }
 
+    /// CAS state for a membership's `pos` scalar (`None | Null | String`),
+    /// leaving all other fields of the membership map untouched.
+    pub fn membership_pos_restore_state(
+        &self,
+        host: &EntryId,
+        member: &EntryId,
+    ) -> Result<(bool, Option<LoroValue>)> {
+        use loro::{Container, ValueOrContainer};
+        self.check_membership_snapshot_restore(host, member)?;
+        let root = self.doc.get_map(book_v3::MEMBERSHIPS);
+        let key = Membership::key(host, member);
+        let Some(ValueOrContainer::Container(Container::Map(record))) = root.get(&key) else {
+            return Ok((false, None));
+        };
+        match record.get("pos") {
+            None => Ok((true, None)),
+            Some(ValueOrContainer::Value(v @ (LoroValue::Null | LoroValue::String(_)))) => {
+                Ok((true, Some(v)))
+            }
+            _ => Err(DocError::NotInProfile(
+                "membership pos uses an unsupported representation",
+            )),
+        }
+    }
+
+    /// Raw stored direct children of `parent` (`None` = root) in `LoroTree`
+    /// fractional-index sibling order, trashed entries included.
+    pub fn direct_child_ids(&self, parent: Option<&EntryId>) -> Vec<EntryId> {
+        self.entries_raw()
+            .into_iter()
+            .filter(|e| e.parent.as_ref() == parent)
+            .map(|e| e.id)
+            .collect()
+    }
+
     /// Only the selected primary field is inspected, never other entry data.
     /// The inverse preserves absence/null/string; future representations must
     /// be handled explicitly before a cancellation may overwrite them.
@@ -424,21 +457,27 @@ impl<'a> BookViewV3<'a> {
         else {
             unreachable!("preflighted view")
         };
-        let Some(ValueOrContainer::Container(Container::Map(placements))) =
-            record.get("placements")
-        else {
-            return Err(DocError::NotInProfile(
-                "selected placements parent is absent",
-            ));
-        };
-        if placements.id()
-            != ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map)
-        {
-            return Err(DocError::NotInProfile(
-                "selected placements parent is not mergeable",
-            ));
+        let expected_id =
+            ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map);
+        match record.get("placements") {
+            None => match self.doc.get_container(expected_id) {
+                Some(Container::Map(placements)) => {
+                    check_restorable_field(&placements, member.as_str())
+                }
+                _ => Ok(()),
+            },
+            Some(ValueOrContainer::Container(Container::Map(placements))) => {
+                if placements.id() != expected_id {
+                    return Err(DocError::NotInProfile(
+                        "selected placements parent is not mergeable",
+                    ));
+                }
+                check_restorable_field(&placements, member.as_str())
+            }
+            Some(_) => Err(DocError::NotInProfile(
+                "timeline placements are not a writable map",
+            )),
         }
-        check_restorable_field(&placements, member.as_str())
     }
 
     /// CAS state for just this placement's live/retained record. The selected
@@ -449,7 +488,7 @@ impl<'a> BookViewV3<'a> {
         view: &TimelineViewId,
         member: &EntryId,
     ) -> Result<(bool, Option<LoroValue>)> {
-        use loro::{Container, ValueOrContainer};
+        use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
         self.check_timeline_placement_restore(view, member)?;
         let Some(ValueOrContainer::Container(Container::Map(record))) =
             self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
@@ -459,7 +498,15 @@ impl<'a> BookViewV3<'a> {
         let Some(ValueOrContainer::Container(Container::Map(placements))) =
             record.get("placements")
         else {
-            unreachable!("preflighted placements")
+            let parent_id =
+                ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map);
+            let retained = match self.doc.get_container(parent_id) {
+                Some(Container::Map(placements)) => {
+                    retained_record_state(self.doc, &placements, member.as_str())?.1
+                }
+                _ => None,
+            };
+            return Ok((false, retained));
         };
         retained_record_state(self.doc, &placements, member.as_str())
     }
@@ -468,7 +515,7 @@ impl<'a> BookViewV3<'a> {
     /// the structure once. Unlike a live view this explicit snapshot never changes.
     /// This read neither commits pending writes nor caches across a transaction.
     pub fn structure_snapshot(&self) -> super::BookStructureV3 {
-        super::BookStructureV3::from_value(self.book.clone(), &self.doc.get_deep_value())
+        super::BookStructureV3::from_doc(self.book.clone(), self.doc)
     }
 
     pub fn meta(&self) -> BookMetaV3 {
@@ -900,14 +947,13 @@ impl<'a> BookViewV3<'a> {
     }
 
     /// Entries in depth-first tree order, with `V3-AUTOLINK-NAME-UNIQUE`
-    /// conflicts resolved on live auto-link leaf entries.
+    /// conflicts resolved on live auto-linked entries.
     pub fn entries(&self) -> Vec<Entry> {
         let raw = self.entries_raw();
         let templates = self.templates_map();
-        let raw_memberships = self.memberships_raw();
         let mut by_id: BTreeMap<EntryId, Entry> =
             raw.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        resolve_autolink_name_conflicts(&mut by_id, &raw_memberships, &templates);
+        resolve_autolink_name_conflicts(&mut by_id, &templates);
         raw.into_iter()
             .map(|mut e| {
                 if let Some(resolved) = by_id.get(&e.id) {
@@ -931,7 +977,7 @@ impl<'a> BookViewV3<'a> {
     pub fn entry(&self, id: &EntryId) -> Option<Entry> {
         let mut e = self.entry_raw(id)?;
         let mut g = self.graph();
-        resolve_autolink_name_conflicts(&mut g.entries, &g.memberships, &g.templates);
+        resolve_autolink_name_conflicts(&mut g.entries, &g.templates);
         e.name_conflict = g.entries.get(id).and_then(|h| h.name_conflict.clone());
         Some(e)
     }
@@ -1056,16 +1102,21 @@ impl<'a> BookViewV3<'a> {
         effective_parent_id(e, &entries)
     }
 
-    /// Live child entries whose effective parent is `parent`, in manuscript
-    /// order (`entries` depth-first tree order).
+    /// Live child entries whose effective parent is `parent`, in authoritative
+    /// folder order (the reference view's scale when `parent` is a folder in a
+    /// live view, otherwise manual folder order).
     pub fn children_of(&self, parent: Option<&EntryId>) -> Vec<Entry> {
-        let ordered = self.entries();
-        let entries: BTreeMap<EntryId, Entry> =
-            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        ordered
+        self.structure_snapshot()
+            .children_of(parent)
             .into_iter()
-            .filter(|e| !e.is_trashed() && effective_parent_id(e, &entries).as_ref() == parent)
+            .cloned()
             .collect()
+    }
+
+    /// Whether `id` is currently an effective swimlane in at least one
+    /// non-trashed [`TimelineView`].
+    pub fn is_in_any_view(&self, id: &EntryId) -> bool {
+        self.structure_snapshot().is_in_any_view(id)
     }
 
     /// Resolved level settings for `level_id` (`entry.overrides > template.settings > nearest ancestor > default`).
@@ -1079,7 +1130,7 @@ impl<'a> BookViewV3<'a> {
     /// auto-linked entry: `(colliding_entry, winner_entry)`.
     pub fn autolink_name_conflicts(&self) -> Vec<(EntryId, EntryId)> {
         let mut g = self.graph();
-        resolve_autolink_name_conflicts(&mut g.entries, &g.memberships, &g.templates)
+        resolve_autolink_name_conflicts(&mut g.entries, &g.templates)
             .into_iter()
             .collect()
     }

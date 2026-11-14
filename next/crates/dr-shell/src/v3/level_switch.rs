@@ -121,18 +121,15 @@ pub fn inspect_level_switch(
                 id: entry_key.clone(),
             })?;
         let structure = view.structure_snapshot();
+        let templates = view.templates_map();
         let children: Vec<String> = structure
             .children_of(Some(&eid))
             .iter()
             .map(|e| e.id.to_string())
             .collect();
-        let mut members: Vec<String> = structure
-            .members_of(&eid)
-            .iter()
-            .map(|e| e.id.to_string())
-            .collect();
-        members.sort();
+        let members: Vec<String> = Vec::new();
         let lane = entry.is_level()
+            && !entry.accepts_members(&templates)
             && view
                 .timeline_views()
                 .iter()

@@ -117,7 +117,10 @@ fn manuscript_order_and_nested_homes_do_not_come_from_timeline_positions() {
     );
     assert_eq!(level(&m, &Entry::ActTrack).title, "幕");
     assert_eq!(level(&m, &Entry::ActTrack).parent, None);
-    assert!(level(&m, &Entry::ActTrack).lane);
+    assert!(level(&m, &Entry::ActTrack).is_level);
+    assert!(level(&m, &Entry::ActTrack).accept);
+    assert!(!level(&m, &Entry::Storyline(STORYLINE.into())).is_level);
+    assert!(level(&m, &Entry::Storyline(STORYLINE.into())).accept);
     assert_eq!(
         level(&m, &Entry::ActTrack).default_leaf,
         Some(LeafTemplate::Idea)

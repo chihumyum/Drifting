@@ -197,11 +197,10 @@ pub mod v3 {
                         )
                     })
                     .collect(),
-                "auto_link" | "accept" | "lane" => {
+                "auto_link" | "accept" => {
                     let current = match self.key {
                         "auto_link" => s.auto_link,
-                        "accept" => s.accept,
-                        _ => s.lane,
+                        _ => s.accept,
                     };
                     [true, false]
                         .into_iter()

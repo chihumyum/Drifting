@@ -189,19 +189,19 @@ fn resetting_nullable_settings_merges_an_unrelated_remote_setting() {
     template.level = true;
     template.settings.default_template = Some(None);
     template.settings.home = Some(None);
-    template.settings.lane = Some(true);
+    template.settings.accept = Some(true);
     let template = model::save(&ws, &book, None, &template).unwrap();
     let mut mine = template.clone();
     mine.settings.default_template = None;
     mine.settings.home = None;
-    mine.settings.lane = None;
+    mine.settings.accept = None;
     let mut remote = template.clone();
     remote.settings.display = Some("grid".into());
     model::save(&ws, &book, Some(&template), &remote).unwrap();
     let merged = model::save(&ws, &book, Some(&template), &mine).unwrap();
     assert_eq!(merged.settings.default_template, None);
     assert_eq!(merged.settings.home, None);
-    assert_eq!(merged.settings.lane, None);
+    assert_eq!(merged.settings.accept, None);
     assert_eq!(merged.settings.display.as_deref(), Some("grid"));
     assert_eq!(
         templates(&ws, &book)
@@ -232,10 +232,9 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
         default_template: Some(Some("tpl-chapter".into())),
         display: Some("board".into()),
         auto_link: Some(true),
-        accept: Some(false),
+        accept: Some(true),
         home: Some(Some(home["id"].as_str().unwrap().into())),
         format_shortcuts: Some("notes".into()),
-        lane: Some(true),
     };
     let template = model::save(&ws, &book, None, &template).unwrap();
     assert_eq!(
@@ -251,13 +250,12 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
     );
     let level = call(&ws, "entry.get", json!({"book":book,"id":lane["id"]}))["below"].clone();
     assert_eq!(level["settings"]["accept"], true);
-    assert_eq!(level["settings"]["lane"], true);
     assert_eq!(level["settings"]["format_shortcuts"], "notes");
     assert_eq!(level["settings"]["home"], home["id"]);
     let entry = call(
         &ws,
         "entry.create",
-        json!({"book":book,"title":"Synthetic new entry","parent":lane["id"]}),
+        json!({"book":book,"title":"Synthetic new entry","host":lane["id"]}),
     );
     assert_eq!(entry["template"], "tpl-chapter");
     assert_eq!(entry["parent"], home["id"]);
@@ -271,11 +269,10 @@ fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
             .any(|m| m["id"] == entry["id"])
     );
     let mut disabled = template.clone();
-    disabled.settings.lane = Some(false);
+    disabled.settings.accept = Some(false);
     model::save(&ws, &book, Some(&template), &disabled).unwrap();
     let level = call(&ws, "entry.get", json!({"book":book,"id":lane["id"]}))["below"].clone();
     assert_eq!(level["settings"]["accept"], false);
-    // The editor never replaces a stored false value with the lane's forced true.
     assert_eq!(disabled.settings.accept, Some(false));
     // Any template takes any module: a level template's own prose too.
     let mut with_prose = disabled.clone();
@@ -346,7 +343,7 @@ fn default_level_switch_collapses_without_erasing_settings_and_never_mutates_exi
     let (_dir, ws, book) = seed();
     let mut template = model::blank("Synthetic switchable template".into());
     template.level = true;
-    template.settings.lane = Some(true);
+    template.settings.accept = Some(true);
     template.settings.display = Some("board".into());
     template.settings.default_template = Some(Some("tpl-chapter".into()));
     template.verbs.push(TemplateVerb {
@@ -366,7 +363,7 @@ fn default_level_switch_collapses_without_erasing_settings_and_never_mutates_exi
     );
     assert_eq!(entry_a["level"], true);
     let get_a = call(&ws, "entry.get", json!({"book":book,"id":entry_a["id"]}));
-    assert_eq!(get_a["below"]["settings"]["lane"], true);
+    assert_eq!(get_a["below"]["settings"]["accept"], true);
     assert_eq!(get_a["below"]["settings"]["display"], "board");
 
     // Turning off the template's default level switch keeps stored settings and
@@ -375,13 +372,13 @@ fn default_level_switch_collapses_without_erasing_settings_and_never_mutates_exi
     collapsed.level = false;
     let saved_off = model::save(&ws, &book, Some(&saved_on), &collapsed).unwrap();
     assert!(!saved_off.level);
-    assert_eq!(saved_off.settings.lane, Some(true));
+    assert_eq!(saved_off.settings.accept, Some(true));
     assert_eq!(saved_off.settings.display.as_deref(), Some("board"));
     assert_eq!(saved_off.verbs.len(), 1);
 
     let get_a_after = call(&ws, "entry.get", json!({"book":book,"id":entry_a["id"]}));
     assert_eq!(get_a_after["level"], true);
-    assert_eq!(get_a_after["below"]["settings"]["lane"], true);
+    assert_eq!(get_a_after["below"]["settings"]["accept"], true);
     assert_eq!(get_a_after["below"]["settings"]["display"], "board");
 
     let entry_b = call(
@@ -391,7 +388,15 @@ fn default_level_switch_collapses_without_erasing_settings_and_never_mutates_exi
     );
     assert_eq!(entry_b["level"], false);
     let get_b = call(&ws, "entry.get", json!({"book":book,"id":entry_b["id"]}));
-    assert!(get_b["below"].is_null());
+    assert!(get_b["below"]["children"].is_null());
+    assert_eq!(get_b["below"]["members"], json!([]));
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":entry_b["id"],"overrides":{"accept":false}}),
+    );
+    let get_b_closed = call(&ws, "entry.get", json!({"book":book,"id":entry_b["id"]}));
+    assert!(get_b_closed["below"].is_null());
 
     // Re-enabling the template's default level switch leaves entry B untouched.
     let mut reopened = saved_off.clone();
@@ -516,11 +521,7 @@ fn prose_in_book_children_module_and_linkable_govern_manuscript_and_autolinks() 
             .into_iter()
             .map(|e| (e.id.clone(), e))
             .collect();
-        let names = dr_model::v3::AutolinkNames::of(
-            &entries,
-            &view.memberships_raw(),
-            &view.templates_map(),
-        );
+        let names = dr_model::v3::AutolinkNames::of(&entries, &view.templates_map());
         names.is_linked(id)
     };
     assert!(!is_linked(&ws, &book, &custom_entry_id));

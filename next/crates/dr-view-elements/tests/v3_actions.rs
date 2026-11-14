@@ -211,7 +211,7 @@ fn creation_uses_home_and_atomic_membership_without_inventing_a_default() {
     assert_eq!(context.home.as_deref(), Some(manuscript.as_str()));
     assert_eq!(context.default.as_deref(), Some("tpl-chapter"));
     assert!(!context.blank);
-    let created=prepare(&snapshot,"entry.create",json!({"parent":context.context,"template":context.default,"title":"Synthetic lane creation"})).unwrap().commit(&ws).unwrap();
+    let created=prepare(&snapshot,"entry.create",json!({"host":context.context,"template":context.default,"title":"Synthetic lane creation"})).unwrap().commit(&ws).unwrap();
     assert_eq!(created["parent"], manuscript);
     assert_eq!(created["template"], "tpl-chapter");
     assert_eq!(created["primary"], lane);
@@ -252,10 +252,10 @@ fn template_choices_preserve_active_relationships_children_and_retained_content(
     let manuscript = root(&initial, "tpl-manuscript");
     let lane = root(&initial, "tpl-storyline");
     let chapter = root(&initial, "tpl-chapter");
-    // No level restricts templates any more; a swimlane in a view is only
-    // offered templates that keep it a swimlane.
+    // No level restricts templates any more; a swimlane / member host in a view
+    // is only offered templates that keep its active memberships and lane valid.
     assert!(switch_templates(&initial, &chapter).contains(&"tpl-idea".into()));
-    assert!(!switch_templates(&initial, &lane).contains(&"tpl-group".into()));
+    assert!(!switch_templates(&initial, &lane).contains(&"tpl-chapter".into()));
     let parent = entry(
         &ws,
         &book,
@@ -333,15 +333,15 @@ fn tree_drop_checks_the_switch_cycles_and_membership_without_moving_the_original
     let initial = Book::load(&ws, &book).unwrap();
     let manuscript = root(&initial, "tpl-manuscript");
     let lane = root(&initial, "tpl-storyline");
-    let a = entry(&ws, &book, &manuscript, "tpl-group", "Synthetic A");
-    let b = entry(&ws, &book, &manuscript, "tpl-group", "Synthetic B");
+    let a = entry(&ws, &book, &manuscript, "tpl-idea-group", "Synthetic A");
+    let b = entry(&ws, &book, &manuscript, "tpl-idea-group", "Synthetic B");
     let child = entry(&ws, &book, &a, "tpl-chapter", "Synthetic moved leaf");
-    let nested = entry(&ws, &book, &a, "tpl-group", "Synthetic nested");
+    let nested = entry(&ws, &book, &a, "tpl-idea-group", "Synthetic nested");
     let category = entry(
         &ws,
         &book,
         &manuscript,
-        "tpl-group",
+        "tpl-idea-group",
         "Synthetic switched-off destination",
     );
     call(
@@ -644,7 +644,7 @@ fn a_creation_is_held_to_the_levels_it_was_chosen_under_and_to_nothing_else() {
         prepare(
             from,
             "entry.create",
-            json!({"parent":context.context,"template":context.default,"title":title}),
+            json!({"host":context.context,"template":context.default,"title":title}),
         )
         .unwrap()
         .commit(&ws)

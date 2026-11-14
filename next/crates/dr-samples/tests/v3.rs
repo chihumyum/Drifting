@@ -58,12 +58,23 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
             !source.book.view().acts().is_empty(),
             view.root_entry_by_template(&tid(TPL_ACT_TRACK)).is_some()
         );
+        let storyline_entries = entries
+            .values()
+            .filter(|e| e.template.as_ref() == Some(&tid(TPL_STORYLINE)))
+            .count();
+        assert!(
+            entries
+                .values()
+                .filter(|e| e.template.as_ref() == Some(&tid(TPL_STORYLINE)))
+                .all(|e| !e.is_level() && e.accepts_members(&view.templates_map()))
+        );
         assert_eq!(
             entries.values().filter(|e| !e.is_level()).count(),
             source.book.view().nodes().len()
                 + source.book.view().elements().len()
                 + source.book.view().materials().len()
                 + synthetic_act_leaves
+                + storyline_entries
         );
         for node in source.book.view().nodes() {
             let id = EntryId::parse(node.id.as_str()).unwrap();

@@ -1,5 +1,5 @@
 //! K4 G3 uses the shared v3 seed and real workspace commands. No second corpus.
-use dr_doc::v3::novel::{TPL_ACT_TRACK, TPL_CHAPTER, TPL_IDEA, TPL_STORYLINE};
+use dr_doc::v3::novel::{TPL_ACT_TRACK, TPL_CHAPTER, TPL_IDEA};
 use dr_shell::{
     Services, SettingsFile, ShellInfo, Workspace,
     book::Book,
@@ -75,18 +75,33 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
     assert_eq!(pruned.pins.len(), pin_count);
     view.placements.clear();
     assert!(model::lanes(b, &view).iter().all(|l| l.clips.is_empty()));
-    // Residents without memberships never become lane members.
+    // Storylines have `level == false` by default (`V3-LEAF-NO-CHILDREN`); enabling `level`
+    // places direct residents onto the view's scale as lane clips.
     let lane = &view.lanes[0].entry;
+    assert!(
+        lib.call(
+            &Actor::User,
+            "entry.create",
+            json!({"book":id,"parent":lane,"title":"Rejected leaf resident","template":TPL_CHAPTER}),
+        )
+        .is_err()
+    );
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book":id,"id":lane,"level":true}),
+    );
     let resident = call(
         &lib,
         "entry.create",
         json!({"book":id,"parent":lane,"title":"Synthetic resident","template":TPL_CHAPTER}),
     );
     let next = Book::load(&lib, &id).unwrap();
+    let next_v = next.v3().unwrap();
     assert!(
-        !model::lanes(next.v3().unwrap(), &view)
+        model::lanes(next_v, &next_v.timeline_views[0])
             .iter()
-            .any(|l| l.clips.iter().any(|p| p.entry == resident["id"]))
+            .any(|l| l.id == *lane && l.clips.iter().any(|p| p.entry == resident["id"]))
     );
     lib.shutdown().unwrap();
 }
@@ -1232,7 +1247,9 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
     assert!(act1_entry["parent"].is_null());
     assert_eq!(act1_entry["template"], TPL_ACT_TRACK);
     let tpl = lib.observe(&format!("book:{id}")).unwrap().value["templates"][TPL_ACT_TRACK].clone();
-    assert_eq!(tpl["settings"]["lane"], true);
+    assert_eq!(tpl["level"], true);
+    assert_eq!(tpl["settings"]["accept"], true);
+    assert!(tpl["settings"].get("lane").is_none());
     assert_eq!(tpl["settings"]["default_template"], TPL_IDEA);
     assert!(tpl["settings"].get("allow").is_none());
     assert!(tpl["settings"]["home"].is_null());
@@ -1410,16 +1427,16 @@ fn lanes_follow_resolved_lane_setting_without_inheriting_to_child_levels() {
     let view_id = b0.timeline_views[0].id.clone();
     let existing_lane = b0.timeline_views[0].lanes[0].entry.clone();
 
-    // 1. A non-lane template entry whose own `overrides.lane` is set to `true` becomes a valid lane.
+    // 1. A `level == false` entry whose own `overrides.accept` is set to `true` becomes a valid lane.
     call(
         &lib,
         "entry_template.put",
         json!({
             "book": id,
             "template": {
-                "id": "custom-plain-level",
-                "name": "Synthetic plain level",
-                "level": true,
+                "id": "custom-plain-card",
+                "name": "Synthetic plain card",
+                "level": false,
                 "linkable": false,
                 "settings": {}
             }
@@ -1432,7 +1449,7 @@ fn lanes_follow_resolved_lane_setting_without_inheriting_to_child_levels() {
             "book": id,
             "parent": null,
             "title": "Synthetic overridden lane",
-            "template": "custom-plain-level"
+            "template": "custom-plain-card"
         }),
     )["id"]
         .as_str()
@@ -1451,7 +1468,7 @@ fn lanes_follow_resolved_lane_setting_without_inheriting_to_child_levels() {
         json!({
             "book": id,
             "id": overridden,
-            "overrides": { "lane": true }
+            "overrides": { "accept": true }
         }),
     );
     call(
@@ -1464,16 +1481,38 @@ fn lanes_follow_resolved_lane_setting_without_inheriting_to_child_levels() {
         }),
     );
 
-    // 2. A child level created under a lane does NOT inherit `lane`.
-    let child_level = call(
+    // 2. A child created under an `accept == true` level does NOT inherit `accept`.
+    let host_folder = call(
         &lib,
         "entry.create",
         json!({
             "book": id,
-            "parent": overridden,
-            "title": "Synthetic child level under lane",
-            "template": "custom-plain-level",
+            "parent": null,
+            "title": "Synthetic host folder",
+            "template": "custom-plain-card",
             "level": true
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "entry.update",
+        json!({
+            "book": id,
+            "id": host_folder,
+            "overrides": { "accept": true }
+        }),
+    );
+    let child_card = call(
+        &lib,
+        "entry.create",
+        json!({
+            "book": id,
+            "parent": host_folder,
+            "title": "Synthetic child under accept folder",
+            "template": "custom-plain-card"
         }),
     )["id"]
         .as_str()
@@ -1483,21 +1522,22 @@ fn lanes_follow_resolved_lane_setting_without_inheriting_to_child_levels() {
     let loaded = Book::load(&lib, &id).unwrap();
     let b1 = loaded.v3().unwrap();
     assert!(b1.is_lane(&overridden));
-    assert!(!b1.is_lane(&child_level));
+    assert!(!b1.accepts_members(&child_card));
+    assert!(!b1.is_lane(&child_card));
     assert!(
         model::lanes(b1, &b1.timeline_views[0])
             .iter()
             .any(|l| l.id == overridden)
     );
 
-    // 3. Turning `overrides.lane = false` on a template-backed lane hides it from rendered lanes.
+    // 3. Turning `overrides.accept = false` on a `level == false` storyline lane hides it from rendered lanes.
     call(
         &lib,
         "entry.update",
         json!({
             "book": id,
             "id": existing_lane,
-            "overrides": { "lane": false }
+            "overrides": { "accept": false }
         }),
     );
     let after_off = Book::load(&lib, &id).unwrap();
@@ -1591,11 +1631,11 @@ fn switching_off_a_lane_entry_hides_lane_and_orphan_placements_until_switched_ba
     );
     let raw_before = lib.observe(&format!("book:{id}")).unwrap().value;
 
-    // Switch `lane0`'s level off: hidden in every view, orphan placement hidden, shared placement stays in `lane1`.
+    // Turn off `lane0`'s `accept` (`level == false`): hidden in every view, orphan placement hidden, shared placement stays in `lane1`.
     call(
         &lib,
-        "entry.set_level",
-        json!({ "book": id, "id": lane0, "level": false }),
+        "entry.update",
+        json!({ "book": id, "id": lane0, "overrides": { "accept": false } }),
     );
     refresh(&host, &lib, &id, cx);
     t.read_with(cx, |t, _| {
@@ -1620,7 +1660,7 @@ fn switching_off_a_lane_entry_hides_lane_and_orphan_placements_until_switched_ba
         raw_before["timeline_views"]
     );
 
-    // Undo `set_level(false)` -> view restores identically.
+    // Undo `accept = false` -> view restores identically.
     lib.undo(&Actor::User).unwrap().unwrap();
     refresh(&host, &lib, &id, cx);
     let after_undo: Vec<(String, bool, usize, Vec<_>)> = t.read_with(cx, |t, _| {
@@ -1631,11 +1671,11 @@ fn switching_off_a_lane_entry_hides_lane_and_orphan_placements_until_switched_ba
     });
     assert_eq!(after_undo, expected_lanes);
 
-    // Switch off again, perform a local view rename while hidden, then switch back on via `entry.set_level(true)`.
+    // Turn off again, perform a local view rename while hidden, then restore `accept` via `entry.update`.
     call(
         &lib,
-        "entry.set_level",
-        json!({ "book": id, "id": lane0, "level": false }),
+        "entry.update",
+        json!({ "book": id, "id": lane0, "overrides": { "accept": false } }),
     );
     refresh(&host, &lib, &id, cx);
     cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
@@ -1651,8 +1691,8 @@ fn switching_off_a_lane_entry_hides_lane_and_orphan_placements_until_switched_ba
     });
     call(
         &lib,
-        "entry.set_level",
-        json!({ "book": id, "id": lane0, "level": true }),
+        "entry.update",
+        json!({ "book": id, "id": lane0, "overrides": { "accept": null } }),
     );
     refresh(&host, &lib, &id, cx);
     let after_reopen: Vec<(String, bool, usize, Vec<_>)> = t.read_with(cx, |t, _| {
@@ -1684,38 +1724,27 @@ fn act_track_creation_picks_lane_templates_by_data_without_fixed_template_ids(
     use gpui::Modifiers;
     let (_dir, lib, id) = seed();
 
-    // Turn off `lane` on the built-in templates and delete `TPL_ACT_TRACK` (unused in `tiny`),
-    // leaving zero `tpl-*` swimlane templates in the book.
-    call(
-        &lib,
-        "entry_template.delete",
-        json!({ "book": id, "id": TPL_ACT_TRACK }),
-    );
-    let mut storyline_tpl =
-        lib.observe(&format!("book:{id}")).unwrap().value["templates"][TPL_STORYLINE].clone();
-    storyline_tpl["id"] = json!(TPL_STORYLINE);
-    storyline_tpl["settings"]["lane"] = json!(false);
-    // Modules map in raw Loro -> fetch clean DTO via `entry_template.list` before `put`.
-    let listed_storyline = call(&lib, "entry_template.list", json!({ "book": id }))
+    // Clear `level` and `accept` on existing templates so only the custom templates below are eligible.
+    for mut tpl in call(&lib, "entry_template.list", json!({ "book": id }))
         .as_array()
         .unwrap()
         .iter()
-        .find(|t| t["id"] == TPL_STORYLINE)
-        .unwrap()
-        .clone();
-    let mut updated_storyline = listed_storyline;
-    updated_storyline["settings"]["lane"] = json!(false);
-    call(
-        &lib,
-        "entry_template.put",
-        json!({ "book": id, "template": updated_storyline }),
-    );
-    let _ = storyline_tpl;
+        .cloned()
+    {
+        if tpl["level"] == json!(true) || tpl["settings"]["accept"] == json!(true) {
+            tpl["level"] = json!(false);
+            tpl["settings"]["accept"] = json!(null);
+            call(
+                &lib,
+                "entry_template.put",
+                json!({ "book": id, "template": tpl }),
+            );
+        }
+    }
 
     // Register custom non-`tpl-*` templates:
-    // - `custom-card`: switch off (`level: false`), target default template
-    // - `custom-off-switch`: `level: false` even though `settings.lane: true` -> NOT eligible
-    // - `custom-arc-alpha` & `custom-arc-beta`: `level: true` and `settings.lane: true` -> eligible!
+    // - `custom-card` & `custom-off-switch`: both `level: false` and `accept` unset/false -> NOT eligible
+    // - `custom-arc-alpha` (`level: true, accept: true`) & `custom-arc-beta` (`level: true`) -> eligible!
     for tpl in [
         json!({
             "id": "custom-card",
@@ -1729,21 +1758,21 @@ fn act_track_creation_picks_lane_templates_by_data_without_fixed_template_ids(
             "name": "Synthetic switch-off template",
             "level": false,
             "linkable": false,
-            "settings": { "lane": true }
+            "settings": { "accept": false }
         }),
         json!({
             "id": "custom-arc-alpha",
             "name": "Synthetic Arc Alpha",
             "level": true,
             "linkable": false,
-            "settings": { "lane": true, "default_template": "custom-card" }
+            "settings": { "accept": true, "default_template": "custom-card" }
         }),
         json!({
             "id": "custom-arc-beta",
             "name": "Synthetic Arc Beta",
             "level": true,
             "linkable": false,
-            "settings": { "lane": true }
+            "settings": {}
         }),
     ] {
         call(

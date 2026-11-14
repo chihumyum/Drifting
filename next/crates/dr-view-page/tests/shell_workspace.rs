@@ -2867,7 +2867,10 @@ fn the_books_structure_undoes_from_the_notice_and_outside_the_prose(cx: &mut Tes
     view.read_with(cx, |ws, _| {
         let v = ws.book.v3().unwrap();
         for id in &below {
-            assert_eq!(v.entry(id).unwrap().parent, None, "moved to the top level");
+            assert!(
+                v.entry(id).is_none(),
+                "resident children are trashed in place"
+            );
         }
         assert_eq!(
             ws.toast.as_ref().unwrap().text.as_ref(),

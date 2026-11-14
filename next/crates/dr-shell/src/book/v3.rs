@@ -18,17 +18,8 @@ use crate::nav::Target;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SettingSource {
     Default,
-    Override {
-        entry: String,
-    },
-    Template {
-        entry: String,
-        template: String,
-    },
-    /// A lane always accepts members, even if an override says false.
-    Lane {
-        entry: String,
-    },
+    Override { entry: String },
+    Template { entry: String, template: String },
 }
 
 impl From<entry::SettingSource> for SettingSource {
@@ -39,7 +30,6 @@ impl From<entry::SettingSource> for SettingSource {
             entry::SettingSource::Template { entry, template } => {
                 Self::Template { entry, template }
             }
-            entry::SettingSource::Lane { entry } => Self::Lane { entry },
         }
     }
 }
@@ -130,18 +120,25 @@ impl BookV3 {
             if self.template_index.contains_key(id) {
                 keys.insert(("templates", id));
             }
-            let mut level = self.entry(id);
-            while let Some(entry) = level {
-                if !keys.insert(("entries", entry.id.as_str())) {
-                    break;
+            if let Some(entry) = self.entry(id) {
+                let own_home = entry
+                    .overrides
+                    .as_ref()
+                    .and_then(|o| o.home.as_ref())
+                    .or_else(|| self.template_of(id).and_then(|t| t.settings.home.as_ref()))
+                    .and_then(|h| h.as_deref());
+                for start in [Some(entry), own_home.and_then(|h| self.entry(h))] {
+                    let mut level = start;
+                    while let Some(cur) = level {
+                        if !keys.insert(("entries", cur.id.as_str())) {
+                            break;
+                        }
+                        if let Some(template) = cur.template.as_deref() {
+                            keys.insert(("templates", template));
+                        }
+                        level = cur.parent.as_deref().and_then(|parent| self.entry(parent));
+                    }
                 }
-                if let Some(template) = entry.template.as_deref() {
-                    keys.insert(("templates", template));
-                }
-                level = entry
-                    .parent
-                    .as_deref()
-                    .and_then(|parent| self.entry(parent));
             }
         }
         let mut guard = self.guard();
@@ -171,9 +168,9 @@ impl BookV3 {
     }
     pub fn exists(&self, target: &Target) -> bool {
         match target {
-            // A level's flattened book view stays valid only while the entry
-            // survives and its level switch remains on.
-            Target::Book(id) => self.entry(id.as_str()).is_some_and(|e| e.level),
+            // A flattened book view stays valid while the entry survives and
+            // can hold or accept entries below it.
+            Target::Book(id) => self.has_below(id.as_str()),
             // A switched template may leave a retained prose module. Its page
             // renderer resolves module.list; removing a definition must not
             // close the author's tab while the entry and its content survive.
@@ -224,17 +221,28 @@ impl BookV3 {
             .and_then(|e| e.get(entry))
             .copied()
     }
-    /// Whether `id` is a timeline swimlane: its switch is on and `lane` is
-    /// set on its own overrides, else on its template.
-    pub fn is_lane(&self, id: &str) -> bool {
+    /// Whether `id` accepts memberships on its own (`overrides.accept` else
+    /// `template.settings.accept`).
+    pub fn accepts_members(&self, id: &str) -> bool {
         self.entry(id).is_some_and(|e| {
-            e.level
-                && e.overrides
-                    .as_ref()
-                    .and_then(|o| o.lane)
-                    .or_else(|| self.template_of(id).and_then(|t| t.settings.lane))
-                    .unwrap_or(false)
+            e.overrides
+                .as_ref()
+                .and_then(|o| o.accept)
+                .or_else(|| self.template_of(id).and_then(|t| t.settings.accept))
+                .unwrap_or(false)
         })
+    }
+    /// Whether `id` can have entries below it (`level` or `accept`).
+    pub fn has_below(&self, id: &str) -> bool {
+        self.entry(id)
+            .is_some_and(|e| e.level || self.accepts_members(id))
+    }
+    /// Whether `id` is currently an active swimlane in at least one live
+    /// timeline view.
+    pub fn is_lane(&self, id: &str) -> bool {
+        self.timeline_views
+            .iter()
+            .any(|v| v.lanes.iter().any(|l| l.entry == id))
     }
 }
 
@@ -301,6 +309,26 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .levels()
             .map(|e| {
                 let resolved = structure.level_settings(&e.id).expect("live level");
+                let children: Vec<String> = if e.is_level() {
+                    structure
+                        .children_of(Some(&e.id))
+                        .into_iter()
+                        .map(|c| c.id.to_string())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                let child_ids: BTreeSet<&str> = children.iter().map(String::as_str).collect();
+                let members: Vec<String> = if e.accepts_members(templates_map) {
+                    structure
+                        .members_of(&e.id)
+                        .into_iter()
+                        .filter(|m| !child_ids.contains(m.id.as_str()))
+                        .map(|m| m.id.to_string())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 (
                     e.id.to_string(),
                     Level {
@@ -310,22 +338,15 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                             .iter()
                             .map(|(k, s)| (k.clone(), entry::SettingSource::from(s).into()))
                             .collect(),
-                        children: structure
-                            .children_of(Some(&e.id))
-                            .into_iter()
-                            .map(|c| c.id.to_string())
-                            .collect(),
-                        members: structure
-                            .members_of(&e.id)
-                            .into_iter()
-                            .map(|m| m.id.to_string())
-                            .collect(),
+                        children,
+                        members,
                     },
                 )
             })
             .collect();
         let memberships: Vec<types::Membership> =
             structure.memberships().iter().map(Into::into).collect();
+        let raw_views = view.timeline_views_raw();
         let colors: BTreeMap<String, String> = structure
             .entries()
             .filter(|e| !e.is_trashed())
@@ -335,6 +356,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                     entries_map,
                     templates_map,
                     structure.memberships(),
+                    &raw_views,
                 )?;
                 Some((e.id.to_string(), color))
             })

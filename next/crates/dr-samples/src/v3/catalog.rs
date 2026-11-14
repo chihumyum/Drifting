@@ -1271,7 +1271,7 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             // A live entry lives at the root or under a live entry whose
             // switch is on.
             check(check_parent_is_level(entry.parent.as_ref(), &entries))?;
-            if entry.is_level() {
+            if entry.has_below(&templates) {
                 let settings = resolve_level_settings(Some(&entry.id), &entries, &templates);
                 check(check_entry_template(
                     &templates,
@@ -1290,15 +1290,13 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
         BookGraph {
             entries: &none,
             templates: &templates,
-            memberships: &[],
         },
         BookGraph {
             entries: &entries,
             templates: &templates,
-            memberships: &memberships,
         },
     ))?;
-    for membership in view.memberships_raw() {
+    for membership in &memberships {
         check(check_membership(
             &membership.host,
             &membership.member,
@@ -1314,7 +1312,7 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             check(check_timeline_placement_in_lane(
                 &timeline,
                 &placement.entry,
-                &view.memberships_raw(),
+                &memberships,
                 &entries,
                 &templates,
             ))?;

@@ -287,11 +287,13 @@ fn switched_off_lanes_hide_their_members_without_authorizing_placement_deletion(
     assert!(!lanes.is_empty());
     assert!(!f.original["placements"].as_array().unwrap().is_empty());
     let memberships = f.raw()["memberships"].clone();
-    // An entry whose switch is off keeps its memberships and its place in
-    // the view; both read as absent until the switch is back on.
+    // A host lane (`level == false`) whose `accept` is turned off keeps its memberships
+    // and its place in the view; both read as absent until `accept` is back on.
     for lane in &lanes {
-        let off = f.author("entry.set_level", json!({"id":lane,"level":false}));
-        assert_eq!(off["moved"], json!([]));
+        f.author(
+            "entry.update",
+            json!({"id":lane,"overrides":{"accept":false}}),
+        );
     }
     let shown = f.listed(&tools, &actor);
     assert!(shown["lanes"].as_array().unwrap().is_empty());
@@ -299,7 +301,7 @@ fn switched_off_lanes_hide_their_members_without_authorizing_placement_deletion(
     assert_eq!(f.raw()["memberships"], memberships);
     f.reject_rename(&tools, &actor);
     for lane in &lanes {
-        f.author("entry.set_level", json!({"id":lane,"level":true}));
+        f.author("entry.update", json!({"id":lane,"overrides":{}}));
     }
     assert_eq!(f.raw()["memberships"], memberships);
     f.restored_rename(&tools, &actor);

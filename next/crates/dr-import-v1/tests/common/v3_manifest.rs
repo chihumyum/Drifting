@@ -65,7 +65,8 @@ pub struct Level {
     pub order: Option<f64>,
     pub color: Option<String>,
     pub default_leaf: Option<LeafTemplate>,
-    pub lane: bool,
+    pub is_level: bool,
+    pub accept: bool,
     pub layout: Option<Layout>,
 }
 
@@ -371,16 +372,20 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             initial_body: None,
         });
     }
-    let level = |entry, parent, title: String, order, color, default_leaf, lane, layout| Level {
-        entry,
-        parent,
-        title,
-        order,
-        color,
-        default_leaf,
-        lane,
-        layout,
-    };
+    let level =
+        |entry, parent, title: String, order, color, default_leaf, is_level, accept, layout| {
+            Level {
+                entry,
+                parent,
+                title,
+                order,
+                color,
+                default_leaf,
+                is_level,
+                accept,
+                layout,
+            }
+        };
     for (entry, title, template) in [
         (Entry::Manuscript, "书稿", Some(LeafTemplate::Chapter)),
         (Entry::Ideas, "构想", Some(LeafTemplate::Idea)),
@@ -395,6 +400,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             None,
             template,
+            true,
             false,
             None,
         ));
@@ -414,7 +420,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             act.start_order,
             act.color.clone(),
             Some(LeafTemplate::Chapter),
-            false,
+            true,
+            true,
             None,
         ));
         if act.start_order.is_none() {
@@ -449,6 +456,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             group.order,
             group.color.clone(),
             Some(LeafTemplate::Idea),
+            true,
             false,
             None,
         ));
@@ -480,7 +488,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             Some(cat.color.clone()),
             Some(template),
-            false,
+            true,
+            true,
             Some(Layout::Grid {
                 mode: cat.layout.clone(),
                 x: cat.grid_x,
@@ -514,6 +523,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             Some(line.order_key as f64),
             Some(line.color.clone()),
             default_leaf,
+            false,
             true,
             None,
         ));
@@ -626,6 +636,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             Some(LeafTemplate::Idea),
             true,
+            true,
             None,
         ));
         out.default_view.lanes.insert(0, Entry::ActTrack);
@@ -734,6 +745,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             None,
             Some(LeafTemplate::Chapter),
+            false,
             true,
             None,
         ));
@@ -824,7 +836,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                         None,
                         None,
                         None,
-                        false,
+                        true,
+                        true,
                         None,
                     ));
                 }
@@ -888,7 +901,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             folder.order,
             folder.color.clone(),
             Some(LeafTemplate::Note),
-            false,
+            true,
+            true,
             None,
         ));
     }

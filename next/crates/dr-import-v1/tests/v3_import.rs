@@ -253,8 +253,13 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             "{:?}",
             level.entry
         );
-        assert!(actual.is_level());
-        assert_eq!(actual.is_lane(&view.templates_map()), level.lane);
+        assert_eq!(actual.is_level(), level.is_level, "{:?}", level.entry);
+        assert_eq!(
+            actual.accepts_members(&view.templates_map()),
+            level.accept,
+            "{:?}",
+            level.entry
+        );
         if let Some(template) = &level.default_leaf {
             assert_eq!(
                 view.level_settings(Some(&actual.id)).default_template,
@@ -278,7 +283,6 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert!(!act_track_id.as_str().starts_with("root-"));
         let act_settings = view.level_settings(Some(&act_track_id));
         assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
-        assert!(act_settings.lane);
         assert_eq!(act_settings.home, None);
         assert!(act_settings.accept);
     }
@@ -2893,10 +2897,14 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     assert_eq!(act_track.title, "幕");
     assert_eq!(act_track.parent, None);
     assert!(!act_track.id.as_str().starts_with("root-"));
-    assert!(act_track.is_lane(&view.templates_map()));
+    assert!(dr_model::v3::is_in_any_view(
+        &act_track.id,
+        &view.timeline_views_raw(),
+        &view.entries_map(),
+        &view.templates_map(),
+    ));
     let act_settings = view.level_settings(Some(&act_track.id));
     assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
-    assert!(act_settings.lane);
     assert_eq!(act_settings.home, None);
     assert!(act_settings.accept);
 

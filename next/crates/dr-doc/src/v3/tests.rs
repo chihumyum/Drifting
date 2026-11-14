@@ -131,17 +131,25 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             "missing built-in template {id}"
         );
     }
-    // One kind of template: the switch's default, `linkable`, `lane` in the
-    // settings, and a 「说明」 that is not part of the book on every
-    // organizing template (the 幕 template included).
+    // One kind of template: `level` and `accept` are independent switches, and
+    // every organizing template (`level == true || accept == Some(true)`)
+    // carries a 「说明」 prose module that is not part of the book.
     assert!(tpls[&tid(TPL_MANUSCRIPT)].level);
-    assert_eq!(tpls[&tid(TPL_STORYLINE)].settings.lane, Some(true));
-    assert_eq!(tpls[&tid(TPL_ACT_TRACK)].settings.lane, Some(true));
+    assert!(!tpls[&tid(TPL_STORYLINE)].level);
+    assert_eq!(tpls[&tid(TPL_STORYLINE)].settings.accept, Some(true));
+    assert_eq!(
+        tpls[&tid(TPL_STORYLINE)].settings.home,
+        Some(Some(roots.manuscript.clone()))
+    );
+    assert_eq!(tpls[&tid(TPL_GROUP)].settings.accept, Some(true));
+    assert!(tpls[&tid(TPL_ACT_TRACK)].level);
+    assert_eq!(tpls[&tid(TPL_ACT_TRACK)].settings.accept, Some(true));
     assert!(!tpls[&tid(TPL_CHAPTER)].level);
     for t in tpls.values() {
+        let organizing = t.level || t.settings.accept == Some(true);
         let description = t.module(&mid(MOD_DESCRIPTION));
-        assert_eq!(t.level, description.is_some(), "{}", t.id);
-        assert_eq!(t.linkable, !t.level, "{}", t.id);
+        assert_eq!(organizing, description.is_some(), "{}", t.id);
+        assert_eq!(t.linkable, !organizing, "{}", t.id);
         assert!(description.is_none_or(|d| !d.config.in_book), "{}", t.id);
     }
     assert_eq!(
@@ -339,7 +347,7 @@ fn timeline_view_requires_lane_membership_and_prose_ownership_works() {
             Some(&roots.storylines),
             "主线",
             Some(&tid(TPL_STORYLINE)),
-            true,
+            false,
         )?;
         t.entries().create(
             &eid("ch-1"),
@@ -1732,7 +1740,7 @@ fn flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscr
 }
 
 #[test]
-fn switching_off_moves_direct_children_after_the_top_level_entry_with_their_subtrees() {
+fn switching_off_trashes_live_descendants_in_place_and_keeps_already_trashed_entries() {
     let chapter = tid(TPL_CHAPTER);
     let (mut doc, roots) = novel_book(72, |t, roots| {
         t.entries().create(
@@ -1759,33 +1767,23 @@ fn switching_off_moves_direct_children_after_the_top_level_entry_with_their_subt
             .create(&eid("c3a"), Some(&eid("c3")), "c3a", Some(&chapter), false)?;
         Ok(())
     });
-    let (moved, _) = doc.edit(Origin::User, |t| t.entries().switch_level_off(&eid("vol")));
-    assert_eq!(moved.unwrap(), vec![eid("c1"), eid("c2"), eid("c3")]);
+    let (trashed, _) = doc.edit(Origin::User, |t| {
+        t.entries().switch_level_off(&eid("vol"), Timestamp(10))
+    });
+    assert_eq!(trashed.unwrap(), vec![eid("c1"), eid("c3"), eid("c3a")]);
     let v = doc.view();
     let raw = v.entries_raw();
     let at = |id: &str| raw.iter().find(|e| e.id == eid(id)).unwrap();
-    // Right after the top-level entry `vol` lives under, in their order,
-    // the trashed one included; subtrees go along.
-    let roots_order: Vec<EntryId> = raw
-        .iter()
-        .filter(|e| e.parent.is_none())
-        .map(|e| e.id.clone())
-        .collect();
-    assert_eq!(
-        roots_order,
-        vec![
-            roots.manuscript.clone(),
-            eid("c1"),
-            eid("c2"),
-            eid("c3"),
-            roots.ideas.clone(),
-            roots.elements.clone(),
-            roots.storylines.clone(),
-            roots.materials.clone(),
-        ]
-    );
+    // Descendants stay in place in the LoroTree; live ones get Timestamp(10),
+    // already-trashed `c2` keeps Timestamp(4).
+    assert_eq!(at("c1").parent, Some(eid("vol")));
+    assert_eq!(at("c2").parent, Some(eid("vol")));
+    assert_eq!(at("c3").parent, Some(eid("vol")));
     assert_eq!(at("c3a").parent, Some(eid("c3")));
-    assert!(at("c2").is_trashed());
+    assert_eq!(at("c1").deleted_at, Some(Timestamp(10)));
+    assert_eq!(at("c2").deleted_at, Some(Timestamp(4)));
+    assert_eq!(at("c3").deleted_at, Some(Timestamp(10)));
+    assert_eq!(at("c3a").deleted_at, Some(Timestamp(10)));
     // `vol` keeps its place and its overrides; only its switch changed.
     assert_eq!(at("vol").parent, Some(roots.manuscript.clone()));
     assert!(!at("vol").level);
@@ -1795,30 +1793,7 @@ fn switching_off_moves_direct_children_after_the_top_level_entry_with_their_subt
             .as_ref()
             .is_some_and(|o| o.auto_link == Some(true))
     );
-
-    // An entry at the root: its children go right after itself.
-    let (r, _) = doc.edit(Origin::User, |t| {
-        t.entries().create(
-            &eid("idea"),
-            Some(&roots.ideas),
-            "构想甲",
-            Some(&tid(TPL_IDEA)),
-            false,
-        )?;
-        Ok(())
-    });
-    r.unwrap();
-    let (moved, _) = doc.edit(Origin::User, |t| t.entries().switch_level_off(&roots.ideas));
-    assert_eq!(moved.unwrap(), vec![eid("idea")]);
-    let after: Vec<EntryId> = doc
-        .view()
-        .entries_raw()
-        .into_iter()
-        .filter(|e| e.parent.is_none())
-        .map(|e| e.id)
-        .collect();
-    let i = after.iter().position(|e| e == &roots.ideas).unwrap();
-    assert_eq!(after[i + 1], eid("idea"));
+    assert!(v.children_of(Some(&eid("vol"))).is_empty());
 }
 
 #[test]
@@ -1864,10 +1839,9 @@ fn entry_headers_read_what_the_checks_read_like_a_full_read() {
     }
     // Only alias fields are read.
     assert!(!headers[&eid("p1")].fields[&mid(MOD_FIELDS)].contains_key("summary"));
-    let memberships = v.memberships_raw();
     assert_eq!(
-        AutolinkNames::of(&headers, &memberships, &templates),
-        AutolinkNames::of(&full, &memberships, &templates)
+        AutolinkNames::of(&headers, &templates),
+        AutolinkNames::of(&full, &templates)
     );
     // One entry with its conflict, as the full read marks it.
     let (doc, _) = novel_book(74, |t, roots| {
@@ -1905,14 +1879,14 @@ fn project_book_root_reads_all_four_starts_and_tolerates_missing() {
             Some(&roots.storylines),
             "上线",
             Some(&tid(TPL_STORYLINE)),
-            true,
+            false,
         )?;
         t.entries().create(
             &eid("sl-bot"),
             Some(&roots.storylines),
             "下线",
             Some(&tid(TPL_STORYLINE)),
-            true,
+            false,
         )?;
         for (id, title) in [
             ("ch-1", "章一"),
@@ -2059,7 +2033,7 @@ fn lane_members_order_follows_reference_view_scale_and_places_unpositioned_last(
             Some(&roots.storylines),
             "支线",
             Some(&tid(crate::v3::novel::TPL_STORYLINE)),
-            true,
+            false,
         )?;
         for (id, title) in [("c1", "章一"), ("c2", "章二"), ("c3", "章三")] {
             t.entries().create(

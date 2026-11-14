@@ -94,8 +94,6 @@ pub struct TemplateSummary {
     pub level: bool,
     /// Whether entries of this template take part in auto-linking.
     pub linkable: bool,
-    /// Whether entries of this template whose switch is on are swimlanes.
-    pub lane: bool,
     pub agent: TemplateAgentSummary,
     pub modules: Vec<ModuleSummary>,
 }
@@ -279,7 +277,7 @@ impl StructureContext {
             .filter(|id| {
                 entries_map
                     .get(*id)
-                    .is_some_and(|e| !e.is_trashed() && e.is_level())
+                    .is_some_and(|e| !e.is_trashed() && e.has_below(&templates_map))
             })
             .cloned()
             .collect();
@@ -352,7 +350,7 @@ impl StructureContext {
                     });
                 }
             }
-            if e.is_level() {
+            if e.has_below(&templates_map) {
                 let eff = resolve_level_settings(Some(&e.id), &entries_map, &templates_map);
                 if let Some(def_tid) = eff.default_template
                     && live_templates.contains_key(&def_tid)
@@ -393,10 +391,12 @@ impl StructureContext {
             .map(|template| summarize_template(template, catalog))
             .collect();
 
-        // 5. Build LevelSummary list for all live levels in manuscript tree order.
+        // 5. Build LevelSummary list for all live levels / member hosts in manuscript tree order.
+        let raw_views = view.timeline_views_raw();
+        let active_lanes = dr_model::v3::active_lane_ids(&raw_views, &entries_map, &templates_map);
         let levels: Vec<LevelSummary> = live_entries
             .iter()
-            .filter(|e| e.is_level())
+            .filter(|e| e.has_below(&templates_map))
             .map(|e| {
                 let path = level_path(&e.id, &entries_map);
                 let effective_settings =
@@ -424,7 +424,7 @@ impl StructureContext {
                     template: e
                         .effective_template(&templates_map)
                         .map(|t| t.id.to_string()),
-                    lane: e.is_lane(&templates_map),
+                    lane: active_lanes.contains(&e.id),
                     effective_settings,
                     actions,
                 }
@@ -436,7 +436,7 @@ impl StructureContext {
             Some(BookRoot::Entry { entry })
                 if entries_map
                     .get(entry)
-                    .is_some_and(|e| !e.is_trashed() && e.is_level()) =>
+                    .is_some_and(|e| !e.is_trashed() && e.has_below(&templates_map)) =>
             {
                 vec![entry.to_string()]
             }
@@ -517,7 +517,6 @@ fn summarize_template(tpl: &EntryTemplate, catalog: &Catalog) -> TemplateSummary
         name: tpl.name.clone(),
         level: tpl.level,
         linkable: tpl.linkable,
-        lane: tpl.settings.lane.unwrap_or(false),
         agent,
         modules,
     }
@@ -561,8 +560,10 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
             vec!["module.read", "module.list"],
             vec!["module.put_media", "module.remove_media"],
         ),
-        // What lives below: read through the entry; moved with entry.move.
-        ModuleKind::Children => (vec!["module.read", "entry.get"], Vec::new()),
+        // What lives below: read through the entry; moved with entry.move / membership.*.
+        ModuleKind::Children | ModuleKind::Members => {
+            (vec!["module.read", "entry.get"], Vec::new())
+        }
         ModuleKind::Other(_) => (vec!["module.read", "module.list"], Vec::new()),
     };
     let write_tools = if writable {

@@ -42,7 +42,7 @@ pub fn project(workspace: &Workspace, request: &Request) -> Result<Projection, W
             .ok_or_else(|| WsError::Conflict("preview template is unavailable".into()))?;
         let structure = StructureContext::from_v3_view(None, view, frontier, None)
             .map_err(|e| WsError::Internal(e.to_string()))?;
-        let level = request.draft.level;
+        let has_below = request.draft.level || request.draft.settings.accept == Some(true);
         Ok(Projection {
             source_frontier: request.frontier.clone(),
             draft_frontier: frontier.into(),
@@ -51,8 +51,8 @@ pub fn project(workspace: &Workspace, request: &Request) -> Result<Projection, W
                 .book_prose_modules()
                 .map(|m| m.id.to_string())
                 .collect(),
-            level_defaults: level.then(|| request.draft.settings.clone()),
-            declared_actions: level.then(|| request.draft.verbs.clone()),
+            level_defaults: has_below.then(|| request.draft.settings.clone()),
+            declared_actions: has_below.then(|| request.draft.verbs.clone()),
             structure,
         })
     })
@@ -471,8 +471,6 @@ mod tests {
             projected.level_defaults.as_ref(),
             Some(&unused_level.settings)
         );
-        assert!(!projected.template.lane);
-        assert_eq!(projected.level_defaults.as_ref().unwrap().lane, None);
         assert!(
             !projected
                 .structure
@@ -501,9 +499,8 @@ mod tests {
         let (_dir, workspace, book) = fixture();
         let before = workspace.observe(&format!("book:{book}")).unwrap();
         let mut draft = template(&workspace, &book, "tpl-storyline");
-        draft.settings.accept = Some(false);
+        draft.settings.accept = Some(true);
         draft.settings.home = Some(None);
-        draft.settings.lane = Some(true);
         draft.verbs = vec![TemplateVerb {
             id: dr_model::id::new_uuid_v7(),
             name: "Synthetic preview action".into(),
@@ -517,9 +514,7 @@ mod tests {
             draft: draft.clone(),
         };
         let preview = project(&workspace, &request).unwrap();
-        assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
-        assert!(preview.template.lane);
-        assert_eq!(preview.level_defaults.as_ref().unwrap().lane, Some(true));
+        assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(true));
         assert_eq!(preview.declared_actions.as_ref().unwrap(), &draft.verbs);
         let levels: Vec<_> = preview
             .structure

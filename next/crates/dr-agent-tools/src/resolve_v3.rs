@@ -350,7 +350,7 @@ pub(crate) fn resolve_v3(
                     if let Some(parent) = obj.get_mut("parent")
                         && !parent.is_null()
                     {
-                        let pid = resolve_entry_id(&cx, parent, None, false, true)?;
+                        let pid = resolve_entry_id(&cx, parent, None, false, EntryRole::Level)?;
                         *parent = pid.to_string().into();
                     }
                 }
@@ -359,20 +359,31 @@ pub(crate) fn resolve_v3(
                     let include_trashed =
                         matches!(name, "entry.get" | "entry.trash" | "entry.restore");
                     if let Some(id_val) = obj.get_mut("id") {
-                        let eid = resolve_entry_id(&cx, id_val, None, include_trashed, false)?;
+                        let eid =
+                            resolve_entry_id(&cx, id_val, None, include_trashed, EntryRole::Any)?;
                         *id_val = eid.to_string().into();
                     }
                 }
                 "entry.create" => {
-                    let context_id = if let Some(parent) = obj.get_mut("parent")
+                    let parent_id = if let Some(parent) = obj.get_mut("parent")
                         && !parent.is_null()
                     {
-                        let pid = resolve_entry_id(&cx, parent, None, false, true)?;
+                        let pid = resolve_entry_id(&cx, parent, None, false, EntryRole::Level)?;
                         *parent = pid.to_string().into();
                         Some(pid)
                     } else {
                         None
                     };
+                    let host_id = if let Some(host) = obj.get_mut("host")
+                        && !host.is_null()
+                    {
+                        let hid = resolve_entry_id(&cx, host, None, false, EntryRole::Host)?;
+                        *host = hid.to_string().into();
+                        Some(hid)
+                    } else {
+                        None
+                    };
+                    let context_id = parent_id.clone().or_else(|| host_id.clone());
                     let tpl_id = if let Some(tpl_val) = obj.get_mut("template")
                         && !tpl_val.is_null()
                     {
@@ -397,7 +408,15 @@ pub(crate) fn resolve_v3(
                         let resolved_bodies = resolve_initial_bodies(&tpl, bodies_val)?;
                         *bodies_val = Value::Object(resolved_bodies);
                     }
-                    if context_id.is_some() {
+                    if let Some(hid) = &host_id {
+                        let residence =
+                            dr_model::v3::resolve_host_residence(hid, cx.headers(), cx.templates());
+                        if let Some(home) = residence
+                            && &home != hid
+                        {
+                            extra_subjects.insert(format!("entry:{home}"));
+                        }
+                    } else if context_id.is_some() {
                         let residence = resolve_new_entry_residence(
                             context_id.as_ref(),
                             cx.headers(),
@@ -413,8 +432,13 @@ pub(crate) fn resolve_v3(
                 "entry.update" => {
                     let parent_hint = obj.get("parent").and_then(Value::as_str).map(str::to_owned);
                     if let Some(id_val) = obj.get_mut("id") {
-                        let eid =
-                            resolve_entry_id(&cx, id_val, parent_hint.as_deref(), false, false)?;
+                        let eid = resolve_entry_id(
+                            &cx,
+                            id_val,
+                            parent_hint.as_deref(),
+                            false,
+                            EntryRole::Any,
+                        )?;
                         *id_val = eid.to_string().into();
                     }
                     if let Some(tpl_val) = obj.get_mut("template")
@@ -431,13 +455,13 @@ pub(crate) fn resolve_v3(
                 }
                 "entry.move" => {
                     if let Some(id_val) = obj.get_mut("id") {
-                        let eid = resolve_entry_id(&cx, id_val, None, false, false)?;
+                        let eid = resolve_entry_id(&cx, id_val, None, false, EntryRole::Any)?;
                         *id_val = eid.to_string().into();
                     }
                     if let Some(parent_val) = obj.get_mut("parent")
                         && !parent_val.is_null()
                     {
-                        let pid = resolve_entry_id(&cx, parent_val, None, false, true)?;
+                        let pid = resolve_entry_id(&cx, parent_val, None, false, EntryRole::Level)?;
                         *parent_val = pid.to_string().into();
                     }
                 }
@@ -504,7 +528,7 @@ pub(crate) fn resolve_v3(
                         let entry_val = obj
                             .get_mut("entry")
                             .ok_or_else(|| invalid("module operation needs entry"))?;
-                        let eid = resolve_entry_id(&cx, entry_val, None, false, false)?;
+                        let eid = resolve_entry_id(&cx, entry_val, None, false, EntryRole::Any)?;
                         *entry_val = eid.to_string().into();
                         eid
                     };
@@ -647,7 +671,8 @@ pub(crate) fn resolve_v3(
                             let owner_val = obj
                                 .get_mut("owner")
                                 .ok_or_else(|| invalid("prose module operation needs owner"))?;
-                            let eid = resolve_entry_id(&cx, owner_val, None, false, false)?;
+                            let eid =
+                                resolve_entry_id(&cx, owner_val, None, false, EntryRole::Any)?;
                             *owner_val = eid.to_string().into();
                             eid
                         };
@@ -716,7 +741,7 @@ pub(crate) fn resolve_v3(
                         let h_val = obj
                             .get_mut("host")
                             .ok_or_else(|| invalid("membership needs host"))?;
-                        let hid = resolve_entry_id(&cx, h_val, None, false, true)?;
+                        let hid = resolve_entry_id(&cx, h_val, None, false, EntryRole::Host)?;
                         *h_val = hid.to_string().into();
                         hid
                     };
@@ -724,7 +749,7 @@ pub(crate) fn resolve_v3(
                         let m_val = obj
                             .get_mut("member")
                             .ok_or_else(|| invalid("membership needs member"))?;
-                        let mid = resolve_entry_id(&cx, m_val, None, false, false)?;
+                        let mid = resolve_entry_id(&cx, m_val, None, false, EntryRole::Any)?;
                         *m_val = mid.to_string().into();
                         mid
                     };
@@ -742,13 +767,13 @@ pub(crate) fn resolve_v3(
                 }
                 "membership.primary" => {
                     if let Some(m_val) = obj.get_mut("member") {
-                        let mid = resolve_entry_id(&cx, m_val, None, false, false)?;
+                        let mid = resolve_entry_id(&cx, m_val, None, false, EntryRole::Any)?;
                         *m_val = mid.to_string().into();
                     }
                     if let Some(h_val) = obj.get_mut("host")
                         && !h_val.is_null()
                     {
-                        let hid = resolve_entry_id(&cx, h_val, None, false, true)?;
+                        let hid = resolve_entry_id(&cx, h_val, None, false, EntryRole::Host)?;
                         *h_val = hid.to_string().into();
                     }
                 }
@@ -771,7 +796,13 @@ pub(crate) fn resolve_v3(
                         if let Some(lanes) = v_obj.get_mut("lanes").and_then(Value::as_array_mut) {
                             for lane in lanes {
                                 if let Some(e_val) = lane.get_mut("entry") {
-                                    let eid = resolve_entry_id(&cx, e_val, None, false, true)?;
+                                    let eid = resolve_entry_id(
+                                        &cx,
+                                        e_val,
+                                        None,
+                                        false,
+                                        EntryRole::Below,
+                                    )?;
                                     *e_val = eid.to_string().into();
                                 }
                             }
@@ -781,7 +812,8 @@ pub(crate) fn resolve_v3(
                         {
                             for p in placements {
                                 if let Some(e_val) = p.get_mut("entry") {
-                                    let eid = resolve_entry_id(&cx, e_val, None, false, false)?;
+                                    let eid =
+                                        resolve_entry_id(&cx, e_val, None, false, EntryRole::Any)?;
                                     *e_val = eid.to_string().into();
                                 }
                             }
@@ -791,7 +823,8 @@ pub(crate) fn resolve_v3(
                                 if let Some(e_val) = pin.get_mut("entry")
                                     && !e_val.is_null()
                                 {
-                                    let eid = resolve_entry_id(&cx, e_val, None, false, false)?;
+                                    let eid =
+                                        resolve_entry_id(&cx, e_val, None, false, EntryRole::Any)?;
                                     *e_val = eid.to_string().into();
                                 }
                             }
@@ -804,13 +837,13 @@ pub(crate) fn resolve_v3(
                         *v_val = vid.to_string().into();
                     }
                     if let Some(e_val) = obj.get_mut("entry") {
-                        let eid = resolve_entry_id(&cx, e_val, None, false, false)?;
+                        let eid = resolve_entry_id(&cx, e_val, None, false, EntryRole::Any)?;
                         *e_val = eid.to_string().into();
                     }
                     if let Some(l_val) = obj.get_mut("lane")
                         && !l_val.is_null()
                     {
-                        let lid = resolve_entry_id(&cx, l_val, None, false, true)?;
+                        let lid = resolve_entry_id(&cx, l_val, None, false, EntryRole::Below)?;
                         *l_val = lid.to_string().into();
                     }
                     if name == "timeline_view.remove"
@@ -839,7 +872,7 @@ pub(crate) fn resolve_v3(
                         && let Some(e_val) = pin_obj.get_mut("entry")
                         && !e_val.is_null()
                     {
-                        let eid = resolve_entry_id(&cx, e_val, None, false, false)?;
+                        let eid = resolve_entry_id(&cx, e_val, None, false, EntryRole::Any)?;
                         *e_val = eid.to_string().into();
                     }
                 }
@@ -873,9 +906,13 @@ pub(crate) fn resolve_v3(
                             if !looks_like_uuid(raw) {
                                 match collection.as_str() {
                                     "entries" => {
-                                        if let Ok(eid) =
-                                            resolve_entry_id(&cx, id_val, None, true, false)
-                                        {
+                                        if let Ok(eid) = resolve_entry_id(
+                                            &cx,
+                                            id_val,
+                                            None,
+                                            true,
+                                            EntryRole::Any,
+                                        ) {
                                             *id_val = eid.to_string().into();
                                         }
                                     }
@@ -1026,10 +1063,14 @@ fn resolve_action(
 
     let mut create_args = json!({
         "book": book.as_str(),
-        "parent": binding.reference.level,
         "template": binding.target_template,
         "title": title,
     });
+    if binding.home.as_deref() == Some(binding.reference.level.as_str()) {
+        create_args["parent"] = json!(binding.reference.level);
+    } else {
+        create_args["host"] = json!(binding.reference.level);
+    }
     if let Some(resolved_bodies) = resolved_bodies {
         create_args["bodies"] = Value::Object(resolved_bodies);
     }
@@ -1194,6 +1235,8 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
         "entry.create" => {
             if let Some(parent) = args.get("parent").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{parent}"));
+            } else if let Some(host) = args.get("host").and_then(Value::as_str) {
+                subjects.insert(format!("entry:{host}"));
             } else {
                 subjects.insert("entry:*".into());
             }
@@ -1396,10 +1439,40 @@ fn resolve_settings_override(cx: &ResolveCtx<'_>, ov_obj: &mut Map<String, Value
     if let Some(home) = ov_obj.get_mut("home")
         && !home.is_null()
     {
-        let hid = resolve_entry_id(cx, home, None, false, true)?;
+        let hid = resolve_entry_id(cx, home, None, false, EntryRole::Level)?;
         *home = hid.to_string().into();
     }
     Ok(())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EntryRole {
+    Any,
+    Level,
+    Host,
+    Below,
+}
+
+impl EntryRole {
+    fn check(self, entry: &Entry, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
+        match self {
+            Self::Any => true,
+            Self::Level => entry.is_level(),
+            Self::Host => entry.accepts_members(templates),
+            Self::Below => entry.has_below(templates),
+        }
+    }
+
+    fn reject_message(self, trimmed: &str) -> String {
+        match self {
+            Self::Any => unreachable!(),
+            Self::Level => format!("entry {trimmed:?} has its switch off: nothing lives under it"),
+            Self::Host => format!("entry {trimmed:?} does not accept entries from elsewhere"),
+            Self::Below => {
+                format!("entry {trimmed:?} has neither level nor accept enabled")
+            }
+        }
+    }
 }
 
 fn resolve_entry_id(
@@ -1407,7 +1480,7 @@ fn resolve_entry_id(
     value: &Value,
     parent_hint: Option<&str>,
     include_trashed: bool,
-    levels_only: bool,
+    role: EntryRole,
 ) -> Result<EntryId> {
     let raw = string(value, "entry")?;
     let trimmed = raw.trim();
@@ -1420,28 +1493,26 @@ fn resolve_entry_id(
             &Value::String(p.into()),
             None,
             include_trashed,
-            true,
+            EntryRole::Level,
         )?),
         _ => None,
     };
+    let templates = cx.templates();
     if let Ok(id) = EntryId::parse(trimmed)
         && let Some(entry) = cx.entry_header(&id)
         && (include_trashed || !entry.is_trashed())
     {
-        if levels_only && !entry.is_level() {
-            return Err(invalid(format!(
-                "entry {trimmed:?} has its switch off: nothing lives under it"
-            )));
+        if !role.check(&entry, templates) {
+            return Err(invalid(role.reject_message(trimmed)));
         }
         return Ok(id);
     }
     let entries = cx.headers();
-    let templates = cx.templates();
     let key = trimmed.to_lowercase();
     let matches: Vec<&Entry> = entries
         .values()
         .filter(|e| include_trashed || !e.is_trashed())
-        .filter(|e| !levels_only || e.is_level())
+        .filter(|e| role.check(e, templates))
         .filter(|e| {
             parent_id
                 .as_ref()
@@ -1857,7 +1928,7 @@ fn resolve_document_v3(
                 .or_else(|| obj.get("id"))
                 .ok_or_else(|| invalid("entry document selector needs entry, name, or id"))?;
             let parent_hint = obj.get("parent").and_then(Value::as_str);
-            let eid = resolve_entry_id(cx, entry_selector, parent_hint, false, false)?;
+            let eid = resolve_entry_id(cx, entry_selector, parent_hint, false, EntryRole::Any)?;
             let entry = cx.entry_header(&eid).expect("resolved entry");
             let mid = if let Some(mod_val) = obj.get("module").filter(|v| !v.is_null()) {
                 resolve_entry_prose_module(cx, &entry, mod_val, true, require_writable)?
@@ -1959,7 +2030,7 @@ fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
                 let tid = resolve_template_id(cx, &Value::String(tpl_s.into()), false)?;
                 resolve_entry_id_filtered(cx, name_or_id, Some(&tid))?
             } else {
-                resolve_entry_id(cx, name_or_id, parent_hint, false, false)?
+                resolve_entry_id(cx, name_or_id, parent_hint, false, EntryRole::Any)?
             };
             ("entry", eid.to_string())
         }

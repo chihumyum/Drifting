@@ -314,6 +314,66 @@ pub(crate) fn book_changes(
         .collect()
 }
 
+/// Whether a persisted book-document change can affect automatic-link names
+/// (`kernel-v5.md` §16: auto-linking reads residence only, so membership
+/// edits, `primary`, and `accept` / `home` overrides never invalidate the
+/// cached name table or matcher).
+pub(crate) fn touches_autolink_names(changes: &[ContainerChange]) -> bool {
+    for c in changes {
+        let root = c
+            .path
+            .first()
+            .and_then(|(id, _)| root_name(id))
+            .or_else(|| root_name(&c.target));
+        match root {
+            Some("templates") => return true,
+            Some("entries") => {
+                if matches!(c.diff, Diff::Tree(_)) {
+                    return true;
+                }
+                match c.path.get(2) {
+                    Some((_, Index::Key(k))) if k.as_ref() == "fields" => return true,
+                    Some((_, Index::Key(k))) if k.as_ref() == "overrides" => {
+                        if let (3, Diff::Map(m)) = (c.path.len(), &c.diff) {
+                            if m.updated.contains_key("auto_link") {
+                                return true;
+                            }
+                        } else {
+                            return true;
+                        }
+                    }
+                    Some(_) => {}
+                    None => match &c.diff {
+                        Diff::Map(m) => {
+                            for (k, val) in &m.updated {
+                                match k.as_ref() {
+                                    "title" | "template" | "level" | "deleted_at" | "fields" => {
+                                        return true;
+                                    }
+                                    "overrides" => match val {
+                                        Some(loro::ValueOrContainer::Container(
+                                            loro::Container::Map(ov),
+                                        )) => {
+                                            if ov.get("auto_link").is_some() {
+                                                return true;
+                                            }
+                                        }
+                                        _ => return true,
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                        _ => return true,
+                    },
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// Changed body ranges (after the change) and whether embeds changed.
 pub(crate) fn prose_ranges(changes: &[ContainerChange]) -> (Vec<Range<usize>>, bool) {
     let mut ranges: Vec<Range<usize>> = Vec::new();

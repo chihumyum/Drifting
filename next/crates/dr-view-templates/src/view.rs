@@ -1170,13 +1170,12 @@ mod tests {
                     .writable
             );
             let mut level = editor.host.book.v3().unwrap().template("tpl-storyline").unwrap().clone();
-            level.settings.accept = Some(false);
-            level.settings.lane = Some(true);
+            level.settings.accept = Some(true);
+            level.settings.display = Some("board".into());
             let request = crate::preview::Request { draft: level.clone(), ..editor.preview_request().unwrap() };
             let preview = crate::preview::project(&lib, &request).unwrap();
-            assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
-            assert!(preview.template.lane);
-            assert_eq!(preview.level_defaults.as_ref().unwrap().lane, Some(true));
+            assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(true));
+            assert_eq!(preview.level_defaults.as_ref().unwrap().display.as_deref(), Some("board"));
             let levels: Vec<_> = preview.structure.levels.iter()
                 .filter(|entry| entry.template.as_deref() == Some(&level.id)).collect();
             assert!(!levels.is_empty());
@@ -1283,7 +1282,7 @@ mod tests {
             assert_eq!(editor.draft.modules.len(), 1);
             assert_eq!(editor.draft.modules[0].kind, "prose");
             assert!(editor.draft.modules[0].config.in_book);
-            assert_eq!(editor.draft.settings.lane, None);
+            assert_eq!(editor.draft.settings.accept, None);
 
             let first_prose = editor.draft.modules[0].id.clone();
             let mut second = model::module("prose", "Synthetic notes prose".into());
@@ -1296,7 +1295,6 @@ mod tests {
             model::move_module(&mut editor.draft, &children_id, Some(&second_prose));
 
             editor.draft.level = true;
-            editor.draft.settings.lane = Some(true);
             editor.draft.settings.accept = Some(false);
             editor.draft.settings.display = Some("board".into());
             editor.draft.verbs.push(TemplateVerb {
@@ -1315,7 +1313,6 @@ mod tests {
                 crate::preview::project(&lib, &editor.preview_request().unwrap()).unwrap();
             assert!(preview.template.level);
             assert!(preview.template.linkable);
-            assert!(preview.template.lane);
             assert_eq!(preview.book_prose_modules, vec![first_prose.clone()]);
             assert_eq!(preview.template.modules.len(), 3);
             assert_eq!(preview.template.modules[1].id, children_id);
@@ -1330,12 +1327,12 @@ mod tests {
                     .write_tools
                     .is_empty()
             );
-            assert_eq!(preview.level_defaults.as_ref().unwrap().lane, Some(true));
+            assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
             assert_eq!(preview.declared_actions.as_ref().unwrap().len(), 1);
 
-            editor.reset_setting("lane");
-            assert_eq!(editor.draft.settings.lane, None);
-            editor.draft.settings.lane = Some(true);
+            editor.reset_setting("accept");
+            assert_eq!(editor.draft.settings.accept, None);
+            editor.draft.settings.accept = Some(false);
 
             // Collapsing the default level switch hides level settings and actions
             // in the editor without erasing their stored values.
@@ -1349,7 +1346,6 @@ mod tests {
                 crate::preview::project(&lib, &editor.preview_request().unwrap()).unwrap();
             assert!(!preview.template.level);
             assert!(!preview.template.linkable);
-            assert!(preview.template.lane);
             assert!(preview.level_defaults.is_none());
             assert!(preview.declared_actions.is_none());
 
@@ -1358,7 +1354,6 @@ mod tests {
             let persisted = loaded_book.v3().unwrap().template(&saved.id).unwrap();
             assert!(!persisted.level);
             assert!(!persisted.linkable);
-            assert_eq!(persisted.settings.lane, Some(true));
             assert_eq!(persisted.settings.accept, Some(false));
             assert_eq!(persisted.settings.display.as_deref(), Some("board"));
             assert_eq!(persisted.verbs.len(), 1);

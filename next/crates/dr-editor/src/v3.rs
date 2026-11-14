@@ -147,6 +147,7 @@ pub(crate) fn page_infos(
         let structure = view.structure_snapshot();
         let entries = structure.entries_map();
         let templates = structure.templates_map();
+        let views: Vec<_> = structure.timeline_views().cloned().collect();
         let number_by_id: std::collections::HashMap<dr_model::id::EntryId, u32> = structure
             .book_sequence()
             .into_iter()
@@ -215,7 +216,7 @@ pub(crate) fn page_infos(
                 // The lane and colour every surface shows (`kernel-v4.md` §9).
                 let memberships = structure.memberships();
                 if let Some(host_id) =
-                    dr_model::v3::primary_lane(entry, entries, templates, memberships)
+                    dr_model::v3::primary_lane(entry, entries, templates, memberships, &views)
                     && let Some(lane) = entries.get(host_id)
                 {
                     info.storyline = Some(crate::page::StorylineMark {
@@ -224,7 +225,8 @@ pub(crate) fn page_infos(
                         color: dr_model::v3::lane_color(lane, templates).unwrap_or_default(),
                     });
                 }
-                info.color = dr_model::v3::entry_color(entry, entries, templates, memberships);
+                info.color =
+                    dr_model::v3::entry_color(entry, entries, templates, memberships, &views);
                 info
             })
             .collect()

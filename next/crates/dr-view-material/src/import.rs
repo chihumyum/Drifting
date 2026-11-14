@@ -291,6 +291,7 @@ fn record(
                 title: display_title.clone(),
                 mark: None,
                 parent,
+                host: None,
                 template: Some(template_id),
                 level: None,
                 bodies: std::collections::BTreeMap::new(),

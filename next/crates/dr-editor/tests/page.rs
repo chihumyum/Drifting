@@ -138,6 +138,12 @@ fn the_page_shows_its_facts_and_follows_them(cx: &mut TestAppContext) {
         dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-storyline", "码头线", None)
             ["id"]
             .clone();
+    let view_id = out(&e.ws, "timeline_view.list", json!({"book": e.book}))[0]["id"].clone();
+    out(
+        &e.ws,
+        "timeline_view.add_lane",
+        json!({"book": e.book, "view": view_id, "lane": line}),
+    );
     chapter(&e, "序", "开头。");
     let doc = chapter(&e, "雨夜", "他把吸铁石拍在桌上。");
     let entry = doc.trim_start_matches("body:").split('/').next().unwrap();

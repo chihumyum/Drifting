@@ -677,39 +677,40 @@ fn lane_setting_override_toggles_swimlane_and_allow_is_retired() {
         prepare_override(&snap, &group, "allow", Some(json!([]))).is_err(),
         "retired allow setting must be rejected even with an array payload"
     );
+    assert!(
+        prepare_override(&snap, &group, "lane", Some(json!(true))).is_err(),
+        "retired lane setting must be rejected by prepare_override"
+    );
     assert!(!snap.v3().unwrap().is_lane(&group));
 
-    prepare_override(&snap, &group, "lane", Some(json!(true)))
+    prepare_override(&snap, &group, "accept", Some(json!(false)))
         .unwrap()
         .commit(&ws)
         .unwrap();
-    let enabled = Book::load(&ws, &book).unwrap();
-    let v = enabled.v3().unwrap();
-    assert!(v.is_lane(&group));
-    assert!(v.levels[&group].settings.lane);
+    let disabled = Book::load(&ws, &book).unwrap();
+    let v = disabled.v3().unwrap();
+    assert!(!v.levels[&group].settings.accept);
     assert_eq!(
-        v.levels[&group].sources["lane"],
+        v.levels[&group].sources["accept"],
         SettingSource::Override {
             entry: group.clone()
         }
     );
 
-    prepare_override(&enabled, &group, "lane", Some(json!(false)))
-        .unwrap()
-        .commit(&ws)
-        .unwrap();
-    let disabled = Book::load(&ws, &book).unwrap();
-    assert!(!disabled.v3().unwrap().is_lane(&group));
-    assert!(!disabled.v3().unwrap().levels[&group].settings.lane);
-
-    prepare_override(&disabled, &group, "lane", None)
+    prepare_override(&disabled, &group, "accept", None)
         .unwrap()
         .commit(&ws)
         .unwrap();
     let restored = Book::load(&ws, &book).unwrap();
     let v = restored.v3().unwrap();
-    assert!(!v.is_lane(&group));
-    assert_eq!(v.levels[&group].sources["lane"], SettingSource::Default);
+    assert!(v.levels[&group].settings.accept);
+    assert_eq!(
+        v.levels[&group].sources["accept"],
+        SettingSource::Template {
+            entry: group.clone(),
+            template: "tpl-group".into()
+        }
+    );
     ws.shutdown().unwrap();
 }
 

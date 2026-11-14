@@ -103,27 +103,24 @@ pub struct LevelSettings {
     /// Default template when creating a new entry under this level (`None` = blank).
     #[serde(default)]
     pub default_template: Option<String>,
-    /// Default workspace presentation mode for entries in this level.
+    /// Default workspace presentation mode for entries below this entry.
     #[serde(default)]
     pub display: String,
-    /// Whether entries residing in or belonging to this level participate in
-    /// auto-linking (when their template is `linkable`).
+    /// Whether entries residing under this level participate in auto-linking
+    /// (when their template is `linkable`).
     #[serde(default)]
     pub auto_link: bool,
-    /// Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).
-    /// Swimlane levels (`lane == true`) always accept memberships.
+    /// Whether entries may belong to this entry via `memberships` (`收别处的条目`);
+    /// independent of `level` and never inherited.
     #[serde(default)]
     pub accept: bool,
-    /// For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).
-    /// `None` means they reside under this level itself.
+    /// For entries with `accept == true`: which level entry newly created
+    /// members reside under (`新条目住在`, never inherited).
     #[serde(default)]
     pub home: Option<String>,
     /// Editor formatting shortcut profile for prose under this level (`格式快捷输入`).
     #[serde(default)]
     pub format_shortcuts: String,
-    /// Whether this level is a timeline swimlane (never inherited).
-    #[serde(default)]
-    pub lane: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -141,7 +138,7 @@ pub struct LevelSettingsOverride {
     pub auto_link: Option<bool>,
     #[serde(default)]
     pub accept: Option<bool>,
-    /// `None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.
+    /// `None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -150,9 +147,6 @@ pub struct LevelSettingsOverride {
     pub home: Option<Option<String>>,
     #[serde(default)]
     pub format_shortcuts: Option<String>,
-    /// `None` leaves it to the template (on an entry) or off (on a template).
-    #[serde(default)]
-    pub lane: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -260,16 +254,18 @@ pub struct Entry {
     pub below: Option<Box<Below>>,
 }
 
-/// What lies below a level (`下面`).
+/// What lies below an entry (`下面` / `挂在这里`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Below {
     pub settings: LevelSettings,
     /// Where each resolved setting comes from.
     pub sources: BTreeMap<String, SettingSource>,
-    /// Live entries living under it, in manuscript order.
-    pub children: Vec<Entry>,
-    /// Live entries validly belonging to it, in the memberships' order.
-    pub members: Vec<Entry>,
+    /// Live entries living under it, in folder/scale order (`Some` only when `level` is on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<Entry>>,
+    /// Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub members: Option<Vec<Entry>>,
 }
 
 /// Where one resolved setting comes from (the same precedence as its value).
@@ -277,17 +273,8 @@ pub struct Below {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SettingSource {
     Default,
-    Override {
-        entry: String,
-    },
-    Template {
-        entry: String,
-        template: String,
-    },
-    /// `accept` is on because the level is a swimlane.
-    Lane {
-        entry: String,
-    },
+    Override { entry: String },
+    Template { entry: String, template: String },
 }
 
 impl From<&dr_model::v3::LevelSettingSource> for SettingSource {
@@ -300,9 +287,6 @@ impl From<&dr_model::v3::LevelSettingSource> for SettingSource {
             dr_model::v3::LevelSettingSource::Template { entry, template } => Self::Template {
                 entry: entry.to_string(),
                 template: template.to_string(),
-            },
-            dr_model::v3::LevelSettingSource::Lane { entry } => Self::Lane {
-                entry: entry.to_string(),
             },
         }
     }
@@ -522,7 +506,6 @@ impl From<&dr_model::v3::LevelSettings> for LevelSettings {
             accept: v.accept,
             home: v.home.as_ref().map(ToString::to_string),
             format_shortcuts: v.format_shortcuts.as_str().to_owned(),
-            lane: v.lane,
         }
     }
 }
@@ -539,7 +522,6 @@ impl From<&dr_model::v3::LevelSettingsOverride> for LevelSettingsOverride {
             accept: v.accept,
             home: v.home.as_ref().map(|o| o.as_ref().map(ToString::to_string)),
             format_shortcuts: v.format_shortcuts.as_ref().map(|f| f.as_str().to_owned()),
-            lane: v.lane,
         }
     }
 }

@@ -262,7 +262,19 @@ fn import_one(
     let view = borrowed.view();
     let entries = view.entries_map();
     let templates = view.templates_map();
-    dr_model::v3::check_parent_is_level(Some(&level_id), &entries)
+    let target_entry = entries
+        .get(&level_id)
+        .filter(|e| !e.is_trashed() && e.has_below(&templates))
+        .ok_or_else(|| {
+            ExportError::Invalid("import target must be a live level or member host".into())
+        })?;
+    let is_host_only = !target_entry.is_level() && target_entry.accepts_members(&templates);
+    let residence = if is_host_only {
+        dr_model::v3::resolve_host_residence(&level_id, &entries, &templates)
+    } else {
+        Some(level_id.clone())
+    };
+    dr_model::v3::check_parent_is_level(residence.as_ref(), &entries)
         .map_err(|e| ExportError::Invalid(e.to_string()))?;
     let settings = dr_model::v3::resolve_level_settings(Some(&level_id), &entries, &templates);
     let template_id = settings
@@ -302,11 +314,10 @@ fn import_one(
         }
     };
     push_chain(&level_id);
-    if let Some(home) =
-        dr_model::v3::resolve_new_entry_residence(Some(&level_id), &entries, &templates)
-        && home != level_id
+    if let Some(home) = &residence
+        && *home != level_id
     {
-        push_chain(&home);
+        push_chain(home);
     }
     push_key(dr_workspace::RecordKey::template(template_id.as_str()));
     let resolved = ws.observe_records(&doc, &guard_keys)?;
@@ -315,14 +326,20 @@ fn import_one(
             "import target changed; select it again".into(),
         ));
     }
-    let parent = level_id.to_string();
+    let target_str = level_id.to_string();
+    let mut create_input = serde_json::json!({
+        "book": book, "template": template_id,
+        "title": title, "bodies": {module.clone(): text.unwrap_or_default()}
+    });
+    if is_host_only {
+        create_input["host"] = serde_json::json!(target_str);
+    } else {
+        create_input["parent"] = serde_json::json!(target_str);
+    }
     let created = ws.call_guarded(
         actor,
         "entry.create",
-        serde_json::json!({
-            "book": book, "parent": parent, "template": template_id,
-            "title": title, "bodies": {module.clone(): text.unwrap_or_default()}
-        }),
+        create_input,
         dr_workspace::WritePreconditions {
             require_all: false,
             ..dr_workspace::WritePreconditions::from_records(resolved)

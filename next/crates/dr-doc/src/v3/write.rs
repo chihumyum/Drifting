@@ -141,7 +141,9 @@ pub(crate) fn write_level_settings_override(
         }
     }
     set(map, "format_shortcuts", ov.format_shortcuts.as_ref())?;
-    set(map, "lane", ov.lane)?;
+    if map.get("lane").is_some() {
+        map.delete("lane")?;
+    }
     Ok(())
 }
 
@@ -758,13 +760,13 @@ impl EntriesTreeWriterV3<'_> {
         Ok(EntryWriterV3 { map: meta })
     }
 
-    /// Turn `id`'s switch off (`kernel-v4.md` "关开关"). Its direct children,
-    /// trashed ones included, move to the root in their order, right after
-    /// the top-level entry `id` lives under (after `id` itself when it is at
-    /// the root), each with its subtree; then `level` is written false.
-    /// Returns the moved children's ids in their order. Nothing else stored
-    /// on `id` changes.
-    pub fn switch_level_off(&self, id: &EntryId) -> Result<Vec<EntryId>> {
+    /// Turn `id`'s switch off (`kernel-v5.md` §16 "关掉层级"): all live
+    /// descendants in its residence subtree are trashed in place
+    /// (`deleted_at = Some(deleted_at)`), while already-trashed entries keep
+    /// their existing `deleted_at` and tree parent pointers stay untouched;
+    /// then `level` is written `false` on `id`. Returns the newly trashed
+    /// descendant IDs in preorder.
+    pub fn switch_level_off(&self, id: &EntryId, deleted_at: Timestamp) -> Result<Vec<EntryId>> {
         let copies = self
             .view
             .tree_index(book_v3::ENTRIES)
@@ -774,41 +776,58 @@ impl EntriesTreeWriterV3<'_> {
                 collection: book_v3::ENTRIES,
                 id: id.to_string(),
             })?;
-        let mut top = copies[0];
-        let mut seen = std::collections::HashSet::from([top]);
-        while let Some(TreeParentId::Node(p)) = self.tree.parent(top) {
-            if !seen.insert(p) {
-                break;
-            }
-            top = p;
-        }
-        let mut children = Vec::new();
-        for copy in &copies {
-            for c in self
+        let mut visited_nodes: std::collections::HashSet<TreeID> = copies.iter().copied().collect();
+        let mut trashed_set: std::collections::HashSet<EntryId> = std::collections::HashSet::new();
+        let mut trashed: Vec<EntryId> = Vec::new();
+        let mut stack: Vec<TreeID> = Vec::new();
+        for copy in copies.iter().rev() {
+            let children = self
                 .tree
                 .children(TreeParentId::Node(*copy))
-                .unwrap_or_default()
-            {
-                if !copies.contains(&c) && !children.contains(&c) {
-                    children.push(c);
-                }
+                .unwrap_or_default();
+            for c in children.into_iter().rev() {
+                stack.push(c);
             }
         }
-        self.tree.enable_fractional_index(0);
-        let mut moved = Vec::with_capacity(children.len());
-        let mut after = top;
-        for c in children {
-            self.tree.mov_after(c, after)?;
-            after = c;
-            if let Some(loro::ValueOrContainer::Value(LoroValue::String(child))) =
-                self.tree.get_meta(c)?.get("id")
-                && let Ok(child) = EntryId::parse(&child)
+        while let Some(node) = stack.pop() {
+            if !visited_nodes.insert(node) {
+                continue;
+            }
+            let meta = self.tree.get_meta(node)?;
+            let already_trashed = matches!(
+                meta.get("deleted_at"),
+                Some(loro::ValueOrContainer::Value(LoroValue::I64(_)))
+            );
+            if already_trashed {
+                continue;
+            }
+            set(&meta, "deleted_at", Some(deleted_at))?;
+            if let Some(loro::ValueOrContainer::Value(LoroValue::String(eid_str))) = meta.get("id")
+                && let Ok(child_id) = EntryId::parse(&eid_str)
+                && child_id != *id
+                && trashed_set.insert(child_id.clone())
             {
-                moved.push(child);
+                trashed.push(child_id);
+            }
+            let children = self
+                .tree
+                .children(TreeParentId::Node(node))
+                .unwrap_or_default();
+            for c in children.into_iter().rev() {
+                stack.push(c);
             }
         }
         self.entry(id)?.level(false)?;
-        Ok(moved)
+        Ok(trashed)
+    }
+
+    /// Reorder direct `LoroTree` children of `parent` (`None` = root) so the
+    /// listed `order` appear at indices `0..order.len()` in that order.
+    pub fn reorder_children(&self, parent: Option<&EntryId>, order: &[EntryId]) -> Result<()> {
+        for (idx, cid) in order.iter().enumerate() {
+            self.move_to_at(cid, parent, idx)?;
+        }
+        Ok(())
     }
 
     /// Open a writer on an existing entry's metadata.
@@ -1452,6 +1471,30 @@ impl<'a> BookTxnV3<'a> {
             &Membership::key(host, member),
             old.map(|s| &s.value),
         )
+    }
+
+    /// Restore only the `pos` field of an existing membership `(host, member)`
+    /// without touching `created_at` or unknown fields.
+    pub fn restore_membership_pos(
+        &mut self,
+        host: &EntryId,
+        member: &EntryId,
+        value: Option<&LoroValue>,
+    ) -> Result<()> {
+        use loro::{Container, ValueOrContainer};
+        let key = Membership::key(host, member);
+        let root = self.view.doc.get_map(book_v3::MEMBERSHIPS);
+        let map = match root.get(&key) {
+            Some(ValueOrContainer::Container(Container::Map(m))) => m,
+            None if value.is_none() => return Ok(()),
+            None => root.ensure_mergeable_map(&key)?,
+            _ => {
+                return Err(DocError::NotInProfile(
+                    "membership record is not a writable map",
+                ));
+            }
+        };
+        restore_raw_field(&map, "pos", value)
     }
 
     pub fn timeline_view(&mut self, id: &TimelineViewId) -> Result<TimelineViewWriterV3> {

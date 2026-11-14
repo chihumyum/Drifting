@@ -197,11 +197,15 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
             .map(|f| f.value.trim().to_owned())
             .filter(|v| !v.is_empty()),
         chapters: numbered.len() as u32,
-        storylines: entries
-            .values()
-            .filter(live)
-            .filter(|e| e.is_lane(templates))
-            .count() as u32,
+        storylines: {
+            let lane_ids =
+                dr_model::v3::active_lane_ids(&v.timeline_views_raw(), entries, templates);
+            entries
+                .values()
+                .filter(live)
+                .filter(|e| lane_ids.contains(&e.id))
+                .count() as u32
+        },
         elements: entries
             .values()
             .filter(live)

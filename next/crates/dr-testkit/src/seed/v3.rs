@@ -458,7 +458,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                     Some(&roots.storylines),
                     &s.name,
                     Some(&tid(TPL_STORYLINE)),
-                    true,
+                    false,
                 )?
                 .set_field(&fmod, "color", Some(&FieldValue::Text(s.color.clone())))?
                 .set_field(&fmod, "summary", Some(&FieldValue::Text(s.summary.clone())))?;
@@ -868,7 +868,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 Some(&roots.storylines),
                 &s.name,
                 Some(&tid(TPL_STORYLINE)),
-                true,
+                false,
             )?;
             w.set_field(&fmod, "color", Some(&FieldValue::Text(s.color.clone())))?
                 .set_field(&fmod, "summary", Some(&FieldValue::Text(s.summary.clone())))?;

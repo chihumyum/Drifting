@@ -33,12 +33,11 @@ fn glossary_from_view(view: &dr_doc::v3::BookViewV3<'_>) -> Result<String, Strin
         return Err("project is unavailable".into());
     }
     let templates = view.templates_map();
-    let memberships = view.memberships_raw();
     let entries = view.entries_raw();
     let entries_map: std::collections::BTreeMap<_, _> =
         entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
     let live: Vec<_> = entries.into_iter().filter(|e| !e.is_trashed()).collect();
-    let linked = dr_model::v3::AutolinkNames::of(&entries_map, &memberships, &templates);
+    let linked = dr_model::v3::AutolinkNames::of(&entries_map, &templates);
     let mut names = Vec::new();
     for entry in live.iter().filter(|e| linked.is_linked(&e.id)) {
         names.push(entry.title.clone());

@@ -676,7 +676,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "V3-LEAF-NO-CHILDREN",
         "开关关着的条目下面没有条目；合并后出现时，读取时把这些条目当作住在最近一个开着开关的祖先下面（没有就是根），数据不动，开关再打开就回来",
         [Command, Read],
-        "命令层用 dr_model::v3::check_parent_is_level 只接受根或开着开关的活条目做新建、移动、恢复的住处，关开关的命令把直接子条目一次挪走；读取时 effective_parent_id 跳过开关关着的祖先，底层数据不动",
+        "命令层用 dr_model::v3::check_parent_is_level 只接受根或开着开关的活条目做新建、移动、恢复的住处，关开关的命令把住在下面的活条目连同子树一次放进最近删除；读取时 effective_parent_id 跳过开关关着的祖先，底层数据不动",
         ["entries_with_the_switch_off_hold_nothing_and_merge_lifts_to_the_nearest_level"]
     ),
     inv!(
@@ -702,30 +702,30 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-MEMBERSHIP-RULES",
-        "归属到的层级活着、开关开着、解析后收别处的条目；读取时不满足就忽略这条归属，数据留着",
+        "被挂的条目活着、开着「收别处的条目」（只看它自己和它的模板，不沿树继承，不看层级开关）；读取时不满足就忽略这条归属，数据留着",
         [Command, Read],
-        "归属只看要挂去的层级，不看成员的模板：check_membership 校验两端活着、宿主开关开着、解析后的 settings.accept 为真（泳道恒为真）；filter_valid_memberships 过滤不满足的归属（宿主关掉开关的也在内），Entry::effective_primary 只认仍在有效归属里的宿主",
+        "归属只看要挂去的条目，不看成员的模板：check_membership 校验两端活着、宿主 accepts_members 为真；filter_valid_memberships 过滤不满足的归属，Entry::effective_primary 只认仍在有效归属里的宿主",
         ["membership_is_governed_by_the_hosts_switch_and_accept"]
     ),
     inv!(
         "V3-TIMELINE-LANE-ENABLED",
-        "视图里的泳道是开关开着、解析后 lane 为真的条目；lane 不往下继承",
+        "视图里的泳道是活着、开着「层级」或「收别处的条目」的条目",
         [Command, Read],
-        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::is_lane（开关开着，lane 取条目自己的覆盖、没有再取模板）；读取时 effective_timeline_lanes 忽略不满足的条目",
+        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::has_below（开着层级或收别处的条目）；读取时 effective_timeline_lanes 忽略不满足的条目",
         ["v3_timeline_lanes_and_placements_require_lane_membership"]
     ),
     inv!(
         "V3-TIMELINE-PLACEMENT-IN-LANE",
-        "视图里的条目在这个视图的某条泳道里：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
+        "视图里的条目在这个视图的某条泳道里（住在开着层级的泳道下，或挂在开着收别处条目的泳道上）：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
         [Command, Read],
-        "命令层用 check_timeline_placement_in_lane 校验条目归属在该视图至少一条有效泳道里，移出泳道时用 prune_placement_if_not_in_view_lanes 清理位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
+        "命令层用 check_timeline_placement_in_lane / is_entry_in_view_lanes 校验条目在至少一条有效泳道里（直接住着或有效挂名），移出或摘名时用 prune_placement_if_not_in_view_lanes 清理孤立位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
         ["v3_timeline_lanes_and_placements_require_lane_membership"]
     ),
     inv!(
         "V3-AUTOLINK-NAME-UNIQUE",
-        "自动链接的名字和别名唯一（范围：自动链接的条目，即模板 linkable、住处层级或任一归属层级开了自动链接的条目，不看它自己的开关）",
+        "自动链接的名字和别名唯一（范围：自动链接的条目，即活着、模板 linkable、住的那一层解析后开了自动链接的条目；只看住处，不看挂在哪，也不看它自己的开关）",
         [Command, Read],
-        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出），只拒绝这次写入新造成的重名；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
+        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出，只读住处），只拒绝这次写入新造成的重名；挂名增删不重算名字表；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
         [
             "autolink_names_are_unique_across_autolinked_entries_whatever_their_switch",
             "a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves_it"
@@ -796,17 +796,24 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "LEVEL-OFF-KEEPS-BELOW",
-        "关开关不删「下面」的东西：覆盖、泳道身份、归属、主归属、视图里的位置都留着，开关关着时读作不存在，再打开就回来",
+        "关层级开关不删「下面」的东西：覆盖、归属、主归属、视图里的泳道与刻度位置都留着；挂在它上面的记录和它在视图里的泳道不看层级开关、只看「收别处的条目」",
         [Structure, Read],
-        "开关存在条目上（Entry::level）；resolve_level_settings 对开关关着的条目给默认值，filter_valid_memberships、Entry::is_lane、effective_timeline_placements 都按开关过滤，数据不动",
+        "开关存在条目上（Entry::level）；挂在上面的记录和泳道按 Entry::accepts_members 照常生效，覆盖和刻度位置原样留着",
         ["switching_off_keeps_overrides_memberships_lanes_and_placements_for_when_it_is_back"]
     ),
     inv!(
-        "LEVEL-SWITCH-OFF-MOVES-CHILDREN",
-        "下面还有条目时关开关：一次书目提交把直接子条目（含回收站里的）按原顺序挪到这个条目所在的顶层条目后面，子树跟着走，守卫按子条目顺序，一步撤销",
+        "ACCEPT-OFF-HIDES-MEMBERS",
+        "「收别处的条目」关着时，挂在它上面的记录读作不在，数据留着；再打开就回来",
+        [Structure, Read],
+        "accept 只读条目自己的覆盖和它的模板，不继承、不看层级开关；filter_valid_memberships、effective_timeline_lanes（对非层级条目）按 accept 过滤，原记录不动",
+        ["accept_off_hides_memberships_without_deleting_them"]
+    ),
+    inv!(
+        "LEVEL-SWITCH-OFF-TRASHES-CHILDREN",
+        "下面还住着条目时关层级开关：一次书目提交把住在下面的活条目（含整个子树）放进最近删除，留在原位不挪，已经在最近删除里的不动，一步撤销；单独恢复时若原住处不能住了，落到往上最近一个开着层级的条目下面（没有就是最外层）",
         [Command],
-        "entry.set_level 关开关时声明 entries/<id>/level 和 children_of(<id>)，在一次写入里调 EntriesTreeWriterV3::switch_level_off，登记 entry_history.restore 撤销这个条目和每个被挪的子条目",
-        ["switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoable_commit"]
+        "entry.set_level 关开关时声明 entries/<id>/level 和 children_of(<id>)，在一次写入里调 EntriesTreeWriterV3::switch_level_off 给下面活着的条目写 deleted_at，登记 entry_history.restore 一步撤销；entry.restore 检查原住处",
+        ["switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step"]
     ),
     inv!(
         "LEVEL-DEFAULT-FROM-TEMPLATE",
@@ -831,14 +838,14 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "FLATTEN-MEMBERS-ONCE",
-        "成书序列和整书视图共用同一个读法：文件夹和根起点在每个层级下先走住在下面的、再走归属进来的，每个条目只出现一次",
+        "成书序列和整书视图共用同一个读法：文件夹和根起点在每个节点下先走住在下面的（层级开着时）、再走归属进来的（收别处的条目开着时），每个条目只出现一次",
         [Structure, Read],
         "BookStructureV3::sequence 用已访问集合挡住重复和环，整书视图（in_book_only = false）与成书序列（in_book_only = true）是同一个读法",
         ["flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone"]
     ),
     inv!(
         "BOOK-ROOT-VALID",
-        "成书的起点是根，或一个活着的、开着层级的条目，或一个没删的视图，或这个视图里的一条有效泳道：命令层预防；读取时不满足就读作没有成书内容，数据留着",
+        "成书的起点是根，或一个活着的、开着层级或「收别处的条目」的条目，或一个没删的视图，或这个视图里的一条有效泳道：命令层预防；读取时不满足就读作没有成书内容，数据留着",
         [Command, Read],
         "命令层用 dr_model::v3::check_book_root 校验起点；读取时 BookStructureV3::book_sequence 在没有成书或起点失效时返回空，不改数据",
         [
@@ -848,7 +855,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "TAB-MOUNT-VALID",
-        "Tab 挂的是根、一个活着的开着层级的条目、一个没删的视图，或成书序列（项目开着成书时）：命令层预防；读取时不满足就显示为失效，数据留着",
+        "Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目、一个没删的视图，或成书序列（项目开着成书时）：命令层预防；读取时不满足就显示为失效，数据留着",
         [Command, Read],
         "命令层用 dr_model::v3::check_tab_mount 校验 Tab 挂载；读取时保留原记录并标出 mount_valid = false",
         [
@@ -858,13 +865,27 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "VIEW-LANE-MEMBERS-PLACED",
-        "视图里每条泳道的每个成员都有刻度位置：命令层在条目挂进泳道或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
+        "视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置：命令层在条目进到泳道里（挂上来或住进去）或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
         [Command, Read],
-        "membership.add、entry.create、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_members_order（及 members_of、sequence）按成书起点视图或首个视图的刻度排，无位置的排在最后",
+        "membership.add、entry.create、entry.move、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位的住处子条目与挂名成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_entries_order 与 lane_members_order 按成书起点视图或首个视图的刻度排，无位置的排在最后",
         [
             "lane_members_order_follows_reference_view_scale_and_places_unpositioned_last",
             "joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos"
         ]
+    ),
+    inv!(
+        "VIEW-LANE-EXIT-RESTORES-ORDER",
+        "泳道进出视图不打乱它里面的条目的先后：放进第一个视图时按手动先后落位；离开最后一个没删的视图（拿出泳道、删视图）时把刻度上的先后写回（挂着的写回归属的 pos，住着的写回文件夹里的手动先后），和拿出泳道同一次提交、一步撤销；还在别的视图里时不写",
+        [Command],
+        "timeline_view.add_lane 与 timeline_view.put 按手动先后给住着的和挂着的条目落位；timeline_view.remove_lane、timeline_view.put、timeline_view.delete 在泳道离开最后一个视图时写回 pos 与 LoroTree 兄弟顺序，登记恢复键一步撤销",
+        ["lane_entering_and_leaving_views_preserves_order_and_undoes_in_one_step"]
+    ),
+    inv!(
+        "VIEW-FOLDER-ORDER-FROM-SCALE",
+        "文件夹在视图里时，它下面的先后读刻度（以成书起点那个视图为准，否则它所在的第一个视图），手动先后留着不读、也不双写；entry.move 带 index 落进这样的文件夹时改刻度上的位置",
+        [Structure, Command, Read],
+        "BookStructureV3 对在活视图里的层级按 lane_reference_view 的刻度重排 children 与先序序列，manual_children 保留原始树顺序；entry.move 对在视图里的父级计算刻度位置写进参考视图，同父级内调先后不改 LoroTree 兄弟顺序",
+        ["folder_in_view_reads_and_moves_by_scale_without_touching_manual_order"]
     ),
     inv!(
         "COMMENT-PART-IN-MODULE",
@@ -933,7 +954,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 83;
+pub const ACTIVE_CONTRACTS: usize = 86;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

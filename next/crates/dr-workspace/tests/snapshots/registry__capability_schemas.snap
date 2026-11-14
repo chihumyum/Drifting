@@ -602,21 +602,27 @@ expression: json
     "output": {
       "$defs": {
         "Below": {
-          "description": "What lies below a level (`下面`).",
+          "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in manuscript order.",
+              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "members": {
-              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "description": "Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "settings": {
               "$ref": "#/$defs/LevelSettings"
@@ -631,9 +637,7 @@ expression: json
           },
           "required": [
             "settings",
-            "sources",
-            "children",
-            "members"
+            "sources"
           ],
           "type": "object"
         },
@@ -908,12 +912,12 @@ expression: json
           "properties": {
             "accept": {
               "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "description": "Whether entries may belong to this entry via `memberships` (`收别处的条目`);\nindependent of `level` and never inherited.",
               "type": "boolean"
             },
             "auto_link": {
               "default": false,
-              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "description": "Whether entries residing under this level participate in auto-linking\n(when their template is `linkable`).",
               "type": "boolean"
             },
             "default_template": {
@@ -926,7 +930,7 @@ expression: json
             },
             "display": {
               "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
+              "description": "Default workspace presentation mode for entries below this entry.",
               "type": "string"
             },
             "format_shortcuts": {
@@ -936,16 +940,11 @@ expression: json
             },
             "home": {
               "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "description": "For entries with `accept == true`: which level entry newly created\nmembers reside under (`新条目住在`, never inherited).",
               "type": [
                 "string",
                 "null"
               ]
-            },
-            "lane": {
-              "default": false,
-              "description": "Whether this level is a timeline swimlane (never inherited).",
-              "type": "boolean"
             }
           },
           "required": [
@@ -954,8 +953,7 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -997,17 +995,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -1016,8 +1006,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -1158,23 +1147,6 @@ expression: json
                 "kind",
                 "entry",
                 "template"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "`accept` is on because the level is a swimlane.",
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
               ],
               "type": "object"
             }
@@ -2695,6 +2667,14 @@ expression: json
         "book": {
           "type": "string"
         },
+        "host": {
+          "default": null,
+          "description": "Membership host (`挂到`): a live entry with `accept == true`.\nMutually exclusive with `parent`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "level": {
           "default": null,
           "description": "The new entry's switch; the template's default when omitted.",
@@ -2712,7 +2692,7 @@ expression: json
         },
         "parent": {
           "default": null,
-          "description": "The level from which creation is requested; its default template and home apply.",
+          "description": "Residence (`住进`): the root (`None`) or a live entry with `level == true`.\nMutually exclusive with `host`.",
           "type": [
             "string",
             "null"
@@ -2741,21 +2721,27 @@ expression: json
     "output": {
       "$defs": {
         "Below": {
-          "description": "What lies below a level (`下面`).",
+          "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in manuscript order.",
+              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "members": {
-              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "description": "Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).",
               "items": {
                 "$ref": "#"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "settings": {
               "$ref": "#/$defs/LevelSettings"
@@ -2770,9 +2756,7 @@ expression: json
           },
           "required": [
             "settings",
-            "sources",
-            "children",
-            "members"
+            "sources"
           ],
           "type": "object"
         },
@@ -2830,12 +2814,12 @@ expression: json
           "properties": {
             "accept": {
               "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "description": "Whether entries may belong to this entry via `memberships` (`收别处的条目`);\nindependent of `level` and never inherited.",
               "type": "boolean"
             },
             "auto_link": {
               "default": false,
-              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "description": "Whether entries residing under this level participate in auto-linking\n(when their template is `linkable`).",
               "type": "boolean"
             },
             "default_template": {
@@ -2848,7 +2832,7 @@ expression: json
             },
             "display": {
               "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
+              "description": "Default workspace presentation mode for entries below this entry.",
               "type": "string"
             },
             "format_shortcuts": {
@@ -2858,16 +2842,11 @@ expression: json
             },
             "home": {
               "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "description": "For entries with `accept == true`: which level entry newly created\nmembers reside under (`新条目住在`, never inherited).",
               "type": [
                 "string",
                 "null"
               ]
-            },
-            "lane": {
-              "default": false,
-              "description": "Whether this level is a timeline swimlane (never inherited).",
-              "type": "boolean"
             }
           },
           "required": [
@@ -2876,8 +2855,7 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -2919,17 +2897,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -2938,8 +2908,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -3023,23 +2992,6 @@ expression: json
                 "kind",
                 "entry",
                 "template"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "`accept` is on because the level is a swimlane.",
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
               ],
               "type": "object"
             }
@@ -3195,7 +3147,7 @@ expression: json
       "title": "Entry",
       "type": "object"
     },
-    "summary": "Create an entry with its template, switch, residence, membership and initial module content."
+    "summary": "Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root)."
   },
   {
     "access": "read",
@@ -3223,21 +3175,27 @@ expression: json
     "output": {
       "$defs": {
         "Below": {
-          "description": "What lies below a level (`下面`).",
+          "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in manuscript order.",
+              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "members": {
-              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "description": "Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).",
               "items": {
                 "$ref": "#"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "settings": {
               "$ref": "#/$defs/LevelSettings"
@@ -3252,9 +3210,7 @@ expression: json
           },
           "required": [
             "settings",
-            "sources",
-            "children",
-            "members"
+            "sources"
           ],
           "type": "object"
         },
@@ -3312,12 +3268,12 @@ expression: json
           "properties": {
             "accept": {
               "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "description": "Whether entries may belong to this entry via `memberships` (`收别处的条目`);\nindependent of `level` and never inherited.",
               "type": "boolean"
             },
             "auto_link": {
               "default": false,
-              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "description": "Whether entries residing under this level participate in auto-linking\n(when their template is `linkable`).",
               "type": "boolean"
             },
             "default_template": {
@@ -3330,7 +3286,7 @@ expression: json
             },
             "display": {
               "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
+              "description": "Default workspace presentation mode for entries below this entry.",
               "type": "string"
             },
             "format_shortcuts": {
@@ -3340,16 +3296,11 @@ expression: json
             },
             "home": {
               "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "description": "For entries with `accept == true`: which level entry newly created\nmembers reside under (`新条目住在`, never inherited).",
               "type": [
                 "string",
                 "null"
               ]
-            },
-            "lane": {
-              "default": false,
-              "description": "Whether this level is a timeline swimlane (never inherited).",
-              "type": "boolean"
             }
           },
           "required": [
@@ -3358,8 +3309,7 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -3401,17 +3351,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -3420,8 +3362,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -3505,23 +3446,6 @@ expression: json
                 "kind",
                 "entry",
                 "template"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "`accept` is on because the level is a swimlane.",
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
               ],
               "type": "object"
             }
@@ -3727,21 +3651,27 @@ expression: json
     "output": {
       "$defs": {
         "Below": {
-          "description": "What lies below a level (`下面`).",
+          "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in manuscript order.",
+              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "members": {
-              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "description": "Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "settings": {
               "$ref": "#/$defs/LevelSettings"
@@ -3756,9 +3686,7 @@ expression: json
           },
           "required": [
             "settings",
-            "sources",
-            "children",
-            "members"
+            "sources"
           ],
           "type": "object"
         },
@@ -3965,12 +3893,12 @@ expression: json
           "properties": {
             "accept": {
               "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "description": "Whether entries may belong to this entry via `memberships` (`收别处的条目`);\nindependent of `level` and never inherited.",
               "type": "boolean"
             },
             "auto_link": {
               "default": false,
-              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "description": "Whether entries residing under this level participate in auto-linking\n(when their template is `linkable`).",
               "type": "boolean"
             },
             "default_template": {
@@ -3983,7 +3911,7 @@ expression: json
             },
             "display": {
               "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
+              "description": "Default workspace presentation mode for entries below this entry.",
               "type": "string"
             },
             "format_shortcuts": {
@@ -3993,16 +3921,11 @@ expression: json
             },
             "home": {
               "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "description": "For entries with `accept == true`: which level entry newly created\nmembers reside under (`新条目住在`, never inherited).",
               "type": [
                 "string",
                 "null"
               ]
-            },
-            "lane": {
-              "default": false,
-              "description": "Whether this level is a timeline swimlane (never inherited).",
-              "type": "boolean"
             }
           },
           "required": [
@@ -4011,8 +3934,7 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -4054,17 +3976,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -4073,8 +3987,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -4160,23 +4073,6 @@ expression: json
                 "template"
               ],
               "type": "object"
-            },
-            {
-              "description": "`accept` is on because the level is a swimlane.",
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
             }
           ]
         }
@@ -4240,7 +4136,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Move an entry's residence and manuscript position; the new residence is the root or a live entry whose switch is on."
+    "summary": "Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order."
   },
   {
     "access": "write",
@@ -4278,7 +4174,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Restore an entry and what lives under it from trash."
+    "summary": "Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root."
   },
   {
     "access": "write",
@@ -4315,8 +4211,8 @@ expression: json
         "level": {
           "type": "boolean"
         },
-        "moved": {
-          "description": "The direct children moved to the root when the switch went off, in\ntheir order (trashed ones included).",
+        "trashed": {
+          "description": "Live descendants moved to the trash in place when the switch went off,\nin pre-order (already-trashed entries excluded).",
           "items": {
             "type": "string"
           },
@@ -4326,12 +4222,12 @@ expression: json
       "required": [
         "id",
         "level",
-        "moved"
+        "trashed"
       ],
       "title": "SetLevelOut",
       "type": "object"
     },
-    "summary": "Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on."
+    "summary": "Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts."
   },
   {
     "access": "write",
@@ -4415,17 +4311,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -5349,8 +5237,7 @@ expression: json
                 "accept": null,
                 "auto_link": null,
                 "display": null,
-                "format_shortcuts": null,
-                "lane": null
+                "format_shortcuts": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
@@ -5522,17 +5409,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -5541,8 +5420,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -6107,8 +5985,7 @@ expression: json
                 "accept": null,
                 "auto_link": null,
                 "display": null,
-                "format_shortcuts": null,
-                "lane": null
+                "format_shortcuts": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
@@ -6280,17 +6157,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -6299,8 +6168,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -6638,8 +6506,7 @@ expression: json
                 "accept": null,
                 "auto_link": null,
                 "display": null,
-                "format_shortcuts": null,
-                "lane": null
+                "format_shortcuts": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
@@ -6798,17 +6665,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -9725,21 +9584,27 @@ expression: json
     "output": {
       "$defs": {
         "Below": {
-          "description": "What lies below a level (`下面`).",
+          "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in manuscript order.",
+              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "members": {
-              "description": "Live entries validly belonging to it, in the memberships' order.",
+              "description": "Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "settings": {
               "$ref": "#/$defs/LevelSettings"
@@ -9754,9 +9619,7 @@ expression: json
           },
           "required": [
             "settings",
-            "sources",
-            "children",
-            "members"
+            "sources"
           ],
           "type": "object"
         },
@@ -10076,12 +9939,12 @@ expression: json
           "properties": {
             "accept": {
               "default": false,
-              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "description": "Whether entries may belong to this entry via `memberships` (`收别处的条目`);\nindependent of `level` and never inherited.",
               "type": "boolean"
             },
             "auto_link": {
               "default": false,
-              "description": "Whether entries residing in or belonging to this level participate in\nauto-linking (when their template is `linkable`).",
+              "description": "Whether entries residing under this level participate in auto-linking\n(when their template is `linkable`).",
               "type": "boolean"
             },
             "default_template": {
@@ -10094,7 +9957,7 @@ expression: json
             },
             "display": {
               "default": "",
-              "description": "Default workspace presentation mode for entries in this level.",
+              "description": "Default workspace presentation mode for entries below this entry.",
               "type": "string"
             },
             "format_shortcuts": {
@@ -10104,16 +9967,11 @@ expression: json
             },
             "home": {
               "default": null,
-              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "description": "For entries with `accept == true`: which level entry newly created\nmembers reside under (`新条目住在`, never inherited).",
               "type": [
                 "string",
                 "null"
               ]
-            },
-            "lane": {
-              "default": false,
-              "description": "Whether this level is a timeline swimlane (never inherited).",
-              "type": "boolean"
             }
           },
           "required": [
@@ -10122,8 +9980,7 @@ expression: json
             "auto_link",
             "accept",
             "home",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -10165,17 +10022,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -10184,8 +10033,7 @@ expression: json
             "display",
             "auto_link",
             "accept",
-            "format_shortcuts",
-            "lane"
+            "format_shortcuts"
           ],
           "type": "object"
         },
@@ -10596,23 +10444,6 @@ expression: json
                 "kind",
                 "entry",
                 "template"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "`accept` is on because the level is a swimlane.",
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
               ],
               "type": "object"
             }
@@ -11360,8 +11191,7 @@ expression: json
                 "accept": null,
                 "auto_link": null,
                 "display": null,
-                "format_shortcuts": null,
-                "lane": null
+                "format_shortcuts": null
               },
               "description": "Settings for what lives below entries of this template whose switch\nis on (`lane` included); kept whatever `level` says."
             },
@@ -11520,17 +11350,9 @@ expression: json
               ]
             },
             "home": {
-              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "description": "`None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.",
               "type": [
                 "string",
-                "null"
-              ]
-            },
-            "lane": {
-              "default": null,
-              "description": "`None` leaves it to the template (on an entry) or off (on a template).",
-              "type": [
-                "boolean",
                 "null"
               ]
             }
@@ -14014,7 +13836,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a timeline view while retaining lane entries and memberships."
+    "summary": "Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit."
   },
   {
     "access": "read",
@@ -14678,7 +14500,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove one view lane and newly orphaned visible positions, retaining hidden records and all memberships."
+    "summary": "Remove one view lane and newly orphaned visible positions, saving its scale order back to manual order when leaving its last live view."
   },
   {
     "access": "write",
@@ -14857,6 +14679,13 @@ expression: json
         "book": {
           "type": "string"
         },
+        "child_order": {
+          "description": "Folder entry ID whose direct child order was written back when it left\nits last live view (`VIEW-FOLDER-ORDER-FROM-SCALE`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "expected": {
           "description": "State after the recorded write; selected values must still match.",
           "type": "string"
@@ -14864,6 +14693,23 @@ expression: json
         "fields": {
           "items": {
             "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "membership_pos": {
+          "description": "`(host, member)` pairs whose `pos` was written back when `host` left its\nlast live view (`VIEW-LANE-EXIT-RESTORES-ORDER`).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
           },
           "type": "array"
         },

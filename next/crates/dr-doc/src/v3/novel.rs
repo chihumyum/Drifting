@@ -212,7 +212,6 @@ pub fn act_track_template() -> EntryTemplate {
             accept: Some(true),
             home: None,
             format_shortcuts: Some(FormatShortcuts::Notes),
-            lane: Some(true),
         },
         verbs: Vec::new(),
         deleted_at: None,
@@ -363,7 +362,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 accept: Some(false),
                 home: None,
                 format_shortcuts: Some(FormatShortcuts::Plain),
-                lane: None,
             },
             verbs: vec![TemplateVerb {
                 id: "new-chapter".into(),
@@ -395,7 +393,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 accept: Some(false),
                 home: None,
                 format_shortcuts: Some(FormatShortcuts::Notes),
-                lane: None,
             },
             verbs: vec![TemplateVerb {
                 id: "new-idea".into(),
@@ -448,7 +445,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 accept: Some(false),
                 home: None,
                 format_shortcuts: Some(FormatShortcuts::Notes),
-                lane: None,
             },
             verbs: vec![TemplateVerb {
                 id: "new-category".into(),
@@ -480,12 +476,11 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 accept: Some(true),
                 home: None,
                 format_shortcuts: Some(FormatShortcuts::Notes),
-                lane: None,
             },
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 6. 分组 (switch on, inherits parent settings)
+        // 6. 分组 (switch on, accept = true, inherits parent below settings)
         EntryTemplate {
             id: tid(TPL_GROUP),
             name: "分组".into(),
@@ -493,17 +488,20 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "分组".into(),
-                description: "通用分组层级，继承上一层的默认模板、自动链接和成书等设置。".into(),
+                description: "通用分组层级，开启收别处的条目并继承上一层的默认模板、自动链接等设置。".into(),
                 instructions: "可用于书稿分卷或分类内要素分组，说明写在本条目的「说明」正文里。".into(),
             }),
             modules: with_description(vec![color_fields_module()]),
             level: true,
             linkable: false,
-            settings: LevelSettingsOverride::default(),
+            settings: LevelSettingsOverride {
+                accept: Some(true),
+                ..LevelSettingsOverride::default()
+            },
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 7. 故事线列表 (switch on, container of storyline lanes)
+        // 7. 故事线列表 (switch on, container of storylines)
         EntryTemplate {
             id: tid(TPL_STORYLINES),
             name: "故事线列表".into(),
@@ -511,8 +509,8 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "故事线列表".into(),
-                description: "收纳全书各条故事线泳道层级的顶层层级。".into(),
-                instructions: "下面每条故事线都是一个开启了泳道开关的层级。".into(),
+                description: "收纳全书各条故事线的顶层层级。".into(),
+                instructions: "下面每条故事线开启收别处的条目，可放入视图作为泳道。".into(),
             }),
             modules: with_description(Vec::new()),
             level: true,
@@ -524,18 +522,17 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 accept: Some(false),
                 home: None,
                 format_shortcuts: Some(FormatShortcuts::Notes),
-                lane: None,
             },
             verbs: vec![TemplateVerb {
                 id: "new-storyline".into(),
                 name: "新建故事线".into(),
-                description: "新建一条故事线泳道".into(),
+                description: "新建一条故事线".into(),
                 target_template: Some(tid(TPL_STORYLINE)),
                 pos: Some(PosKey::first()),
             }],
             deleted_at: None,
         },
-        // 8. 故事线 (switch on, lane = true, home = root-manuscript)
+        // 8. 故事线 (switch off, accept = true, home = root-manuscript)
         EntryTemplate {
             id: tid(TPL_STORYLINE),
             name: "故事线".into(),
@@ -543,7 +540,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "故事线".into(),
-                description: "作为时间线泳道的层级，说明写在本条目的「说明」正文里，成员来自归属。".into(),
+                description: "收纳归属章节的故事线条目，说明写在本条目的「说明」正文里，放入视图后可作为泳道。".into(),
                 instructions: "在此故事线上新建章节时，新章节住在「书稿」并归属到本故事线。".into(),
             }),
             modules: with_description(vec![
@@ -588,7 +585,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     agent: agent_instructions("故事线键值设定表。"),
                 },
             ]),
-            level: true,
+            level: false,
             linkable: false,
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_CHAPTER))),
@@ -597,7 +594,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 accept: Some(true),
                 home: None,
                 format_shortcuts: None,
-                lane: Some(true),
             },
             verbs: vec![TemplateVerb {
                 id: "new-chapter".into(),
@@ -778,7 +774,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     accept: Some(false),
                     home: None,
                     format_shortcuts: Some(FormatShortcuts::Notes),
-                    lane: None,
                 },
                 verbs: vec![
                     TemplateVerb {

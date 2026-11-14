@@ -133,20 +133,21 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
             .filter(|m| m.kind == m::ModuleKind::PlotGrid)
             .map(|m| content::grid(&v, &e.id, m))
     };
-    let mut below = if definition
-        .as_ref()
-        .is_some_and(|m| m.kind == m::ModuleKind::Children)
-        && e.is_level()
-    {
-        super::entry::below(&v.structure_snapshot(), &e.id)
-    } else {
-        None
+    let templates = v.templates_map();
+    let mut below = match definition.as_ref().map(|m| &m.kind) {
+        Some(m::ModuleKind::Children) if e.is_level() => {
+            super::entry::below(&v.structure_snapshot(), &e.id)
+        }
+        Some(m::ModuleKind::Members) if e.accepts_members(&templates) => {
+            super::entry::below(&v.structure_snapshot(), &e.id)
+        }
+        _ => None,
     };
     if let Some(b) = &mut below {
-        for child in &mut b.children {
+        for child in b.children.iter_mut().flatten() {
             super::entry::mark_missing_media(child, &known_assets);
         }
-        for member in &mut b.members {
+        for member in b.members.iter_mut().flatten() {
             super::entry::mark_missing_media(member, &known_assets);
         }
     }

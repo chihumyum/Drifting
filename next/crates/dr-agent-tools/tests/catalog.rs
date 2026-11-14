@@ -656,10 +656,10 @@ fn v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions() {
             .any(|m| m["member"].as_str() == Some(new_chapter_id.as_str()))
     );
 
-    // 4. With its home level switched off, the action falls back to creating
-    // under its own level, as `entry.create` does (no level restricts
-    // templates any more, so the binding stays valid): its revision changes,
-    // and a call made against the old one is refused without a write.
+    // 4. With its home level switched off, the storyline action falls back to
+    // creating at root (`None`) while still hosting on the storyline (`level == false`
+    // by default in `kernel-v5.md` §16): its revision changes, and a call made against
+    // the old one is refused without a write.
     let residence_level = first_storyline_action.home.as_ref().unwrap();
     f.out(
         "entry.set_level",
@@ -677,10 +677,7 @@ fn v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions() {
         .find(|a| a.reference == first_storyline_action.reference)
         .unwrap()
         .clone();
-    assert_eq!(
-        rebound.home.as_deref(),
-        Some(first_storyline_action.reference.level.as_str())
-    );
+    assert_eq!(rebound.home.as_deref(), None);
     assert_ne!(
         updated_catalog.descriptor(&rebound.id).unwrap().revision,
         first_revision

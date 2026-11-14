@@ -47,7 +47,6 @@ pub mod v3 {
             "auto_link" => s.auto_link.is_some(),
             "accept" => s.accept.is_some(),
             "home" => s.home.is_some(),
-            "lane" => s.lane.is_some(),
             "format_shortcuts" => s.format_shortcuts.is_some(),
             _ => false,
         })
@@ -77,13 +76,6 @@ pub mod v3 {
                     keys::v3_levels::SOURCE_TEMPLATE,
                     &[("name", &name), ("level", &level)],
                 )
-            }
-            SettingSource::Lane { entry, .. } => {
-                let name = v
-                    .entry(entry)
-                    .map(|e| e.title.clone())
-                    .unwrap_or_else(|| entry.clone());
-                tf(cx, keys::v3_levels::SOURCE_LANE, &[("name", &name)])
             }
         }
     }
@@ -117,7 +109,6 @@ pub mod v3 {
             "display" => dr_shell::v3::page::display_name(&s.display, cx),
             "auto_link" => on(s.auto_link),
             "accept" => on(s.accept),
-            "lane" => on(s.lane),
             "home" => s
                 .home
                 .as_deref()
@@ -154,13 +145,11 @@ pub mod v3 {
                 "auto_link",
                 "accept",
                 "home",
-                "lane",
                 "format_shortcuts",
             ] {
                 let label = label(key, cx);
                 let host = self.host.page.clone();
                 let id = self.host.level.clone();
-                let lane = key == "accept" && v.is_lane(&self.host.level);
                 let mut row = div()
                     .id(SharedString::from(format!("g2-setting-row-{key}")))
                     .role(gpui::Role::Group)
@@ -174,7 +163,7 @@ pub mod v3 {
                             SharedString::from(format!("g2-setting-{key}")),
                             value(&book, &self.host.level, key, cx),
                         )
-                        .disabled(lane || key == "home" && !level.settings.accept)
+                        .disabled(key == "home" && !level.settings.accept)
                         .on_click(move |_, window, cx| {
                             crate::dialogs::v3::open_setting(
                                 host.clone(),

@@ -516,7 +516,7 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
     let contribution = context.to_contribution().unwrap();
     let parsed: Value = serde_json::from_str(&contribution.text).unwrap();
 
-    // Templates carry `level`, `linkable`, `lane`; never `kind` or `allow`.
+    // Templates carry `level` and `linkable`; never `kind`, `allow`, or `lane`.
     let templates = parsed["templates"].as_array().unwrap();
     assert!(!templates.is_empty());
     for tpl in templates {
@@ -526,9 +526,9 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
             !obj.contains_key("allow"),
             "template still has allow: {tpl}"
         );
+        assert!(!obj.contains_key("lane"), "template still has lane: {tpl}");
         assert!(obj.get("level").and_then(Value::as_bool).is_some());
         assert!(obj.get("linkable").and_then(Value::as_bool).is_some());
-        assert!(obj.get("lane").and_then(Value::as_bool).is_some());
     }
 
     // Levels never expose `allow` or `about`.
