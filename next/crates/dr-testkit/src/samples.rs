@@ -104,7 +104,16 @@ pub fn slow_clock_v3() -> Result<SeededBookV3> {
 
 /// The showcase library laid out in universal kernel v3 format.
 pub fn showcase_v3(seed: u64) -> Result<Vec<SeededBookV3>> {
-    showcase(seed)?.iter().map(book_to_v3).collect()
+    let mut books: Vec<SeededBookV3> = showcase(seed)?
+        .iter()
+        .map(book_to_v3)
+        .collect::<Result<_>>()?;
+    // 《慢钟》 carries a filled asset library (files used, unused, deleted,
+    // with comments) for the file and review acceptance.
+    if let Some(first) = books.first_mut() {
+        crate::seed::with_showcase_files(first)?;
+    }
+    Ok(books)
 }
 
 fn positions(n: usize) -> Vec<PosKey> {

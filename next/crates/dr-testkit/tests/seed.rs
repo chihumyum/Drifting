@@ -679,3 +679,81 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
 
     lib.close().unwrap();
 }
+
+/// DY fix 17: every synthetic preset has a file in its asset library, and
+/// the showcase's first book a filled one (unused, deleted, in a media
+/// module, embedded in prose, with comments and region comments), its bytes
+/// in the store: the file and review acceptance (T5, T6) start from it.
+#[test]
+fn every_preset_has_a_file_and_the_showcase_fills_its_asset_library() {
+    use dr_workspace::Actor;
+    use serde_json::json;
+    let dir = tempfile::tempdir().unwrap();
+    let lib =
+        dr_store::Library::open(dir.path(), dr_workspace::library_options("seed-files")).unwrap();
+    let tiny = seed::generate_v3(Preset::Tiny, DEFAULT_SEED).unwrap();
+    tiny.write_to(&lib).unwrap();
+    assert_eq!(tiny.write_files_to(&lib).unwrap(), 1);
+    let showcase = dr_testkit::samples::showcase_v3(DEFAULT_SEED).unwrap();
+    seed::write_book_v3(&lib, &showcase[0]).unwrap();
+    seed::write_book_files_v3(&lib, &showcase[0]).unwrap();
+    let ws = dr_workspace::Workspace::open(lib, Default::default()).unwrap();
+    let out = |name: &str, input: serde_json::Value| {
+        ws.call(&Actor::User, name, input).unwrap()["output"].clone()
+    };
+    let tiny_book = tiny.books[0].book_id().to_string();
+    let files = out("asset.list", json!({"book": tiny_book, "trashed": true}));
+    assert_eq!(files.as_array().unwrap().len(), 1);
+    let book = showcase[0].book_id().to_string();
+    let files = out("asset.list", json!({"book": book, "trashed": true}));
+    let files = files.as_array().unwrap();
+    // The reference file every seeded book has, and the showcase's five.
+    assert_eq!(files.len(), 6);
+    let by = |name: &str| files.iter().find(|f| f["name"] == name).unwrap().clone();
+    let kinds = |f: &serde_json::Value| -> Vec<String> {
+        let mut k: Vec<String> = f["usages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|u| u["kind"].as_str().unwrap().to_owned())
+            .collect();
+        k.sort();
+        k
+    };
+    assert!(kinds(&by("参考图")).is_empty());
+    assert!(kinds(&by("海边参考.png")).is_empty());
+    assert!(by("旧草图.png")["deleted_at"].is_i64());
+    assert_eq!(kinds(&by("东岸全图.png")), ["media"]);
+    assert_eq!(kinds(&by("潮汐笔记.pdf")), ["embed", "media"]);
+    assert_eq!(kinds(&by("钟楼平面.png")), ["embed"]);
+    for f in files {
+        let stored = ws
+            .library()
+            .asset(f["id"].as_str().unwrap(), dr_store::asset::Variant::Source)
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.sha256, f["sha256"].as_str().unwrap());
+    }
+    let comments = out("comment.list", json!({"book": book}));
+    let on_files: Vec<&serde_json::Value> = comments
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["part"].is_object())
+        .collect();
+    let mut parts: Vec<&str> = on_files
+        .iter()
+        .map(|c| c["part"]["kind"].as_str().unwrap())
+        .collect();
+    parts.sort();
+    assert_eq!(parts, ["embed", "media", "media", "region"]);
+    assert!(on_files.iter().all(|c| c["unlocated"] == false));
+    assert_eq!(
+        on_files
+            .iter()
+            .filter(|c| c["part"]["region"].is_object())
+            .count(),
+        3
+    );
+    ws.close();
+}

@@ -78,14 +78,14 @@ fn open(root: &Path, index: bool) -> Result<Library> {
     Ok(Library::open(root, o)?)
 }
 
-/// (old doc id → (new doc id, freshness)) of the latest import run.
+/// (old doc id → (new doc id, freshness)) of every import run, a later run's
+/// record of a document over an earlier one (a library imported in several
+/// runs has each book's bodies in the run that imported it).
 fn imported_docs(lib: &Library) -> Result<HashMap<String, (String, String)>> {
     Ok(lib.local_read(|conn| {
         let mut by_old = HashMap::new();
-        let mut stmt = conn.prepare(
-            "SELECT old_doc_id, doc_id, freshness FROM import_doc
-             WHERE run_id = (SELECT max(id) FROM import_run)",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT old_doc_id, doc_id, freshness FROM import_doc ORDER BY run_id")?;
         for row in stmt.query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -109,10 +109,11 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let by_old = imported_docs(&lib)?;
     let mut material_assets: HashMap<String, dr_model::id::AssetId> = HashMap::new();
     let mut non_text_materials: HashMap<String, String> = HashMap::new();
+    // Every run's imported books (a book's record is in the run that
+    // imported it), in run order.
     let book_summaries: Vec<String> = lib.local_read(|conn| {
         let mut stmt = conn.prepare(
-            "SELECT summary_json FROM import_book
-             WHERE run_id = (SELECT max(id) FROM import_run) AND status = 'imported'",
+            "SELECT record_json FROM import_book WHERE status = 'imported' ORDER BY run_id",
         )?;
         let rows = stmt
             .query_map([], |r| r.get::<_, String>(0))?
@@ -316,7 +317,7 @@ pub fn check_index(root: &Path) -> Result<Value> {
     let mut books = BTreeMap::new();
     let book_ids: Vec<String> = lib.local_read(|conn| {
         let mut stmt = conn.prepare(
-            "SELECT book_id FROM import_book WHERE run_id = (SELECT max(id) FROM import_run) AND status = 'imported'",
+            "SELECT DISTINCT book_id FROM import_book WHERE status = 'imported' ORDER BY book_id",
         )?;
         let v = stmt
             .query_map([], |r| r.get::<_, String>(0))?

@@ -393,6 +393,117 @@ fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
     out
 }
 
+/// What the import report lists of the 0.1 materials (`kernel-v5.md` §13):
+/// the descriptions and provenance the book has no place for, and what did
+/// not come over (empty folders, image or PDF materials without their file,
+/// unknown kinds, a second material on the same file).
+pub(crate) fn material_report(
+    rows: &BookRows,
+    material_assets: &HashMap<&str, dr_model::id::AssetId>,
+) -> (Vec<receipt::MaterialText>, Vec<receipt::MaterialDropped>) {
+    use receipt::{MaterialDropped, MaterialText};
+    let mut texts = Vec::new();
+    let mut dropped = Vec::new();
+    for m in rows.materials.iter().filter(|m| !m.id.is_empty()) {
+        let description = m
+            .notes_json
+            .as_deref()
+            .map(|n| crate::book::plain_text(n).0)
+            .unwrap_or_default();
+        let provenance = (m.kind == "text")
+            .then(|| m.provenance_json.clone())
+            .flatten()
+            .filter(|p| !p.trim().is_empty() && p.trim() != "null");
+        if !description.is_empty() || provenance.is_some() {
+            texts.push(MaterialText {
+                material_id: m.id.clone(),
+                material_title: m.title.clone(),
+                kind: m.kind.clone(),
+                description,
+                provenance,
+            });
+        }
+    }
+    // Folders that hold something that came over (directly or below).
+    let parents: HashMap<&str, Option<&str>> = rows
+        .folders
+        .iter()
+        .map(|f| (f.id.as_str(), f.parent.as_deref()))
+        .collect();
+    let mut used: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut kept_title: HashMap<String, &str> = HashMap::new();
+    for m in rows.materials.iter().filter(|m| !m.id.is_empty()) {
+        let came_over = match m.kind.as_str() {
+            "text" => true,
+            "image" | "pdf" => {
+                if let Some(asset) = material_assets.get(m.id.as_str()) {
+                    match kept_title.get(asset.as_str()) {
+                        Some(first) => dropped.push(MaterialDropped::SameFile {
+                            material_id: m.id.clone(),
+                            material_title: m.title.clone(),
+                            kept_title: (*first).to_owned(),
+                            asset_id: asset.to_string(),
+                        }),
+                        None => {
+                            kept_title.insert(asset.to_string(), m.title.as_str());
+                        }
+                    }
+                    true
+                } else {
+                    let relations = rows
+                        .relations
+                        .iter()
+                        .filter(|r| {
+                            let at = |kind: &str, id: &str| {
+                                matches!(kind, "library_item" | "material") && id == m.id
+                            };
+                            at(&r.from_kind, &r.from_id) || at(&r.to_kind, &r.to_id)
+                        })
+                        .map(|r| r.id.clone())
+                        .collect();
+                    dropped.push(MaterialDropped::WithoutFile {
+                        material_id: m.id.clone(),
+                        material_title: m.title.clone(),
+                        relations,
+                    });
+                    false
+                }
+            }
+            other => {
+                dropped.push(MaterialDropped::UnknownKind {
+                    material_id: m.id.clone(),
+                    material_title: m.title.clone(),
+                    material_kind: other.to_owned(),
+                });
+                false
+            }
+        };
+        if !came_over {
+            continue;
+        }
+        let mut cur = m.folder.as_deref();
+        let mut guard = 0;
+        while let Some(f) = cur
+            && guard <= parents.len()
+        {
+            if !used.insert(f) {
+                break;
+            }
+            cur = parents.get(f).copied().flatten();
+            guard += 1;
+        }
+    }
+    for f in &rows.folders {
+        if !used.contains(f.id.as_str()) {
+            dropped.push(MaterialDropped::EmptyFolder {
+                folder_id: f.id.clone(),
+                name: f.name.clone(),
+            });
+        }
+    }
+    (texts, dropped)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn write_templates(
     lib: &Library,
@@ -931,6 +1042,7 @@ fn write_library(
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
         let material_assets = material_asset_map(&rows);
+        (rec.material_texts, rec.materials_dropped) = material_report(&rows, &material_assets);
         rec.material_assets = material_assets
             .iter()
             .map(|(k, v)| ((*k).to_string(), v.to_string()))

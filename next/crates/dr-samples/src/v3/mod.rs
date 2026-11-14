@@ -6,8 +6,8 @@
 mod catalog;
 mod samples;
 pub use catalog::{
-    act_import_notes, material_folder_path, note_material_folder_ids, side_documents, sync_catalog,
-    validate,
+    TEXT_MATERIALS_TAB, act_import_notes, material_folder_path, note_material_folder_ids,
+    side_documents, sync_catalog, validate,
 };
 pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 

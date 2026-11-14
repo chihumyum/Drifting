@@ -15,6 +15,10 @@ use dr_model::v3::*;
 
 use super::*;
 
+/// The left-bar tab an import gives the 「文本素材」 level (one per book, so a
+/// replayed catalog finds it again).
+pub const TEXT_MATERIALS_TAB: &str = "tab-text-materials";
+
 pub(crate) fn invalid(message: impl Into<String>) -> DocError {
     DocError::Loro(loro::LoroError::ArgErr(message.into().into()))
 }
@@ -873,6 +877,28 @@ pub fn sync_catalog(
         }
     }
     entries.finish()?;
+    // The author's notes have a left-bar tab of their own, or they would be
+    // hard to find after the import (`kernel-v5.md` 「替作者定的」).
+    if let Some(text_root) = &text_materials_root {
+        let id = TabId::parse(TEXT_MATERIALS_TAB).expect("valid tab id");
+        let project = txn.view().project();
+        if !project.tabs.iter().any(|t| t.id == id) {
+            let last = project
+                .tabs
+                .iter()
+                .filter_map(|t| t.pos.as_ref())
+                .max()
+                .cloned();
+            txn.project().put_tab(&ProjectTab {
+                id,
+                name: "文本素材".into(),
+                pos: Some(last.map_or_else(PosKey::first, |p| p.after())),
+                mount: TabMount::Entry {
+                    entry: text_root.clone(),
+                },
+            })?;
+        }
+    }
 
     for m in txn.view().memberships_raw() {
         txn.remove_membership(&m.host, &m.member)?;

@@ -5,7 +5,7 @@ mod common;
 #[path = "common/v3_manifest.rs"]
 mod manifest;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use common::{v3_fixture as fixture, *};
 use dr_doc::peer::random_device_peer;
@@ -597,12 +597,28 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .is_some_and(|t| t.kind == EntityKind::Asset)
         {
             assert_eq!(actual.target_module, None);
-            if serde_json::from_str::<serde_json::Value>(row["anchor_json"].as_str().unwrap())
-                .ok()
-                .and_then(|v| v.get("region").cloned())
-                .is_some()
+            if let Some(want) =
+                serde_json::from_str::<serde_json::Value>(row["anchor_json"].as_str().unwrap())
+                    .ok()
+                    .and_then(|v| v.get("region").cloned())
             {
-                assert!(matches!(actual.part, Some(CommentPart::Region { .. })));
+                // The rectangle itself, not only its kind (DY fix 14).
+                let Some(CommentPart::Region { region }) = &actual.part else {
+                    panic!("{} is a region comment: {:?}", comment.old_id, actual.part);
+                };
+                let f = |k: &str| want[k].as_f64().unwrap();
+                assert_eq!(
+                    (region.x, region.y, region.w, region.h),
+                    (f("x"), f("y"), f("w"), f("h")),
+                    "{}",
+                    comment.old_id
+                );
+                assert_eq!(
+                    region.page,
+                    want["page"].as_u64().map(|p| p as u32),
+                    "{}",
+                    comment.old_id
+                );
             }
         }
         assert_eq!(
@@ -768,6 +784,35 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
                 "non-text material {mid_str} goes into assets, not entries"
             );
         }
+    }
+    // The notes keep their 0.1 order (`order_key`, then id) among their
+    // siblings (DY fix 9: the order assertion the material rows had).
+    let mut notes_by_parent: BTreeMap<Option<EntryId>, Vec<(i64, String)>> = BTreeMap::new();
+    for row in &expected.source_rows["library_item"] {
+        if row["kind"].as_str() != Some("text") {
+            continue;
+        }
+        let parent = row["folder_id"]
+            .as_str()
+            .filter(|f| note_folders.contains(*f))
+            .map(eid)
+            .or_else(|| text_materials_root.clone());
+        notes_by_parent.entry(parent).or_default().push((
+            row["order_key"].as_i64().unwrap_or(0),
+            row["id"].as_str().unwrap().to_owned(),
+        ));
+    }
+    let structure = view.structure_snapshot();
+    for (parent, mut want) in notes_by_parent {
+        want.sort();
+        let want: Vec<String> = want.into_iter().map(|(_, id)| id).collect();
+        let have: Vec<String> = structure
+            .children_of(parent.as_ref())
+            .into_iter()
+            .map(|e| e.id.to_string())
+            .filter(|id| want.contains(id))
+            .collect();
+        assert_eq!(have, want, "notes under {parent:?} keep their order");
     }
     for row in &expected.source_rows["project_asset"] {
         let actual = view

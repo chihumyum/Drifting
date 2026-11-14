@@ -17,6 +17,8 @@ impl Choice {
     }
     pub fn write_to(self, library: &dr_store::Library) -> Result<Report, String> {
         let made = seed::generate_v3(self.preset, seed::DEFAULT_SEED).map_err(|e| e.to_string())?;
+        // The files' bytes too: a seeded library is opened in the app.
+        made.write_files_to(library).map_err(|e| e.to_string())?;
         Ok(Report {
             documents: made.write_to(library).map_err(|e| e.to_string())?,
             books: made.books.len(),
