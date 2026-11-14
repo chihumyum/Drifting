@@ -286,7 +286,6 @@ fn element_template(id_str: &str, name: &str, description: &str) -> EntryTemplat
                 config: ModuleConfig {
                     show_outline: true,
                     task_todos: true,
-                    in_book: false,
                     ..ModuleConfig::default()
                 },
                 agent: agent_instructions("设定详述正文，内联标题 H1/H2/H3 含义由作者自定。"),
@@ -727,7 +726,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     config: ModuleConfig {
                         show_outline: false,
                         task_todos: true,
-                        in_book: false,
                         ..ModuleConfig::default()
                     },
                     agent: agent_instructions("构想草稿正文。区分未定想法和已确认内容；访谈时让作者决定，创作或改写时遵循本轮要求。"),

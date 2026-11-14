@@ -159,15 +159,26 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             .collect::<Vec<_>>(),
         [MOD_PROSE]
     );
-    for (id, t) in &tpls {
-        if id != &tid(TPL_CHAPTER) {
-            assert_eq!(
-                t.book_prose_modules().count(),
-                0,
-                "only tpl-chapter defaults to in_book in novel template, got {id}"
-            );
-        }
+    // Ideas and elements keep their v4 `in_book` (the page head follows the
+    // first book prose); only the 笔记 template's prose is outside the book.
+    for id in [
+        TPL_IDEA,
+        TPL_CHARACTER,
+        TPL_LOCATION,
+        TPL_ITEM,
+        TPL_ORGANIZATION,
+        TPL_ELEMENT,
+    ] {
+        assert_eq!(
+            tpls[&tid(id)]
+                .book_prose_modules()
+                .map(|m| m.id.as_str())
+                .collect::<Vec<_>>(),
+            [MOD_PROSE],
+            "{id}"
+        );
     }
+    assert_eq!(tpls[&tid(TPL_NOTE)].book_prose_modules().count(), 0);
 
     // Root entries in manuscript order: 书稿, 构想, 要素, 故事线 (all fresh UUIDv7; no 素材 root).
     for id in [
