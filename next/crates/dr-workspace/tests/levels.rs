@@ -122,11 +122,11 @@ fn the_switch_starts_from_the_template_and_never_follows_it_afterwards() {
         json!({"book":b,"id":chapter,"template":"tpl-group"}),
     );
     assert_eq!(get(&e, &b, &chapter)["level"], false);
-    // `tpl-group` declares `accept: true`, so even with `level == false` it reads `below.members`
-    // and accepts `overrides`; switching back to `tpl-idea` (`level == false`, `accept == false`)
-    // leaves neither switch on, so `overrides` and child residence are refused.
-    assert_eq!(get(&e, &b, &chapter)["below"]["members"], json!([]));
-    assert!(get(&e, &b, &chapter)["below"]["children"].is_null());
+    // `tpl-group` takes no entries from elsewhere unless the entry says so
+    // (kernel-v5 §16), so with `level == false` neither switch is on: no
+    // `below`, before or after switching on to `tpl-idea`, and `overrides`
+    // and child residence are refused.
+    assert!(get(&e, &b, &chapter)["below"].is_null());
     e.call(
         "entry.update",
         json!({"book":b,"id":chapter,"template":"tpl-idea"}),

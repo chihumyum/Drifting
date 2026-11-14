@@ -683,13 +683,16 @@ fn lane_setting_override_toggles_swimlane_and_allow_is_retired() {
     );
     assert!(!snap.v3().unwrap().is_lane(&group));
 
-    prepare_override(&snap, &group, "accept", Some(json!(false)))
+    // 分组 takes no entries from elsewhere by default (kernel-v5 §16); the
+    // group's own override turns it on, and clearing it goes back to that.
+    assert!(!snap.v3().unwrap().levels[&group].settings.accept);
+    prepare_override(&snap, &group, "accept", Some(json!(true)))
         .unwrap()
         .commit(&ws)
         .unwrap();
-    let disabled = Book::load(&ws, &book).unwrap();
-    let v = disabled.v3().unwrap();
-    assert!(!v.levels[&group].settings.accept);
+    let enabled = Book::load(&ws, &book).unwrap();
+    let v = enabled.v3().unwrap();
+    assert!(v.levels[&group].settings.accept);
     assert_eq!(
         v.levels[&group].sources["accept"],
         SettingSource::Override {
@@ -697,20 +700,14 @@ fn lane_setting_override_toggles_swimlane_and_allow_is_retired() {
         }
     );
 
-    prepare_override(&disabled, &group, "accept", None)
+    prepare_override(&enabled, &group, "accept", None)
         .unwrap()
         .commit(&ws)
         .unwrap();
     let restored = Book::load(&ws, &book).unwrap();
     let v = restored.v3().unwrap();
-    assert!(v.levels[&group].settings.accept);
-    assert_eq!(
-        v.levels[&group].sources["accept"],
-        SettingSource::Template {
-            entry: group.clone(),
-            template: "tpl-group".into()
-        }
-    );
+    assert!(!v.levels[&group].settings.accept);
+    assert_eq!(v.levels[&group].sources["accept"], SettingSource::Default);
     ws.shutdown().unwrap();
 }
 

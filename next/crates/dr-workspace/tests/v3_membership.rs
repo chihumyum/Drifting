@@ -1217,12 +1217,18 @@ fn folder_in_view_reads_and_moves_by_scale_without_touching_manual_order() {
         vec![c3.clone(), c1.clone(), c2.clone()]
     );
 
-    // Dual `level == true && accept == true` swimlane (`tpl-group`): an entry that both resides
-    // under it and is a member gets ONE placement and appears ONCE in `below` (`children`, not duplicated in `members`).
+    // Dual `level == true && accept == true` swimlane (`tpl-group` with its own `accept`
+    // override; the template takes no entries from elsewhere, kernel-v5 §16): an entry that
+    // both resides under it and is a member gets ONE placement and appears ONCE in `below`
+    // (`children`, not duplicated in `members`).
     let group = item(e.out(
         "entry.create",
         json!({"book":b,"parent":ms,"template":"tpl-group","title":"Dual Folder"}),
     ));
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":group,"overrides":{"accept":true}}),
+    );
     let both = item(e.out(
         "entry.create",
         json!({"book":b,"parent":group,"template":"tpl-chapter","title":"Resident+Member"}),
