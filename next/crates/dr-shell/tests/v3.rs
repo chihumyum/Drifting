@@ -1286,7 +1286,8 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
     let dialog = wait_dialog(cx);
     dialog.read_with(cx, |d, _| {
         assert_eq!(d.entry_id(), group);
-        assert_eq!(d.child_count(), 2);
+        // 上篇, its 楔子 and 终章: every live entry below, however deep.
+        assert_eq!(d.below_count(), 3);
         assert!(!d.has_conflict());
     });
     dialog.update(cx, |d, cx| d.cancel(cx));
@@ -1296,12 +1297,12 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
         assert!(ws.book.v3().unwrap().levels.contains_key(&group));
     });
 
-    // Re-open dialog, mutate direct children concurrently -> confirm conflicts, re-reads N == 3, asks again.
+    // Re-open dialog, mutate direct children concurrently -> confirm conflicts, re-reads N == 4, asks again.
     let host = make_host(cx);
     let g = group.clone();
     cx.update(|window, cx| toggle_level(host, g, window, cx));
     let dialog = wait_dialog(cx);
-    assert_eq!(dialog.read_with(cx, |d, _| d.child_count()), 2);
+    assert_eq!(dialog.read_with(cx, |d, _| d.below_count()), 3);
 
     let c3 = call(
         &lib,
@@ -1327,9 +1328,9 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
     }
     dialog.read_with(cx, |d, _| {
         assert_eq!(
-            d.child_count(),
-            3,
-            "dialog re-read live child count after conflict"
+            d.below_count(),
+            4,
+            "dialog re-read the live entries below after conflict"
         );
         assert!(d.has_conflict());
     });
@@ -1844,15 +1845,14 @@ fn level_entries_expose_book_view_on_card_and_page_and_close_when_level_turns_of
     });
 }
 
-/// Author 2026-11-13: turning a 层级 off asks first when it hides entries
-/// assigned to it or its lane in a timeline view, even with nothing living
-/// under it, in the author's words (or the fewest words of them that fit);
-/// it asks nothing when it hides nothing. Cancelling changes nothing; a
-/// change to what the dialog said shows the new numbers and asks again,
-/// with no words of its own; once off, the data is kept and turning it
-/// back on brings everything back; the notice's 「撤销」 undoes the step.
+/// `kernel-v5.md` §16: turning a 层级 off asks first only when live entries
+/// live under it, in one sentence whose number counts every one of them
+/// however deep; entries assigned to it and its lane are never asked about
+/// and stay as they are. Cancelling changes nothing; a change to what the
+/// dialog said shows the new number and asks again, with no words of its
+/// own; the notice's 「撤销」 undoes the step.
 #[gpui::test]
-fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::TestAppContext) {
+fn v5_turning_off_a_level_asks_only_about_what_lives_below(cx: &mut gpui::TestAppContext) {
     use dr_shell::{
         Services, SettingsFile, ShellInfo, Workspace as Shell,
         pages::PageViewHost,
@@ -1916,12 +1916,23 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
             json!({"book": id, "view": view_id, "lane": lane}),
         );
     };
-    // Folder lane with `accept == false` (`tpl-idea-group`), a folder with resident
-    // children for conflict refresh + toast undo/redo, and an empty quiet folder.
+    // A folder lane with nothing under it; a group taking two assigned
+    // entries with nothing under it; a group with entries living under it
+    // at two depths; a group that holds nothing.
     let bare_line = create(&storylines, "tpl-idea-group", "空目录轨");
     add_lane(&bare_line);
+    let hosts = create(&storylines, "tpl-idea-group", "挂名组");
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": id, "id": hosts, "overrides": {"accept": true}}),
+    );
+    assign(&hosts, &chapters[0]);
+    assign(&hosts, &chapters[1]);
     let group = create(&storylines, "tpl-idea-group", "收纳");
-    let _child0 = create(&group, "tpl-idea", "子项一");
+    let inner = create(&group, "tpl-idea-group", "子组");
+    let _deep = create(&inner, "tpl-idea", "子组里");
+    let _child = create(&group, "tpl-idea", "子项");
     let quiet = create(&storylines, "tpl-idea-group", "空组");
 
     cx.executor().allow_parking();
@@ -1999,37 +2010,40 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
             .map(|l| l.entry.clone())
             .collect()
     };
-    // A folder lane (`accept == false`) with no resident children: turning off `level` hides its lane.
+    let members = |ws: &Shell, host: &str| -> Vec<String> {
+        let mut m: Vec<String> = ws
+            .book
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .filter(|m| m.host == host)
+            .map(|m| m.member.clone())
+            .collect();
+        m.sort();
+        m
+    };
+
+    // A lane with nothing living under it: turned off at once, no dialog.
+    // With neither switch on it is no lane for now; its lane record stays,
+    // and turning it on, which asks nothing either, brings the lane back.
     let lanes_before = view.read_with(cx, |ws, _| lanes(ws));
-    let dialog = ask(cx, &bare_line);
-    dialog.read_with(cx, |d, cx| {
-        assert_eq!(
-            (d.child_count(), d.member_count(), d.is_lane()),
-            (0, 0, true)
-        );
-        assert_eq!(
-            d.body_text(cx).as_ref(),
-            "它在时间线里的泳道先不显示，再打开就回来。"
-        );
-    });
-    dialog.update(cx, |d, cx| d.cancel(cx));
-    pump(cx);
-    view.read_with(cx, |ws, _| {
-        assert!(ws.dialog.is_none());
-        assert!(ws.book.v3().unwrap().levels.contains_key(&bare_line));
-        assert_eq!(lanes(ws), lanes_before);
-    });
-    let dialog = ask(cx, &bare_line);
-    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    assert!(lanes_before.contains(&bare_line));
+    toggle(cx, &bare_line);
     wait(cx, "the folder lane off", &|ws, _| {
         !ws.book.v3().unwrap().levels.contains_key(&bare_line)
     });
     view.read_with(cx, |ws, _| {
-        assert!(ws.dialog.is_none());
+        assert!(ws.dialog.is_none(), "a lane is never asked about");
         assert!(!lanes(ws).contains(&bare_line));
     });
-    let stored = call(&lib, "entry.get", json!({"book": id, "id": bare_line}));
-    assert_eq!(stored["level"], false);
+    let raw = lib.observe(&format!("book:{id}")).unwrap().value;
+    assert!(
+        raw["timeline_views"][&view_id]["lanes"]
+            .get(&bare_line)
+            .is_some(),
+        "the lane record is kept"
+    );
     toggle(cx, &bare_line);
     wait(cx, "the folder lane on", &|ws, _| {
         ws.book.v3().unwrap().levels.contains_key(&bare_line)
@@ -2039,16 +2053,46 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
         assert_eq!(lanes(ws), lanes_before);
     });
 
-    // Folder with resident children: adding another child while open refreshes count and asks again.
-    let dialog = ask(cx, &group);
-    dialog.read_with(cx, |d, _| {
-        assert_eq!(
-            (d.child_count(), d.member_count(), d.is_lane()),
-            (1, 0, false)
+    // Entries assigned to it, nothing living under it: no dialog, and the
+    // assignments stay and still count (it still takes entries).
+    let members_before = view.read_with(cx, |ws, _| members(ws, &hosts));
+    assert_eq!(members_before.len(), 2);
+    toggle(cx, &hosts);
+    wait(cx, "the host's level off", &|ws, _| {
+        ws.book
+            .v3()
+            .unwrap()
+            .entry(&hosts)
+            .is_some_and(|e| !e.level)
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(
+            ws.dialog.is_none(),
+            "assigned entries are never asked about"
         );
+        assert_eq!(members(ws, &hosts), members_before);
+        assert_eq!(ws.book.v3().unwrap().levels[&hosts].members.len(), 2);
+    });
+
+    // Entries living under it at two depths: one sentence, counting all of
+    // them. Cancel changes nothing.
+    let dialog = ask(cx, &group);
+    dialog.read_with(cx, |d, cx| {
+        assert_eq!(d.below_count(), 3);
+        assert_eq!(d.body_text(cx).as_ref(), "下面的 3 个条目会放进最近删除。");
         assert!(!d.has_conflict());
     });
-    let child1 = create(&group, "tpl-idea", "子项二");
+    dialog.update(cx, |d, cx| d.cancel(cx));
+    pump(cx);
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        assert!(ws.book.v3().unwrap().levels.contains_key(&group));
+    });
+    // An entry lands deep below it while the dialog is open: confirming
+    // shows the new number and asks again (no words about it), and turns
+    // nothing off.
+    let dialog = ask(cx, &group);
+    let deeper = create(&inner, "tpl-idea", "后来的");
     dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
     let deadline = Instant::now() + Duration::from_secs(10);
     while !dialog.read_with(cx, |d, _| !d.is_busy() && d.has_conflict()) {
@@ -2059,8 +2103,9 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
         );
         std::thread::sleep(Duration::from_millis(2));
     }
-    dialog.read_with(cx, |d, _| {
-        assert_eq!(d.child_count(), 2);
+    dialog.read_with(cx, |d, cx| {
+        assert_eq!(d.below_count(), 4);
+        assert_eq!(d.body_text(cx).as_ref(), "下面的 4 个条目会放进最近删除。");
     });
     assert_eq!(
         call(&lib, "entry.get", json!({"book": id, "id": group}))["level"],
@@ -2068,7 +2113,8 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
         "a refreshed dialog turned nothing off"
     );
     view.read_with(cx, |ws, _| assert!(dialog_of(ws).is_some()));
-    // Confirmed again: off, and the notice offers 「撤销」.
+    // Confirmed again: off, everything below it in Recently Deleted, and
+    // the notice offers 「撤销」.
     dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
     wait(cx, "the group off", &|ws, _| {
         !ws.book.v3().unwrap().levels.contains_key(&group)
@@ -2078,12 +2124,13 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
     });
     view.read_with(cx, |ws, _| {
         assert!(ws.dialog.is_none());
-        assert!(ws.book.v3().unwrap().entry(&child1).is_none());
+        let v = ws.book.v3().unwrap();
+        assert!(v.entry(&inner).is_none() && v.entry(&deeper).is_none());
         let toast = ws.toast.as_ref().unwrap();
         assert_eq!(toast.text.as_ref(), "关闭层级 · 收纳");
         assert!(!toast.offer.as_ref().unwrap().redo);
     });
-    // 「撤销」: on again with both children restored; the notice offers 「重做」.
+    // 「撤销」: on again with everything back; the notice offers 「重做」.
     view.update(cx, |ws, cx| ws.press_toast_offer(cx));
     wait(cx, "the undo", &|ws, _| {
         ws.book.v3().unwrap().levels.contains_key(&group)
@@ -2095,12 +2142,13 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
             .is_some_and(|o| o.redo)
     });
     view.read_with(cx, |ws, _| {
-        assert_eq!(ws.book.v3().unwrap().levels[&group].children.len(), 2);
+        let v = ws.book.v3().unwrap();
+        assert_eq!(v.levels[&group].children.len(), 2);
+        assert!(v.entry(&deeper).is_some());
         assert_eq!(ws.toast.as_ref().unwrap().text.as_ref(), "关闭层级 · 收纳");
     });
 
-    // Hiding nothing: turned off at once, with no dialog.
-    let _ = (&chapters, &assign);
+    // Holding nothing: turned off at once, with no dialog.
     toggle(cx, &quiet);
     wait(cx, "the quiet group off", &|ws, _| {
         !ws.book.v3().unwrap().levels.contains_key(&quiet)

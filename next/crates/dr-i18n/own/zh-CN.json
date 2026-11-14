@@ -277,11 +277,8 @@
     "showOutline": "显示目录",
     "templates": "模板集合",
     "trash": "放进最近删除",
-    "turnOffLevelBody_other": "下面的 {{count}} 个条目会移到最外层，各自下面的东西跟着走。归属到它的条目和它在时间线里的泳道先不显示，再打开就回来。",
+    "turnOffLevelBody_other": "下面的 {{count}} 个条目会放进最近删除。",
     "turnOffLevelConfirm": "关闭层级",
-    "turnOffLevelLaneBody": "它在时间线里的泳道先不显示，再打开就回来。",
-    "turnOffLevelMembersBody_other": "归属到它的 {{count}} 个条目先不显示，再打开就回来。",
-    "turnOffLevelMembersLaneBody_other": "归属到它的 {{count}} 个条目和它在时间线里的泳道先不显示，再打开就回来。",
     "turnOffLevelTitle": "关闭层级",
     "untitledEntry": "无标题条目",
     "untitledNamed": "无标题{{name}}"
