@@ -51,7 +51,7 @@ use dr_i18n::number::{compact, grouped};
 actions!(
     shelf,
     [
-        /// Imports a `.driftingbook` (M41 handles it; the bookshelf only has
+        /// Imports a `.driftingproject` (M41 handles it; the bookshelf only has
         /// the entry).
         ImportBook,
         /// Imports a Drifting 0.1 library (M10, `dr-view-import`, handles it
@@ -63,7 +63,7 @@ actions!(
     ]
 );
 
-/// Exports book `book` as a `.driftingbook` (M41, `dr-view-transfer`,
+/// Exports book `book` as a `.driftingproject` (M41, `dr-view-transfer`,
 /// handles it with `cx.on_action`; the book card only has the entry).
 #[derive(Clone, Debug, PartialEq, Eq, gpui::Action)]
 #[action(namespace = shelf, no_json)]
@@ -504,7 +504,7 @@ impl Shelf {
             .map(|b| (b.name.clone(), b.summary.clone()))
             .unwrap_or_default();
         let name_hint = t(cx, keys::project_picker::form::NAME_PLACEHOLDER);
-        let summary_hint = t(cx, keys::project_picker::form::SUMMARY_PLACEHOLDER);
+        let summary_hint = t(cx, keys::all_projects::SUMMARY_PLACEHOLDER);
         let name = cx.new(|cx| {
             TextField::new("shelf-form-name", window, cx)
                 .placeholder(name_hint)
@@ -873,7 +873,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
     let library = match &shelf.data {
         Some(data) => tp(
             cx,
-            keys::project_picker::rail::LIBRARY,
+            keys::all_projects::LIBRARY,
             data.books.len() as u64,
             &[
                 ("count", &data.books.len()),
@@ -913,7 +913,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
                 .font_role(Role::Structure)
                 .type_px(22.0, 26.4)
                 .text_color(p.ink(1).solid())
-                .child(t(cx, keys::project_picker::header::TITLE_EM)),
+                .child(t(cx, keys::all_projects::TITLE)),
         )
         .child(
             div()
@@ -928,9 +928,9 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
         .child(rail_cell(
             "shelf-import-book",
             Icon::ArrowIn,
-            t(cx, keys::project_picker::rail::IMPORT),
-            Some(".driftingbook".into()),
-            t(cx, keys::user_menu::IMPORT_BOOK),
+            t(cx, keys::all_projects::IMPORT),
+            Some(".driftingproject".into()),
+            t(cx, keys::all_projects::IMPORT_FILE),
             |_, window, cx| window.dispatch_action(Box::new(ImportBook), cx),
             window,
             cx,
@@ -1010,10 +1010,12 @@ fn rail_cell(
             .items_baseline()
             .gap_x(px(10.0))
             .gap_y(px(2.0))
+            // The name keeps its words whole: what follows it (a file's
+            // kind, a count) moves to the next line when there is no room.
             .child(
                 div()
-                    .flex_1()
-                    .min_w_0()
+                    .flex_grow(1.0)
+                    .flex_shrink_0()
                     .font_role(Role::Ui)
                     .type_px(s.body, 20.0)
                     .child(label),
@@ -1483,7 +1485,7 @@ fn card(
                 ElementId::Name(format!("shelf-export-{}", book.id).into()),
                 Icon::ArrowOut,
             )
-            .label(t(cx, keys::project_picker::desk::EXPORT_BOOK))
+            .label(t(cx, keys::all_projects::EXPORT))
             .on_click(move |_, window, cx| {
                 // Not the card's click too (that would open the book), as
                 // edit and trash.
@@ -1690,7 +1692,7 @@ fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>)
     .gap(px(10.0))
     .cursor_pointer()
     .role(gpui::Role::Button)
-    .aria_label(t(cx, keys::project_picker::desk::NEW_CARD))
+    .aria_label(t(cx, keys::all_projects::NEW_PROJECT))
     .text_color(p.ink(3).solid())
     .group_hover("shelf-new", move |st| st.text_color(p.ink(1).solid()))
     .on_click(move |_, window, cx| {
@@ -1702,7 +1704,7 @@ fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>)
         div()
             .font_role(Role::Ui)
             .type_px(s.body, s.line_body)
-            .child(t(cx, keys::project_picker::desk::NEW_CARD)),
+            .child(t(cx, keys::all_projects::NEW_PROJECT)),
     )
     .child(
         div()
@@ -1773,7 +1775,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
             summary,
         } => {
             let title = match editing {
-                None => t(cx, keys::project_picker::desk::form::CREATE_TITLE),
+                None => t(cx, keys::all_projects::NEW_PROJECT),
                 Some(b) => tf(
                     cx,
                     keys::project_picker::desk::form::EDIT_TITLE,
@@ -1789,7 +1791,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
             let submit = entity.clone();
             Dialog::new("shelf-form", title)
                 .body(section(
-                    t(cx, keys::project_picker::desk::form::NAME_LABEL),
+                    t(cx, keys::all_projects::NAME_LABEL),
                     name.clone().into_any_element(),
                 ))
                 .body(section(
@@ -1880,7 +1882,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                     div()
                         .py(px(12.0))
                         .text_color(p.muted().solid())
-                        .child(t(cx, keys::project_picker::desk::trash_list::EMPTY)),
+                        .child(t(cx, keys::all_projects::TRASH_EMPTY)),
                 );
             }
             for book in trashed {
@@ -1958,7 +1960,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
             }
             let lead = div()
                 .text_color(p.muted().solid())
-                .child(t(cx, keys::project_picker::desk::trash_list::SUB_LOCAL));
+                .child(t(cx, keys::all_projects::TRASH_SUB));
             Dialog::new(
                 "shelf-deleted",
                 t(cx, keys::project_picker::desk::trash_list::TITLE),

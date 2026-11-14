@@ -1,4 +1,25 @@
 {
+  "allProjects": {
+    "export": "이 프로젝트 내보내기 (.driftingproject)",
+    "import": "프로젝트 가져오기",
+    "importFile": "프로젝트 가져오기 (.driftingproject)",
+    "importLegacy": "Drifting 0.1 가져오기",
+    "library_one": "프로젝트 {{count}}개 · {{words}}단어",
+    "library_other": "프로젝트 {{count}}개 · {{words}}단어",
+    "nameLabel": "이름",
+    "newProject": "새 프로젝트",
+    "summaryPlaceholder": "프로젝트를 한두 문장으로 설명하세요.",
+    "title": "모든 프로젝트",
+    "transfer": {
+      "exportFailed": "프로젝트를 내보내지 못했습니다. 다시 시도해 주세요.",
+      "importFailed": "프로젝트를 가져오지 못했습니다. 다시 시도해 주세요.",
+      "newer": "더 새로운 Drifting에서 내보낸 프로젝트입니다. 먼저 Drifting을 업데이트하세요.",
+      "notProject": "Drifting에서 내보낸 프로젝트가 아닙니다.",
+      "tooLarge": "프로젝트가 너무 커서 가져올 수 없습니다."
+    },
+    "trashEmpty": "최근 삭제한 프로젝트가 없습니다.",
+    "trashSub": "프로젝트는 여기에 30일 동안 보관된 뒤 영구 삭제됩니다."
+  },
   "entrySnapshot": {
     "empty": "아직 스냅샷이 없습니다",
     "save": "스냅샷 저장",
@@ -83,11 +104,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "이 책은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요.",
-      "older": "이 책은 이전 개발 버전의 Drifting에서 내보낸 것으로, 이 버전에서는 더 이상 읽지 않는 형식입니다."
+      "legacy": "이 파일은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요.",
+      "older": "이 파일은 이전 개발 버전의 Drifting에서 내보낸 것으로, 이 버전에서는 더 이상 읽지 않는 형식입니다."
     },
     "trash": {
-      "bodyWithoutChapters": "작품({{words}}자 · 요소 {{elements}}개)을 책장에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다."
+      "bodyWithoutChapters": "프로젝트({{words}}자 · 요소 {{elements}}개)를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다."
     }
   },
   "settings": {

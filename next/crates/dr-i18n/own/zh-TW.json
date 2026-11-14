@@ -1,4 +1,25 @@
 {
+  "allProjects": {
+    "export": "匯出這個專案（.driftingproject）",
+    "import": "匯入專案",
+    "importFile": "匯入專案（.driftingproject）",
+    "importLegacy": "匯入 Drifting 0.1",
+    "library_one": "{{count}} 個專案 · {{words}} 字",
+    "library_other": "{{count}} 個專案 · {{words}} 字",
+    "nameLabel": "名稱",
+    "newProject": "新專案",
+    "summaryPlaceholder": "用一兩句話說明這個專案是什麼。",
+    "title": "全部專案",
+    "transfer": {
+      "exportFailed": "這個專案沒能匯出，請稍後再試。",
+      "importFailed": "這個專案沒能匯入，請稍後再試。",
+      "newer": "這個專案由較新版本的 Drifting 匯出，請先更新 Drifting。",
+      "notProject": "這不是 Drifting 匯出的專案。",
+      "tooLarge": "這個專案太大，無法匯入。"
+    },
+    "trashEmpty": "最近沒有刪除的專案。",
+    "trashSub": "專案會在這裡保留 30 天，到期後自動永久刪除。"
+  },
   "entrySnapshot": {
     "empty": "尚無快照",
     "save": "儲存快照",
@@ -83,11 +104,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
-      "older": "這本書是 Drifting 以前的開發版匯出的，這一版已經不讀那種格式。"
+      "legacy": "這個檔案是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
+      "older": "這個檔案是 Drifting 以前的開發版匯出的，這一版已經不讀那種格式。"
     },
     "trash": {
-      "bodyWithoutChapters": "此作品（{{words}} 字 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。"
+      "bodyWithoutChapters": "此專案（{{words}} 字 · {{elements}} 個要素）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。"
     }
   },
   "settings": {

@@ -22,12 +22,13 @@ actions!(
         NextTab,
         /// Closes the active tab (⌘W).
         CloseActiveTab,
-        /// Closes the book and returns to the bookshelf (⇧⌘W).
-        CloseProject,
         /// The Project Home with its create row (⌘N).
         NewEntity,
         /// The Project Home (⌘⌥1).
         ShowProjectHome,
+        /// 全部项目: the row of projects that drops from the top of the
+        /// workspace (the button right of the traffic lights).
+        ToggleProjects,
         /// The story graph Super View (⌘⌥3).
         ToggleStoryGraph,
         /// The element overview Super View (⌘⌥4).

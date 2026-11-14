@@ -1,4 +1,4 @@
-//! `.driftingbook` from the bookshelf, in the shell over a real library
+//! `.driftingproject` from the bookshelf, in the shell over a real library
 //! (GPUI's test platform): the card's export action goes through the save
 //! panel and writes the file; importing it adds a second book while the
 //! dialog shows how far it is, then goes; a file that is not a book is
@@ -91,7 +91,7 @@ fn books(lib: &Lib) -> usize {
 fn a_book_is_exported_from_its_card_and_imported_again(cx: &mut TestAppContext) {
     let (dir, lib, id) = library();
     let (view, cx) = setup(cx, lib.clone());
-    let file = dir.path().join("慢钟.driftingbook");
+    let file = dir.path().join("慢钟.driftingproject");
 
     // The card's export icon: the save panel, then the file.
     cx.update(|window, cx| {
@@ -124,7 +124,7 @@ fn a_book_is_exported_from_its_card_and_imported_again(cx: &mut TestAppContext) 
 fn a_file_that_is_not_a_book_is_refused(cx: &mut TestAppContext) {
     let (dir, lib, _) = library();
     let (view, cx) = setup(cx, lib.clone());
-    let file = dir.path().join("notes.driftingbook");
+    let file = dir.path().join("notes.driftingproject");
     std::fs::write(&file, "just text").unwrap();
     let dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
     assert!(shown(&view, cx).is_some());
@@ -134,7 +134,13 @@ fn a_file_that_is_not_a_book_is_refused(cx: &mut TestAppContext) {
         panic!("{state:?}")
     };
     use dr_i18n::keys::project_picker::book_transfer as k;
-    assert_eq!((title, reason), (k::IMPORT_FAILED_TITLE, k::NOT_ABOOK));
+    assert_eq!(
+        (title, reason),
+        (
+            k::IMPORT_FAILED_TITLE,
+            dr_i18n::keys::all_projects::transfer::NOT_PROJECT
+        )
+    );
     assert_eq!(books(&lib), 1);
     // 「关闭」 takes it away.
     cx.cx.update(|cx| dialog.update(cx, |d, cx| d.close(cx)));
@@ -146,7 +152,7 @@ fn a_file_that_is_not_a_book_is_refused(cx: &mut TestAppContext) {
 fn a_refused_file_closes_with_escape(cx: &mut TestAppContext) {
     let (dir, lib, _) = library();
     let (view, cx) = setup(cx, lib.clone());
-    let file = dir.path().join("notes.driftingbook");
+    let file = dir.path().join("notes.driftingproject");
     std::fs::write(&file, "just text").unwrap();
     let dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
     wait_for(cx, |cx| !dialog.read_with(cx, |d, _| d.is_working()));
@@ -221,7 +227,7 @@ fn a_format_3_book_file_is_refused_without_writing_anything(cx: &mut TestAppCont
     let (dir, lib, _) = library();
     let docs_before = lib.library().docs(None, None).unwrap().len();
     let (view, cx) = setup(cx, lib.clone());
-    let file = dir.path().join("format3.driftingbook");
+    let file = dir.path().join("format3.driftingproject");
     std::fs::write(
         &file,
         stored_zip(
@@ -263,7 +269,7 @@ fn a_v3_book_uses_the_same_save_and_import_flow(cx: &mut TestAppContext) {
     let lib = Lib::open_dir(&root, VERSION).unwrap();
     let before = dr_testkit::seed::digest_v3(lib.library(), &id).unwrap();
     let (view, cx) = setup(cx, lib.clone());
-    let file = dir.path().join("v3.driftingbook");
+    let file = dir.path().join("v3.driftingproject");
     assert_eq!(dr_export::book_file::book_title(&lib, &id).unwrap(), title);
     cx.update(|window, cx| {
         window.dispatch_action(Box::new(dr_view_shelf::ExportBook { book: id.clone() }), cx)

@@ -1,4 +1,25 @@
 {
+  "allProjects": {
+    "export": "Export this project (.driftingproject)",
+    "import": "Import project",
+    "importFile": "Import project (.driftingproject)",
+    "importLegacy": "Import Drifting 0.1",
+    "library_one": "{{count}} project · {{words}} words",
+    "library_other": "{{count}} projects · {{words}} words",
+    "nameLabel": "Name",
+    "newProject": "New project",
+    "summaryPlaceholder": "Describe the project in one or two sentences.",
+    "title": "All projects",
+    "transfer": {
+      "exportFailed": "The project could not be exported. Please try again.",
+      "importFailed": "The project could not be imported. Please try again.",
+      "newer": "This project was exported by a newer Drifting. Update Drifting first.",
+      "notProject": "This is not a project exported from Drifting.",
+      "tooLarge": "This project is too large to import."
+    },
+    "trashEmpty": "No recently deleted projects.",
+    "trashSub": "Projects stay here for 30 days and are then permanently deleted."
+  },
   "entrySnapshot": {
     "empty": "No snapshots yet",
     "save": "Save snapshot",
@@ -90,11 +111,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
-      "older": "This book was exported by an earlier development build of Drifting, in a format this version no longer reads."
+      "legacy": "This file was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
+      "older": "This file was exported by an earlier development build of Drifting, in a format this version no longer reads."
     },
     "trash": {
-      "bodyWithoutChapters": "This book ({{words}} words · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted."
+      "bodyWithoutChapters": "This project ({{words}} words · {{elements}} elements) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted."
     }
   },
   "settings": {

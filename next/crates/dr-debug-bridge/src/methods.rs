@@ -113,7 +113,10 @@ pub const METHODS: &[(&str, &str)] = &[
         "book.open",
         "{book} (an id) or {name} (a name or an id): open a book as the bookshelf does (its saved tabs come back)",
     ),
-    ("shelf.show", "show the bookshelf over the window (as ⇧⌘W)"),
+    (
+        "shelf.show",
+        "show the bookshelf (全部项目) over the window, as its button does",
+    ),
     (
         "state.get",
         "the shell's state: book, bookshelf, page, tabs, sidebars, layers, focus (and whether the page's editor has it), the page's selection, the pages and editors open",
@@ -780,6 +783,7 @@ async fn open_book(p: &Value, cx: &mut AsyncApp) -> Out {
 fn layer_name(l: Layer) -> &'static str {
     match l {
         Layer::Notifications => "notifications",
+        Layer::Projects => "projects",
         Layer::Search => "search",
         Layer::Settings => "settings",
         Layer::SuperView => "super-view",
@@ -877,6 +881,7 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
         "v3Page": v3_page,
         "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,
+        "projects": ws.projects_open,
         "page": page,
         "pageTitle": title,
         "tabs": tabs,

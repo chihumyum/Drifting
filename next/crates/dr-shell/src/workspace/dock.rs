@@ -25,7 +25,7 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder as _, px,
 };
 
-use super::chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
+use super::chrome::{CLUSTER_END, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
 use super::{PageSide, Workspace};
 use crate::actions::NewEntity;
 use crate::book::Book;
@@ -160,7 +160,7 @@ pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> 
     let lead = if ws.left.open {
         12.0
     } else {
-        LEADING_INSET + g::ROUND + TOGGLE_GAP
+        CLUSTER_END + TOGGLE_GAP
     };
     let trail = if ws.right.open {
         12.0

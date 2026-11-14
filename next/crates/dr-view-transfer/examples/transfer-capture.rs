@@ -1,6 +1,6 @@
 //! Screenshots of M41's moving dialogs over the shell, drawn offscreen
 //! (GPUI's headless platform, real text and Metal, nothing on screen): a
-//! `.driftingbook` importing and refused, 「导入文件」 with files read, a
+//! `.driftingproject` importing and refused, 「导入文件」 with files read, a
 //! finished backup and the question before a restore. The book behind is
 //! 《慢钟》 from dr-testkit; the files are synthetic.
 //!
@@ -176,12 +176,12 @@ fn run(out: PathBuf) -> Result<()> {
         let a = appearance.slug();
         let mut h = Headless::new(appearance)?;
 
-        // A .driftingbook importing, part way.
+        // A .driftingproject importing, part way.
         h.cx.update(|cx| {
             TransferDialog::show(
                 State::Working {
                     title: dr_i18n::keys::project_picker::desk::IMPORTING,
-                    name: "慢钟.driftingbook".into(),
+                    name: "慢钟.driftingproject".into(),
                     progress: Some(0.42),
                 },
                 cx,

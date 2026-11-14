@@ -91,6 +91,27 @@
       "updated": "{{time}}・更新者{{by}}"
     }
   },
+  "allProjects": {
+    "export": "このプロジェクトを書き出す（.driftingproject）",
+    "import": "プロジェクトを読み込む",
+    "importFile": "プロジェクトを読み込む（.driftingproject）",
+    "importLegacy": "Drifting 0.1 を読み込む",
+    "library_one": "{{count}}件のプロジェクト · {{words}}語",
+    "library_other": "{{count}}件のプロジェクト · {{words}}語",
+    "nameLabel": "名前",
+    "newProject": "新しいプロジェクト",
+    "summaryPlaceholder": "プロジェクトを一、二文で説明します。",
+    "title": "すべてのプロジェクト",
+    "transfer": {
+      "exportFailed": "プロジェクトを書き出せませんでした。もう一度お試しください。",
+      "importFailed": "プロジェクトを読み込めませんでした。もう一度お試しください。",
+      "newer": "新しい Drifting で書き出されたプロジェクトです。先に Drifting を更新してください。",
+      "notProject": "Drifting で書き出したプロジェクトではありません。",
+      "tooLarge": "プロジェクトが大きすぎて読み込めません。"
+    },
+    "trashEmpty": "最近削除したプロジェクトはありません。",
+    "trashSub": "プロジェクトはここに 30 日間保管され、その後完全に削除されます。"
+  },
   "auth": {
     "back": "戻る",
     "backToSignIn": "ログインへ戻る",
@@ -747,16 +768,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "exportFailed": "作品をエクスポートできません。再試行してください。",
       "exportFailedTitle": "エクスポートできませんでした",
-      "importFailed": "作品をインポートできません。再試行してください。",
       "importFailedTitle": "インポートできませんでした",
       "invalid": "ファイルが破損しており、インポートできません。",
-      "legacy": "この本は Drifting 0.1 で書き出されました。旧版で読み込んでから、そのライブラリを新しいバージョンに引き継いでください。",
-      "newer": "新しいDriftingから出力された作品です。先に更新してください。",
-      "notABook": "Driftingから出力した作品ではありません。",
-      "older": "この本は以前の開発版 Drifting で書き出されたもので、このバージョンでは読めない形式です。",
-      "tooLarge": "作品が大きすぎてインポートできません。"
+      "legacy": "このファイルは Drifting 0.1 で書き出されました。旧版で読み込んでから、そのライブラリを新しいバージョンに引き継いでください。",
+      "older": "このファイルは以前の開発版 Drifting で書き出されたもので、このバージョンでは読めない形式です。"
     },
     "delete": {
       "deleting": "削除中…"
@@ -783,17 +799,13 @@
       },
       "elementsUnit_one": "要素",
       "elementsUnit_other": "要素",
-      "exportBook": "この作品を出力（.driftingbook）",
       "form": {
-        "createTitle": "新しい一冊",
         "editTitle": "「{{name}}」を編集",
-        "nameLabel": "タイトル",
         "summaryLabel": "要約"
       },
       "goal": "{{pct}}%・目標{{target}}文字",
       "importing": "インポート中",
       "moveToTrash": "最近削除した項目へ移動",
-      "newCard": "新しい一冊",
       "newCardSub": "白紙から始める",
       "open": "「{{name}}」を開く",
       "progress": "進捗",
@@ -804,8 +816,6 @@
       "trashEntry": "最近削除した項目",
       "trashList": {
         "confirmTitle": "「{{name}}」を完全に削除しますか？",
-        "empty": "最近削除した作品はありません。",
-        "subLocal": "作品は30日間保管し、その後完全削除します。",
         "title": "最近削除した項目"
       },
       "trashTitle": "「{{name}}」を最近削除した項目へ移しますか？",
@@ -814,11 +824,7 @@
     },
     "form": {
       "createSubmit": "作成",
-      "namePlaceholder": "例：北の岬の灯",
-      "summaryPlaceholder": "作品を1〜2文で紹介してください。"
-    },
-    "header": {
-      "titleEm": "本棚"
+      "namePlaceholder": "例：北の岬の灯"
     },
     "heat": {
       "daysUnit": "日",
@@ -836,7 +842,6 @@
     "rail": {
       "books_one": "{{count}}冊",
       "books_other": "{{count}}冊",
-      "import": "本を読み込む",
       "library_one": "{{count}}冊 · {{words}}語",
       "library_other": "{{count}}冊 · {{words}}語"
     },
@@ -846,7 +851,7 @@
       "writing": "執筆中"
     },
     "trash": {
-      "bodyWithoutChapters": "作品（{{words}}文字・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
+      "bodyWithoutChapters": "プロジェクト（{{words}}文字・{{elements}}要素）を「すべてのプロジェクト」から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
       "confirm": "最近削除した項目へ移動",
       "deleteNow": "今すぐ削除",
       "expiresIn_one": "{{count}}日後に完全削除",
@@ -1195,10 +1200,6 @@
           "desc": "下部Dockの現在のタブを閉じます",
           "label": "現在のタブを閉じる"
         },
-        "closeProject": {
-          "desc": "作品を閉じて本棚へ戻ります",
-          "label": "作品を閉じる"
-        },
         "findInEditor": {
           "desc": "現在開いているエディタのテキストを検索します",
           "label": "現在のエディタ内を検索"
@@ -1512,7 +1513,6 @@
     "accountMenu": "アカウントメニュー",
     "feedback": "フィードバックを送る",
     "import": "インポート",
-    "importBook": "作品をインポート（.driftingbook）",
     "language": "言語",
     "localMenu": "ローカルライブラリのメニュー",
     "localStatus": "ローカル・この端末に保存",

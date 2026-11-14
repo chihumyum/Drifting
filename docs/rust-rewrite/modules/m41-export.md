@@ -243,7 +243,7 @@ next/crates/dr-view-transfer/examples/transfer-capture.rs  第二部分的截图
 
 ### 做了什么（大白话）
 
-1. **一本书存成一个文件，再导回来（`.driftingbook` v2）。**
+1. **一本书存成一个文件，再导回来（`.driftingbook` v2）。** 2026-11-14 起扩展名改成 `.driftingproject`，界面上叫「导出这个项目」「导入项目」；导入按内容读，还叫 `.driftingbook` 的文件照样认（`book_file::LEGACY_EXTENSION`），见 m01-shelf.md 第五轮。
    - 书架上书卡悬停时多一个「导出这本书（.driftingbook）」的箭头（旧版的位置：编辑和移进最近删除旁边），点了弹保存面板，写出 `<书名>.driftingbook`。
    - 书架左栏的「导入书（.driftingbook）」原来只是个占位，现在弹文件面板，选了文件出一个「正在导入」的小对话框带进度条，导完对话框消失，新书出现在书架上（书架在索引写进来时会自己重读）。
    - **导入永远是加一本新书**，不会盖掉任何书，连它自己的原书也不会：同一个文件在同一个库里导两次，就有三本并排。复本和原书不共用任何 id。
@@ -307,7 +307,7 @@ assets/<asset>/<variant>.<ext>     资源的每个存着的版本，原样
 // dr-export
 book_file::export_book(&ws, book, dest, &|Progress{done, total}| …) -> Result<BookFileSummary, BookFileError>
 book_file::import_book(&ws, path, &|Progress| …) -> Result<BookFileSummary /* 新书的 id */, BookFileError>
-book_file::book_filename(title)          // `<书名>.driftingbook`
+book_file::book_filename(title)          // `<书名>.driftingproject`（2026-11-14 前是 .driftingbook）
 import::{parse_file, import_docs, files_in_folder, order_import_files, ImportTarget, ParsedDoc, …}
 
 // dr-view-transfer

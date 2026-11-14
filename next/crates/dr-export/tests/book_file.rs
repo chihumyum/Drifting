@@ -53,7 +53,7 @@ fn book(ws: &Workspace) -> String {
 fn bad_files_are_refused_and_nothing_is_written() {
     let e = env();
     let original = book(&e.ws);
-    let file = e.dir.path().join("book.driftingbook");
+    let file = e.dir.path().join("book.driftingproject");
     book_file::export_book(&e.ws, &original, &file, &|_| {}).unwrap();
     let docs = || e.ws.library().docs(None, None).unwrap().len();
     let assets =
@@ -65,14 +65,14 @@ fn bad_files_are_refused_and_nothing_is_written() {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes.clone())).unwrap();
     let start = zip.by_name("docs/0.loro").unwrap().data_start().unwrap() as usize;
     bytes[start + 4] ^= 0xff;
-    let damaged = e.dir.path().join("damaged.driftingbook");
+    let damaged = e.dir.path().join("damaged.driftingproject");
     std::fs::write(&damaged, &bytes).unwrap();
     assert!(matches!(
         book_file::import_book(&e.ws, &damaged, &|_| {}),
         Err(BookFileError::Damaged(_))
     ));
 
-    let foreign = e.dir.path().join("notes.driftingbook");
+    let foreign = e.dir.path().join("notes.driftingproject");
     std::fs::write(&foreign, "just text").unwrap();
     assert!(matches!(
         book_file::import_book(&e.ws, &foreign, &|_| {}),
@@ -92,7 +92,7 @@ fn bad_files_are_refused_and_nothing_is_written() {
     // From a newer Drifting, and from an earlier development build (format
     // 3, before the documents beside the book).
     for (version, name) in [(5, "newer"), (3, "older")] {
-        let file = e.dir.path().join(format!("{name}.driftingbook"));
+        let file = e.dir.path().join(format!("{name}.driftingproject"));
         let mut w = zip::ZipWriter::new(std::fs::File::create(&file).unwrap());
         w.start_file("manifest.json", zip::write::SimpleFileOptions::default())
             .unwrap();
@@ -154,7 +154,7 @@ fn conversation_archive_copy_preserves_immutable_payloads() {
     })
     .unwrap();
     h.close();
-    let archive = e.dir.path().join("conversation.driftingbook");
+    let archive = e.dir.path().join("conversation.driftingproject");
     book_file::export_book(&e.ws, &b, &archive, &|_| {}).unwrap();
     let imported = book_file::import_book(&e.ws, &archive, &|_| {}).unwrap();
     let docs =

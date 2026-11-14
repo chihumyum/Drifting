@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Moving books in and out (M41): .driftingbook export and import from the bookshelf, importing Markdown, text and Word files into a book, whole-library backup and restore"
+description = "Moving books in and out (M41): .driftingproject export and import from the bookshelf, importing Markdown, text and Word files into a book, whole-library backup and restore"
 
 [features]
 # Offscreen screenshots of the dialogs (`examples/transfer-capture.rs`),

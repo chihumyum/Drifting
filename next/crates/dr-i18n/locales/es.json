@@ -91,6 +91,28 @@
       "updated": "{{time}} · actualizado por {{by}}"
     }
   },
+  "allProjects": {
+    "export": "Exportar este proyecto (.driftingproject)",
+    "import": "Importar proyecto",
+    "importFile": "Importar proyecto (.driftingproject)",
+    "importLegacy": "Importar Drifting 0.1",
+    "library_many": "{{count}} proyectos · {{words}} palabras",
+    "library_one": "{{count}} proyecto · {{words}} palabras",
+    "library_other": "{{count}} proyectos · {{words}} palabras",
+    "nameLabel": "Nombre",
+    "newProject": "Nuevo proyecto",
+    "summaryPlaceholder": "Describe el proyecto en una o dos frases.",
+    "title": "Todos los proyectos",
+    "transfer": {
+      "exportFailed": "No se pudo exportar el proyecto. Inténtalo de nuevo.",
+      "importFailed": "No se pudo importar el proyecto. Inténtalo de nuevo.",
+      "newer": "Este proyecto se exportó con un Drifting más reciente. Actualiza Drifting primero.",
+      "notProject": "Esto no es un proyecto exportado desde Drifting.",
+      "tooLarge": "Este proyecto es demasiado grande para importarlo."
+    },
+    "trashEmpty": "No hay proyectos eliminados recientemente.",
+    "trashSub": "Los proyectos se guardan aquí 30 días y después se eliminan definitivamente."
+  },
   "auth": {
     "back": "Volver",
     "backToSignIn": "Volver a iniciar sesión",
@@ -757,16 +779,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "exportFailed": "No se pudo exportar el libro. Reintenta.",
       "exportFailedTitle": "No se pudo exportar",
-      "importFailed": "No se pudo importar el libro. Reintenta.",
       "importFailedTitle": "No se pudo importar",
       "invalid": "El archivo está dañado y no se puede importar.",
-      "legacy": "Este libro se exportó con Drifting 0.1. Impórtalo allí y luego pasa esa biblioteca a esta versión.",
-      "newer": "Este libro se exportó con un Drifting más reciente. Actualiza primero.",
-      "notABook": "Este libro no se exportó desde Drifting.",
-      "older": "Este libro se exportó con una versión de desarrollo anterior de Drifting, en un formato que esta versión ya no lee.",
-      "tooLarge": "Este libro es demasiado grande para importarlo."
+      "legacy": "Este archivo se exportó con Drifting 0.1. Impórtalo allí y luego pasa esa biblioteca a esta versión.",
+      "older": "Este archivo se exportó con una versión de desarrollo anterior de Drifting, en un formato que esta versión ya no lee."
     },
     "delete": {
       "deleting": "Eliminando…"
@@ -794,17 +811,13 @@
       "elementsUnit_many": "elementos",
       "elementsUnit_one": "elemento",
       "elementsUnit_other": "elementos",
-      "exportBook": "Exportar este libro (.driftingbook)",
       "form": {
-        "createTitle": "Nuevo libro",
         "editTitle": "Editar «{{name}}»",
-        "nameLabel": "Título",
         "summaryLabel": "Resumen"
       },
       "goal": "{{pct}}% · meta {{target}} palabras",
       "importing": "Importando",
       "moveToTrash": "Mover a eliminados recientemente",
-      "newCard": "Nuevo libro",
       "newCardSub": "Empieza con una página en blanco",
       "open": "Abrir «{{name}}»",
       "progress": "Progreso",
@@ -816,8 +829,6 @@
       "trashEntry": "Eliminados recientemente",
       "trashList": {
         "confirmTitle": "¿Eliminar «{{name}}» definitivamente?",
-        "empty": "No hay libros eliminados recientemente.",
-        "subLocal": "Los libros se conservan aquí 30 días y después se eliminan definitivamente.",
         "title": "Eliminados recientemente"
       },
       "trashTitle": "¿Mover «{{name}}» a eliminados recientemente?",
@@ -826,11 +837,7 @@
     },
     "form": {
       "createSubmit": "Crear",
-      "namePlaceholder": "p. ej., La luz del cabo Norte",
-      "summaryPlaceholder": "Describe el libro en una o dos frases."
-    },
-    "header": {
-      "titleEm": "Estantería"
+      "namePlaceholder": "p. ej., La luz del cabo Norte"
     },
     "heat": {
       "daysUnit": "días",
@@ -849,7 +856,6 @@
       "books_many": "{{count}} libros",
       "books_one": "{{count}} libro",
       "books_other": "{{count}} libros",
-      "import": "Importar libro",
       "library_many": "{{count}} libros · {{words}} palabras",
       "library_one": "{{count}} libro · {{words}} palabras",
       "library_other": "{{count}} libros · {{words}} palabras"
@@ -860,7 +866,7 @@
       "writing": "Escribiendo"
     },
     "trash": {
-      "bodyWithoutChapters": "Este libro ({{words}} palabras · {{elements}} elementos) saldrá de la estantería. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
+      "bodyWithoutChapters": "Este proyecto ({{words}} palabras · {{elements}} elementos) saldrá de Todos los proyectos. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
       "confirm": "Mover a eliminados recientemente",
       "deleteNow": "Eliminar ahora",
       "expiresIn_many": "Borrado definitivo en {{count}} días",
@@ -1210,10 +1216,6 @@
           "desc": "Cierra la pestaña activa del dock inferior",
           "label": "Cerrar pestaña actual"
         },
-        "closeProject": {
-          "desc": "Cierra este proyecto y vuelve a la estantería",
-          "label": "Cerrar proyecto"
-        },
         "findInEditor": {
           "desc": "Busca texto en el editor abierto",
           "label": "Buscar en el editor actual"
@@ -1527,7 +1529,6 @@
     "accountMenu": "Menú de cuenta",
     "feedback": "Enviar comentarios",
     "import": "Importar",
-    "importBook": "Importar libro (.driftingbook)",
     "language": "Idioma",
     "localMenu": "Menú de biblioteca local",
     "localStatus": "LOCAL · EN ESTE DISPOSITIVO",

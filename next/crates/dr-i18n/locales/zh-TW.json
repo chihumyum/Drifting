@@ -91,6 +91,27 @@
       "updated": "{{time}} · 由 {{by}} 更新"
     }
   },
+  "allProjects": {
+    "export": "匯出這個專案（.driftingproject）",
+    "import": "匯入專案",
+    "importFile": "匯入專案（.driftingproject）",
+    "importLegacy": "匯入 Drifting 0.1",
+    "library_one": "{{count}} 個專案 · {{words}} 字",
+    "library_other": "{{count}} 個專案 · {{words}} 字",
+    "nameLabel": "名稱",
+    "newProject": "新專案",
+    "summaryPlaceholder": "用一兩句話說明這個專案是什麼。",
+    "title": "全部專案",
+    "transfer": {
+      "exportFailed": "這個專案沒能匯出，請稍後再試。",
+      "importFailed": "這個專案沒能匯入，請稍後再試。",
+      "newer": "這個專案由較新版本的 Drifting 匯出，請先更新 Drifting。",
+      "notProject": "這不是 Drifting 匯出的專案。",
+      "tooLarge": "這個專案太大，無法匯入。"
+    },
+    "trashEmpty": "最近沒有刪除的專案。",
+    "trashSub": "專案會在這裡保留 30 天，到期後自動永久刪除。"
+  },
   "auth": {
     "back": "返回",
     "backToSignIn": "返回登入",
@@ -747,16 +768,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "exportFailed": "無法匯出作品，請重試。",
       "exportFailedTitle": "無法匯出",
-      "importFailed": "無法匯入作品，請重試。",
       "importFailedTitle": "無法匯入",
       "invalid": "此檔案已損壞，無法匯入。",
-      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
-      "newer": "此作品由較新的 Drifting 匯出，請先更新。",
-      "notABook": "這不是從 Drifting 匯出的作品。",
-      "older": "這本書是 Drifting 以前的開發版匯出的，這一版已經不讀那種格式。",
-      "tooLarge": "作品過大，無法匯入。"
+      "legacy": "這個檔案是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
+      "older": "這個檔案是 Drifting 以前的開發版匯出的，這一版已經不讀那種格式。"
     },
     "delete": {
       "deleting": "正在刪除…"
@@ -783,17 +799,13 @@
       },
       "elementsUnit_one": "個要素",
       "elementsUnit_other": "個要素",
-      "exportBook": "匯出此作品（.driftingbook）",
       "form": {
-        "createTitle": "新作品",
         "editTitle": "編輯「{{name}}」",
-        "nameLabel": "標題",
         "summaryLabel": "摘要"
       },
       "goal": "{{pct}}% · 目標 {{target}} 字",
       "importing": "匯入中",
       "moveToTrash": "移至最近刪除",
-      "newCard": "新作品",
       "newCardSub": "從空白頁開始",
       "open": "開啟「{{name}}」",
       "progress": "進度",
@@ -804,8 +816,6 @@
       "trashEntry": "最近刪除",
       "trashList": {
         "confirmTitle": "永久刪除「{{name}}」？",
-        "empty": "沒有最近刪除的作品。",
-        "subLocal": "作品在此保留 30 天，之後永久刪除。",
         "title": "最近刪除"
       },
       "trashTitle": "將「{{name}}」移至最近刪除？",
@@ -814,11 +824,7 @@
     },
     "form": {
       "createSubmit": "建立",
-      "namePlaceholder": "例如：北岬燈塔",
-      "summaryPlaceholder": "用一兩句話描述這部作品。"
-    },
-    "header": {
-      "titleEm": "書架"
+      "namePlaceholder": "例如：北岬燈塔"
     },
     "heat": {
       "daysUnit": "天",
@@ -836,7 +842,6 @@
     "rail": {
       "books_one": "{{count}} 部作品",
       "books_other": "{{count}} 部作品",
-      "import": "匯入作品",
       "library_one": "{{count}} 部作品 · {{words}} 字",
       "library_other": "{{count}} 部作品 · {{words}} 字"
     },
@@ -846,7 +851,7 @@
       "writing": "寫作中"
     },
     "trash": {
-      "bodyWithoutChapters": "此作品（{{words}} 字 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。",
+      "bodyWithoutChapters": "此專案（{{words}} 字 · {{elements}} 個要素）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "confirm": "移至最近刪除",
       "deleteNow": "立即刪除",
       "expiresIn_one": "{{count}} 天後永久刪除",
@@ -1195,10 +1200,6 @@
           "desc": "關閉底部 Dock 中的目前分頁",
           "label": "關閉目前分頁"
         },
-        "closeProject": {
-          "desc": "關閉此作品並返回書架",
-          "label": "關閉作品"
-        },
         "findInEditor": {
           "desc": "尋找目前開啟編輯器中的文字",
           "label": "在目前編輯器中尋找"
@@ -1512,7 +1513,6 @@
     "accountMenu": "帳號選單",
     "feedback": "傳送意見回饋",
     "import": "匯入",
-    "importBook": "匯入作品（.driftingbook）",
     "language": "語言",
     "localMenu": "本機資料庫選單",
     "localStatus": "本機 · 存於此裝置",

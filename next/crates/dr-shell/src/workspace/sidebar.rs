@@ -45,9 +45,8 @@ use gpui::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
+use super::chrome::{self, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
 use super::{SuperView, Workspace};
-use crate::actions::{ShowProjectHome, ToggleNotifications};
 use crate::book::Book;
 use crate::dialogs::FollowUpNotice;
 use crate::nav::{Open, Target};
@@ -151,7 +150,7 @@ fn row_width(labels: &[Key], with_toggle: bool, side: Side, window: &Window, cx:
         .sum();
     let toggle = match (with_toggle, side) {
         (false, _) => 0.0,
-        (true, Side::Left) => LEADING_INSET + g::ROUND + TOGGLE_GAP,
+        (true, Side::Left) => chrome::CLUSTER_END + TOGGLE_GAP,
         (true, Side::Right) => TRAILING_INSET + g::ROUND + TOGGLE_GAP,
     };
     text + 12.0 + toggle
@@ -216,8 +215,7 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
         div().size_full().flex().flex_col()
     };
 
-    let account = account_cell(ws, window, cx);
-    column(Side::Left, width, shown, body.child(account), window, cx)
+    column(Side::Left, width, shown, body, window, cx)
 }
 
 pub fn right(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
@@ -486,7 +484,7 @@ where
         )
     });
     let (lead, trail) = match (outer, side) {
-        (true, Side::Left) => (LEADING_INSET + g::ROUND + TOGGLE_GAP, 6.0),
+        (true, Side::Left) => (chrome::CLUSTER_END + TOGGLE_GAP, 6.0),
         (true, Side::Right) => (6.0, TRAILING_INSET + g::ROUND + TOGGLE_GAP),
         _ => (6.0, 6.0),
     };
@@ -1375,104 +1373,7 @@ fn right_body(
     }
 }
 
-/// The account cell at the foot of the left sidebar: who, the Project Home
-/// (torii) and the notification center (wind bell).
-fn account_cell(
-    ws: &mut Workspace,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> AnyElement {
-    let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let bell = overlay::use_bounds("bell-bounds", window, cx);
-    let account = overlay::use_bounds("account-bounds", window, cx);
-    let home = ws.nav.current().is_none() && ws.super_view.is_none();
-    let open = ws.notifications_open;
-    let menu_open = ws.account_open;
-    let toggle = cx.entity();
-    div()
-        .flex_none()
-        .h(px(theme.scale.row_height + 14.0))
-        .px(px(12.0))
-        .border_t(px(0.5))
-        .border_color(p.subtle_hairline())
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(4.0))
-        .child(
-            // The account (local only): its menu opens upward, the same
-            // one the bookshelf's account cell opens.
-            glass::glass_box(
-                "account",
-                glass::Kind::Hidden,
-                glass::Mode::default(),
-                menu_open,
-                glass::Spec::new(glass::Tone::Clear, 12.0),
-                window,
-                cx,
-            )
-            .flex_1()
-            .min_w_0()
-            .px(px(6.0))
-            .py(px(4.0))
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(8.0))
-            .cursor_pointer()
-            .role(gpui::Role::Button)
-            .aria_label(crate::account::menu_aria_label(cx))
-            .on_click(move |_, _, cx| {
-                toggle.update(cx, |ws, cx| {
-                    ws.account_open = !ws.account_open;
-                    ws.notifications_open = false;
-                    cx.notify();
-                })
-            })
-            .child(overlay::probe(account))
-            .child(crate::account::avatar(20.0, window, cx))
-            .child(
-                div()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .font_role(Role::Ui)
-                    .type_px(theme.scale.secondary, theme.scale.line_body)
-                    .text_color(p.ink(2).solid())
-                    .truncate()
-                    .child(crate::account::display_name(cx)),
-            ),
-        )
-        .child(crate::pages::anchor(
-            crate::pages::anchors::PROJECT_HOME,
-            IconButton::new("home", Icon::Torii)
-                .label(t(cx, keys::project_home::KICKER))
-                .selected(home)
-                .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowProjectHome), cx)),
-            cx,
-        ))
-        .child(
-            div()
-                .relative()
-                .child(overlay::probe(bell))
-                .child(crate::pages::anchor(
-                    crate::pages::anchors::NOTIFICATIONS,
-                    IconButton::new("notifications", Icon::Furin)
-                        .label(t(cx, keys::notifications::TITLE))
-                        .selected(open)
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(ToggleNotifications), cx)
-                        }),
-                    cx,
-                ))
-                .when(Notifications::has_pinned(cx), |el| {
-                    el.child(crate::sync::bell_danger_seal(*p))
-                }),
-        )
-        .into_any_element()
-}
-
-/// The account menu over the left sidebar's account cell.
+/// The account menu, dropping from its button right of the traffic lights.
 pub fn account_menu(
     _ws: &mut Workspace,
     window: &mut Window,
@@ -1503,7 +1404,7 @@ pub fn notification_center(
     let place = match bell {
         Some(rect) => Place::Rect {
             rect,
-            align: dr_ui::components::Align::End,
+            align: dr_ui::components::Align::Start,
             gap: m::HOVER_CARD_GAP,
         },
         None => Place::Center,

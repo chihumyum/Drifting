@@ -1,22 +1,29 @@
 //! The window's own chrome: where the traffic lights sit, which strips move
-//! the window, the two sidebar toggles fixed in the top corners, and the
-//! Windows caption pill (workspace.md, 「Persistence and responsive
+//! the window, the buttons fixed right of the traffic lights (全部项目, the
+//! Project Home, the notification center, the account menu and the left
+//! sidebar's toggle), the right sidebar's toggle in the other corner, and
+//! the Windows caption pill (workspace.md, 「Persistence and responsive
 //! behavior」; P0-A for the titlebar mechanics).
 
 use dr_ui::{
-    components::IconButton,
+    Theme,
+    components::{IconButton, overlay},
     glass::{self, Kind, Mode, Spec, Tone},
     sand::Icon,
     tokens::glass as g,
 };
 use gpui::{
-    App, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ParentElement, Pixels, Point, SharedString, Stateful, StatefulInteractiveElement, Styled,
-    Window, WindowControlArea, div, point, px,
+    AnyElement, App, Bounds, Context, Entity, InteractiveElement, IntoElement, MouseButton,
+    MouseDownEvent, MouseMoveEvent, ParentElement, Pixels, Point, SharedString, Stateful,
+    StatefulInteractiveElement, Styled, Window, WindowControlArea, div, point,
+    prelude::FluentBuilder as _, px,
 };
 
 use super::Workspace;
-use crate::actions::{ToggleLeftSidebar, ToggleRightSidebar};
+use crate::actions::{
+    ShowProjectHome, ToggleLeftSidebar, ToggleNotifications, ToggleProjects, ToggleRightSidebar,
+};
+use crate::notifications::Notifications;
 use crate::strings::t;
 use dr_i18n::keys;
 
@@ -36,6 +43,16 @@ pub const LEADING_INSET: f32 = if cfg!(target_os = "windows") {
 } else {
     94.0
 };
+
+/// How many buttons stand right of the traffic lights: 全部项目, the Project
+/// Home, the notification center, the account menu and the left sidebar's
+/// toggle, in that order (author 2026-11-14; they were the left sidebar's
+/// foot before).
+pub const CLUSTER: usize = 5;
+
+/// Where those buttons end: the left toggle's right edge.
+pub const CLUSTER_END: f32 =
+    LEADING_INSET + CLUSTER as f32 * g::ROUND + (CLUSTER as f32 - 1.0) * TOGGLE_GAP;
 
 /// The right toggle's distance from the window's right edge.
 pub const TRAILING_INSET: f32 = 8.0;
@@ -71,13 +88,15 @@ pub fn drag_region(el: Stateful<gpui::Div>, cx: &mut Context<Workspace>) -> Stat
     })
 }
 
-/// The two sidebar toggles: a 28px round glass button in each top corner,
-/// fixed; the sidebar slides out from under it. Closed, the toggle floats
-/// on the desk (a resting line on an opaque fill) with a hollow moon; open,
-/// the moon is solid ink and the glass shows only under the hand.
+/// The buttons right of the traffic lights and the right sidebar's toggle:
+/// 28px round glass, fixed; the sidebars slide out from under them. While
+/// the left sidebar is closed the five on the left float on the desk (a
+/// resting line on an opaque fill) and its moon is hollow; open, the glass
+/// shows only under the hand. The right toggle does the same for the right
+/// sidebar.
 pub fn sidebar_toggles(
     ws: &Workspace,
-    _: &mut Window,
+    window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> impl IntoElement {
     let top = (TITLEBAR_HEIGHT - g::ROUND) / 2.0;
@@ -98,6 +117,7 @@ pub fn sidebar_toggles(
         t(cx, if ws.left.open { lt::CLOSE } else { lt::OPEN }),
     )
     .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleLeftSidebar), cx));
+    let cluster = cluster(ws, left, window, cx);
     let right = toggle(
         "toggle-right",
         ws.right.open,
@@ -116,12 +136,7 @@ pub fn sidebar_toggles(
                 .absolute()
                 .top(px(top))
                 .left(px(LEADING_INSET))
-                .child(closed_anchor(
-                    !ws.left.open,
-                    crate::pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
-                    left,
-                    cx,
-                )),
+                .child(cluster),
         )
         .child(
             div()
@@ -198,6 +213,122 @@ pub fn place_traffic_lights(_: &Window) {}
 
 /// A sidebar's toggle, marked for M24's tour only while the sidebar is
 /// closed (it floats then).
+/// 全部项目, the Project Home, the notification center, the account menu,
+/// then `left` (the left sidebar's toggle).
+fn cluster(
+    ws: &Workspace,
+    left: IconButton,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
+    let p = Theme::of(window, cx).palette;
+    let open = ws.left.open;
+    let seat = |button: IconButton| {
+        if open {
+            button.in_tray()
+        } else {
+            button.floating()
+        }
+    };
+    let home = ws.nav.current().is_none() && ws.super_view.is_none();
+    let bell = overlay::use_bounds("bell-bounds", window, cx);
+    let account = overlay::use_bounds("account-bounds", window, cx);
+    let projects = seat(
+        IconButton::new("projects", Icon::Books)
+            .label(t(cx, dr_i18n::keys::all_projects::TITLE))
+            .selected(ws.projects_open),
+    )
+    .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleProjects), cx));
+    let home = crate::pages::anchor(
+        crate::pages::anchors::PROJECT_HOME,
+        seat(
+            IconButton::new("home", Icon::Torii)
+                .label(t(cx, keys::project_home::KICKER))
+                .selected(home),
+        )
+        .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowProjectHome), cx)),
+        cx,
+    );
+    let notifications = div()
+        .relative()
+        .child(overlay::probe(bell))
+        .child(crate::pages::anchor(
+            crate::pages::anchors::NOTIFICATIONS,
+            seat(
+                IconButton::new("notifications", Icon::Furin)
+                    .label(t(cx, keys::notifications::TITLE))
+                    .selected(ws.notifications_open),
+            )
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleNotifications), cx)),
+            cx,
+        ))
+        .when(Notifications::has_pinned(cx), |el| {
+            el.child(crate::sync::bell_danger_seal(*p))
+        });
+    div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(TOGGLE_GAP))
+        .child(projects)
+        .child(home)
+        .child(notifications)
+        .child(account_button(ws, account, window, cx))
+        .child(closed_anchor(
+            !open,
+            crate::pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
+            left,
+            cx,
+        ))
+        .into_any_element()
+}
+
+/// The account menu's button: the avatar in a round of glass. The menu
+/// drops from it.
+fn account_button(
+    ws: &Workspace,
+    bounds: Entity<Option<Bounds<Pixels>>>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
+    let p = Theme::of(window, cx).palette;
+    let floating = !ws.left.open;
+    let mut spec = Spec::new(Tone::Clear, g::ROUND / 2.0);
+    if floating {
+        spec = spec.filled(p.page);
+    }
+    let toggle = cx.entity();
+    glass::glass_box(
+        "account",
+        if floating { Kind::Rest } else { Kind::Hidden },
+        Mode::default(),
+        ws.account_open,
+        spec,
+        window,
+        cx,
+    )
+    .size(px(g::ROUND))
+    .flex()
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .rounded_full()
+    .when(floating, |el| el.bg(p.page.solid()))
+    .cursor_pointer()
+    .role(gpui::Role::Button)
+    .aria_label(crate::account::menu_aria_label(cx))
+    .on_click(move |_, _, cx| {
+        toggle.update(cx, |ws, cx| {
+            ws.account_open = !ws.account_open;
+            ws.notifications_open = false;
+            cx.notify();
+        })
+    })
+    .child(overlay::probe(bounds))
+    .child(crate::account::avatar(20.0, window, cx))
+    .into_any_element()
+}
+
 fn closed_anchor(
     closed: bool,
     id: &'static str,

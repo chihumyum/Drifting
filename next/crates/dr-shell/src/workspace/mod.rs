@@ -55,8 +55,8 @@ use gpui::{
 use serde::{Deserialize, Serialize};
 
 use crate::actions::{
-    CloseActiveTab, CloseProject, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward,
-    NewEntity, NextTab, OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
+    CloseActiveTab, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward, NewEntity, NextTab,
+    OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
     ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
     ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
 };
@@ -373,6 +373,8 @@ fn memory_prefix(book: &str) -> String {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layer {
     Notifications,
+    /// 全部项目's row of projects, dropped from the top.
+    Projects,
     /// M06's search panel.
     Search,
     Settings,
@@ -488,16 +490,30 @@ pub struct Workspace {
     /// M09's snapshot history of a page, while open (`corner::open_history`).
     pub history: Option<Entity<dr_view_history::HistoryDialog>>,
     pub notifications_open: bool,
-    /// The account menu over the left sidebar's account cell is open.
+    /// The account menu, dropped from its button right of the traffic
+    /// lights, is open.
     pub account_open: bool,
     /// A dialog another crate draws ([`dialogs`]: feedback, M39), while open.
     pub dialog: Option<AnyView>,
     /// The bookshelf (M01), when one is registered ([`pages::set_shelf`]):
     /// made the first time it shows, kept while the window lives.
     pub shelf: Option<ShelfPage>,
-    /// The bookshelf covers the window (at launch, after ⇧⌘W or the red
-    /// light) until a book opens.
+    /// The bookshelf (全部项目) covers the window (at launch without a
+    /// book to reopen, or from its button) until a book opens.
     pub shelf_open: bool,
+    /// 全部项目's row of projects ([`pages::set_projects`]): made the first
+    /// time it drops, kept while the window lives.
+    pub projects: Option<AnyView>,
+    /// The row of projects lies over the top of the workspace.
+    pub projects_open: bool,
+    /// How many times the row of projects has dropped (it starts afresh
+    /// each time).
+    pub projects_dropped: u64,
+    /// The book reopened at launch has not been read yet: if it cannot be
+    /// (it went to Recently Deleted meanwhile), 全部项目 shows instead.
+    shelf_if_unread: bool,
+    /// 全部项目 is to show at the next render (the window is needed).
+    shelf_wanted: bool,
     /// Project Home (M02), when one is registered ([`pages::set_home`]):
     /// made with the workspace, kept while the window lives.
     /// Versioned Project Home; never rendered for a legacy book.
@@ -523,17 +539,28 @@ impl Workspace {
         focus.focus(window, cx);
         let services = cx.try_global::<Services>();
         let library = services.and_then(|s| s.library.clone());
-        let preferred = services
-            .and_then(|s| s.book.clone())
+        let named = services.and_then(|s| s.book.clone());
+        let preferred = named
+            .clone()
             .or_else(|| Settings::read(cx).last_book().map(str::to_owned));
-        // With a bookshelf, the window opens on it (unless a book was named
-        // for this run); without one, straight into the last book.
-        let shelf_first = services.is_none_or(|s| s.book.is_none()) && pages::has_shelf(cx);
+        // The window opens on the book that was open when it last closed (or
+        // the one named for this run). With 全部项目 (the bookshelf) and no
+        // such book it opens there; without a bookshelf, on the library's
+        // first book.
+        let has_shelf = pages::has_shelf(cx);
         let book_id = library
             .as_ref()
-            .filter(|_| !shelf_first)
-            .and_then(|lib| first_choice(lib, preferred.as_deref()))
+            .and_then(|lib| {
+                if has_shelf && named.is_none() {
+                    preferred
+                        .clone()
+                        .filter(|id| crate::book::canonical(lib, id))
+                } else {
+                    first_choice(lib, preferred.as_deref())
+                }
+            })
             .unwrap_or_default();
+        let shelf_first = has_shelf && book_id.is_empty();
         let observers = vec![
             cx.observe_window_appearance(window, |ws, window, cx| {
                 ws.style_editors(window, cx);
@@ -617,6 +644,11 @@ impl Workspace {
             dialog: None,
             shelf: None,
             shelf_open: false,
+            projects: None,
+            projects_open: false,
+            projects_dropped: 0,
+            shelf_if_unread: has_shelf && !shelf_first && named.is_none(),
+            shelf_wanted: false,
             v3_home: None,
             drag_armed: false,
             last_typing_ms: None,
@@ -735,6 +767,7 @@ impl Workspace {
         match loaded {
             Ok(Some(book)) => {
                 log::debug!("book {} read in {ms:.1} ms", book.id);
+                self.shelf_if_unread = false;
                 let same_book = book.id == self.book_id && self.book.id == book.id;
                 let cur_rev = same_book
                     .then(|| self.book.v3().map(|v| v.revision.as_str()))
@@ -801,9 +834,16 @@ impl Workspace {
                 self.book = Rc::new(Book::default());
                 self.sync_active_book();
                 crate::sync::notify_holder_released(cx);
+                self.shelf_wanted |= std::mem::take(&mut self.shelf_if_unread);
                 cx.notify();
             }
-            Err(error) => log::warn!("the book could not be read: {error}"),
+            Err(error) => {
+                log::warn!("the book could not be read: {error}");
+                if std::mem::take(&mut self.shelf_if_unread) {
+                    self.shelf_wanted = true;
+                    cx.notify();
+                }
+            }
         }
         if std::mem::take(&mut self.book_stale) {
             self.load_book(None, cx);
@@ -1046,6 +1086,7 @@ impl Workspace {
         self.release_words(cx);
         self.focused_editor = None;
         self.set_immersive(false, cx);
+        self.projects_open = false;
         self.shelf_open = true;
         self.super_view = None;
         self.notifications_open = false;
@@ -1054,6 +1095,28 @@ impl Workspace {
         self.sea_shelf(window, cx);
         cx.notify();
         true
+    }
+
+    /// Drops 全部项目's row of projects from the top of the workspace, or puts
+    /// it away. Without one registered, 全部项目 itself shows.
+    pub fn toggle_projects(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.projects_open {
+            self.projects_open = false;
+            cx.notify();
+            return;
+        }
+        if self.projects.is_none() {
+            self.projects = pages::make_projects(cx.weak_entity(), window, cx);
+        }
+        if self.projects.is_none() {
+            self.show_shelf(window, cx);
+            return;
+        }
+        self.projects_open = true;
+        self.projects_dropped += 1;
+        self.notifications_open = false;
+        self.account_open = false;
+        cx.notify();
     }
 
     /// Opens `book` from the bookshelf: its saved tabs and sidebars come
@@ -1073,6 +1136,7 @@ impl Workspace {
         }
         let changed_book = book != self.book_id;
         self.shelf_open = false;
+        self.projects_open = false;
         self.notifications_open = false;
         self.super_view = None;
         self.focus.focus(window, cx);
@@ -1201,16 +1265,14 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The red light: in a book it goes back to the bookshelf; on the
-    /// bookshelf (or without one) it closes the window.
+    /// The red light closes the window, in a book as on 全部项目: the
+    /// book's layout is stored first, so the next launch opens it as it was.
+    /// 全部项目 is reached only by its own button.
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !pages::has_shelf(cx) {
-            return;
-        }
         let this = cx.weak_entity();
-        window.on_window_should_close(cx, move |window, cx| {
-            this.update(cx, |ws, cx| !ws.show_shelf(window, cx))
-                .unwrap_or(true)
+        window.on_window_should_close(cx, move |_, cx| {
+            let _ = this.update(cx, |ws, cx| ws.store_layout(cx));
+            true
         });
     }
 
@@ -1414,6 +1476,8 @@ impl Workspace {
     pub fn top_layer(&self) -> Option<Layer> {
         if self.notifications_open {
             Some(Layer::Notifications)
+        } else if self.projects_open {
+            Some(Layer::Projects)
         } else if self.search.is_some() {
             Some(Layer::Search)
         } else if self.settings.is_some() {
@@ -1434,6 +1498,7 @@ impl Workspace {
         }
         match self.top_layer() {
             Some(Layer::Notifications) => self.notifications_open = false,
+            Some(Layer::Projects) => self.projects_open = false,
             Some(Layer::Search) => {
                 self.search = None;
                 self.refocus(window, cx);
@@ -1591,9 +1656,11 @@ impl Workspace {
         .on_action(cx.listener(|ws, _: &ReplaceInEditor, window, cx| ws.open_replace(window, cx)))
         .on_action(cx.listener(Self::on_new_comment))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
-        .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
-            ws.show_shelf(window, cx);
-        }))
+        .on_action(
+            cx.listener(|ws, _: &crate::actions::ToggleProjects, window, cx| {
+                ws.toggle_projects(window, cx)
+            }),
+        )
         // ⌘Z / ⇧⌘Z outside the prose: the book's commands (`undo.rs`).
         .on_action(cx.listener(|ws, _: &crate::actions::Undo, window, cx| {
             ws.on_edit_undo(false, window, cx)
@@ -1616,6 +1683,9 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        if std::mem::take(&mut self.shelf_wanted) {
+            self.show_shelf(window, cx);
+        }
         if self.shelf_open
             && let Some(shelf) = self.shelf.clone()
         {
@@ -1694,6 +1764,7 @@ impl Render for Workspace {
             }))
             .children(Self::backdrop(window, cx))
             .child(row)
+            .children(self.projects_layer(window, cx))
             .when(!immersive, |el| {
                 el.child(chrome::sidebar_toggles(self, window, cx))
             })
@@ -1719,6 +1790,40 @@ impl Render for Workspace {
 }
 
 impl Workspace {
+    /// 全部项目's row of projects: one sheet down from the window's top edge
+    /// over the workspace (the title row too), under the traffic lights and
+    /// the buttons beside them; a press anywhere below it puts it away.
+    fn projects_layer(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::AnyElement> {
+        if !self.projects_open || self.immersive || self.super_view.is_some() {
+            return None;
+        }
+        let view = self.projects.clone()?;
+        let _ = window;
+        let away = cx.listener(|ws, _: &gpui::MouseDownEvent, _, cx| {
+            ws.projects_open = false;
+            cx.notify();
+        });
+        Some(
+            div()
+                .absolute()
+                .inset_0()
+                .child(
+                    div()
+                        .id("projects-away")
+                        .absolute()
+                        .inset_0()
+                        .occlude()
+                        .on_mouse_down(gpui::MouseButton::Left, away),
+                )
+                .child(div().absolute().top_0().left_0().right_0().child(view))
+                .into_any_element(),
+        )
+    }
+
     /// The sea ebbs under the workspace (M24): the paper's desk and the
     /// Bottom Panel leave their colour to it.
     pub fn ebbing(&self) -> bool {

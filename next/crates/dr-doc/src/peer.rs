@@ -57,7 +57,7 @@ pub fn seed_peer(doc_id: &str, key: &str) -> PeerId {
     }
 }
 
-/// The deterministic peer an import (old library, `.driftingbook`) writes a
+/// The deterministic peer an import (old library, `.driftingproject`) writes a
 /// document with, so the same library imported on two devices produces
 /// identical changes that Loro dedupes.
 pub fn import_peer(doc_id: &str) -> PeerId {

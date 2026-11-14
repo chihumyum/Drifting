@@ -1,4 +1,4 @@
-//! One book in one file: `.driftingbook`, versions 2 (legacy) and 3 (v3 books). The 0.1 client
+//! One book in one file: `.driftingproject`, versions 2 (legacy) and 3 (v3 books). The 0.1 client
 //! wrote version 1; docs/book-transfer.md).
 //!
 //! ```text
@@ -58,7 +58,11 @@ pub const FORMAT: &str = "drifting.book";
 /// travel in `stats:<book>` and `checkpoints:<book>`. Only this version is
 /// read; 3 was written only by development builds before it.
 pub const FORMAT_VERSION: u32 = 4;
-pub const EXTENSION: &str = "driftingbook";
+pub const EXTENSION: &str = "driftingproject";
+/// What the 0.1 client and development builds before 2026-11-14 named
+/// these files. Import reads a file by its content, so one still named this
+/// way is read (or, written by 0.1, refused with the reason).
+pub const LEGACY_EXTENSION: &str = "driftingbook";
 /// The largest book file read or written (the 0.1 limit).
 pub const MAX_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -166,7 +170,7 @@ pub struct Progress {
     pub total: usize,
 }
 
-/// `<title>.driftingbook`, named as the book's Markdown folder is.
+/// `<title>.driftingproject`, named as the book's Markdown folder is.
 pub fn book_filename(title: &str) -> String {
     format!("{}.{EXTENSION}", readable_stem(title))
 }
@@ -741,6 +745,6 @@ mod tests {
 
     #[test]
     fn file_names_are_readable() {
-        assert_eq!(book_filename("慢钟"), "慢钟.driftingbook");
+        assert_eq!(book_filename("慢钟"), "慢钟.driftingproject");
     }
 }

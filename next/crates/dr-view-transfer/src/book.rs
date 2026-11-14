@@ -1,6 +1,6 @@
-//! `.driftingbook` from the bookshelf (docs/book-transfer.md's 「What the
+//! `.driftingproject` from the bookshelf (docs/book-transfer.md's 「What the
 //! author sees」): the card's export icon asks where to save
-//! `<book name>.driftingbook` and writes it; 「导入书（.driftingbook）」 asks
+//! `<book name>.driftingproject` and writes it; 「导入书（.driftingproject）」 asks
 //! for a file and imports it as a new book while 「正在导入」 shows how
 //! far it is. A failure names the reason and leaves the library as it was.
 
@@ -14,6 +14,7 @@ use gpui::{App, Entity, PathPromptOptions};
 
 use crate::dialog::{State, TransferDialog};
 
+use keys::all_projects::transfer as project;
 use keys::project_picker::book_transfer as reason;
 
 /// Where the save panel starts: the author's home folder.
@@ -28,17 +29,17 @@ pub(crate) fn start_dir() -> PathBuf {
 /// files).
 pub fn import_reason(e: &BookFileError) -> Key {
     match e {
-        BookFileError::NotABook => reason::NOT_ABOOK,
+        BookFileError::NotABook => project::NOT_PROJECT,
         BookFileError::Legacy => reason::LEGACY,
-        BookFileError::Newer => reason::NEWER,
+        BookFileError::Newer => project::NEWER,
         BookFileError::Older => reason::OLDER,
-        BookFileError::TooLarge => reason::TOO_LARGE,
+        BookFileError::TooLarge => project::TOO_LARGE,
         BookFileError::Damaged(_) => reason::INVALID,
-        _ => reason::IMPORT_FAILED,
+        _ => project::IMPORT_FAILED,
     }
 }
 
-/// 「导入书（.driftingbook）」: the file panel, then [`import_path`].
+/// 「导入书（.driftingproject）」: the file panel, then [`import_path`].
 pub fn import(cx: &mut App) {
     dr_shell::workspace::with_workspace(cx, |ws, _, cx| {
         let Some(lib) = ws.library.clone() else {
@@ -48,7 +49,7 @@ pub fn import(cx: &mut App) {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some(dr_shell::t(cx, keys::user_menu::IMPORT_BOOK)),
+            prompt: Some(dr_shell::t(cx, keys::all_projects::IMPORT_FILE)),
         });
         cx.spawn(async move |_, cx| {
             let path = match paths.await {
@@ -148,7 +149,7 @@ pub fn export_path(lib: Workspace, book: String, path: PathBuf, cx: &mut App) {
                 d.update(cx, |d, cx| {
                     d.fail(
                         reason::EXPORT_FAILED_TITLE,
-                        reason::EXPORT_FAILED,
+                        project::EXPORT_FAILED,
                         e.to_string(),
                         cx,
                     )
@@ -159,8 +160,11 @@ pub fn export_path(lib: Workspace, book: String, path: PathBuf, cx: &mut App) {
     .detach();
 }
 
-/// Whether `path` names a `.driftingbook`.
+/// Whether `path` names a project file: `.driftingproject`, or the
+/// `.driftingbook` it was called before.
 pub fn is_book_file(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case(book_file::EXTENSION))
+    path.extension().is_some_and(|e| {
+        e.eq_ignore_ascii_case(book_file::EXTENSION)
+            || e.eq_ignore_ascii_case(book_file::LEGACY_EXTENSION)
+    })
 }

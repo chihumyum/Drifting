@@ -160,13 +160,6 @@ pub static REGISTRY: &[Shortcut] = &[
         a::new_entity::LABEL,
         a::new_entity::DESC,
     ),
-    listed(
-        "closeProject",
-        "workspace::CloseProject",
-        &["secondary-shift-w"],
-        a::close_project::LABEL,
-        a::close_project::DESC,
-    ),
     // Fixed in the 0.1 client (⌘⌥1, ⌘⌥3–5).
     fixed(
         "workspace::ShowProjectHome",
@@ -520,7 +513,9 @@ mod tests {
             "Ctrl+Shift+F"
         );
         assert_eq!(display("secondary-alt-left", OperatingSystem::Mac), "⌘⌥←");
-        assert_eq!(listed_shortcuts().count(), 11);
+        // The 0.1 client listed 11; 关闭项目 (⇧⌘W) went on 2026-11-14.
+        assert_eq!(listed_shortcuts().count(), 10);
+        assert!(find("closeProject").is_none());
     }
 
     #[test]

@@ -1,7 +1,9 @@
 //! dr-view-shelf: the bookshelf (module M01).
 //!
-//! The page the app opens on, and where ⇧⌘W or the red light come back to
-//! (components.md, 「书架」): a flat desk; on the left the rail with the
+//! 全部项目 (2026-11-14; the bookshelf before): the page the app opens on
+//! when there is no book to reopen, and where the button right of the
+//! traffic lights leads (components.md, 「书架」): a flat desk; on the left
+//! the rail with the
 //! shelf's name, how much the library holds, import, Recently Deleted and
 //! the account cell beside the notification bell; on the right the books,
 //! and a slip at the end to start a new one. A double click on the empty
@@ -30,6 +32,7 @@ pub mod art;
 pub mod data;
 pub mod format;
 mod jobs;
+pub mod projects;
 mod view;
 
 pub use view::{
@@ -49,6 +52,9 @@ pub fn init(cx: &mut App) {
             "ctrl-enter"
         };
         vec![KeyBinding::new(keys, SubmitDialog, Some("Shelf"))]
+    });
+    dr_shell::pages::set_projects(cx, |ws, window, cx| {
+        cx.new(|cx| projects::Projects::new(ws, window, cx)).into()
     });
     dr_shell::pages::set_shelf(cx, |ws, window, cx| {
         let shelf = cx.new(|cx| Shelf::new(ws, window, cx));

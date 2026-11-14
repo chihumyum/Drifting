@@ -1,7 +1,9 @@
 //! The two pages other crates draw (stage 2):
 //!
-//! - the bookshelf (M01, `dr-view-shelf`): the start page, over the whole
-//!   window until a book opens; ⇧⌘W and the red light come back to it;
+//! - the bookshelf (M01, `dr-view-shelf`; 全部项目 since 2026-11-14): over
+//!   the whole window until a book opens, at launch when there is no book
+//!   to reopen and from its button; its row of projects
+//!   ([`set_projects`]) drops over a book's workspace;
 //! - Project Home (M02, `dr-view-home`): the paper when no tab is active.
 //!
 //! The app registers both once, after [`crate::init`]. Without them (the
@@ -409,7 +411,7 @@ pub mod anchors {
     pub const AGENT_TAB: &str = "agent-tab";
     /// The right sidebar's toggle, marked only while the sidebar is closed.
     pub const RIGHT_SIDEBAR_CLOSED_TOGGLE: &str = "right-sidebar-closed-toggle";
-    /// The torii in the account cell: back to Project Home.
+    /// The torii right of the traffic lights: back to Project Home.
     pub const PROJECT_HOME: &str = "project-home";
     /// The wind bell beside it: the notification center.
     pub const NOTIFICATIONS: &str = "notifications";
@@ -418,6 +420,7 @@ pub mod anchors {
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
+    projects: Option<MakeHome>,
     v3_home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
     views: Vec<MakeView>,
@@ -440,6 +443,16 @@ pub fn set_shelf(
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> ShelfPage + 'static,
 ) {
     cx.default_global::<Pages>().shelf = Some(Rc::new(make));
+}
+
+/// Registers 全部项目's row of projects: the view that drops from the top of
+/// the workspace when the button right of the traffic lights is pressed.
+/// Each workspace window makes one when it first shows it.
+pub fn set_projects(
+    cx: &mut App,
+    make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
+) {
+    cx.default_global::<Pages>().projects = Some(Rc::new(make));
 }
 
 /// Registers the v3 Project Home. Legacy books keep [`set_home`]'s view.
@@ -693,6 +706,15 @@ pub(crate) fn make_shelf(
     cx: &mut App,
 ) -> Option<ShelfPage> {
     let make = cx.try_global::<Pages>()?.shelf.clone()?;
+    Some(make(ws, window, cx))
+}
+
+pub(crate) fn make_projects(
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyView> {
+    let make = cx.try_global::<Pages>()?.projects.clone()?;
     Some(make(ws, window, cx))
 }
 

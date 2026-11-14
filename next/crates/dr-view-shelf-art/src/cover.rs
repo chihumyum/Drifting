@@ -267,6 +267,9 @@ pub struct ShelfCover {
     style: CoverStyle,
     request: Rc<CoverRequest>,
     label: Option<SharedString>,
+    /// Drawn smaller than [`COVER_W`] × [`COVER_H`] (the picture is the
+    /// same, scaled): 全部项目's row of projects.
+    size: Option<(f32, f32)>,
 }
 
 impl ShelfCover {
@@ -284,7 +287,14 @@ impl ShelfCover {
             style,
             request,
             label: None,
+            size: None,
         }
+    }
+
+    /// Shows the cover `w` × `h` instead of [`COVER_W`] × [`COVER_H`].
+    pub fn size(mut self, w: f32, h: f32) -> Self {
+        self.size = Some((w, h));
+        self
     }
 
     /// Words at the cover's foot (the book's genre), in an ink that reads
@@ -335,11 +345,12 @@ impl RenderOnce for ShelfCover {
             (true, false) => gpui::hsla(30.0 / 360.0, 0.03, 0.44, 1.0),
             _ => p.ink(3).solid(),
         };
+        let (w, h) = self.size.unwrap_or((COVER_W, COVER_H));
         div()
             .relative()
             .flex_none()
-            .w(px(COVER_W))
-            .h(px(COVER_H))
+            .w(px(w))
+            .h(px(h))
             .overflow_hidden()
             .rounded(px(2.0))
             .when_some(image, |el, image| {
