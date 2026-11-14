@@ -426,7 +426,10 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             act.color.clone(),
             Some(LeafTemplate::Chapter),
             true,
-            true,
+            // An act is a 分组 under the manuscript: chapters live in it,
+            // nothing is attached to it, so it takes no entries from
+            // elsewhere (kernel-v5 §16).
+            false,
             None,
         ));
         if act.start_order.is_none() {
@@ -842,7 +845,9 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                         None,
                         None,
                         true,
-                        true,
+                        // A 分组 in a category: its elements live in it,
+                        // nothing is attached to it (kernel-v5 §16).
+                        false,
                         None,
                     ));
                 }
