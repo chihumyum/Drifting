@@ -228,16 +228,19 @@ fn author_names_resolve_to_registry_arguments_without_requiring_ids() {
 fn ambiguous_names_are_refused_even_when_a_document_kind_is_known() {
     let f = Fixture::new();
     for _ in 0..2 {
-        f.out(
-            "material.create",
-            json!({"book":f.book,"kind":"text","title":f.text,"text":f.text}),
+        dr_testkit::seed::acceptance::novel_entry(
+            &f.ws,
+            f.book.as_str(),
+            "tpl-note",
+            &f.text,
+            Some(&f.text),
         );
     }
     let error = resolve(
         &f.ws,
         &f.book,
         "prose.read",
-        json!({"doc":{"kind":"material","name":f.text}}),
+        json!({"doc":{"kind":"entry","module":"mod-prose","name":f.text}}),
     )
     .unwrap_err();
     assert!(error.to_string().contains("ambiguous"));
@@ -428,14 +431,6 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "comment.list",
         "comment.reanchor",
         "comment.update",
-        "material.list",
-        "material.create",
-        "material.move",
-        "material.update",
-        "material_folder.list",
-        "material_folder.create",
-        "material_folder.update",
-        "material_folder.delete",
         "asset.get",
         "fact.list",
         "fact.put",
@@ -483,6 +478,13 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "category_template.list",
         "chapter_template.list",
         "storyline_template.list",
+        "material.list",
+        "material.create",
+        "material_folder.list",
+        "module.put_media",
+        "module.remove_media",
+        "asset.list",
+        "book.sequence",
     ] {
         assert!(
             catalog.descriptor(excluded).is_none(),

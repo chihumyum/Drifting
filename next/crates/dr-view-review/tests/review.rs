@@ -79,7 +79,7 @@ fn listed(e: &Env) -> Vec<Value> {
 
 struct Root {
     book: String,
-    target: Option<NavTarget>,
+    target: Option<dr_view_review::v3::Target>,
     opened: Rc<RefCell<Vec<String>>>,
 }
 
@@ -93,24 +93,14 @@ impl Render for Root {
                     module: module.map(|m| m.parse().unwrap()),
                 }
                 .key(),
-                dr_view_review::v3::Target::Material(id) => {
-                    NavTarget::Material(id.parse().unwrap()).key()
-                }
+                dr_view_review::v3::Target::Material(id) => format!("material:{id}"),
             };
             opened.borrow_mut().push(key);
-        });
-        let target = self.target.as_ref().and_then(|target| match target {
-            NavTarget::Entry { id, module } => Some(dr_view_review::v3::Target::Entry {
-                id: id.to_string(),
-                module: module.as_ref().map(ToString::to_string),
-            }),
-            NavTarget::Material(id) => Some(dr_view_review::v3::Target::Material(id.to_string())),
-            _ => None,
         });
         div().size_full().child(dr_view_review::v3_panel::panel(
             "review-test",
             &self.book,
-            target,
+            self.target.clone(),
             Locale::ZhCn,
             Platform::Mac,
             open,
@@ -146,7 +136,7 @@ fn redraw(cx: &mut VisualTestContext) {
 fn open_tab<'a>(
     cx: &'a mut TestAppContext,
     e: &Env,
-    target: Option<NavTarget>,
+    target: Option<dr_view_review::v3::Target>,
 ) -> (
     Entity<ReviewView>,
     Rc<RefCell<Vec<String>>>,
@@ -187,9 +177,9 @@ fn the_tab_filters_scopes_and_groups_by_place(cx: &mut TestAppContext) {
     comment(&e, Some(&one), "note", "一的批注");
     comment(&e, Some(&two), "todo", "二的待办");
     comment(&e, None, "todo", "浮动待办");
-    let target = NavTarget::Entry {
-        id: dr_model::id::EntryId::parse(&one).unwrap(),
-        module: Some("mod-prose".parse().unwrap()),
+    let target = dr_view_review::v3::Target::Entry {
+        id: one.clone(),
+        module: Some("mod-prose".into()),
     };
     let (view, _, cx) = open_tab(cx, &e, Some(target));
     assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == 3));
@@ -388,9 +378,9 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
     let (view, _, cx) = open_tab(
         cx,
         &e,
-        Some(NavTarget::Entry {
-            id: one.parse().unwrap(),
-            module: Some("mod-prose".parse().unwrap()),
+        Some(dr_view_review::v3::Target::Entry {
+            id: one.into(),
+            module: Some("mod-prose".into()),
         }),
     );
     assert!(wait_for(cx, |cx| listed_ids(&view, cx).contains(&direct)));
@@ -457,21 +447,56 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
 #[gpui::test]
 fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppContext) {
     let e = sample_env();
-    let materials = out(&e.ws, "material.list", json!({"book": e.book}));
-    let material = &materials[0];
-    let id = material["id"].as_str().unwrap();
-    let title = material["title"].as_str().unwrap();
+    let materials_root = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
+    let asset = "00000000-0000-7000-8000-000000000071";
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": e.book,
+            "id": asset,
+            "kind": "image",
+            "mime": "image/png",
+            "size": 68,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000071",
+            "width": 16,
+            "height": 16
+        }),
+    );
+    let title = "海港平面图";
+    let entry_id = out(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "template": "tpl-media", "parent": materials_root, "title": title}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let id = "00000000-0000-7000-8000-000000000072";
+    out(
+        &e.ws,
+        "module.put_media",
+        json!({"book": e.book, "entry": entry_id, "module": "mod-media", "item": {"id": id, "asset": asset}}),
+    );
     let comment = out(
         &e.ws,
         "comment.create",
         json!({
-            "book": e.book, "body": title, "target": {"kind": "material", "id": id}
+            "book": e.book,
+            "body": title,
+            "target": {"kind": "entry", "id": entry_id},
+            "module": "mod-media",
+            "part": {"kind": "media", "item": id}
         }),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let (view, opened, cx) = open_tab(cx, &e, Some(NavTarget::Material(id.parse().unwrap())));
+    let (view, opened, cx) = open_tab(
+        cx,
+        &e,
+        Some(dr_view_review::v3::Target::Material(id.into())),
+    );
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .source_summary(&comment)
         .is_some_and(|s| s.0.as_ref() == title))));
@@ -482,8 +507,8 @@ fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppConte
     let renamed = format!("{title} · {title}");
     out(
         &e.ws,
-        "material.update",
-        json!({"book": e.book, "id": id, "title": renamed}),
+        "entry.update",
+        json!({"book": e.book, "id": entry_id, "title": renamed}),
     );
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .source_summary(&comment)

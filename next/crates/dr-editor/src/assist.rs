@@ -1013,7 +1013,7 @@ impl Assist {
     fn material_rows(&self) -> Vec<MenuRow> {
         let list = self
             .ws
-            .call(&Actor::User, "material.list", json!({ "book": self.book }))
+            .call(&Actor::User, "asset.list", json!({ "book": self.book }))
             .ok()
             .and_then(|out| out["output"].as_array().cloned())
             .unwrap_or_default();
@@ -1023,7 +1023,7 @@ impl Assist {
             .filter_map(|m| {
                 Some(MenuRow::Material {
                     id: m["id"].as_str()?.to_owned(),
-                    title: m["title"].as_str().unwrap_or_default().to_owned(),
+                    title: m["name"].as_str().unwrap_or_default().to_owned(),
                     pdf: m["kind"].as_str() == Some("pdf"),
                 })
             })

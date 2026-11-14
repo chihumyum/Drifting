@@ -17,7 +17,7 @@ use crate::anchor::Anchor;
 use crate::catalog::EntitySnapshot;
 use crate::catalog::fields::{comment_part_to_loro, set};
 use crate::catalog::read::forest;
-use crate::catalog::write::{MaterialWriter, MemoryWriter, PlotGridWriter, RelationWriter};
+use crate::catalog::write::{MemoryWriter, PlotGridWriter, RelationWriter};
 use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book_v3;
@@ -612,6 +612,23 @@ impl EntryWriterV3 {
 
     pub fn remove_kv(&self, module: &ModuleId, id: &KvEntryId) -> Result<&Self> {
         remove_kv(&self.map, &format!("kv:{module}"), id)?;
+        Ok(self)
+    }
+
+    pub fn put_media(&self, module: &ModuleId, item: &MediaItem) -> Result<&Self> {
+        let items = self.map.ensure_mergeable_map(&format!("media:{module}"))?;
+        let m = items.ensure_mergeable_map(item.id.as_str())?;
+        m.insert("asset", item.asset.as_str())?;
+        m.insert("caption", item.caption.as_str())?;
+        set(&m, "pos", item.pos.as_ref())?;
+        Ok(self)
+    }
+
+    pub fn remove_media(&self, module: &ModuleId, id: &MediaItemId) -> Result<&Self> {
+        let items = self.map.ensure_mergeable_map(&format!("media:{module}"))?;
+        if items.get(id.as_str()).is_some() {
+            items.delete(id.as_str())?;
+        }
         Ok(self)
     }
 
@@ -1315,9 +1332,8 @@ fn projection_target_v3(doc: &DocId) -> Result<(EntityRef, Option<ModuleId>)> {
             EntityRef::new(EntityKind::Entry, b.entry().as_str()),
             Some(b.module().clone()),
         )),
-        DocId::Material(m) => Ok((EntityRef::new(EntityKind::Material, m.as_str()), None)),
         _ => Err(DocError::NotInProfile(
-            "a comment projected from a document that is not body: or material:",
+            "a comment projected from a document that is not body:",
         )),
     }
 }
@@ -1616,13 +1632,6 @@ impl<'a> BookTxnV3<'a> {
         Ok((id, w))
     }
 
-    pub fn material(&mut self, id: &MaterialId) -> Result<MaterialWriter> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .material(id)
-    }
-
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
         crate::catalog::write::CatalogTxn {
             view: crate::catalog::read::CatalogView { doc: self.view.doc },
@@ -1651,23 +1660,9 @@ impl<'a> BookTxnV3<'a> {
         .remove_fact(id)
     }
 
-    pub fn material_folders(&mut self) -> crate::catalog::write::TreeWriter<'a> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .material_folders()
-    }
-
-    pub fn delete_material_folder(&mut self, id: &MaterialFolderId) -> Result<()> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .delete_material_folder(id)
-    }
-
     /// Restore an entry's metadata (`title`, `template`, `level`, `primary`, timestamps,
-    /// `layout`, `overrides`, `fields`, and all `kv:<module_id>` tables) from
-    /// `old` (`BookViewV3::entry_snapshot`).
+    /// `layout`, `overrides`, `fields`, and all `kv:<module_id>` / `media:<module_id>`
+    /// tables) from `old` (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
         let w = match self.entries().entry(id) {
             Ok(w) => w,
@@ -1740,23 +1735,24 @@ impl<'a> BookTxnV3<'a> {
             }
         }
 
-        // Restore all `kv:<module_id>` maps
-        let have_kv_keys: Vec<String> = map
+        // Restore all `kv:<module_id>` and `media:<module_id>` maps
+        let is_module_table = |k: &str| k.starts_with("kv:") || k.starts_with("media:");
+        let have_table_keys: Vec<String> = map
             .keys()
-            .filter(|k| k.starts_with("kv:"))
+            .filter(|k| is_module_table(k))
             .map(|k| k.to_string())
             .collect();
-        let want_kv_keys: Vec<String> = old
+        let want_table_keys: Vec<String> = old
             .keys()
             .into_iter()
-            .filter(|k| k.starts_with("kv:"))
+            .filter(|k| is_module_table(k))
             .collect();
-        for k in &have_kv_keys {
-            if !want_kv_keys.contains(k) {
+        for k in &have_table_keys {
+            if !want_table_keys.contains(k) {
                 map.delete(k)?;
             }
         }
-        for k in &want_kv_keys {
+        for k in &want_table_keys {
             if let Some(LoroValue::Map(want_rows)) = old.field(k) {
                 let sub = map.ensure_mergeable_map(k)?;
                 sync_nested_map(&sub, want_rows)?;
@@ -1963,56 +1959,6 @@ impl<'a> BookTxnV3<'a> {
         self.restore_entry(id, old)
     }
 
-    /// Restore a folder's metadata and parent without changing unselected children.
-    pub fn restore_material_folder(
-        &mut self,
-        id: &MaterialFolderId,
-        parent: Option<&MaterialFolderId>,
-        old: &EntrySnapshotV3,
-    ) -> Result<()> {
-        let LoroValue::Map(want) = &old.value else {
-            return Err(DocError::NotInProfile("folder snapshot is not a map"));
-        };
-        if self.view.material_folder_snapshot(id).is_some() {
-            self.material_folders()
-                .move_to(id.as_str(), parent.map(|p| p.as_str()))?;
-        } else {
-            self.material_folders()
-                .create(id.as_str(), parent.map(|p| p.as_str()), "")?;
-        }
-        let tree = self.view.doc.get_tree(book_v3::MATERIAL_FOLDERS);
-        let node = self.view.tree_index(book_v3::MATERIAL_FOLDERS)[id.as_str()][0];
-        sync_record(&tree.get_meta(node)?, want, None)
-    }
-
-    /// Restore the selected folder's order relative to surviving historical siblings.
-    pub fn move_material_folder_to_at(
-        &mut self,
-        id: &MaterialFolderId,
-        parent: Option<&MaterialFolderId>,
-        index: usize,
-    ) -> Result<()> {
-        let nodes = self.view.tree_index(book_v3::MATERIAL_FOLDERS);
-        let node = |id: &MaterialFolderId| {
-            nodes
-                .get(id.as_str())
-                .and_then(|ids| ids.first())
-                .copied()
-                .ok_or_else(|| DocError::Missing {
-                    collection: book_v3::MATERIAL_FOLDERS,
-                    id: id.to_string(),
-                })
-        };
-        let p = parent
-            .map(node)
-            .transpose()?
-            .map_or(TreeParentId::Root, TreeParentId::Node);
-        let tree = self.view.doc.get_tree(book_v3::MATERIAL_FOLDERS);
-        tree.enable_fractional_index(0);
-        tree.mov_to(node(id)?, p, index)?;
-        Ok(())
-    }
-
     /// Restore one structural v3 record, keeping mergeable nested map identities.
     pub fn restore_map_snapshot(
         &mut self,
@@ -2065,7 +2011,6 @@ impl<'a> BookTxnV3<'a> {
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
-                | CollectionV3::Materials
                 | CollectionV3::Comments
         ) {
             return Err(DocError::NotInProfile("not a structural v3 map"));
@@ -2087,7 +2032,6 @@ impl<'a> BookTxnV3<'a> {
                 want,
                 match collection {
                     CollectionV3::Patches | CollectionV3::Comments => Some("body"),
-                    CollectionV3::Materials => Some("description"),
                     _ => None,
                 },
                 match collection {
@@ -2117,8 +2061,7 @@ impl<'a> BookTxnV3<'a> {
     ) -> Result<()> {
         if !matches!(
             collection,
-            CollectionV3::Materials
-                | CollectionV3::RelationTypes
+            CollectionV3::RelationTypes
                 | CollectionV3::Relations
                 | CollectionV3::Comments
                 | CollectionV3::Assets

@@ -175,13 +175,6 @@
       }
     },
     {
-      "call": "material.list",
-      "input": {
-        "book": "${books.0.id}"
-      },
-      "save": "reviewMaterials"
-    },
-    {
       "call": "comment.create",
       "input": {
         "book": "${books.0.id}",
@@ -225,9 +218,10 @@
         "book": "${books.0.id}",
         "body": "Synthetic review material",
         "target": {
-          "kind": "material",
-          "id": "${reviewMaterials.0.id}"
-        }
+          "kind": "entry",
+          "id": "${entries.[template=tpl-note].id}"
+        },
+        "module": "mod-prose"
       },
       "save": "reviewMaterial"
     },
@@ -1465,14 +1459,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${reviewMaterials.0.id}"
+        "target": "entry:${entries.[template=tpl-note].id}/mod-prose"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "material:${reviewMaterials.0.id}"
+          "/page": "entry:${entries.[template=tpl-note].id}/mod-prose"
         },
         "timeout_ms": 15000
       }

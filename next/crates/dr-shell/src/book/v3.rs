@@ -11,7 +11,7 @@ use dr_workspace::{
 };
 use serde::Serialize;
 
-use super::{Book, Entry, Snapshot, color_of, seal_of};
+use super::{Book, Entry, MaterialInfo, Snapshot, color_of, seal_of};
 use crate::nav::Target;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -72,8 +72,8 @@ pub struct BookV3 {
     pub levels: BTreeMap<String, Level>,
     pub memberships: Vec<types::Membership>,
     pub timeline_views: Vec<types::TimelineView>,
-    pub materials: Vec<dr_workspace::dto::MaterialInfo>,
-    pub material_folders: Vec<dr_workspace::dto::GroupInfo>,
+    pub materials: Vec<MaterialInfo>,
+    pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
@@ -356,22 +356,39 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .iter()
             .map(Into::into)
             .collect();
-        let materials: Vec<dr_workspace::dto::MaterialInfo> =
-            view.materials().iter().map(Into::into).collect();
-        let material_folders: Vec<GroupInfo> = view
-            .material_folders()
-            .iter()
-            .map(|f| GroupInfo {
-                id: f.id.to_string(),
-                name: f.name.clone(),
-                color: None,
-                parent: f.parent.as_ref().map(ToString::to_string),
-            })
+        let assets_by_id: BTreeMap<String, dr_model::shared::Asset> = view
+            .assets()
+            .into_iter()
+            .map(|a| (a.id.to_string(), a))
             .collect();
+        let mut materials = Vec::new();
+        for e in structure.entries().filter(|e| !e.is_trashed()) {
+            for (mod_id, items) in &e.media {
+                for item in items {
+                    let kind = match assets_by_id.get(item.asset.as_str()) {
+                        Some(a) if a.mime == "application/pdf" => "pdf",
+                        _ => "image",
+                    };
+                    materials.push(MaterialInfo {
+                        id: item.id.to_string(),
+                        kind: kind.to_owned(),
+                        title: e.title.clone(),
+                        description: item.caption.clone(),
+                        asset: Some(item.asset.to_string()),
+                        folder: None,
+                        pos: item.pos.as_ref().map(|k| k.as_str().to_owned()),
+                        task_todos: false,
+                        entry: Some(e.id.to_string()),
+                        module: Some(mod_id.to_string()),
+                    });
+                }
+            }
+        }
+        let material_folders: Vec<GroupInfo> = Vec::new();
 
         // What a view can write over from this snapshot: every entry and its
-        // place among its siblings, every template, membership, timeline
-        // view, material and material folder.
+        // place among its siblings, every template, membership, and timeline
+        // view.
         let keys: Vec<RecordKey> = entries
             .iter()
             .map(|e| RecordKey::entry(&e.id))
@@ -385,16 +402,6 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 timeline_views
                     .iter()
                     .map(|v| RecordKey::timeline_view(&v.id)),
-            )
-            .chain(
-                materials
-                    .iter()
-                    .map(|m| RecordKey::record("materials", &m.id)),
-            )
-            .chain(
-                material_folders
-                    .iter()
-                    .map(|f| RecordKey::record("material_folders", &f.id)),
             )
             .chain([RecordKey::children_of(None)])
             .chain(levels.keys().map(|id| RecordKey::children_of(Some(id))))

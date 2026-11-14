@@ -106,7 +106,11 @@ pub fn listed(items: &[CommentInfo], id: &str) -> Vec<Listed> {
     let mut mine: Vec<&CommentInfo> = items
         .iter()
         .filter(|c| {
-            c.target
+            matches!(
+                &c.part,
+                Some(dr_workspace::dto::CommentPartDto::Media { item, .. }) if item == id
+            ) || c
+                .target
                 .as_ref()
                 .is_some_and(|t| t.kind == "material" && t.id == id)
         })
@@ -154,11 +158,14 @@ mod tests {
         CommentInfo {
             id: id.into(),
             target: Some(Target {
-                kind: "material".into(),
-                id: on.into(),
+                kind: "entry".into(),
+                id: "entry-1".into(),
             }),
-            module: None,
-            part: region.map(|region| dr_workspace::dto::CommentPartDto::Region { region }),
+            module: Some("mod-media".into()),
+            part: Some(dr_workspace::dto::CommentPartDto::Media {
+                item: on.into(),
+                region,
+            }),
             unlocated: false,
             target_block: None,
             anchored: false,

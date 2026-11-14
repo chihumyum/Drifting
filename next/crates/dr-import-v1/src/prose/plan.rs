@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use dr_doc::prose::{EmbedView, Run, TableLine};
 use dr_model::ProseProfile;
-use dr_model::id::{BlockId, CommentId, EmbedId, MaterialId};
+use dr_model::id::{AssetId, BlockId, CommentId, EmbedId};
 use dr_model::kind::ListKind;
 use dr_model::pos::{PosKey, keys_between};
 use dr_model::prose::{
@@ -292,6 +292,8 @@ pub struct Context<'a> {
     /// The new id of a TODO a task item links to (projected TODOs get
     /// deterministic ids).
     pub todo: &'a dyn Fn(&str) -> Option<CommentId>,
+    /// Asset referenced by a 0.1 `library_item` id (for `materialEmbed`).
+    pub asset: &'a dyn Fn(&str) -> Option<AssetId>,
 }
 
 #[derive(Default)]
@@ -352,7 +354,7 @@ fn entity_link(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<Enti
 /// Build the runs of one old line's text, without dropped characters.
 fn runs_of(
     line: &Line,
-    profile: ProseProfile,
+    _profile: ProseProfile,
     ctx: &Context<'_>,
     notes: &mut Notes,
     dropped_inline: &mut Vec<String>,
@@ -388,9 +390,6 @@ fn runs_of(
                     Some(h) => range.for_each(|i| states[i].link = Some(h.clone())),
                     None => notes.add("link-without-href"),
                 }
-            }
-            "highlight" | "code" if profile == ProseProfile::Prose => {
-                notes.add(format!("{}-in-prose", span.mark));
             }
             "highlight" => {
                 let color = serde_json::from_str::<Value>(&span.attrs)
@@ -620,28 +619,34 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                 });
             }
             "materialEmbed" => {
-                let material = line
+                let asset = line
                     .attrs
-                    .get("libraryItemId")
+                    .get("assetId")
                     .and_then(Value::as_str)
-                    .and_then(|m| MaterialId::parse(m).ok());
+                    .and_then(|a| AssetId::parse(a).ok())
+                    .or_else(|| {
+                        line.attrs
+                            .get("libraryItemId")
+                            .and_then(Value::as_str)
+                            .and_then(|m| (ctx.asset)(m))
+                    });
                 lines.push(LineAt::Body {
                     para: paras.len(),
                     dropped: Vec::new(),
                 });
-                match material {
-                    Some(m) if ctx.profile == ProseProfile::Note => {
+                match asset {
+                    Some(a) => {
                         let eid = embed_id(id.as_ref(), &mut embed_n);
                         paras.push(embed_para(
                             id,
                             eid.clone(),
-                            EmbedView::Material {
+                            EmbedView::Asset {
                                 id: eid,
-                                material: Some(m),
+                                asset: Some(a),
                             },
                         ));
                     }
-                    _ => {
+                    None => {
                         notes.add("material-embed-dropped");
                         paras.push(Para::plain(id));
                     }
@@ -891,7 +896,7 @@ type MarkedCharV3 = (char, InlineMarks, Vec<EntityLinkV3>);
 
 fn runs_of_v3(
     line: &Line,
-    profile: ProseProfile,
+    _profile: ProseProfile,
     ctx: &Context<'_>,
     notes: &mut Notes,
     dropped_inline: &mut Vec<String>,
@@ -927,9 +932,6 @@ fn runs_of_v3(
                     Some(h) => range.for_each(|i| states[i].link = Some(h.clone())),
                     None => notes.add("link-without-href"),
                 }
-            }
-            "highlight" | "code" if profile == ProseProfile::Prose => {
-                notes.add(format!("{}-in-prose", span.mark));
             }
             "highlight" => {
                 let color = serde_json::from_str::<Value>(&span.attrs)
@@ -1172,28 +1174,34 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                 });
             }
             "materialEmbed" => {
-                let material = line
+                let asset = line
                     .attrs
-                    .get("libraryItemId")
+                    .get("assetId")
                     .and_then(Value::as_str)
-                    .and_then(|m| MaterialId::parse(m).ok());
+                    .and_then(|a| AssetId::parse(a).ok())
+                    .or_else(|| {
+                        line.attrs
+                            .get("libraryItemId")
+                            .and_then(Value::as_str)
+                            .and_then(|m| (ctx.asset)(m))
+                    });
                 lines.push(LineAt::Body {
                     para: paras.len(),
                     dropped: Vec::new(),
                 });
-                match material {
-                    Some(m) if ctx.profile == ProseProfile::Note => {
+                match asset {
+                    Some(a) => {
                         let eid = embed_id(id.as_ref(), &mut embed_n);
                         paras.push(embed_para(
                             id,
                             eid.clone(),
-                            EmbedView::Material {
+                            EmbedView::Asset {
                                 id: eid,
-                                material: Some(m),
+                                asset: Some(a),
                             },
                         ));
                     }
-                    _ => {
+                    None => {
                         notes.add("material-embed-dropped");
                         paras.push(Para::plain(id));
                     }
@@ -1281,6 +1289,7 @@ mod tests {
             profile,
             span: &|_| None,
             todo: &|_| None,
+            asset: &|_| None,
         }
     }
 
@@ -1332,12 +1341,15 @@ mod tests {
     #[test]
     fn note_lists_tasks_tables_and_embeds() {
         let todo = |old: &str| {
-            (old == "todo-1").then(|| CommentId::parse("todo:note_task:material:m#tp1").unwrap())
+            (old == "todo-1")
+                .then(|| CommentId::parse("todo:note_task:body:m/mod-prose#tp1").unwrap())
         };
+        let asset = |old: &str| (old == "lib-1").then(|| AssetId::parse("asset-1").unwrap());
         let c = Context {
-            profile: ProseProfile::Note,
+            profile: ProseProfile::Prose,
             span: &|_| None,
             todo: &todo,
+            asset: &asset,
         };
         let prose = parse(
             r#"{"type":"doc","content":[
@@ -1368,7 +1380,7 @@ mod tests {
         assert_eq!(a0.list, Some(ListKind::Task));
         assert_eq!(
             a0.todo.as_ref().unwrap().as_str(),
-            "todo:note_task:material:m#tp1"
+            "todo:note_task:body:m/mod-prose#tp1"
         );
         assert!(!a0.checked, "a linked task has no state of its own");
         assert!(p.paras[1].attrs.checked);
@@ -1395,7 +1407,10 @@ mod tests {
         assert_eq!(p.paras[5].text(), "b");
         assert_eq!(p.paras[5].attrs.code_block.as_deref(), Some("rust"));
         assert_eq!(p.paras[5].id, None);
-        assert!(matches!(p.paras[6].embed, Some(EmbedView::Material { .. })));
+        assert!(matches!(
+            &p.paras[6].embed,
+            Some(EmbedView::Asset { asset: Some(a), .. }) if a.as_str() == "asset-1"
+        ));
         // An embed cannot be last.
         assert_eq!(p.paras.len(), 8);
         assert!(p.paras[7].embed.is_none());
@@ -1405,17 +1420,17 @@ mod tests {
     }
 
     #[test]
-    fn note_attributes_and_marks_are_dropped_in_prose() {
+    fn list_attributes_and_marks_survive_and_unknown_marks_and_inlines_are_dropped_in_prose() {
         let p = plan_of(
             r#"{"type":"doc","content":[{"type":"bulletList","content":[{"type":"listItem","content":[
               {"type":"paragraph","attrs":{"id":"a"},"content":[{"type":"text","text":"x","marks":[{"type":"highlight"},{"type":"code"},{"type":"strange"}]},{"type":"mention","attrs":{"who":"z"}},{"type":"text","text":"y"}]}]}]}]}"#,
             ProseProfile::Prose,
         );
-        assert_eq!(p.paras[0].attrs, BlockAttrs::default());
+        assert_eq!(p.paras[0].attrs.list, Some(ListKind::Bullet));
         assert_eq!(p.paras[0].text(), "xy");
-        assert!(p.paras[0].runs[0].marks.is_plain());
-        assert_eq!(p.notes.0["note-attribute-in-prose"], 1);
-        assert_eq!(p.notes.0["highlight-in-prose"], 1);
+        assert_eq!(p.paras[0].runs[0].marks.highlight.as_deref(), Some(""));
+        assert!(p.paras[0].runs[0].marks.code);
+        assert!(p.paras[0].runs[1].marks.is_plain());
         assert_eq!(p.notes.0["unknown-mark:strange"], 1);
         assert_eq!(p.notes.0["unknown-inline:mention"], 1);
         assert_eq!(

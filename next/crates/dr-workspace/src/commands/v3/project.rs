@@ -128,6 +128,7 @@ pub(super) fn validate_project_template(
             overrides: seed.overrides.clone(),
             fields: seed.fields.clone(),
             kv: BTreeMap::new(),
+            media: BTreeMap::new(),
             primary: None,
             layout: Default::default(),
             created_at: None,

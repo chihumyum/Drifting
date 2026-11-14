@@ -221,6 +221,7 @@ impl ChapterEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> (Entity<crate::assist::Assist>, Subscription) {
+        let note = is_note(ws, book, doc_id);
         let assist = cx.new(|cx| {
             let mut a = crate::assist::Assist::new(
                 ws.clone(),
@@ -231,7 +232,7 @@ impl ChapterEditor {
                 cx,
             );
             a.set_auto_links(settings.auto_entity_links);
-            a.set_note(is_note(doc_id));
+            a.set_note(note);
             a
         });
         let events = cx.subscribe_in(
@@ -309,12 +310,9 @@ impl ChapterEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> EditorParts {
-        // A material note draws its tables and materials (`embeds.rs`); they
-        // write through the note's own session.
-        let note = dr_model::DocId::parse(doc_id)
-            .ok()
-            .and_then(|d| d.profile())
-            == Some(dr_model::ProseProfile::Note);
+        // Note-shortcut prose bodies draw tables and embedded assets (`embeds.rs`);
+        // they write through the body's own session.
+        let note = is_note(ws, book, doc_id);
         let shared = note.then(|| (source.shared_session(), source.handle().clone()));
         extension.set_note(note);
         let mut doc = ProseDoc::open(Box::new(source));
@@ -548,7 +546,7 @@ impl ChapterEditor {
             self.refresh_page(cx);
         }
         let (editor, docs) = (self.editor.clone(), vec![self.doc_id.clone()]);
-        let note = is_note(doc_id);
+        let note = is_note(&self.ws, &self.book, doc_id);
         self.assist.update(cx, |a, cx| {
             a.attach(editor, docs, window, cx);
             a.set_note(note);
@@ -693,12 +691,9 @@ impl ChapterEditor {
     }
 }
 
-/// Whether `doc_id` is a material note (the note profile).
-fn is_note(doc_id: &str) -> bool {
-    dr_model::DocId::parse(doc_id)
-        .ok()
-        .and_then(|d| d.profile())
-        == Some(dr_model::ProseProfile::Note)
+/// Whether `doc_id` enables note format shortcuts and embeds.
+fn is_note(ws: &Workspace, book: &str, doc_id: &str) -> bool {
+    crate::v3::uses_note_shortcuts(ws, book, doc_id)
 }
 
 impl ChapterEditor {
@@ -737,10 +732,8 @@ impl ChapterEditor {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let (Some(embeds), Ok(id)) = (
-            self.embeds.clone(),
-            dr_model::id::MaterialId::parse(material),
-        ) else {
+        let (Some(embeds), Ok(id)) = (self.embeds.clone(), dr_model::id::AssetId::parse(material))
+        else {
             return false;
         };
         let offset = self.editor.read(cx).selection().head;

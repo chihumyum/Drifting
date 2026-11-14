@@ -1105,15 +1105,22 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     // restore protocol merely by acquiring a book-scoped input schema.
     if matches!(
         spec.name,
-        "project.get" | "project.update" | "tab.put" | "tab.remove" | "tab.move" | "book.sequence"
+        "project.get"
+            | "project.update"
+            | "tab.put"
+            | "tab.remove"
+            | "tab.move"
+            | "book.sequence"
+            | "module.put_media"
+            | "module.remove_media"
+            | "asset.list"
     ) {
-        return Some("project, tab, and book sequence commands need T7 facade read coverage");
+        return Some(
+            "project, tab, media, and book sequence commands need T7 facade read coverage",
+        );
     }
     if spec.name.starts_with("entry_snapshot.") {
         return Some("entry snapshots need facade coverage and guarded whole-entry restore wiring");
-    }
-    if spec.name == "material.set_entry_link" {
-        return Some("material entry links need exact endpoint and relation read coverage");
     }
     if matches!(
         spec.name,
@@ -1145,7 +1152,7 @@ fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static 
     if (spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library)
         || matches!(
             spec.name,
-            "comment.delete" | "material.delete" | "patch.delete" | "relation_type.delete"
+            "comment.delete" | "patch.delete" | "relation_type.delete"
         )
     {
         return Some(
@@ -1334,7 +1341,6 @@ mod tests {
             Book,
             None
         );
-        pending!(MaterialLink, "material.set_entry_link", Write, Book, None);
         pending!(Rename, "timeline_view.rename", Write, Book, Some(3));
         pending!(AddLane, "timeline_view.add_lane", Write, Book, Some(3));
         pending!(MoveLane, "timeline_view.move_lane", Write, Book, Some(3));

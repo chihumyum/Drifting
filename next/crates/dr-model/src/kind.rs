@@ -89,9 +89,9 @@ open_enum!(
     /// v0 names materials `material` (the root container is `materials`); the
     /// old `library_item` is read as [`EntityKind::Material`].
     ///
-    /// A canonical reference names `entry`, `material`, `comment` or `patch`
-    /// (`kernel-v3.md`). `node`, `element`, `category` and `storyline` are
-    /// the 0.1 source format's values. They stay known here, not in
+    /// A canonical reference names `entry`, `comment` or `patch`
+    /// (`kernel-v5.md`). `node`, `element`, `category`, `storyline` and
+    /// `material` are the 0.1 source format's values. They stay known here, not in
     /// `import_v1`, because this is the stored vocabulary and shared code
     /// still meets them: an entity link written without a kind reads as
     /// `element` (the prose codec and the editor), and the role predicates
@@ -109,6 +109,7 @@ open_enum!(
         Storyline = "storyline",
         Entry = "entry",
         Comment = "comment",
+        /// Source format only.
         Material = "material" | "library_item",
     }
 );
@@ -152,10 +153,27 @@ impl EntityKind {
         )
     }
 
-    /// Kinds a v3 entity reference or inline link may point at (`kernel-v3.md`:
-    /// `entry` and `material`).
+    /// Kinds a canonical v5 relation may point *to* (`entry` or `patch`).
+    pub fn is_structural_v3(&self) -> bool {
+        matches!(self, EntityKind::Entry | EntityKind::Patch)
+    }
+
+    /// Kinds a canonical v5 relation may start *from* (`entry`, `patch`, or `comment`).
+    pub fn may_start_relation_v3(&self) -> bool {
+        matches!(
+            self,
+            EntityKind::Entry | EntityKind::Patch | EntityKind::Comment
+        )
+    }
+
+    /// Kinds a canonical v5 comment may target (`entry` only, `kernel-v5.md` §7 & §10).
+    pub fn may_be_commented_v3(&self) -> bool {
+        matches!(self, EntityKind::Entry)
+    }
+
+    /// Kinds a canonical inline link may point at (`entry` only, `kernel-v5.md` §6 & §10).
     pub fn may_be_linked_v3(&self) -> bool {
-        matches!(self, EntityKind::Entry | EntityKind::Material)
+        matches!(self, EntityKind::Entry)
     }
 }
 
@@ -240,25 +258,6 @@ open_enum!(
         High = "high",
     }
 );
-
-open_enum!(
-    /// What a material is. URL materials were retired (old migration 0011);
-    /// an old `url` value reads as `Other`.
-    MaterialKind {
-        Image = "image",
-        Pdf = "pdf",
-        /// A text material: the author's note (its body is a `material:` prose
-        /// document in the note profile).
-        Text = "text",
-    }
-);
-
-impl MaterialKind {
-    /// Image and PDF materials have asset bytes; text materials do not.
-    pub fn needs_asset(&self) -> bool {
-        matches!(self, MaterialKind::Image | MaterialKind::Pdf)
-    }
-}
 
 open_enum!(
     AssetKind {
@@ -373,7 +372,14 @@ mod tests {
         assert!(!EntityKind::Material.may_be_linked());
         assert!(EntityKind::Entry.may_be_linked());
         assert!(EntityKind::Entry.may_be_linked_v3());
-        assert!(EntityKind::Material.may_be_linked_v3());
+        assert!(!EntityKind::Material.may_be_linked_v3());
         assert!(!EntityKind::Element.may_be_linked_v3());
+        assert!(EntityKind::Entry.may_start_relation_v3());
+        assert!(EntityKind::Comment.may_start_relation_v3());
+        assert!(!EntityKind::Material.may_start_relation_v3());
+        assert!(EntityKind::Entry.is_structural_v3());
+        assert!(!EntityKind::Material.is_structural_v3());
+        assert!(EntityKind::Entry.may_be_commented_v3());
+        assert!(!EntityKind::Material.may_be_commented_v3());
     }
 }

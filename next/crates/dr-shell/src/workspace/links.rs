@@ -68,7 +68,6 @@ impl Workspace {
         }
         let target = match address.endpoint {
             Endpoint::Entry { id, module } => Target::Entry { id, module },
-            Endpoint::Material(id) => Target::Material(id),
         };
         if !self.book.exists(&target) {
             return false;

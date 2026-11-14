@@ -1484,13 +1484,13 @@ impl Workspace {
 
     pub(crate) fn prose_slot(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
         let canonical = match doc {
-            DocId::Body(_) | DocId::Material(_) => true,
+            DocId::Body(_) => true,
             DocId::Template(t) => t.entry_module().is_some(),
             _ => false,
         };
         if !canonical {
             return Err(WsError::invalid(
-                "only canonical body, template-module or material prose is supported",
+                "only canonical body or template-module prose is supported",
             ));
         }
         {
@@ -1513,7 +1513,7 @@ impl Workspace {
         if let Some(book) = &info.book_id {
             let book = BookId::parse(book).map_err(|e| WsError::invalid(e.to_string()))?;
             self.book_slot(&book)?;
-        } else if !matches!(doc, DocId::Material(_)) {
+        } else {
             return Err(WsError::invalid("canonical prose needs its owning book"));
         }
         let g = dr_doc::prose::genesis(doc);
@@ -1587,7 +1587,7 @@ pub struct QuitReport {
 fn removable(c: Collection) -> bool {
     matches!(
         c,
-        Collection::Materials | Collection::Entries | Collection::Templates | Collection::Meta
+        Collection::Entries | Collection::Templates | Collection::Meta
     )
 }
 
@@ -1648,10 +1648,6 @@ fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
             },
             Collection::Templates => match id.parse() {
                 Ok(id) => vec![NavTarget::Template(id)],
-                Err(_) => continue,
-            },
-            Collection::Materials => match id.parse() {
-                Ok(x) => vec![NavTarget::Material(x)],
                 Err(_) => continue,
             },
             _ => continue,

@@ -241,28 +241,36 @@ fn recent_material_uses_v3_metadata_and_survives_reopening() {
     use dr_shell::nav::Target;
     let (dir, ws, book) = fixture();
     let snapshot = Book::load(&ws, &book).unwrap();
-    let material = snapshot.material_items()[0].clone();
+    let note = snapshot
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-note"))
+        .unwrap()
+        .clone();
     ws.call(
         &Actor::User,
         "recent.touch",
-        json!({"book":book,"target":{"kind":"material","id":material.id}}),
+        json!({"book":book,"target":{"kind":"entry","id":note.id,"module":"mod-prose"}}),
     )
     .unwrap();
     let before = ws.observe(&format!("book:{book}")).unwrap().version;
     let pages = v3::recent(&ws, &snapshot).unwrap();
     assert_eq!(pages.len(), 1);
-    assert_eq!(
-        pages[0].target,
-        Target::Material(material.id.parse().unwrap())
-    );
-    assert_eq!(pages[0].title, material.title);
+    let expected_target = Target::Entry {
+        id: note.id.parse().unwrap(),
+        module: Some("mod-prose".parse().unwrap()),
+    };
+    assert_eq!(pages[0].target, expected_target);
+    assert_eq!(pages[0].title, note.title);
     assert_eq!(ws.observe(&format!("book:{book}")).unwrap().version, before);
 
-    let title = format!("{} {}", material.title, material.title);
+    let title = format!("{} {}", note.title, note.title);
     ws.call(
         &Actor::User,
-        "material.update",
-        json!({"book":book,"id":material.id,"title":title}),
+        "entry.update",
+        json!({"book":book,"id":note.id,"title":title}),
     )
     .unwrap();
     ws.shutdown().unwrap();
@@ -270,10 +278,7 @@ fn recent_material_uses_v3_metadata_and_survives_reopening() {
     let snapshot = Book::load(&reopened, &book).unwrap();
     let pages = v3::recent(&reopened, &snapshot).unwrap();
     assert_eq!(pages.len(), 1);
-    assert_eq!(
-        pages[0].target,
-        Target::Material(material.id.parse().unwrap())
-    );
+    assert_eq!(pages[0].target, expected_target);
     assert_eq!(pages[0].title, title);
     reopened.shutdown().unwrap();
 }

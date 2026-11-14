@@ -69,11 +69,24 @@ impl Workspace {
                 id: id.to_string(),
                 module: module.as_ref().map(ToString::to_string),
             },
-            Some(Target::Material(id)) => RecentTarget {
-                kind: "material".into(),
-                id: id.to_string(),
-                module: None,
-            },
+            Some(Target::Material(id)) => {
+                let Some(item) = self
+                    .book
+                    .material_items()
+                    .iter()
+                    .find(|m| m.id == id.as_str())
+                else {
+                    return;
+                };
+                let Some(entry_id) = item.entry.clone() else {
+                    return;
+                };
+                RecentTarget {
+                    kind: "entry".into(),
+                    id: entry_id,
+                    module: item.module.clone(),
+                }
+            }
             // Home, whole-book, templates and old entity kinds are not pages
             // in the v3 recent list. Never translate them to a Book sentinel.
             _ => return,

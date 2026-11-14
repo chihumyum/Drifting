@@ -109,7 +109,7 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
             }
             None => 0,
         };
-        books.push(json!({"id":id,"version":dr_doc::schema::BOOK_SCHEMA_VERSION,"name":v.meta().name,"chapters":chapters,"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"materials":v.materials().len(),"writingDays":writing_days,"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
+        books.push(json!({"id":id,"version":dr_doc::schema::BOOK_SCHEMA_VERSION,"name":v.meta().name,"chapters":chapters,"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"assets":v.assets().len(),"writingDays":writing_days,"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
     }
     Ok(json!({
         "libraryId": lib.library_id(),
@@ -136,16 +136,16 @@ pub fn human(v: &Value) -> String {
     );
     for b in v["books"].as_array().into_iter().flatten() {
         s.push_str(&format!(
-            "book {}  {}\n  {} chapters ({} characters), {} ideas, {} elements, {} relations, {} comments, {} materials, {} writing days\n",
+            "book {}  {}\n  {} chapters ({} characters), {} entries, {} templates, {} relations, {} comments, {} assets, {} writing days\n",
             b["id"].as_str().unwrap_or("?"),
             b["name"].as_str().unwrap_or(""),
             b["chapters"],
             b["chapterChars"],
-            b["ideas"],
-            b["elements"],
+            b["entries"],
+            b["templates"],
             b["relations"],
             b["comments"],
-            b["materials"],
+            b["assets"],
             b["writingDays"],
         ));
     }

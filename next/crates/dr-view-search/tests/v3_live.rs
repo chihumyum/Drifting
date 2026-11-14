@@ -81,12 +81,12 @@ fn wait(
     }
 }
 
-fn material(ws: &Workspace, book: &str) -> String {
-    call(ws, "material.list", json!({"book":book}))
+fn note(ws: &Workspace, book: &str) -> String {
+    call(ws, "entry.list", json!({"book":book,"all":true}))
         .as_array()
         .unwrap()
         .iter()
-        .find(|m| m["kind"] == "text")
+        .find(|e| e["template"] == "tpl-note")
         .unwrap()["id"]
         .as_str()
         .unwrap()
@@ -110,8 +110,8 @@ fn replace_first(ws: &Workspace, doc: &str, prefix: &str) {
 fn late_material_index_refreshes_an_empty_query_result(cx: &mut TestAppContext) {
     let (_dir, ws, books) = fixture();
     let book = &books[0];
-    let id = material(&ws, book);
-    let doc = format!("material:{id}");
+    let id = note(&ws, book);
+    let doc = format!("body:{id}/mod-prose");
     let (panel, cx) = setup(cx, &ws, book);
     replace_first(&ws, &doc, "G4LateIndex");
     panel.update(cx, |p, cx| p.set_query("G4LateIndex", cx));
@@ -120,7 +120,13 @@ fn late_material_index_refreshes_an_empty_query_result(cx: &mut TestAppContext) 
     ws.library().reindex_doc(&doc).unwrap();
     let direct = dr_view_search::v3::search(&ws, book, "G4LateIndex", 500).unwrap();
     assert_eq!(direct.len(), 1);
-    assert_eq!(direct[0].target, Target::Material(id));
+    assert_eq!(
+        direct[0].target,
+        Target::Entry {
+            id,
+            module: Some("mod-prose".into()),
+        }
+    );
     assert_eq!(direct[0].rows[0].field, Field::Body);
     assert_eq!(direct[0].rows[0].paragraph, Some(0));
     wait(&panel, cx, |p| {
@@ -161,7 +167,7 @@ fn queued_indexes_use_the_current_query_and_cannot_restore_a_cleared_query(
     let book = &books[0];
     let entry = chapter(&ws, book);
     let body = format!("body:{entry}/mod-prose");
-    let material = format!("material:{}", material(&ws, book));
+    let material = format!("body:{}/mod-prose", note(&ws, book));
     replace_first(&ws, &material, "G4OldQuery");
     replace_first(&ws, &body, "G4CurrentQuery");
     let (panel, cx) = setup(cx, &ws, book);
@@ -230,7 +236,7 @@ fn another_book_or_library_does_not_reset_the_selected_hit(cx: &mut TestAppConte
     assert_ne!(first, selected, "seed has more than one matching row");
     let before = panel.read_with(cx, |p, _| p.v3_groups().unwrap().to_vec());
     for (lib, book) in [(&ws, &books[1]), (&other, &other_books[0])] {
-        let doc = format!("material:{}", material(lib, book));
+        let doc = format!("body:{}/mod-prose", note(lib, book));
         replace_first(lib, &doc, "G4Unrelated");
         lib.library().reindex_doc(&doc).unwrap();
         call(
@@ -289,7 +295,7 @@ fn same_book_unrelated_index_preserves_the_selected_destination(cx: &mut TestApp
         })
         .detach();
     });
-    let unrelated = format!("material:{}", material(&ws, book));
+    let unrelated = format!("body:{}/mod-prose", note(&ws, book));
     replace_first(&ws, &unrelated, "G4UnrelatedBody");
     ws.library().reindex_doc(&unrelated).unwrap();
     assert_eq!(
@@ -345,7 +351,10 @@ fn same_book_unrelated_index_preserves_the_selected_destination(cx: &mut TestApp
         events.borrow().last(),
         Some(&dr_view_search::SearchEvent::JumpV3(
             dr_view_search::v3::Jump {
-                target: Target::Material(material(&ws, book)),
+                target: Target::Entry {
+                    id: note(&ws, book),
+                    module: Some("mod-prose".into()),
+                },
                 line: Some(1)
             }
         ))

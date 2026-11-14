@@ -239,16 +239,16 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "NODE-HAS-PROSE",
-        "每个实际正文模块和文本素材的空正文都有确定创世，不回到旧节点类型",
+        "每个实际正文模块的空正文都有确定创世，不回到旧节点类型",
         [Structure],
         "确定性的创世：还没有字节的正文文档就是创世那一份空段落，所有设备一样",
         ["genesis_is_deterministic_and_concurrent_init_merges"]
     ),
     inv!(
         "REL-KINDS",
-        "关系从结构实体、批注或素材出发，指向结构实体",
+        "关系从条目、补丁或批注出发，指向条目或补丁",
         [Command, Read],
-        "dr_model::check::relation_ends；读取时不合规的不显示",
+        "EntityKind::may_start_relation_v3 / is_structural_v3；读取时不合规的不显示",
         [
             "relations_are_shown_only_when_whole",
             "todo_links_through_the_builtin_type",
@@ -395,43 +395,11 @@ pub const INVARIANTS: &[Invariant] = &[
         ["unknown_values_survive"]
     ),
     inv!(
-        "MAT-KIND",
-        "素材是 image / pdf / text；url 已退役",
-        [Command, Read],
-        "check::material_payload 拒绝其他种类；旧的 url 读成 Other，界面当作不支持",
-        [
-            "shared_payload_and_size_checks",
-            "unknown_values_survive",
-            "materials_folders_and_assets"
-        ]
-    ),
-    inv!(
-        "MAT-PAYLOAD",
-        "图片和 PDF 素材有同种类的资源，文本素材没有；一个资源只属于一个主人",
-        [Command, Read],
-        "check::material_payload；读取时资源不在或种类不符就读成无（显示为缺失）",
-        ["materials_folders_and_assets"]
-    ),
-    inv!(
-        "MAT-PROSE",
-        "只有文本素材有正文文档",
-        [Read],
-        "BookView::owns_prose",
-        ["materials_folders_and_assets"]
-    ),
-    inv!(
-        "MAT-FOLDER",
-        "素材所在的素材夹存在",
-        [Read],
-        "读取时不在就放到根目录（旧版也允许 folder 比素材夹活得久）",
-        ["materials_folders_and_assets"]
-    ),
-    inv!(
         "AST-IMMUTABLE",
         "资源的元数据写一次就不变",
         [Command],
-        "BookTxn::put_asset：同一 id 不同值拒绝；没有改资源的写入接口",
-        ["materials_folders_and_assets"]
+        "BookTxnV3::put_asset：同一 id 不同二进制身份拒绝；没有改资源的写入接口",
+        ["assets_and_media_modules"]
     ),
     inv!(
         "AST-SHAPE",
@@ -441,36 +409,15 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "shared_payload_and_size_checks",
             "sha256_shape",
-            "materials_folders_and_assets"
+            "assets_and_media_modules"
         ]
     ),
     inv!(
         "ASSET-BYTES",
         "资源字节到了才能显示",
         [Read],
-        "元数据（书目文档的 assets）和字节（存储的本机资源目录，F2）分开；素材页读不到字节时在画面上说一句没有这个文件（M19 的 Trouble::Missing），不报错、不崩。字节同步到达后自动重新显示要等 F2 的资源同步，现在是打开页面时读一次",
+        "元数据（书目文档的 assets）和字节（存储的本机资源目录，F2）分开；界面读不到字节时在画面上说一句没有这个文件（M19 的 Trouble::Missing），不报错、不崩。字节同步到达后自动重新显示要等 F2 的资源同步，现在是打开页面时读一次",
         ["a_material_without_its_file_says_so"]
-    ),
-    inv!(
-        "TREE-NO-CYCLE",
-        "素材夹不成环，也不能是自己的父级；条目树另见 V3-TREE-NO-CYCLE",
-        [Structure],
-        "LoroTree 本地拒绝成环的移动，合并时也不会产生环",
-        [
-            "concurrent_moves_never_make_a_cycle_and_missing_groups_read_as_root",
-            "three_peers_read_the_same_book"
-        ]
-    ),
-    inv!(
-        "TREE-DELETE-MOVES-UP",
-        "删除素材夹时保留素材并按既有素材夹协议恢复住处",
-        [Command, Read],
-        "BookTxn::delete_drift_group / delete_material_folder 先挪子级再删（Loro 删节点会连子树一起删）；并发加进去的读取时放到根目录",
-        [
-            "deleting_a_group_moves_children_and_ideas_up",
-            "materials_folders_and_assets",
-            "v3_material_folders_restore_order_ancestry_and_only_selected_records"
-        ]
     ),
     inv!(
         "KV-LIST",
@@ -549,9 +496,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "PROFILE",
-        "列表、任务、代码块、提示框、高亮、行内代码只在素材笔记里",
+        "所有正文文档共用同一种正文格式档，列表、任务、代码块、提示块、高亮、行内代码与表格对全部正文开放",
         [Command, Read],
-        "ProseTxn 拒绝（DocError::NotInProfile）；读取时正文配置里的这些属性忽略",
+        "ProseProfile 仅保留 Prose，ProseTxn 与读取路径对所有正文文档同等放行全部段落属性、行内标记与表格嵌入；非正文文档 profile() 为 None",
         [
             "inline_styles_skip_newlines_and_respect_the_profile",
             "inheritance_follows_the_schema"
@@ -590,13 +537,13 @@ pub const INVARIANTS: &[Invariant] = &[
         "正文文档要有书目里的实体",
         [Read, Repair],
         "BookViewV3::owns_prose；没有主人的正文文档读取时忽略，由 F2 清理（彻底删除和另一台设备的编辑并发时会出现）",
-        ["materials_folders_and_assets"]
+        ["timeline_view_requires_lane_membership_and_prose_ownership_works"]
     ),
     inv!(
         "ORDER-POS",
-        "纯列表（故事线、补丁、素材、键值列表、情节规划的行列、表格的行列）的顺序是分数索引位置键，不是数字；平局按 id",
+        "纯列表（补丁、媒体模块里的文件、键值列表、情节规划的行列、表格的行列、左栏 Tab）的顺序是分数索引位置键，不是数字；平局按 id",
         [Structure, Read],
-        "dr_model::pos（照搬 Rocicorp fractional-indexing 4.0.0，旧键逐字节保留）；挪一项只改这一项的键，两台设备各自重排再合并也不会互相打乱；构想分组、素材夹的兄弟顺序由 LoroTree 自己的分数索引管；读取时缺键或坏键排到最后",
+        "dr_model::pos（照搬 Rocicorp fractional-indexing 4.0.0，旧键逐字节保留）；挪一项只改这一项的键，两台设备各自重排再合并也不会互相打乱；条目树的兄弟顺序由 LoroTree 自己的分数索引管；读取时缺键或坏键排到最后",
         [
             "matches_the_js_library",
             "many_keys_are_ordered_and_between",
@@ -615,9 +562,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "PROJECTED-TODO-ID",
-        "从正文生成的待办（TODO: 标记、素材笔记的任务行）在每台设备上是同一个实体",
+        "从正文生成的批注（TODO: 标记、正文清单项）在每台设备上是同一个实体",
         [Structure],
-        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（种类、目标、状态、任务文字 projection_text）是种子变更（BookTxn::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
+        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（origin、目标、状态、任务文字 projection_text）是种子变更（BookTxnV3::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
         [
             "projected_todos_are_one_entity_on_every_device",
             "derived_ids",
@@ -835,7 +782,7 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 5 的书目更新；书文件只读格式 5",
         [
-            "a_book_of_format_3_is_refused_as_it_is_and_cannot_arrive_by_sync",
+            "a_book_of_format_3_or_4_is_refused_as_it_is_and_cannot_arrive_by_sync",
             "old_catalog_and_old_prose_are_refused_without_repair_or_mutation",
             "a_marker_change_that_arrives_before_its_dependency_is_refused_with_it"
         ]
@@ -916,8 +863,15 @@ pub const INVARIANTS: &[Invariant] = &[
         "COMMENT-PART-IN-MODULE",
         "批注的「哪一处」（part）属于它说的那个模块：命令层预防；读取时模块或那一处不在了就标成 target_missing（找不到原处），数据留着",
         [Command, Read],
-        "comment.create 用 check_comment_part_kind 并核对条目当前模板里的字段、键值行、情节规划格子、补丁、正文嵌入；读取时 BookViewV3 与 comment.list 找不到原处即标 target_missing / unlocated = true",
+        "comment.create 用 check_comment_part_kind 并核对条目当前模板里的字段、键值行、情节规划格子、补丁、媒体文件与正文嵌入；读取时 BookViewV3 与 comment.list 找不到原处即标 target_missing / unlocated = true",
         ["comment_parts_validate_against_modules_and_degrade_to_unlocated"]
+    ),
+    inv!(
+        "MEDIA-AND-EMBED-ASSET-EXISTS",
+        "媒体模块里的文件、正文嵌入指向的文件都在；读取时不在就显示占位",
+        [Command, Read],
+        "命令层在 module.put_media 校验 asset 已登记在书目 assets；读取时 module.read 与正文嵌入照实暴露缺失的 asset（missing = true 或找不到资产元数据），由界面显示占位，不丢记录",
+        ["media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_on_read"]
     ),
 ];
 
@@ -972,7 +926,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 87;
+pub const ACTIVE_CONTRACTS: usize = 82;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
@@ -993,13 +947,7 @@ mod tests {
             assert!(!i.rule.is_empty() && !i.how.is_empty(), "{}", i.id);
         }
         // Every `check` predicate names an invariant that exists.
-        for id in [
-            "NAME-NONEMPTY",
-            "MAT-PAYLOAD",
-            "MAT-KIND",
-            "AST-SHAPE",
-            "PLOT-GRID",
-        ] {
+        for id in ["NAME-NONEMPTY", "AST-SHAPE", "PLOT-GRID"] {
             assert!(ids.contains(id), "{id}");
         }
     }

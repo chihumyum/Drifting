@@ -32,8 +32,7 @@ fn doc_id(s: &str) -> Result<DocId> {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProseReadIn {
-    /// Canonical prose: `body:<entry>/<module>`, `material:<id>` or
-    /// `template:<book>/<template>/<module>`.
+    /// Canonical prose: `body:<entry>/<module>` or `template:<book>/<template>/<module>`.
     pub doc: String,
     /// First paragraph (0-based).
     #[serde(default)]
@@ -205,44 +204,10 @@ op! {
     }
 }
 
-pub(crate) fn seed_prose(
-    cx: &Cx<'_>,
-    book: &dr_model::id::BookId,
-    doc: &DocId,
-    text: Option<&str>,
-) -> Result<()> {
-    cx.create_prose(book, doc)?;
-    if let Some(t) = text.filter(|t| !t.is_empty()) {
-        if t.contains('\u{FFFC}') {
-            return Err(WsError::invalid("text may not contain U+FFFC"));
-        }
-        let names = if cx.workspace().auto_links() && crate::autolink::links_for(cx.actor()) {
-            Some(crate::autolink::book_matcher(
-                &*cx.book(book.as_str())?,
-                doc,
-            ))
-        } else {
-            None
-        };
-        let slot = cx.prose(doc)?;
-        let t = t.replace("\r\n", "\n");
-        cx.write_prose(&slot, move |txn| {
-            let end = txn.view().len().saturating_sub(1);
-            let caret = txn.insert_paragraphs(end, &t)?;
-            // Automatic links on the names in the new text, same commit.
-            if let Some(n) = &names {
-                crate::autolink::link_written_v3(txn, n, end..caret)?;
-            }
-            Ok(())
-        })?;
-    }
-    Ok(())
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinkIn {
     pub doc: String,
-    /// A canonical entry or material. This inverse represents bare links;
+    /// A canonical entry. This inverse represents bare links;
     /// richer existing marks must use the versioned prose edit protocol.
     pub target: crate::dto::Target,
     /// The ranges, as anchors (two cursors each, as comments keep them), so
@@ -277,10 +242,7 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
     for l in &input.links {
         let doc = doc_id(&l.doc)?;
         let kind = dr_model::kind::EntityKind::parse(&l.target.kind);
-        if !matches!(
-            kind,
-            dr_model::kind::EntityKind::Entry | dr_model::kind::EntityKind::Material
-        ) {
+        if !kind.may_be_linked_v3() {
             return Err(WsError::invalid(format!(
                 "{:?} cannot be linked",
                 l.target.kind
@@ -446,7 +408,7 @@ op! {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProseShapeIn {
-    /// A canonical body, template module or material prose document.
+    /// A canonical body or template-module prose document.
     pub doc: String,
 }
 
@@ -458,16 +420,16 @@ pub struct ProseShapeOut {
     pub sentences: u64,
     /// The share of characters inside quotation marks, 0–1.
     pub dialogue: f32,
-    /// Checklist items (a note's tasks) and how many are checked.
+    /// Checklist items and how many are checked.
     pub tasks: u32,
     pub done: u32,
-    /// The materials it embeds, in order (repeats kept).
+    /// The assets it embeds, in order (repeats kept).
     pub embeds: Vec<String>,
 }
 
 op! {
     ProseShapeOp = "prose.shape", Read, Shared,
-    "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.",
+    "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds.",
     fn(cx, input: ProseShapeIn) -> ProseShapeOut {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
         if doc.profile().is_none() {
@@ -484,9 +446,9 @@ op! {
                 done += u32::from(p.attrs.checked);
             }
             if let Some(id) = p.embed()
-                && let Some(dr_doc::prose::EmbedView::Material { material: Some(m), .. }) = view.embed(id)
+                && let Some(dr_doc::prose::EmbedView::Asset { asset: Some(a), .. }) = view.embed(id)
             {
-                embeds.push(m.as_str().to_owned());
+                embeds.push(a.as_str().to_owned());
             }
             texts.push(dr_text::block_text(&view, &p));
         }

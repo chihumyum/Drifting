@@ -20,8 +20,54 @@ fn seed() -> (tempfile::TempDir, Workspace, String) {
     .unwrap();
     let id = made.books[0].book_id().to_string();
     made.write_to(&store).unwrap();
+    let png = dir.path().join("seed-material.png");
+    std::fs::write(&png, dr_testkit::media::png(16, 16)).unwrap();
+    let imported = store
+        .import_asset(&dr_store::asset::SourceImport {
+            book_id: &id,
+            asset_id: "00000000-0000-7000-8000-0000000000e1",
+            source: &png,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((16, 16)),
+            limit: dr_store::asset::MAX_COPY_BYTES,
+        })
+        .unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+    let materials_root = dr_testkit::seed::acceptance::novel_root(&ws, &id, "tpl-materials");
+    call(
+        &ws,
+        "asset.put",
+        json!({
+            "book": &id,
+            "id": imported.asset_id,
+            "kind": "image",
+            "mime": imported.mime,
+            "size": imported.size,
+            "sha256": imported.sha256,
+            "width": 16,
+            "height": 16
+        }),
+    );
+    let media_entry = call(
+        &ws,
+        "entry.create",
+        json!({"book": &id, "template": "tpl-media", "parent": materials_root, "title": "示例图片"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "module.put_media",
+        json!({
+            "book": &id,
+            "entry": media_entry,
+            "module": "mod-media",
+            "item": {"id": "00000000-0000-7000-8000-0000000000e2", "asset": imported.asset_id}
+        }),
+    );
     (dir, ws, id)
 }
 #[test]
@@ -31,7 +77,7 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
     assert!(matches!(b.snapshot, Snapshot::V3(_)));
     assert!(!b.v3().unwrap().manuscript.is_empty());
     let v = b.v3().unwrap();
-    assert_eq!(v.roots.len(), 4);
+    assert_eq!(v.roots.len(), 5);
     assert!(!v.timeline_views.is_empty());
     assert!(!v.memberships.is_empty());
     let root = v
@@ -119,10 +165,11 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
         ws.observe(&format!("book:{id}")).unwrap().version
     );
 
-    // Model a remote metadata removal while its prose still exists. The
-    // shell must not infer a navigable material merely from that document.
+    // Model a remote metadata removal while its asset still exists. The
+    // shell must not infer a navigable material merely from stored asset bytes.
     let book_id = id.parse().unwrap();
-    let material_id = material.id.clone();
+    let entry_id = material.entry.clone().expect("host entry");
+    let asset_id = material.asset.clone().expect("media asset");
     ws.library()
         .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)
         .unwrap()
@@ -130,7 +177,8 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
             dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
                 .unwrap()
                 .txn()
-                .purge(dr_doc::v3::CollectionV3::Materials, &material_id)
+                .entries()
+                .delete_keep_children(&entry_id.parse().unwrap())
                 .unwrap();
         })
         .unwrap();
@@ -140,8 +188,9 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
     assert_ne!(b.v3().unwrap().revision, after.v3().unwrap().revision);
     assert!(
         ws.library()
-            .open_doc(&target.key(), dr_store::OpenDoc::Existing)
-            .is_ok()
+            .asset(&asset_id, dr_store::asset::Variant::Source)
+            .unwrap()
+            .is_some()
     );
     ws.shutdown().unwrap();
 }
@@ -559,7 +608,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
             v3::entry_target(&entry.id).unwrap(),
         )
     });
-    assert_eq!(roots.len(), 4);
+    assert_eq!(roots.len(), 5);
     assert!(
         made.borrow()
             .iter()
@@ -579,13 +628,13 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
     );
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book_memory(v3::sidebar::MEMORY_KEY).cloned()),
-        Some(json!(roots[3]))
+        Some(json!(roots[4]))
     );
     let count = made.borrow().len();
     call(
         &lib,
         "entry.update",
-        json!({"book":book_id,"id":roots[3],"title":"Synthetic updated level","overrides":{"display":"grid"}}),
+        json!({"book":book_id,"id":roots[4],"title":"Synthetic updated level","overrides":{"display":"grid"}}),
     );
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -683,7 +732,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
         );
         assert_eq!(invoked.get(), 4);
     });
-    call(&lib, "entry.trash", json!({"book":book_id,"id":roots[3]}));
+    call(&lib, "entry.trash", json!({"book":book_id,"id":roots[4]}));
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.run_until_parked();

@@ -10,26 +10,34 @@
       "save": "books"
     },
     {
-      "call": "material.list",
+      "call": "entry.list",
       "input": {
-        "book": "${books.0.id}"
+        "book": "${books.0.id}",
+        "all": true
       },
-      "save": "sources"
+      "save": "entries"
     },
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${sources.[kind=text].id}"
+        "doc": "body:${entries.[template=tpl-note].id}/mod-prose"
       },
       "save": "body"
     },
     {
-      "call": "material.create",
+      "call": "entry.create",
       "input": {
         "book": "${books.0.id}",
-        "kind": "text",
+        "template": "tpl-note",
+        "parent": "${entries.[template=tpl-materials].id}",
         "title": "F6 synthetic material",
-        "text": "${body.paragraphs.0.text}"
+        "bodies": {
+          "mod-prose": [
+            {
+              "text": "${body.paragraphs.0.text}"
+            }
+          ]
+        }
       },
       "save": "noteA"
     },
@@ -41,22 +49,29 @@
       "save": "other"
     },
     {
-      "call": "material.create",
-      "input": {
-        "book": "${other.id}",
-        "kind": "text",
-        "title": "F6 synthetic other material",
-        "text": "${body.paragraphs.0.text}"
-      },
-      "save": "noteB"
-    },
-    {
       "call": "entry.list",
       "input": {
-        "book": "${books.0.id}",
+        "book": "${other.id}",
         "all": true
       },
-      "save": "entries"
+      "save": "otherEntries"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${other.id}",
+        "template": "tpl-note",
+        "parent": "${otherEntries.[template=tpl-materials].id}",
+        "title": "F6 synthetic other material",
+        "bodies": {
+          "mod-prose": [
+            {
+              "text": "${body.paragraphs.0.text}"
+            }
+          ]
+        }
+      },
+      "save": "noteB"
     },
     {
       "call": "module.read_prose",
@@ -195,7 +210,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${noteA.id}"
+        "target": "entry:${noteA.id}/mod-prose"
       }
     },
     {
@@ -205,9 +220,9 @@
         "state": {
           "/recent/pending": 0,
           "/recent/last/book": "${books.0.id}",
-          "/recent/last/target/kind": "material",
+          "/recent/last/target/kind": "entry",
           "/recent/last/target/id": "${noteA.id}",
-          "/recent/last/target/module": null
+          "/recent/last/target/module": "mod-prose"
         }
       }
     },
@@ -216,7 +231,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${noteA.id}",
+          "/page": "entry:${noteA.id}/mod-prose",
           "/focus/editor": true
         },
         "page": {
@@ -277,7 +292,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${noteA.id}"
+        "doc": "body:${noteA.id}/mod-prose"
       },
       "expect": {
         "/paragraphs/0/text": "F6MaterialInput ${body.paragraphs.0.text}"
@@ -292,7 +307,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${noteA.id}"
+        "doc": "body:${noteA.id}/mod-prose"
       },
       "expect": {
         "/paragraphs/0/text": "${body.paragraphs.0.text}"
@@ -342,7 +357,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${noteA.id}"
+        "doc": "body:${noteA.id}/mod-prose"
       },
       "expect": {
         "/paragraphs/0/text": "F6MaterialSaved ${body.paragraphs.0.text}"
@@ -405,14 +420,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${noteA.id}"
+        "target": "entry:${noteA.id}/mod-prose"
       },
       "expect_error": "not_found"
     },
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${noteB.id}"
+        "target": "entry:${noteB.id}/mod-prose"
       }
     },
     {
@@ -422,9 +437,9 @@
         "state": {
           "/recent/pending": 0,
           "/recent/last/book": "${other.id}",
-          "/recent/last/target/kind": "material",
+          "/recent/last/target/kind": "entry",
           "/recent/last/target/id": "${noteB.id}",
-          "/recent/last/target/module": null
+          "/recent/last/target/module": "mod-prose"
         }
       }
     },
@@ -433,7 +448,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${noteB.id}",
+          "/page": "entry:${noteB.id}/mod-prose",
           "/focus/editor": true
         },
         "page": {
@@ -451,7 +466,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${noteB.id}"
+        "doc": "body:${noteB.id}/mod-prose"
       },
       "expect": {
         "/paragraphs/0/text": "F6OtherMaterial ${body.paragraphs.0.text}"
@@ -460,7 +475,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${noteA.id}"
+        "doc": "body:${noteA.id}/mod-prose"
       },
       "expect": {
         "/paragraphs/0/text": "F6MaterialSaved ${body.paragraphs.0.text}"
@@ -520,8 +535,9 @@
       },
       "expect": {
         "/0/target": {
-          "kind": "material",
-          "id": "${noteA.id}"
+          "kind": "entry",
+          "id": "${noteA.id}",
+          "module": "mod-prose"
         },
         "/1/target": {
           "kind": "entry",
@@ -543,15 +559,16 @@
       "expect": {
         "/0/book": "${other.id}",
         "/0/target": {
-          "kind": "material",
-          "id": "${noteB.id}"
+          "kind": "entry",
+          "id": "${noteB.id}",
+          "module": "mod-prose"
         }
       }
     },
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${noteA.id}"
+        "target": "entry:${noteA.id}/mod-prose"
       }
     },
     {
@@ -561,9 +578,9 @@
         "state": {
           "/recent/pending": 0,
           "/recent/last/book": "${books.0.id}",
-          "/recent/last/target/kind": "material",
+          "/recent/last/target/kind": "entry",
           "/recent/last/target/id": "${noteA.id}",
-          "/recent/last/target/module": null
+          "/recent/last/target/module": "mod-prose"
         }
       }
     },
@@ -572,7 +589,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${noteA.id}",
+          "/page": "entry:${noteA.id}/mod-prose",
           "/focus/editor": true
         },
         "page": {
@@ -584,7 +601,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${noteB.id}"
+        "doc": "body:${noteB.id}/mod-prose"
       },
       "expect": {
         "/paragraphs/0/text": "F6OtherMaterial ${body.paragraphs.0.text}"

@@ -274,14 +274,6 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
         }
         targets.extend(modules);
     }
-    for row in view.materials() {
-        targets.push(Target {
-            kind: "material".into(),
-            id: row.id.to_string(),
-            name: row.title,
-            doc: Some(format!("material:{}", row.id)),
-        });
-    }
     Ok(Canonical {
         version: evidence::version(&copy.oplog_frontiers()),
         manifest,

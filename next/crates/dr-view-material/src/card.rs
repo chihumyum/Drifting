@@ -16,6 +16,7 @@
 use std::rc::Rc;
 
 use dr_i18n::keys;
+use dr_shell::book::MaterialInfo;
 use dr_shell::t;
 use dr_ui::Theme;
 use dr_ui::fonts::{Role, weight};
@@ -23,7 +24,6 @@ use dr_ui::glass::{self, Kind as GlassKind, Mode, Spec, Tone};
 use dr_ui::sand::{self, Icon, KindMark, SandFrame};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
-use dr_workspace::dto::MaterialInfo;
 use gpui::{
     AnyElement, App, ClickEvent, ElementId, IntoElement, ObjectFit, ParentElement, RenderOnce,
     SharedString, StatefulInteractiveElement, Styled, StyledImage as _, Window, div, img,

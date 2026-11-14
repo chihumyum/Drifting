@@ -144,6 +144,7 @@ fn files_become_chapters_of_the_chosen_storyline(cx: &mut TestAppContext) {
             "故事线",
             "故事线 / 主线",
             "故事线 / 支线",
+            "素材",
             "幕",
         ]
         .into_iter()

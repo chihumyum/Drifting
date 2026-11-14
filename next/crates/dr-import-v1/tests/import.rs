@@ -269,7 +269,7 @@ fn a_handed_off_library_imports_completely() {
         !rels.iter().any(|x| x.id.as_str() == "rel-1"),
         "positive source omits its known dangling fixture edge"
     );
-    let note_doc = DocId::Material(MaterialId::parse(NOTE).unwrap());
+    let note_doc = dr_samples::v3::body_id(NOTE, MOD_PROSE);
     let note_todo = CommentId::for_projection(
         &ProjectionKind::NoteTask,
         &note_doc,
@@ -328,6 +328,19 @@ fn a_handed_off_library_imports_completely() {
     assert!(m.is_done());
     let region = v.comment(&CommentId::parse("region-1").unwrap()).unwrap();
     assert_eq!(region.region().map(|r| r.w), Some(0.3));
+    assert_eq!(
+        region.part,
+        Some(dr_model::v3::CommentPart::Media {
+            item: MediaItemId::parse(IMAGE).unwrap(),
+            region: Some(dr_model::shared::MaterialRegion {
+                page: None,
+                x: 0.1,
+                y: 0.2,
+                w: 0.3,
+                h: 0.4,
+            }),
+        })
+    );
 
     // The patch, its anchor in the chapter.
     let patch = v
@@ -342,18 +355,21 @@ fn a_handed_off_library_imports_completely() {
         "引文"
     );
 
-    // Materials, folders, the asset, its bytes.
-    let mats = v.materials();
-    let note = mats.iter().find(|m| m.id.as_str() == NOTE).unwrap();
-    assert_eq!(note.folder.as_ref().map(|f| f.as_str()), Some(FOLDER));
-    assert!(note.task_todos);
-    let image = mats.iter().find(|m| m.id.as_str() == IMAGE).unwrap();
-    assert_eq!(image.description, "未庄的土谷祠");
-    assert!(
-        mats.iter().position(|m| m.id.as_str() == IMAGE)
-            < mats.iter().position(|m| m.id.as_str() == NOTE),
-        "order_key 0 before 1"
-    );
+    // Materials and folders imported into entries under 素材, plus the asset and its bytes.
+    let materials_root = v
+        .root_entry_by_template(&EntryTemplateId::parse(TPL_MATERIALS).unwrap())
+        .unwrap();
+    let folder = v.entry(&EntryId::parse(FOLDER).unwrap()).unwrap();
+    assert_eq!(folder.parent.as_ref(), Some(&materials_root.id));
+    let note = v.entry(&EntryId::parse(NOTE).unwrap()).unwrap();
+    assert_eq!(note.parent.as_ref().map(|f| f.as_str()), Some(FOLDER));
+    assert_eq!(note.template.as_ref().map(|t| t.as_str()), Some(TPL_NOTE));
+    let image = v.entry(&EntryId::parse(IMAGE).unwrap()).unwrap();
+    assert_eq!(image.parent.as_ref(), Some(&materials_root.id));
+    let image_items = &image.media[&ModuleId::parse(MOD_MEDIA).unwrap()];
+    assert_eq!(image_items.len(), 1);
+    assert_eq!(image_items[0].asset.as_str(), ASSET);
+    assert_eq!(image_items[0].caption, "未庄的土谷祠");
     assert_eq!(v.assets()[0].sha256, sha256_bytes(IMAGE_BYTES));
     let stored = lib
         .asset(ASSET, dr_store::asset::Variant::Source)
@@ -404,13 +420,13 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(ids, ["h1", "p1", "q1", "q2", "p2"]);
     assert!(paras[2].attrs.quote);
     assert_eq!(chapter_doc.view().entity_links()[0].1.target, ELEMENT);
-    let note_prose = prose_doc(&lib, &format!("material:{NOTE}"));
+    let note_prose = prose_doc(&lib, &format!("body:{NOTE}/mod-prose"));
     let np: Vec<_> = note_prose.view().paragraphs().collect();
     assert_eq!(np[0].attrs.todo.as_ref(), Some(&note_todo));
     assert!(np[1].attrs.checked);
     let embed = np[2].embed().cloned().unwrap();
     assert!(
-        matches!(note_prose.view().embed(&embed), Some(EmbedView::Material { material: Some(m), .. }) if m.as_str() == IMAGE)
+        matches!(note_prose.view().embed(&embed), Some(EmbedView::Asset { asset: Some(a), .. }) if a.as_str() == ASSET)
     );
 
     // History: two replayed points with their 0.1 times, plus the import,

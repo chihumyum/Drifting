@@ -11,7 +11,7 @@ use dr_model::{DocId, Timestamp};
 use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID};
 
 use crate::catalog::EntitySnapshot;
-use crate::catalog::fields::{F, kv_entries};
+use crate::catalog::fields::{F, kv_entries, media_items};
 use crate::catalog::read::{
     ForestNode, forest, forest_entry_headers, forest_entry_status, forest_ids, forest_node,
 };
@@ -22,7 +22,6 @@ use crate::{DocError, Result};
 type CommentPartLookup = (
     BTreeMap<EntryTemplateId, EntryTemplate>,
     HashMap<String, Entry>,
-    HashMap<String, MaterialKind>,
 );
 
 /// Stored metadata of a v3 [`Entry`] at a history point (`BookReaderV3::load_at`),
@@ -849,6 +848,7 @@ impl<'a> BookViewV3<'a> {
         }
 
         let mut kv: BTreeMap<ModuleId, Vec<KvEntry>> = BTreeMap::new();
+        let mut media: BTreeMap<ModuleId, Vec<MediaItem>> = BTreeMap::new();
         if let LoroValue::Map(meta_map) = &n.meta {
             for (k, v) in meta_map.iter() {
                 if let Some(mid) = k.strip_prefix("kv:")
@@ -857,6 +857,13 @@ impl<'a> BookViewV3<'a> {
                     let rows = kv_entries(v);
                     if !rows.is_empty() {
                         kv.insert(module_id, rows);
+                    }
+                } else if let Some(mid) = k.strip_prefix("media:")
+                    && let Ok(module_id) = ModuleId::parse(mid)
+                {
+                    let items = media_items(v);
+                    if !items.is_empty() {
+                        media.insert(module_id, items);
                     }
                 }
             }
@@ -893,6 +900,7 @@ impl<'a> BookViewV3<'a> {
             overrides,
             fields,
             kv,
+            media,
             primary: f.id("primary"),
             layout,
             created_at: f.ts("created_at"),
@@ -1030,6 +1038,7 @@ impl<'a> BookViewV3<'a> {
                     overrides,
                     fields,
                     kv: BTreeMap::new(),
+                    media: BTreeMap::new(),
                     primary: None,
                     layout: EntryLayout::default(),
                     created_at: h.created_at,
@@ -1588,7 +1597,6 @@ impl<'a> BookViewV3<'a> {
                 )
             }),
             EntityKind::Comment => self.entity_map(book_v3::COMMENTS, &r.id).is_some(),
-            EntityKind::Material => self.entity_map(book_v3::MATERIALS, &r.id).is_some(),
             _ => false,
         }
     }
@@ -1664,7 +1672,10 @@ impl<'a> BookViewV3<'a> {
             let Some(t) = types.get(&r.relation_type) else {
                 continue;
             };
-            if r.from == r.to || !r.from.kind.may_start_relation() || !r.to.kind.is_structural() {
+            if r.from == r.to
+                || !r.from.kind.may_start_relation_v3()
+                || !r.to.kind.is_structural_v3()
+            {
                 continue;
             }
             let allowed_kind =
@@ -1733,97 +1744,78 @@ impl<'a> BookViewV3<'a> {
         part: &CommentPart,
         lookup: Option<&CommentPartLookup>,
     ) -> bool {
+        let (Some(t), Some(mod_id)) = (
+            target.filter(|t| t.kind == EntityKind::Entry),
+            target_module,
+        ) else {
+            return true;
+        };
+        let owned_entry;
+        let owned_templates;
+        let (templates, entry) = match lookup {
+            Some((tpls, entries)) => {
+                let Some(e) = entries.get(&t.id) else {
+                    return true;
+                };
+                (tpls, e)
+            }
+            None => {
+                let Ok(eid) = EntryId::parse(&t.id) else {
+                    return true;
+                };
+                let Some(e) = self.entry(&eid) else {
+                    return true;
+                };
+                owned_entry = e;
+                owned_templates = self.templates_map();
+                (&owned_templates, &owned_entry)
+            }
+        };
+        if entry.is_trashed() {
+            return true;
+        }
+        let Some(mod_def) = entry
+            .effective_template(templates)
+            .and_then(|et| et.modules.iter().find(|m| &m.id == mod_id))
+        else {
+            return true;
+        };
+        if check_comment_part_kind(part, &mod_def.kind).is_err() {
+            return true;
+        }
         match part {
-            CommentPart::Region { .. } => {
-                let Some(t) = target.filter(|t| t.kind == EntityKind::Material) else {
-                    return true;
-                };
-                match lookup {
-                    Some((_, _, mats)) => !mats.get(&t.id).is_some_and(|k| k.needs_asset()),
-                    None => !self
-                        .entity_map(book_v3::MATERIALS, &t.id)
-                        .and_then(|m| match m.get("kind")? {
-                            loro::ValueOrContainer::Value(LoroValue::String(s)) => {
-                                Some(MaterialKind::from(s.as_str()))
-                            }
-                            _ => None,
+            CommentPart::Embed { .. } => false,
+            CommentPart::Field { field } => !mod_def.config.defs.iter().any(|d| d.id == *field),
+            CommentPart::KvRow { row } => !entry
+                .kv
+                .get(mod_id)
+                .is_some_and(|rows| rows.iter().any(|r| &r.id == row)),
+            CommentPart::PlotCell { row, col } => {
+                if let Some(g) = self.plot_grid(&entry.id, mod_id) {
+                    !g.rows.iter().any(|r| &r.id == row) || !g.cols.iter().any(|c| &c.id == col)
+                } else {
+                    !(1..=mod_def.config.default_rows)
+                        .any(|n| &PlotGridV3::default_row_id(&entry.id, mod_id, n as usize) == row)
+                        || !(1..=mod_def.config.default_cols).any(|n| {
+                            &PlotGridV3::default_col_id(&entry.id, mod_id, n as usize) == col
                         })
-                        .is_some_and(|k| k.needs_asset()),
                 }
             }
-            _ => {
-                let (Some(t), Some(mod_id)) = (
-                    target.filter(|t| t.kind == EntityKind::Entry),
-                    target_module,
-                ) else {
-                    return true;
-                };
-                let owned_entry;
-                let owned_templates;
-                let (templates, entry) = match lookup {
-                    Some((tpls, entries, _)) => {
-                        let Some(e) = entries.get(&t.id) else {
-                            return true;
-                        };
-                        (tpls, e)
-                    }
-                    None => {
-                        let Ok(eid) = EntryId::parse(&t.id) else {
-                            return true;
-                        };
-                        let Some(e) = self.entry(&eid) else {
-                            return true;
-                        };
-                        owned_entry = e;
-                        owned_templates = self.templates_map();
-                        (&owned_templates, &owned_entry)
-                    }
-                };
-                if entry.is_trashed() {
-                    return true;
-                }
-                let Some(mod_def) = entry
-                    .effective_template(templates)
-                    .and_then(|et| et.modules.iter().find(|m| &m.id == mod_id))
-                else {
-                    return true;
-                };
-                if check_comment_part_kind(part, &mod_def.kind).is_err() {
-                    return true;
-                }
-                match part {
-                    CommentPart::Embed { .. } => false,
-                    CommentPart::Field { field } => !mod_def.config.defs.iter().any(|d| d.id == *field),
-                    CommentPart::KvRow { row } => !entry
-                        .kv
-                        .get(mod_id)
-                        .is_some_and(|rows| rows.iter().any(|r| &r.id == row)),
-                    CommentPart::PlotCell { row, col } => {
-                        if let Some(g) = self.plot_grid(&entry.id, mod_id) {
-                            !g.rows.iter().any(|r| &r.id == row)
-                                || !g.cols.iter().any(|c| &c.id == col)
-                        } else {
-                            !(1..=mod_def.config.default_rows).any(|n| {
-                                &PlotGridV3::default_row_id(&entry.id, mod_id, n as usize) == row
-                            }) || !(1..=mod_def.config.default_cols).any(|n| {
-                                &PlotGridV3::default_col_id(&entry.id, mod_id, n as usize) == col
-                            })
-                        }
-                    }
-                    CommentPart::Patch { patch } => !self
-                        .entity_map(book_v3::PATCHES, patch.as_str())
-                        .is_some_and(|m| {
-                            matches!(
-                                (m.get("entry"), m.get("module")),
-                                (
-                                    Some(loro::ValueOrContainer::Value(LoroValue::String(e))),
-                                    Some(loro::ValueOrContainer::Value(LoroValue::String(mo))),
-                                ) if e.as_str() == entry.id.as_str() && mo.as_str() == mod_id.as_str()
-                            )
-                        }),
-                    CommentPart::Media { .. } | CommentPart::Region { .. } => true,
-                }
-            }
+            CommentPart::Patch { patch } => !self
+                .entity_map(book_v3::PATCHES, patch.as_str())
+                .is_some_and(|m| {
+                    matches!(
+                        (m.get("entry"), m.get("module")),
+                        (
+                            Some(loro::ValueOrContainer::Value(LoroValue::String(e))),
+                            Some(loro::ValueOrContainer::Value(LoroValue::String(mo))),
+                        ) if e.as_str() == entry.id.as_str() && mo.as_str() == mod_id.as_str()
+                    )
+                }),
+            CommentPart::Media { item, .. } => !entry
+                .media
+                .get(mod_id)
+                .is_some_and(|items| items.iter().any(|i| &i.id == item)),
         }
     }
 
@@ -1834,16 +1826,7 @@ impl<'a> BookViewV3<'a> {
             .into_iter()
             .map(|e| (e.id.to_string(), e))
             .collect();
-        let mats = entities(self.doc, book_v3::MATERIALS)
-            .into_iter()
-            .map(|(id, v)| {
-                let k = F(&v)
-                    .kind::<MaterialKind>("kind")
-                    .unwrap_or(MaterialKind::Text);
-                (id, k)
-            })
-            .collect();
-        (templates, entries, mats)
+        (templates, entries)
     }
 
     fn read_comment_with(
@@ -1856,7 +1839,7 @@ impl<'a> BookViewV3<'a> {
         let f = F(v);
         let target = f.entity_ref("target_kind", "target");
         let target_module: Option<ModuleId> = f.id("module");
-        let raw_has_part = f.get("part").is_some() || f.get("region").is_some();
+        let raw_has_part = f.get("part").is_some();
         let part = f.comment_part("part");
         let mut target_missing = target
             .as_ref()
@@ -1982,71 +1965,7 @@ impl<'a> BookViewV3<'a> {
         self.comment(id).map(|c| c.is_done())
     }
 
-    // ---- materials, assets, folders, facts, memory, writing days ---------
-
-    fn asset_kinds(&self) -> HashMap<String, AssetKind> {
-        entities(self.doc, book_v3::ASSETS)
-            .into_iter()
-            .filter_map(|(id, v)| Some((id, F(&v).kind::<AssetKind>("kind")?)))
-            .collect()
-    }
-
-    pub fn material_titles(&self) -> HashMap<String, String> {
-        use loro::{Container, ValueOrContainer};
-        let mut out = HashMap::new();
-        self.doc.get_map(book_v3::MATERIALS).for_each(|id, val| {
-            let ValueOrContainer::Container(Container::Map(m)) = val else {
-                return;
-            };
-            if MaterialId::parse(id).is_err() {
-                return;
-            }
-            let title = match m.get("title") {
-                Some(ValueOrContainer::Value(LoroValue::String(s))) => s.to_string(),
-                _ => String::new(),
-            };
-            out.insert(id.to_owned(), title);
-        });
-        out
-    }
-
-    pub fn materials(&self) -> Vec<Material> {
-        let folders: HashSet<String> = forest(&self.tree(book_v3::MATERIAL_FOLDERS))
-            .into_iter()
-            .map(|n| n.id)
-            .collect();
-        let assets = self.asset_kinds();
-        let mut v: Vec<Material> = entities(self.doc, book_v3::MATERIALS)
-            .iter()
-            .filter_map(|(id, v)| {
-                let f = F(v);
-                let kind = f.kind::<MaterialKind>("kind").unwrap_or(MaterialKind::Text);
-                let asset = f.id::<AssetId>("asset").filter(|a| {
-                    let want = match kind {
-                        MaterialKind::Image => AssetKind::Image,
-                        MaterialKind::Pdf => AssetKind::Pdf,
-                        _ => return false,
-                    };
-                    assets.get(a.as_str()) == Some(&want)
-                });
-                Some(Material {
-                    id: MaterialId::parse(id).ok()?,
-                    title: f.string("title"),
-                    asset,
-                    kind,
-                    folder: f
-                        .id::<MaterialFolderId>("folder")
-                        .filter(|d| folders.contains(d.as_str())),
-                    pos: f.pos("pos"),
-                    task_todos: f.bool("task_todos").unwrap_or(true),
-                    provenance: f.opt_string("provenance"),
-                    description: f.string("description"),
-                })
-            })
-            .collect();
-        v.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
-        v
-    }
+    // ---- assets, facts, memory, writing days ----------------------------
 
     pub fn assets(&self) -> Vec<Asset> {
         entities(self.doc, book_v3::ASSETS)
@@ -2055,26 +1974,13 @@ impl<'a> BookViewV3<'a> {
                 let f = F(v);
                 Some(Asset {
                     id: AssetId::parse(id).ok()?,
+                    name: f.string("name"),
                     kind: f.kind("kind")?,
                     mime: f.string("mime"),
                     size: f.i64("size").unwrap_or(0),
                     sha256: f.string("sha256"),
                     width: f.i64("width"),
                     height: f.i64("height"),
-                })
-            })
-            .collect()
-    }
-
-    pub fn material_folders(&self) -> Vec<MaterialFolder> {
-        forest(&self.tree(book_v3::MATERIAL_FOLDERS))
-            .into_iter()
-            .filter_map(|n| {
-                let f = F(&n.meta);
-                Some(MaterialFolder {
-                    id: MaterialFolderId::parse(&n.id).ok()?,
-                    name: f.string("name"),
-                    parent: n.parent.and_then(|p| MaterialFolderId::parse(&p).ok()),
                 })
             })
             .collect()
@@ -2109,7 +2015,7 @@ impl<'a> BookViewV3<'a> {
 
     /// Whether the prose document `doc` belongs to a live or trashed owner in
     /// this book (`body:<entry>/<module>`, `template:<book>/<template>/<module>`,
-    /// `material:<id>`, `conversation:<id>`, and the two documents beside the book).
+    /// `conversation:<id>`, and the documents beside the book).
     ///
     /// Note that per `V3-TEMPLATE-SWITCH-KEEPS-DATA` and `V3-ENTRY-TEMPLATE-EXISTS`,
     /// any `body:<entry>/<module>` document remains owned as long as `<entry>`
@@ -2133,9 +2039,11 @@ impl<'a> BookViewV3<'a> {
                 }
                 None => false,
             },
-            DocId::Material(id) => entity(self.doc, book_v3::MATERIALS, id.as_str())
-                .is_some_and(|v| F(&v).str("kind").is_none_or(|k| k == "text")),
-            DocId::Node(_) | DocId::Element(_) | DocId::Storyline(_) | DocId::Category(_) => false,
+            DocId::Material(_)
+            | DocId::Node(_)
+            | DocId::Element(_)
+            | DocId::Storyline(_)
+            | DocId::Category(_) => false,
         }
     }
 
@@ -2363,14 +2271,6 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
-    /// Raw metadata of one material folder, for selected-record restoration.
-    pub fn material_folder_snapshot(&self, id: &MaterialFolderId) -> Option<EntrySnapshotV3> {
-        forest(&self.tree(book_v3::MATERIAL_FOLDERS))
-            .into_iter()
-            .find(|n| n.id == id.as_str())
-            .map(|n| EntrySnapshotV3 { value: n.meta })
-    }
-
     /// Snapshot of a v3 structural map record, including nested maps.
     /// Patch text is restored through its mergeable text container by the writer.
     pub fn map_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntrySnapshotV3> {
@@ -2415,7 +2315,6 @@ impl<'a> BookViewV3<'a> {
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
-                | CollectionV3::Materials
                 | CollectionV3::Comments
                 | CollectionV3::Facts
                 | CollectionV3::Memory
@@ -2425,12 +2324,11 @@ impl<'a> BookViewV3<'a> {
         entity(self.doc, collection.root(), id).map(|value| EntrySnapshotV3 { value })
     }
 
-    /// Snapshot of a map-backed entity (e.g. `Materials`) at this view's frontiers.
+    /// Snapshot of a map-backed entity at this view's frontiers.
     pub fn entity_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntitySnapshot> {
         if !matches!(
             collection,
-            CollectionV3::Materials
-                | CollectionV3::RelationTypes
+            CollectionV3::RelationTypes
                 | CollectionV3::Relations
                 | CollectionV3::Comments
                 | CollectionV3::Assets

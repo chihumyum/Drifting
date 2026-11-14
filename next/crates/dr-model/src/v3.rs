@@ -21,8 +21,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::check::Violation;
 pub use crate::id::{
     AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId, EntryTemplateId,
-    KvEntryId, MaterialFolderId, MaterialId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId,
-    PlotRowId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
+    KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
+    RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
 };
 use crate::kind::{
     CommentAuthorKind, CommentOrigin, CommentPriority, CommentSource, CommentStatus, EntityKind,
@@ -151,6 +151,8 @@ v3_open_enum!(
         /// accepted members, drawn by the level's `display`. Stores no data
         /// and shows only while the entry's switch is on.
         Children = "children",
+        /// Files with captions and order (`media:<module_id>` on the entry, `kernel-v5.md` §6).
+        Media = "media",
     }
 );
 
@@ -463,6 +465,18 @@ impl ModuleSpec {
         }
     }
 
+    /// A `media` module (`文件`): ordered files with captions (`media:<module_id>`).
+    pub fn media(id: ModuleId, name: impl Into<String>) -> Self {
+        Self {
+            id,
+            kind: ModuleKind::Media,
+            name: name.into(),
+            pos: None,
+            config: ModuleConfig::default(),
+            agent: None,
+        }
+    }
+
     /// This prose module with its `in_book` switch set.
     pub fn in_book(mut self, in_book: bool) -> Self {
         self.config.in_book = in_book;
@@ -750,6 +764,23 @@ impl EntryLayout {
     }
 }
 
+/// One file item inside an entry's `media` module (`media:<module_id>` on the entry,
+/// `kernel-v5.md` §6 & §10). Sorted by `pos`, ties by `id`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaItem {
+    pub id: MediaItemId,
+    pub asset: AssetId,
+    #[serde(default)]
+    pub caption: String,
+    #[serde(default)]
+    pub pos: Option<PosKey>,
+}
+
+/// Sort a media module's items by position key, ties by item id.
+pub fn sort_media(items: &mut [MediaItem]) {
+    items.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
+}
+
 /// An entry in the book's unified `entries` `LoroTree` (`kernel-v4.md` "条目").
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
@@ -774,6 +805,9 @@ pub struct Entry {
     pub fields: BTreeMap<ModuleId, BTreeMap<String, FieldValue>>,
     /// Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.
     pub kv: BTreeMap<ModuleId, Vec<KvEntry>>,
+    /// Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.
+    #[serde(default)]
+    pub media: BTreeMap<ModuleId, Vec<MediaItem>>,
     /// Stored primary membership host; use [`Entry::effective_primary`] to read.
     pub primary: Option<EntryId>,
     pub layout: EntryLayout,
@@ -883,6 +917,26 @@ impl Entry {
                 && let Some(rows) = self.kv.get(&m.id)
             {
                 out.insert(&m.id, rows.as_slice());
+            }
+        }
+        out
+    }
+
+    /// The `media` module items visible under the entry's active template (or all
+    /// stored `media` modules if the template is missing).
+    pub fn visible_media<'a>(
+        &'a self,
+        templates: &'a BTreeMap<EntryTemplateId, EntryTemplate>,
+    ) -> BTreeMap<&'a ModuleId, &'a [MediaItem]> {
+        let Some(tpl) = self.effective_template(templates) else {
+            return self.media.iter().map(|(k, v)| (k, v.as_slice())).collect();
+        };
+        let mut out = BTreeMap::new();
+        for m in &tpl.modules {
+            if m.kind == ModuleKind::Media
+                && let Some(items) = self.media.get(&m.id)
+            {
+                out.insert(&m.id, items.as_slice());
             }
         }
         out
@@ -1198,8 +1252,6 @@ pub enum CommentPart {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<MaterialRegion>,
     },
-    /// Region on an image/PDF material (transitional until Step 4 maps materials to `media` modules).
-    Region { region: MaterialRegion },
 }
 
 impl CommentPart {
@@ -1209,7 +1261,6 @@ impl CommentPart {
             CommentPart::Embed { region, .. } | CommentPart::Media { region, .. } => {
                 region.as_ref()
             }
-            CommentPart::Region { region } => Some(region),
             _ => None,
         }
     }
@@ -1270,7 +1321,7 @@ pub fn check_comment_part_kind(
         CommentPart::KvRow { .. } => *module_kind == ModuleKind::KeyValue,
         CommentPart::PlotCell { .. } => *module_kind == ModuleKind::PlotGrid,
         CommentPart::Patch { .. } => *module_kind == ModuleKind::Patches,
-        CommentPart::Media { .. } | CommentPart::Region { .. } => false,
+        CommentPart::Media { .. } => *module_kind == ModuleKind::Media,
     };
     if !ok {
         return fail(
@@ -2415,18 +2466,14 @@ pub fn check_new_violations(before: BookGraph<'_>, after: BookGraph<'_>) -> Resu
 }
 
 /// Invariant 13 (`V3-CROSS-DOC-ORDER`): when a command writes both prose
-/// documents (`body:` / `template:` / `material:`) and the book document
-/// (`book:`), every prose document write must precede the book document write.
+/// documents (`body:` / `template:`) and the book document (`book:`), every
+/// prose document write must precede the book document write.
 pub fn check_cross_doc_write_order(steps: &[String]) -> Result<(), Violation> {
     let mut seen_book = false;
     for doc_id in steps {
         if doc_id.starts_with("book:") {
             seen_book = true;
-        } else if seen_book
-            && (doc_id.starts_with("body:")
-                || doc_id.starts_with("template:")
-                || doc_id.starts_with("material:"))
-        {
+        } else if seen_book && (doc_id.starts_with("body:") || doc_id.starts_with("template:")) {
             return fail(
                 "V3-CROSS-DOC-ORDER",
                 format!("prose write {doc_id} must happen before book document write"),
@@ -2531,6 +2578,7 @@ mod tests {
             overrides: None,
             fields: BTreeMap::new(),
             kv: BTreeMap::new(),
+            media: BTreeMap::new(),
             primary: None,
             layout: EntryLayout::default(),
             created_at: Some(Timestamp(1000)),

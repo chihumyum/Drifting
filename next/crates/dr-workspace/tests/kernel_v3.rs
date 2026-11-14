@@ -971,34 +971,61 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
 }
 
 #[test]
-fn material_entry_link_checks_book_observations_before_writing() {
+fn module_put_relation_checks_book_observations_before_writing() {
     use dr_workspace::{Actor, WritePreconditions, WsError};
     let e = env();
     let book = project(&e);
     let entry = root(&e, &book, "tpl-manuscript");
-    let title = get(&e, &book, &entry)["title"].clone();
-    let material = e.out(
-        "material.create",
-        json!({"book":book,"kind":"text","title":title}),
+    let materials_root = root(&e, &book, "tpl-materials");
+    e.call(
+        "entry_template.put_module",
+        json!({
+            "book": book,
+            "template": "tpl-note",
+            "module": {"id": "mod-relations", "kind": "relations", "name": "关联"}
+        }),
+    );
+    let note = e.out(
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": materials_root,
+            "template": "tpl-note",
+            "title": "笔记"
+        }),
     )["id"]
         .clone();
     let ws = e.ws();
     let doc = format!("book:{book}");
     let stale = ws.observe(&doc).unwrap();
+    // Touching the entry we are relating to invalidates a whole-book observation when
+    // creating a relation via `relation.create` with guarded preconditions.
     ws.call(
         &Actor::User,
-        "material.update",
+        "entry_relation_type.put",
         json!({
-            "book":book,"id":material,"description":title
+            "book": book,
+            "definition": {
+                "id": "rel-ref",
+                "name": "引用",
+                "source_kinds": ["entry"],
+                "target_kinds": ["entry"]
+            }
         }),
     )
     .unwrap();
     let before = ws.observe(&doc).unwrap();
-    let input = json!({"book":book,"material":material,"entry":entry,"linked":true});
+    let input = json!({
+        "book": book,
+        "entry": note,
+        "module": "mod-relations",
+        "other": {"kind": "entry", "id": entry},
+        "relation_type": "rel-ref"
+    });
     assert!(matches!(
         ws.call_guarded(
             &Actor::User,
-            "material.set_entry_link",
+            "module.put_relation",
             input.clone(),
             WritePreconditions::from_observations([stale])
         ),
@@ -1009,13 +1036,12 @@ fn material_entry_link_checks_book_observations_before_writing() {
     assert_eq!(refused.value, before.value);
     ws.call_guarded(
         &Actor::User,
-        "material.set_entry_link",
+        "module.put_relation",
         input,
         WritePreconditions::from_observations([before.clone()]),
     )
     .unwrap();
     let after = ws.observe(&doc).unwrap();
-    assert_eq!(after.value["materials"], before.value["materials"]);
     assert_eq!(
         after.value["relations"].as_object().unwrap().len(),
         before.value["relations"]

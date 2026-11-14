@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
     Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 pub struct Target {
-    /// Canonical `entry`, `patch`, `comment` or `material`.
+    /// Canonical `entry`, `patch` or `comment`.
     pub kind: String,
     pub id: String,
 }
@@ -162,15 +162,12 @@ pub enum CommentPartDto {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<Region>,
     },
-    /// Region on an image or PDF material (transitional until Step 4).
-    Region { region: Region },
 }
 
 impl CommentPartDto {
     pub fn region(&self) -> Option<&Region> {
         match self {
             Self::Embed { region, .. } | Self::Media { region, .. } => region.as_ref(),
-            Self::Region { region } => Some(region),
             _ => None,
         }
     }
@@ -210,9 +207,6 @@ impl CommentPartDto {
                 item: pid("media_item", item)?,
                 region: region.as_ref().map(to_reg).transpose()?,
             },
-            Self::Region { region } => CommentPart::Region {
-                region: to_reg(region)?,
-            },
         })
     }
 }
@@ -241,9 +235,6 @@ impl From<&dr_model::v3::CommentPart> for CommentPartDto {
             CommentPart::Media { item, region } => Self::Media {
                 item: item.to_string(),
                 region: region.as_ref().map(Region::from),
-            },
-            CommentPart::Region { region } => Self::Region {
-                region: Region::from(region),
             },
         }
     }
@@ -323,34 +314,6 @@ pub struct CommentAnchor {
     /// `open` or `resolved`.
     pub status: String,
     pub anchor: AnchorBytes,
-}
-
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct MaterialInfo {
-    pub id: String,
-    pub title: String,
-    /// `image`, `pdf` or `text`.
-    pub kind: String,
-    pub asset: Option<String>,
-    pub folder: Option<String>,
-    pub pos: Option<String>,
-    pub task_todos: bool,
-    pub description: String,
-}
-
-impl From<&Material> for MaterialInfo {
-    fn from(m: &Material) -> Self {
-        MaterialInfo {
-            id: m.id.to_string(),
-            title: m.title.clone(),
-            kind: m.kind.as_str().to_string(),
-            asset: m.asset.as_ref().map(|a| a.to_string()),
-            folder: m.folder.as_ref().map(|f| f.to_string()),
-            pos: m.pos.as_ref().map(|p| p.to_string()),
-            task_todos: m.task_todos,
-            description: m.description.clone(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

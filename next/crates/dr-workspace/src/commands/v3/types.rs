@@ -250,6 +250,9 @@ pub struct Entry {
     pub fields: BTreeMap<String, BTreeMap<String, FieldValue>>,
     /// Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.
     pub kv: BTreeMap<String, Vec<KvEntry>>,
+    /// Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.
+    #[serde(default)]
+    pub media: BTreeMap<String, Vec<MediaItem>>,
     /// Stored primary membership host; membership queries filter invalid records.
     pub primary: Option<String>,
     pub layout: EntryLayout,
@@ -377,6 +380,20 @@ pub struct KvEntry {
     pub value: String,
     #[serde(default)]
     pub pos: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MediaItem {
+    pub id: String,
+    pub asset: String,
+    #[serde(default)]
+    pub caption: String,
+    #[serde(default)]
+    pub pos: Option<String>,
+    /// Set by readers when `asset` is not registered in the book's `assets`
+    /// (`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub missing: bool,
 }
 fn default_true() -> bool {
     true
@@ -587,6 +604,30 @@ impl From<dr_model::v3::EntryLayout> for EntryLayout {
     }
 }
 
+impl From<dr_model::v3::MediaItem> for MediaItem {
+    fn from(v: dr_model::v3::MediaItem) -> Self {
+        Self {
+            id: v.id.to_string(),
+            asset: v.asset.to_string(),
+            caption: v.caption,
+            pos: v.pos.map(Into::into),
+            missing: false,
+        }
+    }
+}
+
+impl From<&dr_model::v3::MediaItem> for MediaItem {
+    fn from(v: &dr_model::v3::MediaItem) -> Self {
+        Self {
+            id: v.id.to_string(),
+            asset: v.asset.to_string(),
+            caption: v.caption.clone(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+            missing: false,
+        }
+    }
+}
+
 impl From<&dr_model::v3::Entry> for Entry {
     fn from(v: &dr_model::v3::Entry) -> Self {
         Self {
@@ -613,6 +654,11 @@ impl From<&dr_model::v3::Entry> for Entry {
                 .kv
                 .iter()
                 .map(|(mid, rows)| (mid.to_string(), rows.iter().map(Into::into).collect()))
+                .collect(),
+            media: v
+                .media
+                .iter()
+                .map(|(mid, items)| (mid.to_string(), items.iter().map(Into::into).collect()))
                 .collect(),
             primary: v.primary.as_ref().map(ToString::to_string),
             layout: v.layout.into(),

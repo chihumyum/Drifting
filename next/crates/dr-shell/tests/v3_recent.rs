@@ -139,12 +139,12 @@ fn front_pages_keep_modules_visit_order_and_navigation_is_read_only(cx: &mut Tes
         json!({"book":book,"owner":id,"module":"second-body","paragraphs":[{"text":body["paragraphs"][0]["text"]}]}),
     );
     let snapshot = Book::load(&lib, book).unwrap();
-    let material = snapshot
+    let note_id = snapshot
         .v3()
         .unwrap()
-        .materials
+        .entries
         .iter()
-        .find(|m| m.kind == "text")
+        .find(|e| e.template.as_deref() == Some("tpl-note"))
         .unwrap()
         .id
         .clone();
@@ -153,17 +153,13 @@ fn front_pages_keep_modules_visit_order_and_navigation_is_read_only(cx: &mut Tes
     let whole = format!("entry:{id}");
     let first = format!("entry:{id}/mod-prose");
     let second = format!("entry:{id}/second-body");
-    let note = format!("material:{material}");
+    let note = format!("entry:{note_id}/mod-prose");
     for key in [&whole, &first, &second, &note] {
         open(&view, cx, key);
     }
     wait(cx, |_| list(&lib, book).len() == 4);
     let expected = vec![
-        recent::Target {
-            kind: "material".into(),
-            id: material,
-            module: None,
-        },
+        entry(&note_id, Some("mod-prose")),
         entry(&id, Some("second-body")),
         entry(&id, Some("mod-prose")),
         entry(&id, None),

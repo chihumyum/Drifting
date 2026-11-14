@@ -18,7 +18,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 // The source format's ids, for the refused document kinds of [`DocId`] only.
-use crate::import_v1::{CategoryId, ElementId, NodeId, StorylineId, TemplateOwner};
+use crate::import_v1::{CategoryId, ElementId, MaterialId, NodeId, StorylineId, TemplateOwner};
 
 /// Longest id accepted, in bytes. Old ids are 36-byte uuids; derived ids are a
 /// few dozen bytes. The limit only stops garbage from becoming a map key.
@@ -177,21 +177,12 @@ id_type!(
     TimePinId
 );
 id_type!(
-    /// A comment or a TODO (both live in `comments`; a TODO is a comment of
-    /// kind `todo`).
+    /// A comment in `comments` (`kernel-v5.md` §7).
     CommentId
-);
-id_type!(
-    /// A material (素材): the old `library_item`.
-    MaterialId
 );
 id_type!(
     /// An asset: the bytes of an image or a PDF (stored outside Loro).
     AssetId
-);
-id_type!(
-    /// A material folder (素材夹): a node of the `material_folders` tree.
-    MaterialFolderId
 );
 id_type!(
     /// An entry of a key/value list: an entry's key/value module and project
@@ -204,7 +195,7 @@ id_type!(
     MemoryId
 );
 id_type!(
-    /// A table or material embed inside a prose document (`embeds` map).
+    /// A table or asset embed inside a prose document (`embeds` map).
     EmbedId
 );
 id_type!(
@@ -474,6 +465,7 @@ pub enum DocKind {
     Storyline,
     /// Source format only: a category's description.
     Category,
+    /// Source format only: a material note's body.
     Material,
     /// A v3 entry's prose module or level description (`body:<entry>/<module>`).
     Body,
@@ -536,32 +528,30 @@ impl DocKind {
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book, conversation, stats and checkpoints documents. Material notes use the note profile, everything else
-    /// the prose profile (as the old `editor-schema-profile.ts`: the profile
-    /// follows the document, not the view); templates the prose profile of
-    /// the entries made from them.
+    /// book, conversation, stats and checkpoints documents.
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
             DocKind::Book | DocKind::Conversation | DocKind::Stats | DocKind::Checkpoints => None,
-            DocKind::Material => Some(ProseProfile::Note),
             _ => Some(ProseProfile::Prose),
         }
     }
 }
 
 /// Which block attributes and inline marks a prose document may carry.
+///
+/// Kernel v5 unifies all prose documents on one profile (`kernel-v5.md` §6);
+/// the former note-only profile is retired.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProseProfile {
-    /// An entry's prose modules and a level's description.
+    /// Every prose document: headings, quotes, indents, alignment, rules,
+    /// lists, tasks, code blocks, callouts, links, entity links, highlights,
+    /// inline code, and embeds.
     Prose,
-    /// Material notes: adds lists, tasks, code blocks, callouts, highlight and
-    /// inline code.
-    Note,
 }
 
 /// The id of a Loro document: `book:<id>` for the book (catalog) document,
-/// `body:<entry>/<module>` and `material:<id>` for prose documents,
+/// `body:<entry>/<module>` for prose documents,
 /// `template:<book>/<template>/<module>` for body templates,
 /// `conversation:<id>` for append-only Agent conversation content,
 /// `stats:<book>` for a book's writing days and `checkpoints:<book>` for its
@@ -569,8 +559,9 @@ pub enum ProseProfile {
 /// documents by.
 ///
 /// The 0.1 source format's prose documents (`node:<id>`, `element:<id>`,
-/// `storyline:<id>`, `category:<id>`, and the `template:category:<id>` /
-/// `template:storyline:<id>` templates) still parse. Canonical code never
+/// `storyline:<id>`, `category:<id>`, `material:<id>`, and the
+/// `template:category:<id>` / `template:storyline:<id>` templates) still
+/// parse. Canonical code never
 /// makes one: they are here so that an old library on disk and an old sync
 /// payload are named exactly and refused by the canonical readers
 /// (`dr-workspace/tests/cutover.rs`), and so that the source replay can
@@ -589,6 +580,7 @@ pub enum DocId {
     Storyline(StorylineId),
     /// Source format only.
     Category(CategoryId),
+    /// Source format only.
     Material(MaterialId),
     Body(BodyDocId),
     Template(TemplateId),
@@ -733,11 +725,6 @@ impl From<BookId> for DocId {
         DocId::Book(id)
     }
 }
-impl From<MaterialId> for DocId {
-    fn from(id: MaterialId) -> Self {
-        DocId::Material(id)
-    }
-}
 impl From<BodyDocId> for DocId {
     fn from(id: BodyDocId) -> Self {
         DocId::Body(id)
@@ -825,7 +812,7 @@ mod tests {
         ));
         assert_eq!(
             DocId::parse("material:m").unwrap().profile(),
-            Some(ProseProfile::Note)
+            Some(ProseProfile::Prose)
         );
         assert_eq!(
             DocId::parse("node:m").unwrap().profile(),

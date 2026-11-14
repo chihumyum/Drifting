@@ -18,7 +18,7 @@ pub fn suite(legacy: bool) -> Suite {
     }
 }
 fn expect_quick() -> Value {
-    json!({"prepare":{"books":1},"read":{"books":1,"entries":24,"levels":11}})
+    json!({"prepare":{"books":1},"read":{"books":1,"entries":28,"levels":13}})
 }
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()

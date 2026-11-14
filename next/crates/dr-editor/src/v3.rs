@@ -12,6 +12,33 @@ pub fn body(doc: &str) -> Option<(String, String)> {
     }
 }
 
+/// Whether typing convenience rules (`- `, `1. `, `[ ] `) and note embeds/slash
+/// entries are active for `doc_id`, resolved from its resident parent level's
+/// `format_shortcuts` (`kernel-v4.md` §3, `kernel-v5.md` §6).
+pub fn uses_note_shortcuts(ws: &Workspace, book: &str, doc_id: &str) -> bool {
+    match DocId::parse(doc_id) {
+        Ok(DocId::Template(t)) => t.entry_module().is_some(),
+        Ok(DocId::Body(_)) => {
+            let doc = doc_id.to_owned();
+            read(ws, book, move |v| {
+                let Ok(DocId::Body(b)) = DocId::parse(&doc) else {
+                    return false;
+                };
+                let entries = v.entries_map();
+                let templates = v.templates_map();
+                let Some(entry) = entries.get(b.entry()) else {
+                    return false;
+                };
+                dr_model::v3::resolve_level_settings(entry.parent.as_ref(), &entries, &templates)
+                    .format_shortcuts
+                    != dr_model::v3::FormatShortcuts::Plain
+            })
+            .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
 pub fn read<R: Send + 'static>(
     ws: &Workspace,
     book: &str,
@@ -266,10 +293,7 @@ pub struct LinkTargets {
 }
 impl crate::links::LinkTargets for LinkTargets {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        if !matches!(
-            kind,
-            dr_model::kind::EntityKind::Entry | dr_model::kind::EntityKind::Material
-        ) {
+        if !matches!(kind, dr_model::kind::EntityKind::Entry) {
             return false;
         }
         let target = dr_model::shared::EntityRef::new(kind.clone(), id);
@@ -287,12 +311,7 @@ impl crate::links::LinkTargets for LinkTargets {
                 .filter(|e| !e.is_trashed())
                 .map(|e| e.id.to_string())
                 .collect();
-            let materials = v
-                .materials()
-                .into_iter()
-                .map(|m| m.id.to_string())
-                .collect();
-            (entries, materials)
+            (entries, std::collections::HashSet::new())
         })
         .ok()
     }

@@ -349,6 +349,7 @@ mod tests {
                 profile: ProseProfile::Prose,
                 span: &|_| None,
                 todo: &|_| None,
+                asset: &|_| None,
             },
         );
         let starts = p.starts();

@@ -557,6 +557,10 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
             vec!["module.read", "module.list"],
             vec!["module.put_relation", "module.remove_relation"],
         ),
+        ModuleKind::Media => (
+            vec!["module.read", "module.list"],
+            vec!["module.put_media", "module.remove_media"],
+        ),
         // What lives below: read through the entry; moved with entry.move.
         ModuleKind::Children => (vec!["module.read", "entry.get"], Vec::new()),
         ModuleKind::Other(_) => (vec!["module.read", "module.list"], Vec::new()),

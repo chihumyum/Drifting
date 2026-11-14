@@ -19,6 +19,7 @@ pub enum Entry {
     Ideas,
     Elements,
     Storylines,
+    Materials,
     ActTrack,
     Act(String),
     ActLeaf { act: String, synthetic_rank: usize },
@@ -29,12 +30,17 @@ pub enum Entry {
     ElementGroup { category: String, name: String },
     Storyline(String),
     Unaffiliated,
+    MaterialFolder(String),
+    Material(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum LeafTemplate {
     Chapter,
     Idea,
+    Note,
+    NotePlain,
+    Media,
     Category(String),
     Storyline(String),
 }
@@ -142,7 +148,6 @@ pub struct View {
 pub enum Body {
     Leaf(Entry),
     About(Entry),
-    Material(String),
     Template(LeafTemplate),
 }
 
@@ -157,7 +162,6 @@ pub struct Prose {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum Endpoint {
     Entry(Entry),
-    Material(String),
     Comment(String),
     Patch(String),
     Unresolved { kind: String, id: String },
@@ -311,6 +315,20 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                 field_projection: None,
                 initial_body: None,
             },
+            Template {
+                template: LeafTemplate::Note,
+                name: "笔记".into(),
+                fields: vec![],
+                field_projection: None,
+                initial_body: None,
+            },
+            Template {
+                template: LeafTemplate::Media,
+                name: "媒体".into(),
+                fields: vec![],
+                field_projection: None,
+                initial_body: None,
+            },
         ],
         memberships: Vec::new(),
         relations: Vec::new(),
@@ -340,6 +358,19 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         source_rows: authored_rows(&old.conn, book)?,
         pending: Vec::new(),
     };
+    if rows
+        .materials
+        .iter()
+        .any(|m| m.kind == "text" && !m.task_todos)
+    {
+        out.leaf_templates.push(Template {
+            template: LeafTemplate::NotePlain,
+            name: "笔记".into(),
+            fields: vec![],
+            field_projection: None,
+            initial_body: None,
+        });
+    }
     let level = |entry, parent, title: String, order, color, default_leaf, lane, layout| Level {
         entry,
         parent,
@@ -355,6 +386,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         (Entry::Ideas, "构想", Some(LeafTemplate::Idea)),
         (Entry::Elements, "要素", None),
         (Entry::Storylines, "故事线", None),
+        (Entry::Materials, "素材", Some(LeafTemplate::Note)),
     ] {
         out.levels.push(level(
             entry,
@@ -842,6 +874,62 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             deleted_at: element.deleted_at.clone(),
         });
     }
+    for folder in &rows.folders {
+        out.levels.push(level(
+            Entry::MaterialFolder(folder.id.clone()),
+            Some(
+                folder
+                    .parent
+                    .as_ref()
+                    .map(|p| Entry::MaterialFolder(p.clone()))
+                    .unwrap_or(Entry::Materials),
+            ),
+            folder.name.clone(),
+            folder.order,
+            folder.color.clone(),
+            Some(LeafTemplate::Note),
+            false,
+            None,
+        ));
+    }
+    for material in &rows.materials {
+        let template = match material.kind.as_str() {
+            "text" if material.task_todos => Some(LeafTemplate::Note),
+            "text" => Some(LeafTemplate::NotePlain),
+            "image" | "pdf" => Some(LeafTemplate::Media),
+            _ => {
+                pending(&mut out, "unknown-material-kind", &material.id);
+                None
+            }
+        };
+        let summary = material
+            .notes_json
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|j| dr_import_v1::book::plain_text(j).0)
+            .unwrap_or_default();
+        out.leaves.push(Leaf {
+            entry: Entry::Material(material.id.clone()),
+            home: Some(
+                material
+                    .folder
+                    .as_ref()
+                    .map(|f| Entry::MaterialFolder(f.clone()))
+                    .unwrap_or(Entry::Materials),
+            ),
+            template,
+            title: material.title.clone(),
+            order: Some(material.order_key as f64),
+            summary,
+            status: None,
+            aliases: vec![],
+            portrait: None,
+            fields: vec![],
+            kv: vec![],
+            layout: None,
+            deleted_at: None,
+        });
+    }
     for pin in &rows.time_pins {
         out.default_view.pins.push(Pin {
             old_id: pin.id.clone(),
@@ -881,7 +969,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                     .iter()
                     .any(|m| m.id == id && m.kind == "text") =>
             {
-                Some(Body::Material(id.into()))
+                Some(Body::Leaf(Entry::Material(id.into())))
             }
             _ => None,
         });
@@ -941,7 +1029,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             ProseKind::Element => Body::Leaf(Entry::Element(owner.id.clone())),
             ProseKind::Category => Body::About(Entry::Category(owner.id.clone())),
             ProseKind::Storyline => Body::About(Entry::Storyline(owner.id.clone())),
-            ProseKind::LibraryItem => Body::Material(owner.id.clone()),
+            ProseKind::LibraryItem => Body::Leaf(Entry::Material(owner.id.clone())),
         };
         out.prose.push(Prose {
             source: owner.old_doc_id(),
@@ -1033,7 +1121,7 @@ fn endpoint(kind: &str, id: &str) -> Endpoint {
         "element" => Endpoint::Entry(Entry::Element(id.into())),
         "category" => Endpoint::Entry(Entry::Category(id.into())),
         "storyline" => Endpoint::Entry(Entry::Storyline(id.into())),
-        "library_item" => Endpoint::Material(id.into()),
+        "library_item" => Endpoint::Entry(Entry::Material(id.into())),
         "comment" => Endpoint::Comment(id.into()),
         "patch" => Endpoint::Patch(id.into()),
         _ => Endpoint::Unresolved {
@@ -1084,9 +1172,6 @@ fn validate_references(out: &mut Manifest) {
     }
     let endpoint_exists = |endpoint: &Endpoint| match endpoint {
         Endpoint::Entry(e) => entries.contains(e),
-        Endpoint::Material(id) => out.source_rows["library_item"]
-            .iter()
-            .any(|r| r["id"] == *id),
         Endpoint::Comment(id) => out.source_rows["comment"].iter().any(|r| r["id"] == *id),
         Endpoint::Patch(id) => out.source_rows["element_patch"]
             .iter()

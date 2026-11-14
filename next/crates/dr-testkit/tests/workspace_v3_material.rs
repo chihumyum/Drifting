@@ -77,25 +77,30 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
             limit: 1024 * 1024,
         })
         .unwrap();
-    let args = json!({"book":b,"id":stored.asset_id,"kind":"image","mime":stored.mime,"size":stored.size,"sha256":stored.sha256,"width":2,"height":2});
+    let args = json!({"book":b,"id":stored.asset_id,"name":"synthetic.png","kind":"image","mime":stored.mime,"size":stored.size,"sha256":stored.sha256,"width":2,"height":2});
     e.call("asset.put", args.clone());
     let mut wrong = args.clone();
     wrong["book"] = json!(other);
     assert!(e.try_call("asset.put", wrong).is_err());
     let pic = item(e.out(
-        "material.create",
-        json!({"book":b,"kind":"image","asset":stored.asset_id}),
+        "entry.create",
+        json!({"book":b,"title":"Synthetic image","template":"tpl-media"}),
     ));
+    let media = "media-synthetic-1";
+    e.call(
+        "module.put_media",
+        json!({"book":b,"entry":pic,"module":"mod-media","item":{"id":media,"asset":stored.asset_id}}),
+    );
     assert_eq!(
         e.out("asset.get", json!({"book":b,"id":stored.asset_id}))["size"],
         stored.size
     );
     let mark = item(e.out(
         "comment.create",
-        json!({"book":b,"target":{"kind":"material","id":pic},"body":"Synthetic region","part":{"kind":"region","region":{"x":0.1,"y":0.2,"w":0.3,"h":0.4}}}),
+        json!({"book":b,"target":{"kind":"entry","id":pic},"module":"mod-media","body":"Synthetic region","part":{"kind":"media","item":media,"region":{"x":0.1,"y":0.2,"w":0.3,"h":0.4}}}),
     ));
     assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
-    e.call("material.delete", json!({"book":b,"id":pic}));
+    e.call("entry.trash", json!({"book":b,"id":pic}));
     assert!(
         e.ws()
             .library()
@@ -108,20 +113,21 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
         std::fs::read(&source).unwrap()
     );
     undo(&e);
+    assert!(raw(&e, &b)["entries"][&pic]["deleted_at"].is_null());
     assert_eq!(raw(&e, &b)["comments"][&mark]["target"], pic);
     assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
     let other_note = item(e.out(
-        "material.create",
-        json!({"book":other,"kind":"text","text":"Synthetic other book"}),
+        "entry.create",
+        json!({"book":other,"title":"Other note","template":"tpl-note","bodies":{"mod-prose":"Synthetic other book"}}),
     ));
-    let other_doc = format!("material:{other_note}");
+    let other_doc = format!("body:{other_note}/mod-prose");
     let other_before = e.ws.observe(&other_doc).unwrap();
     let before = raw(&e, &b);
     e.faults.arm("after_prose");
     assert!(
         e.try_call(
-            "material.create",
-            json!({"book":b,"kind":"text","text":"Fault leaves no owner"})
+            "entry.create",
+            json!({"book":b,"title":"Fault note","template":"tpl-note","bodies":{"mod-prose":"Fault leaves no owner"}})
         )
         .is_err()
     );

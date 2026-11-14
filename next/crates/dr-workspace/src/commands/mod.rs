@@ -8,16 +8,16 @@ use dr_model::shared::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::cx::{Cx, EffectAction};
+use crate::cx::Cx;
 use crate::error::{Result, WsError};
 pub(crate) use crate::guard::Replaces;
 use crate::registry::Registry;
 use crate::workspace::BookSlot;
 
+pub mod asset;
 pub mod book;
 pub mod comment;
 mod comment_shared;
-pub mod material;
 pub mod points;
 pub mod prose;
 pub mod prose_template;
@@ -52,7 +52,7 @@ pub(crate) use op;
 /// Every command and query of this build.
 pub(crate) fn register(r: &mut Registry) {
     book::register(r);
-    material::register(r);
+    asset::register(r);
     prose::register(r);
     points::register(r);
     stats::register(r);
@@ -145,15 +145,8 @@ pub(crate) fn now() -> dr_model::Timestamp {
     dr_model::Timestamp::now()
 }
 
-/// What storage knows of a prose document without opening it.
-pub(crate) fn materials(slot: &BookSlot) -> Arc<Vec<Material>> {
-    Arc::new(slot.reader_v3.view().materials())
-}
 pub(crate) fn assets(slot: &BookSlot) -> Arc<Vec<Asset>> {
     Arc::new(slot.reader_v3.view().assets())
-}
-pub(crate) fn material_folders(slot: &BookSlot) -> Arc<Vec<MaterialFolder>> {
-    Arc::new(slot.reader_v3.view().material_folders())
 }
 pub(crate) fn relations_raw(slot: &BookSlot) -> Arc<Vec<Relation>> {
     Arc::new(slot.reader_v3.view().relations_raw())
@@ -176,16 +169,4 @@ pub(crate) fn purge_fallout(
             .map(|c| c.id.clone())
             .collect(),
     )
-}
-pub(crate) fn report_fallout(
-    cx: &Cx<'_>,
-    rels: &[dr_model::id::RelationId],
-    cmts: &[dr_model::id::CommentId],
-) {
-    for r in rels {
-        cx.effect(EffectAction::Purged, "relation", r.as_str(), None);
-    }
-    for c in cmts {
-        cx.effect(EffectAction::Detached, "comment", c.as_str(), None);
-    }
 }

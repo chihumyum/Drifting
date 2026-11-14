@@ -4,7 +4,7 @@
 //! editor pushing it back (`simplifications.md`, section two). This crate is
 //! the [`dr_store::index::Deriver`] it calls: for every prose document it
 //! produces one [`dr_store::index::BlockRow`] per paragraph (block id, order,
-//! heading level, plain text for search), the entity links and material
+//! heading level, plain text for search), the entity links and asset
 //! embeds as [`dr_store::index::RefRow`]s, and the words and characters by
 //! dr-text's rule. dr-store writes them with `index_state.indexed_seq` in one
 //! transaction.

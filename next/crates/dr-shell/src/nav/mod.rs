@@ -24,7 +24,7 @@ pub mod location;
 
 use std::collections::VecDeque;
 
-use dr_model::id::{EntryId, EntryTemplateId, MaterialId, ModuleId};
+use dr_model::id::{EntryId, EntryTemplateId, MediaItemId, ModuleId};
 use serde::{Deserialize, Serialize};
 
 /// Something a tab can show.
@@ -36,7 +36,7 @@ pub enum Target {
         module: Option<ModuleId>,
     },
     Template(EntryTemplateId),
-    Material(MaterialId),
+    Material(MediaItemId),
     /// 整书视图: a level entry and everything under it in one scroll.
     Book(EntryId),
 }

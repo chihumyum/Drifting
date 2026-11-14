@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use dr_model::id::{BlockId, EmbedId, EntryId, MaterialId, ModuleId};
+use dr_model::id::{BlockId, EmbedId, EntryId, ModuleId};
 use dr_model::kind::EntityKind;
 use dr_model::prose::PARAGRAPH_END;
 use dr_model::v3::EntityLinkV3;
@@ -19,11 +19,7 @@ fn invalid() -> DocError {
 }
 
 fn check(link: &EntityLinkV3) -> Result<()> {
-    let valid = match link.kind {
-        EntityKind::Entry => EntryId::parse(&link.target).is_ok(),
-        EntityKind::Material => MaterialId::parse(&link.target).is_ok() && link.module.is_none(),
-        _ => false,
-    };
+    let valid = link.kind == EntityKind::Entry && EntryId::parse(&link.target).is_ok();
     if valid { Ok(()) } else { Err(invalid()) }
 }
 

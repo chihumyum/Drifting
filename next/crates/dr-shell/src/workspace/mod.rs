@@ -1115,7 +1115,6 @@ impl Workspace {
                 id: body.entry().clone(),
                 module: Some(body.module().clone()),
             }),
-            dr_model::DocId::Material(id) => Some(Target::Material(id)),
             _ => None,
         });
         if let Some(target) = target {

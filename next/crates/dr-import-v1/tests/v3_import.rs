@@ -46,12 +46,14 @@ fn entry_id(view: &BookViewV3<'_>, entry: &manifest::Entry) -> EntryId {
         Ideas => root(TPL_IDEAS),
         Elements => root(TPL_ELEMENTS),
         Storylines => root(TPL_STORYLINES),
+        Materials => root(TPL_MATERIALS),
         ActTrack => root(TPL_ACT_TRACK),
         ActLeaf { synthetic_rank, .. } => view.children_of(Some(&root(TPL_ACT_TRACK)))
             [*synthetic_rank]
             .id
             .clone(),
-        Act(id) | Node(id) | IdeaGroup(id) | Category(id) | Element(id) | Storyline(id) => eid(id),
+        Act(id) | Node(id) | IdeaGroup(id) | Category(id) | Element(id) | Storyline(id)
+        | MaterialFolder(id) | Material(id) => eid(id),
         ElementGroup { category, name } => {
             view.children_of(Some(&eid(category)))
                 .into_iter()
@@ -82,6 +84,9 @@ fn template_id(template: &manifest::LeafTemplate) -> EntryTemplateId {
     match template {
         manifest::LeafTemplate::Chapter => tid(TPL_CHAPTER),
         manifest::LeafTemplate::Idea => tid(TPL_IDEA),
+        manifest::LeafTemplate::Note => tid(TPL_NOTE),
+        manifest::LeafTemplate::NotePlain => adapter::plain_note_template(),
+        manifest::LeafTemplate::Media => tid(TPL_MEDIA),
         manifest::LeafTemplate::Category(id) => adapter::category_template(id),
         manifest::LeafTemplate::Storyline(id) => adapter::storyline_template(id),
     }
@@ -93,7 +98,6 @@ fn body_id(view: &BookViewV3<'_>, body: &manifest::Body) -> DocId {
         manifest::Body::About(entry) => {
             adapter::body_id(entry_id(view, entry).as_str(), MOD_DESCRIPTION)
         }
-        manifest::Body::Material(id) => DocId::Material(MaterialId::parse(id).unwrap()),
         manifest::Body::Template(template) => DocId::Template(TemplateId::for_entry_module(
             view.book_id(),
             &template_id(template),
@@ -150,7 +154,7 @@ fn comment_id(old: &str) -> CommentId {
     match old {
         NOTE_TODO => CommentId::for_projection(
             &ProjectionKind::NoteTask,
-            &DocId::Material(MaterialId::parse(NOTE).unwrap()),
+            &adapter::body_id(NOTE, MOD_PROSE),
             &BlockId::parse("tp1").unwrap(),
         ),
         MARKER_TODO => CommentId::for_projection(
@@ -169,7 +173,6 @@ fn endpoint(
     use manifest::Endpoint::*;
     let (kind, id) = match endpoint {
         Entry(e) => (EntityKind::Entry, entry_id(view, e).to_string()),
-        Material(id) => (EntityKind::Material, id.clone()),
         Comment(id) => (EntityKind::Comment, comment_id(id).to_string()),
         Patch(id) => (EntityKind::Patch, id.clone()),
         Unresolved { kind, id } => panic!("unexpected unresolved fixture endpoint: {kind}:{id}"),
@@ -297,8 +300,16 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert_eq!(actual.title, leaf.title);
         assert_eq!(actual.parent, leaf.home.as_ref().map(|e| entry_id(view, e)));
         assert_eq!(actual.template, leaf.template.as_ref().map(template_id));
-        if matches!(leaf.entry, manifest::Entry::ActLeaf { .. }) {
+        if matches!(
+            leaf.entry,
+            manifest::Entry::ActLeaf { .. } | manifest::Entry::Material(_)
+        ) {
             assert_eq!(text(&actual, "summary"), None);
+            if leaf.template == Some(manifest::LeafTemplate::Media) {
+                let items = &actual.media[&mid(MOD_MEDIA)];
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].caption, leaf.summary);
+            }
         } else {
             assert_eq!(
                 text(&actual, "summary").as_deref(),
@@ -559,14 +570,6 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         );
     }
     assert_eq!(
-        view.materials().len(),
-        expected.source_rows["library_item"].len()
-    );
-    assert_eq!(
-        view.material_folders().len(),
-        expected.source_rows["material_folder"].len()
-    );
-    assert_eq!(
         view.assets().len(),
         expected.source_rows["project_asset"].len()
     );
@@ -641,28 +644,42 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             entry.id
         );
     }
+    let materials_root = entry_id(view, &manifest::Entry::Materials);
+    for row in &expected.source_rows["material_folder"] {
+        let actual = view.entry(&eid(row["id"].as_str().unwrap())).unwrap();
+        assert!(actual.is_level());
+        assert_eq!(actual.title, row["name"].as_str().unwrap());
+        let expected_parent = row["parent_folder_id"]
+            .as_str()
+            .map(eid)
+            .unwrap_or_else(|| materials_root.clone());
+        assert_eq!(actual.parent, Some(expected_parent));
+    }
     for row in &expected.source_rows["library_item"] {
-        let actual = view
-            .materials()
-            .into_iter()
-            .find(|m| m.id.as_str() == row["id"].as_str().unwrap())
-            .unwrap();
+        let actual = view.entry(&eid(row["id"].as_str().unwrap())).unwrap();
+        assert!(!actual.is_level());
         assert_eq!(actual.title, row["title"].as_str().unwrap());
-        assert_eq!(
-            actual.folder.as_ref().map(|id| id.as_str()),
-            row["folder_id"].as_str()
-        );
-        assert_eq!(
-            actual.asset.as_ref().map(|id| id.as_str()),
-            row["asset_id"].as_str()
-        );
-        assert_eq!(actual.task_todos, row["task_todos"].as_i64() == Some(1));
-        assert_eq!(
-            actual.provenance.as_deref(),
-            row["provenance_json"].as_str()
-        );
-        if let Some(notes) = row["notes_json"].as_str() {
-            assert_eq!(actual.description, dr_import_v1::book::plain_text(notes).0);
+        let expected_parent = row["folder_id"]
+            .as_str()
+            .map(eid)
+            .unwrap_or_else(|| materials_root.clone());
+        assert_eq!(actual.parent, Some(expected_parent));
+        let kind = row["kind"].as_str().unwrap();
+        if kind == "text" {
+            let want_tpl = if row["task_todos"].as_i64() == Some(1) {
+                tid(TPL_NOTE)
+            } else {
+                adapter::plain_note_template()
+            };
+            assert_eq!(actual.template, Some(want_tpl));
+        } else {
+            assert_eq!(actual.template, Some(tid(TPL_MEDIA)));
+            let items = &actual.media[&mid(MOD_MEDIA)];
+            assert_eq!(items.len(), 1);
+            assert_eq!(Some(items[0].asset.as_str()), row["asset_id"].as_str());
+            if let Some(notes) = row["notes_json"].as_str() {
+                assert_eq!(items[0].caption, dr_import_v1::book::plain_text(notes).0);
+            }
         }
     }
     for row in &expected.source_rows["project_asset"] {
@@ -738,6 +755,14 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             }
         }
     }
+    let mut material_assets = std::collections::HashMap::new();
+    for row in &expected.source_rows["library_item"] {
+        if let (Some(id), Some(aid)) = (row["id"].as_str(), row["asset_id"].as_str())
+            && let Ok(asset) = AssetId::parse(aid)
+        {
+            material_assets.insert(id.to_owned(), asset);
+        }
+    }
     for body in &expected.prose {
         if matches!(body.target, manifest::Body::Template(_))
             && body
@@ -756,13 +781,10 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             &lines,
             &blocks,
             &dr_import_v1::prose::Context {
-                profile: if matches!(body.target, manifest::Body::Material(_)) {
-                    ProseProfile::Note
-                } else {
-                    ProseProfile::Prose
-                },
+                profile: ProseProfile::Prose,
                 span: &|old| spans.get(old).cloned(),
                 todo: &|id| Some(comment_id(id)),
+                asset: &|id| material_assets.get(id).cloned(),
             },
         );
         assert_eq!(
@@ -947,10 +969,16 @@ fn catalog_already_stored_before_interruption_keeps_its_generated_roots_on_resum
         BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap()
     };
     let roots = |book: &BookDocV3| -> Vec<EntryId> {
-        [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES]
-            .iter()
-            .map(|tpl| book.view().root_entry_by_template(&tid(tpl)).unwrap().id)
-            .collect()
+        [
+            TPL_MANUSCRIPT,
+            TPL_IDEAS,
+            TPL_ELEMENTS,
+            TPL_STORYLINES,
+            TPL_MATERIALS,
+        ]
+        .iter()
+        .map(|tpl| book.view().root_entry_by_template(&tid(tpl)).unwrap().id)
+        .collect()
     };
     let lib = open(&root);
     let before = load(&lib);
@@ -1258,8 +1286,8 @@ fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import(
                     "attrs": {"id": "e-p1"},
                     "content": [{
                         "type": "text",
-                        "text": "素材错挂模块",
-                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE, "targetModule": MOD_PROSE}}]
+                        "text": "非法模块标识",
+                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE, "targetModule": "bad/module"}}]
                     }]
                 }]
             }),
@@ -1278,8 +1306,8 @@ fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import(
                                 "type": "paragraph",
                                 "content": [{
                                     "type": "text",
-                                    "text": "正文表格禁高亮",
-                                    "marks": [{"type": "highlight", "attrs": {"color": "#ff0"}}]
+                                    "text": "表格未知行内标记",
+                                    "marks": [{"type": "subscript"}]
                                 }]
                             }]
                         }]
@@ -1500,7 +1528,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 0..2,
                 EntityLinkV3 {
                     target: NOTE.into(),
-                    kind: EntityKind::Material,
+                    kind: EntityKind::Entry,
                     module: None,
                     block: None,
                     end_block: None,
@@ -1556,7 +1584,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
             4..6,
             EntityLinkV3 {
                 target: NOTE.into(),
-                kind: EntityKind::Material,
+                kind: EntityKind::Entry,
                 module: None,
                 block: None,
                 end_block: None,
@@ -1578,7 +1606,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 0..6,
                 EntityLinkV3 {
                     target: NOTE.into(),
-                    kind: EntityKind::Material,
+                    kind: EntityKind::Entry,
                     module: None,
                     block: None,
                     end_block: None,
@@ -1955,7 +1983,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                 7..11,
                 EntityLinkV3 {
                     target: NOTE.into(),
-                    kind: EntityKind::Material,
+                    kind: EntityKind::Entry,
                     module: None,
                     block: None,
                     end_block: None,
@@ -1983,8 +2011,8 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
         "将删列"
     );
 
-    // 2. Note-profile material table cell preserves highlight + code + explicit-module entityLink!
-    let note_doc_id = DocId::Material(MaterialId::parse(NOTE).unwrap());
+    // 2. Material note table cell preserves highlight + code + explicit-module entityLink!
+    let note_doc_id = adapter::body_id(NOTE, MOD_PROSE);
     let note_doc = load_prose(&lib, &note_doc_id);
     let tbl_note = EmbedId::parse("tbl-note").unwrap();
     let note_runs = note_doc.view().table_cell(&tbl_note, "r0", "c0").unwrap();
@@ -2363,13 +2391,8 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
         .unwrap();
     assert_eq!(
         all_rt.source_kinds,
-        [
-            EntityKind::Patch,
-            EntityKind::Entry,
-            EntityKind::Comment,
-            EntityKind::Material,
-        ],
-        "node/element/category/storyline collapse to one Entry alongside Patch, Comment and Material"
+        [EntityKind::Patch, EntityKind::Entry, EntityKind::Comment,],
+        "node/element/category/storyline/library_item collapse to one Entry alongside Patch and Comment"
     );
     assert_eq!(
         all_rt.target_kinds,
@@ -2406,7 +2429,7 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
     );
     assert_eq!(
         generic.source_kinds,
-        [EntityKind::Comment, EntityKind::Material]
+        [EntityKind::Comment, EntityKind::Entry]
     );
     assert_eq!(generic.target_kinds, [EntityKind::Entry, EntityKind::Patch]);
     assert!(generic.source_templates.is_empty());

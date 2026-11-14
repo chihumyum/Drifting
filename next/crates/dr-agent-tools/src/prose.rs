@@ -89,9 +89,6 @@ pub fn comment_anchors_v3(doc: &str, comments: &[dr_model::v3::CommentV3]) -> Ve
                         && comment.target_module.as_ref().map(|m| m.as_str())
                             == Some(body.module().as_str())
                 }
-                dr_model::DocId::Material(id) => {
-                    target.kind == dr_model::kind::EntityKind::Material && target.id == id.as_str()
-                }
                 _ => false,
             };
             if !matches_doc {

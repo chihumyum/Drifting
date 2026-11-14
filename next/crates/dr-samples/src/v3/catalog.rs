@@ -8,7 +8,7 @@ use dr_doc::v3::novel::*;
 use dr_doc::v3::{BookTxnV3, BookViewV3};
 use dr_doc::{Anchor, DocError, Result};
 use dr_model::id::*;
-use dr_model::import_v1::{EntityRef, NodeId, canonical_symmetric};
+use dr_model::import_v1::{EntityRef, MaterialKind, NodeId, canonical_symmetric};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::v3::*;
@@ -79,6 +79,25 @@ fn templates(source: &BookView<'_>, manuscript: &EntryId) -> Result<Vec<EntryTem
         tpl.name = storyline.name;
         all.push(tpl);
     }
+    if source
+        .materials()
+        .iter()
+        .any(|m| m.kind == MaterialKind::Text && !m.task_todos)
+    {
+        let mut tpl = all
+            .iter()
+            .find(|t| t.id.as_str() == TPL_NOTE)
+            .unwrap()
+            .clone();
+        tpl.id = plain_note_template();
+        tpl.modules
+            .iter_mut()
+            .find(|m| m.id.as_str() == MOD_PROSE)
+            .unwrap()
+            .config
+            .task_todos = false;
+        all.push(tpl);
+    }
     let mut unique = BTreeMap::new();
     for template in all {
         if let Some(old) = unique.insert(template.id.clone(), template.clone())
@@ -143,6 +162,11 @@ impl Entries<'_, '_> {
                     w.remove_kv(module, &row.id)?;
                 }
             }
+            for (module, items) in &old.media {
+                for item in items {
+                    w.remove_media(module, &item.id)?;
+                }
+            }
             w.title(title)?
                 .template(Some(template))?
                 .level(level)?
@@ -205,6 +229,7 @@ struct Roots {
     ideas: EntryId,
     elements: EntryId,
     storylines: EntryId,
+    materials: EntryId,
     narrative_view: TimelineViewId,
 }
 
@@ -216,6 +241,7 @@ fn roots(txn: &mut BookTxnV3<'_>) -> Result<Roots> {
             ideas: ids.ideas,
             elements: ids.elements,
             storylines: ids.storylines,
+            materials: ids.materials,
             narrative_view: ids.narrative_view,
         });
     }
@@ -234,6 +260,7 @@ fn roots(txn: &mut BookTxnV3<'_>) -> Result<Roots> {
         ideas: root(TPL_IDEAS)?,
         elements: root(TPL_ELEMENTS)?,
         storylines: root(TPL_STORYLINES)?,
+        materials: root(TPL_MATERIALS)?,
         narrative_view: views[0].id.clone(),
     })
 }
@@ -437,6 +464,7 @@ pub fn sync_catalog(
                         &roots.ideas,
                         &roots.elements,
                         &roots.storylines,
+                        &roots.materials,
                     ]
                     .contains(&&e.id)
             })
@@ -453,6 +481,7 @@ pub fn sync_catalog(
                         &roots.ideas,
                         &roots.elements,
                         &roots.storylines,
+                        &roots.materials,
                     ]
                     .contains(&&e.id)
             })
@@ -483,6 +512,7 @@ pub fn sync_catalog(
     entries.put(&roots.ideas, None, "构想", &tid(TPL_IDEAS))?;
     entries.put(&roots.elements, None, "要素", &tid(TPL_ELEMENTS))?;
     entries.put(&roots.storylines, None, "故事线", &tid(TPL_STORYLINES))?;
+    entries.put(&roots.materials, None, "素材", &tid(TPL_MATERIALS))?;
     struct ResolvedActEntry {
         entry_id: EntryId,
         interval: Option<(f64, f64)>,
@@ -705,6 +735,65 @@ pub fn sync_catalog(
             "未归属",
             &tid(TPL_STORYLINE),
         )?;
+    }
+    let folder_ids: BTreeSet<_> = source
+        .material_folders()
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
+    for folder in source.material_folders() {
+        let parent = folder
+            .parent
+            .as_ref()
+            .filter(|p| folder_ids.contains(*p))
+            .map(|p| eid(p.as_str()))
+            .unwrap_or_else(|| roots.materials.clone());
+        entries.put(
+            &eid(folder.id.as_str()),
+            Some(&parent),
+            &folder.name,
+            &tid(TPL_GROUP),
+        )?;
+    }
+    for material in source.materials() {
+        let parent = material
+            .folder
+            .as_ref()
+            .filter(|f| folder_ids.contains(*f))
+            .map(|f| eid(f.as_str()))
+            .unwrap_or_else(|| roots.materials.clone());
+        if material.kind == MaterialKind::Text {
+            let tpl = if material.task_todos {
+                tid(TPL_NOTE)
+            } else {
+                plain_note_template()
+            };
+            entries.put(
+                &eid(material.id.as_str()),
+                Some(&parent),
+                &material.title,
+                &tpl,
+            )?;
+        } else {
+            let w = entries.put(
+                &eid(material.id.as_str()),
+                Some(&parent),
+                &material.title,
+                &tid(TPL_MEDIA),
+            )?;
+            if let Some(asset) = &material.asset {
+                w.put_media(
+                    &mid(MOD_MEDIA),
+                    &MediaItem {
+                        id: MediaItemId::parse(material.id.as_str())
+                            .map_err(|e| invalid(e.to_string()))?,
+                        asset: asset.clone(),
+                        caption: material.description.clone(),
+                        pos: Some(PosKey::first()),
+                    },
+                )?;
+            }
+        }
     }
     entries.finish()?;
 
@@ -949,6 +1038,17 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             txn.patch(&patch.id)?.pos(&pos)?;
         }
     }
+    let materials = source.materials();
+    let materials_by_id: BTreeMap<&str, &dr_model::import_v1::Material> =
+        materials.iter().map(|m| (m.id.as_str(), m)).collect();
+    let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
+    for m in &materials {
+        if let Some(asset) = &m.asset {
+            first_title_by_asset
+                .entry(asset)
+                .or_insert(m.title.as_str());
+        }
+    }
     for comment in source.comments() {
         let origin = match &comment.projection {
             Some(p) => match &p.kind {
@@ -962,7 +1062,22 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
                 _ => CommentOrigin::Manual,
             },
         };
-        let part = comment.region.map(|region| CommentPart::Region { region });
+        let (module, part) = match &comment.target {
+            Some(t) if t.kind == EntityKind::Material => match materials_by_id.get(t.id.as_str()) {
+                Some(m) if m.kind != MaterialKind::Text => (
+                    Some(mid(MOD_MEDIA)),
+                    match &m.asset {
+                        Some(_) => Some(CommentPart::Media {
+                            item: MediaItemId::parse(&t.id).map_err(|e| invalid(e.to_string()))?,
+                            region: comment.region,
+                        }),
+                        None => None,
+                    },
+                ),
+                _ => (Some(mid(MOD_PROSE)), None),
+            },
+            other => (other.as_ref().and_then(target_module), None),
+        };
         let w = if let (Some(projection), Some(target)) = (&comment.projection, &comment.target) {
             let old = target_doc(target);
             let new = old
@@ -976,7 +1091,7 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         };
         w.origin(&origin)?
             .target(comment.target.as_ref().map(map).as_ref())?
-            .module(comment.target.as_ref().and_then(target_module).as_ref())?
+            .module(module.as_ref())?
             .part(part.as_ref())?
             .target_block(comment.target_block.as_ref())?
             .anchor(comment.anchor.as_ref().and_then(Anchor::decode).as_ref())?
@@ -995,34 +1110,14 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .created_at(comment.created_at)?
             .updated_at(comment.updated_at)?;
     }
-    for folder in source.material_folders() {
-        if !txn
-            .view()
-            .material_folders()
-            .iter()
-            .any(|f| f.id == folder.id)
-        {
-            txn.material_folders().create(
-                folder.id.as_str(),
-                folder.parent.as_ref().map(MaterialFolderId::as_str),
-                &folder.name,
-            )?;
+    for mut asset in source.assets() {
+        if asset.name.is_empty() {
+            asset.name = first_title_by_asset
+                .get(&asset.id)
+                .copied()
+                .unwrap_or_default()
+                .to_string();
         }
-    }
-    for material in source.materials() {
-        let w = txn.material(&material.id)?;
-        w.title(&material.title)?
-            .kind(&material.kind)?
-            .asset(material.asset.as_ref())?
-            .folder(material.folder.as_ref())?
-            .task_todos(material.task_todos)?
-            .provenance(material.provenance.as_deref())?
-            .description(&material.description)?;
-        if let Some(pos) = material.pos {
-            w.pos(&pos)?;
-        }
-    }
-    for asset in source.assets() {
         txn.put_asset(&asset)?;
     }
     let wanted: BTreeSet<_> = source.facts().iter().map(|f| f.id.clone()).collect();
@@ -1117,10 +1212,7 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             .any(|kind| {
                 !matches!(
                     kind,
-                    EntityKind::Entry
-                        | EntityKind::Material
-                        | EntityKind::Comment
-                        | EntityKind::Patch
+                    EntityKind::Entry | EntityKind::Comment | EntityKind::Patch
                 )
             })
         {

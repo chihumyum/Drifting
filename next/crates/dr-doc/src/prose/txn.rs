@@ -13,7 +13,6 @@
 use std::collections::HashSet;
 use std::ops::Range;
 
-use dr_model::ProseProfile;
 use dr_model::id::{BlockId, EmbedId};
 use dr_model::pos::PosKey;
 use dr_model::prose::{
@@ -22,7 +21,7 @@ use dr_model::prose::{
 use loro::cursor::Side;
 use loro::{LoroText, LoroValue};
 
-use super::attrs::{encode_block, encode_entity, note_only_block};
+use super::attrs::{encode_block, encode_entity};
 use super::embed::{EmbedKind, EmbedView, TableWriter};
 use super::view::{ProseView, Run};
 use crate::error::{DocError, Result};
@@ -93,12 +92,7 @@ impl<'a> ProseTxn<'a> {
         Ok(BlockId::parse(&format!("{}@{}", id.counter, id.peer)).expect("op id is a valid id"))
     }
 
-    fn check_profile(&self, b: &BlockAttrs) -> Result<()> {
-        if self.view.profile == ProseProfile::Prose
-            && let Some(what) = note_only_block(b)
-        {
-            return Err(DocError::NotInProfile(what));
-        }
+    fn check_profile(&self, _b: &BlockAttrs) -> Result<()> {
         Ok(())
     }
 
@@ -172,16 +166,13 @@ impl<'a> ProseTxn<'a> {
     /// takes its place, so applying a template to a new, empty document
     /// leaves exactly the template.
     /// Returns the position after the copied text.
-    ///
-    /// Marks and attributes `from` has but this document's profile does not
-    /// allow are refused (a note's list copied into a chapter).
     pub fn insert_copy(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
         self.insert_copy_with_links(pos, from, false)
     }
 
-    /// Copy a v3 template, including module/material links and unknown link
-    /// fields in body and table cells. Source reads are frozen before writes;
-    /// callers still obtain the source under its document-holder read guard.
+    /// Copy a v3 template, including module links and unknown link fields in
+    /// body and table cells. Source reads are frozen before writes; callers
+    /// still obtain the source under its document-holder read guard.
     pub fn insert_copy_v3(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
         let frozen = from.doc.fork();
         let text = frozen.get_text(crate::schema::prose::BODY);
@@ -217,9 +208,7 @@ impl<'a> ProseTxn<'a> {
                             }
                         }
                     }
-                    Some(EmbedView::Material {
-                        material: Some(_), ..
-                    }) => {}
+                    Some(EmbedView::Asset { asset: Some(_), .. }) => {}
                     _ => return Err(DocError::NotInProfile("unsupported embed in v3 copy")),
                 }
             }
@@ -380,12 +369,10 @@ impl<'a> ProseTxn<'a> {
                     self.copy_cell(&t.cell(r, c)?, &runs, links.as_ref())?;
                 }
             }
-            Some(EmbedView::Material {
-                material: Some(m), ..
-            }) => {
-                self.insert_embed(para_start, &fresh, &EmbedKind::Material(m))?;
+            Some(EmbedView::Asset { asset: Some(a), .. }) => {
+                self.insert_embed(para_start, &fresh, &EmbedKind::Asset(a))?;
             }
-            // A material embed without its material, or a kind this version
+            // A file embed without its asset, or a kind this version
             // does not know: nothing to copy.
             _ => return Ok(para_start),
         }
@@ -600,9 +587,9 @@ impl<'a> ProseTxn<'a> {
             EmbedKind::Table => {
                 entry.insert("kind", "table")?;
             }
-            EmbedKind::Material(m) => {
-                entry.insert("kind", "material")?;
-                entry.insert("material", m.as_str())?;
+            EmbedKind::Asset(a) => {
+                entry.insert("kind", "asset")?;
+                entry.insert("asset", a.as_str())?;
             }
         }
         Ok(TableWriter { entry })

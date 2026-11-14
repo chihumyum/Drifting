@@ -19,7 +19,6 @@ use anyhow::{Result, anyhow, bail};
 use dr_shell::nav::{Open, Target};
 use dr_shell::workspace::{LeftTab, RightTab};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
-use dr_store::asset::{SourceImport, Variant};
 use dr_ui::{Appearance, anim, theme};
 use dr_view_material::MediaPage;
 use gpui::{
@@ -51,49 +50,37 @@ fn id(v: &Value) -> String {
 fn material(
     ws: &dr_workspace::Workspace,
     book: &str,
-    kind: &str,
+    _kind: &str,
     title: &str,
     description: &str,
     bytes: Vec<u8>,
-    dims: (u32, u32),
+    _dims: (u32, u32),
 ) -> Result<String> {
-    let (mime, ext) = if kind == "image" {
-        ("image/png", "png")
-    } else {
-        ("application/pdf", "pdf")
-    };
-    let asset = dr_model::id::new_uuid_v7();
-    let lib = ws.library();
-    let file = std::env::temp_dir().join(format!("m19-capture-{asset}.{ext}"));
-    std::fs::write(&file, &bytes)?;
-    let imported = lib.import_asset(&SourceImport {
-        book_id: book,
-        asset_id: &asset,
-        source: &file,
-        mime,
-        ext,
-        dimensions: (kind == "image").then_some(dims),
-        limit: 64 << 20,
-    });
-    let _ = std::fs::remove_file(&file);
-    imported?;
-    let sha = lib
-        .asset(&asset, Variant::Source)?
-        .ok_or_else(|| anyhow!("no asset"))?
-        .sha256;
-    let mut put = json!({"book": book, "id": asset, "kind": kind, "mime": mime,
-                         "size": bytes.len(), "sha256": sha});
-    if kind == "image" {
-        put["width"] = json!(dims.0);
-        put["height"] = json!(dims.1);
+    let imported = dr_view_material::import::import_bytes(ws, book, None, bytes, title)
+        .map_err(|e| anyhow!(e))?;
+    if !description.is_empty() {
+        let snapshot = dr_shell::book::Book::load(ws, book)?;
+        let item = snapshot
+            .material_items()
+            .iter()
+            .find(|m| m.id == imported.material)
+            .ok_or_else(|| anyhow!("missing imported material"))?;
+        out(
+            ws,
+            "module.put_media",
+            json!({
+                "book": book,
+                "owner": item.entry.as_ref().unwrap(),
+                "module": item.module.as_ref().unwrap(),
+                "item": {
+                    "id": imported.material,
+                    "asset": item.asset.as_ref().unwrap(),
+                    "caption": description,
+                }
+            }),
+        )?;
     }
-    out(ws, "asset.put", put)?;
-    Ok(id(&out(
-        ws,
-        "material.create",
-        json!({"book": book, "kind": kind, "title": title, "asset": asset,
-               "description": description}),
-    )?))
+    Ok(imported.material)
 }
 
 fn region(
@@ -105,11 +92,23 @@ fn region(
     body: &str,
 ) -> Result<String> {
     let origin = if kind == "todo" { "marker" } else { "manual" };
+    let snapshot = dr_shell::book::Book::load(ws, book)?;
+    let item = snapshot
+        .material_items()
+        .iter()
+        .find(|m| m.id == on)
+        .ok_or_else(|| anyhow!("missing material"))?;
     Ok(id(&out(
         ws,
         "comment.create",
-        json!({"book": book, "origin": origin, "target": {"kind": "material", "id": on},
-               "part": {"kind": "region", "region": region}, "body": body}),
+        json!({
+            "book": book,
+            "origin": origin,
+            "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
+            "module": item.module.as_ref().unwrap(),
+            "part": {"kind": "media", "item": on, "region": region},
+            "body": body,
+        }),
     )?))
 }
 
@@ -420,53 +419,21 @@ fn run(modules: PathBuf) -> Result<()> {
         json!({"page": 2, "x": 0.08, "y": 0.12, "w": 0.84, "h": 0.2}),
         "核对头三天的潮位。",
     )?;
-    // The library's folders: 东岸 (with 旧城 in it) and 潮汐; two more
-    // pictures imported into 旧城 (thumbnails made on the way in) and two
-    // notes.
-    let folder = |name: &str, parent: Option<&str>| -> Result<String> {
-        let mut input = json!({"book": book, "name": name});
-        if let Some(p) = parent {
-            input["parent"] = json!(p);
-        }
-        Ok(id(&out(&lib, "material_folder.create", input)?))
-    };
-    let east = folder("东岸", None)?;
-    let old_town = folder("旧城", Some(&east))?;
-    let tide = folder("潮汐", None)?;
-    let file = |m: &str, f: &str| -> Result<()> {
-        out(
-            &lib,
-            "material.update",
-            json!({"book": book, "id": m, "folder": f}),
-        )?;
-        Ok(())
-    };
-    file(&image, &east)?;
-    file(&pdf, &tide)?;
+    let mut extra_media = Vec::new();
     for title in ["旧城地图", "码头草图"] {
-        dr_view_material::import::import_bytes(
+        let m = dr_view_material::import::import_bytes(
             &lib,
             &book,
-            Some(&old_town),
+            None,
             dr_testkit::media::png(900, 640),
             title,
         )
         .map_err(|e| anyhow!(e))?;
+        extra_media.push(m.material);
     }
-    let note = |title: &str, text: &str, f: Option<&str>| -> Result<String> {
-        let mut input = json!({"book": book, "kind": "text", "title": title, "text": text});
-        if let Some(f) = f {
-            input["folder"] = json!(f);
-        }
-        Ok(id(&out(&lib, "material.create", input)?))
-    };
-    let clue = note(
-        "第四章线索",
-        "潮水退后，礁石露出三处，老周说那是旧城的城墙。",
-        Some(&east),
-    )?;
-    let bio = note("人物小传 · 林汐", "海边长大，记得每一次大潮的日子。", None)?;
-    h.wait(|ws, _| ws.book.v3().unwrap().materials.len() >= 6)?;
+    let clue = extra_media[0].clone();
+    let bio = extra_media[1].clone();
+    h.wait(|ws, _| ws.book.v3().unwrap().materials.len() >= 4)?;
     let image_target = Target::Material(image.parse().map_err(|_| anyhow!("material id"))?);
     let pdf_target = Target::Material(pdf.parse().map_err(|_| anyhow!("material id"))?);
 
@@ -570,18 +537,9 @@ fn run(modules: PathBuf) -> Result<()> {
         let panel =
             h.cx.update(|cx| dr_view_material::library::panels(cx).first().cloned())
                 .ok_or_else(|| anyhow!("the library panel"))?;
-        let (e, o, t, c, b) = (
-            east.clone(),
-            old_town.clone(),
-            tide.clone(),
-            clue.clone(),
-            bio.clone(),
-        );
+        let (c, b) = (clue.clone(), bio.clone());
         h.cx.update(|cx| {
             panel.update(cx, |p, cx| {
-                p.set_open(&e, true, cx);
-                p.set_open(&o, true, cx);
-                p.set_open(&t, true, cx);
                 p.select(
                     vec![
                         dr_view_material::folders::material_key(&c),

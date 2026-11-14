@@ -143,10 +143,10 @@ impl TypedFields {
         );
         let read = cx.background_spawn(async move {
             dr_editor::v3::read(&lib, &book, |v| {
-                v.materials()
+                v.assets()
                     .into_iter()
-                    .filter(|m| m.kind == dr_model::kind::MaterialKind::Image)
-                    .filter_map(|m| m.asset.map(|id| (id.to_string(), m.title)))
+                    .filter(|a| a.kind == dr_model::kind::AssetKind::Image)
+                    .map(|a| (a.id.to_string(), a.name))
                     .collect::<Vec<_>>()
             })
         });

@@ -47,6 +47,56 @@ fn slow_clock() -> (tempfile::TempDir, Library) {
     (dir, Library::open_dir(&root, VERSION).unwrap())
 }
 
+fn add_media_item(lib: &Library) {
+    let book = lib.call(&Actor::User, "book.list", json!({})).unwrap()["output"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let parent = lib
+        .call(&Actor::User, "entry.list", json!({"book":&book,"all":true}))
+        .unwrap()["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-materials")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let asset = "00000000-0000-7000-8000-000000000099";
+    lib.call(
+        &Actor::User,
+        "asset.put",
+        json!({
+            "book": &book,
+            "id": asset,
+            "kind": "image",
+            "mime": "image/png",
+            "size": 68,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000099",
+            "width": 16,
+            "height": 16
+        }),
+    )
+    .unwrap();
+    let entry = lib
+        .call(
+            &Actor::User,
+            "entry.create",
+            json!({"book":&book,"template":"tpl-media","parent":parent,"title":"慢钟示意图"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    lib.call(
+        &Actor::User,
+        "module.put_media",
+        json!({"book":&book,"entry":entry,"module":"mod-media","item":{"id":"00000000-0000-7000-8000-00000000009a","asset":asset}}),
+    )
+    .unwrap();
+}
+
 fn setup(
     cx: &mut TestAppContext,
     file: SettingsFile,
@@ -495,17 +545,20 @@ fn pages_open_in_their_editors_and_the_book_reads_every_chapter(cx: &mut TestApp
         );
         assert_eq!(e.book_id(), view.read(cx).book_id);
     });
-    // A material note with Markdown headings has them as H2.
+    // A note entry with Markdown headings has them as H2.
     let note = view.read_with(cx, |ws, _| {
-        let m = ws
+        let e = ws
             .book
             .v3()
             .unwrap()
-            .materials
+            .entries
             .iter()
-            .find(|m| m.title == "机械钟怎么走")
+            .find(|e| e.title == "机械钟怎么走")
             .expect("the sample's note");
-        Target::Material(m.id.parse().unwrap())
+        Target::Entry {
+            id: e.id.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap()),
+        }
     });
     view.update(cx, |ws, cx| ws.open(note.clone(), Open::KEEP, cx));
     let editor = open_editor(&view, cx, &note);
@@ -1851,6 +1904,7 @@ fn a_module_draws_a_pages_hover_card(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_embedded_material_opens_and_the_highlight_key_is_bound(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
+    add_media_item(&lib);
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
     wait_for(&view, cx, |ws| !ws.book.is_empty());
     let (first, material) = view.read_with(cx, |ws, _| {
@@ -1861,9 +1915,10 @@ fn an_embedded_material_opens_and_the_highlight_key_is_bound(cx: &mut TestAppCon
     });
     view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
     let editor = open_editor(&view, cx, &first);
-    editor.update(cx, |_, cx| {
+    editor.update(cx, |e, cx| {
+        let doc = e.doc_id().to_owned();
         cx.emit(dr_editor::MaterialOpened {
-            doc: "material:note".into(),
+            doc,
             material: material.clone(),
         })
     });
@@ -1908,6 +1963,7 @@ fn a_module_draws_a_whole_page_instead_of_an_editor(cx: &mut TestAppContext) {
         }
     }
     let (_dir, lib) = slow_clock();
+    add_media_item(&lib);
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
     wait_for(&view, cx, |ws| !ws.book.is_empty());
     let asked = std::rc::Rc::new(std::cell::Cell::new(0));

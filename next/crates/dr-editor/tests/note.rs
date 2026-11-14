@@ -43,17 +43,18 @@ fn env() -> Env {
     Env { dir, ws, book }
 }
 
-/// A text material whose note reads `text`: its document id.
+/// A note entry whose prose body reads `text`: its document id.
 fn note(e: &Env, text: &str) -> String {
+    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
     let id = out(
         &e.ws,
-        "material.create",
-        json!({"book": e.book, "kind": "text", "title": "读书笔记", "text": text}),
+        "entry.create",
+        json!({"book": e.book, "parent": parent, "template": "tpl-note", "title": "读书笔记", "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("material:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 /// A small synthetic PNG (a warm gradient).
@@ -101,17 +102,10 @@ fn image_material(e: &Env, title: &str) -> String {
     out(
         &e.ws,
         "asset.put",
-        json!({"book": e.book, "id": asset, "kind": "image", "mime": "image/png",
+        json!({"book": e.book, "id": asset, "name": title, "kind": "image", "mime": "image/png",
                "size": bytes.len(), "sha256": record.sha256, "width": 64, "height": 40}),
     );
-    out(
-        &e.ws,
-        "material.create",
-        json!({"book": e.book, "kind": "image", "title": title, "asset": asset}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned()
+    asset
 }
 
 fn draw(cx: &mut VisualTestContext) {

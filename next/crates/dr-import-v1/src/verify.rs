@@ -107,6 +107,24 @@ fn imported_docs(lib: &Library) -> Result<HashMap<String, (String, String)>> {
 pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let lib = open(root, false)?;
     let by_old = imported_docs(&lib)?;
+    let mut material_assets: HashMap<String, dr_model::id::AssetId> = HashMap::new();
+    for rec in lib.docs(None, Some("book"))? {
+        if let Ok(book_id) =
+            dr_model::id::BookId::parse(rec.doc_id.strip_prefix("book:").unwrap_or(&rec.doc_id))
+        {
+            let stored = lib.load_copy(&rec.doc_id)?;
+            let snap = stored.export(loro::ExportMode::Snapshot)?;
+            if let Ok(bdoc) =
+                dr_doc::v3::BookDocV3::load(book_id, dr_doc::peer::random_device_peer(), &[snap])
+            {
+                for entry in bdoc.view().entries() {
+                    if let Some(item) = entry.media.values().flatten().next() {
+                        material_assets.insert(entry.id.to_string(), item.asset.clone());
+                    }
+                }
+            }
+        }
+    }
     let mut docs = 0usize;
     let mut equal = 0usize;
     let mut fresh_equal = 0usize;
@@ -140,13 +158,14 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         let want = {
             let lines = pm::parse_value(&v["prose"])?;
             let blocks = prose::doc_blocks(&lines);
-            prose::plan(
+            prose::plan_v3(
                 &lines,
                 &blocks,
                 &Context {
                     profile,
                     span: &|_| None,
                     todo: &|_| None,
+                    asset: &|id| material_assets.get(id).cloned(),
                 },
             )
             .paras
@@ -154,7 +173,7 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         let stored = lib.load_copy(new)?;
         let snap = stored.export(loro::ExportMode::Snapshot)?;
         let doc = ProseDoc::load(doc_id, dr_doc::peer::random_device_peer(), &[snap])?;
-        let have = read::read_paras(&doc.view());
+        let have = read::read_paras_v3(&doc.view());
         // Compare what the author sees: text, attributes and marks; block ids
         // except the ones the repair rewrote and the entity links' remapped
         // blocks (both noted in the receipt).

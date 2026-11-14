@@ -92,10 +92,8 @@ str_like!(
     RelationId,
     TimePinId,
     CommentId,
-    MaterialId,
     MediaItemId,
     AssetId,
-    MaterialFolderId,
     KvEntryId,
     MemoryId,
     EmbedId,
@@ -113,7 +111,6 @@ str_like!(
     CommentAuthorKind,
     CommentSource,
     CommentPriority,
-    MaterialKind,
     AssetKind,
     MemoryKind,
     MemoryStatus,
@@ -268,11 +265,7 @@ impl<'a> F<'a> {
     /// malformed maps read as none.
     pub(crate) fn comment_part(&self, key: &str) -> Option<dr_model::v3::CommentPart> {
         use dr_model::v3::CommentPart;
-        let Some(p) = self.sub(key) else {
-            return self
-                .region("region")
-                .map(|region| CommentPart::Region { region });
-        };
+        let p = self.sub(key)?;
         match p.str("kind")? {
             "embed" => Some(CommentPart::Embed {
                 embed: p.id("embed")?,
@@ -293,9 +286,6 @@ impl<'a> F<'a> {
             "media" => Some(CommentPart::Media {
                 item: p.id("item")?,
                 region: p.region("region"),
-            }),
-            "region" => Some(CommentPart::Region {
-                region: p.region("region")?,
             }),
             _ => None,
         }
@@ -360,6 +350,27 @@ pub(crate) fn kv_entries(v: &LoroValue) -> Vec<KvEntry> {
     out
 }
 
+/// Items of a `{item id → {asset, caption, pos}}` media module map, sorted.
+pub(crate) fn media_items(v: &LoroValue) -> Vec<dr_model::v3::MediaItem> {
+    let LoroValue::Map(m) = v else {
+        return Vec::new();
+    };
+    let mut out: Vec<dr_model::v3::MediaItem> = m
+        .iter()
+        .filter_map(|(id, e)| {
+            let f = F(e);
+            Some(dr_model::v3::MediaItem {
+                id: MediaItemId::parse(id).ok()?,
+                asset: f.id("asset")?,
+                caption: f.string("caption"),
+                pos: f.pos("pos"),
+            })
+        })
+        .collect();
+    dr_model::v3::sort_media(&mut out);
+    out
+}
+
 pub(crate) fn region_to_loro(r: &MaterialRegion) -> LoroValue {
     let mut m: Vec<(String, LoroValue)> = vec![
         ("x".into(), r.x.into()),
@@ -407,10 +418,6 @@ pub(crate) fn comment_part_to_loro(part: &dr_model::v3::CommentPart) -> LoroValu
             if let Some(r) = region {
                 m.push(("region".into(), region_to_loro(r)));
             }
-        }
-        CommentPart::Region { region } => {
-            m.push(("kind".into(), "region".into()));
-            m.push(("region".into(), region_to_loro(region)));
         }
     }
     LoroValue::Map(m.into())

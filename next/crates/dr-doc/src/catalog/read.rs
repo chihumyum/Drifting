@@ -485,6 +485,7 @@ impl CatalogView<'_> {
                 let f = F(v);
                 Some(Asset {
                     id: AssetId::parse(id).ok()?,
+                    name: f.string("name"),
                     kind: f.kind("kind")?,
                     mime: f.string("mime"),
                     size: f.i64("size").unwrap_or(0),
@@ -493,15 +494,6 @@ impl CatalogView<'_> {
                     height: f.i64("height"),
                 })
             })
-            .collect()
-    }
-    pub(crate) fn tree(&self, root: &str) -> LoroTree {
-        self.doc.get_tree(root)
-    }
-    pub(crate) fn tree_index(&self, root: &str) -> HashMap<String, Vec<TreeID>> {
-        forest(&self.tree(root))
-            .into_iter()
-            .map(|n| (n.id, n.tree_ids))
             .collect()
     }
     pub fn entity_snapshot(&self, root: &str, id: &str) -> Option<EntitySnapshot> {

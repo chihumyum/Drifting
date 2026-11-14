@@ -4,7 +4,7 @@ pub(crate) fn register(r: &mut Registry) {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Key {
-    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory, material_folders or project.
+    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, facts, memory or project.
     pub collection: String,
     pub id: String,
 }
@@ -55,7 +55,6 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
     let old = dr_doc::v3::BorrowedBookV3::new(&old_doc, &s.book)?;
     let old = old.view();
     let current = s.reader_v3.view();
-    let folders = super::history_folders::plan(&old, &current, &input.targets)?;
     let before = current.graph();
     let mut entries = current.entries_map();
     let mut templates = current.templates_map();
@@ -97,7 +96,6 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                     plans.push(Plan::Trash(id));
                 }
             }
-            "material_folders" => {}
             "project" => {
                 if !matches!(
                     target.id.as_str(),
@@ -121,7 +119,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 ));
             }
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
-            | "relations" | "relation_types" | "materials" | "comments" | "facts" | "memory" => {
+            | "relations" | "relation_types" | "comments" | "facts" | "memory" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
@@ -175,22 +173,34 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
         }
     }
     for p in &plans {
-        if let Plan::Entry(id, parent, _, _) = p {
-            m::check_entry_move(&entries, id, parent.as_ref())?;
-            m::check_parent_is_level(parent.as_ref(), &entries)?;
-            // An entry restored with its switch off may not keep live
-            // entries under it that this restore does not move elsewhere.
-            if entries
-                .get(id)
-                .is_some_and(|e| !e.is_trashed() && !e.is_level())
-                && entries
+        match p {
+            Plan::Entry(id, parent, _, _) => {
+                m::check_entry_move(&entries, id, parent.as_ref())?;
+                if entries.get(id).is_some_and(|e| !e.is_trashed()) {
+                    m::check_parent_is_level(parent.as_ref(), &entries)?;
+                }
+                if entries
+                    .get(id)
+                    .is_some_and(|e| e.is_trashed() || !e.is_level())
+                    && entries
+                        .values()
+                        .any(|c| !c.is_trashed() && c.parent.as_ref() == Some(id))
+                {
+                    return Err(WsError::invalid(
+                        "restoration would leave entries under a trashed or non-level entry",
+                    ));
+                }
+            }
+            Plan::Trash(id)
+                if entries
                     .values()
-                    .any(|c| !c.is_trashed() && c.parent.as_ref() == Some(id))
+                    .any(|c| !c.is_trashed() && c.parent.as_ref() == Some(id)) =>
             {
                 return Err(WsError::invalid(
-                    "restoration would leave entries under an entry whose switch is off",
+                    "restoration would leave entries under a trashed entry",
                 ));
             }
+            _ => {}
         }
         if let Plan::Map(CollectionV3::Templates, id, _) = p {
             let id = pid("template", id)?;
@@ -251,7 +261,6 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
             let old = dr_doc::v3::BorrowedBookV3::new(&old_doc, &book)?;
             t.restore_shared_records_at(&shared, &old.view())?;
         }
-        super::history_folders::apply(t, &folders)?;
         // Detach selected nodes first: a valid final graph can otherwise have a
         // transient cycle (restoring A above B while A currently lives below B).
         for p in &plans {

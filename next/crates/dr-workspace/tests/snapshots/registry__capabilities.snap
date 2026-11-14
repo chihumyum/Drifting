@@ -2,7 +2,8 @@
 source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
-asset.get                    query    shared   Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).
+asset.get                    query    shared   Read an asset's recorded metadata: name, kind, media type, size, sha256 and pixel dimensions.
+asset.list                   query    shared   List every asset recorded in the book, sorted by asset id.
 asset.put                    command  book     Record an imported asset's metadata in the book (written once; the bytes are in storage).
 book.get                     query    shared   Read book metadata and project word targets; aggregate counts use the statistics adapter.
 book.list                    query    shared   List the library's books (trashed ones when asked).
@@ -50,17 +51,7 @@ fact.put                     command  book     Add a project fact or change one 
 fact.remove                  command  book     Remove a project fact.
 history.points               query    shared   List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
 history.preview              query    shared   Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
-history.restore_point        command  book     Restore one material note and its metadata from history; entry bodies require complete-entry snapshots.
-material.create              command  book     Add a material: a text note, or an image or PDF whose asset is registered.
-material.delete              command  book     Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it).
-material.list                query    shared   List materials in order, optionally of one folder.
-material.move                command  book     Move a material in the list (only its own position changes).
-material.set_entry_link      command  book     Add or remove one built-in association from a material to a live entry, preserving every other relation.
-material.update              command  book     Change a material's title, description, folder or TODO projection.
-material_folder.create       command  book     Create a material folder.
-material_folder.delete       command  book     Delete a material folder: its sub-folders and materials move up to its parent.
-material_folder.list         query    shared   List material folders (素材夹), parents before children.
-material_folder.update       command  book     Rename or move a material folder.
+history.restore_point        command  book     Restore one template-module prose document from history; entry bodies require complete-entry snapshots.
 membership.add               command  book     Add or order a membership without moving its residence.
 membership.list              query    shared   List valid memberships in a book.
 membership.primary           command  book     Choose an existing membership as primary, or clear the primary membership.
@@ -77,11 +68,13 @@ module.list                  query    shared   List an entry's current and retai
 module.prose_document        command  book     Initialize an entry's or a template's prose module and return its document ID.
 module.put_grid              command  book     Replace the rows, columns, cells and size of one plot module.
 module.put_kv                command  book     Add or update an ordered key/value row in a module.
+module.put_media             command  book     Add or update an ordered file item in an entry's media module.
 module.put_patch             command  book     Create or edit the text of a patch module record, preserving its source reference.
 module.put_relation          command  book     Associate an entry with a live endpoint through its relations module.
 module.read                  query    shared   Read a current or retained module and its structured content; a children module reads what lies below the entry.
 module.read_prose            query    shared   Read an entry's or a template's prose module with block IDs and version.
 module.remove_kv             command  book     Remove a key/value row from a module.
+module.remove_media          command  book     Remove a file item from an entry's media module.
 module.remove_patch          command  book     Remove one patch record without deleting relations or other entries.
 module.remove_relation       command  book     Remove one relation projected in an entry's relations module.
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
@@ -94,10 +87,10 @@ prose.link                   command  book     Link anchored ranges of prose doc
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
-prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
+prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds.
 prose.unlink                 command  book     Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
 recent.list                  query    shared   List this device's live pages, retaining each entry's selected module.
-recent.touch                 command  book     Record an entry and optional module, or a material, on this device without an undo step.
+recent.touch                 command  book     Record an entry and optional module on this device without an undo step.
 relation.create              command  book     Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
 relation.delete              command  book     Delete one canonical relation without deleting either endpoint.
 relation.list                query    shared   List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.

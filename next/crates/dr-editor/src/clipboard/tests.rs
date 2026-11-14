@@ -244,20 +244,26 @@ fn malformed_paste_and_stale_copy_cannot_authorize_overwriting_new_body(cx: &mut
     assert_eq!(e.ws.observe(&e.doc).unwrap().version, current.version);
     assert_eq!(durable(&e).0, "concurrent author value\n");
 }
+fn note_doc(e: &Env, title: &str) -> String {
+    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
+    let id = e
+        .ws
+        .call(
+            &Actor::User,
+            "entry.create",
+            json!({"book":e.book,"parent":parent,"template":"tpl-note","title":title,"bodies":{"mod-prose":""}}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    format!("body:{id}/mod-prose")
+}
+
 #[gpui::test]
 fn real_table_grid_and_cell_text_clipboard_keep_module_and_binary_on_disk(cx: &mut TestAppContext) {
     let e = env();
-    let material =
-        e.ws.call(
-            &Actor::User,
-            "material.create",
-            json!({"book":e.book,"kind":"text","title":"Synthetic note"}),
-        )
-        .unwrap()["output"]["id"]
-            .as_str()
-            .unwrap()
-            .to_owned();
-    let doc = format!("material:{material}");
+    let doc = note_doc(&e, "Synthetic note");
     let (view, _body, cx) = open(cx, &e, &doc);
     let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
     let link_key = format!("entity:{}", e.entry);
@@ -379,17 +385,7 @@ fn unsupported_typed_clipboard_preserves_selection_values_and_versions(cx: &mut 
 fn v3_typing_over_selected_cells_replaces_the_range_and_undoes_once(cx: &mut TestAppContext) {
     use gpui::EntityInputHandler as _;
     let e = env();
-    let material =
-        e.ws.call(
-            &Actor::User,
-            "material.create",
-            json!({"book":e.book,"kind":"text","title":"Synthetic selected cells"}),
-        )
-        .unwrap()["output"]["id"]
-            .as_str()
-            .unwrap()
-            .to_owned();
-    let doc = format!("material:{material}");
+    let doc = note_doc(&e, "Synthetic selected cells");
     let (view, body, cx) = open(cx, &e, &doc);
     let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
     let cells = vec![
@@ -474,17 +470,7 @@ fn v3_typing_over_selected_cells_replaces_the_range_and_undoes_once(cx: &mut Tes
 fn selected_cells_peer_case(cx: &mut TestAppContext, after_input: bool) {
     use gpui::EntityInputHandler as _;
     let e = env();
-    let material =
-        e.ws.call(
-            &Actor::User,
-            "material.create",
-            json!({"book":e.book,"kind":"text","title":"Synthetic concurrent selected cells"}),
-        )
-        .unwrap()["output"]["id"]
-            .as_str()
-            .unwrap()
-            .to_owned();
-    let doc = format!("material:{material}");
+    let doc = note_doc(&e, "Synthetic concurrent selected cells");
     let (view, _body, cx) = open(cx, &e, &doc);
     let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
     let cells = vec![

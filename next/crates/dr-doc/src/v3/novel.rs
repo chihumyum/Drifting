@@ -32,9 +32,12 @@ pub const TPL_GROUP: &str = "tpl-group";
 pub const TPL_STORYLINES: &str = "tpl-storylines";
 pub const TPL_STORYLINE: &str = "tpl-storyline";
 pub const TPL_ACT_TRACK: &str = "tpl-act-track";
+pub const TPL_MATERIALS: &str = "tpl-materials";
 
 pub const TPL_CHAPTER: &str = "tpl-chapter";
 pub const TPL_IDEA: &str = "tpl-idea";
+pub const TPL_NOTE: &str = "tpl-note";
+pub const TPL_MEDIA: &str = "tpl-media";
 pub const TPL_CHARACTER: &str = "tpl-character";
 pub const TPL_LOCATION: &str = "tpl-location";
 pub const TPL_ITEM: &str = "tpl-item";
@@ -48,6 +51,7 @@ pub const MOD_DESCRIPTION: &str = "mod-description";
 pub const MOD_FIELDS: &str = "mod-fields";
 pub const MOD_KV: &str = "mod-kv";
 pub const MOD_PROSE: &str = "mod-prose";
+pub const MOD_MEDIA: &str = "mod-media";
 pub const MOD_PLOT_GRID: &str = "mod-plot-grid";
 pub const MOD_PATCHES: &str = "mod-patches";
 pub const MOD_RELATIONS: &str = "mod-relations";
@@ -63,6 +67,7 @@ pub struct NovelRootEntries {
     pub ideas: EntryId,
     pub elements: EntryId,
     pub storylines: EntryId,
+    pub materials: EntryId,
     pub cat_character: EntryId,
     pub cat_location: EntryId,
     pub cat_item: EntryId,
@@ -88,6 +93,7 @@ impl NovelRootEntries {
             ideas: EntryId::new_v7(),
             elements: EntryId::new_v7(),
             storylines: EntryId::new_v7(),
+            materials: EntryId::new_v7(),
             cat_character: EntryId::new_v7(),
             cat_location: EntryId::new_v7(),
             cat_item: EntryId::new_v7(),
@@ -749,12 +755,111 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
         element_template(TPL_ELEMENT, "要素", "通用设定要素模板。"),
         // 16. 幕 (switch on, a swimlane for act tracks)
         act_track_template(),
+        // 17. 素材 (switch on, home for standalone notes and media entries)
+        {
+            let verb_pos = pos_chain(2);
+            EntryTemplate {
+                id: tid(TPL_MATERIALS),
+                name: "素材".into(),
+                mark: Some("folder".into()),
+                color: None,
+                agent: Some(TemplateAgentConfig {
+                    name: "素材库".into(),
+                    description: "收纳笔记与单独存放的图片、PDF 等参考文件的层级。".into(),
+                    instructions: "下面的笔记用「笔记」模板，单独存放的图片或 PDF 用「媒体」模板；也可用「分组」建子文件夹。".into(),
+                }),
+                modules: with_description(Vec::new()),
+                level: true,
+                linkable: false,
+                settings: LevelSettingsOverride {
+                    default_template: Some(Some(tid(TPL_NOTE))),
+                    display: Some(ChildDisplayMode::List),
+                    auto_link: Some(false),
+                    accept: Some(false),
+                    home: None,
+                    format_shortcuts: Some(FormatShortcuts::Notes),
+                    lane: None,
+                },
+                verbs: vec![
+                    TemplateVerb {
+                        id: "new-note".into(),
+                        name: "新建笔记".into(),
+                        description: "在素材下新建一篇笔记".into(),
+                        target_template: Some(tid(TPL_NOTE)),
+                        pos: Some(verb_pos[0].clone()),
+                    },
+                    TemplateVerb {
+                        id: "new-media".into(),
+                        name: "新建媒体".into(),
+                        description: "在素材下新建一个存放文件的媒体条目".into(),
+                        target_template: Some(tid(TPL_MEDIA)),
+                        pos: Some(verb_pos[1].clone()),
+                    },
+                ],
+                deleted_at: None,
+            }
+        },
+        // 18. 笔记 (switch off, one non-book prose module)
+        EntryTemplate {
+            id: tid(TPL_NOTE),
+            name: "笔记".into(),
+            mark: Some("file-text".into()),
+            color: None,
+            agent: Some(TemplateAgentConfig {
+                name: "笔记".into(),
+                description: "一篇不进成书的自由正文笔记。".into(),
+                instructions: "用于整理参考资料、考据与随笔，不进成书、导出和全书字数。".into(),
+            }),
+            modules: vec![ModuleSpec {
+                id: mid(MOD_PROSE),
+                kind: ModuleKind::Prose,
+                name: "正文".into(),
+                pos: Some(PosKey::first()),
+                config: ModuleConfig {
+                    show_outline: true,
+                    task_todos: true,
+                    in_book: false,
+                    ..ModuleConfig::default()
+                },
+                agent: agent_instructions("笔记正文，不进成书、导出和全书字数。"),
+            }],
+            level: false,
+            linkable: true,
+            settings: LevelSettingsOverride::default(),
+            verbs: Vec::new(),
+            deleted_at: None,
+        },
+        // 19. 媒体 (switch off, one media module holding image/PDF files)
+        EntryTemplate {
+            id: tid(TPL_MEDIA),
+            name: "媒体".into(),
+            mark: None,
+            color: None,
+            agent: Some(TemplateAgentConfig {
+                name: "媒体".into(),
+                description: "存放一个或多个图片、PDF 参考文件及说明的条目。".into(),
+                instructions: "文件放在媒体模块里，各有说明文字和先后。".into(),
+            }),
+            modules: vec![ModuleSpec {
+                id: mid(MOD_MEDIA),
+                kind: ModuleKind::Media,
+                name: "文件".into(),
+                pos: Some(PosKey::first()),
+                config: ModuleConfig::default(),
+                agent: agent_instructions("本条目收纳的图片或 PDF 文件及说明。"),
+            }],
+            level: false,
+            linkable: true,
+            settings: LevelSettingsOverride::default(),
+            verbs: Vec::new(),
+            deleted_at: None,
+        },
     ];
     templates.sort_by(|a, b| a.id.cmp(&b.id));
     templates
 }
 
-/// Look up the novel root level entries (`书稿`, `构想`, `要素`, `故事线`),
+/// Look up the novel root level entries (`书稿`, `构想`, `要素`, `故事线`, `素材`),
 /// default category entries (`人物`, `地点`, `道具`, `组织`), and default
 /// timeline view by their templates (`kernel-v3.md`: "之后按模板找根层级，不按固定 id 找").
 pub fn find_novel_roots(view: &BookViewV3<'_>) -> Option<NovelRootEntries> {
@@ -773,6 +878,7 @@ pub fn find_novel_roots(view: &BookViewV3<'_>) -> Option<NovelRootEntries> {
     let ideas = find_root(TPL_IDEAS)?;
     let elements = find_root(TPL_ELEMENTS)?;
     let storylines = find_root(TPL_STORYLINES)?;
+    let materials = find_root(TPL_MATERIALS)?;
 
     let find_cat = |leaf_tpl: &str| -> Option<EntryId> {
         entries
@@ -818,6 +924,7 @@ pub fn find_novel_roots(view: &BookViewV3<'_>) -> Option<NovelRootEntries> {
         ideas,
         elements,
         storylines,
+        materials,
         cat_character,
         cat_location,
         cat_item,
@@ -929,6 +1036,15 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             parent: None,
             title: "故事线".into(),
             template: Some(tid(TPL_STORYLINES)),
+            level: true,
+            overrides: None,
+            fields: BTreeMap::new(),
+        },
+        ProjectSeedEntry {
+            id: ids.materials.clone(),
+            parent: None,
+            title: "素材".into(),
+            template: Some(tid(TPL_MATERIALS)),
             level: true,
             overrides: None,
             fields: BTreeMap::new(),

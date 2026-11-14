@@ -16,16 +16,52 @@ pub fn novel_entry_as(
         .load_copy(&format!("book:{book}"))
         .expect("test book");
     let borrowed = dr_doc::v3::BorrowedBookV3::new(&raw, &id).expect("canonical test book");
-    let roots = dr_doc::v3::find_novel_roots(&borrowed.view()).expect("novel test roots");
+    let view = borrowed.view();
+    let root = |tpl: &str| {
+        view.root_entry_by_template(&dr_model::id::EntryTemplateId::parse(tpl).unwrap())
+            .expect("novel test root")
+            .id
+    };
+    let cat = |leaf_tpl: &str| {
+        let elements = root("tpl-elements");
+        let entries = view.entries_raw();
+        entries
+            .iter()
+            .find(|e| {
+                e.parent.as_ref() == Some(&elements)
+                    && !e.is_trashed()
+                    && e.template
+                        .as_ref()
+                        .is_some_and(|t| t.as_str() == "tpl-category")
+                    && e.overrides
+                        .as_ref()
+                        .and_then(|o| o.default_template.as_ref())
+                        .and_then(|d| d.as_ref())
+                        .is_some_and(|t| t.as_str() == leaf_tpl)
+            })
+            .or_else(|| {
+                entries.iter().find(|e| {
+                    e.parent.as_ref() == Some(&elements)
+                        && !e.is_trashed()
+                        && e.template
+                            .as_ref()
+                            .is_some_and(|t| t.as_str() == "tpl-category")
+                })
+            })
+            .expect("novel test category")
+            .id
+            .clone()
+    };
     let parent = match template {
-        "tpl-chapter" | "tpl-group" => roots.manuscript,
-        "tpl-idea" | "tpl-idea-group" => roots.ideas,
-        "tpl-storyline" => roots.storylines,
-        "tpl-category" => roots.elements,
-        "tpl-element" | "tpl-character" => roots.cat_character,
-        "tpl-location" => roots.cat_location,
-        "tpl-item" => roots.cat_item,
-        "tpl-organization" => roots.cat_organization,
+        "tpl-chapter" | "tpl-group" => root("tpl-manuscript"),
+        "tpl-idea" | "tpl-idea-group" => root("tpl-ideas"),
+        "tpl-storyline" => root("tpl-storylines"),
+        "tpl-category" => root("tpl-elements"),
+        "tpl-element" | "tpl-character" => cat("tpl-character"),
+        "tpl-location" => cat("tpl-location"),
+        "tpl-item" => cat("tpl-item"),
+        "tpl-organization" => cat("tpl-organization"),
+        "tpl-note" | "tpl-media" => root("tpl-materials"),
         _ => panic!("explicit fixture template required"),
     };
     let mut input =

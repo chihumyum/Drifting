@@ -82,31 +82,13 @@ pub struct TodoProjection {
     pub block: BlockId,
 }
 
-/// A material (素材; the old `library_item`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Material {
-    pub id: MaterialId,
-    pub title: String,
-    pub kind: MaterialKind,
-    /// Image and PDF materials only.
-    pub asset: Option<AssetId>,
-    /// Readers treat a folder that no longer exists as the root.
-    pub folder: Option<MaterialFolderId>,
-    pub pos: Option<PosKey>,
-    /// A text material's checklist items project into TODOs.
-    pub task_todos: bool,
-    /// Opaque JSON, as the old `provenance_json`.
-    pub provenance: Option<String>,
-    /// What the material is about, as plain text (the old `notes_json`).
-    /// The Agent writes it; search reads it.
-    pub description: String,
-}
-
-/// An asset's metadata. The bytes are in SQLite / files, addressed by sha256;
-/// metadata is written once.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// An asset's metadata (`assets` in the book document, `kernel-v5.md` §6 & §10).
+/// The bytes are in SQLite / files, addressed by sha256; metadata is written once.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
     pub id: AssetId,
+    #[serde(default)]
+    pub name: String,
     pub kind: AssetKind,
     pub mime: String,
     pub size: i64,
@@ -116,12 +98,18 @@ pub struct Asset {
     pub height: Option<i64>,
 }
 
-/// A material folder (素材夹): a node of the `material_folders` tree.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MaterialFolder {
-    pub id: MaterialFolderId,
-    pub name: String,
-    pub parent: Option<MaterialFolderId>,
+impl Asset {
+    /// Whether `other` describes the exact same binary file under the same id
+    /// (`AST-IMMUTABLE`).
+    pub fn same_file(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.kind == other.kind
+            && self.mime == other.mime
+            && self.size == other.size
+            && self.sha256 == other.sha256
+            && self.width == other.width
+            && self.height == other.height
+    }
 }
 
 /// A Project Memory entry.

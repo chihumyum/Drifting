@@ -129,11 +129,12 @@ fn an_imported_library_is_indexed_when_it_opens() {
             && r.source_block.as_deref() == Some("p1")),
         "{refs:?}"
     );
-    let embeds = lib.references_to(old::IMAGE).unwrap();
+    let embeds = lib.references_to(old::ASSET).unwrap();
     assert!(
         embeds
             .iter()
-            .any(|r| r.source_doc == format!("material:{}", old::NOTE) && r.kind == RefKind::Embed),
+            .any(|r| r.source_doc == format!("body:{}/mod-prose", old::NOTE)
+                && r.kind == RefKind::Embed),
         "{embeds:?}"
     );
     lib.close().unwrap();

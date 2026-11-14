@@ -67,16 +67,15 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
         if let Some(properties) = value.get_mut("properties").and_then(Value::as_object_mut) {
             if let Some(doc) = properties.get_mut("doc") {
                 *doc = json!({
-                    "description": "An authored document id, or an entry/template/material selector.",
+                    "description": "An authored document id, or an entry/template selector.",
                     "anyOf": [
                         doc.clone(),
                         {
                             "type": "object",
                             "properties": {
-                                "kind": {"type": "string", "enum": ["entry", "template", "material"]},
+                                "kind": {"type": "string", "enum": ["entry", "template"]},
                                 "entry": {"type": "string"},
                                 "template": {"type": "string"},
-                                "material": {"type": "string"},
                                 "module": {"type": "string"},
                                 "parent": {"type": "string"},
                                 "name": {"type": "string"},
@@ -289,8 +288,8 @@ pub(crate) fn resolve_v3(
                     if let Some(target) = obj.get("target").filter(|t| !t.is_null()) {
                         let kind = target["kind"].as_str().unwrap_or_default().to_owned();
                         let id = target["id"].as_str().unwrap_or_default().to_owned();
-                        if !matches!(kind.as_str(), "entry" | "material") {
-                            return Err(invalid("comment target must be an entry or material"));
+                        if kind != "entry" {
+                            return Err(invalid("comment target must be an entry"));
                         }
                         if name == "comment.create"
                             && !anchored
@@ -299,9 +298,6 @@ pub(crate) fn resolve_v3(
                             extra_subjects.insert(format!("{kind}:{id}"));
                         }
                         if let Some(module) = obj.get_mut("module").filter(|m| !m.is_null()) {
-                            if kind != "entry" {
-                                return Err(invalid("materials have no prose module"));
-                            }
                             let eid = EntryId::parse(&id).map_err(|e| invalid(e.to_string()))?;
                             let entry = cx
                                 .entry_header(&eid)
@@ -907,9 +903,7 @@ pub(crate) fn resolve_v3(
                     }
                 }
                 _ => {
-                    if domain == "material" || domain == "material_folder" {
-                        resolve_material_args(&cx.view, name, obj)?;
-                    } else if domain == "relation"
+                    if domain == "relation"
                         && let Some(rt_val) = obj.get_mut("relation_type")
                         && !rt_val.is_null()
                     {
@@ -946,8 +940,7 @@ fn comment_source_doc(target: &Value, module: Option<&Value>) -> Result<String> 
                 .ok_or_else(|| invalid("an entry anchor requires an explicit prose module"))?;
             Ok(format!("body:{id}/{module}"))
         }
-        Some("material") if module.is_none_or(Value::is_null) => Ok(format!("material:{id}")),
-        _ => Err(invalid("an anchor requires entry or text material prose")),
+        _ => Err(invalid("an anchor requires entry prose")),
     }
 }
 
@@ -1804,9 +1797,8 @@ fn resolve_document_v3(
     require_writable: bool,
 ) -> Result<String> {
     let doc = if let Some(raw) = value.as_str() {
-        let parsed = DocId::parse(raw).map_err(|_| {
-            invalid("a document needs its id or an entry/template/material selector")
-        })?;
+        let parsed = DocId::parse(raw)
+            .map_err(|_| invalid("a document needs its id or an entry/template selector"))?;
         if let DocId::Body(body) = &parsed {
             let entry = cx
                 .entry_header(body.entry())
@@ -1841,14 +1833,7 @@ fn resolve_document_v3(
     } else if let Some(obj) = value.as_object() {
         let kind = obj.get("kind").and_then(Value::as_str);
         if kind == Some("material") || obj.contains_key("material") {
-            let selector = obj
-                .get("material")
-                .or_else(|| obj.get("name"))
-                .or_else(|| obj.get("id"))
-                .ok_or_else(|| invalid("material document selector needs name or id"))?;
-            let mid = resolve_material_id(&cx.view, selector)?;
-            DocId::parse(&format!("material:{mid}"))
-                .map_err(|_| invalid("target has no prose document"))?
+            return Err(invalid("material documents are retired; select an entry"));
         } else if kind == Some("template")
             || (obj.contains_key("template") && !obj.contains_key("entry"))
         {
@@ -1887,7 +1872,7 @@ fn resolve_document_v3(
 
     if matches!(
         doc,
-        DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_)
+        DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Material(_)
     ) || (prose_only && doc.profile().is_none())
     {
         return Err(invalid("target is not an authored prose document"));
@@ -1974,7 +1959,6 @@ fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
             };
             ("entry", eid.to_string())
         }
-        "material" => ("material", resolve_material_id(&cx.view, name_or_id)?),
         "comment" => ("comment", resolve_comment_id(&cx.view, name_or_id)?),
         "patch" => {
             let patches = cx.view.patches();
@@ -1985,7 +1969,7 @@ fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
         }
         other => {
             return Err(invalid(format!(
-                "unsupported endpoint kind {other:?}; use entry, material, comment, or patch"
+                "unsupported endpoint kind {other:?}; use entry, comment, or patch"
             )));
         }
     };
@@ -2217,29 +2201,6 @@ fn resolve_timeline_pin_id(
     }
 }
 
-fn resolve_material_id(view: &BookViewV3<'_>, value: &Value) -> Result<String> {
-    let raw = string(value, "material")?;
-    let trimmed = raw.trim();
-    let materials = view.materials();
-    if let Some(m) = materials.iter().find(|m| m.id.as_str() == trimmed) {
-        return Ok(m.id.to_string());
-    }
-    let key = trimmed.to_lowercase();
-    let matches: Vec<_> = materials
-        .iter()
-        .filter(|m| m.title.trim().to_lowercase() == key)
-        .collect();
-    match matches.as_slice() {
-        [m] => Ok(m.id.to_string()),
-        [] => Err(invalid(format!(
-            "material {trimmed:?} was not found in this book"
-        ))),
-        _ => Err(invalid(format!(
-            "material {trimmed:?} is ambiguous; specify its material id"
-        ))),
-    }
-}
-
 fn resolve_comment_id(view: &BookViewV3<'_>, value: &Value) -> Result<String> {
     let raw = string(value, "comment")?;
     let trimmed = raw.trim();
@@ -2259,64 +2220,6 @@ fn resolve_comment_id(view: &BookViewV3<'_>, value: &Value) -> Result<String> {
         ))),
         _ => Err(invalid(format!(
             "comment {trimmed:?} is ambiguous; specify its comment id"
-        ))),
-    }
-}
-
-fn resolve_material_args(
-    view: &BookViewV3<'_>,
-    name: &str,
-    obj: &mut Map<String, Value>,
-) -> Result<()> {
-    let folders = view.material_folders();
-    if let Some(folder_val) = obj.get_mut("folder")
-        && !folder_val.is_null()
-        && !(name == "material.list" && folder_val == "")
-    {
-        let raw = string(folder_val, "folder")?;
-        let fid = resolve_folder_id(&folders, raw)?;
-        *folder_val = fid.into();
-    }
-    if let Some(parent_val) = obj.get_mut("parent")
-        && !parent_val.is_null()
-    {
-        let raw = string(parent_val, "parent")?;
-        let fid = resolve_folder_id(&folders, raw)?;
-        *parent_val = fid.into();
-    }
-    if let Some(id_val) = obj.get_mut("id")
-        && !id_val.is_null()
-        && !name.ends_with(".create")
-    {
-        if name.starts_with("material_folder.") {
-            let raw = string(id_val, "id")?;
-            let fid = resolve_folder_id(&folders, raw)?;
-            *id_val = fid.into();
-        } else {
-            let mid = resolve_material_id(view, id_val)?;
-            *id_val = mid.into();
-        }
-    }
-    Ok(())
-}
-
-fn resolve_folder_id(folders: &[dr_model::shared::MaterialFolder], raw: &str) -> Result<String> {
-    let trimmed = raw.trim();
-    if let Some(f) = folders.iter().find(|f| f.id.as_str() == trimmed) {
-        return Ok(f.id.to_string());
-    }
-    let key = trimmed.to_lowercase();
-    let matches: Vec<_> = folders
-        .iter()
-        .filter(|f| f.name.trim().to_lowercase() == key)
-        .collect();
-    match matches.as_slice() {
-        [f] => Ok(f.id.to_string()),
-        [] => Err(invalid(format!(
-            "material folder {trimmed:?} was not found in this book"
-        ))),
-        _ => Err(invalid(format!(
-            "material folder {trimmed:?} is ambiguous; specify its id"
         ))),
     }
 }

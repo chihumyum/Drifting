@@ -13,8 +13,8 @@
 use dr_model::id::*;
 use dr_model::import_v1::{
     ActId, Asset, BlockSnapshot, CategoryId, CategoryLayout, DriftGroupId, ElementId, EntityRef,
-    KvEntry, MaterialRegion, NodeId, NodeKind, NodeStatus, StorylineId,
-    normalize_relation_type_name,
+    KvEntry, MaterialFolderId, MaterialId, MaterialKind, MaterialRegion, NodeId, NodeKind,
+    NodeStatus, StorylineId, normalize_relation_type_name,
 };
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
@@ -798,12 +798,17 @@ impl<'a> BookTxn<'a> {
     /// the same id with different values is refused.
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
         if let Some(have) = self.view.assets().into_iter().find(|x| x.id == a.id) {
-            if &have == a {
+            if have.same_file(a) {
+                if have.name.is_empty() && !a.name.is_empty() {
+                    let m = self.entity(book::ASSETS, a.id.as_str())?;
+                    set(&m, "name", a.name.as_str())?;
+                }
                 return Ok(());
             }
             return Err(DocError::Locked(format!("asset {}", a.id)));
         }
         let m = self.entity(book::ASSETS, a.id.as_str())?;
+        set(&m, "name", a.name.as_str())?;
         set(&m, "kind", &a.kind)?;
         set(&m, "mime", a.mime.as_str())?;
         set(&m, "size", a.size)?;

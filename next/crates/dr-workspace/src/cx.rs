@@ -50,8 +50,7 @@ pub struct Effect {
     pub action: EffectAction,
     /// Entity kind: `book`, `entry`, `entry_template`, `membership`,
     /// `timeline_view`, `time_pin`, `patch`, `plot_grid`, `relation`,
-    /// `relation_type`, `comment`, `material`, `material_folder`, `fact`,
-    /// `memory`, `asset`, `prose`.
+    /// `relation_type`, `comment`, `fact`, `memory`, `asset`, `prose`.
     pub kind: String,
     pub id: String,
     /// The entity's (final) name or title, when it has one.

@@ -8,7 +8,7 @@ pub use crate::commands::comment_shared::{
 use crate::commands::comment_shared::{
     MARKER_META_KIND, ProjectionMeta, TASK_META_KIND, anchor_known_in, decode_anchor, has_seen,
 };
-use crate::commands::{materials, purge_fallout};
+use crate::commands::purge_fallout;
 use crate::dto::{AnchorBytes, CommentAnchor, CommentPartDto, Region};
 use dr_doc::prose::{BorrowedProse, EmbedView};
 use dr_model::DocId;
@@ -26,7 +26,7 @@ fn comments(slot: &BookSlot) -> Vec<Comment> {
 }
 
 fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
-    if !matches!(kind, EntityKind::Entry | EntityKind::Material)
+    if !kind.may_be_commented_v3()
         || !slot
             .reader_v3
             .view()
@@ -39,32 +39,18 @@ fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
 
 fn prose_of(cx: &Cx<'_>, slot: &BookSlot, target: &Target, module: Option<&str>) -> Result<DocId> {
     require_live(slot, EntityKind::from(target.kind.as_str()), &target.id)?;
-    if target.kind == "entry" {
-        let module =
-            module.ok_or_else(|| WsError::invalid("an entry prose target requires a module"))?;
-        Ok(super::module::document(
-            cx,
-            &super::module::ProseIn {
-                book: slot.book.to_string(),
-                owner: target.id.clone(),
-                module: module.into(),
-                template: false,
-            },
-        )?
-        .1)
-    } else if module.is_none()
-        && materials(slot)
-            .iter()
-            .any(|m| m.id.as_str() == target.id && m.kind == dr_model::kind::MaterialKind::Text)
-    {
-        let doc = DocId::Material(pid("material", &target.id)?);
-        owns(cx, slot, &doc)?;
-        Ok(doc)
-    } else {
-        Err(WsError::invalid(
-            "only text material has prose; materials have no module",
-        ))
-    }
+    let module =
+        module.ok_or_else(|| WsError::invalid("an entry prose target requires a module"))?;
+    Ok(super::module::document(
+        cx,
+        &super::module::ProseIn {
+            book: slot.book.to_string(),
+            owner: target.id.clone(),
+            module: module.into(),
+            template: false,
+        },
+    )?
+    .1)
 }
 
 fn active_entry_module(
@@ -95,15 +81,15 @@ fn file_embeds_in_prose(cx: &Cx<'_>, doc: &DocId) -> HashSet<EmbedId> {
     view.embed_refs()
         .into_iter()
         .map(|(_, eid)| eid)
-        .filter(|eid| matches!(view.embed(eid), Some(EmbedView::Material { .. })))
+        .filter(|eid| matches!(view.embed(eid), Some(EmbedView::Asset { .. })))
         .collect()
 }
 
-/// A comment target. Old structural kinds are not accepted.
+/// A comment target (`entry`). Old structural kinds and `material` are not accepted.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CommentTargetV3")]
 pub struct Target {
-    /// `entry` or `material`.
+    /// `entry`.
     pub kind: String,
     pub id: String,
 }
@@ -124,7 +110,7 @@ impl From<&EntityRef> for Target {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CommentProjectIn")]
 pub struct CommentProjectIn {
-    /// `body:<entry>/<module>` or `material:<id>` of a book.
+    /// `body:<entry>/<module>` of a book.
     pub doc: String,
     /// Paragraphs starting with TODO / 待办 markers.
     #[serde(default)]
@@ -140,7 +126,7 @@ pub struct CommentProjectIn {
 #[schemars(rename = "CommentInfoV3")]
 pub struct CommentInfo {
     pub id: String,
-    /// Module on `target` (any module kind); null for whole-entry, material or floating comments.
+    /// Module on `target` (any module kind); null for whole-entry or floating comments.
     pub module: Option<String>,
     /// Sub-part inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`).
     pub part: Option<CommentPartDto>,
@@ -255,10 +241,10 @@ pub struct CommentCreateIn {
 #[schemars(rename = "CommentAnchorsInV3")]
 pub struct CommentAnchorsIn {
     pub book: String,
-    /// The entry's prose module; omit for a material.
+    /// The entry's prose module.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
-    /// The entity whose prose the anchors are in.
+    /// The entry whose prose the anchors are in.
     pub target: Target,
 }
 
@@ -385,43 +371,20 @@ op! {
                                         return Err(WsError::not_found("patch", patch.as_str()));
                                     }
                                 }
-                                CommentPart::Media { .. } | CommentPart::Region { .. } => {
-                                    return Err(WsError::invalid("comment part is not supported on this module"));
+                                CommentPart::Media { item, .. } => {
+                                    if !entry
+                                        .media
+                                        .get(&mod_spec.id)
+                                        .is_some_and(|items| items.iter().any(|it| &it.id == item))
+                                    {
+                                        return Err(WsError::not_found("media", item.as_str()));
+                                    }
                                 }
                             }
                         }
                         Some(mod_spec.id)
                     }
                 }
-            }
-            Some(t) if t.kind == "material" => {
-                require_live(&slot, EntityKind::Material, &t.id)?;
-                if input.module.is_some() {
-                    return Err(WsError::invalid("only entries have modules; materials have no module"));
-                }
-                match &part {
-                    Some(CommentPart::Region { .. }) => {
-                        if needs_prose {
-                            return Err(WsError::invalid("an image or PDF region comment cannot carry prose anchors"));
-                        }
-                        let is_file = materials(&slot)
-                            .iter()
-                            .find(|m| m.id.as_str() == t.id)
-                            .is_some_and(|m| m.kind.needs_asset());
-                        if !is_file {
-                            return Err(WsError::invalid("a region is on an image or PDF material"));
-                        }
-                    }
-                    Some(_) => {
-                        return Err(WsError::invalid("material comments only support region parts"));
-                    }
-                    None => {
-                        if needs_prose {
-                            prose_of(cx, &slot, t, None)?;
-                        }
-                    }
-                }
-                None
             }
             Some(t) => return Err(WsError::not_found("comment target", &t.id)),
         };
@@ -641,8 +604,7 @@ op! {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
         let (owner, module) = match &doc {
             DocId::Body(b) => (EntityRef::new(EntityKind::Entry, b.entry().as_str()), Some(b.module().clone())),
-            DocId::Material(id) => (EntityRef::new(EntityKind::Material, id.as_str()), None),
-            _ => return Err(WsError::invalid("projected comments require entry prose or a material note")),
+            _ => return Err(WsError::invalid("projected comments require entry prose")),
         };
         let ps = cx.prose(&doc)?;
         let book = ps.book.clone().ok_or_else(|| WsError::invalid(format!("{} belongs to no book", input.doc)))?;

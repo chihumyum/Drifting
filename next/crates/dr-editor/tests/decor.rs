@@ -542,17 +542,18 @@ fn task_items_tick_their_box_or_their_todo(cx: &mut TestAppContext) {
     use gpui_prose::render::ListMark;
     use gpui_prose::schema::block;
     let e = env();
-    // Lists live in material notes.
-    let material = out(
+    // Lists live in notes.
+    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
+    let note = out(
         &e.ws,
         &Actor::User,
-        "material.create",
-        json!({"book": e.book, "kind": "text", "title": "清单", "text": "买灯芯\n问钟楼的年代"}),
+        "entry.create",
+        json!({"book": e.book, "parent": parent, "template": "tpl-note", "title": "清单", "bodies": {"mod-prose": "买灯芯\n问钟楼的年代"}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc = format!("material:{material}");
+    let doc = format!("body:{note}/mod-prose");
     let todo = out(
         &e.ws,
         &Actor::User,
@@ -663,16 +664,18 @@ fn a_comments_original_passage_says_when_the_prose_changed() {
 fn code_blocks_and_callouts_are_written_in_notes(cx: &mut TestAppContext) {
     use gpui_prose::schema::block;
     let e = env();
-    let material = out(
+    let parent = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-materials");
+    let note = out(
         &e.ws,
         &Actor::User,
-        "material.create",
-        json!({"book": e.book, "kind": "text", "title": "笔记", "text": "后盖    左上格\n拆之前先拍一张照。"}),
+        "entry.create",
+        json!({"book": e.book, "parent": parent, "template": "tpl-note", "title": "笔记", "bodies": {"mod-prose": "后盖    左上格\n拆之前先拍一张照。"}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let (view, cx) = open(cx, &e, &format!("material:{material}"));
+    let doc = format!("body:{note}/mod-prose");
+    let (view, cx) = open(cx, &e, &doc);
     let editor = prose(&view, cx);
     editor.update_in(cx, |e, window, cx| {
         e.edit_chapter(0, gpui_prose::HostStep::Own, window, cx, move |d| {
@@ -690,7 +693,7 @@ fn code_blocks_and_callouts_are_written_in_notes(cx: &mut TestAppContext) {
     // Kept in the note's document, not only on the screen.
     let stored =
         e.ws.library()
-            .open_doc(&format!("material:{material}"), dr_store::OpenDoc::Existing)
+            .open_doc(&doc, dr_store::OpenDoc::Existing)
             .unwrap()
             .read(|d| {
                 let text = d.get_text(dr_doc::schema::prose::BODY);

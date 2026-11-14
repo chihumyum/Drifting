@@ -45,6 +45,12 @@ expression: json
         "mime": {
           "type": "string"
         },
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
         "size": {
           "description": "Bytes.",
           "format": "int64",
@@ -60,16 +66,98 @@ expression: json
       },
       "required": [
         "id",
+        "name",
         "kind",
         "mime",
         "size",
+        "sha256",
         "width",
         "height"
       ],
       "title": "AssetInfo",
       "type": "object"
     },
-    "summary": "Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings)."
+    "summary": "Read an asset's recorded metadata: name, kind, media type, size, sha256 and pixel dimensions."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "asset.list",
+    "output": {
+      "$defs": {
+        "AssetInfo": {
+          "description": "An asset's recorded metadata.",
+          "properties": {
+            "height": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`image` or `pdf`.",
+              "type": "string"
+            },
+            "mime": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "size": {
+              "description": "Bytes.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "width": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "kind",
+            "mime",
+            "size",
+            "sha256",
+            "width",
+            "height"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/AssetInfo"
+      },
+      "title": "Array_of_AssetInfo",
+      "type": "array"
+    },
+    "summary": "List every asset recorded in the book, sorted by asset id."
   },
   {
     "access": "write",
@@ -95,6 +183,11 @@ expression: json
           "type": "string"
         },
         "mime": {
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "description": "Display filename (`assets.<id>.name`); optional for idempotent callers.",
           "type": "string"
         },
         "sha256": {
@@ -670,6 +763,17 @@ expression: json
               "description": "The entry's own switch (`层级`): whether entries can live under it.",
               "type": "boolean"
             },
+            "media": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/MediaItem"
+                },
+                "type": "array"
+              },
+              "default": {},
+              "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
             "name_conflict": {
               "default": null,
               "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -735,6 +839,7 @@ expression: json
             "overrides",
             "fields",
             "kv",
+            "media",
             "primary",
             "layout",
             "created_at",
@@ -978,6 +1083,38 @@ expression: json
             "accept",
             "format_shortcuts",
             "lane"
+          ],
+          "type": "object"
+        },
+        "MediaItem": {
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "missing": {
+              "description": "Set by readers when `asset` is not registered in the book's `assets`\n(`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.",
+              "type": "boolean"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "asset",
+            "caption",
+            "pos"
           ],
           "type": "object"
         },
@@ -1498,13 +1635,13 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A comment target. Old structural kinds are not accepted.",
+          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry` or `material`.",
+              "description": "`entry`.",
               "type": "string"
             }
           },
@@ -1520,7 +1657,7 @@ expression: json
           "type": "string"
         },
         "module": {
-          "description": "The entry's prose module; omit for a material.",
+          "description": "The entry's prose module.",
           "type": [
             "string",
             "null"
@@ -1528,7 +1665,7 @@ expression: json
         },
         "target": {
           "$ref": "#/$defs/CommentTargetV3",
-          "description": "The entity whose prose the anchors are in."
+          "description": "The entry whose prose the anchors are in."
         }
       },
       "required": [
@@ -1743,34 +1880,17 @@ expression: json
                 "item"
               ],
               "type": "object"
-            },
-            {
-              "description": "Region on an image or PDF material (transitional until Step 4).",
-              "properties": {
-                "kind": {
-                  "const": "region",
-                  "type": "string"
-                },
-                "region": {
-                  "$ref": "#/$defs/Region"
-                }
-              },
-              "required": [
-                "kind",
-                "region"
-              ],
-              "type": "object"
             }
           ]
         },
         "CommentTargetV3": {
-          "description": "A comment target. Old structural kinds are not accepted.",
+          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry` or `material`.",
+              "description": "`entry`.",
               "type": "string"
             }
           },
@@ -1983,13 +2103,13 @@ expression: json
     "input": {
       "$defs": {
         "CommentTargetV3": {
-          "description": "A comment target. Old structural kinds are not accepted.",
+          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry` or `material`.",
+              "description": "`entry`.",
               "type": "string"
             }
           },
@@ -2082,7 +2202,7 @@ expression: json
               "type": "string"
             },
             "module": {
-              "description": "Module on `target` (any module kind); null for whole-entry, material or floating comments.",
+              "description": "Module on `target` (any module kind); null for whole-entry or floating comments.",
               "type": [
                 "string",
                 "null"
@@ -2309,34 +2429,17 @@ expression: json
                 "item"
               ],
               "type": "object"
-            },
-            {
-              "description": "Region on an image or PDF material (transitional until Step 4).",
-              "properties": {
-                "kind": {
-                  "const": "region",
-                  "type": "string"
-                },
-                "region": {
-                  "$ref": "#/$defs/Region"
-                }
-              },
-              "required": [
-                "kind",
-                "region"
-              ],
-              "type": "object"
             }
           ]
         },
         "CommentTargetV3": {
-          "description": "A comment target. Old structural kinds are not accepted.",
+          "description": "A comment target (`entry`). Old structural kinds and `material` are not accepted.",
           "properties": {
             "id": {
               "type": "string"
             },
             "kind": {
-              "description": "`entry` or `material`.",
+              "description": "`entry`.",
               "type": "string"
             }
           },
@@ -2440,7 +2543,7 @@ expression: json
       },
       "properties": {
         "doc": {
-          "description": "`body:<entry>/<module>` or `material:<id>` of a book.",
+          "description": "`body:<entry>/<module>` of a book.",
           "type": "string"
         },
         "editing": {
@@ -2968,6 +3071,38 @@ expression: json
           ],
           "type": "object"
         },
+        "MediaItem": {
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "missing": {
+              "description": "Set by readers when `asset` is not registered in the book's `assets`\n(`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.",
+              "type": "boolean"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "asset",
+            "caption",
+            "pos"
+          ],
+          "type": "object"
+        },
         "SettingSource": {
           "description": "Where one resolved setting comes from (the same precedence as its value).",
           "oneOf": [
@@ -3096,6 +3231,17 @@ expression: json
           "description": "The entry's own switch (`层级`): whether entries can live under it.",
           "type": "boolean"
         },
+        "media": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/MediaItem"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+          "type": "object"
+        },
         "name_conflict": {
           "default": null,
           "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -3161,6 +3307,7 @@ expression: json
         "overrides",
         "fields",
         "kv",
+        "media",
         "primary",
         "layout",
         "created_at",
@@ -3471,6 +3618,38 @@ expression: json
           ],
           "type": "object"
         },
+        "MediaItem": {
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "missing": {
+              "description": "Set by readers when `asset` is not registered in the book's `assets`\n(`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.",
+              "type": "boolean"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "asset",
+            "caption",
+            "pos"
+          ],
+          "type": "object"
+        },
         "SettingSource": {
           "description": "Where one resolved setting comes from (the same precedence as its value).",
           "oneOf": [
@@ -3599,6 +3778,17 @@ expression: json
           "description": "The entry's own switch (`层级`): whether entries can live under it.",
           "type": "boolean"
         },
+        "media": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/MediaItem"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+          "type": "object"
+        },
         "name_conflict": {
           "default": null,
           "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -3664,6 +3854,7 @@ expression: json
         "overrides",
         "fields",
         "kv",
+        "media",
         "primary",
         "layout",
         "created_at",
@@ -3817,6 +4008,17 @@ expression: json
               "description": "The entry's own switch (`层级`): whether entries can live under it.",
               "type": "boolean"
             },
+            "media": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/MediaItem"
+                },
+                "type": "array"
+              },
+              "default": {},
+              "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
             "name_conflict": {
               "default": null,
               "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -3882,6 +4084,7 @@ expression: json
             "overrides",
             "fields",
             "kv",
+            "media",
             "primary",
             "layout",
             "created_at",
@@ -4125,6 +4328,38 @@ expression: json
             "accept",
             "format_shortcuts",
             "lane"
+          ],
+          "type": "object"
+        },
+        "MediaItem": {
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "missing": {
+              "description": "Set by readers when `asset` is not registered in the book's `assets`\n(`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.",
+              "type": "boolean"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "asset",
+            "caption",
+            "pos"
           ],
           "type": "object"
         },
@@ -4591,7 +4826,7 @@ expression: json
         "Key": {
           "properties": {
             "collection": {
-              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory, material_folders or project.",
+              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, facts, memory or project.",
               "type": "string"
             },
             "id": {
@@ -7724,7 +7959,7 @@ expression: json
       "description": "A prose document.",
       "properties": {
         "doc": {
-          "description": "Shared material note prose: `material:<id>`. Entry bodies use\nthe complete `entry_snapshot` history and atomic restore protocol.",
+          "description": "Shared template-module prose: `template:<book>/<template>/<module>`.\nEntry bodies use the complete `entry_snapshot` history and atomic restore protocol.",
           "type": "string"
         }
       },
@@ -8038,650 +8273,7 @@ expression: json
       "title": "PointRestored",
       "type": "object"
     },
-    "summary": "Restore one material note and its metadata from history; entry bodies require complete-entry snapshots."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "$defs": {
-        "Place": {
-          "description": "Where to put something in an ordered list.",
-          "oneOf": [
-            {
-              "const": "first",
-              "description": "At the start.",
-              "type": "string"
-            },
-            {
-              "const": "last",
-              "description": "At the end.",
-              "type": "string"
-            },
-            {
-              "additionalProperties": false,
-              "description": "Right after the item with this id.",
-              "properties": {
-                "after": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "after"
-              ],
-              "type": "object"
-            },
-            {
-              "additionalProperties": false,
-              "description": "Right before the item with this id.",
-              "properties": {
-                "before": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "before"
-              ],
-              "type": "object"
-            }
-          ]
-        }
-      },
-      "properties": {
-        "asset": {
-          "description": "The asset of an image or PDF material (registered with `asset.put`).",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "book": {
-          "type": "string"
-        },
-        "description": {
-          "default": "",
-          "type": "string"
-        },
-        "folder": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "kind": {
-          "description": "`text`, `image` or `pdf`.",
-          "type": "string"
-        },
-        "place": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Place"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "text": {
-          "description": "A text material's note.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "title": {
-          "default": "",
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "kind"
-      ],
-      "title": "MaterialCreateIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material.create",
-    "output": {
-      "description": "The entity a command created or renamed, with its final name.",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ],
-      "title": "Named",
-      "type": "object"
-    },
-    "summary": "Add a material: a text note, or an image or PDF whose asset is registered."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "description": "One entity of a book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "EntityIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material.delete",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it)."
-  },
-  {
-    "access": "read",
-    "concurrency": "shared",
-    "input": {
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "folder": {
-          "description": "Only this folder's materials (`\"\"`: at the top level).",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "book"
-      ],
-      "title": "MaterialListIn",
-      "type": "object"
-    },
-    "kind": "query",
-    "name": "material.list",
-    "output": {
-      "$defs": {
-        "MaterialInfo": {
-          "properties": {
-            "asset": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "description": {
-              "type": "string"
-            },
-            "folder": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "description": "`image`, `pdf` or `text`.",
-              "type": "string"
-            },
-            "pos": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "task_todos": {
-              "type": "boolean"
-            },
-            "title": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "title",
-            "kind",
-            "asset",
-            "folder",
-            "pos",
-            "task_todos",
-            "description"
-          ],
-          "type": "object"
-        }
-      },
-      "items": {
-        "$ref": "#/$defs/MaterialInfo"
-      },
-      "title": "Array_of_MaterialInfo",
-      "type": "array"
-    },
-    "summary": "List materials in order, optionally of one folder."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "$defs": {
-        "Place": {
-          "description": "Where to put something in an ordered list.",
-          "oneOf": [
-            {
-              "const": "first",
-              "description": "At the start.",
-              "type": "string"
-            },
-            {
-              "const": "last",
-              "description": "At the end.",
-              "type": "string"
-            },
-            {
-              "additionalProperties": false,
-              "description": "Right after the item with this id.",
-              "properties": {
-                "after": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "after"
-              ],
-              "type": "object"
-            },
-            {
-              "additionalProperties": false,
-              "description": "Right before the item with this id.",
-              "properties": {
-                "before": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "before"
-              ],
-              "type": "object"
-            }
-          ]
-        }
-      },
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "place": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Place"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "pos": {
-          "description": "An exact position key (undo uses it).",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "MaterialMoveIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material.move",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Move a material in the list (only its own position changes)."
-  },
-  {
-    "access": "write",
-    "book_version": 5,
-    "concurrency": "book",
-    "input": {
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "entry": {
-          "type": "string"
-        },
-        "linked": {
-          "type": "boolean"
-        },
-        "material": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "material",
-        "entry",
-        "linked"
-      ],
-      "title": "SetEntryLinkIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material.set_entry_link",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Add or remove one built-in association from a material to a live entry, preserving every other relation."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "folder": {
-          "description": "Move to this folder (`null`: the top level).",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "task_todos": {
-          "description": "Whether a text material's checklist items project into TODOs.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "MaterialUpdateIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material.update",
-    "output": {
-      "description": "The entity a command created or renamed, with its final name.",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ],
-      "title": "Named",
-      "type": "object"
-    },
-    "summary": "Change a material's title, description, folder or TODO projection."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "book",
-        "name"
-      ],
-      "title": "FolderCreateIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material_folder.create",
-    "output": {
-      "description": "The entity a command created or renamed, with its final name.",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ],
-      "title": "Named",
-      "type": "object"
-    },
-    "summary": "Create a material folder."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "description": "One entity of a book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "EntityIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material_folder.delete",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Delete a material folder: its sub-folders and materials move up to its parent."
-  },
-  {
-    "access": "read",
-    "concurrency": "shared",
-    "input": {
-      "description": "A book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book"
-      ],
-      "title": "BookIn",
-      "type": "object"
-    },
-    "kind": "query",
-    "name": "material_folder.list",
-    "output": {
-      "$defs": {
-        "GroupInfo": {
-          "properties": {
-            "color": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "parent": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "name",
-            "color",
-            "parent"
-          ],
-          "type": "object"
-        }
-      },
-      "items": {
-        "$ref": "#/$defs/GroupInfo"
-      },
-      "title": "Array_of_GroupInfo",
-      "type": "array"
-    },
-    "summary": "List material folders (素材夹), parents before children."
-  },
-  {
-    "access": "write",
-    "concurrency": "book",
-    "input": {
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "FolderUpdateIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "material_folder.update",
-    "output": {
-      "description": "The entity a command created or renamed, with its final name.",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ],
-      "title": "Named",
-      "type": "object"
-    },
-    "summary": "Rename or move a material folder."
+    "summary": "Restore one template-module prose document from history; entry bodies require complete-entry snapshots."
   },
   {
     "access": "write",
@@ -8958,7 +8550,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },
@@ -9107,7 +8699,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },
@@ -10061,6 +9653,83 @@ expression: json
     "book_version": 5,
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "MediaItem": {
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "missing": {
+              "description": "Set by readers when `asset` is not registered in the book's `assets`\n(`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.",
+              "type": "boolean"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "asset"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "item": {
+          "$ref": "#/$defs/MediaItem"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "item"
+      ],
+      "title": "MediaPutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.put_media",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add or update an ordered file item in an entry's media module."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
       "properties": {
         "body": {
           "type": "string"
@@ -10332,6 +10001,17 @@ expression: json
               "description": "The entry's own switch (`层级`): whether entries can live under it.",
               "type": "boolean"
             },
+            "media": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/MediaItem"
+                },
+                "type": "array"
+              },
+              "default": {},
+              "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
             "name_conflict": {
               "default": null,
               "description": "Set by readers when this entry participates in auto-linking and its\ntitle or alias collides with an earlier auto-linked entry (`V3-AUTOLINK-NAME-UNIQUE`).",
@@ -10397,6 +10077,7 @@ expression: json
             "overrides",
             "fields",
             "kv",
+            "media",
             "primary",
             "layout",
             "created_at",
@@ -10753,6 +10434,38 @@ expression: json
             "id",
             "pos",
             "label"
+          ],
+          "type": "object"
+        },
+        "MediaItem": {
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "missing": {
+              "description": "Set by readers when `asset` is not registered in the book's `assets`\n(`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.",
+              "type": "boolean"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "asset",
+            "caption",
+            "pos"
           ],
           "type": "object"
         },
@@ -11202,6 +10915,12 @@ expression: json
           },
           "type": "array"
         },
+        "media": {
+          "items": {
+            "$ref": "#/$defs/MediaItem"
+          },
+          "type": "array"
+        },
         "module": {
           "$ref": "#/$defs/Summary"
         },
@@ -11222,6 +10941,7 @@ expression: json
         "module",
         "fields",
         "kv",
+        "media",
         "patches",
         "grid",
         "relations"
@@ -11368,6 +11088,51 @@ expression: json
       "type": "object"
     },
     "summary": "Remove a key/value row from a module."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "item"
+      ],
+      "title": "MediaRemoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.remove_media",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a file item from an entry's media module."
   },
   {
     "access": "write",
@@ -13230,7 +12995,7 @@ expression: json
             },
             "target": {
               "$ref": "#/$defs/Target",
-              "description": "A canonical entry or material. This inverse represents bare links;\nricher existing marks must use the versioned prose edit protocol."
+              "description": "A canonical entry. This inverse represents bare links;\nricher existing marks must use the versioned prose edit protocol."
             }
           },
           "required": [
@@ -13247,7 +13012,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },
@@ -13305,7 +13070,7 @@ expression: json
     "input": {
       "properties": {
         "doc": {
-          "description": "Canonical prose: `body:<entry>/<module>`, `material:<id>` or\n`template:<book>/<template>/<module>`.",
+          "description": "Canonical prose: `body:<entry>/<module>` or `template:<book>/<template>/<module>`.",
           "type": "string"
         },
         "from": {
@@ -13503,7 +13268,7 @@ expression: json
     "input": {
       "properties": {
         "doc": {
-          "description": "A canonical body, template module or material prose document.",
+          "description": "A canonical body or template-module prose document.",
           "type": "string"
         }
       },
@@ -13528,7 +13293,7 @@ expression: json
           "type": "integer"
         },
         "embeds": {
-          "description": "The materials it embeds, in order (repeats kept).",
+          "description": "The assets it embeds, in order (repeats kept).",
           "items": {
             "type": "string"
           },
@@ -13547,7 +13312,7 @@ expression: json
           "type": "integer"
         },
         "tasks": {
-          "description": "Checklist items (a note's tasks) and how many are checked.",
+          "description": "Checklist items and how many are checked.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -13564,7 +13329,7 @@ expression: json
       "title": "ProseShapeOut",
       "type": "object"
     },
-    "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds."
+    "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds."
   },
   {
     "access": "write",
@@ -13601,7 +13366,7 @@ expression: json
             },
             "target": {
               "$ref": "#/$defs/Target",
-              "description": "A canonical entry or material. This inverse represents bare links;\nricher existing marks must use the versioned prose edit protocol."
+              "description": "A canonical entry. This inverse represents bare links;\nricher existing marks must use the versioned prose edit protocol."
             }
           },
           "required": [
@@ -13618,7 +13383,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },
@@ -13724,11 +13489,11 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "entry or material.",
+              "description": "`entry`.",
               "type": "string"
             },
             "module": {
-              "description": "The selected entry module; omit for the whole entry or a material.",
+              "description": "The selected entry module; omit for the whole entry.",
               "type": [
                 "string",
                 "null"
@@ -13762,11 +13527,11 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "entry or material.",
+              "description": "`entry`.",
               "type": "string"
             },
             "module": {
-              "description": "The selected entry module; omit for the whole entry or a material.",
+              "description": "The selected entry module; omit for the whole entry.",
               "type": [
                 "string",
                 "null"
@@ -13810,7 +13575,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Record an entry and optional module, or a material, on this device without an undo step."
+    "summary": "Record an entry and optional module on this device without an undo step."
   },
   {
     "access": "write",
@@ -13825,7 +13590,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },
@@ -13941,7 +13706,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },
@@ -14015,7 +13780,7 @@ expression: json
               "type": "string"
             },
             "kind": {
-              "description": "Canonical `entry`, `patch`, `comment` or `material`.",
+              "description": "Canonical `entry`, `patch` or `comment`.",
               "type": "string"
             }
           },

@@ -16,7 +16,7 @@
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use dr_model::id::MaterialId;
+use dr_model::id::AssetId;
 use dr_store::asset::Variant;
 use dr_ui::sand::{self, Icon};
 use gpui::{
@@ -39,13 +39,13 @@ pub struct MaterialFacts {
     pub picture: Option<PathBuf>,
 }
 
-/// Material `id`'s title, if it is in the book.
+/// Asset `id`'s name, if it is in the book.
 pub(crate) fn title_of(host: &NoteHost, id: &str) -> Option<String> {
     let list = host
         .ws
         .call(
             &dr_workspace::Actor::User,
-            "material.list",
+            "asset.list",
             json!({ "book": host.book }),
         )
         .ok()?;
@@ -53,20 +53,20 @@ pub(crate) fn title_of(host: &NoteHost, id: &str) -> Option<String> {
         .as_array()?
         .iter()
         .find(|m| m["id"].as_str() == Some(id))
-        .and_then(|m| m["title"].as_str().map(str::to_owned))
+        .and_then(|m| m["name"].as_str().map(str::to_owned))
 }
 
-/// One embedded material.
+/// One embedded asset.
 pub struct MaterialBlock {
     host: Rc<NoteHost>,
     embed: String,
-    material: Option<MaterialId>,
+    material: Option<AssetId>,
     facts: Option<Option<MaterialFacts>>,
     pub(crate) selected: bool,
 }
 
 impl MaterialBlock {
-    pub(crate) fn new(host: Rc<NoteHost>, embed: &str, material: Option<MaterialId>) -> Self {
+    pub(crate) fn new(host: Rc<NoteHost>, embed: &str, material: Option<AssetId>) -> Self {
         MaterialBlock {
             host,
             embed: embed.to_owned(),
@@ -97,7 +97,7 @@ impl MaterialBlock {
             .ws
             .call(
                 &dr_workspace::Actor::User,
-                "material.list",
+                "asset.list",
                 json!({ "book": self.host.book }),
             )
             .ok()?;
@@ -107,7 +107,7 @@ impl MaterialBlock {
             .find(|m| m["id"].as_str() == Some(id.as_str()))?
             .clone();
         let kind = m["kind"].as_str().unwrap_or("image").to_owned();
-        let asset = m["asset"].as_str();
+        let asset = m["id"].as_str();
         let path = |variant: Variant| {
             let record = self.host.ws.library().asset(asset?, variant).ok()??;
             record.path.exists().then_some(record.path)
@@ -118,7 +118,7 @@ impl MaterialBlock {
             path(Variant::Display).or_else(|| path(Variant::Source))
         };
         Some(MaterialFacts {
-            title: m["title"].as_str().unwrap_or_default().to_owned(),
+            title: m["name"].as_str().unwrap_or_default().to_owned(),
             kind,
             picture,
         })

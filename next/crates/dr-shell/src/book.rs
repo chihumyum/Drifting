@@ -7,10 +7,32 @@ use dr_workspace::{
         book::{BookList, ListBooksIn},
         prose::{ProseRead, ProseReadIn},
     },
-    dto::{GroupInfo, MaterialInfo},
+    dto::GroupInfo,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 pub mod v3;
+
+/// Temporary UI-side row bridging `dr-view-material` / `dr-view-shelf-review`
+/// over v5 `entry.media` + `assets` until T5 replaces the shelf with the v5
+/// file index.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MaterialInfo {
+    pub id: String,
+    pub kind: String,
+    pub title: String,
+    pub description: String,
+    pub asset: Option<String>,
+    pub folder: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pos: Option<String>,
+    #[serde(default)]
+    pub task_todos: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
+}
 #[derive(Default)]
 pub enum Snapshot {
     #[default]
@@ -131,7 +153,6 @@ pub fn doc_of(target: &Target) -> Option<String> {
             id,
             module: Some(module),
         } => Some(format!("body:{id}/{module}")),
-        Target::Material(id) => Some(format!("material:{id}")),
         _ => None,
     }
 }
@@ -188,7 +209,7 @@ pub fn nav_target(t: &Target) -> NavTarget {
             module: module.clone(),
         },
         Target::Template(id) => NavTarget::Template(id.clone()),
-        Target::Material(id) => NavTarget::Material(id.clone()),
+        Target::Material(_) => NavTarget::Book,
     }
 }
 pub fn target(t: NavTarget) -> Option<Target> {
@@ -196,7 +217,6 @@ pub fn target(t: NavTarget) -> Option<Target> {
         NavTarget::Book => return None,
         NavTarget::Entry { id, module } => Target::Entry { id, module },
         NavTarget::Template(id) => Target::Template(id),
-        NavTarget::Material(id) => Target::Material(id),
     })
 }
 #[cfg(test)]

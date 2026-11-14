@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(current.word_target, Some(12345));
         assert_eq!(current.daily_word_target, original.daily_word_target);
         let after = ws.observe(&format!("book:{book}")).unwrap().value;
-        for key in ["entries", "comments", "materials", "templates"] {
+        for key in ["entries", "comments", "relations", "templates"] {
             assert!(!hidden[key].is_null(), "seed root {key} is present");
             assert_eq!(after[key], hidden[key]);
         }

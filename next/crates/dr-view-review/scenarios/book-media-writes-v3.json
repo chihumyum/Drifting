@@ -6,11 +6,12 @@
       "save": "books"
     },
     {
-      "call": "material.list",
+      "call": "entry.list",
       "input": {
-        "book": "${books.0.id}"
+        "book": "${books.0.id}",
+        "all": true
       },
-      "save": "materials"
+      "save": "entries"
     },
     {
       "call": "comment.list",
@@ -24,8 +25,9 @@
       "input": {
         "book": "${books.0.id}",
         "target": {
-          "kind": "material",
-          "id": "${materials.[kind=image].id}"
+          "kind": "entry",
+          "id": "${entries.[template=tpl-media].id}",
+          "module": "mod-media"
         }
       }
     },
@@ -122,7 +124,7 @@
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "${materials.[kind=image].title}"
+        "label": "${entries.[template=tpl-media].title}"
       }
     },
     {
@@ -178,15 +180,15 @@
       "input": {
         "book": "${books.0.id}",
         "target": {
-          "kind": "material",
-          "id": "${materials.[kind=image].id}"
+          "kind": "entry",
+          "id": "${entries.[template=tpl-media].id}"
         }
       },
       "save": "comments",
       "expect": {
         "/0/body": "${seed_comments.0.body}",
-        "/0/target/kind": "material",
-        "/0/target/id": "${materials.[kind=image].id}",
+        "/0/target/kind": "entry",
+        "/0/target/id": "${entries.[template=tpl-media].id}",
         "/1": null
       }
     },

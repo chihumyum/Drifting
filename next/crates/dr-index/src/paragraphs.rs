@@ -25,8 +25,8 @@ pub struct Block {
     pub(crate) chars: u64,
     /// Entity links: (kind, target) → separate spans in this paragraph.
     pub(crate) links: BTreeMap<(String, String), u32>,
-    /// The material a material embed shows.
-    pub(crate) material: Option<String>,
+    /// The asset a file embed shows.
+    pub(crate) asset: Option<String>,
 }
 
 impl Block {
@@ -52,10 +52,8 @@ impl Block {
             previous = here;
         }
         let embed = p.embed().cloned();
-        let material = embed.as_ref().and_then(|id| match view.embed(id) {
-            Some(EmbedView::Material {
-                material: Some(m), ..
-            }) => Some(m.as_str().to_string()),
+        let asset = embed.as_ref().and_then(|id| match view.embed(id) {
+            Some(EmbedView::Asset { asset: Some(a), .. }) => Some(a.as_str().to_string()),
             _ => None,
         });
         Self {
@@ -68,7 +66,7 @@ impl Block {
             words: m.words,
             chars: m.chars,
             links,
-            material,
+            asset,
         }
     }
 }
@@ -122,7 +120,7 @@ impl Block {
 pub(crate) fn references<'b>(blocks: impl IntoIterator<Item = (&'b Block, bool)>) -> Vec<RefRow> {
     let mut out = Vec::new();
     for (b, kept) in blocks {
-        if b.links.is_empty() && b.material.is_none() {
+        if b.links.is_empty() && b.asset.is_none() {
             continue;
         }
         let id = b.visible_id(kept);
@@ -135,11 +133,11 @@ pub(crate) fn references<'b>(blocks: impl IntoIterator<Item = (&'b Block, bool)>
                 count: *count,
             });
         }
-        if let Some(m) = &b.material {
+        if let Some(a) = &b.asset {
             out.push(RefRow {
                 source_block: id.clone(),
-                target_kind: "material".into(),
-                target_id: m.clone(),
+                target_kind: "asset".into(),
+                target_id: a.clone(),
                 kind: RefKind::Embed,
                 count: 1,
             });

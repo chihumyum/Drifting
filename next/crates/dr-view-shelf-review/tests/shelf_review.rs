@@ -1,7 +1,8 @@
 use std::time::{Duration, Instant};
 
 use dr_shell::{
-    Services, SettingsFile, ShellInfo, Workspace, pages::SuperViewHost, workspace::SuperView,
+    Services, SettingsFile, ShellInfo, Workspace, book::MaterialInfo, pages::SuperViewHost,
+    workspace::SuperView,
 };
 use dr_ui::Appearance;
 use dr_view_shelf_review::{
@@ -13,14 +14,7 @@ use dr_view_shelf_review::{
 };
 use dr_workspace::{
     Actor, Workspace as Library, WorkspaceOptions,
-    commands::{
-        material::{MaterialCreate, MaterialCreateIn},
-        v3::{
-            comment::{CommentCreate, CommentCreateIn},
-            material_links::{SetEntryLink, SetEntryLinkIn},
-        },
-    },
-    dto::MaterialInfo,
+    commands::v3::comment::{CommentCreate, CommentCreateIn},
 };
 use gpui::{AppContext as _, Entity, TestAppContext, VisualTestContext};
 
@@ -94,6 +88,8 @@ fn material_query_matches_title_first_words_and_folder_path() {
         pos: None,
         task_todos: false,
         description: String::new(),
+        entry: None,
+        module: None,
     };
     assert!(matches_material(
         &mat,
@@ -164,52 +160,28 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
         .output
         .id;
 
-    let linked_mat = lib
-        .run::<MaterialCreate>(
-            &Actor::User,
-            MaterialCreateIn {
-                book: book_id.clone(),
-                kind: "text".into(),
-                title: "Synthetic Linked Almanac".into(),
-                asset: None,
-                folder: None,
-                place: None,
-                description: String::new(),
-                text: None,
-            },
-        )
-        .expect("create linked material")
-        .output
-        .id;
-
-    let orphan_mat = lib
-        .run::<MaterialCreate>(
-            &Actor::User,
-            MaterialCreateIn {
-                book: book_id.clone(),
-                kind: "text".into(),
-                title: "Synthetic Unsorted Sketch".into(),
-                asset: None,
-                folder: None,
-                place: None,
-                description: String::new(),
-                text: None,
-            },
-        )
-        .expect("create orphan material")
-        .output
-        .id;
-
-    lib.run::<SetEntryLink>(
-        &Actor::User,
-        SetEntryLinkIn {
-            book: book_id.clone(),
-            material: linked_mat.clone(),
-            entry: entry_id.clone(),
-            linked: true,
-        },
+    let linked_mat = dr_view_material::import::import_bytes(
+        &lib,
+        &book_id,
+        None,
+        dr_testkit::media::png(8, 8),
+        "Synthetic Linked Almanac",
     )
-    .expect("link material to entry");
+    .expect("create linked material")
+    .material;
+
+    let orphan_mat = dr_view_material::import::import_bytes(
+        &lib,
+        &book_id,
+        None,
+        dr_testkit::media::png(8, 8),
+        "Synthetic Unsorted Sketch",
+    )
+    .expect("create orphan material")
+    .material;
+
+    dr_view_material::v3::set_entry_link(&lib, &book_id, &linked_mat, &entry_id, true)
+        .expect("link material to entry");
 
     cx.update(|cx| {
         let _ = dr_ui::init(cx);
@@ -300,9 +272,9 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     // 3. Kind chip and search query narrow materials & review items.
     cx.update(|_, cx| {
         view.update(cx, |v, cx| {
-            v.set_kind_enabled("text", false, cx);
-            assert!(!v.visible_materials(cx).iter().any(|m| m.kind == "text"));
-            v.set_kind_enabled("text", true, cx);
+            v.set_kind_enabled("image", false, cx);
+            assert!(!v.visible_materials(cx).iter().any(|m| m.kind == "image"));
+            v.set_kind_enabled("image", true, cx);
             v.set_search_query("lighthouse", cx);
             let counts = v.counts(cx);
             assert_eq!(counts.open_todos, 1);
@@ -584,23 +556,15 @@ fn a_closed_shelf_review_does_not_follow_the_book_and_catches_up_when_shown(
     show(cx, None);
     cx.run_until_parked();
 
-    let added = lib
-        .run::<MaterialCreate>(
-            &Actor::User,
-            MaterialCreateIn {
-                book: book_id,
-                kind: "text".into(),
-                title: "Synthetic note made while the stage is closed".into(),
-                asset: None,
-                folder: None,
-                place: None,
-                description: String::new(),
-                text: None,
-            },
-        )
-        .expect("create a material while the stage is closed")
-        .output
-        .id;
+    let added = dr_view_material::import::import_bytes(
+        &lib,
+        &book_id,
+        None,
+        dr_testkit::media::png(8, 8),
+        "Synthetic media made while the stage is closed",
+    )
+    .expect("create a material while the stage is closed")
+    .material;
 
     // The shell has the new book; the closed view still holds the old one.
     wait(cx, |cx| {

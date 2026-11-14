@@ -18,7 +18,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use dr_doc::prose::{BorrowedProse, EmbedKind, EmbedView};
-use dr_model::id::{EmbedId, MaterialId};
+use dr_model::id::{AssetId, EmbedId};
 use dr_store::DocHandle;
 use dr_workspace::{ProseSession, Workspace};
 use gpui::{AnyElement, App, AppContext, Entity, IntoElement, WeakEntity, Window};
@@ -82,7 +82,7 @@ impl NoteHost {
 #[derive(Clone, Debug, PartialEq)]
 enum Kind {
     Table,
-    Material(Option<MaterialId>),
+    Material(Option<AssetId>),
 }
 
 /// The views of one note's embeds.
@@ -122,7 +122,7 @@ impl NoteEmbeds {
                 let prose = BorrowedProse::new(doc, &doc_id).ok()?;
                 match prose.view().embed(&embed)? {
                     EmbedView::Table { .. } => Some(Kind::Table),
-                    EmbedView::Material { material, .. } => Some(Kind::Material(material)),
+                    EmbedView::Asset { asset, .. } => Some(Kind::Material(asset)),
                     EmbedView::Other { .. } => None,
                 }
             })
@@ -200,12 +200,7 @@ impl NoteEmbeds {
         self.tables.borrow().values().cloned().collect()
     }
 
-    fn material(
-        &self,
-        id: &str,
-        material: Option<MaterialId>,
-        cx: &mut App,
-    ) -> Entity<MaterialBlock> {
+    fn material(&self, id: &str, material: Option<AssetId>, cx: &mut App) -> Entity<MaterialBlock> {
         if let Some(b) = self.materials.borrow().get(id) {
             return b.clone();
         }
@@ -390,17 +385,17 @@ pub fn insert_table(
     Some(id)
 }
 
-/// Inserts material `material` (an image or a PDF) at the body caret.
+/// Inserts asset `material` (an image or a PDF) at the body caret.
 pub fn insert_material(
     embeds: &NoteEmbeds,
     offset: usize,
-    material: MaterialId,
+    material: AssetId,
     cx: &mut App,
 ) -> Option<EmbedId> {
     insert_embed(
         &embeds.host,
         offset,
-        EmbedKind::Material(material),
+        EmbedKind::Asset(material),
         |_| Ok(()),
         cx,
     )

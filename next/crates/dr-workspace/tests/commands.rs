@@ -106,106 +106,298 @@ fn comments_with_anchors_and_metadata() {
 }
 
 #[test]
-fn materials_folders_and_assets() {
+fn assets_and_media_modules() {
     let e = env();
     let b = e.book();
-    let f = e.out("material_folder.create", json!({"book": b, "name": "Refs"}))["id"].clone();
-    let sub = e.out(
-        "material_folder.create",
-        json!({"book": b, "name": "Maps", "parent": f}),
-    )["id"]
-        .clone();
+    let sha = "a".repeat(64);
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-1",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 10,
+            "sha256": sha,
+            "width": 2,
+            "height": 2
+        }),
+    );
+    // Idempotent re-put of the same file can supply a missing display name.
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-1",
+            "name": "harbor.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 10,
+            "sha256": sha,
+            "width": 2,
+            "height": 2
+        }),
+    );
+    // Diverging bytes/dimensions on an existing asset id are rejected (`AST-IMMUTABLE`).
     assert!(matches!(
         e.try_call(
-            "material_folder.update",
-            json!({"book": b, "id": f, "parent": sub})
+            "asset.put",
+            json!({
+                "book": b,
+                "id": "asset-1",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 11,
+                "sha256": sha,
+                "width": 2,
+                "height": 2
+            })
         ),
-        Err(WsError::Invalid(_))
+        Err(WsError::Locked(_))
     ));
-    e.call(
-        "material_folder.update",
-        json!({"book": b, "id": sub, "name": "Atlas"}),
-    );
-    let fs = e.out("material_folder.list", json!({"book": b}));
-    assert_eq!(field(&fs, "name"), [json!("Refs"), json!("Atlas")]);
-    assert_eq!(fs[1]["parent"], f);
-    let t = e.out(
-        "material.create",
-        json!({"book": b, "kind": "text", "title": "Note", "folder": sub, "text": "a note"}),
-    )["id"]
-        .clone();
-    assert_eq!(
-        e.out(
-            "prose.read",
-            json!({"doc": format!("material:{}", t.as_str().unwrap())})
-        )["paragraphs"][0]["text"],
-        "a note"
-    );
-    assert!(
-        matches!(
-            e.try_call(
-                "material.create",
-                json!({"book": b, "kind": "image", "title": "pic"})
-            ),
-            Err(WsError::Violation(_))
+    // Shape validation (`AST-SHAPE`): bad sha256 or image without dimensions is rejected.
+    assert!(matches!(
+        e.try_call(
+            "asset.put",
+            json!({
+                "book": b,
+                "id": "asset-bad-sha",
+                "kind": "pdf",
+                "mime": "application/pdf",
+                "size": 10,
+                "sha256": "short"
+            })
         ),
-        "an image needs its asset"
-    );
-    let sha = "a".repeat(64);
-    e.call("asset.put", json!({"book": b, "id": "asset-1", "kind": "image", "mime": "image/png", "size": 10, "sha256": sha, "width": 2, "height": 2}));
-    assert!(matches!(e.try_call("asset.put", json!({"book": b, "id": "asset-1", "kind": "image", "mime": "image/png", "size": 11, "sha256": sha, "width": 2, "height": 2})), Err(WsError::Locked(_))));
+        Err(WsError::Violation(_))
+    ));
+    assert!(matches!(
+        e.try_call(
+            "asset.put",
+            json!({
+                "book": b,
+                "id": "asset-no-dim",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 10,
+                "sha256": sha
+            })
+        ),
+        Err(WsError::Violation(_))
+    ));
     let got = e.out("asset.get", json!({"book": b, "id": "asset-1"}));
     assert_eq!(
         got,
-        json!({"id": "asset-1", "kind": "image", "mime": "image/png", "size": 10, "width": 2, "height": 2})
+        json!({
+            "id": "asset-1",
+            "name": "harbor.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 10,
+            "sha256": sha,
+            "width": 2,
+            "height": 2
+        })
     );
+    let listed = e.out("asset.list", json!({"book": b}));
+    assert_eq!(listed, json!([got]));
     assert!(matches!(
         e.try_call("asset.get", json!({"book": b, "id": "asset-2"})),
         Err(WsError::NotFound { .. })
     ));
-    let img = e.out(
-        "material.create",
-        json!({"book": b, "kind": "image", "title": "pic", "asset": "asset-1", "place": "first"}),
+
+    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    let media_entry = e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-media",
+            "title": "港湾照片"
+        }),
     )["id"]
-        .clone();
+        .as_str()
+        .unwrap()
+        .to_string();
+    e.call(
+        "module.put_media",
+        json!({
+            "book": b,
+            "entry": media_entry,
+            "module": "mod-media",
+            "item": {
+                "id": "item-1",
+                "asset": "asset-1",
+                "caption": "北岸灯塔",
+                "pos": "a0"
+            }
+        }),
+    );
+    let mod_data = e.out(
+        "module.read",
+        json!({"book": b, "entry": media_entry, "module": "mod-media"}),
+    );
     assert_eq!(
-        ids(&e.out("material.list", json!({"book": b})))[0],
-        img.as_str().unwrap()
+        mod_data["media"],
+        json!([{
+            "id": "item-1",
+            "asset": "asset-1",
+            "caption": "北岸灯塔",
+            "pos": "a0"
+        }])
     );
     e.call(
-        "material.move",
-        json!({"book": b, "id": img, "place": "last"}),
+        "module.remove_media",
+        json!({"book": b, "entry": media_entry, "module": "mod-media", "item": "item-1"}),
     );
-    assert_eq!(
-        ids(&e.out("material.list", json!({"book": b})))
-            .last()
-            .unwrap(),
-        img.as_str().unwrap()
-    );
-    e.call(
-        "material.update",
-        json!({"book": b, "id": t, "description": "about maps", "task_todos": false, "folder": f}),
-    );
-    let m = e.out("material.list", json!({"book": b, "folder": f}));
-    assert_eq!(
-        (m[0]["description"].clone(), m[0]["task_todos"].clone()),
-        (json!("about maps"), json!(false))
-    );
-    e.call("material_folder.delete", json!({"book": b, "id": f}));
-    assert_eq!(
-        e.out("material.list", json!({"book": b, "folder": ""}))
+    assert!(
+        e.out(
+            "module.read",
+            json!({"book": b, "entry": media_entry, "module": "mod-media"})
+        )["media"]
             .as_array()
             .unwrap()
-            .len(),
-        2
+            .is_empty()
     );
-    e.call("material.delete", json!({"book": b, "id": img}));
+    e.ws().undo(&Actor::User).unwrap().unwrap();
     assert_eq!(
-        e.out("material.list", json!({"book": b}))
+        e.out("entry.get", json!({"book": b, "id": media_entry}))["media"]["mod-media"]
             .as_array()
             .unwrap()
             .len(),
         1
+    );
+}
+
+#[test]
+fn media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_on_read() {
+    use dr_model::id::{AssetId, BookId, EmbedId, EntryId, MediaItemId, ModuleId};
+    use dr_model::v3::MediaItem;
+
+    let e = env();
+    let b = e.book();
+    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    let media_entry = e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-media",
+            "title": "海图"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Command layer rejects unregistered assets in `module.put_media`.
+    assert!(matches!(
+        e.try_call(
+            "module.put_media",
+            json!({
+                "book": b,
+                "entry": media_entry,
+                "module": "mod-media",
+                "item": {"id": "item-missing", "asset": "asset-missing", "caption": "missing"}
+            })
+        ),
+        Err(WsError::NotFound { .. })
+    ));
+
+    // Editor session rejects unregistered assets in `insert_asset_embed`, then accepts registered ones.
+    let note_entry = e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-note",
+            "title": "航行笔记",
+            "bodies": {"mod-prose": "记录"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let doc_id = format!("body:{note_entry}/mod-prose");
+    let session = e.ws().prose_session(&doc_id).unwrap();
+    let emb_id = EmbedId::parse("emb-1").unwrap();
+    let unregistered = AssetId::parse("asset-missing").unwrap();
+    assert!(matches!(
+        session.insert_asset_embed(0, &emb_id, &unregistered),
+        Err(WsError::NotFound { .. })
+    ));
+
+    let sha = "d".repeat(64);
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-ok",
+            "name": "chart.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 24,
+            "sha256": sha,
+            "width": 16,
+            "height": 16
+        }),
+    );
+    let registered = AssetId::parse("asset-ok").unwrap();
+    session.insert_asset_embed(0, &emb_id, &registered).unwrap();
+    assert_eq!(
+        e.out("prose.shape", json!({"doc": doc_id}))["embeds"],
+        json!(["asset-ok"])
+    );
+
+    // Sync/import tolerance: a media item or prose embed referencing a missing asset reads without panic
+    // and reports `missing: true` on `MediaItem`.
+    let book_id = BookId::parse(&b).unwrap();
+    let entry_id = EntryId::parse(&media_entry).unwrap();
+    let h = e
+        .ws()
+        .library()
+        .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
+        .unwrap();
+    h.write(dr_store::Origin::Sync, move |doc| {
+        let bb = dr_doc::v3::BorrowedBookV3::new(doc, &book_id).unwrap();
+        bb.txn()
+            .entries()
+            .entry(&entry_id)
+            .unwrap()
+            .put_media(
+                &ModuleId::parse("mod-media").unwrap(),
+                &MediaItem {
+                    id: MediaItemId::parse("item-dangling").unwrap(),
+                    asset: AssetId::parse("asset-dangling").unwrap(),
+                    caption: "dangling".into(),
+                    pos: None,
+                },
+            )
+            .unwrap();
+    })
+    .unwrap();
+    let emb_dangling = EmbedId::parse("emb-dangling").unwrap();
+    session
+        .edit(move |txn| {
+            txn.insert_embed(
+                0,
+                &emb_dangling,
+                &dr_doc::prose::EmbedKind::Asset(AssetId::parse("asset-dangling").unwrap()),
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let read_mod = e.out(
+        "module.read",
+        json!({"book": b, "entry": media_entry, "module": "mod-media"}),
+    );
+    assert_eq!(read_mod["media"][0]["asset"], "asset-dangling");
+    assert_eq!(read_mod["media"][0]["missing"], true);
+    let read_entry = e.out("entry.get", json!({"book": b, "id": media_entry}));
+    assert_eq!(read_entry["media"]["mod-media"][0]["missing"], true);
+    assert_eq!(
+        e.out("prose.shape", json!({"doc": doc_id}))["embeds"],
+        json!(["asset-dangling", "asset-ok"])
     );
 }
 
@@ -384,60 +576,93 @@ fn every_registered_entry_is_exercised_here() {
     assert!(missing.is_empty(), "no test calls {missing:?}");
 }
 
-/// M19: a comment can mark a rectangle on an image or a PDF page; it is
-/// listed with its region, and refused anywhere else, with a range, or
-/// outside the picture.
+/// M19 / v5 §7: a comment can mark a rectangle on an image or a PDF page in a
+/// `media` module item (or a prose `embed`); it is listed with its region, and
+/// refused anywhere else, with a range, or outside `[0, 1]`.
 #[test]
-fn region_comments_sit_on_image_and_pdf_materials() {
+fn region_comments_sit_on_media_items_and_file_embeds() {
     let e = env();
     let b = e.out("project.create", json!({"name": "Regions"}))["id"].clone();
     let sha = "b".repeat(64);
-    e.call("asset.put", json!({"book": b, "id": "asset-pdf", "kind": "pdf", "mime": "application/pdf", "size": 10, "sha256": sha}));
-    let pdf = e.out(
-        "material.create",
-        json!({"book": b, "kind": "pdf", "title": "notes", "asset": "asset-pdf"}),
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-pdf",
+            "name": "notes.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": 10,
+            "sha256": sha
+        }),
+    );
+    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    let pdf_entry = e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-media",
+            "title": "notes"
+        }),
     )["id"]
         .clone();
+    e.call(
+        "module.put_media",
+        json!({
+            "book": b,
+            "entry": pdf_entry,
+            "module": "mod-media",
+            "item": {"id": "pdf-item-1", "asset": "asset-pdf", "caption": "notes"}
+        }),
+    );
     let note = e.out(
-        "material.create",
-        json!({"book": b, "kind": "text", "title": "note", "text": "a note"}),
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-note",
+            "title": "note",
+            "bodies": {"mod-prose": "a note"}
+        }),
     )["id"]
         .clone();
-    let on = |id: &Value| json!({"kind": "material", "id": id});
+    let on = |id: &Value| json!({"kind": "entry", "id": id});
     let region = json!({"page": 2, "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4});
-    let part = json!({"kind": "region", "region": region});
+    let part = json!({"kind": "media", "item": "pdf-item-1", "region": region});
     let c = e.out(
         "comment.create",
-        json!({"book": b, "target": on(&pdf), "part": part, "body": "tide"}),
+        json!({
+            "book": b,
+            "target": on(&pdf_entry),
+            "module": "mod-media",
+            "part": part,
+            "body": "tide"
+        }),
     )["id"]
         .clone();
     let listed = e.out("comment.list", json!({"book": b}));
     assert_eq!(listed[0]["id"], c);
     assert_eq!(listed[0]["part"], part);
     assert!(!listed[0]["anchored"].as_bool().unwrap());
-    let refused = |input: Value| {
-        matches!(
-            e.try_call("comment.create", input),
-            Err(WsError::Invalid(_))
-        )
-    };
+    let refused = |input: Value| e.try_call("comment.create", input).is_err();
     assert!(refused(
         json!({"book": b, "part": part, "body": "floating"})
     ));
     assert!(refused(
-        json!({"book": b, "target": on(&note), "part": part, "body": "text"})
+        json!({"book": b, "target": on(&note), "module": "mod-prose", "part": part, "body": "text"})
     ));
     let chapter = chapter(&e, b.as_str().unwrap(), "One");
     assert!(refused(
         json!({"book": b, "target": {"kind": "entry", "id": chapter},
-                           "part": part, "body": "prose"})
+                           "part": part, "body": "no-module"})
     ));
     assert!(refused(
-        json!({"book": b, "target": on(&pdf), "body": "outside",
-                           "part": {"kind": "region", "region": {"x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}}})
+        json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "outside",
+                           "part": {"kind": "media", "item": "pdf-item-1", "region": {"x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}}})
     ));
     assert!(refused(
-        json!({"book": b, "target": on(&pdf), "body": "both",
+        json!({"book": b, "target": on(&pdf_entry), "module": "mod-media", "body": "both",
                            "part": part, "range": [0, 1]})
     ));
 }

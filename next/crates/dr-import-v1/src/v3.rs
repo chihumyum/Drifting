@@ -16,7 +16,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::book;
-use crate::legacy::{BookRows, Legacy, ProseKind};
+use crate::legacy::{BookRows, Legacy};
 use crate::meta::{Fields, Owner};
 use crate::prose::Notes;
 use crate::run::Options;
@@ -106,6 +106,8 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             .chain(rows.categories.iter().map(|r| &r.id))
             .chain(rows.elements.iter().map(|r| &r.id))
             .chain(rows.storylines.iter().map(|r| &r.id))
+            .chain(rows.folders.iter().map(|r| &r.id))
+            .chain(rows.materials.iter().map(|r| &r.id))
         {
             if EntryId::parse(id).is_err()
                 || id.len() + 1 + dr_doc::v3::novel::MOD_PROSE.len() > dr_model::id::MAX_ID_LEN
@@ -464,22 +466,14 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
     for (source, json, profile) in owners
         .iter()
         .filter_map(|o| {
-            let profile = if o.kind == ProseKind::LibraryItem {
-                dr_model::ProseProfile::Note
-            } else {
-                dr_model::ProseProfile::Prose
-            };
-            o.cache.as_deref().map(|j| (o.old_doc_id(), j, profile))
+            o.cache
+                .as_deref()
+                .map(|j| (o.old_doc_id(), j, dr_model::ProseProfile::Prose))
         })
         .chain(history.iter().filter_map(|h| {
-            let profile = if ProseKind::from_doc_id(&h.old_doc_id())
-                .is_some_and(|(k, _)| k == ProseKind::LibraryItem)
-            {
-                dr_model::ProseProfile::Note
-            } else {
-                dr_model::ProseProfile::Prose
-            };
-            h.preview.as_deref().map(|j| (h.id.clone(), j, profile))
+            h.preview
+                .as_deref()
+                .map(|j| (h.id.clone(), j, dr_model::ProseProfile::Prose))
         }))
     {
         inspect_json(&source, json, profile, &mut pending);
@@ -532,7 +526,6 @@ fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pe
     }
     let valid_target = match mapped_kind {
         dr_model::kind::EntityKind::Entry => EntryId::parse(target).is_ok(),
-        dr_model::kind::EntityKind::Material => MaterialId::parse(target).is_ok(),
         _ => false,
     };
     if !valid_target {
@@ -609,7 +602,10 @@ fn inspect_json(
                             .and_then(|a| a.get("href"))
                             .and_then(Value::as_str)
                             .is_some(),
-                        Some("highlight" | "code") => profile == dr_model::ProseProfile::Note,
+                        Some("highlight" | "code") => {
+                            let _ = profile;
+                            true
+                        }
                         _ => false,
                     };
                     if !allowed {
@@ -729,12 +725,7 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
         Owner::Element(id) => id.as_str(),
         Owner::Storyline(id) => id.as_str(),
         Owner::Category(id) => id.as_str(),
-        Owner::Material(id) => {
-            return view
-                .materials()
-                .iter()
-                .any(|m| &m.id == id && eq(&want.title, &m.title));
-        }
+        Owner::Material(id) => id.as_str(),
     };
     let Some(entry) = view.entry(&EntryId::parse(id).unwrap()) else {
         return false;

@@ -59,12 +59,17 @@ pub fn category_template(id: &str) -> EntryTemplateId {
 pub fn storyline_template(id: &str) -> EntryTemplateId {
     template_id("storyline", id)
 }
+pub fn plain_note_template() -> EntryTemplateId {
+    template_id("note", "plain")
+}
 
 pub fn map_kind(kind: &EntityKind) -> EntityKind {
     match kind {
-        EntityKind::Node | EntityKind::Element | EntityKind::Storyline | EntityKind::Category => {
-            EntityKind::Entry
-        }
+        EntityKind::Node
+        | EntityKind::Element
+        | EntityKind::Storyline
+        | EntityKind::Category
+        | EntityKind::Material => EntityKind::Entry,
         other => other.clone(),
     }
 }
@@ -74,11 +79,11 @@ pub fn map_ref(r: &EntityRef) -> EntityRef {
 }
 
 /// Default v3 prose module implied by a legacy entity kind when addressing its
-/// prose body (`Node` / `Element` -> `mod-prose`, `Category` / `Storyline` ->
-/// `mod-description`, the 「说明」 of their templates).
+/// prose body (`Node` / `Element` / `Material` -> `mod-prose`,
+/// `Category` / `Storyline` -> `mod-description`, the 「说明」 of their templates).
 pub fn default_link_module(kind: &EntityKind) -> Option<ModuleId> {
     match kind {
-        EntityKind::Node | EntityKind::Element => Some(mid(MOD_PROSE)),
+        EntityKind::Node | EntityKind::Element | EntityKind::Material => Some(mid(MOD_PROSE)),
         EntityKind::Storyline | EntityKind::Category => Some(mid(MOD_DESCRIPTION)),
         _ => None,
     }
@@ -94,14 +99,8 @@ pub fn map_entity_link(
     if !kind.may_be_linked_v3() {
         return Err(dr_doc::DocError::NotInProfile("invalid v3 entity link"));
     }
-    if kind == EntityKind::Material && explicit_module.is_some() {
-        return Err(dr_doc::DocError::NotInProfile(
-            "material link cannot carry a module",
-        ));
-    }
     let valid_target = match kind {
         EntityKind::Entry => EntryId::parse(&link.target).is_ok(),
-        EntityKind::Material => MaterialId::parse(&link.target).is_ok(),
         _ => false,
     };
     if !valid_target {
@@ -126,11 +125,12 @@ pub fn body_id(entry: &str, module: &str) -> DocId {
 }
 
 /// The id map is shared by body writing, history, TODO projections and
-/// template ownership. It does not change material document identities.
+/// template ownership.
 pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
     match old {
         DocId::Node(id) => body_id(id.as_str(), MOD_PROSE),
         DocId::Element(id) => body_id(id.as_str(), MOD_PROSE),
+        DocId::Material(id) => body_id(id.as_str(), MOD_PROSE),
         DocId::Category(id) => body_id(id.as_str(), MOD_DESCRIPTION),
         DocId::Storyline(id) => body_id(id.as_str(), MOD_DESCRIPTION),
         DocId::Template(id) => match TemplateOwner::of(id) {

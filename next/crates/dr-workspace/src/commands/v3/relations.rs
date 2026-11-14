@@ -52,7 +52,7 @@ op! {
         if !v.entity_exists(&from)||!v.entity_exists(&to)||from==to {return Err(WsError::invalid("relation needs distinct live endpoints"));}
         let ty=match &input.relation_type {
             Some(id)=>pid("relation type",id)?,
-            None if matches!(from.kind,EntityKind::Comment|EntityKind::Material)=>dr_doc::catalog::generic_relation_type_id(&s.book),
+            None if matches!(from.kind,EntityKind::Comment)=>dr_doc::catalog::generic_relation_type_id(&s.book),
             None=>return Err(WsError::invalid("relation_type is required")),
         };
         let ty=v.relation_type(&ty).ok_or_else(||WsError::not_found("relation type",ty.as_str()))?;
@@ -60,7 +60,7 @@ op! {
             (kinds.is_empty()||kinds.contains(&r.kind)) && (templates.is_empty() || (r.kind==EntityKind::Entry && EntryId::parse(&r.id).ok().and_then(|id|v.entry(&id)).is_some_and(|e|e.template.is_some_and(|id|templates.contains(&id)))))
         };
         if ty.orientation==RelationOrientation::Symmetric && from>to {std::mem::swap(&mut from,&mut to);}
-        if !from.kind.may_start_relation() || !to.kind.is_structural() { return Err(WsError::invalid("unsupported canonical relation endpoint roles")); }
+        if !from.kind.may_start_relation_v3() || !to.kind.is_structural_v3() { return Err(WsError::invalid("unsupported canonical relation endpoint roles")); }
         if !allows(&from,&ty.source_kinds,&ty.source_templates)||!allows(&to,&ty.target_kinds,&ty.target_templates) {return Err(WsError::invalid("relation endpoints violate type restrictions"));}
         if let Some(old)=v.relations_raw().iter().find(|r|r.relation_type==ty.id&&((r.from==from&&r.to==to)||(ty.orientation==RelationOrientation::Symmetric&&r.from==to&&r.to==from))) {
             cx.undo_nothing();return Ok(Made{id:old.id.to_string(),existing:true});

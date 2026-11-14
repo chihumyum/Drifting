@@ -1,7 +1,7 @@
 //! Versioned v3 location addresses. No title resolution or legacy URL behavior.
 //! `drifting:entries/id-<entry>/modules/id-<module>/prose.md#L1-L3`
 //! `<build-scheme>://open/<book>/entries/id-<entry>/modules/id-<module>/prose.md#L1`
-use dr_model::id::{BookId, EntryId, MaterialId, ModuleId};
+use dr_model::id::{BookId, EntryId, ModuleId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Endpoint {
@@ -9,7 +9,6 @@ pub enum Endpoint {
         id: EntryId,
         module: Option<ModuleId>,
     },
-    Material(MaterialId),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Address {
@@ -30,9 +29,6 @@ impl Address {
                 if let Some(module) = module {
                     s += &format!("/modules/id-{}/prose.md", encode(module.as_str()));
                 }
-            }
-            Endpoint::Material(id) => {
-                s += &format!("materials/id-{}/prose.md", encode(id.as_str()))
             }
         }
         if let Some((start, end)) = self.lines {
@@ -76,7 +72,6 @@ pub fn parse(href: &str, os_scheme: &str) -> Option<Address> {
             id: EntryId::parse(&id(e)?).ok()?,
             module: Some(ModuleId::parse(&id(m)?).ok()?),
         },
-        ["materials", m, "prose.md"] => Endpoint::Material(MaterialId::parse(&id(m)?).ok()?),
         _ => return None,
     };
     let lines = match fragment {
@@ -156,7 +151,6 @@ pub fn resolve(
                 .as_ref()
                 .map(|m| format!("body:{}/{}", link.target, m))
         }
-        dr_model::kind::EntityKind::Material => Some(format!("material:{}", link.target)),
         _ => return Err("invalid v3 link kind".into()),
     };
     let lines = if let Some(block) = &link.block {
@@ -193,9 +187,6 @@ pub fn resolve(
             id: EntryId::parse(&link.target).map_err(|e| e.to_string())?,
             module,
         },
-        dr_model::kind::EntityKind::Material => {
-            Endpoint::Material(MaterialId::parse(&link.target).map_err(|e| e.to_string())?)
-        }
         _ => unreachable!(),
     };
     Ok(Address {

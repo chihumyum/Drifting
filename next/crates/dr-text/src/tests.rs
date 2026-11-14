@@ -1,5 +1,5 @@
 use dr_doc::prose::{EmbedKind, ProseDoc, ProseTxn};
-use dr_model::id::{EmbedId, MaterialId};
+use dr_model::id::{AssetId, EmbedId};
 use dr_model::kind::EntityKind;
 use dr_model::pos::PosKey;
 use dr_model::prose::{EntityLink, Heading, InlineStyle};
@@ -50,11 +50,7 @@ fn embeds_read_as_their_text() {
         w.set_cell("r0", "c0", "甲")?;
         w.set_cell("r0", "c1", "乙")?;
         w.set_cell("r1", "c1", "丁")?;
-        t.insert_embed(
-            0,
-            &mat,
-            &EmbedKind::Material(MaterialId::parse("mat").unwrap()),
-        )?;
+        t.insert_embed(0, &mat, &EmbedKind::Asset(AssetId::parse("as1").unwrap()))?;
         Ok(())
     });
     let v = d.view();

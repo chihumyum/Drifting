@@ -12,7 +12,6 @@ use dr_shell::book::Book;
 use dr_shell::pages::PageViewHost;
 use dr_shell::{Services, SettingsFile, ShellInfo};
 use dr_store::Library;
-use dr_store::asset::{SourceImport, Variant};
 use dr_ui::Appearance;
 use dr_view_material::{MediaKind, MediaPage};
 use dr_view_review::Anchor;
@@ -52,41 +51,10 @@ fn env() -> Env {
 }
 
 /// A material of `kind` whose source is `bytes`.
-fn material(e: &Env, kind: &str, title: &str, bytes: Vec<u8>, size: (u32, u32)) -> String {
-    let (mime, ext) = match kind {
-        "image" => ("image/png", "png"),
-        _ => ("application/pdf", "pdf"),
-    };
-    let asset = dr_model::id::new_uuid_v7();
-    let lib = e.ws.library();
-    let file = e._dir.path().join(format!("{asset}.{ext}"));
-    std::fs::write(&file, &bytes).unwrap();
-    lib.import_asset(&SourceImport {
-        book_id: &e.book,
-        asset_id: &asset,
-        source: &file,
-        mime,
-        ext,
-        dimensions: (kind == "image").then_some(size),
-        limit: 64 << 20,
-    })
-    .unwrap();
-    let sha = lib.asset(&asset, Variant::Source).unwrap().unwrap().sha256;
-    let mut put = json!({"book": e.book, "id": asset, "kind": kind, "mime": mime,
-                         "size": bytes.len(), "sha256": sha});
-    if kind == "image" {
-        put["width"] = json!(size.0);
-        put["height"] = json!(size.1);
-    }
-    out(&e.ws, "asset.put", put);
-    out(
-        &e.ws,
-        "material.create",
-        json!({"book": e.book, "kind": kind, "title": title, "asset": asset}),
-    )["id"]
-        .as_str()
+fn material(e: &Env, _kind: &str, title: &str, bytes: Vec<u8>, _size: (u32, u32)) -> String {
+    dr_view_material::import::import_bytes(&e.ws, &e.book, None, bytes, title)
         .unwrap()
-        .to_owned()
+        .material
 }
 
 fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> String {
@@ -94,11 +62,22 @@ fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> S
     if let Some(page) = page {
         region["page"] = json!(page);
     }
+    let snapshot = Book::load(&e.ws, &e.book).unwrap();
+    let item = snapshot
+        .material_items()
+        .iter()
+        .find(|m| m.id == on)
+        .unwrap();
     out(
         &e.ws,
         "comment.create",
-        json!({"book": e.book, "target": {"kind": "material", "id": on},
-               "part": {"kind": "region", "region": region}, "body": body}),
+        json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
+            "module": item.module.as_ref().unwrap(),
+            "part": {"kind": "media", "item": on, "region": region},
+            "body": body,
+        }),
     )["id"]
         .as_str()
         .unwrap()
@@ -458,10 +437,22 @@ fn the_column_reads_in_page_order_and_a_choice_turns_to_its_page(cx: &mut TestAp
     );
     let late = region_comment(&e, &id, Some(3), 0.1, "三页的礁石");
     let early = region_comment(&e, &id, Some(1), 0.6, "一页的海岸");
+    let snapshot = Book::load(&e.ws, &e.book).unwrap();
+    let item = snapshot
+        .material_items()
+        .iter()
+        .find(|m| m.id == id)
+        .unwrap();
     out(
         &e.ws,
         "comment.create",
-        json!({"book": e.book, "target": {"kind": "material", "id": id}, "body": "整份"}),
+        json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
+            "module": item.module.as_ref().unwrap(),
+            "part": {"kind": "media", "item": id},
+            "body": "整份"
+        }),
     );
     let (page, mut cx) = open(cx, &e, &id);
     let cx = &mut cx;
@@ -504,10 +495,15 @@ fn a_material_without_its_file_says_so(cx: &mut TestAppContext) {
     let e = env();
     let id = material(&e, "image", "缺图", dr_testkit::media::png(8, 8), (8, 8));
     // The bytes go; the material stays.
-    let asset = out(&e.ws, "material.list", json!({"book": e.book}))[0]["asset"]
-        .as_str()
+    let asset = Book::load(&e.ws, &e.book)
         .unwrap()
-        .to_owned();
+        .material_items()
+        .iter()
+        .find(|m| m.id == id)
+        .unwrap()
+        .asset
+        .clone()
+        .unwrap();
     e.ws.library().remove_asset(&asset).unwrap();
     cx.executor().allow_parking();
     cx.update(|cx| {

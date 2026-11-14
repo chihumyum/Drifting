@@ -93,7 +93,7 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         ("target_role", "Target".into()),
         (
             "source_kinds",
-            kinds(&[EntityKind::Comment, EntityKind::Material]),
+            kinds(&[EntityKind::Comment, EntityKind::Entry]),
         ),
         (
             "target_kinds",
@@ -121,15 +121,13 @@ pub enum CollectionV3 {
     RelationTypes,
     Relations,
     Comments,
-    Materials,
     Assets,
-    MaterialFolders,
     Facts,
     Memory,
 }
 
 impl CollectionV3 {
-    pub const ALL: [CollectionV3; 16] = [
+    pub const ALL: [CollectionV3; 14] = [
         CollectionV3::Meta,
         CollectionV3::Project,
         CollectionV3::Entries,
@@ -141,9 +139,7 @@ impl CollectionV3 {
         CollectionV3::RelationTypes,
         CollectionV3::Relations,
         CollectionV3::Comments,
-        CollectionV3::Materials,
         CollectionV3::Assets,
-        CollectionV3::MaterialFolders,
         CollectionV3::Facts,
         CollectionV3::Memory,
     ];
@@ -161,9 +157,7 @@ impl CollectionV3 {
             CollectionV3::RelationTypes => book_v3::RELATION_TYPES,
             CollectionV3::Relations => book_v3::RELATIONS,
             CollectionV3::Comments => book_v3::COMMENTS,
-            CollectionV3::Materials => book_v3::MATERIALS,
             CollectionV3::Assets => book_v3::ASSETS,
-            CollectionV3::MaterialFolders => book_v3::MATERIAL_FOLDERS,
             CollectionV3::Facts => book_v3::FACTS,
             CollectionV3::Memory => book_v3::MEMORY,
         }
@@ -174,7 +168,7 @@ impl CollectionV3 {
     }
 
     pub fn is_tree(self) -> bool {
-        matches!(self, CollectionV3::Entries | CollectionV3::MaterialFolders)
+        matches!(self, CollectionV3::Entries)
     }
 }
 

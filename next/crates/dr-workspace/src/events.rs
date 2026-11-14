@@ -450,8 +450,8 @@ mod tests {
     fn only_the_index_of_a_document_with_text_is_news_for_words_and_search() {
         use dr_store::LocalChangeKind::Update;
         let index = |key: &str| is_text_index(&LocalChange::new("index", key, Update));
-        // The book's text: an entry's prose, a level's page, a material note.
-        for key in ["body:e1/mod-prose", "body:e1/about", "material:m1"] {
+        // The book's text: entry prose modules.
+        for key in ["body:e1/mod-prose", "body:e1/about"] {
             assert!(index(key), "{key}");
         }
         // The always-empty rows.

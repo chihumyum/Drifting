@@ -145,7 +145,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
     let handle = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
-    let (entries, templates, patches, grids, materials) = handle.read(move |doc| {
+    let (entries, templates, patches, grids) = handle.read(move |doc| {
         if !dr_doc::v3::is_book_doc(doc) {
             return Err(invalid("v3 search requires a v3 book"));
         }
@@ -159,7 +159,6 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
             v.templates_map(),
             v.patches(),
             v.plot_grids(),
-            v.materials(),
         ))
     })??;
     let map: BTreeMap<_, _> = entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
@@ -241,12 +240,6 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
         }
         entry_modules.insert(entry.id.clone(), modules);
     }
-    ordered.extend(
-        materials
-            .iter()
-            .map(|m| format!("material:{}", m.id))
-            .filter(|id| stored.contains(id.as_str())),
-    );
     let order: Vec<_> = ordered.iter().map(String::as_str).collect();
     let eligible: BTreeSet<_> = order.iter().copied().collect();
     let mut prose: BTreeMap<String, Vec<Row>> = BTreeMap::new();
@@ -373,29 +366,6 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
                 rows,
             );
         }
-    }
-    for material in materials {
-        if out.remaining == 0 {
-            break;
-        }
-        let mut rows: Vec<_> = [
-            row(&material.title, query, Field::Title, None),
-            row(&material.description, query, Field::Description, None),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        rows.extend(
-            prose
-                .remove(&format!("material:{}", material.id))
-                .unwrap_or_default(),
-        );
-        out.add(
-            Target::Material(material.id.to_string()),
-            &material.title,
-            None,
-            rows,
-        );
     }
     Ok(out.groups)
 }

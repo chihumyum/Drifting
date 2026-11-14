@@ -72,7 +72,7 @@ impl Paths {
                 }) = &op.content
                     && key == "id"
                     && let Some(path) = this.normal.get_mut(&op.container)
-                    && matches!(path.as_slice(), [root, _] if root == "entries" || root == "material_folders")
+                    && matches!(path.as_slice(), [root, _] if root == "entries")
                 {
                     path[1] = id.to_string();
                 }
@@ -120,7 +120,7 @@ impl Paths {
 }
 
 fn plain_identity(path: &[String]) -> bool {
-    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts"))
+    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "assets" | "memory" | "facts"))
         || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
         || matches!(path, [root, field] if root == "project" && field == "tabs")
 }
@@ -164,7 +164,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
                 value: LoroValue::String(id),
             }) = &op.content
                 && key == "id"
-                && matches!(paths.path(&op.container).as_slice(), [root, _] if root == "entries" || root == "material_folders")
+                && matches!(paths.path(&op.container).as_slice(), [root, _] if root == "entries")
             {
                 fresh(&mut rw, id);
             }
@@ -410,7 +410,8 @@ impl Rewriter<'_> {
                 .map(|(entry, module)| format!("{}/{module}", self.rw.text(entry)))
                 .unwrap_or_else(|| key.into()),
             [root, _, field]
-                if root == "timeline_views" && matches!(field.as_str(), "lanes" | "placements") =>
+                if root == "timeline_views"
+                    && matches!(field.as_str(), "lanes" | "placements" | "scale") =>
             {
                 self.rw.text(key)
             }
@@ -495,7 +496,6 @@ impl Rewriter<'_> {
         }
         let reference = match path {
             [root, _] if root == "entries" => matches!(key, "id" | "primary"),
-            [root, _] if root == "material_folders" => key == "id",
             [root, _] if root == "patches" => {
                 matches!(key, "entry" | "source_entry" | "source_block")
             }
@@ -504,14 +504,14 @@ impl Rewriter<'_> {
                 key,
                 "target" | "target_block" | "projection_block" | "agent_conversation"
             ),
-            [root, _] if root == "materials" => matches!(key, "asset" | "folder"),
             [root, _] if root == "memory" => {
                 matches!(key, "target" | "target_block" | "supersedes")
             }
             [root, _, field, _] if root == "timeline_views" && field == "pins" => key == "entry",
             [root, _, field] if root == "entries" && field == "overrides" => key == "home",
+            [root, _, media, _, _] if root == "entries" && media == "media" => key == "asset",
             [root, _, field] if root == "templates" && field == "settings" => key == "home",
-            [root, _] if root == "embeds" && !self.book => key == "material",
+            [root, _] if root == "embeds" && !self.book => key == "asset",
             _ => false,
         };
         if reference {
@@ -567,7 +567,7 @@ impl Rewriter<'_> {
                     .map(|(k, v)| {
                         (
                             k.clone(),
-                            if matches!(k.as_str(), "entry" | "view") {
+                            if matches!(k.as_str(), "entry" | "view" | "lane") {
                                 self.refs(v)
                             } else {
                                 v.clone()

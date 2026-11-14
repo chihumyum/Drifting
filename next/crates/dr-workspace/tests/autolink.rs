@@ -191,12 +191,19 @@ fn every_page_an_agent_creates_with_text_links_names() {
     let e = env();
     let b = e.book();
     let anna = element(&e, &b, "安娜");
+    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
     let note = by_agent(
         &e,
-        "material.create",
-        json!({"book": b, "kind": "text", "title": "笔记", "text": "安娜的笔记。"}),
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-note",
+            "title": "笔记",
+            "bodies": {"mod-prose": "安娜的笔记。"}
+        }),
     );
-    let doc = format!("material:{}", note["id"].as_str().unwrap());
+    let doc = format!("body:{}/mod-prose", note["id"].as_str().unwrap());
     assert_eq!(links(&e, &doc), [("安娜".to_string(), anna.clone())]);
     let line = common::acceptance::novel_entry_as(
         &agent(),

@@ -364,11 +364,42 @@ fn store_doc(
 /// template. The import peer is deterministic, so a book carried on after
 /// an interruption stores the same updates again without change. Returns
 /// how many were written.
+fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
+    use dr_model::id::{AssetId, EntryId};
+    use dr_model::import_v1::MaterialKind;
+    use dr_model::kind::AssetKind;
+    let mut asset_kinds = HashMap::new();
+    for a in &rows.assets {
+        if AssetId::parse(&a.id).is_ok() {
+            asset_kinds.insert(a.id.as_str(), AssetKind::parse(&a.kind));
+        }
+    }
+    let mut out = HashMap::new();
+    for m in &rows.materials {
+        if EntryId::parse(&m.id).is_err() {
+            continue;
+        }
+        let want = match MaterialKind::parse(&m.kind) {
+            MaterialKind::Image => AssetKind::Image,
+            MaterialKind::Pdf => AssetKind::Pdf,
+            _ => continue,
+        };
+        if let Some(aid) = m.asset.as_deref().and_then(|a| AssetId::parse(a).ok())
+            && asset_kinds.get(aid.as_str()) == Some(&want)
+        {
+            out.insert(m.id.as_str(), aid);
+        }
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
 fn write_templates(
     lib: &Library,
     book: &BookId,
     rows: &BookRows,
     span: &dyn Fn(&str) -> Option<BlockSpan>,
+    asset: &dyn Fn(&str) -> Option<dr_model::id::AssetId>,
     ts: i64,
     notes: &mut Notes,
     options: &Options,
@@ -399,6 +430,7 @@ fn write_templates(
             profile: ProseProfile::Prose,
             span,
             todo: &|_| None,
+            asset,
         };
         let planned = prose::plan_v3(&lines, &blocks, &ctx);
         if planned.paras.iter().all(Para::is_empty) {
@@ -885,6 +917,8 @@ fn write_library(
         }
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
+        let material_assets = material_asset_map(&rows);
+        let asset = |old: &str| material_assets.get(old).cloned();
 
         // Pass 2: plan, write, check and store every body, history first.
         let mut anchors_made: HashMap<String, Anchor> = HashMap::new();
@@ -902,6 +936,7 @@ fn write_library(
                 profile: b.profile,
                 span: &span,
                 todo: &todo,
+                asset: &asset,
             };
             let current = prose::plan_v3(&b.lines, &b.blocks, &ctx);
             let mut versions: Vec<(Plan, &HistoryRow, i64)> = Vec::new();
@@ -1111,7 +1146,9 @@ fn write_library(
         // no time for them).
         let t0 = Instant::now();
         let changed = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
-        rec.templates = write_templates(lib, &book_id, &rows, &span, changed, &mut notes, options)?;
+        rec.templates = write_templates(
+            lib, &book_id, &rows, &span, &asset, changed, &mut notes, options,
+        )?;
         timing.prose_ms += ms(t0);
 
         // The book document, with the snapshot history's metadata replayed:

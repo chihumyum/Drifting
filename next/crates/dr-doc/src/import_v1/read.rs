@@ -931,6 +931,7 @@ impl<'a> BookView<'a> {
                 let f = F(v);
                 Some(Asset {
                     id: AssetId::parse(id).ok()?,
+                    name: f.string("name"),
                     kind: f.kind("kind")?,
                     mime: f.string("mime"),
                     size: f.i64("size").unwrap_or(0),

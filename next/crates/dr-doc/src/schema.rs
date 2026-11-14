@@ -107,9 +107,7 @@ pub mod book_v3 {
     pub const RELATION_TYPES: &str = "relation_types";
     pub const RELATIONS: &str = "relations";
     pub const COMMENTS: &str = "comments";
-    pub const MATERIALS: &str = "materials";
     pub const ASSETS: &str = "assets";
-    pub const MATERIAL_FOLDERS: &str = "material_folders";
     pub const FACTS: &str = "facts";
     pub const MEMORY: &str = "memory";
 
@@ -123,7 +121,6 @@ pub mod book_v3 {
         RELATION_TYPES,
         RELATIONS,
         COMMENTS,
-        MATERIALS,
         ASSETS,
         MEMORY,
     ];

@@ -38,7 +38,7 @@ fn book_genesis_sets_version_5_and_locked_generic_relation_type() {
     assert!(rts[0].locked);
     assert_eq!(
         rts[0].source_kinds,
-        vec![EntityKind::Comment, EntityKind::Material]
+        vec![EntityKind::Comment, EntityKind::Entry]
     );
     assert_eq!(
         rts[0].target_kinds,
@@ -115,6 +115,7 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         TPL_GROUP,
         TPL_STORYLINES,
         TPL_STORYLINE,
+        TPL_MATERIALS,
         TPL_CHAPTER,
         TPL_IDEA,
         TPL_CHARACTER,
@@ -122,6 +123,8 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         TPL_ITEM,
         TPL_ORGANIZATION,
         TPL_ELEMENT,
+        TPL_NOTE,
+        TPL_MEDIA,
     ] {
         assert!(
             tpls.contains_key(&tid(id)),
@@ -158,12 +161,13 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         }
     }
 
-    // Root entries in manuscript order: 书稿, 构想, 要素, 故事线 (all fresh UUIDv7).
+    // Root entries in manuscript order: 书稿, 构想, 要素, 故事线, 素材 (all fresh UUIDv7).
     for id in [
         &roots.manuscript,
         &roots.ideas,
         &roots.elements,
         &roots.storylines,
+        &roots.materials,
         &roots.cat_character,
         &roots.cat_location,
         &roots.cat_item,
@@ -193,6 +197,7 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             roots.ideas.clone(),
             roots.elements.clone(),
             roots.storylines.clone(),
+            roots.materials.clone(),
         ]
     );
 
@@ -392,6 +397,7 @@ fn timeline_view_requires_lane_membership_and_prose_ownership_works() {
     assert!(!v.owns_prose(&orphan_body));
     assert!(v.owns_prose(&tpl_doc));
     assert!(!v.owns_prose(&other_book_tpl));
+    assert!(!v.owns_prose(&DocId::parse("material:m1").unwrap()));
 
     // ProseDoc can open both body: and v3 template: document IDs.
     let mut p = ProseDoc::create(ch_body.clone(), 2).unwrap();
@@ -1775,6 +1781,7 @@ fn switching_off_moves_direct_children_after_the_top_level_entry_with_their_subt
             roots.ideas.clone(),
             roots.elements.clone(),
             roots.storylines.clone(),
+            roots.materials.clone(),
         ]
     );
     assert_eq!(at("c3a").parent, Some(eid("c3")));
@@ -2174,4 +2181,113 @@ fn lane_members_order_follows_reference_view_scale_and_places_unpositioned_last(
         .map(|f| f.entry.id.to_string())
         .collect();
     assert_eq!(walked, vec!["c2", "c3", "c1"]);
+}
+
+#[test]
+fn media_items_assets_and_media_comment_parts_round_trip() {
+    use dr_model::kind::{AssetKind, CommentOrigin};
+    use dr_model::shared::{Asset, MaterialRegion};
+
+    let img_id = AssetId::parse("as-img").unwrap();
+    let img = Asset {
+        id: img_id.clone(),
+        kind: AssetKind::Image,
+        name: "地图.png".into(),
+        mime: "image/png".into(),
+        size: 42,
+        sha256: "a".repeat(64),
+        width: Some(800),
+        height: Some(600),
+    };
+    let item_1 = MediaItemId::parse("mi-1").unwrap();
+    let item_2 = MediaItemId::parse("mi-2").unwrap();
+    let cid = CommentId::parse("c-media").unwrap();
+
+    let (mut doc, _roots) = novel_book(77, |t, roots| {
+        t.put_asset(&img)?;
+        let w = t.entries().create(
+            &eid("m-map"),
+            Some(&roots.materials),
+            "古地图",
+            Some(&tid(TPL_MEDIA)),
+            false,
+        )?;
+        w.put_media(
+            &mid(MOD_MEDIA),
+            &MediaItem {
+                id: item_1.clone(),
+                asset: img_id.clone(),
+                caption: "全貌".into(),
+                pos: Some(PosKey::parse("a1").unwrap()),
+            },
+        )?
+        .put_media(
+            &mid(MOD_MEDIA),
+            &MediaItem {
+                id: item_2.clone(),
+                asset: AssetId::parse("as-missing").unwrap(),
+                caption: "局部".into(),
+                pos: Some(PosKey::parse("a0").unwrap()),
+            },
+        )?;
+        let c = t.comment(&cid)?;
+        c.origin(&CommentOrigin::Manual)?
+            .target(Some(&EntityRef::new(EntityKind::Entry, "m-map")))?
+            .module(Some(&mid(MOD_MEDIA)))?
+            .part(Some(&CommentPart::Media {
+                item: item_1.clone(),
+                region: Some(MaterialRegion::new(None, 0.1, 0.2, 0.3, 0.4).unwrap()),
+            }))?
+            .body("城门位置")?;
+        Ok(())
+    });
+
+    // Asset immutability: same_file succeeds, altered size fails with Locked.
+    let mut bad = img.clone();
+    bad.size = 99;
+    assert!(matches!(
+        doc.edit(Origin::User, |t| t.put_asset(&bad)).0,
+        Err(crate::error::DocError::Locked(_))
+    ));
+    assert_eq!(doc.view().assets()[0].name, "地图.png");
+
+    // Media items sort by (pos, id), keep unregistered asset ids on read without dropping rows,
+    // and CommentPart::Media locates item_1 cleanly.
+    let e = doc.view().entry(&eid("m-map")).unwrap();
+    let tpls = doc.view().templates_map();
+    let vis = e.visible_media(&tpls);
+    assert_eq!(vis.len(), 1);
+    assert_eq!(
+        vis[&mid(MOD_MEDIA)]
+            .iter()
+            .map(|m| m.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["mi-2", "mi-1"]
+    );
+    assert!(!doc.view().comments()[0].target_missing);
+
+    // Snapshot before removal, remove item_1 -> comment degrades to target_missing,
+    // then restore_entry brings item_1 back!
+    let f_before = doc.frontiers();
+    let snap_bytes = doc.export_snapshot().unwrap();
+    doc.edit(Origin::User, |t| {
+        t.entries()
+            .entry(&eid("m-map"))?
+            .remove_media(&mid(MOD_MEDIA), &item_1)
+            .map(|_| ())
+    })
+    .0
+    .unwrap();
+    assert!(doc.view().comments()[0].target_missing);
+
+    let reader_before = BookReaderV3::load_at(bid(), &[snap_bytes], &f_before).unwrap();
+    let saved = reader_before.view().entry_snapshot(&eid("m-map")).unwrap();
+    doc.edit(Origin::User, |t| t.restore_entry(&eid("m-map"), &saved))
+        .0
+        .unwrap();
+    assert_eq!(
+        doc.view().entry(&eid("m-map")).unwrap().media[&mid(MOD_MEDIA)].len(),
+        2
+    );
+    assert!(!doc.view().comments()[0].target_missing);
 }

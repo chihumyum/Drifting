@@ -306,14 +306,21 @@ fn shared_anchored_links_are_canonical_and_refuse_foreign_or_richer_marks_prewri
     );
     e.call("prose.unlink", args.clone());
     e.ws().undo(&Actor::User).unwrap();
-    let material = e.out(
-        "material.create",
-        json!({"book":b,"kind":"text","title":"Synthetic link target","text":"Synthetic material"}),
+    let materials_root = common::acceptance::novel_root(e.ws(), &b, "tpl-materials");
+    let note = e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": materials_root,
+            "template": "tpl-note",
+            "title": "Synthetic link target",
+            "bodies": {"mod-prose": "Synthetic note"}
+        }),
     )["id"]
         .clone();
-    let mut material_link = args.clone();
-    material_link["links"][0]["target"] = json!({"kind":"material","id":material});
-    assert_eq!(e.out("prose.link", material_link.clone())["ranges"], 1);
+    let mut note_link = args.clone();
+    note_link["links"][0]["target"] = json!({"kind": "entry", "id": note});
+    assert_eq!(e.out("prose.link", note_link.clone())["ranges"], 1);
     let copied_doc = doc.clone();
     let copy = h
         .read(move |d| {
@@ -328,10 +335,13 @@ fn shared_anchored_links_are_canonical_and_refuse_foreign_or_richer_marks_prewri
     assert!(
         copy.marks()
             .iter()
-            .any(|(_, key, _)| key == &format!("entity:{}", material.as_str().unwrap()))
+            .any(|(_, key, _)| key == &format!("entity:{}", note.as_str().unwrap()))
     );
-    e.call("prose.unlink", material_link);
+    e.call("prose.unlink", note_link);
     e.ws().undo(&Actor::User).unwrap();
+    let mut retired_material_link = args.clone();
+    retired_material_link["links"][0]["target"] = json!({"kind": "material", "id": note});
+    assert!(e.try_call("prose.link", retired_material_link).is_err());
     let foreign = e.book();
     let target = entry(&e, &foreign, "Foreign");
     let mut invalid = args.clone();

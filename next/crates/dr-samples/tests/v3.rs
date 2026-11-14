@@ -62,6 +62,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
             entries.values().filter(|e| !e.is_level()).count(),
             source.book.view().nodes().len()
                 + source.book.view().elements().len()
+                + source.book.view().materials().len()
                 + synthetic_act_leaves
         );
         for node in source.book.view().nodes() {
@@ -117,7 +118,13 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         let all = dr_doc::loro_types::VersionVector::default();
         let repeat = convert(&source, &choices).unwrap();
         validate(&repeat.book.view()).unwrap();
-        for template in [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES] {
+        for template in [
+            TPL_MANUSCRIPT,
+            TPL_IDEAS,
+            TPL_ELEMENTS,
+            TPL_STORYLINES,
+            TPL_MATERIALS,
+        ] {
             let a = view.root_entry_by_template(&tid(template)).unwrap();
             let b = repeat
                 .book
@@ -298,8 +305,9 @@ fn two_samples_in_one_library_survive_permanent_deletion_of_either_book() {
 
 #[test]
 fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_field_defaults() {
-    use dr_doc::prose::EmbedKind;
+    use dr_doc::prose::{EmbedKind, ProseDoc};
     use dr_model::Origin;
+    use dr_model::import_v1::{MaterialId, MaterialKind};
     use dr_model::kind::EntityKind;
     use dr_model::pos::PosKey;
     use dr_model::prose::{EntityLink, InlineStyle};
@@ -315,7 +323,7 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
             let p_mat = dr_model::pos::PosKey::parse("a0").unwrap();
             let m = t.material(&mat_id)?;
             m.title("考据札记")?
-                .kind(&dr_model::kind::MaterialKind::Text)?
+                .kind(&MaterialKind::Text)?
                 .pos(&p_mat)?
                 .description("合成测试素材")?;
             let f = dr_model::pos::PosKey::first().after();
@@ -354,28 +362,6 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
             t.split(0)?;
             t.insert_text(0, "参见札记与阿Q小传")?;
             t.link_entity(
-                2..4,
-                &EntityLink {
-                    target: mat_id.to_string(),
-                    kind: EntityKind::Element,
-                    block: None,
-                    end_block: None,
-                },
-            )?;
-            // Overwrite raw kind to material to mirror legacy material entityLink mark
-            let key = format!("entity:{mat_id}");
-            t.link_entity_v3(
-                2..4,
-                &EntityLinkV3 {
-                    target: mat_id.to_string(),
-                    kind: EntityKind::Material,
-                    module: None,
-                    block: None,
-                    end_block: None,
-                },
-            )?;
-            let _ = key;
-            t.link_entity(
                 5..9,
                 &EntityLink {
                     target: elem_id.to_string(),
@@ -407,6 +393,28 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
         })
         .0
         .unwrap();
+    // Write raw legacy `kind = "material"` mark to mirror 0.1 material entityLink marks.
+    {
+        let doc_id = source.prose[chapter_prose_idx].doc_id().clone();
+        let snap = source.prose[chapter_prose_idx].export_snapshot().unwrap();
+        let raw = loro::LoroDoc::new();
+        dr_doc::schema::configure(&raw);
+        raw.import(&snap).unwrap();
+        raw.get_text("body")
+            .mark(
+                2..4,
+                &format!("entity:{mat_id}"),
+                loro::LoroValue::Map(vec![("kind".into(), "material".into())].into()),
+            )
+            .unwrap();
+        raw.commit();
+        source.prose[chapter_prose_idx] = ProseDoc::load(
+            doc_id,
+            dr_doc::peer::random_device_peer(),
+            &[raw.export(loro::ExportMode::Snapshot).unwrap()],
+        )
+        .unwrap();
+    }
 
     let choices = MappingChoices::default();
     let before = (source.book.version(), source.book.frontiers());
@@ -432,7 +440,7 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
     assert!(body_links.iter().any(|(r, l)| {
         *r == (2..4)
             && l.target == mat_id.as_str()
-            && l.kind == EntityKind::Material
+            && l.kind == EntityKind::Entry
             && l.module.is_none()
     }));
     assert!(body_links.iter().any(|(r, l)| {

@@ -29,7 +29,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use dr_doc::import_v1::{BookTxn, BookView};
 use dr_model::id::*;
-use dr_model::import_v1::{CategoryId, ElementId, KvEntry, NodeId, NodeStatus, StorylineId};
+use dr_model::import_v1::{
+    CategoryId, ElementId, KvEntry, MaterialId, NodeId, NodeStatus, StorylineId,
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 

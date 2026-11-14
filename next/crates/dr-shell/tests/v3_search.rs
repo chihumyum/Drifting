@@ -173,16 +173,16 @@ fn actual_panel_keeps_title_module_and_material_destinations(cx: &mut TestAppCon
         json!({"book":book,"owner":id,"module":"second-body","paragraphs":[{"text":prose["paragraphs"][0]["text"]},{"text":format!("F6SearchBody {}",prose["paragraphs"][1]["text"].as_str().unwrap())}]}),
     );
     let snapshot = Book::load(&lib, book).unwrap();
-    let material = snapshot
+    let note = snapshot
         .v3()
         .unwrap()
-        .materials
+        .entries
         .iter()
-        .find(|m| m.kind == "text")
+        .find(|e| e.template.as_deref() == Some("tpl-note"))
         .unwrap()
         .id
         .clone();
-    let doc = format!("material:{material}");
+    let doc = format!("body:{note}/mod-prose");
     let body = call(&lib, "prose.read", json!({"doc":doc}));
     let p = &body["paragraphs"][0];
     call(
@@ -199,7 +199,11 @@ fn actual_panel_keeps_title_module_and_material_destinations(cx: &mut TestAppCon
         ("F6SearchTitle", format!("entry:{id}"), None),
         ("F6SearchBody", format!("entry:{id}/second-body"), Some(3)),
         ("F6SearchBody", format!("entry:{id}/second-body"), Some(3)),
-        ("F6SearchMaterial", format!("material:{material}"), Some(1)),
+        (
+            "F6SearchMaterial",
+            format!("entry:{note}/mod-prose"),
+            Some(1),
+        ),
     ] {
         let state = search(&view, cx, query);
         assert_eq!(state["version"], 3);

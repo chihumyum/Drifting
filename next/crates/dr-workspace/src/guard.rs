@@ -37,8 +37,8 @@ pub struct Observation {
 /// One independently guarded part of a book document.
 ///
 /// `path` walks from the collection's root container: empty is the whole
-/// collection, one segment is a record (a map key, or the id of an entry or
-/// material folder), further segments select a value inside that record. A
+/// collection, one segment is a record (a map key, or the id of an entry),
+/// further segments select a value inside that record. A
 /// shorter path contains every longer one that starts with it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RecordKey {
@@ -47,7 +47,7 @@ pub struct RecordKey {
     pub collection: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path: Vec<String>,
-    /// `entries` and `material_folders` only: the ordered resident children
+    /// `entries` only: the ordered resident children
     /// of the node `path` names (empty: the roots) instead of its own state.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub children: bool,
@@ -305,6 +305,7 @@ impl WritePreconditions {
 pub(crate) enum Replaces {
     /// No per-record contract: a guarded caller holds the whole document's
     /// version (atomic restores, history).
+    #[cfg_attr(not(test), allow(dead_code))]
     Document,
     Records(Vec<RecordKeyV3>),
 }

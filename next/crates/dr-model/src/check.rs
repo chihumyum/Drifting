@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use crate::kind::{AssetKind, MaterialKind};
+use crate::kind::AssetKind;
 use crate::shared::{Asset, PLOT_CELL_H, PLOT_CELL_W, is_sha256_hex};
 
 /// Which rule a write breaks, by invariant id (`crate::invariant`).
@@ -36,18 +36,6 @@ pub fn non_empty_name(name: &str) -> Result<(), Violation> {
         return fail("NAME-NONEMPTY", "empty name");
     }
     Ok(())
-}
-
-/// A material's payload: image and PDF materials have an asset of the same
-/// kind; text materials have none.
-pub fn material_payload(kind: &MaterialKind, asset: Option<&Asset>) -> Result<(), Violation> {
-    match (kind, asset) {
-        (MaterialKind::Image, Some(a)) if a.kind == AssetKind::Image => Ok(()),
-        (MaterialKind::Pdf, Some(a)) if a.kind == AssetKind::Pdf => Ok(()),
-        (MaterialKind::Text, None) => Ok(()),
-        (MaterialKind::Other(k), _) => fail("MAT-KIND", format!("unsupported material kind {k:?}")),
-        _ => fail("MAT-PAYLOAD", "asset missing or of the wrong kind"),
-    }
 }
 
 /// An asset's metadata shape (old `project_asset` checks): size > 0; sha256
@@ -96,6 +84,7 @@ mod tests {
         assert!(non_empty_name("  ").is_err());
         let img = Asset {
             id: crate::id::AssetId::parse("a").unwrap(),
+            name: "cover.png".into(),
             kind: AssetKind::Image,
             mime: "image/png".into(),
             size: 1,
@@ -104,10 +93,6 @@ mod tests {
             height: Some(1),
         };
         assert!(asset_shape(&img).is_ok());
-        assert!(material_payload(&MaterialKind::Image, Some(&img)).is_ok());
-        assert!(material_payload(&MaterialKind::Pdf, Some(&img)).is_err());
-        assert!(material_payload(&MaterialKind::Text, Some(&img)).is_err());
-        assert!(material_payload(&MaterialKind::parse("url"), None).is_err());
         let mut pdf = img.clone();
         pdf.kind = AssetKind::Pdf;
         assert!(asset_shape(&pdf).is_err());

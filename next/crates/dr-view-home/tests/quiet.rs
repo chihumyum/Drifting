@@ -108,6 +108,7 @@ struct AllSurfaces {
     ws: Entity<Workspace>,
     home: Entity<Home>,
     shelf: Entity<dr_view_shelf::Shelf>,
+    doc_editor: Entity<dr_shell::workspace::editors::ChapterEditor>,
     book_editor: Entity<dr_shell::workspace::editors::BookEditor>,
     book: String,
 }
@@ -124,6 +125,7 @@ impl gpui::Render for AllSurfaces {
             .child(self.ws.clone())
             .child(self.home.clone())
             .child(self.shelf.clone())
+            .child(self.doc_editor.clone())
             .child(self.book_editor.clone())
             .child(dr_view_stats::v3_panel::panel(
                 "v3-home-quiet-stats",
@@ -142,18 +144,24 @@ fn side_docs_wake_only_their_own_views_leaving_shell_and_open_editors_still(
     cx: &mut TestAppContext,
 ) {
     use dr_shell::nav::{Open, Target};
-    use dr_shell::workspace::editors::{BookEditor, EditorSettings, PageView};
+    use dr_shell::workspace::editors::{BookEditor, ChapterEditor, EditorSettings};
     use gpui::AppContext as _;
     use std::cell::Cell;
     use std::rc::Rc;
 
     let (_dir, lib, book) = fixture();
-    let manuscript_root = dr_shell::book::Book::load(&lib, &book)
-        .unwrap()
+    let loaded_book = dr_shell::book::Book::load(&lib, &book).unwrap();
+    let manuscript_root = loaded_book.v3().unwrap().roots[0].clone();
+    let note_id = loaded_book
         .v3()
         .unwrap()
-        .roots[0]
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-note"))
+        .expect("note entry")
+        .id
         .clone();
+    let note_doc_id = format!("body:{note_id}/mod-prose");
     let prepared_book = BookEditor::prepare(&lib, &book, &manuscript_root).unwrap();
     let today_str = chrono::Local::now().format("%Y-%m-%d").to_string();
     let today_date = chrono::NaiveDate::parse_from_str(&today_str, "%Y-%m-%d").unwrap();
@@ -199,6 +207,17 @@ fn side_docs_wake_only_their_own_views_leaving_shell_and_open_editors_still(
             .expect("v3 home created")
             .downcast::<Home>()
             .expect("home view");
+        let doc_editor = cx.new(|cx| {
+            ChapterEditor::open(
+                editor_lib.clone(),
+                &shown_book,
+                &note_doc_id,
+                EditorSettings::default(),
+                window,
+                cx,
+            )
+            .expect("note editor")
+        });
         let book_editor = cx.new(|cx| {
             BookEditor::with_prepared(
                 editor_lib,
@@ -212,17 +231,19 @@ fn side_docs_wake_only_their_own_views_leaving_shell_and_open_editors_still(
             ws,
             home,
             shelf,
+            doc_editor,
             book_editor,
             book: shown_book,
         }
     });
     cx.update(|window, _| window.activate_window());
 
-    let (ws, home, shelf, book_editor) = root.read_with(cx, |r, _| {
+    let (ws, home, shelf, doc_editor, book_editor) = root.read_with(cx, |r, _| {
         (
             r.ws.clone(),
             r.home.clone(),
             r.shelf.clone(),
+            r.doc_editor.clone(),
             r.book_editor.clone(),
         )
     });
@@ -245,29 +266,17 @@ fn side_docs_wake_only_their_own_views_leaving_shell_and_open_editors_still(
         stats.read_with(cx, |v, _| v.loaded().is_some())
     });
 
-    // Open both a single-document prose editor (text material) and the
-    // whole-book prose editor in kept tabs so both dr-editor views are live.
-    let mat_doc = lib
-        .library()
-        .docs(Some(&book), Some("material"))
-        .unwrap()
-        .into_iter()
-        .next()
-        .expect("text material");
-    let mat_id: dr_model::id::MaterialId = mat_doc
-        .doc_id
-        .strip_prefix("material:")
-        .unwrap()
-        .parse()
-        .unwrap();
-    let mat_target = Target::Material(mat_id);
-    let mat_key = mat_target.key();
-    cx.update(|_, cx| ws.update(cx, |ws, cx| ws.open(mat_target, Open::KEEP, cx)));
-    wait(cx, "material editor prepared", |cx| {
+    // Open an entry tab in the workspace as well so EntryPage, ChapterEditor,
+    // and BookEditor are all live at the same time.
+    let note_target = Target::Entry {
+        id: note_id.parse().unwrap(),
+        module: Some("mod-prose".parse().unwrap()),
+    };
+    let note_key = note_target.key();
+    cx.update(|_, cx| ws.update(cx, |ws, cx| ws.open(note_target, Open::KEEP, cx)));
+    wait(cx, "note entry page prepared", |cx| {
         ws.read_with(cx, |ws, _| {
-            ws.editors
-                .get(&mat_key)
-                .is_some_and(|p| matches!(p.view, Some(PageView::Doc(_))))
+            ws.editors.get(&note_key).is_some_and(|p| p.v3.is_some())
         })
     });
 
@@ -304,12 +313,7 @@ fn side_docs_wake_only_their_own_views_leaving_shell_and_open_editors_still(
     // Observe the open ChapterEditor, BookEditor, and both ProseEditors.
     let editor_wakes = Rc::new(Cell::new(0usize));
     let _obs = cx.update(|_, cx| {
-        let (doc_editor, doc_prose) = ws.read_with(cx, |ws, cx| {
-            let PageView::Doc(de) = ws.editors[&mat_key].view.as_ref().unwrap() else {
-                unreachable!()
-            };
-            (de.clone(), de.read(cx).editor().clone())
-        });
+        let doc_prose = doc_editor.read(cx).editor().clone();
         let book_prose = book_editor.read(cx).editor().clone();
         let bump = |cell: &Rc<Cell<usize>>| {
             let cell = cell.clone();

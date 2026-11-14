@@ -113,21 +113,66 @@ fn material_and_nonmanuscript_entry_never_fall_back_to_whole_book() {
             .iter()
             .all(|d| !book_data.manuscript.contains(d))
     );
-    let doc = ws
-        .library()
-        .docs(Some(&book), Some("material"))
+    let note = entries
+        .as_array()
         .unwrap()
-        .into_iter()
-        .next()
+        .iter()
+        .find(|e| e["template"] == "tpl-note")
+        .unwrap()["id"]
+        .as_str()
         .unwrap();
-    let material = doc.doc_id.strip_prefix("material:").unwrap();
-    let mat = v3::load(&ws, &book, Scope::Material(material.into())).unwrap();
-    assert_eq!(mat.documents.len(), 1);
-    assert_eq!(mat.documents[0].id, doc.doc_id);
+    let note_data = v3::load(
+        &ws,
+        &book,
+        Scope::Entry {
+            id: note.into(),
+            module: Some("mod-prose".into()),
+        },
+    )
+    .unwrap();
+    assert_eq!(note_data.documents.len(), 1);
+    assert_eq!(note_data.documents[0].id, format!("body:{note}/mod-prose"));
+    let materials_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-materials");
+    call(
+        &ws,
+        "asset.put",
+        json!({
+            "book": book,
+            "id": "00000000-0000-7000-8000-000000000081",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 68,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000081",
+            "width": 16,
+            "height": 16
+        }),
+    );
+    let media_entry = call(
+        &ws,
+        "entry.create",
+        json!({"book": book, "template": "tpl-media", "parent": materials_root, "title": "附图"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let media_item = "00000000-0000-7000-8000-000000000082";
+    call(
+        &ws,
+        "module.put_media",
+        json!({
+            "book": book,
+            "entry": media_entry,
+            "module": "mod-media",
+            "item": {"id": media_item, "asset": "00000000-0000-7000-8000-000000000081"}
+        }),
+    );
+    let mat = v3::load(&ws, &book, Scope::Material(media_item.into())).unwrap();
+    assert!(mat.documents.is_empty());
     assert_eq!(
         mat.book_words(&Live::default()),
         book_data.book_words(&Live::default())
     );
+    assert!(v3::load(&ws, &book, Scope::Material("missing".into())).is_err());
     let field = v3::load(
         &ws,
         &book,

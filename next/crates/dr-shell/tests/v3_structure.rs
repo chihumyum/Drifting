@@ -426,26 +426,20 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
         }
         assert_eq!(json!(shell.memberships), json!(structure.memberships()));
         assert_eq!(json!(shell.timeline_views), json!(view.timeline_views()));
+        let expected_media_ids: Vec<String> = structure
+            .entries()
+            .filter(|e| !e.is_trashed())
+            .flat_map(|e| e.media.values().flatten().map(|m| m.id.to_string()))
+            .collect();
         assert_eq!(
-            json!(shell.materials),
-            json!(
-                view.materials()
-                    .iter()
-                    .map(dr_workspace::dto::MaterialInfo::from)
-                    .collect::<Vec<_>>()
-            )
+            shell
+                .materials
+                .iter()
+                .map(|m| m.id.clone())
+                .collect::<Vec<_>>(),
+            expected_media_ids
         );
-        assert_eq!(
-            json!(shell.material_folders),
-            json!(
-                view.material_folders()
-                    .iter()
-                    .map(|folder| json!({
-                        "id":folder.id,"name":folder.name,"color":null,"parent":folder.parent
-                    }))
-                    .collect::<Vec<_>>()
-            )
-        );
+        assert!(shell.material_folders.is_empty());
     }
     ws.shutdown().unwrap();
 }

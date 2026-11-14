@@ -1,7 +1,8 @@
 //! Pure layout math, memory persistence and filter predicates for M23.
 
+use dr_shell::book::MaterialInfo;
 use dr_view_review::Listing;
-use dr_workspace::dto::{CommentInfo, MaterialInfo};
+use dr_workspace::dto::CommentInfo;
 use serde::{Deserialize, Serialize};
 
 /// Per-book memory key in [`dr_shell::Workspace::book_memory`].

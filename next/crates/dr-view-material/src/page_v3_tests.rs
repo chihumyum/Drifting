@@ -1,6 +1,5 @@
 use super::*;
 use dr_shell::{Services, SettingsFile, ShellInfo};
-use dr_store::asset::{SourceImport, Variant};
 use dr_ui::Appearance;
 use dr_workspace::{Faults, WorkspaceOptions};
 use gpui::{TestAppContext, VisualTestContext};
@@ -38,7 +37,6 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     )
     .unwrap();
     let book_id = seed.books[0].book_id().to_string();
-    let sample_title = seed.books[0].book.view().materials()[0].title.clone();
     seed.write_to(&store).unwrap();
     let faults = Arc::new(Faults::default());
     let ws = Library::open(
@@ -49,43 +47,30 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
         },
     )
     .unwrap();
-    let hidden = call(&ws, "material.list", json!({"book":book_id}));
-    let asset = dr_model::id::new_uuid_v7();
-    let bytes = dr_testkit::media::png(16, 16);
-    let path = dir.path().join("synthetic.png");
-    std::fs::write(&path, &bytes).unwrap();
-    ws.library()
-        .import_asset(&SourceImport {
-            book_id: &book_id,
-            asset_id: &asset,
-            source: &path,
-            mime: "image/png",
-            ext: "png",
-            dimensions: Some((16, 16)),
-            limit: 64 << 20,
-        })
+    crate::import::import_bytes(&ws, &book_id, None, dr_testkit::media::png(24, 24), "原图")
         .unwrap();
-    let sha = ws
-        .library()
-        .asset(&asset, Variant::Source)
-        .unwrap()
-        .unwrap()
-        .sha256;
-    call(
+    let initial_book = Book::load(&ws, &book_id).unwrap();
+    let sample_title = initial_book.material_items()[0].title.clone();
+    let hidden = initial_book.material_items().to_vec();
+    let imported = crate::import::import_bytes(
         &ws,
-        "asset.put",
-        json!({"book":book_id,"id":asset,"kind":"image",
-        "mime":"image/png","size":bytes.len(),"sha256":sha,"width":16,"height":16}),
-    );
-    let id = call(
-        &ws,
-        "material.create",
-        json!({"book":book_id,"kind":"image",
-        "title":sample_title,"asset":asset}),
-    )["id"]
-        .as_str()
+        &book_id,
+        None,
+        dr_testkit::media::png(16, 16),
+        &sample_title,
+    )
+    .unwrap();
+    let id = imported.material;
+    let host_info = Book::load(&ws, &book_id)
         .unwrap()
-        .to_owned();
+        .material_items()
+        .iter()
+        .find(|m| m.id == id)
+        .unwrap()
+        .clone();
+    let host_entry = host_info.entry.clone().unwrap();
+    let host_module = host_info.module.clone().unwrap();
+    let host_asset = host_info.asset.clone().unwrap();
     cx.update(|cx| {
         dr_shell::init(
             ShellInfo {
@@ -120,8 +105,9 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     });
     call(
         &ws,
-        "material.update",
-        json!({"book":book_id,"id":id,"description":sample_title}),
+        "module.put_media",
+        json!({"book":book_id,"entry":host_entry,"module":host_module,
+        "item":{"id":id,"asset":host_asset,"caption":sample_title}}),
     );
     cx.update(|window, cx| {
         page.update(cx, |p, cx| {
@@ -133,20 +119,12 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     });
     wait(cx, |cx| page.read_with(cx, |p, _| !p.saving_title));
     assert!(page.read_with(cx, |p, _| p.title_error.is_none()));
-    let rows = call(&ws, "material.list", json!({"book":book_id}));
-    let row = rows
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["id"] == id)
-        .unwrap();
-    assert_eq!(row["title"], draft);
-    assert_eq!(row["description"], sample_title);
-    for original in hidden.as_array().unwrap() {
-        assert!(
-            rows.as_array().unwrap().contains(original),
-            "unshown material changed"
-        );
+    let rows = Book::load(&ws, &book_id).unwrap().material_items().to_vec();
+    let row = rows.iter().find(|m| m.id == id).unwrap();
+    assert_eq!(row.title, draft);
+    assert_eq!(row.description, sample_title);
+    for original in &hidden {
+        assert!(rows.contains(original), "unshown material changed");
     }
     // A rejected field write survives a blur and a fresh book snapshot.
     let failed = format!("{draft}\n{draft}");
@@ -222,19 +200,15 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     let comments = call(
         &ws,
         "comment.list",
-        json!({"book":book_id,"target":{"kind":"material","id":id}}),
+        json!({"book":book_id,"target":{"kind":"entry","id":host_entry},"module":host_module}),
     );
-    assert_eq!(comments[0]["target"]["id"], id);
+    assert_eq!(comments[0]["target"]["id"], host_entry);
+    assert_eq!(comments[0]["part"]["item"], id);
     assert!((comments[0]["part"]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
     assert_eq!(comments[0]["body"], sample_title);
-    let row = call(&ws, "material.list", json!({"book":book_id}));
-    let row = row
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["id"] == id)
-        .unwrap();
-    assert_eq!(row["title"], draft);
-    assert_eq!(row["description"], failed);
+    let rows = Book::load(&ws, &book_id).unwrap().material_items().to_vec();
+    let row = rows.iter().find(|m| m.id == id).unwrap();
+    assert_eq!(row.title, draft);
+    assert_eq!(row.description, failed);
     ws.close();
 }

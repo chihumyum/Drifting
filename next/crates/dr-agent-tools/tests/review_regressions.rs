@@ -102,11 +102,14 @@ fn unavailable(result: dr_agent_tools::Result<Value>) {
 #[test]
 fn internal_note_task_projection_is_never_discovered_or_authorized_by_prose_reads() {
     let f = Fixture::new();
-    let material = f.author(
-        "material.create",
-        json!({"book":f.book,"kind":"text","title":f.text,"text":f.text}),
+    let note = dr_testkit::seed::acceptance::novel_entry(
+        &f.ws,
+        f.book.as_str(),
+        "tpl-note",
+        &f.text,
+        Some(&f.text),
     );
-    let doc = format!("material:{}", material["id"].as_str().unwrap());
+    let doc = format!("body:{}/mod-prose", note["id"].as_str().unwrap());
     let tools = AgentTools::new();
     assert!(tools.catalog().descriptor("note_tasks.project").is_none());
     assert_eq!(

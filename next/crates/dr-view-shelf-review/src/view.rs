@@ -30,13 +30,7 @@ use dr_view_material::folders::Selection;
 use dr_view_review::{Filter, ReviewView};
 use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
-    commands::{
-        material::{MaterialCreate, MaterialCreateIn},
-        v3::{
-            comment::{CommentCreate, CommentCreateIn},
-            material_links::{SetEntryLink, SetEntryLinkIn},
-        },
-    },
+    commands::v3::comment::{CommentCreate, CommentCreateIn},
 };
 use futures::{FutureExt as _, future::LocalBoxFuture};
 use gpui::{
@@ -85,7 +79,7 @@ pub(crate) enum ShelfGridRow {
         first: bool,
     },
     Cards {
-        items: Rc<[dr_workspace::dto::MaterialInfo]>,
+        items: Rc<[dr_shell::book::MaterialInfo]>,
         bottom_pad: f32,
     },
 }
@@ -93,7 +87,7 @@ pub(crate) enum ShelfGridRow {
 pub(crate) type ListSigSlot = RefCell<(Option<Rc<[String]>>, i32)>;
 pub(crate) type ShelfRowsCache = RefCell<
     Option<(
-        Rc<[dr_workspace::dto::MaterialInfo]>,
+        Rc<[dr_shell::book::MaterialInfo]>,
         usize,
         Rc<[ShelfGridRow]>,
         Rc<[String]>,
@@ -210,8 +204,8 @@ struct MaterialCacheKey {
 
 #[derive(Clone)]
 pub(crate) struct CachedMaterials {
-    pub(crate) visible: Rc<[dr_workspace::dto::MaterialInfo]>,
-    pub(crate) orphans: Rc<[dr_workspace::dto::MaterialInfo]>,
+    pub(crate) visible: Rc<[dr_shell::book::MaterialInfo]>,
+    pub(crate) orphans: Rc<[dr_shell::book::MaterialInfo]>,
     pub(crate) orphan_keys: Rc<[String]>,
 }
 
@@ -1132,26 +1126,9 @@ impl ShelfReviewView {
         );
     }
 
-    pub(crate) fn create_text_material(&mut self, title: String, cx: &mut Context<Self>) {
-        let book = self.book_id.clone();
+    pub(crate) fn create_text_material(&mut self, _title: String, cx: &mut Context<Self>) {
         self.spawn_tracked_write(
-            move |lib| {
-                lib.run::<MaterialCreate>(
-                    &Actor::User,
-                    MaterialCreateIn {
-                        book,
-                        kind: "text".into(),
-                        title,
-                        asset: None,
-                        folder: None,
-                        place: None,
-                        description: String::new(),
-                        text: None,
-                    },
-                )
-                .map(|r| r.output.id)
-                .map_err(|e| e.to_string())
-            },
+            move |_lib| Err::<String, String>("text materials are retired in format 5".into()),
             |this, res, cx| match res {
                 Ok(_id) => {
                     this.dialog = None;
@@ -1212,17 +1189,8 @@ impl ShelfReviewView {
         let entry = entry_id.to_owned();
         self.spawn_tracked_write(
             move |lib| {
-                lib.run::<SetEntryLink>(
-                    &Actor::User,
-                    SetEntryLinkIn {
-                        book,
-                        material: mat,
-                        entry,
-                        linked,
-                    },
-                )
-                .map(|_| ())
-                .map_err(|e| e.to_string())
+                dr_view_material::v3::set_entry_link(&lib, &book, &mat, &entry, linked)
+                    .map_err(|e| e.to_string())
             },
             move |this, res, cx| {
                 if res.is_ok() {

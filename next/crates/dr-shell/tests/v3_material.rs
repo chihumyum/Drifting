@@ -1,17 +1,32 @@
-//! Text materials use their real prose document, including in a v3 book.
+//! Note entries (`tpl-note`, the v5 replacement for text materials) use their
+//! `body:<entry>/mod-prose` document through `EntryPage`, while unclaimed
+//! `Target::Material` routes have no retired `material:<id>` prose document.
 use dr_editor::ChapterEditor;
 use dr_shell::{
     Services, SettingsFile, ShellInfo, Workspace,
     book::Book,
     nav::{Open, Target},
+    workspace::editors::PageView,
 };
 use dr_workspace::{Actor, Workspace as Library};
-use gpui::{AppContext as _, Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{
+    AppContext as _, Entity, Focusable as _, TestAppContext, VisualTestContext, prelude::*,
+};
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
 fn call(lib: &Library, name: &str, input: Value) -> Value {
     lib.call(&Actor::User, name, input).unwrap()["output"].clone()
+}
+fn doc_id(target: &Target) -> String {
+    let Target::Entry {
+        id,
+        module: Some(module),
+    } = target
+    else {
+        panic!("expected entry module target: {target:?}");
+    };
+    format!("body:{id}/{module}")
 }
 fn fixture() -> (tempfile::TempDir, Library, Vec<String>, Vec<Target>) {
     let dir = tempfile::tempdir().unwrap();
@@ -35,16 +50,59 @@ fn fixture() -> (tempfile::TempDir, Library, Vec<String>, Vec<Target>) {
             let id = &b
                 .v3()
                 .unwrap()
-                .materials
+                .entries
                 .iter()
-                .find(|m| m.kind == "text")
+                .find(|e| e.template.as_deref() == Some("tpl-note"))
                 .unwrap()
                 .id;
-            Target::Material(id.parse().unwrap())
+            Target::from_key(&format!("entry:{id}/mod-prose")).unwrap()
         })
         .collect();
     (dir, lib, books, targets)
 }
+
+struct NoteBody {
+    editor: Entity<ChapterEditor>,
+}
+impl Render for NoteBody {
+    fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
+        gpui::div().size_full().child(self.editor.clone())
+    }
+}
+
+fn register_note_prose_view(cx: &mut gpui::App) {
+    dr_shell::v3::add_module_view(cx, "prose", move |host, window, cx| {
+        let source = dr_editor::v3::prepare_body(
+            &host.page.library,
+            &host.page.book_id,
+            &host.entry,
+            &host.module.id,
+        )
+        .unwrap();
+        let doc = format!("body:{}/{}", host.entry, host.module.id);
+        let editor = cx.new(|cx| {
+            ChapterEditor::with_session(
+                host.page.library.clone(),
+                &host.page.book_id,
+                &doc,
+                source,
+                Default::default(),
+                window,
+                cx,
+            )
+        });
+        let focus = editor.read(cx).editor().focus_handle(cx);
+        let view = cx.new(|_| NoteBody { editor });
+        dr_shell::v3::register_editor(
+            &host.page,
+            &view,
+            |v, _| Some(PageView::Doc(v.editor.clone())),
+            cx,
+        );
+        dr_shell::v3::Rendered::new(view).focus(focus)
+    });
+}
+
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| window.draw(cx).clear(cx));
 }
@@ -56,7 +114,7 @@ fn wait(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> boo
         if done(cx) {
             return;
         }
-        assert!(Instant::now() < deadline, "material page did not settle");
+        assert!(Instant::now() < deadline, "note page did not settle");
         std::thread::sleep(Duration::from_millis(2));
     }
 }
@@ -64,9 +122,13 @@ fn setup<'a>(
     cx: &'a mut TestAppContext,
     lib: &Library,
     book: &str,
+    register_default_prose: bool,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
+        if register_default_prose {
+            register_note_prose_view(cx);
+        }
         dr_shell::init(
             ShellInfo {
                 app_name: "Drifting Next",
@@ -85,6 +147,7 @@ fn setup<'a>(
         )
     });
     let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.update(|window, _| window.activate_window());
     wait(cx, |cx| view.read_with(cx, |ws, _| ws.book.v3().is_some()));
     (view, cx)
 }
@@ -97,19 +160,13 @@ fn open(
     wait(cx, |cx| {
         view.read_with(cx, |ws, _| ws.editor_of(target).is_some())
     });
-    let editor = view.read_with(cx, |ws, _| {
-        assert!(
-            ws.editors[&target.key()].v3.is_none(),
-            "a material is not an empty entry composition"
-        );
-        ws.editor_of(target).unwrap().clone()
-    });
+    let editor = view.read_with(cx, |ws, _| ws.editor_of(target).unwrap().clone());
     draw(cx);
     cx.update(|window, cx| assert!(editor.read(cx).editor().focus_handle(cx).is_focused(window)));
     editor
 }
 fn read(lib: &Library, target: &Target) -> Value {
-    call(lib, "prose.read", json!({"doc":target.key()}))["paragraphs"].clone()
+    call(lib, "prose.read", json!({"doc": doc_id(target)}))["paragraphs"].clone()
 }
 fn prefix(editor: &Entity<ChapterEditor>, cx: &mut VisualTestContext, text: &str) {
     editor.update_in(cx, |e, window, cx| {
@@ -124,10 +181,10 @@ fn material_text_has_an_editor_input_undo_and_a_composer_entry(cx: &mut TestAppC
     let (_dir, lib, books, targets) = fixture();
     let target = &targets[0];
     let before = read(&lib, target);
-    let (view, cx) = setup(cx, &lib, &books[0]);
+    let (view, cx) = setup(cx, &lib, &books[0], true);
     let editor = open(&view, cx, target);
     editor.read_with(cx, |e, cx| {
-        assert_eq!(e.doc_id(), target.key());
+        assert_eq!(e.doc_id(), doc_id(target));
         assert_eq!(e.book_id(), books[0]);
         assert_eq!(
             e.editor().read(cx).book().chapters[0]
@@ -155,7 +212,6 @@ fn material_text_has_an_editor_input_undo_and_a_composer_entry(cx: &mut TestAppC
     });
     cx.simulate_keystrokes(dr_view_review::NEW_COMMENT_KEYS);
     wait(cx, |cx| view.read_with(cx, |ws, _| ws.composer.is_some()));
-    // Saving through a v3 composer is a separate G4 interface handoff.
     cx.simulate_keystrokes("escape");
     wait(cx, |cx| view.read_with(cx, |ws, _| ws.composer.is_none()));
     assert_eq!(read(&lib, target), before);
@@ -168,13 +224,19 @@ fn foreign_material_is_refused_and_switching_books_opens_the_correct_document(
     let (_dir, lib, books, targets) = fixture();
     let before_a = read(&lib, &targets[0]);
     let before_b = read(&lib, &targets[1]);
-    let (view, cx) = setup(cx, &lib, &books[0]);
-    view.update(cx, |ws, cx| ws.open(targets[1].clone(), Open::KEEP, cx));
+    let (view, cx) = setup(cx, &lib, &books[0], true);
+    // Unclaimed Target::Material has no retired `material:<id>` prose document.
+    let retired = Target::Material("retired-material".parse().unwrap());
+    view.update(cx, |ws, cx| ws.open(retired.clone(), Open::KEEP, cx));
     wait(cx, |cx| {
         view.read_with(cx, |ws, _| {
-            ws.editors.get(&targets[1].key()).is_some_and(|p| p.failed)
+            ws.editors.get(&retired.key()).is_some_and(|p| p.failed)
         })
     });
+    assert!(view.read_with(cx, |ws, _| ws.editor_of(&retired).is_none()));
+    // Opening a foreign book's note entry mounts no editor until switching to that book.
+    view.update(cx, |ws, cx| ws.open(targets[1].clone(), Open::KEEP, cx));
+    draw(cx);
     assert!(view.read_with(cx, |ws, _| ws.editor_of(&targets[1]).is_none()));
     view.update_in(cx, |ws, window, cx| ws.open_book(&books[1], window, cx));
     wait(cx, |cx| {
@@ -189,8 +251,6 @@ fn foreign_material_is_refused_and_switching_books_opens_the_correct_document(
     assert_eq!(read(&lib, &targets[0]), before_a);
 }
 
-// A registered module gives the shell its wrapper's focus; its real text
-// field is a descendant, just like G1's asynchronous body renderer.
 struct BodyFocus {
     focus: gpui::FocusHandle,
     field: Entity<dr_ui::input::TextField>,
@@ -213,10 +273,44 @@ impl gpui::Render for BodyFocus {
 #[gpui::test]
 fn navigation_from_a_modules_child_editor_hands_focus_to_material_prose(cx: &mut TestAppContext) {
     let (_dir, lib, books, targets) = fixture();
+    let note_entry = match &targets[0] {
+        Target::Entry { id, .. } => id.as_str().to_owned(),
+        _ => unreachable!(),
+    };
     let mounted = std::rc::Rc::new(std::cell::RefCell::new(None));
     let made = mounted.clone();
     cx.update(|cx| {
-        dr_shell::v3::add_module_view(cx, "prose", move |_, window, cx| {
+        dr_shell::v3::add_module_view(cx, "prose", move |host, window, cx| {
+            if host.entry == note_entry {
+                let source = dr_editor::v3::prepare_body(
+                    &host.page.library,
+                    &host.page.book_id,
+                    &host.entry,
+                    &host.module.id,
+                )
+                .unwrap();
+                let doc = format!("body:{}/{}", host.entry, host.module.id);
+                let editor = cx.new(|cx| {
+                    ChapterEditor::with_session(
+                        host.page.library.clone(),
+                        &host.page.book_id,
+                        &doc,
+                        source,
+                        Default::default(),
+                        window,
+                        cx,
+                    )
+                });
+                let focus = editor.read(cx).editor().focus_handle(cx);
+                let view = cx.new(|_| NoteBody { editor });
+                dr_shell::v3::register_editor(
+                    &host.page,
+                    &view,
+                    |v, _| Some(PageView::Doc(v.editor.clone())),
+                    cx,
+                );
+                return dr_shell::v3::Rendered::new(view).focus(focus);
+            }
             let body = cx.new(|cx: &mut gpui::Context<BodyFocus>| {
                 let focus = cx.focus_handle();
                 let field =
@@ -227,7 +321,7 @@ fn navigation_from_a_modules_child_editor_hands_focus_to_material_prose(cx: &mut
             dr_shell::v3::Rendered::new(body.clone()).focus(body.read(cx).focus.clone())
         })
     });
-    let (view, cx) = setup(cx, &lib, &books[0]);
+    let (view, cx) = setup(cx, &lib, &books[0], false);
     let entry = view.read_with(cx, |ws, _| {
         let entry = ws
             .book

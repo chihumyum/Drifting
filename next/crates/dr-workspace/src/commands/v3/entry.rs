@@ -31,12 +31,29 @@ pub(super) fn new_entry(
         overrides: None,
         fields: BTreeMap::new(),
         kv: BTreeMap::new(),
+        media: BTreeMap::new(),
         primary: None,
         layout: Default::default(),
         created_at: Some(now()),
         updated_at: None,
         deleted_at: None,
         name_conflict: None,
+    }
+}
+
+pub(super) fn mark_missing_media(entry: &mut types::Entry, known_assets: &BTreeSet<String>) {
+    for items in entry.media.values_mut() {
+        for item in items {
+            item.missing = !known_assets.contains(&item.asset);
+        }
+    }
+    if let Some(b) = &mut entry.below {
+        for child in &mut b.children {
+            mark_missing_media(child, known_assets);
+        }
+        for member in &mut b.members {
+            mark_missing_media(member, known_assets);
+        }
     }
 }
 
@@ -80,7 +97,10 @@ op! {
     EntryList = "entry.list", Read, Shared, "Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.",
     fn(cx, input: ListIn) -> Vec<types::Entry> {
         let slot = cx.book_v3(&input.book)?;
-        let v = slot.reader_v3.view().structure_snapshot();
+        let view = slot.reader_v3.view();
+        let known_assets: BTreeSet<String> =
+            view.assets().into_iter().map(|a| a.id.to_string()).collect();
+        let v = view.structure_snapshot();
         let p: Option<EntryId> = input
             .parent
             .as_deref()
@@ -99,6 +119,7 @@ op! {
                     if input.below {
                         out.below = below(&v, &e.id);
                     }
+                    mark_missing_media(&mut out, &known_assets);
                     out
                 })
                 .collect(),
@@ -114,10 +135,13 @@ op! {
         let e = view
             .entry(&id)
             .ok_or_else(|| WsError::not_found("entry", &input.id))?;
+        let known_assets: BTreeSet<String> =
+            view.assets().into_iter().map(|a| a.id.to_string()).collect();
         let mut out: types::Entry = (&e).into();
         if e.is_level() && !e.is_trashed() {
             out.below = below(&view.structure_snapshot(), &id);
         }
+        mark_missing_media(&mut out, &known_assets);
         Ok(out)
     }
 }

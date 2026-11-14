@@ -97,9 +97,9 @@ fn insert(txn: &mut ProseTxn<'_>, pos: usize, p: &Para) -> Result<()> {
 
 fn insert_embed(txn: &mut ProseTxn<'_>, pos: usize, embed: &EmbedView) -> Result<()> {
     match embed {
-        EmbedView::Material { id, material } => {
-            let m = material.clone().expect("plans only embed known materials");
-            txn.insert_embed(pos, id, &EmbedKind::Material(m))?;
+        EmbedView::Asset { id, asset } => {
+            let a = asset.clone().expect("plans only embed known assets");
+            txn.insert_embed(pos, id, &EmbedKind::Asset(a))?;
         }
         EmbedView::Table {
             id,
@@ -187,12 +187,10 @@ fn rewrite(txn: &mut ProseTxn<'_>, pos: usize, c: &Para, t: &Para) -> Result<()>
                 StyleKey::Underline,
                 StyleKey::Strike,
                 StyleKey::Link,
+                StyleKey::Highlight,
+                StyleKey::Code,
             ] {
                 txn.clear_style(range.clone(), key)?;
-            }
-            if txn.view().profile() == dr_model::ProseProfile::Note {
-                txn.clear_style(range.clone(), StyleKey::Highlight)?;
-                txn.clear_style(range.clone(), StyleKey::Code)?;
             }
             let targets: BTreeSet<String> = now
                 .runs
@@ -367,9 +365,9 @@ fn insert_embed_v3(
     table_cells: &BTreeMap<(String, String), TableCellPlan>,
 ) -> Result<()> {
     match embed {
-        EmbedView::Material { id, material } => {
-            let m = material.clone().expect("plans only embed known materials");
-            txn.insert_embed(pos, id, &EmbedKind::Material(m))?;
+        EmbedView::Asset { id, asset } => {
+            let a = asset.clone().expect("plans only embed known assets");
+            txn.insert_embed(pos, id, &EmbedKind::Asset(a))?;
         }
         EmbedView::Table {
             id,
@@ -475,12 +473,10 @@ fn rewrite_v3(txn: &mut ProseTxn<'_>, pos: usize, c: &Para, t: &Para) -> Result<
                 StyleKey::Underline,
                 StyleKey::Strike,
                 StyleKey::Link,
+                StyleKey::Highlight,
+                StyleKey::Code,
             ] {
                 txn.clear_style(range.clone(), key)?;
-            }
-            if txn.view().profile() == dr_model::ProseProfile::Note {
-                txn.clear_style(range.clone(), StyleKey::Highlight)?;
-                txn.clear_style(range.clone(), StyleKey::Code)?;
             }
             let targets: BTreeSet<String> = now
                 .runs

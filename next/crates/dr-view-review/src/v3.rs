@@ -115,6 +115,9 @@ fn invalid(e: impl ToString) -> WsError {
 
 fn target(comment: &CommentV3) -> Option<Target> {
     let target = comment.target.as_ref()?;
+    if let Some(m::CommentPart::Media { item, .. }) = &comment.part {
+        return Some(Target::Material(item.to_string()));
+    }
     match target.kind {
         EntityKind::Entry => Some(Target::Entry {
             id: target.id.clone(),
@@ -172,7 +175,6 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                 })
                 .map(|e| e.id.to_string())
                 .collect();
-            let material_titles = v.material_titles();
             let mut pending_retained: Vec<(usize, String)> = Vec::new();
             let items: Vec<Item> = comments
                 .into_iter()
@@ -208,10 +210,14 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                 false
                             }
                         }
-                        Some(Target::Material(id)) => {
-                            if let Some(mat_title) = material_titles.get(id.as_str()) {
-                                title = mat_title.clone();
-                                true
+                        Some(Target::Material(_)) => {
+                            if let Some(host) = &comment.target
+                                && host.kind == EntityKind::Entry
+                                && live_ids.contains(host.id.as_str())
+                                && let Some(entry) = entries.get(host.id.as_str())
+                            {
+                                title = entry.title.clone();
+                                !comment.target_missing
                             } else {
                                 false
                             }
@@ -392,7 +398,6 @@ pub fn prose_doc(comment: &CommentV3) -> Option<DocId> {
             target.id.parse().ok()?,
             comment.target_module.clone()?,
         ))),
-        EntityKind::Material => Some(DocId::Material(target.id.parse().ok()?)),
         _ => None,
     }
 }
