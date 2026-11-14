@@ -15,6 +15,13 @@ const LONG_QUOTED = /(["'`“‘「『])[^"'`”’」』\n]{40,}(["'`”’」�
 // Long runs of words separated by spaces read like sentences of content.
 const LONG_SENTENCE = /(?:\b[\p{L}'’-]+\b[ ,;:]+){12,}\b[\p{L}'’-]+\b/gu;
 const HOME_PATH = /\/(?:Users|home)\/[^/\s:)]+/g;
+// `C:\Users\<name>`: the same folder on Windows, where a name may hold spaces.
+const WINDOWS_HOME_PATH = /\b[A-Za-z]:\\Users\\[^\\/:*?"<>|\r\n]+/g;
+
+/** A path under someone's home folder says who they are; keep what follows it. */
+export function redactHomePaths(text: string): string {
+  return text.replace(WINDOWS_HOME_PATH, '~').replace(HOME_PATH, '~');
+}
 
 export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
   const redacted = text
@@ -24,6 +31,7 @@ export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
     .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|authorization)\s*[:=]\s*)[^\s,;]+/gi, '$1[redacted]')
     .replace(/[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
     .replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]+/gi, '$1[redacted]')
+    .replace(WINDOWS_HOME_PATH, '~')
     .replace(HOME_PATH, '~')
     .replace(CJK_RUN, '[text]')
     .replace(LONG_QUOTED, '$1[text]$2')
@@ -46,6 +54,23 @@ export function sanitizeStack(stack: string | undefined): string {
     .map((line) => sanitizeReportText(line, 400));
   const joined = frames.join('\n');
   return joined.length > MAX_STACK ? joined.slice(0, MAX_STACK) : joined;
+}
+
+const MAX_COMPONENT_FRAMES = 8;
+
+/**
+ * The components a render failure passed through, innermost first, as report
+ * context (`component1`…). Only frames with a source position are kept: in a
+ * release they name bundle positions that the release's source map resolves,
+ * while host elements (`at div`) carry no position and say nothing.
+ */
+export function componentStackContext(componentStack: string | null | undefined): Record<string, string> {
+  const frames = (componentStack ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /:\d+:\d+\)?$/.test(line))
+    .slice(0, MAX_COMPONENT_FRAMES);
+  return Object.fromEntries(frames.map((frame, index) => [`component${index + 1}`, sanitizeReportText(frame, 200)]));
 }
 
 const TOKEN_UNSAFE = /[^A-Za-z0-9:._-]+/g;

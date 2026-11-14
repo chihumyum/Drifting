@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createDatabasePlatform,
   DatabaseOpenFailure,
+  databaseOpenFailureCause,
   decodeDatabaseValue,
   encodeDatabaseParameters,
   encodeDatabaseValue,
@@ -144,6 +145,7 @@ describe('Tauri database command adapter', () => {
     const failure = {
       code: 'integrity-check-failed',
       message: 'candidate was not activated',
+      detail: null,
       recoverySessionId: '0123456789abcdef',
       sourceVersion: '0.1.0-alpha.1',
       targetVersion: '0.1.0-alpha.2',
@@ -172,6 +174,40 @@ describe('Tauri database command adapter', () => {
       clientSessionId: 'recovery-renderer',
     });
     expect(new DatabaseOpenFailure(failure)).toBeInstanceOf(Error);
+  });
+
+  it('carries the failing step and its cause when there is nothing to restore', async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === 'database_open') {
+        throw {
+          code: 'failed-to-enable-wal-mode',
+          message: 'Drifting could not open the local library database.',
+          detail: 'failed to enable WAL mode: database is locked',
+          recoverySessionId: null,
+          sourceVersion: null,
+          targetVersion: '0.1.0-alpha.12',
+          safetyBackup: null,
+        };
+      }
+      return undefined;
+    });
+    const database = createDatabasePlatform(invoke, 'plain-renderer');
+
+    const failure = await database.open('drifting.db').catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(DatabaseOpenFailure);
+    expect(failure).toMatchObject({
+      code: 'failed-to-enable-wal-mode',
+      detail: 'failed to enable WAL mode: database is locked',
+      recoverySessionId: null,
+    });
+    expect(databaseOpenFailureCause((failure as DatabaseOpenFailure).detail)).toBe('database is locked');
+    expect(databaseOpenFailureCause('database integrity check did not return ok')).toBe(
+      'database integrity check did not return ok',
+    );
+    expect(databaseOpenFailureCause(null)).toBeNull();
+
+    await database.openDatabaseDirectory();
+    expect(invoke).toHaveBeenLastCalledWith('database_open_directory');
   });
 });
 

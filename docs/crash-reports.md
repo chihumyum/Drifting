@@ -17,10 +17,10 @@ side (storage, operator email, retention) is specified in the Hosted service's
 
 | Kind | Source | Severity |
 | --- | --- | --- |
-| `renderer-error`, `unhandled-rejection` | uncaught errors and rejections (`installCrashReporting` in `main.tsx`) | error |
-| `render-failure` | the root error boundary replaced the UI (`App.tsx`) | fatal |
+| `renderer-error`, `unhandled-rejection` | uncaught errors and rejections (`installCrashReporting` in `main.tsx`); a rejection that is a `DatabaseOpenFailure` is left to the failure screen | error |
+| `render-failure` | an error boundary replaced the window (`scope: app`, `App.tsx`) or the open project's workspace (`scope: workspace`, `ProjectRuntimeProvider.tsx`) | fatal |
 | `native-panic` | a Rust panic recorded by `src-tauri/src/crash_reports.rs`, sent on the next launch | fatal |
-| `integrity` | `database-open-failed:<code>` (recovery screen), `yjs-load-failed`, `local-flush-failed` (quit, update install, or `reason: sync-cycle` when a sync cycle's durability barrier meets a failed local write; that cycle is retried), `sync-blocked:<code>` (a non-retryable sync stop other than sign-out, cancellation or project deletion) | fatal for the database, otherwise error |
+| `integrity` | `database-open-failed:<code>` (the failure screen, see below), `yjs-load-failed`, `local-flush-failed` (quit, update install, or `reason: sync-cycle` when a sync cycle's durability barrier meets a failed local write; that cycle is retried), `sync-blocked:<code>` (a non-retryable sync stop other than sign-out, cancellation or project deletion) | fatal for the database, otherwise error |
 
 Nothing is sent when the build has no Hosted service (public local-only source
 builds), in development builds (unless `VITE_DRIFTING_CRASH_REPORTS_IN_DEV=1`
@@ -45,6 +45,22 @@ ID, the time, and a few context values (for example the flush reason or the
 Yjs document family, never an identifier or text). A signed-in Hosted session
 adds the account so the maintainer can follow up.
 
+A `render-failure` also names its boundary (`scope`) and, as `component1` to
+`component8`, the innermost component frames of React's component stack that
+carry a source position (`componentStackContext`). An error React itself throws,
+such as an update loop (#185), has only React's own frames on its stack; before
+2026-11-14 such reports arrived with an empty context.
+
+Release builds ship no source maps. To read a release's positions, check out
+its tag, install with `pnpm install --frozen-lockfile`, and run
+`pnpm exec vite build --config vite.renderer.config.ts --sourcemap hidden` with
+the release's renderer variables (`VITE_LOCAL_ONLY_MODE=false`,
+`VITE_REQUIRE_AUTH=false`, `VITE_AI_TRANSPORT=direct`, `VITE_CLOSED_BETA=false`,
+`VITE_API_BASE_URL` set to the Hosted origin, `VITE_TERMS_URL`,
+`VITE_PRIVACY_URL`) and nothing else. When the asset names in the report
+(`index-<hash>.js`, `project-route-components-<hash>.js`) match the build's,
+the bundle is byte-identical and its maps resolve the frames.
+
 An `AggregateError` or an error with a `cause` lists what it was made of after
 its own message, one bracket per level: up to three inner errors per level and
 three levels deep, each as `Name: message` (or the bare string a native command
@@ -54,9 +70,51 @@ the steps that failed in its message, for example
 
 `crash-sanitize.ts` truncates messages to 300 characters, replaces runs of 12 or
 more CJK characters, quoted spans over 40 characters and runs of 13 or more
-words with `[text]`, replaces home-directory paths with `~`, and keeps only stack
-frame lines. Native panic records replace the home directory and are bounded to
-12 KiB per field before they are written.
+words with `[text]`, replaces home-directory paths with `~` (the macOS, Linux
+and Windows forms, a Windows account name with spaces included), and keeps
+only stack frame lines. Native panic records replace the home directory and are
+bounded to 12 KiB per field before they are written.
+
+## A library that cannot be opened
+
+Every failed `database_open` reaches the renderer as a `DatabaseOpenFailure`
+(`crates/drifting-core/src/database.rs`, `recovery_failure`) and replaces the
+app with the failure screen (`DatabaseRecoveryBoundary`), whether or not an
+upgrade left something to restore. Before 2026-11-14 only a stopped upgrade
+did; any other failure drew the shelf over a closed database, reported
+`unhandled-rejection:DatabaseOpenFailure` with the fixed sentence "could not
+open the local library database" and nothing else, and never checked for
+updates, because that check waits for the library.
+
+- `code` is the step that stopped. For a stopped upgrade it is the recovery
+  stage's code (`migration-candidate-failed`, `activated-database-invalid`, …).
+  For any other failure it is the clause that opens the native error, as a
+  token of at most 64 characters: `failed to enable WAL mode: database is
+  locked` gives `failed-to-enable-wal-mode`. Errors on the open path begin with
+  such a clause, so rewording one changes its report group.
+- `detail` is what that step reported, at most 400 characters, with the
+  library's own folder replaced by `<library>` (SQLite and the operating system
+  name the files they could not reach). A stopped upgrade carries the detail of
+  its stage on the launch that stopped it; a later launch reads the receipt,
+  which holds the code only.
+- The report is `integrity`, fatal, `database-open-failed:<code>`, with
+  `sourceVersion`, `targetVersion`, `safetyBackup` and `cause`: the detail after
+  its leading clause, which the code already names. Splitting it keeps a long
+  clause plus a short cause from reading as a 13-word sentence and being
+  redacted whole. An operating-system message in Chinese may still become
+  `[text]`; its `(os error N)` survives.
+- The screen shows the code and the detail. With nothing to restore it offers
+  a retry (a reload), the folder that holds the database
+  (`database_open_directory`), feedback, the diagnostic summary and exit; a
+  stopped upgrade keeps its restore actions and gains feedback.
+- The screen checks for an update as it appears and installs one from there.
+  Installing normally refuses to start until every local write is saved; with a
+  failed open published that barrier no longer blocks it (a failure is still
+  reported, `reason: update-install-library-closed`), since a newer release may
+  be the only way back into the library.
+
+`database-open-failure.acceptance.test.ts`, `db-open-failure.test.ts` and the
+`open_failure_*` and `stopped_upgrade_*` tests in `database.rs` hold this.
 
 ## Delivery
 

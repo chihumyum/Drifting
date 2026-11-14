@@ -15,13 +15,13 @@
       "agent_chat_queue"
     ],
     "sourceSha256": {
-      "crates/drifting-core/src/database.rs": "7b67c369fe32956545278e0c66ac6a1d6cfc1a0818cac8859785722b9634a305",
+      "crates/drifting-core/src/database.rs": "051051c56c31f01292209ca6ab538f9cef23efe6b9ee066cff933f504e099048",
       "crates/drifting-core/src/file_io.rs": "6fc087da3c633abb0a450aebce976fa750138b5df3db79d797223f7574c52f82",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
       "drizzle/0005_agent_conversation_source.sql": "25b99bdfaf7e002c8601cf6106999d549a2b74727ad4b94aa71fbff4ca00e5b0",
       "scripts/generate-agent-conversation-sync.ts": "578ae6d7535f45f903ddc4ab162d5b8e80d82a3e35d849f0d95c19c89722848d",
-      "src-tauri/src/database.rs": "4f8dda6ea9e8ed90f5729a8eb5d5f22b64432e775deeed819b75e86748a1ec05",
+      "src-tauri/src/database.rs": "a783d6eeb88a7028fa64beb502aeec4fa9449afee680e5159c7bfe6eec662f6e",
       "src-tauri/src/hosted_sync.rs": "25bfaed79a24b25037db9b9f97c52f0f2ace5e09139d6a3c68a5a45cccb934b7",
       "src-tauri/src/mcp_stdio.rs": "b1d8015502206fd816583d0fac6e9e77bd92a6a8927674c380fd8fd3088defe7",
       "src/renderer/domain/agent-conversation-source.ts": "37a221e11da9ed0a625e8b36c3b0e4b6399f6a4fdbd289bc5e8ce426cf4534c0",
@@ -336,7 +336,7 @@
       ]
     },
     "sharedDatabase": {
-      "passed": 129,
+      "passed": 132,
       "failed": 0,
       "ignored": 0,
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"

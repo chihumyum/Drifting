@@ -114,7 +114,12 @@
     "copyDiagnostics": "Copier le diagnostic expurgé",
     "copied": "Un résumé de diagnostic sans données sensibles a été copié.",
     "exit": "Quitter Drifting",
-    "actionFailed": "La récupération n’a pas abouti. Aucune base non vérifiée n’a été activée."
+    "actionFailed": "La récupération n’a pas abouti. Aucune base non vérifiée n’a été activée.",
+    "openTitle": "Votre bibliothèque n’a pas pu être ouverte",
+    "openDetail": "Drifting n’a ouvert ni projets ni réglages. Réessayez ; si l’échec persiste, envoyez-nous la cause indiquée ci-dessous.",
+    "reason": "Cause",
+    "retryOpen": "Réessayer",
+    "openDataDirectory": "Ouvrir le dossier des données"
   },
   "preAlphaGuide": {
     "title": "Bienvenue dans Drifting Alpha",

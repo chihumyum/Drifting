@@ -17,7 +17,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
   const { t } = useTranslation();
   const runtime = getPlatformRuntime();
   const toggleTab = useUiStore((s) => s.toggleRightSidebarTab);
-  const tabTrayRef = useSidebarTabMinimumWidth('right');
+  const tabTrayRef = useSidebarTabMinimumWidth('right', windowChrome);
 
   return (
     <div

@@ -25,8 +25,14 @@ function AppContents() {
     return disableMobileWebViewZoom();
   }, []);
 
-  if (databaseFailure?.recoverySessionId) {
-    return <DatabaseRecoveryBoundary failure={databaseFailure} />;
+  if (databaseFailure) {
+    // Nothing that needs the library is mounted; feedback still reaches us.
+    return (
+      <>
+        <DatabaseRecoveryBoundary failure={databaseFailure} />
+        <FeedbackDialogHost />
+      </>
+    );
   }
 
   return (

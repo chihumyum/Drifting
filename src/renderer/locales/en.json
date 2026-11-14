@@ -113,7 +113,12 @@
     "copyDiagnostics": "Copy safe diagnostics",
     "copied": "A redacted diagnostic summary was copied.",
     "exit": "Exit Drifting",
-    "actionFailed": "The recovery action could not be completed. No unverified database was activated."
+    "actionFailed": "The recovery action could not be completed. No unverified database was activated.",
+    "openTitle": "Your library could not be opened",
+    "openDetail": "Drifting did not continue into projects or settings. Try again; if it keeps failing, send us the reason below.",
+    "reason": "Reason",
+    "retryOpen": "Try again",
+    "openDataDirectory": "Open data folder"
   },
   "preAlphaGuide": {
     "title": "Welcome to Drifting Alpha",

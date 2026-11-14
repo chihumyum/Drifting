@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DatabaseOpenFailure,
+  databaseOpenFailureCause,
   databasePlatform,
   type DatabaseOpenFailureData,
 } from '../../platform/database';
@@ -9,12 +10,16 @@ import { publishDatabaseOpenFailure } from '../../platform/database-recovery-sto
 import { platform } from '../../platform';
 import { requestConfirmation } from '../../store/confirmation-store';
 import { reportCrash } from '../../services/diagnostics/crash-reporter';
+import { redactHomePaths } from '../../services/diagnostics/crash-sanitize';
+import { UpdateService } from '../../services/update/update-service';
+import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
 
 function diagnosticSummary(failure: DatabaseOpenFailureData): string {
   return JSON.stringify(
     {
       kind: 'drifting-database-recovery',
       code: failure.code,
+      detail: failure.detail ? redactHomePaths(failure.detail) : null,
       recoverySessionId: failure.recoverySessionId,
       sourceVersion: failure.sourceVersion,
       targetVersion: failure.targetVersion,
@@ -39,6 +44,19 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
   const [notice, setNotice] = useState<string | null>(null);
   const sessionId = failure.recoverySessionId;
   const backup = failure.safetyBackup;
+  const update = useSyncExternalStore(
+    UpdateService.subscribe,
+    UpdateService.getState,
+    UpdateService.getState,
+  );
+  const offered = update.update;
+  const updating = update.phase === 'downloading' || update.phase === 'installing';
+  const progress =
+    update.totalBytes && update.totalBytes > 0
+      ? Math.min(100, Math.round((update.downloadedBytes / update.totalBytes) * 100))
+      : null;
+  // One thing at a time: no restore while an update installs, and the reverse.
+  const locked = busy !== null || updating;
   const created = useMemo(
     () => (backup ? new Date(backup.createdAtMs).toLocaleString(i18n.language) : null),
     [backup, i18n.language],
@@ -46,6 +64,12 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
 
   useEffect(() => {
     primaryRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    // The ordinary check waits for a library that may never open, and a newer
+    // release can be the only way back in: look for one from here.
+    void UpdateService.check({ manual: true });
   }, []);
 
   useEffect(() => {
@@ -60,6 +84,8 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
         sourceVersion: failure.sourceVersion ?? 'unknown',
         targetVersion: failure.targetVersion,
         safetyBackup: Boolean(failure.safetyBackup),
+        // `code` names the step; this is what SQLite or the system said.
+        cause: databaseOpenFailureCause(failure.detail) ?? 'unknown',
       },
     });
   }, [failure]);
@@ -73,7 +99,13 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
       if (error instanceof DatabaseOpenFailure && error.recoverySessionId) {
         publishDatabaseOpenFailure(error);
       }
-      setNotice(error instanceof Error ? error.message : t('databaseRecovery.actionFailed'));
+      setNotice(
+        error instanceof DatabaseOpenFailure && error.detail
+          ? error.detail
+          : error instanceof Error
+            ? error.message
+            : t('databaseRecovery.actionFailed'),
+      );
     } finally {
       setBusy(null);
     }
@@ -83,20 +115,30 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
     <main className="database-recovery" role="alert" aria-live="assertive">
       <section className="database-recovery__card" aria-labelledby="database-recovery-title">
         <p className="database-recovery__eyebrow">Drifting Alpha · P0 Recovery</p>
-        <h1 id="database-recovery-title">{t('databaseRecovery.title')}</h1>
-        <p>{t('databaseRecovery.detail')}</p>
+        <h1 id="database-recovery-title">
+          {t(sessionId ? 'databaseRecovery.title' : 'databaseRecovery.openTitle')}
+        </h1>
+        <p>{t(sessionId ? 'databaseRecovery.detail' : 'databaseRecovery.openDetail')}</p>
         <dl className="database-recovery__summary">
           <div>
             <dt>{t('databaseRecovery.errorCode')}</dt>
             <dd>{failure.code}</dd>
           </div>
-          <div>
-            <dt>{t('databaseRecovery.version')}</dt>
-            <dd>
-              {failure.sourceVersion ?? t('databaseRecovery.unknownVersion')} →{' '}
-              {failure.targetVersion}
-            </dd>
-          </div>
+          {failure.detail && (
+            <div>
+              <dt>{t('databaseRecovery.reason')}</dt>
+              <dd>{failure.detail}</dd>
+            </div>
+          )}
+          {sessionId && (
+            <div>
+              <dt>{t('databaseRecovery.version')}</dt>
+              <dd>
+                {failure.sourceVersion ?? t('databaseRecovery.unknownVersion')} →{' '}
+                {failure.targetVersion}
+              </dd>
+            </div>
+          )}
           {backup && (
             <div>
               <dt>{t('databaseRecovery.safetyBackup')}</dt>
@@ -105,17 +147,53 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
               </dd>
             </div>
           )}
+          {offered && (
+            <div>
+              <dt>{t('settings.update.check')}</dt>
+              <dd>
+                {offered.version}
+                {update.phase !== 'available' && ` · ${t(`settings.update.states.${update.phase}`)}`}
+              </dd>
+            </div>
+          )}
         </dl>
 
         {notice && <p className="database-recovery__notice">{notice}</p>}
 
         <div className="database-recovery__actions">
+          {offered && (
+            <button
+              type="button"
+              className="set-btn set-btn--primary"
+              disabled={locked}
+              onClick={() => void UpdateService.install().catch(() => undefined)}
+            >
+              {update.phase === 'installing'
+                ? t('settings.update.installing')
+                : update.phase === 'downloading'
+                  ? progress === null
+                    ? t('settings.update.downloading')
+                    : t('settings.update.downloading_progress', { progress })
+                  : t('settings.update.install')}
+            </button>
+          )}
+          {!sessionId && (
+            <button
+              ref={primaryRef}
+              type="button"
+              className={offered ? 'set-btn' : 'set-btn set-btn--primary'}
+              disabled={locked}
+              onClick={() => window.location.reload()}
+            >
+              {t('databaseRecovery.retryOpen')}
+            </button>
+          )}
           {sessionId && (
             <button
               ref={primaryRef}
               type="button"
-              className="set-btn set-btn--primary"
-              disabled={busy !== null}
+              className={offered ? 'set-btn' : 'set-btn set-btn--primary'}
+              disabled={locked}
               onClick={() =>
                 void run('retry', async () => {
                   await databasePlatform.retryMigration(sessionId);
@@ -132,7 +210,7 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
             <button
               type="button"
               className="set-btn"
-              disabled={busy !== null}
+              disabled={locked}
               onClick={() =>
                 void (async () => {
                   const confirmed = await requestConfirmation(
@@ -155,7 +233,7 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
             <button
               type="button"
               className="set-btn"
-              disabled={busy !== null}
+              disabled={locked}
               onClick={() =>
                 void run('export', async () => {
                   const result = await databasePlatform.exportSafetyBackup(
@@ -173,7 +251,7 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
             <button
               type="button"
               className="set-btn"
-              disabled={busy !== null}
+              disabled={locked}
               onClick={() =>
                 void run('directory', () => databasePlatform.openBackupDirectory(sessionId))
               }
@@ -181,11 +259,28 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
               {t('databaseRecovery.openDirectory')}
             </button>
           )}
+          {!sessionId && (
+            <button
+              type="button"
+              className="set-btn"
+              disabled={locked}
+              onClick={() => void run('directory', () => databasePlatform.openDatabaseDirectory())}
+            >
+              {t('databaseRecovery.openDataDirectory')}
+            </button>
+          )}
           <button
-            ref={sessionId ? undefined : primaryRef}
             type="button"
             className="set-btn"
-            disabled={busy !== null}
+            disabled={locked}
+            onClick={() => useFeedbackDialogStore.getState().show()}
+          >
+            {t('feedback.title')}
+          </button>
+          <button
+            type="button"
+            className="set-btn"
+            disabled={locked}
             onClick={() =>
               void run('copy', async () => {
                 await navigator.clipboard.writeText(diagnosticSummary(failure));
@@ -198,7 +293,7 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
           <button
             type="button"
             className="set-btn database-recovery__exit"
-            disabled={busy !== null}
+            disabled={locked}
             onClick={() => void platform.window.close()}
           >
             {t('databaseRecovery.exit')}

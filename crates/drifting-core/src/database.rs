@@ -80,8 +80,12 @@ pub struct DatabaseSafetyBackupSummary {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseOpenFailure {
+    /// The step that stopped: a recovery stage's code, or the clause that
+    /// names the failing step of an ordinary open.
     code: String,
     message: String,
+    /// What that step reported, with the library's own folder redacted.
+    detail: Option<String>,
     recovery_session_id: Option<String>,
     source_version: Option<String>,
     target_version: String,
@@ -252,30 +256,37 @@ impl DatabaseGateway {
     }
 
     pub fn recovery_failure(&self, error: String) -> DatabaseOpenFailure {
-        let Some((session_id, fallback_code)) = parse_recovery_failure(&error) else {
+        let database_directory = &self.inner.database_directory;
+        let Some((session_id, fallback_code, detail)) = parse_recovery_failure(&error) else {
+            // Not an upgrade: nothing to restore, so the failing step and
+            // its cause are all the author and a report can go on.
+            let detail = redact_failure_detail(&error, database_directory);
             return DatabaseOpenFailure {
-                code: "database-open-failed".into(),
+                code: open_failure_code(&detail),
                 message: "Drifting could not open the local library database.".into(),
+                detail: Some(detail),
                 recovery_session_id: None,
                 source_version: None,
                 target_version: env!("CARGO_PKG_VERSION").into(),
                 safety_backup: None,
             };
         };
+        let detail = detail.map(|detail| redact_failure_detail(detail, database_directory));
 
         // The error names the stage that stopped; the receipt may still
         // hold an earlier one. A copy is offered only once it verifies.
-        let Ok(receipt) = read_recovery_receipt(&self.inner.database_directory, session_id) else {
+        let Ok(receipt) = read_recovery_receipt(database_directory, session_id) else {
             return DatabaseOpenFailure {
                 code: fallback_code.to_owned(),
                 message: "The local library upgrade is incomplete and its recovery receipt could not be verified.".into(),
+                detail,
                 recovery_session_id: Some(session_id.to_owned()),
                 source_version: None,
                 target_version: env!("CARGO_PKG_VERSION").into(),
                 safety_backup: None,
             };
         };
-        let verified = verify_recovery_backup(&self.inner.database_directory, &receipt).is_ok();
+        let verified = verify_recovery_backup(database_directory, &receipt).is_ok();
         let message = if !verified {
             "The local library upgrade is incomplete and its safety copy could not be verified."
         } else if fallback_code.starts_with("activated-database-") {
@@ -286,6 +297,7 @@ impl DatabaseGateway {
         DatabaseOpenFailure {
             code: fallback_code.to_owned(),
             message: message.into(),
+            detail,
             recovery_session_id: Some(receipt.recovery_session_id.clone()),
             source_version: receipt.source_version.clone(),
             target_version: receipt.target_version.clone(),
@@ -963,10 +975,10 @@ fn restore_safety_backup_for_client_session(
         migrate_shadow_candidate(database_directory, &database_path, &backup_path, &receipt);
     let migrations_applied = match migration {
         Ok(applied) => applied,
-        Err((stage, code, _detail)) => {
+        Err((stage, code, detail)) => {
             let _ = update_recovery_failure(database_directory, recovery_session_id, stage, code);
             return Err(format!(
-                "{RECOVERY_FAILURE_PREFIX}{recovery_session_id}:{code}"
+                "{RECOVERY_FAILURE_PREFIX}{recovery_session_id}:{code}:{detail}"
             ));
         }
     };
@@ -1237,12 +1249,12 @@ fn open_database(
             migrate_shadow_candidate(database_directory, &database_path, &safety_backup, &receipt);
         let applied = match migration_result {
             Ok(applied) => applied,
-            Err((stage, code, _detail)) => {
+            Err((stage, code, detail)) => {
                 let recovery_session_id = receipt.recovery_session_id.clone();
                 let _ =
                     update_recovery_failure(database_directory, &recovery_session_id, stage, code);
                 return Err(format!(
-                    "{RECOVERY_FAILURE_PREFIX}{}:{code}",
+                    "{RECOVERY_FAILURE_PREFIX}{}:{code}:{detail}",
                     recovery_session_id
                 ));
             }
@@ -1837,9 +1849,60 @@ fn reconcile_incomplete_shadow_migration(
     Ok(())
 }
 
-fn parse_recovery_failure(error: &str) -> Option<(&str, &str)> {
+/// `database-recovery:<session>:<code>[:<detail>]`. Codes never hold a colon;
+/// the detail is whatever the stopped stage reported.
+fn parse_recovery_failure(error: &str) -> Option<(&str, &str, Option<&str>)> {
     let payload = error.strip_prefix(RECOVERY_FAILURE_PREFIX)?;
-    payload.split_once(':')
+    let (session_id, rest) = payload.split_once(':')?;
+    Some(match rest.split_once(':') {
+        Some((code, detail)) => (session_id, code, Some(detail)),
+        None => (session_id, rest, None),
+    })
+}
+
+const FAILURE_DETAIL_LIMIT: usize = 400;
+const FAILURE_CODE_LIMIT: usize = 64;
+
+/// SQLite and the operating system name the files they could not reach. Those
+/// files live under the library's folder, whose path runs through the owner's
+/// home folder and so carries their account name.
+fn redact_failure_detail(error: &str, database_directory: &Path) -> String {
+    // A folder joined with an empty library root ends in a separator; the
+    // file name after `<library>` keeps its own.
+    let directory = database_directory.to_string_lossy();
+    let directory = directory.trim_end_matches(['/', '\\']);
+    let redacted = if directory.is_empty() {
+        error.to_owned()
+    } else {
+        error.replace(directory, "<library>")
+    };
+    match redacted.char_indices().nth(FAILURE_DETAIL_LIMIT) {
+        Some((end, _)) => format!("{}…", &redacted[..end]),
+        None => redacted,
+    }
+}
+
+/// A stable token for the step that failed. Every error on the open path
+/// begins with a clause written here ("failed to enable WAL mode", "WAL
+/// checkpoint failed") before the cause it wraps, so that clause, not a
+/// second table of stages, is what reports group by.
+fn open_failure_code(detail: &str) -> String {
+    let step = detail.split([':', ';', '(']).next().unwrap_or_default();
+    let mut code = String::with_capacity(step.len());
+    for character in step.trim().chars() {
+        if character.is_ascii_alphanumeric() {
+            code.push(character.to_ascii_lowercase());
+        } else if !code.is_empty() && !code.ends_with('-') {
+            code.push('-');
+        }
+    }
+    code.truncate(FAILURE_CODE_LIMIT);
+    let code = code.trim_end_matches('-');
+    if code.is_empty() {
+        "database-open-failed".into()
+    } else {
+        code.to_owned()
+    }
 }
 
 fn database_version_marker(
@@ -2351,10 +2414,11 @@ mod tests {
 
     use super::{
         apply_migrations, create_pre_update_safety_backup, create_recovery_receipt,
-        database_version_is_current, migrate_shadow_candidate, read_recovery_receipt,
-        reconcile_incomplete_shadow_migration, record_opened_app_version, recovery_directory,
-        recovery_receipt_path, write_recovery_receipt, DatabaseGateway, DatabaseValue,
-        MigrationJournal, TransactionBehavior, DRIZZLE_MIGRATIONS, MIGRATIONS_TABLE,
+        database_version_is_current, migrate_shadow_candidate, open_failure_code,
+        parse_recovery_failure, read_recovery_receipt, reconcile_incomplete_shadow_migration,
+        record_opened_app_version, recovery_directory, recovery_receipt_path,
+        write_recovery_receipt, DatabaseGateway, DatabaseValue, MigrationJournal,
+        TransactionBehavior, DRIZZLE_MIGRATIONS, MIGRATIONS_TABLE,
     };
 
     const CLIENT_SESSION: &str = "test-renderer-session";
@@ -3410,6 +3474,103 @@ mod tests {
             env!("CARGO_PKG_VERSION")
         )
         .expect("read marker"));
+    }
+
+    #[test]
+    fn open_failure_names_the_failing_step_and_keeps_the_library_folder_private() {
+        let (directory, gateway) = gateway();
+        // A folder where the database file belongs: SQLite cannot open it.
+        std::fs::create_dir(directory.path().join("blocked.db")).expect("block the database path");
+
+        let error = gateway
+            .open("blocked.db".into(), CLIENT_SESSION.into(), false)
+            .expect_err("a folder is not a database");
+        assert!(error.contains(&*directory.path().to_string_lossy()));
+
+        let failure = gateway.recovery_failure(error);
+        assert_eq!(failure.code, "failed-to-open-database");
+        assert_eq!(failure.recovery_session_id, None);
+        let detail = failure.detail.expect("the cause reaches the renderer");
+        assert!(detail.starts_with("failed to open database: "), "{detail}");
+        assert!(
+            !detail.contains(&*directory.path().to_string_lossy()),
+            "{detail}"
+        );
+        let blocked = format!("<library>{}blocked.db", std::path::MAIN_SEPARATOR);
+        assert!(detail.ends_with(&blocked), "{detail}");
+
+        // A moved database folder is joined with an empty library root and so
+        // ends in a separator; the redacted path reads the same.
+        let trailing = DatabaseGateway::new(directory.path().join("")).expect("gateway");
+        let error = trailing
+            .open("blocked.db".into(), CLIENT_SESSION.into(), false)
+            .expect_err("a folder is not a database");
+        let detail = trailing.recovery_failure(error).detail.expect("detail");
+        assert!(detail.ends_with(&blocked), "{detail}");
+    }
+
+    #[test]
+    fn open_failure_code_is_the_clause_that_names_the_step() {
+        assert_eq!(
+            open_failure_code("failed to enable WAL mode: database is locked"),
+            "failed-to-enable-wal-mode"
+        );
+        assert_eq!(
+            open_failure_code(
+                "database is owned by another renderer session; stale recovery is required"
+            ),
+            "database-is-owned-by-another-renderer-session"
+        );
+        assert_eq!(
+            open_failure_code("database integrity check did not return ok"),
+            "database-integrity-check-did-not-return-ok"
+        );
+        // Long clauses stop at the limit, never on a dangling separator.
+        let long = open_failure_code(&format!(
+            "failed to {}: cause",
+            "prepare the library ".repeat(8)
+        ));
+        assert!(long.len() <= 64 && !long.ends_with('-'), "{long}");
+        assert_eq!(open_failure_code(""), "database-open-failed");
+        assert_eq!(open_failure_code(": no step"), "database-open-failed");
+    }
+
+    #[test]
+    fn stopped_upgrade_reports_what_its_stage_said() {
+        assert_eq!(
+            parse_recovery_failure(
+                "database-recovery:abc:migration-candidate-failed:migration 0003 failed: boom"
+            ),
+            Some((
+                "abc",
+                "migration-candidate-failed",
+                Some("migration 0003 failed: boom")
+            ))
+        );
+        assert_eq!(
+            parse_recovery_failure("database-recovery:abc:safety-backup-invalid"),
+            Some(("abc", "safety-backup-invalid", None))
+        );
+        assert_eq!(parse_recovery_failure("failed to open database: no"), None);
+
+        let (directory, gateway) = gateway();
+        let session = "0123456789abcdef0123456789abcdef";
+        let failure = gateway.recovery_failure(format!(
+            "database-recovery:{session}:migration-candidate-failed:cannot write {}",
+            directory.path().join("candidate.sqlite").display()
+        ));
+        assert_eq!(failure.code, "migration-candidate-failed");
+        assert_eq!(failure.recovery_session_id.as_deref(), Some(session));
+        assert_eq!(
+            failure.detail.as_deref(),
+            Some(
+                format!(
+                    "cannot write <library>{}candidate.sqlite",
+                    std::path::MAIN_SEPARATOR
+                )
+                .as_str()
+            )
+        );
     }
 
     #[test]

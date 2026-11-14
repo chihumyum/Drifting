@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { APP_CONFIG, canUseHostedService } from '../../lib/config';
 import { getSessionToken } from '../../lib/session-token';
 import { platform } from '../../platform';
+import { DatabaseOpenFailure } from '../../platform/database';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { useSettingsStore } from '../../store/settings-store';
 import { reportFingerprint, reportToken, sanitizeReportText, sanitizeStack } from './crash-sanitize';
@@ -416,6 +417,9 @@ export function installCrashReporting(): () => void {
     reportCrash({ kind: 'renderer-error', severity: 'error', ...describe(event.error ?? event.message) });
   };
   const onRejection = (event: PromiseRejectionEvent) => {
+    // Every caller waiting on a library that failed to open rejects with it;
+    // the failure screen reports it once, as an integrity event with its cause.
+    if (event.reason instanceof DatabaseOpenFailure) return;
     reportCrash({ kind: 'unhandled-rejection', severity: 'error', ...describe(event.reason) });
   };
   window.addEventListener('error', onError);

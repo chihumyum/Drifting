@@ -113,7 +113,12 @@
     "copyDiagnostics": "複製安全的診斷資訊",
     "copied": "已複製去除敏感資訊的診斷摘要。",
     "exit": "結束 Drifting",
-    "actionFailed": "復原操作未完成，未啟用任何未經驗證的資料庫。"
+    "actionFailed": "復原操作未完成，未啟用任何未經驗證的資料庫。",
+    "openTitle": "資料庫沒能開啟",
+    "openDetail": "Drifting 尚未進入作品或設定。可以重試；如果一直打不開，請把下面的原因傳給我們。",
+    "reason": "原因",
+    "retryOpen": "重試",
+    "openDataDirectory": "開啟資料庫資料夾"
   },
   "preAlphaGuide": {
     "title": "歡迎使用 Drifting Alpha",

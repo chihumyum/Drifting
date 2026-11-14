@@ -2,6 +2,7 @@ import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import loglevel from 'loglevel';
 import { reportError } from '../../services/diagnostics/crash-reporter';
+import { componentStackContext } from '../../services/diagnostics/crash-sanitize';
 import { RenderErrorFallback } from './RenderErrorFallback';
 
 const log = loglevel.getLogger('RenderErrorBoundary');
@@ -32,7 +33,12 @@ export class RenderErrorBoundary extends Component<RenderErrorBoundaryProps, Ren
   componentDidCatch(error: Error, info: ErrorInfo) {
     log.error(`[${this.props.scope}] Unhandled renderer error:`, error, info.componentStack);
     // The region was replaced by the fallback, so this is always fatal to it.
-    reportError('render-failure', error, 'fatal');
+    // An error thrown inside React (an update loop, #185) has React's frames
+    // on its stack; the component stack says which part of the window it was.
+    reportError('render-failure', error, 'fatal', {
+      scope: this.props.scope,
+      ...componentStackContext(info.componentStack),
+    });
   }
 
   private retry = () => this.setState({ error: null });

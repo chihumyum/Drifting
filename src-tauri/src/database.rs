@@ -174,6 +174,18 @@ pub fn database_recovery_open_backup_directory(
         .map_err(|_| "could not open the database safety backup directory".to_string())
 }
 
+/// The folder that holds the library's database, for an author who wants a
+/// copy of it somewhere else while it cannot be opened.
+#[tauri::command]
+pub fn database_open_directory(
+    app: AppHandle,
+    gateway: State<'_, DatabaseGateway>,
+) -> DatabaseResult<()> {
+    app.opener()
+        .open_path(gateway.database_directory().to_string_lossy(), None::<&str>)
+        .map_err(|_| "could not open the library data directory".to_string())
+}
+
 #[tauri::command]
 pub async fn database_execute(
     gateway: State<'_, DatabaseGateway>,

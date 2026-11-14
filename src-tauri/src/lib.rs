@@ -350,6 +350,7 @@ pub fn run() {
             database::database_recovery_restore_safety_backup,
             database::database_recovery_export_safety_backup,
             database::database_recovery_open_backup_directory,
+            database::database_open_directory,
             database::database_execute,
             database::database_query,
             database::database_read_prose_search,

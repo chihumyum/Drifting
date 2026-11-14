@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   install: vi.fn(),
   dismiss: vi.fn(),
+  openFailure: vi.fn(),
 }));
 
 vi.mock('../../platform', () => ({
@@ -29,6 +30,9 @@ vi.mock('../../platform/runtime', () => ({
 }));
 vi.mock('../../lib/persistence-lifecycle', () => ({
   flushLocalApplicationPersistence: mocks.flush,
+}));
+vi.mock('../../platform/database-recovery-store', () => ({
+  getDatabaseOpenFailure: mocks.openFailure,
 }));
 
 const storage = new Map<string, string>();
@@ -69,6 +73,7 @@ beforeEach(() => {
   mocks.order.length = 0;
   mocks.appVersion = '0.1.0-alpha.1';
   mocks.check.mockResolvedValue(update);
+  mocks.openFailure.mockReturnValue(null);
   mocks.download.mockImplementation(async () => {
     mocks.order.push('download');
     return 1024;
@@ -112,6 +117,17 @@ it('keeps the verified download and installs nothing when saving fails; a retry 
 
   await UpdateService.install();
   expect(mocks.order).toEqual(['download', 'flush', 'install']);
+});
+
+it('still installs when the library never opened: a failed save cannot hold the way back shut', async () => {
+  const { UpdateService } = await offeredService();
+  mocks.openFailure.mockReturnValue({ code: 'failed-to-open-database' });
+  mocks.flush.mockRejectedValueOnce(new AggregateError([new Error('Database not initialized')]));
+
+  await UpdateService.install();
+
+  expect(mocks.install).toHaveBeenCalledOnce();
+  expect(UpdateService.getState()).toMatchObject({ phase: 'installing', error: null });
 });
 
 it('reports a native install failure after a successful save; a retry installs the kept bytes', async () => {

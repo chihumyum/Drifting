@@ -114,7 +114,12 @@
     "copyDiagnostics": "Copiar diagnóstico seguro",
     "copied": "Se ha copiado un resumen de diagnóstico sin datos sensibles.",
     "exit": "Salir de Drifting",
-    "actionFailed": "No se completó la recuperación. No se ha activado ninguna base de datos sin verificar."
+    "actionFailed": "No se completó la recuperación. No se ha activado ninguna base de datos sin verificar.",
+    "openTitle": "No se ha podido abrir tu biblioteca",
+    "openDetail": "Drifting no ha abierto proyectos ni ajustes. Inténtalo de nuevo; si sigue fallando, envíanos la causa que aparece abajo.",
+    "reason": "Causa",
+    "retryOpen": "Reintentar",
+    "openDataDirectory": "Abrir carpeta de datos"
   },
   "preAlphaGuide": {
     "title": "Bienvenido a Drifting Alpha",

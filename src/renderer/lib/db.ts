@@ -363,9 +363,9 @@ export async function initDatabase(userId: string): Promise<void> {
       dbInitialized = true;
       log.info('[DB] Drizzle Proxy initialized successfully');
     } catch (error) {
-      if (error instanceof DatabaseOpenFailure && error.recoverySessionId) {
-        publishDatabaseOpenFailure(error);
-      }
+      // No library means no shelf to show: the failure screen takes over,
+      // whether or not an upgrade left something to restore.
+      if (error instanceof DatabaseOpenFailure) publishDatabaseOpenFailure(error);
       log.error('[DB] Failed to initialize database:', error);
       throw error;
     }

@@ -589,7 +589,7 @@ describe('workspace surface language acceptance', () => {
     const rightPanels = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
     const columnDivider = rightPanels.slice(rightPanels.indexOf('function ColumnDivider({'));
 
-    expect(rightPanels).toContain('node.clientWidth >= sidebarSplitMinWidth(minimumWidth)');
+    expect(rightPanels).toContain('sidebarSplitRoom({ split, narrowedAt: narrowedAt.current }, node.clientWidth, minimumWidth)');
     expect(rightPanels).toContain('const split = panels.length === 2;');
     expect(rightPanels).toContain('<ColumnDivider');
     expect(columnDivider).toContain("position: 'relative'");

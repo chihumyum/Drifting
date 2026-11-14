@@ -20,8 +20,10 @@ vi.mock('../../platform', () => ({
 vi.mock('../../platform/runtime', () => ({
   getPlatformRuntime: () => ({ appInfo: { version: '0.1.0-alpha.2', platform: 'macos' }, nativePlatform: 'macos' }),
 }));
+import { DatabaseOpenFailure } from '../../platform/database';
 import {
   flushCrashReports,
+  installCrashReporting,
   reportCrash,
   reportIntegrityEvent,
   reportNativeCrashes,
@@ -132,6 +134,36 @@ it('sends one content-free report per problem to the Hosted service', async () =
   });
   expect(report.installationId).toMatch(/^diag-/);
   expect(JSON.stringify(report)).not.toContain('雨已经停了');
+});
+
+it('leaves a library that failed to open to the failure screen, which reports it with its cause', async () => {
+  const handlers = new Map<string, (event: unknown) => void>();
+  vi.stubGlobal('window', {
+    addEventListener: (type: string, handler: (event: unknown) => void) => void handlers.set(type, handler),
+    removeEventListener: (type: string) => void handlers.delete(type),
+  });
+  nativeReports.take.mockResolvedValue([]);
+  const stop = installCrashReporting();
+
+  handlers.get('unhandledrejection')!({
+    reason: new DatabaseOpenFailure({
+      code: 'failed-to-open-database',
+      message: 'Drifting could not open the local library database.',
+      detail: 'failed to open database: unable to open database file',
+      recoverySessionId: null,
+      sourceVersion: null,
+      targetVersion: '0.1.0-alpha.2',
+      safetyBackup: null,
+    }),
+  });
+  handlers.get('unhandledrejection')!({ reason: new RangeError('still a fault') });
+  await flushCrashReports();
+  stop();
+
+  expect(sentBodies().map((report) => report.name)).toEqual(['RangeError']);
+  // Later tests count native-report reads and run without a window.
+  nativeReports.take.mockReset();
+  vi.unstubAllGlobals();
 });
 
 it('keeps unsent reports for the next launch and drops rejected ones', async () => {
