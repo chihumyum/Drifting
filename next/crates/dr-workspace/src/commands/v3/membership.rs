@@ -46,6 +46,68 @@ pub(super) fn live_views_with_lane(v: &BookViewV3<'_>, host: &EntryId) -> Vec<m:
         .collect()
 }
 
+/// Gives every entry of `lane` (living under it when its level is on,
+/// attached to it when it takes entries from elsewhere) a position at the
+/// end of the scale of each live view `lane` is in, where it has none yet
+/// (`VIEW-LANE-MEMBERS-PLACED`), in the lane's own manual order. Reads the
+/// document as it is inside the write `t`. Returns the views written.
+pub(super) fn place_unplaced_lane_entries(
+    t: &mut dr_doc::v3::BookTxnV3<'_>,
+    lane: &EntryId,
+) -> Result<Vec<TimelineViewId>> {
+    let v = t.view();
+    let graph = v.graph();
+    let Some(entry) = graph
+        .entries
+        .get(lane)
+        .filter(|_| m::is_entry_live(lane, &graph.entries))
+    else {
+        return Ok(Vec::new());
+    };
+    let mut items: Vec<EntryId> = Vec::new();
+    if entry.is_level() {
+        items.extend(
+            v.entries_raw()
+                .into_iter()
+                .filter(|c| c.parent.as_ref() == Some(lane) && !c.is_trashed())
+                .map(|c| c.id),
+        );
+    }
+    if entry.accepts_members(&graph.templates) {
+        let mut members: Vec<m::Membership> = graph
+            .memberships
+            .iter()
+            .filter(|ms| &ms.host == lane && m::is_entry_live(&ms.member, &graph.entries))
+            .cloned()
+            .collect();
+        m::sort_memberships_by_member(&mut members);
+        items.extend(members.into_iter().map(|ms| ms.member));
+    }
+    let mut seen = BTreeSet::new();
+    items.retain(|id| seen.insert(id.clone()));
+    let mut written = Vec::new();
+    for tv in live_views_with_lane(&v, lane) {
+        let mut at = m::timeline_scale_end(&m::effective_timeline_placements(
+            &tv,
+            &graph.memberships,
+            &graph.entries,
+            &graph.templates,
+        ));
+        let mut wrote = false;
+        for item in &items {
+            if v.timeline_placement_snapshot(&tv.id, item)?.is_none() {
+                t.timeline_view(&tv.id)?.put_placement(item, at, None)?;
+                at += 1.0;
+                wrote = true;
+            }
+        }
+        if wrote {
+            written.push(tv.id);
+        }
+    }
+    Ok(written)
+}
+
 fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
     let s = cx.book_v3(&input.target.book)?;
     let v = s.reader_v3.view();
