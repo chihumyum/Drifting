@@ -557,6 +557,11 @@ impl EntryWriterV3 {
         Ok(self)
     }
 
+    pub fn mark(&self, v: Option<&str>) -> Result<&Self> {
+        set(&self.map, "mark", v)?;
+        Ok(self)
+    }
+
     pub fn template(&self, v: Option<&EntryTemplateId>) -> Result<&Self> {
         set(&self.map, "template", v)?;
         Ok(self)
@@ -645,39 +650,6 @@ impl EntryWriterV3 {
             None if self.map.get("primary").is_some() => self.map.delete("primary")?,
             None => {}
         }
-        Ok(self)
-    }
-
-    pub fn layout(&self, layout: &EntryLayout) -> Result<&Self> {
-        let s = layout.sanitized();
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "board_x", s.board.map(|p| p.0))?;
-        set(&m, "board_y", s.board.map(|p| p.1))?;
-        set(&m, "grid_x", s.grid.map(|p| p.0))?;
-        set(&m, "grid_y", s.grid.map(|p| p.1))?;
-        set(&m, "pin_x", s.relation_graph.map(|p| p.0))?;
-        set(&m, "pin_y", s.relation_graph.map(|p| p.1))?;
-        Ok(self)
-    }
-
-    pub fn board_pos(&self, pos: Option<(f64, f64)>) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "board_x", pos.map(|p| p.0))?;
-        set(&m, "board_y", pos.map(|p| p.1))?;
-        Ok(self)
-    }
-
-    pub fn grid_pos(&self, pos: Option<(i64, i64)>) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "grid_x", pos.map(|p| p.0))?;
-        set(&m, "grid_y", pos.map(|p| p.1))?;
-        Ok(self)
-    }
-
-    pub fn relation_pin(&self, pos: Option<(f64, f64)>) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "pin_x", pos.map(|p| p.0))?;
-        set(&m, "pin_y", pos.map(|p| p.1))?;
         Ok(self)
     }
 
@@ -1660,8 +1632,8 @@ impl<'a> BookTxnV3<'a> {
         .remove_fact(id)
     }
 
-    /// Restore an entry's metadata (`title`, `template`, `level`, `primary`, timestamps,
-    /// `layout`, `overrides`, `fields`, and all `kv:<module_id>` / `media:<module_id>`
+    /// Restore an entry's metadata (`title`, `mark`, `template`, `level`, `primary`,
+    /// timestamps, `overrides`, `fields`, and all `kv:<module_id>` / `media:<module_id>`
     /// tables) from `old` (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
         let w = match self.entries().entry(id) {
@@ -1672,6 +1644,7 @@ impl<'a> BookTxnV3<'a> {
 
         for scalar_key in [
             "title",
+            "mark",
             "template",
             "level",
             "primary",
@@ -1682,19 +1655,6 @@ impl<'a> BookTxnV3<'a> {
             match old.field(scalar_key) {
                 Some(v) => map.insert(scalar_key, v.clone())?,
                 None => set(map, scalar_key, None::<&str>)?,
-            }
-        }
-
-        // Restore `layout`
-        match old.field("layout") {
-            Some(LoroValue::Map(want)) => {
-                let sub = map.ensure_mergeable_map("layout")?;
-                sync_nested_map(&sub, want)?;
-            }
-            _ => {
-                if map.get("layout").is_some() {
-                    map.delete("layout")?;
-                }
             }
         }
 

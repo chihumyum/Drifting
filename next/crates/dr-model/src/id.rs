@@ -478,10 +478,12 @@ pub enum DocKind {
     Stats,
     /// A book's complete-entry checkpoint manifests (`checkpoints:<book>`).
     Checkpoints,
+    /// A book's canvas coordinates (`layout:<book>`), apart from its book document.
+    Layout,
 }
 
 impl DocKind {
-    pub const ALL: [DocKind; 11] = [
+    pub const ALL: [DocKind; 12] = [
         DocKind::Book,
         DocKind::Node,
         DocKind::Element,
@@ -493,6 +495,7 @@ impl DocKind {
         DocKind::Conversation,
         DocKind::Stats,
         DocKind::Checkpoints,
+        DocKind::Layout,
     ];
 
     /// The prefix of the document id (`book`, `node`, …).
@@ -509,13 +512,14 @@ impl DocKind {
             DocKind::Conversation => "conversation",
             DocKind::Stats => "stats",
             DocKind::Checkpoints => "checkpoints",
+            DocKind::Layout => "layout",
         }
     }
 
     /// Whether the document's text is part of the book: searched, counted,
-    /// exported, mirrored. Book, conversation, stats and checkpoints documents
-    /// have no prose, and a template is not the book's text: it is copied into
-    /// new entries.
+    /// exported, mirrored. Book, conversation, stats, checkpoints and layout
+    /// documents have no prose, and a template is not the book's text: it is
+    /// copied into new entries.
     pub fn is_book_text(self) -> bool {
         !matches!(
             self,
@@ -524,14 +528,19 @@ impl DocKind {
                 | DocKind::Conversation
                 | DocKind::Stats
                 | DocKind::Checkpoints
+                | DocKind::Layout
         )
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book, conversation, stats and checkpoints documents.
+    /// book, conversation, stats, checkpoints and layout documents.
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
-            DocKind::Book | DocKind::Conversation | DocKind::Stats | DocKind::Checkpoints => None,
+            DocKind::Book
+            | DocKind::Conversation
+            | DocKind::Stats
+            | DocKind::Checkpoints
+            | DocKind::Layout => None,
             _ => Some(ProseProfile::Prose),
         }
     }
@@ -589,6 +598,8 @@ pub enum DocId {
     Stats(BookId),
     /// A book's complete-entry checkpoint manifests, beside its book document.
     Checkpoints(BookId),
+    /// A book's canvas coordinates (`<scope>/<mode> -> entry -> [x, y]`), beside its book document.
+    Layout(BookId),
 }
 
 /// Why a string is not a document id.
@@ -625,6 +636,7 @@ impl DocId {
             DocId::Conversation(_) => DocKind::Conversation,
             DocId::Stats(_) => DocKind::Stats,
             DocId::Checkpoints(_) => DocKind::Checkpoints,
+            DocId::Layout(_) => DocKind::Layout,
         }
     }
 
@@ -640,7 +652,7 @@ impl DocId {
             DocId::Body(id) => id.as_str(),
             DocId::Template(id) => id.as_str(),
             DocId::Conversation(id) => id.as_str(),
-            DocId::Stats(id) | DocId::Checkpoints(id) => id.as_str(),
+            DocId::Stats(id) | DocId::Checkpoints(id) | DocId::Layout(id) => id.as_str(),
         }
     }
 
@@ -652,12 +664,12 @@ impl DocId {
         matches!(self, DocId::Book(_))
     }
 
-    /// The book a document's id itself names: the book document and the two
-    /// documents beside it (`stats:<book>`, `checkpoints:<book>`). Other
-    /// documents belong to a book through the store's registry, not their id.
+    /// The book a document's id itself names: the book document and the three
+    /// documents beside it (`stats:<book>`, `checkpoints:<book>`, `layout:<book>`).
+    /// Other documents belong to a book through the store's registry, not their id.
     pub fn named_book(&self) -> Option<&BookId> {
         match self {
-            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) => Some(b),
+            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) | DocId::Layout(b) => Some(b),
             _ => None,
         }
     }
@@ -676,6 +688,7 @@ impl DocId {
             "conversation" => DocId::Conversation(ConversationId::parse(id).map_err(e)?),
             "stats" => DocId::Stats(BookId::parse(id).map_err(e)?),
             "checkpoints" => DocId::Checkpoints(BookId::parse(id).map_err(e)?),
+            "layout" => DocId::Layout(BookId::parse(id).map_err(e)?),
             "template" => {
                 let t = TemplateId::parse(id).map_err(e)?;
                 if TemplateOwner::of(&t).is_none() && t.entry_module().is_none() {
@@ -858,9 +871,15 @@ mod tests {
                         | DocKind::Conversation
                         | DocKind::Stats
                         | DocKind::Checkpoints
+                        | DocKind::Layout
                 ))
                 .all(|k| k.is_book_text())
         );
+        let l = DocId::parse("layout:b1").unwrap();
+        assert_eq!(l.kind(), DocKind::Layout);
+        assert_eq!(l.profile(), None);
+        assert!(!l.kind().is_book_text());
+        assert_eq!(l.named_book().map(|b| b.as_str()), Some("b1"));
     }
 
     #[test]

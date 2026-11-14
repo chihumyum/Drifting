@@ -419,9 +419,9 @@ impl MediaPage {
                                 book: book.clone(),
                                 id: entry.clone(),
                                 title: Some(t),
+                                mark: None,
                                 template: None,
                                 overrides: None,
-                                layout: None,
                             },
                         )?;
                     }

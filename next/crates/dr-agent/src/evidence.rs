@@ -275,7 +275,9 @@ pub(crate) fn write_proof(
                     }
                 }
             }
-            DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) => continue,
+            DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Layout(_) => {
+                continue;
+            }
             DocId::Body(body) => {
                 proof.targets.insert(receipt.doc_id.clone());
                 proof.targets.insert(format!("entry:{}", body.entry()));

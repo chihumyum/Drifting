@@ -722,3 +722,39 @@ fn project_facts_are_read_from_the_canonical_catalog_without_creating_a_legacy_w
             .any(|f| f["id"] == added["id"] && f["value"] == "x")
     );
 }
+
+#[test]
+fn layout_side_doc_put_get_and_clear() {
+    let e = env();
+    let b = e.book();
+    let ideas = common::acceptance::novel_root(e.ws(), &b, "tpl-ideas");
+    let card = e.out(
+        "entry.create",
+        json!({"book": b, "parent": ideas, "template": "tpl-idea", "title": "Idea"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "layout.put",
+        json!({"book": b, "scope": ideas, "mode": "board", "positions": { &card: [12.0, 34.0] }}),
+    );
+    assert_eq!(
+        e.out(
+            "layout.get",
+            json!({"book": b, "scope": ideas, "mode": "board"})
+        )[&card],
+        json!([12.0, 34.0])
+    );
+    e.call(
+        "layout.clear",
+        json!({"book": b, "scope": ideas, "mode": "board", "entries": [&card]}),
+    );
+    assert_eq!(
+        e.out(
+            "layout.get",
+            json!({"book": b, "scope": ideas, "mode": "board"})
+        ),
+        json!({})
+    );
+}

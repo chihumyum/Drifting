@@ -486,9 +486,9 @@ pub fn rename_material(lib: &Library, book: &str, id: &str, title: &str) -> Resu
             book: book.to_owned(),
             id: entry,
             title: Some(title.to_owned()),
+            mark: None,
             template: None,
             overrides: None,
-            layout: None,
         },
     )
     .map(|_| ())

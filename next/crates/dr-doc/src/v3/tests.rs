@@ -256,7 +256,7 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
                     pos: Some(PosKey::first()),
                 },
             )?
-            .relation_pin(Some((12.5, -4.0)))?;
+            .mark(Some("🧭"))?;
 
         // Colliding auto-link leaf created later.
         let c2 = t.entries().create(
@@ -317,14 +317,14 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
         ]
     );
 
-    // Field values, kv rows and layout round-trip.
+    // Field values, kv rows and entry mark round-trip.
     let char1 = v.entry(&eid("char-1")).unwrap();
     assert_eq!(
         char1.fields[&mid(MOD_FIELDS)]["summary"],
         FieldValue::Text("守塔人".into())
     );
     assert_eq!(char1.kv[&mid(MOD_KV)][0].key, "年龄");
-    assert_eq!(char1.layout.relation_graph, Some((12.5, -4.0)));
+    assert_eq!(char1.mark.as_deref(), Some("🧭"));
 }
 
 #[test]

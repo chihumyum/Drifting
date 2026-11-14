@@ -747,9 +747,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-DOCID-LIBRARY-UNIQUE",
-        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），书旁边的两篇文档是 stats:<书 id>、checkpoints:<书 id>，彻底删除一本书不会删掉另一本书的文档",
+        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），书旁边的三篇文档是 stats:<书 id>、checkpoints:<书 id>、layout:<书 id>，彻底删除一本书不会删掉另一本书的文档",
         [Structure, Command],
-        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，DocId::Stats / DocId::Checkpoints 就是书 id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
+        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，DocId::Stats / DocId::Checkpoints / DocId::Layout 就是书 id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
         [
             "v3_doc_ids_are_unique_across_books_in_library",
             "two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_the_other"
@@ -757,9 +757,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "SIDE-DOC-NOT-PROSE",
-        "书旁边的两篇文档（stats:<书> 写作日、checkpoints:<书> 快照点清单）不是正文也不是书目：不编辑、不计字数、不搜索、不导出成书稿、不投待办；属于 id 里的那本书，跟着它导出和彻底删除",
+        "书旁边的三篇文档（stats:<书> 写作日、checkpoints:<书> 快照点清单、layout:<书> 画布坐标）不是正文也不是书目：不编辑、不计字数、不搜索、不导出成书稿、不投待办；属于 id 里的那本书，跟着它导出和彻底删除",
         [Structure, Read],
-        "DocKind::Stats / Checkpoints 没有 ProseProfile、is_book_text 为假；创世确定（meta.v = 1、meta.doc），两台设备各建一篇合并后是同一篇；owns_prose 认它们属于 id 里的书；登记在书名下，按书列文档的导出和清除自动带上",
+        "DocKind::Stats / Checkpoints / Layout 没有 ProseProfile、is_book_text 为假；创世确定（meta.v = 1、meta.doc），两台设备各建一篇合并后是同一篇；owns_prose 认它们属于 id 里的书；登记在书名下，按书列文档的导出和清除自动带上",
         [
             "stats_and_checkpoints_are_neither_prose_nor_the_book",
             "a_side_document_refuses_the_bytes_of_another",
@@ -775,6 +775,13 @@ pub const INVARIANTS: &[Invariant] = &[
             "writing_days_and_checkpoints_leave_the_book_document_alone",
             "writing_days_dispatch_by_version_preserve_other_books_and_do_not_enter_undo"
         ]
+    ),
+    inv!(
+        "LAYOUT-DOC-QUIET",
+        "画布坐标（看板、网格、关系图）存在 layout:<书> 小文档里，读写不触碰书目文档：书目版本不变、不发书目事件、不进撤销日志、不参加书目的写入守卫",
+        [Structure, Command],
+        "layout.put 与 layout.clear 经 Cx::write_layout 只写 layout:<书>（<范围>/<摆法> -> 条目 id -> 坐标），标记 irreversible，不写 book:<id> 也不跑书目记录守卫；工作区单发 WsEvent::Layout",
+        ["layout_writes_leave_the_book_document_alone"]
     ),
     inv!(
         "BOOK-FORMAT-5-ONLY",
@@ -926,7 +933,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 82;
+pub const ACTIVE_CONTRACTS: usize = 83;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

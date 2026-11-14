@@ -1114,9 +1114,12 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
             | "module.put_media"
             | "module.remove_media"
             | "asset.list"
+            | "layout.get"
+            | "layout.put"
+            | "layout.clear"
     ) {
         return Some(
-            "project, tab, media, and book sequence commands need T7 facade read coverage",
+            "project, tab, media, layout, and book sequence commands need T7 facade read coverage",
         );
     }
     if spec.name.starts_with("entry_snapshot.") {

@@ -232,7 +232,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         match DocId::parse(&entry.id).map_err(damaged)? {
             DocId::Book(id) if id == book_id => {}
             DocId::Book(_) => return Err(damaged("foreign book document")),
-            DocId::Stats(id) | DocId::Checkpoints(id) if id != book_id => {
+            DocId::Stats(id) | DocId::Checkpoints(id) | DocId::Layout(id) if id != book_id => {
                 return Err(damaged("foreign document beside the book"));
             }
             DocId::Template(t) if t.entry_module().is_some_and(|(b, _, _)| b != book_id) => {
@@ -248,7 +248,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         }
         let newest = match kind {
             DocKind::Book => schema::BOOK_GENESIS_VERSION,
-            DocKind::Stats | DocKind::Checkpoints => schema::SIDE_GENESIS_VERSION,
+            DocKind::Stats | DocKind::Checkpoints | DocKind::Layout => schema::SIDE_GENESIS_VERSION,
             _ => GENESIS_VERSION,
         };
         let (version, old) = (1..=newest)
@@ -330,6 +330,8 @@ struct Rewriter<'a> {
     conversation: bool,
     /// `checkpoints:<book>`: the manifests' ids and contents move.
     points: bool,
+    /// `layout:<book>`: scope/mode keys and entry keys move.
+    layout: bool,
     source: &'a LoroDoc,
 }
 
@@ -393,6 +395,23 @@ impl Rewriter<'_> {
     fn key(&self, path: &[String], key: &str) -> String {
         if self.points && path == ["entry_checkpoints"] {
             return self.rw.text(key);
+        }
+        if self.layout {
+            return match path {
+                [root] if root == "positions" => key
+                    .split_once('/')
+                    .map(|(scope, mode)| {
+                        let mapped = if scope == "root" {
+                            "root".into()
+                        } else {
+                            self.rw.text(scope)
+                        };
+                        format!("{mapped}/{mode}")
+                    })
+                    .unwrap_or_else(|| key.into()),
+                [root, _] if root == "positions" => self.rw.text(key),
+                _ => key.into(),
+            };
         }
         if !self.book {
             return key.into();
@@ -676,6 +695,7 @@ pub(super) fn rewrite_doc(rw: &Rewrite, id: &str, bytes: &[u8]) -> Result<LoroDo
         book: kind == DocKind::Book,
         conversation: kind == DocKind::Conversation,
         points: kind == DocKind::Checkpoints,
+        layout: kind == DocKind::Layout,
     };
     for change in &mut json.changes {
         writer.change(change)?;

@@ -13,7 +13,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<EntrySetLevel>();
 }
 
-/// A new, empty entry: no fields, rows or layout yet.
+/// A new, empty entry: no fields or rows yet.
 pub(super) fn new_entry(
     id: EntryId,
     parent: Option<EntryId>,
@@ -26,6 +26,7 @@ pub(super) fn new_entry(
         parent,
         pos: String::new(),
         title,
+        mark: None,
         template,
         level,
         overrides: None,
@@ -33,7 +34,6 @@ pub(super) fn new_entry(
         kv: BTreeMap::new(),
         media: BTreeMap::new(),
         primary: None,
-        layout: Default::default(),
         created_at: Some(now()),
         updated_at: None,
         deleted_at: None,
@@ -158,6 +158,8 @@ pub struct CreateIn {
     #[serde(default)]
     pub parent: Option<String>,
     #[serde(default)]
+    pub mark: Option<String>,
+    #[serde(default)]
     pub template: Option<String>,
     /// The new entry's switch; the template's default when omitted.
     #[serde(default)]
@@ -193,6 +195,13 @@ op! {
         m::check_parent_is_level(parent.as_ref(), &before.entries)?;
         let id = EntryId::new_v7();
         name_ok(&input.title)?;
+        if let Some(mark) = &input.mark
+            && !m::is_valid_mark(mark)
+        {
+            return Err(WsError::invalid(
+                "mark must be a sand mark name or a single character",
+            ));
+        }
         let level = input.level.unwrap_or_else(|| {
             template
                 .as_ref()
@@ -206,6 +215,7 @@ op! {
             template.clone(),
             level,
         );
+        e.mark = input.mark;
         if let Some(t) = e.effective_template(&before.templates) {
             for module in &t.modules {
                 if module.kind == m::ModuleKind::Fields {
@@ -273,7 +283,9 @@ op! {
                 saved.template.as_ref(),
                 saved.level,
             )?;
-            w.created_at(saved.created_at)?.primary(h.as_ref())?;
+            w.created_at(saved.created_at)?
+                .mark(saved.mark.as_deref())?
+                .primary(h.as_ref())?;
             for (module, fields) in &saved.fields {
                 for (field_id, value) in fields {
                     w.set_field(module, field_id, Some(value))?;
@@ -315,6 +327,12 @@ pub struct UpdateIn {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "crate::commands::double_option"
     )]
+    pub mark: Option<Option<String>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
     pub template: Option<Option<String>>,
     #[serde(
         default,
@@ -322,11 +340,9 @@ pub struct UpdateIn {
         deserialize_with = "crate::commands::double_option"
     )]
     pub overrides: Option<Option<types::LevelSettingsOverride>>,
-    #[serde(default)]
-    pub layout: Option<types::EntryLayout>,
 }
 op! {
-    EntryUpdate = "entry.update", Write, Book, "Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.",
+    EntryUpdate = "entry.update", Write, Book, "Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.",
     fn(cx,input:UpdateIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
@@ -336,11 +352,21 @@ op! {
             input.title.is_some(),
             input.template.is_some(),
             input.overrides.is_some(),
-            input.layout.is_some(),
+            input.mark.is_some(),
         );
         if let Some(title) = input.title {
             name_ok(&title)?;
             e.title = title.trim().into();
+        }
+        if let Some(mark) = input.mark {
+            if let Some(m_str) = &mark
+                && !m::is_valid_mark(m_str)
+            {
+                return Err(WsError::invalid(
+                    "mark must be a sand mark name or a single character",
+                ));
+            }
+            e.mark = mark;
         }
         if let Some(template) = input.template {
             let template = template
@@ -361,13 +387,7 @@ op! {
                 settings_ok(s, &v)?;
             }
         }
-        if let Some(layout) = input.layout {
-            e.layout = convert(layout)?;
-            if e.layout.sanitized() != e.layout {
-                return Err(WsError::invalid("layout coordinates must be finite"));
-            }
-        }
-        // A layout change alone touches nothing the structural checks read.
+        // A mark change alone touches nothing the structural checks read.
         if set.0 || set.1 || set.2 {
             let before = v.graph();
             let mut after = before.clone();
@@ -390,7 +410,7 @@ op! {
             ("title", set.0),
             ("template", set.1),
             ("overrides", set.2),
-            ("layout", set.3),
+            ("mark", set.3),
         ]
         .into_iter()
         .filter(|(_, named)| *named)
@@ -407,7 +427,7 @@ op! {
                 w.overrides(e.overrides.as_ref())?;
             }
             if set.3 {
-                w.layout(&e.layout)?;
+                w.mark(e.mark.as_deref())?;
             }
             Ok(())
         })?;

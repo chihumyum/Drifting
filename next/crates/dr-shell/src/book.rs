@@ -33,7 +33,7 @@ pub struct MaterialInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub enum Snapshot {
     #[default]
     Empty,
@@ -45,7 +45,7 @@ pub struct Entry {
     pub mark: sand::Kind,
     pub color: Option<Rgb>,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Book {
     pub id: String,
     pub name: String,
@@ -77,6 +77,13 @@ pub fn canonical(lib: &Library, book: &str) -> bool {
 impl Book {
     pub fn load(lib: &Library, book: &str) -> Result<Book, WsError> {
         v3::load(lib, book)
+    }
+    pub fn with_layouts(&self, raw: dr_workspace::LayoutPositions) -> Self {
+        let mut out = self.clone();
+        if let Snapshot::V3(v3) = &mut out.snapshot {
+            v3.layouts = v3::parse_layout_positions(raw);
+        }
+        out
     }
     pub fn load_any(lib: &Library, preferred: Option<&str>) -> Result<Option<Book>, WsError> {
         if let Some(id) = preferred {

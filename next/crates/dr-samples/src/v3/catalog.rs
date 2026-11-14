@@ -172,7 +172,7 @@ impl Entries<'_, '_> {
                 .level(level)?
                 .overrides(None)?
                 .primary(None)?
-                .layout(&EntryLayout::default())?
+                .mark(None)?
                 .created_at(None)?
                 .updated_at(None)?
                 .deleted_at(None)?;
@@ -634,7 +634,6 @@ pub fn sync_catalog(
             .unwrap_or_else(|| roots.ideas.clone());
         let w = entries.put(&eid(n.id.as_str()), Some(&parent), &n.title, &tid(TPL_IDEA))?;
         node_fields(&w, n)?;
-        w.board_pos(Some((n.x, n.y)))?;
     }
     for category in &categories {
         let id = eid(category.id.as_str());
@@ -646,8 +645,7 @@ pub fn sync_catalog(
             &tid(TPL_CATEGORY),
         )?;
         text(&w, "color", &category.color)?;
-        w.grid_pos(category.grid_x.zip(category.grid_y))?
-            .deleted_at(category.deleted_at)?
+        w.deleted_at(category.deleted_at)?
             .overrides(Some(&LevelSettingsOverride {
                 default_template: Some(Some(template)),
                 ..Default::default()
@@ -687,8 +685,7 @@ pub fn sync_catalog(
                 &category_template(category.id.as_str()),
             )?;
             w.created_at(element.created_at)?
-                .deleted_at(element.deleted_at)?
-                .relation_pin(element.relate_pin)?;
+                .deleted_at(element.deleted_at)?;
             text(&w, "summary", &element.summary)?;
             w.set_field(
                 &mid(MOD_FIELDS),
@@ -1144,16 +1141,22 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
     Ok(())
 }
 
-/// The two documents beside a converted book (`kernel-v4.md` §8): its writing
-/// days copied from the source catalog, written once at `ts`, and an empty
-/// checkpoints document (a 0.1 library has no entry checkpoints). Both are
-/// written by the deterministic import peer of their own id, so the same
-/// source gives the same bytes on every device and on a resumed import.
+/// The three documents beside a converted book (`kernel-v5.md` §10): its
+/// writing days copied from the source catalog, an empty checkpoints document
+/// (a 0.1 library has no entry checkpoints), and its canvas coordinates in
+/// `layout:<book>`. All three are written by the deterministic import peer of
+/// their own id, so the same source gives the same bytes on every device and on
+/// a resumed import.
 pub fn side_documents(
     book: &BookId,
     source: &BookView<'_>,
+    target: &BookViewV3<'_>,
     ts: i64,
-) -> Result<(dr_doc::side::StatsDoc, dr_doc::side::CheckpointsDoc)> {
+) -> Result<(
+    dr_doc::side::StatsDoc,
+    dr_doc::side::CheckpointsDoc,
+    dr_doc::side::LayoutDoc,
+)> {
     use dr_doc::peer::import_peer;
     let stats_id = dr_model::DocId::Stats(book.clone()).to_string();
     let mut stats = dr_doc::side::StatsDoc::create(book.clone(), import_peer(&stats_id))?;
@@ -1169,7 +1172,46 @@ pub fn side_documents(
     }
     let points_id = dr_model::DocId::Checkpoints(book.clone()).to_string();
     let checkpoints = dr_doc::side::CheckpointsDoc::create(book.clone(), import_peer(&points_id))?;
-    Ok((stats, checkpoints))
+    let layout_id = dr_model::DocId::Layout(book.clone()).to_string();
+    let mut layout = dr_doc::side::LayoutDoc::create(book.clone(), import_peer(&layout_id))?;
+    let raw_entries = target.entries_map();
+    let mut pending_pos: Vec<(String, EntryId, f64, f64)> = Vec::new();
+    for n in source.nodes().into_iter().filter(|n| n.is_drift()) {
+        let id = eid(n.id.as_str());
+        let scope = raw_entries
+            .get(&id)
+            .and_then(|e| e.parent.as_ref().map(|p| p.as_str()))
+            .unwrap_or("root");
+        pending_pos.push((format!("{scope}/board"), id, n.x, n.y));
+    }
+    for category in source.categories() {
+        if let Some((gx, gy)) = category.grid_x.zip(category.grid_y) {
+            let id = eid(category.id.as_str());
+            let scope = raw_entries
+                .get(&id)
+                .and_then(|e| e.parent.as_ref().map(|p| p.as_str()))
+                .unwrap_or("root");
+            pending_pos.push((format!("{scope}/grid"), id, gx as f64, gy as f64));
+        }
+    }
+    for element in source.elements() {
+        if let Some((px, py)) = element.relate_pin {
+            let id = eid(element.id.as_str());
+            if raw_entries.contains_key(&id) {
+                pending_pos.push(("root/relation_graph".into(), id, px, py));
+            }
+        }
+    }
+    if !pending_pos.is_empty() {
+        let (r, _) = layout.edit_at(dr_model::Origin::Import, Some(ts), |t| {
+            for (scope_mode, id, x, y) in &pending_pos {
+                t.put_position(scope_mode, id, *x, *y)?;
+            }
+            Ok(())
+        });
+        r?;
+    }
+    Ok((stats, checkpoints, layout))
 }
 
 pub(crate) fn target_doc(target: &EntityRef) -> Option<DocId> {

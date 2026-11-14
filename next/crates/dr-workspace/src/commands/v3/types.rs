@@ -215,19 +215,6 @@ pub struct EntryTemplate {
     pub deleted_at: Option<i64>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct EntryLayout {
-    /// Position on a board / island canvas.
-    #[serde(default)]
-    pub board: Option<(f64, f64)>,
-    /// Grid coordinates `(col, row)` in a grid layout.
-    #[serde(default)]
-    pub grid: Option<(i64, i64)>,
-    /// Pinned position in the relation graph.
-    #[serde(default)]
-    pub relation_graph: Option<(f64, f64)>,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Entry {
     pub id: String,
@@ -238,6 +225,10 @@ pub struct Entry {
     /// Fractional-index position among siblings in the `entries` tree (`文稿顺序`).
     pub pos: String,
     pub title: String,
+    /// Optional per-entry badge/icon mark (`记号`); falls back to the active
+    /// template's `mark` when unset (`kernel-v5.md` §8).
+    #[serde(default)]
+    pub mark: Option<String>,
     /// The template shaping this entry (`None` = untemplated entry).
     pub template: Option<String>,
     /// The entry's own switch (`层级`): whether entries can live under it.
@@ -255,7 +246,6 @@ pub struct Entry {
     pub media: BTreeMap<String, Vec<MediaItem>>,
     /// Stored primary membership host; membership queries filter invalid records.
     pub primary: Option<String>,
-    pub layout: EntryLayout,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
     pub deleted_at: Option<i64>,
@@ -594,16 +584,6 @@ impl From<&dr_model::v3::EntryTemplate> for EntryTemplate {
     }
 }
 
-impl From<dr_model::v3::EntryLayout> for EntryLayout {
-    fn from(v: dr_model::v3::EntryLayout) -> Self {
-        Self {
-            board: v.board,
-            grid: v.grid,
-            relation_graph: v.relation_graph,
-        }
-    }
-}
-
 impl From<dr_model::v3::MediaItem> for MediaItem {
     fn from(v: dr_model::v3::MediaItem) -> Self {
         Self {
@@ -635,6 +615,7 @@ impl From<&dr_model::v3::Entry> for Entry {
             parent: v.parent.as_ref().map(ToString::to_string),
             pos: v.pos.clone(),
             title: v.title.clone(),
+            mark: v.mark.clone(),
             template: v.template.as_ref().map(ToString::to_string),
             level: v.level,
             overrides: v.overrides.as_ref().map(Into::into),
@@ -661,7 +642,6 @@ impl From<&dr_model::v3::Entry> for Entry {
                 .map(|(mid, items)| (mid.to_string(), items.iter().map(Into::into).collect()))
                 .collect(),
             primary: v.primary.as_ref().map(ToString::to_string),
-            layout: v.layout.into(),
             created_at: v.created_at.map(|t| t.0),
             updated_at: v.updated_at.map(|t| t.0),
             deleted_at: v.deleted_at.map(|t| t.0),
@@ -858,6 +838,8 @@ pub struct ProjectSeedEntry {
     #[serde(default)]
     pub parent: Option<String>,
     pub title: String,
+    #[serde(default)]
+    pub mark: Option<String>,
     #[serde(default)]
     pub template: Option<String>,
     #[serde(default)]

@@ -143,7 +143,7 @@ fn committed_entry_reads_follow_the_announced_changes() {
 // ---- the book document, and the two documents beside it -------------------
 
 /// The events recorded since the last call, oldest first, each told by its
-/// kind: `book`, `stats` (with the day keys it names) or `checkpoints`.
+/// kind: `book`, `stats` (with the day keys it names), `checkpoints`, or `layout`.
 fn kinds(seen: &Arc<Mutex<Vec<WsEvent>>>) -> Vec<String> {
     std::mem::take(&mut *seen.lock().unwrap())
         .into_iter()
@@ -151,6 +151,7 @@ fn kinds(seen: &Arc<Mutex<Vec<WsEvent>>>) -> Vec<String> {
             WsEvent::Book(_) => Some("book".to_string()),
             WsEvent::Stats(s) => Some(format!("stats {}", s.days.join(","))),
             WsEvent::Checkpoints(c) => Some(format!("checkpoints {}", c.points.len())),
+            WsEvent::Layout(l) => Some(format!("layout {}", l.scopes.join(","))),
             _ => None,
         })
         .collect()
@@ -282,7 +283,15 @@ fn every_change_to_the_book_document_is_a_change_to_the_book() {
     let roots: Vec<String> = Collection::ALL
         .iter()
         .map(|c| c.root().to_string())
-        .chain(["synthetic_future_root", "writing_days", "entry_checkpoints"].map(String::from))
+        .chain(
+            [
+                "synthetic_future_root",
+                "writing_days",
+                "entry_checkpoints",
+                "positions",
+            ]
+            .map(String::from),
+        )
         .collect();
     for root in roots {
         let tree = Collection::from_root(&root).is_some_and(|c| c.is_tree());
@@ -329,12 +338,14 @@ fn changes_from_another_device_reach_the_document_they_belong_to() {
     };
     let stats = remote(format!("stats:{b}"), "stats");
     let points = remote(format!("checkpoints:{b}"), "checkpoints");
+    let layout = remote(format!("layout:{b}"), "layout");
     let book = remote(format!("book:{b}"), "book");
     let origins_are_sync = |seen: &Arc<Mutex<Vec<WsEvent>>>| {
         seen.lock().unwrap().iter().all(|ev| match ev {
             WsEvent::Book(x) => x.origin == dr_store::Origin::Sync,
             WsEvent::Stats(x) => x.origin == dr_store::Origin::Sync,
             WsEvent::Checkpoints(x) => x.origin == dr_store::Origin::Sync,
+            WsEvent::Layout(x) => x.origin == dr_store::Origin::Sync,
             _ => true,
         })
     };
@@ -357,6 +368,19 @@ fn changes_from_another_device_reach_the_document_they_belong_to() {
     });
     assert!(origins_are_sync(&seen));
     assert_eq!(kinds(&seen), ["checkpoints 1"], "a checkpoint it saved");
+    layout(&|d| {
+        dr_doc::side::BorrowedLayout::new(d, &b.parse().unwrap())
+            .unwrap()
+            .txn()
+            .put_position("root/relation_graph", &c.parse().unwrap(), 12.5, -34.0)
+            .unwrap();
+    });
+    assert!(origins_are_sync(&seen));
+    assert_eq!(
+        kinds(&seen),
+        ["layout root/relation_graph"],
+        "a canvas position it dragged"
+    );
     book(&|d| {
         entry_meta(d, &c).insert("title", "Renamed there").unwrap();
     });
@@ -373,4 +397,160 @@ fn changes_from_another_device_reach_the_document_they_belong_to() {
         )["today"],
         300
     );
+    assert_eq!(
+        e.out(
+            "layout.get",
+            json!({"book": b, "scope": "root", "mode": "relation_graph"})
+        )[&c],
+        json!([12.5, -34.0])
+    );
+}
+
+#[test]
+fn layout_writes_leave_the_book_document_alone() {
+    use dr_workspace::{RecordKey, RecordPrecondition, WritePreconditions};
+
+    let e = env();
+    let b = e.book();
+    let doc = format!("book:{b}");
+    let ideas = common::acceptance::novel_root(e.ws(), &b, "tpl-ideas");
+    let a = e.out(
+        "entry.create",
+        json!({"book": b, "parent": ideas, "template": "tpl-idea", "title": "Idea A", "mark": "🧭"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let b_entry = e.out(
+        "entry.create",
+        json!({"book": b, "parent": ideas, "template": "tpl-idea", "title": "Idea B", "mark": "👨‍👩‍👧‍👦"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        e.out("entry.get", json!({"book": b, "id": a}))["mark"],
+        "🧭"
+    );
+    assert_eq!(
+        e.out("entry.get", json!({"book": b, "id": b_entry}))["mark"],
+        "👨‍👩‍👧‍👦"
+    );
+
+    // Invalid marks (more than one non-slug grapheme cluster, whitespace, or malformed slug) are refused.
+    assert!(
+        e.try_call("entry.update", json!({"book": b, "id": a, "mark": "-bad"}))
+            .is_err()
+    );
+    assert!(
+        e.try_call("entry.update", json!({"book": b, "id": a, "mark": "章节"}))
+            .is_err()
+    );
+
+    // Snapshot capture and restore preserve `Entry.mark`.
+    let snap = e.out("entry_snapshot.create", json!({"book": b, "entry": a}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call("entry.update", json!({"book": b, "id": a, "mark": "章"}));
+    assert_eq!(
+        e.out("entry.get", json!({"book": b, "id": a}))["mark"],
+        "章"
+    );
+    let expected = e.out(
+        "entry_snapshot.preview",
+        json!({"book": b, "entry": a, "point": snap}),
+    )["expected"]
+        .clone();
+    e.call(
+        "entry_snapshot.restore",
+        json!({"book": b, "entry": a, "point": snap, "expected": expected}),
+    );
+    assert_eq!(
+        e.out("entry.get", json!({"book": b, "id": a}))["mark"],
+        "🧭"
+    );
+
+    let stale_obs = e
+        .ws()
+        .observe_records(&doc, &[RecordKey::entry(&a)])
+        .unwrap();
+    let stale_guard = WritePreconditions::default()
+        .with_shown(stale_obs.into_iter().map(RecordPrecondition::from));
+    e.call(
+        "entry.update",
+        json!({"book": b, "id": a, "title": "Idea A2"}),
+    );
+
+    let (seen, _sub) = record(&e);
+    let before = e.ws().version(&doc).unwrap();
+
+    // Guarded `layout.put` ignores stale `book:<id>` record guards, writes no undo
+    // journal row, leaves `book:<id>` untouched, and emits only `WsEvent::Layout`.
+    e.ws()
+        .call_guarded(
+            &Actor::User,
+            "layout.put",
+            json!({
+                "book": b,
+                "scope": ideas,
+                "mode": "board",
+                "positions": { &a: [16.0, 140.0], &b_entry: [56.0, 220.0] }
+            }),
+            stale_guard.clone(),
+        )
+        .unwrap();
+    assert_eq!(e.ws().version(&doc).unwrap(), before);
+    {
+        let raw = seen.lock().unwrap();
+        assert!(
+            !raw.iter()
+                .any(|ev| matches!(ev, WsEvent::Local(l) if l.table == "ws_journal")),
+            "layout writes are irreversible and never append ws_journal rows"
+        );
+    }
+    assert_eq!(kinds(&seen), [format!("layout {ideas}/board")]);
+
+    // Repeating identical positions is a quiet no-op.
+    e.call(
+        "layout.put",
+        json!({
+            "book": b,
+            "scope": ideas,
+            "mode": "board",
+            "positions": { &a: [16.0, 140.0] }
+        }),
+    );
+    assert_eq!(kinds(&seen), Vec::<String>::new());
+
+    // Partial clear removes only the named entries; omitting `entries` clears the scope/mode.
+    e.ws()
+        .call_guarded(
+            &Actor::User,
+            "layout.clear",
+            json!({"book": b, "scope": ideas, "mode": "board", "entries": [&a]}),
+            stale_guard,
+        )
+        .unwrap();
+    assert_eq!(kinds(&seen), [format!("layout {ideas}/board")]);
+    assert_eq!(
+        e.out(
+            "layout.get",
+            json!({"book": b, "scope": ideas, "mode": "board"})
+        ),
+        json!({ &b_entry: [56.0, 220.0] })
+    );
+    e.call(
+        "layout.clear",
+        json!({"book": b, "scope": ideas, "mode": "board"}),
+    );
+    assert_eq!(kinds(&seen), [format!("layout {ideas}/board")]);
+    assert_eq!(
+        e.out(
+            "layout.get",
+            json!({"book": b, "scope": ideas, "mode": "board"})
+        ),
+        json!({})
+    );
+    assert_eq!(e.ws().version(&doc).unwrap(), before);
 }

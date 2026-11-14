@@ -869,32 +869,12 @@ impl<'a> BookViewV3<'a> {
             }
         }
 
-        let layout = f
-            .sub("layout")
-            .map(|l| {
-                EntryLayout {
-                    board: match (l.f64("board_x"), l.f64("board_y")) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        _ => None,
-                    },
-                    grid: match (l.i64("grid_x"), l.i64("grid_y")) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        _ => None,
-                    },
-                    relation_graph: match (l.f64("pin_x"), l.f64("pin_y")) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        _ => None,
-                    },
-                }
-                .sanitized()
-            })
-            .unwrap_or_default();
-
         Some(Entry {
             id,
             parent,
             pos,
             title: f.string("title"),
+            mark: f.opt_string("mark"),
             template: f.id("template"),
             level: f.bool("level").unwrap_or(false),
             overrides,
@@ -902,7 +882,6 @@ impl<'a> BookViewV3<'a> {
             kv,
             media,
             primary: f.id("primary"),
-            layout,
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
             deleted_at: f.ts("deleted_at"),
@@ -1033,6 +1012,7 @@ impl<'a> BookViewV3<'a> {
                     parent,
                     pos: String::new(),
                     title: h.title.clone(),
+                    mark: None,
                     template,
                     level: h.level,
                     overrides,
@@ -1040,7 +1020,6 @@ impl<'a> BookViewV3<'a> {
                     kv: BTreeMap::new(),
                     media: BTreeMap::new(),
                     primary: None,
-                    layout: EntryLayout::default(),
                     created_at: h.created_at,
                     updated_at: None,
                     deleted_at: h.deleted_at,
@@ -2023,7 +2002,9 @@ impl<'a> BookViewV3<'a> {
     /// or its template was deleted).
     pub fn owns_prose(&self, doc: &DocId) -> bool {
         match doc {
-            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) => b == self.book,
+            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) | DocId::Layout(b) => {
+                b == self.book
+            }
             DocId::Conversation(_) => true,
             DocId::Body(b) => {
                 forest_node(&self.tree(book_v3::ENTRIES), b.entry().as_str()).is_some()

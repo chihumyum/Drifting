@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use dr_model::v3::EntryLayout;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace, workspace::SuperView};
 use dr_ui::Appearance;
 use dr_view_element_overview::{
@@ -302,6 +301,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
             EntryCreateIn {
                 book: book_id.clone(),
                 title: "阵营".into(),
+                mark: None,
                 parent: elements_root.clone(),
                 template: level_tpl.clone(),
                 level: None,
@@ -322,6 +322,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
             EntryCreateIn {
                 book: book_id.clone(),
                 title: "器物归档".into(),
+                mark: None,
                 parent: elements_root,
                 template: level_tpl,
                 level: None,
@@ -428,37 +429,52 @@ fn pin_and_unpin_preserve_board_and_grid_and_survive_relayout(cx: &mut TestAppCo
     let el_id = vcx.update(|_, cx| ov.read(cx).elements()[0].id.clone());
 
     // Pre-seed `board` and `grid` layout coordinates on the same entry.
-    vcx.update(|_, cx| {
+    let el_scope = vcx.update(|_, cx| {
         let book = shell.read(cx).book.clone();
-        let seed_layout = EntryLayout {
-            board: Some((42.5, -18.0)),
-            grid: Some((3, 7)),
-            relation_graph: None,
-        };
-        g2_data::prepare_edit(&book, &el_id, json!({ "layout": seed_layout }))
-            .and_then(|m| m.commit(&lib))
-            .expect("seed board and grid");
+        let scope = book
+            .v3()
+            .and_then(|v| v.entry(&el_id))
+            .and_then(|e| e.parent.clone())
+            .unwrap_or_else(|| "root".to_owned());
+        lib.call(
+            &Actor::User,
+            "layout.put",
+            json!({ "book": book_id, "scope": scope, "mode": "board", "positions": { &el_id: [42.5, -18.0] } }),
+        )
+        .expect("seed board");
+        lib.call(
+            &Actor::User,
+            "layout.put",
+            json!({ "book": book_id, "scope": scope, "mode": "grid", "positions": { &el_id: [3.0, 7.0] } }),
+        )
+        .expect("seed grid");
+        scope
     });
     vcx.update(|_, cx| {
         ov.update(cx, |v, cx| v.sync_workspace_book(cx));
     });
 
-    // Pin in `Relate`: writes `relation_graph` while preserving `board` and `grid`.
+    // Pin in `Relate`: writes `root/relation_graph` while preserving `board` and `grid`.
     vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
             v.pin_element_in_relate(&el_id, RelatePoint::new(312.4, -148.6), cx);
         });
     });
 
-    let after_pin = dr_shell::book::Book::load(&lib, &book_id)
-        .expect("load book")
-        .v3()
-        .and_then(|v| v.entry(&el_id))
-        .expect("entry")
-        .layout;
-    assert_eq!(after_pin.board, Some((42.5, -18.0)));
-    assert_eq!(after_pin.grid, Some((3, 7)));
-    assert_eq!(after_pin.relation_graph, Some((312.4, -148.6)));
+    let after_pin = dr_shell::book::Book::load(&lib, &book_id).expect("load book");
+    let after_pin_v3 = after_pin.v3().expect("v3");
+    assert_eq!(
+        after_pin_v3.layout_position(&el_scope, "board", &el_id),
+        Some((42.5, -18.0))
+    );
+    assert_eq!(
+        after_pin_v3.layout_position(&el_scope, "grid", &el_id),
+        Some((3.0, 7.0))
+    );
+    assert_eq!(
+        after_pin_v3.layout_position("root", "relation_graph", &el_id),
+        Some((312.4, -148.6))
+    );
 
     // `relayout_relate` keeps author-pinned element fixed at `(312.4, -148.6)`.
     vcx.update(|_, cx| {
@@ -467,19 +483,24 @@ fn pin_and_unpin_preserve_board_and_grid_and_survive_relayout(cx: &mut TestAppCo
         assert_eq!((pos.x, pos.y), (312.4, -148.6));
     });
 
-    // `unpin_element_in_relate` clears `relation_graph` while keeping `board` and `grid` intact.
+    // `unpin_element_in_relate` clears `root/relation_graph` while keeping `board` and `grid` intact.
     vcx.update(|_, cx| {
         ov.update(cx, |v, cx| v.unpin_element_in_relate(&el_id, cx));
     });
-    let after_unpin = dr_shell::book::Book::load(&lib, &book_id)
-        .expect("load book")
-        .v3()
-        .and_then(|v| v.entry(&el_id))
-        .expect("entry")
-        .layout;
-    assert_eq!(after_unpin.board, Some((42.5, -18.0)));
-    assert_eq!(after_unpin.grid, Some((3, 7)));
-    assert_eq!(after_unpin.relation_graph, None);
+    let after_unpin = dr_shell::book::Book::load(&lib, &book_id).expect("load book");
+    let after_unpin_v3 = after_unpin.v3().expect("v3");
+    assert_eq!(
+        after_unpin_v3.layout_position(&el_scope, "board", &el_id),
+        Some((42.5, -18.0))
+    );
+    assert_eq!(
+        after_unpin_v3.layout_position(&el_scope, "grid", &el_id),
+        Some((3.0, 7.0))
+    );
+    assert_eq!(
+        after_unpin_v3.layout_position("root", "relation_graph", &el_id),
+        None
+    );
 }
 
 #[gpui::test]
@@ -588,6 +609,7 @@ fn a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown(cx: &mut
             EntryCreateIn {
                 book: book_id,
                 title: "离屏时新建的要素".into(),
+                mark: None,
                 parent,
                 template,
                 level: None,

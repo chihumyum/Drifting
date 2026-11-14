@@ -18,7 +18,7 @@ entry.move [write] Move an entry's residence and manuscript position; the new re
 entry.restore [write] Restore an entry and what lives under it from trash.
 entry.set_level [write] Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on.
 entry.trash [write] Trash an entry with what lives under it, keeping entries that only belong to it.
-entry.update [write] Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
+entry.update [write] Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
 entry_history.restore [write] Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit.
 entry_history.version [read] Read the current book version for per-entry snapshot restoration.
 entry_relation_type.delete [write] Delete an unused unlocked relation type.
@@ -84,14 +84,14 @@ comment.create book c51cccd98c96f9270b7a8270663513d31f32144612a85341e42bbef1230b
 comment.list shared b9f099f13fe40aae1b21ed736aae62cd2bba006ff830d242b2705a79e83ce736
 comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
 comment.update book 52acb1f028f0b975bdbaeaea68fdb25bfbe722f457ec1f04bc091f70c9353292
-entry.create book 1c8106425f5fabecd59543c9c34ad58c92336490e071a435e5aa4c0db584e251
-entry.get shared 071f37dcb5c636cd9b57f24e6e0b003ab4d07b7f78cd44758f28ebecb6a19c86
-entry.list shared f2814dc656d62c1d750e8292ed42c879c47d9bc7b0227f056106bac09d7befd0
+entry.create book 444bb09bf4d019d96aa1d7773356a3982ce60cb8bfadd17f3677d478242a400c
+entry.get shared 9a1fa97144baa0e1b53b6562938c9614a78ff19c45bd85d286539e083d233ab1
+entry.list shared 86b336ff2a054ffa38c94685ad489c5d350c6698e146499348ff03a3368701bb
 entry.move book 139c981e4778045724a1fb2bbd24c01ceb7602e9f884eefb46a2e70e63d4d084
 entry.restore book a04c968a0e82b31b8e2e963750a1c55688c75be58ff005d53a508e1803c21266
 entry.set_level book 8d51ee4b6e564393d1af47d654461ef5a9b2298c6869462f96c1d53d11c7246d
 entry.trash book 75846ecda0176e96269ba2281dc5f8b04c8376076a6f060b85851df92aa18d17
-entry.update book 25c22287f130d8c1ca9179a37ffe026752e83fdef12ede87f2257f66ffb76be9
+entry.update book a9837473210d5ecda32a202261d13465144319ead3f1c2df34ec38d0af241884
 entry_history.restore book 97b1bd7bcfa2f39c01a0986294d014ada574441d224c2b2789441b99bd721d9f
 entry_history.version shared e589c0a1a82e11d5257deca222107426f1bc70799a503124af8e92f6ba8d87e2
 entry_relation_type.delete book 941419186bf7719b675024dd57143835d12d870011b5727551d421c3e1904734
@@ -121,7 +121,7 @@ module.put_grid book 4fdb0b2ce4542d367554c530475049d76a5cd59689d0902bd79bd5ba5dd
 module.put_kv book 7340170b3fec2382306f19ab03fe141e13149f581e891307f8d91ffdbd8c4197
 module.put_patch book 84cb1e99042c9a21e153a09774598e0edc7ae22c2e4296a387cf8bb433c99d80
 module.put_relation book 71749a75394e1a0d39cf3a97e4163d5aeaa947c9bdc99f3667a8469a7a4fbc7c
-module.read shared 32a45cfeb8ef2aab932443ad1c4227e4acea9ca69b51b97b9577719c0a8e2d01
+module.read shared 3c4f5dc5085d08e2c2234f0d42763c109e3275329fefe45f1de583393709cd93
 module.read_prose shared a6518479d09fa8637ab28ca288066c314193cc61d1415c93df3e343271ff3e8d
 module.remove_kv book c6d1352977661fa9e411c6e1268c716cf6297000184efb96d85e24220dd42460
 module.remove_patch book ffeafb086b827f15ec82f7429eb791d304bb3cabb310981c29ad09ba7e02ae7f
@@ -149,13 +149,13 @@ timeline_view.remove_pin book cc25490f33a9fef480568b9e42108e475e2c36ef1ff60b31b7
 
 
 Excluded registry operations:
-asset.list: project, tab, media, and book sequence commands need T7 facade read coverage
+asset.list: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 asset.put: storage, editor, or derived-state maintenance
 book.list: no current-book input boundary
 book.purge: library-wide lifecycle operation
 book.purge_expired: library-wide lifecycle operation
 book.restore: book lifecycle belongs to the library
-book.sequence: project, tab, media, and book sequence commands need T7 facade read coverage
+book.sequence: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 book.shelf: no current-book input boundary
 book.trash: book lifecycle belongs to the library
 comment.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
@@ -167,19 +167,22 @@ entry_snapshot.list: entry snapshots need facade coverage and guarded whole-entr
 entry_snapshot.preview: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.restore: entry snapshots need facade coverage and guarded whole-entry restore wiring
 history.restore_point: history restore labels require an atomic guarded owner hook
+layout.clear: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+layout.get: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+layout.put: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 membership.restore: scoped membership undo is internal until K6 provides a guarded facade
 module.edit_kv: field edits belong to a view that showed the field; use the record commands
 module.edit_patch: field edits belong to a view that showed the field; use the record commands
 module.prose_document: storage, editor, or derived-state maintenance
-module.put_media: project, tab, media, and book sequence commands need T7 facade read coverage
-module.remove_media: project, tab, media, and book sequence commands need T7 facade read coverage
+module.put_media: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+module.remove_media: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 project.create: library-wide lifecycle operation
-project.get: project, tab, media, and book sequence commands need T7 facade read coverage
-project.update: project, tab, media, and book sequence commands need T7 facade read coverage
+project.get: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+project.update: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 recent.touch: storage, editor, or derived-state maintenance
-tab.move: project, tab, media, and book sequence commands need T7 facade read coverage
-tab.put: project, tab, media, and book sequence commands need T7 facade read coverage
-tab.remove: project, tab, media, and book sequence commands need T7 facade read coverage
+tab.move: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+tab.put: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+tab.remove: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.move_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.remove_lane: local timeline edits need exact lane, placement, and pin read coverage

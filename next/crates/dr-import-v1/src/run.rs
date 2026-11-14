@@ -1328,10 +1328,11 @@ fn write_library(
             stop_in_book!();
         }
         // The documents beside the book before the book itself, like its
-        // bodies: writing days from the source, an empty checkpoint list.
-        // Deterministic, so a resumed import stores the same changes again.
-        let (stats, checkpoints) =
-            dr_samples::v3::side_documents(&book_id, &bdoc.view(), final_ts)?;
+        // bodies: writing days from the source, an empty checkpoint list, and
+        // canvas coordinates. Deterministic, so a resumed import stores the
+        // same changes again.
+        let (stats, checkpoints, layout) =
+            dr_samples::v3::side_documents(&book_id, &bdoc.view(), &v3doc.view(), final_ts)?;
         let all = loro::VersionVector::default();
         store_doc(
             lib,
@@ -1346,6 +1347,13 @@ fn write_library(
             &project.id,
             dr_doc::side::checkpoints_genesis(&book_id),
             checkpoints.export_updates_since(&all)?,
+        )?;
+        store_doc(
+            lib,
+            layout.doc_id(),
+            &project.id,
+            dr_doc::side::layout_genesis(&book_id),
+            layout.export_updates_since(&all)?,
         )?;
         let bh = open_new(
             lib,

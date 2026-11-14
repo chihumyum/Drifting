@@ -225,6 +225,25 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         book_cfg.daily_word_target_set,
         expected.settings.daily_word_target
     );
+    let layout_positions = {
+        let h = lib
+            .open_doc(
+                &format!("layout:{}", view.book_id()),
+                dr_store::OpenDoc::Existing,
+            )
+            .unwrap();
+        let b = view.book_id().clone();
+        let all = h
+            .read(move |d| {
+                dr_doc::side::BorrowedLayout::new(d, &b)
+                    .unwrap()
+                    .view()
+                    .all_positions()
+            })
+            .unwrap();
+        h.close();
+        all
+    };
     for level in &expected.levels {
         let actual = view.entry(&entry_id(view, &level.entry)).unwrap();
         assert_eq!(actual.title, level.title, "{:?}", level.entry);
@@ -246,7 +265,12 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(text(&actual, "color").as_ref(), Some(color));
         }
         if let Some(manifest::Layout::Grid { x, y, .. }) = &level.layout {
-            assert_eq!(actual.layout.grid, x.zip(*y));
+            let scope = actual.parent.as_ref().map(|p| p.as_str()).unwrap_or("root");
+            let got = layout_positions
+                .get(&format!("{scope}/grid"))
+                .and_then(|m| m.get(&actual.id))
+                .copied();
+            assert_eq!(got, x.zip(*y).map(|(gx, gy)| (gx as f64, gy as f64)));
         }
     }
     if !expected.default_view.act_tracks.is_empty() {
@@ -354,9 +378,24 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(text(&actual, &definition.id).as_ref(), Some(&field.value));
         }
         match leaf.layout {
-            Some(manifest::Layout::Board(x, y)) => assert_eq!(actual.layout.board, Some((x, y))),
+            Some(manifest::Layout::Board(x, y)) => {
+                let scope = actual.parent.as_ref().map(|p| p.as_str()).unwrap_or("root");
+                assert_eq!(
+                    layout_positions
+                        .get(&format!("{scope}/board"))
+                        .and_then(|m| m.get(&actual.id))
+                        .copied(),
+                    Some((x, y))
+                );
+            }
             Some(manifest::Layout::Graph(x, y)) => {
-                assert_eq!(actual.layout.relation_graph, Some((x, y)))
+                assert_eq!(
+                    layout_positions
+                        .get("root/relation_graph")
+                        .and_then(|m| m.get(&actual.id))
+                        .copied(),
+                    Some((x, y))
+                );
             }
             _ => {}
         }

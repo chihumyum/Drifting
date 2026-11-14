@@ -40,7 +40,7 @@
 use std::collections::BTreeMap;
 
 use dr_doc::Result;
-use dr_doc::side::{CheckpointsDoc, CheckpointsTxn, StatsDoc, StatsTxn};
+use dr_doc::side::{CheckpointsDoc, CheckpointsTxn, LayoutDoc, LayoutTxn, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
     MOD_FIELDS, MOD_KV, MOD_PROSE, TPL_CHAPTER, TPL_CHARACTER, TPL_IDEA, TPL_IDEA_GROUP, TPL_IDEAS,
 };
@@ -123,11 +123,12 @@ impl Kind {
     ];
 
     /// The document a commit of this kind goes to: `stats` (`stats:<book>`),
-    /// `checkpoints` (`checkpoints:<book>`) or `book`.
+    /// `checkpoints` (`checkpoints:<book>`), `layout` (`layout:<book>`) or `book`.
     pub fn document(self) -> &'static str {
         match self {
             Kind::WritingDay => "stats",
             Kind::Checkpoint => "checkpoints",
+            Kind::Layout => "layout",
             _ => "book",
         }
     }
@@ -193,6 +194,8 @@ pub struct AgedBook {
     /// `checkpoints:<book>`: the seed's manifests and those the aging saved
     /// and kept.
     pub points: CheckpointsDoc,
+    /// `layout:<book>`: the seed's canvas positions and those dragged during planning.
+    pub layout: LayoutDoc,
     pub stats: BookStats,
     /// Every commit of the aging, oldest first.
     pub commits: Vec<Commit>,
@@ -224,11 +227,12 @@ struct World {
     commits: Vec<Commit>,
 }
 
-/// One device's replicas of the book's three documents.
+/// One device's replicas of the book's four documents.
 struct Replica {
     book: BookDocV3,
     writing: StatsDoc,
     points: CheckpointsDoc,
+    layout: LayoutDoc,
 }
 
 fn tid(s: &str) -> EntryTemplateId {
@@ -281,6 +285,20 @@ impl World {
         let (r, c) = doc.points.edit_at(Origin::User, Some(ts), f);
         r?;
         self.committed(c, ts, device, Kind::Checkpoint);
+        Ok(())
+    }
+
+    /// One commit to `layout:<book>`.
+    fn commit_layout(
+        &mut self,
+        doc: &mut Replica,
+        device: usize,
+        ts: i64,
+        f: impl FnOnce(&mut LayoutTxn<'_>) -> Result<()>,
+    ) -> Result<()> {
+        let (r, c) = doc.layout.edit_at(Origin::User, Some(ts), f);
+        r?;
+        self.committed(c, ts, device, Kind::Layout);
         Ok(())
     }
 
@@ -551,9 +569,11 @@ impl World {
                 self.commit(doc, device, ts, Kind::Structure, |t| {
                     t.entries()
                         .create(&id, Some(&parent), &title, Some(&tid(TPL_IDEA)), false)?
-                        .created_at(Some(Timestamp(ts)))?
-                        .board_pos(Some(at))?;
+                        .created_at(Some(Timestamp(ts)))?;
                     Ok(())
+                })?;
+                self.commit_layout(doc, device, ts, |t| {
+                    t.put_position(&format!("{parent}/board"), &id, at.0, at.1)
                 })?;
                 self.ideas.push(id.clone());
                 // The new idea changed; the siblings it now stands among
@@ -611,12 +631,16 @@ impl World {
             if pick < 50 && !self.ideas.is_empty() {
                 let entry = self.rng.pick(&self.ideas).clone();
                 let at = (self.rng.unit() * 4_000.0, self.rng.unit() * 3_000.0);
+                let scope = doc
+                    .book
+                    .view()
+                    .entry_raw(&entry)
+                    .and_then(|e| e.parent)
+                    .map_or_else(|| "root".to_owned(), |p| p.to_string());
                 self.stats.layout_moves += 1;
-                self.commit(doc, device, ts, Kind::Layout, |t| {
-                    t.entries().entry(&entry)?.board_pos(Some(at))?;
-                    Ok(())
+                self.commit_layout(doc, device, ts, |t| {
+                    t.put_position(&format!("{scope}/board"), &entry, at.0, at.1)
                 })?;
-                dirty.push(entry);
             } else if pick < 70 && self.view.is_some() {
                 let entry = self.rng.pick(&self.chapters).clone();
                 let view = self.view.clone().expect("checked");
@@ -630,11 +654,9 @@ impl World {
                 let entry = self.rng.pick(&self.elements).clone();
                 let at = (self.rng.unit() * 2_000.0, self.rng.unit() * 2_000.0);
                 self.stats.layout_moves += 1;
-                self.commit(doc, device, ts, Kind::Layout, |t| {
-                    t.entries().entry(&entry)?.relation_pin(Some(at))?;
-                    Ok(())
+                self.commit_layout(doc, device, ts, |t| {
+                    t.put_position("root/relation_graph", &entry, at.0, at.1)
                 })?;
-                dirty.push(entry);
             } else if pick < 95 {
                 // The manuscript order: a chapter moved among its siblings.
                 let entry = self.rng.pick(&self.chapters).clone();
@@ -722,10 +744,12 @@ fn sync(from: &Replica, to: &mut Replica) -> Result<()> {
     to.writing.import(&bytes, Origin::Sync)?;
     let bytes = from.points.export_updates_since(&to.points.version())?;
     to.points.import(&bytes, Origin::Sync)?;
+    let bytes = from.layout.export_updates_since(&to.layout.version())?;
+    to.layout.import(&bytes, Origin::Sync)?;
     Ok(())
 }
 
-/// Age `seeded` (a seeded v3 book: its book document and the two beside it)
+/// Age `seeded` (a seeded v3 book: its book document and the three beside it)
 /// by `plan`. `seeded` is not changed.
 pub fn age(seeded: &SeededBookV3, plan: &BookAging) -> Result<AgedBook> {
     assert!((1..=2).contains(&plan.devices), "one or two devices");
@@ -737,10 +761,12 @@ pub fn age(seeded: &SeededBookV3, plan: &BookAging) -> Result<AgedBook> {
     let points_history = seeded
         .checkpoints
         .export_updates_since(&Default::default())?;
+    let layout_history = seeded.layout.export_updates_since(&Default::default())?;
     let mut replicas = Vec::with_capacity(plan.devices);
-    let (writing_id, points_id) = (
+    let (writing_id, points_id, layout_id) = (
         dr_model::DocId::Stats(book.clone()).to_string(),
         dr_model::DocId::Checkpoints(book.clone()).to_string(),
+        dr_model::DocId::Layout(book.clone()).to_string(),
     );
     for device in 0..plan.devices {
         let mut doc = BookDocV3::create(book.clone(), device_peer(&id, device))?;
@@ -749,10 +775,13 @@ pub fn age(seeded: &SeededBookV3, plan: &BookAging) -> Result<AgedBook> {
         writing.import(&writing_history, Origin::Import)?;
         let mut points = CheckpointsDoc::create(book.clone(), device_peer(&points_id, device))?;
         points.import(&points_history, Origin::Import)?;
+        let mut layout = LayoutDoc::create(book.clone(), device_peer(&layout_id, device))?;
+        layout.import(&layout_history, Origin::Import)?;
         replicas.push(Replica {
             book: doc,
             writing,
             points,
+            layout,
         });
     }
     let view = base.view();
@@ -861,6 +890,7 @@ pub fn age(seeded: &SeededBookV3, plan: &BookAging) -> Result<AgedBook> {
         doc: replica.book,
         writing: replica.writing,
         points: replica.points,
+        layout: replica.layout,
         stats,
         commits,
     })
@@ -892,6 +922,7 @@ pub struct Uploads {
     pub book: usize,
     pub stats: usize,
     pub checkpoints: usize,
+    pub layout: usize,
     /// Batches per working day (a day with at least one commit), all
     /// documents and the book document's.
     pub per_working_day: f64,
@@ -930,6 +961,7 @@ pub fn uploads(commits: &[Commit], cadence_s: i64) -> Uploads {
     out.book = of("book");
     out.stats = of("stats");
     out.checkpoints = of("checkpoints");
+    out.layout = of("layout");
     let working = days.len().max(1) as f64;
     out.per_working_day = out.batches as f64 / working;
     out.book_per_working_day = out.book as f64 / working;

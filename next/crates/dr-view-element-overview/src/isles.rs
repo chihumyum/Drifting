@@ -473,9 +473,8 @@ pub fn extract_v3_islands(
                     .or_else(|| island_colors.get(&home_island_id).cloned().flatten());
                 let sand_kind = app.map_or(sand::Kind::Element, |a| a.sand);
                 let (summary, aliases) = extract_fields(v3, id);
-                let relation_pin = entry
-                    .layout
-                    .relation_graph
+                let relation_pin = v3
+                    .layout_position("root", "relation_graph", id)
                     .filter(|(x, y)| x.is_finite() && y.is_finite())
                     .map(|(x, y)| RelatePoint::new(x, y));
 

@@ -11,7 +11,7 @@ use dr_corpus::para::{self, Para};
 use dr_doc::loro_types::VersionVector;
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
-use dr_doc::side::{CheckpointsDoc, StatsDoc, StatsTxn};
+use dr_doc::side::{CheckpointsDoc, LayoutDoc, LayoutTxn, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
     MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_MEDIA, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
     NovelRootEntries, TPL_CATEGORY, TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA,
@@ -85,6 +85,8 @@ pub struct SeededBookV3 {
     pub stats: StatsDoc,
     /// `checkpoints:<book>`: no seed saves a checkpoint.
     pub checkpoints: CheckpointsDoc,
+    /// `layout:<book>`: board positions.
+    pub layout: LayoutDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: Counters,
 }
@@ -177,6 +179,13 @@ pub fn write_book_v3(
     written += store_doc(
         lib,
         b.book_id(),
+        b.layout.doc_id(),
+        dr_doc::side::layout_genesis(b.book_id()),
+        b.layout.export_updates_since(&all)?,
+    )?;
+    written += store_doc(
+        lib,
+        b.book_id(),
         b.book.doc_id(),
         book_genesis(b.book_id()),
         b.book.export_updates_since(&all)?,
@@ -218,6 +227,7 @@ pub struct BuilderV3 {
     pub prose: Vec<ProseDoc>,
     pub stats: StatsDoc,
     pub checkpoints: CheckpointsDoc,
+    pub layout: LayoutDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: Counters,
     clock: i64,
@@ -228,9 +238,11 @@ impl BuilderV3 {
         let doc_id = DocId::Book(book_id.clone()).to_string();
         let stats_id = DocId::Stats(book_id.clone()).to_string();
         let points_id = DocId::Checkpoints(book_id.clone()).to_string();
+        let layout_id = DocId::Layout(book_id.clone()).to_string();
         Ok(Self {
             stats: StatsDoc::create(book_id.clone(), import_peer(&stats_id))?,
             checkpoints: CheckpointsDoc::create(book_id.clone(), import_peer(&points_id))?,
+            layout: LayoutDoc::create(book_id.clone(), import_peer(&layout_id))?,
             book: BookDocV3::create(book_id, import_peer(&doc_id))?,
             prose: Vec::new(),
             groups: BTreeMap::new(),
@@ -283,12 +295,20 @@ impl BuilderV3 {
         r
     }
 
+    /// One commit on `layout:<book>` at the next tick.
+    pub fn edit_layout(&mut self, f: impl FnOnce(&mut LayoutTxn<'_>) -> Result<()>) -> Result<()> {
+        let ts = self.tick();
+        let (r, _) = self.layout.edit_at(Origin::Import, Some(ts), f);
+        r
+    }
+
     pub fn finish(self) -> SeededBookV3 {
         SeededBookV3 {
             book: self.book,
             prose: self.prose,
             stats: self.stats,
             checkpoints: self.checkpoints,
+            layout: self.layout,
             groups: self.groups,
             counters: self.counters,
         }
@@ -644,13 +664,11 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 Some(&tid(TPL_IDEA)),
                 false,
             )?;
-            w.created_at(Some(Timestamp(T0 + i as i64)))?
-                .set_field(
-                    &fmod,
-                    "status",
-                    Some(&FieldValue::Text(idea.status.as_str().into())),
-                )?
-                .board_pos(Some((idea.x, idea.y)))?;
+            w.created_at(Some(Timestamp(T0 + i as i64)))?.set_field(
+                &fmod,
+                "status",
+                Some(&FieldValue::Text(idea.status.as_str().into())),
+            )?;
         }
         Ok(())
     })?;
@@ -777,6 +795,20 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
         }
         Ok(())
     })?;
+
+    if !p.ideas.is_empty() {
+        b.edit_layout(|t| {
+            for idea in &p.ideas {
+                let parent_id = idea
+                    .group
+                    .map(|g| eid(p.idea_groups[g].0.as_str()))
+                    .unwrap_or_else(|| roots.ideas.clone());
+                let idea_id = eid(idea.id.as_str());
+                t.put_position(&format!("{parent_id}/board"), &idea_id, idea.x, idea.y)?;
+            }
+            Ok(())
+        })?;
+    }
 
     Ok(b.finish())
 }
@@ -1033,8 +1065,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     &fmod,
                     "status",
                     Some(&FieldValue::Text(d.status.as_str().into())),
-                )?
-                .board_pos(Some((d.x, d.y)))?;
+                )?;
         }
         let symmetric_types: std::collections::HashSet<RelationTypeId> = relation_types
             .iter()
@@ -1320,6 +1351,20 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
         }
         Ok(())
     })?;
+    if !drifts.is_empty() {
+        b.edit_layout(|t| {
+            for d in &drifts {
+                let parent_id = d
+                    .group
+                    .as_ref()
+                    .map(|g| eid(g.as_str()))
+                    .unwrap_or_else(|| roots.ideas.clone());
+                let idea_id = eid(d.id.as_str());
+                t.put_position(&format!("{parent_id}/board"), &idea_id, d.x, d.y)?;
+            }
+            Ok(())
+        })?;
+    }
     Ok(b.finish())
 }
 
@@ -1408,8 +1453,28 @@ fn sorted<T: Ord>(mut v: Vec<T>) -> Vec<T> {
 /// peers and timestamps.
 pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Value, String> {
     let book_id = BookId::parse(book).map_err(err)?;
-    let doc = BookDocV3::load(book_id, 1, &[load_snapshot(lib, &format!("book:{book}"))?])
-        .map_err(err)?;
+    let doc = BookDocV3::load(
+        book_id.clone(),
+        1,
+        &[load_snapshot(lib, &format!("book:{book}"))?],
+    )
+    .map_err(err)?;
+    let layout_positions = if lib
+        .doc_info(&format!("layout:{book}"))
+        .map_err(err)?
+        .is_some()
+    {
+        LayoutDoc::load(
+            book_id,
+            1,
+            &[load_snapshot(lib, &format!("layout:{book}"))?],
+        )
+        .map_err(err)?
+        .view()
+        .all_positions()
+    } else {
+        BTreeMap::new()
+    };
     let v = doc.view();
     let names = NamesV3::of(&v);
     let prose = |d: DocId| -> std::result::Result<Value, String> {
@@ -1624,7 +1689,12 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
                 .unwrap_or("drifting")
                 .to_string();
             let group = n.parent.as_ref().and_then(|g| idea_groups.get(g.as_str()));
-            let (x, y) = match n.layout.board {
+            let scope = n.parent.as_ref().map(|p| p.as_str()).unwrap_or("root");
+            let pos = layout_positions
+                .get(&format!("{scope}/board"))
+                .and_then(|m| m.get(&n.id))
+                .copied();
+            let (x, y) = match pos {
                 Some((bx, by)) => (Some(bx), Some(by)),
                 None => (None, None),
             };

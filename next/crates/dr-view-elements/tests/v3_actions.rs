@@ -476,54 +476,68 @@ fn sibling_drop_counts_raw_trash_slots_and_not_the_filtered_rows() {
     ws.shutdown().unwrap();
 }
 #[test]
-fn board_position_writes_keep_other_layouts_and_refuse_a_stale_snapshot() {
+fn board_position_writes_keep_other_layouts_and_do_not_conflict_with_book_edits() {
     let (_dir, ws, book) = seed();
     let snapshot = Book::load(&ws, &book).unwrap();
     let idea = root(&snapshot, "tpl-idea");
+    let parent = snapshot.v3().unwrap().entry(&idea).unwrap().parent.clone();
+    let scope = parent.as_deref().unwrap_or("root").to_owned();
     call(
         &ws,
-        "entry.update",
-        json!({"book":book,"id":idea,"layout":{"board":[-12.0,34.0],"grid":[2,3],"relation_graph":[7.0,8.0]}}),
+        "layout.put",
+        json!({"book":book,"scope":scope,"mode":"board","positions":{&idea:[-12.0,34.0]}}),
+    );
+    call(
+        &ws,
+        "layout.put",
+        json!({"book":book,"scope":scope,"mode":"grid","positions":{&idea:[2.0,3.0]}}),
+    );
+    call(
+        &ws,
+        "layout.put",
+        json!({"book":book,"scope":"root","mode":"relation_graph","positions":{&idea:[7.0,8.0]}}),
     );
     let snapshot = Book::load(&ws, &book).unwrap();
-    let parent = snapshot.v3().unwrap().entry(&idea).unwrap().parent.clone();
-    prepare_board(&snapshot, &idea, (40.0, 80.0))
+    prepare_board(&snapshot, &scope, &idea, (40.0, 80.0))
         .unwrap()
         .commit(&ws)
         .unwrap();
     let changed = Book::load(&ws, &book).unwrap();
-    let entry = changed.v3().unwrap().entry(&idea).unwrap();
-    assert_eq!(entry.layout.board, Some((40.0, 80.0)));
-    assert_eq!(entry.layout.grid, Some((2, 3)));
-    assert_eq!(entry.layout.relation_graph, Some((7.0, 8.0)));
+    let v = changed.v3().unwrap();
+    let entry = v.entry(&idea).unwrap();
+    assert_eq!(
+        v.layout_position(&scope, "board", &idea),
+        Some((40.0, 80.0))
+    );
+    assert_eq!(v.layout_position(&scope, "grid", &idea), Some((2.0, 3.0)));
+    assert_eq!(
+        v.layout_position("root", "relation_graph", &idea),
+        Some((7.0, 8.0))
+    );
     assert_eq!(entry.parent, parent);
-    let stale = prepare_board(&changed, &idea, (50.0, 90.0)).unwrap();
+    // `LAYOUT-DOC-QUIET`: `layout.put` writes only `layout:<book>` without
+    // touching `book:<id>` or checking book record preconditions, so an older
+    // board drag and a concurrent `entry.update` rename both succeed cleanly.
+    let quiet_drag = prepare_board(&changed, &scope, &idea, (50.0, 90.0)).unwrap();
     call(
         &ws,
         "entry.update",
         json!({"book":book,"id":idea,"title":"Synthetic concurrent board rename"}),
     );
-    assert!(matches!(
-        stale.commit(&ws),
-        Err(dr_workspace::WsError::Conflict(_))
-    ));
-    let refreshed = Book::load(&ws, &book).unwrap();
-    assert_eq!(
-        refreshed.v3().unwrap().entry(&idea).unwrap().layout.board,
-        Some((40.0, 80.0))
-    );
-    // An explicit retry from the new observation succeeds as a second author
-    // edit. Both successful writes, including the intervening rename, survive.
-    prepare_board(&refreshed, &idea, (50.0, 90.0))
-        .unwrap()
-        .commit(&ws)
-        .unwrap();
+    quiet_drag.commit(&ws).unwrap();
     let final_book = Book::load(&ws, &book).unwrap();
-    let entry = final_book.v3().unwrap().entry(&idea).unwrap();
+    let fv = final_book.v3().unwrap();
+    let entry = fv.entry(&idea).unwrap();
     assert_eq!(entry.title, "Synthetic concurrent board rename");
-    assert_eq!(entry.layout.board, Some((50.0, 90.0)));
-    assert_eq!(entry.layout.grid, Some((2, 3)));
-    assert_eq!(entry.layout.relation_graph, Some((7.0, 8.0)));
+    assert_eq!(
+        fv.layout_position(&scope, "board", &idea),
+        Some((50.0, 90.0))
+    );
+    assert_eq!(fv.layout_position(&scope, "grid", &idea), Some((2.0, 3.0)));
+    assert_eq!(
+        fv.layout_position("root", "relation_graph", &idea),
+        Some((7.0, 8.0))
+    );
     ws.shutdown().unwrap();
 }
 
@@ -588,7 +602,7 @@ fn template_and_layout_edits_preserve_memberships_hidden_by_a_trashed_host() {
         .commit(&ws)
         .unwrap();
     let switched = Book::load(&ws, &book).unwrap();
-    prepare_board(&switched, &character, (24.0, 48.0))
+    prepare_board(&switched, &residence, &character, (24.0, 48.0))
         .unwrap()
         .commit(&ws)
         .unwrap();
@@ -609,7 +623,10 @@ fn template_and_layout_edits_preserve_memberships_hidden_by_a_trashed_host() {
     assert_eq!(entry.primary.as_deref(), Some(host.as_str()));
     assert_eq!(entry.parent.as_deref(), Some(residence.as_str()));
     assert_eq!(entry.template.as_deref(), Some("tpl-idea"));
-    assert_eq!(entry.layout.board, Some((24.0, 48.0)));
+    assert_eq!(
+        v.layout_position(&residence, "board", &character),
+        Some((24.0, 48.0))
+    );
     ws.shutdown().unwrap();
 }
 

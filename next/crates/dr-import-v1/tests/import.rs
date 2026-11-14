@@ -185,13 +185,41 @@ fn a_handed_off_library_imports_completely() {
         chapter.primary.as_ref().map(|id| id.as_str()),
         Some(STORYLINE)
     );
+    let layout_positions = {
+        let h = lib
+            .open_doc(&format!("layout:{BOOK}"), dr_store::OpenDoc::Existing)
+            .unwrap();
+        let b = BookId::parse(BOOK).unwrap();
+        let all = h
+            .read(move |d| {
+                dr_doc::side::BorrowedLayout::new(d, &b)
+                    .unwrap()
+                    .view()
+                    .all_positions()
+            })
+            .unwrap();
+        h.close();
+        all
+    };
     let idea = v.entry(&EntryId::parse(IDEA).unwrap()).unwrap();
     assert_eq!(idea.parent.as_ref().map(|id| id.as_str()), Some(SUBGROUP));
-    assert_eq!(idea.layout.board, Some((120.5, -40.0)));
+    assert_eq!(
+        layout_positions
+            .get(&format!("{SUBGROUP}/board"))
+            .and_then(|m| m.get(&EntryId::parse(IDEA).unwrap()))
+            .copied(),
+        Some((120.5, -40.0))
+    );
     let subgroup = v.entry(&EntryId::parse(SUBGROUP).unwrap()).unwrap();
     assert_eq!(subgroup.parent.as_ref().map(|id| id.as_str()), Some(GROUP));
     let element = v.entry(&EntryId::parse(ELEMENT).unwrap()).unwrap();
-    assert_eq!(element.layout.relation_graph, Some((12.5, -40.0)));
+    assert_eq!(
+        layout_positions
+            .get("root/relation_graph")
+            .and_then(|m| m.get(&EntryId::parse(ELEMENT).unwrap()))
+            .copied(),
+        Some((12.5, -40.0))
+    );
     let templates = v.templates_map();
     assert!(element.aliases(&templates).iter().any(|a| a == "阿贵"));
     assert!(element.aliases(&templates).iter().any(|a| a == "阿桂"));
@@ -745,8 +773,8 @@ fn the_import_reports_its_progress() {
         .unwrap();
     assert_eq!(
         (indexing.done, indexing.total),
-        (11, 11),
-        "six bodies, two templates, the book and the two documents beside it"
+        (12, 12),
+        "six bodies, two templates, the book and the three documents beside it"
     );
 }
 
@@ -758,8 +786,8 @@ fn an_imported_library_has_its_indexes() {
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
     imported(outcome);
     assert_eq!(
-        timing.indexed_docs, 11,
-        "six bodies, two templates, the book and the two documents beside it"
+        timing.indexed_docs, 12,
+        "six bodies, two templates, the book and the three documents beside it"
     );
     let mut o = LibraryOptions::new("0.2.0-test");
     dr_index::attach(&mut o);

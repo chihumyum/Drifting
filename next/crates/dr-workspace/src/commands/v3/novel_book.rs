@@ -31,8 +31,12 @@ op! {
             }
         }
         // The documents beside the book, from their genesis, so a first
-        // writing day or checkpoint never has to create one.
-        for side in [DocId::Stats(id.clone()), DocId::Checkpoints(id.clone())] {
+        // writing day, checkpoint or canvas drag never has to create one.
+        for side in [
+            DocId::Stats(id.clone()),
+            DocId::Checkpoints(id.clone()),
+            DocId::Layout(id.clone()),
+        ] {
             cx.workspace().side_slot(&side, &id, true)?;
         }
         let name = input.name.trim().to_string();

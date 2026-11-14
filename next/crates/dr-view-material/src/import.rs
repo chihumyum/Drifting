@@ -289,6 +289,7 @@ fn record(
             EntryCreateIn {
                 book: book.to_owned(),
                 title: display_title.clone(),
+                mark: None,
                 parent,
                 template: Some(template_id),
                 level: None,

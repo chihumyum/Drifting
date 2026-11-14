@@ -1000,8 +1000,8 @@ impl ElementOverview {
         cx.notify();
     }
 
-    /// Pins `element_id` to `point` via guarded `entry.update` on `Entry.layout.relation_graph`,
-    /// preserving `Entry.layout.board` and `Entry.layout.grid`.
+    /// Pins `element_id` to `point` via `layout.put` on `root/relation_graph`,
+    /// preserving every other layout scope and mode.
     pub fn pin_element_in_relate(
         &mut self,
         element_id: &str,
@@ -1014,22 +1014,23 @@ impl ElementOverview {
         let Some(lib) = self.lib.clone() else {
             return;
         };
-        let Some(mut layout) = self
-            .book
-            .v3()
-            .and_then(|v| v.entry(element_id))
-            .map(|e| e.layout)
-        else {
+        if self.book.v3().and_then(|v| v.entry(element_id)).is_none() {
             return;
-        };
+        }
         let rounded = (
             (point.x * 10.0).round() / 10.0,
             (point.y * 10.0).round() / 10.0,
         );
-        layout.relation_graph = Some(rounded);
-        match g2_data::prepare_edit(&self.book, element_id, json!({ "layout": layout }))
-            .and_then(|m| m.commit(&lib))
-        {
+        match lib.call(
+            &dr_workspace::Actor::User,
+            "layout.put",
+            json!({
+                "book": self.book_id,
+                "scope": "root",
+                "mode": "relation_graph",
+                "positions": { element_id: [rounded.0, rounded.1] },
+            }),
+        ) {
             Ok(_) => {
                 self._tween_task = None;
                 let pt = RelatePoint::new(rounded.0, rounded.1);
@@ -1059,7 +1060,7 @@ impl ElementOverview {
         }
     }
 
-    /// Clears `Entry.layout.relation_graph` for `element_id` while preserving `board` and `grid`.
+    /// Clears `root/relation_graph` for `element_id` while preserving other layout scopes/modes.
     pub fn unpin_element_in_relate(&mut self, element_id: &str, cx: &mut Context<Self>) {
         if crate::is_frozen(cx) {
             return;
@@ -1067,21 +1068,26 @@ impl ElementOverview {
         let Some(lib) = self.lib.clone() else {
             return;
         };
-        let Some(mut layout) = self
-            .book
-            .v3()
-            .and_then(|v| v.entry(element_id))
-            .map(|e| e.layout)
-        else {
+        let Some(v3) = self.book.v3() else {
             return;
         };
-        if layout.relation_graph.is_none() {
+        if v3.entry(element_id).is_none()
+            || v3
+                .layout_position("root", "relation_graph", element_id)
+                .is_none()
+        {
             return;
         }
-        layout.relation_graph = None;
-        if let Err(err) = g2_data::prepare_edit(&self.book, element_id, json!({ "layout": layout }))
-            .and_then(|m| m.commit(&lib))
-        {
+        if let Err(err) = lib.call(
+            &dr_workspace::Actor::User,
+            "layout.clear",
+            json!({
+                "book": self.book_id,
+                "scope": "root",
+                "mode": "relation_graph",
+                "entries": [element_id],
+            }),
+        ) {
             log::warn!("failed to unpin element {element_id}: {err}");
             return;
         }

@@ -60,7 +60,10 @@ pub struct ManuscriptBody {
     pub module: String,
     pub title: String,
 }
-#[derive(Default, Serialize)]
+pub type ScopeLayouts = BTreeMap<String, BTreeMap<String, (f64, f64)>>;
+pub type BookLayouts = BTreeMap<String, ScopeLayouts>;
+
+#[derive(Clone, Default, Serialize)]
 pub struct BookV3 {
     pub revision: String,
     pub project: types::Project,
@@ -72,6 +75,7 @@ pub struct BookV3 {
     pub levels: BTreeMap<String, Level>,
     pub memberships: Vec<types::Membership>,
     pub timeline_views: Vec<types::TimelineView>,
+    pub layouts: BookLayouts,
     pub materials: Vec<MaterialInfo>,
     pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
@@ -198,16 +202,27 @@ impl BookV3 {
             Some(types::BookRoot::Entry { entry }) if entry == id
         )
     }
-    /// Metadata for every entry surface. Marks keep the template's vocabulary;
+    /// Metadata for every entry surface. Entry `mark` overrides template `mark`;
     /// the sand renderer maps the built-in marks to the existing visual family.
     pub fn appearance(&self, id: &str) -> Option<Appearance> {
-        self.entry(id)?;
+        let entry = self.entry(id)?;
         let template = self.template_of(id);
+        let chosen = entry
+            .mark
+            .as_deref()
+            .or_else(|| template.and_then(|t| t.mark.as_deref()));
         Some(Appearance {
-            mark: template.and_then(|t| t.mark.clone()),
+            mark: chosen.map(str::to_owned),
             color: self.colors.get(id).cloned(),
-            sand: mark(template.and_then(|t| t.mark.as_deref()), id),
+            sand: mark(chosen, id),
         })
+    }
+    pub fn layout_position(&self, scope: &str, mode: &str, entry: &str) -> Option<(f64, f64)> {
+        self.layouts
+            .get(scope)
+            .and_then(|m| m.get(mode))
+            .and_then(|e| e.get(entry))
+            .copied()
     }
     /// Whether `id` is a timeline swimlane: its switch is on and `lane` is
     /// set on its own overrides, else on its template.
@@ -240,6 +255,18 @@ pub fn mark(name: Option<&str>, id: &str) -> sand::Kind {
         Some("git-branch") => sand::Kind::DriftGroup,
         _ => sand::Kind::Element,
     }
+}
+
+pub(crate) fn parse_layout_positions(raw: dr_workspace::LayoutPositions) -> BookLayouts {
+    let mut out = BookLayouts::new();
+    for (scope_mode, entries) in raw {
+        if let Some((scope, mode)) = scope_mode.split_once('/') {
+            out.entry(scope.to_owned())
+                .or_default()
+                .insert(mode.to_owned(), entries);
+        }
+    }
+    out
 }
 
 pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
@@ -434,6 +461,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         ))
     })?;
 
+    v3.layouts = parse_layout_positions(lib.layout_positions(id)?);
     v3.entry_index = v3
         .entries
         .iter()

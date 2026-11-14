@@ -1008,6 +1008,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id: ids.manuscript.clone(),
             parent: None,
             title: "书稿".into(),
+            mark: None,
             template: Some(tid(TPL_MANUSCRIPT)),
             level: true,
             overrides: None,
@@ -1017,6 +1018,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id: ids.ideas.clone(),
             parent: None,
             title: "构想".into(),
+            mark: None,
             template: Some(tid(TPL_IDEAS)),
             level: true,
             overrides: None,
@@ -1026,6 +1028,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id: ids.elements.clone(),
             parent: None,
             title: "要素".into(),
+            mark: None,
             template: Some(tid(TPL_ELEMENTS)),
             level: true,
             overrides: None,
@@ -1035,6 +1038,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id: ids.storylines.clone(),
             parent: None,
             title: "故事线".into(),
+            mark: None,
             template: Some(tid(TPL_STORYLINES)),
             level: true,
             overrides: None,
@@ -1044,6 +1048,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id: ids.materials.clone(),
             parent: None,
             title: "素材".into(),
+            mark: None,
             template: Some(tid(TPL_MATERIALS)),
             level: true,
             overrides: None,
@@ -1065,6 +1070,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id: cat_id.clone(),
             parent: Some(ids.elements.clone()),
             title: title.into(),
+            mark: None,
             template: Some(tid(TPL_CATEGORY)),
             level: true,
             overrides: Some(LevelSettingsOverride {
@@ -1113,6 +1119,9 @@ pub fn apply_project_template(txn: &mut BookTxnV3<'_>, pt: &ProjectTemplate) -> 
             entry.template.as_ref(),
             entry.level,
         )?;
+        if entry.mark.is_some() {
+            w.mark(entry.mark.as_deref())?;
+        }
         if entry.overrides.is_some() {
             w.overrides(entry.overrides.as_ref())?;
         }

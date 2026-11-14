@@ -53,8 +53,8 @@ pub use cx::{Cx, Effect, EffectAction, Faults, Invocation, Outcome};
 pub use editor::ProseSession;
 pub use error::{Result, WsError};
 pub use events::{
-    BookChanged, CheckpointsChanged, EntityChange, ProseChanged, Removed, RemovedEntity,
-    StatsChanged, Subscription, WsEvent, is_text_index,
+    BookChanged, CheckpointsChanged, EntityChange, LayoutChanged, ProseChanged, Removed,
+    RemovedEntity, StatsChanged, Subscription, WsEvent, is_text_index,
 };
 pub use guard::{
     Expected, Observation, RecordKey, RecordObservation, RecordPrecondition, WritePreconditions,
@@ -65,6 +65,6 @@ pub use nav::NavTarget;
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
 pub use sync::{SyncController, SyncNowOutput, SyncStatusSnapshot};
 pub use workspace::{
-    QuitReport, ShutdownRefused, Undone, WeakWorkspace, Workspace, WorkspaceOptions,
-    library_options,
+    LayoutPositions, QuitReport, ShutdownRefused, Undone, WeakWorkspace, Workspace,
+    WorkspaceOptions, library_options,
 };

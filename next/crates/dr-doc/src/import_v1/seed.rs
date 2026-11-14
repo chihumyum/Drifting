@@ -82,7 +82,8 @@ pub(super) fn projection_target(doc: &DocId) -> Result<EntityRef> {
         | DocId::Template(_)
         | DocId::Conversation(_)
         | DocId::Stats(_)
-        | DocId::Checkpoints(_) => {
+        | DocId::Checkpoints(_)
+        | DocId::Layout(_) => {
             return Err(DocError::NotInProfile(
                 "a TODO projected from a document that is not the book's text",
             ));

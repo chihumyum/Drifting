@@ -109,9 +109,9 @@ fn writes_need_yes_a_closed_app_and_leave_a_backup() {
     assert!(out.contains("rerun with --yes"), "{out}");
     assert!(!offline::db_path(&lib).exists());
     // With it the seed is written; a new library needs no backup. (The book
-    // document, its prose and the two documents beside it.)
+    // document, its prose and the three documents beside it.)
     let out = seed(&lib, true);
-    assert!(out.starts_with("wrote 22 documents"), "{out}");
+    assert!(out.starts_with("wrote 23 documents"), "{out}");
     // A second write backs the existing library up first.
     let out = seed(&lib, true);
     assert!(out.starts_with("backed up to"), "{out}");

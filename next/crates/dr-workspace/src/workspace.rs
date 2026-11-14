@@ -1,7 +1,7 @@
 //! The workspace: the open library, the open books and prose documents, the
 //! event bus, the journal, and the entry points every caller uses.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -18,9 +18,9 @@ use crate::actor::Actor;
 use crate::cx::{Cx, Faults, Gate, Invocation, Outcome};
 use crate::error::{Result, WsError};
 use crate::events::{
-    self, BookChanged, Bus, CheckpointsChanged, EntityChange, ProseChanged, Removed, RemovedEntity,
-    StatsChanged, Subscription, WsEvent, book_changes, prose_ranges, side_keys,
-    touched_blocks_near,
+    self, BookChanged, Bus, CheckpointsChanged, EntityChange, LayoutChanged, ProseChanged, Removed,
+    RemovedEntity, StatsChanged, Subscription, WsEvent, book_changes, layout_scopes, prose_ranges,
+    side_keys, touched_blocks_near,
 };
 use crate::guard::{Guards, Observation, RecordKey, RecordObservation, WritePreconditions};
 use crate::holder::{self, lock};
@@ -28,6 +28,9 @@ use crate::journal::{Journal, JournalEntry};
 use crate::nav::NavTarget;
 use crate::registry::{Access, Op, Spec, registry};
 use crate::sync::{SyncController, SyncNowOutput, SyncStatusSnapshot};
+
+/// Every `<scope>/<mode>` position map stored in `layout:<book>`.
+pub type LayoutPositions = BTreeMap<String, BTreeMap<String, (f64, f64)>>;
 
 /// Options of a workspace.
 #[derive(Clone)]
@@ -513,7 +516,9 @@ impl Workspace {
         let doc = DocId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
         let handle = match &doc {
             DocId::Book(book) => self.book_slot(book)?.handle.clone(),
-            DocId::Stats(book) | DocId::Checkpoints(book) => self.side_handle(&doc, book)?,
+            DocId::Stats(book) | DocId::Checkpoints(book) | DocId::Layout(book) => {
+                self.side_handle(&doc, book)?
+            }
             _ if doc.profile().is_some() => self.prose_slot(&doc)?.handle.clone(),
             _ => {
                 return Err(WsError::Invalid(
@@ -551,7 +556,9 @@ impl Workspace {
         let doc = DocId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
         let handle = match &doc {
             DocId::Book(book) => self.book_slot(book)?.handle.clone(),
-            DocId::Stats(book) | DocId::Checkpoints(book) => self.side_handle(&doc, book)?,
+            DocId::Stats(book) | DocId::Checkpoints(book) | DocId::Layout(book) => {
+                self.side_handle(&doc, book)?
+            }
             _ if doc.profile().is_some() => self.prose_slot(&doc)?.handle.clone(),
             _ => {
                 return Err(WsError::Invalid(
@@ -560,6 +567,31 @@ impl Workspace {
             }
         };
         Ok(handle.read(|doc| crate::naming::frontiers_hex(&doc.oplog_frontiers()))?)
+    }
+
+    /// Read every `<scope>/<mode>` position map stored in `layout:<book>`
+    /// (empty when `layout:<book>` has not been written yet).
+    pub fn layout_positions(&self, book: &str) -> Result<LayoutPositions> {
+        let b = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let Some(side) = self.side_slot(&DocId::Layout(b.clone()), &b, false)? else {
+            return Ok(BTreeMap::new());
+        };
+        let all = side.handle.read(move |doc| -> Result<_> {
+            Ok(dr_doc::side::BorrowedLayout::new(doc, &b)?
+                .view()
+                .all_positions())
+        })??;
+        Ok(all
+            .into_iter()
+            .map(|(k, map)| {
+                (
+                    k,
+                    map.into_iter()
+                        .map(|(id, pt)| (id.to_string(), pt))
+                        .collect(),
+                )
+            })
+            .collect())
     }
 
     /// Whether `book` is a canonical v3 book. A book this workspace has open
@@ -782,7 +814,7 @@ impl Workspace {
                 }
                 false
             }
-            side @ (DocId::Stats(_) | DocId::Checkpoints(_)) => {
+            side @ (DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Layout(_)) => {
                 let removed = {
                     let mut map = lock(&self.inner.side);
                     match map.get(&side) {
@@ -1088,7 +1120,7 @@ impl Workspace {
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
             }
-            DocId::Stats(book) | DocId::Checkpoints(book) => {
+            DocId::Stats(book) | DocId::Checkpoints(book) | DocId::Layout(book) => {
                 self.side_slot(&doc, book, true)?
                     .expect("created on demand")
                     .handle
@@ -1721,6 +1753,15 @@ impl Inner {
                             seq: ev.seq,
                             origin: ev.origin.clone(),
                             points: side_keys(&ev.changes, dr_doc::schema::side::ENTRY_CHECKPOINTS),
+                        }),
+                    ),
+                    DocId::Layout(book) => events::publish(
+                        &self.bus,
+                        &WsEvent::Layout(LayoutChanged {
+                            book: book.clone(),
+                            seq: ev.seq,
+                            origin: ev.origin.clone(),
+                            scopes: layout_scopes(&ev.changes, dr_doc::schema::side::POSITIONS),
                         }),
                     ),
                     // Conversation observers subscribe to their journal or

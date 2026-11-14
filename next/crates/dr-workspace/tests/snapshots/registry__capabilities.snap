@@ -29,7 +29,7 @@ entry.move                   command  book     Move an entry's residence and man
 entry.restore                command  book     Restore an entry and what lives under it from trash.
 entry.set_level              command  book     Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on.
 entry.trash                  command  book     Trash an entry with what lives under it, keeping entries that only belong to it.
-entry.update                 command  book     Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
+entry.update                 command  book     Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
 entry_history.restore        command  book     Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit.
 entry_history.version        query    shared   Read the current book version for per-entry snapshot restoration.
 entry_relation_type.delete   command  book     Delete an unused unlocked relation type.
@@ -52,6 +52,9 @@ fact.remove                  command  book     Remove a project fact.
 history.points               query    shared   List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
 history.preview              query    shared   Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
 history.restore_point        command  book     Restore one template-module prose document from history; entry bodies require complete-entry snapshots.
+layout.clear                 command  book     Clear entry coordinates (or the whole `<scope>/<mode>` view) in `layout:<book>` (not undoable; leaves the book document untouched).
+layout.get                   query    shared   Read the free-canvas coordinates stored for a `<scope>/<mode>` view in `layout:<book>`.
+layout.put                   command  book     Set entry coordinates in a `<scope>/<mode>` view of `layout:<book>` (not undoable; leaves the book document untouched).
 membership.add               command  book     Add or order a membership without moving its residence.
 membership.list              query    shared   List valid memberships in a book.
 membership.primary           command  book     Choose an existing membership as primary, or clear the primary membership.

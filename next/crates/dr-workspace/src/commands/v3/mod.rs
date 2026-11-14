@@ -42,6 +42,7 @@ pub mod comment;
 pub mod content;
 pub mod entry;
 pub mod history;
+pub mod layout;
 pub mod membership;
 pub mod module;
 mod novel_book;
@@ -56,6 +57,7 @@ pub mod types;
 
 pub(crate) fn register(r: &mut Registry) {
     project::register(r);
+    layout::register(r);
     relations::register(r);
     snapshots::register(r);
     content::register(r);

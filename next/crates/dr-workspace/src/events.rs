@@ -83,6 +83,18 @@ pub struct CheckpointsChanged {
     pub points: Vec<String>,
 }
 
+/// A persisted change to a book's `layout:<book>` document: free-canvas
+/// coordinates updated or cleared.
+#[derive(Clone, Debug)]
+pub struct LayoutChanged {
+    pub book: BookId,
+    pub seq: i64,
+    pub origin: Origin,
+    /// The `"<scope>/<mode>"` keys the change touched; empty when it could not
+    /// be narrowed.
+    pub scopes: Vec<String>,
+}
+
 /// The keys of root map `root` that a persisted change to one of the
 /// documents beside a book wrote, sorted and without repeats.
 pub(crate) fn side_keys(changes: &[ContainerChange], root: &str) -> Vec<String> {
@@ -92,6 +104,32 @@ pub(crate) fn side_keys(changes: &[ContainerChange], root: &str) -> Vec<String> 
         // keys.
         let at_root = root_name(&c.target) == Some(root);
         if let (true, Diff::Map(m)) = (at_root, &c.diff) {
+            keys.extend(m.updated.keys().map(|k| k.to_string()));
+        }
+    }
+    keys.into_iter().collect()
+}
+
+/// The `<scope>/<mode>` keys under root map `root` touched by a change to
+/// `layout:<book>` (either directly on `positions` or inside a nested
+/// `<scope>/<mode>` mergeable map).
+pub(crate) fn layout_scopes(changes: &[ContainerChange], root: &str) -> Vec<String> {
+    let mut keys = BTreeSet::new();
+    for c in changes {
+        let is_root = c
+            .path
+            .first()
+            .and_then(|(id, _)| root_name(id))
+            .or_else(|| root_name(&c.target))
+            == Some(root);
+        if !is_root {
+            continue;
+        }
+        if let Some((_, Index::Key(k))) = c.path.get(1) {
+            keys.insert(k.to_string());
+        } else if c.path.len() <= 1
+            && let Diff::Map(m) = &c.diff
+        {
             keys.extend(m.updated.keys().map(|k| k.to_string()));
         }
     }
@@ -143,6 +181,8 @@ pub enum WsEvent {
     Stats(StatsChanged),
     /// A book's checkpoint manifests changed (`checkpoints:<book>`).
     Checkpoints(CheckpointsChanged),
+    /// A book's canvas positions changed (`layout:<book>`).
+    Layout(LayoutChanged),
     /// After a `Book` event whose change trashed or purged something a tab
     /// can show.
     Removed(Removed),

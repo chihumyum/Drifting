@@ -1872,7 +1872,11 @@ fn resolve_document_v3(
 
     if matches!(
         doc,
-        DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Material(_)
+        DocId::Conversation(_)
+            | DocId::Stats(_)
+            | DocId::Checkpoints(_)
+            | DocId::Layout(_)
+            | DocId::Material(_)
     ) || (prose_only && doc.profile().is_none())
     {
         return Err(invalid("target is not an authored prose document"));

@@ -128,7 +128,7 @@ pub mod book_v3 {
 
 /// Root containers of the documents beside a book: `stats:<book>` has
 /// `meta` and `writing_days`, `checkpoints:<book>` has `meta` and
-/// `entry_checkpoints`.
+/// `entry_checkpoints`, and `layout:<book>` has `meta` and `positions`.
 pub mod side {
     pub const META: &str = "meta";
     /// `"<device>|<day>"` → words that device wrote in the book that day.
@@ -136,6 +136,9 @@ pub mod side {
     /// Complete-entry checkpoint manifests: checkpoint id → manifest, opaque
     /// to dr-doc.
     pub const ENTRY_CHECKPOINTS: &str = "entry_checkpoints";
+    /// Free-canvas coordinates: `"<scope>/<mode>"` → mergeable map of
+    /// `entry_id -> [x, y]`.
+    pub const POSITIONS: &str = "positions";
 }
 
 /// Paragraph attributes: marks on the paragraph's terminating `\n`, always

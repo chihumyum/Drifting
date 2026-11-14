@@ -669,7 +669,7 @@ pub fn import_book(
                     DocId::Conversation(id) => id,
                     _ => unreachable!(),
                 }),
-                DocKind::Stats | DocKind::Checkpoints => {
+                DocKind::Stats | DocKind::Checkpoints | DocKind::Layout => {
                     dr_doc::side::genesis(&doc_id).expect("a document beside the book")
                 }
                 _ => dr_doc::prose::genesis(&doc_id),

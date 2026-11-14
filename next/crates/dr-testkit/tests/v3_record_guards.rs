@@ -378,16 +378,16 @@ fn a_field_guard_ignores_the_rest_of_its_record_and_a_record_guard_does_not() {
     let entry = RecordKey::entry(&chapter);
     let title = entry.clone().at(["title"]);
     let rename = |title: &str| json!({"book": e.book, "id": chapter, "title": title});
-    let layout = |x: f64| {
+    let set_mark = |mark: &str| {
         e.out(
             "entry.update",
-            json!({"book": e.book, "id": chapter, "layout": {"board": [x, 2.0]}}),
+            json!({"book": e.book, "id": chapter, "mark": mark}),
         )
     };
 
     let field = e.read(std::slice::from_ref(&title));
     let record = e.read(std::slice::from_ref(&entry));
-    layout(1.0);
+    set_mark("book");
     // The whole entry changed; its title did not.
     conflict(
         e.guarded("entry.update", rename("Synthetic stale entry"), record),
@@ -397,21 +397,21 @@ fn a_field_guard_ignores_the_rest_of_its_record_and_a_record_guard_does_not() {
         .unwrap();
     let read = e.out("entry.get", json!({"book": e.book, "id": chapter}));
     assert_eq!(read["title"], "Synthetic title");
-    assert_eq!(read["layout"]["board"], json!([1.0, 2.0]));
+    assert_eq!(read["mark"], json!("book"));
 
     // entry.update writes the fields it names and no others: the title this
-    // command sets leaves the layout record state untouched, and a layout
-    // write leaves the title's.
-    let layout_key = entry.clone().at(["layout"]);
-    let before = e.observe(&[title.clone(), layout_key.clone()]);
+    // command sets leaves the mark record state untouched, and a mark write
+    // leaves the title's.
+    let mark_key = entry.clone().at(["mark"]);
+    let before = e.observe(&[title.clone(), mark_key.clone()]);
     e.out("entry.update", rename("Synthetic title again"));
-    let after_title = e.observe(&[title.clone(), layout_key.clone()]);
+    let after_title = e.observe(&[title.clone(), mark_key.clone()]);
     assert_ne!(before[0].digest, after_title[0].digest);
     assert_eq!(before[1].digest, after_title[1].digest);
-    layout(5.0);
-    let after_layout = e.observe(&[title.clone(), layout_key]);
-    assert_eq!(after_title[0].digest, after_layout[0].digest);
-    assert_ne!(after_title[1].digest, after_layout[1].digest);
+    set_mark("compass");
+    let after_mark = e.observe(&[title.clone(), mark_key]);
+    assert_eq!(after_title[0].digest, after_mark[0].digest);
+    assert_ne!(after_title[1].digest, after_mark[1].digest);
 
     // A stale title is refused whatever else is current.
     let stale = e.read(std::slice::from_ref(&title));
@@ -698,7 +698,7 @@ fn a_field_edit_is_held_to_the_value_it_was_made_from() {
     e.unrelated_writes(&e.lane_and_chapter("values elsewhere").1);
     e.out(
         "entry.update",
-        json!({"book": e.book, "id": chapter, "layout": {"board": [3.0, 4.0]}}),
+        json!({"book": e.book, "id": chapter, "mark": "compass"}),
     );
     edit(shown, "Synthetic edited").unwrap();
     assert_eq!(read(), "Synthetic edited");

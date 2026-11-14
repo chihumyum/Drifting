@@ -348,15 +348,24 @@ pub mod v3 {
     }
     pub fn prepare_board(
         book: &Book,
+        scope: &str,
         entry: &str,
         position: (f64, f64),
     ) -> Result<Mutation, WsError> {
-        let mut layout = book
+        let v = book
             .v3()
-            .and_then(|v| v.entry(entry))
-            .ok_or_else(|| WsError::Invalid("entry is no longer live".into()))?
-            .layout;
-        layout.board = Some(position);
-        prepare_edit(book, entry, json!({"layout":layout}))
+            .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
+        if v.entry(entry).is_none() {
+            return Err(WsError::Invalid("entry is no longer live".into()));
+        }
+        prepare(
+            book,
+            "layout.put",
+            json!({
+                "scope": scope,
+                "mode": "board",
+                "positions": { entry: [position.0, position.1] },
+            }),
+        )
     }
 }

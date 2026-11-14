@@ -42,6 +42,13 @@ pub(super) fn validate_project_template(
     for tpl in &mut pt.templates {
         name_ok(&tpl.name)?;
         tpl.name = tpl.name.trim().to_owned();
+        if let Some(mark) = &tpl.mark
+            && !m::is_valid_mark(mark)
+        {
+            return Err(WsError::invalid(
+                "mark must be a sand mark name or a single character",
+            ));
+        }
         if tpl.deleted_at.is_some() {
             return Err(WsError::invalid(
                 "template in project template cannot be trashed",
@@ -117,12 +124,20 @@ pub(super) fn validate_project_template(
     for seed in &mut pt.entries {
         name_ok(&seed.title)?;
         seed.title = seed.title.trim().to_owned();
+        if let Some(mark) = &seed.mark
+            && !m::is_valid_mark(mark)
+        {
+            return Err(WsError::invalid(
+                "mark must be a sand mark name or a single character",
+            ));
+        }
         m::check_entry_template(&templates, seed.template.as_ref())?;
         let e = m::Entry {
             id: seed.id.clone(),
             parent: seed.parent.clone(),
             pos: String::new(),
             title: seed.title.clone(),
+            mark: seed.mark.clone(),
             template: seed.template.clone(),
             level: seed.level,
             overrides: seed.overrides.clone(),
@@ -130,7 +145,6 @@ pub(super) fn validate_project_template(
             kv: BTreeMap::new(),
             media: BTreeMap::new(),
             primary: None,
-            layout: Default::default(),
             created_at: None,
             updated_at: None,
             deleted_at: None,

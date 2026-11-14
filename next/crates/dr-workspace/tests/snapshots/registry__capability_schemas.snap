@@ -755,13 +755,18 @@ expression: json
               "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
               "type": "object"
             },
-            "layout": {
-              "$ref": "#/$defs/EntryLayout"
-            },
             "level": {
               "default": false,
               "description": "The entry's own switch (`层级`): whether entries can live under it.",
               "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "description": "Optional per-entry badge/icon mark (`记号`); falls back to the active\ntemplate's `mark` when unset (`kernel-v5.md` §8).",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "media": {
               "additionalProperties": {
@@ -834,6 +839,7 @@ expression: json
             "parent",
             "pos",
             "title",
+            "mark",
             "template",
             "level",
             "overrides",
@@ -841,81 +847,10 @@ expression: json
             "kv",
             "media",
             "primary",
-            "layout",
             "created_at",
             "updated_at",
             "deleted_at",
             "name_conflict"
-          ],
-          "type": "object"
-        },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
           ],
           "type": "object"
         },
@@ -2768,6 +2703,13 @@ expression: json
             "null"
           ]
         },
+        "mark": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "parent": {
           "default": null,
           "description": "The level from which creation is requested; its default template and home apply.",
@@ -2831,76 +2773,6 @@ expression: json
             "sources",
             "children",
             "members"
-          ],
-          "type": "object"
-        },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
           ],
           "type": "object"
         },
@@ -3223,13 +3095,18 @@ expression: json
           "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
           "type": "object"
         },
-        "layout": {
-          "$ref": "#/$defs/EntryLayout"
-        },
         "level": {
           "default": false,
           "description": "The entry's own switch (`层级`): whether entries can live under it.",
           "type": "boolean"
+        },
+        "mark": {
+          "default": null,
+          "description": "Optional per-entry badge/icon mark (`记号`); falls back to the active\ntemplate's `mark` when unset (`kernel-v5.md` §8).",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "media": {
           "additionalProperties": {
@@ -3302,6 +3179,7 @@ expression: json
         "parent",
         "pos",
         "title",
+        "mark",
         "template",
         "level",
         "overrides",
@@ -3309,7 +3187,6 @@ expression: json
         "kv",
         "media",
         "primary",
-        "layout",
         "created_at",
         "updated_at",
         "deleted_at",
@@ -3381,76 +3258,6 @@ expression: json
           ],
           "type": "object"
         },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
-          ],
-          "type": "object"
-        },
         "FieldValue": {
           "anyOf": [
             {
@@ -3770,13 +3577,18 @@ expression: json
           "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
           "type": "object"
         },
-        "layout": {
-          "$ref": "#/$defs/EntryLayout"
-        },
         "level": {
           "default": false,
           "description": "The entry's own switch (`层级`): whether entries can live under it.",
           "type": "boolean"
+        },
+        "mark": {
+          "default": null,
+          "description": "Optional per-entry badge/icon mark (`记号`); falls back to the active\ntemplate's `mark` when unset (`kernel-v5.md` §8).",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "media": {
           "additionalProperties": {
@@ -3849,6 +3661,7 @@ expression: json
         "parent",
         "pos",
         "title",
+        "mark",
         "template",
         "level",
         "overrides",
@@ -3856,7 +3669,6 @@ expression: json
         "kv",
         "media",
         "primary",
-        "layout",
         "created_at",
         "updated_at",
         "deleted_at",
@@ -4000,13 +3812,18 @@ expression: json
               "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
               "type": "object"
             },
-            "layout": {
-              "$ref": "#/$defs/EntryLayout"
-            },
             "level": {
               "default": false,
               "description": "The entry's own switch (`层级`): whether entries can live under it.",
               "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "description": "Optional per-entry badge/icon mark (`记号`); falls back to the active\ntemplate's `mark` when unset (`kernel-v5.md` §8).",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "media": {
               "additionalProperties": {
@@ -4079,6 +3896,7 @@ expression: json
             "parent",
             "pos",
             "title",
+            "mark",
             "template",
             "level",
             "overrides",
@@ -4086,81 +3904,10 @@ expression: json
             "kv",
             "media",
             "primary",
-            "layout",
             "created_at",
             "updated_at",
             "deleted_at",
             "name_conflict"
-          ],
-          "type": "object"
-        },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
           ],
           "type": "object"
         },
@@ -4630,71 +4377,6 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "type": "object"
-        },
         "LevelSettingsOverride": {
           "properties": {
             "accept": {
@@ -4758,16 +4440,11 @@ expression: json
         "id": {
           "type": "string"
         },
-        "layout": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EntryLayout"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "mark": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "overrides": {
           "anyOf": [
@@ -4815,7 +4492,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch."
+    "summary": "Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch."
   },
   {
     "access": "write",
@@ -8284,6 +7961,165 @@ expression: json
         "book": {
           "type": "string"
         },
+        "entries": {
+          "default": null,
+          "description": "Specific entry IDs to clear from `<scope>/<mode>`, or `None` to clear\nthe entire `<scope>/<mode>` canvas.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "scope",
+        "mode"
+      ],
+      "title": "LayoutClearIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "layout.clear",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Clear entry coordinates (or the whole `<scope>/<mode>` view) in `layout:<book>` (not undoable; leaves the book document untouched)."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "scope",
+        "mode"
+      ],
+      "title": "LayoutGetIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "layout.get",
+    "output": {
+      "additionalProperties": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "format": "double",
+            "type": "number"
+          },
+          {
+            "format": "double",
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Map_of_Tuple_of_double_and_double",
+      "type": "object"
+    },
+    "summary": "Read the free-canvas coordinates stored for a `<scope>/<mode>` view in `layout:<book>`."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "positions": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "format": "double",
+                "type": "number"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "scope",
+        "mode",
+        "positions"
+      ],
+      "title": "LayoutPutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "layout.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Set entry coordinates in a `<scope>/<mode>` view of `layout:<book>` (not undoable; leaves the book document untouched)."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
         "host": {
           "type": "string"
         },
@@ -9993,13 +9829,18 @@ expression: json
               "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
               "type": "object"
             },
-            "layout": {
-              "$ref": "#/$defs/EntryLayout"
-            },
             "level": {
               "default": false,
               "description": "The entry's own switch (`层级`): whether entries can live under it.",
               "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "description": "Optional per-entry badge/icon mark (`记号`); falls back to the active\ntemplate's `mark` when unset (`kernel-v5.md` §8).",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "media": {
               "additionalProperties": {
@@ -10072,6 +9913,7 @@ expression: json
             "parent",
             "pos",
             "title",
+            "mark",
             "template",
             "level",
             "overrides",
@@ -10079,81 +9921,10 @@ expression: json
             "kv",
             "media",
             "primary",
-            "layout",
             "created_at",
             "updated_at",
             "deleted_at",
             "name_conflict"
-          ],
-          "type": "object"
-        },
-        "EntryLayout": {
-          "properties": {
-            "board": {
-              "default": null,
-              "description": "Position on a board / island canvas.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "grid": {
-              "default": null,
-              "description": "Grid coordinates `(col, row)` in a grid layout.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "int64",
-                  "type": "integer"
-                },
-                {
-                  "format": "int64",
-                  "type": "integer"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "relation_graph": {
-              "default": null,
-              "description": "Pinned position in the relation graph.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "double",
-                  "type": "number"
-                },
-                {
-                  "format": "double",
-                  "type": "number"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "board",
-            "grid",
-            "relation_graph"
           ],
           "type": "object"
         },
@@ -12043,6 +11814,13 @@ expression: json
             "level": {
               "default": false,
               "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "overrides": {
               "anyOf": [

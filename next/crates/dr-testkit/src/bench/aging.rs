@@ -31,7 +31,7 @@ use crate::aging::{self, HistoryShape};
 use crate::rng::Rng;
 use crate::seed::{self, DEFAULT_SEED};
 use dr_doc::prose::ProseDoc;
-use dr_doc::side::{CheckpointsDoc, StatsDoc};
+use dr_doc::side::{CheckpointsDoc, LayoutDoc, StatsDoc};
 use dr_doc::v3::novel::TPL_CHAPTER;
 use dr_doc::v3::{BookDocV3, book_genesis};
 use dr_model::{DocId, Origin};
@@ -503,7 +503,7 @@ pub mod book_suite {
     }
 
     fn expect_quick() -> Value {
-        json!({"days30": {"byKind": {"checkpoint": {"commits": 256}, "comment": {"commits": 59}, "field": {"commits": 61}, "layout": {"commits": 184}, "structure": {"commits": 22}, "timeline": {"commits": 75}, "writingDay": {"commits": 1213}}, "changes": 74, "checkpointsForSiblings": 0, "checkpointsKept": 3, "checkpointsLive": 115, "checkpointsSaved": 256, "checkpointsThinned": 141, "comments": 38, "commentsLive": 44, "commits": 1870, "concurrentSessions": 0, "days": 30, "entries": 37, "entriesCreated": 9, "fieldEdits": 63, "layoutMoves": 213, "opRuns": 2837, "ops": 4643, "peers": 4, "planningSessions": 3, "sessions": 21, "timelineMoves": 75, "uploads": [{"batches": 1870, "book": 401, "cadenceS": 0, "checkpoints": 256, "stats": 1213}, {"batches": 1744, "book": 396, "cadenceS": 8, "checkpoints": 135, "stats": 1213}, {"batches": 1692, "book": 370, "cadenceS": 30, "checkpoints": 135, "stats": 1187}, {"batches": 631, "book": 145, "cadenceS": 300, "checkpoints": 135, "stats": 351}], "workingDays": 18, "writingDayKeys": 23, "writingDayWrites": 1213}, "fresh": {"changes": 3, "checkpointsLive": 0, "commentsLive": 6, "entries": 28, "opRuns": 1550, "ops": 1874, "peers": 2, "writingDayKeys": 5}})
+        json!({"days30": {"byKind": {"checkpoint": {"commits": 222}, "comment": {"commits": 66}, "field": {"commits": 58}, "layout": {"commits": 276}, "structure": {"commits": 29}, "timeline": {"commits": 87}, "writingDay": {"commits": 1369}}, "changes": 90, "checkpointsForSiblings": 0, "checkpointsKept": 10, "checkpointsLive": 100, "checkpointsSaved": 222, "checkpointsThinned": 122, "comments": 40, "commentsLive": 46, "commits": 2107, "concurrentSessions": 2, "days": 30, "entries": 40, "entriesCreated": 12, "fieldEdits": 65, "layoutMoves": 300, "opRuns": 2493, "ops": 4377, "peers": 4, "planningSessions": 5, "sessions": 28, "timelineMoves": 87, "uploads": [{"batches": 2107, "book": 240, "cadenceS": 0, "checkpoints": 222, "layout": 276, "stats": 1369}, {"batches": 2047, "book": 237, "cadenceS": 8, "checkpoints": 165, "layout": 276, "stats": 1369}, {"batches": 2017, "book": 237, "cadenceS": 30, "checkpoints": 165, "layout": 273, "stats": 1342}, {"batches": 802, "book": 163, "cadenceS": 300, "checkpoints": 164, "layout": 67, "stats": 408}], "workingDays": 20, "writingDayKeys": 28, "writingDayWrites": 1369}, "fresh": {"changes": 3, "checkpointsLive": 0, "commentsLive": 6, "entries": 28, "opRuns": 1541, "ops": 1865, "peers": 2, "writingDayKeys": 5}})
     }
 
     fn tiers(mode: Mode) -> Vec<(&'static str, Option<BookAging>)> {
@@ -548,7 +548,7 @@ pub mod book_suite {
         let scratch = Scratch::new("book-aging").map_err(err)?;
         for (name, plan) in tiers(mode) {
             let aged;
-            let (doc, writing, points) = match &plan {
+            let (doc, writing, points, layout) = match &plan {
                 Some(plan) => {
                     let t = Instant::now();
                     aged = book::age(seeded_book, plan).map_err(err)?;
@@ -558,15 +558,20 @@ pub mod book_suite {
                     );
                     let case = bench.case(name, "");
                     usage(case, mode, &aged);
-                    (&aged.doc, &aged.writing, &aged.points)
+                    (&aged.doc, &aged.writing, &aged.points, &aged.layout)
                 }
-                None => (base, &seeded_book.stats, &seeded_book.checkpoints),
+                None => (
+                    base,
+                    &seeded_book.stats,
+                    &seeded_book.checkpoints,
+                    &seeded_book.layout,
+                ),
             };
             let case = bench.case(
                 name,
-                "one book: its book document's history and what a sync uploads, then load and the structure snapshot through dr-doc (doc*), the documents beside it (writing days, checkpoints), and load_copy, Workspace::observe, entry.list and a writing-day write through a library (store*, ws*)",
+                "one book: its book document's history and what a sync uploads, then load and the structure snapshot through dr-doc (doc*), the documents beside it (writing days, checkpoints, layout), and load_copy, Workspace::observe, entry.list and a writing-day write through a library (store*, ws*)",
             );
-            through_doc(case, mode, doc, writing, points)?;
+            through_doc(case, mode, doc, writing, points, layout)?;
             through_store(case, mode, &scratch.path().join(name), doc)?;
         }
         Ok(bench)
@@ -612,6 +617,7 @@ pub mod book_suite {
                     "book": u.book,
                     "stats": u.stats,
                     "checkpoints": u.checkpoints,
+                    "layout": u.layout,
                 });
                 if mode == Mode::Full {
                     row["perWorkingDay"] = json!((u.per_working_day * 10.0).round() / 10.0);
@@ -630,14 +636,16 @@ pub mod book_suite {
         doc: &BookDocV3,
         writing: &StatsDoc,
         points: &CheckpointsDoc,
+        layout: &LayoutDoc,
     ) -> Result<(), String> {
         let book = doc.book_id().clone();
         let snapshot = doc.export_snapshot().map_err(err)?;
         let history = HistoryShape::of(&snapshot)?;
         let view = doc.view();
-        let (writing_snapshot, points_snapshot) = (
+        let (writing_snapshot, points_snapshot, layout_snapshot) = (
             writing.export_snapshot().map_err(err)?,
             points.export_snapshot().map_err(err)?,
+            layout.export_snapshot().map_err(err)?,
         );
         case.set("ops", history.ops)
             .set("changes", history.changes)
@@ -651,7 +659,8 @@ pub mod book_suite {
             case.set("snapshotBytes", snapshot.len())
                 .set("stateOnlyBytes", history.state_bytes)
                 .set("statsSnapshotBytes", writing_snapshot.len())
-                .set("checkpointsSnapshotBytes", points_snapshot.len());
+                .set("checkpointsSnapshotBytes", points_snapshot.len())
+                .set("layoutSnapshotBytes", layout_snapshot.len());
         }
         let peer = dr_doc::peer::random_device_peer();
         let load = || BookDocV3::load(book.clone(), peer, std::slice::from_ref(&snapshot));
@@ -679,6 +688,12 @@ pub mod book_suite {
                 })
                 .map_err(err)?;
             case.time("docEntryCheckpoints", || p.view().entry_checkpoints().len());
+            let l = case
+                .time("docLayoutLoad", || {
+                    LayoutDoc::load(book.clone(), peer, std::slice::from_ref(&layout_snapshot))
+                })
+                .map_err(err)?;
+            case.time("docLayoutPositions", || l.view().all_positions().len());
         }
         // What dr-view-history's automatic checkpoints compute after every
         // book change that touches entries: every entry's fingerprint (what

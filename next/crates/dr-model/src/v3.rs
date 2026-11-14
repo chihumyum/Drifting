@@ -738,30 +738,29 @@ impl EntryTemplate {
     }
 }
 
-/// Free-canvas coordinates stored on an [`Entry`] (`layout` sub-map).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct EntryLayout {
-    /// Position on a board / island canvas.
-    #[serde(default)]
-    pub board: Option<(f64, f64)>,
-    /// Grid coordinates `(col, row)` in a grid layout.
-    #[serde(default)]
-    pub grid: Option<(i64, i64)>,
-    /// Pinned position in the relation graph.
-    #[serde(default)]
-    pub relation_graph: Option<(f64, f64)>,
-}
-
-impl EntryLayout {
-    pub fn sanitized(self) -> Self {
-        let finite =
-            |pair: Option<(f64, f64)>| pair.filter(|(x, y)| x.is_finite() && y.is_finite());
-        Self {
-            board: finite(self.board),
-            grid: self.grid,
-            relation_graph: finite(self.relation_graph),
-        }
+/// Whether `mark` is an allowed entry or template badge (`kernel-v5.md` §8 & §15.6):
+/// either a sand-brush mark slug (`book`, `file-text`, `git-branch`, …) or a
+/// single Unicode extended grapheme cluster (including emoji).
+pub fn is_valid_mark(mark: &str) -> bool {
+    use unicode_segmentation::UnicodeSegmentation;
+    if mark.is_empty() || mark.len() > 64 {
+        return false;
     }
+    if mark.chars().any(char::is_control) {
+        return false;
+    }
+    if !mark.chars().any(|c| {
+        !c.is_whitespace() && !c.is_control() && !matches!(c, '\u{200B}'..='\u{200F}' | '\u{FEFF}')
+    }) {
+        return false;
+    }
+    let is_slug = !mark.starts_with('-')
+        && !mark.ends_with('-')
+        && !mark.contains("--")
+        && mark
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    is_slug || mark.graphemes(true).count() == 1
 }
 
 /// One file item inside an entry's `media` module (`media:<module_id>` on the entry,
@@ -791,6 +790,10 @@ pub struct Entry {
     /// Fractional-index position among siblings in the `entries` tree (`文稿顺序`).
     pub pos: String,
     pub title: String,
+    /// Optional per-entry badge/icon mark (`记号`); falls back to the active
+    /// template's `mark` when unset (`kernel-v5.md` §8).
+    #[serde(default)]
+    pub mark: Option<String>,
     /// The template shaping this entry (`None` = untemplated entry).
     pub template: Option<EntryTemplateId>,
     /// The entry's own switch (`层级`): whether entries can live under it.
@@ -810,7 +813,6 @@ pub struct Entry {
     pub media: BTreeMap<ModuleId, Vec<MediaItem>>,
     /// Stored primary membership host; use [`Entry::effective_primary`] to read.
     pub primary: Option<EntryId>,
-    pub layout: EntryLayout,
     pub created_at: Option<Timestamp>,
     pub updated_at: Option<Timestamp>,
     pub deleted_at: Option<Timestamp>,
@@ -833,6 +835,17 @@ impl Entry {
     ) -> Option<&'a EntryTemplate> {
         let tid = self.template.as_ref()?;
         templates.get(tid).filter(|t| !t.is_trashed())
+    }
+
+    /// The badge/icon mark displayed for this entry: the entry's own `mark`,
+    /// or its active template's `mark` when unset (`kernel-v5.md` §8).
+    pub fn effective_mark<'a>(
+        &'a self,
+        templates: &'a BTreeMap<EntryTemplateId, EntryTemplate>,
+    ) -> Option<&'a str> {
+        self.mark
+            .as_deref()
+            .or_else(|| self.effective_template(templates)?.mark.as_deref())
     }
 
     /// Whether this entry's switch is on (`层级`): entries can live under it.
@@ -1455,6 +1468,8 @@ pub struct ProjectSeedEntry {
     #[serde(default)]
     pub parent: Option<EntryId>,
     pub title: String,
+    #[serde(default)]
+    pub mark: Option<String>,
     #[serde(default)]
     pub template: Option<EntryTemplateId>,
     #[serde(default)]
@@ -2511,6 +2526,7 @@ pub fn book_doc_ids_v3(
         DocId::Book(book_id.clone()),
         DocId::Stats(book_id.clone()),
         DocId::Checkpoints(book_id.clone()),
+        DocId::Layout(book_id.clone()),
     ];
     for t in templates.values() {
         for m in t.prose_modules() {
@@ -2573,6 +2589,7 @@ mod tests {
             parent: parent.map(eid),
             pos: "a0".into(),
             title: title.into(),
+            mark: None,
             template: tpl.map(tid),
             level: false,
             overrides: None,
@@ -2580,7 +2597,6 @@ mod tests {
             kv: BTreeMap::new(),
             media: BTreeMap::new(),
             primary: None,
-            layout: EntryLayout::default(),
             created_at: Some(Timestamp(1000)),
             updated_at: None,
             deleted_at: None,
@@ -3905,12 +3921,30 @@ mod tests {
         let e: Entry = serde_json::from_value(serde_json::json!({
             "id": "e", "parent": null, "pos": "a0", "title": "E", "template": null,
             "overrides": null, "fields": {}, "kv": {}, "primary": null,
-            "layout": {}, "created_at": null, "updated_at": null, "deleted_at": null
+            "created_at": null, "updated_at": null, "deleted_at": null
         }))
         .unwrap();
         assert!(!e.is_level());
+        assert_eq!(e.mark, None);
         let c: ModuleConfig = serde_json::from_value(serde_json::json!({})).unwrap();
         assert!(c.in_book);
         assert_eq!(ModuleKind::parse("children"), ModuleKind::Children);
+    }
+
+    #[test]
+    fn valid_marks_accept_sand_slugs_and_single_graphemes_only() {
+        assert!(is_valid_mark("book"));
+        assert!(is_valid_mark("sand-pen-1"));
+        assert!(is_valid_mark("章"));
+        assert!(is_valid_mark("A"));
+        assert!(is_valid_mark("🌙"));
+        assert!(is_valid_mark("👩‍🔬"));
+        assert!(!is_valid_mark(""));
+        assert!(!is_valid_mark(" "));
+        assert!(!is_valid_mark("\n"));
+        assert!(!is_valid_mark("章节"));
+        assert!(!is_valid_mark("Book"));
+        assert!(!is_valid_mark("-bad"));
+        assert!(!is_valid_mark("bad-"));
     }
 }

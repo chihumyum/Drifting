@@ -19,6 +19,8 @@ pub struct SampleBookV3 {
     pub stats: dr_doc::side::StatsDoc,
     /// `checkpoints:<book>`: empty.
     pub checkpoints: dr_doc::side::CheckpointsDoc,
+    /// `layout:<book>`: board, grid and relation-graph positions.
+    pub layout: dr_doc::side::LayoutDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: crate::build::Counters,
 }
@@ -187,13 +189,18 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     });
     r?;
     validate(&book.view()).map_err(super::catalog::invalid)?;
-    let (stats, checkpoints) =
-        super::catalog::side_documents(&id, &source.book.view(), crate::build::T0 + 10_002)?;
+    let (stats, checkpoints, layout) = super::catalog::side_documents(
+        &id,
+        &source.book.view(),
+        &book.view(),
+        crate::build::T0 + 10_002,
+    )?;
     Ok(SampleBookV3 {
         book,
         prose,
         stats,
         checkpoints,
+        layout,
         groups: source.groups().clone(),
         counters: source.counters(),
     })
@@ -237,6 +244,7 @@ pub fn write_book(
     for id in sample.prose.iter().map(|p| p.doc_id()).chain([
         sample.stats.doc_id(),
         sample.checkpoints.doc_id(),
+        sample.layout.doc_id(),
         sample.book.doc_id(),
     ]) {
         if lib.doc_info(&id.to_string())?.is_some() {
@@ -261,6 +269,11 @@ pub fn write_book(
         sample.checkpoints.doc_id(),
         dr_doc::side::checkpoints_genesis(sample.book_id()),
         sample.checkpoints.export_updates_since(&all)?,
+    )?;
+    store(
+        sample.layout.doc_id(),
+        dr_doc::side::layout_genesis(sample.book_id()),
+        sample.layout.export_updates_since(&all)?,
     )?;
     store(
         sample.book.doc_id(),

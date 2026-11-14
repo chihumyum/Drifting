@@ -244,7 +244,12 @@ fn initialized_handles(cx: &Cx<'_>, s: &BookSlot, entry: &str) -> Result<Vec<Doc
 /// something a caller reads or depends on, so it is never among them.
 fn versions(docs: &BTreeMap<String, LoroDoc>) -> BTreeMap<String, String> {
     docs.iter()
-        .filter(|(id, _)| !matches!(DocId::parse(id), Ok(DocId::Checkpoints(_))))
+        .filter(|(id, _)| {
+            !matches!(
+                DocId::parse(id),
+                Ok(DocId::Checkpoints(_) | DocId::Stats(_) | DocId::Layout(_))
+            )
+        })
         .map(|(id, d)| (id.clone(), frontiers_hex(&d.oplog_frontiers())))
         .collect()
 }
