@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { redactHomePaths, reportFingerprint, sanitizeReportText, sanitizeStack } from './crash-sanitize';
+import {
+  componentStackContext,
+  redactHomePaths,
+  reportFingerprint,
+  sanitizeReportText,
+  sanitizeStack,
+} from './crash-sanitize';
 
 describe('crash report sanitizing', () => {
   it('redacts prose, long quotes and home paths but keeps identifiers', () => {
@@ -45,5 +51,27 @@ describe('crash report sanitizing', () => {
     const b = reportFingerprint('renderer-error', 'TypeError', 'at render (tauri://localhost/assets/index-Zz81Lmq0.js:1:2345)');
     expect(a).toBe(b);
     expect(a).toMatch(/^[A-Za-z0-9:._-]+$/);
+  });
+
+  it('keeps the positioned component frames of a render failure, innermost first', () => {
+    // A release's component stack (React 19): minified names with bundle
+    // positions, host elements without. WebKit writes frames as name@url.
+    const stack = [
+      '',
+      '    at D (http://tauri.localhost/assets/project-route-components-BrUnSqTM.js:32:88399)',
+      '    at div',
+      '    at section',
+      '    at Rl (http://tauri.localhost/assets/project-route-components-BrUnSqTM.js:32:81022)',
+      'Xm@tauri://localhost/assets/project-route-components-BrUnSqTM.js:32:80117',
+      ...Array.from({ length: 12 }, (_, index) => `    at C${index} (http://tauri.localhost/assets/index-BV5Qw5OB.js:9:${index})`),
+    ].join('\n');
+    const context = componentStackContext(stack);
+    expect(Object.keys(context)).toEqual(Array.from({ length: 8 }, (_, index) => `component${index + 1}`));
+    expect(context.component1).toBe('at D (http://tauri.localhost/assets/project-route-components-BrUnSqTM.js:32:88399)');
+    expect(context.component2).toBe('at Rl (http://tauri.localhost/assets/project-route-components-BrUnSqTM.js:32:81022)');
+    expect(context.component3).toBe('Xm@tauri://localhost/assets/project-route-components-BrUnSqTM.js:32:80117');
+    expect(Object.values(context).every((frame) => frame.length <= 200)).toBe(true);
+    expect(componentStackContext(undefined)).toEqual({});
+    expect(componentStackContext('\n    at div\n    at App')).toEqual({});
   });
 });

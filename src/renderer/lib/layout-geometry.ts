@@ -11,6 +11,29 @@ export function sidebarSplitMinWidth(minimumWidth: number): number {
   return minimumWidth * 2 + SIDEBAR_DIVIDER_WIDTH;
 }
 
+/** Whether a sidebar has room for two panes, and the width it last narrowed out of two at. */
+export interface SidebarSplitRoom {
+  split: boolean;
+  narrowedAt: number | null;
+}
+
+/**
+ * Two panes need twice the side's minimum. A sidebar that narrows out of two
+ * panes stays at one until it is wider than where it narrowed. The minimum is
+ * measured from the tab rows, and merging moves the sidebar toggle from the
+ * pane that left to the one that stays, so a minimum read in the same commit
+ * can still lack the toggle: without the latch that low minimum split the
+ * sidebar again at the same width, the new pane brought the toggle's width
+ * back and merged it, over and over inside one commit (React error #185).
+ */
+export function sidebarSplitRoom(previous: SidebarSplitRoom, width: number, minimumWidth: number): SidebarSplitRoom {
+  if (width < sidebarSplitMinWidth(minimumWidth)) {
+    return { split: false, narrowedAt: previous.split ? width : previous.narrowedAt };
+  }
+  if (previous.narrowedAt !== null && width <= previous.narrowedAt) return { split: false, narrowedAt: previous.narrowedAt };
+  return { split: true, narrowedAt: null };
+}
+
 const SIDEBAR_MAX_VIEWPORT_RATIO: Record<SidebarSide, number> = {
   left: 0.6,
   right: 0.6,

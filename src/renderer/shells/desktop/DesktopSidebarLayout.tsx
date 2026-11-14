@@ -8,7 +8,7 @@ import { SidebarPaneContext } from '../../lib/sidebar-pane-context';
 import { useSidebarMetricsStore } from '../../store/sidebar-metrics-store';
 import {
   clampSidebarSplitRatio, sidebarSplitRatioBounds, SIDEBAR_DIVIDER_WIDTH,
-  sidebarSplitMinWidth, type DimensionBounds,
+  sidebarSplitRoom, type DimensionBounds,
 } from '../../lib/layout-geometry';
 import { stepInnerGlassFlow, trackGlassFlow } from '../../lib/glass-flow';
 import { planSidebarPush } from '../../lib/sidebar-push';
@@ -81,13 +81,20 @@ export function DesktopSidebarLayout({
     return () => window.clearTimeout(timer);
   }, [entering, leaving]);
 
+  // Where this sidebar last narrowed out of two panes (sidebarSplitRoom).
+  const narrowedAt = useRef<number | null>(null);
   useLayoutEffect(() => {
     const node = rootRef.current;
     if (!node) return;
     const measure = () => {
       if (node.clientWidth > 0) {
         setMeasuredWidth(node.clientWidth);
-        if (minimumWidth > 0) setSplitAvailable(side, node.clientWidth >= sidebarSplitMinWidth(minimumWidth));
+        if (minimumWidth > 0) {
+          const split = useUiStore.getState().desktopSidebarTabs[side].canSplit;
+          const room = sidebarSplitRoom({ split, narrowedAt: narrowedAt.current }, node.clientWidth, minimumWidth);
+          narrowedAt.current = room.narrowedAt;
+          setSplitAvailable(side, room.split);
+        }
       }
     };
     measure();

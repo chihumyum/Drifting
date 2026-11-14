@@ -18,7 +18,7 @@ side (storage, operator email, retention) is specified in the Hosted service's
 | Kind | Source | Severity |
 | --- | --- | --- |
 | `renderer-error`, `unhandled-rejection` | uncaught errors and rejections (`installCrashReporting` in `main.tsx`); a rejection that is a `DatabaseOpenFailure` is left to the failure screen | error |
-| `render-failure` | the root error boundary replaced the UI (`App.tsx`) | fatal |
+| `render-failure` | an error boundary replaced the window (`scope: app`, `App.tsx`) or the open project's workspace (`scope: workspace`, `ProjectRuntimeProvider.tsx`) | fatal |
 | `native-panic` | a Rust panic recorded by `src-tauri/src/crash_reports.rs`, sent on the next launch | fatal |
 | `integrity` | `database-open-failed:<code>` (the failure screen, see below), `yjs-load-failed`, `local-flush-failed` (quit, update install, or `reason: sync-cycle` when a sync cycle's durability barrier meets a failed local write; that cycle is retried), `sync-blocked:<code>` (a non-retryable sync stop other than sign-out, cancellation or project deletion) | fatal for the database, otherwise error |
 
@@ -44,6 +44,22 @@ stack frames only, app version, platform, a random diagnostics-only installation
 ID, the time, and a few context values (for example the flush reason or the
 Yjs document family, never an identifier or text). A signed-in Hosted session
 adds the account so the maintainer can follow up.
+
+A `render-failure` also names its boundary (`scope`) and, as `component1` to
+`component8`, the innermost component frames of React's component stack that
+carry a source position (`componentStackContext`). An error React itself throws,
+such as an update loop (#185), has only React's own frames on its stack; before
+2026-11-14 such reports arrived with an empty context.
+
+Release builds ship no source maps. To read a release's positions, check out
+its tag, install with `pnpm install --frozen-lockfile`, and run
+`pnpm exec vite build --config vite.renderer.config.ts --sourcemap hidden` with
+the release's renderer variables (`VITE_LOCAL_ONLY_MODE=false`,
+`VITE_REQUIRE_AUTH=false`, `VITE_AI_TRANSPORT=direct`, `VITE_CLOSED_BETA=false`,
+`VITE_API_BASE_URL` set to the Hosted origin, `VITE_TERMS_URL`,
+`VITE_PRIVACY_URL`) and nothing else. When the asset names in the report
+(`index-<hash>.js`, `project-route-components-<hash>.js`) match the build's,
+the bundle is byte-identical and its maps resolve the frames.
 
 An `AggregateError` or an error with a `cause` lists what it was made of after
 its own message, one bracket per level: up to three inner errors per level and

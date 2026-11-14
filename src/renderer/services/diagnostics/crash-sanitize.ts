@@ -56,6 +56,23 @@ export function sanitizeStack(stack: string | undefined): string {
   return joined.length > MAX_STACK ? joined.slice(0, MAX_STACK) : joined;
 }
 
+const MAX_COMPONENT_FRAMES = 8;
+
+/**
+ * The components a render failure passed through, innermost first, as report
+ * context (`component1`…). Only frames with a source position are kept: in a
+ * release they name bundle positions that the release's source map resolves,
+ * while host elements (`at div`) carry no position and say nothing.
+ */
+export function componentStackContext(componentStack: string | null | undefined): Record<string, string> {
+  const frames = (componentStack ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /:\d+:\d+\)?$/.test(line))
+    .slice(0, MAX_COMPONENT_FRAMES);
+  return Object.fromEntries(frames.map((frame, index) => [`component${index + 1}`, sanitizeReportText(frame, 200)]));
+}
+
 const TOKEN_UNSAFE = /[^A-Za-z0-9:._-]+/g;
 
 export function reportToken(value: string, max = 64): string {
