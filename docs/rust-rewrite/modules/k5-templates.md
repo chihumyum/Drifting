@@ -280,4 +280,5 @@ heavy、性能预算、截图目检和样式打磨按最新口径暂缓，没有
 - **「分组」默认不收别处的条目。** 「收」不再继承以后，分组模板原来写明了「收」，把章拖到书稿下面的分卷上就成了挂上去而不是搬进去。改回 v4 的 `LevelSettingsOverride::default()`；要素分类下面的分组要收，在它自己的页上打开。导入、样书、种子里没有挂在分组上的归属（查过 `dr-import-v1`、`dr-samples`、`dr_testkit::seed`：归属只挂在故事线、「未归属」和幕上），不用补「收」。
 - 内置模板的版本号没动（格式 5 还没发版，项目来源里记的仍是同一份）。
 - `apply_novel_project_template` 的注释改对：它只给新书用，再跑一遍会把项目定义（自定义 Tab、成书起点、目标）、内置模板和默认视图的名字重写一遍。
+- 跟着改了期望的测试（都只因为分组不再默认收）：导入测试的预期清单把幕和要素分类里的分组预测成不收（`dr-import-v1/tests/common/v3_manifest.rs`）；`dr-testkit` 的 book-aging 快测形状少一个操作（新书里分组模板不再存 `accept`）；`dr-shell/tests/v3_structure.rs`、`dr-view-elements/tests/v3_levels.rs`、`dr-workspace/tests/levels.rs` 改成断言分组默认不收；`dr-workspace/tests/kernel_v3.rs`、`v3_membership.rs` 里要用分组收条目的地方先给条目自己打开「收」。
 - 测试：`dr-doc` 的 `novel_project_template_populates_…`（「只有章的正文进成书」那句换成构想和五种要素的正文进成书、笔记不进；分组的 `accept` 改为 `None`）、`dr-editor/tests/page.rs` 的 `an_ideas_page_keeps_its_title_and_synopsis`、`dr-view-page/tests/page.rs` 的 `an_idea_page_stores_its_title_and_synopsis`（两条都恢复成 `main` 上的原样）、`dr-view-elements/tests/v5_p1_reorder.rs` 的 `time_and_name_sort_…`（断言没改，原样通过）。
