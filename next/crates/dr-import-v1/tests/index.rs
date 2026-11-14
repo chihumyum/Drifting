@@ -40,14 +40,14 @@ fn an_imported_library_is_indexed_when_it_opens() {
     let stale = lib.stale_index_docs().unwrap();
     assert_eq!(
         stale.len(),
-        11,
-        "six bodies, the two body templates, the book and the two documents beside it: {stale:?}"
+        12,
+        "six bodies, the two body templates, the book and the three documents beside it: {stale:?}"
     );
-    assert_eq!(lib.rebuild_stale_indexes().unwrap(), 11);
+    assert_eq!(lib.rebuild_stale_indexes().unwrap(), 12);
     assert!(lib.stale_index_docs().unwrap().is_empty());
 
     // Every body's counts are what dr-doc reads from it; a template and the
-    // two documents beside the book are not the book's text
+    // three documents beside the book are not the book's text
     // (`DocKind::is_book_text`).
     let mut total = 0;
     for id in stale
@@ -67,15 +67,15 @@ fn an_imported_library_is_indexed_when_it_opens() {
         total += got.words;
     }
     assert_eq!(lib.book_stats(old::BOOK).unwrap().words, total);
-    // The templates and the two documents beside the book are indexed
+    // The templates and the three documents beside the book are indexed
     // empty: their words are not the book's.
-    let not_text = ["template:", "stats:", "checkpoints:"];
+    let not_text = ["template:", "stats:", "checkpoints:", "layout:"];
     assert_eq!(
         stale
             .iter()
             .filter(|d| not_text.iter().any(|p| d.starts_with(p)))
             .count(),
-        4
+        5
     );
     for id in stale
         .iter()
@@ -129,11 +129,12 @@ fn an_imported_library_is_indexed_when_it_opens() {
             && r.source_block.as_deref() == Some("p1")),
         "{refs:?}"
     );
-    let embeds = lib.references_to(old::IMAGE).unwrap();
+    let embeds = lib.references_to(old::ASSET).unwrap();
     assert!(
         embeds
             .iter()
-            .any(|r| r.source_doc == format!("material:{}", old::NOTE) && r.kind == RefKind::Embed),
+            .any(|r| r.source_doc == format!("body:{}/mod-prose", old::NOTE)
+                && r.kind == RefKind::Embed),
         "{embeds:?}"
     );
     lib.close().unwrap();

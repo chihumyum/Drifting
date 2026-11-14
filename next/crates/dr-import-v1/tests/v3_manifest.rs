@@ -31,13 +31,13 @@ fn every_mapping_row_has_a_nonempty_fixture_and_pinned_totals() {
     assert_eq!(
         m.counts(),
         Counts {
-            levels: 16,
-            leaves: 9,
-            leaf_templates: 5,
+            levels: 18,
+            leaves: 10,
+            leaf_templates: 6,
             memberships: 8,
             primaries: 3,
             lanes: 4,
-            placements: 5,
+            placements: 6,
             pins: 2,
             patches: 1,
             plot_grids: 1,
@@ -117,7 +117,10 @@ fn manuscript_order_and_nested_homes_do_not_come_from_timeline_positions() {
     );
     assert_eq!(level(&m, &Entry::ActTrack).title, "幕");
     assert_eq!(level(&m, &Entry::ActTrack).parent, None);
-    assert!(level(&m, &Entry::ActTrack).lane);
+    assert!(level(&m, &Entry::ActTrack).is_level);
+    assert!(level(&m, &Entry::ActTrack).accept);
+    assert!(!level(&m, &Entry::Storyline(STORYLINE.into())).is_level);
+    assert!(level(&m, &Entry::Storyline(STORYLINE.into())).accept);
     assert_eq!(
         level(&m, &Entry::ActTrack).default_leaf,
         Some(LeafTemplate::Idea)
@@ -303,13 +306,16 @@ fn memberships_keep_primary_and_one_position_per_entry_in_multiple_lanes() {
             primary: false
         }));
     }
-    for node in [fixture::CHAPTER_BEFORE, fixture::CHAPTER_UNPLACED] {
-        assert!(
-            !positions
-                .iter()
-                .any(|p| p.entry == Entry::Node(node.into()))
-        );
-    }
+    assert!(
+        !positions
+            .iter()
+            .any(|p| p.entry == Entry::Node(fixture::CHAPTER_BEFORE.into()))
+    );
+    assert!(positions.contains(&Placement {
+        entry: Entry::Node(fixture::CHAPTER_UNPLACED.into()),
+        at: 23.25,
+        span: None,
+    }));
     assert_eq!(level(&m, &Entry::Unaffiliated).title, "未归属");
     // Author settled 11-11 (#23): placed under Storylines with Chapter default leaf.
     assert_eq!(
@@ -364,13 +370,13 @@ fn retained_data_includes_targets_rich_json_anchors_and_grid_keys() {
         && c.target == Some(Endpoint::Entry(Entry::Node(CHAPTER.into())))
         && c.body == Some(Body::Leaf(Entry::Node(CHAPTER.into())))));
     assert!(m.comments.iter().any(|c| c.old_id == NOTE_TODO
-        && c.kind == "todo"
-        && c.body == Some(Body::Material(NOTE.into()))));
+        && c.origin == "task"
+        && c.body == Some(Body::Leaf(Entry::Material(NOTE.into())))));
     assert!(m.comments.iter().any(|c| c.old_id == "region-1"
-        && c.target == Some(Endpoint::Material(IMAGE.into()))
+        && c.target == Some(Endpoint::Asset(ASSET.into()))
         && c.body.is_none()));
     assert!(m.relations.iter().any(|r| r.old_id == "rel-material"
-        && r.from == Endpoint::Material(NOTE.into())
+        && r.from == Endpoint::Entry(Entry::Material(NOTE.into()))
         && r.to == Endpoint::Entry(Entry::Node(CHAPTER.into()))));
     assert!(m.relations.iter().any(|r| r.old_id == "rel-patch"
         && r.from == Endpoint::Patch(PATCH.into())
@@ -381,9 +387,10 @@ fn retained_data_includes_targets_rich_json_anchors_and_grid_keys() {
             .any(|r| r.old_id == "rel-2" && r.from == Endpoint::Comment(NOTE_TODO.into()))
     );
     assert!(
-        m.prose.iter().any(
-            |p| p.target == Body::Material(NOTE.into()) && p.json.as_deref() == Some(NOTE_JSON)
-        )
+        m.prose
+            .iter()
+            .any(|p| p.target == Body::Leaf(Entry::Material(NOTE.into()))
+                && p.json.as_deref() == Some(NOTE_JSON))
     );
     assert!(
         m.prose
@@ -429,17 +436,20 @@ fn manifest_reads_the_source_instead_of_returning_fixed_fixture_counts() {
     assert_eq!(after.counts().levels, before.counts().levels - 1);
     assert_eq!(after.counts().lanes, 3);
     assert_eq!(after.counts().memberships, 6);
-    assert_eq!(after.counts().placements, 3);
+    assert_eq!(after.counts().placements, 5);
     assert!(after.default_view.placements.contains(&Placement {
         entry: Entry::Node(IDEA.into()),
         at: 10.,
         span: Some(4.),
     }));
-    assert!(!after.default_view.placements.iter().any(|p| p.entry
-        == Entry::ActLeaf {
+    assert!(after.default_view.placements.contains(&Placement {
+        entry: Entry::ActLeaf {
             act: "act-2".into(),
-            synthetic_rank: 0
-        }));
+            synthetic_rank: 0,
+        },
+        at: 22.75,
+        span: None,
+    }));
     assert!(
         !after
             .pending
@@ -481,7 +491,7 @@ fn unresolved_data_is_reported_without_inventing_homes_or_dropping_rows() {
             m.pending
         );
     }
-    assert_eq!(m.leaves.len(), 9);
+    assert_eq!(m.leaves.len(), 10);
     assert_eq!(m.source_rows["element"].len(), 2);
     assert!(leaf(&m, &Entry::Element(ELEMENT.into())).home.is_none());
     assert!(leaf(&m, &Entry::Node(CHAPTER.into())).home.is_none());
@@ -519,19 +529,19 @@ fn reading_is_repeatable_book_scoped_and_does_not_write_any_file() {
     let before = files(old.dir.path());
     let m = read(&old);
     assert_eq!(m, read(&old));
-    assert_eq!(m.counts().levels, 16);
-    assert_eq!(m.counts().leaves, 9);
+    assert_eq!(m.counts().levels, 18);
+    assert_eq!(m.counts().leaves, 10);
     assert!(
         !m.source_rows["book_node"]
             .iter()
             .any(|r| r["id"] == "other-node")
     );
     assert_eq!(before, files(old.dir.path()));
-    // Baseline v2 fixture is deliberately still the old, smaller corpus (plus synthetic act leaf).
+    // Baseline v2 fixture is deliberately still the old, smaller corpus (plus synthetic act leaf and 1 text material leaf; image material goes to assets).
     let baseline = common::build(true);
     assert_eq!(
         manifest::read(&baseline.db, BOOK).unwrap().counts().leaves,
-        4
+        5
     );
 }
 

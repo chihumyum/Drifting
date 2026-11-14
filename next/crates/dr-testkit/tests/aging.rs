@@ -154,6 +154,10 @@ fn a_book_ages_the_same_way_twice_and_says_what_it_did() {
         aged.points.export_snapshot().unwrap(),
         again.points.export_snapshot().unwrap()
     );
+    assert_eq!(
+        aged.layout.export_snapshot().unwrap(),
+        again.layout.export_snapshot().unwrap()
+    );
     let s = aged.stats;
     assert_eq!(s.commits, aged.commits.len());
     assert!(aged.commits.windows(2).all(|w| w[0].ts <= w[1].ts));
@@ -190,22 +194,24 @@ fn writing_days_and_checkpoints_live_beside_the_book_document() {
         let want = match c.kind {
             Kind::WritingDay => "stats",
             Kind::Checkpoint => "checkpoints",
+            Kind::Layout => "layout",
             _ => "book",
         };
         assert_eq!(c.kind.document(), want, "{c:?}");
     }
-    // The book document has neither root: nothing the aging recorded about
-    // words or checkpoints went into it.
+    // The book document has none of the side-doc roots: nothing the aging
+    // recorded about words, checkpoints or canvas positions went into it.
     let book = loro::LoroDoc::new();
     book.import(&aged.doc.export_snapshot().unwrap()).unwrap();
     let loro::LoroValue::Map(roots) = book.get_deep_value() else {
         panic!("a document's value is a map of its roots");
     };
-    for root in ["writing_days", "entry_checkpoints"] {
+    for root in ["writing_days", "entry_checkpoints", "positions"] {
         assert!(!roots.contains_key(root), "{root} in the book document");
     }
     assert!(!aged.writing.view().writing_days().is_empty());
     assert!(!aged.points.view().entry_checkpoints().is_empty());
+    assert!(!aged.layout.view().all_positions().is_empty());
 }
 
 #[test]

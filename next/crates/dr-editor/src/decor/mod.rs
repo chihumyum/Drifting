@@ -45,14 +45,14 @@ use std::time::Duration;
 
 use dr_doc::v3::CollectionV3 as Collection;
 use dr_model::id::BookId;
-use dr_model::kind::{CommentKind, CommentStatus};
+use dr_model::kind::{CommentOrigin, CommentStatus};
 use dr_model::shared::EncodedAnchor;
 use dr_store::OpenDoc;
 
 use dr_text::{LinkMatcher, LinkTarget};
 use dr_workspace::commands::comment::{
-    CommentReanchor, CommentReanchorIn, CommentUpdate, CommentUpdateIn, TodoMarkerIn, TodoProject,
-    TodoProjectIn,
+    CommentProject, CommentProjectIn, CommentReanchor, CommentReanchorIn, CommentUpdate,
+    CommentUpdateIn, TodoMarkerIn,
 };
 use dr_workspace::dto::AnchorBytes;
 use dr_workspace::{Actor, Workspace, WsEvent};
@@ -729,7 +729,6 @@ impl Layers {
                 body: None,
                 status: Some(if done { "open" } else { "resolved" }.into()),
                 priority: None,
-                kind: None,
                 agent_conversation: None,
             };
             let ws = self.ws.clone();
@@ -1082,7 +1081,7 @@ impl Layers {
         let Some(part) = self.parts.get(chapter) else {
             return;
         };
-        let input = TodoProjectIn {
+        let input = CommentProjectIn {
             doc: part.doc.clone(),
             markers: markers
                 .iter()
@@ -1093,13 +1092,14 @@ impl Layers {
                     })
                 })
                 .collect(),
+            tasks: None,
             editing,
         };
         let ws = self.ws.clone();
         cx.background_executor()
             .spawn(async move {
-                if let Err(e) = ws.run::<TodoProject>(&Actor::User, input) {
-                    log::warn!("dr-editor: todo.project: {e}");
+                if let Err(e) = ws.run::<CommentProject>(&Actor::User, input) {
+                    log::warn!("dr-editor: comment.project: {e}");
                 }
             })
             .detach();
@@ -1169,9 +1169,7 @@ fn comment_ranges(
 
             let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
             for c in reader.view().comments() {
-                if c.kind == CommentKind::Todo {
-                    todos.insert(c.id.to_string(), c.is_done());
-                }
+                todos.insert(c.id.to_string(), c.is_done());
                 if c.status != CommentStatus::Open || c.target_missing {
                     continue;
                 }
@@ -1189,7 +1187,7 @@ fn comment_ranges(
                 if wanted.contains(&doc) {
                     out.entry(doc).or_default().push((
                         c.id.to_string(),
-                        c.kind == CommentKind::Todo,
+                        matches!(c.origin, CommentOrigin::Marker | CommentOrigin::Task),
                         anchor.clone(),
                     ));
                 }

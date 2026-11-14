@@ -107,6 +107,40 @@ fn imported_docs(lib: &Library) -> Result<HashMap<String, (String, String)>> {
 pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let lib = open(root, false)?;
     let by_old = imported_docs(&lib)?;
+    let mut material_assets: HashMap<String, dr_model::id::AssetId> = HashMap::new();
+    let mut non_text_materials: HashMap<String, String> = HashMap::new();
+    let book_summaries: Vec<String> = lib.local_read(|conn| {
+        let mut stmt = conn.prepare(
+            "SELECT summary_json FROM import_book
+             WHERE run_id = (SELECT max(id) FROM import_run) AND status = 'imported'",
+        )?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })?;
+    for summary in book_summaries {
+        let Ok(v) = serde_json::from_str::<Value>(&summary) else {
+            continue;
+        };
+        if let Some(map) = v.get("materialAssets").and_then(Value::as_object) {
+            for (k, val) in map {
+                if let Some(aid) = val
+                    .as_str()
+                    .and_then(|s| dr_model::id::AssetId::parse(s).ok())
+                {
+                    material_assets.insert(k.clone(), aid);
+                }
+            }
+        }
+        if let Some(map) = v.get("nonTextMaterials").and_then(Value::as_object) {
+            for (k, val) in map {
+                if let Some(title) = val.as_str() {
+                    non_text_materials.insert(k.clone(), title.to_string());
+                }
+            }
+        }
+    }
     let mut docs = 0usize;
     let mut equal = 0usize;
     let mut fresh_equal = 0usize;
@@ -140,13 +174,15 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         let want = {
             let lines = pm::parse_value(&v["prose"])?;
             let blocks = prose::doc_blocks(&lines);
-            prose::plan(
+            prose::plan_v3(
                 &lines,
                 &blocks,
                 &Context {
                     profile,
                     span: &|_| None,
                     todo: &|_| None,
+                    asset: &|id| material_assets.get(id).cloned(),
+                    non_text_material: &|id| non_text_materials.get(id).cloned(),
                 },
             )
             .paras
@@ -154,7 +190,7 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         let stored = lib.load_copy(new)?;
         let snap = stored.export(loro::ExportMode::Snapshot)?;
         let doc = ProseDoc::load(doc_id, dr_doc::peer::random_device_peer(), &[snap])?;
-        let have = read::read_paras(&doc.view());
+        let have = read::read_paras_v3(&doc.view());
         // Compare what the author sees: text, attributes and marks; block ids
         // except the ones the repair rewrote and the entity links' remapped
         // blocks (both noted in the receipt).

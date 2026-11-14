@@ -185,7 +185,7 @@ op! {
             today: words_today,
             streak: if words_today > 0 { streak_before + 1 } else { 0 },
             mine_today, week, active_days, streak_before,
-            daily_word_target: slot.reader_v3.view().meta().daily_word_target(),
+            daily_word_target: slot.reader_v3.view().project().daily_word_target(),
         })
     }
 }
@@ -212,6 +212,11 @@ op! {
             return Err(WsError::invalid("words cannot be negative"));
         }
         let key = dr_model::shared::WritingDay::key(&device, &day);
+        if slot.reader_v3.view().project().book.is_none() {
+            // Writing days are recorded only when `成书` is enabled on the project.
+            cx.irreversible();
+            return Ok(Done { id: key });
+        }
         let stored = match cx.workspace().side_slot(&DocId::Stats(slot.book.clone()), &slot.book, false)? {
             Some(side) => {
                 let (book, d, y) = (slot.book.clone(), device.clone(), day.clone());

@@ -10,7 +10,7 @@ use dr_export::{
     Align, Block, Format, Labels, ListItem, ListKind, Options, Run, Section, default_chapters,
     outline, read_manuscript, render,
 };
-use dr_model::id::{CommentId, EmbedId, MaterialId};
+use dr_model::id::{AssetId, CommentId, EmbedId};
 use dr_model::kind::{EntityKind, ListKind as ProseListKind};
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineMarks, InlineStyle, LINE_BREAK};
@@ -205,11 +205,7 @@ fn book(ws: &Workspace) -> Book {
             w.set_cell("r1", "c1", "潮高")?;
             w.set_cell("r1", "c2", &format!("三米{LINE_BREAK}四米"))?;
             let p = start(t, "表格之后");
-            t.insert_embed(
-                p,
-                &EmbedId::new_v7(),
-                &EmbedKind::Material(MaterialId::new_v7()),
-            )?;
+            t.insert_embed(p, &EmbedId::new_v7(), &EmbedKind::Asset(AssetId::new_v7()))?;
             Ok(())
         })
         .unwrap();

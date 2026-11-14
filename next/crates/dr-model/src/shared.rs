@@ -82,31 +82,15 @@ pub struct TodoProjection {
     pub block: BlockId,
 }
 
-/// A material (素材; the old `library_item`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Material {
-    pub id: MaterialId,
-    pub title: String,
-    pub kind: MaterialKind,
-    /// Image and PDF materials only.
-    pub asset: Option<AssetId>,
-    /// Readers treat a folder that no longer exists as the root.
-    pub folder: Option<MaterialFolderId>,
-    pub pos: Option<PosKey>,
-    /// A text material's checklist items project into TODOs.
-    pub task_todos: bool,
-    /// Opaque JSON, as the old `provenance_json`.
-    pub provenance: Option<String>,
-    /// What the material is about, as plain text (the old `notes_json`).
-    /// The Agent writes it; search reads it.
-    pub description: String,
-}
-
-/// An asset's metadata. The bytes are in SQLite / files, addressed by sha256;
-/// metadata is written once.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// An asset's record in the project's built-in asset library (`assets` in the
+/// book document, `kernel-v5.md` §6 & §10).
+/// The bytes are in SQLite / files, addressed by sha256; the binary identity is
+/// written once, while `name`, `folder`, and `deleted_at` manage library state.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
     pub id: AssetId,
+    #[serde(default)]
+    pub name: String,
     pub kind: AssetKind,
     pub mime: String,
     pub size: i64,
@@ -114,14 +98,33 @@ pub struct Asset {
     pub sha256: String,
     pub width: Option<i64>,
     pub height: Option<i64>,
+    /// When the file was added to the asset library.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<Timestamp>,
+    /// Original 0.1 material folder path recorded during import, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    /// Set when trashed from the asset library; bytes stay until purged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<Timestamp>,
 }
 
-/// A material folder (素材夹): a node of the `material_folders` tree.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MaterialFolder {
-    pub id: MaterialFolderId,
-    pub name: String,
-    pub parent: Option<MaterialFolderId>,
+impl Asset {
+    /// Whether `other` describes the exact same binary file under the same id
+    /// (`AST-IMMUTABLE`).
+    pub fn same_file(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.kind == other.kind
+            && self.mime == other.mime
+            && self.size == other.size
+            && self.sha256 == other.sha256
+            && self.width == other.width
+            && self.height == other.height
+    }
+
+    pub fn is_trashed(&self) -> bool {
+        self.deleted_at.is_some()
+    }
 }
 
 /// A Project Memory entry.

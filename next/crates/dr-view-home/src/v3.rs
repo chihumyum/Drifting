@@ -171,7 +171,9 @@ pub fn create(
         serde_json::to_value(CreateIn {
             book: book.into(),
             title: title.into(),
+            mark: None,
             parent: Some(action.level.clone()),
+            host: None,
             template: action.template.clone(),
             level: None,
             bodies: Default::default(),

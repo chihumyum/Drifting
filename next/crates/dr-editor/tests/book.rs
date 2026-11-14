@@ -467,6 +467,7 @@ fn opens_from_manuscript_intermediate_level_and_storyline_in_exact_order(cx: &mu
             "book": e.book,
             "parent": storylines_root,
             "template": TPL_STORYLINE,
+            "level": true,
             "title": "暗流线",
             "bodies": { MOD_DESCRIPTION: "这条说明不进整书。" }
         }),
@@ -710,7 +711,7 @@ fn duplicate_and_cyclic_memberships_visit_each_entry_once(cx: &mut TestAppContex
         &e.ws,
         &Actor::User,
         "entry.create",
-        json!({"book": e.book, "parent": storylines_root, "template": TPL_STORYLINE, "title": "总纲线"}),
+        json!({"book": e.book, "parent": storylines_root, "template": TPL_STORYLINE, "level": true, "title": "总纲线"}),
     )["id"]
         .as_str()
         .unwrap()

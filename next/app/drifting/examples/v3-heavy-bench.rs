@@ -509,10 +509,10 @@ fn main() {
         let v3 = ws.read(cx).book.v3().expect("v3 book loaded");
         let ms_level = v3
             .levels
-            .iter()
-            .find(|(_, l)| l.settings.is_manuscript)
-            .expect("manuscript level")
-            .0
+            .keys()
+            .find(|id| v3.is_book_root_entry(id))
+            .or_else(|| v3.roots.first())
+            .expect("book root level")
             .clone();
         let mut seen = BTreeSet::new();
         let chapters: Vec<String> = v3

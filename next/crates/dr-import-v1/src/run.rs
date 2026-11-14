@@ -364,13 +364,46 @@ fn store_doc(
 /// template. The import peer is deterministic, so a book carried on after
 /// an interruption stores the same updates again without change. Returns
 /// how many were written.
+fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
+    use dr_model::id::AssetId;
+    use dr_model::import_v1::MaterialKind;
+    use dr_model::kind::AssetKind;
+    let mut asset_kinds = HashMap::new();
+    for a in &rows.assets {
+        if AssetId::parse(&a.id).is_ok() {
+            asset_kinds.insert(a.id.as_str(), AssetKind::parse(&a.kind));
+        }
+    }
+    let mut out = HashMap::new();
+    for m in &rows.materials {
+        if m.id.is_empty() {
+            continue;
+        }
+        let want = match MaterialKind::parse(&m.kind) {
+            MaterialKind::Image => AssetKind::Image,
+            MaterialKind::Pdf => AssetKind::Pdf,
+            _ => continue,
+        };
+        if let Some(aid) = m.asset.as_deref().and_then(|a| AssetId::parse(a).ok())
+            && asset_kinds.get(aid.as_str()) == Some(&want)
+        {
+            out.insert(m.id.as_str(), aid);
+        }
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
 fn write_templates(
     lib: &Library,
     book: &BookId,
     rows: &BookRows,
     span: &dyn Fn(&str) -> Option<BlockSpan>,
+    asset: &dyn Fn(&str) -> Option<dr_model::id::AssetId>,
+    non_text_material: &dyn Fn(&str) -> Option<String>,
     ts: i64,
     notes: &mut Notes,
+    unlinked_out: &mut Vec<receipt::UnlinkedAssetLink>,
     options: &Options,
 ) -> Result<usize> {
     let owners = rows
@@ -399,14 +432,26 @@ fn write_templates(
             profile: ProseProfile::Prose,
             span,
             todo: &|_| None,
+            asset,
+            non_text_material,
         };
         let planned = prose::plan_v3(&lines, &blocks, &ctx);
         if planned.paras.iter().all(Para::is_empty) {
             continue;
         }
         notes.merge(&planned.notes);
+        let old_id = owner.doc_id().to_string();
         let doc_id = crate::v3::doc_id(options, book, &owner.doc_id());
         let id_s = doc_id.to_string();
+        for (material_id, material_title, text) in &planned.unlinked_asset_links {
+            unlinked_out.push(receipt::UnlinkedAssetLink {
+                doc_id: id_s.clone(),
+                old_doc_id: old_id.clone(),
+                material_id: material_id.clone(),
+                material_title: material_title.clone(),
+                text: text.clone(),
+            });
+        }
         let mut doc = ProseDoc::create(doc_id.clone(), import_peer(&id_s))?;
         let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| {
             write::sync_v3(t, &planned.paras)
@@ -885,6 +930,19 @@ fn write_library(
         }
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
+        let material_assets = material_asset_map(&rows);
+        rec.material_assets = material_assets
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), v.to_string()))
+            .collect();
+        rec.non_text_materials = rows
+            .materials
+            .iter()
+            .filter(|m| m.kind != "text")
+            .map(|m| (m.id.clone(), m.title.clone()))
+            .collect();
+        let asset = |old: &str| material_assets.get(old).cloned();
+        let non_text_material = |old: &str| rec.non_text_materials.get(old).cloned();
 
         // Pass 2: plan, write, check and store every body, history first.
         let mut anchors_made: HashMap<String, Anchor> = HashMap::new();
@@ -902,6 +960,8 @@ fn write_library(
                 profile: b.profile,
                 span: &span,
                 todo: &todo,
+                asset: &asset,
+                non_text_material: &non_text_material,
             };
             let current = prose::plan_v3(&b.lines, &b.blocks, &ctx);
             let mut versions: Vec<(Plan, &HistoryRow, i64)> = Vec::new();
@@ -1079,6 +1139,15 @@ fn write_library(
             timing.store_ms += ms(t1);
             let mut doc_notes = current.notes.clone();
             notes.merge(&doc_notes);
+            for (material_id, material_title, text) in &current.unlinked_asset_links {
+                rec.unlinked_asset_links.push(receipt::UnlinkedAssetLink {
+                    doc_id: id_s.clone(),
+                    old_doc_id: old.clone(),
+                    material_id: material_id.clone(),
+                    material_title: material_title.clone(),
+                    text: text.clone(),
+                });
+            }
             if repaired > 0 {
                 doc_notes.add("block-id-assigned");
             }
@@ -1111,7 +1180,18 @@ fn write_library(
         // no time for them).
         let t0 = Instant::now();
         let changed = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
-        rec.templates = write_templates(lib, &book_id, &rows, &span, changed, &mut notes, options)?;
+        rec.templates = write_templates(
+            lib,
+            &book_id,
+            &rows,
+            &span,
+            &asset,
+            &non_text_material,
+            changed,
+            &mut notes,
+            &mut rec.unlinked_asset_links,
+            options,
+        )?;
         timing.prose_ms += ms(t0);
 
         // The book document, with the snapshot history's metadata replayed:
@@ -1291,10 +1371,11 @@ fn write_library(
             stop_in_book!();
         }
         // The documents beside the book before the book itself, like its
-        // bodies: writing days from the source, an empty checkpoint list.
-        // Deterministic, so a resumed import stores the same changes again.
-        let (stats, checkpoints) =
-            dr_samples::v3::side_documents(&book_id, &bdoc.view(), final_ts)?;
+        // bodies: writing days from the source, an empty checkpoint list, and
+        // canvas coordinates. Deterministic, so a resumed import stores the
+        // same changes again.
+        let (stats, checkpoints, layout) =
+            dr_samples::v3::side_documents(&book_id, &bdoc.view(), &v3doc.view(), final_ts)?;
         let all = loro::VersionVector::default();
         store_doc(
             lib,
@@ -1309,6 +1390,13 @@ fn write_library(
             &project.id,
             dr_doc::side::checkpoints_genesis(&book_id),
             checkpoints.export_updates_since(&all)?,
+        )?;
+        store_doc(
+            lib,
+            layout.doc_id(),
+            &project.id,
+            dr_doc::side::layout_genesis(&book_id),
+            layout.export_updates_since(&all)?,
         )?;
         let bh = open_new(
             lib,

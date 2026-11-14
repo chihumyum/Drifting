@@ -1,7 +1,7 @@
 use super::*;
-use crate::prose::{EmbedKind, ProseDoc, ProseTxn};
+use crate::prose::{EmbedKind, EmbedView, ProseDoc, ProseTxn};
 use dr_model::Origin;
-use dr_model::id::{DocId, EmbedId};
+use dr_model::id::{AssetId, DocId, EmbedId};
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, InlineStyle};
 
@@ -20,11 +20,8 @@ fn link(target: &str, module: Option<&str>) -> EntityLinkV3 {
         end_block: None,
     }
 }
-fn material() -> EntityLinkV3 {
-    EntityLinkV3 {
-        kind: EntityKind::Material,
-        ..link("material-a", None)
-    }
+fn other_entry() -> EntityLinkV3 {
+    link("entry-b", None)
 }
 fn raw(extra: &str, module: &str) -> LoroValue {
     let prior = LoroValue::Map(
@@ -45,18 +42,18 @@ fn module_identity_survives_adjacent_runs_overlap_encoding_sync_and_reopen() {
     first.block = Some(BlockId::parse("3@71").unwrap());
     first.end_block = Some(BlockId::parse("9@71").unwrap());
     let second = link("entry-a", Some("two"));
-    let mat = material();
+    let other = other_entry();
     user(&mut a, |t| {
         t.insert_paragraphs(0, "甲乙😀丁\n戊己")?;
         t.link_entity_v3(0..2, &first)?;
         t.link_entity_v3(2..4, &second)?;
         t.link_entity_v3(5..7, &first)?;
-        t.link_entity_v3(1..3, &mat)?;
+        t.link_entity_v3(1..3, &other)?;
         t.set_style(1..2, &InlineStyle::Bold)
     });
     let expected = vec![
         (0..2, first.clone()),
-        (1..3, mat),
+        (1..3, other),
         (2..4, second),
         (5..7, first.clone()),
     ];
@@ -122,7 +119,7 @@ fn module_identity_survives_adjacent_runs_overlap_encoding_sync_and_reopen() {
             })
             .flatten()
             .filter(|k| k.starts_with("entity:"))
-            .all(|k| k == "entity:entry-a" || k == "entity:material-a")
+            .all(|k| k == "entity:entry-a" || k == "entity:entry-b")
     );
 }
 
@@ -168,6 +165,10 @@ fn updating_a_link_preserves_segment_metadata_and_rejects_all_invalid_input_befo
         },
         EntityLinkV3 {
             kind: EntityKind::Material,
+            ..link("material-a", None)
+        },
+        EntityLinkV3 {
+            kind: EntityKind::Material,
             ..link("material-a", Some("module"))
         },
         link("", None),
@@ -180,7 +181,7 @@ fn updating_a_link_preserves_segment_metadata_and_rejects_all_invalid_input_befo
         assert!(encode_entity_link(&bad, None).is_err());
     }
     assert!(
-        a.edit(Origin::User, |t| t.link_entity_v3(0..100, &material()))
+        a.edit(Origin::User, |t| t.link_entity_v3(0..100, &other_entry()))
             .0
             .is_err()
     );
@@ -273,13 +274,15 @@ fn clipboard_marks_keep_opaque_values_and_only_replace_the_copied_range() {
 }
 
 #[test]
-fn v3_template_copy_preserves_body_and_table_modules_materials_and_unknown_fields() {
+fn v3_template_copy_preserves_body_and_table_modules_assets_and_unknown_fields() {
     let mut source = doc("template:book-a/tpl/prose", 1);
     let table = EmbedId::parse("table").unwrap();
+    let file_embed = EmbedId::parse("file-embed").unwrap();
+    let asset_id = AssetId::parse("asset-1").unwrap();
     user(&mut source, |t| {
         t.insert_text(0, "甲乙丙丁")?;
         t.link_entity_v3(0..2, &link("entry-a", Some("one")))?;
-        t.link_entity_v3(2..4, &material())?;
+        t.link_entity_v3(2..4, &other_entry())?;
         let at = t.split(4)?;
         let w = t.insert_embed(at, &table, &EmbedKind::Table)?;
         w.add_col("col", &PosKey::first())?;
@@ -287,7 +290,9 @@ fn v3_template_copy_preserves_body_and_table_modules_materials_and_unknown_field
         w.set_cell("row", "col", "甲😀乙丙")?;
         let cell = w.cell("row", "col")?;
         cell.mark(0..2, "entity:entry-a", raw("table-extra", "two"))?;
-        t.link_table_cell_entity_v3(&table, "row", "col", 2..4, &material())?;
+        t.link_table_cell_entity_v3(&table, "row", "col", 2..4, &other_entry())?;
+        let end = t.view().len() - 1;
+        t.insert_embed(end, &file_embed, &EmbedKind::Asset(asset_id.clone()))?;
         Ok(())
     });
     source
@@ -313,13 +318,22 @@ fn v3_template_copy_preserves_body_and_table_modules_materials_and_unknown_field
     );
     let copied = target.view().embed_refs()[0].1.clone();
     assert_ne!(copied, table);
+    let copied_asset_embed = target.view().embed_refs()[1].1.clone();
+    assert_ne!(copied_asset_embed, file_embed);
+    assert!(matches!(
+        target.view().embed(&copied_asset_embed),
+        Some(EmbedView::Asset {
+            asset: Some(ref id),
+            ..
+        }) if id == &asset_id
+    ));
     assert_eq!(
         target
             .view()
             .table_cell_entity_links_v3(&copied, "row", "col"),
         Some(vec![
             (0..2, link("entry-a", Some("two"))),
-            (2..4, material())
+            (2..4, other_entry())
         ])
     );
     let cell_clip = source
@@ -409,7 +423,7 @@ fn set_table_cell_runs_v3_and_remove_cell_preserve_rich_marks_links_and_prefligh
     let mut entry_block = link("entry-a", Some("mod-prose"));
     entry_block.block = Some(BlockId::parse("b1").unwrap());
     entry_block.end_block = Some(BlockId::parse("b2").unwrap());
-    let mat = material();
+    let other = other_entry();
     let runs = vec![
         Run {
             text: "赵太爷".into(),
@@ -431,7 +445,7 @@ fn set_table_cell_runs_v3_and_remove_cell_preserve_rich_marks_links_and_prefligh
             },
         },
     ];
-    let links = vec![(0..3, entry_block.clone()), (4..6, mat.clone())];
+    let links = vec![(0..3, entry_block.clone()), (4..6, other.clone())];
     user(&mut d, |t| {
         t.set_table_cell_runs_v3(&table, "r0", "c0", &runs, &links)?;
         t.table(&table)?.set_cell("r0", "c1", "临时")
@@ -449,7 +463,8 @@ fn set_table_cell_runs_v3_and_remove_cell_preserve_rich_marks_links_and_prefligh
         read_runs[2].marks.link.as_deref(),
         Some("https://example.com")
     );
-    assert_eq!(read_runs[2].marks.entities[0].kind, EntityKind::Material);
+    assert_eq!(read_runs[2].marks.entities[0].kind, EntityKind::Entry);
+    assert_eq!(read_runs[2].marks.entities[0].target, "entry-b");
 
     // Highlight and inline code are allowed in entry table cells under the unified profile.
     let rich_highlight_code = vec![Run {
@@ -488,7 +503,7 @@ fn set_table_cell_runs_v3_and_remove_cell_preserve_rich_marks_links_and_prefligh
     );
     assert!(
         d.edit(Origin::User, |t| {
-            t.set_table_cell_runs_v3(&table, "r0", "c0", &plain_one, &[(0..5, mat.clone())])
+            t.set_table_cell_runs_v3(&table, "r0", "c0", &plain_one, &[(0..5, other.clone())])
         })
         .0
         .is_err()

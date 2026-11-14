@@ -477,31 +477,34 @@ fn normalize_forest(mut nodes: Vec<(TreeID, TreeParentId, LoroValue, String)>) -
 pub(crate) struct CatalogView<'a> {
     pub(crate) doc: &'a LoroDoc,
 }
+pub(crate) fn decode_asset(id: &str, v: &LoroValue) -> Option<Asset> {
+    let f = F(v);
+    Some(Asset {
+        id: AssetId::parse(id).ok()?,
+        name: f.string("name"),
+        kind: f.kind("kind")?,
+        mime: f.string("mime"),
+        size: f.i64("size").unwrap_or(0),
+        sha256: f.string("sha256"),
+        width: f.i64("width"),
+        height: f.i64("height"),
+        created_at: f.ts("created_at"),
+        folder: f.opt_string("folder").filter(|s| !s.is_empty()),
+        deleted_at: f.ts("deleted_at"),
+    })
+}
+
 impl CatalogView<'_> {
-    pub fn assets(&self) -> Vec<Asset> {
+    pub fn assets_raw(&self) -> Vec<Asset> {
         entities(self.doc, book::ASSETS)
             .iter()
-            .filter_map(|(id, v)| {
-                let f = F(v);
-                Some(Asset {
-                    id: AssetId::parse(id).ok()?,
-                    kind: f.kind("kind")?,
-                    mime: f.string("mime"),
-                    size: f.i64("size").unwrap_or(0),
-                    sha256: f.string("sha256"),
-                    width: f.i64("width"),
-                    height: f.i64("height"),
-                })
-            })
+            .filter_map(|(id, v)| decode_asset(id, v))
             .collect()
     }
-    pub(crate) fn tree(&self, root: &str) -> LoroTree {
-        self.doc.get_tree(root)
-    }
-    pub(crate) fn tree_index(&self, root: &str) -> HashMap<String, Vec<TreeID>> {
-        forest(&self.tree(root))
+    pub fn assets(&self) -> Vec<Asset> {
+        self.assets_raw()
             .into_iter()
-            .map(|n| (n.id, n.tree_ids))
+            .filter(|a| !a.is_trashed())
             .collect()
     }
     pub fn entity_snapshot(&self, root: &str, id: &str) -> Option<EntitySnapshot> {

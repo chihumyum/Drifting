@@ -213,7 +213,7 @@ impl InlineStyle {
     }
 }
 
-/// Object replacement character: the placeholder of a table or material embed.
+/// Object replacement character: the placeholder of a table or asset embed.
 pub const OBJECT_CHAR: char = '\u{FFFC}';
 /// A line break inside one paragraph (Shift-Enter).
 pub const LINE_BREAK: char = '\u{2028}';

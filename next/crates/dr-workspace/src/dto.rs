@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
     Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 pub struct Target {
-    /// Canonical `entry`, `patch`, `comment` or `material`.
+    /// Canonical `entry`, `patch` or `comment`.
     pub kind: String,
     pub id: String,
 }
@@ -104,10 +104,10 @@ pub struct GroupInfo {
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct CommentInfo {
     pub id: String,
-    /// `note` or `todo`.
-    pub kind: String,
     pub target: Option<Target>,
-    /// The target is in the trash or gone: show as unlocated.
+    pub module: Option<String>,
+    pub part: Option<CommentPartDto>,
+    /// The target or module sub-part is in the trash or gone: show as unlocated.
     pub unlocated: bool,
     pub target_block: Option<String>,
     pub anchored: bool,
@@ -116,6 +116,8 @@ pub struct CommentInfo {
     /// `open` or `resolved`.
     pub status: String,
     pub priority: Option<String>,
+    /// `manual`, `marker`, `task`, `agent` or `reader`.
+    pub origin: String,
     /// `user`, `ai` or `external`.
     pub author_kind: String,
     pub author_name: Option<String>,
@@ -124,10 +126,122 @@ pub struct CommentInfo {
     pub agent_conversation: Option<String>,
     /// Generated from prose (`marker` or `note_task`).
     pub projection: Option<String>,
-    /// The rectangle it marks on an image or a PDF page.
-    pub region: Option<Region>,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
+}
+
+impl CommentInfo {
+    /// Image or PDF rectangle carried by `part`, if any.
+    pub fn region(&self) -> Option<&Region> {
+        self.part.as_ref().and_then(CommentPartDto::region)
+    }
+}
+
+/// Where inside `module` (or directly on an asset) a comment sits (`part` in schema v5).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[schemars(rename = "CommentPart")]
+pub enum CommentPartDto {
+    /// An embedded file inside a `prose` module, optionally with a region on it.
+    Embed {
+        embed: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<Region>,
+    },
+    /// A field definition inside a `fields` module (`FieldDef.id`, never `FieldDef.name`).
+    Field { field: String },
+    /// A row inside a `key_value` module.
+    KvRow { row: String },
+    /// A cell inside a `plot_grid` module.
+    PlotCell { row: String, col: String },
+    /// A patch inside a `patches` module.
+    Patch { patch: String },
+    /// A file inside a `media` module, optionally with a region on the image or PDF page.
+    Media {
+        item: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<Region>,
+    },
+    /// A rectangle on an image or PDF page when commenting directly on an asset in the asset library.
+    Region { region: Region },
+}
+
+impl CommentPartDto {
+    pub fn region(&self) -> Option<&Region> {
+        match self {
+            Self::Embed { region, .. } | Self::Media { region, .. } => region.as_ref(),
+            Self::Region { region } => Some(region),
+            _ => None,
+        }
+    }
+
+    pub fn to_model(&self) -> crate::Result<dr_model::v3::CommentPart> {
+        use crate::commands::pid;
+        use dr_model::v3::CommentPart;
+        let to_reg = |r: &Region| {
+            r.to_model().ok_or_else(|| {
+                crate::WsError::invalid("the region does not fit its picture or page")
+            })
+        };
+        Ok(match self {
+            Self::Embed { embed, region } => CommentPart::Embed {
+                embed: pid("embed", embed)?,
+                region: region.as_ref().map(to_reg).transpose()?,
+            },
+            Self::Field { field } => CommentPart::Field {
+                field: pid("field", field.trim())?,
+            },
+            Self::KvRow { row } => CommentPart::KvRow {
+                row: pid("kv_row", row)?,
+            },
+            Self::PlotCell { row, col } => CommentPart::PlotCell {
+                row: pid("plot_row", row)?,
+                col: pid("plot_col", col)?,
+            },
+            Self::Patch { patch } => CommentPart::Patch {
+                patch: pid("patch", patch)?,
+            },
+            Self::Media { item, region } => CommentPart::Media {
+                item: pid("media_item", item)?,
+                region: region.as_ref().map(to_reg).transpose()?,
+            },
+            Self::Region { region } => CommentPart::Region {
+                region: to_reg(region)?,
+            },
+        })
+    }
+}
+
+impl From<&dr_model::v3::CommentPart> for CommentPartDto {
+    fn from(p: &dr_model::v3::CommentPart) -> Self {
+        use dr_model::v3::CommentPart;
+        match p {
+            CommentPart::Embed { embed, region } => Self::Embed {
+                embed: embed.to_string(),
+                region: region.as_ref().map(Region::from),
+            },
+            CommentPart::Field { field } => Self::Field {
+                field: field.to_string(),
+            },
+            CommentPart::KvRow { row } => Self::KvRow {
+                row: row.to_string(),
+            },
+            CommentPart::PlotCell { row, col } => Self::PlotCell {
+                row: row.to_string(),
+                col: col.to_string(),
+            },
+            CommentPart::Patch { patch } => Self::Patch {
+                patch: patch.to_string(),
+            },
+            CommentPart::Media { item, region } => Self::Media {
+                item: item.to_string(),
+                region: region.as_ref().map(Region::from),
+            },
+            CommentPart::Region { region } => Self::Region {
+                region: Region::from(region),
+            },
+        }
+    }
 }
 
 /// A rectangle on an image, or on one page of a PDF, as fractions (0–1) of
@@ -199,39 +313,11 @@ impl AnchorBytes {
 #[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct CommentAnchor {
     pub id: String,
-    /// `note` or `todo`.
-    pub kind: String,
+    /// `manual`, `marker`, `task`, `agent` or `reader`.
+    pub origin: String,
     /// `open` or `resolved`.
     pub status: String,
     pub anchor: AnchorBytes,
-}
-
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct MaterialInfo {
-    pub id: String,
-    pub title: String,
-    /// `image`, `pdf` or `text`.
-    pub kind: String,
-    pub asset: Option<String>,
-    pub folder: Option<String>,
-    pub pos: Option<String>,
-    pub task_todos: bool,
-    pub description: String,
-}
-
-impl From<&Material> for MaterialInfo {
-    fn from(m: &Material) -> Self {
-        MaterialInfo {
-            id: m.id.to_string(),
-            title: m.title.clone(),
-            kind: m.kind.as_str().to_string(),
-            asset: m.asset.as_ref().map(|a| a.to_string()),
-            folder: m.folder.as_ref().map(|f| f.to_string()),
-            pos: m.pos.as_ref().map(|p| p.to_string()),
-            task_todos: m.task_todos,
-            description: m.description.clone(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -263,15 +349,15 @@ impl From<&Memory> for MemoryInfo {
     }
 }
 
-impl From<&dr_model::v3::BookMetaV3> for BookInfo {
-    fn from(m: &dr_model::v3::BookMetaV3) -> Self {
+impl BookInfo {
+    pub fn from_book(m: &dr_model::v3::BookMetaV3, p: &dr_model::v3::ProjectDefinition) -> Self {
         BookInfo {
             id: m.id.to_string(),
             name: m.name.clone(),
             summary: m.summary.clone(),
             trashed: m.deleted_at.is_some(),
-            word_target: m.word_target(),
-            daily_word_target: m.daily_word_target(),
+            word_target: p.word_target(),
+            daily_word_target: p.daily_word_target(),
             created_at: m.created_at.map(|t| t.0),
         }
     }

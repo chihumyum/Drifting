@@ -1,13 +1,14 @@
 //! Reuse the existing licensed sample definitions, preserving prose through
 //! dr-doc's full copy API and preserving exact block/anchor ranges.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_doc::v3::{BookDocV3, book_genesis};
 use dr_doc::{Anchor, Result};
 use dr_model::id::BookId;
+use dr_model::import_v1::MaterialKind;
 use dr_model::{DocId, Origin};
 
 use super::*;
@@ -19,6 +20,8 @@ pub struct SampleBookV3 {
     pub stats: dr_doc::side::StatsDoc,
     /// `checkpoints:<book>`: empty.
     pub checkpoints: dr_doc::side::CheckpointsDoc,
+    /// `layout:<book>`: board, grid and relation-graph positions.
+    pub layout: dr_doc::side::LayoutDoc,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: crate::build::Counters,
 }
@@ -51,9 +54,20 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
             "unresolved sample v3 mapping: {pending:?}"
         )));
     }
+    let non_text_materials: BTreeSet<String> = source
+        .book
+        .view()
+        .materials()
+        .into_iter()
+        .filter(|m| m.kind != MaterialKind::Text)
+        .map(|m| m.id.to_string())
+        .collect();
     let mut prose = Vec::new();
     let mut indices = BTreeMap::new();
     for (index, old) in source.prose.iter().enumerate() {
+        if matches!(old.doc_id(), DocId::Material(id) if non_text_materials.contains(id.as_str())) {
+            continue;
+        }
         let id = prose_id(source.book_id(), old.doc_id());
         let mut doc = ProseDoc::create(id.clone(), import_peer(&id.to_string()))?;
         let old_links = old.view().entity_links();
@@ -79,6 +93,11 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
                     t.unlink_entity(range.clone(), &link.target)?;
                 }
                 for (range, link) in &old_links {
+                    if link.kind == EntityKind::Material
+                        && non_text_materials.contains(&link.target)
+                    {
+                        continue;
+                    }
                     let mapped = map_entity_link(link, None)?;
                     t.link_entity_v3(range.clone(), &mapped)?;
                 }
@@ -105,6 +124,11 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
                                         continue;
                                     }
                                     for e in &r.marks.entities {
+                                        if e.kind == EntityKind::Material
+                                            && non_text_materials.contains(&e.target)
+                                        {
+                                            continue;
+                                        }
                                         let mapped = map_entity_link(e, None)?;
                                         let list =
                                             by_target.entry(mapped.target.clone()).or_default();
@@ -135,7 +159,7 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
         if old.view().plain_text() != doc.view().plain_text() {
             return Err(super::catalog::invalid("sample prose text changed"));
         }
-        indices.insert(old.doc_id().to_string(), prose.len());
+        indices.insert(old.doc_id().to_string(), (index, prose.len()));
         prose.push(doc);
     }
     // Clone just the catalog into memory so anchor replacement cannot
@@ -147,16 +171,16 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
         &[source.book.export_snapshot()?],
     )?;
     let relocate = |id: &DocId, encoded: &dr_model::import_v1::EncodedAnchor| -> Result<Anchor> {
-        let index = *indices
+        let (src_index, dst_index) = *indices
             .get(&id.to_string())
             .ok_or_else(|| super::catalog::invalid(format!("missing sample prose {id}")))?;
         let anchor =
             Anchor::decode(encoded).ok_or_else(|| super::catalog::invalid("bad sample anchor"))?;
-        let resolved = source.prose[index]
+        let resolved = source.prose[src_index]
             .view()
             .resolve(&anchor)
             .ok_or_else(|| super::catalog::invalid("unresolvable sample anchor"))?;
-        prose[index]
+        prose[dst_index]
             .view()
             .anchor(resolved.range)
             .ok_or_else(|| super::catalog::invalid("collapsed sample anchor"))
@@ -165,6 +189,10 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     let (r, _) = catalog.edit_at(Origin::Import, Some(crate::build::T0 + 10_000), |t| {
         for comment in view.comments() {
             if let (Some(target), Some(anchor)) = (&comment.target, &comment.anchor) {
+                if target.kind == EntityKind::Material && non_text_materials.contains(&target.id) {
+                    t.comment(&comment.id)?.anchor(None)?;
+                    continue;
+                }
                 let id = super::catalog::target_doc(target)
                     .ok_or_else(|| super::catalog::invalid("sample anchor target has no prose"))?;
                 t.comment(&comment.id)?
@@ -187,13 +215,18 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     });
     r?;
     validate(&book.view()).map_err(super::catalog::invalid)?;
-    let (stats, checkpoints) =
-        super::catalog::side_documents(&id, &source.book.view(), crate::build::T0 + 10_002)?;
+    let (stats, checkpoints, layout) = super::catalog::side_documents(
+        &id,
+        &source.book.view(),
+        &book.view(),
+        crate::build::T0 + 10_002,
+    )?;
     Ok(SampleBookV3 {
         book,
         prose,
         stats,
         checkpoints,
+        layout,
         groups: source.groups().clone(),
         counters: source.counters(),
     })
@@ -237,6 +270,7 @@ pub fn write_book(
     for id in sample.prose.iter().map(|p| p.doc_id()).chain([
         sample.stats.doc_id(),
         sample.checkpoints.doc_id(),
+        sample.layout.doc_id(),
         sample.book.doc_id(),
     ]) {
         if lib.doc_info(&id.to_string())?.is_some() {
@@ -261,6 +295,11 @@ pub fn write_book(
         sample.checkpoints.doc_id(),
         dr_doc::side::checkpoints_genesis(sample.book_id()),
         sample.checkpoints.export_updates_since(&all)?,
+    )?;
+    store(
+        sample.layout.doc_id(),
+        dr_doc::side::layout_genesis(sample.book_id()),
+        sample.layout.export_updates_since(&all)?,
     )?;
     store(
         sample.book.doc_id(),

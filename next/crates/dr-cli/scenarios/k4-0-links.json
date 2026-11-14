@@ -52,16 +52,9 @@
       }
     },
     {
-      "call": "material.list",
-      "input": {
-        "book": "${books.0.id}"
-      },
-      "save": "materials"
-    },
-    {
       "call": "prose.read",
       "input": {
-        "doc": "material:${materials.[kind=text].id}"
+        "doc": "body:${entries.[template=tpl-note].id}/mod-prose"
       },
       "save": "materialBody"
     },
@@ -238,7 +231,7 @@
     {
       "app": "input.url",
       "params": {
-        "url": "drifting-next-dev://open/${books.0.id}/materials/id-${materials.[kind=text].id}/prose.md#L3"
+        "url": "drifting-next-dev://open/${books.0.id}/entries/id-${entries.[template=tpl-note].id}/modules/id-mod-prose/prose.md#L3"
       },
       "expect": {
         "/accepted": 1
@@ -249,7 +242,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${materials.[kind=text].id}",
+          "/page": "entry:${entries.[template=tpl-note].id}/mod-prose",
           "/focus/editor": true
         },
         "page": {
@@ -267,7 +260,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${materials.[kind=text].id}"
+        "doc": "body:${entries.[template=tpl-note].id}/mod-prose"
       },
       "expect": {
         "/paragraphs/1/text": "Material URL ${materialBody.paragraphs.1.text}"
@@ -282,7 +275,7 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${materials.[kind=text].id}"
+        "doc": "body:${entries.[template=tpl-note].id}/mod-prose"
       },
       "expect": {
         "/paragraphs": "${materialBody.paragraphs}"

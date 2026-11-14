@@ -89,9 +89,9 @@ open_enum!(
     /// v0 names materials `material` (the root container is `materials`); the
     /// old `library_item` is read as [`EntityKind::Material`].
     ///
-    /// A canonical reference names `entry`, `material`, `comment` or `patch`
-    /// (`kernel-v3.md`). `node`, `element`, `category` and `storyline` are
-    /// the 0.1 source format's values. They stay known here, not in
+    /// A canonical reference names `entry`, `comment`, `patch` or `asset`
+    /// (`kernel-v5.md`). `node`, `element`, `category`, `storyline` and
+    /// `material` are the 0.1 source format's values. They stay known here, not in
     /// `import_v1`, because this is the stored vocabulary and shared code
     /// still meets them: an entity link written without a kind reads as
     /// `element` (the prose codec and the editor), and the role predicates
@@ -109,7 +109,10 @@ open_enum!(
         Storyline = "storyline",
         Entry = "entry",
         Comment = "comment",
+        /// Source format only.
         Material = "material" | "library_item",
+        /// A file in the project's asset library (`assets`, `kernel-v5.md` §6).
+        Asset = "asset",
     }
 );
 
@@ -131,13 +134,17 @@ impl EntityKind {
     /// Kinds a relation may start *from*: structural ones plus comments and
     /// materials (author-side scaffolding links out, never in).
     pub fn may_start_relation(&self) -> bool {
-        self.is_structural() || matches!(self, EntityKind::Comment | EntityKind::Material)
+        self.is_structural()
+            || matches!(
+                self,
+                EntityKind::Comment | EntityKind::Material | EntityKind::Asset
+            )
     }
 
     /// Kinds a comment may target: structural ones plus materials (region
     /// comments on images and PDFs, margin comments on notes).
     pub fn may_be_commented(&self) -> bool {
-        self.is_structural() || matches!(self, EntityKind::Material)
+        self.is_structural() || matches!(self, EntityKind::Material | EntityKind::Asset)
     }
 
     /// Kinds an inline entity link (`entity:<id>`) may point at.
@@ -152,10 +159,30 @@ impl EntityKind {
         )
     }
 
-    /// Kinds a v3 entity reference or inline link may point at (`kernel-v3.md`:
-    /// `entry` and `material`).
+    /// Kinds a canonical v5 relation may point *to* (`entry`, `patch`, or `asset`).
+    pub fn is_structural_v3(&self) -> bool {
+        matches!(
+            self,
+            EntityKind::Entry | EntityKind::Patch | EntityKind::Asset
+        )
+    }
+
+    /// Kinds a canonical v5 relation may start *from* (`entry`, `patch`, `comment`, or `asset`).
+    pub fn may_start_relation_v3(&self) -> bool {
+        matches!(
+            self,
+            EntityKind::Entry | EntityKind::Patch | EntityKind::Comment | EntityKind::Asset
+        )
+    }
+
+    /// Kinds a canonical v5 comment may target (`entry` or `asset`, `kernel-v5.md` §6, §7 & §10).
+    pub fn may_be_commented_v3(&self) -> bool {
+        matches!(self, EntityKind::Entry | EntityKind::Asset)
+    }
+
+    /// Kinds a canonical inline link may point at (`entry` only, `kernel-v5.md` §6 & §10).
     pub fn may_be_linked_v3(&self) -> bool {
-        matches!(self, EntityKind::Entry | EntityKind::Material)
+        matches!(self, EntityKind::Entry)
     }
 }
 
@@ -176,11 +203,22 @@ open_enum!(
 );
 
 open_enum!(
-    /// A margin note or a TODO. Old values other than these are kept as
-    /// written (`loro-schema.md`: "旧值原样").
+    /// Source-format (0.1 import replay) comment kind (`note` or `todo`).
+    /// Canonical v5 comments have no `kind` (`kernel-v5.md` §7).
     CommentKind {
         Note = "note",
         Todo = "todo",
+    }
+);
+
+open_enum!(
+    /// How a comment came to be (`origin` in `comments`, `kernel-v5.md` §7 & §10).
+    CommentOrigin {
+        Manual = "manual",
+        Marker = "marker",
+        Task = "task",
+        Agent = "agent",
+        Reader = "reader",
     }
 );
 
@@ -229,25 +267,6 @@ open_enum!(
         High = "high",
     }
 );
-
-open_enum!(
-    /// What a material is. URL materials were retired (old migration 0011);
-    /// an old `url` value reads as `Other`.
-    MaterialKind {
-        Image = "image",
-        Pdf = "pdf",
-        /// A text material: the author's note (its body is a `material:` prose
-        /// document in the note profile).
-        Text = "text",
-    }
-);
-
-impl MaterialKind {
-    /// Image and PDF materials have asset bytes; text materials do not.
-    pub fn needs_asset(&self) -> bool {
-        matches!(self, MaterialKind::Image | MaterialKind::Pdf)
-    }
-}
 
 open_enum!(
     AssetKind {
@@ -313,6 +332,22 @@ mod tests {
         let json = serde_json::to_string(&k).unwrap();
         assert_eq!(json, "\"suggestion\"");
         assert_eq!(serde_json::from_str::<CommentKind>(&json).unwrap(), k);
+
+        for (raw, expected) in [
+            ("manual", CommentOrigin::Manual),
+            ("marker", CommentOrigin::Marker),
+            ("task", CommentOrigin::Task),
+            ("agent", CommentOrigin::Agent),
+            ("reader", CommentOrigin::Reader),
+        ] {
+            let parsed = CommentOrigin::parse(raw);
+            assert_eq!(parsed, expected);
+            assert!(parsed.is_known());
+            assert_eq!(parsed.as_str(), raw);
+        }
+        let custom = CommentOrigin::parse("future_origin");
+        assert!(!custom.is_known());
+        assert_eq!(custom.as_str(), "future_origin");
     }
 
     #[test]
@@ -346,7 +381,18 @@ mod tests {
         assert!(!EntityKind::Material.may_be_linked());
         assert!(EntityKind::Entry.may_be_linked());
         assert!(EntityKind::Entry.may_be_linked_v3());
-        assert!(EntityKind::Material.may_be_linked_v3());
+        assert!(!EntityKind::Material.may_be_linked_v3());
         assert!(!EntityKind::Element.may_be_linked_v3());
+        assert!(EntityKind::Entry.may_start_relation_v3());
+        assert!(EntityKind::Comment.may_start_relation_v3());
+        assert!(!EntityKind::Material.may_start_relation_v3());
+        assert!(EntityKind::Entry.is_structural_v3());
+        assert!(!EntityKind::Material.is_structural_v3());
+        assert!(EntityKind::Entry.may_be_commented_v3());
+        assert!(EntityKind::Asset.may_be_commented_v3());
+        assert!(EntityKind::Asset.may_start_relation_v3());
+        assert!(EntityKind::Asset.is_structural_v3());
+        assert!(!EntityKind::Asset.may_be_linked_v3());
+        assert!(!EntityKind::Material.may_be_commented_v3());
     }
 }

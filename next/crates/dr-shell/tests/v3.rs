@@ -20,8 +20,66 @@ fn seed() -> (tempfile::TempDir, Workspace, String) {
     .unwrap();
     let id = made.books[0].book_id().to_string();
     made.write_to(&store).unwrap();
+    let png = dir.path().join("seed-material.png");
+    std::fs::write(&png, dr_testkit::media::png(16, 16)).unwrap();
+    let imported = store
+        .import_asset(&dr_store::asset::SourceImport {
+            book_id: &id,
+            asset_id: "00000000-0000-7000-8000-0000000000e1",
+            source: &png,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((16, 16)),
+            limit: dr_store::asset::MAX_COPY_BYTES,
+        })
+        .unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+    let notes_root = dr_testkit::seed::acceptance::novel_root(&ws, &id, "tpl-group");
+    call(
+        &ws,
+        "entry_template.put",
+        json!({
+            "book": &id,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
+    call(
+        &ws,
+        "asset.put",
+        json!({
+            "book": &id,
+            "id": imported.asset_id,
+            "kind": "image",
+            "mime": imported.mime,
+            "size": imported.size,
+            "sha256": imported.sha256,
+            "width": 16,
+            "height": 16
+        }),
+    );
+    let media_entry = call(
+        &ws,
+        "entry.create",
+        json!({"book": &id, "template": "tpl-custom-media", "parent": notes_root, "title": "示例图片"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "module.put_media",
+        json!({
+            "book": &id,
+            "entry": media_entry,
+            "module": "mod-media",
+            "item": {"id": "00000000-0000-7000-8000-0000000000e2", "asset": imported.asset_id}
+        }),
+    );
     (dir, ws, id)
 }
 #[test]
@@ -31,7 +89,7 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
     assert!(matches!(b.snapshot, Snapshot::V3(_)));
     assert!(!b.v3().unwrap().manuscript.is_empty());
     let v = b.v3().unwrap();
-    assert_eq!(v.roots.len(), 4);
+    assert_eq!(v.roots.len(), 5);
     assert!(!v.timeline_views.is_empty());
     assert!(!v.memberships.is_empty());
     let root = v
@@ -39,9 +97,9 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
         .iter()
         .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
         .unwrap();
-    assert!(v.levels[&root.id].settings.is_manuscript);
+    assert_eq!(v.levels[&root.id].settings.display, "list");
     assert_eq!(
-        v.levels[&root.id].sources["is_manuscript"],
+        v.levels[&root.id].sources["display"],
         SettingSource::Template {
             entry: root.id.clone(),
             template: "tpl-manuscript".into()
@@ -76,17 +134,14 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
         }
     );
     assert_eq!(
-        level.sources["is_manuscript"],
+        level.sources["format_shortcuts"],
         SettingSource::Template {
             entry: root.id.clone(),
             template: "tpl-manuscript".into()
         }
     );
-    // The setting resolves down the tree, but only the outermost level's own
-    // declaration makes a manuscript.
-    assert!(level.settings.is_manuscript);
-    assert!(v.is_manuscript_root(&root.id));
-    assert!(!v.is_manuscript_root(child));
+    assert!(v.is_book_root_entry(&root.id));
+    assert!(!v.is_book_root_entry(child));
     assert_ne!(v.revision, b.v3().unwrap().revision);
     let legacy = dr_testkit::seed::acceptance::empty_source(ws.library());
     let before = ws.library().head(&format!("book:{legacy}")).unwrap();
@@ -122,10 +177,11 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
         ws.observe(&format!("book:{id}")).unwrap().version
     );
 
-    // Model a remote metadata removal while its prose still exists. The
-    // shell must not infer a navigable material merely from that document.
+    // Model a remote metadata removal while its asset still exists. The
+    // shell must not infer a navigable material merely from stored asset bytes.
     let book_id = id.parse().unwrap();
-    let material_id = material.id.clone();
+    let entry_id = material.entry.clone().expect("host entry");
+    let asset_id = material.asset.clone().expect("media asset");
     ws.library()
         .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)
         .unwrap()
@@ -133,7 +189,8 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
             dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
                 .unwrap()
                 .txn()
-                .purge(dr_doc::v3::CollectionV3::Materials, &material_id)
+                .entries()
+                .delete_keep_children(&entry_id.parse().unwrap())
                 .unwrap();
         })
         .unwrap();
@@ -143,8 +200,9 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
     assert_ne!(b.v3().unwrap().revision, after.v3().unwrap().revision);
     assert!(
         ws.library()
-            .open_doc(&target.key(), dr_store::OpenDoc::Existing)
-            .is_ok()
+            .asset(&asset_id, dr_store::asset::Variant::Source)
+            .unwrap()
+            .is_some()
     );
     ws.shutdown().unwrap();
 }
@@ -562,7 +620,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
             v3::entry_target(&entry.id).unwrap(),
         )
     });
-    assert_eq!(roots.len(), 4);
+    assert_eq!(roots.len(), 5);
     assert!(
         made.borrow()
             .iter()
@@ -582,13 +640,13 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
     );
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book_memory(v3::sidebar::MEMORY_KEY).cloned()),
-        Some(json!(roots[3]))
+        Some(json!(roots[4]))
     );
     let count = made.borrow().len();
     call(
         &lib,
         "entry.update",
-        json!({"book":book_id,"id":roots[3],"title":"Synthetic updated level","overrides":{"display":"grid"}}),
+        json!({"book":book_id,"id":roots[4],"title":"Synthetic updated level","overrides":{"display":"grid"}}),
     );
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -686,7 +744,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
         );
         assert_eq!(invoked.get(), 4);
     });
-    call(&lib, "entry.trash", json!({"book":book_id,"id":roots[3]}));
+    call(&lib, "entry.trash", json!({"book":book_id,"id":roots[4]}));
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.run_until_parked();
@@ -1156,7 +1214,15 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
     call(
         &lib,
         "entry.update",
-        json!({"book": id, "id": group, "overrides": {"lane": true, "accept": true, "display": "board"}}),
+        json!({"book": id, "id": group, "overrides": {"accept": true, "display": "board"}}),
+    );
+    let view0_id = Book::load(&lib, &id).unwrap().v3().unwrap().timeline_views[0]
+        .id
+        .clone();
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": id, "view": view0_id, "lane": group}),
     );
     call(
         &lib,
@@ -1277,38 +1343,29 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
         "conflicted confirm must not turn off level"
     );
 
-    // Confirming after re-read moves direct children [c1, c2, c3] to root right after `group`,
-    // keeps `gc1` under `c1`, and hides dormant swimlane / settings.
+    // Confirming after re-read trashes resident descendants `[c1, gc1, c2, c3]` in place,
+    // while keeping independent `accept` memberships and lane active.
     dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
-    wait_book(cx, &|v| !v.levels.contains_key(&group));
-    view.read_with(cx, |ws, cx| {
+    wait_book(cx, &|v| v.entry(&group).is_some_and(|e| !e.level));
+    view.read_with(cx, |ws, _| {
         assert!(ws.dialog.is_none());
         let v = ws.book.v3().unwrap();
         assert!(!v.entry(&group).unwrap().level);
-        assert!(!v.is_lane(&group));
-        let pos = v.roots.iter().position(|r| r == &group).unwrap();
-        assert_eq!(
-            &v.roots[pos..pos + 4],
-            &[group.clone(), c1.clone(), c2.clone(), c3.clone()]
-        );
-        assert_eq!(v.entry(&gc1).unwrap().parent.as_deref(), Some(c1.as_str()));
-        assert!(v.levels.contains_key(&c1));
-        let page = ws.editors[&group_target.key()]
-            .v3
-            .as_ref()
-            .unwrap()
-            .read(cx);
-        assert!(
-            !page
-                .sections
-                .iter()
-                .any(|s| s.id == "display" || s.id == "settings")
-        );
+        assert!(v.levels.contains_key(&group));
+        assert!(v.levels[&group].children.is_empty());
+        assert_eq!(v.levels[&group].members, vec![member_id.clone()]);
+        assert!(v.is_lane(&group));
+        for trashed_id in [&c1, &gc1, &c2, &c3] {
+            assert!(
+                v.entry(trashed_id).is_none(),
+                "{trashed_id} must be trashed"
+            );
+        }
     });
 
-    // Single-step Undo restores `level == true`, all children's parent + order, lane, and overrides.
+    // Single-step Undo restores `level == true`, all descendants live under `group` in order, lane, and overrides.
     lib.undo(&Actor::User).unwrap();
-    wait_book(cx, &|v| v.levels.contains_key(&group));
+    wait_book(cx, &|v| v.entry(&group).is_some_and(|e| e.level));
     view.read_with(cx, |ws, _| {
         let v = ws.book.v3().unwrap();
         assert!(v.entry(&group).unwrap().level);
@@ -1318,6 +1375,8 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
             v.levels[&group].children,
             vec![c1.clone(), c2.clone(), c3.clone()]
         );
+        assert_eq!(v.entry(&gc1).unwrap().parent.as_deref(), Some(c1.as_str()));
+        assert!(v.levels.contains_key(&c1));
         assert!(
             v.memberships
                 .iter()
@@ -1857,22 +1916,13 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
             json!({"book": id, "view": view_id, "lane": lane}),
         );
     };
-    // A lane with two entries assigned; a lane with none; a group that
-    // takes assigned entries, not a lane; a group that hides nothing.
-    let line = create(&storylines, "tpl-storyline", "支线");
-    add_lane(&line);
-    assign(&line, &chapters[0]);
-    assign(&line, &chapters[1]);
-    let bare_line = create(&storylines, "tpl-storyline", "空线");
+    // Folder lane with `accept == false` (`tpl-idea-group`), a folder with resident
+    // children for conflict refresh + toast undo/redo, and an empty quiet folder.
+    let bare_line = create(&storylines, "tpl-idea-group", "空目录轨");
     add_lane(&bare_line);
-    let group = create(&storylines, "tpl-group", "收纳");
-    call(
-        &lib,
-        "entry.update",
-        json!({"book": id, "id": group, "overrides": {"accept": true}}),
-    );
-    assign(&group, &chapters[2]);
-    let quiet = create(&storylines, "tpl-group", "空组");
+    let group = create(&storylines, "tpl-idea-group", "收纳");
+    let _child0 = create(&group, "tpl-idea", "子项一");
+    let quiet = create(&storylines, "tpl-idea-group", "空组");
 
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -1949,67 +1999,8 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
             .map(|l| l.entry.clone())
             .collect()
     };
-    let members = |ws: &Shell, host: &str| -> Vec<String> {
-        let mut m: Vec<String> = ws
-            .book
-            .v3()
-            .unwrap()
-            .memberships
-            .iter()
-            .filter(|m| m.host == host)
-            .map(|m| m.member.clone())
-            .collect();
-        m.sort();
-        m
-    };
-
-    // Assigned entries and a lane: the author's sentence.
-    let dialog = ask(cx, &line);
-    dialog.read_with(cx, |d, cx| {
-        assert_eq!(d.child_count(), 0);
-        assert_eq!(d.member_count(), 2);
-        assert!(d.is_lane());
-        assert_eq!(
-            d.body_text(cx).as_ref(),
-            "归属到它的 2 个条目和它在时间线里的泳道先不显示，再打开就回来。"
-        );
-    });
-    // Cancel: nothing changes.
-    let (lanes_before, members_before) =
-        view.read_with(cx, |ws, _| (lanes(ws), members(ws, &line)));
-    dialog.update(cx, |d, cx| d.cancel(cx));
-    pump(cx);
-    view.read_with(cx, |ws, _| {
-        assert!(ws.dialog.is_none());
-        assert!(ws.book.v3().unwrap().levels.contains_key(&line));
-        assert_eq!(lanes(ws), lanes_before);
-        assert_eq!(members(ws, &line), members_before);
-    });
-    // Confirm: the lane and the assigned entries stop showing; the data is
-    // kept and comes back as it was when the switch is turned on again.
-    let dialog = ask(cx, &line);
-    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
-    wait(cx, "the lane off", &|ws, _| {
-        !ws.book.v3().unwrap().levels.contains_key(&line)
-    });
-    view.read_with(cx, |ws, _| {
-        assert!(ws.dialog.is_none());
-        assert!(!lanes(ws).contains(&line));
-        assert!(members(ws, &line).is_empty());
-    });
-    let stored = call(&lib, "entry.get", json!({"book": id, "id": line}));
-    assert_eq!(stored["level"], false);
-    toggle(cx, &line);
-    wait(cx, "the lane on", &|ws, _| {
-        ws.book.v3().unwrap().levels.contains_key(&line)
-    });
-    view.read_with(cx, |ws, _| {
-        assert!(ws.dialog.is_none(), "turning it on asks nothing");
-        assert_eq!(lanes(ws), lanes_before);
-        assert_eq!(members(ws, &line), members_before);
-    });
-
-    // A lane with nothing assigned: only the lane.
+    // A folder lane (`accept == false`) with no resident children: turning off `level` hides its lane.
+    let lanes_before = view.read_with(cx, |ws, _| lanes(ws));
     let dialog = ask(cx, &bare_line);
     dialog.read_with(cx, |d, cx| {
         assert_eq!(
@@ -2023,23 +2014,41 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
     });
     dialog.update(cx, |d, cx| d.cancel(cx));
     pump(cx);
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        assert!(ws.book.v3().unwrap().levels.contains_key(&bare_line));
+        assert_eq!(lanes(ws), lanes_before);
+    });
+    let dialog = ask(cx, &bare_line);
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait(cx, "the folder lane off", &|ws, _| {
+        !ws.book.v3().unwrap().levels.contains_key(&bare_line)
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none());
+        assert!(!lanes(ws).contains(&bare_line));
+    });
+    let stored = call(&lib, "entry.get", json!({"book": id, "id": bare_line}));
+    assert_eq!(stored["level"], false);
+    toggle(cx, &bare_line);
+    wait(cx, "the folder lane on", &|ws, _| {
+        ws.book.v3().unwrap().levels.contains_key(&bare_line)
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.dialog.is_none(), "turning it on asks nothing");
+        assert_eq!(lanes(ws), lanes_before);
+    });
 
-    // Assigned entries, not a lane: only them.
+    // Folder with resident children: adding another child while open refreshes count and asks again.
     let dialog = ask(cx, &group);
-    dialog.read_with(cx, |d, cx| {
+    dialog.read_with(cx, |d, _| {
         assert_eq!(
             (d.child_count(), d.member_count(), d.is_lane()),
-            (0, 1, false)
-        );
-        assert_eq!(
-            d.body_text(cx).as_ref(),
-            "归属到它的 1 个条目先不显示，再打开就回来。"
+            (1, 0, false)
         );
         assert!(!d.has_conflict());
     });
-    // Another entry is assigned while the dialog is open: confirming shows
-    // the new number and asks again (no words about it), and turns nothing off.
-    assign(&group, &chapters[0]);
+    let child1 = create(&group, "tpl-idea", "子项二");
     dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
     let deadline = Instant::now() + Duration::from_secs(10);
     while !dialog.read_with(cx, |d, _| !d.is_busy() && d.has_conflict()) {
@@ -2050,12 +2059,8 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
         );
         std::thread::sleep(Duration::from_millis(2));
     }
-    dialog.read_with(cx, |d, cx| {
-        assert_eq!(d.member_count(), 2);
-        assert_eq!(
-            d.body_text(cx).as_ref(),
-            "归属到它的 2 个条目先不显示，再打开就回来。"
-        );
+    dialog.read_with(cx, |d, _| {
+        assert_eq!(d.child_count(), 2);
     });
     assert_eq!(
         call(&lib, "entry.get", json!({"book": id, "id": group}))["level"],
@@ -2073,11 +2078,12 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
     });
     view.read_with(cx, |ws, _| {
         assert!(ws.dialog.is_none());
+        assert!(ws.book.v3().unwrap().entry(&child1).is_none());
         let toast = ws.toast.as_ref().unwrap();
         assert_eq!(toast.text.as_ref(), "关闭层级 · 收纳");
         assert!(!toast.offer.as_ref().unwrap().redo);
     });
-    // 「撤销」: on again with both entries assigned; the notice offers 「重做」.
+    // 「撤销」: on again with both children restored; the notice offers 「重做」.
     view.update(cx, |ws, cx| ws.press_toast_offer(cx));
     wait(cx, "the undo", &|ws, _| {
         ws.book.v3().unwrap().levels.contains_key(&group)
@@ -2089,13 +2095,12 @@ fn v4_turning_off_a_level_asks_for_assigned_entries_and_lanes(cx: &mut gpui::Tes
             .is_some_and(|o| o.redo)
     });
     view.read_with(cx, |ws, _| {
-        let mut expected = vec![chapters[0].clone(), chapters[2].clone()];
-        expected.sort();
-        assert_eq!(members(ws, &group), expected);
+        assert_eq!(ws.book.v3().unwrap().levels[&group].children.len(), 2);
         assert_eq!(ws.toast.as_ref().unwrap().text.as_ref(), "关闭层级 · 收纳");
     });
 
     // Hiding nothing: turned off at once, with no dialog.
+    let _ = (&chapters, &assign);
     toggle(cx, &quiet);
     wait(cx, "the quiet group off", &|ws, _| {
         !ws.book.v3().unwrap().levels.contains_key(&quiet)

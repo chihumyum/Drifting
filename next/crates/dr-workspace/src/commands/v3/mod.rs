@@ -42,8 +42,7 @@ pub mod comment;
 pub mod content;
 pub mod entry;
 pub mod history;
-mod history_folders;
-pub mod material_links;
+pub mod layout;
 pub mod membership;
 pub mod module;
 mod novel_book;
@@ -58,6 +57,7 @@ pub mod types;
 
 pub(crate) fn register(r: &mut Registry) {
     project::register(r);
+    layout::register(r);
     relations::register(r);
     snapshots::register(r);
     content::register(r);
@@ -67,7 +67,6 @@ pub(crate) fn register(r: &mut Registry) {
     membership::register(r);
     timeline::register(r);
     history::register(r);
-    material_links::register(r);
 }
 
 fn convert<T: serde::de::DeserializeOwned>(value: impl Serialize) -> Result<T> {
@@ -141,7 +140,7 @@ fn owns(cx: &Cx<'_>, slot: &BookSlot, doc: &DocId) -> Result<()> {
     }
     Ok(())
 }
-fn undo(cx: &Cx<'_>, slot: &BookSlot, at: &loro::Frontiers, keys: Vec<history::Key>) {
+pub(crate) fn undo(cx: &Cx<'_>, slot: &BookSlot, at: &loro::Frontiers, keys: Vec<history::Key>) {
     cx.undo_with(Invocation::new(
         "entry_history.restore",
         history::RestoreIn {
@@ -151,7 +150,7 @@ fn undo(cx: &Cx<'_>, slot: &BookSlot, at: &loro::Frontiers, keys: Vec<history::K
         },
     ));
 }
-fn key(collection: &str, id: impl ToString) -> history::Key {
+pub(crate) fn key(collection: &str, id: impl ToString) -> history::Key {
     history::Key {
         collection: collection.into(),
         id: id.to_string(),

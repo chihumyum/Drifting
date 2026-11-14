@@ -139,7 +139,7 @@ impl Timeline {
                 return false;
             };
             if p.lane.as_ref().is_some_and(|lane| {
-                !book.is_lane(lane) || !view.lanes.iter().any(|l| &l.entry == lane)
+                !book.has_below(lane) || !view.lanes.iter().any(|l| &l.entry == lane)
             }) {
                 return false;
             }
@@ -148,6 +148,9 @@ impl Timeline {
                     book.memberships
                         .iter()
                         .any(|m| &m.host == lane && &m.member == entry)
+                        || book
+                            .entry(entry)
+                            .is_some_and(|e| e.parent.as_deref() == Some(lane.as_str()))
                 });
             !arrived && !(p.settled && book.revision != p.base)
         });

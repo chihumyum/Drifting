@@ -105,7 +105,12 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
             todos: view
                 .comments()
                 .into_iter()
-                .filter(|c| c.is_todo() && c.status.as_str() == "open")
+                .filter(|c| {
+                    matches!(
+                        c.origin,
+                        dr_model::kind::CommentOrigin::Marker | dr_model::kind::CommentOrigin::Task
+                    ) && c.status.as_str() == "open"
+                })
                 .map(|c| format!("{}: {}", c.id, c.body))
                 .collect(),
             guidance: Some(guidance),

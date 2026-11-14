@@ -106,23 +106,39 @@ fn collect_levels(b: &dr_shell::book::v3::BookV3, i18n: &I18n) -> Vec<LevelOptio
         out: &mut Vec<LevelOption>,
     ) {
         for id in ids {
-            let Some(level) = b.levels.get(id.as_str()) else {
+            if !b.has_below(id.as_str()) {
                 continue;
-            };
+            }
             if !seen.insert(id.as_str()) {
                 continue;
             };
-            let title = b
-                .entry(id)
+            let entry = b.entry(id);
+            let title = entry
                 .map(|e| e.title.trim())
                 .filter(|t| !t.is_empty())
                 .unwrap_or(untitled);
             ancestors.push(title.to_owned());
+            let default_tpl = if let Some(level) = b.levels.get(id.as_str()) {
+                level.settings.default_template.as_deref()
+            } else {
+                entry
+                    .and_then(|e| e.overrides.as_ref())
+                    .and_then(|o| o.default_template.as_ref())
+                    .map(|d| d.as_deref())
+                    .or_else(|| {
+                        b.template_of(id)
+                            .and_then(|t| t.settings.default_template.as_ref())
+                            .map(|d| d.as_deref())
+                    })
+                    .unwrap_or_else(|| {
+                        entry
+                            .and_then(|e| e.parent.as_deref())
+                            .and_then(|p| b.levels.get(p))
+                            .and_then(|l| l.settings.default_template.as_deref())
+                    })
+            };
             // A file can go only where a new entry gets a template with prose.
-            let importable = level
-                .settings
-                .default_template
-                .as_deref()
+            let importable = default_tpl
                 .and_then(|t| b.template(t))
                 .is_some_and(|t| t.modules.iter().any(|m| m.kind == "prose"));
             if importable {
@@ -134,7 +150,9 @@ fn collect_levels(b: &dr_shell::book::v3::BookV3, i18n: &I18n) -> Vec<LevelOptio
                     color: appearance.and_then(|a| a.color),
                 });
             }
-            walk(b, &level.children, ancestors, seen, untitled, out);
+            if let Some(level) = b.levels.get(id.as_str()) {
+                walk(b, &level.children, ancestors, seen, untitled, out);
+            }
             ancestors.pop();
         }
     }

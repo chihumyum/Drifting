@@ -75,13 +75,12 @@ fn open_workspace(path: &Path, device: &Device) -> Workspace {
     .unwrap()
 }
 
-fn material(ws: &Workspace, book: &str, id: &str) -> Value {
-    call_out(ws, "material.list", json!({"book":book}))
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["id"] == id)
-        .unwrap_or_else(|| panic!("material {id} missing from {book}"))
+fn media_asset(ws: &Workspace, book: &str, entry: &str) -> Value {
+    call_out(
+        ws,
+        "module.read",
+        json!({"book":book,"entry":entry,"module":"mod-media"}),
+    )["media"][0]["asset"]
         .clone()
 }
 
@@ -914,32 +913,46 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         }),
     )
     .unwrap();
+    call_out(
+        &ws_a,
+        "entry_template.put",
+        json!({
+            "book": &book_a,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let mat_img_a = call_out(
         &ws_a,
-        "material.create",
+        "entry.create",
         json!({
             "book": &book_a,
-            "kind": "image",
-            "title": "A书封面图",
-            "asset": &asset_a.asset_id
+            "template": "tpl-custom-media",
+            "title": "A书封面图"
         }),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let mat_txt_a = call_out(
+    call_out(
         &ws_a,
-        "material.create",
+        "module.put_media",
         json!({
             "book": &book_a,
-            "kind": "text",
-            "title": "A书设定笔记",
-            "text": corpus[4]
+            "entry": &mat_img_a,
+            "module": "mod-media",
+            "item": { "id": "media-item-a", "asset": &asset_a.asset_id }
         }),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    );
+    let mat_txt_a =
+        seed::acceptance::novel_entry(&ws_a, &book_a, "tpl-note", "A书设定笔记", Some(&corpus[4]))
+            ["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
 
     let src_bytes_b = media::png(10, 10);
     let thumb_bytes_b = media::png(3, 3);
@@ -986,32 +999,46 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         }),
     )
     .unwrap();
+    call_out(
+        &ws_a,
+        "entry_template.put",
+        json!({
+            "book": &book_b,
+            "template": {
+                "id": "tpl-custom-media",
+                "name": "自定义媒体",
+                "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+            }
+        }),
+    );
     let mat_img_b = call_out(
         &ws_a,
-        "material.create",
+        "entry.create",
         json!({
             "book": &book_b,
-            "kind": "image",
-            "title": "B书海图",
-            "asset": &asset_b.asset_id
+            "template": "tpl-custom-media",
+            "title": "B书海图"
         }),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let mat_txt_b = call_out(
+    call_out(
         &ws_a,
-        "material.create",
+        "module.put_media",
         json!({
             "book": &book_b,
-            "kind": "text",
-            "title": "B书航行日志",
-            "text": corpus[5]
+            "entry": &mat_img_b,
+            "module": "mod-media",
+            "item": { "id": "media-item-b", "asset": &asset_b.asset_id }
         }),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    );
+    let mat_txt_b =
+        seed::acceptance::novel_entry(&ws_a, &book_b, "tpl-note", "B书航行日志", Some(&corpus[5]))
+            ["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
 
     // Open replica B (initially empty) and run A -> FakeSyncServer -> B.
     let ws_b = open_workspace(&dir_b, &device_b);
@@ -1105,10 +1132,30 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         )["paragraphs"][0]["text"],
         corpus[1]
     );
-    assert_eq!(material(&ws_b, &book_a, &mat_txt_a)["kind"], "text");
-    assert_eq!(text(&ws_b, &format!("material:{mat_txt_a}")), corpus[4]);
-    assert_eq!(material(&ws_b, &book_b, &mat_txt_b)["kind"], "text");
-    assert_eq!(text(&ws_b, &format!("material:{mat_txt_b}")), corpus[5]);
+    assert_eq!(
+        call_out(
+            &ws_b,
+            "entry.get",
+            json!({ "book": &book_a, "id": &mat_txt_a })
+        )["template"],
+        "tpl-note"
+    );
+    assert_eq!(
+        text(&ws_b, &format!("body:{mat_txt_a}/{MOD_PROSE}")),
+        corpus[4]
+    );
+    assert_eq!(
+        call_out(
+            &ws_b,
+            "entry.get",
+            json!({ "book": &book_b, "id": &mat_txt_b })
+        )["template"],
+        "tpl-note"
+    );
+    assert_eq!(
+        text(&ws_b, &format!("body:{mat_txt_b}/{MOD_PROSE}")),
+        corpus[5]
+    );
 
     // 3. Verify hidden/trashed entry, retained prose, hidden timeline pin binding, and unknown fields on B.
     let views_on_b = call_out(&ws_b, "timeline_view.list", json!({ "book": &book_a }));
@@ -1247,14 +1294,8 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
     }
     assert_eq!(thumb_a.variant, Variant::Thumbnail);
     assert_eq!(thumb_b.variant, Variant::Thumbnail);
-    assert_eq!(
-        material(&ws_b, &book_a, &mat_img_a)["asset"],
-        asset_a.asset_id
-    );
-    assert_eq!(
-        material(&ws_b, &book_b, &mat_img_b)["asset"],
-        asset_b.asset_id
-    );
+    assert_eq!(media_asset(&ws_b, &book_a, &mat_img_a), asset_a.asset_id);
+    assert_eq!(media_asset(&ws_b, &book_b, &mat_img_b), asset_b.asset_id);
 
     converged(ws_a.library(), ws_b.library(), &book_a);
     converged(ws_a.library(), ws_b.library(), &book_b);
@@ -1364,15 +1405,15 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
     );
     guarded(
         &ws_a,
-        "material.update",
+        "entry.update",
         json!({"book":book_b,"id":mat_txt_b,"title":"A端改名后的航行日志"}),
         &[format!("book:{book_b}")],
     );
     guarded(
         &ws_a,
         "prose.replace",
-        json!({"doc":format!("material:{mat_txt_b}"),"find":corpus[5],"replace":corpus[7]}),
-        &[format!("material:{mat_txt_b}")],
+        json!({"doc":format!("body:{mat_txt_b}/{MOD_PROSE}"),"find":corpus[5],"replace":corpus[7]}),
+        &[format!("body:{mat_txt_b}/{MOD_PROSE}")],
     );
     guarded(
         &ws_a,
@@ -1434,10 +1475,13 @@ fn v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake
         );
         assert_eq!(text(ws, &format!("body:{ch_b}/{MOD_PROSE}")), corpus[6]);
         assert_eq!(
-            material(ws, &book_b, &mat_txt_b)["title"],
+            call_out(ws, "entry.get", json!({"book":book_b,"id":mat_txt_b}))["title"],
             "A端改名后的航行日志"
         );
-        assert_eq!(text(ws, &format!("material:{mat_txt_b}")), corpus[7]);
+        assert_eq!(
+            text(ws, &format!("body:{mat_txt_b}/{MOD_PROSE}")),
+            corpus[7]
+        );
         assert_eq!(
             call_out(ws, "entry.get", json!({"book":book_a,"id":ch_a}))["title"],
             "A端编辑后的主章"

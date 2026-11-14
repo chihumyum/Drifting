@@ -1278,7 +1278,7 @@ fn right_body(
                         .filter_map(|m| open_row(material(&m.id), "mat", depth + 1, false)),
                 );
             }
-            let filed = |m: &&dr_workspace::dto::MaterialInfo| {
+            let filed = |m: &&crate::book::MaterialInfo| {
                 m.folder
                     .as_ref()
                     .is_some_and(|f| book.material_folders().iter().any(|x| &x.id == f))
@@ -1639,6 +1639,67 @@ mod v3_panel_tests {
         made.write_to(&store).unwrap();
         store.close().unwrap();
         let library = dr_workspace::Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+        let notes_root = dr_testkit::seed::acceptance::novel_root(&library, &book, "tpl-group");
+        library
+            .call(
+                &dr_workspace::Actor::User,
+                "entry_template.put",
+                serde_json::json!({
+                    "book": &book,
+                    "template": {
+                        "id": "tpl-custom-media",
+                        "name": "自定义媒体",
+                        "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]
+                    }
+                }),
+            )
+            .unwrap();
+        library
+            .call(
+                &dr_workspace::Actor::User,
+                "asset.put",
+                serde_json::json!({
+                    "book": &book,
+                    "id": "00000000-0000-7000-8000-0000000000f1",
+                    "kind": "image",
+                    "mime": "image/png",
+                    "size": 68,
+                    "sha256": "00000000000000000000000000000000000000000000000000000000000000f1",
+                    "width": 16,
+                    "height": 16
+                }),
+            )
+            .unwrap();
+        let media_entry = library
+            .call(
+                &dr_workspace::Actor::User,
+                "entry.create",
+                serde_json::json!({
+                    "book": &book,
+                    "template": "tpl-custom-media",
+                    "parent": notes_root,
+                    "title": "附图"
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        library
+            .call(
+                &dr_workspace::Actor::User,
+                "module.put_media",
+                serde_json::json!({
+                    "book": &book,
+                    "entry": media_entry,
+                    "module": "mod-media",
+                    "item": {
+                        "id": "00000000-0000-7000-8000-0000000000f2",
+                        "asset": "00000000-0000-7000-8000-0000000000f1"
+                    }
+                }),
+            )
+            .unwrap();
         (dir, library, book)
     }
 
@@ -1793,14 +1854,17 @@ mod v3_panel_tests {
             .unwrap()
             .id
             .clone();
-        let material = v.materials[0].id.clone();
+        let mat_info = &v.materials[0];
+        let material = mat_info.id.clone();
+        let mat_entry = mat_info.entry.clone().unwrap();
+        let mat_mod = mat_info.module.clone().unwrap();
         // Floating/unlocated comments need no range anchoring. This host test
         // exercises scope and navigation through the actual panel.
         let inputs = [
             json!({"target":{"kind":"entry","id":entry},"module":"mod-prose"}),
             json!({"target":{"kind":"entry","id":entry}}),
             json!({"target":{"kind":"entry","id":other_entry},"module":"mod-prose"}),
-            json!({"target":{"kind":"material","id":material}}),
+            json!({"target":{"kind":"entry","id":mat_entry},"module":mat_mod,"part":{"kind":"media","item":material}}),
             json!({}),
         ];
         let comments: Vec<String> = inputs

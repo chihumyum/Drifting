@@ -238,8 +238,9 @@ impl ReviewView {
             let _ = reveal.reply.send(false);
             return;
         };
-        if matches!((self.filter, item.kind.as_str()), (Filter::Todos, kind) if kind != "todo")
-            || (self.filter == Filter::Comments && item.kind == "todo")
+        let is_projected = matches!(item.origin.as_str(), "marker" | "task");
+        if (self.filter == Filter::Todos && !is_projected)
+            || (self.filter == Filter::Comments && is_projected)
         {
             self.filter = Filter::All;
         }
@@ -404,10 +405,11 @@ impl ReviewView {
                 .any(|item| &item.id == editing)
             && let Some(card) = self.items.iter().find(|item| &item.id == editing)
         {
+            let is_projected = matches!(card.origin.as_str(), "marker" | "task");
             let matches_kind = match filter {
                 Filter::All => true,
-                Filter::Comments => card.kind != "todo",
-                Filter::Todos => card.kind == "todo",
+                Filter::Comments => !is_projected,
+                Filter::Todos => is_projected,
             };
             if matches_kind {
                 listing.open.insert(
@@ -553,7 +555,6 @@ impl ReviewView {
             body: None,
             status: None,
             priority: None,
-            kind: None,
             agent_conversation: None,
         }
     }
@@ -631,12 +632,8 @@ impl ReviewView {
         cx.notify();
     }
 
-    /// Turns a note into a TODO or back (`kind`: `todo` or `note`).
-    pub fn set_kind(&mut self, id: &str, kind: &str, cx: &mut Context<Self>) {
-        let mut input = self.update_in(id);
-        input.kind = Some(kind.to_owned());
-        self.update_comment(input, cx);
-    }
+    /// Retired in schema v5 (`kind` removed; T6 removes this UI affordance).
+    pub fn set_kind(&mut self, _id: &str, _kind: &str, _cx: &mut Context<Self>) {}
 
     /// Deletes a comment (F3 records how to undo it).
     pub fn delete(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -808,7 +805,7 @@ impl ReviewView {
     ) -> AnyElement {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
-        let todo = item.kind == "todo";
+        let todo = matches!(item.origin.as_str(), "marker" | "task");
         let focus = ReviewFocus::get(cx);
         let lit = focus.prose.contains(&item.id) || focus.cards.contains(&item.id);
         let id = |part: &str| ElementId::Name(format!("{}-{part}-{}", self.id, item.id).into());

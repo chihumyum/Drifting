@@ -45,7 +45,9 @@ use dr_ui::tokens::color::Rgb;
 use dr_ui::tokens::{Story, glass as g, radius};
 use dr_view_review::{CommentComposer, ComposerEvent};
 use dr_workspace::commands::comment::{CommentUpdate, CommentUpdateIn};
-use dr_workspace::commands::material::{MaterialUpdate, MaterialUpdateIn};
+use dr_workspace::commands::v3::entry::{EntryUpdate, UpdateIn as EntryUpdateIn};
+use dr_workspace::commands::v3::module::{In as ModuleIn, MediaPut, MediaPutIn};
+use dr_workspace::commands::v3::types;
 use dr_workspace::dto::Target;
 use dr_workspace::{Actor, Workspace as Library, WsEvent};
 use gpui::{
@@ -254,7 +256,7 @@ impl MediaPage {
         self.kind
     }
 
-    fn info(&self) -> Option<&dr_workspace::dto::MaterialInfo> {
+    fn info(&self) -> Option<&dr_shell::book::MaterialInfo> {
         self.book.material_items().iter().find(|m| m.id == self.id)
     }
 
@@ -371,11 +373,26 @@ impl MediaPage {
         }
     }
 
-    fn update_material(&mut self, input: MaterialUpdateIn, cx: &mut Context<Self>) {
+    fn update_media(
+        &mut self,
+        title: Option<String>,
+        description: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(current) = self.info().cloned() else {
+            return;
+        };
+        let (Some(entry), Some(module), Some(asset)) = (
+            current.entry.clone(),
+            current.module.clone(),
+            current.asset.clone(),
+        ) else {
+            return;
+        };
         let lib = self.lib.clone();
-
-        let title = input.title.clone();
-        let description = input.description.clone();
+        let book = self.book_id.clone();
+        let item_id = self.id.clone();
+        let pos = current.pos.clone();
         if title.is_some() {
             self.saving_title = true;
             self.dirty_title = true;
@@ -389,18 +406,54 @@ impl MediaPage {
             self.description
                 .update(cx, |f, cx| f.set_disabled(true, cx));
         }
+        let title_to_save = title.clone();
+        let desc_to_save = description.clone();
         cx.spawn(async move |this, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move { lib.run::<MaterialUpdate>(&Actor::User, input) })
+                .spawn(async move {
+                    if let Some(t) = title_to_save {
+                        lib.run::<EntryUpdate>(
+                            &Actor::User,
+                            EntryUpdateIn {
+                                book: book.clone(),
+                                id: entry.clone(),
+                                title: Some(t),
+                                mark: None,
+                                template: None,
+                                overrides: None,
+                            },
+                        )?;
+                    }
+                    if let Some(c) = desc_to_save {
+                        lib.run::<MediaPut>(
+                            &Actor::User,
+                            MediaPutIn {
+                                target: ModuleIn {
+                                    book,
+                                    entry,
+                                    module,
+                                },
+                                item: types::MediaItem {
+                                    id: item_id,
+                                    asset,
+                                    caption: c,
+                                    pos,
+                                    missing: false,
+                                },
+                            },
+                        )?;
+                    }
+                    Ok::<(), dr_workspace::WsError>(())
+                })
                 .await;
             this.update(cx, |page, cx| {
                 if let Some(title) = title {
                     page.saving_title = false;
                     page.title.update(cx, |f, cx| f.set_disabled(false, cx));
                     match &result {
-                        Ok(done) => {
-                            page.shown_title = Some(done.output.name.clone());
+                        Ok(_) => {
+                            page.shown_title = Some(title.clone());
                             page.dirty_title = page.title.read(cx).text().trim() != title;
                         }
                         Err(e) => page.title_error = Some(e.to_string()),
@@ -440,14 +493,7 @@ impl MediaPage {
             }
             return;
         }
-
-        let input = MaterialUpdateIn {
-            book: self.book_id.clone(),
-            id: self.id.clone(),
-            title: Some(title),
-            ..Default::default()
-        };
-        self.update_material(input, cx);
+        self.update_media(Some(title), None, cx);
     }
 
     fn save_description(&mut self, text: String, cx: &mut Context<Self>) {
@@ -463,14 +509,7 @@ impl MediaPage {
             self.description_error = None;
             return;
         }
-
-        let input = MaterialUpdateIn {
-            book: self.book_id.clone(),
-            id: self.id.clone(),
-            description: Some(text),
-            ..Default::default()
-        };
-        self.update_material(input, cx);
+        self.update_media(None, Some(text), cx);
     }
 
     // The picture.
@@ -851,14 +890,21 @@ impl MediaPage {
         cx: &mut Context<Self>,
     ) {
         let locale = Strings::get(cx).locale();
+        let (entry_id, module_id) = self
+            .info()
+            .map(|m| (m.entry.clone(), m.module.clone()))
+            .unwrap_or((None, None));
         let target = Target {
-            kind: "material".into(),
-            id: self.id.clone(),
+            kind: "entry".into(),
+            id: entry_id.unwrap_or_else(|| self.id.clone()),
         };
+        let item = self.id.clone();
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let at = point(at.x + px(8.0), at.y + px(8.0));
         let view = cx.new(|cx| {
-            CommentComposer::for_region(lib, book, target, region, at, locale, window, cx)
+            CommentComposer::for_region(
+                lib, book, target, module_id, item, region, at, locale, window, cx,
+            )
         });
         let sub = cx.subscribe_in(&view, window, |page, _, e: &ComposerEvent, window, cx| {
             match e {

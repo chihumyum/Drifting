@@ -39,7 +39,19 @@ fn the_shelf_in_one_read() {
         .as_str()
         .unwrap()
         .to_string();
-    common::acceptance::novel_entry(e.ws(), &b, "tpl-storyline", "Main", None);
+    let storyline =
+        common::acceptance::novel_entry(e.ws(), &b, "tpl-storyline", "Main", None)["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+    let view_id = e.out("timeline_view.list", json!({"book": b}))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book": b, "view": view_id, "lane": storyline}),
+    );
     let anna = common::acceptance::novel_entry(e.ws(), &b, "tpl-character", "Anna", None)["id"]
         .as_str()
         .unwrap()

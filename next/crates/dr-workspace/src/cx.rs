@@ -50,8 +50,7 @@ pub struct Effect {
     pub action: EffectAction,
     /// Entity kind: `book`, `entry`, `entry_template`, `membership`,
     /// `timeline_view`, `time_pin`, `patch`, `plot_grid`, `relation`,
-    /// `relation_type`, `comment`, `material`, `material_folder`, `fact`,
-    /// `memory`, `asset`, `prose`.
+    /// `relation_type`, `comment`, `fact`, `memory`, `asset`, `prose`.
     pub kind: String,
     pub id: String,
     /// The entity's (final) name or title, when it has one.
@@ -527,6 +526,34 @@ impl<'a> Cx<'a> {
         holder::write(&side.handle, self.actor.store_origin(), agent, move |doc| {
             let stats = dr_doc::side::BorrowedStats::new(doc, &id)?;
             let mut txn = stats.txn();
+            f(&mut txn)
+        })
+    }
+
+    /// One commit on `layout:<book>` (made from its genesis when missing).
+    /// Leaves `book:<id>` completely untouched and does not run book record
+    /// write guards (`kernel-v5.md` §10, `LAYOUT-DOC-QUIET`).
+    pub(crate) fn write_layout<R, F>(&self, book: &BookId, f: F) -> Result<R>
+    where
+        F: FnOnce(&mut dr_doc::side::LayoutTxn<'_>) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        self.check_phase(Phase::Book)?;
+        if !self.st.borrow_mut().books_written.insert(book.clone()) {
+            return Err(WsError::Internal(format!(
+                "{}: a second book commit in one command",
+                self.spec.name
+            )));
+        }
+        let side = self
+            .ws
+            .side_slot(&DocId::Layout(book.clone()), book, true)?
+            .ok_or_else(|| WsError::Internal("layout document was not created".into()))?;
+        let agent = self.actor.agent_write(&self.summary());
+        let id = book.clone();
+        holder::write(&side.handle, self.actor.store_origin(), agent, move |doc| {
+            let layout = dr_doc::side::BorrowedLayout::new(doc, &id)?;
+            let mut txn = layout.txn();
             f(&mut txn)
         })
     }

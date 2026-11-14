@@ -186,8 +186,8 @@ impl Timeline {
                     );
                 }
                 for e in book.entries.iter().filter(|e| e.deleted_at.is_none()) {
-                    // Any entry can join a lane that accepts (a lane always does).
-                    if !bind && (&e.id == lane || !book.is_lane(lane)) {
+                    // Any entry can join a lane that accepts members.
+                    if !bind && (&e.id == lane || !book.accepts_members(lane)) {
                         continue;
                     }
                     let id = e.id.clone();
@@ -393,7 +393,7 @@ impl Timeline {
                 menu = menu.child(new_act);
                 let shown = self.view_scope();
                 for e in &book.entries {
-                    if e.deleted_at.is_some() || !book.is_lane(&e.id) {
+                    if e.deleted_at.is_some() || !book.has_below(&e.id) {
                         continue;
                     }
                     let in_view = self

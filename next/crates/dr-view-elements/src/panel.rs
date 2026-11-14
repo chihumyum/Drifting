@@ -398,7 +398,7 @@ pub mod v3 {
                 position.1 + f64::from(f32::from(delta.y)),
             );
             if let Ok(edit) =
-                crate::data::v3::prepare_board(&drag.page().book, &drag.entry, position)
+                crate::data::v3::prepare_board(&drag.page().book, level, &drag.entry, position)
             {
                 admit_drag(drag.page(), move |lib| edit.commit(&lib), cx);
             }
@@ -1165,8 +1165,7 @@ pub mod v3 {
                 .iter()
                 .enumerate()
                 .map(|(index, id)| {
-                    v.entry(id)
-                        .and_then(|e| e.layout.board)
+                    v.layout_position(scope, "board", id)
                         .unwrap_or(((index % 3) as f64 * 192.0, (index / 3) as f64 * 76.0))
                 })
                 .collect();
@@ -1238,8 +1237,7 @@ pub mod v3 {
                     .page
                     .book
                     .v3()
-                    .and_then(|v| v.levels.get(&self.host.level))
-                    .is_some_and(|l| l.settings.is_manuscript)
+                    .is_some_and(|v| v.is_book_root_entry(&self.host.level))
             {
                 let weak = cx.entity().downgrade();
                 root = root.child(

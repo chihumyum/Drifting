@@ -2,7 +2,7 @@
 //!
 //! Discovers island levels on `BookV3` (the organising levels under a
 //! `display == "island"` level as well as standalone organising
-//! `auto_link && !is_manuscript` non-lane levels), shows every content entry
+//! `auto_link` non-book-root non-lane levels), shows every content entry
 //! as a card whatever its switch, keeps resident entries and accepted
 //! memberships distinct per G2, and solves balanced top/bottom skyline
 //! placements without any book-order or chapter appearance band.
@@ -399,8 +399,8 @@ pub fn extract_v3_islands(
         }
     }
 
-    // 2. Any standalone organising `auto_link && !is_manuscript` non-lane
-    //    level not already inside an `"island"` tree.
+    // 2. Any standalone organising `auto_link` non-book-root non-lane level not
+    //    already inside an `"island"` tree.
     for entry in &v3.entries {
         if claimed_levels.contains(&entry.id) || v3.is_content(&entry.id) {
             continue;
@@ -409,7 +409,7 @@ pub fn extract_v3_islands(
             continue;
         };
         let is_lane = v3.is_lane(&entry.id);
-        if !level.settings.auto_link || level.settings.is_manuscript || is_lane {
+        if !level.settings.auto_link || v3.is_book_root_entry(&entry.id) || is_lane {
             continue;
         }
         subtree_level_ids(v3, &entry.id, &mut claimed_levels);
@@ -473,9 +473,8 @@ pub fn extract_v3_islands(
                     .or_else(|| island_colors.get(&home_island_id).cloned().flatten());
                 let sand_kind = app.map_or(sand::Kind::Element, |a| a.sand);
                 let (summary, aliases) = extract_fields(v3, id);
-                let relation_pin = entry
-                    .layout
-                    .relation_graph
+                let relation_pin = v3
+                    .layout_position("root", "relation_graph", id)
                     .filter(|(x, y)| x.is_finite() && y.is_finite())
                     .map(|(x, y)| RelatePoint::new(x, y));
 

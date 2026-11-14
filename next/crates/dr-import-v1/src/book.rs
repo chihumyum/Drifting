@@ -23,8 +23,9 @@ use dr_model::Day;
 use dr_model::id::*;
 use dr_model::import_v1::legacy;
 use dr_model::import_v1::{
-    ActId, Asset, CategoryId, CategoryLayout, DriftGroupId, ElementId, EntityRef, KvEntry, NodeId,
-    NodeKind, NodeStatus, StorylineId, canonical_symmetric,
+    ActId, Asset, CategoryId, CategoryLayout, DriftGroupId, ElementId, EntityRef, KvEntry,
+    MaterialFolderId, MaterialId, MaterialKind, NodeId, NodeKind, NodeStatus, StorylineId,
+    canonical_symmetric,
 };
 use dr_model::kind::*;
 use dr_model::pos::{PosKey, keys_between};
@@ -712,12 +713,16 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         };
         txn.put_asset(&Asset {
             id: aid,
+            name: String::new(),
             kind: AssetKind::parse(&a.kind),
             mime: a.mime.clone(),
             size: a.size,
             sha256: a.sha256.clone(),
             width: a.width,
             height: a.height,
+            created_at: parse_iso(&a.created_at),
+            folder: None,
+            deleted_at: None,
         })?;
     }
     for (m, pos) in r.materials.iter().zip(ranks(r.materials.len())) {
@@ -727,6 +732,13 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         let kind = MaterialKind::parse(&m.kind);
         if !kind.is_known() {
             notes.add(format!("material-kind:{}", m.kind));
+        }
+        if let Some(prov) = m
+            .provenance_json
+            .as_deref()
+            .filter(|p| !p.trim().is_empty())
+        {
+            originals.push(("materials", m.id.clone(), "provenance", prov.to_string()));
         }
         let w = txn.material(&mid)?;
         w.title(&m.title)?
@@ -750,13 +762,13 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             let (text, rich) = plain_text(notes_json);
             if rich {
                 notes.add("material-description-formatting-kept-as-text");
-                originals.push((
-                    "materials",
-                    m.id.clone(),
-                    "description",
-                    notes_json.to_string(),
-                ));
             }
+            originals.push((
+                "materials",
+                m.id.clone(),
+                "description",
+                notes_json.to_string(),
+            ));
             w.description(&text)?;
         }
     }

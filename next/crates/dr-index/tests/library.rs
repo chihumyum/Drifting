@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use dr_doc::prose::{EmbedKind, ProseDoc, ProseTxn};
 use dr_index::{TextDeriver, attach, derive_view};
-use dr_model::id::{EmbedId, MaterialId};
+use dr_model::id::{AssetId, EmbedId};
 use dr_model::kind::EntityKind;
 use dr_model::prose::{EntityLink, Heading};
 use dr_model::{DocId, Origin};
@@ -74,7 +74,7 @@ fn holders_derive_from_diffs_and_the_rows_match_the_text() {
         t.insert_embed(
             mid,
             &EmbedId::parse("m1").unwrap(),
-            &EmbedKind::Material(MaterialId::parse("mat").unwrap()),
+            &EmbedKind::Asset(AssetId::parse("as1").unwrap()),
         )?;
         Ok(())
     });
@@ -110,9 +110,10 @@ fn holders_derive_from_diffs_and_the_rows_match_the_text() {
     let refs = lib.references_to("anna").unwrap();
     assert_eq!(refs.len(), 1);
     assert_eq!((refs[0].kind, refs[0].count), (RefKind::Link, 1));
-    let embeds = lib.references_to("mat").unwrap();
+    let embeds = lib.references_to("as1").unwrap();
     assert_eq!(embeds.len(), 1);
     assert_eq!(embeds[0].kind, RefKind::Embed);
+    assert_eq!(embeds[0].target_kind, "asset");
     h.close();
     lib.close().unwrap();
 }

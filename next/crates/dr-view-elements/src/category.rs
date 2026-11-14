@@ -35,7 +35,6 @@ pub mod v3 {
                 "auto_link" => keys::v3_levels::AUTO_LINK,
                 "accept" => keys::v3_levels::ACCEPT,
                 "home" => keys::v3_levels::HOME,
-                "is_manuscript" => keys::v3_levels::IS_MANUSCRIPT,
                 "lane" => keys::v3_levels::LANE,
                 _ => keys::v3_levels::FORMAT_SHORTCUTS,
             },
@@ -48,8 +47,6 @@ pub mod v3 {
             "auto_link" => s.auto_link.is_some(),
             "accept" => s.accept.is_some(),
             "home" => s.home.is_some(),
-            "is_manuscript" => s.is_manuscript.is_some(),
-            "lane" => s.lane.is_some(),
             "format_shortcuts" => s.format_shortcuts.is_some(),
             _ => false,
         })
@@ -79,13 +76,6 @@ pub mod v3 {
                     keys::v3_levels::SOURCE_TEMPLATE,
                     &[("name", &name), ("level", &level)],
                 )
-            }
-            SettingSource::Lane { entry, .. } => {
-                let name = v
-                    .entry(entry)
-                    .map(|e| e.title.clone())
-                    .unwrap_or_else(|| entry.clone());
-                tf(cx, keys::v3_levels::SOURCE_LANE, &[("name", &name)])
             }
         }
     }
@@ -119,9 +109,6 @@ pub mod v3 {
             "display" => dr_shell::v3::page::display_name(&s.display, cx),
             "auto_link" => on(s.auto_link),
             "accept" => on(s.accept),
-            // Only an outermost level's own declaration makes a manuscript.
-            "is_manuscript" => on(v.is_manuscript_root(level)),
-            "lane" => on(s.lane),
             "home" => s
                 .home
                 .as_deref()
@@ -158,14 +145,11 @@ pub mod v3 {
                 "auto_link",
                 "accept",
                 "home",
-                "is_manuscript",
-                "lane",
                 "format_shortcuts",
             ] {
                 let label = label(key, cx);
                 let host = self.host.page.clone();
                 let id = self.host.level.clone();
-                let lane = key == "accept" && v.is_lane(&self.host.level);
                 let mut row = div()
                     .id(SharedString::from(format!("g2-setting-row-{key}")))
                     .role(gpui::Role::Group)
@@ -179,7 +163,7 @@ pub mod v3 {
                             SharedString::from(format!("g2-setting-{key}")),
                             value(&book, &self.host.level, key, cx),
                         )
-                        .disabled(lane || key == "home" && !level.settings.accept)
+                        .disabled(key == "home" && !level.settings.accept)
                         .on_click(move |_, window, cx| {
                             crate::dialogs::v3::open_setting(
                                 host.clone(),
@@ -207,21 +191,7 @@ pub mod v3 {
                         }),
                     );
                 }
-                // A manuscript setting inherited from a level above does not
-                // make this one a manuscript: its source is the default.
-                let inherited_manuscript = key == "is_manuscript"
-                    && !v.is_manuscript_root(&self.host.level)
-                    && level.sources.get(key).is_some_and(|s| match s {
-                        SettingSource::Override { entry }
-                        | SettingSource::Template { entry, .. }
-                        | SettingSource::Lane { entry } => *entry != self.host.level,
-                        SettingSource::Default => false,
-                    });
-                let shown_source = if inherited_manuscript {
-                    Some(&SettingSource::Default)
-                } else {
-                    level.sources.get(key)
-                };
+                let shown_source = level.sources.get(key);
                 settings = settings.child(div().flex().flex_col().gap_1().child(row).children(
                     shown_source.map(|s| {
                         let provenance = source(&book, s, cx);

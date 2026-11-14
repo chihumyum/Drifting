@@ -32,6 +32,20 @@ op! {
         add(cx, input)
     }
 }
+pub(super) fn live_views_with_lane(v: &BookViewV3<'_>, host: &EntryId) -> Vec<m::TimelineView> {
+    let entries = v.entries_map();
+    let templates = v.templates_map();
+    v.timeline_views_raw()
+        .into_iter()
+        .filter(|tv| {
+            !tv.is_trashed()
+                && m::effective_timeline_lanes(&tv.lanes, &entries, &templates)
+                    .iter()
+                    .any(|l| &l.entry == host)
+        })
+        .collect()
+}
+
 fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
     let s = cx.book_v3(&input.target.book)?;
     let v = s.reader_v3.view();
@@ -39,12 +53,91 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
     let member = live(&v, &input.target.member)?.id;
     let before = v.graph();
     m::check_membership(&host, &member, &before.entries, &before.templates)?;
+    let k = m::Membership::key(&host, &member);
+    if !live_views_with_lane(&v, &host).is_empty() {
+        // When `host` is in at least one live view, `pos` is neither read nor
+        // written, and `member` is placed at scale end in every live view
+        // containing `host` where it has no stored placement yet
+        // (`VIEW-LANE-MEMBERS-PLACED`, `kernel-v5.md` §4).
+        let book_id = input.target.book;
+        let (receipt, at) = cx.write_book_v3(&s, Replaces::nothing(), move |t| {
+            let v = t.view();
+            let host = live(&v, &input.target.host)?.id;
+            let member = live(&v, &input.target.member)?.id;
+            let before = v.graph();
+            m::check_membership(&host, &member, &before.entries, &before.templates)?;
+            let key = m::Membership::key(&host, &member);
+            let had_membership = v.map_snapshot(CollectionV3::Memberships, &key).is_some();
+            let mut auto_views = Vec::new();
+            for tv in live_views_with_lane(&v, &host) {
+                if v.timeline_placement_snapshot(&tv.id, &member)?.is_none() {
+                    let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                        &tv,
+                        &before.memberships,
+                        &before.entries,
+                        &before.templates,
+                    ));
+                    auto_views.push((tv.id, end));
+                }
+            }
+            if had_membership && auto_views.is_empty() {
+                return Ok(None);
+            }
+            if !had_membership {
+                v.check_membership_snapshot_restore(&host, &member)?;
+                let mut ms = before.memberships.clone();
+                ms.retain(|m| m.host != host || m.member != member);
+                ms.push(m::Membership {
+                    host: host.clone(),
+                    member: member.clone(),
+                    pos: None,
+                    created_at: Some(now()),
+                });
+                changes_ok(
+                    &before,
+                    &BookGraphV3 {
+                        memberships: ms,
+                        ..before.clone()
+                    },
+                )?;
+            }
+            for (vid, _) in &auto_views {
+                v.check_timeline_placement_restore(vid, &member)?;
+            }
+            if !had_membership {
+                t.put_membership(&host, &member, None, Some(now()))?;
+            }
+            for (vid, end) in &auto_views {
+                t.timeline_view(vid)?.put_placement(&member, *end, None)?;
+            }
+            Ok(Some(RestoreIn {
+                book: book_id,
+                host: host.to_string(),
+                member: member.to_string(),
+                at: String::new(),
+                expected: frontiers_hex(&t.view().state_frontiers()),
+                membership: !had_membership,
+                primary: false,
+                views: auto_views
+                    .into_iter()
+                    .map(|(vid, _)| vid.to_string())
+                    .collect(),
+            }))
+        })?;
+        if let Some(mut receipt) = receipt {
+            receipt.at = frontiers_hex(&at);
+            cx.undo_with(Invocation::new("membership.restore", receipt));
+            cx.effect(EffectAction::Updated, "membership", &k, None);
+        } else {
+            cx.undo_nothing();
+        }
+        return Ok(Done { id: k });
+    }
     let mut ms = before.memberships.clone();
     let existing = ms
         .iter()
         .find(|m| m.host == host && m.member == member)
         .cloned();
-    let k = m::Membership::key(&host, &member);
     if existing.is_some() && input.pos.is_none() {
         cx.undo_nothing();
         return Ok(Done { id: k });
@@ -87,6 +180,7 @@ pub(super) fn removals(
     }
     let entries = v.entries_map();
     let templates = v.templates_map();
+    let member_parent = entries.get(member).and_then(|e| e.parent.clone());
     v.timeline_views_raw()
         .into_iter()
         .filter(|tv| {
@@ -100,6 +194,9 @@ pub(super) fn removals(
                         && &m.host != host
                         && tv.lanes.iter().any(|l| l.entry == m.host)
                 })
+                && !member_parent
+                    .as_ref()
+                    .is_some_and(|par| tv.lanes.iter().any(|l| &l.entry == par))
         })
         .map(|tv| tv.id)
         .collect()

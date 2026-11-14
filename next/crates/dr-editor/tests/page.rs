@@ -138,6 +138,12 @@ fn the_page_shows_its_facts_and_follows_them(cx: &mut TestAppContext) {
         dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-storyline", "码头线", None)
             ["id"]
             .clone();
+    let view_id = out(&e.ws, "timeline_view.list", json!({"book": e.book}))[0]["id"].clone();
+    out(
+        &e.ws,
+        "timeline_view.add_lane",
+        json!({"book": e.book, "view": view_id, "lane": line}),
+    );
     chapter(&e, "序", "开头。");
     let doc = chapter(&e, "雨夜", "他把吸铁石拍在桌上。");
     let entry = doc.trim_start_matches("body:").split('/').next().unwrap();
@@ -258,7 +264,8 @@ fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
         ),
         (Some("钟楼里的人"), Some("一个关于时间的构想"))
     );
-    // The page sees it.
+    // The page sees it (`tpl-idea` has `in_book = false` in format 5; an unnumbered
+    // `tpl-chapter` outside `project.book` retains `chrome = true` and `PageKind::Other`).
     let (view, cx) = open(cx, &e, &doc);
     view.update(cx, |v, cx| {
         v.set_chrome(Some(Rc::new(Chrome(Rc::default()))), cx)
@@ -274,11 +281,36 @@ fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
         ),
         (
             PageKind::Other,
-            true,
+            false,
             "构想",
             "钟楼里的人",
             "一个关于时间的构想",
         )
+    );
+    let ideas_root =
+        dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, dr_doc::v3::novel::TPL_IDEAS);
+    let loose_chapter = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": ideas_root,
+            "template": "tpl-chapter",
+            "title": "未入书章节",
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let loose_doc = format!("body:{loose_chapter}/mod-prose");
+    let (loose_view, cx) = open(cx, &e, &loose_doc);
+    loose_view.update(cx, |v, cx| {
+        v.set_chrome(Some(Rc::new(Chrome(Rc::default()))), cx)
+    });
+    let lp = loose_view.read_with(cx, |v, _| v.page_info()).unwrap();
+    assert_eq!(
+        (lp.kind, lp.chrome, lp.number),
+        (PageKind::Other, true, None)
     );
 }
 

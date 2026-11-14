@@ -24,12 +24,11 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
+use dr_shell::book::{Book, MaterialInfo};
 use dr_workspace::commands::EntityIn;
-use dr_workspace::commands::material::{
-    FolderCreate, FolderCreateIn, FolderDelete, FolderUpdate, FolderUpdateIn, MaterialDelete,
-    MaterialUpdate, MaterialUpdateIn,
-};
-use dr_workspace::dto::{GroupInfo, MaterialInfo};
+use dr_workspace::commands::v3::entry::{EntryTrash, EntryUpdate, UpdateIn as EntryUpdateIn};
+use dr_workspace::commands::v3::module::{In as ModuleIn, MediaRemove, MediaRemoveIn};
+use dr_workspace::dto::GroupInfo;
 use dr_workspace::{Actor, Workspace as Library};
 
 /// A folder row's key.
@@ -446,107 +445,99 @@ fn run<O: dr_workspace::Op>(lib: &Library, input: O::Input) -> Result<O::Output,
 /// Moves `sel` into `folder` (`None`: the root): the materials first, then
 /// the folders (a folder never into itself or below itself).
 pub fn move_to(
-    lib: &Library,
-    book: &str,
+    _lib: &Library,
+    _book: &str,
     sel: &Selection,
     folder: Option<&str>,
 ) -> Result<(), String> {
-    for id in &sel.materials {
-        run::<MaterialUpdate>(
-            lib,
-            MaterialUpdateIn {
-                book: book.to_owned(),
-                id: id.clone(),
-                folder: Some(folder.map(str::to_owned)),
-                ..Default::default()
-            },
-        )?;
+    if folder.is_none() && sel.folders.is_empty() {
+        return Ok(());
     }
-    for id in &sel.folders {
-        if Some(id.as_str()) == folder {
-            continue;
-        }
-        let result = run::<FolderUpdate>(
-            lib,
-            FolderUpdateIn {
-                book: book.to_owned(),
-                id: id.clone(),
-                name: None,
-                parent: Some(folder.map(str::to_owned)),
-            },
-        );
-        // Into its own subtree: F3 refuses; it stays where it is.
-        if let Err(e) = result {
-            log::info!("material: folder {id} stays: {e}");
-        }
-    }
-    Ok(())
+    Err("material folders are retired in format 5".into())
 }
 
-/// A new folder `name` in `parent` (`None`: the root); its id.
+/// A new folder `name` in `parent` (`None`: the root); retired in format 5.
 pub fn create_folder(
-    lib: &Library,
-    book: &str,
-    name: &str,
-    parent: Option<&str>,
+    _lib: &Library,
+    _book: &str,
+    _name: &str,
+    _parent: Option<&str>,
 ) -> Result<String, String> {
-    run::<FolderCreate>(
-        lib,
-        FolderCreateIn {
-            book: book.to_owned(),
-            name: name.to_owned(),
-            parent: parent.map(str::to_owned),
-        },
-    )
-    .map(|n| n.id)
+    Err("material folders are retired in format 5".into())
 }
 
-pub fn rename_folder(lib: &Library, book: &str, id: &str, name: &str) -> Result<(), String> {
-    run::<FolderUpdate>(
-        lib,
-        FolderUpdateIn {
-            book: book.to_owned(),
-            id: id.to_owned(),
-            name: Some(name.to_owned()),
-            parent: None,
-        },
-    )
-    .map(|_| ())
+pub fn rename_folder(_lib: &Library, _book: &str, _id: &str, _name: &str) -> Result<(), String> {
+    Err("material folders are retired in format 5".into())
 }
 
 pub fn rename_material(lib: &Library, book: &str, id: &str, title: &str) -> Result<(), String> {
-    run::<MaterialUpdate>(
+    let loaded = Book::load(lib, book).map_err(|e| e.to_string())?;
+    let row = loaded
+        .material_items()
+        .iter()
+        .find(|m| m.id == id)
+        .ok_or_else(|| format!("material not found: {id}"))?;
+    let Some(entry) = row.entry.clone() else {
+        return Err(format!("material not found: {id}"));
+    };
+    run::<EntryUpdate>(
         lib,
-        MaterialUpdateIn {
+        EntryUpdateIn {
             book: book.to_owned(),
-            id: id.to_owned(),
+            id: entry,
             title: Some(title.to_owned()),
-            ..Default::default()
+            mark: None,
+            template: None,
+            overrides: None,
         },
     )
     .map(|_| ())
 }
 
-/// Deletes `sel`: the materials first, then the folders (whatever is left
-/// in a deleted folder moves up to its parent).
+/// Deletes `sel`: removes each selected media item and trashes its host entry
+/// when no other media items remain on that entry.
 pub fn delete(lib: &Library, book: &str, sel: &Selection) -> Result<(), String> {
-    for id in &sel.materials {
-        run::<MaterialDelete>(
-            lib,
-            EntityIn {
-                book: book.to_owned(),
-                id: id.clone(),
-            },
-        )?;
+    if !sel.folders.is_empty() {
+        return Err("material folders are retired in format 5".into());
     }
-    for id in &sel.folders {
-        run::<FolderDelete>(
+    if sel.materials.is_empty() {
+        return Ok(());
+    }
+    let loaded = Book::load(lib, book).map_err(|e| e.to_string())?;
+    for id in &sel.materials {
+        let row = loaded
+            .material_items()
+            .iter()
+            .find(|m| m.id == *id)
+            .ok_or_else(|| format!("material not found: {id}"))?;
+        let (Some(entry), Some(module)) = (row.entry.clone(), row.module.clone()) else {
+            return Err(format!("material not found: {id}"));
+        };
+        run::<MediaRemove>(
             lib,
-            EntityIn {
-                book: book.to_owned(),
-                id: id.clone(),
+            MediaRemoveIn {
+                target: ModuleIn {
+                    book: book.to_owned(),
+                    entry: entry.clone(),
+                    module,
+                },
+                item: id.clone(),
             },
         )?;
+        let siblings_left = loaded
+            .material_items()
+            .iter()
+            .filter(|m| m.entry.as_ref() == Some(&entry) && m.id != *id)
+            .count();
+        if siblings_left == 0 {
+            let _ = run::<EntryTrash>(
+                lib,
+                EntityIn {
+                    book: book.to_owned(),
+                    id: entry,
+                },
+            );
+        }
     }
     Ok(())
 }
@@ -574,6 +565,8 @@ mod tests {
             pos: None,
             task_todos: false,
             description: String::new(),
+            entry: None,
+            module: None,
         }
     }
 

@@ -170,9 +170,9 @@ impl<'a> ProseTxn<'a> {
         self.insert_copy_with_links(pos, from, false)
     }
 
-    /// Copy a v3 template, including module/material links and unknown link
-    /// fields in body and table cells. Source reads are frozen before writes;
-    /// callers still obtain the source under its document-holder read guard.
+    /// Copy a v3 template, including module links and unknown link fields in
+    /// body and table cells. Source reads are frozen before writes; callers
+    /// still obtain the source under its document-holder read guard.
     pub fn insert_copy_v3(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
         let frozen = from.doc.fork();
         let text = frozen.get_text(crate::schema::prose::BODY);
@@ -208,9 +208,7 @@ impl<'a> ProseTxn<'a> {
                             }
                         }
                     }
-                    Some(EmbedView::Material {
-                        material: Some(_), ..
-                    }) => {}
+                    Some(EmbedView::Asset { asset: Some(_), .. }) => {}
                     _ => return Err(DocError::NotInProfile("unsupported embed in v3 copy")),
                 }
             }
@@ -371,12 +369,10 @@ impl<'a> ProseTxn<'a> {
                     self.copy_cell(&t.cell(r, c)?, &runs, links.as_ref())?;
                 }
             }
-            Some(EmbedView::Material {
-                material: Some(m), ..
-            }) => {
-                self.insert_embed(para_start, &fresh, &EmbedKind::Material(m))?;
+            Some(EmbedView::Asset { asset: Some(a), .. }) => {
+                self.insert_embed(para_start, &fresh, &EmbedKind::Asset(a))?;
             }
-            // A material embed without its material, or a kind this version
+            // A file embed without its asset, or a kind this version
             // does not know: nothing to copy.
             _ => return Ok(para_start),
         }
@@ -591,9 +587,9 @@ impl<'a> ProseTxn<'a> {
             EmbedKind::Table => {
                 entry.insert("kind", "table")?;
             }
-            EmbedKind::Material(m) => {
-                entry.insert("kind", "material")?;
-                entry.insert("material", m.as_str())?;
+            EmbedKind::Asset(a) => {
+                entry.insert("kind", "asset")?;
+                entry.insert("asset", a.as_str())?;
             }
         }
         Ok(TableWriter { entry })

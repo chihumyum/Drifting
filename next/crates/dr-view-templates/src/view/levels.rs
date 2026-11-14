@@ -31,9 +31,7 @@ impl TemplateEditor {
             "auto_link" => settings.auto_link = None,
             "accept" => settings.accept = None,
             "home" => settings.home = None,
-            "is_manuscript" => settings.is_manuscript = None,
             "format_shortcuts" => settings.format_shortcuts = None,
-            "lane" => settings.lane = None,
             _ => {}
         }
     }
@@ -87,10 +85,8 @@ impl TemplateEditor {
         let own = match key {
             "auto_link" => settings.auto_link,
             "accept" => settings.accept,
-            "lane" => settings.lane,
-            _ => settings.is_manuscript,
+            _ => None,
         };
-        let forced = key == "accept" && self.draft.settings.lane == Some(true);
         let entity = cx.entity();
         let control = div()
             .flex()
@@ -101,7 +97,7 @@ impl TemplateEditor {
                     .id(SharedString::from(format!("k5-toggle-{key}")))
                     .role(gpui::Role::CheckBox)
                     .aria_label(t(cx, label))
-                    .aria_toggled(if forced || own.unwrap_or(false) {
+                    .aria_toggled(if own.unwrap_or(false) {
                         gpui::Toggled::True
                     } else {
                         gpui::Toggled::False
@@ -109,23 +105,21 @@ impl TemplateEditor {
                     .child(
                         Switch::new(
                             SharedString::from(format!("k5-switch-{key}")),
-                            forced || own.unwrap_or(false),
+                            own.unwrap_or(false),
                         )
-                        .disabled(forced)
                         .on_change(move |value, _, cx| {
                             entity.update(cx, |this, cx| {
                                 match key {
                                     "auto_link" => this.draft.settings.auto_link = Some(value),
                                     "accept" => this.draft.settings.accept = Some(value),
-                                    "lane" => this.draft.settings.lane = Some(value),
-                                    _ => this.draft.settings.is_manuscript = Some(value),
+                                    _ => {}
                                 };
                                 cx.notify();
                             })
                         }),
                     ),
             )
-            .children((inherits && own.is_none() && !forced).then(|| t(cx, k::INHERIT)));
+            .children((inherits && own.is_none()).then(|| t(cx, k::INHERIT)));
         self.setting_row(key, label, control.into_any_element(), own.is_some(), cx)
     }
     fn template_options(&self) -> Vec<(String, String)> {
@@ -258,7 +252,6 @@ impl TemplateEditor {
             self.draft.settings.home.is_some(),
             cx,
         ));
-        section = section.child(self.bool_setting("is_manuscript", k::MANUSCRIPT, true, cx));
         let formats = ["full", "notes", "plain"];
         let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
         choices.extend(
@@ -290,7 +283,6 @@ impl TemplateEditor {
             self.draft.settings.format_shortcuts.is_some(),
             cx,
         ));
-        section = section.child(self.bool_setting("lane", k::LANE, false, cx));
         section.into_any_element()
     }
     pub(super) fn actions(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {

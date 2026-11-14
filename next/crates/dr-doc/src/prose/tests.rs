@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use dr_model::id::{BlockId, CommentId, EmbedId, MaterialId};
+use dr_model::id::{AssetId, BlockId, CommentId, EmbedId};
 use dr_model::kind::{EntityKind, ListKind};
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineMarks, InlineStyle};
@@ -605,19 +605,15 @@ fn embeds_are_placeholders_with_side_entries() {
     assert!(p.view().orphan_embeds().is_empty());
     let m = EmbedId::parse("m-1").unwrap();
     user(&mut p, |t| {
-        t.insert_embed(
-            0,
-            &m,
-            &EmbedKind::Material(MaterialId::parse("mat-9").unwrap()),
-        )
-        .map(|_| ())
+        t.insert_embed(0, &m, &EmbedKind::Asset(AssetId::parse("as-9").unwrap()))
+            .map(|_| ())
     });
     assert!(matches!(
         p.view().embed(&m),
-        Some(EmbedView::Material {
-            material: Some(_),
+        Some(EmbedView::Asset {
+            asset: Some(ref id),
             ..
-        })
+        }) if id.as_str() == "as-9"
     ));
 }
 

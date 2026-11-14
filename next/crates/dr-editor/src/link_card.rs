@@ -140,14 +140,6 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
                     }
                 }
             }
-            EntityKind::Material => {
-                let m = v
-                    .materials()
-                    .into_iter()
-                    .find(|m| m.id.as_str() == target.id)?;
-                card.title = m.title;
-                card.summary = m.description;
-            }
             _ => return None,
         }
         Some(card)

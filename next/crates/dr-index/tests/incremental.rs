@@ -10,7 +10,7 @@ mod common;
 use common::StoreDoc;
 use dr_doc::prose::{EmbedKind, ProseDoc, ProseTxn};
 use dr_index::TextDeriver;
-use dr_model::id::{EmbedId, MaterialId};
+use dr_model::id::{AssetId, EmbedId};
 use dr_model::kind::EntityKind;
 use dr_model::pos::PosKey;
 use dr_model::prose::{EntityLink, Heading, InlineStyle};
@@ -124,7 +124,7 @@ fn apply(t: &mut ProseTxn<'_>, op: &Op, tables: &mut u8) {
             t.insert_embed(
                 start,
                 &id,
-                &EmbedKind::Material(MaterialId::parse("mat1").unwrap()),
+                &EmbedKind::Asset(AssetId::parse("as1").unwrap()),
             )
             .map(|_| ())
         }

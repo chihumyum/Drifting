@@ -138,7 +138,7 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
         let borrowed = dr_doc::v3::BorrowedBookV3::new(&raw, &id).unwrap();
         let view = borrowed.view();
         view.structure_snapshot()
-            .manuscript_docs()
+            .book_docs()
             .into_iter()
             .map(|doc| doc.to_string())
             .map(|doc| {

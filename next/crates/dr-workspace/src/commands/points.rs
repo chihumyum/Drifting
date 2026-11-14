@@ -26,11 +26,10 @@
 //! history for good (P0-C).
 
 use dr_doc::prose::ProseReader;
-use dr_doc::v3::{BookReaderV3 as BookReader, CollectionV3 as Collection};
 use dr_model::DocId;
 use dr_model::id::BookId;
 use dr_store::history::{HistoryLabel, labels};
-use loro::{Frontiers, LoroDoc};
+use loro::LoroDoc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -48,8 +47,8 @@ pub(crate) fn register(r: &mut Registry) {
 /// A prose document.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct DocIn {
-    /// Shared material note prose: `material:<id>`. Entry bodies use
-    /// the complete `entry_snapshot` history and atomic restore protocol.
+    /// Shared template-module prose: `template:<book>/<template>/<module>`.
+    /// Entry bodies use the complete `entry_snapshot` history and atomic restore protocol.
     pub doc: String,
 }
 
@@ -125,8 +124,10 @@ pub struct HistoryPointsOut {
 /// A prose document named by a command: parsed, and stored.
 fn prose_doc(cx: &Cx<'_>, s: &str) -> Result<(DocId, Option<BookId>)> {
     let doc = DocId::parse(s).map_err(|e| WsError::invalid(format!("{s:?}: {e}")))?;
-    if !matches!(doc, DocId::Material(_)) {
-        return Err(WsError::invalid(format!("{s} is not a prose document")));
+    if !matches!(&doc, DocId::Template(t) if t.entry_module().is_some()) {
+        return Err(WsError::invalid(format!(
+            "{s} is not a single-document history target"
+        )));
     }
     let info = cx
         .workspace()
@@ -172,67 +173,26 @@ fn point_of(
     }
 }
 
-/// The owner's title at each of `labels`' book versions, from one copy of
-/// the book document (checked out once per distinct version).
-fn titles_then(
-    cx: &Cx<'_>,
-    doc: &DocId,
-    book: Option<&BookId>,
-    labels: &[HistoryLabel],
-) -> Result<Vec<Option<String>>> {
-    let (Some(book), Some(owner)) = (book, owner_of(doc)) else {
-        return Ok(vec![None; labels.len()]);
-    };
-    if labels.iter().all(|l| l.book_frontiers.is_none()) {
-        return Ok(vec![None; labels.len()]);
-    }
-    let copy = cx
-        .workspace()
-        .library()
-        .load_copy(&DocId::Book(book.clone()).to_string())?;
-    let mut last: Option<(Frontiers, Option<String>)> = None;
-    let mut out = Vec::with_capacity(labels.len());
-    for l in labels {
-        let Some(at) = &l.book_frontiers else {
-            out.push(None);
-            continue;
-        };
-        if let Some((f, t)) = &last
-            && f == at
-        {
-            out.push(t.clone());
-            continue;
-        }
-        copy.checkout(at)?;
-        let t = title_summary(&BookReader::from_loro(book.clone(), &copy)?, &owner).0;
-        last = Some((at.clone(), t.clone()));
-        out.push(t);
-    }
-    Ok(out)
-}
-
 op! {
     HistoryPoints = "history.points", Read, Shared,
     "List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.",
     fn(cx, input: DocIn) -> HistoryPointsOut {
-        let (doc, book) = prose_doc(cx, &input.doc)?;
+        let (doc, _book) = prose_doc(cx, &input.doc)?;
         let labels = cx.workspace().library().history(&input.doc)?;
         let copy = match cx.workspace().library().load_copy(&input.doc) {
             Ok(c) => c,
-            // Registered but nothing written yet (a chapter nobody typed in,
-            // or one whose prose has not arrived from another device).
+            // Registered but nothing written yet.
             Err(dr_store::StoreError::NotFound(_)) => {
                 return Ok(HistoryPointsOut { doc: input.doc, words: 0, points: Vec::new() });
             }
             Err(e) => return Err(e.into()),
         };
         let words = text_facts(&doc, &copy)?.0;
-        let titles = titles_then(cx, &doc, book.as_ref(), &labels)?;
         // Newest first: each checkout moves a little further back.
         let mut points = Vec::with_capacity(labels.len());
-        for (l, title) in labels.iter().zip(titles) {
+        for l in &labels {
             copy.checkout(&l.frontiers)?;
-            points.push(point_of(l, text_facts(&doc, &copy)?, title));
+            points.push(point_of(l, text_facts(&doc, &copy)?, None));
         }
         Ok(HistoryPointsOut { doc: input.doc, words, points })
     }
@@ -265,36 +225,11 @@ pub struct HistoryPreviewOut {
     pub same_as_now: bool,
 }
 
-/// The entity whose prose `doc` is, as a book collection and id.
-fn owner_of(doc: &DocId) -> Option<(Collection, String)> {
-    match doc {
-        DocId::Material(id) => Some((Collection::Materials, id.to_string())),
-        _ => None,
-    }
-}
-
-/// The owner's title and summary in a book copy.
-fn title_summary(
-    book: &BookReader,
-    owner: &(Collection, String),
-) -> (Option<String>, Option<String>) {
-    let Some(snap) = book.view().entity_snapshot(owner.0, &owner.1) else {
-        return (None, None);
-    };
-    let text = |k: &str| match snap.field(k) {
-        Some(loro::LoroValue::String(s)) => Some(s.to_string()),
-        _ => None,
-    };
-    let title = text("title").or_else(|| text("name"));
-    let summary = text("summary").or_else(|| text("description"));
-    (title, summary)
-}
-
 op! {
     HistoryPreview = "history.preview", Read, Shared,
     "Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.",
     fn(cx, input: PointIn) -> HistoryPreviewOut {
-        let (doc, book) = prose_doc(cx, &input.doc)?;
+        let (doc, _book) = prose_doc(cx, &input.doc)?;
         let l = label_of(cx, &input.doc, input.point)?;
         let lib = cx.workspace().library();
         let copy = lib.load_copy(&input.doc)?;
@@ -311,14 +246,7 @@ op! {
         }).collect();
         let text = dr_text::plain_text(&view);
         let facts = (dr_text::count_words(&text) as u64, excerpt(&text));
-        let (title, summary) = match (&book, &l.book_frontiers, owner_of(&doc)) {
-            (Some(b), Some(at), Some(owner)) => {
-                let book_copy = lib.load_copy_at(&DocId::Book(b.clone()).to_string(), at)?;
-                title_summary(&BookReader::from_loro(b.clone(), &book_copy)?, &owner)
-            }
-            _ => (None, None),
-        };
-        Ok(HistoryPreviewOut { point: point_of(&l, facts, title.clone()), title, summary, paragraphs, same_as_now })
+        Ok(HistoryPreviewOut { point: point_of(&l, facts, None), title: None, summary: None, paragraphs, same_as_now })
     }
 }
 
@@ -357,46 +285,31 @@ pub struct PointRestored {
 
 op! {
     HistoryRestorePoint = "history.restore_point", Write, Book,
-    "Restore one material note and its metadata from history; entry bodies require complete-entry snapshots.",
+    "Restore one template-module prose document from history; entry bodies require complete-entry snapshots.",
     fn(cx, input: RestorePointIn) -> PointRestored {
         let (doc, book) = prose_doc(cx, &input.doc)?;
-        let (at, book_at) = match (input.point, &input.at) {
-            (Some(id), None) => { let label = label_of(cx, &input.doc, id)?; (label.frontiers, label.book_frontiers) },
-            (None, Some(at)) => (frontiers_from_hex(at)?, input.book_at.as_deref().map(frontiers_from_hex).transpose()?),
+        let at = match (input.point, &input.at) {
+            (Some(id), None) => label_of(cx, &input.doc, id)?.frontiers,
+            (None, Some(at)) => {
+                let _ = input.book_at.as_deref().map(frontiers_from_hex).transpose()?;
+                frontiers_from_hex(at)?
+            }
             _ => return Err(WsError::invalid("give either point or at")),
         };
-        let book_slot = book.as_ref().map(|b| cx.book_v3(b.as_str())).transpose()?;
-        let owner = owner_of(&doc).expect("material only");
-        let old = match (&book_slot, &book_at) {
-            (Some(bs), Some(version)) => {
-                let copy = cx.workspace().library().load_copy_at(&format!("book:{}", bs.book), version)?;
-                Some(BookReader::from_loro(bs.book.clone(), &copy)?.view().entity_snapshot(owner.0, &owner.1))
-            },
-            _ => None,
-        }.flatten();
-        let keys: Vec<String> = match (&book_slot, &old) {
-            (Some(bs), Some(old)) => {
-                let current = bs.reader_v3.view().entity_snapshot(owner.0, &owner.1);
-                ["title", "description"]
-                    .into_iter().filter(|k| current.as_ref().map(|s| s.field(k)) != Some(old.field(k)))
-                    .map(str::to_owned).collect()
-            }, _ => Vec::new(),
-        };
+        if let Some(b) = &book {
+            cx.book_v3(b.as_str())?;
+        }
         let slot = cx.prose(&doc)?;
         if slot.handle.read(|d| d.oplog_frontiers())? != at { slot.handle.label(labels::RESTORE)?; }
         let target = at.clone();
         let pre = cx.write_prose_raw(&slot, move |d| { let pre = d.oplog_frontiers(); if pre != target { d.revert_to(&target)?; } Ok(pre) })?;
         let prose_changed = slot.handle.read(|d| d.oplog_frontiers())? != pre;
-        let mut book_pre = None;
-        if let (Some(bs), Some(old)) = (book_slot, old) && !keys.is_empty() {
-            let write_keys = keys.clone(); let id = owner.1.clone();
-            book_pre = Some(cx.write_book_v3(&bs, Replaces::Document, move |txn| { txn.restore_fields(Collection::Materials, &id, &old, &write_keys.iter().map(String::as_str).collect::<Vec<_>>())?; Ok(()) })?.1);
-            cx.effect(EffectAction::Updated, "material", &owner.1, None);
+        if prose_changed {
+            cx.effect(EffectAction::Restored, "prose", &input.doc, None);
+            cx.undo_with(Invocation::new("history.restore_point", RestorePointIn { doc: input.doc.clone(), point: None, at: Some(frontiers_hex(&pre)), book_at: None }));
+        } else {
+            cx.undo_nothing();
         }
-        if prose_changed { cx.effect(EffectAction::Restored, "prose", &input.doc, None); }
-        if !prose_changed && keys.is_empty() { cx.undo_nothing(); } else {
-            cx.undo_with(Invocation::new("history.restore_point", RestorePointIn { doc: input.doc.clone(), point: None, at: Some(frontiers_hex(&pre)), book_at: book_pre.as_ref().map(frontiers_hex) }));
-        }
-        Ok(PointRestored { doc: input.doc, prose: prose_changed, fields: keys, skipped: Vec::new() })
+        Ok(PointRestored { doc: input.doc, prose: prose_changed, fields: Vec::new(), skipped: Vec::new() })
     }
 }

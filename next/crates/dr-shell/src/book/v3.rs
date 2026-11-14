@@ -11,24 +11,15 @@ use dr_workspace::{
 };
 use serde::Serialize;
 
-use super::{Book, Entry, Snapshot, color_of, seal_of};
+use super::{Book, Entry, MaterialInfo, Snapshot, color_of, seal_of};
 use crate::nav::Target;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SettingSource {
     Default,
-    Override {
-        entry: String,
-    },
-    Template {
-        entry: String,
-        template: String,
-    },
-    /// A lane always accepts members, even if an override says false.
-    Lane {
-        entry: String,
-    },
+    Override { entry: String },
+    Template { entry: String, template: String },
 }
 
 impl From<entry::SettingSource> for SettingSource {
@@ -39,7 +30,6 @@ impl From<entry::SettingSource> for SettingSource {
             entry::SettingSource::Template { entry, template } => {
                 Self::Template { entry, template }
             }
-            entry::SettingSource::Lane { entry } => Self::Lane { entry },
         }
     }
 }
@@ -60,9 +50,13 @@ pub struct ManuscriptBody {
     pub module: String,
     pub title: String,
 }
-#[derive(Default, Serialize)]
+pub type ScopeLayouts = BTreeMap<String, BTreeMap<String, (f64, f64)>>;
+pub type BookLayouts = BTreeMap<String, ScopeLayouts>;
+
+#[derive(Clone, Default, Serialize)]
 pub struct BookV3 {
     pub revision: String,
+    pub project: types::Project,
     pub manuscript: Vec<ManuscriptBody>,
     /// Effective tree traversal order; each row preserves its raw parent.
     pub entries: Vec<types::Entry>,
@@ -71,8 +65,9 @@ pub struct BookV3 {
     pub levels: BTreeMap<String, Level>,
     pub memberships: Vec<types::Membership>,
     pub timeline_views: Vec<types::TimelineView>,
-    pub materials: Vec<dr_workspace::dto::MaterialInfo>,
-    pub material_folders: Vec<dr_workspace::dto::GroupInfo>,
+    pub layouts: BookLayouts,
+    pub materials: Vec<MaterialInfo>,
+    pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
@@ -83,9 +78,6 @@ pub struct BookV3 {
     colors: BTreeMap<String, String>,
     #[serde(skip)]
     ordinals: BTreeMap<String, u32>,
-    /// The outermost manuscript levels, the only ones `is_manuscript` counts on.
-    #[serde(skip)]
-    manuscript_roots: BTreeSet<String>,
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
@@ -128,18 +120,25 @@ impl BookV3 {
             if self.template_index.contains_key(id) {
                 keys.insert(("templates", id));
             }
-            let mut level = self.entry(id);
-            while let Some(entry) = level {
-                if !keys.insert(("entries", entry.id.as_str())) {
-                    break;
+            if let Some(entry) = self.entry(id) {
+                let own_home = entry
+                    .overrides
+                    .as_ref()
+                    .and_then(|o| o.home.as_ref())
+                    .or_else(|| self.template_of(id).and_then(|t| t.settings.home.as_ref()))
+                    .and_then(|h| h.as_deref());
+                for start in [Some(entry), own_home.and_then(|h| self.entry(h))] {
+                    let mut level = start;
+                    while let Some(cur) = level {
+                        if !keys.insert(("entries", cur.id.as_str())) {
+                            break;
+                        }
+                        if let Some(template) = cur.template.as_deref() {
+                            keys.insert(("templates", template));
+                        }
+                        level = cur.parent.as_deref().and_then(|parent| self.entry(parent));
+                    }
                 }
-                if let Some(template) = entry.template.as_deref() {
-                    keys.insert(("templates", template));
-                }
-                level = entry
-                    .parent
-                    .as_deref()
-                    .and_then(|parent| self.entry(parent));
             }
         }
         let mut guard = self.guard();
@@ -174,9 +173,9 @@ impl BookV3 {
     }
     pub fn exists(&self, target: &Target) -> bool {
         match target {
-            // A level's flattened book view stays valid only while the entry
-            // survives and its level switch remains on.
-            Target::Book(id) => self.entry(id.as_str()).is_some_and(|e| e.level),
+            // A flattened book view stays valid while the entry survives and
+            // can hold or accept entries below it.
+            Target::Book(id) => self.has_below(id.as_str()),
             // A switched template may leave a retained prose module. Its page
             // renderer resolves module.list; removing a definition must not
             // close the author's tab while the entry and its content survive.
@@ -191,12 +190,6 @@ impl BookV3 {
     pub fn manuscript_number(&self, id: &str) -> Option<u32> {
         self.ordinals.get(id).copied()
     }
-    /// Whether `id` is an outermost level that declares itself a manuscript:
-    /// the only kind `is_manuscript` counts on (`kernel-v4.md` "成书"),
-    /// whatever the settings below it resolve to.
-    pub fn is_manuscript_root(&self, id: &str) -> bool {
-        self.manuscript_roots.contains(id)
-    }
     /// Whether `id` holds content rather than organising it: its template
     /// is `linkable` (`kernel-v4.md` §2), and an entry without a template
     /// counts as content. A content entry is shown as a card whether or not
@@ -204,28 +197,57 @@ impl BookV3 {
     pub fn is_content(&self, id: &str) -> bool {
         self.entry(id).is_some() && self.template_of(id).is_none_or(|t| t.linkable)
     }
-    /// Metadata for every entry surface. Marks keep the template's vocabulary;
+    /// Whether `id` is the entry currently configured as `project.book.root`.
+    pub fn is_book_root_entry(&self, id: &str) -> bool {
+        matches!(
+            self.project.book.as_ref().map(|b| &b.root),
+            Some(types::BookRoot::Entry { entry }) if entry == id
+        )
+    }
+    /// Metadata for every entry surface. Entry `mark` overrides template `mark`;
     /// the sand renderer maps the built-in marks to the existing visual family.
     pub fn appearance(&self, id: &str) -> Option<Appearance> {
-        self.entry(id)?;
+        let entry = self.entry(id)?;
         let template = self.template_of(id);
+        let chosen = entry
+            .mark
+            .as_deref()
+            .or_else(|| template.and_then(|t| t.mark.as_deref()));
         Some(Appearance {
-            mark: template.and_then(|t| t.mark.clone()),
+            mark: chosen.map(str::to_owned),
             color: self.colors.get(id).cloned(),
-            sand: mark(template.and_then(|t| t.mark.as_deref()), id),
+            sand: mark(chosen, id),
         })
     }
-    /// Whether `id` is a timeline swimlane: its switch is on and `lane` is
-    /// set on its own overrides, else on its template.
-    pub fn is_lane(&self, id: &str) -> bool {
+    pub fn layout_position(&self, scope: &str, mode: &str, entry: &str) -> Option<(f64, f64)> {
+        self.layouts
+            .get(scope)
+            .and_then(|m| m.get(mode))
+            .and_then(|e| e.get(entry))
+            .copied()
+    }
+    /// Whether `id` accepts memberships on its own (`overrides.accept` else
+    /// `template.settings.accept`).
+    pub fn accepts_members(&self, id: &str) -> bool {
         self.entry(id).is_some_and(|e| {
-            e.level
-                && e.overrides
-                    .as_ref()
-                    .and_then(|o| o.lane)
-                    .or_else(|| self.template_of(id).and_then(|t| t.settings.lane))
-                    .unwrap_or(false)
+            e.overrides
+                .as_ref()
+                .and_then(|o| o.accept)
+                .or_else(|| self.template_of(id).and_then(|t| t.settings.accept))
+                .unwrap_or(false)
         })
+    }
+    /// Whether `id` can have entries below it (`level` or `accept`).
+    pub fn has_below(&self, id: &str) -> bool {
+        self.entry(id)
+            .is_some_and(|e| e.level || self.accepts_members(id))
+    }
+    /// Whether `id` is currently an active swimlane in at least one live
+    /// timeline view.
+    pub fn is_lane(&self, id: &str) -> bool {
+        self.timeline_views
+            .iter()
+            .any(|v| v.lanes.iter().any(|l| l.entry == id))
     }
 }
 
@@ -246,6 +268,18 @@ pub fn mark(name: Option<&str>, id: &str) -> sand::Kind {
         Some("git-branch") => sand::Kind::DriftGroup,
         _ => sand::Kind::Element,
     }
+}
+
+pub(crate) fn parse_layout_positions(raw: dr_workspace::LayoutPositions) -> BookLayouts {
+    let mut out = BookLayouts::new();
+    for (scope_mode, entries) in raw {
+        if let Some((scope, mode)) = scope_mode.split_once('/') {
+            out.entry(scope.to_owned())
+                .or_default()
+                .insert(mode.to_owned(), entries);
+        }
+    }
+    out
 }
 
 pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
@@ -280,6 +314,26 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .levels()
             .map(|e| {
                 let resolved = structure.level_settings(&e.id).expect("live level");
+                let children: Vec<String> = if e.is_level() {
+                    structure
+                        .children_of(Some(&e.id))
+                        .into_iter()
+                        .map(|c| c.id.to_string())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                let child_ids: BTreeSet<&str> = children.iter().map(String::as_str).collect();
+                let members: Vec<String> = if e.accepts_members(templates_map) {
+                    structure
+                        .members_of(&e.id)
+                        .into_iter()
+                        .filter(|m| !child_ids.contains(m.id.as_str()))
+                        .map(|m| m.id.to_string())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 (
                     e.id.to_string(),
                     Level {
@@ -289,22 +343,15 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                             .iter()
                             .map(|(k, s)| (k.clone(), entry::SettingSource::from(s).into()))
                             .collect(),
-                        children: structure
-                            .children_of(Some(&e.id))
-                            .into_iter()
-                            .map(|c| c.id.to_string())
-                            .collect(),
-                        members: structure
-                            .members_of(&e.id)
-                            .into_iter()
-                            .map(|m| m.id.to_string())
-                            .collect(),
+                        children,
+                        members,
                     },
                 )
             })
             .collect();
         let memberships: Vec<types::Membership> =
             structure.memberships().iter().map(Into::into).collect();
+        let raw_views = view.timeline_views_raw();
         let colors: BTreeMap<String, String> = structure
             .entries()
             .filter(|e| !e.is_trashed())
@@ -314,29 +361,46 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                     entries_map,
                     templates_map,
                     structure.memberships(),
+                    &raw_views,
                 )?;
                 Some((e.id.to_string(), color))
             })
             .collect();
 
-        // The manuscript sequence: each entry's own book prose before what
-        // lives under it.
+        // The book sequence (`project.book`): entries with book prose, in sequence order.
+        let p = structure.project();
+        let project = types::Project {
+            source: p.source.as_ref().map(Into::into),
+            agent: p.agent.as_ref().map(Into::into),
+            book: p.book.as_ref().map(Into::into),
+            book_root_valid: p
+                .book
+                .as_ref()
+                .is_none_or(|b| structure.is_valid_book_root(&b.root)),
+            tabs: p
+                .tabs
+                .iter()
+                .map(|t| types::ProjectTab {
+                    id: t.id.to_string(),
+                    name: t.name.clone(),
+                    pos: t.pos.as_ref().map(|k| k.as_str().to_owned()),
+                    mount: (&t.mount).into(),
+                    mount_valid: structure.is_valid_tab_mount(&t.mount),
+                })
+                .collect(),
+        };
         let mut manuscript = Vec::new();
         let mut ordinals = BTreeMap::new();
-        let mut manuscript_roots = BTreeSet::new();
-        for part in structure.manuscript() {
-            manuscript_roots.insert(part.root.id.to_string());
-            for e in part.entries {
-                if let Some(n) = e.ordinal {
-                    ordinals.insert(e.entry.id.to_string(), n);
-                }
-                for prose in e.prose {
-                    manuscript.push(ManuscriptBody {
-                        entry: e.entry.id.to_string(),
-                        module: prose.module.to_string(),
-                        title: e.entry.title.clone(),
-                    });
-                }
+        for e in structure.book_sequence() {
+            if let Some(n) = e.ordinal {
+                ordinals.insert(e.entry.id.to_string(), n);
+            }
+            for prose in e.prose {
+                manuscript.push(ManuscriptBody {
+                    entry: e.entry.id.to_string(),
+                    module: prose.module.to_string(),
+                    title: e.entry.title.clone(),
+                });
             }
         }
 
@@ -346,22 +410,39 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .iter()
             .map(Into::into)
             .collect();
-        let materials: Vec<dr_workspace::dto::MaterialInfo> =
-            view.materials().iter().map(Into::into).collect();
-        let material_folders: Vec<GroupInfo> = view
-            .material_folders()
-            .iter()
-            .map(|f| GroupInfo {
-                id: f.id.to_string(),
-                name: f.name.clone(),
-                color: None,
-                parent: f.parent.as_ref().map(ToString::to_string),
-            })
+        let assets_by_id: BTreeMap<String, dr_model::shared::Asset> = view
+            .assets()
+            .into_iter()
+            .map(|a| (a.id.to_string(), a))
             .collect();
+        let mut materials = Vec::new();
+        for e in structure.entries().filter(|e| !e.is_trashed()) {
+            for (mod_id, items) in &e.media {
+                for item in items {
+                    let kind = match assets_by_id.get(item.asset.as_str()) {
+                        Some(a) if a.mime == "application/pdf" => "pdf",
+                        _ => "image",
+                    };
+                    materials.push(MaterialInfo {
+                        id: item.id.to_string(),
+                        kind: kind.to_owned(),
+                        title: e.title.clone(),
+                        description: item.caption.clone(),
+                        asset: Some(item.asset.to_string()),
+                        folder: None,
+                        pos: item.pos.as_ref().map(|k| k.as_str().to_owned()),
+                        task_todos: false,
+                        entry: Some(e.id.to_string()),
+                        module: Some(mod_id.to_string()),
+                    });
+                }
+            }
+        }
+        let material_folders: Vec<GroupInfo> = Vec::new();
 
         // What a view can write over from this snapshot: every entry and its
-        // place among its siblings, every template, membership, timeline
-        // view, material and material folder.
+        // place among its siblings, every template, membership, and timeline
+        // view.
         let keys: Vec<RecordKey> = entries
             .iter()
             .map(|e| RecordKey::entry(&e.id))
@@ -376,16 +457,6 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                     .iter()
                     .map(|v| RecordKey::timeline_view(&v.id)),
             )
-            .chain(
-                materials
-                    .iter()
-                    .map(|m| RecordKey::record("materials", &m.id)),
-            )
-            .chain(
-                material_folders
-                    .iter()
-                    .map(|f| RecordKey::record("material_folders", &f.id)),
-            )
             .chain([RecordKey::children_of(None)])
             .chain(levels.keys().map(|id| RecordKey::children_of(Some(id))))
             .collect();
@@ -399,10 +470,10 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             meta.name,
             BookV3 {
                 revision: version,
+                project,
                 shown,
                 manuscript,
                 ordinals,
-                manuscript_roots,
                 entries,
                 templates,
                 roots,
@@ -417,6 +488,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         ))
     })?;
 
+    v3.layouts = parse_layout_positions(lib.layout_positions(id)?);
     v3.entry_index = v3
         .entries
         .iter()

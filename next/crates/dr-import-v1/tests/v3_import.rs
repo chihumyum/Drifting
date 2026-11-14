@@ -46,12 +46,24 @@ fn entry_id(view: &BookViewV3<'_>, entry: &manifest::Entry) -> EntryId {
         Ideas => root(TPL_IDEAS),
         Elements => root(TPL_ELEMENTS),
         Storylines => root(TPL_STORYLINES),
+        TextMaterials => {
+            view.entries_raw()
+                .into_iter()
+                .find(|e| {
+                    e.parent.is_none()
+                        && e.template == Some(tid(TPL_GROUP))
+                        && e.title == "文本素材"
+                })
+                .unwrap()
+                .id
+        }
         ActTrack => root(TPL_ACT_TRACK),
         ActLeaf { synthetic_rank, .. } => view.children_of(Some(&root(TPL_ACT_TRACK)))
             [*synthetic_rank]
             .id
             .clone(),
-        Act(id) | Node(id) | IdeaGroup(id) | Category(id) | Element(id) | Storyline(id) => eid(id),
+        Act(id) | Node(id) | IdeaGroup(id) | Category(id) | Element(id) | Storyline(id)
+        | MaterialFolder(id) | Material(id) => eid(id),
         ElementGroup { category, name } => {
             view.children_of(Some(&eid(category)))
                 .into_iter()
@@ -82,6 +94,8 @@ fn template_id(template: &manifest::LeafTemplate) -> EntryTemplateId {
     match template {
         manifest::LeafTemplate::Chapter => tid(TPL_CHAPTER),
         manifest::LeafTemplate::Idea => tid(TPL_IDEA),
+        manifest::LeafTemplate::Note => tid(TPL_NOTE),
+        manifest::LeafTemplate::NotePlain => adapter::plain_note_template(),
         manifest::LeafTemplate::Category(id) => adapter::category_template(id),
         manifest::LeafTemplate::Storyline(id) => adapter::storyline_template(id),
     }
@@ -93,7 +107,6 @@ fn body_id(view: &BookViewV3<'_>, body: &manifest::Body) -> DocId {
         manifest::Body::About(entry) => {
             adapter::body_id(entry_id(view, entry).as_str(), MOD_DESCRIPTION)
         }
-        manifest::Body::Material(id) => DocId::Material(MaterialId::parse(id).unwrap()),
         manifest::Body::Template(template) => DocId::Template(TemplateId::for_entry_module(
             view.book_id(),
             &template_id(template),
@@ -150,7 +163,7 @@ fn comment_id(old: &str) -> CommentId {
     match old {
         NOTE_TODO => CommentId::for_projection(
             &ProjectionKind::NoteTask,
-            &DocId::Material(MaterialId::parse(NOTE).unwrap()),
+            &adapter::body_id(NOTE, MOD_PROSE),
             &BlockId::parse("tp1").unwrap(),
         ),
         MARKER_TODO => CommentId::for_projection(
@@ -169,7 +182,7 @@ fn endpoint(
     use manifest::Endpoint::*;
     let (kind, id) = match endpoint {
         Entry(e) => (EntityKind::Entry, entry_id(view, e).to_string()),
-        Material(id) => (EntityKind::Material, id.clone()),
+        Asset(id) => (EntityKind::Asset, id.clone()),
         Comment(id) => (EntityKind::Comment, comment_id(id).to_string()),
         Patch(id) => (EntityKind::Patch, id.clone()),
         Unresolved { kind, id } => panic!("unexpected unresolved fixture endpoint: {kind}:{id}"),
@@ -185,12 +198,17 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         view.meta().schema_version,
         dr_doc::schema::BOOK_SCHEMA_VERSION
     );
+    let proj = view.project();
+    assert_eq!(
+        proj.book.as_ref().map(|b| &b.root),
+        Some(&dr_model::v3::BookRoot::Entry {
+            entry: entry_id(view, &manifest::Entry::Manuscript),
+        })
+    );
     assert_eq!(
         view.structure_snapshot()
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .filter(|p| p.root.id == entry_id(view, &manifest::Entry::Manuscript))
-            .flat_map(|p| p.entries)
             .filter(|e| e.ordinal.is_some())
             .map(|e| e.entry.clone())
             .collect::<Vec<_>>()
@@ -211,11 +229,31 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .collect::<Vec<_>>(),
         [fixture::CHAPTER_BEFORE, "act-1", "act-2"]
     );
-    assert_eq!(view.meta().word_target_set, expected.settings.word_target);
+    let book_cfg = proj.book.as_ref().expect("imported book config");
+    assert_eq!(book_cfg.word_target_set, expected.settings.word_target);
     assert_eq!(
-        view.meta().daily_word_target_set,
+        book_cfg.daily_word_target_set,
         expected.settings.daily_word_target
     );
+    let layout_positions = {
+        let h = lib
+            .open_doc(
+                &format!("layout:{}", view.book_id()),
+                dr_store::OpenDoc::Existing,
+            )
+            .unwrap();
+        let b = view.book_id().clone();
+        let all = h
+            .read(move |d| {
+                dr_doc::side::BorrowedLayout::new(d, &b)
+                    .unwrap()
+                    .view()
+                    .all_positions()
+            })
+            .unwrap();
+        h.close();
+        all
+    };
     for level in &expected.levels {
         let actual = view.entry(&entry_id(view, &level.entry)).unwrap();
         assert_eq!(actual.title, level.title, "{:?}", level.entry);
@@ -225,8 +263,13 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             "{:?}",
             level.entry
         );
-        assert!(actual.is_level());
-        assert_eq!(actual.is_lane(&view.templates_map()), level.lane);
+        assert_eq!(actual.is_level(), level.is_level, "{:?}", level.entry);
+        assert_eq!(
+            actual.accepts_members(&view.templates_map()),
+            level.accept,
+            "{:?}",
+            level.entry
+        );
         if let Some(template) = &level.default_leaf {
             assert_eq!(
                 view.level_settings(Some(&actual.id)).default_template,
@@ -237,7 +280,12 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(text(&actual, "color").as_ref(), Some(color));
         }
         if let Some(manifest::Layout::Grid { x, y, .. }) = &level.layout {
-            assert_eq!(actual.layout.grid, x.zip(*y));
+            let scope = actual.parent.as_ref().map(|p| p.as_str()).unwrap_or("root");
+            let got = layout_positions
+                .get(&format!("{scope}/grid"))
+                .and_then(|m| m.get(&actual.id))
+                .copied();
+            assert_eq!(got, x.zip(*y).map(|(gx, gy)| (gx as f64, gy as f64)));
         }
     }
     if !expected.default_view.act_tracks.is_empty() {
@@ -245,7 +293,6 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert!(!act_track_id.as_str().starts_with("root-"));
         let act_settings = view.level_settings(Some(&act_track_id));
         assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
-        assert!(act_settings.lane);
         assert_eq!(act_settings.home, None);
         assert!(act_settings.accept);
     }
@@ -291,7 +338,10 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         assert_eq!(actual.title, leaf.title);
         assert_eq!(actual.parent, leaf.home.as_ref().map(|e| entry_id(view, e)));
         assert_eq!(actual.template, leaf.template.as_ref().map(template_id));
-        if matches!(leaf.entry, manifest::Entry::ActLeaf { .. }) {
+        if matches!(
+            leaf.entry,
+            manifest::Entry::ActLeaf { .. } | manifest::Entry::Material(_)
+        ) {
             assert_eq!(text(&actual, "summary"), None);
         } else {
             assert_eq!(
@@ -337,9 +387,24 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(text(&actual, &definition.id).as_ref(), Some(&field.value));
         }
         match leaf.layout {
-            Some(manifest::Layout::Board(x, y)) => assert_eq!(actual.layout.board, Some((x, y))),
+            Some(manifest::Layout::Board(x, y)) => {
+                let scope = actual.parent.as_ref().map(|p| p.as_str()).unwrap_or("root");
+                assert_eq!(
+                    layout_positions
+                        .get(&format!("{scope}/board"))
+                        .and_then(|m| m.get(&actual.id))
+                        .copied(),
+                    Some((x, y))
+                );
+            }
             Some(manifest::Layout::Graph(x, y)) => {
-                assert_eq!(actual.layout.relation_graph, Some((x, y)))
+                assert_eq!(
+                    layout_positions
+                        .get("root/relation_graph")
+                        .and_then(|m| m.get(&actual.id))
+                        .copied(),
+                    Some((x, y))
+                );
             }
             _ => {}
         }
@@ -516,7 +581,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             actual.target,
             comment.target.as_ref().map(|e| endpoint(view, e))
         );
-        assert_eq!(actual.kind.as_str(), comment.kind);
+        assert_eq!(actual.origin.as_str(), comment.origin);
         if let Some(body) = &comment.body
             && let DocId::Body(id) = body_id(view, body)
         {
@@ -526,6 +591,20 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .iter()
             .find(|r| r["id"].as_str() == Some(&comment.old_id))
             .unwrap();
+        if actual
+            .target
+            .as_ref()
+            .is_some_and(|t| t.kind == EntityKind::Asset)
+        {
+            assert_eq!(actual.target_module, None);
+            if serde_json::from_str::<serde_json::Value>(row["anchor_json"].as_str().unwrap())
+                .ok()
+                .and_then(|v| v.get("region").cloned())
+                .is_some()
+            {
+                assert!(matches!(actual.part, Some(CommentPart::Region { .. })));
+            }
+        }
         assert_eq!(
             actual.body,
             dr_import_v1::book::plain_text(row["body_json"].as_str().unwrap()).0
@@ -552,14 +631,6 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             (from, to, relation.relation_type.clone())
         );
     }
-    assert_eq!(
-        view.materials().len(),
-        expected.source_rows["library_item"].len()
-    );
-    assert_eq!(
-        view.material_folders().len(),
-        expected.source_rows["material_folder"].len()
-    );
     assert_eq!(
         view.assets().len(),
         expected.source_rows["project_asset"].len()
@@ -635,28 +706,67 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             entry.id
         );
     }
+    let has_text_materials = expected.source_rows["library_item"]
+        .iter()
+        .any(|r| r["kind"].as_str() == Some("text"));
+    let text_materials_root =
+        has_text_materials.then(|| entry_id(view, &manifest::Entry::TextMaterials));
+    let mut note_folders = BTreeSet::new();
     for row in &expected.source_rows["library_item"] {
-        let actual = view
-            .materials()
-            .into_iter()
-            .find(|m| m.id.as_str() == row["id"].as_str().unwrap())
-            .unwrap();
-        assert_eq!(actual.title, row["title"].as_str().unwrap());
-        assert_eq!(
-            actual.folder.as_ref().map(|id| id.as_str()),
-            row["folder_id"].as_str()
-        );
-        assert_eq!(
-            actual.asset.as_ref().map(|id| id.as_str()),
-            row["asset_id"].as_str()
-        );
-        assert_eq!(actual.task_todos, row["task_todos"].as_i64() == Some(1));
-        assert_eq!(
-            actual.provenance.as_deref(),
-            row["provenance_json"].as_str()
-        );
-        if let Some(notes) = row["notes_json"].as_str() {
-            assert_eq!(actual.description, dr_import_v1::book::plain_text(notes).0);
+        if row["kind"].as_str() != Some("text") {
+            continue;
+        }
+        let mut cur = row["folder_id"].as_str();
+        while let Some(fid) = cur {
+            if !note_folders.insert(fid.to_string()) {
+                break;
+            }
+            cur = expected.source_rows["material_folder"]
+                .iter()
+                .find(|f| f["id"].as_str() == Some(fid))
+                .and_then(|f| f["parent_folder_id"].as_str());
+        }
+    }
+    for row in &expected.source_rows["material_folder"] {
+        let fid = row["id"].as_str().unwrap();
+        if note_folders.contains(fid) {
+            let actual = view.entry(&eid(fid)).unwrap();
+            assert!(actual.is_level());
+            assert_eq!(actual.title, row["name"].as_str().unwrap());
+            let expected_parent = row["parent_folder_id"]
+                .as_str()
+                .filter(|p| note_folders.contains(*p))
+                .map(eid)
+                .or_else(|| text_materials_root.clone());
+            assert_eq!(actual.parent, expected_parent);
+        } else {
+            assert!(view.entry(&eid(fid)).is_none());
+        }
+    }
+    for row in &expected.source_rows["library_item"] {
+        let mid_str = row["id"].as_str().unwrap();
+        let kind = row["kind"].as_str().unwrap();
+        if kind == "text" {
+            let actual = view.entry(&eid(mid_str)).unwrap();
+            assert!(!actual.is_level());
+            assert_eq!(actual.title, row["title"].as_str().unwrap());
+            let expected_parent = row["folder_id"]
+                .as_str()
+                .filter(|f| note_folders.contains(*f))
+                .map(eid)
+                .or_else(|| text_materials_root.clone());
+            assert_eq!(actual.parent, expected_parent);
+            let want_tpl = if row["task_todos"].as_i64() == Some(1) {
+                tid(TPL_NOTE)
+            } else {
+                adapter::plain_note_template()
+            };
+            assert_eq!(actual.template, Some(want_tpl));
+        } else {
+            assert!(
+                view.entry(&eid(mid_str)).is_none(),
+                "non-text material {mid_str} goes into assets, not entries"
+            );
         }
     }
     for row in &expected.source_rows["project_asset"] {
@@ -732,6 +842,20 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             }
         }
     }
+    let mut material_assets = std::collections::HashMap::new();
+    let mut non_text_materials = std::collections::HashMap::new();
+    for row in &expected.source_rows["library_item"] {
+        if let (Some(id), Some(aid)) = (row["id"].as_str(), row["asset_id"].as_str())
+            && let Ok(asset) = AssetId::parse(aid)
+        {
+            material_assets.insert(id.to_owned(), asset);
+        }
+        if row["kind"].as_str() != Some("text")
+            && let (Some(id), Some(title)) = (row["id"].as_str(), row["title"].as_str())
+        {
+            non_text_materials.insert(id.to_owned(), title.to_owned());
+        }
+    }
     for body in &expected.prose {
         if matches!(body.target, manifest::Body::Template(_))
             && body
@@ -753,6 +877,8 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
                 profile: ProseProfile::Prose,
                 span: &|old| spans.get(old).cloned(),
                 todo: &|id| Some(comment_id(id)),
+                asset: &|id| material_assets.get(id).cloned(),
+                non_text_material: &|id| non_text_materials.get(id).cloned(),
             },
         );
         assert_eq!(
@@ -937,10 +1063,16 @@ fn catalog_already_stored_before_interruption_keeps_its_generated_roots_on_resum
         BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap()
     };
     let roots = |book: &BookDocV3| -> Vec<EntryId> {
-        [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES]
+        let mut out: Vec<EntryId> = [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES]
             .iter()
             .map(|tpl| book.view().root_entry_by_template(&tid(tpl)).unwrap().id)
-            .collect()
+            .collect();
+        if let Some(tm) = book.view().entries_raw().into_iter().find(|e| {
+            e.parent.is_none() && e.template == Some(tid(TPL_GROUP)) && e.title == "文本素材"
+        }) {
+            out.push(tm.id);
+        }
+        out
     };
     let lib = open(&root);
     let before = load(&lib);
@@ -1248,8 +1380,8 @@ fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import(
                     "attrs": {"id": "e-p1"},
                     "content": [{
                         "type": "text",
-                        "text": "素材错挂模块",
-                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE, "targetModule": MOD_PROSE}}]
+                        "text": "非法模块标识",
+                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE, "targetModule": "bad/module"}}]
                     }]
                 }]
             }),
@@ -1490,7 +1622,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 0..2,
                 EntityLinkV3 {
                     target: NOTE.into(),
-                    kind: EntityKind::Material,
+                    kind: EntityKind::Entry,
                     module: None,
                     block: None,
                     end_block: None,
@@ -1546,7 +1678,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
             4..6,
             EntityLinkV3 {
                 target: NOTE.into(),
-                kind: EntityKind::Material,
+                kind: EntityKind::Entry,
                 module: None,
                 block: None,
                 end_block: None,
@@ -1568,7 +1700,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 0..6,
                 EntityLinkV3 {
                     target: NOTE.into(),
-                    kind: EntityKind::Material,
+                    kind: EntityKind::Entry,
                     module: None,
                     block: None,
                     end_block: None,
@@ -1945,7 +2077,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                 7..11,
                 EntityLinkV3 {
                     target: NOTE.into(),
-                    kind: EntityKind::Material,
+                    kind: EntityKind::Entry,
                     module: None,
                     block: None,
                     end_block: None,
@@ -1973,8 +2105,8 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
         "将删列"
     );
 
-    // 2. Note-profile material table cell preserves highlight + code + explicit-module entityLink!
-    let note_doc_id = DocId::Material(MaterialId::parse(NOTE).unwrap());
+    // 2. Material note table cell preserves highlight + code + explicit-module entityLink!
+    let note_doc_id = adapter::body_id(NOTE, MOD_PROSE);
     let note_doc = load_prose(&lib, &note_doc_id);
     let tbl_note = EmbedId::parse("tbl-note").unwrap();
     let note_runs = note_doc.view().table_cell(&tbl_note, "r0", "c0").unwrap();
@@ -2357,9 +2489,9 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
             EntityKind::Patch,
             EntityKind::Entry,
             EntityKind::Comment,
-            EntityKind::Material,
+            EntityKind::Asset,
         ],
-        "node/element/category/storyline collapse to one Entry alongside Patch, Comment and Material"
+        "node/element/category/storyline collapse to Entry and library_item expands to Entry + Asset alongside Patch and Comment"
     );
     assert_eq!(
         all_rt.target_kinds,
@@ -2396,9 +2528,12 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
     );
     assert_eq!(
         generic.source_kinds,
-        [EntityKind::Comment, EntityKind::Material]
+        [EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]
     );
-    assert_eq!(generic.target_kinds, [EntityKind::Entry, EntityKind::Patch]);
+    assert_eq!(
+        generic.target_kinds,
+        [EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]
+    );
     assert!(generic.source_templates.is_empty());
     assert!(generic.target_templates.is_empty());
     lib.close().unwrap();
@@ -2821,10 +2956,14 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     assert_eq!(act_track.title, "幕");
     assert_eq!(act_track.parent, None);
     assert!(!act_track.id.as_str().starts_with("root-"));
-    assert!(act_track.is_lane(&view.templates_map()));
+    assert!(dr_model::v3::is_in_any_view(
+        &act_track.id,
+        &view.timeline_views_raw(),
+        &view.entries_map(),
+        &view.templates_map(),
+    ));
     let act_settings = view.level_settings(Some(&act_track.id));
     assert_eq!(act_settings.default_template, Some(tid(TPL_IDEA)));
-    assert!(act_settings.lane);
     assert_eq!(act_settings.home, None);
     assert!(act_settings.accept);
 
@@ -2898,15 +3037,18 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
             .any(|m| m.host == act_track.id && m.member == eid(IDEA_TRASHED))
     );
 
-    // Ordered memberships on "幕" equal all 9 acts in exact book order.
-    let mut track_members: Vec<_> = view
+    // Memberships on "幕" omit `pos` (`VIEW-LANE-MEMBERS-PLACED`) and `members_of`
+    // reads all 9 acts in narrative-view scale order.
+    let track_members: Vec<_> = view
         .memberships_raw()
         .into_iter()
         .filter(|m| m.host == act_track.id)
         .collect();
-    track_members.sort_by(|a, b| a.pos.cmp(&b.pos).then_with(|| a.member.cmp(&b.member)));
-    let expected_members = [
+    assert_eq!(track_members.len(), 9);
+    assert!(track_members.iter().all(|m| m.pos.is_none()));
+    let expected_scale_order = [
         eid(IDEA_BOUND),
+        eid(IDEA),
         synth_children[0].id.clone(),
         synth_children[1].id.clone(),
         synth_children[2].id.clone(),
@@ -2914,14 +3056,14 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
         synth_children[3].id.clone(),
         synth_children[4].id.clone(),
         synth_children[5].id.clone(),
-        eid(IDEA),
     ];
     assert_eq!(
-        track_members
-            .iter()
-            .map(|m| m.member.clone())
+        view.structure_snapshot()
+            .members_of(&act_track.id)
+            .into_iter()
+            .map(|e| e.id.clone())
             .collect::<Vec<_>>(),
-        expected_members
+        expected_scale_order
     );
 
     let placement_of = |id: &EntryId| -> Option<(f64, Option<f64>)> {
@@ -2934,7 +3076,7 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
 
     // Case 1 (`绑定`) + Case 8 (`重叠` with Case 2): chapters at 10.0 and 18.0 -> [10.0, 22.0] => (10.0, Some(12.0))
     assert_eq!(placement_of(&eid(IDEA_BOUND)), Some((10.0, Some(12.0))));
-    // Case 2 (`未绑定`) + Case 8 (`重叠`): chapters at 14.0 and 20.0 -> [14.0, 24.0] => (14.0, Some(10.0))
+    // Case 2 (`未绑定`) + Case 8 (`重叠`): chapters at 14.0 and 20.0 -> [14.0, Some(10.0)]
     assert_eq!(
         placement_of(&synth_children[0].id),
         Some((14.0, Some(10.0)))
@@ -2947,10 +3089,9 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     // second act creates synth_children[3] at (50.0, Some(4.0)).
     assert_eq!(placement_of(&eid(IDEA_SHARED)), Some((42.0, Some(4.0))));
     assert_eq!(placement_of(&synth_children[3].id), Some((50.0, Some(4.0))));
-    // Case 5 (`空幕`): membership present, NO placement!
-    assert_eq!(placement_of(&synth_children[4].id), None);
-    // Case 6 (`章节没有位置`): membership present, NO placement!
-    assert_eq!(placement_of(&synth_children[5].id), None);
+    // Case 5 (`空幕`) & Case 6 (`章节没有位置`): auto-placed at scale end (`VIEW-LANE-MEMBERS-PLACED`).
+    assert_eq!(placement_of(&synth_children[4].id), Some((61.0, None)));
+    assert_eq!(placement_of(&synth_children[5].id), Some((62.0, None)));
     // Case 7 (`构想原来就有位置`): keeps original (12.0, None) without overwriting with (60.0, Some(4.0))!
     assert_eq!(placement_of(&eid(IDEA)), Some((12.0, None)));
 
@@ -3125,13 +3266,13 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
             )
             .unwrap();
         assert!(
-            cur.starts_with("4:"),
-            "v4 kernel marker must use prefix 4:, got {cur}"
+            cur.starts_with("5:"),
+            "v5 kernel marker must use prefix 5:, got {cur}"
         );
-        let legacy_v3_marker = cur.replacen("4:", "3:", 1);
+        let legacy_v4_marker = cur.replacen("5:", "4:", 1);
         conn.execute(
             "UPDATE local_state SET value = ?1 WHERE scope = 'import-v1-kernel' AND key = ?2",
-            rusqlite::params![&legacy_v3_marker, BOOK],
+            rusqlite::params![&legacy_v4_marker, BOOK],
         )
         .unwrap();
     }
@@ -3145,4 +3286,306 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
         before,
         "source bytes, sizes and mtimes must never change"
     );
+}
+
+#[test]
+fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlinks_prose() {
+    use dr_model::shared::{EntityRef, MaterialRegion};
+    use serde_json::json;
+
+    const ASSET_PDF: &str = "01900000-0000-7000-8000-0000000000ab";
+    const PDF_ITEM: &str = "01900000-0000-7000-8000-0000000000f3";
+    const MF_REF: &str = "01900000-0000-7000-8000-000000000082";
+    const MF_ARCH: &str = "01900000-0000-7000-8000-000000000083";
+    const IDEA_LINKING: &str = "01900000-0000-7000-8000-0000000000d9";
+    const BOOK_NO_NOTES: &str = "01900000-0000-7000-8000-000000000002";
+    const ASSET_B2: &str = "01900000-0000-7000-8000-0000000000ac";
+    const IMAGE_B2: &str = "01900000-0000-7000-8000-0000000000f4";
+    const PDF_BYTES: &[u8] = b"%PDF-1.4\nsynthetic-pdf-for-step7\n%%EOF";
+
+    let old = fixture::build();
+    let pdf_dir = old.root.join("assets").join(BOOK).join(ASSET_PDF);
+    std::fs::create_dir_all(&pdf_dir).unwrap();
+    std::fs::write(pdf_dir.join("source.pdf"), PDF_BYTES).unwrap();
+
+    let img_b2_dir = old.root.join("assets").join(BOOK_NO_NOTES).join(ASSET_B2);
+    std::fs::create_dir_all(&img_b2_dir).unwrap();
+    std::fs::write(img_b2_dir.join("source.png"), IMAGE_BYTES).unwrap();
+
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.pragma_update(None, "foreign_keys", false).unwrap();
+
+    // Nested media-only folders ("参考图" -> "建筑") with zero text notes.
+    c.execute(
+        "INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES (?1, ?2, '参考图', NULL, ?3, ?3)",
+        rusqlite::params![MF_REF, BOOK, T0],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES (?1, ?2, '建筑', ?3, ?4, ?4)",
+        rusqlite::params![MF_ARCH, BOOK, MF_REF, T0],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE library_item SET folder_id = ?1 WHERE id = ?2",
+        rusqlite::params![MF_ARCH, IMAGE],
+    )
+    .unwrap();
+
+    // PDF asset + library_item in the same media-only folder.
+    c.execute(
+        "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'pdf', 'application/pdf', ?3, ?4, NULL, NULL, ?5)",
+        rusqlite::params![
+            ASSET_PDF,
+            BOOK,
+            PDF_BYTES.len() as i64,
+            sha256_bytes(PDF_BYTES),
+            T0
+        ],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '城防志.pdf', 'pdf', ?3, NULL, NULL, NULL, NULL, 2, ?4, ?4, NULL, ?5, 0)",
+        rusqlite::params![PDF_ITEM, BOOK, ASSET_PDF, T0, MF_ARCH],
+    )
+    .unwrap();
+
+    // Page-2 region comment on the PDF item, plus a direct relation between IMAGE and CHAPTER.
+    let pdf_comment_body = json!({
+        "type": "doc",
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "城门尺寸"}]}]
+    })
+    .to_string();
+    c.execute(
+        "INSERT INTO comment (id, project_id, kind, target_kind, target_id, target_block_id, anchor_json, author_kind, author_id, author_name, body_json, status, priority, source, metadata_json, target_block_ids_json, resolved_at, created_at, updated_at) VALUES ('region-pdf', ?1, 'note', 'library_item', ?2, NULL, '{\"region\":{\"v\":1,\"page\":2,\"x\":0.2,\"y\":0.3,\"w\":0.4,\"h\":0.1}}', 'user', NULL, NULL, ?3, 'open', NULL, 'manual', NULL, '[]', NULL, ?4, ?4)",
+        rusqlite::params![BOOK, PDF_ITEM, pdf_comment_body, T1],
+    )
+    .unwrap();
+    let generic = format!("system:generic-association:{BOOK}");
+    c.execute(
+        "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at) VALUES ('rel-img-chapter', ?1, 'library_item', ?2, 'node', ?3, ?4, ?5, ?5)",
+        rusqlite::params![BOOK, IMAGE, CHAPTER, generic, T0],
+    )
+    .unwrap();
+
+    // Seed-only idea linking both IMAGE (becomes plain text + receipt entry) and NOTE (stays linked).
+    let linking_prose = json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "attrs": {"id": "p-link"},
+            "content": [
+                {"type": "text", "text": "参见"},
+                {
+                    "type": "text",
+                    "text": "插图原件",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": IMAGE}}]
+                },
+                {"type": "text", "text": "与"},
+                {
+                    "type": "text",
+                    "text": "待查笔记",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE}}]
+                }
+            ]
+        }]
+    })
+    .to_string();
+    c.execute(
+        "INSERT INTO book_node (id, project_id, title, summary, book_order, narrative_order, writing_status, kind, drift_group_id, position_x, position_y, created_at, updated_at) VALUES (?1, ?2, '考据附记', '', NULL, NULL, 'drifting', 'drift', ?3, 0, 0, ?4, ?4)",
+        rusqlite::params![IDEA_LINKING, BOOK, GROUP, T0],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO node_content (node_id, content_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+        rusqlite::params![IDEA_LINKING, linking_prose, T0],
+    )
+    .unwrap();
+
+    // Second project with ONLY an image material and zero text notes -> must NOT create "文本素材".
+    c.execute(
+        "INSERT INTO project (id, name, summary, kv_json, storyline_template_kv_json, user_id, created_at, updated_at, deleted_at) VALUES (?1, '纯图像集', '', '[]', '[]', 'local', ?2, ?2, NULL)",
+        rusqlite::params![BOOK_NO_NOTES, T0],
+    )
+    .unwrap();
+    let generic_b2 = format!("system:generic-association:{BOOK_NO_NOTES}");
+    c.execute(
+        "INSERT INTO entity_relation_type (id, project_id, name, normalized_name, description, orientation, system_key, locked, source_role, target_role, created_at, updated_at) VALUES (?1, ?2, 'Generic association', 'generic association', '', 'directed', 'generic-association', 1, 'Source', 'Target', ?3, ?3)",
+        rusqlite::params![generic_b2, BOOK_NO_NOTES, T0],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'image', 'image/png', ?3, ?4, 4, 3, ?5)",
+        rusqlite::params![
+            ASSET_B2,
+            BOOK_NO_NOTES,
+            IMAGE_BYTES.len() as i64,
+            sha256_bytes(IMAGE_BYTES),
+            T0
+        ],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '独图', 'image', ?3, NULL, NULL, NULL, NULL, 0, ?4, ?4, NULL, NULL, 0)",
+        rusqlite::params![IMAGE_B2, BOOK_NO_NOTES, ASSET_B2, T0],
+    )
+    .unwrap();
+    drop(c);
+
+    let before = source_tree_snapshot(&old.root);
+    let expected = manifest::read(&old.db, BOOK).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported");
+    };
+    assert_eq!(source_tree_snapshot(&old.root), before);
+
+    let lib = open(&root);
+    let book_bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book = BookDocV3::load(
+        BookId::parse(BOOK).unwrap(),
+        random_device_peer(),
+        std::slice::from_ref(&book_bytes),
+    )
+    .unwrap();
+    let v = book.view();
+    compare(&v, &expected, &lib);
+
+    // 1. Image and PDF are in the built-in asset library carrying their nested folder path.
+    let img_asset = v.asset(&AssetId::parse(ASSET).unwrap()).unwrap();
+    assert_eq!(img_asset.name, "插图");
+    assert_eq!(img_asset.folder.as_deref(), Some("参考图/建筑"));
+    let pdf_asset = v.asset(&AssetId::parse(ASSET_PDF).unwrap()).unwrap();
+    assert_eq!(pdf_asset.name, "城防志.pdf");
+    assert_eq!(pdf_asset.folder.as_deref(), Some("参考图/建筑"));
+
+    // 2. Media-only folders do not become entries; note folders & notes live under "文本素材".
+    assert!(v.entry(&eid(MF_REF)).is_none());
+    assert!(v.entry(&eid(MF_ARCH)).is_none());
+    let text_root = v
+        .entries()
+        .into_iter()
+        .find(|e| e.parent.is_none() && e.title == "文本素材")
+        .expect("文本素材 top-level folder");
+    let note_folder = v.entry(&eid(FOLDER)).unwrap();
+    assert_eq!(note_folder.parent.as_ref(), Some(&text_root.id));
+    let note_entry = v.entry(&eid(NOTE)).unwrap();
+    assert_eq!(note_entry.parent.as_ref(), Some(&eid(FOLDER)));
+
+    // 3. Direct asset region comments (image & PDF page) and asset relation survive intact.
+    let comments = v.comments();
+    let c_img = comments
+        .iter()
+        .find(|c| c.id.as_str() == "region-1")
+        .unwrap();
+    assert_eq!(c_img.target, Some(EntityRef::new(EntityKind::Asset, ASSET)));
+    assert_eq!(c_img.target_module, None);
+    assert!(!c_img.target_missing);
+    assert_eq!(
+        c_img.part,
+        Some(CommentPart::Region {
+            region: MaterialRegion {
+                page: None,
+                x: 0.1,
+                y: 0.2,
+                w: 0.3,
+                h: 0.4,
+            }
+        })
+    );
+    let c_pdf = comments
+        .iter()
+        .find(|c| c.id.as_str() == "region-pdf")
+        .unwrap();
+    assert_eq!(
+        c_pdf.target,
+        Some(EntityRef::new(EntityKind::Asset, ASSET_PDF))
+    );
+    assert_eq!(c_pdf.target_module, None);
+    assert!(!c_pdf.target_missing);
+    assert_eq!(
+        c_pdf.part,
+        Some(CommentPart::Region {
+            region: MaterialRegion {
+                page: Some(2),
+                x: 0.2,
+                y: 0.3,
+                w: 0.4,
+                h: 0.1,
+            }
+        })
+    );
+    let rel = v
+        .relations()
+        .into_iter()
+        .find(|r| r.id.as_str() == "rel-img-chapter")
+        .unwrap();
+    assert_eq!(rel.from, EntityRef::new(EntityKind::Asset, ASSET));
+    assert_eq!(rel.to, EntityRef::new(EntityKind::Entry, CHAPTER));
+
+    // 4. Prose entityLink to IMAGE becomes plain text + receipt/summary record; link to NOTE remains.
+    let linking_doc_id = adapter::body_id(IDEA_LINKING, MOD_PROSE);
+    let linking_bytes = lib
+        .load_copy(&linking_doc_id.to_string())
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let linking_doc = ProseDoc::load(
+        linking_doc_id.clone(),
+        random_device_peer(),
+        std::slice::from_ref(&linking_bytes),
+    )
+    .unwrap();
+    let para = linking_doc.view().paragraphs().next().unwrap();
+    assert_eq!(para.text(), "参见插图原件与待查笔记");
+    let unlinked_run = para
+        .runs
+        .iter()
+        .find(|r| r.text.contains("插图原件"))
+        .unwrap();
+    assert!(unlinked_run.marks.entities.is_empty());
+    let linked_run = para.runs.iter().find(|r| r.text == "待查笔记").unwrap();
+    assert_eq!(linked_run.marks.entities.len(), 1);
+    assert_eq!(linked_run.marks.entities[0].target, NOTE);
+
+    let book1_rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
+    assert_eq!(book1_rec.unlinked_asset_links.len(), 1);
+    assert_eq!(book1_rec.unlinked_asset_links[0].material_id, IMAGE);
+    assert_eq!(book1_rec.unlinked_asset_links[0].material_title, "插图");
+    assert_eq!(book1_rec.unlinked_asset_links[0].text, "插图原件");
+    let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+    assert!(summary_md.contains("插图"));
+    assert!(summary_md.contains("插图原件"));
+
+    // 5. Project with zero text materials does NOT create a "文本素材" top-level entry.
+    let book2_bytes = lib
+        .load_copy(&format!("book:{BOOK_NO_NOTES}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book2 = BookDocV3::load(
+        BookId::parse(BOOK_NO_NOTES).unwrap(),
+        random_device_peer(),
+        std::slice::from_ref(&book2_bytes),
+    )
+    .unwrap();
+    assert_eq!(book2.view().assets().len(), 1);
+    assert_eq!(book2.view().assets()[0].id.as_str(), ASSET_B2);
+    assert!(
+        !book2
+            .view()
+            .entries_raw()
+            .iter()
+            .any(|e| e.title == "文本素材"),
+        "project without text materials must not create 文本素材"
+    );
+    lib.close().unwrap();
 }

@@ -330,6 +330,33 @@ pub struct DriftGroup {
     pub parent: Option<DriftGroupId>,
 }
 
+/// A 0.1 material (素材; the old `library_item`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Material {
+    pub id: MaterialId,
+    pub title: String,
+    pub kind: MaterialKind,
+    /// Image and PDF materials only.
+    pub asset: Option<AssetId>,
+    /// Readers treat a folder that no longer exists as the root.
+    pub folder: Option<MaterialFolderId>,
+    pub pos: Option<PosKey>,
+    /// A text material's checklist items project into comments.
+    pub task_todos: bool,
+    /// Opaque JSON, as the old `provenance_json`.
+    pub provenance: Option<String>,
+    /// What the material is about, as plain text (the old `notes_json`).
+    pub description: String,
+}
+
+/// A 0.1 material folder (素材夹): a node of the `material_folders` tree.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MaterialFolder {
+    pub id: MaterialFolderId,
+    pub name: String,
+    pub parent: Option<MaterialFolderId>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

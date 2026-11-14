@@ -224,22 +224,19 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
             })
             .collect()
     };
-    // The book's text is the manuscript sequence: each entry's own book
-    // prose before what lives under it (`BookStructureV3::manuscript`).
+    // The book's text is the book sequence (`BookStructureV3::book_sequence`).
     let structure = view.structure_snapshot();
-    let manuscript = structure.manuscript();
-    let book_docs: BTreeSet<String> = manuscript
+    let sequence = structure.book_sequence();
+    let book_docs: BTreeSet<String> = sequence
         .iter()
-        .flat_map(|p| &p.entries)
         .flat_map(|e| e.prose.iter().map(|p| p.doc.to_string()))
         .collect();
     // Entries carrying book prose also keep the prose an earlier template
     // left them, under its own module, as before the one kind of entry
     // (numbered or not: one under an entry with book prose of its own has
     // no number since 2026-11-13).
-    let numbered: BTreeSet<&dr_model::id::EntryId> = manuscript
+    let numbered: BTreeSet<&dr_model::id::EntryId> = sequence
         .iter()
-        .flat_map(|p| &p.entries)
         .filter(|e| !e.prose.is_empty())
         .map(|e| &e.entry.id)
         .collect();
@@ -263,7 +260,7 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
             .map(|m| format!("{}/{}", entry.id, m.id))
             .collect();
         for target in modules.iter().filter(|t| {
-            if manuscript.is_empty() {
+            if sequence.is_empty() {
                 entry.is_linkable(&templates)
             } else {
                 t.doc.as_ref().is_some_and(|d| book_docs.contains(d))
@@ -276,14 +273,6 @@ fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
             });
         }
         targets.extend(modules);
-    }
-    for row in view.materials() {
-        targets.push(Target {
-            kind: "material".into(),
-            id: row.id.to_string(),
-            name: row.title,
-            doc: Some(format!("material:{}", row.id)),
-        });
     }
     Ok(Canonical {
         version: evidence::version(&copy.oplog_frontiers()),

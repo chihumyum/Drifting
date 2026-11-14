@@ -7,6 +7,8 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<KvPut>()
         .add::<KvEdit>()
         .add::<KvRemove>()
+        .add::<MediaPut>()
+        .add::<MediaRemove>()
         .add::<ProseRead>()
         .add::<ProseSet>()
         .add::<ProseReplace>()
@@ -50,6 +52,7 @@ fn modules(cx: &Cx<'_>, s: &BookSlot, e: &m::Entry) -> Result<Vec<Summary>> {
         .map(|m| m.id.clone())
         .chain(e.fields.keys().cloned())
         .chain(e.kv.keys().cloned())
+        .chain(e.media.keys().cloned())
         .collect();
     ids.extend(
         v.patches()
@@ -97,6 +100,7 @@ pub struct Data {
     pub module: Summary,
     pub fields: BTreeMap<String, types::FieldValue>,
     pub kv: Vec<types::KvEntry>,
+    pub media: Vec<types::MediaItem>,
     pub patches: Vec<content::Patch>,
     pub grid: Option<content::Grid>,
     pub relations: Vec<content::Relation>,
@@ -120,6 +124,7 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
         .ok_or_else(|| WsError::not_found("module", &input.module))?;
     let id: ModuleId = pid("module", &input.module)?;
     let definition: Option<m::ModuleSpec> = summary.definition.clone().map(convert).transpose()?;
+    let known_assets: BTreeSet<String> = v.assets().into_iter().map(|a| a.id.to_string()).collect();
     let grid = if let Some(g) = v.plot_grid(&e.id, &id) {
         Some(content::grid_value(g))
     } else {
@@ -128,15 +133,24 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
             .filter(|m| m.kind == m::ModuleKind::PlotGrid)
             .map(|m| content::grid(&v, &e.id, m))
     };
-    let below = if definition
-        .as_ref()
-        .is_some_and(|m| m.kind == m::ModuleKind::Children)
-        && e.is_level()
-    {
-        super::entry::below(&v.structure_snapshot(), &e.id)
-    } else {
-        None
+    let templates = v.templates_map();
+    let mut below = match definition.as_ref().map(|m| &m.kind) {
+        Some(m::ModuleKind::Children) if e.is_level() => {
+            super::entry::below(&v.structure_snapshot(), &e.id)
+        }
+        Some(m::ModuleKind::Members) if e.accepts_members(&templates) => {
+            super::entry::below(&v.structure_snapshot(), &e.id)
+        }
+        _ => None,
     };
+    if let Some(b) = &mut below {
+        for child in b.children.iter_mut().flatten() {
+            super::entry::mark_missing_media(child, &known_assets);
+        }
+        for member in b.members.iter_mut().flatten() {
+            super::entry::mark_missing_media(member, &known_assets);
+        }
+    }
     let relations = if definition.is_some_and(|m| m.kind == m::ModuleKind::Relations) {
         convert(v.relations_of(&dr_model::shared::EntityRef {
             kind: dr_model::kind::EntityKind::Entry,
@@ -145,10 +159,19 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
     } else {
         Vec::new()
     };
+    let mut media: Vec<types::MediaItem> = e
+        .media
+        .get(&id)
+        .map(|items| items.iter().map(Into::into).collect())
+        .unwrap_or_default();
+    for item in &mut media {
+        item.missing = !known_assets.contains(&item.asset);
+    }
     Ok(Data {
         module: summary,
         fields: convert(e.fields.get(&id).cloned().unwrap_or_default())?,
         kv: convert(e.kv.get(&id).cloned().unwrap_or_default())?,
+        media,
         patches: convert(v.patches_of(&e.id, &id))?,
         grid,
         relations,
@@ -356,6 +379,64 @@ op! {
         let replaced = kv_row(&id, &module.id, row.as_str());
         let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
             t.entries().entry(&e.id)?.remove_kv(&module.id, &row)?;
+            Ok(())
+        })?;
+        undo(cx, &s, &at, vec![key("entries", &id)]);
+        cx.effect(EffectAction::Updated, "entry", id.as_str(), None);
+        Ok(Done { id: id.to_string() })
+    }
+}
+/// One item of a media module, inside its entry's record.
+fn media_item(entry: &EntryId, module: &ModuleId, item: &str) -> dr_doc::v3::RecordKeyV3 {
+    rec(CollectionV3::Entries, entry).at([format!("media:{module}"), item.to_owned()])
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct MediaPutIn {
+    #[serde(flatten)]
+    pub target: In,
+    pub item: types::MediaItem,
+}
+op! {
+    MediaPut="module.put_media",Write,Book,"Add or update an ordered file item in an entry's media module.",fn(cx,input:MediaPutIn)->Done {
+        let s = cx.book_v3(&input.target.book)?;
+        let v = s.reader_v3.view();
+        let (e, module) = selected(&v, &input.target)?;
+        if module.kind != m::ModuleKind::Media {
+            return Err(WsError::invalid("module is not media"));
+        }
+        let item: m::MediaItem = convert(input.item)?;
+        if !v.assets().iter().any(|a| a.id == item.asset) {
+            return Err(WsError::not_found("asset", item.asset.as_str()));
+        }
+        let id = e.id.clone();
+        let replaced = media_item(&id, &module.id, item.id.as_str());
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
+            t.entries().entry(&e.id)?.put_media(&module.id, &item)?;
+            Ok(())
+        })?;
+        undo(cx, &s, &at, vec![key("entries", &id)]);
+        cx.effect(EffectAction::Updated, "entry", id.as_str(), None);
+        Ok(Done { id: id.to_string() })
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct MediaRemoveIn {
+    #[serde(flatten)]
+    pub target: In,
+    pub item: String,
+}
+op! {
+    MediaRemove="module.remove_media",Write,Book,"Remove a file item from an entry's media module.",fn(cx,input:MediaRemoveIn)->Done {
+        let s = cx.book_v3(&input.target.book)?;
+        let (e, module) = selected(&s.reader_v3.view(), &input.target)?;
+        if module.kind != m::ModuleKind::Media {
+            return Err(WsError::invalid("module is not media"));
+        }
+        let item: MediaItemId = pid("item", &input.item)?;
+        let id = e.id.clone();
+        let replaced = media_item(&id, &module.id, item.as_str());
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
+            t.entries().entry(&e.id)?.remove_media(&module.id, &item)?;
             Ok(())
         })?;
         undo(cx, &s, &at, vec![key("entries", &id)]);

@@ -72,7 +72,7 @@ impl Paths {
                 }) = &op.content
                     && key == "id"
                     && let Some(path) = this.normal.get_mut(&op.container)
-                    && matches!(path.as_slice(), [root, _] if root == "entries" || root == "material_folders")
+                    && matches!(path.as_slice(), [root, _] if root == "entries")
                 {
                     path[1] = id.to_string();
                 }
@@ -120,8 +120,9 @@ impl Paths {
 }
 
 fn plain_identity(path: &[String]) -> bool {
-    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts"))
+    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "assets" | "memory" | "facts"))
         || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
+        || matches!(path, [root, field] if root == "project" && field == "tabs")
 }
 
 fn each_key(changes: &[JsonChange], paths: &Paths, mut f: impl FnMut(&[String], &str)) {
@@ -163,7 +164,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
                 value: LoroValue::String(id),
             }) = &op.content
                 && key == "id"
-                && matches!(paths.path(&op.container).as_slice(), [root, _] if root == "entries" || root == "material_folders")
+                && matches!(paths.path(&op.container).as_slice(), [root, _] if root == "entries")
             {
                 fresh(&mut rw, id);
             }
@@ -231,7 +232,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         match DocId::parse(&entry.id).map_err(damaged)? {
             DocId::Book(id) if id == book_id => {}
             DocId::Book(_) => return Err(damaged("foreign book document")),
-            DocId::Stats(id) | DocId::Checkpoints(id) if id != book_id => {
+            DocId::Stats(id) | DocId::Checkpoints(id) | DocId::Layout(id) if id != book_id => {
                 return Err(damaged("foreign document beside the book"));
             }
             DocId::Template(t) if t.entry_module().is_some_and(|(b, _, _)| b != book_id) => {
@@ -247,7 +248,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         }
         let newest = match kind {
             DocKind::Book => schema::BOOK_GENESIS_VERSION,
-            DocKind::Stats | DocKind::Checkpoints => schema::SIDE_GENESIS_VERSION,
+            DocKind::Stats | DocKind::Checkpoints | DocKind::Layout => schema::SIDE_GENESIS_VERSION,
             _ => GENESIS_VERSION,
         };
         let (version, old) = (1..=newest)
@@ -329,6 +330,8 @@ struct Rewriter<'a> {
     conversation: bool,
     /// `checkpoints:<book>`: the manifests' ids and contents move.
     points: bool,
+    /// `layout:<book>`: scope/mode keys and entry keys move.
+    layout: bool,
     source: &'a LoroDoc,
 }
 
@@ -393,6 +396,23 @@ impl Rewriter<'_> {
         if self.points && path == ["entry_checkpoints"] {
             return self.rw.text(key);
         }
+        if self.layout {
+            return match path {
+                [root] if root == "positions" => key
+                    .split_once('/')
+                    .map(|(scope, mode)| {
+                        let mapped = if scope == "root" {
+                            "root".into()
+                        } else {
+                            self.rw.text(scope)
+                        };
+                        format!("{mapped}/{mode}")
+                    })
+                    .unwrap_or_else(|| key.into()),
+                [root, _] if root == "positions" => self.rw.text(key),
+                _ => key.into(),
+            };
+        }
         if !self.book {
             return key.into();
         }
@@ -409,7 +429,8 @@ impl Rewriter<'_> {
                 .map(|(entry, module)| format!("{}/{module}", self.rw.text(entry)))
                 .unwrap_or_else(|| key.into()),
             [root, _, field]
-                if root == "timeline_views" && matches!(field.as_str(), "lanes" | "placements") =>
+                if root == "timeline_views"
+                    && matches!(field.as_str(), "lanes" | "placements" | "scale") =>
             {
                 self.rw.text(key)
             }
@@ -494,7 +515,6 @@ impl Rewriter<'_> {
         }
         let reference = match path {
             [root, _] if root == "entries" => matches!(key, "id" | "primary"),
-            [root, _] if root == "material_folders" => key == "id",
             [root, _] if root == "patches" => {
                 matches!(key, "entry" | "source_entry" | "source_block")
             }
@@ -503,14 +523,14 @@ impl Rewriter<'_> {
                 key,
                 "target" | "target_block" | "projection_block" | "agent_conversation"
             ),
-            [root, _] if root == "materials" => matches!(key, "asset" | "folder"),
             [root, _] if root == "memory" => {
                 matches!(key, "target" | "target_block" | "supersedes")
             }
             [root, _, field, _] if root == "timeline_views" && field == "pins" => key == "entry",
             [root, _, field] if root == "entries" && field == "overrides" => key == "home",
+            [root, _, media, _, _] if root == "entries" && media == "media" => key == "asset",
             [root, _, field] if root == "templates" && field == "settings" => key == "home",
-            [root, _] if root == "embeds" && !self.book => key == "material",
+            [root, _] if root == "embeds" && !self.book => key == "asset",
             _ => false,
         };
         if reference {
@@ -553,6 +573,27 @@ impl Rewriter<'_> {
                         _ => v.clone(),
                     })
                     .collect::<Vec<_>>()
+                    .into(),
+            );
+        }
+        if ((path == ["project", "book"] && key == "root")
+            || (matches!(path, [root, field, _] if root == "project" && field == "tabs")
+                && key == "mount"))
+            && let LoroValue::Map(m) = value
+        {
+            return LoroValue::Map(
+                m.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            if matches!(k.as_str(), "entry" | "view" | "lane") {
+                                self.refs(v)
+                            } else {
+                                v.clone()
+                            },
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
                     .into(),
             );
         }
@@ -654,6 +695,7 @@ pub(super) fn rewrite_doc(rw: &Rewrite, id: &str, bytes: &[u8]) -> Result<LoroDo
         book: kind == DocKind::Book,
         conversation: kind == DocKind::Conversation,
         points: kind == DocKind::Checkpoints,
+        layout: kind == DocKind::Layout,
     };
     for change in &mut json.changes {
         writer.change(change)?;

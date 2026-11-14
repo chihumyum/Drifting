@@ -314,15 +314,27 @@ fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
         .iter()
         .find(|e| e.template.as_deref() == Some("tpl-idea"))
         .unwrap();
+    let idea_scope = idea.parent.as_deref().unwrap_or("root").to_owned();
     call(
         &ws,
-        "entry.update",
-        json!({"book":book,"id":idea.id,"layout":{"board":[123.0,456.0],"grid":[2,3]}}),
+        "layout.put",
+        json!({"book":book,"scope":idea_scope,"mode":"board","positions":{&idea.id:[123.0,456.0]}}),
+    );
+    call(
+        &ws,
+        "layout.put",
+        json!({"book":book,"scope":idea_scope,"mode":"grid","positions":{&idea.id:[2.0,3.0]}}),
     );
     let again = Book::load(&ws, &book).unwrap();
-    let layout = again.v3().unwrap().entry(&idea.id).unwrap().layout;
-    assert_eq!(layout.board, Some((123.0, 456.0)));
-    assert_eq!(layout.grid, Some((2, 3)));
+    let again_v3 = again.v3().unwrap();
+    assert_eq!(
+        again_v3.layout_position(&idea_scope, "board", &idea.id),
+        Some((123.0, 456.0))
+    );
+    assert_eq!(
+        again_v3.layout_position(&idea_scope, "grid", &idea.id),
+        Some((2.0, 3.0))
+    );
     let other = call(
         &ws,
         "project.create",
@@ -455,8 +467,13 @@ fn setting_override_clear_restore_and_provenance_preserve_other_data() {
         .unwrap();
     call(
         &ws,
-        "entry.update",
-        json!({"book":book,"id":id,"layout":{"board":[-12.0,34.0],"grid":[2,3]}}),
+        "layout.put",
+        json!({"book":book,"scope":parent,"mode":"board","positions":{id:[-12.0,34.0]}}),
+    );
+    call(
+        &ws,
+        "layout.put",
+        json!({"book":book,"scope":parent,"mode":"grid","positions":{id:[2.0,3.0]}}),
     );
     let overridden = Book::load(&ws, &book).unwrap();
     prepare_override(&overridden, id, "default_template", None)
@@ -473,8 +490,8 @@ fn setting_override_clear_restore_and_provenance_preserve_other_data() {
     assert!(
         matches!(&v.levels[id].sources["default_template"],SettingSource::Template{entry,..} if entry==&parent)
     );
-    assert_eq!(v.entry(id).unwrap().layout.board, Some((-12.0, 34.0)));
-    assert_eq!(v.entry(id).unwrap().layout.grid, Some((2, 3)));
+    assert_eq!(v.layout_position(&parent, "board", id), Some((-12.0, 34.0)));
+    assert_eq!(v.layout_position(&parent, "grid", id), Some((2.0, 3.0)));
     assert_eq!(v.entry(id).unwrap().title, "Synthetic inherited settings");
     ws.shutdown().unwrap();
 }
@@ -660,39 +677,40 @@ fn lane_setting_override_toggles_swimlane_and_allow_is_retired() {
         prepare_override(&snap, &group, "allow", Some(json!([]))).is_err(),
         "retired allow setting must be rejected even with an array payload"
     );
+    assert!(
+        prepare_override(&snap, &group, "lane", Some(json!(true))).is_err(),
+        "retired lane setting must be rejected by prepare_override"
+    );
     assert!(!snap.v3().unwrap().is_lane(&group));
 
-    prepare_override(&snap, &group, "lane", Some(json!(true)))
+    prepare_override(&snap, &group, "accept", Some(json!(false)))
         .unwrap()
         .commit(&ws)
         .unwrap();
-    let enabled = Book::load(&ws, &book).unwrap();
-    let v = enabled.v3().unwrap();
-    assert!(v.is_lane(&group));
-    assert!(v.levels[&group].settings.lane);
+    let disabled = Book::load(&ws, &book).unwrap();
+    let v = disabled.v3().unwrap();
+    assert!(!v.levels[&group].settings.accept);
     assert_eq!(
-        v.levels[&group].sources["lane"],
+        v.levels[&group].sources["accept"],
         SettingSource::Override {
             entry: group.clone()
         }
     );
 
-    prepare_override(&enabled, &group, "lane", Some(json!(false)))
-        .unwrap()
-        .commit(&ws)
-        .unwrap();
-    let disabled = Book::load(&ws, &book).unwrap();
-    assert!(!disabled.v3().unwrap().is_lane(&group));
-    assert!(!disabled.v3().unwrap().levels[&group].settings.lane);
-
-    prepare_override(&disabled, &group, "lane", None)
+    prepare_override(&disabled, &group, "accept", None)
         .unwrap()
         .commit(&ws)
         .unwrap();
     let restored = Book::load(&ws, &book).unwrap();
     let v = restored.v3().unwrap();
-    assert!(!v.is_lane(&group));
-    assert_eq!(v.levels[&group].sources["lane"], SettingSource::Default);
+    assert!(v.levels[&group].settings.accept);
+    assert_eq!(
+        v.levels[&group].sources["accept"],
+        SettingSource::Template {
+            entry: group.clone(),
+            template: "tpl-group".into()
+        }
+    );
     ws.shutdown().unwrap();
 }
 

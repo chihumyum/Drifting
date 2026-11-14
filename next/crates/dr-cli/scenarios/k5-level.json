@@ -442,7 +442,6 @@
           "auto_link": true,
           "accept": false,
           "home": "${homes.[template=tpl-manuscript].id}",
-          "is_manuscript": false,
           "format_shortcuts": "notes",
           "lane": true
         },
@@ -994,7 +993,6 @@
           "display": null,
           "auto_link": null,
           "accept": null,
-          "is_manuscript": null,
           "format_shortcuts": null,
           "lane": null
         }

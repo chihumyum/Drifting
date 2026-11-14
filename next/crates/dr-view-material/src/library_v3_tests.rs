@@ -32,7 +32,6 @@ fn rename_failure_and_book_refresh_keep_the_draft(cx: &mut TestAppContext) {
     )
     .unwrap();
     let book = seed.books[0].book_id().to_string();
-    let material = seed.books[0].book.view().materials().remove(0);
     seed.write_to(&store).unwrap();
     let faults = Arc::new(Faults::default());
     let ws = Library::open(
@@ -43,6 +42,9 @@ fn rename_failure_and_book_refresh_keep_the_draft(cx: &mut TestAppContext) {
         },
     )
     .unwrap();
+    crate::import::import_bytes(&ws, &book, None, dr_testkit::media::png(24, 24), "测试图片")
+        .unwrap();
+    let material = Book::load(&ws, &book).unwrap().material_items()[0].clone();
     cx.update(|cx| {
         dr_shell::init(
             ShellInfo {
@@ -115,9 +117,9 @@ fn rename_failure_and_book_refresh_keep_the_draft(cx: &mut TestAppContext) {
     // Even if an external deletion removes the row, its input stays until cancel.
     cx.update(|window, cx| panel.update(cx, |p, cx| p.start_rename(&key, window, cx)));
     ws.call(
-        &Actor::User,
-        "material.delete",
-        serde_json::json!({"book":book,"id":material.id}),
+        &dr_workspace::Actor::User,
+        "entry.trash",
+        serde_json::json!({"book":book,"id":material.entry.as_ref().unwrap()}),
     )
     .unwrap();
     panel.update(cx, |p, cx| {

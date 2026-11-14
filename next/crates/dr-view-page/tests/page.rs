@@ -265,41 +265,56 @@ fn the_end_finishes_the_chapter_and_makes_the_next(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn an_idea_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
+fn an_unnumbered_book_prose_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
     let e = env();
-    let id = dr_testkit::seed::acceptance::novel_entry(
+    let ideas_root = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-ideas");
+    let id = out(
         &e.ws,
-        &e.book,
-        "tpl-idea",
-        "灯塔",
-        Some("雾里有人敲钟。"),
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": ideas_root,
+            "template": "tpl-chapter",
+            "title": "灯塔",
+        }),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
+    out(
+        &e.ws,
+        "module.set_field",
+        json!({
+            "book": e.book,
+            "entry": id,
+            "module": "mod-fields",
+            "field": "summary",
+            "value": "雾里有人敲钟。",
+        }),
+    );
     let doc = format!("body:{id}/mod-prose");
     let (_, mut cx) = open(cx, &e, &doc);
     let (head, end) = cx
         .update(|_, cx| page_views(&doc, cx))
-        .expect("an idea has a head");
+        .expect("an unnumbered book-prose page has a head");
     let (title, synopsis) = head.read_with(&cx, |h, _| (h.title().clone(), h.synopsis().clone()));
     assert_eq!(title.read_with(&cx, |f, _| f.text()), "灯塔");
     type_into(&title, "雾中灯塔", &mut cx);
     type_into(&synopsis, "守灯人的最后一夜。", &mut cx);
     cx.update(|window, cx| window.blur(cx));
-    let idea = |e: &Env| {
+    let entry_of = |e: &Env| {
         let mut entry = out(&e.ws, "entry.get", json!({"book":e.book,"id":id}));
         entry["summary"] = entry["fields"]["mod-fields"]["summary"].clone();
         entry
     };
     wait_for(&mut cx, |_| {
-        let i = idea(&e);
+        let i = entry_of(&e);
         i["title"] == "雾中灯塔" && i["summary"] == "守灯人的最后一夜。"
     });
-    let i = idea(&e);
+    let i = entry_of(&e);
     assert_eq!(i["title"], "雾中灯塔");
     assert_eq!(i["summary"], "守灯人的最后一夜。");
-    // ⁂ on an idea has no actions.
+    // ⁂ on a PageKind::Other entry outside the book sequence has no actions.
     cx.update(|window, cx| end.update(cx, |end, cx| end.open_actions(window, cx)));
     assert!(!end.read_with(&cx, |end, _| end.is_open()));
 }

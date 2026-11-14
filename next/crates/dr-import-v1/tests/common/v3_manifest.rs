@@ -19,6 +19,7 @@ pub enum Entry {
     Ideas,
     Elements,
     Storylines,
+    TextMaterials,
     ActTrack,
     Act(String),
     ActLeaf { act: String, synthetic_rank: usize },
@@ -29,12 +30,16 @@ pub enum Entry {
     ElementGroup { category: String, name: String },
     Storyline(String),
     Unaffiliated,
+    MaterialFolder(String),
+    Material(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum LeafTemplate {
     Chapter,
     Idea,
+    Note,
+    NotePlain,
     Category(String),
     Storyline(String),
 }
@@ -59,7 +64,8 @@ pub struct Level {
     pub order: Option<f64>,
     pub color: Option<String>,
     pub default_leaf: Option<LeafTemplate>,
-    pub lane: bool,
+    pub is_level: bool,
+    pub accept: bool,
     pub layout: Option<Layout>,
 }
 
@@ -142,7 +148,6 @@ pub struct View {
 pub enum Body {
     Leaf(Entry),
     About(Entry),
-    Material(String),
     Template(LeafTemplate),
 }
 
@@ -157,7 +162,7 @@ pub struct Prose {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum Endpoint {
     Entry(Entry),
-    Material(String),
+    Asset(String),
     Comment(String),
     Patch(String),
     Unresolved { kind: String, id: String },
@@ -177,7 +182,7 @@ pub struct Relation {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Comment {
     pub old_id: String,
-    pub kind: String,
+    pub origin: String,
     pub target: Option<Endpoint>,
     /// Which prose module owns the old anchor (if it targets prose).
     pub body: Option<Body>,
@@ -311,6 +316,13 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                 field_projection: None,
                 initial_body: None,
             },
+            Template {
+                template: LeafTemplate::Note,
+                name: "笔记".into(),
+                fields: vec![],
+                field_projection: None,
+                initial_body: None,
+            },
         ],
         memberships: Vec::new(),
         relations: Vec::new(),
@@ -340,16 +352,33 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         source_rows: authored_rows(&old.conn, book)?,
         pending: Vec::new(),
     };
-    let level = |entry, parent, title: String, order, color, default_leaf, lane, layout| Level {
-        entry,
-        parent,
-        title,
-        order,
-        color,
-        default_leaf,
-        lane,
-        layout,
-    };
+    if rows
+        .materials
+        .iter()
+        .any(|m| m.kind == "text" && !m.task_todos)
+    {
+        out.leaf_templates.push(Template {
+            template: LeafTemplate::NotePlain,
+            name: "笔记".into(),
+            fields: vec![],
+            field_projection: None,
+            initial_body: None,
+        });
+    }
+    let level =
+        |entry, parent, title: String, order, color, default_leaf, is_level, accept, layout| {
+            Level {
+                entry,
+                parent,
+                title,
+                order,
+                color,
+                default_leaf,
+                is_level,
+                accept,
+                layout,
+            }
+        };
     for (entry, title, template) in [
         (Entry::Manuscript, "书稿", Some(LeafTemplate::Chapter)),
         (Entry::Ideas, "构想", Some(LeafTemplate::Idea)),
@@ -363,6 +392,20 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             None,
             template,
+            true,
+            false,
+            None,
+        ));
+    }
+    if rows.materials.iter().any(|m| m.kind == "text") {
+        out.levels.push(level(
+            Entry::TextMaterials,
+            None,
+            "文本素材".into(),
+            None,
+            None,
+            Some(LeafTemplate::Note),
+            true,
             false,
             None,
         ));
@@ -382,7 +425,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             act.start_order,
             act.color.clone(),
             Some(LeafTemplate::Chapter),
-            false,
+            true,
+            true,
             None,
         ));
         if act.start_order.is_none() {
@@ -417,6 +461,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             group.order,
             group.color.clone(),
             Some(LeafTemplate::Idea),
+            true,
             false,
             None,
         ));
@@ -448,7 +493,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             Some(cat.color.clone()),
             Some(template),
-            false,
+            true,
+            true,
             Some(Layout::Grid {
                 mode: cat.layout.clone(),
                 x: cat.grid_x,
@@ -482,6 +528,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             Some(line.order_key as f64),
             Some(line.color.clone()),
             default_leaf,
+            false,
             true,
             None,
         ));
@@ -594,6 +641,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             Some(LeafTemplate::Idea),
             true,
+            true,
             None,
         ));
         out.default_view.lanes.insert(0, Entry::ActTrack);
@@ -702,10 +750,75 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             None,
             None,
             Some(LeafTemplate::Chapter),
+            false,
             true,
             None,
         ));
         out.default_view.lanes.push(Entry::Unaffiliated);
+    }
+    // Every live member of every effective lane in `default_view` receives a
+    // finite placement at scale end (`VIEW-LANE-MEMBERS-PLACED`).
+    {
+        let live_lanes: BTreeSet<Entry> = out
+            .default_view
+            .lanes
+            .iter()
+            .filter(|lane| match lane {
+                Entry::Storyline(id) => rows
+                    .storylines
+                    .iter()
+                    .any(|s| &s.id == id && s.deleted_at.is_none()),
+                _ => true,
+            })
+            .cloned()
+            .collect();
+        let mut placed: BTreeSet<Entry> = out
+            .default_view
+            .placements
+            .iter()
+            .map(|p| p.entry.clone())
+            .collect();
+        let mut next_at = out
+            .default_view
+            .placements
+            .iter()
+            .filter(|p| p.at.is_finite())
+            .map(|p| {
+                let span = p.span.filter(|s| s.is_finite() && *s >= 0.0).unwrap_or(0.0);
+                p.at + span
+            })
+            .reduce(f64::max)
+            .map_or(0.0, |m| m + 1.0);
+        for m in &out.memberships {
+            if m.level == Entry::ActTrack
+                && live_lanes.contains(&Entry::ActTrack)
+                && placed.insert(m.member.clone())
+            {
+                out.default_view.placements.push(Placement {
+                    entry: m.member.clone(),
+                    at: next_at,
+                    span: None,
+                });
+                next_at += 1.0;
+            }
+        }
+        for leaf in &out.leaves {
+            if leaf.deleted_at.is_some() {
+                continue;
+            }
+            let in_live_lane = out
+                .memberships
+                .iter()
+                .any(|m| m.member == leaf.entry && live_lanes.contains(&m.level));
+            if in_live_lane && placed.insert(leaf.entry.clone()) {
+                out.default_view.placements.push(Placement {
+                    entry: leaf.entry.clone(),
+                    at: next_at,
+                    span: None,
+                });
+                next_at += 1.0;
+            }
+        }
     }
     let mut groups = BTreeSet::new();
     for element in &rows.elements {
@@ -728,7 +841,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                         None,
                         None,
                         None,
-                        false,
+                        true,
+                        true,
                         None,
                     ));
                 }
@@ -778,6 +892,85 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             deleted_at: element.deleted_at.clone(),
         });
     }
+    let folders_by_id: BTreeMap<&str, _> =
+        rows.folders.iter().map(|f| (f.id.as_str(), f)).collect();
+    let mut note_folder_ids: BTreeSet<&str> = BTreeSet::new();
+    for m in rows.materials.iter().filter(|m| m.kind == "text") {
+        let mut cur = m.folder.as_deref();
+        let mut seen = BTreeSet::new();
+        while let Some(fid) = cur {
+            let Some(f) = folders_by_id.get(fid) else {
+                break;
+            };
+            if !seen.insert(fid) {
+                break;
+            }
+            note_folder_ids.insert(fid);
+            cur = f.parent.as_deref();
+        }
+    }
+    for folder in &rows.folders {
+        if !note_folder_ids.contains(folder.id.as_str()) {
+            continue;
+        }
+        out.levels.push(level(
+            Entry::MaterialFolder(folder.id.clone()),
+            Some(
+                folder
+                    .parent
+                    .as_ref()
+                    .filter(|p| note_folder_ids.contains(p.as_str()))
+                    .map(|p| Entry::MaterialFolder(p.clone()))
+                    .unwrap_or(Entry::TextMaterials),
+            ),
+            folder.name.clone(),
+            folder.order,
+            folder.color.clone(),
+            Some(LeafTemplate::Note),
+            true,
+            false,
+            None,
+        ));
+    }
+    for material in &rows.materials {
+        let template = match material.kind.as_str() {
+            "text" if material.task_todos => Some(LeafTemplate::Note),
+            "text" => Some(LeafTemplate::NotePlain),
+            "image" | "pdf" => continue,
+            _ => {
+                pending(&mut out, "unknown-material-kind", &material.id);
+                continue;
+            }
+        };
+        let summary = material
+            .notes_json
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|j| dr_import_v1::book::plain_text(j).0)
+            .unwrap_or_default();
+        out.leaves.push(Leaf {
+            entry: Entry::Material(material.id.clone()),
+            home: Some(
+                material
+                    .folder
+                    .as_ref()
+                    .filter(|f| note_folder_ids.contains(f.as_str()))
+                    .map(|f| Entry::MaterialFolder(f.clone()))
+                    .unwrap_or(Entry::TextMaterials),
+            ),
+            template,
+            title: material.title.clone(),
+            order: Some(material.order_key as f64),
+            summary,
+            status: None,
+            aliases: vec![],
+            portrait: None,
+            fields: vec![],
+            kv: vec![],
+            layout: None,
+            deleted_at: None,
+        });
+    }
     for pin in &rows.time_pins {
         out.default_view.pins.push(Pin {
             old_id: pin.id.clone(),
@@ -790,8 +983,8 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
     for relation in &rows.relations {
         out.relations.push(Relation {
             old_id: relation.id.clone(),
-            from: endpoint(&relation.from_kind, &relation.from_id),
-            to: endpoint(&relation.to_kind, &relation.to_id),
+            from: endpoint(&relation.from_kind, &relation.from_id, &rows.materials),
+            to: endpoint(&relation.to_kind, &relation.to_id, &rows.materials),
             relation_type: relation.relation_type.clone(),
             orientation: rows
                 .relation_types
@@ -817,14 +1010,39 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                     .iter()
                     .any(|m| m.id == id && m.kind == "text") =>
             {
-                Some(Body::Material(id.into()))
+                Some(Body::Leaf(Entry::Material(id.into())))
             }
             _ => None,
         });
+        let meta: serde_json::Value = comment
+            .metadata_json
+            .as_deref()
+            .and_then(|m| serde_json::from_str(m).ok())
+            .unwrap_or(serde_json::Value::Null);
+        let old_block = meta
+            .get("blockId")
+            .and_then(serde_json::Value::as_str)
+            .or(comment.target_block_id.as_deref());
+        let has_prose_target = target.is_some_and(|(tk, _)| {
+            matches!(
+                tk,
+                "node" | "element" | "category" | "storyline" | "library_item"
+            )
+        });
+        let origin = match meta.get("kind").and_then(serde_json::Value::as_str) {
+            Some("todo-autoparse") if has_prose_target && old_block.is_some() => "marker",
+            Some("note-task") if has_prose_target && old_block.is_some() => "task",
+            _ => match dr_model::import_v1::legacy::comment_author_kind(&comment.author_kind) {
+                dr_model::kind::CommentAuthorKind::Ai => "agent",
+                dr_model::kind::CommentAuthorKind::External => "reader",
+                _ => "manual",
+            },
+        }
+        .to_string();
         out.comments.push(Comment {
             old_id: comment.id.clone(),
-            kind: comment.kind.clone(),
-            target: target.map(|(kind, id)| endpoint(kind, id)),
+            origin,
+            target: target.map(|(kind, id)| endpoint(kind, id, &rows.materials)),
             body,
         });
     }
@@ -852,7 +1070,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             ProseKind::Element => Body::Leaf(Entry::Element(owner.id.clone())),
             ProseKind::Category => Body::About(Entry::Category(owner.id.clone())),
             ProseKind::Storyline => Body::About(Entry::Storyline(owner.id.clone())),
-            ProseKind::LibraryItem => Body::Material(owner.id.clone()),
+            ProseKind::LibraryItem => Body::Leaf(Entry::Material(owner.id.clone())),
         };
         out.prose.push(Prose {
             source: owner.old_doc_id(),
@@ -938,13 +1156,22 @@ fn fields(
         .collect())
 }
 
-fn endpoint(kind: &str, id: &str) -> Endpoint {
+fn endpoint(kind: &str, id: &str, materials: &[dr_import_v1::legacy::MaterialRow]) -> Endpoint {
     match kind {
         "node" => Endpoint::Entry(Entry::Node(id.into())),
         "element" => Endpoint::Entry(Entry::Element(id.into())),
         "category" => Endpoint::Entry(Entry::Category(id.into())),
         "storyline" => Endpoint::Entry(Entry::Storyline(id.into())),
-        "library_item" => Endpoint::Material(id.into()),
+        "library_item" => match materials.iter().find(|m| m.id == id) {
+            Some(m) if matches!(m.kind.as_str(), "image" | "pdf") => match &m.asset {
+                Some(asset_id) => Endpoint::Asset(asset_id.clone()),
+                None => Endpoint::Unresolved {
+                    kind: kind.into(),
+                    id: id.into(),
+                },
+            },
+            _ => Endpoint::Entry(Entry::Material(id.into())),
+        },
         "comment" => Endpoint::Comment(id.into()),
         "patch" => Endpoint::Patch(id.into()),
         _ => Endpoint::Unresolved {
@@ -995,7 +1222,7 @@ fn validate_references(out: &mut Manifest) {
     }
     let endpoint_exists = |endpoint: &Endpoint| match endpoint {
         Endpoint::Entry(e) => entries.contains(e),
-        Endpoint::Material(id) => out.source_rows["library_item"]
+        Endpoint::Asset(id) => out.source_rows["project_asset"]
             .iter()
             .any(|r| r["id"] == *id),
         Endpoint::Comment(id) => out.source_rows["comment"].iter().any(|r| r["id"] == *id),

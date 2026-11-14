@@ -1,19 +1,22 @@
-//! The two small documents beside a book document (`kernel-v4.md` §8):
-//! `stats:<book>` holds the book's writing days, `checkpoints:<book>` its
-//! complete-entry checkpoint manifests.
+//! The three small documents beside a book document (`kernel-v4.md` §8 &
+//! `kernel-v5.md` §8): `stats:<book>` holds the book's writing days,
+//! `checkpoints:<book>` its complete-entry checkpoint manifests, and
+//! `layout:<book>` its free-canvas positions (`<scope>/<mode> -> entry -> [x, y]`).
 //!
-//! Neither is prose and neither is the book: no editing profile, not
+//! None is prose and none is the book: no editing profile, not
 //! counted, searched or exported, no TODO projection. They belong to the
 //! book their id names. Keeping them out of the book document means that
-//! recording a writing day or a checkpoint never advances the book's
-//! version, never wakes the book's content listeners, and never makes
-//! another device validate the whole book document.
+//! recording a writing day, saving a checkpoint, or dragging a card on a
+//! canvas never advances the book's version, never wakes the book's content
+//! listeners, and never makes another device validate the whole book document.
 //!
-//! Both start from a deterministic genesis (`meta.v = 1`, `meta.doc = <id>`,
+//! All three start from a deterministic genesis (`meta.v = 1`, `meta.doc = <id>`,
 //! written by the document's genesis peer at timestamp 0), so two devices
 //! that each create one write the same change and merge into one.
 
-use dr_model::id::{BookId, DeviceKey};
+use std::collections::BTreeMap;
+
+use dr_model::id::{BookId, DeviceKey, EntryId};
 use dr_model::shared::WritingDay;
 use dr_model::{Day, DocId, Origin};
 use loro::{
@@ -50,9 +53,18 @@ pub fn checkpoints_genesis(book: &BookId) -> Vec<u8> {
     side_genesis(&DocId::Checkpoints(book.clone()))
 }
 
+/// Deterministic genesis of `layout:<book>`.
+pub fn layout_genesis(book: &BookId) -> Vec<u8> {
+    side_genesis(&DocId::Layout(book.clone()))
+}
+
 /// The genesis of a document beside a book, or `None` for any other id.
 pub fn genesis(doc: &DocId) -> Option<Vec<u8>> {
-    matches!(doc, DocId::Stats(_) | DocId::Checkpoints(_)).then(|| side_genesis(doc))
+    matches!(
+        doc,
+        DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Layout(_)
+    )
+    .then(|| side_genesis(doc))
 }
 
 fn check_identity(doc: &LoroDoc, id: &DocId) -> Result<()> {
@@ -206,6 +218,125 @@ impl<'a> CheckpointsTxn<'a> {
     }
 }
 
+// ---- canvas positions (`layout:<book>`) ----------------------------------
+
+fn decode_coord_num(v: &LoroValue) -> Option<f64> {
+    match v {
+        LoroValue::Double(d) if d.is_finite() => Some(*d),
+        LoroValue::I64(i) => Some(*i as f64),
+        _ => None,
+    }
+}
+
+fn decode_coord_pair(v: &LoroValue) -> Option<(f64, f64)> {
+    let LoroValue::List(items) = v else {
+        return None;
+    };
+    if items.len() != 2 {
+        return None;
+    }
+    Some((decode_coord_num(&items[0])?, decode_coord_num(&items[1])?))
+}
+
+fn decode_scope_map(v: &LoroValue) -> BTreeMap<EntryId, (f64, f64)> {
+    let LoroValue::Map(m) = v else {
+        return BTreeMap::new();
+    };
+    m.iter()
+        .filter_map(|(k, val)| Some((EntryId::parse(k).ok()?, decode_coord_pair(val)?)))
+        .collect()
+}
+
+/// Reads of a `layout:<book>` document.
+#[derive(Clone, Copy)]
+pub struct LayoutView<'a> {
+    doc: &'a LoroDoc,
+}
+
+impl LayoutView<'_> {
+    /// Positions stored for `<scope>/<mode>`, skipping malformed ids or
+    /// non-finite coordinates.
+    pub fn positions(&self, scope_mode: &str) -> BTreeMap<EntryId, (f64, f64)> {
+        let Some(ValueOrContainer::Container(loro::Container::Map(m))) =
+            self.doc.get_map(schema::side::POSITIONS).get(scope_mode)
+        else {
+            return BTreeMap::new();
+        };
+        decode_scope_map(&m.get_deep_value())
+    }
+
+    /// Every non-empty `<scope>/<mode>` map of valid coordinates.
+    pub fn all_positions(&self) -> BTreeMap<String, BTreeMap<EntryId, (f64, f64)>> {
+        let LoroValue::Map(m) = self.doc.get_map(schema::side::POSITIONS).get_deep_value() else {
+            return BTreeMap::new();
+        };
+        m.iter()
+            .filter_map(|(k, v)| {
+                let (scope, mode) = k.split_once('/')?;
+                if scope.is_empty() || mode.is_empty() || mode.contains('/') {
+                    return None;
+                }
+                let parsed = decode_scope_map(v);
+                (!parsed.is_empty()).then(|| (k.clone(), parsed))
+            })
+            .collect()
+    }
+}
+
+/// Writes to a `layout:<book>` document. Does not commit.
+pub struct LayoutTxn<'a> {
+    doc: &'a LoroDoc,
+}
+
+impl<'a> LayoutTxn<'a> {
+    pub fn view(&self) -> LayoutView<'a> {
+        LayoutView { doc: self.doc }
+    }
+
+    /// Set `entry`'s position in `<scope>/<mode>`. Non-finite coordinates are refused.
+    pub fn put_position(
+        &mut self,
+        scope_mode: &str,
+        entry: &EntryId,
+        x: f64,
+        y: f64,
+    ) -> Result<()> {
+        if !x.is_finite() || !y.is_finite() {
+            return Err(DocError::NotInProfile("layout coordinates must be finite"));
+        }
+        let sub = self
+            .doc
+            .get_map(schema::side::POSITIONS)
+            .ensure_mergeable_map(scope_mode)?;
+        sub.insert(
+            entry.as_str(),
+            LoroValue::List(vec![LoroValue::Double(x), LoroValue::Double(y)].into()),
+        )?;
+        Ok(())
+    }
+
+    /// Remove `entry`'s position from `<scope>/<mode>`.
+    pub fn remove_position(&mut self, scope_mode: &str, entry: &EntryId) -> Result<()> {
+        let root = self.doc.get_map(schema::side::POSITIONS);
+        if root.get(scope_mode).is_some() {
+            let sub = root.ensure_mergeable_map(scope_mode)?;
+            if sub.get(entry.as_str()).is_some() {
+                sub.delete(entry.as_str())?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Remove every stored position under `<scope>/<mode>`.
+    pub fn clear_scope(&mut self, scope_mode: &str) -> Result<()> {
+        let root = self.doc.get_map(schema::side::POSITIONS);
+        if root.get(scope_mode).is_some() {
+            root.delete(scope_mode)?;
+        }
+        Ok(())
+    }
+}
+
 // ---- borrowed and owned documents ---------------------------------------
 
 /// A `stats:<book>` document held by F2. Does not commit.
@@ -241,6 +372,24 @@ impl<'a> BorrowedCheckpoints<'a> {
     }
     pub fn txn(&self) -> CheckpointsTxn<'_> {
         CheckpointsTxn { doc: self.doc }
+    }
+}
+
+/// A `layout:<book>` document held by F2. Does not commit.
+pub struct BorrowedLayout<'a> {
+    doc: &'a LoroDoc,
+}
+
+impl<'a> BorrowedLayout<'a> {
+    pub fn new(doc: &'a LoroDoc, book: &BookId) -> Result<Self> {
+        check_identity(doc, &DocId::Layout(book.clone()))?;
+        Ok(Self { doc })
+    }
+    pub fn view(&self) -> LayoutView<'_> {
+        LayoutView { doc: self.doc }
+    }
+    pub fn txn(&self) -> LayoutTxn<'_> {
+        LayoutTxn { doc: self.doc }
     }
 }
 
@@ -348,6 +497,7 @@ macro_rules! owned {
 
 owned!(StatsDoc, Stats, StatsView, StatsTxn);
 owned!(CheckpointsDoc, Checkpoints, CheckpointsView, CheckpointsTxn);
+owned!(LayoutDoc, Layout, LayoutView, LayoutTxn);
 
 #[cfg(test)]
 mod tests {
@@ -368,6 +518,7 @@ mod tests {
         for (id, genesis) in [
             (DocId::Stats(book.clone()), stats_genesis(&book)),
             (DocId::Checkpoints(book.clone()), checkpoints_genesis(&book)),
+            (DocId::Layout(book.clone()), layout_genesis(&book)),
         ] {
             assert!(!id.kind().is_book_text(), "{id}");
             assert_eq!(id.kind().profile(), None, "{id}");
@@ -454,5 +605,58 @@ mod tests {
         assert!(BorrowedStats::new(&doc, &a).is_ok());
         assert!(BorrowedStats::new(&doc, &b).is_err());
         assert!(BorrowedCheckpoints::new(&doc, &a).is_err());
+        assert!(BorrowedLayout::new(&doc, &a).is_err());
+    }
+
+    #[test]
+    fn two_devices_merge_layout_positions_per_scope_and_mode() {
+        let book = BookId::parse("b1").unwrap();
+        let e1 = EntryId::parse("e-1").unwrap();
+        let e2 = EntryId::parse("e-2").unwrap();
+        let mut a = LayoutDoc::create(book.clone(), peer(1)).unwrap();
+        let mut b = LayoutDoc::create(book, peer(2)).unwrap();
+        a.edit(Origin::User, |t| {
+            t.put_position("ideas/board", &e1, 12.5, -4.0)?;
+            t.put_position("root/relation_graph", &e1, 100.0, 200.0)
+        })
+        .0
+        .unwrap();
+        b.edit(Origin::User, |t| {
+            t.put_position("ideas/board", &e2, 48.0, 96.0)
+        })
+        .0
+        .unwrap();
+        assert!(
+            a.edit(Origin::User, |t| t.put_position(
+                "ideas/board",
+                &e1,
+                f64::NAN,
+                0.0
+            ))
+            .0
+            .is_err()
+        );
+        let to_b = a.export_updates_since(&b.version()).unwrap();
+        let to_a = b.export_updates_since(&a.version()).unwrap();
+        b.import(&to_b, Origin::Sync).unwrap();
+        a.import(&to_a, Origin::Sync).unwrap();
+        for d in [&a, &b] {
+            let board = d.view().positions("ideas/board");
+            assert_eq!(board.get(&e1), Some(&(12.5, -4.0)));
+            assert_eq!(board.get(&e2), Some(&(48.0, 96.0)));
+            assert_eq!(
+                d.view().positions("root/relation_graph").get(&e1),
+                Some(&(100.0, 200.0))
+            );
+            assert_eq!(d.view().all_positions().len(), 2);
+        }
+        a.edit(Origin::User, |t| t.remove_position("ideas/board", &e1))
+            .0
+            .unwrap();
+        assert_eq!(a.view().positions("ideas/board").len(), 1);
+        a.edit(Origin::User, |t| t.clear_scope("ideas/board"))
+            .0
+            .unwrap();
+        assert!(a.view().positions("ideas/board").is_empty());
     }
 }

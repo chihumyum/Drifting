@@ -122,7 +122,16 @@ fn the_switch_starts_from_the_template_and_never_follows_it_afterwards() {
         json!({"book":b,"id":chapter,"template":"tpl-group"}),
     );
     assert_eq!(get(&e, &b, &chapter)["level"], false);
-    // An entry whose switch is off takes no overrides, and nothing lives under it.
+    // `tpl-group` declares `accept: true`, so even with `level == false` it reads `below.members`
+    // and accepts `overrides`; switching back to `tpl-idea` (`level == false`, `accept == false`)
+    // leaves neither switch on, so `overrides` and child residence are refused.
+    assert_eq!(get(&e, &b, &chapter)["below"]["members"], json!([]));
+    assert!(get(&e, &b, &chapter)["below"]["children"].is_null());
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":chapter,"template":"tpl-idea"}),
+    );
+    assert!(get(&e, &b, &chapter)["below"].is_null());
     assert!(
         e.try_call(
             "entry.update",
@@ -145,7 +154,7 @@ fn the_switch_starts_from_the_template_and_never_follows_it_afterwards() {
 }
 
 #[test]
-fn switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoable_commit() {
+fn switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step() {
     let e = env();
     let b = e.book();
     let doc = format!("book:{b}");
@@ -153,11 +162,13 @@ fn switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoa
     let vol = create(&e, &b, &ms, "卷", "tpl-group");
     e.call(
         "entry.update",
-        json!({"book":b,"id":vol,"overrides":{"display":"grid"}}),
+        json!({"book":b,"id":vol,"overrides":{"display":"grid","accept":false}}),
     );
     let c1 = create(&e, &b, &vol, "一", "tpl-chapter");
     let c2 = create(&e, &b, &vol, "二", "tpl-chapter");
     e.call("entry.trash", json!({"book":b,"id":c2}));
+    let c2_deleted_before = get(&e, &b, &c2)["deleted_at"].clone();
+    assert!(!c2_deleted_before.is_null());
     let c3 = e.out(
         "entry.create",
         json!({"book":b,"parent":vol,"title":"三","template":"tpl-chapter","level":true}),
@@ -186,9 +197,8 @@ fn switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoa
     ));
     assert_eq!(e.ws().observe(&doc).unwrap().version, before.version);
 
-    // Read again and continue: one commit moves every direct child, the
-    // trashed one included, in order, right after `书稿`, the top-level
-    // entry `vol` lives under.
+    // Read again and continue: one commit trashes every live descendant in place,
+    // leaving already-trashed `c2` and every parent pointer untouched.
     let seen = e.ws().observe_records(&doc, &keys).unwrap();
     let out = e
         .ws()
@@ -200,26 +210,29 @@ fn switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoa
         )
         .unwrap();
     assert_eq!(
-        out["output"]["moved"],
-        json!([c1.clone(), c2.clone(), c3.clone(), c4.clone()])
+        out["output"]["trashed"],
+        json!([c1.clone(), c3.clone(), c3a.clone(), c4.clone()])
     );
     let fx = effects(&out);
     assert_eq!(fx.iter().filter(|f| *f == "updated entry").count(), 1);
-    assert_eq!(fx.iter().filter(|f| *f == "moved entry").count(), 4);
-    let mut want = roots_before.clone();
-    want.splice(1..1, [c1.clone(), c2.clone(), c3.clone(), c4.clone()]);
-    assert_eq!(roots(&e, &b), want);
-    // Subtrees go along; the trashed one stays trashed.
+    assert_eq!(fx.iter().filter(|f| *f == "trashed entry").count(), 4);
+    assert_eq!(roots(&e, &b), roots_before);
+    for id in [&c1, &c3, &c4] {
+        let row = get(&e, &b, id);
+        assert!(!row["deleted_at"].is_null());
+        assert_eq!(row["parent"], json!(vol));
+    }
+    assert!(!get(&e, &b, &c3a)["deleted_at"].is_null());
     assert_eq!(get(&e, &b, &c3a)["parent"], json!(c3));
-    assert!(!get(&e, &b, &c2)["deleted_at"].is_null());
-    // `vol` keeps its place and its overrides; nothing reads below it.
+    assert_eq!(get(&e, &b, &c2)["deleted_at"], c2_deleted_before);
+    // `vol` keeps its place and its overrides; with both `level` and `accept` off, `below` is null.
     let v = get(&e, &b, &vol);
     assert_eq!(v["level"], false);
     assert_eq!(v["parent"], json!(ms));
     assert_eq!(v["overrides"]["display"], "grid");
     assert!(v["below"].is_null());
 
-    // One undo puts the switch and every child back.
+    // One undo puts the switch and every live descendant back, leaving `c2` trashed.
     e.ws().undo(&Actor::User).unwrap();
     assert_eq!(roots(&e, &b), roots_before);
     let v = get(&e, &b, &vol);
@@ -228,28 +241,52 @@ fn switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoa
         ids(&v["below"]["children"]),
         vec![c1.clone(), c3.clone(), c4.clone()]
     );
+    assert!(get(&e, &b, &c3a)["deleted_at"].is_null());
+    assert_eq!(get(&e, &b, &c2)["deleted_at"], c2_deleted_before);
     assert_eq!(get(&e, &b, &c2)["parent"], json!(vol));
+
+    // Turning off the top-level chapter folder (`书稿`) trashes its chapters; restoring one
+    // chapter while `书稿` is off relocates it to root (`parent == null`).
+    e.call("entry.set_level", json!({"book":b,"id":ms,"level":false}));
+    assert!(!get(&e, &b, &c1)["deleted_at"].is_null());
+    e.call("entry.restore", json!({"book":b,"id":c1}));
+    let restored_c1 = get(&e, &b, &c1);
+    assert!(restored_c1["deleted_at"].is_null());
+    assert!(restored_c1["parent"].is_null());
+    e.ws().undo(&Actor::User).unwrap();
+    e.ws().undo(&Actor::User).unwrap();
+    assert_eq!(get(&e, &b, &ms)["level"], true);
+    assert_eq!(get(&e, &b, &c1)["parent"], json!(vol));
+
     // On again with nothing below: only the switch.
     let empty = create(&e, &b, &ms, "空卷", "tpl-group");
     let out = e.call(
         "entry.set_level",
         json!({"book":b,"id":empty,"level":false}),
     );
-    assert_eq!(out["output"]["moved"], json!([]));
+    assert_eq!(out["output"]["trashed"], json!([]));
     let out = e.call("entry.set_level", json!({"book":b,"id":empty,"level":true}));
     assert_eq!(out["output"]["level"], true);
     assert_eq!(get(&e, &b, &empty)["level"], true);
 }
 
 #[test]
-fn switching_a_lane_off_hides_it_and_on_brings_it_back() {
+fn host_accepts_members_and_serves_as_lane_without_level_switch() {
     let e = env();
     let b = e.book();
     let lines = root(&e, &b, "tpl-storylines");
     let ms = root(&e, &b, "tpl-manuscript");
     let lane = create(&e, &b, &lines, "主线", "tpl-storyline");
-    let ch = create(&e, &b, &ms, "一", "tpl-chapter");
-    e.call("membership.add", json!({"book":b,"host":lane,"member":ch}));
+    assert_eq!(get(&e, &b, &lane)["level"], false);
+
+    // Creating with `host` on a storyline (`level == false`, `accept == true`) places the new
+    // chapter in `书稿` (`home`) and joins the storyline as primary host.
+    let ch = e.out("entry.create", json!({"book":b,"host":lane,"title":"一"}));
+    let ch_id = ch["id"].as_str().unwrap().to_owned();
+    assert_eq!(ch["parent"], json!(ms));
+    assert_eq!(ch["primary"], json!(lane));
+    assert_eq!(ch["template"], "tpl-chapter");
+
     let members = |e: &Env| {
         e.out("membership.list", json!({"book":b}))
             .as_array()
@@ -257,7 +294,55 @@ fn switching_a_lane_off_hides_it_and_on_brings_it_back() {
             .len()
     };
     assert_eq!(members(&e), 1);
+    assert_eq!(
+        ids(&get(&e, &b, &lane)["below"]["members"]),
+        vec![ch_id.clone()]
+    );
+
+    // A `level == false, accept == true` entry works as swimlane, book root, and Tab mount.
+    let view = e.out("timeline_view.list", json!({"book":b}))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book":b,"view":view,"lane":lane}),
+    );
+    e.call(
+        "project.update",
+        json!({"book":b,"root":{"kind":"entry","entry":lane}}),
+    );
+    assert_eq!(
+        e.out("project.get", json!({"book":b}))["book_root_valid"],
+        true
+    );
+    let tab = e.out(
+        "tab.put",
+        json!({"book":b,"name":"主线栏","mount":{"kind":"entry","entry":lane}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        e.out("project.get", json!({"book":b}))["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == tab)
+            .unwrap()["mount_valid"],
+        true
+    );
+
+    // Toggling `level` on and off leaves memberships and swimlane intact when `accept == true`.
+    e.call("entry.set_level", json!({"book":b,"id":lane,"level":true}));
     e.call("entry.set_level", json!({"book":b,"id":lane,"level":false}));
+    assert_eq!(members(&e), 1);
+
+    // Turning `accept` off hides memberships and refuses new ones; clearing the override restores them.
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":lane,"overrides":{"accept":false}}),
+    );
     assert_eq!(members(&e), 0);
     refused(
         &e,
@@ -265,8 +350,32 @@ fn switching_a_lane_off_hides_it_and_on_brings_it_back() {
         json!({"book":b,"host":lane,"member":ms}),
         "V3-MEMBERSHIP-RULES",
     );
-    e.call("entry.set_level", json!({"book":b,"id":lane,"level":true}));
+    e.call("entry.update", json!({"book":b,"id":lane,"overrides":{}}));
     assert_eq!(members(&e), 1);
+
+    // `accept` does NOT inherit down the tree: a child under `人物` (`tpl-category`, `accept: true`)
+    // whose own template (`tpl-character`) does not set `accept` cannot accept memberships even with `level: true`.
+    let people = category(&e, &b, "人物");
+    let sub = e.out(
+        "entry.create",
+        json!({"book":b,"parent":people,"title":"子项","template":"tpl-character","level":true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(get(&e, &b, &sub)["below"]["settings"]["accept"], false);
+    refused(
+        &e,
+        "membership.add",
+        json!({"book":b,"host":sub,"member":ch_id}),
+        "V3-MEMBERSHIP-RULES",
+    );
+
+    // Deleting a storyline leaves the chapters on it untouched in `书稿`.
+    e.call("entry.trash", json!({"book":b,"id":lane}));
+    let ch_after = get(&e, &b, &ch_id);
+    assert!(ch_after["deleted_at"].is_null());
+    assert_eq!(ch_after["parent"], json!(ms));
 }
 
 #[test]
@@ -326,63 +435,270 @@ fn a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves
 }
 
 #[test]
-fn a_nested_manuscript_a_merge_left_blocks_no_unrelated_write() {
-    let a = env();
-    let z = env();
-    let b = a.book();
-    let ms = root(&a, &b, "tpl-manuscript");
-    let chapter = create(&a, &b, &ms, "第一章", "tpl-chapter");
-    let appendix = a.out(
+fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
+    let e = env();
+    let b = e.book();
+    let ms = root(&e, &b, "tpl-manuscript");
+    let sl_root = root(&e, &b, "tpl-storylines");
+    let chapter = create(&e, &b, &ms, "第一章", "tpl-chapter");
+    e.call(
+        "module.set_prose",
+        json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"潮水退去之后。"}]}),
+    );
+    let view = e.out("timeline_view.list", json!({"book":b}))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane = e.out(
+        "entry.create",
+        json!({"book":b,"parent":sl_root,"title":"主线","template":"tpl-storyline"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book":b,"view":view,"lane":lane}),
+    );
+
+    // Default novel project: book root is 书稿, 4 default tabs all valid.
+    let proj = e.out("project.get", json!({"book":b}));
+    assert_eq!(proj["source"]["id"], "builtin:novel");
+    assert_eq!(proj["book"]["root"], json!({"kind":"entry","entry":ms}));
+    assert_eq!(proj["book_root_valid"], true);
+    assert_eq!(proj["tabs"].as_array().unwrap().len(), 4);
+    assert!(
+        proj["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["mount_valid"] == true)
+    );
+
+    // Put tabs for all four mount targets: root, entry, view, book.
+    let t_root = e.out(
+        "tab.put",
+        json!({"book":b,"name":"全项目","mount":{"kind":"root"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let t_view = e.out(
+        "tab.put",
+        json!({"book":b,"name":"主视图","mount":{"kind":"view","view":view}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let t_book = e.out(
+        "tab.put",
+        json!({"book":b,"name":"成书","mount":{"kind":"book"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "tab.move",
+        json!({"book":b,"id":t_book,"place":{"before":proj["tabs"][0]["id"]}}),
+    );
+    let tabs_now = e.out("project.get", json!({"book":b}))["tabs"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(tabs_now[0]["id"], t_book);
+    assert!(tabs_now.iter().all(|t| t["mount_valid"] == true));
+
+    // Invalid mounts are refused on write.
+    refused(
+        &e,
+        "tab.put",
+        json!({"book":b,"name":"非层级","mount":{"kind":"entry","entry":chapter}}),
+        "TAB-MOUNT-VALID",
+    );
+    refused(
+        &e,
+        "tab.put",
+        json!({"book":b,"name":"假视图","mount":{"kind":"view","view":"tv-missing"}}),
+        "TAB-MOUNT-VALID",
+    );
+
+    // Invalid book roots are refused on write; all four valid kinds work.
+    refused(
+        &e,
+        "project.update",
+        json!({"book":b,"root":{"kind":"entry","entry":chapter}}),
+        "BOOK-ROOT-VALID",
+    );
+    refused(
+        &e,
+        "project.update",
+        json!({"book":b,"root":{"kind":"lane","view":view,"entry":ms}}),
+        "BOOK-ROOT-VALID",
+    );
+    for valid_root in [
+        json!({"kind":"root"}),
+        json!({"kind":"view","view":view}),
+        json!({"kind":"lane","view":view,"entry":lane}),
+        json!({"kind":"entry","entry":ms}),
+    ] {
+        e.call("project.update", json!({"book":b,"root":valid_root}));
+        let seq = e.out("book.sequence", json!({"book":b}));
+        assert_eq!(seq["has_book"], true);
+        assert_eq!(seq["root_valid"], true);
+    }
+    let seq = e.out("book.sequence", json!({"book":b}));
+    assert_eq!(seq["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(seq["entries"][0]["entry"]["id"], ms);
+    assert!(seq["entries"][0]["ordinal"].is_null());
+    assert_eq!(seq["entries"][1]["entry"]["id"], chapter);
+    assert_eq!(seq["entries"][1]["ordinal"], 1);
+
+    // Trashing an entry mounted on a tab and used as book root keeps both stored,
+    // marks them invalid on read, reads book.sequence as empty, and blocks no unrelated write.
+    let appendix = e.out(
         "entry.create",
         json!({"book":b,"title":"附录","template":"tpl-group"}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    sync(a.ws(), z.ws());
-    // Apart: one device makes 附录 a manuscript of its own (allowed, it is at
-    // the root), the other moves it into 书稿 (allowed, it is no manuscript
-    // there). Together they make a nested pair.
-    z.call(
-        "entry.update",
-        json!({"book":b,"id":appendix,"overrides":{"is_manuscript":true}}),
+    let t_app = e.out(
+        "tab.put",
+        json!({"book":b,"name":"附录栏","mount":{"kind":"entry","entry":appendix}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call(
+        "project.update",
+        json!({"book":b,"root":{"kind":"entry","entry":appendix}}),
     );
-    a.call("entry.move", json!({"book":b,"id":appendix,"parent":ms}));
-    sync(z.ws(), a.ws());
-    let manuscripts = |e: &Env| -> Vec<String> {
-        e.out("entry.list", json!({"book":b,"all":true,"below":true}))
+    e.call("entry.trash", json!({"book":b,"id":appendix}));
+    let proj_trashed = e.out("project.get", json!({"book":b}));
+    assert_eq!(proj_trashed["book_root_valid"], false);
+    assert_eq!(
+        proj_trashed["tabs"]
             .as_array()
             .unwrap()
             .iter()
-            .filter(|r| r["below"]["settings"]["is_manuscript"] == true)
-            .map(|r| r["id"].as_str().unwrap().to_owned())
-            .collect()
-    };
-    assert_eq!(get(&a, &b, &appendix)["parent"], json!(ms));
-    assert!(manuscripts(&a).contains(&appendix));
-    // Unrelated writes go through, the nested one too.
-    a.call(
+            .find(|t| t["id"] == t_app)
+            .unwrap()["mount_valid"],
+        false
+    );
+    let empty_seq = e.out("book.sequence", json!({"book":b}));
+    assert_eq!(empty_seq["root_valid"], false);
+    assert_eq!(empty_seq["entries"], json!([]));
+    // Unrelated writes and renaming the invalid-mounted tab without changing mount succeed.
+    e.call(
         "entry.update",
         json!({"book":b,"id":chapter,"title":"第一章 改"}),
     );
-    a.call(
-        "entry.update",
-        json!({"book":b,"id":appendix,"title":"附录一"}),
+    e.call("tab.put", json!({"book":b,"id":t_app,"name":"旧附录栏"}));
+    e.call("tab.remove", json!({"book":b,"id":t_root}));
+    e.call("tab.remove", json!({"book":b,"id":t_view}));
+
+    // Turning the book off keeps `{kind: "book"}` tab stored with `mount_valid == false`,
+    // hides shelf words & daily target, and makes `writing_day.record` a no-op.
+    e.call("project.update", json!({"book":b,"has_book":false}));
+    let proj_no_book = e.out("project.get", json!({"book":b}));
+    assert!(proj_no_book["book"].is_null());
+    assert_eq!(
+        proj_no_book["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == t_book)
+            .unwrap()["mount_valid"],
+        false
     );
-    let inner = create(&a, &b, &appendix, "分卷", "tpl-group");
-    // Another nested pair is new: refused.
     refused(
-        &a,
-        "entry.update",
-        json!({"book":b,"id":inner,"overrides":{"is_manuscript":true}}),
-        "V3-MANUSCRIPT-NO-NEST",
+        &e,
+        "tab.put",
+        json!({"book":b,"name":"新成书","mount":{"kind":"book"}}),
+        "TAB-MOUNT-VALID",
     );
-    // Turning the inner manuscript off resolves the old pair.
-    a.call(
-        "entry.update",
-        json!({"book":b,"id":appendix,"overrides":{"is_manuscript":false}}),
+    let shelf = e.out("book.shelf", json!({}));
+    assert!(
+        shelf
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == b)
+            .unwrap()["words"]
+            .is_null()
     );
-    assert!(!manuscripts(&a).contains(&appendix));
+    let stats_before = e.ws().observe(&format!("stats:{b}")).unwrap().version;
+    e.call(
+        "writing_day.record",
+        json!({"book":b,"device":"dev-1","day":"2026-11-13","words":500}),
+    );
+    assert_eq!(
+        e.ws().observe(&format!("stats:{b}")).unwrap().version,
+        stats_before,
+        "writing_day.record does not write when project.book is off"
+    );
+    let days = e.out("book.writing_days", json!({"book":b,"today":"2026-11-13"}));
+    assert!(days["daily_word_target"].is_null());
+    assert_eq!(days["today"], 0);
+    assert_eq!(days["week"], 0);
+
+    // Undo turning the book off restores `project.book` and makes `t_book` valid again.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    let restored = e.out("project.get", json!({"book":b}));
+    assert!(!restored["book"].is_null());
+    assert_eq!(
+        restored["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == t_book)
+            .unwrap()["mount_valid"],
+        true
+    );
+
+    // Custom non-book project template via `project.create`.
+    let custom = e.out(
+        "project.create",
+        json!({
+            "name": "研究卡片库",
+            "template": {
+                "project": {
+                    "source": {"id": "research-cards", "version": 1},
+                    "agent": {"name": "研究助手", "description": "整理文献", "instructions": "按主题归档"},
+                    "book": null,
+                    "tabs": [
+                        {"id": "tab-all", "name": "全部卡片", "mount": {"kind": "root"}}
+                    ]
+                },
+                "templates": [
+                    {
+                        "id": "tpl-card",
+                        "name": "卡片",
+                        "modules": [
+                            {"id": "mod-prose", "kind": "prose", "name": "笔记", "config": {"in_book": false}}
+                        ]
+                    }
+                ],
+                "entries": [
+                    {
+                        "id": "ent-first-card",
+                        "title": "第一张卡片",
+                        "template": "tpl-card",
+                        "level": false
+                    }
+                ],
+                "views": []
+            }
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let custom_proj = e.out("project.get", json!({"book":custom}));
+    assert_eq!(custom_proj["source"]["id"], "research-cards");
+    assert!(custom_proj["book"].is_null());
+    assert_eq!(custom_proj["tabs"].as_array().unwrap().len(), 1);
+    assert_eq!(custom_proj["tabs"][0]["name"], "全部卡片");
 }
 
 #[test]

@@ -124,7 +124,8 @@ fn directory_projects_v3_input_output_and_revision_for_shared_names() {
     let create = cat.descriptor("comment.create").unwrap();
     assert!(create.input_schema["properties"]["module"].is_object());
     let book = cat.descriptor("book.update").unwrap();
-    assert!(book.input_schema["properties"]["word_target"].is_object());
+    assert!(book.input_schema["properties"]["summary"].is_object());
+    assert!(book.input_schema["properties"].get("word_target").is_none());
 }
 
 #[test]
@@ -134,35 +135,25 @@ fn book_metadata_requires_read_and_old_frontier_never_overwrites_author_update()
         f.call("book.update", json!({"name":"unread"})),
         Err(Error::ReadRequired(_))
     ));
-    f.call("book.get", json!({})).unwrap();
-    f.call(
-        "book.update",
-        json!({"name":"Synthetic book","word_target":0,"daily_word_target":230}),
-    )
-    .unwrap();
+    let initial = f.call("book.get", json!({})).unwrap();
+    assert_eq!(initial["word_target"], 3000);
+    f.call("book.update", json!({"name":"Synthetic book"}))
+        .unwrap();
     let book = f.call("book.get", json!({})).unwrap();
     assert_eq!(book["name"], "Synthetic book");
-    assert!(book["word_target"].is_null());
-    assert_eq!(
-        f.ws.observe(&format!("book:{}", f.book)).unwrap().value["meta"]["word_target"],
-        0
-    );
-    assert_eq!(book["daily_word_target"], 230);
+    assert_eq!(book["word_target"], initial["word_target"]);
     f.out("book.update", json!({"summary":"author edit"}));
     assert!(matches!(
         f.call("book.update", json!({"name":"stale"})),
         Err(Error::Conflict(_))
     ));
     f.call("book.get", json!({})).unwrap();
-    f.call(
-        "book.update",
-        json!({"word_target":null,"daily_word_target":null}),
-    )
-    .unwrap();
+    f.call("book.update", json!({"summary":"agent edit"}))
+        .unwrap();
     let book = f.call("book.get", json!({})).unwrap();
     assert_eq!(book["name"], "Synthetic book");
-    assert_eq!(book["summary"], "author edit");
-    assert_eq!(book["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
+    assert_eq!(book["summary"], "agent edit");
+    assert_eq!(book["word_target"], initial["word_target"]);
 }
 
 #[test]
@@ -313,45 +304,44 @@ fn reading_module_prose_does_not_authorize_entry_metadata_replacement() {
 #[test]
 fn material_metadata_and_text_use_current_book_scope_and_source_coverage() {
     let f = Fixture::new();
-    f.call("material.list", json!({})).unwrap();
-    let material=f.call("material.create",json!({"kind":"text","title":"Synthetic material","text":"First material paragraph.\nSecond material paragraph."})).unwrap();
-    let id = material["id"].as_str().unwrap();
-    let doc = json!({"kind":"material","name":"Synthetic material"});
+    f.call("entry.list", json!({"all":true})).unwrap();
+    let note = f
+        .call(
+            "entry.create",
+            json!({
+                "template":"tpl-note",
+                "title":"Synthetic material",
+                "bodies":{"mod-prose":"First material paragraph.\nSecond material paragraph."}
+            }),
+        )
+        .unwrap();
+    let id = note["id"].as_str().unwrap();
+    let doc = json!({"kind":"entry","module":MOD_PROSE,"name":"Synthetic material"});
     let body = f.call("prose.read", json!({"doc":doc,"limit":1})).unwrap();
     let full = f.out(
         "prose.read",
-        json!({"doc":format!("material:{id}"),"limit":100}),
+        json!({"doc":format!("body:{id}/{MOD_PROSE}"),"limit":100}),
     );
     let second = &full["paragraphs"][1];
     assert!(matches!(f.call("prose.replace",json!({"doc":doc,"block_id":second["block_id"],"find":second["text"],"replace":"unread"})),Err(Error::ReadRequired(_))));
     let first = &body["paragraphs"][0];
     f.call("prose.replace",json!({"doc":doc,"block_id":first["block_id"],"find":first["text"],"replace":"Read material revision."})).unwrap();
-    f.call("material.list", json!({"folder":""})).unwrap();
+    f.call("entry.list", json!({"parent":null})).unwrap();
     f.call(
-        "material.update",
+        "entry.update",
         json!({"id":"Synthetic material","title":"Renamed material"}),
     )
     .unwrap();
-    f.call("material.list", json!({})).unwrap();
+    f.call("entry.list", json!({"all":true})).unwrap();
     f.call(
         "comment.create",
-        json!({"target":{"kind":"material","name":"Renamed material"},"body":"Material comment"}),
+        json!({"target":{"kind":"entry","name":"Renamed material"},"body":"Material comment"}),
     )
     .unwrap();
-    assert!(
-        f.call(
-            "comment.list",
-            json!({"target":{"kind":"material","id":id},"module":MOD_PROSE})
-        )
-        .is_err()
-    );
-    f.call("material.list", json!({})).unwrap();
-    f.out(
-        "material.update",
-        json!({"id":id,"description":"author edit"}),
-    );
+    f.call("entry.get", json!({"id":id})).unwrap();
+    f.out("entry.update", json!({"id":id,"title":"author edit"}));
     assert!(matches!(
-        f.call("material.update", json!({"id":id,"title":"stale"})),
+        f.call("entry.update", json!({"id":id,"title":"stale"})),
         Err(Error::Conflict(_))
     ));
 }
@@ -535,31 +525,34 @@ fn stale_anchor_source_and_invalid_ranges_never_write_comments_or_settlements() 
 #[test]
 fn material_range_comments_guard_the_material_document_and_reject_foreign_anchor_bytes() {
     let f = Fixture::new();
-    // Reuse seed text for the material source.
+    // Reuse seed text for the note source.
     let seeded = f.out(
         "module.read_prose",
         json!({"owner":f.entry,"module":MOD_PROSE}),
     );
     let text = seeded["paragraphs"][0]["text"].as_str().unwrap();
-    let id = f.out(
-        "material.create",
-        json!({"kind":"text","title":"Anchor material","text":text}),
-    )["id"]
-        .clone();
-    let doc = format!("material:{}", id.as_str().unwrap());
+    let note = dr_testkit::seed::acceptance::novel_entry(
+        &f.ws,
+        f.book.as_str(),
+        "tpl-note",
+        "Anchor material",
+        Some(text),
+    );
+    let id = note["id"].clone();
+    let doc = format!("body:{}/{MOD_PROSE}", id.as_str().unwrap());
     f.call("prose.read", json!({"doc":doc,"limit":100}))
         .unwrap();
     let cid = f
         .call(
             "comment.create",
-            json!({"target":{"kind":"material","id":id},"range":[0,3],"body":"Material range"}),
+            json!({"target":{"kind":"entry","id":id},"module":MOD_PROSE,"range":[0,3],"body":"Material range"}),
         )
         .unwrap()["id"]
         .clone();
     let anchors = f
         .call(
             "comment.anchors",
-            json!({"target":{"kind":"material","id":id}}),
+            json!({"target":{"kind":"entry","id":id},"module":MOD_PROSE}),
         )
         .unwrap();
     let anchor = anchors

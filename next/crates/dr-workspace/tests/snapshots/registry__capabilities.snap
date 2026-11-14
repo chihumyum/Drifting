@@ -2,31 +2,38 @@
 source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
-asset.get                    query    shared   Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).
-asset.put                    command  book     Record an imported asset's metadata in the book (written once; the bytes are in storage).
-book.get                     query    shared   Read book metadata and word targets; aggregate counts use the statistics adapter.
+asset.get                    query    shared   Read an asset's metadata and live usages in the book.
+asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its live usages (media modules, prose embeds, relations). Set `trashed: true` to include Recently Deleted.
+asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
+asset.put                    command  book     Record an imported asset in the project's built-in asset library (bytes live in storage).
+asset.rename                 command  book     Rename a live asset in the built-in asset library.
+asset.restore                command  book     Restore a trashed asset from Recently Deleted back into the asset library.
+asset.trash                  command  book     Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.
+book.get                     query    shared   Read book metadata and project word targets; aggregate counts use the statistics adapter.
 book.list                    query    shared   List the library's books (trashed ones when asked).
 book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.
 book.purge_expired           command  library  Delete for good every book whose 30 days in Recently Deleted are over (the shelf runs it a while after it opens, so a restore made on another device can arrive first). Cannot be undone.
 book.restore                 command  book     Bring a book back from the trash.
+book.sequence                query    shared   Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start).
 book.shelf                   query    shared   Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.
 book.trash                   command  book     Move a book to the trash (restorable; storage deletes it for good later).
 book.update                  command  book     Update selected book metadata fields without replacing other book data.
 book.writing_days            query    shared   A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
-comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.
-comment.delete               command  book     Delete a comment or TODO (its relations go with it).
-comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
+comment.create               command  book     Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating.
+comment.delete               command  book     Delete a comment (its relations go with it).
+comment.list                 query    shared   List comments (a target or module sub-part in the trash or gone shows as unlocated).
+comment.project              command  book     Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or task gets a comment, an open one whose source line is gone is deleted, resolved ones stay; deterministic ids merge across devices.
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
-comment.update               command  book     Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
-entry.create                 command  book     Create an entry with its template, switch, residence, membership and initial module content.
+comment.update               command  book     Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation.
+entry.create                 command  book     Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list                   query    shared   Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
-entry.move                   command  book     Move an entry's residence and manuscript position; the new residence is the root or a live entry whose switch is on.
-entry.restore                command  book     Restore an entry and what lives under it from trash.
-entry.set_level              command  book     Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on.
+entry.move                   command  book     Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order.
+entry.restore                command  book     Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root.
+entry.set_level              command  book     Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts.
 entry.trash                  command  book     Trash an entry with what lives under it, keeping entries that only belong to it.
-entry.update                 command  book     Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
+entry.update                 command  book     Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
 entry_history.restore        command  book     Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit.
 entry_history.version        query    shared   Read the current book version for per-entry snapshot restoration.
 entry_relation_type.delete   command  book     Delete an unused unlocked relation type.
@@ -48,17 +55,10 @@ fact.put                     command  book     Add a project fact or change one 
 fact.remove                  command  book     Remove a project fact.
 history.points               query    shared   List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
 history.preview              query    shared   Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
-history.restore_point        command  book     Restore one material note and its metadata from history; entry bodies require complete-entry snapshots.
-material.create              command  book     Add a material: a text note, or an image or PDF whose asset is registered.
-material.delete              command  book     Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it).
-material.list                query    shared   List materials in order, optionally of one folder.
-material.move                command  book     Move a material in the list (only its own position changes).
-material.set_entry_link      command  book     Add or remove one built-in association from a material to a live entry, preserving every other relation.
-material.update              command  book     Change a material's title, description, folder or TODO projection.
-material_folder.create       command  book     Create a material folder.
-material_folder.delete       command  book     Delete a material folder: its sub-folders and materials move up to its parent.
-material_folder.list         query    shared   List material folders (素材夹), parents before children.
-material_folder.update       command  book     Rename or move a material folder.
+history.restore_point        command  book     Restore one template-module prose document from history; entry bodies require complete-entry snapshots.
+layout.clear                 command  book     Clear entry coordinates (or the whole `<scope>/<mode>` view) in `layout:<book>` (not undoable; leaves the book document untouched).
+layout.get                   query    shared   Read the free-canvas coordinates stored for a `<scope>/<mode>` view in `layout:<book>`.
+layout.put                   command  book     Set entry coordinates in a `<scope>/<mode>` view of `layout:<book>` (not undoable; leaves the book document untouched).
 membership.add               command  book     Add or order a membership without moving its residence.
 membership.list              query    shared   List valid memberships in a book.
 membership.primary           command  book     Choose an existing membership as primary, or clear the primary membership.
@@ -75,40 +75,46 @@ module.list                  query    shared   List an entry's current and retai
 module.prose_document        command  book     Initialize an entry's or a template's prose module and return its document ID.
 module.put_grid              command  book     Replace the rows, columns, cells and size of one plot module.
 module.put_kv                command  book     Add or update an ordered key/value row in a module.
+module.put_media             command  book     Add or update an ordered file item in an entry's media module.
 module.put_patch             command  book     Create or edit the text of a patch module record, preserving its source reference.
 module.put_relation          command  book     Associate an entry with a live endpoint through its relations module.
 module.read                  query    shared   Read a current or retained module and its structured content; a children module reads what lies below the entry.
 module.read_prose            query    shared   Read an entry's or a template's prose module with block IDs and version.
 module.remove_kv             command  book     Remove a key/value row from a module.
+module.remove_media          command  book     Remove a file item from an entry's media module.
 module.remove_patch          command  book     Remove one patch record without deleting relations or other entries.
 module.remove_relation       command  book     Remove one relation projected in an entry's relations module.
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
 module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module.
-project.create               command  library  Create a project using the novel template.
+project.create               command  library  Create a project from a project template (defaults to the built-in writing template).
+project.get                  query    shared   Read the project definition: template source, Agent instructions, book switch/start/word targets, and left-sidebar tabs.
+project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets.
 prose.link                   command  book     Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
-prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
+prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds.
 prose.unlink                 command  book     Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
 recent.list                  query    shared   List this device's live pages, retaining each entry's selected module.
-recent.touch                 command  book     Record an entry and optional module, or a material, on this device without an undo step.
+recent.touch                 command  book     Record an entry and optional module on this device without an undo step.
 relation.create              command  book     Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
 relation.delete              command  book     Delete one canonical relation without deleting either endpoint.
 relation.list                query    shared   List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
+tab.move                     command  book     Change a left-sidebar tab's position.
+tab.put                      command  book     Create or edit a left-sidebar tab (root, level entry, view or book sequence).
+tab.remove                   command  book     Remove a left-sidebar tab.
 timeline_view.add_lane       command  book     Add one live lane to a view without replacing existing lane records or changing memberships.
-timeline_view.delete         command  book     Delete a timeline view while retaining lane entries and memberships.
+timeline_view.delete         command  book     Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit.
 timeline_view.list           query    shared   List timeline views with their effective lanes, placements and time pins.
 timeline_view.move_lane      command  book     Change only one stored lane's order in a view, preserving hidden data and other lane positions.
 timeline_view.place          command  book     Place or move an entry in a timeline, optionally joining a lane in the same commit.
 timeline_view.put            command  book     Create or edit a timeline view, including its independent lane order.
 timeline_view.put_pin        command  book     Add or edit a time pin, optionally bound to any live entry.
 timeline_view.remove         command  book     Remove an entry from a timeline lane and prune positions where it has no remaining lane.
-timeline_view.remove_lane    command  book     Remove one view lane and newly orphaned visible positions, retaining hidden records and all memberships.
+timeline_view.remove_lane    command  book     Remove one view lane and newly orphaned visible positions, saving its scale order back to manual order when leaving its last live view.
 timeline_view.remove_pin     command  book     Remove a time pin from a timeline view.
 timeline_view.rename         command  book     Rename a timeline view without changing its lanes, positions or pins.
 timeline_view.restore_fields command  book     Restore selected stored timeline fields for undo or redo without replacing the rest of a view.
 timeline_view.set_lane_act_track command  book     Switch whether a stored lane in a view is displayed as a top act track.
-todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.
 writing_day.record           command  book     Set this device's words for one day of a book (the writing-day recorder; not undoable).

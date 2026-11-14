@@ -118,7 +118,7 @@ fn undo(e: &Env) {
 }
 
 #[test]
-fn v3_material_delete_restores_hidden_relations_comments_and_live_text_after_reopen() {
+fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after_reopen() {
     use dr_model::id::{BookId, CommentId};
     use dr_model::kind::EntityKind;
     use dr_model::shared::EntityRef;
@@ -139,11 +139,18 @@ fn v3_material_delete_restores_hidden_relations_comments_and_live_text_after_reo
         "entry.create",
         json!({"book":b,"parent":parent,"title":"Synthetic entry","template":"tpl-chapter"}),
     ));
-    let material = item(e.out("material.create", json!({"book":b,"kind":"text","title":"Synthetic note","text":"Preserve my note","description":"Original description"})));
-    e.call("entry_relation_type.put", json!({"book":b,"definition":{"id":"test-rel","name":"Synthetic relation","source_kinds":["entry"],"target_kinds":["material"]}}));
-    let relation = item(e.out("module.put_relation", json!({"book":b,"entry":entry,"module":"test-relations","other":{"kind":"material","id":material},"relation_type":"test-rel"})));
-    // Imported comments exercise the raw v3 record until the command adapter batch lands.
-    let (book, mat) = (BookId::parse(&b).unwrap(), material.clone());
+    let note = item(e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "title": "Synthetic note",
+            "template": "tpl-note",
+            "bodies": {"mod-prose": "Preserve my note"}
+        }),
+    ));
+    e.call("entry_relation_type.put", json!({"book":b,"definition":{"id":"test-rel","name":"Synthetic relation","source_kinds":["entry"],"target_kinds":["entry"]}}));
+    let _relation = item(e.out("module.put_relation", json!({"book":b,"entry":entry,"module":"test-relations","other":{"kind":"entry","id":note},"relation_type":"test-rel"})));
+    let (book, note_id) = (BookId::parse(&b).unwrap(), note.clone());
     let h = e
         .ws()
         .library()
@@ -154,7 +161,7 @@ fn v3_material_delete_restores_hidden_relations_comments_and_live_text_after_reo
         bb.txn()
             .comment(&CommentId::parse("synthetic-comment").unwrap())
             .unwrap()
-            .target(Some(&EntityRef::new(EntityKind::Material, mat)))
+            .target(Some(&EntityRef::new(EntityKind::Entry, note_id)))
             .unwrap()
             .body("Preserve this comment")
             .unwrap()
@@ -163,44 +170,36 @@ fn v3_material_delete_restores_hidden_relations_comments_and_live_text_after_reo
     })
     .unwrap();
     drop(h);
-    e.call("entry.trash", json!({"book":b,"id":entry}));
+    let prose_doc = format!("body:{note}/mod-prose");
+    let prose = e.ws().observe(&prose_doc).unwrap();
+    let before_entries = e.out("entry.list", json!({"book":b,"all":true}));
+    e.call("entry.trash", json!({"book":b,"id":note}));
     let copy = e.ws().library().load_copy(&format!("book:{b}")).unwrap();
     let book_id = BookId::parse(&b).unwrap();
     let book = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).unwrap();
     assert!(book.view().relations().is_empty());
     assert_eq!(book.view().relations_raw().len(), 1);
-    let before = raw(&e, &b);
-    let prose = e.ws().observe(&format!("material:{material}")).unwrap();
-    e.call("material.delete", json!({"book":b,"id":material}));
-    let gone = raw(&e, &b);
-    assert!(gone["relations"][&relation].is_null());
-    assert!(gone["comments"]["synthetic-comment"]["target"].is_null());
-    assert_eq!(
-        gone["comments"]["synthetic-comment"]["body"],
-        "Preserve this comment"
-    );
-    assert_eq!(
-        gone["comments"]["synthetic-comment"]["quote"],
-        "quoted passage"
-    );
-    assert_eq!(
-        e.ws()
-            .observe(&format!("material:{material}"))
-            .unwrap()
-            .value,
-        prose.value
-    );
+    let comment_info = &e.out("comment.list", json!({"book": b}))[0];
+    assert_eq!(comment_info["unlocated"], true);
+    assert_eq!(comment_info["body"], "Preserve this comment");
+    assert_eq!(comment_info["quote"], "quoted passage");
+    assert_eq!(e.ws().observe(&prose_doc).unwrap().value, prose.value);
     e.reopen();
     undo(&e);
-    for name in ["materials", "comments", "relations"] {
-        assert_eq!(raw(&e, &b)[name], before[name], "{name}");
-    }
-    e.call(
-        "material.update",
-        json!({"book":b,"id":material,"description":"Editable after restore"}),
+    assert_eq!(
+        e.out("entry.list", json!({"book":b,"all":true})),
+        before_entries
     );
     assert_eq!(
-        e.out("material.list", json!({"book":b}))[0]["description"],
+        e.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        false
+    );
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":note,"title":"Editable after restore"}),
+    );
+    assert_eq!(
+        e.out("entry.get", json!({"book":b,"id":note}))["title"],
         "Editable after restore"
     );
     undo(&e);
@@ -212,80 +211,70 @@ fn v3_material_delete_restores_hidden_relations_comments_and_live_text_after_reo
 }
 
 #[test]
-fn v3_material_folders_restore_order_ancestry_and_only_selected_records() {
+fn v3_material_level_entries_restore_order_ancestry_and_only_selected_records() {
     let mut e = env();
     let b = project(&e);
-    let a = item(e.out("material_folder.create", json!({"book":b,"name":"A"})));
+    let materials_root = item(e.out(
+        "entry.create",
+        json!({"book":b,"template":"tpl-group","level":true,"title":"文本素材"}),
+    ));
+    let a = item(e.out(
+        "entry.create",
+        json!({"book":b,"parent":materials_root,"template":"tpl-group","level":true,"title":"A"}),
+    ));
     let f = item(e.out(
-        "material_folder.create",
-        json!({"book":b,"name":"Folder","parent":a}),
+        "entry.create",
+        json!({"book":b,"parent":a,"template":"tpl-group","level":true,"title":"Folder"}),
     ));
     let child = item(e.out(
-        "material_folder.create",
-        json!({"book":b,"name":"Child","parent":f}),
+        "entry.create",
+        json!({"book":b,"parent":f,"template":"tpl-group","level":true,"title":"Child"}),
     ));
-    let mat = item(e.out(
-        "material.create",
-        json!({"book":b,"kind":"text","folder":f,"text":"Synthetic"}),
+    let note = item(e.out(
+        "entry.create",
+        json!({"book":b,"parent":f,"template":"tpl-note","title":"Note","bodies":{"mod-prose":"Synthetic"}}),
     ));
-    let before = e.out("material_folder.list", json!({"book":b}));
-    let mats = e.out("material.list", json!({"book":b}));
     assert!(
-        e.try_call(
-            "material_folder.update",
-            json!({"book":b,"id":a,"parent":child})
-        )
-        .is_err()
+        e.try_call("entry.move", json!({"book":b,"id":a,"parent":child}))
+            .is_err()
     );
-    e.call("material_folder.delete", json!({"book":b,"id":f}));
-    assert_eq!(e.out("material.list", json!({"book":b}))[0]["folder"], a);
-    e.reopen();
-    undo(&e);
-    assert_eq!(e.out("material_folder.list", json!({"book":b})), before);
-    assert_eq!(e.out("material.list", json!({"book":b})), mats);
-    e.ws()
-        .redo(&dr_workspace::Actor::User)
-        .unwrap()
-        .expect("redoable");
-    undo(&e);
     let snapshot = e.out("entry_history.version", json!({"book":b}))["version"].clone();
+    let before = e.out("entry.list", json!({"book":b,"all":true}));
     e.call(
-        "material_folder.update",
-        json!({"book":b,"id":child,"parent":null}),
+        "entry.move",
+        json!({"book":b,"id":child,"parent":materials_root}),
     );
+    e.call("entry.move", json!({"book":b,"id":a,"parent":child}));
     e.call(
-        "material_folder.update",
-        json!({"book":b,"id":a,"parent":child}),
+        "entry_history.restore",
+        json!({
+            "book": b,
+            "at": snapshot,
+            "targets": [
+                {"collection": "entries", "id": a},
+                {"collection": "entries", "id": child}
+            ]
+        }),
     );
-    e.call("entry_history.restore", json!({"book":b,"at":snapshot,"targets":[{"collection":"material_folders","id":a},{"collection":"material_folders","id":child}]}));
-    assert_eq!(e.out("material_folder.list", json!({"book":b})), before);
+    assert_eq!(e.out("entry.list", json!({"book":b,"all":true})), before);
 
-    let fresh = item(e.out("material_folder.create", json!({"book":b,"name":"New"})));
-    e.call("material.update", json!({"book":b,"id":mat,"folder":fresh}));
+    let fresh = item(e.out(
+        "entry.create",
+        json!({"book":b,"parent":materials_root,"template":"tpl-group","level":true,"title":"New"}),
+    ));
+    e.call("entry.move", json!({"book":b,"id":note,"parent":fresh}));
     let state = raw(&e, &b);
     assert!(
         e.try_call(
             "entry_history.restore",
-            json!({"book":b,"at":snapshot,"targets":[{"collection":"material_folders","id":fresh}]})
+            json!({"book":b,"at":snapshot,"targets":[{"collection":"entries","id":fresh}]})
         )
         .is_err()
     );
     assert_eq!(raw(&e, &b), state);
-    e.call("material.move", json!({"book":b,"id":mat,"place":"first"}));
-    e.call(
-        "material_folder.update",
-        json!({"book":b,"id":child,"name":"Renamed","parent":null}),
-    );
+    e.reopen();
     undo(&e);
-    assert_eq!(
-        e.out("material_folder.list", json!({"book":b}))
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|f| f["id"] == child)
-            .unwrap()["parent"],
-        f
-    );
+    assert_eq!(e.out("entry.get", json!({"book":b,"id":note}))["parent"], f);
 }
 
 fn prose_entry(e: &Env, b: &str) -> String {
@@ -468,23 +457,29 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
 }
 
 #[test]
-fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
+fn v3_entry_comments_and_typed_todo_projection_keep_document_scope() {
     use dr_workspace::{
         Actor,
-        commands::comment::{TodoProject, TodoProjectIn},
+        commands::comment::{CommentProject, CommentProjectIn},
     };
     let e = env();
     let b = project(&e);
     let entry = prose_entry(&e, &b);
-    let mat = item(e.out(
-        "material.create",
-        json!({"book":b,"kind":"text","text":"Synthetic material"}),
+    let note = item(e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "template": "tpl-note",
+            "title": "Synthetic note",
+            "bodies": {"mod-prose": "Synthetic material"}
+        }),
     ));
-    let material_doc = format!("material:{mat}");
+    let note_doc = format!("body:{note}/mod-prose");
     // Refuse a stale imported owner pointing at another book's global document ID.
     let foreign = project(&e);
     let foreign_id = dr_model::id::BookId::parse(&foreign).unwrap();
-    let material_id = dr_model::id::MaterialId::parse(&mat).unwrap();
+    let note_id = dr_model::id::EntryId::parse(&note).unwrap();
+    let note_tpl = dr_model::id::EntryTemplateId::parse("tpl-note").unwrap();
     let h = e
         .ws()
         .library()
@@ -493,26 +488,24 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
     h.write(dr_store::Origin::Import, move |d| {
         let bb = dr_doc::v3::BorrowedBookV3::new(d, &foreign_id).unwrap();
         bb.txn()
-            .material(&material_id)
-            .unwrap()
-            .kind(&dr_model::kind::MaterialKind::Text)
-            .unwrap()
-            .title("Stale imported owner")
+            .entries()
+            .create(
+                &note_id,
+                None,
+                "Stale imported owner",
+                Some(&note_tpl),
+                false,
+            )
             .unwrap();
     })
     .unwrap();
     drop(h);
-    // Reading material metadata opens its empty assets/folder roots without a commit.
-    assert_eq!(
-        e.out("material.list", json!({"book":foreign}))[0]["id"],
-        mat
-    );
     let foreign_before = raw(&e, &foreign);
     let foreign_version = e.ws().observe(&format!("book:{foreign}")).unwrap().version;
     assert!(
         e.try_call(
             "comment.create",
-            json!({"book":foreign,"target":{"kind":"material","id":mat},"range":[0,9]})
+            json!({"book":foreign,"target":{"kind":"entry","id":note},"module":"mod-prose","range":[0,9]})
         )
         .is_err()
     );
@@ -521,26 +514,43 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         e.ws().observe(&format!("book:{foreign}")).unwrap().version,
         foreign_version
     );
-    let c=item(e.out("comment.create",json!({"book":b,"target":{"kind":"material","id":mat},"body":"Material comment","range":[0,9]})));
-    assert_eq!(
-        e.out(
-            "comment.list",
-            json!({"book":b,"target":{"kind":"material","id":mat}})
-        )[0]["module"],
-        serde_json::Value::Null
-    );
+    // Retired material targets and material:<id> prose docs are refused.
     assert!(
         e.try_call(
             "comment.create",
-            json!({"book":b,"target":{"kind":"material","id":mat},"module":"mod-prose"})
+            json!({"book":b,"target":{"kind":"material","id":note},"body":"Retired"})
         )
         .is_err()
+    );
+    assert!(
+        e.try_call(
+            "comment.project",
+            json!({"doc": format!("material:{note}"), "markers": []})
+        )
+        .is_err()
+    );
+    let c = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "entry", "id": note},
+            "module": "mod-prose",
+            "body": "Note comment",
+            "range": [0, 9]
+        }),
+    ));
+    assert_eq!(
+        e.out(
+            "comment.list",
+            json!({"book":b,"target":{"kind":"entry","id":note},"module":"mod-prose"})
+        )[0]["module"],
+        json!("mod-prose")
     );
     let mut projections = Vec::new();
     for doc in [
         format!("body:{entry}/mod-prose"),
         format!("body:{entry}/second-prose"),
-        material_doc.clone(),
+        note_doc.clone(),
     ] {
         let session = e.ws().prose_session(&doc).unwrap();
         let block = session
@@ -556,15 +566,15 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         let args = json!({"doc":doc,"markers":[{"block":block,"task":"Synthetic task"}]});
         let mut editing_args = args.clone();
         editing_args["editing"] = block.clone().into();
-        let deferred = e.call("todo.project", editing_args.clone());
+        let deferred = e.call("comment.project", editing_args.clone());
         assert!(deferred["output"]["created"].as_array().unwrap().is_empty());
         assert!(deferred["journal"].is_null());
-        let input: TodoProjectIn = serde_json::from_value(args.clone()).unwrap();
-        let got = e.ws().run::<TodoProject>(&Actor::User, input).unwrap();
+        let input: CommentProjectIn = serde_json::from_value(args.clone()).unwrap();
+        let got = e.ws().run::<CommentProject>(&Actor::User, input).unwrap();
         assert_eq!(got.output.created.len(), 1);
         let id = got.output.created[0].clone();
         editing_args["markers"][0]["task"] = "Still typing".into();
-        let kept = e.call("todo.project", editing_args);
+        let kept = e.call("comment.project", editing_args);
         assert!(kept["output"]["removed"].as_array().unwrap().is_empty());
         assert!(kept["journal"].is_null());
         let listed = e.out("comment.list", json!({"book":b}));
@@ -575,7 +585,8 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
             .find(|c| c["id"] == id)
             .unwrap();
         assert_eq!(projected["body"], "Synthetic task");
-        let again = e.call("todo.project", args.clone());
+        assert_eq!(projected["origin"], "marker");
+        let again = e.call("comment.project", args.clone());
         assert!(again["output"]["created"].as_array().unwrap().is_empty());
         assert!(again["journal"].is_null());
         projections.push((doc, args, id));
@@ -587,7 +598,7 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         "comment.update",
         json!({"book":b,"id":keep,"body":"Author edited task","status":"resolved"}),
     );
-    e.call("todo.project", args.clone());
+    e.call("comment.project", args.clone());
     assert_eq!(raw(&e, &b)["comments"][keep]["body"], "Author edited task");
     let (doc, _, remove) = &projections[0];
     let set_meta = |metadata: &str| {
@@ -610,19 +621,28 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
         .unwrap();
     };
     set_meta(r#"{"kind":"todo-autoparse","prose_vv":{"999":999}}"#);
-    let waiting = e.out("todo.project", json!({"doc":doc,"markers":[]}));
+    let waiting = e.out("comment.project", json!({"doc":doc,"markers":[]}));
     assert_eq!(waiting["waiting"], json!([remove]));
     assert!(!raw(&e, &b)["comments"][remove].is_null());
     set_meta(r#"{"kind":"todo-autoparse","prose_vv":{}}"#);
-    e.call("todo.project", json!({"doc":doc,"markers":[]}));
+    e.call("comment.project", json!({"doc":doc,"markers":[]}));
     let state = raw(&e, &b);
     assert!(state["comments"][remove].is_null());
     assert!(!state["comments"][keep].is_null());
     assert!(!state["comments"][&projections[2].2].is_null());
-    e.call("material.delete", json!({"book":b,"id":mat}));
-    assert!(raw(&e, &b)["comments"][&c]["target"].is_null());
+    e.call("entry.trash", json!({"book":b,"id":note}));
+    let find_c = || {
+        e.out("comment.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|cm| cm["id"] == c)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(find_c()["unlocated"], true);
     undo(&e);
-    assert_eq!(raw(&e, &b)["comments"][&c]["target"], mat);
+    assert_eq!(find_c()["unlocated"], false);
 }
 
 #[test]
@@ -754,4 +774,383 @@ fn entry_template_field_default_values_validate_and_initialize_new_entries() {
     assert_eq!(got["fields"]["mod-fields"]["role"], "短工");
     assert_eq!(got["fields"]["mod-fields"]["aliases"], json!(["阿贵"]));
     assert!(got["fields"]["mod-fields"]["notes"].is_null());
+}
+
+#[test]
+fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
+    use dr_doc::prose::EmbedKind;
+    use dr_model::id::{AssetId, EmbedId};
+
+    let mut e = env();
+    let b = project(&e);
+    let root = e
+        .out("entry.list", json!({"book": b, "all": true}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["template"] == "tpl-manuscript")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-parts",
+                "name": "Parts",
+                "modules": [
+                    {"id": "mod-prose", "kind": "prose", "name": "正文", "pos": "a0"},
+                    {
+                        "id": "mod-fields",
+                        "kind": "fields",
+                        "name": "字段",
+                        "pos": "a1",
+                        "config": {
+                            "defs": [
+                                {"id": "origin", "name": "出身", "field_type": "text", "pos": "a0"},
+                                {"id": "age", "name": "年龄", "field_type": "number", "pos": "a1"}
+                            ]
+                        }
+                    },
+                    {"id": "mod-kv", "kind": "kv", "name": "键值", "pos": "a2"},
+                    {
+                        "id": "mod-plot",
+                        "kind": "plot_grid",
+                        "name": "情节",
+                        "pos": "a3",
+                        "config": {"default_rows": 2, "default_cols": 2}
+                    },
+                    {"id": "mod-patches", "kind": "patches", "name": "补丁", "pos": "a4"},
+                    {"id": "mod-media", "kind": "media", "name": "媒体", "pos": "a5"}
+                ]
+            }
+        }),
+    );
+
+    let entry = item(e.out(
+        "entry.create",
+        json!({
+            "book": b,
+            "parent": root,
+            "template": "tpl-parts",
+            "title": "Parts target",
+            "bodies": {"mod-prose": "Opening paragraph"}
+        }),
+    ));
+    let target = json!({"kind": "entry", "id": entry});
+
+    e.call(
+        "module.put_kv",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-kv",
+            "row": {"id": "row-1", "key": "线索", "value": "钟表"}
+        }),
+    );
+    let patch = item(e.out(
+        "module.put_patch",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-patches",
+            "title": "草稿",
+            "body": "补一段雨声"
+        }),
+    ));
+
+    let entry_id = dr_model::id::EntryId::parse(&entry).unwrap();
+    let plot_mod = dr_model::id::ModuleId::parse("mod-plot").unwrap();
+    let default_row = dr_model::v3::PlotGridV3::default_row_id(&entry_id, &plot_mod, 1).to_string();
+    let default_col = dr_model::v3::PlotGridV3::default_col_id(&entry_id, &plot_mod, 2).to_string();
+
+    let sha = "c".repeat(64);
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-map",
+            "name": "map.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 16,
+            "sha256": sha,
+            "width": 100,
+            "height": 80
+        }),
+    );
+    e.call(
+        "module.put_media",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-media",
+            "item": {"id": "media-map-1", "asset": "asset-map", "caption": "Map"}
+        }),
+    );
+    let doc_id = format!("body:{entry}/mod-prose");
+    let file_embed = EmbedId::parse("emb-map-1").unwrap();
+    let table_embed = EmbedId::parse("emb-tbl-1").unwrap();
+    {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        let asset_id = AssetId::parse("asset-map").unwrap();
+        s.insert_asset_embed(0, &file_embed, &asset_id).unwrap();
+        s.edit(move |t| {
+            t.insert_embed(0, &table_embed, &EmbedKind::Table)?;
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    // Whole non-prose module comment (`part = None`) is valid.
+    let c_whole = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-fields",
+            "origin": "reader",
+            "body": "Check all fields"
+        }),
+    ));
+    let c_field = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-fields",
+            "part": {"kind": "field", "field": "origin"},
+            "body": "Verify hometown"
+        }),
+    ));
+    let c_kv = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-kv",
+            "part": {"kind": "kv_row", "row": "row-1"},
+            "body": "Verify clue"
+        }),
+    ));
+    let c_plot = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-plot",
+            "part": {"kind": "plot_cell", "row": default_row, "col": default_col},
+            "body": "Verify beat cell"
+        }),
+    ));
+    let c_patch = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-patches",
+            "part": {"kind": "patch", "patch": patch},
+            "body": "Verify patch"
+        }),
+    ));
+    let c_embed = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-prose",
+            "part": {
+                "kind": "embed",
+                "embed": "emb-map-1",
+                "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}
+            },
+            "body": "Verify map corner"
+        }),
+    ));
+    let c_media = item(e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": target,
+            "module": "mod-media",
+            "part": {
+                "kind": "media",
+                "item": "media-map-1",
+                "region": {"page": 1, "x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
+            },
+            "body": "Verify media item region"
+        }),
+    ));
+
+    // Rejections (`COMMENT-PART-IN-MODULE`).
+    for bad in [
+        // Wrong module kind for part.
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-fields", "part": {"kind": "kv_row", "row": "row-1"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "media", "item": "media-map-1"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-fields", "range": [0, 1], "body": "bad"}),
+        // Missing sub-items inside matching module.
+        json!({"book": b, "target": target, "module": "mod-fields", "part": {"kind": "field", "field": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-kv", "part": {"kind": "kv_row", "row": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-plot", "part": {"kind": "plot_cell", "row": default_row, "col": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-patches", "part": {"kind": "patch", "patch": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-media", "part": {"kind": "media", "item": "missing"}, "body": "bad"}),
+        // Table embed is not a file embed.
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "emb-tbl-1"}, "body": "bad"}),
+        // Combining part with prose range, omitting module, or floating with part.
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "emb-map-1"}, "range": [0, 1], "body": "bad"}),
+        json!({"book": b, "target": target, "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
+        json!({"book": b, "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
+    ] {
+        assert!(
+            e.try_call("comment.create", bad.clone()).is_err(),
+            "accepted {bad}"
+        );
+    }
+
+    let find = |e: &Env, id: &str| -> serde_json::Value {
+        e.out("comment.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(find(&e, &c_whole)["origin"], "reader");
+    for id in [
+        &c_whole, &c_field, &c_kv, &c_plot, &c_patch, &c_embed, &c_media,
+    ] {
+        assert_eq!(find(&e, id)["unlocated"], false, "{id} should be located");
+    }
+
+    // Delete each addressed sub-item: comments stay intact and degrade to unlocated.
+    e.call(
+        "entry_template.put_module",
+        json!({
+            "book": b,
+            "template": "tpl-parts",
+            "module": {
+                "id": "mod-fields",
+                "kind": "fields",
+                "name": "字段",
+                "pos": "a1",
+                "config": {
+                    "defs": [
+                        {"id": "age", "name": "年龄", "field_type": "number", "pos": "a1"}
+                    ]
+                }
+            }
+        }),
+    );
+    assert_eq!(find(&e, &c_field)["unlocated"], true);
+    assert_eq!(find(&e, &c_whole)["unlocated"], false);
+
+    e.call(
+        "module.remove_kv",
+        json!({"book": b, "entry": entry, "module": "mod-kv", "row": "row-1"}),
+    );
+    assert_eq!(find(&e, &c_kv)["unlocated"], true);
+
+    e.call(
+        "module.put_grid",
+        json!({
+            "book": b,
+            "entry": entry,
+            "module": "mod-plot",
+            "grid": {
+                "cell_w": 220.0,
+                "cell_h": 140.0,
+                "rows": [{"id": "custom-r1", "pos": "a0", "label": "R1"}],
+                "columns": [{"id": "custom-c1", "pos": "a0", "label": "C1"}],
+                "cells": []
+            }
+        }),
+    );
+    assert_eq!(find(&e, &c_plot)["unlocated"], true);
+
+    e.call(
+        "module.remove_patch",
+        json!({"book": b, "entry": entry, "module": "mod-patches", "id": patch}),
+    );
+    assert_eq!(find(&e, &c_patch)["unlocated"], true);
+
+    e.call(
+        "module.remove_media",
+        json!({"book": b, "entry": entry, "module": "mod-media", "item": "media-map-1"}),
+    );
+    assert_eq!(find(&e, &c_media)["unlocated"], true);
+
+    {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        s.edit(|t| {
+            // Delete the two embed paragraphs at the top (`emb-tbl-1` at 0..2, `emb-map-1` at 2..4 -> after first delete 0..2).
+            t.delete(0..4)?;
+            Ok(())
+        })
+        .unwrap();
+    }
+    assert_eq!(find(&e, &c_embed)["unlocated"], true);
+
+    // Checklist task projection via `comment.project` sets `origin = "task"` and syncs checked status.
+    let block = {
+        let s = e.ws().prose_session(&doc_id).unwrap();
+        s.reader()
+            .view()
+            .paragraphs()
+            .next()
+            .unwrap()
+            .id
+            .unwrap()
+            .to_string()
+    };
+    let projected = e.out(
+        "comment.project",
+        json!({
+            "doc": doc_id,
+            "markers": [],
+            "tasks": [{"block": block, "task": "Checklist item", "checked": false}]
+        }),
+    );
+    let task_id = projected["created"][0].as_str().unwrap().to_string();
+    assert_eq!(find(&e, &task_id)["origin"], "task");
+    assert_eq!(find(&e, &task_id)["status"], "open");
+
+    e.call(
+        "comment.project",
+        json!({
+            "doc": doc_id,
+            "markers": [],
+            "tasks": [{"block": block, "task": "Checklist item updated", "checked": true}]
+        }),
+    );
+    assert_eq!(find(&e, &task_id)["body"], "Checklist item updated");
+    assert_eq!(find(&e, &task_id)["status"], "resolved");
+
+    // Reopen + verify persistence of CommentPart round-trip in Loro.
+    e.reopen();
+    assert_eq!(
+        find(&e, &c_field)["part"],
+        json!({"kind": "field", "field": "origin"})
+    );
+    assert_eq!(
+        find(&e, &c_embed)["part"],
+        json!({
+            "kind": "embed",
+            "embed": "emb-map-1",
+            "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}
+        })
+    );
+    assert_eq!(
+        find(&e, &c_media)["part"],
+        json!({
+            "kind": "media",
+            "item": "media-map-1",
+            "region": {"page": 1, "x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
+        })
+    );
 }

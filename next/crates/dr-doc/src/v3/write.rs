@@ -4,8 +4,7 @@ use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::shared::{
-    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, PLOT_DEFAULT_LINES,
-    normalize_relation_type_name,
+    Asset, BlockSnapshot, EntityRef, KvEntry, PLOT_DEFAULT_LINES, normalize_relation_type_name,
 };
 use dr_model::v3::*;
 use dr_model::{DocId, Timestamp};
@@ -16,20 +15,20 @@ use loro::{
 
 use crate::anchor::Anchor;
 use crate::catalog::EntitySnapshot;
-use crate::catalog::fields::set;
+use crate::catalog::fields::{comment_part_to_loro, set};
 use crate::catalog::read::forest;
-use crate::catalog::write::{MaterialWriter, MemoryWriter, PlotGridWriter, RelationWriter};
+use crate::catalog::write::{MemoryWriter, PlotGridWriter, RelationWriter};
 use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 
-const TODO_SEED_V3: &str = "todo-v3-1";
+const TODO_SEED_V3: &str = "comment-v5-1";
 const PLOT_GRID_SEED_V3: &str = "plot-grid-v3-1";
 
 const TODO_SEED_KEYS_V3: &[&str] = &[
-    "kind",
+    "origin",
     "target_kind",
     "target",
     "module",
@@ -141,13 +140,58 @@ pub(crate) fn write_level_settings_override(
             }
         }
     }
-    set(map, "is_manuscript", ov.is_manuscript)?;
     set(map, "format_shortcuts", ov.format_shortcuts.as_ref())?;
-    set(map, "lane", ov.lane)?;
+    if map.get("lane").is_some() {
+        map.delete("lane")?;
+    }
     Ok(())
 }
 
-/// Writes `meta` of a v3 book document.
+pub(crate) fn encode_book_root(root: &BookRoot) -> LoroValue {
+    let mut m = std::collections::HashMap::<String, LoroValue>::new();
+    match root {
+        BookRoot::Root => {
+            m.insert("kind".into(), "root".into());
+        }
+        BookRoot::Entry { entry } => {
+            m.insert("kind".into(), "entry".into());
+            m.insert("entry".into(), entry.as_str().into());
+        }
+        BookRoot::View { view } => {
+            m.insert("kind".into(), "view".into());
+            m.insert("view".into(), view.as_str().into());
+        }
+        BookRoot::Lane { view, entry } => {
+            m.insert("kind".into(), "lane".into());
+            m.insert("view".into(), view.as_str().into());
+            m.insert("entry".into(), entry.as_str().into());
+        }
+    }
+    LoroValue::from(m)
+}
+
+pub(crate) fn encode_tab_mount(mount: &TabMount) -> LoroValue {
+    let mut m = std::collections::HashMap::<String, LoroValue>::new();
+    match mount {
+        TabMount::Root => {
+            m.insert("kind".into(), "root".into());
+        }
+        TabMount::Entry { entry } => {
+            m.insert("kind".into(), "entry".into());
+            m.insert("entry".into(), entry.as_str().into());
+        }
+        TabMount::View { view } => {
+            m.insert("kind".into(), "view".into());
+            m.insert("view".into(), view.as_str().into());
+        }
+        TabMount::Book => {
+            m.insert("kind".into(), "book".into());
+        }
+    }
+    LoroValue::from(m)
+}
+
+/// Writes `meta` of a book document (`v = 5`).
 pub struct MetaWriterV3 {
     map: LoroMap,
 }
@@ -172,29 +216,125 @@ impl MetaWriterV3 {
         set(&self.map, "created_at", v)?;
         Ok(self)
     }
+}
 
-    pub fn word_target(&self, v: Option<i64>) -> Result<&Self> {
-        set(&self.map, "word_target", v)?;
-        Ok(self)
-    }
+/// Writes `project` of a book document (`kernel-v5.md` §2 & §10).
+pub struct ProjectWriterV3 {
+    map: LoroMap,
+}
 
-    pub fn daily_word_target(&self, v: Option<i64>) -> Result<&Self> {
-        set(&self.map, "daily_word_target", v)?;
-        Ok(self)
-    }
-
-    pub fn project_template(&self, pt: Option<&ProjectTemplateRef>) -> Result<&Self> {
+impl ProjectWriterV3 {
+    pub fn source(&self, pt: Option<&ProjectTemplateRef>) -> Result<&Self> {
         match pt {
             Some(pt) => {
-                let m = self.map.ensure_mergeable_map("project_template")?;
+                let m = self.map.ensure_mergeable_map("source")?;
                 set(&m, "id", pt.id.as_str())?;
                 set(&m, "version", pt.version)?;
             }
             None => {
-                if self.map.get("project_template").is_some() {
-                    self.map.delete("project_template")?;
+                if self.map.get("source").is_some() {
+                    self.map.delete("source")?;
                 }
             }
+        }
+        Ok(self)
+    }
+
+    pub fn agent(&self, cfg: Option<&TemplateAgentConfig>) -> Result<&Self> {
+        match cfg {
+            Some(cfg)
+                if !(cfg.name.is_empty()
+                    && cfg.description.is_empty()
+                    && cfg.instructions.is_empty()) =>
+            {
+                let m = self.map.ensure_mergeable_map("agent")?;
+                set(&m, "name", cfg.name.as_str())?;
+                set(&m, "description", cfg.description.as_str())?;
+                set(&m, "instructions", cfg.instructions.as_str())?;
+            }
+            _ => {
+                if self.map.get("agent").is_some() {
+                    self.map.delete("agent")?;
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn book(&self, book: Option<&ProjectBook>) -> Result<&Self> {
+        match book {
+            Some(b) => {
+                let m = self.map.ensure_mergeable_map("book")?;
+                m.insert("root", encode_book_root(&b.root))?;
+                set(&m, "word_target", b.word_target_set)?;
+                set(&m, "daily_word_target", b.daily_word_target_set)?;
+            }
+            None => {
+                if self.map.get("book").is_some() {
+                    self.map.delete("book")?;
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn book_root(&self, root: &BookRoot) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        m.insert("root", encode_book_root(root))?;
+        Ok(self)
+    }
+
+    pub fn book_word_target(&self, wt: Option<i64>) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        set(&m, "word_target", wt)?;
+        Ok(self)
+    }
+
+    pub fn book_daily_word_target(&self, dwt: Option<i64>) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        set(&m, "daily_word_target", dwt)?;
+        Ok(self)
+    }
+
+    pub fn put_tab(&self, tab: &ProjectTab) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        let t = tabs.ensure_mergeable_map(tab.id.as_str())?;
+        set(&t, "name", tab.name.as_str())?;
+        set(&t, "pos", tab.pos.as_ref())?;
+        t.insert("mount", encode_tab_mount(&tab.mount))?;
+        Ok(self)
+    }
+
+    pub fn move_tab(&self, id: &TabId, pos: Option<&PosKey>) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        let t = tabs.ensure_mergeable_map(id.as_str())?;
+        set(&t, "pos", pos)?;
+        Ok(self)
+    }
+
+    pub fn remove_tab(&self, id: &TabId) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        if tabs.get(id.as_str()).is_some() {
+            tabs.delete(id.as_str())?;
+        }
+        Ok(self)
+    }
+
+    pub fn set_full(&self, def: &ProjectDefinition) -> Result<&Self> {
+        self.source(def.source.as_ref())?
+            .agent(def.agent.as_ref())?
+            .book(def.book.as_ref())?;
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        let want: std::collections::HashSet<&str> =
+            def.tabs.iter().map(|t| t.id.as_str()).collect();
+        let have: Vec<String> = tabs.keys().map(|k| k.to_string()).collect();
+        for k in have {
+            if !want.contains(k.as_str()) {
+                tabs.delete(&k)?;
+            }
+        }
+        for tab in &def.tabs {
+            self.put_tab(tab)?;
         }
         Ok(self)
     }
@@ -419,6 +559,11 @@ impl EntryWriterV3 {
         Ok(self)
     }
 
+    pub fn mark(&self, v: Option<&str>) -> Result<&Self> {
+        set(&self.map, "mark", v)?;
+        Ok(self)
+    }
+
     pub fn template(&self, v: Option<&EntryTemplateId>) -> Result<&Self> {
         set(&self.map, "template", v)?;
         Ok(self)
@@ -477,6 +622,23 @@ impl EntryWriterV3 {
         Ok(self)
     }
 
+    pub fn put_media(&self, module: &ModuleId, item: &MediaItem) -> Result<&Self> {
+        let items = self.map.ensure_mergeable_map(&format!("media:{module}"))?;
+        let m = items.ensure_mergeable_map(item.id.as_str())?;
+        m.insert("asset", item.asset.as_str())?;
+        m.insert("caption", item.caption.as_str())?;
+        set(&m, "pos", item.pos.as_ref())?;
+        Ok(self)
+    }
+
+    pub fn remove_media(&self, module: &ModuleId, id: &MediaItemId) -> Result<&Self> {
+        let items = self.map.ensure_mergeable_map(&format!("media:{module}"))?;
+        if items.get(id.as_str()).is_some() {
+            items.delete(id.as_str())?;
+        }
+        Ok(self)
+    }
+
     pub fn primary(&self, host: Option<&EntryId>) -> Result<&Self> {
         set(&self.map, "primary", host)?;
         Ok(self)
@@ -490,39 +652,6 @@ impl EntryWriterV3 {
             None if self.map.get("primary").is_some() => self.map.delete("primary")?,
             None => {}
         }
-        Ok(self)
-    }
-
-    pub fn layout(&self, layout: &EntryLayout) -> Result<&Self> {
-        let s = layout.sanitized();
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "board_x", s.board.map(|p| p.0))?;
-        set(&m, "board_y", s.board.map(|p| p.1))?;
-        set(&m, "grid_x", s.grid.map(|p| p.0))?;
-        set(&m, "grid_y", s.grid.map(|p| p.1))?;
-        set(&m, "pin_x", s.relation_graph.map(|p| p.0))?;
-        set(&m, "pin_y", s.relation_graph.map(|p| p.1))?;
-        Ok(self)
-    }
-
-    pub fn board_pos(&self, pos: Option<(f64, f64)>) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "board_x", pos.map(|p| p.0))?;
-        set(&m, "board_y", pos.map(|p| p.1))?;
-        Ok(self)
-    }
-
-    pub fn grid_pos(&self, pos: Option<(i64, i64)>) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "grid_x", pos.map(|p| p.0))?;
-        set(&m, "grid_y", pos.map(|p| p.1))?;
-        Ok(self)
-    }
-
-    pub fn relation_pin(&self, pos: Option<(f64, f64)>) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("layout")?;
-        set(&m, "pin_x", pos.map(|p| p.0))?;
-        set(&m, "pin_y", pos.map(|p| p.1))?;
         Ok(self)
     }
 
@@ -631,13 +760,13 @@ impl EntriesTreeWriterV3<'_> {
         Ok(EntryWriterV3 { map: meta })
     }
 
-    /// Turn `id`'s switch off (`kernel-v4.md` "关开关"). Its direct children,
-    /// trashed ones included, move to the root in their order, right after
-    /// the top-level entry `id` lives under (after `id` itself when it is at
-    /// the root), each with its subtree; then `level` is written false.
-    /// Returns the moved children's ids in their order. Nothing else stored
-    /// on `id` changes.
-    pub fn switch_level_off(&self, id: &EntryId) -> Result<Vec<EntryId>> {
+    /// Turn `id`'s switch off (`kernel-v5.md` §16 "关掉层级"): all live
+    /// descendants in its residence subtree are trashed in place
+    /// (`deleted_at = Some(deleted_at)`), while already-trashed entries keep
+    /// their existing `deleted_at` and tree parent pointers stay untouched;
+    /// then `level` is written `false` on `id`. Returns the newly trashed
+    /// descendant IDs in preorder.
+    pub fn switch_level_off(&self, id: &EntryId, deleted_at: Timestamp) -> Result<Vec<EntryId>> {
         let copies = self
             .view
             .tree_index(book_v3::ENTRIES)
@@ -647,41 +776,58 @@ impl EntriesTreeWriterV3<'_> {
                 collection: book_v3::ENTRIES,
                 id: id.to_string(),
             })?;
-        let mut top = copies[0];
-        let mut seen = std::collections::HashSet::from([top]);
-        while let Some(TreeParentId::Node(p)) = self.tree.parent(top) {
-            if !seen.insert(p) {
-                break;
-            }
-            top = p;
-        }
-        let mut children = Vec::new();
-        for copy in &copies {
-            for c in self
+        let mut visited_nodes: std::collections::HashSet<TreeID> = copies.iter().copied().collect();
+        let mut trashed_set: std::collections::HashSet<EntryId> = std::collections::HashSet::new();
+        let mut trashed: Vec<EntryId> = Vec::new();
+        let mut stack: Vec<TreeID> = Vec::new();
+        for copy in copies.iter().rev() {
+            let children = self
                 .tree
                 .children(TreeParentId::Node(*copy))
-                .unwrap_or_default()
-            {
-                if !copies.contains(&c) && !children.contains(&c) {
-                    children.push(c);
-                }
+                .unwrap_or_default();
+            for c in children.into_iter().rev() {
+                stack.push(c);
             }
         }
-        self.tree.enable_fractional_index(0);
-        let mut moved = Vec::with_capacity(children.len());
-        let mut after = top;
-        for c in children {
-            self.tree.mov_after(c, after)?;
-            after = c;
-            if let Some(loro::ValueOrContainer::Value(LoroValue::String(child))) =
-                self.tree.get_meta(c)?.get("id")
-                && let Ok(child) = EntryId::parse(&child)
+        while let Some(node) = stack.pop() {
+            if !visited_nodes.insert(node) {
+                continue;
+            }
+            let meta = self.tree.get_meta(node)?;
+            let already_trashed = matches!(
+                meta.get("deleted_at"),
+                Some(loro::ValueOrContainer::Value(LoroValue::I64(_)))
+            );
+            if already_trashed {
+                continue;
+            }
+            set(&meta, "deleted_at", Some(deleted_at))?;
+            if let Some(loro::ValueOrContainer::Value(LoroValue::String(eid_str))) = meta.get("id")
+                && let Ok(child_id) = EntryId::parse(&eid_str)
+                && child_id != *id
+                && trashed_set.insert(child_id.clone())
             {
-                moved.push(child);
+                trashed.push(child_id);
+            }
+            let children = self
+                .tree
+                .children(TreeParentId::Node(node))
+                .unwrap_or_default();
+            for c in children.into_iter().rev() {
+                stack.push(c);
             }
         }
         self.entry(id)?.level(false)?;
-        Ok(moved)
+        Ok(trashed)
+    }
+
+    /// Reorder direct `LoroTree` children of `parent` (`None` = root) so the
+    /// listed `order` appear at indices `0..order.len()` in that order.
+    pub fn reorder_children(&self, parent: Option<&EntryId>, order: &[EntryId]) -> Result<()> {
+        for (idx, cid) in order.iter().enumerate() {
+            self.move_to_at(cid, parent, idx)?;
+        }
+        Ok(())
     }
 
     /// Open a writer on an existing entry's metadata.
@@ -1043,14 +1189,14 @@ impl RelationTypeWriterV3 {
     }
 }
 
-/// Writes one v3 comment or TODO (`comments` map).
+/// Writes one comment (`comments` map, schema v5).
 pub struct CommentWriterV3 {
     pub(crate) map: LoroMap,
 }
 
 impl CommentWriterV3 {
-    pub fn kind(&self, v: &CommentKind) -> Result<&Self> {
-        set(&self.map, "kind", v)?;
+    pub fn origin(&self, v: &CommentOrigin) -> Result<&Self> {
+        set(&self.map, "origin", v)?;
         Ok(self)
     }
 
@@ -1061,6 +1207,14 @@ impl CommentWriterV3 {
 
     pub fn module(&self, m: Option<&ModuleId>) -> Result<&Self> {
         set(&self.map, "module", m)?;
+        Ok(self)
+    }
+
+    pub fn part(&self, p: Option<&CommentPart>) -> Result<&Self> {
+        match p {
+            Some(p) => self.map.insert("part", comment_part_to_loro(p))?,
+            None => set(&self.map, "part", None::<&str>)?,
+        }
         Ok(self)
     }
 
@@ -1144,25 +1298,6 @@ impl CommentWriterV3 {
         Ok(self)
     }
 
-    pub fn region(&self, r: Option<&MaterialRegion>) -> Result<&Self> {
-        match r {
-            Some(r) => {
-                let mut m: Vec<(String, LoroValue)> = vec![
-                    ("x".into(), r.x.into()),
-                    ("y".into(), r.y.into()),
-                    ("w".into(), r.w.into()),
-                    ("h".into(), r.h.into()),
-                ];
-                if let Some(p) = r.page {
-                    m.push(("page".into(), (p as i64).into()));
-                }
-                self.map.insert("region", LoroValue::Map(m.into()))?;
-            }
-            None => set(&self.map, "region", None::<&str>)?,
-        }
-        Ok(self)
-    }
-
     pub fn anchor(&self, a: Option<&Anchor>) -> Result<&Self> {
         put_anchor(&self.map, "anchor", a)?;
         Ok(self)
@@ -1174,15 +1309,22 @@ impl CommentWriterV3 {
     }
 }
 
+fn projection_origin(kind: &ProjectionKind) -> CommentOrigin {
+    match kind {
+        ProjectionKind::Marker => CommentOrigin::Marker,
+        ProjectionKind::NoteTask => CommentOrigin::Task,
+        ProjectionKind::Other(o) => CommentOrigin::parse(o),
+    }
+}
+
 fn projection_target_v3(doc: &DocId) -> Result<(EntityRef, Option<ModuleId>)> {
     match doc {
         DocId::Body(b) => Ok((
             EntityRef::new(EntityKind::Entry, b.entry().as_str()),
             Some(b.module().clone()),
         )),
-        DocId::Material(m) => Ok((EntityRef::new(EntityKind::Material, m.as_str()), None)),
         _ => Err(DocError::NotInProfile(
-            "a v3 TODO projected from a document that is not body: or material:",
+            "a comment projected from a document that is not body:",
         )),
     }
 }
@@ -1195,7 +1337,8 @@ fn write_todo_v3(
     task: &str,
 ) -> Result<()> {
     let (target, module) = projection_target_v3(doc)?;
-    w.kind(&CommentKind::Todo)?
+    let origin = projection_origin(kind);
+    w.origin(&origin)?
         .target(Some(&target))?
         .module(module.as_ref())?
         .target_block(Some(block))?
@@ -1272,6 +1415,12 @@ impl<'a> BookTxnV3<'a> {
         }
     }
 
+    pub fn project(&mut self) -> ProjectWriterV3 {
+        ProjectWriterV3 {
+            map: self.view.doc.get_map(book_v3::PROJECT),
+        }
+    }
+
     pub fn template(&mut self, id: &EntryTemplateId) -> Result<TemplateWriterV3> {
         Ok(TemplateWriterV3 {
             map: self.entity(book_v3::TEMPLATES, id.as_str())?,
@@ -1322,6 +1471,30 @@ impl<'a> BookTxnV3<'a> {
             &Membership::key(host, member),
             old.map(|s| &s.value),
         )
+    }
+
+    /// Restore only the `pos` field of an existing membership `(host, member)`
+    /// without touching `created_at` or unknown fields.
+    pub fn restore_membership_pos(
+        &mut self,
+        host: &EntryId,
+        member: &EntryId,
+        value: Option<&LoroValue>,
+    ) -> Result<()> {
+        use loro::{Container, ValueOrContainer};
+        let key = Membership::key(host, member);
+        let root = self.view.doc.get_map(book_v3::MEMBERSHIPS);
+        let map = match root.get(&key) {
+            Some(ValueOrContainer::Container(Container::Map(m))) => m,
+            None if value.is_none() => return Ok(()),
+            None => root.ensure_mergeable_map(&key)?,
+            _ => {
+                return Err(DocError::NotInProfile(
+                    "membership record is not a writable map",
+                ));
+            }
+        };
+        restore_raw_field(&map, "pos", value)
     }
 
     pub fn timeline_view(&mut self, id: &TimelineViewId) -> Result<TimelineViewWriterV3> {
@@ -1454,7 +1627,7 @@ impl<'a> BookTxnV3<'a> {
         Ok((id.clone(), self.comment(&id)?))
     }
 
-    /// Write a projected TODO as ordinary changes (for deterministic imports).
+    /// Write a projected comment as ordinary changes (for deterministic imports).
     pub fn projected_todo(
         &mut self,
         kind: &ProjectionKind,
@@ -1462,9 +1635,10 @@ impl<'a> BookTxnV3<'a> {
         block: &BlockId,
     ) -> Result<(CommentId, CommentWriterV3)> {
         let (target, module) = projection_target_v3(doc)?;
+        let origin = projection_origin(kind);
         let id = CommentId::for_projection(kind, doc, block);
         let w = self.comment(&id)?;
-        w.kind(&CommentKind::Todo)?
+        w.origin(&origin)?
             .target(Some(&target))?
             .module(module.as_ref())?
             .target_block(Some(block))?;
@@ -1473,18 +1647,18 @@ impl<'a> BookTxnV3<'a> {
         Ok((id, w))
     }
 
-    pub fn material(&mut self, id: &MaterialId) -> Result<MaterialWriter> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .material(id)
-    }
-
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
         crate::catalog::write::CatalogTxn {
             view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .put_asset(a)
+    }
+
+    pub fn asset(&mut self, id: &AssetId) -> Result<crate::catalog::write::AssetWriter> {
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
+        }
+        .asset(id)
     }
 
     pub fn memory(&mut self, id: &MemoryId) -> Result<MemoryWriter> {
@@ -1508,23 +1682,9 @@ impl<'a> BookTxnV3<'a> {
         .remove_fact(id)
     }
 
-    pub fn material_folders(&mut self) -> crate::catalog::write::TreeWriter<'a> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .material_folders()
-    }
-
-    pub fn delete_material_folder(&mut self, id: &MaterialFolderId) -> Result<()> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
-        }
-        .delete_material_folder(id)
-    }
-
-    /// Restore an entry's metadata (`title`, `template`, `level`, `primary`, timestamps,
-    /// `layout`, `overrides`, `fields`, and all `kv:<module_id>` tables) from
-    /// `old` (`BookViewV3::entry_snapshot`).
+    /// Restore an entry's metadata (`title`, `mark`, `template`, `level`, `primary`,
+    /// timestamps, `overrides`, `fields`, and all `kv:<module_id>` / `media:<module_id>`
+    /// tables) from `old` (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
         let w = match self.entries().entry(id) {
             Ok(w) => w,
@@ -1534,6 +1694,7 @@ impl<'a> BookTxnV3<'a> {
 
         for scalar_key in [
             "title",
+            "mark",
             "template",
             "level",
             "primary",
@@ -1544,19 +1705,6 @@ impl<'a> BookTxnV3<'a> {
             match old.field(scalar_key) {
                 Some(v) => map.insert(scalar_key, v.clone())?,
                 None => set(map, scalar_key, None::<&str>)?,
-            }
-        }
-
-        // Restore `layout`
-        match old.field("layout") {
-            Some(LoroValue::Map(want)) => {
-                let sub = map.ensure_mergeable_map("layout")?;
-                sync_nested_map(&sub, want)?;
-            }
-            _ => {
-                if map.get("layout").is_some() {
-                    map.delete("layout")?;
-                }
             }
         }
 
@@ -1597,23 +1745,24 @@ impl<'a> BookTxnV3<'a> {
             }
         }
 
-        // Restore all `kv:<module_id>` maps
-        let have_kv_keys: Vec<String> = map
+        // Restore all `kv:<module_id>` and `media:<module_id>` maps
+        let is_module_table = |k: &str| k.starts_with("kv:") || k.starts_with("media:");
+        let have_table_keys: Vec<String> = map
             .keys()
-            .filter(|k| k.starts_with("kv:"))
+            .filter(|k| is_module_table(k))
             .map(|k| k.to_string())
             .collect();
-        let want_kv_keys: Vec<String> = old
+        let want_table_keys: Vec<String> = old
             .keys()
             .into_iter()
-            .filter(|k| k.starts_with("kv:"))
+            .filter(|k| is_module_table(k))
             .collect();
-        for k in &have_kv_keys {
-            if !want_kv_keys.contains(k) {
+        for k in &have_table_keys {
+            if !want_table_keys.contains(k) {
                 map.delete(k)?;
             }
         }
-        for k in &want_kv_keys {
+        for k in &want_table_keys {
             if let Some(LoroValue::Map(want_rows)) = old.field(k) {
                 let sub = map.ensure_mergeable_map(k)?;
                 sync_nested_map(&sub, want_rows)?;
@@ -1724,7 +1873,10 @@ impl<'a> BookTxnV3<'a> {
         for (collection, id) in records {
             if !matches!(
                 collection,
-                CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
+                CollectionV3::Facts
+                    | CollectionV3::Memory
+                    | CollectionV3::Relations
+                    | CollectionV3::Assets
             ) {
                 return Err(DocError::NotInProfile("not a shared history record"));
             }
@@ -1820,56 +1972,6 @@ impl<'a> BookTxnV3<'a> {
         self.restore_entry(id, old)
     }
 
-    /// Restore a folder's metadata and parent without changing unselected children.
-    pub fn restore_material_folder(
-        &mut self,
-        id: &MaterialFolderId,
-        parent: Option<&MaterialFolderId>,
-        old: &EntrySnapshotV3,
-    ) -> Result<()> {
-        let LoroValue::Map(want) = &old.value else {
-            return Err(DocError::NotInProfile("folder snapshot is not a map"));
-        };
-        if self.view.material_folder_snapshot(id).is_some() {
-            self.material_folders()
-                .move_to(id.as_str(), parent.map(|p| p.as_str()))?;
-        } else {
-            self.material_folders()
-                .create(id.as_str(), parent.map(|p| p.as_str()), "")?;
-        }
-        let tree = self.view.doc.get_tree(book_v3::MATERIAL_FOLDERS);
-        let node = self.view.tree_index(book_v3::MATERIAL_FOLDERS)[id.as_str()][0];
-        sync_record(&tree.get_meta(node)?, want, None)
-    }
-
-    /// Restore the selected folder's order relative to surviving historical siblings.
-    pub fn move_material_folder_to_at(
-        &mut self,
-        id: &MaterialFolderId,
-        parent: Option<&MaterialFolderId>,
-        index: usize,
-    ) -> Result<()> {
-        let nodes = self.view.tree_index(book_v3::MATERIAL_FOLDERS);
-        let node = |id: &MaterialFolderId| {
-            nodes
-                .get(id.as_str())
-                .and_then(|ids| ids.first())
-                .copied()
-                .ok_or_else(|| DocError::Missing {
-                    collection: book_v3::MATERIAL_FOLDERS,
-                    id: id.to_string(),
-                })
-        };
-        let p = parent
-            .map(node)
-            .transpose()?
-            .map_or(TreeParentId::Root, TreeParentId::Node);
-        let tree = self.view.doc.get_tree(book_v3::MATERIAL_FOLDERS);
-        tree.enable_fractional_index(0);
-        tree.mov_to(node(id)?, p, index)?;
-        Ok(())
-    }
-
     /// Restore one structural v3 record, keeping mergeable nested map identities.
     pub fn restore_map_snapshot(
         &mut self,
@@ -1877,17 +1979,53 @@ impl<'a> BookTxnV3<'a> {
         id: &str,
         old: Option<&EntrySnapshotV3>,
     ) -> Result<()> {
+        if collection == CollectionV3::Project
+            && let Some(sub_key) = id.strip_prefix("book/")
+        {
+            let root = self.view.doc.get_map(book_v3::PROJECT);
+            let Some(loro::ValueOrContainer::Container(loro::Container::Map(book_map))) =
+                root.get("book")
+            else {
+                return Ok(());
+            };
+            if let Some(old) = old {
+                book_map.insert(sub_key, old.value.clone())?;
+            } else if book_map.get(sub_key).is_some() {
+                book_map.delete(sub_key)?;
+            }
+            return Ok(());
+        }
+        if collection == CollectionV3::Project
+            && let Some(tab_id) = id.strip_prefix("tabs/")
+        {
+            let tabs = self
+                .view
+                .doc
+                .get_map(book_v3::PROJECT)
+                .ensure_mergeable_map("tabs")?;
+            if let Some(old) = old {
+                let LoroValue::Map(want) = &old.value else {
+                    return Err(DocError::NotInProfile("snapshot is not a map"));
+                };
+                let map = tabs.ensure_mergeable_map(tab_id)?;
+                sync_record_with_values(&map, want, None, &["mount"])?;
+            } else if tabs.get(tab_id).is_some() {
+                tabs.delete(tab_id)?;
+            }
+            return Ok(());
+        }
         if !matches!(
             collection,
-            CollectionV3::Templates
+            CollectionV3::Project
+                | CollectionV3::Templates
                 | CollectionV3::Memberships
                 | CollectionV3::TimelineViews
                 | CollectionV3::Patches
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
-                | CollectionV3::Materials
                 | CollectionV3::Comments
+                | CollectionV3::Assets
         ) {
             return Err(DocError::NotInProfile("not a structural v3 map"));
         }
@@ -1908,13 +2046,12 @@ impl<'a> BookTxnV3<'a> {
                 want,
                 match collection {
                     CollectionV3::Patches | CollectionV3::Comments => Some("body"),
-                    CollectionV3::Materials => Some("description"),
                     _ => None,
                 },
-                if collection == CollectionV3::Comments {
-                    &["region"]
-                } else {
-                    &[]
+                match collection {
+                    CollectionV3::Comments => &["part"],
+                    CollectionV3::Project if id == "book" => &["root"],
+                    _ => &[],
                 },
             )?;
         } else if root.get(id).is_some() {
@@ -1938,8 +2075,7 @@ impl<'a> BookTxnV3<'a> {
     ) -> Result<()> {
         if !matches!(
             collection,
-            CollectionV3::Materials
-                | CollectionV3::RelationTypes
+            CollectionV3::RelationTypes
                 | CollectionV3::Relations
                 | CollectionV3::Comments
                 | CollectionV3::Assets

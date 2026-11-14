@@ -5,6 +5,7 @@
 use std::rc::Rc;
 
 use dr_i18n::keys;
+use dr_shell::book::MaterialInfo;
 use dr_shell::{nav::Target, strings::tf, t};
 use dr_ui::{
     Theme,
@@ -24,7 +25,6 @@ use dr_view_material::{
     folders::{Selection, Tree},
     previews,
 };
-use dr_workspace::dto::MaterialInfo;
 use gpui::{
     AnyElement, Context, ExternalPaths, InteractiveElement, IntoElement, ParentElement,
     PathPromptOptions, SharedString, StatefulInteractiveElement as _, Styled, Window, div, list,

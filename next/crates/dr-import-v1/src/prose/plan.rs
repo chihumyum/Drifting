@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use dr_doc::prose::{EmbedView, Run, TableLine};
 use dr_model::ProseProfile;
-use dr_model::id::{BlockId, CommentId, EmbedId, MaterialId};
+use dr_model::id::{AssetId, BlockId, CommentId, EmbedId};
 use dr_model::kind::ListKind;
 use dr_model::pos::{PosKey, keys_between};
 use dr_model::prose::{
@@ -244,6 +244,9 @@ pub struct Plan {
     pub notes: Notes,
     /// JSON of dropped inline nodes, kept in the receipt.
     pub dropped_inline: Vec<String>,
+    /// `(material_id, material_title, text)` of 0.1 `entityLink`s to non-text
+    /// materials turned into plain text (`kernel-v5.md` §13).
+    pub unlinked_asset_links: Vec<(String, String, String)>,
 }
 
 impl Plan {
@@ -292,6 +295,11 @@ pub struct Context<'a> {
     /// The new id of a TODO a task item links to (projected TODOs get
     /// deterministic ids).
     pub todo: &'a dyn Fn(&str) -> Option<CommentId>,
+    /// Asset referenced by a 0.1 `library_item` id (for `materialEmbed`).
+    pub asset: &'a dyn Fn(&str) -> Option<AssetId>,
+    /// Title of a 0.1 non-text `library_item` id (for unlinking `entityLink`s
+    /// to image/PDF materials and recording them in the receipt).
+    pub non_text_material: &'a dyn Fn(&str) -> Option<String>,
 }
 
 #[derive(Default)]
@@ -617,24 +625,30 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                 });
             }
             "materialEmbed" => {
-                let material = line
+                let asset = line
                     .attrs
-                    .get("libraryItemId")
+                    .get("assetId")
                     .and_then(Value::as_str)
-                    .and_then(|m| MaterialId::parse(m).ok());
+                    .and_then(|a| AssetId::parse(a).ok())
+                    .or_else(|| {
+                        line.attrs
+                            .get("libraryItemId")
+                            .and_then(Value::as_str)
+                            .and_then(|m| (ctx.asset)(m))
+                    });
                 lines.push(LineAt::Body {
                     para: paras.len(),
                     dropped: Vec::new(),
                 });
-                match material {
-                    Some(m) => {
+                match asset {
+                    Some(a) => {
                         let eid = embed_id(id.as_ref(), &mut embed_n);
                         paras.push(embed_para(
                             id,
                             eid.clone(),
-                            EmbedView::Material {
+                            EmbedView::Asset {
                                 id: eid,
-                                material: Some(m),
+                                asset: Some(a),
                             },
                         ));
                     }
@@ -712,6 +726,7 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
         lines,
         notes,
         dropped_inline,
+        unlinked_asset_links: Vec::new(),
     }
 }
 
@@ -892,6 +907,7 @@ fn runs_of_v3(
     ctx: &Context<'_>,
     notes: &mut Notes,
     dropped_inline: &mut Vec<String>,
+    unlinked_asset_links: &mut Vec<(String, String, String)>,
 ) -> (Vec<MarkedCharV3>, Vec<usize>) {
     let chars: Vec<char> = line.text.chars().collect();
     let mut states: Vec<MarkStateV3> = chars.iter().map(|_| MarkStateV3::default()).collect();
@@ -934,6 +950,30 @@ fn runs_of_v3(
             }
             "code" => range.for_each(|i| states[i].code = true),
             "entityLink" => {
+                let v: Value = serde_json::from_str(&span.attrs).unwrap_or(Value::Null);
+                if let Some(target) = v
+                    .get("targetId")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty())
+                {
+                    let old_kind = dr_model::import_v1::legacy::entity_kind(
+                        v.get("targetKind")
+                            .and_then(Value::as_str)
+                            .unwrap_or("element"),
+                    );
+                    if old_kind == dr_model::kind::EntityKind::Material
+                        && let Some(title) = (ctx.non_text_material)(target)
+                    {
+                        let linked_text: String = chars[range.clone()]
+                            .iter()
+                            .filter(|&&c| c != INLINE_OBJECT)
+                            .map(|&c| if c == HARD_BREAK { '\n' } else { c })
+                            .collect();
+                        notes.add("entity-link-to-asset-kept-as-text");
+                        unlinked_asset_links.push((target.to_string(), title, linked_text));
+                        continue;
+                    }
+                }
                 if let Some(link) = entity_link_v3(&span.attrs, ctx, notes) {
                     for i in range {
                         let have = &mut states[i].entities;
@@ -1021,6 +1061,7 @@ fn table_para_v3(
     ctx: &Context<'_>,
     notes: &mut Notes,
     dropped_inline: &mut Vec<String>,
+    unlinked_asset_links: &mut Vec<(String, String, String)>,
 ) -> Para {
     type CellChars = Vec<(char, InlineMarks, Vec<EntityLinkV3>)>;
     let mut cells: BTreeMap<(usize, usize), Vec<CellChars>> = BTreeMap::new();
@@ -1048,7 +1089,14 @@ fn table_para_v3(
         } else if line.kind == "tableHeader" {
             notes.add("table-header-cell");
         }
-        let (mut chars, _) = runs_of_v3(line, ctx.profile, ctx, notes, dropped_inline);
+        let (mut chars, _) = runs_of_v3(
+            line,
+            ctx.profile,
+            ctx,
+            notes,
+            dropped_inline,
+            unlinked_asset_links,
+        );
         for (ch, _, _) in &mut chars {
             if *ch == '\n' {
                 *ch = LINE_BREAK;
@@ -1109,6 +1157,7 @@ fn table_para_v3(
 pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
     let mut notes = blocks.notes.clone();
     let mut dropped_inline = Vec::new();
+    let mut unlinked_asset_links = Vec::new();
     let mut paras: Vec<Para> = Vec::new();
     let mut lines: Vec<LineAt> = Vec::with_capacity(prose.lines.len());
     let mut embed_n = 0usize;
@@ -1134,6 +1183,7 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                 ctx,
                 &mut notes,
                 &mut dropped_inline,
+                &mut unlinked_asset_links,
             ));
             for _ in i..j {
                 lines.push(LineAt::Embed { para });
@@ -1166,24 +1216,30 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                 });
             }
             "materialEmbed" => {
-                let material = line
+                let asset = line
                     .attrs
-                    .get("libraryItemId")
+                    .get("assetId")
                     .and_then(Value::as_str)
-                    .and_then(|m| MaterialId::parse(m).ok());
+                    .and_then(|a| AssetId::parse(a).ok())
+                    .or_else(|| {
+                        line.attrs
+                            .get("libraryItemId")
+                            .and_then(Value::as_str)
+                            .and_then(|m| (ctx.asset)(m))
+                    });
                 lines.push(LineAt::Body {
                     para: paras.len(),
                     dropped: Vec::new(),
                 });
-                match material {
-                    Some(m) => {
+                match asset {
+                    Some(a) => {
                         let eid = embed_id(id.as_ref(), &mut embed_n);
                         paras.push(embed_para(
                             id,
                             eid.clone(),
-                            EmbedView::Material {
+                            EmbedView::Asset {
                                 id: eid,
-                                material: Some(m),
+                                asset: Some(a),
                             },
                         ));
                     }
@@ -1207,8 +1263,14 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                 {
                     notes.add("list-item-extra-paragraph");
                 }
-                let (chars, dropped) =
-                    runs_of_v3(line, ctx.profile, ctx, &mut notes, &mut dropped_inline);
+                let (chars, dropped) = runs_of_v3(
+                    line,
+                    ctx.profile,
+                    ctx,
+                    &mut notes,
+                    &mut dropped_inline,
+                    &mut unlinked_asset_links,
+                );
                 lines.push(LineAt::Body {
                     para: paras.len(),
                     dropped,
@@ -1261,6 +1323,7 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
         lines,
         notes,
         dropped_inline,
+        unlinked_asset_links,
     }
 }
 
@@ -1275,6 +1338,8 @@ mod tests {
             profile,
             span: &|_| None,
             todo: &|_| None,
+            asset: &|_| None,
+            non_text_material: &|_| None,
         }
     }
 
@@ -1326,12 +1391,16 @@ mod tests {
     #[test]
     fn note_lists_tasks_tables_and_embeds() {
         let todo = |old: &str| {
-            (old == "todo-1").then(|| CommentId::parse("todo:note_task:material:m#tp1").unwrap())
+            (old == "todo-1")
+                .then(|| CommentId::parse("todo:note_task:body:m/mod-prose#tp1").unwrap())
         };
+        let asset = |old: &str| (old == "lib-1").then(|| AssetId::parse("asset-1").unwrap());
         let c = Context {
             profile: ProseProfile::Prose,
             span: &|_| None,
             todo: &todo,
+            asset: &asset,
+            non_text_material: &|_| None,
         };
         let prose = parse(
             r#"{"type":"doc","content":[
@@ -1362,7 +1431,7 @@ mod tests {
         assert_eq!(a0.list, Some(ListKind::Task));
         assert_eq!(
             a0.todo.as_ref().unwrap().as_str(),
-            "todo:note_task:material:m#tp1"
+            "todo:note_task:body:m/mod-prose#tp1"
         );
         assert!(!a0.checked, "a linked task has no state of its own");
         assert!(p.paras[1].attrs.checked);
@@ -1389,7 +1458,10 @@ mod tests {
         assert_eq!(p.paras[5].text(), "b");
         assert_eq!(p.paras[5].attrs.code_block.as_deref(), Some("rust"));
         assert_eq!(p.paras[5].id, None);
-        assert!(matches!(p.paras[6].embed, Some(EmbedView::Material { .. })));
+        assert!(matches!(
+            &p.paras[6].embed,
+            Some(EmbedView::Asset { asset: Some(a), .. }) if a.as_str() == "asset-1"
+        ));
         // An embed cannot be last.
         assert_eq!(p.paras.len(), 8);
         assert!(p.paras[7].embed.is_none());

@@ -49,6 +49,7 @@ pub struct CommentComposer {
     book: String,
     target: Target,
     module: Option<String>,
+    media_item: Option<String>,
     anchor: Anchor,
     /// Captured while opening a v3 composer, before another writer can move
     /// the selected characters. A capture failure never falls back to offsets.
@@ -187,16 +188,18 @@ impl CommentComposer {
         cx: &mut Context<Self>,
     ) -> CommentComposer {
         let anchor = Anchor::Range(range.0, range.1);
-        Self::with_anchor(ws, book, target, anchor, at, locale, window, cx)
+        Self::with_anchor(ws, book, target, None, None, anchor, at, locale, window, cx)
     }
 
-    /// A composer for a rectangle on an image or PDF material (`target`),
-    /// its top left corner at `at`.
+    /// A composer for a rectangle on an image or PDF media item (`item`) on
+    /// `module` of `target`, its top left corner at `at`.
     #[allow(clippy::too_many_arguments)]
     pub fn for_region(
         ws: Workspace,
         book: String,
         target: Target,
+        module: Option<String>,
+        item: String,
         region: Region,
         at: Point<Pixels>,
         locale: Locale,
@@ -204,7 +207,18 @@ impl CommentComposer {
         cx: &mut Context<Self>,
     ) -> CommentComposer {
         let anchor = Anchor::Region(region);
-        Self::with_anchor(ws, book, target, anchor, at, locale, window, cx)
+        Self::with_anchor(
+            ws,
+            book,
+            target,
+            module,
+            Some(item),
+            anchor,
+            at,
+            locale,
+            window,
+            cx,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -212,6 +226,8 @@ impl CommentComposer {
         ws: Workspace,
         book: String,
         target: Target,
+        explicit_module: Option<String>,
+        media_item: Option<String>,
         anchor: Anchor,
         at: Point<Pixels>,
         locale: Locale,
@@ -230,13 +246,7 @@ impl CommentComposer {
         let handle = field.read(cx).focus_handle(cx);
         window.focus(&handle, cx);
         let source_doc = format!("{}:{}", target.kind, target.id);
-        let v3_prose = target.kind == "body"
-            || (target.kind == "material"
-                && ws
-                    .library()
-                    .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
-                    .and_then(|h| h.read(dr_doc::v3::is_book_doc))
-                    .unwrap_or(false));
+        let v3_prose = target.kind == "body";
         let source_anchor = match anchor {
             Anchor::Range(start, end) if v3_prose => {
                 Some(capture_anchor(&ws, &source_doc, start, end))
@@ -252,13 +262,14 @@ impl CommentComposer {
                     },
                     Some(body.module().to_string()),
                 ),
-                _ => (target, None),
+                _ => (target, explicit_module),
             };
         CommentComposer {
             ws,
             book,
             target,
             module,
+            media_item,
             anchor,
             source_anchor,
             todo: false,
@@ -306,22 +317,31 @@ impl CommentComposer {
         self.field
             .update(cx, |field, cx| field.set_disabled(true, cx));
         let body = self.field.read(cx).text();
-        let (range, region) = match self.anchor {
+        let (range, part) = match self.anchor {
             Anchor::Range(start, end) => (Some((start, end)), None),
-            Anchor::Region(r) => (None, Some(r)),
+            Anchor::Region(r) => (
+                None,
+                Some(dr_workspace::dto::CommentPartDto::Media {
+                    item: self
+                        .media_item
+                        .clone()
+                        .unwrap_or_else(|| self.target.id.clone()),
+                    region: Some(r),
+                }),
+            ),
         };
         let input = CommentCreateIn {
             book: self.book.clone(),
-            kind: Some(if self.todo { "todo" } else { "note" }.into()),
+            origin: Some(if self.todo { "marker" } else { "manual" }.into()),
             target: Some(dr_workspace::commands::v3::comment::Target {
                 kind: self.target.kind.clone(),
                 id: self.target.id.clone(),
             }),
             module: self.module.clone(),
+            part,
             anchor: None,
             block_id: None,
             range,
-            region,
             body,
             priority: None,
             author_name: None,

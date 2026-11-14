@@ -455,7 +455,11 @@ impl Projects {
                 .spawn(async move {
                     lib.run::<dr_workspace::commands::v3::entry::ProjectCreate>(
                         &Actor::User,
-                        BookCreateIn { name, summary },
+                        BookCreateIn {
+                            name,
+                            summary,
+                            template: None,
+                        },
                     )
                     .map(|o| o.output.id)
                 })

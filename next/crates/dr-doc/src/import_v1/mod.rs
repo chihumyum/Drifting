@@ -20,9 +20,12 @@ fields::str_like!(
     dr_model::import_v1::CategoryId,
     dr_model::import_v1::ElementId,
     dr_model::import_v1::DriftGroupId,
+    dr_model::import_v1::MaterialId,
+    dr_model::import_v1::MaterialFolderId,
     dr_model::import_v1::NodeKind,
     dr_model::import_v1::NodeStatus,
     dr_model::import_v1::CategoryLayout,
+    dr_model::import_v1::MaterialKind,
 );
 
 use std::collections::BTreeSet;

@@ -13,7 +13,8 @@
 use dr_model::Day;
 use dr_model::id::*;
 use dr_model::import_v1::{
-    ActId, CategoryId, DriftGroupId, ElementId, NodeId, NodeStatus, StorylineId,
+    ActId, CategoryId, DriftGroupId, ElementId, MaterialFolderId, MaterialId, NodeId, NodeStatus,
+    StorylineId,
 };
 
 use super::build::{day_before_t0, id};

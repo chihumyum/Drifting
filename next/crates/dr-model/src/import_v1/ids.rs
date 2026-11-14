@@ -28,6 +28,14 @@ id_type!(
     /// An idea group (构想分组): a node of the `drift_groups` tree.
     DriftGroupId
 );
+id_type!(
+    /// A material (素材): the old `library_item` (0.1 source format only).
+    MaterialId
+);
+id_type!(
+    /// A material folder (素材夹): a node of the `material_folders` tree (0.1 source format only).
+    MaterialFolderId
+);
 
 impl From<NodeId> for DocId {
     fn from(id: NodeId) -> Self {
@@ -47,6 +55,11 @@ impl From<StorylineId> for DocId {
 impl From<CategoryId> for DocId {
     fn from(id: CategoryId) -> Self {
         DocId::Category(id)
+    }
+}
+impl From<MaterialId> for DocId {
+    fn from(id: MaterialId) -> Self {
+        DocId::Material(id)
     }
 }
 

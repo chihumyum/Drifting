@@ -104,18 +104,9 @@ pub fn source_path(
     book: &str,
     material: &str,
 ) -> Result<PathBuf, String> {
-    use dr_workspace::commands::material::{MaterialList, MaterialListIn};
-    let materials = lib
-        .run::<MaterialList>(
-            &dr_workspace::Actor::User,
-            MaterialListIn {
-                book: book.to_owned(),
-                folder: None,
-            },
-        )
-        .map_err(|e| e.to_string())?
-        .output;
-    let asset = materials
+    let loaded = dr_shell::book::Book::load(lib, book).map_err(|e| e.to_string())?;
+    let asset = loaded
+        .material_items()
         .iter()
         .find(|m| m.id == material)
         .and_then(|m| m.asset.as_deref())

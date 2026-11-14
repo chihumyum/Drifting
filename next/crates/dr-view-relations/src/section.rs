@@ -117,20 +117,7 @@ impl EntryRelations {
                     },
                 )?
                 .output;
-            let handle = lib
-                .library()
-                .open_doc(&format!("book:{}", input.book), dr_store::OpenDoc::Existing)?;
-            let book = dr_model::id::BookId::parse(&input.book)
-                .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
-            let materials = handle.read(move |d| {
-                dr_doc::v3::BookReaderV3::from_loro(book, d).map(|r| {
-                    r.view()
-                        .materials()
-                        .into_iter()
-                        .map(|m| (m.id.to_string(), m.title))
-                        .collect::<Vec<_>>()
-                })
-            })??;
+            let materials: Vec<(String, String)> = Vec::new();
             let data = lib.run::<ModuleRead>(&Actor::User, input)?.output;
             Ok::<_, dr_workspace::WsError>((types, data.relations, materials))
         });

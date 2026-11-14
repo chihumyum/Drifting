@@ -188,7 +188,7 @@ impl Shape {
             preset: preset.into(),
             seed: format!("{seed:#x}"),
             books: books.len(),
-            documents: books.iter().map(|b| b.prose.len() + 3).sum(),
+            documents: books.iter().map(|b| b.prose.len() + 4).sum(),
             bodies,
             chapters,
             elements,

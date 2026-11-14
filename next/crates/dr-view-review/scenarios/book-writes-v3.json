@@ -9,11 +9,12 @@
       "save": "books"
     },
     {
-      "call": "material.list",
+      "call": "entry.list",
       "input": {
-        "book": "${books.0.id}"
+        "book": "${books.0.id}",
+        "all": true
       },
-      "save": "materials"
+      "save": "entries"
     },
     {
       "call": "comment.list",
@@ -25,18 +26,25 @@
     {
       "call": "prose.read",
       "input": {
-        "doc": "material:${materials.[kind=text].id}",
+        "doc": "body:${entries.[template=tpl-note].id}/mod-prose",
         "limit": 1
       },
       "save": "sample"
     },
     {
-      "call": "material.create",
+      "call": "entry.create",
       "input": {
         "book": "${books.0.id}",
-        "kind": "text",
+        "template": "tpl-note",
+        "parent": "${entries.[template=tpl-materials].id}",
         "title": "G4 synthetic note",
-        "text": "${sample.paragraphs.0.text}"
+        "bodies": {
+          "mod-prose": [
+            {
+              "text": "${sample.paragraphs.0.text}"
+            }
+          ]
+        }
       },
       "save": "note"
     },
@@ -132,7 +140,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${note.id}"
+        "target": "entry:${note.id}/mod-prose"
       }
     },
     {
@@ -203,15 +211,16 @@
       "input": {
         "book": "${books.0.id}",
         "target": {
-          "kind": "material",
+          "kind": "entry",
           "id": "${note.id}"
-        }
+        },
+        "module": "mod-prose"
       },
       "save": "comments",
       "expect": {
         "/0/body": "${seed_comments.0.body}",
         "/0/anchored": true,
-        "/0/target/kind": "material",
+        "/0/target/kind": "entry",
         "/0/target/id": "${note.id}",
         "/1": null
       }

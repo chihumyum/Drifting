@@ -35,12 +35,13 @@ use crate::schema::{self, BOOK_GENESIS_VERSION, BOOK_SCHEMA_VERSION, book_v3};
 pub use novel::{
     NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_ACT_TRACK,
     act_track_template, apply_novel_project_template, apply_novel_project_template_with,
-    find_novel_roots, novel_project_templates,
+    apply_project_template, find_novel_roots, novel_project_template, novel_project_template_with,
+    novel_project_templates,
 };
 pub use raw::raw_document_state;
 pub use read::{BookGraphV3, BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 pub use record::{RecordKeyV3, RecordReaderV3, RecordStateV3};
-pub use structure::{BookStructureV3, FlatEntry, FlatProse, Flatten, ManuscriptPart, NotALevel};
+pub use structure::{BookStructureV3, FlatEntry, FlatProse, Flatten, InvalidBookRoot, NotALevel};
 pub use write::BookTxnV3;
 
 /// Whether `doc` is a book document of the current format
@@ -53,8 +54,8 @@ pub fn is_book_doc(doc: &LoroDoc) -> bool {
     }
 }
 
-/// Deterministic genesis of a book document (`meta.v = 4` and the built-in
-/// locked relation type whose target kinds are `entry` and `patch`).
+/// Deterministic genesis of a book document (`meta.v = 5` and the built-in
+/// locked relation type whose endpoints include `entry`, `patch`, `comment`, and `asset`).
 pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
     let doc = LoroDoc::new();
     doc.config_text_style(schema::style_config());
@@ -92,11 +93,11 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         ("target_role", "Target".into()),
         (
             "source_kinds",
-            kinds(&[EntityKind::Comment, EntityKind::Material]),
+            kinds(&[EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]),
         ),
         (
             "target_kinds",
-            kinds(&[EntityKind::Entry, EntityKind::Patch]),
+            kinds(&[EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]),
         ),
     ] {
         rt.insert(k, v).expect("relation type field");
@@ -106,10 +107,11 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         .expect("export v3 genesis")
 }
 
-/// A root container of the v3 book document.
+/// A root container of the book document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CollectionV3 {
     Meta,
+    Project,
     Entries,
     Templates,
     Memberships,
@@ -119,16 +121,15 @@ pub enum CollectionV3 {
     RelationTypes,
     Relations,
     Comments,
-    Materials,
     Assets,
-    MaterialFolders,
     Facts,
     Memory,
 }
 
 impl CollectionV3 {
-    pub const ALL: [CollectionV3; 15] = [
+    pub const ALL: [CollectionV3; 14] = [
         CollectionV3::Meta,
+        CollectionV3::Project,
         CollectionV3::Entries,
         CollectionV3::Templates,
         CollectionV3::Memberships,
@@ -138,9 +139,7 @@ impl CollectionV3 {
         CollectionV3::RelationTypes,
         CollectionV3::Relations,
         CollectionV3::Comments,
-        CollectionV3::Materials,
         CollectionV3::Assets,
-        CollectionV3::MaterialFolders,
         CollectionV3::Facts,
         CollectionV3::Memory,
     ];
@@ -148,6 +147,7 @@ impl CollectionV3 {
     pub fn root(self) -> &'static str {
         match self {
             CollectionV3::Meta => book_v3::META,
+            CollectionV3::Project => book_v3::PROJECT,
             CollectionV3::Entries => book_v3::ENTRIES,
             CollectionV3::Templates => book_v3::TEMPLATES,
             CollectionV3::Memberships => book_v3::MEMBERSHIPS,
@@ -157,9 +157,7 @@ impl CollectionV3 {
             CollectionV3::RelationTypes => book_v3::RELATION_TYPES,
             CollectionV3::Relations => book_v3::RELATIONS,
             CollectionV3::Comments => book_v3::COMMENTS,
-            CollectionV3::Materials => book_v3::MATERIALS,
             CollectionV3::Assets => book_v3::ASSETS,
-            CollectionV3::MaterialFolders => book_v3::MATERIAL_FOLDERS,
             CollectionV3::Facts => book_v3::FACTS,
             CollectionV3::Memory => book_v3::MEMORY,
         }
@@ -170,7 +168,7 @@ impl CollectionV3 {
     }
 
     pub fn is_tree(self) -> bool {
-        matches!(self, CollectionV3::Entries | CollectionV3::MaterialFolders)
+        matches!(self, CollectionV3::Entries)
     }
 }
 

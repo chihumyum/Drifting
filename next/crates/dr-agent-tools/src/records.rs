@@ -78,8 +78,6 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
         "book" => Backing::Records(vec![RecordKey::collection("meta")]),
         "fact" => collection("facts"),
         "memory" => collection("memory"),
-        "material" => collection("materials"),
-        "material_folder" => collection("material_folders"),
         "comment" => collection("comments"),
         "relation" => collection("relations"),
         "asset" => collection("assets"),

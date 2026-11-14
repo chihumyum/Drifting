@@ -154,9 +154,10 @@ fn a_handed_off_library_imports_completely() {
 
     // The book, its targets from the handoff, its facts in projection order.
     let meta = v.meta();
+    let project = v.project();
     assert_eq!(meta.name, "阿Q正传");
-    assert_eq!(meta.word_target(), Some(80000));
-    assert_eq!(meta.daily_word_target(), None, "0 turns it off");
+    assert_eq!(project.word_target(), Some(80000));
+    assert_eq!(project.daily_word_target(), None, "0 turns it off");
     let facts: Vec<String> = v.facts().into_iter().map(|f| f.key).collect();
     assert_eq!(facts, ["类型", "视角"]);
     let storyline_template = v
@@ -184,13 +185,41 @@ fn a_handed_off_library_imports_completely() {
         chapter.primary.as_ref().map(|id| id.as_str()),
         Some(STORYLINE)
     );
+    let layout_positions = {
+        let h = lib
+            .open_doc(&format!("layout:{BOOK}"), dr_store::OpenDoc::Existing)
+            .unwrap();
+        let b = BookId::parse(BOOK).unwrap();
+        let all = h
+            .read(move |d| {
+                dr_doc::side::BorrowedLayout::new(d, &b)
+                    .unwrap()
+                    .view()
+                    .all_positions()
+            })
+            .unwrap();
+        h.close();
+        all
+    };
     let idea = v.entry(&EntryId::parse(IDEA).unwrap()).unwrap();
     assert_eq!(idea.parent.as_ref().map(|id| id.as_str()), Some(SUBGROUP));
-    assert_eq!(idea.layout.board, Some((120.5, -40.0)));
+    assert_eq!(
+        layout_positions
+            .get(&format!("{SUBGROUP}/board"))
+            .and_then(|m| m.get(&EntryId::parse(IDEA).unwrap()))
+            .copied(),
+        Some((120.5, -40.0))
+    );
     let subgroup = v.entry(&EntryId::parse(SUBGROUP).unwrap()).unwrap();
     assert_eq!(subgroup.parent.as_ref().map(|id| id.as_str()), Some(GROUP));
     let element = v.entry(&EntryId::parse(ELEMENT).unwrap()).unwrap();
-    assert_eq!(element.layout.relation_graph, Some((12.5, -40.0)));
+    assert_eq!(
+        layout_positions
+            .get("root/relation_graph")
+            .and_then(|m| m.get(&EntryId::parse(ELEMENT).unwrap()))
+            .copied(),
+        Some((12.5, -40.0))
+    );
     let templates = v.templates_map();
     assert!(element.aliases(&templates).iter().any(|a| a == "阿贵"));
     assert!(element.aliases(&templates).iter().any(|a| a == "阿桂"));
@@ -268,7 +297,7 @@ fn a_handed_off_library_imports_completely() {
         !rels.iter().any(|x| x.id.as_str() == "rel-1"),
         "positive source omits its known dangling fixture edge"
     );
-    let note_doc = DocId::Material(MaterialId::parse(NOTE).unwrap());
+    let note_doc = dr_samples::v3::body_id(NOTE, MOD_PROSE);
     let note_todo = CommentId::for_projection(
         &ProjectionKind::NoteTask,
         &note_doc,
@@ -309,6 +338,7 @@ fn a_handed_off_library_imports_completely() {
     );
     assert_eq!(bc.priority, Some(CommentPriority::High));
     let t = v.comment(&note_todo).unwrap();
+    assert_eq!(t.origin, dr_model::kind::CommentOrigin::Task);
     assert_eq!(t.projection.as_ref().map(|p| p.block.as_str()), Some("tp1"));
     assert_eq!(t.target_block.as_ref().map(|b| b.as_str()), Some("tp1"));
     assert!(
@@ -321,10 +351,31 @@ fn a_handed_off_library_imports_completely() {
         &BlockId::parse("p2").unwrap(),
     );
     let m = v.comment(&marker).unwrap();
+    assert_eq!(m.origin, dr_model::kind::CommentOrigin::Marker);
     assert_eq!(m.agent_conversation.as_deref(), Some("conv-1"));
     assert!(m.is_done());
     let region = v.comment(&CommentId::parse("region-1").unwrap()).unwrap();
-    assert_eq!(region.region.map(|r| r.w), Some(0.3));
+    assert_eq!(
+        region.target,
+        Some(dr_model::shared::EntityRef::new(
+            dr_model::kind::EntityKind::Asset,
+            ASSET,
+        ))
+    );
+    assert_eq!(region.target_module, None);
+    assert_eq!(region.region().map(|r| r.w), Some(0.3));
+    assert_eq!(
+        region.part,
+        Some(dr_model::v3::CommentPart::Region {
+            region: dr_model::shared::MaterialRegion {
+                page: None,
+                x: 0.1,
+                y: 0.2,
+                w: 0.3,
+                h: 0.4,
+            },
+        })
+    );
 
     // The patch, its anchor in the chapter.
     let patch = v
@@ -339,19 +390,30 @@ fn a_handed_off_library_imports_completely() {
         "引文"
     );
 
-    // Materials, folders, the asset, its bytes.
-    let mats = v.materials();
-    let note = mats.iter().find(|m| m.id.as_str() == NOTE).unwrap();
-    assert_eq!(note.folder.as_ref().map(|f| f.as_str()), Some(FOLDER));
-    assert!(note.task_todos);
-    let image = mats.iter().find(|m| m.id.as_str() == IMAGE).unwrap();
-    assert_eq!(image.description, "未庄的土谷祠");
-    assert!(
-        mats.iter().position(|m| m.id.as_str() == IMAGE)
-            < mats.iter().position(|m| m.id.as_str() == NOTE),
-        "order_key 0 before 1"
-    );
+    // Text materials and note folders import under 文本素材; image materials go into assets.
+    let text_materials_root = v
+        .entries()
+        .into_iter()
+        .find(|e| {
+            e.parent.is_none()
+                && e.template.as_ref().map(|t| t.as_str()) == Some(TPL_GROUP)
+                && e.title == "文本素材"
+        })
+        .unwrap();
+    let folder = v.entry(&EntryId::parse(FOLDER).unwrap()).unwrap();
+    assert_eq!(folder.parent.as_ref(), Some(&text_materials_root.id));
+    let note = v.entry(&EntryId::parse(NOTE).unwrap()).unwrap();
+    assert_eq!(note.parent.as_ref().map(|f| f.as_str()), Some(FOLDER));
+    assert_eq!(note.template.as_ref().map(|t| t.as_str()), Some(TPL_NOTE));
+    assert!(v.entry(&EntryId::parse(IMAGE).unwrap()).is_none());
+    assert_eq!(v.assets()[0].id.as_str(), ASSET);
+    assert_eq!(v.assets()[0].name, "插图");
     assert_eq!(v.assets()[0].sha256, sha256_bytes(IMAGE_BYTES));
+    assert!(
+        r.originals
+            .iter()
+            .any(|(c, id, f, _)| c == "materials" && id == IMAGE && f == "description")
+    );
     let stored = lib
         .asset(ASSET, dr_store::asset::Variant::Source)
         .unwrap()
@@ -401,13 +463,13 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(ids, ["h1", "p1", "q1", "q2", "p2"]);
     assert!(paras[2].attrs.quote);
     assert_eq!(chapter_doc.view().entity_links()[0].1.target, ELEMENT);
-    let note_prose = prose_doc(&lib, &format!("material:{NOTE}"));
+    let note_prose = prose_doc(&lib, &format!("body:{NOTE}/mod-prose"));
     let np: Vec<_> = note_prose.view().paragraphs().collect();
     assert_eq!(np[0].attrs.todo.as_ref(), Some(&note_todo));
     assert!(np[1].attrs.checked);
     let embed = np[2].embed().cloned().unwrap();
     assert!(
-        matches!(note_prose.view().embed(&embed), Some(EmbedView::Material { material: Some(m), .. }) if m.as_str() == IMAGE)
+        matches!(note_prose.view().embed(&embed), Some(EmbedView::Asset { asset: Some(a), .. }) if a.as_str() == ASSET)
     );
 
     // History: two replayed points with their 0.1 times, plus the import,
@@ -726,8 +788,8 @@ fn the_import_reports_its_progress() {
         .unwrap();
     assert_eq!(
         (indexing.done, indexing.total),
-        (11, 11),
-        "six bodies, two templates, the book and the two documents beside it"
+        (12, 12),
+        "six bodies, two templates, the book and the three documents beside it"
     );
 }
 
@@ -739,8 +801,8 @@ fn an_imported_library_has_its_indexes() {
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
     imported(outcome);
     assert_eq!(
-        timing.indexed_docs, 11,
-        "six bodies, two templates, the book and the two documents beside it"
+        timing.indexed_docs, 12,
+        "six bodies, two templates, the book and the three documents beside it"
     );
     let mut o = LibraryOptions::new("0.2.0-test");
     dr_index::attach(&mut o);
@@ -880,6 +942,13 @@ fn catalog_state(n: &New) -> serde_json::Value {
         ordered.sort_by_key(|(_, v)| v["pos"].as_str().unwrap_or(""));
         for (i, (id, _)) in ordered.into_iter().enumerate() {
             names.insert(id.clone(), format!("allocated-timeline:{i}"));
+        }
+    }
+    if let Some(tabs) = value["project"]["tabs"].as_object() {
+        let mut ordered = tabs.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|(_, t)| t["pos"].as_str().unwrap_or(""));
+        for (i, (id, _)) in ordered.into_iter().enumerate() {
+            names.insert(id.clone(), format!("allocated-tab:{i}"));
         }
     }
     fn rename(

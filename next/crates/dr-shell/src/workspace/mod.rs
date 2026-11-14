@@ -790,7 +790,10 @@ impl Workspace {
                         cur_rev
                     );
                 } else {
-                    let same_revision = same_book && cur_rev.is_some() && cur_rev == new_rev;
+                    let same_revision = same_book
+                        && cur_rev.is_some()
+                        && cur_rev == new_rev
+                        && self.book.v3().map(|v| &v.layouts) == book.v3().map(|v| &v.layouts);
                     if book.id != self.book_id {
                         self.book_id = book.id.clone();
                         self.restore_layout(cx);
@@ -860,7 +863,7 @@ impl Workspace {
         self._library_events = Some(lib.subscribe(move |event| {
             if matches!(
                 event,
-                WsEvent::Book(_) | WsEvent::Removed(_) | WsEvent::Prose(_)
+                WsEvent::Book(_) | WsEvent::Removed(_) | WsEvent::Prose(_) | WsEvent::Layout(_)
             ) || matches!(event, WsEvent::Local(c) if undo::is_journal_row(c))
             {
                 let _ = tx.unbounded_send(event.clone());
@@ -887,6 +890,7 @@ impl Workspace {
     /// What a batch of F3 events means for the window.
     pub fn on_library_events(&mut self, events: Vec<WsEvent>, cx: &mut Context<Self>) {
         let mut reload_book = false;
+        let mut reload_layouts = false;
         let mut book_purged = false;
         let mut gone = Vec::new();
         let mut journal = Vec::new();
@@ -900,6 +904,7 @@ impl Workspace {
                 // `Checkpoints`) and change none of them: nothing is read
                 // again for those.
                 WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
+                WsEvent::Layout(l) if l.book.as_str() == self.book_id => reload_layouts = true,
                 WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
                     for entity in r.entities {
                         if entity.target == dr_workspace::NavTarget::Book && entity.purged {
@@ -951,6 +956,27 @@ impl Workspace {
         // The editors fold their documents' changes in themselves.
         if reload_book {
             self.load_book(None, cx);
+        } else if reload_layouts
+            && !self.book_id.is_empty()
+            && let Some(lib) = self.library.clone()
+        {
+            let book_id = self.book_id.clone();
+            cx.spawn(async move |this, cx| {
+                let id_for_read = book_id.clone();
+                let loaded = cx
+                    .background_executor()
+                    .spawn(async move { lib.layout_positions(&id_for_read) })
+                    .await;
+                if let Ok(raw) = loaded {
+                    let _ = this.update(cx, |ws, cx| {
+                        if ws.book_id == book_id && ws.book.id == book_id {
+                            ws.book = Rc::new(ws.book.with_layouts(raw));
+                            cx.notify();
+                        }
+                    });
+                }
+            })
+            .detach();
         }
     }
 
@@ -1179,7 +1205,6 @@ impl Workspace {
                 id: body.entry().clone(),
                 module: Some(body.module().clone()),
             }),
-            dr_model::DocId::Material(id) => Some(Target::Material(id)),
             _ => None,
         });
         if let Some(target) = target {

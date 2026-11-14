@@ -218,13 +218,6 @@ fn book_entities(
         let targets = BTreeSet::from([key.clone(), format!("entry:{}", grid.entry)]);
         entities.insert(key, (serde_json::to_value(&grid)?, targets));
     }
-    for material in view.materials() {
-        let key = format!("material:{}", material.id);
-        entities.insert(
-            key.clone(),
-            (serde_json::to_value(&material)?, BTreeSet::from([key])),
-        );
-    }
     for comment in view.comments() {
         let key = format!("comment:{}", comment.id);
         let mut targets = BTreeSet::from([key.clone()]);
@@ -282,7 +275,9 @@ pub(crate) fn write_proof(
                     }
                 }
             }
-            DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) => continue,
+            DocId::Conversation(_) | DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Layout(_) => {
+                continue;
+            }
             DocId::Body(body) => {
                 proof.targets.insert(receipt.doc_id.clone());
                 proof.targets.insert(format!("entry:{}", body.entry()));

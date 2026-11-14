@@ -43,17 +43,17 @@ fn env() -> Env {
     Env { dir, ws, book }
 }
 
-/// A text material whose note reads `text`: its document id.
+/// A note entry whose prose body reads `text`: its document id.
 fn note(e: &Env, text: &str) -> String {
     let id = out(
         &e.ws,
-        "material.create",
-        json!({"book": e.book, "kind": "text", "title": "读书笔记", "text": text}),
+        "entry.create",
+        json!({"book": e.book, "template": "tpl-note", "title": "读书笔记", "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("material:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 /// A small synthetic PNG (a warm gradient).
@@ -101,17 +101,10 @@ fn image_material(e: &Env, title: &str) -> String {
     out(
         &e.ws,
         "asset.put",
-        json!({"book": e.book, "id": asset, "kind": "image", "mime": "image/png",
+        json!({"book": e.book, "id": asset, "name": title, "kind": "image", "mime": "image/png",
                "size": bytes.len(), "sha256": record.sha256, "width": 64, "height": 40}),
     );
-    out(
-        &e.ws,
-        "material.create",
-        json!({"book": e.book, "kind": "image", "title": title, "asset": asset}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned()
+    asset
 }
 
 fn draw(cx: &mut VisualTestContext) {
@@ -600,12 +593,8 @@ fn a_chapter_has_unified_prose_formats_while_plain_shortcuts_stay_literal(cx: &m
     assert_eq!(
         o.slash("素材"),
         [],
-        "material embedding stays restricted to material notes"
+        "under 书稿's Plain shortcuts the slash menu has no file entry (T5 adds one to every prose document)"
     );
-    let inserted = o.view.update_in(o.cx, |v, window, cx| {
-        v.insert_material(&picture, window, cx)
-    });
-    assert!(!inserted);
     o.cx.simulate_keystrokes("escape");
     for _ in 0..3 {
         o.action(Backspace);
@@ -633,6 +622,13 @@ fn a_chapter_has_unified_prose_formats_while_plain_shortcuts_stay_literal(cx: &m
         )
     });
     assert!(list_attr.is_none() && !has_hl && !has_code);
+    // Format 5: a file embeds in any prose document, a chapter included
+    // (`kernel-v5.md` §6); under v4 only a material note took one.
+    let inserted = o.view.update_in(o.cx, |v, window, cx| {
+        v.insert_material(&picture, window, cx)
+    });
+    assert!(inserted);
+    assert!(o.lines().iter().any(|l| l == OBJ));
 }
 
 #[gpui::test]

@@ -246,8 +246,6 @@ fn a_saved_checkpoint_does_not_make_the_shelf_read_again(cx: &mut TestAppContext
             book: book.clone(),
             name: None,
             summary: Some("Synthetic summary".into()),
-            word_target: None,
-            daily_word_target: None,
         },
     )
     .unwrap();

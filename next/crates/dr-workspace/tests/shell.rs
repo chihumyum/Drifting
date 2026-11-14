@@ -42,7 +42,7 @@ fn gone(target: NavTarget, purged: bool) -> RemovedEntity {
 }
 
 #[test]
-fn entry_trash_material_purge_and_book_trash_are_announced() {
+fn entry_trash_and_book_trash_are_announced() {
     let e = env();
     let b = e.book();
     let c = id(&common::acceptance::novel_entry(
@@ -52,9 +52,12 @@ fn entry_trash_material_purge_and_book_trash_are_announced() {
         "One",
         None,
     ));
-    let mat = id(&e.out(
-        "material.create",
-        json!({"book":b,"kind":"text","title":"地图","text":"x"}),
+    let note = id(&common::acceptance::novel_entry(
+        e.ws(),
+        &b,
+        "tpl-note",
+        "地图",
+        Some("x"),
     ));
     let (seen, _sub) = removals(e.ws());
     e.call("entry.update", json!({"book":b,"id":c,"title":"Uno"}));
@@ -63,11 +66,8 @@ fn entry_trash_material_purge_and_book_trash_are_announced() {
     assert_eq!(take(&seen), [gone(chapter(&c), false)]);
     e.call("entry.restore", json!({"book":b,"id":c}));
     assert!(take(&seen).is_empty());
-    e.call("material.delete", json!({"book":b,"id":mat}));
-    assert_eq!(
-        take(&seen),
-        [gone(NavTarget::Material(mat.parse().unwrap()), true)]
-    );
+    e.call("entry.trash", json!({"book":b,"id":note}));
+    assert_eq!(take(&seen), [gone(chapter(&note), false)]);
     e.call("book.trash", json!({"book":b}));
     assert_eq!(take(&seen), [gone(NavTarget::Book, false)]);
 }
@@ -98,9 +98,12 @@ fn removals_from_another_device_are_announced() {
         "One",
         None,
     ));
-    let mat = id(&a.out(
-        "material.create",
-        json!({"book":b,"kind":"text","title":"地图","text":"x"}),
+    let note = id(&common::acceptance::novel_entry(
+        a.ws(),
+        &b,
+        "tpl-note",
+        "地图",
+        Some("x"),
     ));
     sync(a.ws(), other.ws());
     other.out("entry.list", json!({"book":b,"all":true}));
@@ -108,12 +111,9 @@ fn removals_from_another_device_are_announced() {
     a.call("entry.trash", json!({"book":b,"id":c}));
     sync(a.ws(), other.ws());
     assert_eq!(take(&seen), [gone(chapter(&c), false)]);
-    a.call("material.delete", json!({"book":b,"id":mat}));
+    a.call("entry.trash", json!({"book":b,"id":note}));
     sync(a.ws(), other.ws());
-    assert_eq!(
-        take(&seen),
-        [gone(NavTarget::Material(mat.parse().unwrap()), true)]
-    );
+    assert_eq!(take(&seen), [gone(chapter(&note), false)]);
 }
 
 #[test]
@@ -131,10 +131,11 @@ fn before_quit_indexes_and_closes_what_is_open() {
         .prose_session(&format!("body:{d}/mod-prose"))
         .unwrap();
     let report = e.ws().before_quit();
-    // The book, the two documents beside it (opened when the book was
-    // created) and chapter One close; chapter Two has an editing session.
+    // The book, the three documents beside it (`stats:`, `checkpoints:`,
+    // `layout:`, opened when the book was created) and chapter One close;
+    // chapter Two has an editing session.
     assert_eq!(report.in_use, 1, "{report:?}");
-    assert_eq!(report.closed, 4, "{report:?}");
+    assert_eq!(report.closed, 5, "{report:?}");
     assert!(e.ws().library().stale_index_docs().unwrap().is_empty());
     // Still usable afterwards.
     assert_eq!(

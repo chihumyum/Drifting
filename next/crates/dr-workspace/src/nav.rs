@@ -1,5 +1,5 @@
 //! Stable canonical page targets carried by removal events.
-use dr_model::id::{EntryId, MaterialId, ModuleId};
+use dr_model::id::{EntryId, ModuleId};
 use dr_model::v3::EntryTemplateId;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum NavTarget {
@@ -9,7 +9,6 @@ pub enum NavTarget {
         module: Option<ModuleId>,
     },
     Template(EntryTemplateId),
-    Material(MaterialId),
 }
 impl NavTarget {
     pub fn key(&self) -> String {
@@ -21,7 +20,6 @@ impl NavTarget {
             } => format!("entry:{id}/{module}"),
             Self::Entry { id, module: None } => format!("entry:{id}"),
             Self::Template(id) => format!("template:{id}"),
-            Self::Material(id) => format!("material:{id}"),
         }
     }
 }

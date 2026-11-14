@@ -82,7 +82,7 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
     let handle = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
-    let (meta, entries, templates, materials, sequence) = handle.read(move |doc| {
+    let (meta, project, entries, templates, sequence) = handle.read(move |doc| {
         if !dr_doc::v3::is_book_doc(doc) {
             return Err(invalid("statistics require a book of the current format"));
         }
@@ -91,12 +91,11 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         if v.meta().deleted_at.is_some() {
             return Err(invalid("book is in the trash"));
         }
-        // The manuscript sequence: each entry's own book prose, in order.
+        // The book sequence (`project.book`): each entry's book prose, in order.
         let structure = v.structure_snapshot();
         let sequence: Vec<(m::EntryId, Vec<(String, String)>)> = structure
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .flat_map(|p| p.entries)
             .filter(|e| !e.prose.is_empty())
             .map(|e| {
                 let prose = e
@@ -109,9 +108,9 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
             .collect();
         Ok((
             v.meta(),
+            v.project(),
             v.entries(),
             v.templates_map(),
-            v.materials(),
             sequence,
         ))
     })??;
@@ -198,35 +197,21 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
             (entry.title.clone(), docs)
         }
         Scope::Material(id) => {
-            let mat = materials
+            let title = entries
                 .iter()
-                .find(|m| m.id.as_str() == id)
+                .filter(|e| live(e))
+                .find_map(|e| {
+                    e.media
+                        .values()
+                        .flatten()
+                        .find(|m| m.id.as_str() == id)
+                        .map(|_| e.title.clone())
+                })
                 .ok_or_else(|| WsError::NotFound {
                     what: "material",
                     id: id.clone(),
                 })?;
-            let id = format!("material:{id}");
-            let docs = if mat.kind == dr_model::kind::MaterialKind::Text {
-                vec![Document {
-                    metrics: if stored.contains(&id) {
-                        ws.library().doc_stats(&id)?.map(|s| TextMetrics {
-                            words: s.words,
-                            chars: s.chars,
-                        })
-                    } else {
-                        Some(TextMetrics::default())
-                    },
-                    id,
-                    entry: None,
-                    entry_title: None,
-                    module: None,
-                    name: mat.title.clone(),
-                    retained: false,
-                }]
-            } else {
-                Vec::new()
-            };
-            (mat.title.clone(), docs)
+            (title, Vec::new())
         }
     };
     let shape = if documents.len() == 1
@@ -251,8 +236,8 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
         documents,
         manuscript,
         entries: sequence.len(),
-        word_target: meta.word_target(),
-        daily_word_target: meta.daily_word_target(),
+        word_target: project.word_target(),
+        daily_word_target: project.daily_word_target(),
         shape,
         days: ws
             .run::<WritingDays>(

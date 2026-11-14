@@ -18,7 +18,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 // The source format's ids, for the refused document kinds of [`DocId`] only.
-use crate::import_v1::{CategoryId, ElementId, NodeId, StorylineId, TemplateOwner};
+use crate::import_v1::{CategoryId, ElementId, MaterialId, NodeId, StorylineId, TemplateOwner};
 
 /// Longest id accepted, in bytes. Old ids are 36-byte uuids; derived ids are a
 /// few dozen bytes. The limit only stops garbage from becoming a map key.
@@ -177,21 +177,12 @@ id_type!(
     TimePinId
 );
 id_type!(
-    /// A comment or a TODO (both live in `comments`; a TODO is a comment of
-    /// kind `todo`).
+    /// A comment in `comments` (`kernel-v5.md` §7).
     CommentId
-);
-id_type!(
-    /// A material (素材): the old `library_item`.
-    MaterialId
 );
 id_type!(
     /// An asset: the bytes of an image or a PDF (stored outside Loro).
     AssetId
-);
-id_type!(
-    /// A material folder (素材夹): a node of the `material_folders` tree.
-    MaterialFolderId
 );
 id_type!(
     /// An entry of a key/value list: an entry's key/value module and project
@@ -204,7 +195,7 @@ id_type!(
     MemoryId
 );
 id_type!(
-    /// A table or material embed inside a prose document (`embeds` map).
+    /// A table or asset embed inside a prose document (`embeds` map).
     EmbedId
 );
 id_type!(
@@ -261,8 +252,23 @@ id_type!(
     reserved = ['/', ':']
 );
 id_type!(
-    /// A timeline view (时间线视图) in `timeline_views` (`v3`).
+    /// A view (`timeline_views`) in a book document.
     TimelineViewId
+);
+id_type!(
+    /// A left-sidebar tab in `project.tabs`.
+    /// `/` is reserved because history keys address tabs as `tabs/<id>`.
+    TabId,
+    reserved = ['/']
+);
+id_type!(
+    /// An item inside an entry's `media` module (`media:<module>`).
+    MediaItemId
+);
+id_type!(
+    /// A field definition inside a template's `fields` module (`FieldDef.id`,
+    /// never `FieldDef.name`).
+    FieldId
 );
 
 /// The `<entry_id>/<module_id>` payload of a v3 `body:` prose document id.
@@ -464,6 +470,7 @@ pub enum DocKind {
     Storyline,
     /// Source format only: a category's description.
     Category,
+    /// Source format only: a material note's body.
     Material,
     /// A v3 entry's prose module or level description (`body:<entry>/<module>`).
     Body,
@@ -476,10 +483,12 @@ pub enum DocKind {
     Stats,
     /// A book's complete-entry checkpoint manifests (`checkpoints:<book>`).
     Checkpoints,
+    /// A book's canvas coordinates (`layout:<book>`), apart from its book document.
+    Layout,
 }
 
 impl DocKind {
-    pub const ALL: [DocKind; 11] = [
+    pub const ALL: [DocKind; 12] = [
         DocKind::Book,
         DocKind::Node,
         DocKind::Element,
@@ -491,6 +500,7 @@ impl DocKind {
         DocKind::Conversation,
         DocKind::Stats,
         DocKind::Checkpoints,
+        DocKind::Layout,
     ];
 
     /// The prefix of the document id (`book`, `node`, …).
@@ -507,13 +517,14 @@ impl DocKind {
             DocKind::Conversation => "conversation",
             DocKind::Stats => "stats",
             DocKind::Checkpoints => "checkpoints",
+            DocKind::Layout => "layout",
         }
     }
 
     /// Whether the document's text is part of the book: searched, counted,
-    /// exported, mirrored. Book, conversation, stats and checkpoints documents
-    /// have no prose, and a template is not the book's text: it is copied into
-    /// new entries.
+    /// exported, mirrored. Book, conversation, stats, checkpoints and layout
+    /// documents have no prose, and a template is not the book's text: it is
+    /// copied into new entries.
     pub fn is_book_text(self) -> bool {
         !matches!(
             self,
@@ -522,16 +533,21 @@ impl DocKind {
                 | DocKind::Conversation
                 | DocKind::Stats
                 | DocKind::Checkpoints
+                | DocKind::Layout
         )
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book, conversation, stats and checkpoints documents. Every prose
-    /// document shares the single `ProseProfile::Prose` (`kernel-v5.md` §6;
-    /// the former note profile is retired).
+    /// book, conversation, stats, checkpoints and layout documents. Every
+    /// prose document shares the single `ProseProfile::Prose` (`kernel-v5.md`
+    /// §6; the former note profile is retired).
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
-            DocKind::Book | DocKind::Conversation | DocKind::Stats | DocKind::Checkpoints => None,
+            DocKind::Book
+            | DocKind::Conversation
+            | DocKind::Stats
+            | DocKind::Checkpoints
+            | DocKind::Layout => None,
             _ => Some(ProseProfile::Prose),
         }
     }
@@ -551,7 +567,7 @@ pub enum ProseProfile {
 }
 
 /// The id of a Loro document: `book:<id>` for the book (catalog) document,
-/// `body:<entry>/<module>` and `material:<id>` for prose documents,
+/// `body:<entry>/<module>` for prose documents,
 /// `template:<book>/<template>/<module>` for body templates,
 /// `conversation:<id>` for append-only Agent conversation content,
 /// `stats:<book>` for a book's writing days and `checkpoints:<book>` for its
@@ -559,8 +575,9 @@ pub enum ProseProfile {
 /// documents by.
 ///
 /// The 0.1 source format's prose documents (`node:<id>`, `element:<id>`,
-/// `storyline:<id>`, `category:<id>`, and the `template:category:<id>` /
-/// `template:storyline:<id>` templates) still parse. Canonical code never
+/// `storyline:<id>`, `category:<id>`, `material:<id>`, and the
+/// `template:category:<id>` / `template:storyline:<id>` templates) still
+/// parse. Canonical code never
 /// makes one: they are here so that an old library on disk and an old sync
 /// payload are named exactly and refused by the canonical readers
 /// (`dr-workspace/tests/cutover.rs`), and so that the source replay can
@@ -579,6 +596,7 @@ pub enum DocId {
     Storyline(StorylineId),
     /// Source format only.
     Category(CategoryId),
+    /// Source format only.
     Material(MaterialId),
     Body(BodyDocId),
     Template(TemplateId),
@@ -587,6 +605,8 @@ pub enum DocId {
     Stats(BookId),
     /// A book's complete-entry checkpoint manifests, beside its book document.
     Checkpoints(BookId),
+    /// A book's canvas coordinates (`<scope>/<mode> -> entry -> [x, y]`), beside its book document.
+    Layout(BookId),
 }
 
 /// Why a string is not a document id.
@@ -623,6 +643,7 @@ impl DocId {
             DocId::Conversation(_) => DocKind::Conversation,
             DocId::Stats(_) => DocKind::Stats,
             DocId::Checkpoints(_) => DocKind::Checkpoints,
+            DocId::Layout(_) => DocKind::Layout,
         }
     }
 
@@ -638,7 +659,7 @@ impl DocId {
             DocId::Body(id) => id.as_str(),
             DocId::Template(id) => id.as_str(),
             DocId::Conversation(id) => id.as_str(),
-            DocId::Stats(id) | DocId::Checkpoints(id) => id.as_str(),
+            DocId::Stats(id) | DocId::Checkpoints(id) | DocId::Layout(id) => id.as_str(),
         }
     }
 
@@ -650,12 +671,12 @@ impl DocId {
         matches!(self, DocId::Book(_))
     }
 
-    /// The book a document's id itself names: the book document and the two
-    /// documents beside it (`stats:<book>`, `checkpoints:<book>`). Other
-    /// documents belong to a book through the store's registry, not their id.
+    /// The book a document's id itself names: the book document and the three
+    /// documents beside it (`stats:<book>`, `checkpoints:<book>`, `layout:<book>`).
+    /// Other documents belong to a book through the store's registry, not their id.
     pub fn named_book(&self) -> Option<&BookId> {
         match self {
-            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) => Some(b),
+            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) | DocId::Layout(b) => Some(b),
             _ => None,
         }
     }
@@ -674,6 +695,7 @@ impl DocId {
             "conversation" => DocId::Conversation(ConversationId::parse(id).map_err(e)?),
             "stats" => DocId::Stats(BookId::parse(id).map_err(e)?),
             "checkpoints" => DocId::Checkpoints(BookId::parse(id).map_err(e)?),
+            "layout" => DocId::Layout(BookId::parse(id).map_err(e)?),
             "template" => {
                 let t = TemplateId::parse(id).map_err(e)?;
                 if TemplateOwner::of(&t).is_none() && t.entry_module().is_none() {
@@ -721,11 +743,6 @@ impl From<DocId> for String {
 impl From<BookId> for DocId {
     fn from(id: BookId) -> Self {
         DocId::Book(id)
-    }
-}
-impl From<MaterialId> for DocId {
-    fn from(id: MaterialId) -> Self {
-        DocId::Material(id)
     }
 }
 impl From<BodyDocId> for DocId {
@@ -861,9 +878,15 @@ mod tests {
                         | DocKind::Conversation
                         | DocKind::Stats
                         | DocKind::Checkpoints
+                        | DocKind::Layout
                 ))
                 .all(|k| k.is_book_text())
         );
+        let l = DocId::parse("layout:b1").unwrap();
+        assert_eq!(l.kind(), DocKind::Layout);
+        assert_eq!(l.profile(), None);
+        assert!(!l.kind().is_book_text());
+        assert_eq!(l.named_book().map(|b| b.as_str()), Some("b1"));
     }
 
     #[test]

@@ -360,7 +360,7 @@ fn descriptions_and_empty_levels_stay_out_while_own_book_prose_precedes_children
 }
 
 #[test]
-fn multiple_manuscript_parts_export_together_or_individually() {
+fn export_follows_project_book_root_and_empty_when_book_disabled() {
     let dir = tempfile::tempdir().unwrap();
     let lib = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
     let ws = Workspace::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
@@ -384,7 +384,7 @@ fn multiple_manuscript_parts_export_together_or_individually() {
         .unwrap()
         .to_owned();
 
-    // A non-manuscript container holding a second manuscript part (`外篇 / 番外稿`).
+    // A second folder (`外篇 / 番外稿`) outside the initial `project.book.root`.
     let container = call(
         &ws,
         "entry.create",
@@ -428,16 +428,29 @@ fn multiple_manuscript_parts_export_together_or_individually() {
         .unwrap()
         .to_owned();
 
+    // One project has one book sequence (`project.book.root`), starting on `书稿`.
     let outline = v3::outline(&ws, &book).unwrap();
-    assert_eq!(outline.parts.len(), 2);
+    assert_eq!(outline.parts.len(), 1);
     assert_eq!(outline.parts[0].id, main_part);
     assert_eq!(outline.parts[0].path, vec!["书稿"]);
     assert_eq!(outline.parts[0].entries.len(), 1);
     assert_eq!(outline.parts[0].entries[0].id, ch_main);
-    assert_eq!(outline.parts[1].id, side_part);
-    assert_eq!(outline.parts[1].path, vec!["外篇", "番外稿"]);
-    assert_eq!(outline.parts[1].entries.len(), 1);
-    assert_eq!(outline.parts[1].entries[0].id, ch_side);
+
+    // Switching `project.book.root` to `番外稿` switches the exported book sequence.
+    call(
+        &ws,
+        "project.update",
+        json!({
+            "book": book,
+            "root": {"kind": "entry", "entry": side_part}
+        }),
+    );
+    let side_outline = v3::outline(&ws, &book).unwrap();
+    assert_eq!(side_outline.parts.len(), 1);
+    assert_eq!(side_outline.parts[0].id, side_part);
+    assert_eq!(side_outline.parts[0].path, vec!["外篇", "番外稿"]);
+    assert_eq!(side_outline.parts[0].entries.len(), 1);
+    assert_eq!(side_outline.parts[0].entries[0].id, ch_side);
 
     let labels = Labels {
         untitled_chapter: "Untitled".into(),
@@ -480,5 +493,15 @@ fn multiple_manuscript_parts_export_together_or_individually() {
         UNIX_EPOCH,
     );
     assert!(matches!(missing, Err(dr_export::ExportError::NotFound(_))));
+
+    // Disabling `成书` yields an empty outline.
+    call(
+        &ws,
+        "project.update",
+        json!({"book": book, "has_book": false}),
+    );
+    let disabled = v3::outline(&ws, &book).unwrap();
+    assert!(disabled.parts.is_empty());
+    assert!(disabled.entries.is_empty());
     ws.close();
 }

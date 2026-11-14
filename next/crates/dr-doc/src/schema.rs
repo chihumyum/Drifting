@@ -13,9 +13,9 @@ use loro::{ExpandType, LoroDoc, StyleConfig, StyleConfigMap};
 /// comments and materials. See `loro-schema.md` "版本".
 pub const SCHEMA_VERSION: i64 = 2;
 
-/// `meta.v` of book documents (`docs/rust-rewrite/kernel-v4.md`). Only a
+/// `meta.v` of book documents (`docs/rust-rewrite/kernel-v5.md`). Only a
 /// book document of this version opens; any other is refused as it is.
-pub const BOOK_SCHEMA_VERSION: i64 = 4;
+pub const BOOK_SCHEMA_VERSION: i64 = 5;
 
 /// `meta.v` of the documents beside a book (`stats:<book>`,
 /// `checkpoints:<book>`).
@@ -25,8 +25,8 @@ pub const SIDE_SCHEMA_VERSION: i64 = 1;
 pub const GENESIS_VERSION: u32 = 2;
 
 /// Version of the book document genesis content. Part of the genesis
-/// peer's hash, so a version 4 book's genesis is not a version 3 book's.
-pub const BOOK_GENESIS_VERSION: u32 = 4;
+/// peer's hash, so a version 5 book's genesis is not a version 4 book's.
+pub const BOOK_GENESIS_VERSION: u32 = 5;
 
 /// Version of the genesis content of the documents beside a book.
 pub const SIDE_GENESIS_VERSION: u32 = 1;
@@ -97,6 +97,7 @@ pub mod book {
 /// Root containers of the universal kernel v3 book document (`kernel-v3.md`).
 pub mod book_v3 {
     pub const META: &str = "meta";
+    pub const PROJECT: &str = "project";
     pub const ENTRIES: &str = "entries";
     pub const TEMPLATES: &str = "templates";
     pub const MEMBERSHIPS: &str = "memberships";
@@ -106,9 +107,7 @@ pub mod book_v3 {
     pub const RELATION_TYPES: &str = "relation_types";
     pub const RELATIONS: &str = "relations";
     pub const COMMENTS: &str = "comments";
-    pub const MATERIALS: &str = "materials";
     pub const ASSETS: &str = "assets";
-    pub const MATERIAL_FOLDERS: &str = "material_folders";
     pub const FACTS: &str = "facts";
     pub const MEMORY: &str = "memory";
 
@@ -122,7 +121,6 @@ pub mod book_v3 {
         RELATION_TYPES,
         RELATIONS,
         COMMENTS,
-        MATERIALS,
         ASSETS,
         MEMORY,
     ];
@@ -130,7 +128,7 @@ pub mod book_v3 {
 
 /// Root containers of the documents beside a book: `stats:<book>` has
 /// `meta` and `writing_days`, `checkpoints:<book>` has `meta` and
-/// `entry_checkpoints`.
+/// `entry_checkpoints`, and `layout:<book>` has `meta` and `positions`.
 pub mod side {
     pub const META: &str = "meta";
     /// `"<device>|<day>"` → words that device wrote in the book that day.
@@ -138,6 +136,9 @@ pub mod side {
     /// Complete-entry checkpoint manifests: checkpoint id → manifest, opaque
     /// to dr-doc.
     pub const ENTRY_CHECKPOINTS: &str = "entry_checkpoints";
+    /// Free-canvas coordinates: `"<scope>/<mode>"` → mergeable map of
+    /// `entry_id -> [x, y]`.
+    pub const POSITIONS: &str = "positions";
 }
 
 /// Paragraph attributes: marks on the paragraph's terminating `\n`, always

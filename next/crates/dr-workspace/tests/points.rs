@@ -4,7 +4,6 @@
 mod common;
 
 use common::*;
-use dr_model::prose::Heading;
 use dr_store::history::LabelRetention;
 use dr_workspace::{Actor, WsError};
 use serde_json::{Value, json};
@@ -69,29 +68,33 @@ fn texts(e: &Env, doc: &str) -> Vec<Value> {
 }
 
 #[test]
-fn points_preview_and_restore_a_material() {
+fn points_preview_and_restore_a_template_prose_doc() {
     let e = env();
     let b = e.book();
-    let c = e.out(
-        "material.create",
-        json!({"book": b, "kind":"text", "title": "One", "description": "first", "text": "第一段。\n第二段。"}),
+    let doc = e.out(
+        "module.prose_document",
+        json!({"book": b, "owner": "tpl-chapter", "module": "mod-prose", "template": true}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let doc = format!("material:{c}");
+    e.call(
+        "module.set_prose",
+        json!({
+            "book": b,
+            "owner": "tpl-chapter",
+            "module": "mod-prose",
+            "template": true,
+            "paragraphs": [{"heading": 1, "text": "第一段。"}, {"text": "第二段。"}]
+        }),
+    );
     let s = e.ws().prose_session(&doc).unwrap();
-    s.edit(|t| t.set_heading(0, Some(Heading::H1))).unwrap();
     let ts = point_now(&e, &doc, 20 * 60_000);
 
-    // The author writes on and renames the chapter.
+    // The author writes on in the template prose document.
     e.call(
         "prose.replace",
         json!({"doc": doc, "find": "第一段", "replace": "改过的第一段"}),
-    );
-    e.call(
-        "material.update",
-        json!({"book": b, "id": c, "title": "Renamed", "description": "second"}),
     );
     let list = points(&e, &doc);
     assert_eq!(list["doc"], json!(doc));
@@ -103,37 +106,28 @@ fn points_preview_and_restore_a_material() {
     );
     let p = point_at(&e, &doc, ts);
     assert_eq!(p["kind"], "auto");
-    assert_eq!(p["title"], "One", "the title then");
     assert_eq!(p["excerpt"], "第一段。 第二段。");
     assert_eq!(p["words"], 6);
 
-    // Preview: paragraphs with their levels, and the owner's fields then.
+    // Preview: paragraphs with their levels.
     let pv = e.out("history.preview", json!({"doc": doc, "point": p["id"]}));
     assert_eq!(
         pv["paragraphs"],
         json!([{"heading": 1, "text": "第一段。"}, {"heading": null, "text": "第二段。"}])
     );
-    assert_eq!(pv["title"], "One");
-    assert_eq!(pv["summary"], "first");
     assert_eq!(pv["same_as_now"], false);
 
-    // Restore: the prose and the chapter's fields go back; nothing else.
+    // Restore: the template prose goes back.
     let out = e.call(
         "history.restore_point",
         json!({"doc": doc, "point": p["id"]}),
     );
     assert_eq!(out["output"]["prose"], true);
-    assert_eq!(out["output"]["fields"], json!(["title", "description"]));
+    assert_eq!(out["output"]["fields"], json!([]));
     assert_eq!(texts(&e, &doc), [json!("第一段。"), json!("第二段。")]);
-    let ch = &e.out("material.list", json!({"book": b}))[0];
-    assert_eq!(
-        (ch["title"].clone(), ch["description"].clone()),
-        (json!("One"), json!("first"))
-    );
     // The version before the restore became a point of its own.
     let before = point_with(&e, &doc, "改过的第一段");
     assert_eq!(before["kind"], "restore");
-    assert_eq!(before["title"], "Renamed");
     // The preview of the restored point now matches the prose.
     let pv = e.out("history.preview", json!({"doc": doc, "point": p["id"]}));
     assert_eq!(pv["same_as_now"], true);
@@ -144,15 +138,9 @@ fn points_preview_and_restore_a_material() {
         texts(&e, &doc),
         [json!("改过的第一段。"), json!("第二段。")]
     );
-    let ch = &e.out("material.list", json!({"book": b}))[0];
-    assert_eq!(ch["title"], "Renamed");
     // And redo brings it again.
     e.ws().redo(&Actor::User).unwrap().unwrap();
     assert_eq!(texts(&e, &doc)[0], "第一段。");
-    assert_eq!(
-        e.out("material.list", json!({"book": b}))[0]["title"],
-        "One"
-    );
 
     // The editor's own undo leaves the restore alone (an author's command).
     assert!(
@@ -167,14 +155,23 @@ fn points_preview_and_restore_a_material() {
 fn restoring_the_current_version_changes_nothing() {
     let e = env();
     let b = e.book();
-    let c = e.out(
-        "material.create",
-        json!({"book": b,"kind":"text","title":"One","text":"a"}),
+    let doc = e.out(
+        "module.prose_document",
+        json!({"book": b, "owner": "tpl-chapter", "module": "mod-prose", "template": true}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let doc = format!("material:{c}");
+    e.call(
+        "module.set_prose",
+        json!({
+            "book": b,
+            "owner": "tpl-chapter",
+            "module": "mod-prose",
+            "template": true,
+            "paragraphs": [{"text": "a"}]
+        }),
+    );
     point_now(&e, &doc, 0);
     let p = point_with(&e, &doc, "a");
     let out = e.call(
@@ -190,34 +187,49 @@ fn restoring_the_current_version_changes_nothing() {
 fn history_refuses_what_is_not_there() {
     let e = env();
     let b = e.book();
-    assert!(matches!(
-        e.try_call("history.points", json!({"doc": format!("book:{b}")})),
-        Err(WsError::Invalid(_))
-    ));
-    // A chapter nobody has typed in has no history yet.
-    let empty = e.out(
-        "material.create",
-        json!({"book": b,"kind":"text","title":"Empty","text":""}),
+    for bad_doc in [
+        format!("book:{b}"),
+        "body:e1/mod-prose".to_string(),
+        "material:m1".to_string(),
+    ] {
+        assert!(
+            matches!(
+                e.try_call("history.points", json!({"doc": bad_doc})),
+                Err(WsError::Invalid(_))
+            ),
+            "{bad_doc}"
+        );
+    }
+    // A template prose document nobody has typed in has no history yet.
+    let empty_doc = e.out(
+        "module.prose_document",
+        json!({"book": b, "owner": "tpl-note", "module": "mod-prose", "template": true}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let none = e.out(
-        "history.points",
-        json!({"doc": format!("material:{empty}")}),
-    );
+    let none = e.out("history.points", json!({"doc": empty_doc}));
     assert_eq!(
         (none["words"].clone(), none["points"].clone()),
         (json!(0), json!([]))
     );
-    let c = e.out(
-        "material.create",
-        json!({"book": b,"kind":"text","title":"One","text":"a"}),
+    let doc = e.out(
+        "module.prose_document",
+        json!({"book": b, "owner": "tpl-chapter", "module": "mod-prose", "template": true}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let doc = format!("material:{c}");
+    e.call(
+        "module.set_prose",
+        json!({
+            "book": b,
+            "owner": "tpl-chapter",
+            "module": "mod-prose",
+            "template": true,
+            "paragraphs": [{"text": "a"}]
+        }),
+    );
     assert!(matches!(
         e.try_call("history.preview", json!({"doc": doc, "point": 999_999})),
         Err(WsError::NotFound { .. })

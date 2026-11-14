@@ -1,9 +1,9 @@
-//! Table and material embeds: a U+FFFC placeholder in the body plus an entry
-//! in the `embeds` map (`loro-schema.md` "表格和素材嵌入").
+//! Table and file embeds: a U+FFFC placeholder in the body plus an entry
+//! in the `embeds` map (`loro-schema.md`).
 
 use std::collections::BTreeMap;
 
-use dr_model::id::{EmbedId, MaterialId};
+use dr_model::id::{AssetId, EmbedId};
 use dr_model::pos::{PosKey, cmp_pos};
 use loro::{LoroMap, LoroText, LoroValue, ValueOrContainer};
 
@@ -14,8 +14,8 @@ use crate::error::Result;
 pub enum EmbedKind {
     /// A table; rows and columns are added through [`TableWriter`].
     Table,
-    /// A material shown inline.
-    Material(MaterialId),
+    /// A file (`assets`) shown inline (`kernel-v5.md` §6 & §10).
+    Asset(AssetId),
 }
 
 /// One table row or column.
@@ -38,12 +38,15 @@ pub enum EmbedView {
         /// left out.
         cells: BTreeMap<(String, String), String>,
     },
-    Material {
+    Asset {
         id: EmbedId,
-        material: Option<MaterialId>,
+        asset: Option<AssetId>,
     },
     /// A kind this version does not know.
-    Other { id: EmbedId, kind: String },
+    Other {
+        id: EmbedId,
+        kind: String,
+    },
 }
 
 fn sub_map(m: &LoroMap, key: &str) -> Option<LoroMap> {
@@ -113,9 +116,9 @@ impl EmbedView {
                     cells,
                 }
             }
-            Some("material") => EmbedView::Material {
+            Some("asset") => EmbedView::Asset {
                 id,
-                material: str_of(m, "material").and_then(|s| MaterialId::parse(&s).ok()),
+                asset: str_of(m, "asset").and_then(|s| AssetId::parse(&s).ok()),
             },
             other => EmbedView::Other {
                 id,
@@ -127,7 +130,7 @@ impl EmbedView {
     pub fn id(&self) -> &EmbedId {
         match self {
             EmbedView::Table { id, .. }
-            | EmbedView::Material { id, .. }
+            | EmbedView::Asset { id, .. }
             | EmbedView::Other { id, .. } => id,
         }
     }

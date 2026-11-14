@@ -56,9 +56,7 @@ use dr_ui::input::field::{FieldEvent, TextField};
 use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
-use dr_workspace::commands::material::{MaterialCreate, MaterialCreateIn};
-
-use dr_workspace::{Actor, Workspace as Library};
+use dr_workspace::Workspace as Library;
 use gpui::{
     AnyElement, App, AppContext as _, ClickEvent, ClipboardEntry, Context, ElementId, Entity,
     ExternalPaths, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyBinding,
@@ -559,30 +557,13 @@ impl LibraryPanel {
         );
     }
 
-    /// A new note in the current folder, opened to write in.
+    /// A new note in the current folder; retired as standalone material in format 5.
     pub fn new_note(&mut self, cx: &mut Context<Self>) {
-        let (book, folder) = (self.book_id(), self.current_folder.clone());
         spawn_lib(
             self.lib.clone(),
             (self.book_id(), self.book_epoch),
             cx,
-            move |lib| {
-                lib.run::<MaterialCreate>(
-                    &Actor::User,
-                    MaterialCreateIn {
-                        book,
-                        kind: "text".into(),
-                        title: String::new(),
-                        asset: None,
-                        folder,
-                        place: None,
-                        description: String::new(),
-                        text: None,
-                    },
-                )
-                .map(|o| o.output.id)
-                .map_err(|e| e.to_string())
-            },
+            move |_lib| Err::<String, String>("text materials are retired in format 5".into()),
             |p, made, cx| match made {
                 Ok(id) => p.open(&id, Open::KEEP, cx),
                 Err(e) => log::warn!("material: new note: {e}"),

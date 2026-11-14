@@ -48,11 +48,17 @@ fn book() -> (tempfile::TempDir, Workspace, String) {
             .as_str()
             .unwrap()
             .to_owned();
+    let view_id = id(&out(&ws, "timeline_view.list", json!({"book": book}))[0]);
     for (id, color) in [(&a, "#b5654a"), (&b, "#4f7cac")] {
         out(
             &ws,
             "module.set_field",
             json!({"book":book,"entry":id,"module":"mod-fields","field":"color","value":color}),
+        );
+        out(
+            &ws,
+            "timeline_view.add_lane",
+            json!({"book":book,"view":view_id,"lane":id}),
         );
     }
     for (title, text, lines) in [

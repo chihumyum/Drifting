@@ -6,10 +6,7 @@ use dr_ui::{
     components::{Button, Dialog, Select, select::Choice},
     sand::Icon,
 };
-use dr_workspace::{
-    Actor, Workspace,
-    commands::v3::material_links::{SetEntryLink, SetEntryLinkIn},
-};
+use dr_workspace::Workspace;
 use gpui::{
     App, AppContext as _, Context, IntoElement, ParentElement, Render, SharedString, Styled,
     Window, div, px,
@@ -120,18 +117,14 @@ impl Associations {
         }
         self.busy = true;
         self.error = false;
-        let input = SetEntryLinkIn {
-            book: self.book.clone(),
-            material: self.material.clone(),
-            entry,
-            linked,
-        };
-        let lib = self.lib.clone();
+        let (lib, book, material) = (self.lib.clone(), self.book.clone(), self.material.clone());
         cx.spawn(async move |this, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move { lib.run::<SetEntryLink>(&Actor::User, input) })
-                .await;
+            let result =
+                cx.background_executor()
+                    .spawn(async move {
+                        crate::v3::set_entry_link(&lib, &book, &material, &entry, linked)
+                    })
+                    .await;
             this.update(cx, |v, cx| {
                 v.busy = false;
                 if result.is_ok() {
@@ -272,7 +265,6 @@ mod tests {
         )
         .unwrap();
         let book = seed.books[0].book_id().to_string();
-        let material = seed.books[0].book.view().materials()[0].id.to_string();
         seed.write_to(&store).unwrap();
         let faults = Arc::new(Faults::default());
         let lib = Workspace::open(
@@ -283,6 +275,15 @@ mod tests {
             },
         )
         .unwrap();
+        let material = crate::import::import_bytes(
+            &lib,
+            &book,
+            None,
+            dr_testkit::media::png(24, 24),
+            "测试图片",
+        )
+        .unwrap()
+        .material;
         cx.update(|cx| {
             dr_shell::init(
                 dr_shell::ShellInfo {
@@ -314,16 +315,7 @@ mod tests {
         let a = choices[0].clone();
         let b = choices[1].clone();
         view.update(cx, |v, _| v.selected = Some(a.clone()));
-        lib.run::<SetEntryLink>(
-            &Actor::User,
-            SetEntryLinkIn {
-                book: book.clone(),
-                material: material.clone(),
-                entry: b.clone(),
-                linked: true,
-            },
-        )
-        .unwrap();
+        crate::v3::set_entry_link(&lib, &book, &material, &b, true).unwrap();
         view.update(cx, |v, cx| v.reload(cx));
         wait(cx, |cx| {
             view.read_with(cx, |v, _| {
@@ -389,9 +381,17 @@ mod tests {
         )
         .unwrap();
         let book = seed.books[0].book_id().to_string();
-        let material = seed.books[0].book.view().materials()[0].id.to_string();
         seed.write_to(&store).unwrap();
         let lib = Workspace::open(store, WorkspaceOptions::default()).unwrap();
+        let material = crate::import::import_bytes(
+            &lib,
+            &book,
+            None,
+            dr_testkit::media::png(24, 24),
+            "测试图片",
+        )
+        .unwrap()
+        .material;
         cx.update(|cx| {
             let _ = dr_ui::init(cx);
             dr_shell::init(

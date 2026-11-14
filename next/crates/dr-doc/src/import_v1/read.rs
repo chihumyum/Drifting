@@ -691,7 +691,7 @@ impl<'a> BookView<'a> {
             }),
             EntityKind::Comment => self.entity_map(book::COMMENTS, &r.id).is_some(),
             EntityKind::Material => self.entity_map(book::MATERIALS, &r.id).is_some(),
-            EntityKind::Entry | EntityKind::Other(_) => false,
+            EntityKind::Entry | EntityKind::Asset | EntityKind::Other(_) => false,
         }
     }
 
@@ -931,12 +931,16 @@ impl<'a> BookView<'a> {
                 let f = F(v);
                 Some(Asset {
                     id: AssetId::parse(id).ok()?,
+                    name: f.string("name"),
                     kind: f.kind("kind")?,
                     mime: f.string("mime"),
                     size: f.i64("size").unwrap_or(0),
                     sha256: f.string("sha256"),
                     width: f.i64("width"),
                     height: f.i64("height"),
+                    created_at: f.ts("created_at"),
+                    folder: f.opt_string("folder").filter(|s| !s.is_empty()),
+                    deleted_at: f.ts("deleted_at"),
                 })
             })
             .collect()
@@ -1058,7 +1062,7 @@ impl<'a> BookView<'a> {
         match doc {
             DocId::Book(b) => b == self.book,
             DocId::Conversation(_) => true,
-            DocId::Stats(_) | DocId::Checkpoints(_) => false,
+            DocId::Stats(_) | DocId::Checkpoints(_) | DocId::Layout(_) => false,
             DocId::Node(id) => has(book::NODES, id.as_str()),
             DocId::Element(id) => has(book::ELEMENTS, id.as_str()),
             DocId::Storyline(id) => has(book::STORYLINES, id.as_str()),

@@ -303,7 +303,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
         .collect();
     names.sort();
     names.dedup();
-    assert!(names.len() >= 50, "{names:?}");
+    assert!(names.len() >= 48, "{names:?}");
     for name in LOOKUPS {
         assert!(names.iter().any(|n| n == name), "{name} is a write tool");
     }

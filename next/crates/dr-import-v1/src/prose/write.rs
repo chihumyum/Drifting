@@ -97,9 +97,9 @@ fn insert(txn: &mut ProseTxn<'_>, pos: usize, p: &Para) -> Result<()> {
 
 fn insert_embed(txn: &mut ProseTxn<'_>, pos: usize, embed: &EmbedView) -> Result<()> {
     match embed {
-        EmbedView::Material { id, material } => {
-            let m = material.clone().expect("plans only embed known materials");
-            txn.insert_embed(pos, id, &EmbedKind::Material(m))?;
+        EmbedView::Asset { id, asset } => {
+            let a = asset.clone().expect("plans only embed known assets");
+            txn.insert_embed(pos, id, &EmbedKind::Asset(a))?;
         }
         EmbedView::Table {
             id,
@@ -365,9 +365,9 @@ fn insert_embed_v3(
     table_cells: &BTreeMap<(String, String), TableCellPlan>,
 ) -> Result<()> {
     match embed {
-        EmbedView::Material { id, material } => {
-            let m = material.clone().expect("plans only embed known materials");
-            txn.insert_embed(pos, id, &EmbedKind::Material(m))?;
+        EmbedView::Asset { id, asset } => {
+            let a = asset.clone().expect("plans only embed known assets");
+            txn.insert_embed(pos, id, &EmbedKind::Asset(a))?;
         }
         EmbedView::Table {
             id,

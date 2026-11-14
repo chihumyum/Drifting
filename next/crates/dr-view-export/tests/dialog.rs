@@ -254,7 +254,7 @@ fn from_a_chapter_the_choice_starts_with_it(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn multiple_manuscript_parts_let_the_author_choose_which_to_export(cx: &mut TestAppContext) {
+fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
     use std::time::SystemTime;
 
     let e = env();
@@ -296,46 +296,45 @@ fn multiple_manuscript_parts_let_the_author_choose_which_to_export(cx: &mut Test
         .unwrap()
         .to_owned();
 
-    // Opened from an entry in the second manuscript part: pre-selects that part.
-    let (from_side, cx_side) = open(
+    // Default `project.book.root` is `书稿` (one manuscript per project).
+    let (initial_dialog, cx_initial) = open(cx, &e, Request::Manuscript { chapter: None });
+    wait_for(cx_initial, |cx| {
+        initial_dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    initial_dialog.read_with(cx_initial, |d, _| {
+        let m = d.manuscript().unwrap();
+        assert_eq!(m.manuscripts.len(), 1);
+        assert_eq!(m.part_labels(), ["书稿"]);
+        assert_eq!(m.chapters(), e.chapters[..2].to_vec());
+    });
+
+    // Switching `project.book.root` to `外集 / 番外` makes that folder the book sequence.
+    out(
+        &e.ws,
+        "project.update",
+        json!({
+            "book": e.book,
+            "root": {"kind": "entry", "entry": side_root}
+        }),
+    );
+    let (dialog, cx) = open(
         cx,
         &e,
         Request::Manuscript {
             chapter: Some(epilogue.clone()),
         },
     );
-    wait_for(cx_side, |cx| {
-        from_side.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
-    });
-    from_side.read_with(cx_side, |d, cx| {
-        let m = d.manuscript().unwrap();
-        assert_eq!(m.manuscripts.len(), 2);
-        assert_eq!(m.part_labels(), ["书稿", "外集 / 番外"]);
-        assert_eq!(m.manuscript, 1);
-        assert!(!m.whole_book);
-        assert_eq!(m.chapters(), vec![epilogue.clone()]);
-        assert_eq!(
-            m.options(cx).0.manuscript.as_deref(),
-            Some(side_root.as_str())
-        );
-    });
-
-    // Opened for the book: starts on the first manuscript part, then switches to
-    // the second and writes only that manuscript's EPUB.
-    let (dialog, cx) = open(cx, &e, Request::Manuscript { chapter: None });
     wait_for(cx, |cx| {
         dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
     let (chosen_opts, chosen_labels) = dialog.update(cx, |d, cx| {
         let m = d.manuscript_mut().unwrap();
-        assert_eq!(m.manuscripts.len(), 2);
+        assert_eq!(m.manuscripts.len(), 1);
+        assert_eq!(m.part_labels(), ["外集 / 番外"]);
         assert_eq!(m.manuscript, 0);
-        assert_eq!(m.chapters(), e.chapters[..2].to_vec());
-        m.select_manuscript(1);
-        assert_eq!(m.manuscript, 1);
+        assert!(!m.whole_book);
         assert_eq!(m.chapters(), vec![epilogue.clone()]);
         let (opts, labels) = m.options(cx);
-        assert_eq!(opts.manuscript.as_deref(), Some(side_root.as_str()));
         m.export(cx);
         (opts, labels)
     });

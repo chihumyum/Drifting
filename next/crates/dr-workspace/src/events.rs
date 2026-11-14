@@ -83,6 +83,18 @@ pub struct CheckpointsChanged {
     pub points: Vec<String>,
 }
 
+/// A persisted change to a book's `layout:<book>` document: free-canvas
+/// coordinates updated or cleared.
+#[derive(Clone, Debug)]
+pub struct LayoutChanged {
+    pub book: BookId,
+    pub seq: i64,
+    pub origin: Origin,
+    /// The `"<scope>/<mode>"` keys the change touched; empty when it could not
+    /// be narrowed.
+    pub scopes: Vec<String>,
+}
+
 /// The keys of root map `root` that a persisted change to one of the
 /// documents beside a book wrote, sorted and without repeats.
 pub(crate) fn side_keys(changes: &[ContainerChange], root: &str) -> Vec<String> {
@@ -92,6 +104,32 @@ pub(crate) fn side_keys(changes: &[ContainerChange], root: &str) -> Vec<String> 
         // keys.
         let at_root = root_name(&c.target) == Some(root);
         if let (true, Diff::Map(m)) = (at_root, &c.diff) {
+            keys.extend(m.updated.keys().map(|k| k.to_string()));
+        }
+    }
+    keys.into_iter().collect()
+}
+
+/// The `<scope>/<mode>` keys under root map `root` touched by a change to
+/// `layout:<book>` (either directly on `positions` or inside a nested
+/// `<scope>/<mode>` mergeable map).
+pub(crate) fn layout_scopes(changes: &[ContainerChange], root: &str) -> Vec<String> {
+    let mut keys = BTreeSet::new();
+    for c in changes {
+        let is_root = c
+            .path
+            .first()
+            .and_then(|(id, _)| root_name(id))
+            .or_else(|| root_name(&c.target))
+            == Some(root);
+        if !is_root {
+            continue;
+        }
+        if let Some((_, Index::Key(k))) = c.path.get(1) {
+            keys.insert(k.to_string());
+        } else if c.path.len() <= 1
+            && let Diff::Map(m) = &c.diff
+        {
             keys.extend(m.updated.keys().map(|k| k.to_string()));
         }
     }
@@ -143,6 +181,8 @@ pub enum WsEvent {
     Stats(StatsChanged),
     /// A book's checkpoint manifests changed (`checkpoints:<book>`).
     Checkpoints(CheckpointsChanged),
+    /// A book's canvas positions changed (`layout:<book>`).
+    Layout(LayoutChanged),
     /// After a `Book` event whose change trashed or purged something a tab
     /// can show.
     Removed(Removed),
@@ -272,6 +312,66 @@ pub(crate) fn book_changes(
             fields: fields.map(|f| f.into_iter().collect()),
         })
         .collect()
+}
+
+/// Whether a persisted book-document change can affect automatic-link names
+/// (`kernel-v5.md` §16: auto-linking reads residence only, so membership
+/// edits, `primary`, and `accept` / `home` overrides never invalidate the
+/// cached name table or matcher).
+pub(crate) fn touches_autolink_names(changes: &[ContainerChange]) -> bool {
+    for c in changes {
+        let root = c
+            .path
+            .first()
+            .and_then(|(id, _)| root_name(id))
+            .or_else(|| root_name(&c.target));
+        match root {
+            Some("templates") => return true,
+            Some("entries") => {
+                if matches!(c.diff, Diff::Tree(_)) {
+                    return true;
+                }
+                match c.path.get(2) {
+                    Some((_, Index::Key(k))) if k.as_ref() == "fields" => return true,
+                    Some((_, Index::Key(k))) if k.as_ref() == "overrides" => {
+                        if let (3, Diff::Map(m)) = (c.path.len(), &c.diff) {
+                            if m.updated.contains_key("auto_link") {
+                                return true;
+                            }
+                        } else {
+                            return true;
+                        }
+                    }
+                    Some(_) => {}
+                    None => match &c.diff {
+                        Diff::Map(m) => {
+                            for (k, val) in &m.updated {
+                                match k.as_ref() {
+                                    "title" | "template" | "level" | "deleted_at" | "fields" => {
+                                        return true;
+                                    }
+                                    "overrides" => match val {
+                                        Some(loro::ValueOrContainer::Container(
+                                            loro::Container::Map(ov),
+                                        )) => {
+                                            if ov.get("auto_link").is_some() {
+                                                return true;
+                                            }
+                                        }
+                                        _ => return true,
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                        _ => return true,
+                    },
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// Changed body ranges (after the change) and whether embeds changed.
@@ -450,8 +550,8 @@ mod tests {
     fn only_the_index_of_a_document_with_text_is_news_for_words_and_search() {
         use dr_store::LocalChangeKind::Update;
         let index = |key: &str| is_text_index(&LocalChange::new("index", key, Update));
-        // The book's text: an entry's prose, a level's page, a material note.
-        for key in ["body:e1/mod-prose", "body:e1/about", "material:m1"] {
+        // The book's text: entry prose modules.
+        for key in ["body:e1/mod-prose", "body:e1/about"] {
             assert!(index(key), "{key}");
         }
         // The always-empty rows.

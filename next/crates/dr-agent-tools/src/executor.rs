@@ -895,13 +895,13 @@ impl AgentTools {
         match result {
             Ok(value) => {
                 if call.name == "entry.set_level"
-                    && let Some(moved) = value["output"]["moved"].as_array()
-                    && !moved.is_empty()
+                    && let Some(trashed) = value["output"]["trashed"].as_array()
+                    && !trashed.is_empty()
                 {
                     turn.book.forget("entry:roots");
                     turn.book.forget("entry:*");
                     turn.book.forget("entry:all");
-                    for child in moved.iter().filter_map(Value::as_str) {
+                    for child in trashed.iter().filter_map(Value::as_str) {
                         turn.book.forget(&format!("entry:{child}"));
                         turn.book.forget(&format!("level:{child}"));
                     }

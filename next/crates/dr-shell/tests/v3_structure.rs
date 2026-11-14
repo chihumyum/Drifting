@@ -48,15 +48,27 @@ fn checked_load(ws: &Workspace, id: &str) -> Book {
         let below = &row["below"];
         assert_eq!(json!(level.settings), below["settings"]);
         assert_eq!(json!(level.sources), below["sources"]);
-        assert_eq!(level.sources.len(), 8);
-        for (actual, field) in [(&level.children, "children"), (&level.members, "members")] {
-            let expected: Vec<_> = below[field]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|entry| entry["id"].as_str().unwrap())
-                .collect();
-            assert_eq!(*actual, expected);
+        assert_eq!(level.sources.len(), 6);
+        for (actual, field, on) in [
+            (&level.children, "children", row["level"] == true),
+            (
+                &level.members,
+                "members",
+                below["settings"]["accept"] == true,
+            ),
+        ] {
+            if on {
+                let expected: Vec<_> = below[field]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|entry| entry["id"].as_str().unwrap())
+                    .collect();
+                assert_eq!(*actual, expected);
+            } else {
+                assert!(below[field].is_null());
+                assert!(actual.is_empty());
+            }
         }
     }
     assert_eq!(
@@ -101,7 +113,7 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
         json!({"book":id,"id":manuscript,"overrides":{
             "default_template":"tpl-chapter","display":"board",
             "auto_link":true,"accept":true,"home":manuscript,
-            "is_manuscript":true,"format_shortcuts":"plain"
+            "format_shortcuts":"plain"
         }}),
     );
     let changed = checked_load(&ws, &id);
@@ -110,16 +122,26 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
         json!(level.settings),
         json!({
             "default_template":"tpl-chapter","display":"board",
-            "auto_link":true,"accept":true,"home":manuscript,
-            "is_manuscript":true,"format_shortcuts":"plain","lane":false
+            "auto_link":true,"accept":true,"home":null,
+            "format_shortcuts":"plain"
         })
     );
     for (key, source) in &level.sources {
-        if key == "lane" {
-            // `lane` never passes down from an ancestor.
-            assert_eq!(json!(source), json!({"kind":"default"}));
-        } else {
-            assert_eq!(json!(source), json!({"kind":"override","entry":manuscript}));
+        match key.as_str() {
+            "accept" => {
+                // `accept` reads only the entry and its template, never inheriting.
+                assert_eq!(
+                    json!(source),
+                    json!({"kind":"template","entry":group,"template":"tpl-group"})
+                );
+            }
+            "home" => {
+                // `home` reads only the entry and its template, never inheriting.
+                assert_eq!(json!(source), json!({"kind":"default"}));
+            }
+            _ => {
+                assert_eq!(json!(source), json!({"kind":"override","entry":manuscript}));
+            }
         }
     }
     assert_ne!(
@@ -148,7 +170,7 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
     }
     assert_eq!(
         json!(level.sources["accept"]),
-        json!({"kind":"override","entry":manuscript})
+        json!({"kind":"template","entry":group,"template":"tpl-group"})
     );
     // Omitting those nullable keys restores inheritance, rather than clearing it.
     call(
@@ -277,11 +299,6 @@ fn kernel_tolerance_order_trash_and_lane_memberships_reach_the_shell_unchanged()
     assert!(!initial.v3().unwrap().levels.contains_key(&parent.id));
 
     let lane = root(&initial, "tpl-storyline");
-    call(
-        &ws,
-        "entry.update",
-        json!({"book":id,"id":lane,"overrides":{"accept":false}}),
-    );
     let leaf = parent.id.clone();
     call(
         &ws,
@@ -293,10 +310,33 @@ fn kernel_tolerance_order_trash_and_lane_memberships_reach_the_shell_unchanged()
     assert!(level.settings.accept);
     assert_eq!(
         json!(level.sources["accept"]),
-        json!({"kind":"lane","entry":lane})
+        json!({"kind":"template","entry":lane,"template":"tpl-storyline"})
     );
     assert!(level.members.contains(&leaf));
     assert!(!level.children.contains(&leaf));
+    // Turning `accept` off on a `level == false` storyline hides its memberships without deleting them.
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":id,"id":lane,"overrides":{"accept":false}}),
+    );
+    assert!(
+        !checked_load(&ws, &id)
+            .v3()
+            .unwrap()
+            .levels
+            .contains_key(&lane)
+    );
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":id,"id":lane,"overrides":{}}),
+    );
+    assert!(
+        checked_load(&ws, &id).v3().unwrap().levels[&lane]
+            .members
+            .contains(&leaf)
+    );
     assert_eq!(
         with_member
             .v3()
@@ -407,45 +447,44 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
             let resolved = structure.level_settings(&entry.id).unwrap();
             assert_eq!(json!(row.settings), json!(resolved.settings));
             assert_eq!(json!(row.sources), json!(resolved.sources));
-            assert_eq!(
-                row.children,
+            let expected_children = if entry.is_level() {
                 structure
                     .children_of(Some(&entry.id))
                     .iter()
                     .map(|e| e.id.to_string())
                     .collect::<Vec<_>>()
-            );
-            assert_eq!(
-                row.members,
+            } else {
+                Vec::new()
+            };
+            assert_eq!(row.children, expected_children);
+            let expected_members = if entry.accepts_members(structure.templates_map()) {
                 structure
                     .members_of(&entry.id)
                     .iter()
                     .map(|e| e.id.to_string())
+                    .filter(|id| !expected_children.contains(id))
                     .collect::<Vec<_>>()
-            );
+            } else {
+                Vec::new()
+            };
+            assert_eq!(row.members, expected_members);
         }
         assert_eq!(json!(shell.memberships), json!(structure.memberships()));
         assert_eq!(json!(shell.timeline_views), json!(view.timeline_views()));
+        let expected_media_ids: Vec<String> = structure
+            .entries()
+            .filter(|e| !e.is_trashed())
+            .flat_map(|e| e.media.values().flatten().map(|m| m.id.to_string()))
+            .collect();
         assert_eq!(
-            json!(shell.materials),
-            json!(
-                view.materials()
-                    .iter()
-                    .map(dr_workspace::dto::MaterialInfo::from)
-                    .collect::<Vec<_>>()
-            )
+            shell
+                .materials
+                .iter()
+                .map(|m| m.id.clone())
+                .collect::<Vec<_>>(),
+            expected_media_ids
         );
-        assert_eq!(
-            json!(shell.material_folders),
-            json!(
-                view.material_folders()
-                    .iter()
-                    .map(|folder| json!({
-                        "id":folder.id,"name":folder.name,"color":null,"parent":folder.parent
-                    }))
-                    .collect::<Vec<_>>()
-            )
-        );
+        assert!(shell.material_folders.is_empty());
     }
     ws.shutdown().unwrap();
 }

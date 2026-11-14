@@ -21,7 +21,6 @@ fn doc_uses_note_shortcuts(
     >,
 ) -> bool {
     match DocId::parse(doc_id) {
-        Ok(DocId::Material(_)) => true,
         Ok(DocId::Template(t)) => t.entry_module().is_some(),
         Ok(DocId::Body(b)) => {
             let Some(entry) = entries.get(b.entry()) else {
@@ -40,7 +39,6 @@ fn doc_uses_note_shortcuts(
 /// level's `format_shortcuts` (`kernel-v4.md` §3, `kernel-v5.md` §6).
 pub fn uses_note_shortcuts(ws: &Workspace, book: &str, doc_id: &str) -> bool {
     match DocId::parse(doc_id) {
-        Ok(DocId::Material(_)) => true,
         Ok(DocId::Template(t)) => t.entry_module().is_some(),
         Ok(DocId::Body(_)) => {
             let doc = doc_id.to_owned();
@@ -135,13 +133,7 @@ pub fn flatten_book(
     from: &dr_model::id::EntryId,
 ) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
     let structure = view.structure_snapshot();
-    let flat = structure.flatten(
-        from,
-        dr_doc::v3::Flatten {
-            in_book_only: true,
-            include_members: true,
-        },
-    )?;
+    let flat = structure.flatten(from, dr_doc::v3::Flatten { in_book_only: true })?;
     let mut out = Vec::new();
     for e in flat {
         let entry = e.entry.id.to_string();
@@ -167,14 +159,15 @@ pub fn flatten_book(
     Ok(out)
 }
 
-/// Outermost manuscript level entries of the book, in manuscript order.
+/// Level entry configured as the project's book start (`project.book.root`), when applicable.
 pub fn manuscript_roots(view: &BookViewV3<'_>) -> Vec<dr_model::id::EntryId> {
     let structure = view.structure_snapshot();
-    structure
-        .manuscript()
-        .into_iter()
-        .map(|p| p.root.id.clone())
-        .collect()
+    match structure.project().book.as_ref().map(|b| &b.root) {
+        Some(r @ dr_model::v3::BookRoot::Entry { entry }) if structure.is_valid_book_root(r) => {
+            vec![entry.clone()]
+        }
+        _ => Vec::new(),
+    }
 }
 
 pub(crate) fn page_infos(
@@ -187,10 +180,10 @@ pub(crate) fn page_infos(
         let structure = view.structure_snapshot();
         let entries = structure.entries_map();
         let templates = structure.templates_map();
+        let views: Vec<_> = structure.timeline_views().cloned().collect();
         let number_by_id: std::collections::HashMap<dr_model::id::EntryId, u32> = structure
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .flat_map(|p| p.entries)
             .filter_map(|e| Some((e.entry.id.clone(), e.ordinal?)))
             .collect();
         docs.iter()
@@ -256,7 +249,7 @@ pub(crate) fn page_infos(
                 // The lane and colour every surface shows (`kernel-v4.md` §9).
                 let memberships = structure.memberships();
                 if let Some(host_id) =
-                    dr_model::v3::primary_lane(entry, entries, templates, memberships)
+                    dr_model::v3::primary_lane(entry, entries, templates, memberships, &views)
                     && let Some(lane) = entries.get(host_id)
                 {
                     info.storyline = Some(crate::page::StorylineMark {
@@ -265,7 +258,8 @@ pub(crate) fn page_infos(
                         color: dr_model::v3::lane_color(lane, templates).unwrap_or_default(),
                     });
                 }
-                info.color = dr_model::v3::entry_color(entry, entries, templates, memberships);
+                info.color =
+                    dr_model::v3::entry_color(entry, entries, templates, memberships, &views);
                 info
             })
             .collect()
@@ -334,10 +328,7 @@ pub struct LinkTargets {
 }
 impl crate::links::LinkTargets for LinkTargets {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        if !matches!(
-            kind,
-            dr_model::kind::EntityKind::Entry | dr_model::kind::EntityKind::Material
-        ) {
+        if !matches!(kind, dr_model::kind::EntityKind::Entry) {
             return false;
         }
         let target = dr_model::shared::EntityRef::new(kind.clone(), id);
@@ -355,12 +346,7 @@ impl crate::links::LinkTargets for LinkTargets {
                 .filter(|e| !e.is_trashed())
                 .map(|e| e.id.to_string())
                 .collect();
-            let materials = v
-                .materials()
-                .into_iter()
-                .map(|m| m.id.to_string())
-                .collect();
-            (entries, materials)
+            (entries, std::collections::HashSet::new())
         })
         .ok()
     }

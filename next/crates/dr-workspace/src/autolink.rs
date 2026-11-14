@@ -79,8 +79,7 @@ fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget
     let entries: std::collections::BTreeMap<_, _> =
         ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
     let templates = v.templates_map();
-    let memberships = v.memberships_raw();
-    let names = dr_model::v3::AutolinkNames::of(&entries, &memberships, &templates);
+    let names = dr_model::v3::AutolinkNames::of(&entries, &templates);
     let mut out = Vec::new();
     for e in ordered {
         if e.name_conflict.is_some() || !names.is_linked(&e.id) {
@@ -102,11 +101,15 @@ pub(crate) type SlotLinkCache = (loro::Frontiers, CachedLinkNames, CachedLinkMat
 
 pub(crate) fn book_cache(slot: &BookSlot) -> SlotLinkCache {
     let now = slot.handle.doc().oplog_frontiers();
-    if let Some((cached_at, names, matcher)) = crate::holder::lock(&slot.link_names).as_ref()
-        && *cached_at == now
-    {
-        return (cached_at.clone(), names.clone(), matcher.clone());
-    }
+    let epoch = {
+        let guard = crate::holder::lock(&slot.link_names);
+        if let Some((cached_at, names, matcher)) = &guard.1
+            && *cached_at == now
+        {
+            return (cached_at.clone(), names.clone(), matcher.clone());
+        }
+        guard.0
+    };
     let book = slot.book.clone();
     let computed = slot
         .handle
@@ -120,8 +123,10 @@ pub(crate) fn book_cache(slot: &BookSlot) -> SlotLinkCache {
         })
         .ok();
     if let Some((frontiers, names, matcher)) = computed {
-        *crate::holder::lock(&slot.link_names) =
-            Some((frontiers.clone(), names.clone(), matcher.clone()));
+        let mut guard = crate::holder::lock(&slot.link_names);
+        if guard.0 == epoch {
+            guard.1 = Some((frontiers.clone(), names.clone(), matcher.clone()));
+        }
         (frontiers, names, matcher)
     } else {
         let names = book_link_names_v3(&slot.reader_v3.view());

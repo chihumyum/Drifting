@@ -9,13 +9,8 @@ use dr_shell::{
     pages::{PageMenuHost, PageMenuSection},
 };
 use dr_view_material::menu::{MaterialDialog, source_path};
-use dr_workspace::{Actor, Workspace as Library};
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
-use serde_json::{Value, json};
-
-fn call(lib: &Library, name: &str, input: Value) -> Value {
-    lib.call(&Actor::User, name, input).unwrap()["output"].clone()
-}
+use dr_workspace::Workspace as Library;
+use gpui::{Entity, TestAppContext, VisualTestContext};
 
 fn library() -> (tempfile::TempDir, Library, String, String) {
     let dir = tempfile::tempdir().unwrap();
@@ -26,16 +21,16 @@ fn library() -> (tempfile::TempDir, Library, String, String) {
     lib.close().unwrap();
     let book = sample.book.book_id().to_string();
     let lib = Library::open_dir(&root, "test").unwrap();
-    let note = call(&lib, "material.list", json!({"book": book}))
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["kind"] == "text")
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    (dir, lib, book, note)
+    let media = dr_view_material::import::import_bytes(
+        &lib,
+        &book,
+        None,
+        dr_testkit::media::png(24, 24),
+        "初始图片",
+    )
+    .unwrap()
+    .material;
+    (dir, lib, book, media)
 }
 
 fn setup(cx: &mut TestAppContext, lib: Library) -> (Entity<Workspace>, &mut VisualTestContext) {
@@ -116,19 +111,17 @@ fn closed(ws: &Entity<Workspace>, cx: &mut VisualTestContext) {
     wait(cx, |cx| ws.read_with(cx, |w, _| w.dialog.is_none()));
 }
 
-fn material(lib: &Library, book: &str, id: &str) -> Value {
-    call(lib, "material.list", json!({"book": book}))
-        .as_array()
+fn has_material(lib: &Library, book: &str, id: &str) -> bool {
+    dr_shell::book::Book::load(lib, book)
         .unwrap()
+        .material_items()
         .iter()
-        .find(|m| m["id"] == id)
-        .unwrap()
-        .clone()
+        .any(|m| m.id == id)
 }
 
 #[gpui::test]
-fn page_menu_distinguishes_notes_and_media_and_keeps_delete_last(cx: &mut TestAppContext) {
-    let (dir, lib, book, note) = library();
+fn page_menu_exposes_open_original_history_and_keeps_delete_last(cx: &mut TestAppContext) {
+    let (dir, lib, book, _initial) = library();
     let image = dr_view_material::import::import_bytes(
         &lib,
         &book,
@@ -144,86 +137,32 @@ fn page_menu_distinguishes_notes_and_media_and_keeps_delete_last(cx: &mut TestAp
         .unwrap()
         .material;
     let (ws, cx) = setup(cx, lib);
-    for (id, media) in [(&note, false), (&image, true), (&pdf, true)] {
+    for id in [&image, &pdf] {
         let rows: Vec<_> = menu(&ws, id, cx)
             .into_iter()
             .flat_map(|s| s.items)
             .collect();
-        assert_eq!(rows.iter().any(|r| r.id == "material-open-original"), media);
-        assert!(rows.iter().any(|r| r.id == "material-move" && !r.danger));
+        assert!(rows.iter().any(|r| r.id == "material-open-original"));
         assert_eq!(rows.last().unwrap().id, "material-delete");
         assert!(rows.last().unwrap().danger);
-        assert!(rows.iter().any(|r| r.id == "page-history"));
+        assert!(!rows.iter().any(|r| r.id == "page-history"));
     }
 }
 
 #[gpui::test]
-fn folder_picker_moves_to_existing_root_and_new_folder(cx: &mut TestAppContext) {
-    let (_dir, lib, book, note) = library();
-    let folder = call(
-        &lib,
-        "material_folder.create",
-        json!({"book": book, "name": "潮汐"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let (ws, cx) = setup(cx, lib.clone());
-    let dialog = run(&ws, &note, "material-move", cx);
-    cx.update(|w, cx| dialog.update(cx, |d, cx| d.move_to(Some(folder.clone()), w, cx)));
-    closed(&ws, cx);
-    assert_eq!(material(&lib, &book, &note)["folder"], folder);
-
-    let dialog = run(&ws, &note, "material-move", cx);
-    cx.update(|w, cx| dialog.update(cx, |d, cx| d.move_to(None, w, cx)));
-    closed(&ws, cx);
-    assert!(material(&lib, &book, &note)["folder"].is_null());
-
-    let dialog = run(&ws, &note, "material-move", cx);
-    let field = dialog.read_with(cx, |d, _| d.field());
-    cx.update(|w, cx| {
-        field.update(cx, |f, cx| f.set_text("   ", cx));
-        dialog.update(cx, |d, cx| d.create_and_move(w, cx));
-    });
-    assert!(ws.read_with(cx, |w, _| w.dialog.is_some()));
-    cx.update(|w, cx| {
-        field.update(cx, |f, cx| f.set_text("  东岸  ", cx));
-        field.focus_handle(cx).focus(w, cx);
-    });
-    cx.simulate_keystrokes("enter");
-    closed(&ws, cx);
-    let made = material(&lib, &book, &note)["folder"].clone();
-    let folders = call(&lib, "material_folder.list", json!({"book": book}));
-    let made = folders
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|f| f["id"] == made)
-        .unwrap();
-    assert_eq!(made["name"], "东岸");
-    assert!(made["parent"].is_null());
-}
-
-#[gpui::test]
 fn delete_cancel_keeps_material_and_confirmation_closes_its_tab(cx: &mut TestAppContext) {
-    let (_dir, lib, book, note) = library();
+    let (_dir, lib, book, media) = library();
     let (ws, cx) = setup(cx, lib.clone());
-    let target = Target::Material(note.parse().unwrap());
+    let target = Target::Material(media.parse().unwrap());
     ws.update(cx, |w, cx| w.open(target.clone(), Open::KEEP, cx));
-    run(&ws, &note, "material-delete", cx);
+    run(&ws, &media, "material-delete", cx);
     cx.simulate_keystrokes("escape");
     closed(&ws, cx);
-    assert_eq!(material(&lib, &book, &note)["id"], note);
-    let dialog = run(&ws, &note, "material-delete", cx);
+    assert!(has_material(&lib, &book, &media));
+    let dialog = run(&ws, &media, "material-delete", cx);
     cx.update(|w, cx| dialog.update(cx, |d, cx| d.confirm_delete(w, cx)));
     closed(&ws, cx);
-    assert!(
-        !call(&lib, "material.list", json!({"book": book}))
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|m| m["id"] == note)
-    );
+    assert!(!has_material(&lib, &book, &media));
     wait(cx, |cx| {
         ws.read_with(cx, |w, _| !w.nav.is_selected(&target))
     });

@@ -196,7 +196,7 @@ fn a_saved_checkpoint_does_not_make_the_tab_read_again(cx: &mut gpui::TestAppCon
     // The book's content still is.
     call(
         &ws,
-        "book.update",
+        "project.update",
         json!({"book": book, "word_target": 54_321}),
     );
     wait(cx, "a new target reaches the tab", |cx| {

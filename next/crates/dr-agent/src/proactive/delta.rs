@@ -80,7 +80,7 @@ pub struct DeltaBatch {
 fn live_targets(
     lib: &Library,
     book: &BookId,
-    mode: DeltaMode,
+    _mode: DeltaMode,
 ) -> Result<BTreeMap<String, CardTarget>> {
     let copy = lib.load_copy(&format!("book:{book}"))?;
 
@@ -91,46 +91,26 @@ fn live_targets(
     }
     let templates = view.templates_map();
     let entries = view.entries_map();
-    let materials: BTreeMap<_, _> = view
-        .materials()
-        .into_iter()
-        .map(|m| (m.id.clone(), m))
-        .collect();
     let mut targets = BTreeMap::new();
     // The evidence collector does not infer a task from template names or
     // auto-link flags. Every retained, registered body keeps its identity.
     for info in lib.docs(Some(book.as_str()), None)? {
-        match DocId::parse(&info.doc_id) {
-            Ok(DocId::Body(body)) => {
-                if let Some(entry) = entries.get(body.entry()).filter(|e| !e.is_trashed()) {
-                    let module = entry
-                        .effective_template(&templates)
-                        .and_then(|t| t.module(body.module()))
-                        .map(|m| m.name.as_str())
-                        .unwrap_or(body.module().as_str());
-                    targets.insert(
-                        info.doc_id,
-                        CardTarget {
-                            kind: "entry".into(),
-                            id: entry.id.to_string(),
-                            title: format!("{} / {}", entry.title, module),
-                        },
-                    );
-                }
-            }
-            Ok(DocId::Material(id)) if mode == DeltaMode::AllProse => {
-                if let Some(material) = materials.get(&id) {
-                    targets.insert(
-                        info.doc_id,
-                        CardTarget {
-                            kind: "material".into(),
-                            id: id.to_string(),
-                            title: material.title.clone(),
-                        },
-                    );
-                }
-            }
-            _ => {}
+        if let Ok(DocId::Body(body)) = DocId::parse(&info.doc_id)
+            && let Some(entry) = entries.get(body.entry()).filter(|e| !e.is_trashed())
+        {
+            let module = entry
+                .effective_template(&templates)
+                .and_then(|t| t.module(body.module()))
+                .map(|m| m.name.as_str())
+                .unwrap_or(body.module().as_str());
+            targets.insert(
+                info.doc_id,
+                CardTarget {
+                    kind: "entry".into(),
+                    id: entry.id.to_string(),
+                    title: format!("{} / {}", entry.title, module),
+                },
+            );
         }
     }
     Ok(targets)

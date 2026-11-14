@@ -92,12 +92,16 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
         let ms = v
             .root_entry_by_template(&tpl_ms)
             .expect("manuscript root entry");
+        assert_eq!(
+            v.project().book.as_ref().map(|b| &b.root),
+            Some(&dr_model::v3::BookRoot::Entry {
+                entry: ms.id.clone(),
+            })
+        );
         let numbered = v
             .structure_snapshot()
-            .manuscript()
+            .book_sequence()
             .into_iter()
-            .filter(|p| p.root.id == ms.id)
-            .flat_map(|p| p.entries)
             .filter(|e| e.ordinal.is_some())
             .count();
         assert_eq!(numbered, chapters, "{name}");
@@ -130,11 +134,11 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
 
     let s_v2 = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
     let s_v3 = seed::generate_v3(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
-    // A v3 seed writes the two documents beside each book (`stats:`,
-    // `checkpoints:`) on top of what a v2 seed writes; everything else
-    // matches.
+    // A v3 seed writes the three documents beside each book (`stats:`,
+    // `checkpoints:`, `layout:`) on top of what a v2 seed writes; everything
+    // else matches.
     let mut shape = s_v3.shape();
-    let beside = 2 * s_v3.books.len();
+    let beside = 3 * s_v3.books.len();
     assert_eq!(shape.documents, s_v2.shape().documents + beside);
     shape.documents -= beside;
     assert_eq!(shape, s_v2.shape());

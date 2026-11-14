@@ -142,41 +142,81 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
             if meta.deleted_at.is_some() {
                 return Err(ExportError::NotFound(format!("book {id}")));
             }
-            // The manuscript sequence: every entry with book prose, its own
-            // prose before what lives under it; entries without book prose
-            // (an organizing level, say) do not appear.
+            // The book sequence (`BookStructureV3::book_sequence`): every entry
+            // with book prose in sequence order; entries without book prose do
+            // not appear.
             let structure = view.structure_snapshot();
             let templates = structure.templates_map();
-            let parts: Vec<Part> = structure
-                .manuscript()
+            let entries: Vec<Entry> = structure
+                .book_sequence()
                 .into_iter()
-                .map(|p| {
-                    let root_tpl = p.root.effective_template(templates);
-                    let entries = p
-                        .entries
-                        .into_iter()
-                        .filter(|e| !e.prose.is_empty())
-                        .map(|e| Entry {
-                            id: e.entry.id.to_string(),
-                            title: e.entry.title.clone(),
-                            mark: e
-                                .entry
-                                .effective_template(templates)
-                                .and_then(|t| t.mark.clone()),
-                            prose: e.prose.iter().map(|p| p.doc.clone()).collect(),
-                        })
-                        .collect();
-                    Part {
-                        id: p.root.id.to_string(),
-                        title: p.root.title.clone(),
-                        path: path_of(&structure, &p.root.id),
-                        mark: root_tpl.and_then(|t| t.mark.clone()),
-                        color: color_of(p.root, root_tpl),
-                        entries,
-                    }
+                .filter(|e| !e.prose.is_empty())
+                .map(|e| Entry {
+                    id: e.entry.id.to_string(),
+                    title: e.entry.title.clone(),
+                    mark: e
+                        .entry
+                        .effective_template(templates)
+                        .and_then(|t| t.mark.clone()),
+                    prose: e.prose.iter().map(|p| p.doc.clone()).collect(),
                 })
                 .collect();
-            let entries = parts.iter().flat_map(|p| p.entries.clone()).collect();
+            let parts: Vec<Part> = match structure.project().book.as_ref().map(|b| &b.root) {
+                Some(r) if structure.is_valid_book_root(r) => match r {
+                    dr_model::v3::BookRoot::Entry { entry } => structure
+                        .entry(entry)
+                        .map(|root| {
+                            let root_tpl = root.effective_template(templates);
+                            vec![Part {
+                                id: root.id.to_string(),
+                                title: root.title.clone(),
+                                path: path_of(&structure, &root.id),
+                                mark: root_tpl.and_then(|t| t.mark.clone()),
+                                color: color_of(root, root_tpl),
+                                entries: entries.clone(),
+                            }]
+                        })
+                        .unwrap_or_default(),
+                    dr_model::v3::BookRoot::Root => vec![Part {
+                        id: "root".into(),
+                        title: meta.name.clone(),
+                        path: vec![meta.name.clone()],
+                        mark: None,
+                        color: None,
+                        entries: entries.clone(),
+                    }],
+                    dr_model::v3::BookRoot::View { view } => {
+                        let title = structure
+                            .timeline_views_map()
+                            .get(view)
+                            .map(|v| v.name.clone())
+                            .unwrap_or_else(|| meta.name.clone());
+                        vec![Part {
+                            id: view.to_string(),
+                            title: title.clone(),
+                            path: vec![title],
+                            mark: None,
+                            color: None,
+                            entries: entries.clone(),
+                        }]
+                    }
+                    dr_model::v3::BookRoot::Lane { entry, .. } => structure
+                        .entry(entry)
+                        .map(|lane| {
+                            let lane_tpl = lane.effective_template(templates);
+                            vec![Part {
+                                id: lane.id.to_string(),
+                                title: lane.title.clone(),
+                                path: path_of(&structure, &lane.id),
+                                mark: lane_tpl.and_then(|t| t.mark.clone()),
+                                color: color_of(lane, lane_tpl),
+                                entries: entries.clone(),
+                            }]
+                        })
+                        .unwrap_or_default(),
+                },
+                _ => Vec::new(),
+            };
             Ok(Outline {
                 book: id.to_string(),
                 title: meta.name,

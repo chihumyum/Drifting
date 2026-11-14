@@ -11,13 +11,18 @@ use dr_model::{DocId, Timestamp};
 use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID};
 
 use crate::catalog::EntitySnapshot;
-use crate::catalog::fields::{F, kv_entries};
+use crate::catalog::fields::{F, kv_entries, media_items};
 use crate::catalog::read::{
     ForestNode, forest, forest_entry_headers, forest_entry_status, forest_ids, forest_node,
 };
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::{DocError, Result};
+
+type CommentPartLookup = (
+    BTreeMap<EntryTemplateId, EntryTemplate>,
+    HashMap<String, Entry>,
+);
 
 /// Stored metadata of a v3 [`Entry`] at a history point (`BookReaderV3::load_at`),
 /// for restoring per-entry metadata (`BookTxnV3::restore_entry`).
@@ -137,9 +142,7 @@ pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride 
         auto_link: f.bool("auto_link"),
         accept: f.bool("accept"),
         home,
-        is_manuscript: f.bool("is_manuscript"),
         format_shortcuts: f.kind("format_shortcuts"),
-        lane: f.bool("lane"),
     }
 }
 
@@ -185,7 +188,6 @@ impl BookGraphV3 {
         BookGraph {
             entries: &self.entries,
             templates: &self.templates,
-            memberships: &self.memberships,
         }
     }
 
@@ -380,6 +382,41 @@ impl<'a> BookViewV3<'a> {
         )
     }
 
+    /// CAS state for a membership's `pos` scalar (`None | Null | String`),
+    /// leaving all other fields of the membership map untouched.
+    pub fn membership_pos_restore_state(
+        &self,
+        host: &EntryId,
+        member: &EntryId,
+    ) -> Result<(bool, Option<LoroValue>)> {
+        use loro::{Container, ValueOrContainer};
+        self.check_membership_snapshot_restore(host, member)?;
+        let root = self.doc.get_map(book_v3::MEMBERSHIPS);
+        let key = Membership::key(host, member);
+        let Some(ValueOrContainer::Container(Container::Map(record))) = root.get(&key) else {
+            return Ok((false, None));
+        };
+        match record.get("pos") {
+            None => Ok((true, None)),
+            Some(ValueOrContainer::Value(v @ (LoroValue::Null | LoroValue::String(_)))) => {
+                Ok((true, Some(v)))
+            }
+            _ => Err(DocError::NotInProfile(
+                "membership pos uses an unsupported representation",
+            )),
+        }
+    }
+
+    /// Raw stored direct children of `parent` (`None` = root) in `LoroTree`
+    /// fractional-index sibling order, trashed entries included.
+    pub fn direct_child_ids(&self, parent: Option<&EntryId>) -> Vec<EntryId> {
+        self.entries_raw()
+            .into_iter()
+            .filter(|e| e.parent.as_ref() == parent)
+            .map(|e| e.id)
+            .collect()
+    }
+
     /// Only the selected primary field is inspected, never other entry data.
     /// The inverse preserves absence/null/string; future representations must
     /// be handled explicitly before a cancellation may overwrite them.
@@ -420,21 +457,27 @@ impl<'a> BookViewV3<'a> {
         else {
             unreachable!("preflighted view")
         };
-        let Some(ValueOrContainer::Container(Container::Map(placements))) =
-            record.get("placements")
-        else {
-            return Err(DocError::NotInProfile(
-                "selected placements parent is absent",
-            ));
-        };
-        if placements.id()
-            != ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map)
-        {
-            return Err(DocError::NotInProfile(
-                "selected placements parent is not mergeable",
-            ));
+        let expected_id =
+            ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map);
+        match record.get("placements") {
+            None => match self.doc.get_container(expected_id) {
+                Some(Container::Map(placements)) => {
+                    check_restorable_field(&placements, member.as_str())
+                }
+                _ => Ok(()),
+            },
+            Some(ValueOrContainer::Container(Container::Map(placements))) => {
+                if placements.id() != expected_id {
+                    return Err(DocError::NotInProfile(
+                        "selected placements parent is not mergeable",
+                    ));
+                }
+                check_restorable_field(&placements, member.as_str())
+            }
+            Some(_) => Err(DocError::NotInProfile(
+                "timeline placements are not a writable map",
+            )),
         }
-        check_restorable_field(&placements, member.as_str())
     }
 
     /// CAS state for just this placement's live/retained record. The selected
@@ -445,7 +488,7 @@ impl<'a> BookViewV3<'a> {
         view: &TimelineViewId,
         member: &EntryId,
     ) -> Result<(bool, Option<LoroValue>)> {
-        use loro::{Container, ValueOrContainer};
+        use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
         self.check_timeline_placement_restore(view, member)?;
         let Some(ValueOrContainer::Container(Container::Map(record))) =
             self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
@@ -455,7 +498,15 @@ impl<'a> BookViewV3<'a> {
         let Some(ValueOrContainer::Container(Container::Map(placements))) =
             record.get("placements")
         else {
-            unreachable!("preflighted placements")
+            let parent_id =
+                ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map);
+            let retained = match self.doc.get_container(parent_id) {
+                Some(Container::Map(placements)) => {
+                    retained_record_state(self.doc, &placements, member.as_str())?.1
+                }
+                _ => None,
+            };
+            return Ok((false, retained));
         };
         retained_record_state(self.doc, &placements, member.as_str())
     }
@@ -464,13 +515,59 @@ impl<'a> BookViewV3<'a> {
     /// the structure once. Unlike a live view this explicit snapshot never changes.
     /// This read neither commits pending writes nor caches across a transaction.
     pub fn structure_snapshot(&self) -> super::BookStructureV3 {
-        super::BookStructureV3::from_value(self.book.clone(), &self.doc.get_deep_value())
+        super::BookStructureV3::from_doc(self.book.clone(), self.doc)
     }
 
     pub fn meta(&self) -> BookMetaV3 {
         let v = self.doc.get_map(book_v3::META).get_deep_value();
         let f = F(&v);
-        let project_template = f.sub("project_template").and_then(|pt| {
+        BookMetaV3 {
+            id: self.book.clone(),
+            schema_version: f.i64("v").unwrap_or(0),
+            name: f.string("name"),
+            summary: f.string("summary"),
+            deleted_at: f.ts("deleted_at"),
+            created_at: f.ts("created_at"),
+        }
+    }
+
+    pub(super) fn read_book_root(f: F<'_>) -> Option<BookRoot> {
+        match f.string("kind").as_str() {
+            "root" => Some(BookRoot::Root),
+            "entry" => Some(BookRoot::Entry {
+                entry: f.id("entry")?,
+            }),
+            "view" => Some(BookRoot::View {
+                view: f.id("view")?,
+            }),
+            "lane" => Some(BookRoot::Lane {
+                view: f.id("view")?,
+                entry: f.id("entry")?,
+            }),
+            _ => None,
+        }
+    }
+
+    pub(super) fn read_tab_mount(f: F<'_>) -> Option<TabMount> {
+        match f.string("kind").as_str() {
+            "root" => Some(TabMount::Root),
+            "entry" => Some(TabMount::Entry {
+                entry: f.id("entry")?,
+            }),
+            "view" => Some(TabMount::View {
+                view: f.id("view")?,
+            }),
+            "book" => Some(TabMount::Book),
+            _ => None,
+        }
+    }
+
+    pub(super) fn read_project(v: Option<&LoroValue>) -> ProjectDefinition {
+        let Some(v) = v else {
+            return ProjectDefinition::default();
+        };
+        let f = F(v);
+        let source = f.sub("source").and_then(|pt| {
             let id = pt.string("id");
             if id.is_empty() {
                 None
@@ -481,17 +578,56 @@ impl<'a> BookViewV3<'a> {
                 })
             }
         });
-        BookMetaV3 {
-            id: self.book.clone(),
-            schema_version: f.i64("v").unwrap_or(0),
-            name: f.string("name"),
-            summary: f.string("summary"),
-            deleted_at: f.ts("deleted_at"),
-            created_at: f.ts("created_at"),
-            word_target_set: f.i64("word_target"),
-            daily_word_target_set: f.i64("daily_word_target"),
-            project_template,
+        let agent = f.sub("agent").and_then(|a| {
+            let cfg = TemplateAgentConfig {
+                name: a.string("name"),
+                description: a.string("description"),
+                instructions: a.string("instructions"),
+            };
+            if cfg.name.is_empty() && cfg.description.is_empty() && cfg.instructions.is_empty() {
+                None
+            } else {
+                Some(cfg)
+            }
+        });
+        let book = f.sub("book").map(|bf| {
+            let root = bf
+                .sub("root")
+                .and_then(Self::read_book_root)
+                .unwrap_or(BookRoot::Root);
+            ProjectBook {
+                root,
+                word_target_set: bf.i64("word_target"),
+                daily_word_target_set: bf.i64("daily_word_target"),
+            }
+        });
+        let mut tabs: Vec<ProjectTab> = match f.get("tabs") {
+            Some(LoroValue::Map(m)) => m
+                .iter()
+                .filter_map(|(id, tv)| {
+                    let tf = F(tv);
+                    Some(ProjectTab {
+                        id: TabId::parse(id).ok()?,
+                        name: tf.string("name"),
+                        pos: tf.pos("pos"),
+                        mount: Self::read_tab_mount(tf.sub("mount")?)?,
+                    })
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        sort_project_tabs(&mut tabs);
+        ProjectDefinition {
+            source,
+            agent,
+            book,
+            tabs,
         }
+    }
+
+    pub fn project(&self) -> ProjectDefinition {
+        let v = self.doc.get_map(book_v3::PROJECT).get_deep_value();
+        Self::read_project(Some(&v))
     }
 
     pub fn trashed_at(&self) -> Option<Timestamp> {
@@ -759,6 +895,7 @@ impl<'a> BookViewV3<'a> {
         }
 
         let mut kv: BTreeMap<ModuleId, Vec<KvEntry>> = BTreeMap::new();
+        let mut media: BTreeMap<ModuleId, Vec<MediaItem>> = BTreeMap::new();
         if let LoroValue::Map(meta_map) = &n.meta {
             for (k, v) in meta_map.iter() {
                 if let Some(mid) = k.strip_prefix("kv:")
@@ -768,43 +905,30 @@ impl<'a> BookViewV3<'a> {
                     if !rows.is_empty() {
                         kv.insert(module_id, rows);
                     }
+                } else if let Some(mid) = k.strip_prefix("media:")
+                    && let Ok(module_id) = ModuleId::parse(mid)
+                {
+                    let items = media_items(v);
+                    if !items.is_empty() {
+                        media.insert(module_id, items);
+                    }
                 }
             }
         }
-
-        let layout = f
-            .sub("layout")
-            .map(|l| {
-                EntryLayout {
-                    board: match (l.f64("board_x"), l.f64("board_y")) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        _ => None,
-                    },
-                    grid: match (l.i64("grid_x"), l.i64("grid_y")) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        _ => None,
-                    },
-                    relation_graph: match (l.f64("pin_x"), l.f64("pin_y")) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        _ => None,
-                    },
-                }
-                .sanitized()
-            })
-            .unwrap_or_default();
 
         Some(Entry {
             id,
             parent,
             pos,
             title: f.string("title"),
+            mark: f.opt_string("mark"),
             template: f.id("template"),
             level: f.bool("level").unwrap_or(false),
             overrides,
             fields,
             kv,
+            media,
             primary: f.id("primary"),
-            layout,
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
             deleted_at: f.ts("deleted_at"),
@@ -823,14 +947,13 @@ impl<'a> BookViewV3<'a> {
     }
 
     /// Entries in depth-first tree order, with `V3-AUTOLINK-NAME-UNIQUE`
-    /// conflicts resolved on live auto-link leaf entries.
+    /// conflicts resolved on live auto-linked entries.
     pub fn entries(&self) -> Vec<Entry> {
         let raw = self.entries_raw();
         let templates = self.templates_map();
-        let raw_memberships = self.memberships_raw();
         let mut by_id: BTreeMap<EntryId, Entry> =
             raw.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        resolve_autolink_name_conflicts(&mut by_id, &raw_memberships, &templates);
+        resolve_autolink_name_conflicts(&mut by_id, &templates);
         raw.into_iter()
             .map(|mut e| {
                 if let Some(resolved) = by_id.get(&e.id) {
@@ -854,7 +977,7 @@ impl<'a> BookViewV3<'a> {
     pub fn entry(&self, id: &EntryId) -> Option<Entry> {
         let mut e = self.entry_raw(id)?;
         let mut g = self.graph();
-        resolve_autolink_name_conflicts(&mut g.entries, &g.memberships, &g.templates);
+        resolve_autolink_name_conflicts(&mut g.entries, &g.templates);
         e.name_conflict = g.entries.get(id).and_then(|h| h.name_conflict.clone());
         Some(e)
     }
@@ -935,13 +1058,14 @@ impl<'a> BookViewV3<'a> {
                     parent,
                     pos: String::new(),
                     title: h.title.clone(),
+                    mark: None,
                     template,
                     level: h.level,
                     overrides,
                     fields,
                     kv: BTreeMap::new(),
+                    media: BTreeMap::new(),
                     primary: None,
-                    layout: EntryLayout::default(),
                     created_at: h.created_at,
                     updated_at: None,
                     deleted_at: h.deleted_at,
@@ -978,37 +1102,35 @@ impl<'a> BookViewV3<'a> {
         effective_parent_id(e, &entries)
     }
 
-    /// Live child entries whose effective parent is `parent`, in manuscript
-    /// order (`entries` depth-first tree order).
+    /// Live child entries whose effective parent is `parent`, in authoritative
+    /// folder order (the reference view's scale when `parent` is a folder in a
+    /// live view, otherwise manual folder order).
     pub fn children_of(&self, parent: Option<&EntryId>) -> Vec<Entry> {
-        let ordered = self.entries();
-        let entries: BTreeMap<EntryId, Entry> =
-            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        ordered
+        self.structure_snapshot()
+            .children_of(parent)
             .into_iter()
-            .filter(|e| !e.is_trashed() && effective_parent_id(e, &entries).as_ref() == parent)
+            .cloned()
             .collect()
     }
 
-    ///Resolved level settings for `level_id` (`entry.overrides > template.settings > nearest ancestor > default`).
+    /// Whether `id` is currently an effective swimlane in at least one
+    /// non-trashed [`TimelineView`].
+    pub fn is_in_any_view(&self, id: &EntryId) -> bool {
+        self.structure_snapshot().is_in_any_view(id)
+    }
+
+    /// Resolved level settings for `level_id` (`entry.overrides > template.settings > nearest ancestor > default`).
     pub fn level_settings(&self, level_id: Option<&EntryId>) -> LevelSettings {
         let templates = self.templates_map();
         let entries = self.entry_headers_with(&templates);
         resolve_level_settings(level_id, &entries, &templates)
     }
 
-    /// Outermost live manuscript levels (`V3-MANUSCRIPT-NO-NEST`).
-    pub fn manuscript_levels(&self) -> BTreeSet<EntryId> {
-        let templates = self.templates_map();
-        let entries = self.entry_headers_with(&templates);
-        effective_manuscript_levels(&entries, &templates)
-    }
-
     /// Auto-linked entries whose title or alias collides with an earlier
     /// auto-linked entry: `(colliding_entry, winner_entry)`.
     pub fn autolink_name_conflicts(&self) -> Vec<(EntryId, EntryId)> {
         let mut g = self.graph();
-        resolve_autolink_name_conflicts(&mut g.entries, &g.memberships, &g.templates)
+        resolve_autolink_name_conflicts(&mut g.entries, &g.templates)
             .into_iter()
             .collect()
     }
@@ -1084,7 +1206,7 @@ impl<'a> BookViewV3<'a> {
 
     // ---- timeline views --------------------------------------------------
 
-    fn read_timeline_view_raw(id: &str, v: &LoroValue) -> Option<TimelineView> {
+    pub(super) fn read_timeline_view_raw(id: &str, v: &LoroValue) -> Option<TimelineView> {
         let f = F(v);
         let vid = TimelineViewId::parse(id).ok()?;
         let mut lanes: Vec<TimelineLane> = match f.get("lanes") {
@@ -1505,7 +1627,9 @@ impl<'a> BookViewV3<'a> {
                 )
             }),
             EntityKind::Comment => self.entity_map(book_v3::COMMENTS, &r.id).is_some(),
-            EntityKind::Material => self.entity_map(book_v3::MATERIALS, &r.id).is_some(),
+            EntityKind::Asset => self
+                .entity_map(book_v3::ASSETS, &r.id)
+                .is_some_and(|m| F(&m.get_deep_value()).ts("deleted_at").is_none()),
             _ => false,
         }
     }
@@ -1581,7 +1705,10 @@ impl<'a> BookViewV3<'a> {
             let Some(t) = types.get(&r.relation_type) else {
                 continue;
             };
-            if r.from == r.to || !r.from.kind.may_start_relation() || !r.to.kind.is_structural() {
+            if r.from == r.to
+                || !r.from.kind.may_start_relation_v3()
+                || !r.to.kind.is_structural_v3()
+            {
                 continue;
             }
             let allowed_kind =
@@ -1643,29 +1770,165 @@ impl<'a> BookViewV3<'a> {
         }
     }
 
+    fn comment_part_missing(
+        &self,
+        target: Option<&EntityRef>,
+        target_module: Option<&ModuleId>,
+        part: &CommentPart,
+        lookup: Option<&CommentPartLookup>,
+    ) -> bool {
+        if target.is_some_and(|t| t.kind == EntityKind::Asset) {
+            return target_module.is_some() || !matches!(part, CommentPart::Region { .. });
+        }
+        let (Some(t), Some(mod_id)) = (
+            target.filter(|t| t.kind == EntityKind::Entry),
+            target_module,
+        ) else {
+            return true;
+        };
+        let owned_entry;
+        let owned_templates;
+        let (templates, entry) = match lookup {
+            Some((tpls, entries)) => {
+                let Some(e) = entries.get(&t.id) else {
+                    return true;
+                };
+                (tpls, e)
+            }
+            None => {
+                let Ok(eid) = EntryId::parse(&t.id) else {
+                    return true;
+                };
+                let Some(e) = self.entry(&eid) else {
+                    return true;
+                };
+                owned_entry = e;
+                owned_templates = self.templates_map();
+                (&owned_templates, &owned_entry)
+            }
+        };
+        if entry.is_trashed() {
+            return true;
+        }
+        let Some(mod_def) = entry
+            .effective_template(templates)
+            .and_then(|et| et.modules.iter().find(|m| &m.id == mod_id))
+        else {
+            return true;
+        };
+        if check_comment_part_kind(part, &mod_def.kind).is_err() {
+            return true;
+        }
+        match part {
+            CommentPart::Embed { .. } => false,
+            CommentPart::Field { field } => {
+                !mod_def.config.defs.iter().any(|d| d.id == field.as_str())
+            }
+            CommentPart::KvRow { row } => !entry
+                .kv
+                .get(mod_id)
+                .is_some_and(|rows| rows.iter().any(|r| &r.id == row)),
+            CommentPart::PlotCell { row, col } => {
+                if let Some(g) = self.plot_grid(&entry.id, mod_id) {
+                    !g.rows.iter().any(|r| &r.id == row) || !g.cols.iter().any(|c| &c.id == col)
+                } else {
+                    !(1..=mod_def.config.default_rows)
+                        .any(|n| &PlotGridV3::default_row_id(&entry.id, mod_id, n as usize) == row)
+                        || !(1..=mod_def.config.default_cols).any(|n| {
+                            &PlotGridV3::default_col_id(&entry.id, mod_id, n as usize) == col
+                        })
+                }
+            }
+            CommentPart::Patch { patch } => !self
+                .entity_map(book_v3::PATCHES, patch.as_str())
+                .is_some_and(|m| {
+                    matches!(
+                        (m.get("entry"), m.get("module")),
+                        (
+                            Some(loro::ValueOrContainer::Value(LoroValue::String(e))),
+                            Some(loro::ValueOrContainer::Value(LoroValue::String(mo))),
+                        ) if e.as_str() == entry.id.as_str() && mo.as_str() == mod_id.as_str()
+                    )
+                }),
+            CommentPart::Media { item, .. } => !entry
+                .media
+                .get(mod_id)
+                .is_some_and(|items| items.iter().any(|i| &i.id == item)),
+            CommentPart::Region { .. } => true,
+        }
+    }
+
+    fn comment_part_lookup(&self) -> CommentPartLookup {
+        let templates = self.templates_map();
+        let entries = self
+            .entries()
+            .into_iter()
+            .map(|e| (e.id.to_string(), e))
+            .collect();
+        (templates, entries)
+    }
+
     fn read_comment_with(
         &self,
         id: &str,
         v: &LoroValue,
         entries: Option<&(HashSet<String>, HashSet<String>)>,
+        lookup: Option<&CommentPartLookup>,
     ) -> Option<CommentV3> {
         let f = F(v);
         let target = f.entity_ref("target_kind", "target");
-        let target_missing = target
+        let target_module: Option<ModuleId> = f.id("module");
+        let raw_has_part = f.get("part").is_some();
+        let part = f.comment_part("part");
+        let mut target_missing = target
             .as_ref()
             .is_some_and(|t| !self.entity_exists_with(t, entries));
+        if !target_missing {
+            if (target.as_ref().is_some_and(|t| t.kind == EntityKind::Asset)
+                && target_module.is_some())
+                || (raw_has_part && part.is_none())
+            {
+                target_missing = true;
+            } else if let Some(ref p) = part {
+                target_missing =
+                    self.comment_part_missing(target.as_ref(), target_module.as_ref(), p, lookup);
+            }
+        }
+        let author_kind = f.kind("author_kind").unwrap_or(CommentAuthorKind::User);
+        let projection = match (
+            f.kind::<ProjectionKind>("projection"),
+            f.id::<BlockId>("projection_block"),
+        ) {
+            (Some(kind), Some(block)) => Some(TodoProjection { kind, block }),
+            _ => None,
+        };
+        let origin = f.kind("origin").unwrap_or(match &projection {
+            Some(TodoProjection {
+                kind: ProjectionKind::Marker,
+                ..
+            }) => CommentOrigin::Marker,
+            Some(TodoProjection {
+                kind: ProjectionKind::NoteTask,
+                ..
+            }) => CommentOrigin::Task,
+            _ => match author_kind {
+                CommentAuthorKind::Ai => CommentOrigin::Agent,
+                CommentAuthorKind::External => CommentOrigin::Reader,
+                _ => CommentOrigin::Manual,
+            },
+        });
         Some(CommentV3 {
             id: CommentId::parse(id).ok()?,
-            kind: f.kind("kind").unwrap_or(CommentKind::Note),
             target,
-            target_module: f.id("module"),
+            target_module,
+            part,
             target_missing,
             target_block: f.id("target_block"),
             anchor: f.anchor("anchor"),
             quote: f.opt_string("quote"),
             snapshots: f.snapshots("snapshots"),
-            region: f.region("region"),
-            author_kind: f.kind("author_kind").unwrap_or(CommentAuthorKind::User),
+            origin,
+            author_kind,
             author: f.opt_string("author"),
             author_name: f.opt_string("author_name"),
             body: f
@@ -1676,13 +1939,7 @@ impl<'a> BookViewV3<'a> {
             source: f.kind("source").unwrap_or(CommentSource::Manual),
             metadata: f.opt_string("metadata"),
             agent_conversation: f.opt_string("agent_conversation"),
-            projection: match (
-                f.kind::<ProjectionKind>("projection"),
-                f.id::<BlockId>("projection_block"),
-            ) {
-                (Some(kind), Some(block)) => Some(TodoProjection { kind, block }),
-                _ => None,
-            },
+            projection,
             resolved_at: f.ts("resolved_at"),
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
@@ -1691,7 +1948,7 @@ impl<'a> BookViewV3<'a> {
 
     pub fn comment(&self, id: &CommentId) -> Option<CommentV3> {
         let v = entity(self.doc, book_v3::COMMENTS, id.as_str())?;
-        self.read_comment_with(id.as_str(), &v, None)
+        self.read_comment_with(id.as_str(), &v, None, None)
     }
 
     pub fn comments(&self) -> Vec<CommentV3> {
@@ -1703,9 +1960,13 @@ impl<'a> BookViewV3<'a> {
             F(v).entity_ref("target_kind", "target")
                 .is_some_and(|t| matches!(t.kind, EntityKind::Entry | EntityKind::Patch))
         });
+        let needs_parts = raw
+            .iter()
+            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
         let entries = needs_entries.then(|| self.entry_existence_sets());
+        let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
-            .filter_map(|(id, v)| self.read_comment_with(id, v, entries.as_ref()))
+            .filter_map(|(id, v)| self.read_comment_with(id, v, entries.as_ref(), lookup.as_ref()))
             .collect()
     }
 
@@ -1717,8 +1978,12 @@ impl<'a> BookViewV3<'a> {
         if raw.is_empty() {
             return Vec::new();
         }
+        let needs_parts = raw
+            .iter()
+            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
+        let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
-            .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries)))
+            .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries), lookup.as_ref()))
             .collect()
     }
 
@@ -1742,102 +2007,23 @@ impl<'a> BookViewV3<'a> {
         self.comment(id).map(|c| c.is_done())
     }
 
-    // ---- materials, assets, folders, facts, memory, writing days ---------
+    // ---- assets, facts, memory, writing days ----------------------------
 
-    fn asset_kinds(&self) -> HashMap<String, AssetKind> {
-        entities(self.doc, book_v3::ASSETS)
-            .into_iter()
-            .filter_map(|(id, v)| Some((id, F(&v).kind::<AssetKind>("kind")?)))
-            .collect()
-    }
-
-    pub fn material_titles(&self) -> HashMap<String, String> {
-        use loro::{Container, ValueOrContainer};
-        let mut out = HashMap::new();
-        self.doc.get_map(book_v3::MATERIALS).for_each(|id, val| {
-            let ValueOrContainer::Container(Container::Map(m)) = val else {
-                return;
-            };
-            if MaterialId::parse(id).is_err() {
-                return;
-            }
-            let title = match m.get("title") {
-                Some(ValueOrContainer::Value(LoroValue::String(s))) => s.to_string(),
-                _ => String::new(),
-            };
-            out.insert(id.to_owned(), title);
-        });
-        out
-    }
-
-    pub fn materials(&self) -> Vec<Material> {
-        let folders: HashSet<String> = forest(&self.tree(book_v3::MATERIAL_FOLDERS))
-            .into_iter()
-            .map(|n| n.id)
-            .collect();
-        let assets = self.asset_kinds();
-        let mut v: Vec<Material> = entities(self.doc, book_v3::MATERIALS)
-            .iter()
-            .filter_map(|(id, v)| {
-                let f = F(v);
-                let kind = f.kind::<MaterialKind>("kind").unwrap_or(MaterialKind::Text);
-                let asset = f.id::<AssetId>("asset").filter(|a| {
-                    let want = match kind {
-                        MaterialKind::Image => AssetKind::Image,
-                        MaterialKind::Pdf => AssetKind::Pdf,
-                        _ => return false,
-                    };
-                    assets.get(a.as_str()) == Some(&want)
-                });
-                Some(Material {
-                    id: MaterialId::parse(id).ok()?,
-                    title: f.string("title"),
-                    asset,
-                    kind,
-                    folder: f
-                        .id::<MaterialFolderId>("folder")
-                        .filter(|d| folders.contains(d.as_str())),
-                    pos: f.pos("pos"),
-                    task_todos: f.bool("task_todos").unwrap_or(true),
-                    provenance: f.opt_string("provenance"),
-                    description: f.string("description"),
-                })
-            })
-            .collect();
-        v.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
-        v
+    pub fn assets_raw(&self) -> Vec<Asset> {
+        crate::catalog::read::CatalogView { doc: self.doc }.assets_raw()
     }
 
     pub fn assets(&self) -> Vec<Asset> {
-        entities(self.doc, book_v3::ASSETS)
-            .iter()
-            .filter_map(|(id, v)| {
-                let f = F(v);
-                Some(Asset {
-                    id: AssetId::parse(id).ok()?,
-                    kind: f.kind("kind")?,
-                    mime: f.string("mime"),
-                    size: f.i64("size").unwrap_or(0),
-                    sha256: f.string("sha256"),
-                    width: f.i64("width"),
-                    height: f.i64("height"),
-                })
-            })
-            .collect()
+        crate::catalog::read::CatalogView { doc: self.doc }.assets()
     }
 
-    pub fn material_folders(&self) -> Vec<MaterialFolder> {
-        forest(&self.tree(book_v3::MATERIAL_FOLDERS))
-            .into_iter()
-            .filter_map(|n| {
-                let f = F(&n.meta);
-                Some(MaterialFolder {
-                    id: MaterialFolderId::parse(&n.id).ok()?,
-                    name: f.string("name"),
-                    parent: n.parent.and_then(|p| MaterialFolderId::parse(&p).ok()),
-                })
-            })
-            .collect()
+    pub fn asset_raw(&self, id: &AssetId) -> Option<Asset> {
+        let v = entity(self.doc, book_v3::ASSETS, id.as_str())?;
+        crate::catalog::read::decode_asset(id.as_str(), &v)
+    }
+
+    pub fn asset(&self, id: &AssetId) -> Option<Asset> {
+        self.asset_raw(id).filter(|a| !a.is_trashed())
     }
 
     pub fn facts(&self) -> Vec<KvEntry> {
@@ -1869,7 +2055,7 @@ impl<'a> BookViewV3<'a> {
 
     /// Whether the prose document `doc` belongs to a live or trashed owner in
     /// this book (`body:<entry>/<module>`, `template:<book>/<template>/<module>`,
-    /// `material:<id>`, `conversation:<id>`, and the two documents beside the book).
+    /// `conversation:<id>`, and the documents beside the book).
     ///
     /// Note that per `V3-TEMPLATE-SWITCH-KEEPS-DATA` and `V3-ENTRY-TEMPLATE-EXISTS`,
     /// any `body:<entry>/<module>` document remains owned as long as `<entry>`
@@ -1877,7 +2063,9 @@ impl<'a> BookViewV3<'a> {
     /// or its template was deleted).
     pub fn owns_prose(&self, doc: &DocId) -> bool {
         match doc {
-            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) => b == self.book,
+            DocId::Book(b) | DocId::Stats(b) | DocId::Checkpoints(b) | DocId::Layout(b) => {
+                b == self.book
+            }
             DocId::Conversation(_) => true,
             DocId::Body(b) => {
                 forest_node(&self.tree(book_v3::ENTRIES), b.entry().as_str()).is_some()
@@ -1893,9 +2081,11 @@ impl<'a> BookViewV3<'a> {
                 }
                 None => false,
             },
-            DocId::Material(id) => entity(self.doc, book_v3::MATERIALS, id.as_str())
-                .is_some_and(|v| F(&v).str("kind").is_none_or(|k| k == "text")),
-            DocId::Node(_) | DocId::Element(_) | DocId::Storyline(_) | DocId::Category(_) => false,
+            DocId::Material(_)
+            | DocId::Node(_)
+            | DocId::Element(_)
+            | DocId::Storyline(_)
+            | DocId::Category(_) => false,
         }
     }
 
@@ -2123,28 +2313,52 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
-    /// Raw metadata of one material folder, for selected-record restoration.
-    pub fn material_folder_snapshot(&self, id: &MaterialFolderId) -> Option<EntrySnapshotV3> {
-        forest(&self.tree(book_v3::MATERIAL_FOLDERS))
-            .into_iter()
-            .find(|n| n.id == id.as_str())
-            .map(|n| EntrySnapshotV3 { value: n.meta })
-    }
-
     /// Snapshot of a v3 structural map record, including nested maps.
     /// Patch text is restored through its mergeable text container by the writer.
     pub fn map_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntrySnapshotV3> {
+        if collection == CollectionV3::Project
+            && let Some(sub_key) = id.strip_prefix("book/")
+        {
+            let root = self.doc.get_map(book_v3::PROJECT);
+            let Some(loro::ValueOrContainer::Container(loro::Container::Map(book_map))) =
+                root.get("book")
+            else {
+                return None;
+            };
+            return book_map.get(sub_key).map(|voc| EntrySnapshotV3 {
+                value: voc.get_deep_value(),
+            });
+        }
+        if collection == CollectionV3::Project
+            && let Some(tab_id) = id.strip_prefix("tabs/")
+        {
+            let root = self.doc.get_map(book_v3::PROJECT);
+            let Some(loro::ValueOrContainer::Container(loro::Container::Map(tabs))) =
+                root.get("tabs")
+            else {
+                return None;
+            };
+            return match tabs.get(tab_id)? {
+                loro::ValueOrContainer::Container(loro::Container::Map(m)) => {
+                    Some(EntrySnapshotV3 {
+                        value: m.get_deep_value(),
+                    })
+                }
+                _ => None,
+            };
+        }
         if !matches!(
             collection,
-            CollectionV3::Templates
+            CollectionV3::Project
+                | CollectionV3::Templates
                 | CollectionV3::Memberships
                 | CollectionV3::TimelineViews
                 | CollectionV3::Patches
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
-                | CollectionV3::Materials
                 | CollectionV3::Comments
+                | CollectionV3::Assets
                 | CollectionV3::Facts
                 | CollectionV3::Memory
         ) {
@@ -2153,12 +2367,11 @@ impl<'a> BookViewV3<'a> {
         entity(self.doc, collection.root(), id).map(|value| EntrySnapshotV3 { value })
     }
 
-    /// Snapshot of a map-backed entity (e.g. `Materials`) at this view's frontiers.
+    /// Snapshot of a map-backed entity at this view's frontiers.
     pub fn entity_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntitySnapshot> {
         if !matches!(
             collection,
-            CollectionV3::Materials
-                | CollectionV3::RelationTypes
+            CollectionV3::RelationTypes
                 | CollectionV3::Relations
                 | CollectionV3::Comments
                 | CollectionV3::Assets

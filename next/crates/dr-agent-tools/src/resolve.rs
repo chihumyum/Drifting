@@ -100,11 +100,5 @@ pub(crate) fn subjects_common(name: &str, args: &Value) -> Vec<String> {
     } else if let Some(id) = args["id"].as_str() {
         out.insert(format!("{domain}:{id}"));
     }
-    if name == "material.delete" {
-        out.extend(["relation:all".into(), "comment:*".into()]);
-    }
-    if name == "material_folder.delete" {
-        out.extend(["material_folder:*".into(), "material:*".into()]);
-    }
     out.into_iter().collect()
 }

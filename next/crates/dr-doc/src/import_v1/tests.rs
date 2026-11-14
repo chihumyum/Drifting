@@ -5,8 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use dr_model::id::*;
 use dr_model::import_v1::{
-    ActId, Asset, CategoryId, DriftGroupId, ElementId, EntityRef, KvEntry, NodeId, NodeKind,
-    NodeStatus, StorylineId, TemplateOwner, canonical_symmetric, default_plot_row,
+    ActId, Asset, CategoryId, DriftGroupId, ElementId, EntityRef, KvEntry, MaterialFolderId,
+    MaterialId, MaterialKind, NodeId, NodeKind, NodeStatus, StorylineId, TemplateOwner,
+    canonical_symmetric, default_plot_row,
 };
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
@@ -547,11 +548,15 @@ fn materials_folders_and_assets() {
     let asset = Asset {
         id: img.clone(),
         kind: AssetKind::Image,
+        name: String::new(),
         mime: "image/png".into(),
         size: 10,
         sha256: "a".repeat(64),
         width: Some(2),
         height: Some(3),
+        created_at: None,
+        folder: None,
+        deleted_at: None,
     };
     let m1 = MaterialId::parse("m1").unwrap();
     let m2 = MaterialId::parse("m2").unwrap();
@@ -759,11 +764,15 @@ fn references_to_missing_entities_read_as_none() {
         t.put_asset(&Asset {
             id: pdf.clone(),
             kind: AssetKind::Pdf,
+            name: String::new(),
             mime: "application/pdf".into(),
             size: 9,
             sha256: "b".repeat(64),
             width: None,
             height: None,
+            created_at: None,
+            folder: None,
+            deleted_at: None,
         })?;
         t.element(&e)?
             .name("安")?

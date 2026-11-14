@@ -317,7 +317,7 @@ pub(crate) fn bind_links<T: 'static>(
                 dr_shell::nav::Target::Entry { id, module }
             }
             dr_model::kind::EntityKind::Material => {
-                let Ok(id) = dr_model::id::MaterialId::parse(&target.id) else {
+                let Ok(id) = dr_model::id::MediaItemId::parse(&target.id) else {
                     return;
                 };
                 dr_shell::nav::Target::Material(id)

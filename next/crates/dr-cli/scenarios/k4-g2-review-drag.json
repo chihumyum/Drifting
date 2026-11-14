@@ -123,20 +123,41 @@
       "save": "boardA"
     },
     {
-      "call": "entry.update",
+      "call": "layout.put",
       "input": {
         "book": "${books.0.id}",
-        "id": "${boardA.id}",
-        "layout": {
-          "board": [
+        "scope": "${roots.1.id}",
+        "mode": "board",
+        "positions": {
+          "${boardA.id}": [
             16.0,
             140.0
-          ],
-          "grid": [
-            2,
-            3
-          ],
-          "relation_graph": [
+          ]
+        }
+      }
+    },
+    {
+      "call": "layout.put",
+      "input": {
+        "book": "${books.0.id}",
+        "scope": "${roots.1.id}",
+        "mode": "grid",
+        "positions": {
+          "${boardA.id}": [
+            2.0,
+            3.0
+          ]
+        }
+      }
+    },
+    {
+      "call": "layout.put",
+      "input": {
+        "book": "${books.0.id}",
+        "scope": "root",
+        "mode": "relation_graph",
+        "positions": {
+          "${boardA.id}": [
             7.0,
             8.0
           ]
@@ -154,32 +175,46 @@
       "save": "boardB"
     },
     {
-      "call": "entry.update",
+      "call": "layout.put",
       "input": {
         "book": "${books.0.id}",
-        "id": "${boardB.id}",
-        "layout": {
-          "board": [
+        "scope": "${roots.1.id}",
+        "mode": "board",
+        "positions": {
+          "${boardB.id}": [
             56.0,
             220.0
-          ],
-          "grid": [
-            2,
-            3
-          ],
-          "relation_graph": [
-            7.0,
-            8.0
           ]
         }
       }
     },
     {
-      "call": "material.list",
+      "call": "layout.put",
       "input": {
-        "book": "${books.0.id}"
-      },
-      "save": "reviewMaterials"
+        "book": "${books.0.id}",
+        "scope": "${roots.1.id}",
+        "mode": "grid",
+        "positions": {
+          "${boardB.id}": [
+            2.0,
+            3.0
+          ]
+        }
+      }
+    },
+    {
+      "call": "layout.put",
+      "input": {
+        "book": "${books.0.id}",
+        "scope": "root",
+        "mode": "relation_graph",
+        "positions": {
+          "${boardB.id}": [
+            7.0,
+            8.0
+          ]
+        }
+      }
     },
     {
       "call": "comment.create",
@@ -225,9 +260,10 @@
         "book": "${books.0.id}",
         "body": "Synthetic review material",
         "target": {
-          "kind": "material",
-          "id": "${reviewMaterials.0.id}"
-        }
+          "kind": "entry",
+          "id": "${entries.[template=tpl-note].id}"
+        },
+        "module": "mod-prose"
       },
       "save": "reviewMaterial"
     },
@@ -1148,21 +1184,42 @@
       }
     },
     {
-      "call": "entry.get",
+      "call": "layout.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${boardA.id}"
+        "scope": "${roots.1.id}",
+        "mode": "board"
       },
       "expect": {
-        "/layout/board": [
+        "/${boardA.id}": [
           56.0,
           220.0
-        ],
-        "/layout/grid": [
-          2,
-          3
-        ],
-        "/layout/relation_graph": [
+        ]
+      }
+    },
+    {
+      "call": "layout.get",
+      "input": {
+        "book": "${books.0.id}",
+        "scope": "${roots.1.id}",
+        "mode": "grid"
+      },
+      "expect": {
+        "/${boardA.id}": [
+          2.0,
+          3.0
+        ]
+      }
+    },
+    {
+      "call": "layout.get",
+      "input": {
+        "book": "${books.0.id}",
+        "scope": "root",
+        "mode": "relation_graph"
+      },
+      "expect": {
+        "/${boardA.id}": [
           7.0,
           8.0
         ]
@@ -1181,29 +1238,22 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3/entries/[id=${boardA.id}]/layout/board": [
+        "/v3/layouts/${roots.1.id}/board/${boardA.id}": [
           56.0,
           220.0
         ]
       }
     },
     {
-      "call": "entry.update",
+      "call": "layout.put",
       "input": {
         "book": "${books.0.id}",
-        "id": "${boardB.id}",
-        "layout": {
-          "board": [
+        "scope": "${roots.1.id}",
+        "mode": "board",
+        "positions": {
+          "${boardB.id}": [
             96.0,
             300.0
-          ],
-          "grid": [
-            2,
-            3
-          ],
-          "relation_graph": [
-            7.0,
-            8.0
           ]
         }
       }
@@ -1221,7 +1271,7 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3/entries/[id=${boardB.id}]/layout/board": [
+        "/v3/layouts/${roots.1.id}/board/${boardB.id}": [
           96.0,
           300.0
         ]
@@ -1465,14 +1515,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${reviewMaterials.0.id}"
+        "target": "entry:${entries.[template=tpl-note].id}/mod-prose"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "material:${reviewMaterials.0.id}"
+          "/page": "entry:${entries.[template=tpl-note].id}/mod-prose"
         },
         "timeout_ms": 15000
       }

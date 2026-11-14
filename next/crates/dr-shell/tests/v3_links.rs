@@ -37,14 +37,14 @@ fn fixture() -> (tempfile::TempDir, Library, String, String, String) {
         .unwrap()
         .id
         .clone();
-    let material = v3
-        .materials
+    let note = v3
+        .entries
         .iter()
-        .find(|m| m.kind == "text")
+        .find(|e| e.template.as_deref() == Some("tpl-note"))
         .unwrap()
         .id
         .clone();
-    (dir, lib, book, entry, material)
+    (dir, lib, book, entry, note)
 }
 fn address(book: &str, entry: &str) -> Address {
     Address {
@@ -133,22 +133,29 @@ fn cold_and_live_system_urls_keep_the_module_and_line_range(cx: &mut TestAppCont
                         })
                 })
     });
-    let material_target = Target::Material(material.parse().unwrap());
+    let note_target = target(&material);
     let href = Address {
         book: Some(book.parse().unwrap()),
-        endpoint: Endpoint::Material(material.parse().unwrap()),
+        endpoint: Endpoint::Entry {
+            id: material.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap()),
+        },
         lines: Some((1, 1)),
     }
     .format(SCHEME);
     assert_eq!(links.push_all([href]), 1);
-    wait(&view, cx, |w, _| {
-        w.nav.current() == Some(&material_target) && w.editor_of(&material_target).is_some()
-    });
-    view.read_with(cx, |w, cx| {
-        assert_eq!(
-            w.editor_of(&material_target).unwrap().read(cx).doc_id(),
-            format!("material:{material}")
-        )
+    wait(&view, cx, |w, cx| {
+        w.nav.current() == Some(&note_target)
+            && w.editors
+                .get(&note_target.key())
+                .and_then(|p| p.v3.as_ref())
+                .is_some_and(|v| {
+                    v.read(cx).revealed
+                        == Some(Lines {
+                            start: 1,
+                            end: None,
+                        })
+                })
     });
     assert_eq!(
         lib.observe(&format!("book:{book}")).unwrap().version,
@@ -184,28 +191,36 @@ fn document_addresses_preserve_targets_and_refuse_foreign_books(cx: &mut TestApp
         window,
         cx
     )));
-    // A material address opens its existing document rather than an entry or Book sentinel.
+    // A note entry address opens its existing document rather than a Book sentinel.
     let body = lib
         .call(
             &Actor::User,
             "prose.read",
-            json!({"doc":format!("material:{material}")}),
+            json!({"doc":format!("body:{material}/mod-prose")}),
         )
         .unwrap();
-    let material_link = Address {
+    let note_link = Address {
         book: None,
-        endpoint: Endpoint::Material(material.parse().unwrap()),
+        endpoint: Endpoint::Entry {
+            id: material.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap()),
+        },
         lines: Some((1, 1)),
     }
     .format(SCHEME);
-    assert!(view.update_in(cx, |w, window, cx| w.open_link(&material_link, window, cx)));
-    let wanted = Target::Material(material.parse().unwrap());
-    wait(&view, cx, |w, _| w.editor_of(&wanted).is_some());
+    assert!(view.update_in(cx, |w, window, cx| w.open_link(&note_link, window, cx)));
+    let wanted = target(&material);
+    wait(&view, cx, |w, _| {
+        w.editors
+            .get(&wanted.key())
+            .and_then(|p| p.v3.as_ref())
+            .is_some()
+    });
     assert_eq!(
         lib.call(
             &Actor::User,
             "prose.read",
-            json!({"doc":format!("material:{material}")})
+            json!({"doc":format!("body:{material}/mod-prose")})
         )
         .unwrap()["output"],
         body["output"]

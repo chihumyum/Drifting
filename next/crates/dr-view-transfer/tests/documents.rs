@@ -293,6 +293,11 @@ fn levels_follow_the_level_switch_and_nested_tree_paths(cx: &mut TestAppContext)
         "entry.set_level",
         json!({"book": book, "id": org, "level": false}),
     );
+    out(
+        &lib,
+        "entry.update",
+        json!({"book": book, "id": org, "overrides": {"accept": false}}),
+    );
     // A level whose new entries get no template: nothing can be imported.
     out(
         &lib,

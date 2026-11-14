@@ -1,4 +1,4 @@
-//! Shared map writers and material-folder operations.
+//! Shared map writers for canonical book collections.
 use super::fields::{IntoField, set};
 use super::read::CatalogView;
 use crate::error::{DocError, Result};
@@ -6,9 +6,8 @@ use crate::schema::book_v3 as book;
 use dr_model::Timestamp;
 use dr_model::id::*;
 use dr_model::kind::*;
-use dr_model::pos::PosKey;
 use dr_model::shared::{Asset, EntityRef, KvEntry};
-use loro::{LoroMap, LoroTree, LoroValue, TreeParentId};
+use loro::{LoroMap, LoroValue};
 pub(crate) struct CatalogTxn<'a> {
     pub(crate) view: CatalogView<'a>,
 }
@@ -101,27 +100,6 @@ impl PlotGridWriter {
     }
 }
 
-pub struct MaterialWriter {
-    pub(crate) map: LoroMap,
-}
-setters!(MaterialWriter {
-    title: &str => "title",
-    kind: &MaterialKind => "kind",
-    asset: Option<&AssetId> => "asset",
-    folder: Option<&MaterialFolderId> => "folder",
-    pos: &PosKey => "pos",
-    task_todos: bool => "task_todos",
-    provenance: Option<&str> => "provenance",
-});
-impl MaterialWriter {
-    /// What the material is about (plain text; a minimal diff, so concurrent
-    /// edits merge).
-    pub fn description(&self, s: &str) -> Result<&Self> {
-        set_text(&self.map, "description", s)?;
-        Ok(self)
-    }
-}
-
 pub struct MemoryWriter {
     pub(crate) map: LoroMap,
 }
@@ -142,115 +120,17 @@ impl MemoryWriter {
     }
 }
 
-pub struct TreeWriter<'a> {
-    view: CatalogView<'a>,
-    root: &'static str,
-    tree: LoroTree,
+pub struct AssetWriter {
+    pub(crate) map: LoroMap,
 }
+setters!(AssetWriter {
+    name: &str => "name",
+    folder: Option<&str> => "folder",
+    created_at: Option<Timestamp> => "created_at",
+    deleted_at: Option<Timestamp> => "deleted_at",
+});
 
-impl TreeWriter<'_> {
-    /// The kept tree node of a domain id.
-    fn node(&self, id: &str) -> Result<loro::TreeID> {
-        self.view
-            .tree_index(self.root)
-            .get(id)
-            .and_then(|v| v.first().copied())
-            .ok_or_else(|| DocError::Missing {
-                collection: self.root,
-                id: id.to_string(),
-            })
-    }
-
-    fn parent(&self, parent: Option<&str>) -> Result<TreeParentId> {
-        Ok(match parent {
-            Some(p) => TreeParentId::Node(self.node(p)?),
-            None => TreeParentId::Root,
-        })
-    }
-
-    /// Create a node (`id` must be new) under `parent`.
-    pub fn create(&self, id: &str, parent: Option<&str>, name: &str) -> Result<()> {
-        if self.view.tree_index(self.root).contains_key(id) {
-            return Err(DocError::Missing {
-                collection: self.root,
-                id: format!("{id} already exists"),
-            });
-        }
-        let p = self.parent(parent)?;
-        self.tree.enable_fractional_index(0);
-        let t = self.tree.create(p)?;
-        let meta = self.tree.get_meta(t)?;
-        meta.insert("id", id)?;
-        meta.insert("name", name)?;
-        Ok(())
-    }
-
-    pub fn rename(&self, id: &str, name: &str) -> Result<()> {
-        self.tree.get_meta(self.node(id)?)?.insert("name", name)?;
-        Ok(())
-    }
-
-    pub fn set_color(&self, id: &str, color: Option<&str>) -> Result<()> {
-        set(&self.tree.get_meta(self.node(id)?)?, "color", color)
-    }
-
-    /// Move under `parent` (`None`: the root). Loro refuses a cycle, and its
-    /// merge never makes one.
-    pub fn move_to(&self, id: &str, parent: Option<&str>) -> Result<()> {
-        let p = self.parent(parent)?;
-        self.tree.enable_fractional_index(0);
-        self.tree.mov(self.node(id)?, p)?;
-        Ok(())
-    }
-
-    /// Delete a node, moving its children up to its parent first (Loro would
-    /// delete the whole subtree). Every tree node carrying the id goes, so a
-    /// copy made by a concurrent import does not bring it back. Returns the
-    /// parent's domain id, for moving the node's members (ideas, materials)
-    /// up too.
-    fn delete_keep_children(&self, id: &str) -> Result<Option<String>> {
-        let forest = super::read::forest(&self.tree);
-        let Some(me) = forest.iter().find(|n| n.id == id) else {
-            return Err(DocError::Missing {
-                collection: self.root,
-                id: id.to_string(),
-            });
-        };
-        let parent_id = me.parent.clone();
-        let target = match &parent_id {
-            Some(p) => match forest
-                .iter()
-                .find(|n| &n.id == p)
-                .and_then(|n| n.tree_ids.first())
-            {
-                Some(t) => TreeParentId::Node(*t),
-                None => TreeParentId::Root,
-            },
-            None => TreeParentId::Root,
-        };
-        let copies = me.tree_ids.clone();
-        self.tree.enable_fractional_index(0);
-        for t in &copies {
-            for c in self
-                .tree
-                .children(TreeParentId::Node(*t))
-                .unwrap_or_default()
-            {
-                if !copies.contains(&c) {
-                    self.tree.mov(c, target)?;
-                }
-            }
-        }
-        for t in &copies {
-            if !self.tree.is_node_deleted(t).unwrap_or(true) {
-                self.tree.delete(*t)?;
-            }
-        }
-        Ok(parent_id)
-    }
-}
-
-impl<'a> CatalogTxn<'a> {
+impl CatalogTxn<'_> {
     pub(super) fn entity(&self, root: &str, id: &str) -> Result<LoroMap> {
         Ok(self.view.doc.get_map(root).ensure_mergeable_map(id)?)
     }
@@ -259,25 +139,42 @@ impl<'a> CatalogTxn<'a> {
             map: self.entity(book::RELATIONS, id.as_str())?,
         })
     }
-    pub fn material(&mut self, id: &MaterialId) -> Result<MaterialWriter> {
-        Ok(MaterialWriter {
-            map: self.entity(book::MATERIALS, id.as_str())?,
+    pub fn asset(&mut self, id: &AssetId) -> Result<AssetWriter> {
+        Ok(AssetWriter {
+            map: self.entity(book::ASSETS, id.as_str())?,
         })
     }
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
-        if let Some(have) = self.view.assets().into_iter().find(|x| x.id == a.id) {
-            if &have == a {
+        if let Some(have) = self.view.assets_raw().into_iter().find(|x| x.id == a.id) {
+            if have.same_file(a) {
+                let m = self.entity(book::ASSETS, a.id.as_str())?;
+                if have.name.is_empty() && !a.name.is_empty() {
+                    set(&m, "name", a.name.as_str())?;
+                }
+                if have.created_at.is_none() && a.created_at.is_some() {
+                    set(&m, "created_at", a.created_at)?;
+                }
+                if have.folder.is_none() && a.folder.is_some() {
+                    set(&m, "folder", a.folder.as_deref())?;
+                }
+                if have.is_trashed() && !a.is_trashed() {
+                    set(&m, "deleted_at", None::<Timestamp>)?;
+                }
                 return Ok(());
             }
             return Err(DocError::Locked(format!("asset {}", a.id)));
         }
         let m = self.entity(book::ASSETS, a.id.as_str())?;
+        set(&m, "name", a.name.as_str())?;
         set(&m, "kind", &a.kind)?;
         set(&m, "mime", a.mime.as_str())?;
         set(&m, "size", a.size)?;
         set(&m, "sha256", a.sha256.as_str())?;
         set(&m, "width", a.width)?;
         set(&m, "height", a.height)?;
+        set(&m, "created_at", a.created_at)?;
+        set(&m, "folder", a.folder.as_deref())?;
+        set(&m, "deleted_at", a.deleted_at)?;
         Ok(())
     }
     pub fn memory(&mut self, id: &MemoryId) -> Result<MemoryWriter> {
@@ -302,25 +199,6 @@ impl<'a> CatalogTxn<'a> {
         }
         Ok(())
     }
-    pub fn material_folders(&mut self) -> TreeWriter<'a> {
-        TreeWriter {
-            view: self.view,
-            root: book::MATERIAL_FOLDERS,
-            tree: self.view.tree(book::MATERIAL_FOLDERS),
-        }
-    }
-    pub fn delete_material_folder(&mut self, id: &MaterialFolderId) -> Result<()> {
-        let parent = self.material_folders().delete_keep_children(id.as_str())?;
-        let parent = parent.and_then(|p| MaterialFolderId::parse(&p).ok());
-        for m in self.view.doc.get_map(book::MATERIALS).keys() {
-            let map = self.entity(book::MATERIALS, &m)?;
-            if matches!(map.get("folder"), Some(loro::ValueOrContainer::Value(LoroValue::String(g))) if g.as_str() == id.as_str())
-            {
-                set(&map, "folder", parent.as_ref())?;
-            }
-        }
-        Ok(())
-    }
     pub fn restore_fields(
         &mut self,
         root: &'static str,
@@ -332,6 +210,9 @@ impl<'a> CatalogTxn<'a> {
         for key in keys {
             match old.value(key) {
                 None => set(&map, key, None::<&str>)?,
+                Some(LoroValue::Map(want)) if root == book::COMMENTS && *key == "part" => {
+                    map.insert(key, LoroValue::Map(want.clone()))?;
+                }
                 Some(LoroValue::Map(want)) => {
                     // A set or a key/value list: make the members equal.
                     let sub = map.ensure_mergeable_map(key)?;

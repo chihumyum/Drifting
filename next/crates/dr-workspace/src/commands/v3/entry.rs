@@ -13,7 +13,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<EntrySetLevel>();
 }
 
-/// A new, empty entry: no fields, rows or layout yet.
+/// A new, empty entry: no fields or rows yet.
 pub(super) fn new_entry(
     id: EntryId,
     parent: Option<EntryId>,
@@ -26,13 +26,14 @@ pub(super) fn new_entry(
         parent,
         pos: String::new(),
         title,
+        mark: None,
         template,
         level,
         overrides: None,
         fields: BTreeMap::new(),
         kv: BTreeMap::new(),
+        media: BTreeMap::new(),
         primary: None,
-        layout: Default::default(),
         created_at: Some(now()),
         updated_at: None,
         deleted_at: None,
@@ -40,9 +41,43 @@ pub(super) fn new_entry(
     }
 }
 
-/// What lies below `id` in `v`, if it is a live entry whose switch is on.
+pub(super) fn mark_missing_media(entry: &mut types::Entry, known_assets: &BTreeSet<String>) {
+    for items in entry.media.values_mut() {
+        for item in items {
+            item.missing = !known_assets.contains(&item.asset);
+        }
+    }
+    if let Some(b) = &mut entry.below {
+        for child in b.children.iter_mut().flatten() {
+            mark_missing_media(child, known_assets);
+        }
+        for member in b.members.iter_mut().flatten() {
+            mark_missing_media(member, known_assets);
+        }
+    }
+}
+
+/// What lies below `id` in `v`, if it is a live entry with `level` or `accept` on
+/// (`kernel-v5.md` §16: `children` only when `level` is on, `members` only when
+/// `accept` is on, and an entry both residing in and attached to `id` is listed
+/// once under `children`).
 pub(super) fn below(v: &dr_doc::v3::BookStructureV3, id: &EntryId) -> Option<Box<types::Below>> {
+    let entry = v.entry(id)?;
     let settings = v.level_settings(id)?;
+    let children: Option<Vec<types::Entry>> = entry.is_level().then(|| {
+        v.children_of(Some(id))
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    });
+    let child_ids: BTreeSet<&str> = children.iter().flatten().map(|c| c.id.as_str()).collect();
+    let members: Option<Vec<types::Entry>> = entry.accepts_members(v.templates_map()).then(|| {
+        v.members_of(id)
+            .into_iter()
+            .filter(|m| !child_ids.contains(m.id.as_str()))
+            .map(Into::into)
+            .collect()
+    });
     Some(Box::new(types::Below {
         settings: (&settings.settings).into(),
         sources: settings
@@ -50,12 +85,8 @@ pub(super) fn below(v: &dr_doc::v3::BookStructureV3, id: &EntryId) -> Option<Box
             .iter()
             .map(|(k, s)| (k.clone(), s.into()))
             .collect(),
-        children: v
-            .children_of(Some(id))
-            .into_iter()
-            .map(Into::into)
-            .collect(),
-        members: v.members_of(id).into_iter().map(Into::into).collect(),
+        children,
+        members,
     }))
 }
 
@@ -80,7 +111,10 @@ op! {
     EntryList = "entry.list", Read, Shared, "Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.",
     fn(cx, input: ListIn) -> Vec<types::Entry> {
         let slot = cx.book_v3(&input.book)?;
-        let v = slot.reader_v3.view().structure_snapshot();
+        let view = slot.reader_v3.view();
+        let known_assets: BTreeSet<String> =
+            view.assets().into_iter().map(|a| a.id.to_string()).collect();
+        let v = view.structure_snapshot();
         let p: Option<EntryId> = input
             .parent
             .as_deref()
@@ -99,6 +133,7 @@ op! {
                     if input.below {
                         out.below = below(&v, &e.id);
                     }
+                    mark_missing_media(&mut out, &known_assets);
                     out
                 })
                 .collect(),
@@ -114,10 +149,14 @@ op! {
         let e = view
             .entry(&id)
             .ok_or_else(|| WsError::not_found("entry", &input.id))?;
+        let known_assets: BTreeSet<String> =
+            view.assets().into_iter().map(|a| a.id.to_string()).collect();
         let mut out: types::Entry = (&e).into();
-        if e.is_level() && !e.is_trashed() {
-            out.below = below(&view.structure_snapshot(), &id);
+        let snap = view.structure_snapshot();
+        if e.has_below(snap.templates_map()) && !e.is_trashed() {
+            out.below = below(&snap, &id);
         }
+        mark_missing_media(&mut out, &known_assets);
         Ok(out)
     }
 }
@@ -130,9 +169,16 @@ pub use super::types::SettingSource;
 pub struct CreateIn {
     pub book: String,
     pub title: String,
-    /// The level from which creation is requested; its default template and home apply.
+    /// Residence (`住进`): the root (`None`) or a live entry with `level == true`.
+    /// Mutually exclusive with `host`.
     #[serde(default)]
     pub parent: Option<String>,
+    /// Membership host (`挂到`): a live entry with `accept == true`.
+    /// Mutually exclusive with `parent`.
+    #[serde(default)]
+    pub host: Option<String>,
+    #[serde(default)]
+    pub mark: Option<String>,
     #[serde(default)]
     pub template: Option<String>,
     /// The new entry's switch; the template's default when omitted.
@@ -143,32 +189,56 @@ pub struct CreateIn {
     pub bodies: BTreeMap<String, String>,
 }
 op! {
-    EntryCreate = "entry.create", Write, Book, "Create an entry with its template, switch, residence, membership and initial module content.",
+    EntryCreate = "entry.create", Write, Book, "Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).",
     fn(cx,input:CreateIn)->types::Entry {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
         let before = v.graph();
-        let context: Option<EntryId> = input
-            .parent
-            .as_deref()
-            .map(|s| pid("parent", s))
-            .transpose()?;
-        m::check_parent_is_level(context.as_ref(), &before.entries)?;
+        if input.parent.is_some() && input.host.is_some() {
+            return Err(WsError::invalid("parent and host cannot both be set"));
+        }
+        let (parent, host, default_source): (Option<EntryId>, Option<EntryId>, Option<EntryId>) =
+            if let Some(host_str) = &input.host {
+                let host_id = live(&v, host_str)?.id;
+                if !before.entries[&host_id].accepts_members(&before.templates) {
+                    return Err(WsError::invalid("host does not accept memberships"));
+                }
+                let res =
+                    m::resolve_host_residence(&host_id, &before.entries, &before.templates);
+                m::check_parent_is_level(res.as_ref(), &before.entries)?;
+                (res, Some(host_id.clone()), Some(host_id))
+            } else {
+                let par = input
+                    .parent
+                    .as_deref()
+                    .map(|s| pid("parent", s))
+                    .transpose()?;
+                m::check_parent_is_level(par.as_ref(), &before.entries)?;
+                (par.clone(), None, par)
+            };
         let template = input
             .template
             .as_deref()
             .map(|s| pid("template", s))
             .transpose()?
             .or_else(|| {
-                m::resolve_level_settings(context.as_ref(), &before.entries, &before.templates)
-                    .default_template
+                m::resolve_level_settings(
+                    default_source.as_ref(),
+                    &before.entries,
+                    &before.templates,
+                )
+                .default_template
             });
         m::check_entry_template(&before.templates, template.as_ref())?;
-        let parent =
-            m::resolve_new_entry_residence(context.as_ref(), &before.entries, &before.templates);
-        m::check_parent_is_level(parent.as_ref(), &before.entries)?;
         let id = EntryId::new_v7();
         name_ok(&input.title)?;
+        if let Some(mark) = &input.mark
+            && !m::is_valid_mark(mark)
+        {
+            return Err(WsError::invalid(
+                "mark must be a sand mark name or a single character",
+            ));
+        }
         let level = input.level.unwrap_or_else(|| {
             template
                 .as_ref()
@@ -182,6 +252,7 @@ op! {
             template.clone(),
             level,
         );
+        e.mark = input.mark;
         if let Some(t) = e.effective_template(&before.templates) {
             for module in &t.modules {
                 if module.kind == m::ModuleKind::Fields {
@@ -209,7 +280,6 @@ op! {
         }
         let mut after = before.clone();
         after.entries.insert(id.clone(), e.clone());
-        let host = context.filter(|c| Some(c) != parent.as_ref());
         if let Some(h) = &host {
             m::check_membership(h, &id, &after.entries, &after.templates)?;
             after.memberships.push(m::Membership {
@@ -221,9 +291,25 @@ op! {
             e.primary = Some(h.clone());
         }
         changes_ok(&before, &after)?;
+        let mut seen_views = BTreeSet::new();
+        let mut auto_views: Vec<(TimelineViewId, f64)> = Vec::new();
+        for lane_cand in [host.as_ref(), parent.as_ref()].into_iter().flatten() {
+            for tv in membership::live_views_with_lane(&v, lane_cand) {
+                if seen_views.insert(tv.id.clone()) {
+                    let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                        &tv,
+                        &before.memberships,
+                        &before.entries,
+                        &before.templates,
+                    ));
+                    auto_views.push((tv.id, end));
+                }
+            }
+        }
         module::initialize(cx, &slot, &e, &before.templates, &input.bodies)?;
         let saved = e.clone();
         let h = host.clone();
+        let placed_views = auto_views.clone();
         let (_, at) = cx.write_book_v3(&slot, Replaces::nothing(), move |t| {
             let w = t.entries().create(
                 &saved.id,
@@ -232,7 +318,9 @@ op! {
                 saved.template.as_ref(),
                 saved.level,
             )?;
-            w.created_at(saved.created_at)?.primary(h.as_ref())?;
+            w.created_at(saved.created_at)?
+                .mark(saved.mark.as_deref())?
+                .primary(h.as_ref())?;
             for (module, fields) in &saved.fields {
                 for (field_id, value) in fields {
                     w.set_field(module, field_id, Some(value))?;
@@ -246,11 +334,17 @@ op! {
             if let Some(h) = &h {
                 t.put_membership(h, &saved.id, None, Some(now()))?;
             }
+            for (vid, end) in &placed_views {
+                t.timeline_view(vid)?.put_placement(&saved.id, *end, None)?;
+            }
             Ok(())
         })?;
         let mut keys = vec![key("entries", &id)];
         if let Some(h) = host {
             keys.push(key("memberships", m::Membership::key(&h, &id)));
+        }
+        for (vid, _) in &auto_views {
+            keys.push(key("timeline_views", vid));
         }
         undo(cx, &slot, &at, keys);
         cx.effect(EffectAction::Created, "entry", id.as_str(), Some(&e.title));
@@ -268,6 +362,12 @@ pub struct UpdateIn {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "crate::commands::double_option"
     )]
+    pub mark: Option<Option<String>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
     pub template: Option<Option<String>>,
     #[serde(
         default,
@@ -275,11 +375,9 @@ pub struct UpdateIn {
         deserialize_with = "crate::commands::double_option"
     )]
     pub overrides: Option<Option<types::LevelSettingsOverride>>,
-    #[serde(default)]
-    pub layout: Option<types::EntryLayout>,
 }
 op! {
-    EntryUpdate = "entry.update", Write, Book, "Rename an entry, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.",
+    EntryUpdate = "entry.update", Write, Book, "Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.",
     fn(cx,input:UpdateIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
@@ -289,11 +387,21 @@ op! {
             input.title.is_some(),
             input.template.is_some(),
             input.overrides.is_some(),
-            input.layout.is_some(),
+            input.mark.is_some(),
         );
         if let Some(title) = input.title {
             name_ok(&title)?;
             e.title = title.trim().into();
+        }
+        if let Some(mark) = input.mark {
+            if let Some(m_str) = &mark
+                && !m::is_valid_mark(m_str)
+            {
+                return Err(WsError::invalid(
+                    "mark must be a sand mark name or a single character",
+                ));
+            }
+            e.mark = mark;
         }
         if let Some(template) = input.template {
             let template = template
@@ -304,23 +412,24 @@ op! {
             e.template = template;
         }
         if let Some(overrides) = input.overrides {
-            if !e.is_level() {
-                return Err(WsError::invalid(
-                    "only an entry with its switch on has overrides; turn it on first",
-                ));
-            }
+            let had_below = e.has_below(&templates);
             e.overrides = overrides.map(convert).transpose()?;
+            let has_below = e.has_below(&templates);
             if let Some(s) = &e.overrides {
+                let has_below_only_fields = s.default_template.is_some()
+                    || s.display.is_some()
+                    || s.auto_link.is_some()
+                    || s.home.is_some()
+                    || s.format_shortcuts.is_some();
+                if has_below_only_fields && !had_below && !has_below {
+                    return Err(WsError::invalid(
+                        "only an entry with its level or accept switch on has below settings; turn one on first",
+                    ));
+                }
                 settings_ok(s, &v)?;
             }
         }
-        if let Some(layout) = input.layout {
-            e.layout = convert(layout)?;
-            if e.layout.sanitized() != e.layout {
-                return Err(WsError::invalid("layout coordinates must be finite"));
-            }
-        }
-        // A layout change alone touches nothing the structural checks read.
+        // A mark change alone touches nothing the structural checks read.
         if set.0 || set.1 || set.2 {
             let before = v.graph();
             let mut after = before.clone();
@@ -343,7 +452,7 @@ op! {
             ("title", set.0),
             ("template", set.1),
             ("overrides", set.2),
-            ("layout", set.3),
+            ("mark", set.3),
         ]
         .into_iter()
         .filter(|(_, named)| *named)
@@ -360,7 +469,7 @@ op! {
                 w.overrides(e.overrides.as_ref())?;
             }
             if set.3 {
-                w.layout(&e.layout)?;
+                w.mark(e.mark.as_deref())?;
             }
             Ok(())
         })?;
@@ -379,7 +488,7 @@ pub struct MoveIn {
     pub index: Option<usize>,
 }
 op! {
-    EntryMove = "entry.move", Write, Book, "Move an entry's residence and manuscript position; the new residence is the root or a live entry whose switch is on.",
+    EntryMove = "entry.move", Write, Book, "Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order.",
     fn(cx,input:MoveIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
@@ -392,6 +501,173 @@ op! {
             .transpose()?;
         m::check_entry_move(&before.entries, &e.id, parent.as_ref())?;
         m::check_parent_is_level(parent.as_ref(), &before.entries)?;
+        let mut after = before.clone();
+        if let Some(h) = after.entries.get_mut(&e.id) {
+            h.parent = parent.clone();
+        }
+        changes_ok(&before, &after)?;
+
+        let snapshot = v.structure_snapshot();
+        let old_parent = e.parent.clone();
+        let target_ref_view = parent
+            .as_ref()
+            .and_then(|pid| snapshot.lane_reference_view(pid));
+
+        // Prune orphaned placements when moving out of a folder that was in live views.
+        let mut pruned_views: Vec<TimelineViewId> = Vec::new();
+        if old_parent != parent
+            && let Some(old_pid) = &old_parent
+        {
+            for tv in membership::live_views_with_lane(&v, old_pid) {
+                if m::effective_timeline_placements(
+                    &tv,
+                    &before.memberships,
+                    &before.entries,
+                    &before.templates,
+                )
+                .iter()
+                .any(|p| p.entry == e.id)
+                    && !m::is_entry_in_view_lanes(
+                        &tv,
+                        &e.id,
+                        &after.memberships,
+                        &after.entries,
+                        &after.templates,
+                    )
+                {
+                    pruned_views.push(tv.id);
+                }
+            }
+        }
+
+        let id = e.id.clone();
+        let moved = Replaces::record(CollectionV3::Entries, &e.id);
+        let mut keys = vec![key("entries", &id)];
+        let mut touched_views: BTreeSet<TimelineViewId> = pruned_views.iter().cloned().collect();
+
+        if let Some(ref_tv) = target_ref_view {
+            let ref_vid = ref_tv.id.clone();
+            let pid = parent.as_ref().unwrap();
+            let peers: Vec<EntryId> = snapshot
+                .residents_along_view(ref_tv, pid)
+                .into_iter()
+                .filter(|x| x.id != e.id)
+                .map(|x| x.id.clone())
+                .collect();
+            let count = peers.len();
+            let index = input.index.unwrap_or(count);
+            if index > count {
+                return Err(WsError::invalid("index exceeds sibling count"));
+            }
+
+            let mut placements_to_write: Vec<(TimelineViewId, EntryId, f64, Option<f64>)> =
+                Vec::new();
+            let live_views = membership::live_views_with_lane(&v, pid);
+
+            if input.index.is_none() && old_parent != parent {
+                // Entering a view-governed folder without an explicit index:
+                // land at scale end in every live view containing `pid` where unplaced.
+                for tv in &live_views {
+                    if v.timeline_placement_snapshot(&tv.id, &e.id)?.is_none() {
+                        let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                            tv,
+                            &before.memberships,
+                            &before.entries,
+                            &before.templates,
+                        ));
+                        placements_to_write.push((tv.id.clone(), e.id.clone(), end, None));
+                        touched_views.insert(tv.id.clone());
+                    }
+                }
+            } else {
+                // Compute scale updates on `ref_vid` so `e.id` lands at `index` among `peers`.
+                let eff_ps = m::effective_timeline_placements(
+                    ref_tv,
+                    &after.memberships,
+                    &after.entries,
+                    &after.templates,
+                );
+                let mut at_map: BTreeMap<EntryId, (f64, Option<f64>)> = eff_ps
+                    .iter()
+                    .map(|p| (p.entry.clone(), (p.at, p.span)))
+                    .collect();
+                let mut next_end = m::timeline_scale_end(&eff_ps);
+                for peer in &peers {
+                    if !at_map.contains_key(peer) {
+                        at_map.insert(peer.clone(), (next_end, None));
+                        placements_to_write.push((ref_vid.clone(), peer.clone(), next_end, None));
+                        next_end += 1.0;
+                    }
+                }
+                let e_span = at_map.get(&e.id).and_then(|(_, sp)| *sp);
+                let peer_ats: Vec<f64> = peers.iter().map(|p| at_map[p].0).collect();
+                let target_at = if count == 0 {
+                    next_end
+                } else if index == 0 {
+                    peer_ats[0] - 1.0
+                } else if index == count {
+                    peer_ats[count - 1] + 1.0
+                } else {
+                    let left = peer_ats[index - 1];
+                    let right = peer_ats[index];
+                    let mid = (left + right) / 2.0;
+                    if left < mid && mid < right {
+                        mid
+                    } else {
+                        for peer in &peers[index..] {
+                            let (cur_at, cur_sp) = at_map[peer];
+                            placements_to_write.push((
+                                ref_vid.clone(),
+                                peer.clone(),
+                                cur_at + 1.0,
+                                cur_sp,
+                            ));
+                        }
+                        left + 0.5
+                    }
+                };
+                placements_to_write.push((ref_vid.clone(), e.id.clone(), target_at, e_span));
+                touched_views.insert(ref_vid.clone());
+
+                if old_parent != parent {
+                    for tv in &live_views {
+                        if tv.id != ref_vid
+                            && v.timeline_placement_snapshot(&tv.id, &e.id)?.is_none()
+                        {
+                            let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                                tv,
+                                &before.memberships,
+                                &before.entries,
+                                &before.templates,
+                            ));
+                            placements_to_write.push((tv.id.clone(), e.id.clone(), end, None));
+                            touched_views.insert(tv.id.clone());
+                        }
+                    }
+                }
+            }
+
+            let change_residence = old_parent != parent;
+            let (_, at) = cx.write_book_v3(&slot, moved, move |t| {
+                if change_residence {
+                    t.entries().move_to(&e.id, parent.as_ref())?;
+                }
+                for vid in &pruned_views {
+                    t.timeline_view(vid)?.remove_placement(&e.id)?;
+                }
+                for (vid, eid, coord, span) in &placements_to_write {
+                    t.timeline_view(vid)?.put_placement(eid, *coord, *span)?;
+                }
+                Ok(())
+            })?;
+            for vid in touched_views {
+                keys.push(key("timeline_views", vid));
+            }
+            undo(cx, &slot, &at, keys);
+            cx.effect(EffectAction::Moved, "entry", id.as_str(), None);
+            return Ok(Done { id: input.id });
+        }
+
         let count = before
             .entries
             .values()
@@ -401,19 +677,17 @@ op! {
         if index > count {
             return Err(WsError::invalid("index exceeds sibling count"));
         }
-        let mut after = before.clone();
-        if let Some(h) = after.entries.get_mut(&e.id) {
-            h.parent = parent.clone();
-        }
-        changes_ok(&before, &after)?;
-        let id = e.id.clone();
-        // The residence is part of the entry's own record.
-        let moved = Replaces::record(CollectionV3::Entries, &e.id);
         let (_, at) = cx.write_book_v3(&slot, moved, move |t| {
             t.entries().move_to_at(&e.id, parent.as_ref(), index)?;
+            for vid in &pruned_views {
+                t.timeline_view(vid)?.remove_placement(&e.id)?;
+            }
             Ok(())
         })?;
-        undo(cx, &slot, &at, vec![key("entries", &id)]);
+        for vid in touched_views {
+            keys.push(key("timeline_views", vid));
+        }
+        undo(cx, &slot, &at, keys);
         cx.effect(EffectAction::Moved, "entry", id.as_str(), None);
         Ok(Done { id: input.id })
     }
@@ -448,28 +722,84 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     for id in &ids {
         entries.get_mut(id).unwrap().deleted_at = stamp;
     }
+    let mut relocated: Vec<(EntryId, Option<EntryId>)> = Vec::new();
+    let mut auto_placements: Vec<(TimelineViewId, EntryId, f64)> = Vec::new();
     if !trashed {
+        // If a restored entry's stored parent can no longer hold entries
+        // (missing, trashed, or `level == false`), relocate it to the nearest
+        // live ancestor with `level == true`, or the root (`kernel-v5.md` §16).
+        for rid in &ids {
+            let needs_relocate = match entries[rid].parent.as_ref() {
+                None => false,
+                Some(p) => !entries
+                    .get(p)
+                    .is_some_and(|pe| !pe.is_trashed() && pe.is_level()),
+            };
+            if needs_relocate {
+                let mut cur = entries[rid].parent.clone();
+                let mut seen = BTreeSet::new();
+                let mut new_parent = None;
+                while let Some(anc) = cur {
+                    if !seen.insert(anc.clone()) {
+                        break;
+                    }
+                    let Some(ae) = entries.get(&anc) else {
+                        break;
+                    };
+                    if !ae.is_trashed() && ae.is_level() {
+                        new_parent = Some(anc);
+                        break;
+                    }
+                    cur = ae.parent.clone();
+                }
+                entries.get_mut(rid).unwrap().parent = new_parent.clone();
+                relocated.push((rid.clone(), new_parent));
+            }
+        }
         let after = BookGraphV3 {
-            entries,
+            entries: entries.clone(),
             ..before.clone()
         };
         changes_ok(&before, &after)?;
+        for (rid, np) in &relocated {
+            if let Some(np) = np {
+                for tv in membership::live_views_with_lane(&v, np) {
+                    if v.timeline_placement_snapshot(&tv.id, rid)?.is_none() {
+                        let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                            &tv,
+                            &after.memberships,
+                            &after.entries,
+                            &after.templates,
+                        ));
+                        auto_placements.push((tv.id, rid.clone(), end));
+                    }
+                }
+            }
+        }
     }
     let changed = ids.clone();
+    let reloc_writes = relocated;
+    let place_writes = auto_placements.clone();
     // The named entry; the subtree that follows it is planned above.
     let named = rec(CollectionV3::Entries, &input.id).at(["deleted_at"]);
     let (_, at) = cx.write_book_v3(&slot, Replaces::records([named]), move |t| {
+        for (rid, new_parent) in &reloc_writes {
+            t.entries().move_to(rid, new_parent.as_ref())?;
+        }
         for id in changed {
             t.entries().entry(&id)?.deleted_at(stamp)?;
         }
+        for (vid, rid, end) in &place_writes {
+            t.timeline_view(vid)?.put_placement(rid, *end, None)?;
+        }
         Ok(())
     })?;
-    undo(
-        cx,
-        &slot,
-        &at,
-        ids.iter().map(|id| key("entries", id)).collect(),
-    );
+    let mut keys: Vec<_> = ids.iter().map(|id| key("entries", id)).collect();
+    let placed_vids: BTreeSet<_> = auto_placements.into_iter().map(|(vid, _, _)| vid).collect();
+    for vid in placed_vids {
+        keys.push(key("timeline_views", vid));
+    }
+    undo(cx, &slot, &at, keys);
     for id in ids {
         cx.effect(
             if trashed {
@@ -490,7 +820,7 @@ op! {
     }
 }
 op! {
-    EntryRestore="entry.restore",Write,Book,"Restore an entry and what lives under it from trash.",fn(cx,input:EntityIn)->Done {
+    EntryRestore="entry.restore",Write,Book,"Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root.",fn(cx,input:EntityIn)->Done {
         trash(cx, input, false)
     }
 }
@@ -506,12 +836,12 @@ pub struct SetLevelIn {
 pub struct SetLevelOut {
     pub id: String,
     pub level: bool,
-    /// The direct children moved to the root when the switch went off, in
-    /// their order (trashed ones included).
-    pub moved: Vec<String>,
+    /// Live descendants moved to the trash in place when the switch went off,
+    /// in pre-order (already-trashed entries excluded).
+    pub trashed: Vec<String>,
 }
 op! {
-    EntrySetLevel = "entry.set_level", Write, Book, "Turn an entry's switch for what lives below it on or off. Turning it off moves its direct children (trashed ones included) to the root right after the top-level entry it lives under, each with its subtree, in one commit that one undo reverts; its settings, memberships and swimlane are kept and come back when it is turned on.",
+    EntrySetLevel = "entry.set_level", Write, Book, "Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts.",
     fn(cx, input: SetLevelIn) -> SetLevelOut {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
@@ -521,22 +851,32 @@ op! {
             return Ok(SetLevelOut {
                 id: input.id,
                 level: input.level,
-                moved: Vec::new(),
+                trashed: Vec::new(),
             });
         }
         let before = v.graph();
-        // Direct children by stored residence, trashed ones included.
-        let children: Vec<EntryId> = before
+        let has_children = before
             .entries
             .values()
-            .filter(|c| c.parent.as_ref() == Some(&e.id))
-            .map(|c| c.id.clone())
-            .collect();
+            .any(|c| c.parent.as_ref() == Some(&e.id));
+        let stamp = now();
         let mut after = before.clone();
         if !input.level {
-            for c in &children {
-                if let Some(h) = after.entries.get_mut(c) {
-                    h.parent = None;
+            let mut to_trash = BTreeSet::new();
+            let mut frontier = vec![e.id.clone()];
+            while let Some(cur) = frontier.pop() {
+                for c in before.entries.values() {
+                    if c.parent.as_ref() == Some(&cur)
+                        && !c.is_trashed()
+                        && to_trash.insert(c.id.clone())
+                    {
+                        frontier.push(c.id.clone());
+                    }
+                }
+            }
+            for tid in &to_trash {
+                if let Some(h) = after.entries.get_mut(tid) {
+                    h.deleted_at = Some(stamp);
                 }
             }
         }
@@ -547,7 +887,7 @@ op! {
         // The switch, and when it goes off with entries below, the order of
         // those entries: a caller that read them is held to what it read.
         let mut replaced = vec![rec(CollectionV3::Entries, &e.id).at(["level"])];
-        if !input.level && !children.is_empty() {
+        if !input.level && has_children {
             replaced.push(dr_doc::v3::RecordKeyV3::children(
                 CollectionV3::Entries,
                 Some(e.id.as_str()),
@@ -555,25 +895,25 @@ op! {
         }
         let id = e.id.clone();
         let level = input.level;
-        let (moved, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |t| {
+        let (trashed, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |t| {
             if level {
                 t.entries().entry(&id)?.level(true)?;
                 Ok(Vec::new())
             } else {
-                Ok(t.entries().switch_level_off(&id)?)
+                Ok(t.entries().switch_level_off(&id, stamp)?)
             }
         })?;
         let mut keys = vec![key("entries", &e.id)];
-        keys.extend(moved.iter().map(|c| key("entries", c)));
+        keys.extend(trashed.iter().map(|c| key("entries", c)));
         undo(cx, &slot, &at, keys);
         cx.effect(EffectAction::Updated, "entry", e.id.as_str(), Some(&e.title));
-        for c in &moved {
-            cx.effect(EffectAction::Moved, "entry", c.as_str(), None);
+        for c in &trashed {
+            cx.effect(EffectAction::Trashed, "entry", c.as_str(), None);
         }
         Ok(SetLevelOut {
             id: input.id,
             level: input.level,
-            moved: moved.iter().map(ToString::to_string).collect(),
+            trashed: trashed.iter().map(ToString::to_string).collect(),
         })
     }
 }

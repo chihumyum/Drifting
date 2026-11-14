@@ -44,7 +44,7 @@ fn only_in_book_prose_drives_stats_shelf_cover_targets_and_recorder() {
         .to_owned();
     call(
         &ws,
-        "book.update",
+        "project.update",
         json!({"book": book, "word_target": 100, "daily_word_target": 40}),
     );
 

@@ -88,7 +88,7 @@ fn test_modules(path: &str, text: &str) -> Vec<String> {
     out
 }
 fn old_command() -> Regex {
-    Regex::new(r#"\"(?:book\.create|history\.(?:agent_changes|undo_agent)|level\.(?:get|list)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin)\.[a-z_]+)\""#).expect("cutover pattern")
+    Regex::new(r#"\"(?:book\.create|todo\.project|history\.(?:agent_changes|undo_agent)|level\.(?:get|list)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin|material|material_folder)\.[a-z_]+)\""#).expect("cutover pattern")
 }
 pub fn run(repo: &Repo) -> Result<Outcome, String> {
     let mut out = Outcome::default();
@@ -183,6 +183,9 @@ pub fn run(repo: &Repo) -> Result<Outcome, String> {
         "next/crates/dr-workspace/src/commands/chapter.rs",
         "next/crates/dr-workspace/src/commands/idea.rs",
         "next/crates/dr-workspace/src/commands/element.rs",
+        "next/crates/dr-workspace/src/commands/material.rs",
+        "next/crates/dr-workspace/src/commands/v3/material_links.rs",
+        "next/crates/dr-workspace/src/commands/v3/history_folders.rs",
         "next/crates/dr-view-ideas/Cargo.toml",
     ] {
         if repo.path(file).is_file() {
@@ -224,6 +227,9 @@ mod tests {
             "plot_grid.get",
             "level.get",
             "level.list",
+            "todo.project",
+            "material.create",
+            "material_folder.list",
         ] {
             assert!(old_command().is_match(&format!("\"{name}\"")));
         }
@@ -232,10 +238,13 @@ mod tests {
             "entry.create",
             "entry_template.list",
             "module.put_grid",
+            "module.put_media",
+            "asset.list",
             "memory.add",
             "fact.put",
             "relation.create",
             "entry.set_level",
+            "comment.project",
         ] {
             assert!(!old_command().is_match(&format!("\"{name}\"")));
         }

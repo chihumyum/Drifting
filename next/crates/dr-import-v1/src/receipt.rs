@@ -93,6 +93,18 @@ pub struct AnchorRecord {
     pub cursor: bool,
 }
 
+/// A 0.1 `entityLink` pointing to an image or PDF material that became plain
+/// text because assets are not entries (`kernel-v5.md` §13).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedAssetLink {
+    pub doc_id: String,
+    pub old_doc_id: String,
+    pub material_id: String,
+    pub material_title: String,
+    pub text: String,
+}
+
 /// One book.
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,6 +132,12 @@ pub struct BookRecord {
     /// 0.1 body templates (a category's element template, a storyline's
     /// chapter template) written into their template documents.
     pub templates: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unlinked_asset_links: Vec<UnlinkedAssetLink>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub material_assets: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub non_text_materials: BTreeMap<String, String>,
 }
 
 /// Everything one import did.
@@ -440,6 +458,9 @@ fn explain(key: &str) -> Option<&'static str> {
         "act-binding-kept-existing-placement" => {
             "幕绑定的构想在默认时间线视图里原本就有位置，保留了原位置而未用幕跨度覆盖"
         }
+        "entity-link-to-asset-kept-as-text" => {
+            "正文中指向图片或 PDF 素材的链接已转为普通文字（文件进素材库，不再是条目），逐条列在下方"
+        }
         _ => return None,
     })
 }
@@ -557,6 +578,16 @@ pub fn summary_zh(r: &Receipt) -> String {
             s.push_str("和旧版不完全一样的地方：\n\n");
             for (k, v, e) in lossy {
                 s.push_str(&format!("- {e}（{v} 处，`{k}`）\n"));
+            }
+            s.push('\n');
+        }
+        if !b.unlinked_asset_links.is_empty() {
+            s.push_str("已转为普通文字的图片 / PDF 素材链接明细：\n\n");
+            for item in &b.unlinked_asset_links {
+                s.push_str(&format!(
+                    "- `{}` 中「{}」→ 原素材「{}」（`{}`）\n",
+                    item.old_doc_id, item.text, item.material_title, item.material_id
+                ));
             }
             s.push('\n');
         }

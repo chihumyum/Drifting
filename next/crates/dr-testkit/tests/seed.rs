@@ -198,7 +198,28 @@ fn check_v3_invariants(book: &seed::SeededBookV3) {
     for m in &memberships {
         assert!(dr_model::v3::check_membership(&m.host, &m.member, &entries, &templates).is_ok());
     }
-    assert_eq!(view.manuscript_levels().len(), 1);
+    let views_map: std::collections::BTreeMap<_, _> = view
+        .timeline_views_raw()
+        .into_iter()
+        .map(|tv| (tv.id.clone(), tv))
+        .collect();
+    let proj = view.project();
+    assert!(proj.book.is_some());
+    assert!(
+        dr_model::v3::check_book_root(
+            &proj.book.as_ref().unwrap().root,
+            &entries,
+            &templates,
+            &views_map,
+        )
+        .is_ok()
+    );
+    for tab in &proj.tabs {
+        assert!(
+            dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &templates, &views_map)
+                .is_ok()
+        );
+    }
     for tv in view.timeline_views_raw() {
         for l in &tv.lanes {
             assert!(dr_model::v3::check_timeline_lane(&l.entry, &entries, &templates).is_ok());
@@ -255,8 +276,9 @@ fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
         .filter(|(n, _)| *n != "todos" && *n != "comments")
         .map(|(_, b)| b.count)
         .sum();
-    // The prose, the book, and the two documents beside it.
-    assert_eq!(shape.documents, prose_bodies + 3);
+    // The prose, the book, and the three documents beside it (`stats:`,
+    // `checkpoints:`, `layout:`).
+    assert_eq!(shape.documents, prose_bodies + 4);
 
     let book = &s.books[0];
     check_v3_invariants(book);
@@ -265,12 +287,16 @@ fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
     let ms = view
         .root_entry_by_template(&tpl_ms)
         .expect("manuscript root entry");
+    assert_eq!(
+        view.project().book.as_ref().map(|b| &b.root),
+        Some(&dr_model::v3::BookRoot::Entry {
+            entry: ms.id.clone(),
+        })
+    );
     let structure = view.structure_snapshot();
     let leaves: Vec<_> = structure
-        .manuscript()
+        .book_sequence()
         .into_iter()
-        .filter(|p| p.root.id == ms.id)
-        .flat_map(|p| p.entries)
         .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.clone())
         .collect();
@@ -302,11 +328,11 @@ fn v3_tiny_lite_and_heavy_align_with_v2_scale_and_pinned_fingerprints() {
         );
         if *preset != Preset::Heavy {
             let v2 = seed::generate(*preset, DEFAULT_SEED).unwrap();
-            // A v3 seed writes the two documents beside each book
-            // (`stats:`, `checkpoints:`) on top of what a v2 seed writes;
-            // everything else matches.
+            // A v3 seed writes the three documents beside each book
+            // (`stats:`, `checkpoints:`, `layout:`) on top of what a v2 seed
+            // writes; everything else matches.
             let mut shape = v3.shape();
-            let beside = 2 * v3.books.len();
+            let beside = 3 * v3.books.len();
             assert_eq!(
                 shape.documents,
                 v2.shape().documents + beside,
@@ -352,12 +378,16 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
     let ms = view
         .root_entry_by_template(&tpl_ms)
         .expect("manuscript root entry");
+    assert_eq!(
+        view.project().book.as_ref().map(|b| &b.root),
+        Some(&dr_model::v3::BookRoot::Entry {
+            entry: ms.id.clone(),
+        })
+    );
     let structure = view.structure_snapshot();
     let chapters: Vec<_> = structure
-        .manuscript()
+        .book_sequence()
         .into_iter()
-        .filter(|p| p.root.id == ms.id)
-        .flat_map(|p| p.entries)
         .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.clone())
         .collect();

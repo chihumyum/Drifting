@@ -96,7 +96,17 @@ fn v3_creation_obeys_home_template_and_retains_module_data() {
     let ms = root(&e, &b, "tpl-manuscript");
     let lines = root(&e, &b, "tpl-storylines");
     let lane = create(&e, &b, &lines, "Lane", "tpl-storyline");
-    let chapter=e.out("entry.create",json!({"book":b,"parent":lane,"title":"Draft","bodies":{"mod-prose":"Synthetic first paragraph"}}));
+    assert!(
+        e.try_call(
+            "entry.create",
+            json!({"book":b,"parent":lane,"title":"Refused resident"})
+        )
+        .is_err()
+    );
+    let chapter = e.out(
+        "entry.create",
+        json!({"book":b,"host":lane,"title":"Draft","bodies":{"mod-prose":"Synthetic first paragraph"}}),
+    );
     let id = chapter["id"].as_str().unwrap();
     assert_eq!(chapter["parent"], ms);
     assert_eq!(chapter["template"], "tpl-chapter");
@@ -232,10 +242,23 @@ fn v3_structure_validation_happens_before_writes() {
     );
     assert_eq!(at, version(&e, &b));
     let group = create(&e, &b, &ms, "Group", "tpl-group");
+    e.call(
+        "entry.set_level",
+        json!({"book":b,"id":group,"level":false}),
+    );
+    // `tpl-group` declares `accept: true`, so `group` remains a valid book root until `accept` is turned off too.
+    e.call(
+        "project.update",
+        json!({"book":b,"root":{"kind":"entry","entry":group}}),
+    );
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":group,"overrides":{"accept":false}}),
+    );
     assert!(
         e.try_call(
-            "entry.update",
-            json!({"book":b,"id":group,"overrides":{"is_manuscript":true}})
+            "project.update",
+            json!({"book":b,"root":{"kind":"entry","entry":group}})
         )
         .is_err()
     );
@@ -569,10 +592,11 @@ fn v3_content_modules_roundtrip_and_restore_independently() {
     );
 }
 #[test]
-fn v3_autolinks_use_memberships_and_invalidate_after_alias_edits() {
+fn v3_autolinks_use_residence_only_and_ignore_membership_changes() {
     let e = env();
     let b = project(&e);
     let ms = root(&e, &b, "tpl-manuscript");
+    let ideas = root(&e, &b, "tpl-ideas");
     let host = e.out(
         "entry.create",
         json!({"book":b,"title":"External names","template":"tpl-group"}),
@@ -584,19 +608,75 @@ fn v3_autolinks_use_memberships_and_invalidate_after_alias_edits() {
         "entry.update",
         json!({"book":b,"id":host,"overrides":{"accept":true,"auto_link":true}}),
     );
-    let person = e.out(
-        "entry.create",
-        json!({"book":b,"title":"Synthetic Person","template":"tpl-character"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+
+    // An entry living under `构想` (`auto_link == false`) and attached by membership to `host`
+    // (`auto_link == true`) is NOT auto-linked and does NOT claim name uniqueness.
+    let outsider = create(&e, &b, &ideas, "Synthetic Person", "tpl-character");
+    e.call(
+        "module.set_field",
+        json!({"book":b,"entry":outsider,"module":"mod-fields","field":"aliases","value":["FirstAlias"]}),
+    );
+    let names_before = e.ws().book_link_names(&b).unwrap();
     e.call(
         "membership.add",
-        json!({"book":b,"host":host,"member":person}),
+        json!({"book":b,"host":host,"member":outsider}),
     );
+    let names_after_add = e.ws().book_link_names(&b).unwrap();
+    assert!(
+        std::sync::Arc::ptr_eq(&names_before, &names_after_add),
+        "membership.add must not recompute AutolinkNames"
+    );
+    e.call(
+        "membership.primary",
+        json!({"book":b,"member":outsider,"host":host}),
+    );
+    assert!(std::sync::Arc::ptr_eq(
+        &names_before,
+        &e.ws().book_link_names(&b).unwrap()
+    ));
+
     let chapter = create(&e, &b, &ms, "Draft", "tpl-chapter");
-    e.call("module.set_prose",json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"placeholder"}]}));
+    e.ws()
+        .call(
+            &dr_workspace::Actor::Import,
+            "module.set_prose",
+            json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"Synthetic Person FirstAlias"}]}),
+        )
+        .unwrap();
+    let doc = dr_model::DocId::parse(&format!("body:{chapter}/mod-prose")).unwrap();
+    let state = e.ws().library().load_copy(&doc.to_string()).unwrap();
+    let p = dr_doc::prose::ProseReader::from_loro(doc.clone(), &state).unwrap();
+    assert!(
+        p.view()
+            .paragraphs()
+            .flat_map(|p| p.runs)
+            .all(|r| r.marks.entities.is_empty()),
+        "membership alone must not auto-link"
+    );
+    // Another entry living under `host` CAN use the same name because `outsider` does not claim it.
+    let same_name = create(&e, &b, &host, "Synthetic Person", "tpl-character");
+    e.call("entry.trash", json!({"book":b,"id":same_name}));
+
+    e.call(
+        "membership.remove",
+        json!({"book":b,"host":host,"member":outsider}),
+    );
+    let names_after_trash = e.ws().book_link_names(&b).unwrap();
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":host,"member":outsider}),
+    );
+    assert!(std::sync::Arc::ptr_eq(
+        &names_after_trash,
+        &e.ws().book_link_names(&b).unwrap()
+    ));
+
+    // Moving `outsider` to RESIDE under `host` makes it auto-linked and enforces uniqueness.
+    e.call("entry.move", json!({"book":b,"id":outsider,"parent":host}));
+    e.call(
+        "module.set_prose",
+        json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"placeholder"}]}),
+    );
     let read = e.out(
         "module.read_prose",
         json!({"book":b,"owner":chapter,"module":"mod-prose"}),
@@ -605,29 +685,29 @@ fn v3_autolinks_use_memberships_and_invalidate_after_alias_edits() {
     for (old, new) in [("placeholder", "FirstAlias"), ("FirstAlias", "SecondAlias")] {
         e.call(
             "module.set_field",
-            json!({"book":b,"entry":person,"module":"mod-fields","field":"aliases","value":[new]}),
+            json!({"book":b,"entry":outsider,"module":"mod-fields","field":"aliases","value":[new]}),
         );
-        e.ws().call(&dr_workspace::Actor::Import,"module.replace_prose",json!({"book":b,"owner":chapter,"module":"mod-prose","block_id":block,"find":old,"replace":new})).unwrap();
-        let doc = dr_model::DocId::parse(&format!("body:{chapter}/mod-prose")).unwrap();
+        e.ws()
+            .call(
+                &dr_workspace::Actor::Import,
+                "module.replace_prose",
+                json!({"book":b,"owner":chapter,"module":"mod-prose","block_id":block,"find":old,"replace":new}),
+            )
+            .unwrap();
         let state = e.ws().library().load_copy(&doc.to_string()).unwrap();
-        let p = dr_doc::prose::ProseReader::from_loro(doc, &state).unwrap();
+        let p = dr_doc::prose::ProseReader::from_loro(doc.clone(), &state).unwrap();
         assert!(
             p.view()
                 .paragraphs()
                 .flat_map(|p| p.runs)
                 .flat_map(|r| r.marks.entities)
-                .any(|l| l.target == person && l.kind == dr_model::kind::EntityKind::Entry)
+                .any(|l| l.target == outsider && l.kind == dr_model::kind::EntityKind::Entry)
         );
     }
-    let duplicate = e.out(
-        "entry.create",
-        json!({"book":b,"title":"SecondAlias","template":"tpl-character"}),
-    )["id"]
-        .clone();
     assert!(
         e.try_call(
-            "membership.add",
-            json!({"book":b,"host":host,"member":duplicate})
+            "entry.create",
+            json!({"book":b,"parent":host,"title":"SecondAlias","template":"tpl-character"})
         )
         .is_err()
     );
@@ -901,12 +981,14 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
     );
     let batch = e.out("entry.list", json!({"book":b,"all":true,"below":true}));
     let rows = batch.as_array().unwrap();
-    // Exactly the live entries whose switch is on carry `below`.
+    // Exactly the live entries with `level == true` or `accept == true` carry `below`.
     let expected: Vec<_> = entries(&e, &b)
         .as_array()
         .unwrap()
         .iter()
-        .filter(|e| e["deleted_at"].is_null() && e["level"] == true)
+        .filter(|e| {
+            e["deleted_at"].is_null() && (e["level"] == true || e["template"] == "tpl-storyline")
+        })
         .map(|e| e["id"].clone())
         .collect();
     let levels: Vec<_> = rows.iter().filter(|r| !r["below"].is_null()).collect();
@@ -918,7 +1000,7 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
     for row in &levels {
         let single = get(&e, &b, row["id"].as_str().unwrap());
         assert_eq!(row["below"], single["below"]);
-        assert_eq!(row["below"]["sources"].as_object().unwrap().len(), 8);
+        assert_eq!(row["below"]["sources"].as_object().unwrap().len(), 6);
     }
     // Without `below`, nothing below.
     assert!(
@@ -935,21 +1017,22 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
         json!({"kind":"override","entry":group})
     );
     assert_eq!(
-        g["below"]["sources"]["is_manuscript"],
+        g["below"]["sources"]["display"],
         json!({"kind":"template","entry":ms,"template":"tpl-manuscript"})
     );
     assert_eq!(g["below"]["children"][0]["title"], "One");
+    let m_row = levels.iter().find(|r| r["id"] == ms).unwrap();
+    assert!(m_row["below"]["members"].is_null());
     let l = levels.iter().find(|r| r["id"] == lane).unwrap();
+    assert_eq!(l["level"], false);
+    assert!(l["below"]["children"].is_null());
+    assert_eq!(l["below"]["members"], json!([]));
     assert_eq!(
         l["below"]["sources"]["accept"],
-        json!({"kind":"lane","entry":lane})
-    );
-    assert_eq!(
-        l["below"]["sources"]["lane"],
         json!({"kind":"template","entry":lane,"template":"tpl-storyline"})
     );
+    assert!(l["below"]["sources"]["lane"].is_null());
     assert_eq!(l["below"]["settings"]["accept"], true);
-    assert_eq!(l["below"]["settings"]["lane"], true);
     let second = e.out("entry.list", json!({"book":other,"all":true,"below":true}));
     assert!(!second.as_array().unwrap().iter().any(|r| r["id"] == group));
     let before = version(&e, &b);
@@ -967,34 +1050,59 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
 }
 
 #[test]
-fn material_entry_link_checks_book_observations_before_writing() {
+fn module_put_relation_checks_book_observations_before_writing() {
     use dr_workspace::{Actor, WritePreconditions, WsError};
     let e = env();
     let book = project(&e);
     let entry = root(&e, &book, "tpl-manuscript");
-    let title = get(&e, &book, &entry)["title"].clone();
-    let material = e.out(
-        "material.create",
-        json!({"book":book,"kind":"text","title":title}),
+    e.call(
+        "entry_template.put_module",
+        json!({
+            "book": book,
+            "template": "tpl-note",
+            "module": {"id": "mod-relations", "kind": "relations", "name": "关联"}
+        }),
+    );
+    let note = e.out(
+        "entry.create",
+        json!({
+            "book": book,
+            "template": "tpl-note",
+            "title": "笔记"
+        }),
     )["id"]
         .clone();
     let ws = e.ws();
     let doc = format!("book:{book}");
     let stale = ws.observe(&doc).unwrap();
+    // Touching the entry we are relating to invalidates a whole-book observation when
+    // creating a relation via `relation.create` with guarded preconditions.
     ws.call(
         &Actor::User,
-        "material.update",
+        "entry_relation_type.put",
         json!({
-            "book":book,"id":material,"description":title
+            "book": book,
+            "definition": {
+                "id": "rel-ref",
+                "name": "引用",
+                "source_kinds": ["entry"],
+                "target_kinds": ["entry"]
+            }
         }),
     )
     .unwrap();
     let before = ws.observe(&doc).unwrap();
-    let input = json!({"book":book,"material":material,"entry":entry,"linked":true});
+    let input = json!({
+        "book": book,
+        "entry": note,
+        "module": "mod-relations",
+        "other": {"kind": "entry", "id": entry},
+        "relation_type": "rel-ref"
+    });
     assert!(matches!(
         ws.call_guarded(
             &Actor::User,
-            "material.set_entry_link",
+            "module.put_relation",
             input.clone(),
             WritePreconditions::from_observations([stale])
         ),
@@ -1005,13 +1113,12 @@ fn material_entry_link_checks_book_observations_before_writing() {
     assert_eq!(refused.value, before.value);
     ws.call_guarded(
         &Actor::User,
-        "material.set_entry_link",
+        "module.put_relation",
         input,
         WritePreconditions::from_observations([before.clone()]),
     )
     .unwrap();
     let after = ws.observe(&doc).unwrap();
-    assert_eq!(after.value["materials"], before.value["materials"]);
     assert_eq!(
         after.value["relations"].as_object().unwrap().len(),
         before.value["relations"]
@@ -1262,4 +1369,227 @@ fn v3_field_edits_write_only_what_they_name() {
         "not_found"
     );
     assert_eq!(at, version(&e, &b));
+}
+
+#[test]
+fn field_rename_keeps_comment_on_field_id() {
+    let e = env();
+    let b = e.book();
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-person-custom",
+                "name": "人物卡",
+                "modules": [{
+                    "id": "mod-fields",
+                    "kind": "fields",
+                    "name": "属性",
+                    "config": {
+                        "defs": [{"id": "f-age", "name": "年龄", "field_type": "text"}]
+                    }
+                }]
+            }
+        }),
+    );
+    let person = e.out(
+        "entry.create",
+        json!({"book": b, "template": "tpl-person-custom", "title": "林川"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let cid = e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "entry", "id": person},
+            "module": "mod-fields",
+            "part": {"kind": "field", "field": "f-age"},
+            "body": "核实出生年份"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        e.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        false
+    );
+
+    // Rename the field's display label while keeping its stable FieldId ("f-age").
+    e.call(
+        "entry_template.put",
+        json!({
+            "book": b,
+            "template": {
+                "id": "tpl-person-custom",
+                "name": "人物卡",
+                "modules": [{
+                    "id": "mod-fields",
+                    "kind": "fields",
+                    "name": "属性",
+                    "config": {
+                        "defs": [{"id": "f-age", "name": "周岁", "field_type": "text"}]
+                    }
+                }]
+            }
+        }),
+    );
+    let listed = e.out("comment.list", json!({"book": b}));
+    let c = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == cid)
+        .unwrap();
+    assert_eq!(c["unlocated"], false);
+    assert_eq!(c["part"], json!({"kind": "field", "field": "f-age"}));
+}
+
+#[test]
+fn asset_direct_region_comment_and_relation_survive_reopen() {
+    let mut e = env();
+    let b = e.book();
+    let sha_img = "1".repeat(64);
+    let sha_pdf = "2".repeat(64);
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-img-1",
+            "name": "街景.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 128,
+            "sha256": sha_img,
+            "width": 800,
+            "height": 600
+        }),
+    );
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-pdf-1",
+            "name": "档案.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": 256,
+            "sha256": sha_pdf
+        }),
+    );
+
+    // Image asset rejects `page` in region, accepts normalized box without module/entry.
+    assert_eq!(
+        e.try_call(
+            "comment.create",
+            json!({
+                "book": b,
+                "target": {"kind": "asset", "id": "asset-img-1"},
+                "part": {"kind": "region", "region": {"page": 1, "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
+                "body": "图片不该有页码"
+            })
+        )
+        .unwrap_err()
+        .code(),
+        "invalid"
+    );
+    let img_comment = e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "asset", "id": "asset-img-1"},
+            "part": {"kind": "region", "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
+            "body": "注意门牌号"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let pdf_comment = e.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "asset", "id": "asset-pdf-1"},
+            "part": {"kind": "region", "region": {"page": 2, "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.2}},
+            "body": "第二页批语"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let manuscript = common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
+    let ch = e.out(
+        "entry.create",
+        json!({"book": b, "parent": manuscript, "template": "tpl-chapter", "title": "序章"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let generic_rt = format!("system:generic-association:{b}");
+    let rel = e.out(
+        "relation.create",
+        json!({
+            "book": b,
+            "relation_type": generic_rt,
+            "from": {"kind": "asset", "id": "asset-img-1"},
+            "to": {"kind": "entry", "id": ch}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    e.reopen();
+    let comments = e.out("comment.list", json!({"book": b}));
+    let ic = comments
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == img_comment)
+        .unwrap();
+    assert_eq!(ic["target"], json!({"kind": "asset", "id": "asset-img-1"}));
+    assert!(ic["module"].is_null());
+    assert_eq!(ic["unlocated"], false);
+    assert_eq!(
+        ic["part"],
+        json!({"kind": "region", "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}})
+    );
+    let pc = comments
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == pdf_comment)
+        .unwrap();
+    assert_eq!(pc["unlocated"], false);
+    assert_eq!(pc["part"]["region"]["page"], 2);
+    assert_eq!(e.out("relation.list", json!({"book": b}))[0]["id"], rel);
+
+    // Trashing the asset marks its direct comment unlocated and hides its relation; restoring recovers both.
+    e.call("asset.trash", json!({"book": b, "id": "asset-img-1"}));
+    let ic_trashed = e
+        .out("comment.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == img_comment)
+        .unwrap()
+        .clone();
+    assert_eq!(ic_trashed["unlocated"], true);
+    assert_eq!(e.out("relation.list", json!({"book": b})), json!([]));
+
+    e.call("asset.restore", json!({"book": b, "id": "asset-img-1"}));
+    let ic_restored = e
+        .out("comment.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == img_comment)
+        .unwrap()
+        .clone();
+    assert_eq!(ic_restored["unlocated"], false);
+    assert_eq!(e.out("relation.list", json!({"book": b}))[0]["id"], rel);
 }

@@ -759,8 +759,9 @@ async fn an_action_rebound_after_listing_is_announced_and_refused_until_listed_a
         )
         .unwrap()["output"]
             .clone();
+    assert_eq!(entry["parent"].as_str(), None);
     assert_eq!(
-        entry["parent"].as_str(),
+        entry["primary"].as_str(),
         Some(action.reference.level.as_str())
     );
     client.close().await.unwrap();

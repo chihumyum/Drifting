@@ -103,30 +103,24 @@ pub struct LevelSettings {
     /// Default template when creating a new entry under this level (`None` = blank).
     #[serde(default)]
     pub default_template: Option<String>,
-    /// Default workspace presentation mode for entries in this level.
+    /// Default workspace presentation mode for entries below this entry.
     #[serde(default)]
     pub display: String,
-    /// Whether entries residing in or belonging to this level participate in
-    /// auto-linking (when their template is `linkable`).
+    /// Whether entries residing under this level participate in auto-linking
+    /// (when their template is `linkable`).
     #[serde(default)]
     pub auto_link: bool,
-    /// Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).
-    /// Swimlane levels (`lane == true`) always accept memberships.
+    /// Whether entries may belong to this entry via `memberships` (`收别处的条目`);
+    /// independent of `level` and never inherited.
     #[serde(default)]
     pub accept: bool,
-    /// For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).
-    /// `None` means they reside under this level itself.
+    /// For entries with `accept == true`: which level entry newly created
+    /// members reside under (`新条目住在`, never inherited).
     #[serde(default)]
     pub home: Option<String>,
-    /// Whether what lives under this level in tree order forms a manuscript (`成书`).
-    #[serde(default)]
-    pub is_manuscript: bool,
     /// Editor formatting shortcut profile for prose under this level (`格式快捷输入`).
     #[serde(default)]
     pub format_shortcuts: String,
-    /// Whether this level is a timeline swimlane (never inherited).
-    #[serde(default)]
-    pub lane: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -144,7 +138,7 @@ pub struct LevelSettingsOverride {
     pub auto_link: Option<bool>,
     #[serde(default)]
     pub accept: Option<bool>,
-    /// `None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.
+    /// `None` defers to the entry's template; `Some(None)` clears `home`; `Some(Some(id))` sets `home`.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -152,12 +146,7 @@ pub struct LevelSettingsOverride {
     )]
     pub home: Option<Option<String>>,
     #[serde(default)]
-    pub is_manuscript: Option<bool>,
-    #[serde(default)]
     pub format_shortcuts: Option<String>,
-    /// `None` leaves it to the template (on an entry) or off (on a template).
-    #[serde(default)]
-    pub lane: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -220,19 +209,6 @@ pub struct EntryTemplate {
     pub deleted_at: Option<i64>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct EntryLayout {
-    /// Position on a board / island canvas.
-    #[serde(default)]
-    pub board: Option<(f64, f64)>,
-    /// Grid coordinates `(col, row)` in a grid layout.
-    #[serde(default)]
-    pub grid: Option<(i64, i64)>,
-    /// Pinned position in the relation graph.
-    #[serde(default)]
-    pub relation_graph: Option<(f64, f64)>,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Entry {
     pub id: String,
@@ -243,6 +219,10 @@ pub struct Entry {
     /// Fractional-index position among siblings in the `entries` tree (`文稿顺序`).
     pub pos: String,
     pub title: String,
+    /// Optional per-entry badge/icon mark (`记号`); falls back to the active
+    /// template's `mark` when unset (`kernel-v5.md` §8).
+    #[serde(default)]
+    pub mark: Option<String>,
     /// The template shaping this entry (`None` = untemplated entry).
     pub template: Option<String>,
     /// The entry's own switch (`层级`): whether entries can live under it.
@@ -255,9 +235,11 @@ pub struct Entry {
     pub fields: BTreeMap<String, BTreeMap<String, FieldValue>>,
     /// Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.
     pub kv: BTreeMap<String, Vec<KvEntry>>,
+    /// Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.
+    #[serde(default)]
+    pub media: BTreeMap<String, Vec<MediaItem>>,
     /// Stored primary membership host; membership queries filter invalid records.
     pub primary: Option<String>,
-    pub layout: EntryLayout,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
     pub deleted_at: Option<i64>,
@@ -272,16 +254,18 @@ pub struct Entry {
     pub below: Option<Box<Below>>,
 }
 
-/// What lies below a level (`下面`).
+/// What lies below an entry (`下面` / `挂在这里`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Below {
     pub settings: LevelSettings,
     /// Where each resolved setting comes from.
     pub sources: BTreeMap<String, SettingSource>,
-    /// Live entries living under it, in manuscript order.
-    pub children: Vec<Entry>,
-    /// Live entries validly belonging to it, in the memberships' order.
-    pub members: Vec<Entry>,
+    /// Live entries living under it, in folder/scale order (`Some` only when `level` is on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<Entry>>,
+    /// Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub members: Option<Vec<Entry>>,
 }
 
 /// Where one resolved setting comes from (the same precedence as its value).
@@ -289,17 +273,8 @@ pub struct Below {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SettingSource {
     Default,
-    Override {
-        entry: String,
-    },
-    Template {
-        entry: String,
-        template: String,
-    },
-    /// `accept` is on because the level is a swimlane.
-    Lane {
-        entry: String,
-    },
+    Override { entry: String },
+    Template { entry: String, template: String },
 }
 
 impl From<&dr_model::v3::LevelSettingSource> for SettingSource {
@@ -312,9 +287,6 @@ impl From<&dr_model::v3::LevelSettingSource> for SettingSource {
             dr_model::v3::LevelSettingSource::Template { entry, template } => Self::Template {
                 entry: entry.to_string(),
                 template: template.to_string(),
-            },
-            dr_model::v3::LevelSettingSource::Lane { entry } => Self::Lane {
-                entry: entry.to_string(),
             },
         }
     }
@@ -382,6 +354,20 @@ pub struct KvEntry {
     pub value: String,
     #[serde(default)]
     pub pos: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MediaItem {
+    pub id: String,
+    pub asset: String,
+    #[serde(default)]
+    pub caption: String,
+    #[serde(default)]
+    pub pos: Option<String>,
+    /// Set by readers when `asset` is not registered in the book's `assets`
+    /// (`MEDIA-AND-EMBED-ASSET-EXISTS`). Ignored on input.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub missing: bool,
 }
 fn default_true() -> bool {
     true
@@ -519,9 +505,7 @@ impl From<&dr_model::v3::LevelSettings> for LevelSettings {
             auto_link: v.auto_link,
             accept: v.accept,
             home: v.home.as_ref().map(ToString::to_string),
-            is_manuscript: v.is_manuscript,
             format_shortcuts: v.format_shortcuts.as_str().to_owned(),
-            lane: v.lane,
         }
     }
 }
@@ -537,9 +521,7 @@ impl From<&dr_model::v3::LevelSettingsOverride> for LevelSettingsOverride {
             auto_link: v.auto_link,
             accept: v.accept,
             home: v.home.as_ref().map(|o| o.as_ref().map(ToString::to_string)),
-            is_manuscript: v.is_manuscript,
             format_shortcuts: v.format_shortcuts.as_ref().map(|f| f.as_str().to_owned()),
-            lane: v.lane,
         }
     }
 }
@@ -584,12 +566,26 @@ impl From<&dr_model::v3::EntryTemplate> for EntryTemplate {
     }
 }
 
-impl From<dr_model::v3::EntryLayout> for EntryLayout {
-    fn from(v: dr_model::v3::EntryLayout) -> Self {
+impl From<dr_model::v3::MediaItem> for MediaItem {
+    fn from(v: dr_model::v3::MediaItem) -> Self {
         Self {
-            board: v.board,
-            grid: v.grid,
-            relation_graph: v.relation_graph,
+            id: v.id.to_string(),
+            asset: v.asset.to_string(),
+            caption: v.caption,
+            pos: v.pos.map(Into::into),
+            missing: false,
+        }
+    }
+}
+
+impl From<&dr_model::v3::MediaItem> for MediaItem {
+    fn from(v: &dr_model::v3::MediaItem) -> Self {
+        Self {
+            id: v.id.to_string(),
+            asset: v.asset.to_string(),
+            caption: v.caption.clone(),
+            pos: v.pos.as_ref().map(|p| p.as_str().to_owned()),
+            missing: false,
         }
     }
 }
@@ -601,6 +597,7 @@ impl From<&dr_model::v3::Entry> for Entry {
             parent: v.parent.as_ref().map(ToString::to_string),
             pos: v.pos.clone(),
             title: v.title.clone(),
+            mark: v.mark.clone(),
             template: v.template.as_ref().map(ToString::to_string),
             level: v.level,
             overrides: v.overrides.as_ref().map(Into::into),
@@ -621,8 +618,12 @@ impl From<&dr_model::v3::Entry> for Entry {
                 .iter()
                 .map(|(mid, rows)| (mid.to_string(), rows.iter().map(Into::into).collect()))
                 .collect(),
+            media: v
+                .media
+                .iter()
+                .map(|(mid, items)| (mid.to_string(), items.iter().map(Into::into).collect()))
+                .collect(),
             primary: v.primary.as_ref().map(ToString::to_string),
-            layout: v.layout.into(),
             created_at: v.created_at.map(|t| t.0),
             updated_at: v.updated_at.map(|t| t.0),
             deleted_at: v.deleted_at.map(|t| t.0),
@@ -687,4 +688,217 @@ impl From<&dr_model::v3::TimelineView> for TimelineView {
             deleted_at: v.deleted_at.map(|t| t.0),
         }
     }
+}
+
+// ---- project definition & book sequence (`kernel-v5.md` §2, §3, §5 & §10) ----
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateRef {
+    pub id: String,
+    pub version: i64,
+}
+
+impl From<&dr_model::v3::ProjectTemplateRef> for ProjectTemplateRef {
+    fn from(v: &dr_model::v3::ProjectTemplateRef) -> Self {
+        Self {
+            id: v.id.clone(),
+            version: v.version,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BookRoot {
+    Root,
+    Entry { entry: String },
+    View { view: String },
+    Lane { view: String, entry: String },
+}
+
+impl From<&dr_model::v3::BookRoot> for BookRoot {
+    fn from(v: &dr_model::v3::BookRoot) -> Self {
+        match v {
+            dr_model::v3::BookRoot::Root => Self::Root,
+            dr_model::v3::BookRoot::Entry { entry } => Self::Entry {
+                entry: entry.to_string(),
+            },
+            dr_model::v3::BookRoot::View { view } => Self::View {
+                view: view.to_string(),
+            },
+            dr_model::v3::BookRoot::Lane { view, entry } => Self::Lane {
+                view: view.to_string(),
+                entry: entry.to_string(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectBook {
+    pub root: BookRoot,
+    /// Effective whole-book word target (`None` when turned off).
+    #[serde(default)]
+    pub word_target: Option<i64>,
+    /// Effective daily word target (`None` when turned off).
+    #[serde(default)]
+    pub daily_word_target: Option<i64>,
+    /// Stored whole-book word target (`None` = default, `Some(0)` = off).
+    #[serde(default)]
+    pub word_target_set: Option<i64>,
+    /// Stored daily word target (`None` = default, `Some(0)` = off).
+    #[serde(default)]
+    pub daily_word_target_set: Option<i64>,
+}
+
+impl From<&dr_model::v3::ProjectBook> for ProjectBook {
+    fn from(v: &dr_model::v3::ProjectBook) -> Self {
+        Self {
+            root: (&v.root).into(),
+            word_target: v.word_target(),
+            daily_word_target: v.daily_word_target(),
+            word_target_set: v.word_target_set,
+            daily_word_target_set: v.daily_word_target_set,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TabMount {
+    Root,
+    Entry { entry: String },
+    View { view: String },
+    Book,
+}
+
+impl From<&dr_model::v3::TabMount> for TabMount {
+    fn from(v: &dr_model::v3::TabMount) -> Self {
+        match v {
+            dr_model::v3::TabMount::Root => Self::Root,
+            dr_model::v3::TabMount::Entry { entry } => Self::Entry {
+                entry: entry.to_string(),
+            },
+            dr_model::v3::TabMount::View { view } => Self::View {
+                view: view.to_string(),
+            },
+            dr_model::v3::TabMount::Book => Self::Book,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTab {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub pos: Option<String>,
+    pub mount: TabMount,
+    /// Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).
+    #[serde(default = "default_true")]
+    pub mount_valid: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Project {
+    #[serde(default)]
+    pub source: Option<ProjectTemplateRef>,
+    #[serde(default)]
+    pub agent: Option<TemplateAgentConfig>,
+    #[serde(default)]
+    pub book: Option<ProjectBook>,
+    /// Whether `book.root` currently points to a valid start (`true` when `book` is `None`).
+    #[serde(default = "default_true")]
+    pub book_root_valid: bool,
+    #[serde(default)]
+    pub tabs: Vec<ProjectTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectSeedEntry {
+    pub id: String,
+    #[serde(default)]
+    pub parent: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub mark: Option<String>,
+    #[serde(default)]
+    pub template: Option<String>,
+    #[serde(default)]
+    pub level: bool,
+    #[serde(default)]
+    pub overrides: Option<LevelSettingsOverride>,
+    #[serde(default)]
+    pub fields: BTreeMap<String, BTreeMap<String, FieldValue>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplate {
+    #[serde(default)]
+    pub project: ProjectDefinitionInput,
+    #[serde(default)]
+    pub templates: Vec<EntryTemplate>,
+    #[serde(default)]
+    pub entries: Vec<ProjectSeedEntry>,
+    #[serde(default)]
+    pub views: Vec<TimelineView>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectDefinitionInput {
+    #[serde(default)]
+    pub source: Option<ProjectTemplateRef>,
+    #[serde(default)]
+    pub agent: Option<TemplateAgentConfig>,
+    #[serde(default)]
+    pub book: Option<ProjectBook>,
+    #[serde(default)]
+    pub tabs: Vec<ProjectTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SequenceProse {
+    pub module: String,
+    pub name: String,
+    pub doc: String,
+    pub in_book: bool,
+}
+
+impl From<&dr_doc::v3::FlatProse> for SequenceProse {
+    fn from(v: &dr_doc::v3::FlatProse) -> Self {
+        Self {
+            module: v.module.to_string(),
+            name: v.name.clone(),
+            doc: v.doc.to_string(),
+            in_book: v.in_book,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SequenceEntry {
+    pub entry: Entry,
+    pub depth: u32,
+    /// 1-based chapter ordinal when `prose` has at least one `in_book` prose module; `None` otherwise.
+    pub ordinal: Option<u32>,
+    pub prose: Vec<SequenceProse>,
+}
+
+impl From<&dr_doc::v3::FlatEntry<'_>> for SequenceEntry {
+    fn from(v: &dr_doc::v3::FlatEntry<'_>) -> Self {
+        Self {
+            entry: v.entry.into(),
+            depth: v.depth,
+            ordinal: v.ordinal,
+            prose: v.prose.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BookSequenceOut {
+    pub has_book: bool,
+    pub root: Option<BookRoot>,
+    pub root_valid: bool,
+    pub entries: Vec<SequenceEntry>,
 }

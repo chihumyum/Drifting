@@ -2,7 +2,7 @@ use dr_doc::prose::ProseDoc;
 use dr_model::{
     DocId, Origin,
     id::{BodyDocId, CommentId, ModuleId},
-    kind::{CommentKind, CommentStatus, EntityKind},
+    kind::{CommentOrigin, CommentStatus, EntityKind},
     shared::EntityRef,
     v3::ModuleSpec,
 };
@@ -87,13 +87,13 @@ fn fixture() -> Fixture {
                 .target(original.target.as_ref())?
                 .module(Some(&module))?
                 .body(&original.body)?
-                .kind(&CommentKind::Todo)?
+                .origin(&CommentOrigin::Marker)?
                 .status(&CommentStatus::Resolved)?
                 .anchor(Some(&anchor))?
                 .quote(Some(&quote))?;
             t.comment(&floating)?
                 .body(&original.body)?
-                .kind(&CommentKind::Todo)?;
+                .origin(&CommentOrigin::Marker)?;
             t.comment(&missing)?
                 .target(original.target.as_ref())?
                 .module(Some(&ModuleId::parse("missing-body").unwrap()))?
@@ -303,17 +303,16 @@ fn trash_and_removed_modules_preserve_comments_and_exact_originals() {
 
 #[test]
 fn material_and_unscoped_sources_never_choose_an_entry_body() {
-    let mut seed = dr_testkit::seed::generate_v3(
+    let seed = dr_testkit::seed::generate_v3(
         dr_testkit::seed::Preset::Tiny,
         dr_testkit::seed::DEFAULT_SEED,
     )
     .unwrap();
-    let book = &mut seed.books[0].book;
+    let book = &seed.books[0].book;
     let mut comment = book.view().comments().remove(0);
-    let material = book.view().materials().remove(0);
-    comment.target = Some(EntityRef::new(EntityKind::Material, material.id.as_str()));
+    comment.target = Some(EntityRef::new(EntityKind::Material, "retired-material"));
     comment.target_module = None;
-    assert_eq!(v3::prose_doc(&comment), Some(DocId::Material(material.id)));
+    assert_eq!(v3::prose_doc(&comment), None);
     comment.target = Some(EntityRef::new(EntityKind::Entry, "entry"));
     assert_eq!(v3::prose_doc(&comment), None, "no default module guessed");
     comment.target = None;

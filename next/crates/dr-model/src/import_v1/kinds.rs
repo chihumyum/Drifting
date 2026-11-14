@@ -59,6 +59,25 @@ open_enum!(
     }
 );
 
+open_enum!(
+    /// What a 0.1 material is. URL materials were retired (old migration 0011);
+    /// an old `url` value reads as `Other`.
+    MaterialKind {
+        Image = "image",
+        Pdf = "pdf",
+        /// A text material: the author's note (its 0.1 body is a `material:` prose
+        /// document).
+        Text = "text",
+    }
+);
+
+impl MaterialKind {
+    /// Image and PDF materials have asset bytes; text materials do not.
+    pub fn needs_asset(&self) -> bool {
+        matches!(self, MaterialKind::Image | MaterialKind::Pdf)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -107,7 +107,7 @@ pub(super) fn grid_value(g: m::PlotGridV3) -> Grid {
             .collect(),
     }
 }
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Ref {
     pub kind: String,
     pub id: String,
@@ -445,10 +445,7 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
                 let k = EntityKind::from(s.as_str());
                 if matches!(
                     k,
-                    EntityKind::Entry
-                        | EntityKind::Material
-                        | EntityKind::Comment
-                        | EntityKind::Patch
+                    EntityKind::Entry | EntityKind::Comment | EntityKind::Patch | EntityKind::Asset
                 ) {
                     Ok(k)
                 } else {
@@ -543,12 +540,20 @@ fn put_relation(cx: &Cx<'_>, input: RelationIn) -> Result<Done> {
     } else {
         (own, other)
     };
+    if ty.orientation == RelationOrientation::Symmetric && from > to {
+        std::mem::swap(&mut from, &mut to);
+    }
+    if !from.kind.may_start_relation_v3() || !to.kind.is_structural_v3() {
+        return Err(WsError::invalid(
+            "unsupported canonical relation endpoint roles",
+        ));
+    }
     let allows = |r: &EntityRef, kinds: &[EntityKind], templates: &[EntryTemplateId]| {
         (kinds.is_empty() || kinds.contains(&r.kind))
             && (templates.is_empty()
-                || (r.kind == EntityKind::Entry
-                    && v.entry(&EntryId::parse(&r.id).expect("live entry"))
-                        .is_some_and(|e| e.template.is_some_and(|t| templates.contains(&t)))))
+                || r.kind != EntityKind::Entry
+                || v.entry(&EntryId::parse(&r.id).expect("live entry"))
+                    .is_some_and(|e| e.template.is_some_and(|t| templates.contains(&t))))
     };
     if !allows(&from, &ty.source_kinds, &ty.source_templates)
         || !allows(&to, &ty.target_kinds, &ty.target_templates)
@@ -556,9 +561,6 @@ fn put_relation(cx: &Cx<'_>, input: RelationIn) -> Result<Done> {
         return Err(WsError::invalid(
             "relation endpoints violate type restrictions",
         ));
-    }
-    if ty.orientation == RelationOrientation::Symmetric && from > to {
-        std::mem::swap(&mut from, &mut to);
     }
     if let Some(r) = v.relations_raw().iter().find(|r| {
         r.relation_type == ty.id

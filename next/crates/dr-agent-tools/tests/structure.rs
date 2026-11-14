@@ -363,15 +363,22 @@ fn v2_books_receive_no_structure_context() {
 #[test]
 fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
     let f = Fixture::new();
+    let project_agent = dr_doc::v3::novel::novel_project_agent();
+    let guidance = &project_agent.instructions;
+    assert!(guidance.contains("书稿 / 章 / H1 / H2 / H3"));
+    assert!(guidance.contains("仅在这种整理任务中不修改正文"));
+    assert!(guidance.contains("不限制作者另行明确要求"));
+    let initial_project =
+        f.ws.call(&Actor::User, "project.get", json!({"book": f.book}))
+            .unwrap()["output"]
+            .clone();
+    assert_eq!(initial_project["agent"]["instructions"], *guidance);
+
     let builtins = dr_doc::v3::novel::novel_project_templates();
     let manuscript = builtins
         .iter()
         .find(|t| t.id.as_str() == dr_doc::v3::novel::TPL_MANUSCRIPT)
         .unwrap();
-    let guidance = &manuscript.agent.as_ref().unwrap().instructions;
-    assert!(guidance.contains("书稿 / 章 / H1 / H2 / H3"));
-    assert!(guidance.contains("仅在这种整理任务中不修改正文"));
-    assert!(guidance.contains("不限制作者另行明确要求"));
     let initial = f.context();
     assert_eq!(
         initial
@@ -381,8 +388,14 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
             .unwrap()
             .agent
             .instructions,
-        *guidance
+        manuscript.agent.as_ref().unwrap().instructions
     );
+    f.ws.call(
+        &Actor::User,
+        "project.update",
+        json!({"book": f.book, "agent": null}),
+    )
+    .unwrap();
     for mut template in f.templates() {
         template["agent"] = Value::Null;
         for module in template["modules"].as_array_mut().unwrap() {
@@ -412,6 +425,11 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
     let book = f.book.clone();
     drop(f);
     let reopened = Workspace::open_dir(directory.path(), "k6-structure-reopen").unwrap();
+    let reopened_project = reopened
+        .call(&Actor::User, "project.get", json!({"book": book}))
+        .unwrap()["output"]
+        .clone();
+    assert!(reopened_project["agent"].is_null());
     assert_eq!(
         StructureContext::for_book(&reopened, &book, None)
             .unwrap()
@@ -498,7 +516,7 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
     let contribution = context.to_contribution().unwrap();
     let parsed: Value = serde_json::from_str(&contribution.text).unwrap();
 
-    // Templates carry `level`, `linkable`, `lane`; never `kind` or `allow`.
+    // Templates carry `level` and `linkable`; never `kind`, `allow`, or `lane`.
     let templates = parsed["templates"].as_array().unwrap();
     assert!(!templates.is_empty());
     for tpl in templates {
@@ -508,9 +526,9 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
             !obj.contains_key("allow"),
             "template still has allow: {tpl}"
         );
+        assert!(!obj.contains_key("lane"), "template still has lane: {tpl}");
         assert!(obj.get("level").and_then(Value::as_bool).is_some());
         assert!(obj.get("linkable").and_then(Value::as_bool).is_some());
-        assert!(obj.get("lane").and_then(Value::as_bool).is_some());
     }
 
     // Levels never expose `allow` or `about`.

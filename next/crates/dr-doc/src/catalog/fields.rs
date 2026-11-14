@@ -92,9 +92,8 @@ str_like!(
     RelationId,
     TimePinId,
     CommentId,
-    MaterialId,
+    MediaItemId,
     AssetId,
-    MaterialFolderId,
     KvEntryId,
     MemoryId,
     EmbedId,
@@ -107,11 +106,11 @@ str_like!(
     RelationOrientation,
     SystemRelationKey,
     CommentKind,
+    CommentOrigin,
     CommentStatus,
     CommentAuthorKind,
     CommentSource,
     CommentPriority,
-    MaterialKind,
     AssetKind,
     MemoryKind,
     MemoryStatus,
@@ -262,6 +261,38 @@ impl<'a> F<'a> {
         MaterialRegion::new(page, r.f64("x")?, r.f64("y")?, r.f64("w")?, r.f64("h")?)
     }
 
+    /// Where inside a module a comment sits (`part` map in `comments`);
+    /// malformed maps read as none.
+    pub(crate) fn comment_part(&self, key: &str) -> Option<dr_model::v3::CommentPart> {
+        use dr_model::v3::CommentPart;
+        let p = self.sub(key)?;
+        match p.str("kind")? {
+            "embed" => Some(CommentPart::Embed {
+                embed: p.id("embed")?,
+                region: p.region("region"),
+            }),
+            "field" => Some(CommentPart::Field {
+                field: p.id("field")?,
+            }),
+            "kv_row" => Some(CommentPart::KvRow { row: p.id("row")? }),
+            "plot_cell" => Some(CommentPart::PlotCell {
+                row: p.id("row")?,
+                col: p.id("col")?,
+            }),
+            "patch" => Some(CommentPart::Patch {
+                patch: p.id("patch")?,
+            }),
+            "media" => Some(CommentPart::Media {
+                item: p.id("item")?,
+                region: p.region("region"),
+            }),
+            "region" => Some(CommentPart::Region {
+                region: p.region("region")?,
+            }),
+            _ => None,
+        }
+    }
+
     pub(crate) fn kinds(&self, key: &str) -> Vec<EntityKind> {
         match self.get(key) {
             Some(LoroValue::List(l)) => l
@@ -319,4 +350,81 @@ pub(crate) fn kv_entries(v: &LoroValue) -> Vec<KvEntry> {
         .collect();
     sort_kv(&mut out);
     out
+}
+
+/// Items of a `{item id → {asset, caption, pos}}` media module map, sorted.
+pub(crate) fn media_items(v: &LoroValue) -> Vec<dr_model::v3::MediaItem> {
+    let LoroValue::Map(m) = v else {
+        return Vec::new();
+    };
+    let mut out: Vec<dr_model::v3::MediaItem> = m
+        .iter()
+        .filter_map(|(id, e)| {
+            let f = F(e);
+            Some(dr_model::v3::MediaItem {
+                id: MediaItemId::parse(id).ok()?,
+                asset: f.id("asset")?,
+                caption: f.string("caption"),
+                pos: f.pos("pos"),
+            })
+        })
+        .collect();
+    dr_model::v3::sort_media(&mut out);
+    out
+}
+
+pub(crate) fn region_to_loro(r: &MaterialRegion) -> LoroValue {
+    let mut m: Vec<(String, LoroValue)> = vec![
+        ("x".into(), r.x.into()),
+        ("y".into(), r.y.into()),
+        ("w".into(), r.w.into()),
+        ("h".into(), r.h.into()),
+    ];
+    if let Some(p) = r.page {
+        m.push(("page".into(), (p as i64).into()));
+    }
+    LoroValue::Map(m.into())
+}
+
+pub(crate) fn comment_part_to_loro(part: &dr_model::v3::CommentPart) -> LoroValue {
+    use dr_model::v3::CommentPart;
+    let mut m: Vec<(String, LoroValue)> = Vec::new();
+    match part {
+        CommentPart::Embed { embed, region } => {
+            m.push(("kind".into(), "embed".into()));
+            m.push(("embed".into(), embed.as_str().into()));
+            if let Some(r) = region {
+                m.push(("region".into(), region_to_loro(r)));
+            }
+        }
+        CommentPart::Field { field } => {
+            m.push(("kind".into(), "field".into()));
+            m.push(("field".into(), field.as_str().into()));
+        }
+        CommentPart::KvRow { row } => {
+            m.push(("kind".into(), "kv_row".into()));
+            m.push(("row".into(), row.as_str().into()));
+        }
+        CommentPart::PlotCell { row, col } => {
+            m.push(("kind".into(), "plot_cell".into()));
+            m.push(("row".into(), row.as_str().into()));
+            m.push(("col".into(), col.as_str().into()));
+        }
+        CommentPart::Patch { patch } => {
+            m.push(("kind".into(), "patch".into()));
+            m.push(("patch".into(), patch.as_str().into()));
+        }
+        CommentPart::Media { item, region } => {
+            m.push(("kind".into(), "media".into()));
+            m.push(("item".into(), item.as_str().into()));
+            if let Some(r) = region {
+                m.push(("region".into(), region_to_loro(r)));
+            }
+        }
+        CommentPart::Region { region } => {
+            m.push(("kind".into(), "region".into()));
+            m.push(("region".into(), region_to_loro(region)));
+        }
+    }
+    LoroValue::Map(m.into())
 }

@@ -120,13 +120,13 @@ fn text_block(p: &Para) -> Value {
 
 fn embed_block(p: &Para, e: &EmbedView) -> Value {
     match e {
-        EmbedView::Material { material, .. } => {
+        EmbedView::Asset { asset, .. } => {
             let mut a = Map::new();
             if let Some(id) = &p.id {
                 a.insert("id".into(), id.as_str().into());
             }
-            if let Some(m) = material {
-                a.insert("libraryItemId".into(), m.as_str().into());
+            if let Some(aid) = asset {
+                a.insert("assetId".into(), aid.as_str().into());
             }
             json!({"type": "materialEmbed", "attrs": a})
         }
@@ -480,13 +480,13 @@ fn text_block_v3(p: &Para) -> Value {
 
 fn embed_block_v3(p: &Para, e: &EmbedView) -> Value {
     match e {
-        EmbedView::Material { material, .. } => {
+        EmbedView::Asset { asset, .. } => {
             let mut a = Map::new();
             if let Some(id) = &p.id {
                 a.insert("id".into(), id.as_str().into());
             }
-            if let Some(m) = material {
-                a.insert("libraryItemId".into(), m.as_str().into());
+            if let Some(aid) = asset {
+                a.insert("assetId".into(), aid.as_str().into());
             }
             json!({"type": "materialEmbed", "attrs": a})
         }

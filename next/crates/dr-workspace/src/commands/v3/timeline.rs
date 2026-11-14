@@ -15,6 +15,73 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<PinPut>()
         .add::<PinRemove>();
 }
+use dr_model::pos::PosKey;
+
+pub(super) fn pos_chain(len: usize) -> Vec<PosKey> {
+    let mut out = Vec::with_capacity(len);
+    let mut cur = PosKey::first();
+    for _ in 0..len {
+        out.push(cur.clone());
+        cur = cur.after();
+    }
+    out
+}
+
+#[derive(Default)]
+pub(super) struct LaneExitWriteback {
+    pub member_pos: Vec<(EntryId, PosKey)>,
+    pub child_order: Option<Vec<EntryId>>,
+}
+
+impl LaneExitWriteback {
+    pub(super) fn is_empty(&self) -> bool {
+        self.member_pos.is_empty() && self.child_order.is_none()
+    }
+}
+
+pub(super) fn plan_lane_exit_writeback(
+    v: &BookViewV3<'_>,
+    snapshot: &dr_doc::v3::BookStructureV3,
+    tv: &m::TimelineView,
+    lane: &EntryId,
+) -> Result<LaneExitWriteback> {
+    let Some(lane_entry) = snapshot.entry(lane).filter(|e| !e.is_trashed()) else {
+        return Ok(LaneExitWriteback::default());
+    };
+    let member_pos = if lane_entry.accepts_members(snapshot.templates_map()) {
+        let members = snapshot.members_along_view(tv, lane);
+        let chain = pos_chain(members.len());
+        members
+            .into_iter()
+            .zip(chain)
+            .map(|(m, pos)| (m.id.clone(), pos))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let child_order = if lane_entry.is_level() {
+        let ordered_residents: Vec<EntryId> = snapshot
+            .residents_along_view(tv, lane)
+            .into_iter()
+            .map(|e| e.id.clone())
+            .collect();
+        let current_children = v.direct_child_ids(Some(lane));
+        let mut desired = ordered_residents;
+        for cid in &current_children {
+            if !desired.contains(cid) {
+                desired.push(cid.clone());
+            }
+        }
+        (desired != current_children).then_some(desired)
+    } else {
+        None
+    };
+    Ok(LaneExitWriteback {
+        member_pos,
+        child_order,
+    })
+}
+
 fn view(v: &BookViewV3<'_>, id: &str) -> Result<m::TimelineView> {
     v.timeline_views_raw()
         .into_iter()
@@ -36,7 +103,7 @@ op! {
     ViewPut="timeline_view.put",Write,Book,"Create or edit a timeline view, including its independent lane order.",fn(cx,input:PutIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
-        let tv: m::TimelineView = convert(input.view)?;
+        let mut tv: m::TimelineView = convert(input.view)?;
         name_ok(&tv.name)?;
         if tv.deleted_at.is_some() {
             return Err(WsError::invalid("use timeline_view.delete"));
@@ -66,8 +133,61 @@ op! {
                 return Err(WsError::invalid("duplicate pin"));
             }
         }
-        let old = v.timeline_views_raw().into_iter().find(|t| t.id == tv.id);
+        let snapshot = v.structure_snapshot();
+        let effective_lanes = m::effective_timeline_lanes(&tv.lanes, &entries, &templates);
+        let mut placed_ids: BTreeSet<EntryId> =
+            tv.placements.iter().map(|p| p.entry.clone()).collect();
+        let mut next_at = m::timeline_scale_end(&tv.placements);
+        for lane in &effective_lanes {
+            for item in snapshot.lane_entries_order(&lane.entry) {
+                if placed_ids.insert(item.id.clone()) {
+                    tv.placements.push(m::TimelinePlacement {
+                        entry: item.id.clone(),
+                        at: next_at,
+                        span: None,
+                    });
+                    next_at += 1.0;
+                }
+            }
+        }
+        let all_raw_views = v.timeline_views_raw();
+        let old = all_raw_views.iter().find(|t| t.id == tv.id).cloned();
+        let other_active_lanes: BTreeSet<EntryId> = all_raw_views
+            .iter()
+            .filter(|t| t.id != tv.id && !t.is_trashed())
+            .flat_map(|t| {
+                m::effective_timeline_lanes(&t.lanes, &entries, &templates)
+                    .into_iter()
+                    .map(|l| l.entry)
+            })
+            .collect();
+        let new_effective_ids: BTreeSet<EntryId> =
+            effective_lanes.iter().map(|l| l.entry.clone()).collect();
+        let mut exit_writebacks = Vec::new();
+        if let Some(old_tv) = old.as_ref().filter(|o| !o.is_trashed()) {
+            for old_lane in m::effective_timeline_lanes(&old_tv.lanes, &entries, &templates) {
+                if !new_effective_ids.contains(&old_lane.entry)
+                    && !other_active_lanes.contains(&old_lane.entry)
+                {
+                    let wb = plan_lane_exit_writeback(&v, &snapshot, old_tv, &old_lane.entry)?;
+                    if !wb.is_empty() {
+                        exit_writebacks.push((old_lane.entry, wb));
+                    }
+                }
+            }
+        }
         let id = tv.id.clone();
+        let mut keys = vec![key("timeline_views", &id)];
+        for (lane_id, wb) in &exit_writebacks {
+            for (member_id, _) in &wb.member_pos {
+                keys.push(key("memberships", m::Membership::key(lane_id, member_id)));
+            }
+            if let Some(children) = &wb.child_order {
+                for cid in children {
+                    keys.push(key("entries", cid));
+                }
+            }
+        }
         let replaced = Replaces::record(CollectionV3::TimelineViews, &id);
         let (_, at) = cx.write_book_v3(&s, replaced, move |tx| {
             let w = tx.timeline_view(&tv.id)?;
@@ -99,24 +219,82 @@ op! {
             for p in tv.pins {
                 w.put_pin(&p)?;
             }
+            for (lane_id, wb) in &exit_writebacks {
+                for (member_id, pos) in &wb.member_pos {
+                    tx.restore_membership_pos(
+                        lane_id,
+                        member_id,
+                        Some(&loro::LoroValue::from(pos.as_str())),
+                    )?;
+                }
+                if let Some(children) = &wb.child_order {
+                    tx.entries().reorder_children(Some(lane_id), children)?;
+                }
+            }
             Ok(())
         })?;
-        undo(cx, &s, &at, vec![key("timeline_views", &id)]);
+        undo(cx, &s, &at, keys);
         cx.effect(EffectAction::Updated, "timeline_view", id.as_str(), None);
         Ok(Done { id: id.to_string() })
     }
 }
 op! {
-    ViewDelete="timeline_view.delete",Write,Book,"Delete a timeline view while retaining lane entries and memberships.",fn(cx,input:EntityIn)->Done {
+    ViewDelete="timeline_view.delete",Write,Book,"Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit.",fn(cx,input:EntityIn)->Done {
         let s = cx.book_v3(&input.book)?;
-        let tv = view(&s.reader_v3.view(), &input.id)?;
+        let v = s.reader_v3.view();
+        let tv = view(&v, &input.id)?;
+        let entries = v.entries_map();
+        let templates = v.templates_map();
+        let snapshot = v.structure_snapshot();
+        let other_active_lanes: BTreeSet<EntryId> = v
+            .timeline_views_raw()
+            .into_iter()
+            .filter(|t| t.id != tv.id && !t.is_trashed())
+            .flat_map(|t| {
+                m::effective_timeline_lanes(&t.lanes, &entries, &templates)
+                    .into_iter()
+                    .map(|l| l.entry)
+            })
+            .collect();
+        let mut exit_writebacks = Vec::new();
+        for lane in m::effective_timeline_lanes(&tv.lanes, &entries, &templates) {
+            if !other_active_lanes.contains(&lane.entry) {
+                let wb = plan_lane_exit_writeback(&v, &snapshot, &tv, &lane.entry)?;
+                if !wb.is_empty() {
+                    exit_writebacks.push((lane.entry, wb));
+                }
+            }
+        }
         let id = tv.id.clone();
+        let mut keys = vec![key("timeline_views", &id)];
+        for (lane_id, wb) in &exit_writebacks {
+            for (member_id, _) in &wb.member_pos {
+                keys.push(key("memberships", m::Membership::key(lane_id, member_id)));
+            }
+            if let Some(children) = &wb.child_order {
+                for cid in children {
+                    keys.push(key("entries", cid));
+                }
+            }
+        }
         let trashed = rec(CollectionV3::TimelineViews, &id).at(["deleted_at"]);
         let (_, at) = cx.write_book_v3(&s, Replaces::records([trashed]), move |t| {
             t.timeline_view(&tv.id)?.deleted_at(Some(now()))?;
+            for (lane_id, wb) in &exit_writebacks {
+                for (member_id, pos) in &wb.member_pos {
+                    t.restore_membership_pos(
+                        lane_id,
+                        member_id,
+                        Some(&loro::LoroValue::from(pos.as_str())),
+                    )?;
+                }
+                if let Some(children) = &wb.child_order {
+                    t.entries().reorder_children(Some(lane_id), children)?;
+                }
+            }
             Ok(())
         })?;
-        undo(cx, &s, &at, vec![key("timeline_views", &id)]);
+        undo(cx, &s, &at, keys);
         cx.effect(EffectAction::Trashed, "timeline_view", id.as_str(), None);
         Ok(Done { id: input.id })
     }
@@ -153,18 +331,26 @@ op! {
         let mut ms = before.memberships.clone();
         finite(input.at, input.span)?;
         let lane: Option<EntryId> = input.lane.as_deref().map(|s| pid("lane", s)).transpose()?;
+        let mut join = false;
         if let Some(lane) = &lane {
             if !tv.lanes.iter().any(|l| &l.entry == lane) {
                 return Err(WsError::invalid("lane is not in this view"));
             }
             m::check_timeline_lane(lane, entries, templates)?;
-            m::check_membership(lane, &e.id, entries, templates)?;
-            ms.push(m::Membership {
-                host: lane.clone(),
-                member: e.id.clone(),
-                pos: None,
-                created_at: Some(now()),
-            });
+            let already_resident = entries.get(lane).is_some_and(|le| le.is_level())
+                && e.parent.as_ref() == Some(lane);
+            if !already_resident {
+                m::check_membership(lane, &e.id, entries, templates)?;
+                if !ms.iter().any(|m| &m.host == lane && m.member == e.id) {
+                    ms.push(m::Membership {
+                        host: lane.clone(),
+                        member: e.id.clone(),
+                        pos: None,
+                        created_at: Some(now()),
+                    });
+                    join = true;
+                }
+            }
         }
         m::check_timeline_placement_in_lane(&tv, &e.id, &ms, entries, templates)?;
         let after = BookGraphV3 {
@@ -172,14 +358,28 @@ op! {
             ..before.clone()
         };
         changes_ok(&before, &after)?;
-        let join = lane.as_ref().is_some_and(|lane| {
-            !v.memberships_raw()
-                .iter()
-                .any(|m| &m.host == lane && m.member == e.id)
-        });
+        let mut other_views = Vec::new();
+        if let Some(lane) = lane.as_ref().filter(|_| join) {
+            for other_tv in membership::live_views_with_lane(&v, lane) {
+                if other_tv.id != tv.id
+                    && v.timeline_placement_snapshot(&other_tv.id, &e.id)?.is_none()
+                {
+                    let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                        &other_tv,
+                        &before.memberships,
+                        entries,
+                        templates,
+                    ));
+                    other_views.push((other_tv.id, end));
+                }
+            }
+        }
         let mut keys = vec![key("timeline_views", &tv.id)];
         if let Some(lane) = lane.as_ref().filter(|_| join) {
             keys.push(key("memberships", m::Membership::key(lane, &e.id)));
+        }
+        for (vid, _) in &other_views {
+            keys.push(key("timeline_views", vid));
         }
         let id = e.id.clone();
         // The entry's position in this view. A membership it joins is new.
@@ -190,6 +390,9 @@ op! {
             }
             t.timeline_view(&tv.id)?
                 .put_placement(&e.id, input.at, input.span)?;
+            for (vid, end) in &other_views {
+                t.timeline_view(vid)?.put_placement(&e.id, *end, None)?;
+            }
             Ok(())
         })?;
         undo(cx, &s, &at, keys);

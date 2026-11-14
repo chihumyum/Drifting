@@ -18,7 +18,7 @@ pub fn suite(legacy: bool) -> Suite {
     }
 }
 fn expect_quick() -> Value {
-    json!({"prepare":{"books":1},"read":{"books":1,"entries":24,"levels":11}})
+    json!({"prepare":{"books":1},"read":{"books":1,"entries":28,"levels":13}})
 }
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -78,26 +78,60 @@ fn measure(mode: Mode, legacy: bool) -> Result<Bench, String> {
             json!({"book":book,"all":true,"trashed":true}),
         )
     })?;
-    timed(case, "templates", || {
+    let templates = timed(case, "templates", || {
         out(&ws, "entry_template.list", json!({"book":book}))
     })?;
+    let tpl_accept: std::collections::BTreeMap<String, bool> = templates
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| {
+            Some((
+                t["id"].as_str()?.to_owned(),
+                t["settings"]["accept"].as_bool().unwrap_or(false),
+            ))
+        })
+        .collect();
+    let has_below_entry = |e: &Value| {
+        if !e["deleted_at"].is_null() {
+            return false;
+        }
+        let accept = e["overrides"]["accept"]
+            .as_bool()
+            .or_else(|| {
+                e["template"]
+                    .as_str()
+                    .and_then(|t| tpl_accept.get(t).copied())
+            })
+            .unwrap_or(false);
+        e["level"] == true || accept
+    };
     let level_ids: Vec<_> = entries
         .as_array()
         .unwrap()
         .iter()
-        .filter(|e| e["deleted_at"].is_null() && e["level"] == true)
+        .filter(|e| has_below_entry(e))
         .filter_map(|e| e["id"].as_str())
         .collect();
-    let complete = |below: &Value| {
-        below["sources"].as_object().is_some_and(|s| s.len() == 8)
-            && below["children"].is_array()
-            && below["members"].is_array()
+    let complete = |entry: &Value| {
+        let below = &entry["below"];
+        below["sources"].as_object().is_some_and(|s| s.len() == 6)
+            && (if entry["level"] == true {
+                below["children"].is_array()
+            } else {
+                below["children"].is_null()
+            })
+            && (if below["settings"]["accept"] == true {
+                below["members"].is_array()
+            } else {
+                below["members"].is_null()
+            })
     };
     timed(case, "levels", || {
         if legacy {
             for (i, id) in level_ids.iter().enumerate() {
                 let entry = out(&ws, "entry.get", json!({"book":book,"id":id}))?;
-                if !complete(&entry["below"]) {
+                if !complete(&entry) {
                     return Err(format!("entry {id} lacks what lies below it"));
                 }
                 eprintln!("v3 book: level {}/{} complete", i + 1, level_ids.len());
@@ -115,7 +149,7 @@ fn measure(mode: Mode, legacy: bool) -> Result<Bench, String> {
                 .filter(|r| r.get("below").is_some())
                 .collect();
             let actual: Vec<_> = rows.iter().filter_map(|r| r["id"].as_str()).collect();
-            if actual != level_ids || rows.iter().any(|r| !complete(&r["below"])) {
+            if actual != level_ids || rows.iter().any(|r| !complete(r)) {
                 return Err("batch omitted levels or resolved structure".into());
             }
         }

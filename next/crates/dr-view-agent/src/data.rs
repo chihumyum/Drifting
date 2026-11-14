@@ -89,7 +89,6 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             // `meta` stays distinct: its id names a field, not the book.
             use dr_doc::v3::CollectionV3 as Collection;
             let (kind, id) = match Collection::from_root(&effect.kind) {
-                Some(Collection::Materials) => ("material", effect.id),
                 Some(Collection::Comments) => ("comment", effect.id),
                 Some(Collection::Relations) => ("relation", effect.id),
                 _ => match effect.kind.as_str() {

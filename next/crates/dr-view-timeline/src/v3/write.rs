@@ -336,7 +336,7 @@ impl Timeline {
         };
         if !book_snap
             .template(&template)
-            .is_some_and(|t| t.level && t.settings.lane == Some(true))
+            .is_some_and(|t| t.level || t.settings.accept == Some(true))
         {
             return;
         }
@@ -408,6 +408,7 @@ impl Timeline {
         let Some(view_id) = self.view().map(|v| v.id.clone()) else {
             return;
         };
+        let is_accept_lane = self.book.v3().is_some_and(|b| b.accepts_members(&lane));
         let untitled = t(cx, keys::common::UNTITLED).to_string();
         self.popup = None;
         self.write(cx, move |lib, book| {
@@ -439,15 +440,16 @@ impl Timeline {
                     lane_members.insert(id.to_owned());
                 }
             }
-            let created = lib.call(
-                &Actor::User,
-                "entry.create",
-                serde_json::json!({
-                    "book": book,
-                    "parent": lane,
-                    "title": untitled,
-                }),
-            )?;
+            let mut create_input = serde_json::json!({
+                "book": book,
+                "title": untitled,
+            });
+            if is_accept_lane {
+                create_input["host"] = serde_json::json!(&lane);
+            } else {
+                create_input["parent"] = serde_json::json!(&lane);
+            }
+            let created = lib.call(&Actor::User, "entry.create", create_input)?;
             let entry_id = created["output"]["id"]
                 .as_str()
                 .ok_or_else(|| WsError::Internal("entry.create returned no id".into()))?

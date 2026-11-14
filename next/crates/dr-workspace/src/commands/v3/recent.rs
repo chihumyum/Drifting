@@ -16,10 +16,10 @@ pub const SCOPE: &str = "ws-recent-v3";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "RecentTargetV3")]
 pub struct Target {
-    /// entry or material.
+    /// `entry`.
     pub kind: String,
     pub id: String,
-    /// The selected entry module; omit for the whole entry or a material.
+    /// The selected entry module; omit for the whole entry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
 }
@@ -77,19 +77,12 @@ fn live(cx: &Cx<'_>, slot: &BookSlot, target: &Target) -> Result<bool> {
                 .any(|m| &m.id == module)),
             }
         }
-        "material" => Ok(target.module.is_none()
-            && slot
-                .reader_v3
-                .view()
-                .materials()
-                .iter()
-                .any(|m| m.id.as_str() == target.id)),
         _ => Ok(false),
     }
 }
 op! {
     RecentTouch = "recent.touch", Write, Book,
-    "Record an entry and optional module, or a material, on this device without an undo step.",
+    "Record an entry and optional module on this device without an undo step.",
     fn(cx, input: RecentTouchIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         if let Some(module) = &input.target.module { let _: ModuleId = pid("module", module)?; }

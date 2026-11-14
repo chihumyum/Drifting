@@ -762,12 +762,19 @@ fn eligibility_uses_home_or_any_membership_and_never_links_the_owner() {
         json!({"id":host,"overrides":{"auto_link":true,"accept":true}}),
     );
     call(&e, "membership.add", json!({"host":host,"member":id}));
+    // Kernel v5 §16: auto-linking depends on residence (`home`) only, never memberships.
     let names = NameIndex::load(&e.ws, &e.book, &[]).unwrap();
     assert!(
-        names
+        !names
             .search("", 1000)
             .iter()
             .any(|r| r.1.id == id && r.2 == NameGroup::Entry)
+    );
+    call(&e, "membership.remove", json!({"host":host,"member":id}));
+    call(
+        &e,
+        "entry.update",
+        json!({"id":home,"overrides":{"auto_link":true}}),
     );
     let own = format!("body:{id}/mod-prose");
     assert!(
@@ -777,25 +784,12 @@ fn eligibility_uses_home_or_any_membership_and_never_links_the_owner() {
             .iter()
             .any(|r| r.1.id == id)
     );
-    call(&e, "membership.remove", json!({"host":host,"member":id}));
-    assert!(
-        !NameIndex::load(&e.ws, &e.book, &[])
-            .unwrap()
-            .search("", 1000)
-            .iter()
-            .any(|r| r.1.id == id)
-    );
-    call(
-        &e,
-        "entry.update",
-        json!({"id":home,"overrides":{"auto_link":true}}),
-    );
     assert!(
         NameIndex::load(&e.ws, &e.book, &[])
             .unwrap()
             .search("", 1000)
             .iter()
-            .any(|r| r.1.id == id)
+            .any(|r| r.1.id == id && r.2 == NameGroup::Entry)
     );
     let targets = dr_editor::v3::LinkTargets {
         workspace: e.ws.clone(),

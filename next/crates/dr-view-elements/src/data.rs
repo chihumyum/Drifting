@@ -93,8 +93,6 @@ pub mod v3 {
             "auto_link",
             "accept",
             "home",
-            "is_manuscript",
-            "lane",
             "format_shortcuts",
         ]
         .contains(&key)
@@ -106,7 +104,7 @@ pub mod v3 {
             .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
         let entry = v
             .entry(id)
-            .filter(|_| v.levels.contains_key(id))
+            .filter(|_| v.has_below(id) || matches!(key, "accept" | "home"))
             .ok_or_else(|| WsError::Invalid("level is no longer live".into()))?;
         let mut overrides = entry
             .overrides
@@ -157,17 +155,28 @@ pub mod v3 {
         v.entry(origin)?;
         let graph = Graph::of(book)?;
         let id = origin.parse().ok()?;
-        let context = if v.levels.contains_key(origin) {
+        let origin_entry = graph.entries.get(&id)?;
+        let context = if origin_entry.has_below(&graph.templates) {
             Some(id)
         } else {
-            model::effective_parent_id(graph.entries.get(&id)?, &graph.entries)
+            model::effective_parent_id(origin_entry, &graph.entries)
         };
-        let home =
-            model::resolve_new_entry_residence(context.as_ref(), &graph.entries, &graph.templates);
+        let is_host_only = context
+            .as_ref()
+            .and_then(|cid| graph.entries.get(cid))
+            .is_some_and(|e| !e.is_level() && e.accepts_members(&graph.templates));
+        let home = match &context {
+            Some(cid) if is_host_only => {
+                model::resolve_host_residence(cid, &graph.entries, &graph.templates)
+            }
+            Some(cid) => Some(cid.clone()),
+            None => None,
+        };
         // Any template can be created where an entry can live at all.
         let allows = |_: Option<&model::EntryTemplateId>| {
             model::check_parent_is_level(home.as_ref(), &graph.entries).is_ok()
-                && model::check_parent_is_level(context.as_ref(), &graph.entries).is_ok()
+                && (is_host_only
+                    || model::check_parent_is_level(context.as_ref(), &graph.entries).is_ok())
         };
         let templates: Vec<String> = v
             .templates
@@ -178,8 +187,11 @@ pub mod v3 {
             .collect();
         let desired = context
             .as_ref()
-            .and_then(|id| v.levels.get(id.as_str()))
-            .and_then(|l| l.settings.default_template.clone());
+            .and_then(|cid| {
+                model::resolve_level_settings(Some(cid), &graph.entries, &graph.templates)
+                    .default_template
+            })
+            .map(|t| t.to_string());
         let blank = desired.is_none() && allows(None);
         let default = desired.filter(|id| templates.contains(id));
         Some(Creation {
@@ -561,11 +573,11 @@ pub mod v3 {
         let id = entry.parse().ok()?;
         let target = onto.parse().ok()?;
         v.entry(entry)?;
-        if let Some(level) = v.levels.get(onto) {
-            if level.settings.accept {
-                model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
-                return Some(Drop::Membership { host: onto.into() });
-            }
+        let target_entry = graph.entries.get(&target)?;
+        if target_entry.accepts_members(&graph.templates) {
+            model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
+            Some(Drop::Membership { host: onto.into() })
+        } else if target_entry.is_level() {
             model::check_entry_move(&graph.entries, &id, Some(&target)).ok()?;
             model::check_parent_is_level(Some(&target), &graph.entries).ok()?;
             Some(Drop::Residence {
@@ -573,7 +585,7 @@ pub mod v3 {
                 anchor: None,
             })
         } else {
-            let parent = model::effective_parent_id(graph.entries.get(&target)?, &graph.entries);
+            let parent = model::effective_parent_id(target_entry, &graph.entries);
             model::check_entry_move(&graph.entries, &id, parent.as_ref()).ok()?;
             model::check_parent_is_level(parent.as_ref(), &graph.entries).ok()?;
             Some(Drop::Residence {
@@ -684,15 +696,24 @@ pub mod v3 {
     }
     pub fn prepare_board(
         book: &Book,
+        scope: &str,
         entry: &str,
         position: (f64, f64),
     ) -> Result<Mutation, WsError> {
-        let mut layout = book
+        let v = book
             .v3()
-            .and_then(|v| v.entry(entry))
-            .ok_or_else(|| WsError::Invalid("entry is no longer live".into()))?
-            .layout;
-        layout.board = Some(position);
-        prepare_edit(book, entry, json!({"layout":layout}))
+            .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
+        if v.entry(entry).is_none() {
+            return Err(WsError::Invalid("entry is no longer live".into()));
+        }
+        prepare(
+            book,
+            "layout.put",
+            json!({
+                "scope": scope,
+                "mode": "board",
+                "positions": { entry: [position.0, position.1] },
+            }),
+        )
     }
 }

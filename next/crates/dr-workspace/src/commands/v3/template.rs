@@ -25,6 +25,13 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
     let before = v.graph();
     let mut templates = before.templates.clone();
     name_ok(&t.name)?;
+    if let Some(mark) = &t.mark
+        && !m::is_valid_mark(mark)
+    {
+        return Err(WsError::invalid(
+            "mark must be a sand mark name or a single character",
+        ));
+    }
     if t.deleted_at.is_some() {
         return Err(WsError::invalid("use a live template"));
     }

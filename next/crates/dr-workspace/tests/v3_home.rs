@@ -77,30 +77,35 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
             .name,
         typed.output.name
     );
-    e.call(
-        "book.update",
-        json!({"book":a,"name":"  Renamed  ","word_target":23456}),
-    );
+    e.call("book.update", json!({"book":a,"name":"  Renamed  "}));
+    e.call("project.update", json!({"book":a,"word_target":23456}));
     call(
         e.ws(),
         &Actor::Mirror,
         "book.update",
-        json!({"book":a,"summary":"Independent summary","daily_word_target":0}),
+        json!({"book":a,"summary":"Independent summary"}),
+    );
+    call(
+        e.ws(),
+        &Actor::Mirror,
+        "project.update",
+        json!({"book":a,"daily_word_target":0}),
     );
     let after = e.ws().observe(&format!("book:{a}")).unwrap();
     let mut expected = before.value.clone();
     expected["meta"]["name"] = json!("Renamed");
     expected["meta"]["summary"] = json!("Independent summary");
-    expected["meta"]["word_target"] = json!(23456);
-    expected["meta"]["daily_word_target"] = json!(0);
+    expected["project"]["book"]["word_target"] = json!(23456);
+    expected["project"]["book"]["daily_word_target"] = json!(0);
     assert_eq!(
         after.value, expected,
-        "only the requested metadata fields change"
+        "only the requested metadata and project.book fields change"
     );
     e.reopen();
     e.ws().undo(&Actor::User).unwrap().unwrap();
+    e.ws().undo(&Actor::User).unwrap().unwrap();
     expected["meta"]["name"] = before.value["meta"]["name"].clone();
-    expected["meta"]
+    expected["project"]["book"]
         .as_object_mut()
         .unwrap()
         .remove("word_target");
@@ -112,16 +117,16 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
     assert_eq!(get["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
     assert!(get["daily_word_target"].is_null());
     e.ws().redo(&Actor::User).unwrap().unwrap();
+    e.ws().redo(&Actor::User).unwrap().unwrap();
     assert_eq!(
         e.ws().observe(&format!("book:{a}")).unwrap().value,
         after.value
     );
     let before_noop = e.ws().observe(&format!("book:{a}")).unwrap().version;
-    let noop = e.call(
-        "book.update",
-        json!({"book":a,"name":"Renamed","word_target":23456}),
-    );
+    let noop = e.call("book.update", json!({"book":a,"name":"Renamed"}));
     assert!(noop["journal"].is_null());
+    let noop_proj = e.call("project.update", json!({"book":a,"word_target":23456}));
+    assert!(noop_proj["journal"].is_null());
     assert_eq!(
         e.ws().observe(&format!("book:{a}")).unwrap().version,
         before_noop
@@ -131,18 +136,23 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
         after.value
     );
     let valid_version = e.ws().observe(&format!("book:{a}")).unwrap().version;
-    for change in [
-        json!({"book":a,"name":"Do not save","word_target":-1}),
-        json!({"book":a,"name":"  ","summary":"Do not save"}),
-    ] {
-        assert!(e.try_call("book.update", change).is_err());
-        assert_eq!(
-            e.ws().observe(&format!("book:{a}")).unwrap().version,
-            valid_version
-        );
-    }
+    assert!(
+        e.try_call("project.update", json!({"book":a,"word_target":-1}))
+            .is_err()
+    );
+    assert!(
+        e.try_call(
+            "book.update",
+            json!({"book":a,"name":"  ","summary":"Do not save"})
+        )
+        .is_err()
+    );
+    assert_eq!(
+        e.ws().observe(&format!("book:{a}")).unwrap().version,
+        valid_version
+    );
     e.call(
-        "book.update",
+        "project.update",
         json!({"book":a,"word_target":null,"daily_word_target":null}),
     );
     let get = e.out("book.get", json!({"book":a}));
@@ -158,8 +168,6 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
                 book: a.clone(),
                 name: None,
                 summary: Some("Typed update".into()),
-                word_target: None,
-                daily_word_target: None,
             },
         )
         .unwrap();
@@ -186,9 +194,14 @@ fn v3_recent_preserves_modules_retained_pages_locality_and_cross_book_purge() {
     e.call("entry_template.put_module",json!({"book":a,"template":"tpl-chapter","module":{"id":"second-prose","kind":"prose","name":"Second prose"}}));
     let entry = chapter(&e, &a, &parent, "Synthetic module page");
     e.call("module.set_prose",json!({"book":a,"owner":entry,"module":"second-prose","paragraphs":[{"text":"Retained synthetic passage"}]}));
-    let material = e.out(
-        "material.create",
-        json!({"book":a,"kind":"text","title":"Synthetic note","text":"Synthetic note"}),
+    let note_entry = e.out(
+        "entry.create",
+        json!({
+            "book": a,
+            "template": "tpl-note",
+            "title": "Synthetic note",
+            "bodies": {"mod-prose": "Synthetic note"}
+        }),
     )["id"]
         .clone();
     let other_entry = chapter(&e, &b, &root(&e, &b), "Other book");
@@ -202,7 +215,7 @@ fn v3_recent_preserves_modules_retained_pages_locality_and_cross_book_purge() {
     let first = json!({"kind":"entry","id":entry,"module":"mod-prose"});
     let second = json!({"kind":"entry","id":entry,"module":"second-prose"});
     let whole = json!({"kind":"entry","id":entry});
-    let note = json!({"kind":"material","id":material});
+    let note = json!({"kind":"entry","id":note_entry,"module":"mod-prose"});
     let about = json!({"kind":"entry","id":parent,"module":"mod-description"});
     for target in [&first, &second, &whole, &note, &about, &first] {
         touch(&e, &a, target.clone());
@@ -248,7 +261,7 @@ fn v3_recent_preserves_modules_retained_pages_locality_and_cross_book_purge() {
     for target in [
         json!({"kind":"entry","id":other_entry}),
         json!({"kind":"entry","id":entry,"module":"unknown"}),
-        json!({"kind":"material","id":material,"module":"mod-prose"}),
+        json!({"kind":"material","id":"synthetic-retired"}),
         json!({"kind":"book","id":a}),
     ] {
         assert!(

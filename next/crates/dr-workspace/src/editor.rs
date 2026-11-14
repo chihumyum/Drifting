@@ -103,6 +103,40 @@ impl ProseSession {
         self.slot.reader.clone()
     }
 
+    /// Verify that `asset` is recorded in this prose document's owning book
+    /// (`MEDIA-AND-EMBED-ASSET-EXISTS`).
+    pub fn ensure_asset(&self, asset: &dr_model::id::AssetId) -> Result<()> {
+        let Some(book) = &self.slot.book else {
+            return Err(WsError::invalid("canonical prose needs its owning book"));
+        };
+        let Some(inner) = self.workspace.upgrade() else {
+            return Err(WsError::Internal("workspace is closed".into()));
+        };
+        let ws = Workspace { inner };
+        let bs = ws.book_slot(book)?;
+        if !bs.reader_v3.view().assets().iter().any(|a| &a.id == asset) {
+            return Err(WsError::not_found("asset", asset.as_str()));
+        }
+        Ok(())
+    }
+
+    /// Insert an asset embed at `at`, verifying first that `asset` is recorded
+    /// in the owning book (`MEDIA-AND-EMBED-ASSET-EXISTS`).
+    pub fn insert_asset_embed(
+        &self,
+        at: usize,
+        id: &dr_model::id::EmbedId,
+        asset: &dr_model::id::AssetId,
+    ) -> Result<()> {
+        self.ensure_asset(asset)?;
+        let id = id.clone();
+        let asset = asset.clone();
+        self.edit(move |txn| {
+            txn.insert_embed(at, &id, &dr_doc::prose::EmbedKind::Asset(asset))?;
+            Ok(())
+        })
+    }
+
     /// One commit by the author.
     pub fn edit<R, F>(&self, f: F) -> Result<R>
     where

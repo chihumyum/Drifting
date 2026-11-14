@@ -239,21 +239,22 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "NODE-HAS-PROSE",
-        "每个实际正文模块和文本素材的空正文都有确定创世，不回到旧节点类型",
+        "每个实际正文模块的空正文都有确定创世，不回到旧节点类型",
         [Structure],
         "确定性的创世：还没有字节的正文文档就是创世那一份空段落，所有设备一样",
         ["genesis_is_deterministic_and_concurrent_init_merges"]
     ),
     inv!(
         "REL-KINDS",
-        "关系从结构实体、批注或素材出发，指向结构实体",
+        "关系从条目、补丁、批注或文件出发，指向条目、补丁或文件",
         [Command, Read],
-        "dr_model::check::relation_ends；读取时不合规的不显示",
+        "EntityKind::may_start_relation_v3 / is_structural_v3；读取时不合规的不显示",
         [
             "relations_are_shown_only_when_whole",
             "todo_links_through_the_builtin_type",
             "entity_kind_roles_match_the_old_vocabulary",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "asset_direct_region_comment_and_relation_survive_reopen"
         ]
     ),
     inv!(
@@ -326,7 +327,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "关系类型的方向是 directed/symmetric，system_key 只有 generic-association，锁定的才有 system_key",
         [Read, Structure],
         "开放枚举；system_key 和 locked 只由创世写",
-        ["book_genesis_sets_version_4_and_locked_generic_relation_type"]
+        ["book_genesis_sets_version_5_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-DEFINITION",
@@ -354,7 +355,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "每本书有且只有一个内置关系类型，id 是 system:generic-association:<书 id>",
         [Structure],
         "书目文档的创世写它；所有设备的创世字节相同，Loro 去重",
-        ["book_genesis_sets_version_4_and_locked_generic_relation_type"]
+        ["book_genesis_sets_version_5_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-LOCKED",
@@ -368,18 +369,19 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "CMT-TARGET",
-        "批注的目标要么全空（浮动），要么种类和 id 都有，且是可批注的种类",
+        "批注的目标要么全空（浮动），要么种类和 id 都有，且是可批注的种类（条目或素材库里的文件）",
         [Command, Read],
-        "check::comment_target；读取时目标不在或在废纸篓就标 target_missing，显示为「未定位」，不丢",
+        "EntityKind::may_be_commented_v3；直接挂在素材库文件上的批注不带模块、可带图或 PDF 页的区域；读取时目标不在或在最近删除里就标 target_missing，显示为「未定位」，不丢",
         [
             "comments_keep_unlocated_targets_and_anchor_into_prose",
             "v3_comments_address_modules_validate_anchors_and_restore_after_reopen",
-            "comments_with_anchors_and_metadata"
+            "comments_with_anchors_and_metadata",
+            "asset_direct_region_comment_and_relation_survive_reopen"
         ]
     ),
     inv!(
         "CMT-ENUMS",
-        "批注的种类、状态、作者种类、来源、优先级取值固定",
+        "批注的状态、作者种类、写入渠道、来源（origin）、优先级取值固定",
         [Read],
         "开放枚举；旧值（如 copilot）照读",
         [
@@ -395,43 +397,21 @@ pub const INVARIANTS: &[Invariant] = &[
         ["unknown_values_survive"]
     ),
     inv!(
-        "MAT-KIND",
-        "素材是 image / pdf / text；url 已退役",
-        [Command, Read],
-        "check::material_payload 拒绝其他种类；旧的 url 读成 Other，界面当作不支持",
+        "AST-IMMUTABLE",
+        "资源的二进制身份（种类、MIME、大小、sha256、尺寸）写一次就不变",
+        [Command],
+        "BookTxnV3::put_asset：同一 id 不同二进制身份拒绝；asset.rename / asset.trash / asset.restore 只改名字或删除时间，不改二进制身份",
         [
-            "shared_payload_and_size_checks",
-            "unknown_values_survive",
-            "materials_folders_and_assets"
+            "assets_and_media_modules",
+            "asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"
         ]
     ),
     inv!(
-        "MAT-PAYLOAD",
-        "图片和 PDF 素材有同种类的资源，文本素材没有；一个资源只属于一个主人",
-        [Command, Read],
-        "check::material_payload；读取时资源不在或种类不符就读成无（显示为缺失）",
-        ["materials_folders_and_assets"]
-    ),
-    inv!(
-        "MAT-PROSE",
-        "只有文本素材有正文文档",
-        [Read],
-        "BookView::owns_prose",
-        ["materials_folders_and_assets"]
-    ),
-    inv!(
-        "MAT-FOLDER",
-        "素材所在的素材夹存在",
-        [Read],
-        "读取时不在就放到根目录（旧版也允许 folder 比素材夹活得久）",
-        ["materials_folders_and_assets"]
-    ),
-    inv!(
-        "AST-IMMUTABLE",
-        "资源的元数据写一次就不变",
-        [Command],
-        "BookTxn::put_asset：同一 id 不同值拒绝；没有改资源的写入接口",
-        ["materials_folders_and_assets"]
+        "ASSET-LIBRARY-KEEPS-UNREFERENCED",
+        "素材库里的文件不因为没人引用而被清掉；只有从素材库删掉、又从最近删除清掉的文件才删字节",
+        [Structure, Command, Read],
+        "assets 就是素材库的清单；删除只写 deleted_at（进最近删除，用到它的媒体模块、正文嵌入、关系、批注读作占位或隐藏），asset.restore 清掉 deleted_at 后恢复，只有 asset.purge 删键并清本机资源字节，collect_asset_garbage 只清未完成导入的临时目录",
+        ["asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"]
     ),
     inv!(
         "AST-SHAPE",
@@ -441,36 +421,15 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "shared_payload_and_size_checks",
             "sha256_shape",
-            "materials_folders_and_assets"
+            "assets_and_media_modules"
         ]
     ),
     inv!(
         "ASSET-BYTES",
         "资源字节到了才能显示",
         [Read],
-        "元数据（书目文档的 assets）和字节（存储的本机资源目录，F2）分开；素材页读不到字节时在画面上说一句没有这个文件（M19 的 Trouble::Missing），不报错、不崩。字节同步到达后自动重新显示要等 F2 的资源同步，现在是打开页面时读一次",
+        "元数据（书目文档的 assets）和字节（存储的本机资源目录，F2）分开；界面读不到字节时在画面上说一句没有这个文件（M19 的 Trouble::Missing），不报错、不崩。字节同步到达后自动重新显示要等 F2 的资源同步，现在是打开页面时读一次",
         ["a_material_without_its_file_says_so"]
-    ),
-    inv!(
-        "TREE-NO-CYCLE",
-        "素材夹不成环，也不能是自己的父级；条目树另见 V3-TREE-NO-CYCLE",
-        [Structure],
-        "LoroTree 本地拒绝成环的移动，合并时也不会产生环",
-        [
-            "concurrent_moves_never_make_a_cycle_and_missing_groups_read_as_root",
-            "three_peers_read_the_same_book"
-        ]
-    ),
-    inv!(
-        "TREE-DELETE-MOVES-UP",
-        "删除素材夹时保留素材并按既有素材夹协议恢复住处",
-        [Command, Read],
-        "BookTxn::delete_drift_group / delete_material_folder 先挪子级再删（Loro 删节点会连子树一起删）；并发加进去的读取时放到根目录",
-        [
-            "deleting_a_group_moves_children_and_ideas_up",
-            "materials_folders_and_assets",
-            "v3_material_folders_restore_order_ancestry_and_only_selected_records"
-        ]
     ),
     inv!(
         "KV-LIST",
@@ -590,13 +549,13 @@ pub const INVARIANTS: &[Invariant] = &[
         "正文文档要有书目里的实体",
         [Read, Repair],
         "BookViewV3::owns_prose；没有主人的正文文档读取时忽略，由 F2 清理（彻底删除和另一台设备的编辑并发时会出现）",
-        ["materials_folders_and_assets"]
+        ["timeline_view_requires_lane_membership_and_prose_ownership_works"]
     ),
     inv!(
         "ORDER-POS",
-        "纯列表（故事线、补丁、素材、键值列表、情节规划的行列、表格的行列）的顺序是分数索引位置键，不是数字；平局按 id",
+        "纯列表（补丁、媒体模块里的文件、键值列表、情节规划的行列、表格的行列、左栏 Tab）的顺序是分数索引位置键，不是数字；平局按 id",
         [Structure, Read],
-        "dr_model::pos（照搬 Rocicorp fractional-indexing 4.0.0，旧键逐字节保留）；挪一项只改这一项的键，两台设备各自重排再合并也不会互相打乱；构想分组、素材夹的兄弟顺序由 LoroTree 自己的分数索引管；读取时缺键或坏键排到最后",
+        "dr_model::pos（照搬 Rocicorp fractional-indexing 4.0.0，旧键逐字节保留）；挪一项只改这一项的键，两台设备各自重排再合并也不会互相打乱；条目树的兄弟顺序由 LoroTree 自己的分数索引管；读取时缺键或坏键排到最后",
         [
             "matches_the_js_library",
             "many_keys_are_ordered_and_between",
@@ -615,9 +574,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "PROJECTED-TODO-ID",
-        "从正文生成的待办（TODO: 标记、素材笔记的任务行）在每台设备上是同一个实体",
+        "从正文生成的批注（TODO: 标记、正文清单项）在每台设备上是同一个实体",
         [Structure],
-        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（种类、目标、状态、任务文字 projection_text）是种子变更（BookTxn::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
+        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（origin、目标、状态、任务文字 projection_text）是种子变更（BookTxnV3::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
         [
             "projected_todos_are_one_entity_on_every_device",
             "derived_ids",
@@ -729,7 +688,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "V3-LEAF-NO-CHILDREN",
         "开关关着的条目下面没有条目；合并后出现时，读取时把这些条目当作住在最近一个开着开关的祖先下面（没有就是根），数据不动，开关再打开就回来",
         [Command, Read],
-        "命令层用 dr_model::v3::check_parent_is_level 只接受根或开着开关的活条目做新建、移动、恢复的住处，关开关的命令把直接子条目一次挪走；读取时 effective_parent_id 跳过开关关着的祖先，底层数据不动",
+        "命令层用 dr_model::v3::check_parent_is_level 只接受根或开着开关的活条目做新建、移动、恢复的住处，关开关的命令把住在下面的活条目连同子树一次放进最近删除；读取时 effective_parent_id 跳过开关关着的祖先，底层数据不动",
         ["entries_with_the_switch_off_hold_nothing_and_merge_lifts_to_the_nearest_level"]
     ),
     inv!(
@@ -755,30 +714,30 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-MEMBERSHIP-RULES",
-        "归属到的层级活着、开关开着、解析后收别处的条目；读取时不满足就忽略这条归属，数据留着",
+        "被挂的条目活着、开着「收别处的条目」（只看它自己和它的模板，不沿树继承，不看层级开关）；读取时不满足就忽略这条归属，数据留着",
         [Command, Read],
-        "归属只看要挂去的层级，不看成员的模板：check_membership 校验两端活着、宿主开关开着、解析后的 settings.accept 为真（泳道恒为真）；filter_valid_memberships 过滤不满足的归属（宿主关掉开关的也在内），Entry::effective_primary 只认仍在有效归属里的宿主",
+        "归属只看要挂去的条目，不看成员的模板：check_membership 校验两端活着、宿主 accepts_members 为真；filter_valid_memberships 过滤不满足的归属，Entry::effective_primary 只认仍在有效归属里的宿主",
         ["membership_is_governed_by_the_hosts_switch_and_accept"]
     ),
     inv!(
         "V3-TIMELINE-LANE-ENABLED",
-        "视图里的泳道是开关开着、解析后 lane 为真的条目；lane 不往下继承",
+        "视图里的泳道是活着、开着「层级」或「收别处的条目」的条目",
         [Command, Read],
-        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::is_lane（开关开着，lane 取条目自己的覆盖、没有再取模板）；读取时 effective_timeline_lanes 忽略不满足的条目",
+        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::has_below（开着层级或收别处的条目）；读取时 effective_timeline_lanes 忽略不满足的条目",
         ["v3_timeline_lanes_and_placements_require_lane_membership"]
     ),
     inv!(
         "V3-TIMELINE-PLACEMENT-IN-LANE",
-        "视图里的条目在这个视图的某条泳道里：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
+        "视图里的条目在这个视图的某条泳道里（住在开着层级的泳道下，或挂在开着收别处条目的泳道上）：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
         [Command, Read],
-        "命令层用 check_timeline_placement_in_lane 校验条目归属在该视图至少一条有效泳道里，移出泳道时用 prune_placement_if_not_in_view_lanes 清理位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
+        "命令层用 check_timeline_placement_in_lane / is_entry_in_view_lanes 校验条目在至少一条有效泳道里（直接住着或有效挂名），移出或摘名时用 prune_placement_if_not_in_view_lanes 清理孤立位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
         ["v3_timeline_lanes_and_placements_require_lane_membership"]
     ),
     inv!(
         "V3-AUTOLINK-NAME-UNIQUE",
-        "自动链接的名字和别名唯一（范围：自动链接的条目，即模板 linkable、住处层级或任一归属层级开了自动链接的条目，不看它自己的开关）",
+        "自动链接的名字和别名唯一（范围：自动链接的条目，即活着、模板 linkable、住的那一层解析后开了自动链接的条目；只看住处，不看挂在哪，也不看它自己的开关）",
         [Command, Read],
-        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出），只拒绝这次写入新造成的重名；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
+        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出，只读住处），只拒绝这次写入新造成的重名；挂名增删不重算名字表；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
         [
             "autolink_names_are_unique_across_autolinked_entries_whatever_their_switch",
             "a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves_it"
@@ -792,16 +751,6 @@ pub const INVARIANTS: &[Invariant] = &[
         ["v3_timeline_targets_filter_deleted_entries"]
     ),
     inv!(
-        "V3-MANUSCRIPT-NO-NEST",
-        "成书的层级（开着开关的条目）不嵌套：命令层预防；读取时只认最外层",
-        [Command, Read],
-        "命令层用 dr_model::v3::check_new_violations 比较改前改后的嵌套对（manuscript_nest_pairs），只拒绝这次写入新造成的嵌套；合并冲突下 effective_manuscript_levels 只认最外层，旧的嵌套不挡无关的写入",
-        [
-            "v3_manuscript_levels_never_nest_and_read_outermost",
-            "a_nested_manuscript_a_merge_left_blocks_no_unrelated_write"
-        ]
-    ),
-    inv!(
         "V3-CROSS-DOC-ORDER",
         "v3 跨文档写入的先后：先写正文文档（body: / template:），再写书目文档（book:）",
         [Command],
@@ -810,9 +759,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-DOCID-LIBRARY-UNIQUE",
-        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），书旁边的两篇文档是 stats:<书 id>、checkpoints:<书 id>，彻底删除一本书不会删掉另一本书的文档",
+        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），书旁边的三篇文档是 stats:<书 id>、checkpoints:<书 id>、layout:<书 id>，彻底删除一本书不会删掉另一本书的文档",
         [Structure, Command],
-        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，DocId::Stats / DocId::Checkpoints 就是书 id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
+        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，DocId::Stats / DocId::Checkpoints / DocId::Layout 就是书 id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
         [
             "v3_doc_ids_are_unique_across_books_in_library",
             "two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_the_other"
@@ -820,9 +769,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "SIDE-DOC-NOT-PROSE",
-        "书旁边的两篇文档（stats:<书> 写作日、checkpoints:<书> 快照点清单）不是正文也不是书目：不编辑、不计字数、不搜索、不导出成书稿、不投待办；属于 id 里的那本书，跟着它导出和彻底删除",
+        "书旁边的三篇文档（stats:<书> 写作日、checkpoints:<书> 快照点清单、layout:<书> 画布坐标）不是正文也不是书目：不编辑、不计字数、不搜索、不导出成书稿、不投待办；属于 id 里的那本书，跟着它导出和彻底删除",
         [Structure, Read],
-        "DocKind::Stats / Checkpoints 没有 ProseProfile、is_book_text 为假；创世确定（meta.v = 1、meta.doc），两台设备各建一篇合并后是同一篇；owns_prose 认它们属于 id 里的书；登记在书名下，按书列文档的导出和清除自动带上",
+        "DocKind::Stats / Checkpoints / Layout 没有 ProseProfile、is_book_text 为假；创世确定（meta.v = 1、meta.doc），两台设备各建一篇合并后是同一篇；owns_prose 认它们属于 id 里的书；登记在书名下，按书列文档的导出和清除自动带上",
         [
             "stats_and_checkpoints_are_neither_prose_nor_the_book",
             "a_side_document_refuses_the_bytes_of_another",
@@ -831,38 +780,52 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "SIDE-DOC-QUIET",
-        "记写作日、存快照点、修剪快照点都不写书目文档：书目版本不变，不发书目事件",
+        "记写作日（仅在项目开着成书时记）、存快照点、修剪快照点都不写书目文档：书目版本不变，不发书目事件",
         [Command],
-        "writing_day.record 经 Cx::write_stats 只写 stats:<书>；entry_snapshot.* 在原子事务里只把清单写进 checkpoints:<书>，书目只读；工作区给两篇文档各发自己的事件（WsEvent::Stats / Checkpoints）",
+        "writing_day.record 在 project.book 关闭时不记录，开启时经 Cx::write_stats 只写 stats:<书>；entry_snapshot.* 在原子事务里只把清单写进 checkpoints:<书>，书目只读；工作区给两篇文档各发自己的事件（WsEvent::Stats / Checkpoints）",
         [
             "writing_days_and_checkpoints_leave_the_book_document_alone",
             "writing_days_dispatch_by_version_preserve_other_books_and_do_not_enter_undo"
         ]
     ),
     inv!(
-        "BOOK-FORMAT-4-ONLY",
-        "只开 meta.v == 4 的书；别的版本（v3 和更早）原样拒开，不改不删，也不经同步进来",
+        "LAYOUT-DOC-QUIET",
+        "画布坐标（看板、网格、关系图）存在 layout:<书> 小文档里，读写不触碰书目文档：书目版本不变、不发书目事件、不进撤销日志、不参加书目的写入守卫",
+        [Structure, Command],
+        "layout.put 与 layout.clear 经 Cx::write_layout 只写 layout:<书>（<范围>/<摆法> -> 条目 id -> 坐标），标记 irreversible，不写 book:<id> 也不跑书目记录守卫；工作区单发 WsEvent::Layout",
+        ["layout_writes_leave_the_book_document_alone"]
+    ),
+    inv!(
+        "BOOK-FORMAT-5-ONLY",
+        "只开 meta.v == 5 的书；别的版本（v4 和更早）原样拒开，不改不删，也不经同步进来",
         [Command, Read],
-        "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 4 的书目更新；书文件只读格式 4",
+        "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 5 的书目更新；书文件只读格式 5",
         [
-            "a_book_of_format_3_is_refused_as_it_is_and_cannot_arrive_by_sync",
+            "a_book_of_format_3_or_4_is_refused_as_it_is_and_cannot_arrive_by_sync",
             "old_catalog_and_old_prose_are_refused_without_repair_or_mutation",
             "a_marker_change_that_arrives_before_its_dependency_is_refused_with_it"
         ]
     ),
     inv!(
         "LEVEL-OFF-KEEPS-BELOW",
-        "关开关不删「下面」的东西：覆盖、泳道身份、归属、主归属、视图里的位置都留着，开关关着时读作不存在，再打开就回来",
+        "关层级开关不删「下面」的东西：覆盖、归属、主归属、视图里的泳道与刻度位置都留着；挂在它上面的记录和它在视图里的泳道不看层级开关、只看「收别处的条目」",
         [Structure, Read],
-        "开关存在条目上（Entry::level）；resolve_level_settings 对开关关着的条目给默认值，filter_valid_memberships、Entry::is_lane、effective_timeline_placements 都按开关过滤，数据不动",
+        "开关存在条目上（Entry::level）；挂在上面的记录和泳道按 Entry::accepts_members 照常生效，覆盖和刻度位置原样留着",
         ["switching_off_keeps_overrides_memberships_lanes_and_placements_for_when_it_is_back"]
     ),
     inv!(
-        "LEVEL-SWITCH-OFF-MOVES-CHILDREN",
-        "下面还有条目时关开关：一次书目提交把直接子条目（含回收站里的）按原顺序挪到这个条目所在的顶层条目后面，子树跟着走，守卫按子条目顺序，一步撤销",
+        "ACCEPT-OFF-HIDES-MEMBERS",
+        "「收别处的条目」关着时，挂在它上面的记录读作不在，数据留着；再打开就回来",
+        [Structure, Read],
+        "accept 只读条目自己的覆盖和它的模板，不继承、不看层级开关；filter_valid_memberships、effective_timeline_lanes（对非层级条目）按 accept 过滤，原记录不动",
+        ["accept_off_hides_memberships_without_deleting_them"]
+    ),
+    inv!(
+        "LEVEL-SWITCH-OFF-TRASHES-CHILDREN",
+        "下面还住着条目时关层级开关：一次书目提交把住在下面的活条目（含整个子树）放进最近删除，留在原位不挪，已经在最近删除里的不动，一步撤销；单独恢复时若原住处不能住了，落到往上最近一个开着层级的条目下面（没有就是最外层）",
         [Command],
-        "entry.set_level 关开关时声明 entries/<id>/level 和 children_of(<id>)，在一次写入里调 EntriesTreeWriterV3::switch_level_off，登记 entry_history.restore 撤销这个条目和每个被挪的子条目",
-        ["switching_off_moves_direct_children_after_the_top_level_ancestor_in_one_undoable_commit"]
+        "entry.set_level 关开关时声明 entries/<id>/level 和 children_of(<id>)，在一次写入里调 EntriesTreeWriterV3::switch_level_off 给下面活着的条目写 deleted_at，登记 entry_history.restore 一步撤销；entry.restore 检查原住处",
+        ["switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step"]
     ),
     inv!(
         "LEVEL-DEFAULT-FROM-TEMPLATE",
@@ -873,24 +836,89 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "MANUSCRIPT-OWN-PROSE-FIRST",
-        "成书序列：从最外层成书层级按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；回收站里的连同下面都不算",
+        "成书序列：文件夹和根起点按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；视图和泳道起点只沿刻度取泳道成员；回收站里的连同下面都不算",
         [Structure, Read],
-        "只有 BookStructureV3::manuscript 算成书序列（导出、全书字数、章节编号都用它），ordinal 只编给有成书正文的条目（哪些不编见 MANUSCRIPT-NUMBER-OUTERMOST-PROSE）",
+        "BookStructureV3::sequence 与 book_sequence 共用同一个读取器（导出、全书字数、章节编号、书架都用它），ordinal 只编给有成书正文的条目（哪些不编见 MANUSCRIPT-NUMBER-OUTERMOST-PROSE）",
         ["the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it"]
     ),
     inv!(
         "MANUSCRIPT-NUMBER-OUTERMOST-PROSE",
-        "章节编号：条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，在成书序列里的位置、导出的内容、全书字数都不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定）；成书层级本身的正文（前言）照旧编号，也不拦住下面的章",
+        "章节编号：条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，在成书序列里的位置、导出的内容、全书字数都不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定）；条目起点本身的正文（前言）照旧编号，也不拦住下面的章",
         [Structure, Read],
-        "BookStructureV3::manuscript 按先序走时记住正在里面的那个有编号条目的深度（成书层级本身深度为 0，不记），回到同一深度或更浅才出来；manuscript_entries 仍按「带成书正文」收，不看编号",
+        "BookStructureV3::sequence 按先序走时记住正在里面的那个有编号条目的深度（BookRoot::Entry 起点本身深度为 0，不记），回到同一深度或更浅才出来；book_entries 仍按「带成书正文」收，不看编号",
         ["entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number"]
     ),
     inv!(
         "FLATTEN-MEMBERS-ONCE",
-        "整书视图带归属摊平：每个层级先住在下面的、再归属进来的（按归属自己的顺序），每个条目只出现一次；成书序列不带归属",
+        "成书序列和整书视图共用同一个读法：文件夹和根起点在每个节点下先走住在下面的（层级开着时）、再走归属进来的（收别处的条目开着时），每个条目只出现一次",
         [Structure, Read],
-        "BookStructureV3::flatten 的 include_members 用已访问集合挡住重复和环；manuscript() 恒不带归属",
+        "BookStructureV3::sequence 用已访问集合挡住重复和环，整书视图（in_book_only = false）与成书序列（in_book_only = true）是同一个读法",
         ["flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone"]
+    ),
+    inv!(
+        "BOOK-ROOT-VALID",
+        "成书的起点是根，或一个活着的、开着层级或「收别处的条目」的条目，或一个没删的视图，或这个视图里的一条有效泳道：命令层预防；读取时不满足就读作没有成书内容，数据留着",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_book_root 校验起点；读取时 BookStructureV3::book_sequence 在没有成书或起点失效时返回空，不改数据",
+        [
+            "v5_book_root_and_tab_mount_validate_all_four_kinds",
+            "project_book_root_reads_all_four_starts_and_tolerates_missing"
+        ]
+    ),
+    inv!(
+        "TAB-MOUNT-VALID",
+        "Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目、一个没删的视图，或成书序列（项目开着成书时）：命令层预防；读取时不满足就显示为失效，数据留着",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_tab_mount 校验 Tab 挂载；读取时保留原记录并标出 mount_valid = false",
+        [
+            "v5_book_root_and_tab_mount_validate_all_four_kinds",
+            "project_tabs_mount_four_targets_and_keep_invalid_mounts"
+        ]
+    ),
+    inv!(
+        "VIEW-LANE-MEMBERS-PLACED",
+        "视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置：命令层在条目进到泳道里（挂上来或住进去）或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
+        [Command, Read],
+        "membership.add、entry.create、entry.move、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位的住处子条目与挂名成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_entries_order 与 lane_members_order 按成书起点视图或首个视图的刻度排，无位置的排在最后",
+        [
+            "lane_members_order_follows_reference_view_scale_and_places_unpositioned_last",
+            "joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos"
+        ]
+    ),
+    inv!(
+        "VIEW-LANE-EXIT-RESTORES-ORDER",
+        "泳道进出视图不打乱它里面的条目的先后：放进第一个视图时按手动先后落位；离开最后一个没删的视图（拿出泳道、删视图）时把刻度上的先后写回（挂着的写回归属的 pos，住着的写回文件夹里的手动先后），和拿出泳道同一次提交、一步撤销；还在别的视图里时不写",
+        [Command],
+        "timeline_view.add_lane 与 timeline_view.put 按手动先后给住着的和挂着的条目落位；timeline_view.remove_lane、timeline_view.put、timeline_view.delete 在泳道离开最后一个视图时写回 pos 与 LoroTree 兄弟顺序，登记恢复键一步撤销",
+        ["lane_entering_and_leaving_views_preserves_order_and_undoes_in_one_step"]
+    ),
+    inv!(
+        "VIEW-FOLDER-ORDER-FROM-SCALE",
+        "文件夹在视图里时，它下面的先后读刻度（以成书起点那个视图为准，否则它所在的第一个视图），手动先后留着不读、也不双写；entry.move 带 index 落进这样的文件夹时改刻度上的位置",
+        [Structure, Command, Read],
+        "BookStructureV3 对在活视图里的层级按 lane_reference_view 的刻度重排 children 与先序序列，manual_children 保留原始树顺序；entry.move 对在视图里的父级计算刻度位置写进参考视图，同父级内调先后不改 LoroTree 兄弟顺序",
+        ["folder_in_view_reads_and_moves_by_scale_without_touching_manual_order"]
+    ),
+    inv!(
+        "COMMENT-PART-IN-MODULE",
+        "批注的「哪一处」（part）属于它说的那个模块（字段记 id 不记名字），或直接框在素材库文件上",
+        [Command, Read],
+        "comment.create 用 check_comment_part_kind 并核对条目当前模板里的字段 id、键值行、情节规划格子、补丁、媒体文件与正文嵌入（直接挂在 asset 上只接受空或 region）；读取时 BookViewV3 与 comment.list 找不到原处即标 target_missing / unlocated = true",
+        [
+            "comment_parts_validate_against_modules_and_degrade_to_unlocated",
+            "field_rename_keeps_comment_on_field_id",
+            "asset_direct_region_comment_and_relation_survive_reopen"
+        ]
+    ),
+    inv!(
+        "MEDIA-AND-EMBED-ASSET-EXISTS",
+        "媒体模块里的文件、正文嵌入指向的文件都在素材库且未删除；读取时不在或已删就显示占位",
+        [Command, Read],
+        "命令层在 module.put_media 校验 asset 在素材库且未进最近删除；读取时 module.read 与正文嵌入照实暴露缺失或已删的 asset（missing = true 或 missing_embeds），由界面显示占位，恢复后重新显示",
+        [
+            "media_items_and_prose_embeds_require_registered_assets_and_tolerate_missing_on_read",
+            "asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"
+        ]
     ),
 ];
 
@@ -945,7 +973,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 84;
+pub const ACTIVE_CONTRACTS: usize = 87;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
@@ -966,13 +994,7 @@ mod tests {
             assert!(!i.rule.is_empty() && !i.how.is_empty(), "{}", i.id);
         }
         // Every `check` predicate names an invariant that exists.
-        for id in [
-            "NAME-NONEMPTY",
-            "MAT-PAYLOAD",
-            "MAT-KIND",
-            "AST-SHAPE",
-            "PLOT-GRID",
-        ] {
+        for id in ["NAME-NONEMPTY", "AST-SHAPE", "PLOT-GRID"] {
             assert!(ids.contains(id), "{id}");
         }
     }

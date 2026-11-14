@@ -817,8 +817,8 @@ fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContex
     );
     call(
         &e.ws,
-        "entry.set_level",
-        json!({"book": e.book, "id": lane_host, "level": false}),
+        "entry.update",
+        json!({"book": e.book, "id": lane_host, "overrides": {"accept": false}}),
     );
     wait(&mut vcx4, |cx| {
         note_ed.read_with(cx, |v, _| {
@@ -839,8 +839,8 @@ fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContex
 
     call(
         &e.ws,
-        "entry.set_level",
-        json!({"book": e.book, "id": lane_host, "level": true}),
+        "entry.update",
+        json!({"book": e.book, "id": lane_host, "overrides": {"accept": true}}),
     );
     wait(&mut vcx4, |cx| {
         note_ed.read_with(cx, |v, _| {

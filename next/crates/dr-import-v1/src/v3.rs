@@ -1,4 +1,4 @@
-//! Unified-entry import (book format 4, `kernel-v4.md` §10). Source catalogs
+//! Unified-entry import (book format 5, `kernel-v5.md` §13). Source catalogs
 //! are replayed only in memory. The pipeline owns staging, prose history,
 //! anchors, receipts, assets and resume. Unresolved policy and malformed source
 //! rows stop before target writes.
@@ -26,7 +26,7 @@ pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
-        "4:{:x}",
+        "5:{:x}",
         Sha256::digest(serde_json::to_vec(&options.v3)?)
     ))
 }
@@ -42,8 +42,17 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
     let mut node_kinds = BTreeMap::new();
     let mut element_categories = BTreeMap::new();
     let mut category_fields: BTreeMap<_, BTreeSet<String>> = BTreeMap::new();
+    let mut non_text_materials_by_book: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for project in legacy.projects()? {
         let rows = legacy.book(&project.id)?;
+        non_text_materials_by_book.insert(
+            project.id.clone(),
+            rows.materials
+                .iter()
+                .filter(|m| m.kind != "text")
+                .map(|m| m.id.clone())
+                .collect(),
+        );
         for node in &rows.nodes {
             node_kinds.insert(
                 (project.id.clone(), node.id.clone()),
@@ -96,6 +105,23 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 add("unreadable-source-kv-projection", owner);
             }
         }
+        let folders_by_id: BTreeMap<&str, &crate::legacy::TreeRow> =
+            rows.folders.iter().map(|f| (f.id.as_str(), f)).collect();
+        let mut note_folder_ids: BTreeSet<&str> = BTreeSet::new();
+        for m in rows.materials.iter().filter(|m| m.kind == "text") {
+            let mut cur = m.folder.as_deref();
+            let mut seen = BTreeSet::new();
+            while let Some(fid) = cur {
+                let Some(f) = folders_by_id.get(fid) else {
+                    break;
+                };
+                if !seen.insert(fid) {
+                    break;
+                }
+                note_folder_ids.insert(fid);
+                cur = f.parent.as_deref();
+            }
+        }
         let mut ids = BTreeSet::new();
         for id in rows
             .nodes
@@ -106,6 +132,18 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             .chain(rows.categories.iter().map(|r| &r.id))
             .chain(rows.elements.iter().map(|r| &r.id))
             .chain(rows.storylines.iter().map(|r| &r.id))
+            .chain(
+                rows.folders
+                    .iter()
+                    .filter(|r| note_folder_ids.contains(r.id.as_str()))
+                    .map(|r| &r.id),
+            )
+            .chain(
+                rows.materials
+                    .iter()
+                    .filter(|r| r.kind == "text")
+                    .map(|r| &r.id),
+            )
         {
             if EntryId::parse(id).is_err()
                 || id.len() + 1 + dr_doc::v3::novel::MOD_PROSE.len() > dr_model::id::MAX_ID_LEN
@@ -326,6 +364,10 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             add("invalid-or-duplicate-source-relation", &project.id);
         }
         pending.extend(choices.pending(&catalog.view()));
+        let non_text = non_text_materials_by_book
+            .get(&project.id)
+            .cloned()
+            .unwrap_or_default();
         for (source, json) in rows
             .categories
             .iter()
@@ -336,7 +378,13 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                     .map(|s| (s.id.as_str(), s.template.as_str())),
             )
         {
-            inspect_json(source, json, dr_model::ProseProfile::Prose, &mut pending);
+            inspect_json(
+                source,
+                json,
+                dr_model::ProseProfile::Prose,
+                &non_text,
+                &mut pending,
+            );
             if !json.trim().is_empty() && crate::prose::pm::parse(json).is_err() {
                 pending.push(Pending {
                     code: "unreadable-source-template".into(),
@@ -461,20 +509,34 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             });
         }
     }
-    for (source, json, profile) in owners
+    let empty_non_text = BTreeSet::new();
+    for (project_id, source, json, profile) in owners
         .iter()
         .filter_map(|o| {
-            o.cache
-                .as_deref()
-                .map(|j| (o.old_doc_id(), j, dr_model::ProseProfile::Prose))
+            o.cache.as_deref().map(|j| {
+                (
+                    o.project_id.as_str(),
+                    o.old_doc_id(),
+                    j,
+                    dr_model::ProseProfile::Prose,
+                )
+            })
         })
         .chain(history.iter().filter_map(|h| {
-            h.preview
-                .as_deref()
-                .map(|j| (h.id.clone(), j, dr_model::ProseProfile::Prose))
+            h.preview.as_deref().map(|j| {
+                (
+                    h.project_id.as_str(),
+                    h.id.clone(),
+                    j,
+                    dr_model::ProseProfile::Prose,
+                )
+            })
         }))
     {
-        inspect_json(&source, json, profile, &mut pending);
+        let non_text = non_text_materials_by_book
+            .get(project_id)
+            .unwrap_or(&empty_non_text);
+        inspect_json(&source, json, profile, non_text, &mut pending);
     }
     pending.sort_by(|a, b| (&a.code, &a.source).cmp(&(&b.code, &b.source)));
     pending.dedup();
@@ -490,7 +552,12 @@ fn valid_kv_json(json: &str) -> bool {
     })
 }
 
-fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pending>) {
+fn inspect_entity_link(
+    attrs: Option<&Value>,
+    source: &str,
+    non_text_materials: &BTreeSet<String>,
+    pending: &mut Vec<Pending>,
+) {
     let Some(attrs) = attrs.and_then(Value::as_object) else {
         pending.push(Pending {
             code: "invalid-source-entity-link".into(),
@@ -514,6 +581,9 @@ fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pe
         .and_then(Value::as_str)
         .unwrap_or("element");
     let old_kind = dr_model::import_v1::legacy::entity_kind(raw_kind);
+    if old_kind == dr_model::kind::EntityKind::Material && non_text_materials.contains(target) {
+        return;
+    }
     let mapped_kind = dr_samples::v3::map_kind(&old_kind);
     if !mapped_kind.may_be_linked_v3() {
         pending.push(Pending {
@@ -524,7 +594,6 @@ fn inspect_entity_link(attrs: Option<&Value>, source: &str, pending: &mut Vec<Pe
     }
     let valid_target = match mapped_kind {
         dr_model::kind::EntityKind::Entry => EntryId::parse(target).is_ok(),
-        dr_model::kind::EntityKind::Material => MaterialId::parse(target).is_ok(),
         _ => false,
     };
     if !valid_target {
@@ -575,17 +644,25 @@ fn inspect_json(
     source: &str,
     json: &str,
     _profile: dr_model::ProseProfile,
+    non_text_materials: &BTreeSet<String>,
     pending: &mut Vec<Pending>,
 ) {
     if json.trim().is_empty() {
         return;
     }
-    fn walk(v: &Value, source: &str, in_table: bool, is_mark: bool, pending: &mut Vec<Pending>) {
+    fn walk(
+        v: &Value,
+        source: &str,
+        in_table: bool,
+        is_mark: bool,
+        non_text_materials: &BTreeSet<String>,
+        pending: &mut Vec<Pending>,
+    ) {
         if let Some(object) = v.as_object() {
             let kind = object.get("type").and_then(Value::as_str);
             if is_mark {
                 if kind == Some("entityLink") {
-                    inspect_entity_link(object.get("attrs"), source, pending);
+                    inspect_entity_link(object.get("attrs"), source, non_text_materials, pending);
                 } else if in_table {
                     let allowed = match kind {
                         Some("bold" | "italic" | "underline" | "strike" | "highlight" | "code") => {
@@ -628,23 +705,30 @@ fn inspect_json(
             }
             if let Some(marks) = object.get("marks").and_then(Value::as_array) {
                 for mark in marks {
-                    walk(mark, source, in_table, true, pending);
+                    walk(mark, source, in_table, true, non_text_materials, pending);
                 }
             }
             for (k, value) in object {
                 if k == "marks" || k == "attrs" {
                     continue;
                 }
-                walk(value, source, in_table, false, pending);
+                walk(value, source, in_table, false, non_text_materials, pending);
             }
         } else if let Some(array) = v.as_array() {
             for value in array {
-                walk(value, source, in_table, is_mark, pending);
+                walk(
+                    value,
+                    source,
+                    in_table,
+                    is_mark,
+                    non_text_materials,
+                    pending,
+                );
             }
         }
     }
     match serde_json::from_str(json) {
-        Ok(value) => walk(&value, source, false, false, pending),
+        Ok(value) => walk(&value, source, false, false, non_text_materials, pending),
         Err(_) => pending.push(Pending {
             code: "unreadable-source-prose".into(),
             source: source.into(),
@@ -715,12 +799,7 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
         Owner::Element(id) => id.as_str(),
         Owner::Storyline(id) => id.as_str(),
         Owner::Category(id) => id.as_str(),
-        Owner::Material(id) => {
-            return view
-                .materials()
-                .iter()
-                .any(|m| &m.id == id && eq(&want.title, &m.title));
-        }
+        Owner::Material(id) => id.as_str(),
     };
     let Some(entry) = view.entry(&EntryId::parse(id).unwrap()) else {
         return false;
