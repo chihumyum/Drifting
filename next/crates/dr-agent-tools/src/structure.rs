@@ -8,6 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use dr_doc::schema::BOOK_SCHEMA_VERSION;
 use dr_doc::v3::{BookViewV3, BorrowedBookV3};
 use dr_model::{
     DocId,
@@ -200,6 +201,11 @@ pub struct StructureContext {
     pub catalog_revision: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_template_source: Option<ProjectTemplateRef>,
+    /// The whole project's Agent guidance (`project.agent`, `kernel-v5.md`
+    /// §2): what the project template wrote for the Agent, as the author
+    /// keeps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_agent: Option<TemplateAgentSummary>,
     pub roots: Vec<RootSummary>,
     pub templates: Vec<TemplateSummary>,
     pub levels: Vec<LevelSummary>,
@@ -443,11 +449,18 @@ impl StructureContext {
             _ => Vec::new(),
         };
 
+        let project_agent = proj.agent.as_ref().map(|a| TemplateAgentSummary {
+            name: a.name.clone(),
+            description: a.description.clone(),
+            instructions: a.instructions.clone(),
+        });
+
         let catalog_revision = catalog.revision();
         let digest_payload = json!({
             "book": view.book_id(),
             "book_version": book_version,
             "catalog_revision": &catalog_revision,
+            "project_agent": &project_agent,
             "roots": &roots,
             "templates": &templates,
             "levels": &levels,
@@ -460,10 +473,11 @@ impl StructureContext {
 
         Ok(Self {
             book: view.book_id().to_string(),
-            schema_version: 3,
+            schema_version: BOOK_SCHEMA_VERSION,
             structure_revision,
             catalog_revision,
             project_template_source: proj.source,
+            project_agent,
             roots,
             templates,
             levels,

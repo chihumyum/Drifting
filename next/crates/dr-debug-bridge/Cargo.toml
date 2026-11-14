@@ -17,6 +17,8 @@ screenshot = ["gpui/test-support", "dep:gpui_platform", "gpui_platform/test-supp
 [dependencies]
 base64.workspace = true
 dr-debug-protocol.workspace = true
+# The book format version `state.get` reports.
+dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
