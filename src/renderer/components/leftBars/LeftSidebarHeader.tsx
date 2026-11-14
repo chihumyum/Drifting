@@ -41,7 +41,7 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
   const { t } = useTranslation();
   const runtime = getPlatformRuntime();
   const toggleTab = useUiStore((s) => s.toggleLeftSidebarTab);
-  const tabTrayRef = useSidebarTabMinimumWidth('left');
+  const tabTrayRef = useSidebarTabMinimumWidth('left', windowChrome);
 
   // Aggregate unviewed activity into the persistent text labels. Busy labels
   // pulse; completed changes leave a sand dot on the label until reviewed.

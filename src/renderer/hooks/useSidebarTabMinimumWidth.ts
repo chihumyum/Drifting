@@ -4,10 +4,15 @@ import { useSidebarMetricsStore } from '../store/sidebar-metrics-store';
 
 /** The rendered labels own the minimum, independent of a pane's stretched width.
  * Window controls absorbed into the same row (`data-sidebar-header-chrome`)
- * count too, so the tabs never slide under them. */
-export function useSidebarTabMinimumWidth(side: SidebarSide) {
+ * count too, so the tabs never slide under them. `windowChrome` says whether
+ * this row carries them now: splitting or merging the sidebar moves them from
+ * one row to another, and the row re-measures in that same commit, because the
+ * split decision (DesktopSidebarLayout) reads the side's minimum before a
+ * MutationObserver could report the change. */
+export function useSidebarTabMinimumWidth(side: SidebarSide, windowChrome = false) {
   const ref = useRef<HTMLDivElement>(null);
   const source = useId();
+  const measureNow = useRef<() => void>(() => {});
   useLayoutEffect(() => {
     const tray = ref.current;
     const row = tray?.parentElement;
@@ -40,11 +45,16 @@ export function useSidebarTabMinimumWidth(side: SidebarSide) {
     const mutation = new MutationObserver(observe);
     mutation.observe(row, { childList: true, subtree: true, characterData: true });
     observe();
+    measureNow.current = observe;
     return () => {
+      measureNow.current = () => {};
       resize.disconnect();
       mutation.disconnect();
       useSidebarMetricsStore.getState().clearMinimumWidth(side, source);
     };
   }, [side, source]);
+  useLayoutEffect(() => {
+    measureNow.current();
+  }, [windowChrome]);
   return ref;
 }

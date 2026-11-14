@@ -5,6 +5,7 @@ import {
   clampSidebarSplitRatio,
   sidebarTabMinimumWidth,
   sidebarSplitMinWidth,
+  sidebarSplitRoom,
   SIDEBAR_DIVIDER_WIDTH,
   MIN_DESKTOP_CONTENT_WIDTH,
   parsePersistedDimension,
@@ -23,6 +24,21 @@ describe('layout geometry', () => {
     expect(sidebarTabMinimumWidth([50, 60, 35, 40], 12, 12)).toBe(233);
     expect(sidebarTabMinimumWidth([26, 26, 26], 12, 12)).toBe(114);
     expect(sidebarSplitMinWidth(181)).toBe(363);
+  });
+  it('keeps a sidebar that narrowed out of two panes single until it is wider than where it narrowed', () => {
+    const open = { split: false, narrowedAt: null };
+    // Splits at the threshold; a sidebar that never split has nothing latched.
+    expect(sidebarSplitRoom(open, 438, 219)).toEqual({ split: false, narrowedAt: null });
+    expect(sidebarSplitRoom(open, 439, 219)).toEqual({ split: true, narrowedAt: null });
+    // Narrowing out of two remembers the width; staying narrow keeps it.
+    const narrowed = sidebarSplitRoom({ split: true, narrowedAt: null }, 420, 219);
+    expect(narrowed).toEqual({ split: false, narrowedAt: 420 });
+    expect(sidebarSplitRoom(narrowed, 400, 219)).toEqual({ split: false, narrowedAt: 420 });
+    // A lower minimum at the same width (a row that has not yet re-measured)
+    // does not split it again; real room, wider than the narrowing, does.
+    expect(sidebarSplitRoom(narrowed, 420, 183)).toEqual({ split: false, narrowedAt: 420 });
+    expect(sidebarSplitRoom(narrowed, 421, 183)).toEqual({ split: true, narrowedAt: null });
+    expect(sidebarSplitRoom(narrowed, 439, 219)).toEqual({ split: true, narrowedAt: null });
   });
   it('rejects corrupt persisted dimensions', () => {
     expect(parsePersistedDimension(null)).toBeNull();
