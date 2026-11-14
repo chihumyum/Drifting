@@ -270,7 +270,7 @@ fn snapshot_archive_roundtrip_restores_only_the_imported_entry_and_reopens_exact
         (source.as_str(), &source_before),
         (third.as_str(), &third_before),
     ];
-    let path = dir.path().join("snapshot-roundtrip.driftingbook");
+    let path = dir.path().join("snapshot-roundtrip.driftingproject");
     let exported = checked(
         &ws,
         &protected,
@@ -550,7 +550,9 @@ fn genesis_versions_literals_and_checkpoint_extensions_survive_repeated_archives
         b["id"].as_str().unwrap().to_owned(),
     ]);
     for round in 0..2 {
-        let file = dir.path().join(format!("checkpoint-{round}.driftingbook"));
+        let file = dir
+            .path()
+            .join(format!("checkpoint-{round}.driftingproject"));
         export_book(&ws, &previous, &file, &|_| {}).unwrap();
         let copy = import_book(&ws, &file, &|_| {}).unwrap().book;
         let entries = output(&ws, "entry.list", json!({"book":copy,"all":true})).unwrap();
@@ -672,7 +674,7 @@ fn damaged_checkpoint_metadata_is_refused_before_any_import_writes() {
         write_manifest_fixture(&ws, &book, &point.id, serde_json::to_value(&point).unwrap());
         let before = book_image(&ws, &book);
         let docs = ws.library().docs(None, None).unwrap();
-        let file = dir.path().join("damaged-checkpoint.driftingbook");
+        let file = dir.path().join("damaged-checkpoint.driftingproject");
         export_book(&ws, &book, &file, &|_| {}).unwrap();
         let progress = std::cell::Cell::new(0);
         let error = import_book(&ws, &file, &|p| progress.set(p.done)).unwrap_err();

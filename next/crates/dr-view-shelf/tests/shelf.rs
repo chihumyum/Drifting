@@ -1,7 +1,10 @@
 //! The bookshelf on GPUI's test platform, over a real library (two of
 //! dr-testkit's sample books, 《慢钟》 and 《阿Q正传》, read through F3): the
-//! window opens on it and lists the books with F3's numbers; a card opens
-//! its book and ⇧⌘W comes back; a new book is created and opened; a book is
+//! window opens on it and lists the books with F3's numbers (or straight on
+//! the book open when it last closed); a card opens its book, the button
+//! right of the traffic lights drops the row of projects, which goes to
+//! 全部项目, and the red light closes the window; a new book is created
+//! and opened; a book is
 //! renamed, moved to Recently Deleted and restored; Recently Deleted counts
 //! the days left and deletes a book for good; the books due go two minutes
 //! after the shelf shows; a double click on the empty desk starts a new
@@ -58,6 +61,14 @@ fn library() -> (tempfile::TempDir, Library) {
 }
 
 fn setup(cx: &mut TestAppContext, library: Library) -> (Entity<Workspace>, &mut VisualTestContext) {
+    setup_with(cx, library, SettingsFile::in_memory())
+}
+
+fn setup_with(
+    cx: &mut TestAppContext,
+    library: Library,
+    settings: SettingsFile,
+) -> (Entity<Workspace>, &mut VisualTestContext) {
     // F3 reads and delivers events on its own threads.
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -67,7 +78,7 @@ fn setup(cx: &mut TestAppContext, library: Library) -> (Entity<Workspace>, &mut 
                 library: Some(library),
                 ..Services::default()
             },
-            SettingsFile::in_memory(),
+            settings,
             cx,
         );
         dr_view_shelf::init(cx);
@@ -169,8 +180,55 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
     cx.run_until_parked();
 }
 
+/// The window opens on the book that was open when it last closed.
 #[gpui::test]
-fn a_card_opens_its_book_and_cmd_shift_w_or_the_red_light_comes_back(cx: &mut TestAppContext) {
+fn the_window_opens_on_the_last_book(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let books: Vec<String> = library
+        .library()
+        .docs(None, Some("book"))
+        .unwrap()
+        .into_iter()
+        .filter_map(|d| d.doc_id.strip_prefix("book:").map(str::to_owned))
+        .collect();
+    let last = books[1].clone();
+    let mut settings = SettingsFile::in_memory();
+    settings.set_last_book(&last);
+    let (view, cx) = setup_with(cx, library, settings);
+    wait_for(cx, |cx| view.read_with(cx, |ws, _| ws.book.id == last));
+    assert!(view.read_with(cx, |ws, _| !ws.shelf_open));
+}
+
+/// A last book that cannot be opened any more (it is in Recently Deleted):
+/// 全部项目 instead.
+#[gpui::test]
+fn a_last_book_gone_opens_all_projects(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let books: Vec<String> = library
+        .library()
+        .docs(None, Some("book"))
+        .unwrap()
+        .into_iter()
+        .filter_map(|d| d.doc_id.strip_prefix("book:").map(str::to_owned))
+        .collect();
+    let gone = books[0].clone();
+    library
+        .run::<BookTrash>(&Actor::User, BookIn { book: gone.clone() })
+        .unwrap();
+    let mut settings = SettingsFile::in_memory();
+    settings.set_last_book(&gone);
+    let (view, cx) = setup_with(cx, library, settings);
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        view.read_with(cx, |ws, _| ws.shelf_open)
+    });
+    assert!(view.read_with(cx, |ws, _| ws.book.id.is_empty()));
+}
+
+#[gpui::test]
+fn a_card_opens_its_book_the_row_of_projects_drops_and_the_red_light_closes(
+    cx: &mut TestAppContext,
+) {
     let (_dir, library) = library();
     let (view, cx) = setup(cx, library);
     let shelf = shelf_of(&view, cx);
@@ -184,23 +242,36 @@ fn a_card_opens_its_book_and_cmd_shift_w_or_the_red_light_comes_back(cx: &mut Te
         // A book opened the first time shows its Home.
         assert!(ws.nav.current().is_none());
     });
-    // ⇧⌘W: back to the shelf.
+    // ⇧⌘W is gone: it does nothing.
     let keys = if cfg!(target_os = "macos") {
         "cmd-shift-w"
     } else {
         "ctrl-shift-w"
     };
     cx.simulate_keystrokes(keys);
-    assert!(view.read_with(cx, |ws, _| ws.shelf_open));
-    // The other book from there.
+    assert!(view.read_with(cx, |ws, _| !ws.shelf_open));
+    // The button right of the traffic lights drops the row of projects;
+    // Esc puts it away, and so does the button again.
+    cx.dispatch_action(dr_shell::actions::ToggleProjects);
+    assert!(view.read_with(cx, |ws, _| ws.projects_open && ws.projects.is_some()));
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.top_layer()),
+        Some(dr_shell::workspace::Layer::Projects)
+    );
+    cx.update(|window, cx| view.update(cx, |ws, cx| ws.dismiss(window, cx)));
+    assert!(view.read_with(cx, |ws, _| !ws.projects_open));
+    cx.dispatch_action(dr_shell::actions::ToggleProjects);
+    cx.dispatch_action(dr_shell::actions::ToggleProjects);
+    assert!(view.read_with(cx, |ws, _| !ws.projects_open));
+    // From the row: 全部项目, then the other book from there.
+    cx.dispatch_action(dr_shell::actions::ToggleProjects);
+    cx.update(|window, cx| view.update(cx, |ws, cx| ws.show_shelf(window, cx)));
+    assert!(view.read_with(cx, |ws, _| ws.shelf_open && !ws.projects_open));
     let other = shelf.read_with(cx, |s, _| s.data.as_ref().unwrap().books[0].clone());
     cx.update(|window, cx| shelf.update(cx, |s, cx| s.open(&other.id, window, cx)));
     wait_for(cx, |cx| view.read_with(cx, |ws, _| ws.book.id == other.id));
     assert!(view.read_with(cx, |ws, _| !ws.shelf_open && ws.book_id == other.id));
-    // The red light in a book goes back to the shelf and keeps the window;
-    // on the shelf it closes the window.
-    assert!(!cx.simulate_close());
-    assert!(view.read_with(cx, |ws, _| ws.shelf_open));
+    // The red light in a book closes the window.
     assert!(cx.simulate_close());
 }
 
@@ -682,10 +753,8 @@ fn switching_language_from_shelf_account_menu_updates_locale_and_repaints(cx: &m
         dr_i18n::Locale::En
     );
     assert_eq!(
-        cx.update(|_, cx| {
-            dr_shell::t(cx, dr_i18n::keys::project_picker::header::TITLE_EM).to_string()
-        }),
-        "Bookshelf"
+        cx.update(|_, cx| { dr_shell::t(cx, dr_i18n::keys::all_projects::TITLE).to_string() }),
+        "All projects"
     );
 }
 

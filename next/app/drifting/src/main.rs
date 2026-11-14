@@ -227,7 +227,7 @@ fn main() {
         }
         // M10: the bookshelf's 「导入 · Drifting 0.1」.
         dr_view_import::init(cx);
-        // M41: .driftingbook from the bookshelf, importing documents, backup
+        // M41: .driftingproject from 全部项目, importing documents, backup
         // and restore.
         dr_view_transfer::init(cx);
         // M41's restore swaps the library under the running app with the

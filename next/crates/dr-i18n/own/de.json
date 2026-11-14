@@ -1,4 +1,25 @@
 {
+  "allProjects": {
+    "export": "Dieses Projekt exportieren (.driftingproject)",
+    "import": "Projekt importieren",
+    "importFile": "Projekt importieren (.driftingproject)",
+    "importLegacy": "Drifting 0.1 importieren",
+    "library_one": "{{count}} Projekt · {{words}} Wörter",
+    "library_other": "{{count}} Projekte · {{words}} Wörter",
+    "nameLabel": "Name",
+    "newProject": "Neues Projekt",
+    "summaryPlaceholder": "Beschreibe das Projekt in ein, zwei Sätzen.",
+    "title": "Alle Projekte",
+    "transfer": {
+      "exportFailed": "Das Projekt konnte nicht exportiert werden. Bitte versuche es erneut.",
+      "importFailed": "Das Projekt konnte nicht importiert werden. Bitte versuche es erneut.",
+      "newer": "Dieses Projekt wurde mit einem neueren Drifting exportiert. Aktualisiere zuerst Drifting.",
+      "notProject": "Das ist kein aus Drifting exportiertes Projekt.",
+      "tooLarge": "Dieses Projekt ist zu groß zum Importieren."
+    },
+    "trashEmpty": "Keine kürzlich gelöschten Projekte.",
+    "trashSub": "Projekte bleiben hier 30 Tage und werden dann endgültig gelöscht."
+  },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
     "save": "Momentaufnahme speichern",
@@ -90,11 +111,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version.",
-      "older": "Dieses Buch wurde von einer früheren Entwicklungsversion von Drifting in einem Format exportiert, das diese Version nicht mehr liest."
+      "legacy": "Diese Datei wurde mit Drifting 0.1 exportiert. Importiere sie dort und übergib die Bibliothek dann an diese Version.",
+      "older": "Diese Datei wurde von einer früheren Entwicklungsversion von Drifting in einem Format exportiert, das diese Version nicht mehr liest."
     },
     "trash": {
-      "bodyWithoutChapters": "Dieses Buch ({{words}} Wörter · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht."
+      "bodyWithoutChapters": "Dieses Projekt ({{words}} Wörter · {{elements}} Elemente) verlässt „Alle Projekte“. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht."
     }
   },
   "settings": {

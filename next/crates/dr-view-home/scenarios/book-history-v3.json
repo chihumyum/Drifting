@@ -250,13 +250,13 @@
     {
       "app": "panel.answer",
       "params": {
-        "path": "${app.out}/g4-book.driftingbook"
+        "path": "${app.out}/g4-book.driftingproject"
       }
     },
     {
       "app": "ui.press",
       "params": {
-        "label": "Export this book (.driftingbook)",
+        "label": "Export this project (.driftingproject)",
         "within": {
           "label": "Open “${books.0.name}”"
         }
@@ -266,21 +266,21 @@
       "app": "ui.wait",
       "params": {
         "until": "file",
-        "path": "${app.out}/g4-book.driftingbook",
+        "path": "${app.out}/g4-book.driftingproject",
         "timeout_ms": 60000
       }
     },
     {
       "app": "panel.answer",
       "params": {
-        "path": "${app.out}/g4-book.driftingbook"
+        "path": "${app.out}/g4-book.driftingproject"
       }
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "contains": "Import book"
+        "contains": "Import project"
       }
     },
     {

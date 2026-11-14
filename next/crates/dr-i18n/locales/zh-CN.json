@@ -91,6 +91,26 @@
       "updated": "{{time}} · {{by}}更新"
     }
   },
+  "allProjects": {
+    "export": "导出这个项目（.driftingproject）",
+    "import": "导入项目",
+    "importFile": "导入项目（.driftingproject）",
+    "importLegacy": "导入 Drifting 0.1",
+    "library": "{{count}} 个项目 · {{words}}字",
+    "nameLabel": "名字",
+    "newProject": "新建项目",
+    "summaryPlaceholder": "一两句话说明这个项目是什么。",
+    "title": "全部项目",
+    "transfer": {
+      "exportFailed": "这个项目没能导出，请稍后再试。",
+      "importFailed": "这个项目没能导入，请稍后再试。",
+      "newer": "这个项目由更新版本的 Drifting 导出，请先更新 Drifting。",
+      "notProject": "这不是 Drifting 导出的项目。",
+      "tooLarge": "这个项目太大，无法导入。"
+    },
+    "trashEmpty": "最近没有删除的项目。",
+    "trashSub": "项目在这里保留 30 天，到期后自动永久删除。"
+  },
   "auth": {
     "back": "返回",
     "backToSignIn": "返回登录",
@@ -746,16 +766,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "exportFailed": "这本书没能导出，请稍后再试。",
       "exportFailedTitle": "无法导出",
-      "importFailed": "这本书没能导入，请稍后再试。",
       "importFailedTitle": "无法导入",
       "invalid": "这个文件已损坏，无法导入。",
-      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",
-      "newer": "这本书由更新版本的 Drifting 导出，请先更新 Drifting。",
-      "notABook": "这不是 Drifting 导出的书。",
-      "older": "这本书是 Drifting 以前的开发版导出的，这一版已经不读那种格式。",
-      "tooLarge": "这本书太大，无法导入。"
+      "legacy": "这个文件是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",
+      "older": "这个文件是 Drifting 以前的开发版导出的，这一版已经不读那种格式。"
     },
     "delete": {
       "deleting": "删除中…"
@@ -781,17 +796,13 @@
         "turn": "换封面画风 · 现在是{{name}}"
       },
       "elementsUnit": "个要素",
-      "exportBook": "导出这本书（.driftingbook）",
       "form": {
-        "createTitle": "新建一本书",
         "editTitle": "编辑《{{name}}》",
-        "nameLabel": "书名",
         "summaryLabel": "梗概"
       },
       "goal": "{{pct}}% · 目标 {{target}} 字",
       "importing": "正在导入",
       "moveToTrash": "移到最近删除",
-      "newCard": "新建一本",
       "newCardSub": "从一张白纸开始",
       "open": "打开《{{name}}》",
       "progress": "进度",
@@ -801,8 +812,6 @@
       "trashEntry": "最近删除",
       "trashList": {
         "confirmTitle": "永久删除《{{name}}》？",
-        "empty": "最近没有删除的作品。",
-        "subLocal": "作品在这里保留 30 天，到期后自动永久删除。",
         "title": "最近删除"
       },
       "trashTitle": "把《{{name}}》移到最近删除？",
@@ -811,11 +820,7 @@
     },
     "form": {
       "createSubmit": "新建",
-      "namePlaceholder": "例：北岬灯塔",
-      "summaryPlaceholder": "一两句话说明这本书是什么。"
-    },
-    "header": {
-      "titleEm": "书架"
+      "namePlaceholder": "例：北岬灯塔"
     },
     "heat": {
       "daysUnit": "天",
@@ -832,7 +837,6 @@
     "projectCount": "{{filtered}} / {{total}} 本",
     "rail": {
       "books": "{{count}} 本",
-      "import": "导入书",
       "library": "{{count}} 本 · {{words}}字"
     },
     "status": {
@@ -841,7 +845,7 @@
       "writing": "在写"
     },
     "trash": {
-      "bodyWithoutChapters": "这本书（{{words}} 字 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
+      "bodyWithoutChapters": "这个项目（{{words}} 字 · {{elements}} 个要素）会从全部项目里移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "confirm": "移到最近删除",
       "deleteNow": "立即删除",
       "expiresIn_one": "{{count}} 天后永久删除",
@@ -1190,10 +1194,6 @@
           "desc": "关闭底部标签中当前激活的标签页",
           "label": "关闭当前标签页"
         },
-        "closeProject": {
-          "desc": "关闭当前项目并回到书架",
-          "label": "关闭项目"
-        },
         "findInEditor": {
           "desc": "在当前打开的编辑器中查找文本",
           "label": "当前编辑器内查找"
@@ -1506,7 +1506,6 @@
     "accountMenu": "账号菜单",
     "feedback": "提交反馈",
     "import": "导入",
-    "importBook": "导入书（.driftingbook）",
     "language": "语言",
     "localMenu": "本地书库菜单",
     "localStatus": "本地 · 本机存储",

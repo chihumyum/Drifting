@@ -1,4 +1,26 @@
 {
+  "allProjects": {
+    "export": "Exportar este projeto (.driftingproject)",
+    "import": "Importar projeto",
+    "importFile": "Importar projeto (.driftingproject)",
+    "importLegacy": "Importar Drifting 0.1",
+    "library_many": "{{count}} projetos · {{words}} palavras",
+    "library_one": "{{count}} projeto · {{words}} palavras",
+    "library_other": "{{count}} projetos · {{words}} palavras",
+    "nameLabel": "Nome",
+    "newProject": "Novo projeto",
+    "summaryPlaceholder": "Descreva o projeto em uma ou duas frases.",
+    "title": "Todos os projetos",
+    "transfer": {
+      "exportFailed": "Não foi possível exportar o projeto. Tente novamente.",
+      "importFailed": "Não foi possível importar o projeto. Tente novamente.",
+      "newer": "Este projeto foi exportado por um Drifting mais recente. Atualize o Drifting primeiro.",
+      "notProject": "Este não é um projeto exportado do Drifting.",
+      "tooLarge": "Este projeto é grande demais para importar."
+    },
+    "trashEmpty": "Nenhum projeto excluído recentemente.",
+    "trashSub": "Os projetos ficam aqui por 30 dias e depois são excluídos permanentemente."
+  },
   "entrySnapshot": {
     "empty": "Ainda não há instantâneos",
     "save": "Salvar instantâneo",
@@ -90,11 +112,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "legacy": "Este livro foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",
-      "older": "Este livro foi exportado por uma versão de desenvolvimento anterior do Drifting, em um formato que esta versão não lê mais."
+      "legacy": "Este arquivo foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",
+      "older": "Este arquivo foi exportado por uma versão de desenvolvimento anterior do Drifting, em um formato que esta versão não lê mais."
     },
     "trash": {
-      "bodyWithoutChapters": "Este livro ({{words}} palavras · {{elements}} elementos) sai da estante. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente."
+      "bodyWithoutChapters": "Este projeto ({{words}} palavras · {{elements}} elementos) sai de Todos os projetos. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente."
     }
   },
   "settings": {

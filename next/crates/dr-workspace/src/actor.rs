@@ -21,7 +21,7 @@ pub enum Actor {
     Mirror,
     /// Updates from the sync service.
     Sync,
-    /// Importing a 0.1 library or a `.driftingbook`.
+    /// Importing a 0.1 library or a `.driftingproject`.
     Import,
 }
 

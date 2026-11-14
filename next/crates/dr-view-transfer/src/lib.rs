@@ -1,7 +1,7 @@
 //! dr-view-transfer: moving books in and out (module M41's second part).
 //!
-//! - **`.driftingbook`** ([`book`]): the bookshelf card's export icon
-//!   ([`dr_view_shelf::ExportBook`]) and 「导入书（.driftingbook）」
+//! - **`.driftingproject`** ([`book`]): the bookshelf card's export icon
+//!   ([`dr_view_shelf::ExportBook`]) and 「导入书（.driftingproject）」
 //!   ([`dr_view_shelf::ImportBook`]), as the 0.1 shelf; the file is
 //!   `dr_export::book_file` (format version 4).
 //!

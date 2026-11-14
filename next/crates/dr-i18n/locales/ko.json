@@ -91,6 +91,27 @@
       "updated": "{{time}} · {{by}} 업데이트"
     }
   },
+  "allProjects": {
+    "export": "이 프로젝트 내보내기 (.driftingproject)",
+    "import": "프로젝트 가져오기",
+    "importFile": "프로젝트 가져오기 (.driftingproject)",
+    "importLegacy": "Drifting 0.1 가져오기",
+    "library_one": "프로젝트 {{count}}개 · {{words}}단어",
+    "library_other": "프로젝트 {{count}}개 · {{words}}단어",
+    "nameLabel": "이름",
+    "newProject": "새 프로젝트",
+    "summaryPlaceholder": "프로젝트를 한두 문장으로 설명하세요.",
+    "title": "모든 프로젝트",
+    "transfer": {
+      "exportFailed": "프로젝트를 내보내지 못했습니다. 다시 시도해 주세요.",
+      "importFailed": "프로젝트를 가져오지 못했습니다. 다시 시도해 주세요.",
+      "newer": "더 새로운 Drifting에서 내보낸 프로젝트입니다. 먼저 Drifting을 업데이트하세요.",
+      "notProject": "Drifting에서 내보낸 프로젝트가 아닙니다.",
+      "tooLarge": "프로젝트가 너무 커서 가져올 수 없습니다."
+    },
+    "trashEmpty": "최근 삭제한 프로젝트가 없습니다.",
+    "trashSub": "프로젝트는 여기에 30일 동안 보관된 뒤 영구 삭제됩니다."
+  },
   "auth": {
     "back": "뒤로",
     "backToSignIn": "로그인으로 돌아가기",
@@ -747,16 +768,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "exportFailed": "작품을 내보낼 수 없습니다. 다시 시도하세요.",
       "exportFailedTitle": "내보낼 수 없음",
-      "importFailed": "작품을 가져올 수 없습니다. 다시 시도하세요.",
       "importFailedTitle": "가져올 수 없음",
       "invalid": "파일이 손상되어 가져올 수 없습니다.",
-      "legacy": "이 책은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요.",
-      "newer": "더 최신 Drifting에서 내보낸 작품입니다. 먼저 업데이트하세요.",
-      "notABook": "Drifting에서 내보낸 작품이 아닙니다.",
-      "older": "이 책은 이전 개발 버전의 Drifting에서 내보낸 것으로, 이 버전에서는 더 이상 읽지 않는 형식입니다.",
-      "tooLarge": "작품이 너무 커서 가져올 수 없습니다."
+      "legacy": "이 파일은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요.",
+      "older": "이 파일은 이전 개발 버전의 Drifting에서 내보낸 것으로, 이 버전에서는 더 이상 읽지 않는 형식입니다."
     },
     "delete": {
       "deleting": "삭제 중…"
@@ -783,17 +799,13 @@
       },
       "elementsUnit_one": "요소",
       "elementsUnit_other": "요소",
-      "exportBook": "이 작품 내보내기(.driftingbook)",
       "form": {
-        "createTitle": "새 책",
         "editTitle": "“{{name}}” 편집",
-        "nameLabel": "제목",
         "summaryLabel": "요약"
       },
       "goal": "{{pct}}% · 목표 {{target}}자",
       "importing": "가져오는 중",
       "moveToTrash": "최근 삭제 항목으로 이동",
-      "newCard": "새 책",
       "newCardSub": "빈 페이지에서 시작",
       "open": "“{{name}}” 열기",
       "progress": "진행률",
@@ -804,8 +816,6 @@
       "trashEntry": "최근 삭제 항목",
       "trashList": {
         "confirmTitle": "“{{name}}”을 영구 삭제할까요?",
-        "empty": "최근 삭제된 작품이 없습니다.",
-        "subLocal": "작품을 30일 보관한 뒤 영구 삭제합니다.",
         "title": "최근 삭제 항목"
       },
       "trashTitle": "“{{name}}”을 최근 삭제 항목으로 옮길까요?",
@@ -814,11 +824,7 @@
     },
     "form": {
       "createSubmit": "만들기",
-      "namePlaceholder": "예: 북쪽 곶의 등대",
-      "summaryPlaceholder": "한두 문장으로 작품을 설명하세요."
-    },
-    "header": {
-      "titleEm": "책장"
+      "namePlaceholder": "예: 북쪽 곶의 등대"
     },
     "heat": {
       "daysUnit": "일",
@@ -836,7 +842,6 @@
     "rail": {
       "books_one": "{{count}}권",
       "books_other": "{{count}}권",
-      "import": "책 가져오기",
       "library_one": "{{count}}권 · {{words}}단어",
       "library_other": "{{count}}권 · {{words}}단어"
     },
@@ -846,7 +851,7 @@
       "writing": "집필 중"
     },
     "trash": {
-      "bodyWithoutChapters": "작품({{words}}자 · 요소 {{elements}}개)을 책장에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
+      "bodyWithoutChapters": "프로젝트({{words}}자 · 요소 {{elements}}개)를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "confirm": "최근 삭제 항목으로 이동",
       "deleteNow": "지금 삭제",
       "expiresIn_one": "{{count}}일 후 영구 삭제",
@@ -1195,10 +1200,6 @@
           "desc": "하단 Dock의 현재 탭을 닫습니다",
           "label": "현재 탭 닫기"
         },
-        "closeProject": {
-          "desc": "이 작품을 닫고 책장으로 돌아갑니다",
-          "label": "작품 닫기"
-        },
         "findInEditor": {
           "desc": "현재 열린 편집기에서 텍스트를 찾습니다",
           "label": "현재 편집기에서 찾기"
@@ -1511,7 +1512,6 @@
     "accountMenu": "계정 메뉴",
     "feedback": "피드백 보내기",
     "import": "가져오기",
-    "importBook": "작품 가져오기(.driftingbook)",
     "language": "언어",
     "localMenu": "로컬 라이브러리 메뉴",
     "localStatus": "로컬 · 이 기기에 저장",

@@ -17,7 +17,7 @@ fn v3_archive_carries_the_seed_twice_without_mutating_source() {
     let ws = Workspace::open_dir(dir.path().join("library"), "test").unwrap();
     let before = digest_v3(ws.library(), &book).unwrap();
     let version = ws.observe(&format!("book:{book}")).unwrap().version;
-    let file = dir.path().join("synthetic.driftingbook");
+    let file = dir.path().join("synthetic.driftingproject");
     let exported = export_book(&ws, &book, &file, &|_| {}).unwrap();
     let a = import_book(&ws, &file, &|_| {}).unwrap();
     let b = import_book(&ws, &file, &|_| {}).unwrap();
@@ -199,7 +199,7 @@ fn v3_archive_keeps_retained_bodies_hidden_bindings_and_literal_ids() {
     seed.write_to(&store).unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(dir.path().join("library"), "test").unwrap();
-    let file = dir.path().join("retained.driftingbook");
+    let file = dir.path().join("retained.driftingproject");
     export_book(&ws, &book, &file, &|_| {}).unwrap();
     let imported = import_book(&ws, &file, &|_| {}).unwrap();
     let bytes = ws
@@ -288,8 +288,8 @@ fn v3_import_rolls_back_prose_if_the_book_genesis_is_damaged() {
     seed.write_to(&store).unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(&root, "test").unwrap();
-    let source = dir.path().join("source.driftingbook");
-    let damaged = dir.path().join("damaged.driftingbook");
+    let source = dir.path().join("source.driftingproject");
+    let damaged = dir.path().join("damaged.driftingproject");
     export_book(&ws, &book, &source, &|_| {}).unwrap();
     let mut zip = zip::ZipArchive::new(std::fs::File::open(&source).unwrap()).unwrap();
     let mut files = std::collections::BTreeMap::<String, Vec<u8>>::new();
@@ -390,7 +390,7 @@ fn v3_failed_import_waits_for_its_holder_before_rollback() {
         Default::default(),
     )
     .unwrap();
-    let file = dir.path().join("synthetic.driftingbook");
+    let file = dir.path().join("synthetic.driftingproject");
     export_book(&ws, &book, &file, &|_| {}).unwrap();
     let before = ws.library().docs(None, None).unwrap();
     let original = digest_v3(ws.library(), &book).unwrap();
@@ -496,7 +496,7 @@ fn v3_import_reports_incomplete_cleanup_and_still_removes_other_documents() {
         Default::default(),
     )
     .unwrap();
-    let file = dir.path().join("synthetic.driftingbook");
+    let file = dir.path().join("synthetic.driftingproject");
     export_book(&ws, &book, &file, &|_| {}).unwrap();
     let before = ws.library().docs(None, None).unwrap();
     let original = digest_v3(ws.library(), &book).unwrap();
@@ -568,7 +568,7 @@ fn changing_v3_book_does_not_publish_an_incomplete_file() {
     seed.write_to(&store).unwrap();
     store.close().unwrap();
     let ws = Workspace::open_dir(dir.path().join("library"), "test").unwrap();
-    let file = dir.path().join("incomplete.driftingbook");
+    let file = dir.path().join("incomplete.driftingproject");
     let changed = std::cell::Cell::new(false);
     let result = export_book(&ws, &book, &file, &|_| {
         if !changed.replace(true) {

@@ -91,6 +91,27 @@
       "updated": "{{time}} · updated by {{by}}"
     }
   },
+  "allProjects": {
+    "export": "Export this project (.driftingproject)",
+    "import": "Import project",
+    "importFile": "Import project (.driftingproject)",
+    "importLegacy": "Import Drifting 0.1",
+    "library_one": "{{count}} project · {{words}} words",
+    "library_other": "{{count}} projects · {{words}} words",
+    "nameLabel": "Name",
+    "newProject": "New project",
+    "summaryPlaceholder": "Describe the project in one or two sentences.",
+    "title": "All projects",
+    "transfer": {
+      "exportFailed": "The project could not be exported. Please try again.",
+      "importFailed": "The project could not be imported. Please try again.",
+      "newer": "This project was exported by a newer Drifting. Update Drifting first.",
+      "notProject": "This is not a project exported from Drifting.",
+      "tooLarge": "This project is too large to import."
+    },
+    "trashEmpty": "No recently deleted projects.",
+    "trashSub": "Projects stay here for 30 days and are then permanently deleted."
+  },
   "auth": {
     "back": "Back",
     "backToSignIn": "Back to sign in",
@@ -754,16 +775,11 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "exportFailed": "The book could not be exported. Please try again.",
       "exportFailedTitle": "Could not export",
-      "importFailed": "The book could not be imported. Please try again.",
       "importFailedTitle": "Could not import",
       "invalid": "This file is damaged and cannot be imported.",
-      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
-      "newer": "This book was exported by a newer Drifting. Update Drifting first.",
-      "notABook": "This is not a book exported from Drifting.",
-      "older": "This book was exported by an earlier development build of Drifting, in a format this version no longer reads.",
-      "tooLarge": "This book is too large to import."
+      "legacy": "This file was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
+      "older": "This file was exported by an earlier development build of Drifting, in a format this version no longer reads."
     },
     "delete": {
       "deleting": "Deleting…"
@@ -790,17 +806,13 @@
       },
       "elementsUnit_one": "element",
       "elementsUnit_other": "elements",
-      "exportBook": "Export this book (.driftingbook)",
       "form": {
-        "createTitle": "New book",
         "editTitle": "Edit “{{name}}”",
-        "nameLabel": "Title",
         "summaryLabel": "Summary"
       },
       "goal": "{{pct}}% · goal {{target}} words",
       "importing": "Importing",
       "moveToTrash": "Move to Recently Deleted",
-      "newCard": "New book",
       "newCardSub": "Start from a blank page",
       "open": "Open “{{name}}”",
       "progress": "Progress",
@@ -811,8 +823,6 @@
       "trashEntry": "Recently Deleted",
       "trashList": {
         "confirmTitle": "Permanently delete “{{name}}”?",
-        "empty": "No recently deleted books.",
-        "subLocal": "Books stay here for 30 days and are then permanently deleted.",
         "title": "Recently Deleted"
       },
       "trashTitle": "Move “{{name}}” to Recently Deleted?",
@@ -821,11 +831,7 @@
     },
     "form": {
       "createSubmit": "Create",
-      "namePlaceholder": "e.g. The North Cape Light",
-      "summaryPlaceholder": "Describe the book in one or two sentences."
-    },
-    "header": {
-      "titleEm": "Bookshelf"
+      "namePlaceholder": "e.g. The North Cape Light"
     },
     "heat": {
       "daysUnit": "days",
@@ -843,7 +849,6 @@
     "rail": {
       "books_one": "{{count}} book",
       "books_other": "{{count}} books",
-      "import": "Import book",
       "library_one": "{{count}} book · {{words}} words",
       "library_other": "{{count}} books · {{words}} words"
     },
@@ -853,7 +858,7 @@
       "writing": "Writing"
     },
     "trash": {
-      "bodyWithoutChapters": "This book ({{words}} words · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
+      "bodyWithoutChapters": "This project ({{words}} words · {{elements}} elements) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "confirm": "Move to Recently Deleted",
       "deleteNow": "Delete now",
       "expiresIn_one": "Permanently deleted in {{count}} day",
@@ -1202,10 +1207,6 @@
           "desc": "Close the active tab in the bottom dock",
           "label": "Close active tab"
         },
-        "closeProject": {
-          "desc": "Close this project and return to the bookshelf",
-          "label": "Close project"
-        },
         "findInEditor": {
           "desc": "Find text in the currently open editor",
           "label": "Find in current editor"
@@ -1518,7 +1519,6 @@
     "accountMenu": "Account menu",
     "feedback": "Send feedback",
     "import": "Import",
-    "importBook": "Import book (.driftingbook)",
     "language": "Language",
     "localMenu": "Local library menu",
     "localStatus": "LOCAL · ON DEVICE",

@@ -1,5 +1,6 @@
 //! The account menu (the 0.1 client's user menu), shared by the bookshelf's
-//! account cell (M01) and the left sidebar's: who (`本地` in local mode, or the
+//! account cell (M01) and the workspace's account button right of the
+//! traffic lights: who (`本地` in local mode, or the
 //! signed-in Hosted user's display name and avatar in M35), then the theme,
 //! the language, feedback, and Settings (plus sign-in / sign-out when Hosted
 //! is configured). It opens upward from the cell that owns it; each owner
