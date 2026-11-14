@@ -643,7 +643,7 @@ fn inspect_entity_link(
 fn inspect_json(
     source: &str,
     json: &str,
-    profile: dr_model::ProseProfile,
+    _profile: dr_model::ProseProfile,
     non_text_materials: &BTreeSet<String>,
     pending: &mut Vec<Pending>,
 ) {
@@ -653,7 +653,6 @@ fn inspect_json(
     fn walk(
         v: &Value,
         source: &str,
-        profile: dr_model::ProseProfile,
         in_table: bool,
         is_mark: bool,
         non_text_materials: &BTreeSet<String>,
@@ -666,16 +665,14 @@ fn inspect_json(
                     inspect_entity_link(object.get("attrs"), source, non_text_materials, pending);
                 } else if in_table {
                     let allowed = match kind {
-                        Some("bold" | "italic" | "underline" | "strike") => true,
+                        Some("bold" | "italic" | "underline" | "strike" | "highlight" | "code") => {
+                            true
+                        }
                         Some("link") => object
                             .get("attrs")
                             .and_then(|a| a.get("href"))
                             .and_then(Value::as_str)
                             .is_some(),
-                        Some("highlight" | "code") => {
-                            let _ = profile;
-                            true
-                        }
                         _ => false,
                     };
                     if !allowed {
@@ -708,37 +705,20 @@ fn inspect_json(
             }
             if let Some(marks) = object.get("marks").and_then(Value::as_array) {
                 for mark in marks {
-                    walk(
-                        mark,
-                        source,
-                        profile,
-                        in_table,
-                        true,
-                        non_text_materials,
-                        pending,
-                    );
+                    walk(mark, source, in_table, true, non_text_materials, pending);
                 }
             }
             for (k, value) in object {
                 if k == "marks" || k == "attrs" {
                     continue;
                 }
-                walk(
-                    value,
-                    source,
-                    profile,
-                    in_table,
-                    false,
-                    non_text_materials,
-                    pending,
-                );
+                walk(value, source, in_table, false, non_text_materials, pending);
             }
         } else if let Some(array) = v.as_array() {
             for value in array {
                 walk(
                     value,
                     source,
-                    profile,
                     in_table,
                     is_mark,
                     non_text_materials,
@@ -748,15 +728,7 @@ fn inspect_json(
         }
     }
     match serde_json::from_str(json) {
-        Ok(value) => walk(
-            &value,
-            source,
-            profile,
-            false,
-            false,
-            non_text_materials,
-            pending,
-        ),
+        Ok(value) => walk(&value, source, false, false, non_text_materials, pending),
         Err(_) => pending.push(Pending {
             code: "unreadable-source-prose".into(),
             source: source.into(),

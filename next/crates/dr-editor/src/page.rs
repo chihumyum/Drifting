@@ -533,7 +533,20 @@ pub fn counts(doc: &ProseDoc) -> (u64, bool) {
     }
     let words = doc.lines()[..doc.visible_lines()]
         .iter()
-        .map(|l| prose_metrics::count_words(&l.text))
+        .map(|l| match l.embed() {
+            Some(id) => doc
+                .source_as::<crate::SessionSource>()
+                .and_then(|s| {
+                    let embed = id.to_owned();
+                    s.handle()
+                        .read(move |d| crate::table::read_cells(d, &embed))
+                        .ok()
+                })
+                .filter(|cells| !cells.is_empty())
+                .map(|cells| prose_metrics::count_words(&crate::table::clip::to_tsv(&cells)))
+                .unwrap_or(0),
+            None => prose_metrics::count_words(&l.text),
+        })
         .sum();
     (words, false)
 }

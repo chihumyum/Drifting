@@ -1,18 +1,20 @@
 //! M41's back end on real libraries: a hand-built book through F3's
 //! commands and the editor's transactions, and the `lite` seed.
 
+use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use dr_doc::prose::EmbedKind;
 use dr_export::{
-    Align, Block, Format, Labels, Options, Run, Section, default_chapters, outline,
-    read_manuscript, render,
+    Align, Block, Format, Labels, ListItem, ListKind, Options, Run, Section, default_chapters,
+    outline, read_manuscript, render,
 };
-use dr_model::id::{AssetId, EmbedId};
-use dr_model::kind::EntityKind;
+use dr_model::id::{AssetId, CommentId, EmbedId};
+use dr_model::kind::{EntityKind, ListKind as ProseListKind};
 use dr_model::pos::PosKey;
-use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineStyle, LINE_BREAK};
+use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineMarks, InlineStyle, LINE_BREAK};
+use dr_model::v3::EntityLinkV3;
 use dr_store::Library;
 use dr_testkit::seed::{self, Preset};
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
@@ -336,10 +338,10 @@ fn chapter_prose_becomes_manuscript_blocks() {
             align: Align::Justify,
             indent: 1,
         },
-        // The table's words, cell line by cell line; the material is gone.
-        para("潮高"),
-        para("三米"),
-        para("四米"),
+        // The table's cells travel as a structured grid; the material is gone.
+        Block::Table {
+            rows: vec![vec![vec![run("潮高")], vec![run("三米\n四米")]]],
+        },
         para("表格之后"),
     ];
     assert_eq!(blocks, &expected);
@@ -502,7 +504,19 @@ fn the_lite_seed_exports_in_every_format() {
                 Block::Heading { runs, .. } | Block::Paragraph { runs, .. } => {
                     runs.iter().map(|r| r.text.chars().count()).sum()
                 }
-                Block::Quote { blocks } => chars(blocks),
+                Block::List { items, .. } => items
+                    .iter()
+                    .flat_map(|item| item.runs.iter())
+                    .map(|r| r.text.chars().count())
+                    .sum(),
+                Block::CodeBlock { text, .. } => text.chars().count(),
+                Block::Callout { blocks, .. } | Block::Quote { blocks } => chars(blocks),
+                Block::Table { rows } => rows
+                    .iter()
+                    .flat_map(|row| row.iter())
+                    .flat_map(|cell| cell.iter())
+                    .map(|r| r.text.chars().count())
+                    .sum(),
                 Block::Break => 0,
             })
             .sum()
@@ -538,4 +552,1059 @@ fn the_lite_seed_exports_in_every_format() {
     }
     eprintln!("lite export: {}", times.join(", "));
     ws.close();
+}
+
+struct PdfObj {
+    header: String,
+    stream: Option<Vec<u8>>,
+}
+
+fn is_pdf_delim_or_ws(b: u8) -> bool {
+    b.is_ascii_whitespace()
+        || matches!(
+            b,
+            b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'{' | b'}' | b'/' | b'%'
+        )
+}
+
+fn find_pdf_key(dict: &str, key: &str) -> Option<usize> {
+    let mut offset = 0;
+    while let Some(rel) = dict[offset..].find(key) {
+        let idx = offset + rel;
+        let after = idx + key.len();
+        if dict
+            .as_bytes()
+            .get(after)
+            .is_none_or(|&b| is_pdf_delim_or_ws(b))
+        {
+            return Some(after);
+        }
+        offset = idx + 1;
+    }
+    None
+}
+
+fn direct_usize_after_key(dict: &str, key: &str) -> Option<usize> {
+    let after = find_pdf_key(dict, key)?;
+    let rest = dict[after..].trim_start();
+    let digits_len = rest.bytes().take_while(|b| b.is_ascii_digit()).count();
+    if digits_len == 0 {
+        return None;
+    }
+    let val: usize = rest[..digits_len].parse().ok()?;
+    let tail = rest[digits_len..].trim_start();
+    if tail.starts_with("0 R") {
+        return None;
+    }
+    Some(val)
+}
+
+fn parse_pdf_objects(pdf: &[u8]) -> HashMap<u32, PdfObj> {
+    let mut out = HashMap::new();
+    let mut pos = 0;
+    while pos < pdf.len() {
+        let Some(rel) = pdf[pos..].windows(4).position(|w| w == b" obj") else {
+            break;
+        };
+        let obj_kw = pos + rel;
+        let mut line_start = obj_kw;
+        while line_start > pos && !matches!(pdf[line_start - 1], b'\n' | b'\r') {
+            line_start -= 1;
+        }
+        let prefix = std::str::from_utf8(&pdf[line_start..obj_kw]).unwrap_or("");
+        let parts: Vec<&str> = prefix.split_whitespace().collect();
+        let body_start = obj_kw + 4;
+        let Some(end_rel) = pdf[body_start..].windows(6).position(|w| w == b"endobj") else {
+            break;
+        };
+        let body = &pdf[body_start..body_start + end_rel];
+        if let [id_str, "0"] = parts.as_slice()
+            && let Ok(obj_id) = id_str.parse::<u32>()
+        {
+            if let Some(s_rel) = body.windows(6).position(|w| w == b"stream")
+                && (s_rel == 0 || body[s_rel - 1] != b'd')
+            {
+                let header = String::from_utf8_lossy(&body[..s_rel]).into_owned();
+                let mut data_start = s_rel + 6;
+                if body.get(data_start) == Some(&b'\r') {
+                    data_start += 1;
+                }
+                if body.get(data_start) == Some(&b'\n') {
+                    data_start += 1;
+                }
+                let raw_slice = if let Some(exact_len) = direct_usize_after_key(&header, "/Length")
+                    && data_start + exact_len <= body.len()
+                {
+                    Some(&body[data_start..data_start + exact_len])
+                } else {
+                    body[data_start..]
+                        .windows(9)
+                        .rposition(|w| w == b"endstream")
+                        .map(|es_rel| {
+                            let mut raw = &body[data_start..data_start + es_rel];
+                            if raw.ends_with(b"\n") {
+                                raw = &raw[..raw.len() - 1];
+                            }
+                            if raw.ends_with(b"\r") {
+                                raw = &raw[..raw.len() - 1];
+                            }
+                            raw
+                        })
+                };
+                if let Some(raw) = raw_slice {
+                    let decoded = if header.contains("/FlateDecode") {
+                        let mut dec = flate2::read::ZlibDecoder::new(raw);
+                        let mut buf = Vec::new();
+                        if dec.read_to_end(&mut buf).is_ok() {
+                            Some(buf)
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(raw.to_vec())
+                    };
+                    out.insert(
+                        obj_id,
+                        PdfObj {
+                            header,
+                            stream: decoded,
+                        },
+                    );
+                }
+            } else {
+                out.insert(
+                    obj_id,
+                    PdfObj {
+                        header: String::from_utf8_lossy(body).into_owned(),
+                        stream: None,
+                    },
+                );
+            }
+        }
+        pos = body_start + end_rel + 6;
+    }
+    out
+}
+
+fn hex_bytes(hex: &str) -> Vec<u8> {
+    let clean: Vec<u8> = hex.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+    let mut out = Vec::with_capacity(clean.len().div_ceil(2));
+    let mut i = 0;
+    while i < clean.len() {
+        let hi = (clean[i] as char).to_digit(16).unwrap_or(0) as u8;
+        let lo = clean
+            .get(i + 1)
+            .and_then(|&b| (b as char).to_digit(16))
+            .unwrap_or(0) as u8;
+        out.push((hi << 4) | lo);
+        i += 2;
+    }
+    out
+}
+
+fn utf16be_hex_to_string(hex: &str) -> String {
+    let bytes = hex_bytes(hex);
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .copied()
+        .map(u16::from_be_bytes)
+        .collect();
+    String::from_utf16_lossy(&units)
+}
+
+#[derive(Default)]
+struct CMapTable {
+    code_bytes: usize,
+    map: HashMap<u16, String>,
+}
+
+fn parse_cmap(text: &str) -> CMapTable {
+    let mut code_bytes = 2usize;
+    if text.contains("<00> <FF>") || text.contains("<00><FF>") {
+        code_bytes = 1;
+    }
+    let mut map = HashMap::new();
+    let hex_tokens = |section: &str| -> Vec<String> {
+        let mut tokens = Vec::new();
+        let mut rest = section;
+        while let Some(open) = rest.find('<') {
+            let after = &rest[open + 1..];
+            let Some(close) = after.find('>') else {
+                break;
+            };
+            tokens.push(after[..close].to_owned());
+            rest = &after[close + 1..];
+        }
+        tokens
+    };
+    let code_u16 = |hex: &str| -> u16 { u16::from_str_radix(hex.trim(), 16).unwrap_or(0) };
+    let mut scan = text;
+    while let Some(start) = scan.find("beginbfchar") {
+        let after = &scan[start + "beginbfchar".len()..];
+        let Some(end) = after.find("endbfchar") else {
+            break;
+        };
+        let toks = hex_tokens(&after[..end]);
+        if let Some(first) = toks.first() {
+            code_bytes = (first.trim().len() / 2).clamp(1, 2);
+        }
+        for [k, v] in toks.as_chunks::<2>().0 {
+            map.insert(code_u16(k), utf16be_hex_to_string(v));
+        }
+        scan = &after[end + "endbfchar".len()..];
+    }
+    let mut scan = text;
+    while let Some(start) = scan.find("beginbfrange") {
+        let after = &scan[start + "beginbfrange".len()..];
+        let Some(end) = after.find("endbfrange") else {
+            break;
+        };
+        for line in after[..end].lines() {
+            let trimmed = line.trim();
+            if !trimmed.starts_with('<') {
+                continue;
+            }
+            if let Some(arr_open) = trimmed.find('[')
+                && let Some(arr_close) = trimmed.rfind(']')
+            {
+                let bounds = hex_tokens(&trimmed[..arr_open]);
+                let targets = hex_tokens(&trimmed[arr_open + 1..arr_close]);
+                if bounds.len() == 2 {
+                    code_bytes = (bounds[0].trim().len() / 2).clamp(1, 2);
+                    let lo = code_u16(&bounds[0]);
+                    let hi = code_u16(&bounds[1]);
+                    for (offset, target) in (lo..=hi).zip(targets.iter()) {
+                        map.insert(offset, utf16be_hex_to_string(target));
+                    }
+                }
+            } else {
+                let toks = hex_tokens(trimmed);
+                if toks.len() == 3 {
+                    code_bytes = (toks[0].trim().len() / 2).clamp(1, 2);
+                    let lo = code_u16(&toks[0]);
+                    let hi = code_u16(&toks[1]);
+                    let base = utf16be_hex_to_string(&toks[2]);
+                    let mut chars: Vec<u16> = base.encode_utf16().collect();
+                    for code in lo..=hi {
+                        map.insert(code, String::from_utf16_lossy(&chars));
+                        if let Some(last) = chars.last_mut() {
+                            *last = last.wrapping_add(1);
+                        }
+                    }
+                }
+            }
+        }
+        scan = &after[end + "endbfrange".len()..];
+    }
+    CMapTable { code_bytes, map }
+}
+
+fn dict_has_name_pair(dict: &str, key: &str, expected: &str) -> bool {
+    let Some(after) = find_pdf_key(dict, key) else {
+        return false;
+    };
+    let rest = dict[after..].trim_start();
+    if !rest.starts_with(expected) {
+        return false;
+    }
+    rest.as_bytes()
+        .get(expected.len())
+        .is_none_or(|&b| is_pdf_delim_or_ws(b))
+}
+
+fn ref_after_key(dict: &str, key: &str) -> Option<u32> {
+    let after = find_pdf_key(dict, key)?;
+    let rest = dict[after..].trim_start();
+    let id_len = rest.bytes().take_while(|b| b.is_ascii_digit()).count();
+    if id_len == 0 {
+        return None;
+    }
+    let id: u32 = rest[..id_len].parse().ok()?;
+    let after_id = rest[id_len..].trim_start();
+    let after_gen = after_id.strip_prefix('0')?.trim_start();
+    if after_gen.starts_with('R')
+        && after_gen
+            .as_bytes()
+            .get(1)
+            .is_none_or(|&b| is_pdf_delim_or_ws(b))
+    {
+        Some(id)
+    } else {
+        None
+    }
+}
+
+fn parse_font_resource_map(text: &str) -> HashMap<String, u32> {
+    let mut out = HashMap::new();
+    let Some(after) = find_pdf_key(text, "/Font") else {
+        return out;
+    };
+    let rest = &text[after..];
+    let Some(open) = rest.find("<<") else {
+        return out;
+    };
+    let inner = &rest[open + 2..];
+    let Some(close) = inner.find(">>") else {
+        return out;
+    };
+    let bytes = &inner.as_bytes()[..close];
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'/' {
+            i += 1;
+            let name_start = i;
+            while i < bytes.len() && !is_pdf_delim_or_ws(bytes[i]) {
+                i += 1;
+            }
+            let name = String::from_utf8_lossy(&bytes[name_start..i]).into_owned();
+            while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            let id_start = i;
+            while i < bytes.len() && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+            let Ok(obj_id) = std::str::from_utf8(&bytes[id_start..i])
+                .unwrap_or("")
+                .parse::<u32>()
+            else {
+                continue;
+            };
+            while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            if bytes.get(i) != Some(&b'0') {
+                continue;
+            }
+            i += 1;
+            while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            if bytes.get(i) == Some(&b'R') {
+                out.insert(name, obj_id);
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+fn read_pdf_literal_string(bytes: &[u8], start: usize) -> (Vec<u8>, usize) {
+    let mut out = Vec::new();
+    let mut i = start + 1;
+    let mut depth = 1usize;
+    while i < bytes.len() && depth > 0 {
+        match bytes[i] {
+            b'(' => {
+                depth += 1;
+                out.push(b'(');
+                i += 1;
+            }
+            b')' => {
+                depth -= 1;
+                if depth > 0 {
+                    out.push(b')');
+                }
+                i += 1;
+            }
+            b'\\' => {
+                i += 1;
+                if i >= bytes.len() {
+                    break;
+                }
+                match bytes[i] {
+                    b'n' => {
+                        out.push(b'\n');
+                        i += 1;
+                    }
+                    b'r' => {
+                        out.push(b'\r');
+                        i += 1;
+                    }
+                    b't' => {
+                        out.push(b'\t');
+                        i += 1;
+                    }
+                    b'b' => {
+                        out.push(0x08);
+                        i += 1;
+                    }
+                    b'f' => {
+                        out.push(0x0C);
+                        i += 1;
+                    }
+                    b'\r' => {
+                        i += 1;
+                        if bytes.get(i) == Some(&b'\n') {
+                            i += 1;
+                        }
+                    }
+                    b'\n' => {
+                        i += 1;
+                    }
+                    c @ b'0'..=b'7' => {
+                        let mut val = c - b'0';
+                        i += 1;
+                        for _ in 0..2 {
+                            if let Some(&d @ b'0'..=b'7') = bytes.get(i) {
+                                val = val * 8 + (d - b'0');
+                                i += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        out.push(val);
+                    }
+                    other => {
+                        out.push(other);
+                        i += 1;
+                    }
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    (out, i)
+}
+
+fn extract_pdf_text(pdf: &[u8]) -> String {
+    let objs = parse_pdf_objects(pdf);
+    let mut font_cmaps: HashMap<u32, CMapTable> = HashMap::new();
+    for (&obj_id, obj) in &objs {
+        if let Some(cmap_id) = ref_after_key(&obj.header, "/ToUnicode")
+            && let Some(cmap_obj) = objs.get(&cmap_id)
+            && let Some(stream) = &cmap_obj.stream
+        {
+            font_cmaps.insert(obj_id, parse_cmap(&String::from_utf8_lossy(stream)));
+        }
+    }
+    let mut page_ids: Vec<u32> = objs
+        .iter()
+        .filter(|(_, obj)| dict_has_name_pair(&obj.header, "/Type", "/Page"))
+        .map(|(&id, _)| id)
+        .collect();
+    page_ids.sort_unstable();
+
+    let mut decoded = String::new();
+    for page_id in page_ids {
+        let page = &objs[&page_id];
+        let mut fonts = parse_font_resource_map(&page.header);
+        if fonts.is_empty()
+            && let Some(res_id) = ref_after_key(&page.header, "/Resources")
+            && let Some(res_obj) = objs.get(&res_id)
+        {
+            fonts = parse_font_resource_map(&res_obj.header);
+        }
+        let Some(contents_id) = ref_after_key(&page.header, "/Contents") else {
+            continue;
+        };
+        let Some(stream) = objs.get(&contents_id).and_then(|o| o.stream.as_deref()) else {
+            continue;
+        };
+        let mut active_font: Option<&CMapTable> = None;
+        let mut last_name: Option<String> = None;
+        let mut pending_strings: Vec<Vec<u8>> = Vec::new();
+        let mut i = 0;
+        while i < stream.len() {
+            match stream[i] {
+                b'%' => {
+                    while i < stream.len() && !matches!(stream[i], b'\n' | b'\r') {
+                        i += 1;
+                    }
+                }
+                b'/' => {
+                    i += 1;
+                    let start = i;
+                    while i < stream.len()
+                        && !stream[i].is_ascii_whitespace()
+                        && !matches!(stream[i], b'/' | b'<' | b'>' | b'(' | b')' | b'[' | b']')
+                    {
+                        i += 1;
+                    }
+                    last_name = Some(String::from_utf8_lossy(&stream[start..i]).into_owned());
+                }
+                b'(' => {
+                    let (bytes, next) = read_pdf_literal_string(stream, i);
+                    pending_strings.push(bytes);
+                    i = next;
+                }
+                b'<' if stream.get(i + 1) != Some(&b'<') => {
+                    let start = i + 1;
+                    if let Some(rel) = stream[start..].iter().position(|&b| b == b'>') {
+                        let hex = String::from_utf8_lossy(&stream[start..start + rel]);
+                        pending_strings.push(hex_bytes(&hex));
+                        i = start + rel + 1;
+                    } else {
+                        break;
+                    }
+                }
+                b'<' => i += 2,
+                b'>' if stream.get(i + 1) == Some(&b'>') => i += 2,
+                b'[' => {
+                    pending_strings.clear();
+                    i += 1;
+                }
+                b']' => i += 1,
+                b if b.is_ascii_whitespace() => i += 1,
+                _ => {
+                    let start = i;
+                    while i < stream.len()
+                        && !stream[i].is_ascii_whitespace()
+                        && !matches!(stream[i], b'/' | b'<' | b'>' | b'(' | b')' | b'[' | b']')
+                    {
+                        i += 1;
+                    }
+                    let tok = &stream[start..i];
+                    match tok {
+                        b"Tf" => {
+                            if let Some(name) = last_name.take() {
+                                active_font = fonts
+                                    .get(&name)
+                                    .and_then(|font_obj| font_cmaps.get(font_obj));
+                            }
+                            pending_strings.clear();
+                        }
+                        b"Tj" | b"TJ" => {
+                            if let Some(cmap) = active_font {
+                                for raw_codes in pending_strings.drain(..) {
+                                    if cmap.code_bytes == 1 {
+                                        for &b in &raw_codes {
+                                            if let Some(s) = cmap.map.get(&u16::from(b)) {
+                                                decoded.push_str(s);
+                                            }
+                                        }
+                                    } else {
+                                        for &pair in raw_codes.as_chunks::<2>().0 {
+                                            let cid = u16::from_be_bytes(pair);
+                                            if let Some(s) = cmap.map.get(&cid) {
+                                                decoded.push_str(s);
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                pending_strings.clear();
+                            }
+                        }
+                        b"ET" => {
+                            pending_strings.clear();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        decoded.push('\n');
+    }
+    decoded
+}
+
+#[test]
+fn chapter_with_every_format_exports_to_epub_docx_and_pdf_without_dropping_text() {
+    let e = env();
+    let book_id = id(&out(
+        &e.ws,
+        "project.create",
+        json!({"name": "全格式书稿验收"}),
+    ));
+    let lin = id(&dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &book_id,
+        "tpl-character",
+        "林深",
+        Some(""),
+    ));
+    let chapter_id = id(&dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &book_id,
+        "tpl-chapter",
+        "第一章　全格式航志",
+        Some(concat!(
+            "一　出航\n",
+            "正文含高亮标记词、行内代码片段 inline_beacon() 与角色林深。\n",
+            "无序一：罗盘读数\n",
+            "无序子项：偏东三度\n",
+            "有序一：点火热机\n",
+            "有序二：解缆离岸\n",
+            "待办未完：清点淡水\n",
+            "待办已完：封好舱门\n",
+            "待办联动：校对航图\n",
+            "fn signal_tide() -> &'static str {\n",
+            "    \"灯塔信号73\"\n",
+            "}\n",
+            "提示块首段：暗礁水深不足两米。\n",
+            "提示块次段：夜航务必减速。\n",
+            "引文段落：风自北来。\n",
+            "\n",
+            "收尾段落：顺利靠岸。",
+        )),
+    ));
+
+    // Create a linked TODO in the book document and mark it Resolved so the third
+    // task item exercises `Comment::is_done` resolution during export.
+    let done_todo_raw = id(&out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": book_id,
+            "target": {"kind": "entry", "id": chapter_id},
+            "module": "mod-prose",
+            "kind": "todo",
+            "body": "校对航图"
+        }),
+    ));
+    out(
+        &e.ws,
+        "comment.update",
+        json!({
+            "book": book_id,
+            "id": done_todo_raw,
+            "status": "resolved"
+        }),
+    );
+    let done_todo: CommentId = done_todo_raw.parse().unwrap();
+
+    let doc_id = format!("body:{chapter_id}/mod-prose");
+    let session = e.ws.prose_session(&doc_id).unwrap();
+    session
+        .edit(move |t| {
+            let start = |t: &dr_doc::prose::ProseTxn<'_>, prefix: &str| {
+                t.view()
+                    .paragraphs()
+                    .find(|p| p.text().starts_with(prefix))
+                    .unwrap_or_else(|| panic!("missing paragraph {prefix}"))
+                    .range
+                    .start
+            };
+            let find = |t: &dr_doc::prose::ProseTxn<'_>, needle: &str| {
+                let all = t.view().plain_text();
+                let byte = all
+                    .find(needle)
+                    .unwrap_or_else(|| panic!("missing {needle}"));
+                let at = all[..byte].chars().count();
+                at..at + needle.chars().count()
+            };
+
+            let p = start(t, "一　出航");
+            t.set_heading(p, Some(Heading::H1))?;
+
+            let r = find(t, "高亮标记词");
+            t.set_style(r, &InlineStyle::Highlight("yellow".into()))?;
+            let r = find(t, "行内代码片段 inline_beacon()");
+            t.set_style(r, &InlineStyle::Code)?;
+            let r = find(t, "林深");
+            t.link_entity(
+                r,
+                &EntityLink {
+                    target: lin.clone(),
+                    kind: EntityKind::Entry,
+                    block: None,
+                    end_block: None,
+                },
+            )?;
+
+            let p = start(t, "无序一：");
+            t.set_block_attrs(
+                p,
+                &BlockAttrs {
+                    list: Some(ProseListKind::Bullet),
+                    list_level: 0,
+                    ..BlockAttrs::default()
+                },
+            )?;
+            let p = start(t, "无序子项：");
+            t.set_block_attrs(
+                p,
+                &BlockAttrs {
+                    list: Some(ProseListKind::Bullet),
+                    list_level: 1,
+                    ..BlockAttrs::default()
+                },
+            )?;
+
+            for prefix in ["有序一：", "有序二："] {
+                let p = start(t, prefix);
+                t.set_block_attrs(
+                    p,
+                    &BlockAttrs {
+                        list: Some(ProseListKind::Ordered),
+                        ..BlockAttrs::default()
+                    },
+                )?;
+            }
+
+            let p = start(t, "待办未完：");
+            t.set_block_attrs(
+                p,
+                &BlockAttrs {
+                    list: Some(ProseListKind::Task),
+                    checked: false,
+                    ..BlockAttrs::default()
+                },
+            )?;
+            let p = start(t, "待办已完：");
+            t.set_block_attrs(
+                p,
+                &BlockAttrs {
+                    list: Some(ProseListKind::Task),
+                    checked: true,
+                    ..BlockAttrs::default()
+                },
+            )?;
+            let p = start(t, "待办联动：");
+            t.set_block_attrs(
+                p,
+                &BlockAttrs {
+                    list: Some(ProseListKind::Task),
+                    checked: false,
+                    todo: Some(done_todo.clone()),
+                    ..BlockAttrs::default()
+                },
+            )?;
+
+            for prefix in ["fn signal_tide()", "    \"灯塔信号73\"", "}"] {
+                let p = start(t, prefix);
+                t.set_block_attrs(
+                    p,
+                    &BlockAttrs {
+                        code_block: Some("rust".into()),
+                        ..BlockAttrs::default()
+                    },
+                )?;
+            }
+
+            for prefix in ["提示块首段：", "提示块次段："] {
+                let p = start(t, prefix);
+                t.set_block_attrs(
+                    p,
+                    &BlockAttrs {
+                        callout: Some("info".into()),
+                        ..BlockAttrs::default()
+                    },
+                )?;
+            }
+
+            let p = start(t, "引文段落：");
+            t.set_block_attrs(
+                p,
+                &BlockAttrs {
+                    quote: true,
+                    ..BlockAttrs::default()
+                },
+            )?;
+
+            let empty = t
+                .view()
+                .paragraphs()
+                .find(|p| p.is_empty())
+                .unwrap()
+                .range
+                .start;
+            t.set_block_attrs(
+                empty,
+                &BlockAttrs {
+                    rule: true,
+                    ..BlockAttrs::default()
+                },
+            )?;
+
+            let p = start(t, "收尾段落：");
+            let table_id = EmbedId::new_v7();
+            {
+                let w = t.insert_embed(p, &table_id, &EmbedKind::Table)?;
+                let (c1, c2) = (PosKey::first(), PosKey::first().after());
+                let (r1, r2) = (PosKey::first(), PosKey::first().after());
+                w.add_col("c1", &c1)?;
+                w.add_col("c2", &c2)?;
+                w.add_row("r1", &r1)?;
+                w.add_row("r2", &r2)?;
+            }
+            let bold_marks = InlineMarks {
+                bold: true,
+                ..InlineMarks::default()
+            };
+            let code_marks = InlineMarks {
+                code: true,
+                ..InlineMarks::default()
+            };
+            let hl_marks = InlineMarks {
+                highlight: Some("yellow".into()),
+                ..InlineMarks::default()
+            };
+            t.set_table_cell_runs_v3(
+                &table_id,
+                "r1",
+                "c1",
+                &[dr_doc::prose::Run {
+                    text: "表头泊位".into(),
+                    marks: bold_marks.clone(),
+                }],
+                &[],
+            )?;
+            t.set_table_cell_runs_v3(
+                &table_id,
+                "r1",
+                "c2",
+                &[dr_doc::prose::Run {
+                    text: "表头状态".into(),
+                    marks: bold_marks,
+                }],
+                &[],
+            )?;
+            t.set_table_cell_runs_v3(
+                &table_id,
+                "r2",
+                "c1",
+                &[
+                    dr_doc::prose::Run {
+                        text: "北栈桥".into(),
+                        marks: InlineMarks::default(),
+                    },
+                    dr_doc::prose::Run {
+                        text: "A3".into(),
+                        marks: code_marks,
+                    },
+                ],
+                &[],
+            )?;
+            let prefix_text = format!("涨潮停靠{LINE_BREAK}");
+            let hl_start = prefix_text.chars().count();
+            let hl_end = hl_start + "高亮泊位备注".chars().count();
+            let link_start = hl_end + 1;
+            let link_end = link_start + "林深".chars().count();
+            t.set_table_cell_runs_v3(
+                &table_id,
+                "r2",
+                "c2",
+                &[
+                    dr_doc::prose::Run {
+                        text: prefix_text,
+                        marks: InlineMarks::default(),
+                    },
+                    dr_doc::prose::Run {
+                        text: "高亮泊位备注".into(),
+                        marks: hl_marks,
+                    },
+                    dr_doc::prose::Run {
+                        text: " 林深".into(),
+                        marks: InlineMarks::default(),
+                    },
+                ],
+                &[(
+                    link_start..link_end,
+                    EntityLinkV3 {
+                        target: lin,
+                        kind: EntityKind::Entry,
+                        module: None,
+                        block: None,
+                        end_block: None,
+                    },
+                )],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let manuscript = read_manuscript(
+        &e.ws,
+        &book_id,
+        &Options {
+            chapter_titles: true,
+            author: "合成作者".into(),
+            ..Options::default()
+        },
+        &labels(),
+        "zh-CN",
+        None,
+        now(),
+    )
+    .unwrap();
+
+    let [Section::Chapter { blocks, .. }] = manuscript.sections.as_slice() else {
+        panic!("expected one chapter section");
+    };
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::List {
+            kind: ListKind::Bullet,
+            items
+        } if items.len() == 2 && items[1].level == 1
+    )));
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::List {
+            kind: ListKind::Ordered,
+            items
+        } if items.len() == 2
+    )));
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::List {
+            kind: ListKind::Task,
+            items
+        } if items == &[
+            ListItem { runs: vec![run("待办未完：清点淡水")], level: 0, checked: false },
+            ListItem { runs: vec![run("待办已完：封好舱门")], level: 0, checked: true },
+            ListItem { runs: vec![run("待办联动：校对航图")], level: 0, checked: true },
+        ]
+    )));
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::CodeBlock { language, text }
+            if language == "rust" && text.contains("灯塔信号73")
+    )));
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::Callout { kind, blocks } if kind == "info" && blocks.len() == 2
+    )));
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::Table { rows } if rows.len() == 2 && rows[0].len() == 2
+    )));
+
+    let must_contain = [
+        "全格式书稿验收",
+        "第一章　全格式航志",
+        "一　出航",
+        "高亮标记词",
+        "inline_beacon()",
+        "林深",
+        "无序一：罗盘读数",
+        "无序子项：偏东三度",
+        "有序一：点火热机",
+        "有序二：解缆离岸",
+        "待办未完：清点淡水",
+        "待办已完：封好舱门",
+        "待办联动：校对航图",
+        "fn signal_tide()",
+        "灯塔信号73",
+        "提示块首段：暗礁水深不足两米。",
+        "提示块次段：夜航务必减速。",
+        "引文段落：风自北来。",
+        "表头泊位",
+        "表头状态",
+        "北栈桥A3",
+        "涨潮停靠",
+        "高亮泊位备注",
+        "收尾段落：顺利靠岸。",
+    ];
+
+    // 1. EPUB: well-formed XHTML, structural elements for every format, no dropped text.
+    let epub_bytes = render(&manuscript, Format::Epub).unwrap();
+    let mut epub_zip = zip::ZipArchive::new(Cursor::new(&epub_bytes)).unwrap();
+    let mut epub_xhtml = String::new();
+    let mut epub_text = String::new();
+    for idx in 0..epub_zip.len() {
+        let mut file = epub_zip.by_index(idx).unwrap();
+        let name = file.name().unwrap().into_owned();
+        if name.ends_with(".xhtml") || name.ends_with(".xml") || name.ends_with(".ncx") {
+            let mut xml_src = String::new();
+            file.read_to_string(&mut xml_src).unwrap();
+            let parsed = roxmltree::Document::parse_with_options(
+                &xml_src,
+                roxmltree::ParsingOptions {
+                    allow_dtd: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap_or_else(|err| panic!("{name}: {err}"));
+            if name.ends_with(".xhtml") {
+                epub_xhtml.push_str(&xml_src);
+                for text in parsed
+                    .descendants()
+                    .filter(|n| n.is_text())
+                    .filter_map(|n| n.text())
+                {
+                    epub_text.push_str(text);
+                }
+            }
+        }
+    }
+    for fragment in [
+        "<mark>高亮标记词</mark>",
+        "<code>行内代码片段 inline_beacon()</code>",
+        "<ul class=\"prose-list\">",
+        "<li class=\"list-level-1\">无序子项：偏东三度</li>",
+        "<ol class=\"prose-list\">",
+        "<ul class=\"prose-list task-list\">",
+        "☐ </span>待办未完：清点淡水",
+        "☑ </span>待办已完：封好舱门",
+        "☑ </span>待办联动：校对航图",
+        "<pre class=\"code-block\" data-lang=\"rust\"><code>",
+        "<aside class=\"callout\">",
+        "<table class=\"prose-table\">",
+        "<code>A3</code>",
+        "<mark>高亮泊位备注</mark>",
+    ] {
+        assert!(epub_xhtml.contains(fragment), "EPUB missing {fragment}");
+    }
+    for phrase in must_contain {
+        assert!(epub_text.contains(phrase), "EPUB dropped {phrase:?}");
+    }
+
+    // 2. DOCX: valid OOXML parts, format styles/tables/marks, no dropped text.
+    let docx_bytes = render(&manuscript, Format::Docx).unwrap();
+    let mut docx_zip = zip::ZipArchive::new(Cursor::new(&docx_bytes)).unwrap();
+    let mut docx_doc_xml = String::new();
+    for idx in 0..docx_zip.len() {
+        let mut file = docx_zip.by_index(idx).unwrap();
+        let name = file.name().unwrap().into_owned();
+        if name.ends_with(".xml") || name.ends_with(".rels") {
+            let mut xml_src = String::new();
+            file.read_to_string(&mut xml_src).unwrap();
+            let parsed =
+                roxmltree::Document::parse(&xml_src).unwrap_or_else(|err| panic!("{name}: {err}"));
+            if name == "word/document.xml" {
+                docx_doc_xml = parsed
+                    .descendants()
+                    .filter(|n| n.is_text())
+                    .filter_map(|n| n.text())
+                    .collect::<String>();
+                for raw_fragment in [
+                    "<w:pStyle w:val=\"CodeBlock\"/>",
+                    "<w:pStyle w:val=\"Callout\"/>",
+                    "<w:highlight w:val=\"yellow\"/>",
+                    "w:ascii=\"Courier New\"",
+                    "<w:tbl>",
+                    "• ",
+                    "1. ",
+                    "2. ",
+                    "☐ ",
+                    "☑ ",
+                ] {
+                    assert!(
+                        xml_src.contains(raw_fragment),
+                        "DOCX XML missing {raw_fragment}"
+                    );
+                }
+            }
+        }
+    }
+    for phrase in must_contain {
+        assert!(docx_doc_xml.contains(phrase), "DOCX dropped {phrase:?}");
+    }
+
+    // 3. PDF: valid PDF with embedded subset fonts & ToUnicode, decoded glyph stream has all text.
+    if dr_export::pdf_fonts(&manuscript).is_err() && !cfg!(target_os = "macos") {
+        return;
+    }
+    let pdf_bytes = render(&manuscript, Format::Pdf).unwrap();
+    assert!(pdf_bytes.starts_with(b"%PDF-"));
+    let pdf_raw = String::from_utf8_lossy(&pdf_bytes);
+    assert!(pdf_raw.contains("/ToUnicode"));
+    assert!(pdf_raw.contains("/FontFile2") || pdf_raw.contains("/FontFile3"));
+    let pdf_text = extract_pdf_text(&pdf_bytes);
+    for phrase in must_contain {
+        assert!(
+            pdf_text.contains(phrase),
+            "PDF dropped {phrase:?}; extracted text:\n{pdf_text}"
+        );
+    }
 }

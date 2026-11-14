@@ -1400,7 +1400,7 @@ fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import(
                                 "type": "paragraph",
                                 "content": [{
                                     "type": "text",
-                                    "text": "表格未知行内标记",
+                                    "text": "正文表格禁未知标记",
                                     "marks": [{"type": "subscript"}]
                                 }]
                             }]

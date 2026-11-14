@@ -310,11 +310,11 @@ impl ChapterEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> EditorParts {
-        // Note-shortcut prose bodies draw tables and embedded assets (`embeds.rs`);
-        // they write through the body's own session.
-        let note = is_note(ws, book, doc_id);
-        let shared = note.then(|| (source.shared_session(), source.handle().clone()));
-        extension.set_note(note);
+        // Every prose document draws tables and embedded assets (`embeds.rs`)
+        // and highlights; they write through its own session.
+        let shortcuts = crate::v3::uses_note_shortcuts(ws, book, doc_id);
+        let (session, handle) = (source.shared_session(), source.handle().clone());
+        extension.set_note(shortcuts);
         let mut doc = ProseDoc::open(Box::new(source));
         match anchors::comment_anchors(ws, book, doc_id) {
             Ok(found) => {
@@ -330,8 +330,8 @@ impl ChapterEditor {
         }]);
         let body_style = style.clone();
         let ext = extension.clone();
-        // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
-        // lists (material notes); never in chapters.
+        // Typed `- `, `1. `, `[ ] `, `==字==`, `` `code` `` follow the resident
+        // parent level's `format_shortcuts` (`kernel-v4.md` §3, `kernel-v5.md` §6).
         // A v3 body is part of its entry page: as tall as its text, the page
         // scrolling it, only what the page shows drawn.
         let flow = crate::v3::body(doc_id).is_some();
@@ -347,7 +347,7 @@ impl ChapterEditor {
                 cx,
             );
             editor.set_extension(ext);
-            editor.set_list_shortcuts(note);
+            editor.set_list_shortcuts(shortcuts);
             editor
         });
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
@@ -359,7 +359,7 @@ impl ChapterEditor {
             })
         });
         let events = Subscription::join(events, typed);
-        let embeds = shared.map(|(session, handle)| {
+        let embeds = {
             let weak = cx.weak_entity();
             let host = NoteHost {
                 ws: ws.clone(),
@@ -388,8 +388,8 @@ impl ChapterEditor {
                 e.set_embed_views(Some(views), cx);
                 crate::highlight::decorate(e, 0, cx);
             });
-            embeds
-        });
+            Some(embeds)
+        };
         (editor, events, embeds)
     }
 
@@ -398,7 +398,10 @@ impl ChapterEditor {
             NoteEvent::OpenLinkV3(link) => self
                 .assist
                 .update(cx, |a, cx| a.open_entity_link_v3(link, cx)),
-            NoteEvent::Edited => cx.emit(ChapterEditorEvent::Edited),
+            NoteEvent::Edited => {
+                self.pages.edited(0, &self.editor, cx);
+                cx.emit(ChapterEditorEvent::Edited);
+            }
             NoteEvent::OpenMaterial(material) => cx.emit(MaterialOpened {
                 doc: self.doc_id.clone(),
                 material,
@@ -452,6 +455,10 @@ impl ChapterEditor {
             if let Some(embeds) = &self.embeds {
                 embeds.book_changed(cx);
             }
+            let shortcuts = crate::v3::uses_note_shortcuts(&self.ws, &self.book, &self.doc_id);
+            self.extension.set_note(shortcuts);
+            self.editor
+                .update(cx, |e, _| e.set_list_shortcuts(shortcuts));
             self.extension.invalidate();
             self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             if self.pages.has_chrome() {
@@ -691,13 +698,13 @@ impl ChapterEditor {
     }
 }
 
-/// Whether `doc_id` enables note format shortcuts and embeds.
+/// Whether `doc_id` enables note format shortcuts and slash entries.
 fn is_note(ws: &Workspace, book: &str, doc_id: &str) -> bool {
     crate::v3::uses_note_shortcuts(ws, book, doc_id)
 }
 
 impl ChapterEditor {
-    /// A material note's tables and materials (`None` for other documents).
+    /// A prose document's tables and embedded assets (`None` for other documents).
     pub fn note_embeds(&self) -> Option<&Rc<NoteEmbeds>> {
         self.embeds.as_ref()
     }
@@ -714,7 +721,7 @@ impl ChapterEditor {
             .find_map(|t| t.read(cx).focused_editor(window, cx))
     }
 
-    /// The slash menu's 表格 in a material note: a 3 × 3 table at the caret,
+    /// The slash menu's 表格: a 3 × 3 table at the caret,
     /// the caret in its first cell. Returns whether one was inserted.
     pub fn insert_table(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(embeds) = self.embeds.clone() else {
@@ -724,8 +731,8 @@ impl ChapterEditor {
         crate::embeds::insert_table(&embeds, offset, Vec::new(), Vec::new(), window, cx).is_some()
     }
 
-    /// Embeds material `material` (an image or a PDF) at the caret of a
-    /// material note. Returns whether it was.
+    /// Embeds asset `material` (an image or a PDF) at the caret.
+    /// Returns whether it was.
     pub fn insert_material(
         &mut self,
         material: &str,
@@ -740,8 +747,8 @@ impl ChapterEditor {
         crate::embeds::insert_material(&embeds, offset, id, cx).is_some()
     }
 
-    /// ⌘⇧H in a material note: the highlight on the selection (or for what
-    /// is typed next), in the body or the cell the author is in.
+    /// ⌘⇧H: toggle highlight on the selection (or for what is typed next), in
+    /// the body or the cell the author is in.
     pub fn toggle_highlight(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.embeds.is_none() {
             return;
@@ -751,6 +758,17 @@ impl ChapterEditor {
             .unwrap_or_else(|| self.editor.clone());
         editor.update(cx, |e, cx| {
             e.toggle_mark_value(crate::highlight::KEY, crate::highlight::value(), window, cx)
+        });
+    }
+
+    /// ⌘⇧E: toggle inline code on the selection (or for what is typed next),
+    /// in the body or the cell the author is in.
+    pub fn toggle_inline_code(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor = self
+            .focused_prose(window, cx)
+            .unwrap_or_else(|| self.editor.clone());
+        editor.update(cx, |e, cx| {
+            e.toggle_mark(gpui_prose::schema::inline::CODE, window, cx)
         });
     }
 
@@ -911,6 +929,11 @@ impl Render for ChapterEditor {
             .on_action(
                 cx.listener(|this, _: &crate::highlight::ToggleHighlight, window, cx| {
                     this.toggle_highlight(window, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::highlight::ToggleInlineCode, window, cx| {
+                    this.toggle_inline_code(window, cx)
                 }),
             )
             .child(inner)

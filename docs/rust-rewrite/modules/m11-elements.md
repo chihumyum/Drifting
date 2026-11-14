@@ -520,3 +520,15 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 - 书稿列表「按故事线」分组收的是成书序列里有编号的条目（`BookV3::manuscript_number`），按编号排，不管「层级」开关：开着开关的章照旧在它的故事线下面；没有成书正文的中间层（比如「第一卷」）不列。永久测试 `tests/v3_levels.rs` 的 `grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane`。
 - 「下面」的设置面板里，「成书」只在这个条目是最外层的成书层级时显示开启（`BookV3::is_manuscript_root`）；从上面继承来的成书设置不算，来源显示为默认。
 - 书架上「要素」的计数按模板认装内容的条目（`linkable`，没有模板的也算），不按开关（`dr-workspace/src/commands/book.rs`，测试 `tests/shelf.rs`）。
+
+## 内核 v5 · P1 文件夹里拖着调先后（2026-11-13）
+
+按 `kernel-v5.md` 第 4 节与 `v5-tracks.md`「P1」更新 `dr-view-elements`、`dr-shell` 与 `dr-i18n`，不改动书格式或数据层：
+
+- **同文件夹拖放调先后（三处共用 `LevelDisplay`）**：左栏列表（`DisplaySurface::Sidebar`）、条目页「下面的条目」与层级页（`DisplaySurface::Page`，列表与网格两种看法）统一支持同文件夹内拖动排序。列表叶子行按上下半区取 `Before` / `After`（落点用上／下发丝线提示，不用左嵌竖条）；网格瓷砖按左右半区取 `Before` / `After`；子文件夹行顶／底各 25% 为 `Before` / `After`，中间 50% 仍为拖进该文件夹（`Into`）。提交走既有 `entry.move`（`{book, id, parent, index}`，按含逻辑回收槽位的原始兄弟序列换算 `index`），附带 `RecordKey::children_of(parent)` 与锚点条目的显式前置守卫；原位未变的拖放不落空提交、不污染撤销栈。看板与岛屿保持自由摆放，不参与重排。
+- **本机查看顺序**：列表与网格（非按故事线分组时）提供「手动 / 修改时间 / 创建时间 / 名字」四档切换（九语 `v3Levels.sort{Manual,Updated,Created,Name}`）。选择仅存于本机 `local_state`（`memory:<book>:v3.level.sort.<level>`），不进书文档、不改 `BookV3.revision`，跨表面同步且重开保留。「修改时间」汇总条目时间戳、正文文档头与有效编辑日志（纯移动 `EffectAction::Moved` 不算修改）；「名字」采用 ICU 中文拼音加数值自然序。切到非「手动」看法时禁用同文件夹重排以保护手动顺序，跨文件夹搬家与接收归属照常可用。
+- **一步撤销与成书顺序**：成书层级的章节与子文件夹重排后，`BookV3.manuscript` 与章序号立即按新的手动顺序重算；起拖或落点时焦点交接至 `LevelDisplay`，按 `⌘Z` / `Ctrl+Z` 走外壳对象级撤销一步还原（正文编辑器聚焦时仍只撤正文输入）。结构视图的根文件夹顺序归暂缓的 `T9 结构视图`（见 `v5-tracks.md`）。
+
+新增永久回归见 `dr-view-elements/tests/v5_p1_reorder.rs` 与 `dr-shell/tests/v5_p1_undo.rs`。
+
+留到打磨阶段的一处（2026-11-15 合并时记）：按「修改时间」看的时候，每次书有变动都在主线程把全部正文文档的时间和撤销记录重读一遍（`data::v3::updated_timestamps`），重型书上可能卡。它不是默认的看法，先不拦；打磨时挪到后台或缓存。

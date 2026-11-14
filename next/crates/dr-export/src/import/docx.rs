@@ -285,6 +285,8 @@ fn run(r: Node<'_, '_>, cx: &mut Cx, href: Option<&str>, runs: &mut Vec<Run>) {
         italic: toggle(has("i")),
         underline: toggle(has("u")),
         strike: toggle(has("strike")) || toggle(has("dstrike")),
+        code: false,
+        highlight: false,
         href: href.map(str::to_owned),
     };
     let mut text = String::new();

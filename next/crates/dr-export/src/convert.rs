@@ -10,26 +10,29 @@
 //! - Prose: H1, H2 and H3 always travel as heading levels 1–3 (there is no
 //!   switch); a heading with no visible text is left out. Paragraphs keep a
 //!   centre or right alignment (left is the manuscript's justified body) and
-//!   their indent (0–8). Consecutive quoted paragraphs make one quote; a
-//!   horizontal rule is a separator. Runs keep bold, italic, underline and
-//!   strike; a link keeps its address only when it is http(s) or mailto
-//!   (anything else would make the writers refuse the whole book, so its
-//!   words stay as plain text); entity links, comments and highlights keep
-//!   their words only; a line break inside a paragraph stays a line break.
-//!   Blank paragraphs at a chapter's (and a quote's) start and end go.
-//! - Embeds (decided here, 0.1 had them in ProseMirror nodes): a table keeps
-//!   its words, one paragraph per non-empty cell line in row then column
-//!   order (0.1 kept the words of nodes outside the prose profile); a
-//!   material or an unknown embed has no words of its own and is left out.
+//!   their indent (0–8). Consecutive quoted paragraphs make one quote;
+//!   callouts, code blocks and lists travel as structured blocks; a horizontal
+//!   rule is a separator. Runs keep bold, italic, underline, strike, inline
+//!   code and highlight; a link keeps its address only when it is http(s) or
+//!   mailto (anything else would make the writers refuse the whole book, so
+//!   its words stay as plain text); entity links and comments keep their words
+//!   only; a line break inside a paragraph stays a line break. Blank
+//!   paragraphs at a chapter's (and a quote's or callout's) start and end go.
+//! - Embeds: a table travels as a rectangular grid of styled cell runs in row
+//!   then column order; a material or an unknown embed has no words of its own
+//!   and is left out.
 
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use dr_doc::prose::{EmbedView, Paragraph, ProseView};
+use dr_doc::prose::{EmbedView, Paragraph, ProseView, Run as ProseRun};
+use dr_model::id::CommentId;
+use dr_model::kind::ListKind as ProseListKind;
 use dr_model::prose::{Align as ProseAlign, LINE_BREAK, OBJECT_CHAR};
 use dr_workspace::Workspace;
 
 use crate::Result;
-use crate::manuscript::{Align, Block, Cover, Manuscript, Run};
+use crate::manuscript::{Align, Block, Cover, ListItem, ListKind, Manuscript, Run};
 
 /// An act as the chapter picker lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -191,29 +194,153 @@ pub fn read_manuscript(
 
 /// A chapter's prose as manuscript blocks.
 pub fn blocks(view: &ProseView<'_>) -> Vec<Block> {
-    let mut out: Vec<Block> = Vec::new();
-    let mut quote: Option<Vec<Block>> = None;
-    for p in view.paragraphs() {
-        let mut converted = Vec::new();
-        paragraph_blocks(view, &p, &mut converted);
-        if p.attrs.quote {
-            quote.get_or_insert_with(Vec::new).extend(converted);
-        } else {
-            close_quote(&mut quote, &mut out);
-            out.extend(converted);
-        }
-    }
-    close_quote(&mut quote, &mut out);
-    trim_blank(out)
+    blocks_with_todos(view, None)
 }
 
-fn close_quote(quote: &mut Option<Vec<Block>>, out: &mut Vec<Block>) {
-    if let Some(inner) = quote.take() {
-        let inner = trim_blank(inner);
-        if !inner.is_empty() {
-            out.push(Block::Quote { blocks: inner });
+pub(crate) fn blocks_with_todos(
+    view: &ProseView<'_>,
+    done_todos: Option<&HashSet<CommentId>>,
+) -> Vec<Block> {
+    let paragraphs: Vec<Paragraph> = view.paragraphs().collect();
+    trim_blank(convert_slice(view, &paragraphs, done_todos, false, false))
+}
+
+fn export_list_kind(kind: &ProseListKind) -> ListKind {
+    match kind {
+        ProseListKind::Bullet | ProseListKind::Other(_) => ListKind::Bullet,
+        ProseListKind::Ordered => ListKind::Ordered,
+        ProseListKind::Task => ListKind::Task,
+    }
+}
+
+fn convert_slice(
+    view: &ProseView<'_>,
+    paragraphs: &[Paragraph],
+    done_todos: Option<&HashSet<CommentId>>,
+    ignore_quote: bool,
+    ignore_callout: bool,
+) -> Vec<Block> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < paragraphs.len() {
+        let p = &paragraphs[i];
+        if !ignore_quote && p.attrs.quote && p.embed().is_none() {
+            let start = i;
+            i += 1;
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.quote
+                && paragraphs[i].embed().is_none()
+            {
+                i += 1;
+            }
+            let inner = trim_blank(convert_slice(
+                view,
+                &paragraphs[start..i],
+                done_todos,
+                true,
+                ignore_callout,
+            ));
+            if !inner.is_empty() {
+                out.push(Block::Quote { blocks: inner });
+            }
+            continue;
+        }
+        if !ignore_callout
+            && let Some(kind) = p.attrs.callout.as_deref()
+            && p.embed().is_none()
+        {
+            let start = i;
+            i += 1;
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.callout.as_deref() == Some(kind)
+                && paragraphs[i].embed().is_none()
+                && (ignore_quote || !paragraphs[i].attrs.quote)
+            {
+                i += 1;
+            }
+            let inner = trim_blank(convert_slice(
+                view,
+                &paragraphs[start..i],
+                done_todos,
+                ignore_quote,
+                true,
+            ));
+            if !inner.is_empty() {
+                out.push(Block::Callout {
+                    kind: kind.to_owned(),
+                    blocks: inner,
+                });
+            }
+            continue;
+        }
+        if let Some(lang) = p.attrs.code_block.as_deref()
+            && p.embed().is_none()
+        {
+            let mut lines = Vec::new();
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.code_block.as_deref() == Some(lang)
+                && paragraphs[i].embed().is_none()
+                && (ignore_quote || !paragraphs[i].attrs.quote)
+                && (ignore_callout || paragraphs[i].attrs.callout.is_none())
+            {
+                lines.push(plain_code_text(&paragraphs[i]));
+                i += 1;
+            }
+            out.push(Block::CodeBlock {
+                language: lang.to_owned(),
+                text: lines.join("\n"),
+            });
+            continue;
+        }
+        if let Some(list_kind) = p.attrs.list.as_ref()
+            && p.embed().is_none()
+        {
+            let mut items = Vec::new();
+            while i < paragraphs.len()
+                && paragraphs[i].attrs.list.as_ref() == Some(list_kind)
+                && paragraphs[i].embed().is_none()
+                && (ignore_quote || !paragraphs[i].attrs.quote)
+                && (ignore_callout || paragraphs[i].attrs.callout.is_none())
+            {
+                let item = &paragraphs[i];
+                let checked = if *list_kind == ProseListKind::Task {
+                    match &item.attrs.todo {
+                        Some(todo_id) => done_todos.is_some_and(|set| set.contains(todo_id)),
+                        None => item.attrs.checked,
+                    }
+                } else {
+                    false
+                };
+                items.push(ListItem {
+                    runs: runs_from_prose(&item.runs),
+                    level: item.attrs.list_level.min(8) as u8,
+                    checked,
+                });
+                i += 1;
+            }
+            out.push(Block::List {
+                kind: export_list_kind(list_kind),
+                items,
+            });
+            continue;
+        }
+        paragraph_blocks(view, p, &mut out);
+        i += 1;
+    }
+    out
+}
+
+fn plain_code_text(p: &Paragraph) -> String {
+    let mut text = String::new();
+    for r in &p.runs {
+        for c in r.text.chars() {
+            if c == OBJECT_CHAR {
+                continue;
+            }
+            text.push(if c == LINE_BREAK { '\n' } else { c });
         }
     }
+    text
 }
 
 fn paragraph_blocks(view: &ProseView<'_>, p: &Paragraph, out: &mut Vec<Block>) {
@@ -221,26 +348,39 @@ fn paragraph_blocks(view: &ProseView<'_>, p: &Paragraph, out: &mut Vec<Block>) {
         if let Some(EmbedView::Table {
             cols, rows, cells, ..
         }) = view.embed(id)
+            && !rows.is_empty()
+            && !cols.is_empty()
         {
-            for row in &rows {
-                for col in &cols {
-                    let Some(text) = cells.get(&(row.id.clone(), col.id.clone())) else {
-                        continue;
-                    };
-                    for line in text.split(['\n', LINE_BREAK]) {
-                        if !line.trim().is_empty() {
-                            out.push(Block::Paragraph {
-                                runs: vec![Run {
-                                    text: line.to_owned(),
-                                    ..Run::default()
-                                }],
-                                align: Align::Justify,
-                                indent: 0,
-                            });
-                        }
-                    }
-                }
-            }
+            let grid = rows
+                .iter()
+                .map(|row| {
+                    cols.iter()
+                        .map(|col| {
+                            if let Some(cell_runs) = view.table_cell(id, &row.id, &col.id) {
+                                runs_from_prose(&cell_runs)
+                            } else if let Some(text) = cells.get(&(row.id.clone(), col.id.clone()))
+                            {
+                                let clean: String = text
+                                    .chars()
+                                    .filter(|&c| c != OBJECT_CHAR)
+                                    .map(|c| if c == LINE_BREAK { '\n' } else { c })
+                                    .collect();
+                                if clean.is_empty() {
+                                    Vec::new()
+                                } else {
+                                    vec![Run {
+                                        text: clean,
+                                        ..Run::default()
+                                    }]
+                                }
+                            } else {
+                                Vec::new()
+                            }
+                        })
+                        .collect()
+                })
+                .collect();
+            out.push(Block::Table { rows: grid });
         }
         return;
     }
@@ -248,7 +388,7 @@ fn paragraph_blocks(view: &ProseView<'_>, p: &Paragraph, out: &mut Vec<Block>) {
         out.push(Block::Break);
         return;
     }
-    let runs = runs(p);
+    let runs = runs_from_prose(&p.runs);
     let align = match p.attrs.align {
         ProseAlign::Center => Align::Center,
         ProseAlign::Right => Align::Right,
@@ -276,14 +416,17 @@ fn same_marks(a: &Run, b: &Run) -> bool {
         && a.italic == b.italic
         && a.underline == b.underline
         && a.strike == b.strike
+        && a.code == b.code
+        && a.highlight == b.highlight
         && a.href == b.href
 }
 
-/// A paragraph's runs: inline styles and web or mail links kept, line
-/// breaks as `\n`, object placeholders dropped, equal neighbours merged.
-fn runs(p: &Paragraph) -> Vec<Run> {
+/// Runs from Loro prose: inline styles (including code and highlight) and web
+/// or mail links kept, line breaks as `\n`, object placeholders dropped, equal
+/// neighbours merged.
+fn runs_from_prose(runs: &[ProseRun]) -> Vec<Run> {
     let mut out: Vec<Run> = Vec::new();
-    for r in &p.runs {
+    for r in runs {
         let text: String = r
             .text
             .chars()
@@ -306,6 +449,8 @@ fn runs(p: &Paragraph) -> Vec<Run> {
             italic: r.marks.italic,
             underline: r.marks.underline,
             strike: r.marks.strike,
+            code: r.marks.code,
+            highlight: r.marks.highlight.is_some(),
             href,
         };
         match out.last_mut() {

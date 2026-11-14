@@ -72,7 +72,22 @@ fn sample_text(manuscript: &Manuscript, out: &mut String) {
             }
             match block {
                 Block::Heading { runs: r, .. } | Block::Paragraph { runs: r, .. } => runs(r, out),
-                Block::Quote { blocks: inner } => blocks(inner, out),
+                Block::List { items, .. } => {
+                    for item in items {
+                        runs(&item.runs, out);
+                    }
+                }
+                Block::CodeBlock { text, .. } => out.push_str(text),
+                Block::Callout { blocks: inner, .. } | Block::Quote { blocks: inner } => {
+                    blocks(inner, out)
+                }
+                Block::Table { rows } => {
+                    for row in rows {
+                        for cell in row {
+                            runs(cell, out);
+                        }
+                    }
+                }
                 Block::Break => {}
             }
         }

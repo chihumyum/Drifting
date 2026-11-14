@@ -358,16 +358,8 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
     if e.composition().is_some() {
         return true;
     }
-    let doc = &e.book().chapters[sel.start().chapter].doc;
-    if doc
-        .source_as::<crate::SessionSource>()
-        .is_some_and(|s| crate::v3::body(s.doc_id()).is_some())
-        && (text.contains('\u{fffc}')
-            || marks
-                .iter()
-                .any(|m| matches!(m.2.as_str(), "highlight" | "code")))
-    {
-        crate::links::clipboard_refused(cx, "unsupported target profile");
+    if text.contains('\u{fffc}') {
+        crate::links::clipboard_refused(cx, "unsupported embed placeholder in text paste");
         return true;
     }
     if sel.spans_chapters() {

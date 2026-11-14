@@ -265,6 +265,25 @@ pub fn read_manuscript(
     if entries.is_empty() {
         return Err(ExportError::NoChapters);
     }
+    let book_id = BookId::parse(book).map_err(invalid)?;
+    let done_todos: std::sync::Arc<HashSet<dr_model::id::CommentId>> = std::sync::Arc::new(
+        ws.library()
+            .open_doc(&format!("book:{book}"), OpenDoc::Existing)
+            .map_err(invalid)?
+            .read(move |doc| {
+                let borrowed = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
+                Ok::<_, ExportError>(
+                    borrowed
+                        .view()
+                        .comments()
+                        .into_iter()
+                        .filter(|c| c.is_done())
+                        .map(|c| c.id)
+                        .collect(),
+                )
+            })
+            .map_err(invalid)??,
+    );
     let stored: HashSet<_> = ws
         .library()
         .docs(Some(book), None)
@@ -281,13 +300,17 @@ pub fn read_manuscript(
                 continue;
             }
             let doc = doc.clone();
+            let done_todos = std::sync::Arc::clone(&done_todos);
             let part = ws
                 .library()
                 .open_doc(&id, OpenDoc::Existing)
                 .map_err(invalid)?
                 .read(move |loro| {
                     let prose = BorrowedProse::new(loro, &doc).map_err(invalid)?;
-                    Ok::<_, ExportError>(crate::blocks(&prose.view()))
+                    Ok::<_, ExportError>(crate::convert::blocks_with_todos(
+                        &prose.view(),
+                        Some(&done_todos),
+                    ))
                 })
                 .map_err(invalid)??;
             blocks.extend(part);

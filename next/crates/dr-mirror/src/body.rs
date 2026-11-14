@@ -312,7 +312,47 @@ fn flatten(blocks: &[Block], quote: bool, out: &mut Vec<Para>) {
                     quote,
                 },
             )),
-            Block::Quote { blocks } => flatten(blocks, true, out),
+            Block::List { items, .. } => {
+                for item in items {
+                    out.push(text_para(
+                        &item.runs,
+                        Kind::Text {
+                            heading: None,
+                            quote,
+                        },
+                    ));
+                }
+            }
+            Block::CodeBlock { text, .. } => {
+                for line in text.split('\n') {
+                    out.push(text_para(
+                        &[Run {
+                            text: line.to_owned(),
+                            ..Run::default()
+                        }],
+                        Kind::Text {
+                            heading: None,
+                            quote,
+                        },
+                    ));
+                }
+            }
+            Block::Callout { blocks, .. } | Block::Quote { blocks } => {
+                flatten(blocks, true, out);
+            }
+            Block::Table { rows } => {
+                for row in rows {
+                    for cell in row {
+                        out.push(text_para(
+                            cell,
+                            Kind::Text {
+                                heading: None,
+                                quote,
+                            },
+                        ));
+                    }
+                }
+            }
             Block::Break => out.push(Para {
                 kind: Kind::Rule { quote },
                 chars: Vec::new(),
