@@ -1410,6 +1410,13 @@ pub enum BookRoot {
         view: TimelineViewId,
         entry: EntryId,
     },
+    /// What a reader makes of a stored book start it cannot read (missing,
+    /// or not one of the kinds above), for instance after history restored
+    /// the start of a version when the book was off: it names nothing, so
+    /// the book reads as having no content until the author picks a start
+    /// again (`kernel-v5.md` §3: never replaced by another start). Never a
+    /// valid start; writing it removes the stored start.
+    Unset,
 }
 
 /// Book configuration inside `project.book` (`kernel-v5.md` §3 & §10).
@@ -1522,6 +1529,117 @@ pub struct ProjectTemplate {
     pub entries: Vec<ProjectSeedEntry>,
     #[serde(default)]
     pub views: Vec<TimelineView>,
+}
+
+impl ProjectTemplate {
+    /// The same template with a fresh id for every seed entry, view, tab and
+    /// time pin, and every reference to one of them rewritten: residence,
+    /// `home`, entity-reference fields, lanes, placements, pins, the book
+    /// start and tab mounts. A project is created from this copy, so two
+    /// projects made from one template never share a `body:<entry>/<module>`
+    /// document (`V3-DOCID-LIBRARY-UNIQUE`). Template ids stay: they are keys
+    /// inside one book.
+    pub fn with_fresh_ids(&self) -> Self {
+        let entry_ids: BTreeMap<EntryId, EntryId> = self
+            .entries
+            .iter()
+            .map(|e| (e.id.clone(), EntryId::new_v7()))
+            .collect();
+        let view_ids: BTreeMap<TimelineViewId, TimelineViewId> = self
+            .views
+            .iter()
+            .map(|v| (v.id.clone(), TimelineViewId::new_v7()))
+            .collect();
+        let entry = |id: &EntryId| entry_ids.get(id).cloned().unwrap_or_else(|| id.clone());
+        let view = |id: &TimelineViewId| view_ids.get(id).cloned().unwrap_or_else(|| id.clone());
+        let entity_ref = |value: &mut FieldValue| {
+            let one = |s: &mut String| {
+                if let Some(fresh) = EntryId::parse(s).ok().and_then(|id| entry_ids.get(&id)) {
+                    *s = fresh.to_string();
+                }
+            };
+            match value {
+                FieldValue::Text(s) => one(s),
+                FieldValue::List(items) => items.iter_mut().for_each(one),
+                _ => {}
+            }
+        };
+        let is_entity_ref = |template: Option<&EntryTemplateId>, module: &ModuleId, field: &str| {
+            self.templates
+                .iter()
+                .find(|t| Some(&t.id) == template)
+                .and_then(|t| t.module(module))
+                .and_then(|m| m.config.defs.iter().find(|d| d.id == field))
+                .is_some_and(|d| d.field_type == FieldType::EntityRef)
+        };
+
+        let mut out = self.clone();
+        if let Some(book) = &mut out.project.book {
+            book.root = match &book.root {
+                BookRoot::Root => BookRoot::Root,
+                BookRoot::Entry { entry: e } => BookRoot::Entry { entry: entry(e) },
+                BookRoot::View { view: v } => BookRoot::View { view: view(v) },
+                BookRoot::Lane { view: v, entry: e } => BookRoot::Lane {
+                    view: view(v),
+                    entry: entry(e),
+                },
+                BookRoot::Unset => BookRoot::Unset,
+            };
+        }
+        for tab in &mut out.project.tabs {
+            tab.id = TabId::new_v7();
+            tab.mount = match &tab.mount {
+                TabMount::Entry { entry: e } => TabMount::Entry { entry: entry(e) },
+                TabMount::View { view: v } => TabMount::View { view: view(v) },
+                other => other.clone(),
+            };
+        }
+        for template in &mut out.templates {
+            if let Some(Some(home)) = &mut template.settings.home {
+                *home = entry(home);
+            }
+            for module in &mut template.modules {
+                for def in &mut module.config.defs {
+                    if def.field_type == FieldType::EntityRef
+                        && let Some(value) = &mut def.default_value
+                    {
+                        entity_ref(value);
+                    }
+                }
+            }
+        }
+        for seed in &mut out.entries {
+            let template = seed.template.clone();
+            seed.id = entry(&seed.id);
+            seed.parent = seed.parent.as_ref().map(&entry);
+            if let Some(ov) = &mut seed.overrides
+                && let Some(Some(home)) = &mut ov.home
+            {
+                *home = entry(home);
+            }
+            for (module, fields) in &mut seed.fields {
+                for (field, value) in fields.iter_mut() {
+                    if is_entity_ref(template.as_ref(), module, field) {
+                        entity_ref(value);
+                    }
+                }
+            }
+        }
+        for v in &mut out.views {
+            v.id = view(&v.id);
+            for lane in &mut v.lanes {
+                lane.entry = entry(&lane.entry);
+            }
+            for placement in &mut v.placements {
+                placement.entry = entry(&placement.entry);
+            }
+            for pin in &mut v.pins {
+                pin.id = TimePinId::new_v7();
+                pin.entry = pin.entry.as_ref().map(&entry);
+            }
+        }
+        out
+    }
 }
 
 // ============================================================================
@@ -2427,6 +2545,7 @@ pub fn check_book_root(
 ) -> Result<(), Violation> {
     match root {
         BookRoot::Root => Ok(()),
+        BookRoot::Unset => fail("BOOK-ROOT-VALID", "the book start is missing"),
         BookRoot::Entry { entry } => {
             if !is_entry_live(entry, entries) {
                 return fail(

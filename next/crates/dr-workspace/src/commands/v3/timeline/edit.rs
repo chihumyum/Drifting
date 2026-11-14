@@ -366,7 +366,7 @@ op! {
                 )?;
             }
             if let Some(children) = &wb.child_order {
-                tx.entries().reorder_children(Some(&lane), children)?;
+                super::reorder_stored_children(tx, &lane, children)?;
             }
             let extra = UndoExtra {
                 membership_pos: wb
@@ -433,8 +433,11 @@ op! {
         }
         let child_order_pair = if let Some(parent_s) = &input.child_order {
             let parent_id: EntryId = pid("entry", parent_s)?;
+            // The order to put back, as stored then; compared below on the
+            // live entries only, so an entry trashed since (a creation
+            // undone in between) is no reason to refuse.
             let old_children = old.direct_child_ids(Some(&parent_id));
-            let exp_children = expected.direct_child_ids(Some(&parent_id));
+            let exp_children = super::live_child_ids(&expected, &parent_id);
             Some((parent_id, old_children, exp_children))
         } else {
             None
@@ -455,7 +458,7 @@ op! {
                 }
             }
             if let Some((parent_id, _, exp_children)) = &child_order_pair
-                && v.direct_child_ids(Some(parent_id)) != *exp_children
+                && super::live_child_ids(&v, parent_id) != *exp_children
             {
                 return Err(WsError::Conflict("selected folder child order changed after the recorded write".into()));
             }
@@ -471,7 +474,7 @@ op! {
                 }
             }
             if let Some((parent_id, old_children, _)) = &child_order_pair {
-                tx.entries().reorder_children(Some(parent_id), old_children)?;
+                super::reorder_stored_children(tx, parent_id, old_children)?;
             }
             Ok((pairs.into_iter().map(|(field, _, _, _)| field).collect(), frontiers_hex(&tx.view().state_frontiers())))
         })?;

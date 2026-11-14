@@ -284,6 +284,8 @@ pub const DOC_KIND_DRIFT: &str = "drift";
 pub const DOC_KIND_STATS: &str = "stats";
 /// A book's complete-entry checkpoint manifests, beside its book document.
 pub const DOC_KIND_CHECKPOINTS: &str = "checkpoints";
+/// A book's canvas coordinates, beside its book document.
+pub const DOC_KIND_LAYOUT: &str = "layout";
 
 pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_BOOK,
@@ -296,6 +298,7 @@ pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_DRIFT,
     DOC_KIND_STATS,
     DOC_KIND_CHECKPOINTS,
+    DOC_KIND_LAYOUT,
 ];
 
 /// Whether `kind` is a known document kind in schema v3 or v2.2.

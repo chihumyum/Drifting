@@ -603,7 +603,17 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 - **撤销**：关掉以后窗口下沿的纸条写「关闭层级 · 条目名」，带「撤销」，点了开关和挪走的子条目一步全部回去；光标不在正文里时 ⌘Z 也撤它（`foundations/f6-shell.md` 的「在窗口里撤销书的结构」）。
 - **页眉的编号**：条目自己有成书正文时，住在它下面的条目（隔几层都算）不再单独编号，页眉显示模板名；位置、导出、字数不变（`kernel-v4.md` 第 7 节，契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）。书稿列表「按故事线」分组改按成书序列的位置收「带成书正文」的条目，有没有编号都列出来；书架的「N 章」按编号数，要素数改为不算带成书正文的条目。
 
-测试：`dr-shell/tests/v3.rs` 的 `v4_turning_off_a_level_asks_for_assigned_entries_and_lanes`；`dr-view-page/tests/shell_workspace.rs` 的 `the_books_structure_undoes_from_the_notice_and_outside_the_prose`；`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-workspace/tests/undo.rs` 的 `undo_in_a_book_takes_back_that_books_latest_command_of_the_author_only`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。
+### 内核 v5：关层级只问一种（2026-11-15，DX 修补）
+
+上面「关开关什么时候问」「问的期间变了」两条已照 `kernel-v5.md` 第 16 节改：
+
+- **只在下面住着活的条目时问，只有一句**：「下面的 N 个条目会放进最近删除。」N 是它下面活着的全部条目，隔几层都算（`SwitchInspection::below`，和 `entry.set_level` 关掉时放进最近删除的是同一批：按住处往下数，碰到已经在最近删除里的就停）。挂在它上面的条目、它在视图里的泳道一律不问，关掉以后也照旧在。旧的三种说法（只有成员、只有泳道、两样都有）和它们的键 `turnOffLevelLaneBody`、`turnOffLevelMembersBody`、`turnOffLevelMembersLaneBody` 删了，`turnOffLevelBody` 换成新句子，九种语言。
+- **问的期间变了**：写入守着这个条目、下面每个活条目和每一层住着的先后；下面哪一层多了或少了条目，都重读、换数字、再问一次。打开开关只守这个条目和它下面一层的先后。
+- 对话框的 `child_count()`、`member_count()`、`is_lane()` 换成一个 `below_count()`。
+
+测试：`dr-shell/tests/v3.rs` 的 `v5_turning_off_a_level_asks_only_about_what_lives_below`（原 `v4_turning_off_a_level_asks_for_assigned_entries_and_lanes`，改写：泳道、挂名都不问，住着的条目隔两层也算，深处多一条时数字跟着变）和 `v4_level_switch_toggle_confirmation_conflict_and_undo` 里的对话框计数（N 从直接子条目数改成全部活着的下面条目）。
+
+测试：`dr-shell/tests/v3.rs` 的 `v4_turning_off_a_level_asks_for_assigned_entries_and_lanes`（v5 改名见上）；`dr-view-page/tests/shell_workspace.rs` 的 `the_books_structure_undoes_from_the_notice_and_outside_the_prose`；`dr-view-page/tests/v3.rs` 的 `entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own`；`dr-workspace/tests/undo.rs` 的 `undo_in_a_book_takes_back_that_books_latest_command_of_the_author_only`；`dr-doc` 的 `entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number`。
 
 ## 正文随页铺开、按视口画（2026-11-13，编辑器回归修复）
 

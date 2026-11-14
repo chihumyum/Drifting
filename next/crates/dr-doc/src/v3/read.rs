@@ -594,7 +594,7 @@ impl<'a> BookViewV3<'a> {
             let root = bf
                 .sub("root")
                 .and_then(Self::read_book_root)
-                .unwrap_or(BookRoot::Root);
+                .unwrap_or(BookRoot::Unset);
             ProjectBook {
                 root,
                 word_target_set: bf.i64("word_target"),

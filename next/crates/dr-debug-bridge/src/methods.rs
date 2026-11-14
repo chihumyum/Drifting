@@ -874,7 +874,7 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
         "book": {
             "id": ws.book_id, "name": book.name,
             "chapters": book.v3().map_or(0, |b| b.manuscript.iter().map(|m| &m.entry).collect::<std::collections::BTreeSet<_>>().len()), "loaded": !book.is_empty(),
-            "version": book.v3().map(|_| 3),
+            "version": book.v3().map(|_| dr_doc::schema::BOOK_SCHEMA_VERSION),
         },
         "v3": book.v3(),
         "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state()),

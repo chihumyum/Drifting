@@ -1,15 +1,19 @@
-//! Guarded UI flow for the entry `层级` switch (`entry.set_level`, kernel-v4 §3).
+//! Guarded UI flow for the entry `层级` switch (`entry.set_level`,
+//! `kernel-v5.md` §16 「关掉层级、删掉条目」).
 //!
-//! Turning the switch on, or off when turning it off hides nothing, commits
-//! immediately under record preconditions. Turning it off asks first when
-//! anything stops showing (author 2026-11-13): entries living underneath
-//! (they move to the top level), entries assigned to it, or its lane in a
-//! timeline view. If what the dialog said changes before the author
-//! confirms, the dialog shows the new numbers and asks again, with no
-//! further words; the write is guarded on `entries/<id>`,
-//! `children_of(<id>)` and the book's memberships and timeline views, so
-//! nothing changes between the last read and the write either. After it is
-//! off, a notice offers 「撤销」 (`workspace/toast.rs`).
+//! Turning the switch on, or off with nothing living under it, commits
+//! immediately under record preconditions. Turning it off while live
+//! entries live under it asks first, in one sentence (「下面的 N 个条目会放进最近删除。」),
+//! N counting every live entry below it however deep: they go to Recently
+//! Deleted with it. What is attached to it and its lanes are not touched,
+//! so they are never asked about. If what the dialog said changes before
+//! the author confirms, the dialog shows the new number and asks again,
+//! with no further words; the write is guarded on the entry and on every
+//! live entry below it and the order of what lives under each, so nothing
+//! changes between the last read and the write either. After it is off, a
+//! notice offers 「撤销」 (`workspace/toast.rs`).
+
+use std::collections::{BTreeSet, HashMap};
 
 use crate::{
     actions::Dismiss,
@@ -30,78 +34,56 @@ use gpui::{prelude::*, *};
 use serde_json::{Value, json};
 
 /// Consistent snapshot of an entry's `层级` switch and of what turning it
-/// off hides, with the record preconditions, read from the same Loro
-/// frontier.
+/// off puts in Recently Deleted, with the record preconditions, read from
+/// the same Loro frontier.
 #[derive(Clone, Debug)]
 pub struct SwitchInspection {
     pub level: bool,
-    pub child_count: u64,
-    /// The entries living directly under it, in order (they move).
-    pub children: Vec<String>,
-    /// The entries validly assigned to it, by id (they stop showing under
-    /// it).
-    pub members: Vec<String>,
-    /// It is a lane of a timeline view (the lane stops showing).
-    pub lane: bool,
+    /// The live entries living below it, at any depth, in tree order. An
+    /// entry already in Recently Deleted, and what is under it, is not
+    /// among them: it stays as it is.
+    pub below: Vec<String>,
+    /// For turning it off: the entry, and every live entry below it with
+    /// the order of what lives under each.
     pub preconditions: WritePreconditions,
+    /// For turning it on: the entry and the order of what lives under it.
+    turn_on: WritePreconditions,
 }
 
 impl SwitchInspection {
-    /// Turning it off hides something: the author is asked first.
+    /// Turning it off puts something in Recently Deleted: the author is
+    /// asked first.
     pub fn needs_confirmation(&self) -> bool {
-        self.level && (self.child_count > 0 || !self.members.is_empty() || self.lane)
+        self.level && !self.below.is_empty()
     }
 
     /// Whether `self` and `other` would ask the author the same thing.
     fn asks_the_same(&self, other: &SwitchInspection) -> bool {
-        self.level == other.level
-            && self.children == other.children
-            && self.members == other.members
-            && self.lane == other.lane
+        self.level == other.level && self.below == other.below
     }
 
-    /// Turning it on writes only its switch: held to the entry and its
-    /// children, as before, not to the book's memberships or views.
-    fn turn_on_preconditions(&self) -> WritePreconditions {
-        let mut p = self.preconditions.clone();
-        p.records.retain(|r| r.key.collection == "entries");
-        p
+    /// How many entries the dialog says go to Recently Deleted.
+    pub fn below_count(&self) -> u64 {
+        self.below.len() as u64
     }
 
     /// The dialog's words for what turning it off does.
     pub fn body_text(&self, cx: &App) -> SharedString {
-        let members = self.members.len() as u64;
-        if self.child_count > 0 {
-            tp(
-                cx,
-                keys::v3_shell::TURN_OFF_LEVEL_BODY,
-                self.child_count,
-                &[("count", &self.child_count)],
-            )
-        } else if members > 0 && self.lane {
-            tp(
-                cx,
-                keys::v3_shell::TURN_OFF_LEVEL_MEMBERS_LANE_BODY,
-                members,
-                &[("count", &members)],
-            )
-        } else if members > 0 {
-            tp(
-                cx,
-                keys::v3_shell::TURN_OFF_LEVEL_MEMBERS_BODY,
-                members,
-                &[("count", &members)],
-            )
-        } else {
-            t(cx, keys::v3_shell::TURN_OFF_LEVEL_LANE_BODY)
-        }
+        let count = self.below_count();
+        tp(
+            cx,
+            keys::v3_shell::TURN_OFF_LEVEL_BODY,
+            count,
+            &[("count", &count)],
+        )
     }
 }
 
-/// Reads `entry_id`'s current switch, its resident children, its valid
-/// members and whether it is a lane, and the `RecordKey::entry`,
-/// `RecordKey::children_of(Some(entry_id))`, `memberships` and
-/// `timeline_views` digests, in one holder read job.
+/// Reads `entry_id`'s current switch and every live entry living below it
+/// (what `entry.set_level` turns off: by stored residence, stopping at an
+/// entry already in Recently Deleted), with the digests of the entry, of
+/// each of them and of the order of what lives under each, in one holder
+/// read job.
 pub fn inspect_level_switch(
     lib: &Workspace,
     book_id: &str,
@@ -120,36 +102,45 @@ pub fn inspect_level_switch(
                 what: "entry",
                 id: entry_key.clone(),
             })?;
-        let structure = view.structure_snapshot();
-        let templates = view.templates_map();
-        let children: Vec<String> = structure
-            .children_of(Some(&eid))
+        let raw = view.entries_raw();
+        let mut children: HashMap<&EntryId, Vec<&EntryId>> = HashMap::new();
+        for e in raw.iter().filter(|e| !e.is_trashed()) {
+            if let Some(parent) = &e.parent {
+                children.entry(parent).or_default().push(&e.id);
+            }
+        }
+        let mut live_below: BTreeSet<&EntryId> = BTreeSet::new();
+        let mut frontier = vec![&eid];
+        while let Some(cur) = frontier.pop() {
+            for child in children.get(cur).into_iter().flatten() {
+                if live_below.insert(child) {
+                    frontier.push(child);
+                }
+            }
+        }
+        // Tree order: `entries_raw` walks the tree depth first.
+        let mut seen = BTreeSet::new();
+        let below: Vec<String> = raw
             .iter()
+            .filter(|e| live_below.contains(&e.id) && seen.insert(e.id.clone()))
             .map(|e| e.id.to_string())
             .collect();
-        let members: Vec<String> = Vec::new();
-        let lane = entry.is_level()
-            && !entry.accepts_members(&templates)
-            && view
-                .timeline_views()
-                .iter()
-                .filter(|v| v.deleted_at.is_none())
-                .any(|v| v.lanes.iter().any(|l| l.entry == eid));
-        let keys = [
+        let mut keys = vec![
             RecordKey::entry(&entry_key),
             RecordKey::children_of(Some(&entry_key)),
-            RecordKey::collection("memberships"),
-            RecordKey::collection("timeline_views"),
         ];
+        for id in &below {
+            keys.push(RecordKey::entry(id));
+            keys.push(RecordKey::children_of(Some(id)));
+        }
         let observations =
             dr_workspace::observe_records_in(&format!("book:{bid}"), doc, &bid, &keys)?;
+        let turn_on = WritePreconditions::from_records(observations[..2].to_vec());
         Ok(SwitchInspection {
             level: entry.is_level(),
-            child_count: children.len() as u64,
-            children,
-            members,
-            lane,
+            below,
             preconditions: WritePreconditions::from_records(observations),
+            turn_on,
         })
     })
 }
@@ -276,7 +267,7 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                 let info = match inspected {
                     Ok(info) => info,
                     Err(error) => {
-                        log::warn!("v4 level switch inspect failed: {error}");
+                        log::warn!("level switch inspect failed: {error}");
                         toast_save_failed(&host, cx);
                         return;
                     }
@@ -295,7 +286,7 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                             &Actor::User,
                             "entry.set_level",
                             json!({ "book": book_id, "id": eid, "level": true }),
-                            info.turn_on_preconditions(),
+                            info.turn_on.clone(),
                         )
                         .map(TurnOff::Done)
                     } else {
@@ -320,7 +311,7 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
                                     show_dialog_in(handle, host, entry_id, next, true, window, cx);
                                 }
                                 Err(error) => {
-                                    log::warn!("v4 level switch write failed: {error}");
+                                    log::warn!("level switch write failed: {error}");
                                     toast_save_failed(&host, cx);
                                 }
                             }
@@ -334,8 +325,8 @@ pub fn toggle_level(host: PageViewHost, entry_id: String, window: &mut Window, c
         .detach();
 }
 
-/// Confirmation modal shown when turning off `层级` hides something
-/// (`kernel-v4.md` §3; author 2026-11-13).
+/// Confirmation modal shown when turning off `层级` puts the entries living
+/// below it in Recently Deleted (`kernel-v5.md` §16).
 pub struct TurnOffLevelDialog {
     host: PageViewHost,
     entry_id: String,
@@ -369,18 +360,10 @@ impl TurnOffLevelDialog {
         &self.entry_id
     }
 
-    pub fn child_count(&self) -> u64 {
-        self.info.child_count
-    }
-
-    /// How many entries assigned to it the dialog says stop showing.
-    pub fn member_count(&self) -> usize {
-        self.info.members.len()
-    }
-
-    /// The dialog says its lane stops showing.
-    pub fn is_lane(&self) -> bool {
-        self.info.lane
+    /// How many entries the dialog says go to Recently Deleted: every live
+    /// entry below it, however deep.
+    pub fn below_count(&self) -> u64 {
+        self.info.below_count()
     }
 
     /// The dialog's words, as it shows them.
@@ -441,7 +424,7 @@ impl TurnOffLevelDialog {
                         cx.notify();
                     }
                     Err(error) => {
-                        log::warn!("v4 turn off level failed: {error}");
+                        log::warn!("turn off level failed: {error}");
                         this.error = true;
                         cx.notify();
                     }

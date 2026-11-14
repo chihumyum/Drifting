@@ -141,7 +141,8 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         tpls[&tid(TPL_STORYLINE)].settings.home,
         Some(Some(roots.manuscript.clone()))
     );
-    assert_eq!(tpls[&tid(TPL_GROUP)].settings.accept, Some(true));
+    // 分组 takes no entries from elsewhere by default (kernel-v5 §16).
+    assert_eq!(tpls[&tid(TPL_GROUP)].settings.accept, None);
     assert!(tpls[&tid(TPL_ACT_TRACK)].level);
     assert_eq!(tpls[&tid(TPL_ACT_TRACK)].settings.accept, Some(true));
     assert!(!tpls[&tid(TPL_CHAPTER)].level);
@@ -159,15 +160,26 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             .collect::<Vec<_>>(),
         [MOD_PROSE]
     );
-    for (id, t) in &tpls {
-        if id != &tid(TPL_CHAPTER) {
-            assert_eq!(
-                t.book_prose_modules().count(),
-                0,
-                "only tpl-chapter defaults to in_book in novel template, got {id}"
-            );
-        }
+    // Ideas and elements keep their v4 `in_book` (the page head follows the
+    // first book prose); only the 笔记 template's prose is outside the book.
+    for id in [
+        TPL_IDEA,
+        TPL_CHARACTER,
+        TPL_LOCATION,
+        TPL_ITEM,
+        TPL_ORGANIZATION,
+        TPL_ELEMENT,
+    ] {
+        assert_eq!(
+            tpls[&tid(id)]
+                .book_prose_modules()
+                .map(|m| m.id.as_str())
+                .collect::<Vec<_>>(),
+            [MOD_PROSE],
+            "{id}"
+        );
     }
+    assert_eq!(tpls[&tid(TPL_NOTE)].book_prose_modules().count(), 0);
 
     // Root entries in manuscript order: 书稿, 构想, 要素, 故事线 (all fresh UUIDv7; no 素材 root).
     for id in [
@@ -1722,12 +1734,14 @@ fn flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscr
         .collect();
     assert_eq!(
         numbered,
+        // An idea's prose counts toward the book (as in v4), so the idea on
+        // the line is numbered too.
         vec![
             ("容器".into(), None),
             ("主线".into(), None),
-            ("线上的构想".into(), None),
-            ("甲".into(), Some(1)),
-            ("乙".into(), Some(2)),
+            ("线上的构想".into(), Some(1)),
+            ("甲".into(), Some(2)),
+            ("乙".into(), Some(3)),
         ]
     );
     // Only a live entry whose switch is on can be a starting point.

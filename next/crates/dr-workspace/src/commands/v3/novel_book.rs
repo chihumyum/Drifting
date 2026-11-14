@@ -8,8 +8,10 @@ op! {
     ProjectCreate = "project.create", Write, Library, "Create a project from a project template (defaults to the built-in writing template).",
     fn(cx, input: super::super::book::BookCreateIn) -> Named {
         name_ok(&input.name)?;
+        // Every project gets its own entry, view and tab ids, as the
+        // built-in template's do, so no two books share a body document.
         let pt = match input.template {
-            Some(tpl) => project::validate_project_template(tpl)?,
+            Some(tpl) => project::validate_project_template(tpl)?.with_fresh_ids(),
             None => dr_doc::v3::novel_project_template(),
         };
         let id = BookId::new_v7();

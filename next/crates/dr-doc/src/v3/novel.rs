@@ -286,7 +286,6 @@ fn element_template(id_str: &str, name: &str, description: &str) -> EntryTemplat
                 config: ModuleConfig {
                     show_outline: true,
                     task_todos: true,
-                    in_book: false,
                     ..ModuleConfig::default()
                 },
                 agent: agent_instructions("设定详述正文，内联标题 H1/H2/H3 含义由作者自定。"),
@@ -476,7 +475,9 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             verbs: Vec::new(),
             deleted_at: None,
         },
-        // 6. 分组 (switch on, accept = true, inherits parent below settings)
+        // 6. 分组 (switch on, inherits parent below settings; takes no
+        // entries from elsewhere unless its own page turns that on, so a
+        // chapter dropped on a volume moves in: kernel-v5 §16)
         EntryTemplate {
             id: tid(TPL_GROUP),
             name: "分组".into(),
@@ -484,16 +485,13 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "分组".into(),
-                description: "通用分组层级，开启收别处的条目并继承上一层的默认模板、自动链接等设置。".into(),
+                description: "通用分组层级，继承上一层的默认模板、自动链接等设置。".into(),
                 instructions: "可用于书稿分卷或分类内要素分组，说明写在本条目的「说明」正文里。".into(),
             }),
             modules: with_description(vec![color_fields_module()]),
             level: true,
             linkable: false,
-            settings: LevelSettingsOverride {
-                accept: Some(true),
-                ..LevelSettingsOverride::default()
-            },
+            settings: LevelSettingsOverride::default(),
             verbs: Vec::new(),
             deleted_at: None,
         },
@@ -727,7 +725,6 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                     config: ModuleConfig {
                         show_outline: false,
                         task_todos: true,
-                        in_book: false,
                         ..ModuleConfig::default()
                     },
                     agent: agent_instructions("构想草稿正文。区分未定想法和已确认内容；访谈时让作者决定，创作或改写时遵循本轮要求。"),
@@ -1059,16 +1056,26 @@ pub fn apply_project_template(txn: &mut BookTxnV3<'_>, pt: &ProjectTemplate) -> 
     Ok(())
 }
 
-/// Copy the built-in writing project template into `txn`, generating fresh
-/// UUIDv7 entry, view and tab IDs (or reusing the book's existing roots if
-/// already initialized).
+/// Copy the built-in writing project template into a new, empty book in
+/// `txn`, generating fresh UUIDv7 entry, view and tab IDs.
+///
+/// It is not meant to run twice. On a book that already has the template's
+/// roots it reuses their IDs and adds no second set of entries, but it
+/// writes the whole project definition again: tabs the template does not
+/// have are removed, the book start goes back to 「书稿」 and the word
+/// targets to their defaults, and the built-in entry templates and the
+/// default view's name and position are written over. Nothing calls it on
+/// a book in use.
 pub fn apply_novel_project_template(txn: &mut BookTxnV3<'_>) -> Result<NovelRootEntries> {
     let ids = find_novel_roots(&txn.view()).unwrap_or_default();
     apply_novel_project_template_with(txn, ids)
 }
 
-/// Copy the built-in writing project template into `txn` using the caller-provided
-/// `ids` (for deterministic test seeds or idempotent re-application).
+/// Copy the built-in writing project template into `txn` using the
+/// caller-provided `ids` (for deterministic test seeds). Like
+/// [`apply_novel_project_template`], it is for a new book: run again, it
+/// writes the project definition, the built-in templates and the default
+/// view over.
 pub fn apply_novel_project_template_with(
     txn: &mut BookTxnV3<'_>,
     ids: NovelRootEntries,

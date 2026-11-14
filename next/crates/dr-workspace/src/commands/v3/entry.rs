@@ -445,6 +445,9 @@ op! {
         }
         let id = e.id.clone();
         let name = e.title.clone();
+        // A new template or new overrides may turn 「收别处的条目」 back on
+        // for a lane already in a view: what comes back into it is placed.
+        let lane_may_change = set.1 || set.2;
         // Only the fields this call names are written, so a concurrent
         // change to another field of the same entry is neither a conflict
         // nor overwritten with the value this command read.
@@ -457,7 +460,7 @@ op! {
         .into_iter()
         .filter(|(_, named)| *named)
         .map(|(field, _)| rec(CollectionV3::Entries, &e.id).at([field]));
-        let (_, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |t| {
+        let (placed, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |t| {
             let w = t.entries().entry(&e.id)?;
             if set.0 {
                 w.title(&e.title)?;
@@ -471,9 +474,14 @@ op! {
             if set.3 {
                 w.mark(e.mark.as_deref())?;
             }
-            Ok(())
+            if lane_may_change {
+                return membership::place_unplaced_lane_entries(t, &e.id);
+            }
+            Ok(Vec::new())
         })?;
-        undo(cx, &slot, &at, vec![key("entries", &id)]);
+        let mut keys = vec![key("entries", &id)];
+        keys.extend(placed.iter().map(|vid| key("timeline_views", vid)));
+        undo(cx, &slot, &at, keys);
         cx.effect(EffectAction::Updated, "entry", id.as_str(), Some(&name));
         Ok(Done { id: input.id })
     }
@@ -724,6 +732,7 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     }
     let mut relocated: Vec<(EntryId, Option<EntryId>)> = Vec::new();
     let mut auto_placements: Vec<(TimelineViewId, EntryId, f64)> = Vec::new();
+    let mut pruned: Vec<(TimelineViewId, EntryId)> = Vec::new();
     if !trashed {
         // If a restored entry's stored parent can no longer hold entries
         // (missing, trashed, or `level == false`), relocate it to the nearest
@@ -761,18 +770,57 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
             ..before.clone()
         };
         changes_ok(&before, &after)?;
-        for (rid, np) in &relocated {
-            if let Some(np) = np {
-                for tv in membership::live_views_with_lane(&v, np) {
-                    if v.timeline_placement_snapshot(&tv.id, rid)?.is_none() {
-                        let end = m::timeline_scale_end(&m::effective_timeline_placements(
+        // Every entry coming back that is in a lane of a live view gets a
+        // position there if it has none (`VIEW-LANE-MEMBERS-PLACED`): its
+        // folder may have entered the view while it was in Recently Deleted,
+        // or it lives somewhere new. Each one gets its own position, at the
+        // scale's end, in tree order. One restored somewhere new leaves the
+        // views of the folder it no longer lives in.
+        let old_parent: BTreeMap<&EntryId, Option<&EntryId>> = relocated
+            .iter()
+            .map(|(rid, _)| (rid, before.entries[rid].parent.as_ref()))
+            .collect();
+        let restored: Vec<EntryId> = v
+            .entries_raw()
+            .into_iter()
+            .map(|e| e.id)
+            .filter(|id| ids.contains(id))
+            .collect();
+        for tv in v
+            .timeline_views_raw()
+            .into_iter()
+            .filter(|tv| !tv.is_trashed())
+        {
+            let mut next = None;
+            for rid in &restored {
+                let placed = v.timeline_placement_snapshot(&tv.id, rid)?.is_some();
+                let in_lanes = m::is_entry_in_view_lanes(
+                    &tv,
+                    rid,
+                    &after.memberships,
+                    &after.entries,
+                    &after.templates,
+                );
+                if in_lanes && !placed {
+                    let at = next.get_or_insert_with(|| {
+                        m::timeline_scale_end(&m::effective_timeline_placements(
                             &tv,
                             &after.memberships,
                             &after.entries,
                             &after.templates,
-                        ));
-                        auto_placements.push((tv.id, rid.clone(), end));
-                    }
+                        ))
+                    });
+                    auto_placements.push((tv.id.clone(), rid.clone(), *at));
+                    *at += 1.0;
+                } else if !in_lanes
+                    && placed
+                    && old_parent
+                        .get(rid)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|p| tv.lanes.iter().any(|l| &l.entry == p))
+                {
+                    pruned.push((tv.id.clone(), rid.clone()));
                 }
             }
         }
@@ -780,6 +828,7 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     let changed = ids.clone();
     let reloc_writes = relocated;
     let place_writes = auto_placements.clone();
+    let prune_writes = pruned.clone();
     // The named entry; the subtree that follows it is planned above.
     let named = rec(CollectionV3::Entries, &input.id).at(["deleted_at"]);
     let (_, at) = cx.write_book_v3(&slot, Replaces::records([named]), move |t| {
@@ -792,10 +841,17 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
         for (vid, rid, end) in &place_writes {
             t.timeline_view(vid)?.put_placement(rid, *end, None)?;
         }
+        for (vid, rid) in &prune_writes {
+            t.timeline_view(vid)?.remove_placement(rid)?;
+        }
         Ok(())
     })?;
     let mut keys: Vec<_> = ids.iter().map(|id| key("entries", id)).collect();
-    let placed_vids: BTreeSet<_> = auto_placements.into_iter().map(|(vid, _, _)| vid).collect();
+    let placed_vids: BTreeSet<_> = auto_placements
+        .into_iter()
+        .map(|(vid, _, _)| vid)
+        .chain(pruned.into_iter().map(|(vid, _)| vid))
+        .collect();
     for vid in placed_vids {
         keys.push(key("timeline_views", vid));
     }
