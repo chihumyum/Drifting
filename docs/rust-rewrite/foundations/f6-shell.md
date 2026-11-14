@@ -1211,5 +1211,5 @@ G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 �
 配合 P1（文件夹里拖着调先后）在 `dr-shell` 补充两处小改动：
 
 - **`BookV3::shown_precondition(&RecordKey)`**：按只增不改原则公开快照已读取记录的 `RecordPrecondition`（`if_replaced = false`），供同文件夹排序提交显式携带 `RecordKey::children_of(parent)` 与锚点条目的前置守卫。
-- **工作区对象级 `Undo` / `Redo`（`workspace/undo.rs`）**：在 `Workspace::on_actions` 接入 `actions::{Undo, Redo}`，按上下文栈分流——`ProseEditor` 上下文转发至 `gpui_prose` 编辑器撤销；`DrTextField`、`DrTextArea`、查找栏及模态覆盖层开着时让出；其余工作区焦点以 FIFO 串行队列在后台调用 `dr_workspace::Workspace::{undo, redo}(&Actor::User)`，使拖放改顺序后按一次 `⌘Z` / `Ctrl+Z` 即可一步撤回，换书或换库时自动清空排队项。永久回归见 `dr-shell/tests/v5_p1_undo.rs`。
+- **拖动改了先后以后按一次 ⌘Z / Ctrl+Z 撤回**：走的是本页开头「内核 v4 收尾：在窗口里撤销书的结构」那一套（`workspace/undo.rs` 的 `on_edit_undo`）。P1 交回时自己另写过一份排队撤销，和它是同一件事；2026-11-15 合进 `main` 时只留了 `main` 上那一份，P1 的那份（`history_ops`、`on_undo`、`on_redo`）没有并进来。永久回归见 `dr-shell/tests/v5_p1_undo.rs`：设置盖着时 ⌘Z 不动书，连按两次依次撤回，重做两次依次回来。
 
