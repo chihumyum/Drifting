@@ -15,6 +15,13 @@ const LONG_QUOTED = /(["'`“‘「『])[^"'`”’」』\n]{40,}(["'`”’」�
 // Long runs of words separated by spaces read like sentences of content.
 const LONG_SENTENCE = /(?:\b[\p{L}'’-]+\b[ ,;:]+){12,}\b[\p{L}'’-]+\b/gu;
 const HOME_PATH = /\/(?:Users|home)\/[^/\s:)]+/g;
+// `C:\Users\<name>`: the same folder on Windows, where a name may hold spaces.
+const WINDOWS_HOME_PATH = /\b[A-Za-z]:\\Users\\[^\\/:*?"<>|\r\n]+/g;
+
+/** A path under someone's home folder says who they are; keep what follows it. */
+export function redactHomePaths(text: string): string {
+  return text.replace(WINDOWS_HOME_PATH, '~').replace(HOME_PATH, '~');
+}
 
 export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
   const redacted = text
@@ -24,6 +31,7 @@ export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
     .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|authorization)\s*[:=]\s*)[^\s,;]+/gi, '$1[redacted]')
     .replace(/[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
     .replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]+/gi, '$1[redacted]')
+    .replace(WINDOWS_HOME_PATH, '~')
     .replace(HOME_PATH, '~')
     .replace(CJK_RUN, '[text]')
     .replace(LONG_QUOTED, '$1[text]$2')

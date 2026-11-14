@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { APP_CONFIG } from '../lib/config';
 import { useAuthStore } from '../store/auth';
+import { DatabaseOpenFailure } from '../platform/database';
 import { FullScreenStatus } from './components/FullScreenStatus';
 import { ProjectPickerView } from '../views/ProjectPickerView';
 import { PreAlphaFirstRunGate } from '../components/modals/PreAlphaOnboardingDialog';
@@ -14,13 +15,21 @@ import { DeferredProjectRoute } from './DeferredProjectRoute';
 import { DesktopStandaloneSettingsView } from '../features/settings/desktop/DesktopStandaloneSettingsView';
 import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
 
+/**
+ * A library that could not be opened is already on the failure screen, which
+ * reports it; anything else that stops the session check is still a fault.
+ */
+function exceptFailedOpen(error: unknown): void {
+  if (!(error instanceof DatabaseOpenFailure)) throw error;
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [isChecking, setIsChecking] = useState(true);
   const checkSession = useAuthStore((state) => state.checkSession);
 
   useEffect(() => {
-    checkSession().finally(() => setIsChecking(false));
+    void checkSession().catch(exceptFailedOpen).finally(() => setIsChecking(false));
   }, [checkSession]);
 
   if (isChecking) return <FullScreenStatus title={t('appShell.checkingAuthentication')} loading />;
@@ -31,7 +40,7 @@ function PublicRoute({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [ready, setReady] = useState(false);
   const checkSession = useAuthStore(state => state.checkSession);
-  useEffect(() => { void checkSession().then(() => setReady(true)); }, [checkSession]);
+  useEffect(() => { void checkSession().then(() => setReady(true), exceptFailedOpen); }, [checkSession]);
   // Login owns navigation until its initial library sync finishes (or fails).
   if (APP_CONFIG.LOCAL_ONLY_MODE) return <Navigate to="/" replace />;
   return ready ? children : <FullScreenStatus title={t('appShell.checkingAuthentication')} loading />;

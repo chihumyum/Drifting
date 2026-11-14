@@ -113,7 +113,12 @@
     "copyDiagnostics": "안전한 진단 정보 복사",
     "copied": "민감 정보를 제거한 진단 요약을 복사했습니다.",
     "exit": "Drifting 종료",
-    "actionFailed": "복구를 완료하지 못했습니다. 검증되지 않은 데이터베이스는 활성화되지 않았습니다."
+    "actionFailed": "복구를 완료하지 못했습니다. 검증되지 않은 데이터베이스는 활성화되지 않았습니다.",
+    "openTitle": "라이브러리를 열지 못했습니다",
+    "openDetail": "Drifting이 작품이나 설정을 열지 않았습니다. 다시 시도해 보세요. 계속 실패하면 아래 원인을 보내 주세요.",
+    "reason": "원인",
+    "retryOpen": "다시 시도",
+    "openDataDirectory": "데이터 폴더 열기"
   },
   "preAlphaGuide": {
     "title": "Drifting Alpha에 오신 것을 환영합니다",

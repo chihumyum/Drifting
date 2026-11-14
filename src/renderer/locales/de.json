@@ -113,7 +113,12 @@
     "copyDiagnostics": "Sichere Diagnosedaten kopieren",
     "copied": "Eine Diagnosezusammenfassung ohne vertrauliche Angaben wurde kopiert.",
     "exit": "Drifting beenden",
-    "actionFailed": "Die Wiederherstellung konnte nicht abgeschlossen werden. Keine ungeprüfte Datenbank wurde aktiviert."
+    "actionFailed": "Die Wiederherstellung konnte nicht abgeschlossen werden. Keine ungeprüfte Datenbank wurde aktiviert.",
+    "openTitle": "Deine Bibliothek konnte nicht geöffnet werden",
+    "openDetail": "Drifting hat keine Projekte oder Einstellungen geöffnet. Versuche es erneut; wenn es weiter fehlschlägt, sende uns die Ursache unten.",
+    "reason": "Ursache",
+    "retryOpen": "Erneut versuchen",
+    "openDataDirectory": "Datenordner öffnen"
   },
   "preAlphaGuide": {
     "title": "Willkommen bei Drifting Alpha",

@@ -31,8 +31,11 @@ export interface DatabaseSafetyBackupSummary {
 }
 
 export interface DatabaseOpenFailureData {
+  /** The step that stopped: a recovery stage's code or the failing step of an open. */
   code: string;
   message: string;
+  /** What that step reported, with the library's own folder redacted. */
+  detail: string | null;
   recoverySessionId: string | null;
   sourceVersion: string | null;
   targetVersion: string;
@@ -41,6 +44,7 @@ export interface DatabaseOpenFailureData {
 
 export class DatabaseOpenFailure extends Error implements DatabaseOpenFailureData {
   readonly code: string;
+  readonly detail: string | null;
   readonly recoverySessionId: string | null;
   readonly sourceVersion: string | null;
   readonly targetVersion: string;
@@ -50,11 +54,22 @@ export class DatabaseOpenFailure extends Error implements DatabaseOpenFailureDat
     super(data.message);
     this.name = 'DatabaseOpenFailure';
     this.code = data.code;
+    this.detail = data.detail;
     this.recoverySessionId = data.recoverySessionId;
     this.sourceVersion = data.sourceVersion;
     this.targetVersion = data.targetVersion;
     this.safetyBackup = data.safetyBackup;
   }
+}
+
+/**
+ * The cause inside a failure's detail: what SQLite or the operating system
+ * said, after the clause naming the step (which `code` already carries).
+ */
+export function databaseOpenFailureCause(detail: string | null): string | null {
+  if (!detail) return null;
+  const separator = detail.indexOf(': ');
+  return separator < 0 ? detail : detail.slice(separator + 2);
 }
 
 export interface DatabaseRecoveryExportResult {
@@ -75,6 +90,8 @@ export interface DatabaseRecoveryApi {
     backupId: string,
   ): Promise<DatabaseRecoveryExportResult>;
   openBackupDirectory(recoverySessionId: string): Promise<void>;
+  /** Show the folder that holds the library's database. */
+  openDatabaseDirectory(): Promise<void>;
 }
 
 export interface LibraryBackupProject {
@@ -265,6 +282,7 @@ export function parseDatabaseOpenFailure(value: unknown): DatabaseOpenFailure {
   return new DatabaseOpenFailure({
     code: stringField(failure.code, 'database open failure code'),
     message: stringField(failure.message, 'database open failure message'),
+    detail: nullableString(failure.detail, 'database open failure detail'),
     recoverySessionId: nullableString(
       failure.recoverySessionId,
       'database recovery session ID',
@@ -579,6 +597,10 @@ export function createDatabasePlatform(
 
     async openBackupDirectory(recoverySessionId) {
       await invokeCommand('database_recovery_open_backup_directory', { recoverySessionId });
+    },
+
+    async openDatabaseDirectory() {
+      await invokeCommand('database_open_directory');
     },
 
     /* Database gateway operations. */

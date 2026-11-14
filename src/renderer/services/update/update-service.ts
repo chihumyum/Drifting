@@ -1,4 +1,5 @@
 import { platform } from '../../platform';
+import { getDatabaseOpenFailure } from '../../platform/database-recovery-store';
 import { getPlatformRuntime } from '../../platform/runtime';
 import type { AppUpdateMetadata } from '../../platform/contracts';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
@@ -290,9 +291,14 @@ async function install(): Promise<void> {
       try {
         await flushLocalApplicationPersistence();
       } catch (error) {
-        publish({ ...state, phase: 'ready', error: UPDATE_LOCAL_SAVE_FAILED });
-        reportIntegrityEvent('local-flush-failed', error, { reason: 'update-install' });
-        throw error;
+        // A library that failed to open has nothing this build can still
+        // save, and the newer release may be the only way back into it.
+        if (getDatabaseOpenFailure() === null) {
+          publish({ ...state, phase: 'ready', error: UPDATE_LOCAL_SAVE_FAILED });
+          reportIntegrityEvent('local-flush-failed', error, { reason: 'update-install' });
+          throw error;
+        }
+        reportIntegrityEvent('local-flush-failed', error, { reason: 'update-install-library-closed' });
       }
       try {
         // Native installs, then relaunches through the ordinary quit flush.

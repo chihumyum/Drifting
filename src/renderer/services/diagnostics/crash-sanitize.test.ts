@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reportFingerprint, sanitizeReportText, sanitizeStack } from './crash-sanitize';
+import { redactHomePaths, reportFingerprint, sanitizeReportText, sanitizeStack } from './crash-sanitize';
 
 describe('crash report sanitizing', () => {
   it('redacts prose, long quotes and home paths but keeps identifiers', () => {
@@ -15,6 +15,18 @@ describe('crash report sanitizing', () => {
       'open ~/Library/App/drifting.db failed',
     );
     expect(sanitizeReportText('x'.repeat(400))).toHaveLength(300);
+  });
+
+  it('redacts a Windows home folder, spaces in the name included', () => {
+    // Built at runtime so the source holds no personal absolute path.
+    const home = ['C:', 'Users', 'Some One'].join('\\');
+    const library = `${home}\\AppData\\Local\\Drifting\\databases\\local.db`;
+    expect(sanitizeReportText(`unable to open database file: ${library}`)).toBe(
+      'unable to open database file: ~\\AppData\\Local\\Drifting\\databases\\local.db',
+    );
+    expect(redactHomePaths(`${home}\\Desktop and ${['', 'home', 'someone'].join('/')}/notes`)).toBe(
+      '~\\Desktop and ~/notes',
+    );
   });
 
   it('keeps only frames and drops the message line', () => {

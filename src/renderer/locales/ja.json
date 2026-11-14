@@ -113,7 +113,12 @@
     "copyDiagnostics": "安全な診断情報をコピー",
     "copied": "機密情報を除いた診断概要をコピーしました。",
     "exit": "Driftingを終了",
-    "actionFailed": "復旧を完了できませんでした。未検証のデータベースは有効化されていません。"
+    "actionFailed": "復旧を完了できませんでした。未検証のデータベースは有効化されていません。",
+    "openTitle": "ライブラリを開けませんでした",
+    "openDetail": "Driftingは作品や設定を開いていません。もう一度お試しください。繰り返し失敗する場合は、下の原因をお知らせください。",
+    "reason": "原因",
+    "retryOpen": "再試行",
+    "openDataDirectory": "データフォルダを開く"
   },
   "preAlphaGuide": {
     "title": "Drifting Alphaへようこそ",

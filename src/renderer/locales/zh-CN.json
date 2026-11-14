@@ -112,7 +112,12 @@
     "copyDiagnostics": "复制脱敏诊断",
     "copied": "已复制脱敏诊断摘要。",
     "exit": "退出 Drifting",
-    "actionFailed": "恢复操作未能完成；未激活任何未经校验的数据库。"
+    "actionFailed": "恢复操作未能完成；未激活任何未经校验的数据库。",
+    "openTitle": "资料库没能打开",
+    "openDetail": "Drifting 没有继续挂载项目或设置。可以重试；如果一直打不开，请把下面的原因发给我们。",
+    "reason": "原因",
+    "retryOpen": "重试",
+    "openDataDirectory": "打开数据文件夹"
   },
   "preAlphaGuide": {
     "title": "欢迎使用 Drifting Alpha",
