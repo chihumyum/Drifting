@@ -1205,3 +1205,11 @@ F6 搜索／最近访问及其他组在途工作不属于本次交回，也未�
 ## 11-10 统一验收：范围链接场景衔接
 
 G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 场景仍假定仅放置起点光标。整合者在 main `6406d029` 的首轮失败保留；F6 只读核对持久正文恰好替换所选三块，范围外、另一正文模块和素材不变，无环境干扰证据。本次只修合并后的场景衔接：保留范围链接与 reveal，断言 canonical v3-lite 的真实选区 `5..590`，用原生 Left 收拢 `5..5` 后沿用前插断言；撤销加强为整篇段落相等。产品实现不改。修正场景在 `d6bda36f` 实际 35/35、0 pending，所有应用 PID 的 CG 全局位置均在副屏且已退出；场景解析契约 1/1。这是明确修正动作顺序后的运行，不是环境原样重试；首轮失败、只读核对和成功原件均保留。运行时代码与第 67 批受检 `b1ec1e38` 相同，下一批整合全套待完成，不冒称首轮撤销已执行。
+
+## 内核 v5 · P1 外壳对象级撤销与前置守卫读取（2026-11-13）
+
+配合 P1（文件夹里拖着调先后）在 `dr-shell` 补充两处小改动：
+
+- **`BookV3::shown_precondition(&RecordKey)`**：按只增不改原则公开快照已读取记录的 `RecordPrecondition`（`if_replaced = false`），供同文件夹排序提交显式携带 `RecordKey::children_of(parent)` 与锚点条目的前置守卫。
+- **工作区对象级 `Undo` / `Redo`（`workspace/undo.rs`）**：在 `Workspace::on_actions` 接入 `actions::{Undo, Redo}`，按上下文栈分流——`ProseEditor` 上下文转发至 `gpui_prose` 编辑器撤销；`DrTextField`、`DrTextArea`、查找栏及模态覆盖层开着时让出；其余工作区焦点以 FIFO 串行队列在后台调用 `dr_workspace::Workspace::{undo, redo}(&Actor::User)`，使拖放改顺序后按一次 `⌘Z` / `Ctrl+Z` 即可一步撤回，换书或换库时自动清空排队项。永久回归见 `dr-shell/tests/v5_p1_undo.rs`。
+

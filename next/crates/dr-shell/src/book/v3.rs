@@ -152,6 +152,11 @@ impl BookV3 {
         );
         guard
     }
+    /// The digest observed when this snapshot read `key`, such as a level's
+    /// ordered child list (`RecordKey::children_of`).
+    pub fn shown_precondition(&self, key: &RecordKey) -> Option<RecordPrecondition> {
+        self.shown_index.get(key).map(|&i| self.shown[i].clone())
+    }
     pub fn entry(&self, id: &str) -> Option<&types::Entry> {
         self.entry_index.get(id).map(|&i| &self.entries[i])
     }

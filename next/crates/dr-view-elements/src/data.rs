@@ -1,7 +1,9 @@
 //! Canonical v3 level surface.
 pub mod v3 {
+    use std::cmp::Ordering;
+
     use dr_shell::{book::Book, pages::PageViewHost};
-    use dr_workspace::{Actor, Workspace, WritePreconditions, WsError};
+    use dr_workspace::{Actor, EffectAction, RecordKey, Workspace, WritePreconditions, WsError};
     use serde_json::{Value, json};
 
     pub fn fresh(host: &PageViewHost, cx: &gpui::App) -> Option<PageViewHost> {
@@ -251,6 +253,220 @@ pub mod v3 {
             .map(|e| e.id.clone())
             .collect()
     }
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum SortOrder {
+        #[default]
+        Manual,
+        Updated,
+        Created,
+        Name,
+    }
+
+    impl SortOrder {
+        pub const ALL: [Self; 4] = [Self::Manual, Self::Updated, Self::Created, Self::Name];
+
+        pub fn as_str(self) -> &'static str {
+            match self {
+                Self::Manual => "manual",
+                Self::Updated => "updated",
+                Self::Created => "created",
+                Self::Name => "name",
+            }
+        }
+
+        pub fn parse(value: &str) -> Option<Self> {
+            match value {
+                "manual" => Some(Self::Manual),
+                "updated" => Some(Self::Updated),
+                "created" => Some(Self::Created),
+                "name" => Some(Self::Name),
+                _ => None,
+            }
+        }
+
+        pub fn index(self) -> usize {
+            match self {
+                Self::Manual => 0,
+                Self::Updated => 1,
+                Self::Created => 2,
+                Self::Name => 3,
+            }
+        }
+
+        pub fn from_index(index: usize) -> Self {
+            Self::ALL.get(index).copied().unwrap_or(Self::Manual)
+        }
+    }
+
+    pub fn sort_memory_key(level: &str) -> String {
+        format!("v3.level.sort.{level}")
+    }
+
+    pub type UpdatedMap = BTreeMap<String, (i64, i64)>;
+
+    /// Per-entry last-modified `(ts_ms, seq)` derived locally from stored
+    /// entry timestamps, prose document heads and live journal mutations.
+    /// Moving an entry (`EffectAction::Moved`) does not bump its modified time.
+    pub fn updated_timestamps(lib: &Workspace, book: &Book) -> UpdatedMap {
+        let Some(v) = book.v3() else {
+            return BTreeMap::new();
+        };
+        let mut out = UpdatedMap::new();
+        let mut record = |id: &str, stamp: (i64, i64)| {
+            out.entry(id.to_owned())
+                .and_modify(|cur| {
+                    if stamp > *cur {
+                        *cur = stamp;
+                    }
+                })
+                .or_insert(stamp);
+        };
+        for e in &v.entries {
+            if let Some(ts) = e.updated_at.or(e.created_at) {
+                record(&e.id, (ts.saturating_mul(1000), 0));
+            }
+        }
+        if let Ok(docs) = lib.library().docs(Some(&book.id), Some("body")) {
+            for info in docs {
+                let Ok(dr_model::DocId::Body(body)) = dr_model::DocId::parse(&info.doc_id) else {
+                    continue;
+                };
+                let owner = body.entry().as_str();
+                if v.entry(owner).is_some()
+                    && let Ok(Some(head)) = lib.library().head(&info.doc_id)
+                {
+                    record(owner, (head.ts, head.seq));
+                }
+            }
+        }
+        if let Ok(rows) = lib.journal(None, dr_workspace::journal::KEEP as usize) {
+            for row in rows {
+                if row.state != "live" || row.book.as_deref() != Some(book.id.as_str()) {
+                    continue;
+                }
+                for eff in &row.effects {
+                    if eff.kind == "entry"
+                        && matches!(
+                            eff.action,
+                            EffectAction::Created | EffectAction::Updated | EffectAction::Renamed
+                        )
+                        && v.entry(&eff.id).is_some()
+                    {
+                        record(&eff.id, (row.ts, row.seq));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    pub fn natural_title_cmp(a: &str, b: &str) -> Ordering {
+        use icu_collator::CollatorPreferences;
+        use icu_collator::options::{CollatorOptions, Strength};
+        use icu_collator::preferences::CollationNumericOrdering;
+        use std::sync::OnceLock;
+        static COLLATOR: OnceLock<Option<icu_collator::CollatorBorrowed<'static>>> =
+            OnceLock::new();
+        let collator = COLLATOR.get_or_init(|| {
+            let zh = icu_locale_core::locale!("zh");
+            let mut prefs: CollatorPreferences = (&zh).into();
+            prefs.numeric_ordering = Some(CollationNumericOrdering::True);
+            let mut options = CollatorOptions::default();
+            options.strength = Some(Strength::Primary);
+            icu_collator::Collator::try_new(prefs, options).ok()
+        });
+        match collator {
+            Some(c) => c.compare(a, b).then_with(|| a.cmp(b)),
+            None => a.cmp(b),
+        }
+    }
+
+    pub fn compare_entries(
+        v: &dr_shell::book::v3::BookV3,
+        a: &str,
+        b: &str,
+        sort: SortOrder,
+        updated: &UpdatedMap,
+    ) -> Ordering {
+        match sort {
+            SortOrder::Manual => Ordering::Equal,
+            SortOrder::Updated => {
+                let stamp = |id: &str| {
+                    updated.get(id).copied().or_else(|| {
+                        v.entry(id)
+                            .and_then(|e| e.updated_at.or(e.created_at))
+                            .map(|ts| (ts.saturating_mul(1000), 0))
+                    })
+                };
+                match (stamp(a), stamp(b)) {
+                    (Some(x), Some(y)) => y.cmp(&x).then_with(|| b.cmp(a)),
+                    (Some(_), None) => Ordering::Less,
+                    (None, Some(_)) => Ordering::Greater,
+                    (None, None) => b.cmp(a),
+                }
+            }
+            SortOrder::Created => {
+                let created = |id: &str| v.entry(id).and_then(|e| e.created_at);
+                match (created(a), created(b)) {
+                    (Some(x), Some(y)) => y.cmp(&x).then_with(|| b.cmp(a)),
+                    (Some(_), None) => Ordering::Less,
+                    (None, Some(_)) => Ordering::Greater,
+                    (None, None) => b.cmp(a),
+                }
+            }
+            SortOrder::Name => {
+                let title = |id: &str| v.entry(id).map(|e| e.title.trim()).unwrap_or("");
+                let (ta, tb) = (title(a), title(b));
+                match (!ta.is_empty(), !tb.is_empty()) {
+                    (true, true) => natural_title_cmp(ta, tb).then_with(|| a.cmp(b)),
+                    (true, false) => Ordering::Less,
+                    (false, true) => Ordering::Greater,
+                    (false, false) => a.cmp(b),
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum DropSlot {
+        Before,
+        Into,
+        After,
+    }
+
+    pub fn drop_slot_at(
+        bounds: gpui::Bounds<gpui::Pixels>,
+        point: gpui::Point<gpui::Pixels>,
+        is_level: bool,
+        tile: bool,
+        can_reorder: bool,
+    ) -> DropSlot {
+        if !can_reorder {
+            return DropSlot::Into;
+        }
+        if is_level {
+            let h = f32::from(bounds.size.height).max(1.0);
+            let rel_y = f32::from(point.y - bounds.origin.y);
+            if rel_y < h * 0.25 {
+                DropSlot::Before
+            } else if rel_y > h * 0.75 {
+                DropSlot::After
+            } else {
+                DropSlot::Into
+            }
+        } else if tile {
+            if point.x < bounds.center().x {
+                DropSlot::Before
+            } else {
+                DropSlot::After
+            }
+        } else if point.y < bounds.center().y {
+            DropSlot::Before
+        } else {
+            DropSlot::After
+        }
+    }
+
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum Drop {
         Residence {
@@ -261,6 +477,81 @@ pub mod v3 {
             host: String,
         },
     }
+
+    /// Resolve a UI drop slot against `onto`, distinguishing same-folder
+    /// manual reorder (`Before`/`After`) from moving into a folder or
+    /// assigning membership (`Into`). When `can_reorder` is false (such as
+    /// viewing by time/name, Islands, grouped by storyline, or a root header),
+    /// same-folder reordering is refused while cross-folder moves and
+    /// memberships remain available.
+    pub fn resolve_drop(
+        book: &Book,
+        entry: &str,
+        onto: &str,
+        slot: DropSlot,
+        can_reorder: bool,
+        is_member: bool,
+    ) -> Option<Drop> {
+        if entry == onto {
+            return None;
+        }
+        let v = book.v3()?;
+        let graph = Graph::of(book)?;
+        let id = entry.parse().ok()?;
+        let target = onto.parse().ok()?;
+        v.entry(entry)?;
+        let source_parent = model::effective_parent_id(graph.entries.get(&id)?, &graph.entries);
+        if is_member && (!v.levels.contains_key(onto) || slot != DropSlot::Into) {
+            return None;
+        }
+        match slot {
+            DropSlot::Into => {
+                if let Some(level) = v.levels.get(onto) {
+                    if level.settings.accept {
+                        model::check_membership(&target, &id, &graph.entries, &graph.templates)
+                            .ok()?;
+                        return Some(Drop::Membership { host: onto.into() });
+                    }
+                    if source_parent.as_ref() == Some(&target) {
+                        return None;
+                    }
+                    model::check_entry_move(&graph.entries, &id, Some(&target)).ok()?;
+                    model::check_parent_is_level(Some(&target), &graph.entries).ok()?;
+                    Some(Drop::Residence {
+                        parent: Some(onto.into()),
+                        anchor: None,
+                    })
+                } else {
+                    let parent =
+                        model::effective_parent_id(graph.entries.get(&target)?, &graph.entries);
+                    if source_parent == parent {
+                        return None;
+                    }
+                    model::check_entry_move(&graph.entries, &id, parent.as_ref()).ok()?;
+                    model::check_parent_is_level(parent.as_ref(), &graph.entries).ok()?;
+                    Some(Drop::Residence {
+                        parent: parent.map(|id| id.to_string()),
+                        anchor: None,
+                    })
+                }
+            }
+            DropSlot::Before | DropSlot::After => {
+                if !can_reorder || is_member {
+                    return None;
+                }
+                let after = slot == DropSlot::After;
+                let parent =
+                    model::effective_parent_id(graph.entries.get(&target)?, &graph.entries);
+                model::check_entry_move(&graph.entries, &id, parent.as_ref()).ok()?;
+                model::check_parent_is_level(parent.as_ref(), &graph.entries).ok()?;
+                Some(Drop::Residence {
+                    parent: parent.map(|id| id.to_string()),
+                    anchor: Some((onto.into(), after)),
+                })
+            }
+        }
+    }
+
     pub fn drop_target(book: &Book, entry: &str, onto: &str, after: bool) -> Option<Drop> {
         if entry == onto {
             return None;
@@ -296,6 +587,48 @@ pub mod v3 {
         moving: String,
         target: Drop,
     }
+    pub fn prepare_resolved_drop(
+        book: &Book,
+        entry: &str,
+        target: Drop,
+    ) -> Result<DropMutation, WsError> {
+        let v = book
+            .v3()
+            .ok_or_else(|| WsError::Invalid("a book of the current format is required".into()))?;
+        let mut edit = match &target {
+            Drop::Residence { parent, .. } => {
+                prepare(book, "entry.move", json!({"id":entry,"parent":parent}))
+            }
+            Drop::Membership { host } => {
+                prepare(book, "membership.add", json!({"member":entry,"host":host}))
+            }
+        }?;
+        if let Drop::Residence {
+            parent,
+            anchor: Some((onto, _)),
+        } = &target
+        {
+            for key in [
+                RecordKey::children_of(parent.as_deref()),
+                RecordKey::entry(onto),
+            ] {
+                if let Some(pre) = v.shown_precondition(&key)
+                    && !edit
+                        .preconditions
+                        .records
+                        .iter()
+                        .any(|r| !r.if_replaced && r.key == pre.key)
+                {
+                    edit.preconditions.records.push(pre);
+                }
+            }
+        }
+        Ok(DropMutation {
+            edit,
+            moving: entry.into(),
+            target,
+        })
+    }
     pub fn prepare_drop(
         book: &Book,
         entry: &str,
@@ -304,22 +637,10 @@ pub mod v3 {
     ) -> Result<DropMutation, WsError> {
         let target = drop_target(book, entry, onto, after)
             .ok_or_else(|| WsError::Invalid("entry cannot be placed here".into()))?;
-        let edit = match &target {
-            Drop::Residence { parent, .. } => {
-                prepare(book, "entry.move", json!({"id":entry,"parent":parent}))
-            }
-            Drop::Membership { host } => {
-                prepare(book, "membership.add", json!({"member":entry,"host":host}))
-            }
-        }?;
-        Ok(DropMutation {
-            edit,
-            moving: entry.into(),
-            target,
-        })
+        prepare_resolved_drop(book, entry, target)
     }
     impl DropMutation {
-        pub fn commit(mut self, lib: &Workspace) -> Result<Value, WsError> {
+        fn resolve_index(&mut self, lib: &Workspace) -> Result<bool, WsError> {
             if let Drop::Residence {
                 parent,
                 anchor: Some((onto, after)),
@@ -336,15 +657,29 @@ pub mod v3 {
                 let entries: Vec<dr_workspace::commands::v3::types::Entry> =
                     serde_json::from_value(entries)
                         .map_err(|e| WsError::Internal(e.to_string()))?;
-                let index = entries
+                let siblings: Vec<_> = entries.iter().filter(|e| e.parent == *parent).collect();
+                let current_pos = siblings.iter().position(|e| e.id == self.moving);
+                let index = siblings
                     .iter()
-                    .filter(|e| e.parent == *parent && e.id != self.moving)
+                    .copied()
+                    .filter(|e| e.id != self.moving)
                     .position(|e| e.id == *onto)
                     .ok_or_else(|| WsError::Invalid("drop anchor is no longer a sibling".into()))?
                     + usize::from(*after);
                 self.edit.input["index"] = json!(index);
+                return Ok(current_pos != Some(index));
             }
+            Ok(true)
+        }
+        pub fn commit(mut self, lib: &Workspace) -> Result<Value, WsError> {
+            self.resolve_index(lib)?;
             self.edit.commit(lib)
+        }
+        pub fn commit_if_changed(mut self, lib: &Workspace) -> Result<Option<Value>, WsError> {
+            if !self.resolve_index(lib)? {
+                return Ok(None);
+            }
+            self.edit.commit(lib).map(Some)
         }
     }
     pub fn prepare_board(
