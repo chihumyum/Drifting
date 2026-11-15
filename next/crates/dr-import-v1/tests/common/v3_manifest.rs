@@ -189,6 +189,9 @@ pub struct Comment {
     /// When `Some((block_id, text, checked))`, this comment is projected from
     /// a prose checklist line that had no 0.1 `note-task` row of its own.
     pub synthesized_task: Option<(String, String, bool)>,
+    /// When `Some(text)`, this comment comes from a 0.1 material's description
+    /// or provenance (`kernel-v5.md` §15 #19).
+    pub synthesized_material: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -1053,6 +1056,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             target: target.map(|(kind, id)| endpoint(kind, id, &rows.materials)),
             body,
             synthesized_task: None,
+            synthesized_material: None,
         });
     }
     for patch in &rows.patches {
@@ -1169,6 +1173,64 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                     target: Some(Endpoint::Entry(entry.clone())),
                     body: Some(target_body.clone()),
                     synthesized_task: Some((block_id, line.text.trim().to_string(), checked)),
+                    synthesized_material: None,
+                });
+            }
+        }
+    }
+    if let Ok(book_id) = dr_model::id::BookId::parse(book) {
+        let element_names: BTreeMap<&str, &str> = rows
+            .elements
+            .iter()
+            .map(|e| (e.id.as_str(), e.name.as_str()))
+            .collect();
+        for m in &rows.materials {
+            if dr_model::import_v1::MaterialId::parse(&m.id).is_err() {
+                continue;
+            }
+            let target = match m.kind.as_str() {
+                "text" => Some(Endpoint::Entry(Entry::Material(m.id.clone()))),
+                "image" | "pdf"
+                    if dr_import_v1::book::material_has_imported_asset(m, &rows.assets) =>
+                {
+                    m.asset.as_ref().map(|a| Endpoint::Asset(a.clone()))
+                }
+                _ => None,
+            };
+            let Some(target) = target else {
+                continue;
+            };
+            if let Some(notes_json) = m.notes_json.as_deref().filter(|n| !n.trim().is_empty()) {
+                let text = dr_import_v1::book::plain_text(notes_json).0;
+                if !text.trim().is_empty() {
+                    out.comments.push(Comment {
+                        old_id: dr_import_v1::book::material_comment_id(
+                            &book_id,
+                            &m.id,
+                            "description",
+                        )
+                        .to_string(),
+                        origin: "manual".into(),
+                        target: Some(target.clone()),
+                        body: None,
+                        synthesized_task: None,
+                        synthesized_material: Some(text),
+                    });
+                }
+            }
+            if let Some(prov_text) = m.provenance_json.as_deref().and_then(|p| {
+                dr_import_v1::book::format_material_provenance(p, &|eid| {
+                    element_names.get(eid).copied()
+                })
+            }) {
+                out.comments.push(Comment {
+                    old_id: dr_import_v1::book::material_comment_id(&book_id, &m.id, "provenance")
+                        .to_string(),
+                    origin: "manual".into(),
+                    target: Some(target),
+                    body: None,
+                    synthesized_task: None,
+                    synthesized_material: Some(prov_text),
                 });
             }
         }

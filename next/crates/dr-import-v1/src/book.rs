@@ -30,6 +30,7 @@ use dr_model::import_v1::{
 use dr_model::kind::*;
 use dr_model::pos::{PosKey, keys_between};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::anchors;
 use crate::handoff::BookSettings;
@@ -67,6 +68,130 @@ pub struct Inputs<'a> {
     pub anchors: &'a HashMap<String, Anchor>,
     /// Where an old block id went (any document of the book).
     pub span: &'a dyn Fn(&str) -> Option<BlockSpan>,
+    /// Fallback timestamp (epoch seconds) when a source row has no valid timestamp.
+    pub import_ts: i64,
+}
+
+/// Marker stored only in the intermediate `import_v1` `BookDoc` so the v5
+/// catalog adapter maps a material's description/provenance comment onto the
+/// whole entry (for text notes) or whole file (for images and PDFs) and strips
+/// the marker from the stored `BookDocV3`.
+pub const MATERIAL_COMMENT_METADATA: &str = r#"{"drImportV1":"material-comment"}"#;
+
+/// Deterministic id of an imported material's description or provenance comment
+/// (`slot` is `"description"` or `"provenance"`).
+pub fn material_comment_id(book: &BookId, material_id: &str, slot: &str) -> CommentId {
+    let mut h = Sha256::new();
+    h.update(b"drifting:import-v1:material-comment\0");
+    h.update(book.as_str().as_bytes());
+    h.update(b"\0");
+    h.update(material_id.as_bytes());
+    h.update(b"\0");
+    h.update(slot.as_bytes());
+    let d = h.finalize();
+    let mut b = [0u8; 16];
+    b.copy_from_slice(&d[..16]);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    CommentId::parse(&format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]
+    ))
+    .expect("valid uuid comment id")
+}
+
+/// Whether an image or PDF material row points at a valid `project_asset` row
+/// of matching kind in `assets`.
+pub fn material_has_imported_asset(
+    m: &crate::legacy::MaterialRow,
+    assets: &[crate::legacy::AssetRow],
+) -> bool {
+    let want = match MaterialKind::parse(&m.kind) {
+        MaterialKind::Image => AssetKind::Image,
+        MaterialKind::Pdf => AssetKind::Pdf,
+        _ => return false,
+    };
+    let Some(aid) = m.asset.as_deref().and_then(|a| AssetId::parse(a).ok()) else {
+        return false;
+    };
+    assets
+        .iter()
+        .any(|a| a.id == aid.as_str() && AssetKind::parse(&a.kind) == want)
+}
+
+/// Render a 0.1 `library_item.provenance_json` record (`material-provenance.ts`)
+/// as readable Chinese text for its imported resolved comment (`kernel-v5.md`
+/// §15 #19). Malformed or unknown versions return `None`, as 0.1 did.
+pub fn format_material_provenance<'a>(
+    raw: &str,
+    element_name: &dyn Fn(&str) -> Option<&'a str>,
+) -> Option<String> {
+    const MAX_PROVENANCE_JSON_CHARS: usize = 32_000;
+    if raw.is_empty() || raw.chars().count() > MAX_PROVENANCE_JSON_CHARS {
+        return None;
+    }
+    let v: Value = serde_json::from_str(raw).ok()?;
+    let record = v.as_object()?;
+    if record.get("v").and_then(Value::as_i64) != Some(1) {
+        return None;
+    }
+    match record.get("origin").and_then(Value::as_str)? {
+        "generated" => {
+            let g = record.get("generation")?.as_object()?;
+            if g.get("provider").and_then(Value::as_str) != Some("chatgpt-subscription") {
+                return None;
+            }
+            let model = g.get("model")?.as_str()?;
+            let prompt = g.get("prompt")?.as_str()?;
+            let generated_at = g.get("generatedAt")?.as_str()?;
+            let non_empty = |k: &str| {
+                g.get(k)
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+            };
+            let mut lines = vec![format!("模型：{model}")];
+            if let Some(subject) = non_empty("subjectPrompt") {
+                lines.push(format!("主体：{subject}"));
+            } else if !prompt.trim().is_empty() {
+                lines.push(format!("提示词：{}", prompt.trim()));
+            }
+            if let Some(style) = non_empty("styleText") {
+                lines.push(format!("风格：{style}"));
+            }
+            if let Some(extra) = non_empty("extraPrompt") {
+                lines.push(format!("附加提示词：{extra}"));
+            }
+            if let Some(target) = g.get("target").and_then(Value::as_object)
+                && target.get("kind").and_then(Value::as_str) == Some("element")
+                && let Some(eid) = target
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty())
+            {
+                match element_name(eid).map(str::trim).filter(|n| !n.is_empty()) {
+                    Some(name) => lines.push(format!("生成对象：{name}")),
+                    None => lines.push(format!("生成对象：{eid}")),
+                }
+            }
+            lines.push(format!("生成时间：{generated_at}"));
+            Some(lines.join("\n"))
+        }
+        "element-portrait" => {
+            let element_id = record.get("elementId")?.as_str()?;
+            let replaced_at = record.get("replacedAt")?.as_str()?;
+            let who = match element_name(element_id)
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+            {
+                Some(name) => format!("原为「{name}」的立绘"),
+                None => format!("原为要素 {element_id} 的立绘"),
+            };
+            Some(format!("{who}\n换下时间：{replaced_at}"))
+        }
+        _ => None,
+    }
 }
 
 /// The original editor JSON of bodies schema v2 keeps as plain text, for
@@ -783,6 +908,11 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             trashed_with: None,
         })?;
     }
+    let element_names: HashMap<&str, &str> = r
+        .elements
+        .iter()
+        .map(|e| (e.id.as_str(), e.name.as_str()))
+        .collect();
     for (m, pos) in r.materials.iter().zip(ranks(r.materials.len())) {
         let Some(mid) = id(MaterialId::parse, &m.id) else {
             continue;
@@ -798,6 +928,7 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         {
             originals.push(("materials", m.id.clone(), "provenance", prov.to_string()));
         }
+        let mut description_text = None;
         let w = txn.material(&mid)?;
         w.title(&m.title)?
             .kind(&kind)?
@@ -828,6 +959,40 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
                 notes_json.to_string(),
             ));
             w.description(&text)?;
+            if !text.trim().is_empty() {
+                description_text = Some(text);
+            }
+        }
+        let can_attach_comment =
+            kind == MaterialKind::Text || material_has_imported_asset(m, &r.assets);
+        if can_attach_comment {
+            let ts = parse_iso(&m.updated_at).unwrap_or(dr_model::Timestamp(inp.import_ts));
+            let mat_target = EntityRef::new(EntityKind::Material, &m.id);
+            let mut write_material_comment = |slot: &str, body: &str| -> Result<()> {
+                let cid = material_comment_id(book, &m.id, slot);
+                txn.comment(&cid)?
+                    .kind(&CommentKind::Note)?
+                    .target(Some(&mat_target))?
+                    .author_kind(&CommentAuthorKind::User)?
+                    .source(&CommentSource::Manual)?
+                    .status(&CommentStatus::Resolved)?
+                    .metadata(Some(MATERIAL_COMMENT_METADATA))?
+                    .resolved_at(Some(ts))?
+                    .created_at(Some(ts))?
+                    .updated_at(Some(ts))?
+                    .body(body)?;
+                Ok(())
+            };
+            if let Some(desc) = &description_text {
+                write_material_comment("description", desc)?;
+            }
+            if let Some(prov_body) = m
+                .provenance_json
+                .as_deref()
+                .and_then(|p| format_material_provenance(p, &|eid| element_names.get(eid).copied()))
+            {
+                write_material_comment("provenance", &prov_body)?;
+            }
         }
     }
 

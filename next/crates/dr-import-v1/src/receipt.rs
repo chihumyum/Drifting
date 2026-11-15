@@ -106,21 +106,8 @@ pub struct UnlinkedAssetLink {
     pub text: String,
 }
 
-/// Words on a 0.1 material that the book has no place for (`kernel-v5.md`
-/// §15 第 19 条: a file has no description of its own, a note has one
-/// prose): listed for the author, the original kept in `import_original`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MaterialText {
-    pub material_id: String,
-    pub material_title: String,
-    /// `text`, `image` or `pdf`.
-    pub kind: String,
-    /// The material's description, as plain text (empty when none).
-    pub description: String,
-    /// A material's provenance, as 0.1 stored it (JSON), if any.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provenance: Option<String>,
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 /// A 0.1 `note-task` TODO whose status disagreed with its checklist item's
@@ -144,10 +131,13 @@ pub enum MaterialDropped {
     /// come over (for example, missing files or unknown kinds).
     UnimportedFolder { folder_id: String, name: String },
     /// An image or PDF material whose file is not in the 0.1 library: its
-    /// title, and the relations and comments that pointed at it.
+    /// title, its description (if any, since there is no file to attach a
+    /// comment to), and the relations and comments that pointed at it.
     WithoutFile {
         material_id: String,
         material_title: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
         relations: Vec<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         comments: Vec<String>,
@@ -203,10 +193,12 @@ pub struct BookRecord {
     pub material_assets: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub non_text_materials: BTreeMap<String, String>,
-    /// Descriptions and provenance the book has no place for, material by
-    /// material (where they go is the author's to decide).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub material_texts: Vec<MaterialText>,
+    /// 0.1 material descriptions and provenances converted into resolved
+    /// manual comments (`kernel-v5.md` §15 #19).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub material_descriptions_to_comments: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub material_provenances_to_comments: usize,
     /// What of the 0.1 materials did not come over, one line each.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub materials_dropped: Vec<MaterialDropped>,
@@ -718,25 +710,11 @@ pub fn summary_zh(r: &Receipt) -> String {
             }
             s.push('\n');
         }
-        if !b.material_texts.is_empty() {
-            s.push_str(
-                "旧版素材上的说明和出处，书里暂时没有地方放（文件没有自己的说明，笔记只有一篇正文），原文记在回执里：\n\n",
-            );
-            for t in &b.material_texts {
-                s.push_str(&format!(
-                    "- 「{}」（`{}`）",
-                    inline_md(&t.material_title),
-                    inline_code(&t.material_id)
-                ));
-                if !t.description.is_empty() {
-                    s.push_str(&format!("：说明「{}」", inline_md(&t.description)));
-                }
-                if let Some(p) = &t.provenance {
-                    s.push_str(&format!("；出处 `{}`", inline_code(p)));
-                }
-                s.push('\n');
-            }
-            s.push('\n');
+        if b.material_descriptions_to_comments + b.material_provenances_to_comments > 0 {
+            s.push_str(&format!(
+                "旧版素材上的 {} 条说明、{} 条出处已转为已解决的批注（原始记录留在回执里）。\n\n",
+                b.material_descriptions_to_comments, b.material_provenances_to_comments
+            ));
         }
         let not_imported: Vec<&MaterialDropped> = b
             .materials_dropped
@@ -760,6 +738,7 @@ pub fn summary_zh(r: &Receipt) -> String {
                     MaterialDropped::WithoutFile {
                         material_id,
                         material_title,
+                        description,
                         relations,
                         comments,
                     } => {
@@ -768,6 +747,9 @@ pub fn summary_zh(r: &Receipt) -> String {
                             inline_md(material_title),
                             inline_code(material_id)
                         );
+                        if let Some(desc) = description {
+                            l.push_str(&format!("，说明「{}」", inline_md(desc)));
+                        }
                         let mut attached = Vec::new();
                         if !relations.is_empty() {
                             attached.push(format!(

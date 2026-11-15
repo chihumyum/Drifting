@@ -400,38 +400,24 @@ fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
     out
 }
 
-/// What the import report lists of the 0.1 materials (`kernel-v5.md` §13):
-/// the descriptions and provenance the book has no place for, and what did
-/// not come over (empty folders, folders whose materials all failed to come
-/// over, image or PDF materials without their file, unknown kinds, a second
-/// material on the same file).
+/// What the import report lists of the 0.1 materials (`kernel-v5.md` §13, §15 #19):
+/// counts of descriptions and provenances converted into resolved comments, and
+/// what did not come over (empty folders, folders whose materials all failed to
+/// come over, image or PDF materials without their file, unknown kinds, a
+/// second material on the same file).
 pub(crate) fn material_report(
     rows: &BookRows,
     material_assets: &HashMap<&str, dr_model::id::AssetId>,
-) -> (Vec<receipt::MaterialText>, Vec<receipt::MaterialDropped>) {
-    use receipt::{MaterialDropped, MaterialText};
-    let mut texts = Vec::new();
+) -> (usize, usize, Vec<receipt::MaterialDropped>) {
+    use receipt::MaterialDropped;
+    let mut descriptions_to_comments = 0usize;
+    let mut provenances_to_comments = 0usize;
     let mut dropped = Vec::new();
-    for m in rows.materials.iter().filter(|m| !m.id.is_empty()) {
-        let description = m
-            .notes_json
-            .as_deref()
-            .map(|n| crate::book::plain_text(n).0)
-            .unwrap_or_default();
-        let provenance = m
-            .provenance_json
-            .clone()
-            .filter(|p| !p.trim().is_empty() && p.trim() != "null");
-        if !description.is_empty() || provenance.is_some() {
-            texts.push(MaterialText {
-                material_id: m.id.clone(),
-                material_title: m.title.clone(),
-                kind: m.kind.clone(),
-                description,
-                provenance,
-            });
-        }
-    }
+    let element_names: HashMap<&str, &str> = rows
+        .elements
+        .iter()
+        .map(|e| (e.id.as_str(), e.name.as_str()))
+        .collect();
     // Folders that hold something that came over (directly or below), vs
     // folders that held materials none of which came over.
     let parents: HashMap<&str, Option<&str>> = rows
@@ -456,10 +442,43 @@ pub(crate) fn material_report(
                 guard += 1;
             }
         }
+        let description = m
+            .notes_json
+            .as_deref()
+            .filter(|n| !n.trim().is_empty())
+            .map(|n| crate::book::plain_text(n).0)
+            .unwrap_or_default();
+        let non_empty_desc = (!description.trim().is_empty()).then_some(description);
+        let has_valid_id = dr_model::import_v1::MaterialId::parse(&m.id).is_ok();
+        let has_provenance = m
+            .provenance_json
+            .as_deref()
+            .and_then(|p| {
+                crate::book::format_material_provenance(p, &|eid| element_names.get(eid).copied())
+            })
+            .is_some();
         let came_over = match m.kind.as_str() {
-            "text" => true,
+            "text" => {
+                if has_valid_id {
+                    if non_empty_desc.is_some() {
+                        descriptions_to_comments += 1;
+                    }
+                    if has_provenance {
+                        provenances_to_comments += 1;
+                    }
+                }
+                true
+            }
             "image" | "pdf" => {
                 if let Some(asset) = material_assets.get(m.id.as_str()) {
+                    if has_valid_id {
+                        if non_empty_desc.is_some() {
+                            descriptions_to_comments += 1;
+                        }
+                        if has_provenance {
+                            provenances_to_comments += 1;
+                        }
+                    }
                     match kept_title.get(asset.as_str()) {
                         Some(first) => dropped.push(MaterialDropped::SameFile {
                             material_id: m.id.clone(),
@@ -496,6 +515,7 @@ pub(crate) fn material_report(
                     dropped.push(MaterialDropped::WithoutFile {
                         material_id: m.id.clone(),
                         material_title: m.title.clone(),
+                        description: non_empty_desc,
                         relations,
                         comments,
                     });
@@ -541,7 +561,7 @@ pub(crate) fn material_report(
             }
         }
     }
-    (texts, dropped)
+    (descriptions_to_comments, provenances_to_comments, dropped)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1131,7 +1151,11 @@ fn write_library(
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
         let material_assets = material_asset_map(&rows);
-        (rec.material_texts, rec.materials_dropped) = material_report(&rows, &material_assets);
+        (
+            rec.material_descriptions_to_comments,
+            rec.material_provenances_to_comments,
+            rec.materials_dropped,
+        ) = material_report(&rows, &material_assets);
         rec.material_assets = material_assets
             .iter()
             .map(|(k, v)| ((*k).to_string(), v.to_string()))
@@ -1512,6 +1536,7 @@ fn write_library(
             unlinked_tasks: &unlinked_tasks,
             anchors: &anchors_made,
             span: &span,
+            import_ts: secs(started_ms),
         };
         // Each entity with history starts as its earliest row has it.
         let mut state: BTreeMap<Owner, Fields> = BTreeMap::new();

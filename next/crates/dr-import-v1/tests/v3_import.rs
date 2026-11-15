@@ -615,6 +615,18 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(actual.resolved_at.is_some(), *want_checked);
             continue;
         }
+        if let Some(want_body) = &comment.synthesized_material {
+            assert_eq!(actual.target_module, None);
+            assert_eq!(actual.part, None);
+            assert_eq!(actual.origin, CommentOrigin::Manual);
+            assert_eq!(actual.author_kind, CommentAuthorKind::User);
+            assert_eq!(actual.source, CommentSource::Manual);
+            assert_eq!(actual.status, CommentStatus::Resolved);
+            assert!(actual.resolved_at.is_some());
+            assert_eq!(actual.metadata, None);
+            assert_eq!(actual.body, *want_body);
+            continue;
+        }
         let row = expected.source_rows["comment"]
             .iter()
             .find(|r| r["id"].as_str() == Some(&comment.old_id))
@@ -3783,17 +3795,8 @@ fn a_checklist_todo_whose_state_disagrees_with_its_tick_imports_as_the_tick() {
         assert_eq!(rec.task_status_changes.len(), 1);
         assert_eq!(rec.task_status_changes[0].comment_id, NOTE_TODO);
         assert_eq!(rec.task_status_changes[0].checked, ticked);
-        assert!(
-            rec.material_texts.iter().any(|t| {
-                t.material_id == IMAGE
-                    && t.provenance.as_deref()
-                        == Some(
-                            r#"{"v":1,"origin":"agent-image","model":"imagen-3","prompt":"未庄的土谷祠"}"#,
-                        )
-            }),
-            "{:?}",
-            rec.material_texts
-        );
+        assert_eq!(rec.material_descriptions_to_comments, 2);
+        assert_eq!(rec.material_provenances_to_comments, 1);
         let summary_md =
             std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
         assert!(summary_md.contains("旧库里有 "), "{summary_md}");
@@ -3810,7 +3813,12 @@ fn a_checklist_todo_whose_state_disagrees_with_its_tick_imports_as_the_tick() {
             "{summary_md}"
         );
         assert!(summary_md.contains(NOTE_TODO), "{summary_md}");
-        assert!(summary_md.contains("imagen-3"), "{summary_md}");
+        assert!(
+            summary_md.contains("旧版素材上的 2 条说明、1 条出处已转为已解决的批注"),
+            "{summary_md}"
+        );
+        assert!(!summary_md.contains("gpt-image-1"), "{summary_md}");
+        assert!(!summary_md.contains("王胡与小D的记事"), "{summary_md}");
         lib.close().unwrap();
     }
 }
@@ -3951,13 +3959,20 @@ fn merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_repo
     std::fs::create_dir_all(&dup_dir).unwrap();
     std::fs::write(dup_dir.join("source.png"), IMAGE_BYTES).unwrap();
     c.execute(
-        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '同图副本', 'image', ?3, NULL, NULL, NULL, NULL, 2, ?4, ?4, NULL, ?5, 0)",
-        rusqlite::params![IMAGE_DUP, BOOK, ASSET_DUP, T0, MF_SECOND],
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '同图副本', 'image', ?3, NULL, NULL, ?6, NULL, 2, ?4, ?4, NULL, ?5, 0)",
+        rusqlite::params![
+            IMAGE_DUP,
+            BOOK,
+            ASSET_DUP,
+            T0,
+            MF_SECOND,
+            r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"副本上的说明"}]}]}"#
+        ],
     )
     .unwrap();
     c.execute(
-        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '缺件图', 'image', '01900000-0000-7000-8000-0000000000ad', NULL, NULL, NULL, NULL, 3, ?3, ?3, NULL, ?4, 0)",
-        rusqlite::params![IMAGE_MISSING, BOOK, T0, MF_MISSING],
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '缺件图', 'image', '01900000-0000-7000-8000-0000000000ad', NULL, NULL, ?5, NULL, 3, ?3, ?3, NULL, ?4, 0)",
+        rusqlite::params![IMAGE_MISSING, BOOK, T0, MF_MISSING, multiline_notes],
     )
     .unwrap();
 
@@ -4070,21 +4085,52 @@ fn merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_repo
         assert_eq!(asset, Some(AssetId::parse(ASSET).unwrap()), "{emb_id}");
     }
 
-    // Missing-file material lists both relation and comment; folder wording & multiline safety.
+    // Missing-file material lists its description, relation and comment; folder wording & multiline safety.
     assert!(
         rec.materials_dropped.iter().any(|d| matches!(
             d,
             MaterialDropped::WithoutFile {
                 material_id,
+                description: Some(desc),
                 relations,
                 comments,
                 ..
             } if material_id == IMAGE_MISSING
+                && desc == "第一行说明\n- 第二行带短横线"
                 && relations == &vec!["rel-missing-img".to_string()]
                 && comments == &vec!["com-missing-img".to_string()]
         )),
         "{:?}",
         rec.materials_dropped
+    );
+    // Both merged duplicate materials attach their own resolved description comment to kept ASSET.
+    let book_id = BookId::parse(BOOK).unwrap();
+    for (mid_str, want_desc) in [
+        (IMAGE, "第一行说明\n- 第二行带短横线"),
+        (IMAGE_DUP, "副本上的说明"),
+    ] {
+        let cid = dr_import_v1::book::material_comment_id(&book_id, mid_str, "description");
+        let c = view
+            .comment(&cid)
+            .expect("merged material description comment");
+        assert_eq!(
+            c.target,
+            Some(dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET))
+        );
+        assert_eq!(c.target_module, None);
+        assert_eq!(c.part, None);
+        assert_eq!(c.status, CommentStatus::Resolved);
+        assert_eq!(c.origin, CommentOrigin::Manual);
+        assert_eq!(c.body, want_desc);
+    }
+    assert!(
+        view.comment(&dr_import_v1::book::material_comment_id(
+            &book_id,
+            IMAGE_MISSING,
+            "description"
+        ))
+        .is_none(),
+        "missing-file material must not emit an unlocated comment"
     );
     assert!(
         rec.materials_dropped.iter().any(|d| matches!(
@@ -4129,8 +4175,278 @@ fn merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_repo
         "multiline description must not split markdown list: {summary_md}"
     );
     assert!(
-        summary_md.contains("第一行说明 ↵ - 第二行带短横线"),
+        summary_md.contains("说明「第一行说明 ↵ - 第二行带短横线」"),
         "{summary_md}"
     );
+    assert!(!summary_md.contains("副本上的说明"), "{summary_md}");
+    lib.close().unwrap();
+}
+
+#[test]
+fn material_descriptions_and_provenance_become_resolved_manual_comments_hidden_from_open_filter() {
+    const PDF_ITEM: &str = "01900000-0000-7000-8000-0000000000f5";
+    const PDF_ASSET: &str = "01900000-0000-7000-8000-0000000000ac";
+    const DUP_ITEM: &str = "01900000-0000-7000-8000-0000000000f6";
+    const DUP_ASSET: &str = "01900000-0000-7000-8000-0000000000ae";
+    const BLANK_NOTE: &str = "01900000-0000-7000-8000-0000000000f7";
+    const PDF_BYTES: &[u8] = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\n%%EOF\n";
+    const MAT_TS: &str = "2025-03-04T05:06:07.000Z";
+
+    let old = fixture::build();
+    for (aid, ext, bytes) in [
+        (PDF_ASSET, "source.pdf", PDF_BYTES),
+        (DUP_ASSET, "source.png", IMAGE_BYTES),
+    ] {
+        let dir = old.root.join("assets").join(BOOK).join(aid);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(ext), bytes).unwrap();
+    }
+
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    let doc_text = |s: &str| {
+        serde_json::json!({
+            "type": "doc",
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": s}]}]
+        })
+        .to_string()
+    };
+    c.execute(
+        "UPDATE library_item SET updated_at = ?2 WHERE id = ?1",
+        rusqlite::params![IMAGE, MAT_TS],
+    )
+    .unwrap();
+    // 1. PDF material with a description.
+    c.execute(
+        "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'pdf', 'application/pdf', ?3, ?4, NULL, NULL, ?5)",
+        rusqlite::params![
+            PDF_ASSET,
+            BOOK,
+            PDF_BYTES.len() as i64,
+            common::sha256_bytes(PDF_BYTES),
+            T0
+        ],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '县志摘抄.pdf', 'pdf', ?3, NULL, NULL, ?4, NULL, 2, ?5, ?6, NULL, ?7, 0)",
+        rusqlite::params![
+            PDF_ITEM,
+            BOOK,
+            PDF_ASSET,
+            doc_text("绍兴府城防旧档"),
+            T0,
+            MAT_TS,
+            FOLDER
+        ],
+    )
+    .unwrap();
+    // 2. Duplicate-byte image material with its own description AND former-portrait provenance,
+    //    plus an unparseable `updated_at` to exercise fallback to import time.
+    c.execute(
+        "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'image', 'image/png', ?3, ?4, 4, 3, ?5)",
+        rusqlite::params![
+            DUP_ASSET,
+            BOOK,
+            IMAGE_BYTES.len() as i64,
+            common::sha256_bytes(IMAGE_BYTES),
+            T0
+        ],
+    )
+    .unwrap();
+    let portrait_prov = format!(
+        r#"{{"v":1,"origin":"element-portrait","elementId":"{ELEMENT}","replacedAt":"2025-04-01T09:00:00.000Z"}}"#
+    );
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '旧立绘备份', 'image', ?3, NULL, NULL, ?4, NULL, 3, ?5, '', ?6, NULL, 0)",
+        rusqlite::params![
+            DUP_ITEM,
+            BOOK,
+            DUP_ASSET,
+            doc_text("换下前的草稿立绘"),
+            T0,
+            portrait_prov
+        ],
+    )
+    .unwrap();
+    // 3. Text note with empty/whitespace description must NOT create a comment.
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '空说明札记', 'text', NULL, NULL, ?3, ?4, NULL, 4, ?5, ?5, NULL, ?6, 0)",
+        rusqlite::params![
+            BLANK_NOTE,
+            BOOK,
+            doc_text("正文内容"),
+            doc_text("   "),
+            T0,
+            FOLDER
+        ],
+    )
+    .unwrap();
+    drop(c);
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported");
+    };
+    let rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
+    // Descriptions: IMAGE + NOTE + PDF_ITEM + DUP_ITEM = 4 (BLANK_NOTE ignored).
+    // Provenances: IMAGE (generated) + DUP_ITEM (element-portrait) = 2.
+    assert_eq!(rec.material_descriptions_to_comments, 4);
+    assert_eq!(rec.material_provenances_to_comments, 2);
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book_id = BookId::parse(BOOK).unwrap();
+    let book = BookDocV3::load(book_id.clone(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+
+    let want_mat_ts = dr_import_v1::time::parse_iso(MAT_TS).unwrap();
+    let want_import_ts = dr_model::Timestamp(receipt.started_ms / 1000);
+    let check_comment = |mid_str: &str,
+                         slot: &str,
+                         want_target: dr_model::shared::EntityRef,
+                         want_body: &str,
+                         want_ts: dr_model::Timestamp|
+     -> CommentId {
+        let cid = dr_import_v1::book::material_comment_id(&book_id, mid_str, slot);
+        let c = view
+            .comment(&cid)
+            .unwrap_or_else(|| panic!("missing {mid_str}:{slot}"));
+        assert_eq!(c.target, Some(want_target));
+        assert_eq!(c.target_module, None);
+        assert_eq!(c.part, None);
+        assert!(!c.target_missing);
+        assert_eq!(c.status, CommentStatus::Resolved);
+        assert_eq!(c.origin, CommentOrigin::Manual);
+        assert_eq!(c.author_kind, CommentAuthorKind::User);
+        assert_eq!(c.source, CommentSource::Manual);
+        assert_eq!(c.metadata, None);
+        assert_eq!(c.body, want_body);
+        assert_eq!(c.created_at, Some(want_ts));
+        assert_eq!(c.updated_at, Some(want_ts));
+        assert_eq!(c.resolved_at, Some(want_ts));
+        cid
+    };
+
+    // Generated image: description + readable provenance both on ASSET.
+    let c_img_desc = check_comment(
+        IMAGE,
+        "description",
+        dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET),
+        "未庄的土谷祠",
+        want_mat_ts,
+    );
+    let c_img_prov = check_comment(
+        IMAGE,
+        "provenance",
+        dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET),
+        "模型：gpt-image-1\n主体：未庄的土谷祠\n风格：水墨淡彩\n附加提示词：不要现代器物\n生成对象：阿Q\n生成时间：2025-01-02T03:04:05.000Z",
+        want_mat_ts,
+    );
+    // PDF: description on PDF_ASSET.
+    let c_pdf_desc = check_comment(
+        PDF_ITEM,
+        "description",
+        dr_model::shared::EntityRef::new(EntityKind::Asset, PDF_ASSET),
+        "绍兴府城防旧档",
+        want_mat_ts,
+    );
+    // Text note: description on whole Entry(NOTE), without module.
+    let note_ts = dr_import_v1::time::parse_iso(T0).unwrap();
+    let c_note_desc = check_comment(
+        NOTE,
+        "description",
+        dr_model::shared::EntityRef::new(EntityKind::Entry, NOTE),
+        "王胡与小D的记事",
+        note_ts,
+    );
+    // Duplicate-byte image merged into ASSET: its own description and former-portrait provenance
+    // also attach to kept ASSET, with fallback to import timestamp.
+    let c_dup_desc = check_comment(
+        DUP_ITEM,
+        "description",
+        dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET),
+        "换下前的草稿立绘",
+        want_import_ts,
+    );
+    let c_dup_prov = check_comment(
+        DUP_ITEM,
+        "provenance",
+        dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET),
+        "原为「阿Q」的立绘\n换下时间：2025-04-01T09:00:00.000Z",
+        want_import_ts,
+    );
+    // Blank description creates no comment.
+    assert!(
+        view.comment(&dr_import_v1::book::material_comment_id(
+            &book_id,
+            BLANK_NOTE,
+            "description"
+        ))
+        .is_none()
+    );
+
+    // Filtering by unresolved ("open"), as the review panel's default filter does,
+    // excludes every imported material description and provenance comment.
+    let open_ids: BTreeSet<CommentId> = view
+        .comments()
+        .into_iter()
+        .filter(|c| c.status == CommentStatus::Open)
+        .map(|c| c.id)
+        .collect();
+    for cid in [
+        &c_img_desc,
+        &c_img_prov,
+        &c_pdf_desc,
+        &c_note_desc,
+        &c_dup_desc,
+        &c_dup_prov,
+    ] {
+        assert!(
+            !open_ids.contains(cid),
+            "{cid} must be hidden when filtering open"
+        );
+    }
+
+    // Raw JSON remains in import_original; summary.md lists counts only.
+    for (mid_str, field) in [
+        (IMAGE, "description"),
+        (IMAGE, "provenance"),
+        (PDF_ITEM, "description"),
+        (NOTE, "description"),
+        (DUP_ITEM, "description"),
+        (DUP_ITEM, "provenance"),
+    ] {
+        assert!(
+            receipt
+                .originals
+                .iter()
+                .any(|(col, id, f, _)| col == "materials" && id == mid_str && f == field),
+            "missing import_original for {mid_str}:{field}"
+        );
+    }
+    let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+    assert!(
+        summary_md.contains("旧版素材上的 4 条说明、2 条出处已转为已解决的批注"),
+        "{summary_md}"
+    );
+    for raw_text in [
+        "绍兴府城防旧档",
+        "王胡与小D的记事",
+        "换下前的草稿立绘",
+        "gpt-image-1",
+    ] {
+        assert!(
+            !summary_md.contains(raw_text),
+            "{raw_text} leaked into {summary_md}"
+        );
+    }
     lib.close().unwrap();
 }

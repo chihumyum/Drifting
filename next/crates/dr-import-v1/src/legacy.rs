@@ -606,6 +606,7 @@ pub struct MaterialRow {
     pub provenance_json: Option<String>,
     pub folder: Option<String>,
     pub task_todos: bool,
+    pub updated_at: String,
 }
 
 #[derive(Clone, Debug)]
@@ -969,7 +970,7 @@ impl Legacy {
             },
         )?;
         b.materials = self.rows(
-            "SELECT id, title, kind, asset_id, notes_json, order_key, provenance_json, folder_id, task_todos FROM library_item WHERE project_id = ?1 ORDER BY order_key, id",
+            "SELECT id, title, kind, asset_id, notes_json, order_key, provenance_json, folder_id, task_todos, updated_at FROM library_item WHERE project_id = ?1 ORDER BY order_key, id",
             p,
             |r| {
                 Ok(MaterialRow {
@@ -982,6 +983,7 @@ impl Legacy {
                     provenance_json: r.get(6)?,
                     folder: r.get(7)?,
                     task_todos: r.get::<_, i64>(8)? != 0,
+                    updated_at: r.get(9)?,
                 })
             },
         )?;

@@ -193,6 +193,45 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
     assert_eq!(act_track.title, "幕");
     assert_eq!(v3_doc.timeline_views[0].lanes[0].act_track, Some(true));
     assert!(current.library().stale_index_docs().unwrap().is_empty());
+    let open_comments = current
+        .call(
+            &dr_workspace::Actor::User,
+            "comment.list",
+            serde_json::json!({"book": common::BOOK, "status": "open"}),
+        )
+        .unwrap()["output"]
+        .clone();
+    assert!(
+        open_comments
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|c| c["body"] != "未庄的土谷祠"),
+        "resolved material description comment must not appear in open filter: {open_comments}"
+    );
+    let resolved_comments = current
+        .call(
+            &dr_workspace::Actor::User,
+            "comment.list",
+            serde_json::json!({"book": common::BOOK, "status": "resolved"}),
+        )
+        .unwrap()["output"]
+        .clone();
+    let img_desc = resolved_comments
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["body"] == "未庄的土谷祠")
+        .expect("material description comment in resolved list");
+    assert_eq!(
+        img_desc["target"],
+        serde_json::json!({"kind": "asset", "id": common::ASSET})
+    );
+    assert!(img_desc["module"].is_null());
+    assert!(img_desc["part"].is_null());
+    assert_eq!(img_desc["origin"], "manual");
+    assert_eq!(img_desc["author_kind"], "user");
+    assert_eq!(img_desc["unlocated"], false);
     let made = current
         .call(
             &dr_workspace::Actor::User,
