@@ -1,5 +1,10 @@
 # M03 章节页：章首与章末
 
+## 内核 v5 T3：章号对齐成书起点，关了成书时隐藏章号（2026-11-15）
+
+- 页眉（`dr-view-page/src/head.rs`、`v3.rs`）的章号与通览位置统一走 `BookStructureV3::book_sequence()`（随 `BookRoot::{Entry, View, Lane}` 切换，和整书字数、成稿导出严格一致；回归见 `dr-view-page/tests/v3.rs`）。
+- 项目关掉「成书」（`project.book.is_none()`）时，页眉隐藏「第 N 章」与页眉字数，章末（`end.rs`）收起 ⁂ 的「标为完成 / 新建下一章」动作。
+
 2026-11-08，F5 这一路做（分支 `claude/f5-ui-254e54`，从 main `1652a95e`；第二轮从 main `60d510a6` 加上 F4e 第四批：幕扉页的序号和章数字数、构想页的章首）。代码在新 crate `next/crates/dr-view-page`，它实现 `dr-editor` 的 `PageChrome`（F4e 留的章首、章末位置，见 [f4e-editor.md](../foundations/f4e-editor.md)）。输入框、⁂ 菜单的 cell、页面上的字号间距都来自 dr-ui（F5，见 [f5-ui.md](../foundations/f5-ui.md)）。外壳只加了挂接点，逐条列在下面。M03 里工具栏的 ⋯ 菜单是 F6 做的，不在这里。
 
 ## 旧模块收尾：构想页的分组路径（2026-11-08）

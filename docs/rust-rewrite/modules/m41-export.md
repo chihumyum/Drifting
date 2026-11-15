@@ -2,6 +2,18 @@
 
 > 2026-11-10 切换实施更新：默认新书与单本归档使用 canonical v3；旧分享 Markdown 入口退役，不自造 v3 分享格式。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
+## 内核 v5 T3：单一成书顺序、去掉多处成书选择与正文嵌文件导出（2026-11-15）
+
+配合 [kernel-v5.md 第 3、4、6 节](../kernel-v5.md)：
+
+- **单一成书顺序（`dr-export/src/v3.rs`、`manuscript/mod.rs`）**：一个项目只有一处成书，导出统一读取 `BookStructureV3::book_sequence()`（覆盖 `BookRoot::Entry`、`BookRoot::View`、`BookRoot::Lane` 三种成书起点；成书起点外的章节条目不进成稿）。去掉 `Options.manuscript` 与 `ManuscriptOutline.parts`。
+- **导出对话框与入口（`dr-view-export/src/manuscript.rs`、`dr-shell/src/workspace/corner.rs`）**：去掉对话框里的「选哪一处成书」下拉选择；项目关掉「成书」（`project.book.is_none()`）时，右上角菜单收起「导出成稿」入口，`Workspace::open_export` 与导出对话框双层拦截，不会打开文件保存面板（单项目归档 `.driftingproject` 照常可导出）。
+- **成书正文嵌入文件导出（`convert.rs`、`manuscript/{epub,docx,pdf,text}`）**：
+  - 活的**图片**嵌入块（`AssetKind::Image`）：EPUB（打包图片资源并输出 `<figure><img/>` + `<figcaption>`）、Word（`word/media/` 关系与 `<wp:inline>` 图框 + 图注段落）、PDF（`krilla` 绘制缩放图与图注行）三种格式均导出图片与图注（`look.caption`），忽略应用内展示用的 `look.size` 与 `look.align`。
+  - 活的 **PDF** 嵌入块（`AssetKind::Pdf`）：导出为一行文件名段落（`asset.name`）。
+  - 已进最近删除的资源或位于已删除资源文件夹下的资源不导出。
+- **回归**：`dr-export/tests/v3.rs`（三种成书起点顺序、起点外条目排除、关闭成书返回 `NoChapters`）、`dr-export/tests/export.rs`（图片 + 图注 + PDF 文件名在 EPUB/DOCX/PDF 三格式导出及已删资源过滤）、`dr-view-export/tests/dialog.rs` 与 `dr-shell/tests/m41.rs`。
+
 ## 内核 v5 P2：全格式成稿导出与 Markdown 分享（2026-11-14）
 
 配合正文统一成一种格式档（[kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档)），`dr-export`（含 v3 `read_manuscript`）把条目正文里的列表、任务、代码块、提示框、高亮、行内代码与表格全部纳入成稿模型并写出，所有格式都不丢字：
