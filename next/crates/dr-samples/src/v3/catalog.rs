@@ -260,21 +260,21 @@ pub fn file_folders(
             .folder
             .as_ref()
             .filter(|f| by_id.contains_key(f) && folder_id(f).is_some());
+        if let Some(f) = folder {
+            let mut cur = Some(f);
+            while let Some(fid) = cur {
+                if !wanted.insert(fid) {
+                    break;
+                }
+                cur = by_id.get(fid).and_then(|mf| mf.parent.as_ref());
+            }
+        }
         match first.get(asset) {
             Some(Some(_)) => continue,
             Some(None) if folder.is_none() => continue,
             _ => {}
         }
         first.insert(asset, folder);
-    }
-    for folder in first.values().flatten() {
-        let mut cur = Some(*folder);
-        while let Some(fid) = cur {
-            if !wanted.insert(fid) {
-                break;
-            }
-            cur = by_id.get(fid).and_then(|f| f.parent.as_ref());
-        }
     }
     fn next_key<K: Ord + Clone>(last: &mut BTreeMap<K, PosKey>, at: &K) -> PosKey {
         let key = last.get(at).map_or_else(PosKey::first, PosKey::after);

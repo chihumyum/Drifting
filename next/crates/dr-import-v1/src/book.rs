@@ -38,6 +38,18 @@ use crate::prose::{BlockSpan, Notes};
 use crate::time::{parse_iso, parse_opt};
 use dr_doc::Result;
 
+/// A checklist paragraph in an imported prose body that had no 0.1 `note-task`
+/// comment row of its own (`kernel-v5.md` §13: every checklist item in prose
+/// projects into a task comment, ticked = resolved).
+#[derive(Clone, Debug)]
+pub struct UnlinkedTask {
+    pub v2_doc: dr_model::DocId,
+    pub block: BlockId,
+    pub text: String,
+    pub checked: bool,
+    pub updated_at: String,
+}
+
 /// What the book writer needs from the prose side.
 pub struct Inputs<'a> {
     pub book: &'a BookId,
@@ -49,6 +61,8 @@ pub struct Inputs<'a> {
     /// The tick of each projected checklist TODO's line, by 0.1 comment id:
     /// its status follows the tick (`kernel-v5.md` §13).
     pub task_ticks: &'a HashMap<String, bool>,
+    /// Checklist paragraphs with no 0.1 `note-task` comment row.
+    pub unlinked_tasks: &'a [UnlinkedTask],
     /// Anchors made on the imported prose documents, by comment or patch id.
     pub anchors: &'a HashMap<String, Anchor>,
     /// Where an old block id went (any document of the book).
@@ -692,6 +706,23 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         if let Some(a) = inp.anchors.get(&c.id) {
             w.anchor(Some(a))?;
         }
+    }
+    for tl in inp.unlinked_tasks {
+        let (_, w) = txn.projected_todo(&ProjectionKind::NoteTask, &tl.v2_doc, &tl.block)?;
+        let ts = parse_iso(&tl.updated_at);
+        let (status, resolved_at) = if tl.checked {
+            (CommentStatus::Resolved, ts.or(Some(dr_model::Timestamp(0))))
+        } else {
+            (CommentStatus::Open, None)
+        };
+        w.author_kind(&CommentAuthorKind::User)?
+            .source(&CommentSource::Manual)?
+            .status(&status)?
+            .metadata(Some(r#"{"kind":"note-task"}"#))?
+            .resolved_at(resolved_at)?
+            .created_at(ts)?
+            .updated_at(ts)?
+            .body(&tl.text)?;
     }
 
     // Patches.

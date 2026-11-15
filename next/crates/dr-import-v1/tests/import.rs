@@ -1171,6 +1171,7 @@ fn materials_that_do_not_come_over_are_each_one_line_of_the_report() {
         material_id: "01900000-0000-7000-8000-0000000000e2".into(),
         material_title: "没文件的图".into(),
         relations: vec!["01900000-0000-7000-8000-0000000000e5".into()],
+        comments: vec![],
     }));
     assert!(dropped.contains(&MaterialDropped::UnknownKind {
         material_id: "01900000-0000-7000-8000-0000000000e3".into(),

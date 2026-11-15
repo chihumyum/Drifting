@@ -602,6 +602,7 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
         "MappingChoices",
         "reimport-v3-",
         "reimport-v4-",
+        "reimport-v5-",
         "v2",
         "v3",
         "层级模板",
@@ -652,7 +653,7 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
 }
 
 #[test]
-fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resume_them() {
+fn reimport_v5_continuation_preserves_unfinished_earlier_targets_and_refuses_to_resume_them() {
     let (dir, ws) = library();
     let data = dir.path().to_path_buf();
     let original = ws.library().paths().root.clone();
@@ -662,8 +663,8 @@ fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resum
     let source_before = source_files(&old.root);
     let picked = dr_import_v1::locate::resolve(&old.root).unwrap();
 
-    // Seed an unfinished earlier-format (`reimport-v3-…`) target directory,
-    // manifest, and pending pointer inside the same data directory.
+    // Seed unfinished earlier-format (`reimport-v3-…` and `reimport-v4-…`)
+    // target directories, manifests, and pending pointers in the data directory.
     let old_v3_id = "reimport-v3-01900000-0000-7000-8000-0000000000a1";
     let old_v3_dir = data.join(old_v3_id);
     std::fs::create_dir_all(&old_v3_dir).unwrap();
@@ -687,6 +688,29 @@ fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resum
     let old_v3_pending = data.join("reimport-v3-pending.json");
     std::fs::write(&old_v3_pending, serde_json::to_vec(&old_v3_id).unwrap()).unwrap();
 
+    let old_v4_id = "reimport-v4-01900000-0000-7000-8000-0000000000a2";
+    let old_v4_dir = data.join(old_v4_id);
+    std::fs::create_dir_all(&old_v4_dir).unwrap();
+    std::fs::write(old_v4_dir.join("library.sqlite"), b"unfinished-v4-sqlite").unwrap();
+    let old_v4_manifest = data.join(format!("{old_v4_id}.json"));
+    let old_v4_job = Destination {
+        data: data.clone(),
+        id: old_v4_id.into(),
+        original: original.clone(),
+        database: picked.database.clone(),
+        source_root: picked.root.clone(),
+        left: picked.left.clone(),
+        choices: common::v3_choices(),
+        completed: false,
+    };
+    std::fs::write(
+        &old_v4_manifest,
+        serde_json::to_vec_pretty(&old_v4_job).unwrap(),
+    )
+    .unwrap();
+    let old_v4_pending = data.join("reimport-v4-pending.json");
+    std::fs::write(&old_v4_pending, serde_json::to_vec(&old_v4_id).unwrap()).unwrap();
+
     let file_state = |p: &std::path::Path| {
         let meta = std::fs::metadata(p).unwrap();
         let bytes = std::fs::read(p).unwrap();
@@ -698,40 +722,46 @@ fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resum
             .as_nanos();
         (common::sha256_bytes(&bytes), meta.len(), mtime)
     };
-    let v3_artifacts_before = (
+    let earlier_artifacts_before = (
         source_files(&old_v3_dir),
         file_state(&old_v3_manifest),
         file_state(&old_v3_pending),
+        source_files(&old_v4_dir),
+        file_state(&old_v4_manifest),
+        file_state(&old_v4_pending),
     );
 
-    // 1. Startup unfinished check ignores `reimport-v3-pending.json` and leaves it untouched.
+    // 1. Startup unfinished check ignores earlier pending pointers and leaves them untouched.
     assert!(Destination::unfinished(&original).unwrap().is_none());
 
-    // 2. Direct attempt to execute an earlier `reimport-v3-…` Destination is refused.
-    let refused = dr_view_import::reimport::import(
-        old_v3_job,
-        VERSION,
-        dr_import_v1::gate::Accept::NOTHING,
-        Default::default(),
-        &mut |_| {},
-    );
-    assert!(matches!(
-        refused,
-        Err(dr_import_v1::ImportError::Invalid(_))
-    ));
+    // 2. Direct attempts to execute earlier `reimport-v3-…` or `reimport-v4-…` Destinations are refused.
+    for earlier_job in [old_v3_job, old_v4_job] {
+        let refused = dr_view_import::reimport::import(
+            earlier_job,
+            VERSION,
+            dr_import_v1::gate::Accept::NOTHING,
+            Default::default(),
+            &mut |_| {},
+        );
+        assert!(matches!(
+            refused,
+            Err(dr_import_v1::ImportError::Invalid(_))
+        ));
+    }
 
-    // 3. `prepare` ignores `reimport-v3-pending.json`, allocates a `reimport-v4-…`
-    //    destination, interrupts cleanly, records `reimport-v4-pending.json`, and
-    //    resumes the same `reimport-v4-…` destination to completion.
-    let mut first_v4 = Destination::prepare(&original, &picked).unwrap();
-    assert!(first_v4.id.starts_with("reimport-v4-"));
-    assert_ne!(first_v4.id, old_v3_id);
-    first_v4.set_choices(common::v3_choices()).unwrap();
+    // 3. `prepare` ignores earlier pending pointers, allocates a `reimport-v5-…`
+    //    destination, interrupts cleanly, records `reimport-v5-pending.json`, and
+    //    resumes the same `reimport-v5-…` destination to completion.
+    let mut first_v5 = Destination::prepare(&original, &picked).unwrap();
+    assert!(first_v5.id.starts_with("reimport-v5-"));
+    assert_ne!(first_v5.id, old_v3_id);
+    assert_ne!(first_v5.id, old_v4_id);
+    first_v5.set_choices(common::v3_choices()).unwrap();
 
     let cancel = dr_import_v1::run::Cancel::default();
     let stopper = cancel.clone();
     let partial = dr_view_import::reimport::import(
-        first_v4.clone(),
+        first_v5.clone(),
         VERSION,
         dr_import_v1::gate::Accept::NOTHING,
         cancel,
@@ -751,13 +781,13 @@ fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resum
     assert!(!partial_job.completed);
     let found_unfinished = Destination::unfinished(&original)
         .unwrap()
-        .expect("unfinished v4 job must be surfaced");
-    assert_eq!(found_unfinished.id, first_v4.id);
+        .expect("unfinished v5 job must be surfaced");
+    assert_eq!(found_unfinished.id, first_v5.id);
 
-    let resumed_v4 = Destination::prepare(&original, &picked).unwrap();
-    assert_eq!(resumed_v4.id, first_v4.id);
+    let resumed_v5 = Destination::prepare(&original, &picked).unwrap();
+    assert_eq!(resumed_v5.id, first_v5.id);
     let finished = dr_view_import::reimport::import(
-        resumed_v4,
+        resumed_v5,
         VERSION,
         dr_import_v1::gate::Accept::NOTHING,
         Default::default(),
@@ -771,25 +801,28 @@ fn reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resum
         panic!("expected resumed import to complete")
     };
     assert!(completed_job.completed);
-    assert_eq!(completed_job.id, first_v4.id);
+    assert_eq!(completed_job.id, first_v5.id);
 
-    // 4. Even if `reimport-v4-pending.json` is tampered to point at `reimport-v3-…`,
+    // 4. Even if `reimport-v5-pending.json` is tampered to point at `reimport-v4-…`,
     //    both `unfinished` and `prepare` reject it cleanly without touching old files.
     std::fs::write(
-        data.join("reimport-v4-pending.json"),
-        serde_json::to_vec(&old_v3_id).unwrap(),
+        data.join("reimport-v5-pending.json"),
+        serde_json::to_vec(&old_v4_id).unwrap(),
     )
     .unwrap();
     assert!(Destination::unfinished(&original).is_err());
     assert!(Destination::prepare(&original, &picked).is_err());
 
-    // 5. All `reimport-v3-…` files AND the 0.1 source directory remain byte-for-byte
-    //    and mtime-for-mtime identical!
-    let v3_artifacts_after = (
+    // 5. All `reimport-v3-…` / `reimport-v4-…` files AND the 0.1 source directory remain
+    //    byte-for-byte and mtime-for-mtime identical!
+    let earlier_artifacts_after = (
         source_files(&old_v3_dir),
         file_state(&old_v3_manifest),
         file_state(&old_v3_pending),
+        source_files(&old_v4_dir),
+        file_state(&old_v4_manifest),
+        file_state(&old_v4_pending),
     );
-    assert_eq!(v3_artifacts_after, v3_artifacts_before);
+    assert_eq!(earlier_artifacts_after, earlier_artifacts_before);
     assert_eq!(source_files(&old.root), source_before);
 }

@@ -572,11 +572,17 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     }
     assert_eq!(view.comments().len(), expected.comments.len());
     for comment in &expected.comments {
-        let actual = view
-            .comments()
-            .into_iter()
-            .find(|c| c.id == comment_id(&comment.old_id))
-            .unwrap();
+        let cid = if let Some((block_id, _, _)) = &comment.synthesized_task {
+            let doc = body_id(view, comment.body.as_ref().unwrap());
+            CommentId::for_projection(
+                &ProjectionKind::NoteTask,
+                &doc,
+                &BlockId::parse(block_id).unwrap(),
+            )
+        } else {
+            comment_id(&comment.old_id)
+        };
+        let actual = view.comments().into_iter().find(|c| c.id == cid).unwrap();
         assert_eq!(
             actual.target,
             comment.target.as_ref().map(|e| endpoint(view, e))
@@ -586,6 +592,28 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             && let DocId::Body(id) = body_id(view, body)
         {
             assert_eq!(actual.target_module.as_ref(), Some(id.module()));
+        }
+        if let Some((block_id, want_text, want_checked)) = &comment.synthesized_task {
+            assert_eq!(
+                actual.target_block.as_ref().map(BlockId::as_str),
+                Some(block_id.as_str())
+            );
+            assert_eq!(
+                actual
+                    .projection
+                    .as_ref()
+                    .map(|p| (&p.kind, p.block.as_str())),
+                Some((&ProjectionKind::NoteTask, block_id.as_str()))
+            );
+            assert_eq!(actual.body, *want_text);
+            let want_status = if *want_checked {
+                dr_model::kind::CommentStatus::Resolved
+            } else {
+                dr_model::kind::CommentStatus::Open
+            };
+            assert_eq!(actual.status, want_status);
+            assert_eq!(actual.resolved_at.is_some(), *want_checked);
+            continue;
         }
         let row = expected.source_rows["comment"]
             .iter()
@@ -3752,6 +3780,357 @@ fn a_checklist_todo_whose_state_disagrees_with_its_tick_imports_as_the_tick() {
         assert_eq!(line.attrs.checked, ticked, "the tick is kept");
         let rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
         assert_eq!(rec.notes.0.get("task-status-follows-tick"), Some(&1));
+        assert_eq!(rec.task_status_changes.len(), 1);
+        assert_eq!(rec.task_status_changes[0].comment_id, NOTE_TODO);
+        assert_eq!(rec.task_status_changes[0].checked, ticked);
+        assert!(
+            rec.material_texts.iter().any(|t| {
+                t.material_id == IMAGE
+                    && t.provenance.as_deref()
+                        == Some(
+                            r#"{"v":1,"origin":"agent-image","model":"imagen-3","prompt":"未庄的土谷祠"}"#,
+                        )
+            }),
+            "{:?}",
+            rec.material_texts
+        );
+        let summary_md =
+            std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+        assert!(summary_md.contains("旧库里有 "), "{summary_md}");
+        assert!(
+            summary_md.contains("清单项不再单独链接旧版待办"),
+            "{summary_md}"
+        );
+        assert!(
+            summary_md.contains("清单项关联的待办状态与勾选不一致"),
+            "{summary_md}"
+        );
+        assert!(
+            summary_md.contains("按清单项勾选调整了状态的待办明细："),
+            "{summary_md}"
+        );
+        assert!(summary_md.contains(NOTE_TODO), "{summary_md}");
+        assert!(summary_md.contains("imagen-3"), "{summary_md}");
         lib.close().unwrap();
     }
+}
+
+#[test]
+fn note_order_in_folder_and_cross_doc_checklist_ticks_stay_independent() {
+    const NOTE_SECOND: &str = "01900000-0000-7000-8000-0000000000f9";
+    let old = fixture::build();
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    let note_first_body = r#"{"type":"doc","content":[{"type":"taskList","attrs":{"id":"tl"},"content":[{"type":"taskItem","attrs":{"id":"shared-ti","checked":true,"todoId":"01900000-0000-7000-8000-000000000062"},"content":[{"type":"paragraph","attrs":{"id":"shared-tp"},"content":[{"type":"text","text":"甲篇已勾"}]}]}]}]}"#;
+    let note_second_body = r#"{"type":"doc","content":[{"type":"taskList","attrs":{"id":"tl"},"content":[{"type":"taskItem","attrs":{"id":"shared-ti","checked":false},"content":[{"type":"paragraph","attrs":{"id":"shared-tp"},"content":[{"type":"text","text":"乙篇未勾"}]}]},{"type":"taskItem","attrs":{"checked":true},"content":[{"type":"paragraph","content":[{"type":"text","text":"无段落号已勾"}]}]}]}]}"#;
+    c.execute(
+        "UPDATE library_item SET body_json = ?2, order_key = 10 WHERE id = ?1",
+        rusqlite::params![NOTE, note_first_body],
+    )
+    .unwrap();
+    // Inserted after NOTE and with a larger UUID, but a smaller order_key (-5 < 10).
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '先读札记', 'text', NULL, NULL, ?3, NULL, NULL, -5, ?4, ?4, NULL, ?5, 0)",
+        rusqlite::params![NOTE_SECOND, BOOK, note_second_body, T0, FOLDER],
+    )
+    .unwrap();
+    drop(c);
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+
+    let children: Vec<_> = view
+        .children_of(Some(&eid(FOLDER)))
+        .into_iter()
+        .map(|e| e.id.to_string())
+        .collect();
+    assert_eq!(children, vec![NOTE_SECOND.to_string(), NOTE.to_string()]);
+
+    let first_doc = adapter::body_id(NOTE, MOD_PROSE);
+    let second_doc = adapter::body_id(NOTE_SECOND, MOD_PROSE);
+    let first_comment = view
+        .comment(&CommentId::for_projection(
+            &ProjectionKind::NoteTask,
+            &first_doc,
+            &BlockId::parse("shared-tp").unwrap(),
+        ))
+        .expect("NOTE shared-tp task comment");
+    assert_eq!(first_comment.status, CommentStatus::Resolved);
+
+    let second_comment = view
+        .comment(&CommentId::for_projection(
+            &ProjectionKind::NoteTask,
+            &second_doc,
+            &BlockId::parse("shared-tp").unwrap(),
+        ))
+        .expect("NOTE_SECOND shared-tp task comment");
+    assert_eq!(second_comment.status, CommentStatus::Open);
+
+    let second_prose = load_prose(&lib, &second_doc);
+    let generated_block = second_prose
+        .view()
+        .blocks()
+        .get(1)
+        .and_then(|b| b.id.clone())
+        .expect("repaired block id for second task item");
+    let unlinked_generated = view
+        .comment(&CommentId::for_projection(
+            &ProjectionKind::NoteTask,
+            &second_doc,
+            &generated_block,
+        ))
+        .expect("projected comment for task item without authored paragraph id");
+    assert_eq!(unlinked_generated.status, CommentStatus::Resolved);
+    assert_eq!(unlinked_generated.body, "无段落号已勾");
+    lib.close().unwrap();
+}
+
+#[test]
+fn merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_report_cleanly() {
+    use dr_doc::prose::EmbedView;
+    use dr_import_v1::receipt::MaterialDropped;
+
+    const MF_FIRST: &str = "01900000-0000-7000-8000-00000000008a";
+    const MF_SECOND: &str = "01900000-0000-7000-8000-00000000008b";
+    const MF_MISSING: &str = "01900000-0000-7000-8000-00000000008c";
+    const MF_EMPTY: &str = "01900000-0000-7000-8000-00000000008d";
+    const IMAGE_DUP: &str = "01900000-0000-7000-8000-0000000000f3";
+    const IMAGE_MISSING: &str = "01900000-0000-7000-8000-0000000000f4";
+    const ASSET_DUP: &str = "01900000-0000-7000-8000-0000000000ab";
+
+    let old = fixture::build();
+    let dup_dir = old.root.join("assets").join(BOOK).join(ASSET_DUP);
+    std::fs::create_dir_all(&dup_dir).unwrap();
+    std::fs::write(dup_dir.join("source.png"), IMAGE_BYTES).unwrap();
+
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.pragma_update(None, "foreign_keys", false).unwrap();
+    for (fid, name) in [
+        (MF_FIRST, "甲夹"),
+        (MF_SECOND, "乙夹"),
+        (MF_MISSING, "缺件夹"),
+        (MF_EMPTY, "真空夹"),
+    ] {
+        c.execute(
+            "INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES (?1, ?2, ?3, NULL, ?4, ?4)",
+            rusqlite::params![fid, BOOK, name, T0],
+        )
+        .unwrap();
+    }
+    let multiline_notes = r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"第一行说明"}]},{"type":"paragraph","content":[{"type":"text","text":"- 第二行带短横线"}]}]}"#;
+    c.execute(
+        "UPDATE library_item SET folder_id = ?2, notes_json = ?3 WHERE id = ?1",
+        rusqlite::params![IMAGE, MF_FIRST, multiline_notes],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'image', 'image/png', ?3, ?4, 4, 3, ?5)",
+        rusqlite::params![
+            ASSET_DUP,
+            BOOK,
+            IMAGE_BYTES.len() as i64,
+            common::sha256_bytes(IMAGE_BYTES),
+            T0
+        ],
+    )
+    .unwrap();
+    let dup_dir = old.root.join("assets").join(BOOK).join(ASSET_DUP);
+    std::fs::create_dir_all(&dup_dir).unwrap();
+    std::fs::write(dup_dir.join("source.png"), IMAGE_BYTES).unwrap();
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '同图副本', 'image', ?3, NULL, NULL, NULL, NULL, 2, ?4, ?4, NULL, ?5, 0)",
+        rusqlite::params![IMAGE_DUP, BOOK, ASSET_DUP, T0, MF_SECOND],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '缺件图', 'image', '01900000-0000-7000-8000-0000000000ad', NULL, NULL, NULL, NULL, 3, ?3, ?3, NULL, ?4, 0)",
+        rusqlite::params![IMAGE_MISSING, BOOK, T0, MF_MISSING],
+    )
+    .unwrap();
+
+    let generic = format!("system:generic-association:{BOOK}");
+    for (rid, mid_str) in [
+        ("rel-dup-img", IMAGE_DUP),
+        ("rel-missing-img", IMAGE_MISSING),
+    ] {
+        c.execute(
+            "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at) VALUES (?1, ?2, 'library_item', ?3, 'node', ?4, ?5, ?6, ?6)",
+            rusqlite::params![rid, BOOK, mid_str, CHAPTER, generic, T0],
+        )
+        .unwrap();
+    }
+    let cbody = r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"图上批注"}]}]}"#;
+    for (cid, mid_str) in [
+        ("com-dup-img", IMAGE_DUP),
+        ("com-missing-img", IMAGE_MISSING),
+    ] {
+        c.execute(
+            "INSERT INTO comment (id, project_id, kind, target_kind, target_id, target_block_id, anchor_json, author_kind, author_id, author_name, body_json, status, priority, source, metadata_json, target_block_ids_json, resolved_at, created_at, updated_at) VALUES (?1, ?2, 'note', 'library_item', ?3, NULL, '{\"region\":{\"v\":1,\"x\":0.2,\"y\":0.2,\"w\":0.3,\"h\":0.3}}', 'user', NULL, NULL, ?4, 'open', NULL, 'manual', NULL, '[]', NULL, ?5, ?5)",
+            rusqlite::params![cid, BOOK, mid_str, cbody, T1],
+        )
+        .unwrap();
+    }
+    let idea_prose = format!(
+        r#"{{"type":"doc","content":[{{"type":"paragraph","attrs":{{"id":"ip1"}},"content":[{{"type":"text","text":"看"}},{{"type":"text","text":"同图副本","marks":[{{"type":"entityLink","attrs":{{"targetKind":"library_item","targetId":"{IMAGE_DUP}"}}}}]}}]}},{{"type":"materialEmbed","attrs":{{"id":"emb-by-item","libraryItemId":"{IMAGE_DUP}"}}}},{{"type":"materialEmbed","attrs":{{"id":"emb-by-asset","assetId":"{ASSET_DUP}"}}}}]}}"#
+    );
+    c.execute(
+        "UPDATE node_content SET content_json = ?2 WHERE node_id = ?1",
+        rusqlite::params![IDEA, idea_prose],
+    )
+    .unwrap();
+    drop(c);
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported");
+    };
+    let rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
+    assert_eq!(rec.assets_copied, 1, "identical bytes copied once");
+
+    let lib = open(&root);
+    assert_eq!(lib.assets_of_book(BOOK).unwrap().len(), 1);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    assert_eq!(view.assets().len(), 1);
+    assert_eq!(view.assets()[0].id.as_str(), ASSET);
+
+    // Second folder (MF_SECOND) is rebuilt empty in asset_folders alongside MF_FIRST.
+    let folder_ids: BTreeSet<String> = view
+        .asset_folders()
+        .into_iter()
+        .map(|f| f.id.to_string())
+        .collect();
+    assert!(folder_ids.contains(MF_FIRST), "{folder_ids:?}");
+    assert!(folder_ids.contains(MF_SECOND), "{folder_ids:?}");
+    assert!(!folder_ids.contains(MF_MISSING), "{folder_ids:?}");
+    assert!(!folder_ids.contains(MF_EMPTY), "{folder_ids:?}");
+
+    // Comment, relation, prose entityLink, and both prose embeds point to kept ASSET.
+    let dup_comment = view
+        .comment(&CommentId::parse("com-dup-img").unwrap())
+        .expect("comment on merged duplicate material");
+    assert_eq!(
+        dup_comment.target,
+        Some(dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET))
+    );
+    assert!(!dup_comment.target_missing);
+
+    let dup_rel = view
+        .relations()
+        .into_iter()
+        .find(|r| r.id.as_str() == "rel-dup-img")
+        .expect("relation on merged duplicate material");
+    assert_eq!(
+        dup_rel.from,
+        dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET)
+    );
+
+    let idea_doc = load_prose(&lib, &adapter::body_id(IDEA, MOD_PROSE));
+    let link_run = idea_doc
+        .view()
+        .paragraphs()
+        .next()
+        .unwrap()
+        .runs
+        .into_iter()
+        .find(|r| r.text == "同图副本")
+        .unwrap();
+    assert_eq!(link_run.marks.entities.len(), 1);
+    assert_eq!(link_run.marks.entities[0].kind, EntityKind::Asset);
+    assert_eq!(link_run.marks.entities[0].target, ASSET);
+    for emb_id in ["emb-by-item", "emb-by-asset"] {
+        let Some(EmbedView::Asset { asset, .. }) =
+            idea_doc.view().embed(&EmbedId::parse(emb_id).unwrap())
+        else {
+            panic!("missing asset embed {emb_id}");
+        };
+        assert_eq!(asset, Some(AssetId::parse(ASSET).unwrap()), "{emb_id}");
+    }
+
+    // Missing-file material lists both relation and comment; folder wording & multiline safety.
+    assert!(
+        rec.materials_dropped.iter().any(|d| matches!(
+            d,
+            MaterialDropped::WithoutFile {
+                material_id,
+                relations,
+                comments,
+                ..
+            } if material_id == IMAGE_MISSING
+                && relations == &vec!["rel-missing-img".to_string()]
+                && comments == &vec!["com-missing-img".to_string()]
+        )),
+        "{:?}",
+        rec.materials_dropped
+    );
+    assert!(
+        rec.materials_dropped.iter().any(|d| matches!(
+            d,
+            MaterialDropped::UnimportedFolder { folder_id, name }
+                if folder_id == MF_MISSING && name == "缺件夹"
+        )),
+        "{:?}",
+        rec.materials_dropped
+    );
+    assert!(
+        rec.materials_dropped.iter().any(|d| matches!(
+            d,
+            MaterialDropped::EmptyFolder { folder_id, name }
+                if folder_id == MF_EMPTY && name == "真空夹"
+        )),
+        "{:?}",
+        rec.materials_dropped
+    );
+
+    let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+    assert!(
+        summary_md.contains("1 条关系（`rel-missing-img`）、1 条批注（`com-missing-img`）"),
+        "{summary_md}"
+    );
+    assert!(
+        summary_md.contains("里面的素材都没有带过来的素材夹「缺件夹」"),
+        "{summary_md}"
+    );
+    assert!(summary_md.contains("空的素材夹「真空夹」"), "{summary_md}");
+    let dropped_pos = summary_md.find("旧版素材里没有带过来的：").unwrap();
+    let merged_pos = summary_md.find("合并为同一个文件的旧版素材：").unwrap();
+    let same_file_pos = summary_md.find("同图副本").unwrap();
+    assert!(
+        dropped_pos < merged_pos && merged_pos < same_file_pos,
+        "{summary_md}"
+    );
+    assert!(
+        !summary_md
+            .lines()
+            .any(|l| l.starts_with("- 第二行带短横线")),
+        "multiline description must not split markdown list: {summary_md}"
+    );
+    assert!(
+        summary_md.contains("第一行说明 ↵ - 第二行带短横线"),
+        "{summary_md}"
+    );
+    lib.close().unwrap();
 }

@@ -34,7 +34,7 @@ pub enum Entry {
     Material(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum LeafTemplate {
     Chapter,
     Idea,
@@ -144,7 +144,7 @@ pub struct View {
     pub act_rail: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Body {
     Leaf(Entry),
     About(Entry),
@@ -186,6 +186,9 @@ pub struct Comment {
     pub target: Option<Endpoint>,
     /// Which prose module owns the old anchor (if it targets prose).
     pub body: Option<Body>,
+    /// When `Some((block_id, text, checked))`, this comment is projected from
+    /// a prose checklist line that had no 0.1 `note-task` row of its own.
+    pub synthesized_task: Option<(String, String, bool)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -1049,6 +1052,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             origin,
             target: target.map(|(kind, id)| endpoint(kind, id, &rows.materials)),
             body,
+            synthesized_task: None,
         });
     }
     for patch in &rows.patches {
@@ -1082,6 +1086,92 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             target,
             json: owner.cache.clone(),
         });
+    }
+    {
+        let prose_json_by_body: Vec<(Body, String, Option<String>)> = out
+            .prose
+            .iter()
+            .map(|p| (p.target.clone(), p.source.clone(), p.json.clone()))
+            .collect();
+        let mut linked_task_blocks: BTreeSet<(Body, String)> = BTreeSet::new();
+        for comment in &rows.comments {
+            let meta: Value = comment
+                .metadata_json
+                .as_deref()
+                .and_then(|m| serde_json::from_str(m).ok())
+                .unwrap_or(Value::Null);
+            if meta.get("kind").and_then(Value::as_str) != Some("note-task") {
+                continue;
+            }
+            let Some(old_block) = meta
+                .get("blockId")
+                .and_then(Value::as_str)
+                .or(comment.target_block_id.as_deref())
+            else {
+                continue;
+            };
+            let Some(c_rec) = out.comments.iter().find(|c| c.old_id == comment.id) else {
+                continue;
+            };
+            let Some(target_body) = c_rec.body.clone() else {
+                continue;
+            };
+            let resolved_block = prose_json_by_body
+                .iter()
+                .find(|(b, _, _)| b == &target_body)
+                .and_then(|(_, _, j)| j.as_deref())
+                .and_then(|j| pm::parse(j).ok())
+                .and_then(|lines| {
+                    let blocks = dr_import_v1::prose::doc_blocks(&lines);
+                    blocks
+                        .span(old_block)
+                        .and_then(|s| s.first)
+                        .map(|b| b.to_string())
+                })
+                .unwrap_or_else(|| old_block.to_string());
+            linked_task_blocks.insert((target_body, resolved_block));
+        }
+        for (target_body, source, json) in prose_json_by_body {
+            let entry = match &target_body {
+                Body::Leaf(e) | Body::About(e) => e.clone(),
+                Body::Template(_) => continue,
+            };
+            let Some(json) = json else {
+                continue;
+            };
+            let Ok(lines) = pm::parse(&json) else {
+                continue;
+            };
+            let blocks = dr_import_v1::prose::doc_blocks(&lines);
+            let mut seen_in_doc = BTreeSet::new();
+            for (i, line) in lines.lines.iter().enumerate() {
+                let Some(task_item) = line.path.iter().rfind(|c| c.kind == "taskItem") else {
+                    continue;
+                };
+                let Some(block_id) = blocks
+                    .line_ids
+                    .get(i)
+                    .and_then(|b| b.as_ref())
+                    .map(|b| b.to_string())
+                else {
+                    continue;
+                };
+                if !seen_in_doc.insert(block_id.clone()) {
+                    continue;
+                }
+                if linked_task_blocks.contains(&(target_body.clone(), block_id.clone())) {
+                    continue;
+                }
+                let checked = task_item.attrs.get("checked").and_then(Value::as_bool) == Some(true);
+                out.comments.push(Comment {
+                    old_id: format!("task:{source}:{block_id}"),
+                    origin: "task".into(),
+                    target: Some(Endpoint::Entry(entry.clone())),
+                    body: Some(target_body.clone()),
+                    synthesized_task: Some((block_id, line.text.trim().to_string(), checked)),
+                });
+            }
+        }
     }
     for template in &out.leaf_templates {
         if let Some(body) = &template.initial_body {

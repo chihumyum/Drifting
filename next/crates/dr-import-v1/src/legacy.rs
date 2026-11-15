@@ -682,6 +682,9 @@ pub struct BookRows {
     pub memory: Vec<MemoryRow>,
     pub writing_days: Vec<WritingDayRow>,
     pub assets: Vec<AssetRow>,
+    /// Duplicate 0.1 `project_asset` rows merged into an earlier asset with
+    /// identical `(sha256, size, kind)`: `merged_asset_id -> kept_asset_id`.
+    pub asset_aliases: HashMap<String, String>,
 }
 
 impl Legacy {
@@ -1052,7 +1055,7 @@ fn merge_same_bytes(b: &mut BookRows) {
     let mut first: HashMap<String, String> = HashMap::new();
     let mut alias: HashMap<String, String> = HashMap::new();
     b.assets.retain(|a| {
-        let key = format!("{}|{}", a.sha256, a.size);
+        let key = format!("{}|{}|{}", a.sha256, a.size, a.kind);
         match first.get(&key) {
             Some(kept) => {
                 alias.insert(a.id.clone(), kept.clone());
@@ -1077,6 +1080,7 @@ fn merge_same_bytes(b: &mut BookRows) {
             e.portrait = Some(kept.clone());
         }
     }
+    b.asset_aliases = alias;
 }
 
 fn tree_row(r: &Row<'_>) -> rusqlite::Result<TreeRow> {

@@ -174,6 +174,14 @@ pub fn build() -> Old {
         "INSERT INTO timeline_marker (id, project_id, narrative_order, label, drift_node_id, created_at, updated_at) VALUES ('pin-2', ?1, 6.25, '另一时间钉', NULL, ?2, ?2)",
         params![BOOK, T0],
     );
+    exec(
+        &c,
+        "UPDATE library_item SET provenance_json = ?1 WHERE id = ?2",
+        params![
+            r#"{"v":1,"origin":"agent-image","model":"imagen-3","prompt":"未庄的土谷祠"}"#,
+            IMAGE
+        ],
+    );
     // This retired view preference is in the real handoff capture list.
     let stamp: String = c
         .query_row(
