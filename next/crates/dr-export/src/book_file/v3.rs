@@ -3,7 +3,7 @@
 //! module and field identifiers are not global entity identities.
 
 use super::*;
-use loro::{ContainerType, ValueOrContainer};
+use loro::ValueOrContainer;
 
 mod checkpoints;
 
@@ -120,8 +120,21 @@ impl Paths {
 }
 
 fn plain_identity(path: &[String]) -> bool {
-    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "assets" | "memory" | "facts"))
-        || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
+    matches!(
+        path,
+        [root] if matches!(
+            root.as_str(),
+            "timeline_views"
+                | "patches"
+                | "relation_types"
+                | "relations"
+                | "comments"
+                | "assets"
+                | "asset_folders"
+                | "memory"
+                | "facts"
+        )
+    ) || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
         || matches!(path, [root, field] if root == "project" && field == "tabs")
 }
 
@@ -342,54 +355,99 @@ fn str_value(map: &loro::LoroMap, key: &str) -> Option<String> {
     }
 }
 
+fn map_child(map: &loro::LoroMap, key: &str) -> Option<loro::LoroMap> {
+    match map.get(key)? {
+        ValueOrContainer::Container(loro::Container::Map(sub)) => Some(sub),
+        _ => None,
+    }
+}
+
+fn classify_field_in_doc(
+    doc: &LoroDoc,
+    entry_cid: &ContainerID,
+    module: &str,
+    key: &str,
+) -> Option<bool> {
+    let entry_map = doc.try_get_map(entry_cid.clone())?;
+    let template = str_value(&entry_map, "template")?;
+    let templates = doc.get_map("templates");
+    let tpl_map = map_child(&templates, &template)?;
+    let modules = map_child(&tpl_map, "modules")?;
+    let mod_map = map_child(&modules, module)?;
+    let cfg = map_child(&mod_map, "config")?;
+    if str_value(&cfg, "portrait_field").as_deref() == Some(key) {
+        return Some(true);
+    }
+    let ValueOrContainer::Value(LoroValue::List(defs)) = cfg.get("defs")? else {
+        return None;
+    };
+    defs.iter().find_map(|def| match def {
+        LoroValue::Map(def)
+            if matches!(def.get("id"), Some(LoroValue::String(id)) if id.as_str() == key) =>
+        {
+            Some(matches!(
+                def.get("field_type"),
+                Some(LoroValue::String(kind)) if matches!(kind.as_str(), "image" | "entity_ref")
+            ))
+        }
+        _ => None,
+    })
+}
+
 impl Rewriter<'_> {
     /// Interpret a field at the operation that wrote it, not using today's
     /// template. A later template switch or field-type change must preserve
     /// historical literals while moving the original reference identities.
     fn field_reference(
         &self,
+        op_container: &ContainerID,
         path: &[String],
         key: &str,
         value: &LoroValue,
         at: loro::ID,
+        change_end: loro::ID,
     ) -> Result<bool> {
         let [root, entry, fields, module] = path else {
             return Ok(false);
         };
-        if !self.book || root != "entries" || fields != "fields" || self.refs(value) == *value {
+        if !self.book
+            || root != "entries"
+            || fields != "fields"
+            || self.field_value_refs(value) == *value
+        {
             return Ok(false);
         }
-        let Some((cid, _)) = self
-            .paths
-            .normal
-            .iter()
-            .find(|(_, p)| matches!(p.as_slice(), [r,e] if r == "entries" && e == entry))
-        else {
+        let cid = op_container
+            .parse_mergeable()
+            .and_then(|(fields_cid, _, _)| fields_cid.parse_mergeable())
+            .map(|(entry_cid, _, _)| entry_cid)
+            .or_else(|| {
+                self.paths
+                    .normal
+                    .iter()
+                    .find(|(_, p)| matches!(p.as_slice(), [r, e] if r == "entries" && e == entry))
+                    .map(|(cid, _)| cid.clone())
+            });
+        let Some(cid) = cid else {
             return Ok(false);
         };
         let then = self
             .source
             .fork_at(&loro::Frontiers::from(at))
             .map_err(damaged)?;
-        let Some(map) = then.try_get_map(cid.clone()) else {
-            return Ok(false);
-        };
-        let Some(template) = str_value(&map, "template") else {
-            return Ok(false);
-        };
-        let mut config = ContainerID::new_root("templates", ContainerType::Map);
-        for part in [template.as_str(), "modules", module.as_str(), "config"] {
-            config = ContainerID::new_mergeable(&config, part, ContainerType::Map);
+        if let Some(is_ref) = classify_field_in_doc(&then, &cid, module, key) {
+            return Ok(is_ref);
         }
-        let Some(map) = then.try_get_map(config) else {
-            return Ok(false);
-        };
-        let Some(ValueOrContainer::Value(LoroValue::List(defs))) = map.get("defs") else {
-            return Ok(false);
-        };
-        Ok(defs.iter().any(|def| matches!(def, LoroValue::Map(def)
-            if matches!(def.get("id"),Some(LoroValue::String(id)) if id.as_str() == key)
-            && matches!(def.get("field_type"),Some(LoroValue::String(kind)) if matches!(kind.as_str(),"image"|"entity_ref")))))
+        if change_end != at {
+            let end = self
+                .source
+                .fork_at(&loro::Frontiers::from(change_end))
+                .map_err(damaged)?;
+            if let Some(is_ref) = classify_field_in_doc(&end, &cid, module, key) {
+                return Ok(is_ref);
+            }
+        }
+        Ok(classify_field_in_doc(self.source, &cid, module, key).unwrap_or(false))
     }
 
     fn key(&self, path: &[String], key: &str) -> String {
@@ -485,6 +543,27 @@ impl Rewriter<'_> {
         }
     }
 
+    fn field_value_refs(&self, value: &LoroValue) -> LoroValue {
+        match value {
+            LoroValue::Map(m) if m.contains_key("v") => LoroValue::Map(
+                m.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            if k == "v" {
+                                self.field_value_refs(v)
+                            } else {
+                                v.clone()
+                            },
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+                    .into(),
+            ),
+            _ => self.refs(value),
+        }
+    }
+
     fn value(&self, path: &[String], key: &str, value: &LoroValue) -> LoroValue {
         if let LoroValue::Container(c) = value {
             return LoroValue::Container(self.container(c));
@@ -523,18 +602,85 @@ impl Rewriter<'_> {
                 key,
                 "target" | "target_block" | "projection_block" | "agent_conversation"
             ),
+            [root, _] if root == "assets" => matches!(key, "folder" | "trashed_with"),
+            [root, _] if root == "asset_folders" => matches!(key, "parent" | "trashed_with"),
             [root, _] if root == "memory" => {
                 matches!(key, "target" | "target_block" | "supersedes")
             }
             [root, _, field, _] if root == "timeline_views" && field == "pins" => key == "entry",
             [root, _, field] if root == "entries" && field == "overrides" => key == "home",
-            [root, _, media, _, _] if root == "entries" && media == "media" => key == "asset",
+            [root, _, media_mod, _] if root == "entries" && media_mod.starts_with("media:") => {
+                key == "asset"
+            }
             [root, _, field] if root == "templates" && field == "settings" => key == "home",
             [root, _] if root == "embeds" && !self.book => key == "asset",
             _ => false,
         };
         if reference {
             return self.refs(value);
+        }
+        if matches!(path, [root, _] if root == "comments")
+            && key == "part"
+            && let LoroValue::Map(m) = value
+        {
+            let kind = match m.get("kind") {
+                Some(LoroValue::String(s)) => Some(s.as_str()),
+                _ => None,
+            };
+            return LoroValue::Map(
+                m.iter()
+                    .map(|(k, v)| {
+                        let is_ref = match kind {
+                            Some("patch") => k == "patch",
+                            Some("plot_cell") => matches!(k.as_str(), "row" | "col"),
+                            Some("media") => k == "asset",
+                            _ => false,
+                        };
+                        (k.clone(), if is_ref { self.refs(v) } else { v.clone() })
+                    })
+                    .collect::<HashMap<_, _>>()
+                    .into(),
+            );
+        }
+        if matches!(
+            path,
+            [root, _, modules, _, config]
+                if root == "templates" && modules == "modules" && config == "config"
+        ) && key == "defs"
+            && let LoroValue::List(items) = value
+        {
+            return LoroValue::List(
+                items
+                    .iter()
+                    .map(|item| match item {
+                        LoroValue::Map(def)
+                            if matches!(
+                                def.get("field_type"),
+                                Some(LoroValue::String(kind))
+                                    if matches!(kind.as_str(), "image" | "entity_ref")
+                            ) =>
+                        {
+                            LoroValue::Map(
+                                def.iter()
+                                    .map(|(k, v)| {
+                                        (
+                                            k.clone(),
+                                            if k == "default_value" {
+                                                self.field_value_refs(v)
+                                            } else {
+                                                v.clone()
+                                            },
+                                        )
+                                    })
+                                    .collect::<HashMap<_, _>>()
+                                    .into(),
+                            )
+                        }
+                        _ => item.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            );
         }
         if path.last().is_some_and(|s| s == "anchor")
             && matches!(key, "start" | "end")
@@ -602,15 +748,26 @@ impl Rewriter<'_> {
 
     fn change(&self, change: &mut JsonChange) -> Result<()> {
         let original_peer = change.id.peer;
+        let last_counter = change
+            .ops
+            .last()
+            .map(|op| op.counter + op.content.op_len() as i32 - 1)
+            .unwrap_or(change.id.counter);
+        let change_end = loro::ID {
+            peer: original_peer,
+            counter: last_counter,
+        };
         self.rw.id(&mut change.id);
         change.deps.iter_mut().for_each(|d| self.rw.id(d));
         for op in &mut change.ops {
+            let old_container = op.container.clone();
             let path = self.paths.path(&op.container);
             op.container = self.container(&op.container);
             match &mut op.content {
                 JsonOpContent::Map(MapOp::Insert { key, value }) => {
                     let old_key = key.clone();
                     let field_reference = self.field_reference(
+                        &old_container,
                         &path,
                         &old_key,
                         value,
@@ -618,11 +775,12 @@ impl Rewriter<'_> {
                             peer: original_peer,
                             counter: op.counter,
                         },
+                        change_end,
                     )?;
                     *key = self.key(&path, key);
                     *value = match marker_kind(value) {
                         Some(kind) => loro_common::mergeable_marker(&op.container, key, kind),
-                        None if field_reference => self.refs(value),
+                        None if field_reference => self.field_value_refs(value),
                         None => self.value(&path, &old_key, value),
                     };
                 }

@@ -2037,11 +2037,13 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
                     .map(|f| (f.key.clone(), f.value.clone()))
                     .collect();
             efacts.sort();
+            let portrait = entry_field_str(e, &fmod, "portrait").map(|id| names.get("asset", id));
             Ok(json!({
                 "name": e.title,
                 "category": e.parent.as_ref().map(|p| names.entry(p.as_str())),
                 "summary": summary,
                 "aliases": aliases,
+                "portrait": portrait,
                 "facts": efacts,
                 "body": prose(body_doc_id(e.id.as_str(), MOD_PROSE))?,
             }))
@@ -2258,17 +2260,99 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             }))
         })
         .collect::<std::result::Result<_, String>>()?;
+    let raw_asset_folders = v.asset_folders_raw();
+    let asset_folder_by_id: BTreeMap<&AssetFolderId, &dr_model::shared::AssetFolder> =
+        raw_asset_folders.iter().map(|f| (&f.id, f)).collect();
+    let asset_folder_paths: BTreeMap<AssetFolderId, String> = raw_asset_folders
+        .iter()
+        .map(|f| {
+            let mut parts = vec![f.name.as_str()];
+            let mut cur = f.parent.as_ref();
+            let mut hops = 0usize;
+            while let Some(pid) = cur {
+                hops += 1;
+                if hops > asset_folder_by_id.len() {
+                    break;
+                }
+                let Some(parent) = asset_folder_by_id.get(pid) else {
+                    break;
+                };
+                parts.push(parent.name.as_str());
+                cur = parent.parent.as_ref();
+            }
+            parts.reverse();
+            (f.id.clone(), parts.join("/"))
+        })
+        .collect();
+    let mut sorted_asset_folders = raw_asset_folders.clone();
+    sorted_asset_folders.sort_by(|a, b| {
+        let pa = a.parent.as_ref().and_then(|p| asset_folder_paths.get(p));
+        let pb = b.parent.as_ref().and_then(|p| asset_folder_paths.get(p));
+        pa.cmp(&pb)
+            .then_with(|| {
+                dr_model::pos::cmp_pos((a.pos.as_ref(), &a.name), (b.pos.as_ref(), &b.name))
+            })
+            .then_with(|| a.is_trashed().cmp(&b.is_trashed()))
+    });
+    let asset_folders: Vec<Value> = sorted_asset_folders
+        .iter()
+        .map(|f| {
+            json!({
+                "path": asset_folder_paths.get(&f.id),
+                "name": f.name,
+                "parent": f.parent.as_ref().and_then(|p| asset_folder_paths.get(p)),
+                "trashed": f.is_trashed(),
+                "trashedWith": f.trashed_with.as_ref().and_then(|tw| asset_folder_paths.get(tw)),
+            })
+        })
+        .collect();
+
     let mut files = v.assets();
-    files.sort_by(|a, b| a.id.cmp(&b.id));
+    files.sort_by(|a, b| {
+        let fa = a.folder.as_ref().and_then(|f| asset_folder_paths.get(f));
+        let fb = b.folder.as_ref().and_then(|f| asset_folder_paths.get(f));
+        fa.cmp(&fb)
+            .then_with(|| {
+                dr_model::pos::cmp_pos((a.pos.as_ref(), &a.name), (b.pos.as_ref(), &b.name))
+            })
+            .then_with(|| a.kind.as_str().cmp(b.kind.as_str()))
+            .then_with(|| a.sha256.cmp(&b.sha256))
+    });
     for a in files {
         materials.push(json!({
             "title": a.name,
             "kind": a.kind.as_str(),
-            "folder": a.folder,
+            "folder": a.folder.as_ref().and_then(|f| asset_folder_paths.get(f)),
             "taskTodos": false,
             "body": Value::Null,
         }));
     }
+    let mut trashed_files: Vec<_> = v
+        .assets_raw()
+        .into_iter()
+        .filter(|a| a.deleted_at.is_some())
+        .collect();
+    trashed_files.sort_by(|a, b| {
+        let fa = a.folder.as_ref().and_then(|f| asset_folder_paths.get(f));
+        let fb = b.folder.as_ref().and_then(|f| asset_folder_paths.get(f));
+        fa.cmp(&fb)
+            .then_with(|| {
+                dr_model::pos::cmp_pos((a.pos.as_ref(), &a.name), (b.pos.as_ref(), &b.name))
+            })
+            .then_with(|| a.kind.as_str().cmp(b.kind.as_str()))
+            .then_with(|| a.sha256.cmp(&b.sha256))
+    });
+    let trashed_assets: Vec<Value> = trashed_files
+        .into_iter()
+        .map(|a| {
+            json!({
+                "name": a.name,
+                "kind": a.kind.as_str(),
+                "folder": a.folder.as_ref().and_then(|f| asset_folder_paths.get(f)),
+                "trashedWith": a.trashed_with.as_ref().and_then(|tw| asset_folder_paths.get(tw)),
+            })
+        })
+        .collect();
 
     let mut comments: Vec<Value> = v
         .comments()
@@ -2314,7 +2398,9 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         "ideaGroups": sorted(idea_groups.into_values().collect()),
         "ideas": ideas,
         "materialFolders": sorted(folders.into_values().collect()),
+        "assetFolders": asset_folders,
         "materials": materials,
+        "trashedAssets": trashed_assets,
         "comments": comments,
         "memory": memory,
     }))
@@ -2327,13 +2413,13 @@ struct NamesV3 {
 impl NamesV3 {
     fn of(v: &BookViewV3<'_>) -> Self {
         let mut map = BTreeMap::new();
-        for e in v.entries() {
+        for e in v.entries_raw() {
             map.insert(
                 (EntityKind::Entry.as_str().to_string(), e.id.to_string()),
                 e.title,
             );
         }
-        for a in v.assets() {
+        for a in v.assets_raw() {
             map.insert(
                 (EntityKind::Asset.as_str().to_string(), a.id.to_string()),
                 a.name,
@@ -2386,7 +2472,7 @@ fn prose_digest_v3(p: &ProseDoc, names: &NamesV3) -> Value {
         })
         .collect();
     let links: Vec<Value> = v
-        .entity_links()
+        .entity_links_v3()
         .into_iter()
         .map(|(r, l)| json!([r.start, r.end, names.get(l.kind.as_str(), &l.target)]))
         .collect();

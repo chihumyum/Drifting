@@ -113,7 +113,7 @@
   "projectPicker": {
     "bookTransfer": {
       "legacy": "Este arquivo foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",
-      "older": "Este arquivo foi exportado por uma versão de desenvolvimento anterior do Drifting, em um formato que esta versão não lê mais."
+      "older": "Este arquivo de livro está em um formato anterior que esta versão não lê mais."
     },
     "trash": {
       "bodyWithoutChapters": "Este projeto ({{words}} palavras · {{elements}} elementos) sai de Todos os projetos. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente."

@@ -223,33 +223,44 @@ fn stored_zip(name: &[u8], body: &[u8]) -> Vec<u8> {
 
 #[gpui::test]
 fn a_format_3_book_file_is_refused_without_writing_anything(cx: &mut TestAppContext) {
-    assert_eq!(dr_export::book_file::FORMAT_VERSION, 4);
+    assert_eq!(dr_export::book_file::FORMAT_VERSION, 5);
+    use dr_i18n::{I18n, Locale, Platform, keys::project_picker::book_transfer as k};
+    let zh = I18n::new(Locale::ZhCn, Platform::Mac).t(k::OLDER);
+    assert!(
+        zh.contains("这是以前格式的书文件"),
+        "unexpected zh-CN older book-file copy: {zh}"
+    );
+    assert!(
+        !zh.contains("开发版"),
+        "older book-file copy must not mention development builds: {zh}"
+    );
     let (dir, lib, _) = library();
     let docs_before = lib.library().docs(None, None).unwrap().len();
     let (view, cx) = setup(cx, lib.clone());
-    let file = dir.path().join("format3.driftingproject");
-    std::fs::write(
-        &file,
-        stored_zip(
-            b"manifest.json",
-            br#"{"format":"drifting.book","formatVersion":3}"#,
-        ),
-    )
-    .unwrap();
-    let dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
-    assert!(shown(&view, cx).is_some());
-    wait_for(cx, |cx| !dialog.read_with(cx, |d, _| d.is_working()));
-    let state = dialog.read_with(cx, |d, _| d.state.clone());
-    let State::Failed { title, reason, .. } = state else {
-        panic!("{state:?}")
-    };
-    use dr_i18n::keys::project_picker::book_transfer as k;
-    assert_eq!((title, reason), (k::IMPORT_FAILED_TITLE, k::OLDER));
-    assert_eq!(books(&lib), 1);
-    assert_eq!(lib.library().docs(None, None).unwrap().len(), docs_before);
-    cx.cx.update(|cx| dialog.update(cx, |d, cx| d.close(cx)));
-    cx.run_until_parked();
-    assert!(shown(&view, cx).is_none());
+    for version in [2, 3, 4] {
+        let file = dir.path().join(format!("format{version}.driftingproject"));
+        std::fs::write(
+            &file,
+            stored_zip(
+                b"manifest.json",
+                format!(r#"{{"format":"drifting.book","formatVersion":{version}}}"#).as_bytes(),
+            ),
+        )
+        .unwrap();
+        let dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
+        assert!(shown(&view, cx).is_some());
+        wait_for(cx, |cx| !dialog.read_with(cx, |d, _| d.is_working()));
+        let state = dialog.read_with(cx, |d, _| d.state.clone());
+        let State::Failed { title, reason, .. } = state else {
+            panic!("{state:?}")
+        };
+        assert_eq!((title, reason), (k::IMPORT_FAILED_TITLE, k::OLDER));
+        assert_eq!(books(&lib), 1);
+        assert_eq!(lib.library().docs(None, None).unwrap().len(), docs_before);
+        cx.cx.update(|cx| dialog.update(cx, |d, cx| d.close(cx)));
+        cx.run_until_parked();
+        assert!(shown(&view, cx).is_none());
+    }
 }
 
 #[gpui::test]

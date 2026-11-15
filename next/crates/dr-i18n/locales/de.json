@@ -779,7 +779,7 @@
       "importFailedTitle": "Import nicht möglich",
       "invalid": "Diese Datei ist beschädigt und kann nicht importiert werden.",
       "legacy": "Diese Datei wurde mit Drifting 0.1 exportiert. Importiere sie dort und übergib die Bibliothek dann an diese Version.",
-      "older": "Diese Datei wurde von einer früheren Entwicklungsversion von Drifting in einem Format exportiert, das diese Version nicht mehr liest."
+      "older": "Diese Buchdatei hat ein früheres Format, das diese Version nicht mehr liest."
     },
     "delete": {
       "deleting": "Wird gelöscht…"
