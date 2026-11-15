@@ -1045,8 +1045,11 @@ fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
                 return Value::Null;
             };
             let (h, e) = (head.read(cx), end.read(cx));
-            let (title, synopsis) = (h.title().read(cx), h.synopsis().read(cx));
-            let focus = if focused(h.title().focus_handle(cx)) {
+            let Some(title) = title_field(target, doc, cx) else {
+                return Value::Null;
+            };
+            let (title, synopsis) = (title.read(cx), h.synopsis().read(cx));
+            let focus = if focused(title.focus_handle(cx)) {
                 json!("title")
             } else if focused(h.synopsis().focus_handle(cx)) {
                 json!("synopsis")
@@ -1062,6 +1065,15 @@ fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
         }
         _ => Value::Null,
     }
+}
+
+/// A page's title field (`dr_view_page::title_field`).
+fn title_field(target: &Target, doc: &str, cx: &App) -> Option<Entity<dr_view_page::TitleField>> {
+    let entry = match target {
+        Target::Entry { id, .. } => Some(id.as_str()),
+        _ => None,
+    };
+    dr_view_page::title_field(doc, entry, cx)
 }
 
 /// A covered or minimized window draws no frames, and the shell starts
@@ -1599,11 +1611,12 @@ fn focus_field(p: &Value, cx: &mut App) -> Out {
                         "{doc}: no page head drawn (a chapter page has one)"
                     ))
                 })?;
-                let head = head.read(cx);
                 if field == "page.title" {
-                    head.title().focus_handle(cx)
+                    title_field(&target, &doc, cx)
+                        .ok_or_else(|| not_found(format!("{doc}: no title drawn")))?
+                        .focus_handle(cx)
                 } else {
-                    head.synopsis().focus_handle(cx)
+                    head.read(cx).synopsis().focus_handle(cx)
                 }
             }
             other => return Err(bad(format!("no field {other}"))),
@@ -1621,12 +1634,13 @@ fn focus_field(p: &Value, cx: &mut App) -> Out {
 fn select_all_in(field: &str, target: &Target, _row: Option<usize>, _: &mut Window, cx: &mut App) {
     match field {
         "page.title" | "page.synopsis" => {
-            if let Some((head, _)) = dr_view_page::page_views(&doc_key(target), cx) {
-                let area = if field == "page.title" {
-                    head.read(cx).title().clone()
-                } else {
-                    head.read(cx).synopsis().clone()
-                };
+            let doc = doc_key(target);
+            let area = if field == "page.title" {
+                title_field(target, &doc, cx)
+            } else {
+                dr_view_page::page_views(&doc, cx).map(|(head, _)| head.read(cx).synopsis().clone())
+            };
+            if let Some(area) = area {
                 area.update(cx, |a, cx| a.select_all_text(cx));
             }
         }
