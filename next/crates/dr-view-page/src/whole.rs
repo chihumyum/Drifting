@@ -20,9 +20,7 @@ pub struct WholeBook {
 
 pub fn register(cx: &mut App) {
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
-        let Some(root) = target.book_root() else {
-            return None;
-        };
+        let root = target.book_root()?;
         if host.book.v3().is_none() || !host.book.exists(target) {
             return None;
         }
