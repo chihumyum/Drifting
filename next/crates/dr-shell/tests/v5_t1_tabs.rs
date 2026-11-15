@@ -15,10 +15,7 @@ use dr_shell::{
     v3::{self, Rendered, sidebar::Sidebar, tabs},
 };
 use dr_ui::sand;
-use dr_workspace::{
-    Actor, Workspace,
-    commands::v3::types::{BookRoot, TabMount},
-};
+use dr_workspace::{Actor, Workspace, commands::v3::types::TabMount};
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, TestAppContext, VisualTestContext,
     Window, div,
@@ -654,7 +651,7 @@ fn marks_are_sand_names_or_one_character() {
 }
 
 #[gpui::test]
-fn dragging_in_a_view_tab_moves_on_the_scale_and_in_the_book_tab_at_its_start(
+fn dragging_in_a_view_tab_moves_on_the_scale_and_in_the_book_tab_in_the_dropped_layer(
     cx: &mut TestAppContext,
 ) {
     let (_dir, lib, id) = seed();
@@ -680,13 +677,12 @@ fn dragging_in_a_view_tab_moves_on_the_scale_and_in_the_book_tab_at_its_start(
         now.iter().position(|x| *x == b) < now.iter().position(|x| *x == a)
     });
 
-    // The book starts at the manuscript: dragging changes its manual order.
+    // The book reads from the root (DW): dragging in the Tab mounted on it
+    // changes the order of the layer it is dropped in, here 书稿's manual
+    // order.
     let (first, second, parent) = view.read_with(cx, |ws, _| {
         let v = ws.book.v3().unwrap();
-        assert!(matches!(
-            v.project.book.as_ref().unwrap().root,
-            BookRoot::Entry { .. }
-        ));
+        assert!(v.project.book.is_some());
         let seq = v.book_entries();
         let parent = v.entry(&seq[0]).unwrap().parent.clone();
         let second = seq

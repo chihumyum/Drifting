@@ -240,10 +240,9 @@ fn scenarios(ws: &Workspace, book: &str, capture: Option<&Path>, since: Instant)
     let load_start = evidence::load_average();
     let memory_start = phys_footprint_mb();
     let manuscript_root = dr_editor::v3::read(ws, book, |v| {
-        dr_editor::v3::manuscript_roots(&v)
-            .into_iter()
-            .next()
+        v.root_entry_by_template(&dr_doc::v3::novel::TPL_MANUSCRIPT.parse().unwrap())
             .expect("manuscript root")
+            .id
             .to_string()
     })
     .expect("read manuscript root");

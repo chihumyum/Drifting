@@ -42,7 +42,9 @@ pub use novel::{
 pub use raw::raw_document_state;
 pub use read::{BookGraphV3, BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 pub use record::{RecordKeyV3, RecordReaderV3, RecordStateV3};
-pub use structure::{BookStructureV3, FlatEntry, FlatProse, Flatten, InvalidBookRoot, NotALevel};
+pub use structure::{
+    BookStructureV3, FlatEntry, FlatProse, Flatten, InvalidFlattenFrom, NotALevel,
+};
 pub use write::BookTxnV3;
 
 /// Whether `doc` is a book document of the current format

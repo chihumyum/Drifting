@@ -187,8 +187,6 @@ fn same_folder_reorder_persists_across_reopen_and_single_step_undo_restores_manu
     assert_eq!(mv.levels[&manuscript].children[0], folder_a);
     let mv_entries = manuscript_entries(mv);
     assert_eq!(&mv_entries[..2], &[sub_2.clone(), sub_1.clone()]);
-    assert_eq!(mv.manuscript_number(&sub_2), Some(1));
-    assert_eq!(mv.manuscript_number(&sub_1), Some(2));
     assert_eq!(mv_entries.last(), Some(&leaf_tail));
 
     // Reorder a leaf chapter After folder_a in the manuscript root.
@@ -213,7 +211,6 @@ fn same_folder_reorder_persists_across_reopen_and_single_step_undo_restores_manu
         &fv_entries[..3],
         &[sub_2.clone(), sub_1.clone(), leaf_tail.clone()]
     );
-    assert_eq!(fv.manuscript_number(&leaf_tail), Some(3));
     let expected_root_children = fv.levels[&manuscript].children.clone();
     let expected_sub_children = fv.levels[&folder_a].children.clone();
     let expected_manuscript = fv_entries;

@@ -359,7 +359,6 @@
     "ruler": "Régua de escala",
     "selectLane": "Selecionar faixa",
     "setActTrack": "Usar como faixa de atos · {{name}}",
-    "setBookRoot": "Definir como início do livro",
     "unsetActTrack": "Voltar para faixa normal · {{name}}",
     "views": "Visualizações"
   },

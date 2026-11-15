@@ -1,5 +1,5 @@
 //! A chapter page around its text (M03): the facts its head and end show
-//! (the folio line 「第 N 章 · 故事线 · 字数」, the title, the synopsis, the
+//! (the folio line 「模板名 · 故事线 · 字数」, the title, the synopsis, the
 //! end ornament ⁂, the empty-chapter hint), the places to draw them (gpui-
 //! prose's chapter slots, which scroll with the text), and the author's
 //! actions on them.
@@ -13,9 +13,9 @@
 //! The rules are the 0.1 client's (`NodeEditorView.tsx`, `ChapterEditor.tsx`,
 //! `ChapterEndOrnament.tsx`, `ChapterEmptyHints.tsx`):
 //!
-//! - N is the chapter's place in reading order among live chapters (F3's
-//!   `number`), acts do not restart it; the storyline is the primary one,
-//!   else the first; words are counted with `prose-metrics` (the body only).
+//! - The App numbers no chapter (author, 2026-11-15 night: 「所有正文APP都
+//!   不编号」); the storyline is the primary one, else the first; words are
+//!   counted with `prose-metrics` (the body only).
 //! - A title is trimmed; an empty one is not stored (the field shows the
 //!   stored title again); an unchanged one writes nothing; a taken one gets
 //!   a ` 2` suffix (F3). Enter or ↓ at its end hands over to the text
@@ -40,7 +40,7 @@ use serde_json::{Value, json};
 /// What kind of page a prose document is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PageKind {
-    /// An entry in the manuscript sequence (numbered as 「第 N 章」).
+    /// The page of an entry in the book (its book prose; nothing is numbered).
     Chapter,
     /// Any other prose page (shows its template name).
     Other,
@@ -63,8 +63,6 @@ pub struct PageInfo {
     pub kind: PageKind,
     /// Whether the host's page head and end chrome belong on this document.
     pub chrome: bool,
-    /// 「第 N 章」: the entry's place in the manuscript sequence.
-    pub number: Option<u32>,
     /// The entry's effective template name (empty when untemplated).
     pub template_name: String,
     /// The entry's resolved colour (`#rrggbb`), own colour field first, then
@@ -92,7 +90,6 @@ impl PageInfo {
             doc: doc.to_owned(),
             kind: PageKind::Other,
             chrome: false,
-            number: None,
             template_name: String::new(),
             color: None,
             title: String::new(),

@@ -177,160 +177,175 @@ fn open_and_write_prose(
     res
 }
 
+/// Write a new project from a template, the one way projects are made
+/// (`project-templates.md` §8): `project.create`, and the working copy a
+/// template is edited in (`project_template.edit`), which passes `local` so
+/// the store keeps the book on this device before its first document is
+/// written (`WORKING-COPY-LOCAL`; `local` is the store's note for it).
+pub(super) fn create_book(
+    cx: &Cx<'_>,
+    trimmed_name: &str,
+    summary: String,
+    template: Option<ProjectCreateTemplate>,
+    local: Option<&str>,
+) -> Result<BookId> {
+    let trimmed_name = trimmed_name.to_owned();
+    // 1. Resolve and validate template + provenance, then materialize all fresh IDs
+    //    before touching storage (`project-templates.md` §8 & §14).
+    let (val, source) = resolve_template_and_source(cx, &trimmed_name, template)?;
+    let mat = Arc::new(
+        materialize_project_template(&val, source).map_err(|e| WsError::invalid(e.to_string()))?,
+    );
+
+    let id = BookId::new_v7();
+    let lib = cx.workspace().library();
+    if let Some(note) = local {
+        lib.keep_local(id.as_str(), note)?;
+    }
+    let mut written = Written::new(lib);
+
+    let prose_origin = match cx.actor() {
+        Actor::User => dr_store::Origin::Command,
+        other => other.store_origin(),
+    };
+    let agent_meta = cx
+        .actor()
+        .agent_write(&format!("project.create: {trimmed_name}"));
+
+    // 2. Write prose documents FIRST (`template:<book>/<tpl>/<mod>`, then `body:<entry>/<mod>`).
+    for ((tpl_id, mod_id), paras) in &mat.template_prose {
+        if has_authored_paragraphs(paras) {
+            let tdoc = template_doc(&id, tpl_id, mod_id)?;
+            open_and_write_prose(
+                &mut written,
+                &id,
+                &tdoc,
+                prose_origin.clone(),
+                agent_meta.clone(),
+                Some(paras),
+                &mat.entry_map,
+            )?;
+        }
+    }
+
+    let templates_map: BTreeMap<EntryTemplateId, &m::EntryTemplate> =
+        mat.templates.iter().map(|t| (t.id.clone(), t)).collect();
+    for entry in &mat.entries {
+        if let Some(tpl_id) = &entry.template
+            && let Some(tpl) = templates_map.get(tpl_id)
+        {
+            for module in tpl.prose_modules() {
+                let bdoc = body_id(&entry.id, &module.id);
+                open_and_write_prose(
+                    &mut written,
+                    &id,
+                    &bdoc,
+                    prose_origin.clone(),
+                    agent_meta.clone(),
+                    entry.prose.get(&module.id).map(Vec::as_slice),
+                    &mat.entry_map,
+                )?;
+            }
+        }
+    }
+
+    cx.faults().check("after_prose")?;
+
+    // 3. Write side documents (`stats:<book>`, `checkpoints:<book>`, `layout:<book>`).
+    for side in [
+        DocId::Stats(id.clone()),
+        DocId::Checkpoints(id.clone()),
+        DocId::Layout(id.clone()),
+    ] {
+        let side_str = side.to_string();
+        let g = dr_doc::side::genesis(&side).expect("side genesis");
+        let genesis = move |d: &loro::LoroDoc| {
+            if let Err(e) = d.import(&g) {
+                log::error!("side genesis: {e}");
+            }
+        };
+        let handle = lib.open_doc(
+            &side_str,
+            OpenDoc::CreateIfMissing {
+                kind: side.kind().prefix(),
+                book_id: Some(id.as_str()),
+                genesis: &genesis,
+            },
+        )?;
+        written.record(side_str);
+        handle.close();
+    }
+
+    cx.faults().check("after_side")?;
+
+    // 4. Write `book:<id>` LAST (`project-templates.md` §8).
+    let book_doc_str = DocId::Book(id.clone()).to_string();
+    let g = dr_doc::v3::book_genesis(&id);
+    let genesis = move |d: &loro::LoroDoc| {
+        if let Err(e) = d.import(&g) {
+            log::error!("book genesis: {e}");
+        }
+    };
+    let handle = lib.open_doc(
+        &book_doc_str,
+        OpenDoc::CreateIfMissing {
+            kind: "book",
+            book_id: Some(id.as_str()),
+            genesis: &genesis,
+        },
+    )?;
+    written.record(book_doc_str);
+
+    let write_book_res = cx.faults().check("in_book").and_then(|()| {
+        let book_for_txn = id.clone();
+        let name_for_txn = trimmed_name.clone();
+        let summary_for_txn = summary;
+        let mat_for_txn = Arc::clone(&mat);
+        let created = now();
+        crate::holder::write(
+            &handle,
+            cx.actor().store_origin(),
+            agent_meta,
+            move |raw_doc| {
+                let b = BorrowedBookV3::new(raw_doc, &book_for_txn)?;
+                let mut txn = b.txn();
+                txn.meta()
+                    .name(&name_for_txn)?
+                    .summary(&summary_for_txn)?
+                    .created_at(Some(created))?;
+                apply_materialized_project_template(&mut txn, &mat_for_txn, created)?;
+                Ok(())
+            },
+        )
+    });
+    handle.close();
+    write_book_res?;
+
+    // Warm the book slot and its three side slots in `Workspace`, then commit `Written`.
+    let _ = cx.workspace().book_slot(&id).map_err(|e| match e {
+        WsError::Store(StoreError::NotFound(_)) => {
+            WsError::Internal("newly created book missing".into())
+        }
+        other => other,
+    })?;
+    for side in [
+        DocId::Stats(id.clone()),
+        DocId::Checkpoints(id.clone()),
+        DocId::Layout(id.clone()),
+    ] {
+        cx.workspace().side_slot(&side, &id, false)?;
+    }
+    written.commit();
+
+    Ok(id)
+}
+
 op! {
     ProjectCreate = "project.create", Write, Library, "Create a project from a project template (defaults to the built-in writing template).",
     fn(cx, input: super::super::book::BookCreateIn) -> Named {
         name_ok(&input.name)?;
         let trimmed_name = input.name.trim().to_string();
-
-        // 1. Resolve and validate template + provenance, then materialize all fresh IDs
-        //    before touching storage (`project-templates.md` §8 & §14).
-        let (val, source) = resolve_template_and_source(cx, &trimmed_name, input.template)?;
-        let mat = Arc::new(
-            materialize_project_template(&val, source)
-                .map_err(|e| WsError::invalid(e.to_string()))?,
-        );
-
-        let id = BookId::new_v7();
-        let lib = cx.workspace().library();
-        let mut written = Written::new(lib);
-
-        let prose_origin = match cx.actor() {
-            Actor::User => dr_store::Origin::Command,
-            other => other.store_origin(),
-        };
-        let agent_meta = cx
-            .actor()
-            .agent_write(&format!("project.create: {trimmed_name}"));
-
-        // 2. Write prose documents FIRST (`template:<book>/<tpl>/<mod>`, then `body:<entry>/<mod>`).
-        for ((tpl_id, mod_id), paras) in &mat.template_prose {
-            if has_authored_paragraphs(paras) {
-                let tdoc = template_doc(&id, tpl_id, mod_id)?;
-                open_and_write_prose(
-                    &mut written,
-                    &id,
-                    &tdoc,
-                    prose_origin.clone(),
-                    agent_meta.clone(),
-                    Some(paras),
-                    &mat.entry_map,
-                )?;
-            }
-        }
-
-        let templates_map: BTreeMap<EntryTemplateId, &m::EntryTemplate> =
-            mat.templates.iter().map(|t| (t.id.clone(), t)).collect();
-        for entry in &mat.entries {
-            if let Some(tpl_id) = &entry.template
-                && let Some(tpl) = templates_map.get(tpl_id)
-            {
-                for module in tpl.prose_modules() {
-                    let bdoc = body_id(&entry.id, &module.id);
-                    open_and_write_prose(
-                        &mut written,
-                        &id,
-                        &bdoc,
-                        prose_origin.clone(),
-                        agent_meta.clone(),
-                        entry.prose.get(&module.id).map(Vec::as_slice),
-                        &mat.entry_map,
-                    )?;
-                }
-            }
-        }
-
-        cx.faults().check("after_prose")?;
-
-        // 3. Write side documents (`stats:<book>`, `checkpoints:<book>`, `layout:<book>`).
-        for side in [
-            DocId::Stats(id.clone()),
-            DocId::Checkpoints(id.clone()),
-            DocId::Layout(id.clone()),
-        ] {
-            let side_str = side.to_string();
-            let g = dr_doc::side::genesis(&side).expect("side genesis");
-            let genesis = move |d: &loro::LoroDoc| {
-                if let Err(e) = d.import(&g) {
-                    log::error!("side genesis: {e}");
-                }
-            };
-            let handle = lib.open_doc(
-                &side_str,
-                OpenDoc::CreateIfMissing {
-                    kind: side.kind().prefix(),
-                    book_id: Some(id.as_str()),
-                    genesis: &genesis,
-                },
-            )?;
-            written.record(side_str);
-            handle.close();
-        }
-
-        cx.faults().check("after_side")?;
-
-        // 4. Write `book:<id>` LAST (`project-templates.md` §8).
-        let book_doc_str = DocId::Book(id.clone()).to_string();
-        let g = dr_doc::v3::book_genesis(&id);
-        let genesis = move |d: &loro::LoroDoc| {
-            if let Err(e) = d.import(&g) {
-                log::error!("book genesis: {e}");
-            }
-        };
-        let handle = lib.open_doc(
-            &book_doc_str,
-            OpenDoc::CreateIfMissing {
-                kind: "book",
-                book_id: Some(id.as_str()),
-                genesis: &genesis,
-            },
-        )?;
-        written.record(book_doc_str);
-
-        let write_book_res = cx.faults().check("in_book").and_then(|()| {
-            let book_for_txn = id.clone();
-            let name_for_txn = trimmed_name.clone();
-            let summary_for_txn = input.summary;
-            let mat_for_txn = Arc::clone(&mat);
-            let created = now();
-            crate::holder::write(
-                &handle,
-                cx.actor().store_origin(),
-                agent_meta,
-                move |raw_doc| {
-                    let b = BorrowedBookV3::new(raw_doc, &book_for_txn)?;
-                    let mut txn = b.txn();
-                    txn.meta()
-                        .name(&name_for_txn)?
-                        .summary(&summary_for_txn)?
-                        .created_at(Some(created))?;
-                    apply_materialized_project_template(&mut txn, &mat_for_txn, created)?;
-                    Ok(())
-                },
-            )
-        });
-        handle.close();
-        write_book_res?;
-
-        // Warm the book slot and its three side slots in `Workspace`, then commit `Written`.
-        let _ = cx
-            .workspace()
-            .book_slot(&id)
-            .map_err(|e| match e {
-                WsError::Store(StoreError::NotFound(_)) => {
-                    WsError::Internal("newly created book missing".into())
-                }
-                other => other,
-            })?;
-        for side in [
-            DocId::Stats(id.clone()),
-            DocId::Checkpoints(id.clone()),
-            DocId::Layout(id.clone()),
-        ] {
-            cx.workspace().side_slot(&side, &id, false)?;
-        }
-        written.commit();
-
+        let id = create_book(cx, &trimmed_name, input.summary, input.template, None)?;
         cx.effect(EffectAction::Created, "book", id.as_str(), Some(&trimmed_name));
         cx.undo_with(Invocation::new(
             "book.trash",

@@ -814,9 +814,6 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
             .summary(plan::BOOK_SUMMARY)?
             .created_at(Some(Timestamp(T0)))?;
         t.project().book(Some(&ProjectBook {
-            root: BookRoot::Entry {
-                entry: roots.manuscript.clone(),
-            },
             word_target_set: Some(p.word_target),
             daily_word_target_set: Some(p.daily_word_target),
         }))?;
@@ -1243,9 +1240,6 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             .summary(&meta.summary)?
             .created_at(meta.created_at)?;
         t.project().book(Some(&ProjectBook {
-            root: BookRoot::Entry {
-                entry: roots.manuscript.clone(),
-            },
             word_target_set: meta.word_target_set,
             daily_word_target_set: meta.daily_word_target_set,
         }))?;

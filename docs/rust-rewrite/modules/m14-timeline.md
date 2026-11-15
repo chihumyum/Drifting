@@ -1,5 +1,7 @@
 # M14 底部时间线（第三轮）
 
+> 2026-11-15 夜里（内核 v5 DW）：视图菜单和泳道菜单里的「设为成书起点」两项去掉了（成书没有起点，文案键 `setBookRoot` 九种语言一起删），「整书视图」照旧；文件夹在几个视图里时用它所在的第一个视图的刻度。下面第三轮那一节说的「设为成书起点」只是当时的记录。
+
 2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（第一个里程碑在 main `77a957d3` 之后；第二个在 `2eb865fa` 之后；第三轮在 `0f9b86b0` 之后）。计划见 [modules.md 的 M14](../modules.md)。代码在新 crate `next/crates/dr-view-timeline/`。旧版是 `shells/desktop/views/DesktopBottomTimeline.tsx`、`components/BottomTimeline/*`、`features/graph/chapter-lane-drag.ts`、`usecase/chapter-timeline-move.ts`，样式在 `bottom-timeline.css`、`act-rail.css`。
 
 第一个里程碑做了看得见的泳道和拖动；第二个加了拖动的分量（弹簧吸附）、幕轨编辑、时间钉和悬停卡。外壳第八轮（F6）给了稿纸下面的「底部面板」：`dr_view_timeline::init` 把时间线登记进去，⌘J 和稿纸角上的竹子开关它，看法、缩放、滚动按书记住（`kept.rs`）。这两处是 F6 写的；第十六批整合时和这一轮合在一起（换书时先套用这本书记住的，再读书目和时间钉，两边的字段都在）。第三轮换上 F3 一次写完的命令（放一章、打散都是一步撤销）和外壳的页面悬停卡，加了拖到边上自动横滚和键盘挪幕边界。

@@ -1059,7 +1059,7 @@ fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
             json!({
                 "title": title.text(), "synopsis": synopsis.text(),
                 "status": e.page().status, "finished": e.page().finished(),
-                "number": e.page().number, "endOpen": e.is_open(),
+                "endOpen": e.is_open(),
                 "focus": focus,
             })
         }

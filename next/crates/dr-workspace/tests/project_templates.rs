@@ -185,7 +185,9 @@ fn builtin_novel_project_round_trips_through_saved_template() {
         proj_b["book"]["daily_word_target"],
         proj_a["book"]["daily_word_target"]
     );
-    assert_eq!(proj_b["book_root_valid"], true);
+    // DW: the book has no start, and `project.get` says nothing about one.
+    assert!(proj_b["book"].get("root").is_none(), "{proj_b}");
+    assert!(proj_b.get("book_root_valid").is_none(), "{proj_b}");
 
     let entries_b = e
         .out("entry.list", json!({"book": b, "all": true}))
@@ -282,7 +284,8 @@ fn builtin_novel_project_round_trips_through_saved_template() {
     assert_eq!(views_b[0]["name"], views_a[0]["name"]);
     assert_eq!(views_b[0]["lanes"], views_a[0]["lanes"]);
 
-    // Functional parity: adding a chapter under "书稿" in both books yields ordinal 1 in `book.sequence`.
+    // Functional parity: adding a chapter under "书稿" in both books puts it
+    // first in the book (`book.sequence`; nothing is numbered).
     let ms_a = find_entry_by_title(&entries_a, "书稿")["id"]
         .as_str()
         .unwrap()
@@ -302,9 +305,10 @@ fn builtin_novel_project_round_trips_through_saved_template() {
         let seq_entries = seq["entries"].as_array().unwrap();
         let ch_item = seq_entries
             .iter()
-            .find(|x| x["entry"]["title"] == "第一章")
+            .find(|x| !x["prose"].as_array().unwrap().is_empty())
             .expect("chapter in book.sequence");
-        assert_eq!(ch_item["ordinal"], 1);
+        assert_eq!(ch_item["entry"]["title"], "第一章");
+        assert!(ch_item.get("ordinal").is_none());
     }
 }
 
@@ -523,7 +527,8 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
         json!({"book": a, "view": view_a, "lane": main_line_a}),
     );
 
-    // Update project definition: custom agent, targets, lane book root, and 4 tab mount kinds.
+    // Update project definition: custom agent, targets, and 4 tab mount kinds
+    // (an old caller's book start is ignored: DW).
     e.call(
         "project.update",
         json!({
@@ -968,8 +973,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
             "name": "法庭推理模板",
             "description": "含卷宗示例",
             "credit": {
-                "author": "林检",
-                "homepage": "https://example.com/templates"
+                "author": "林检"
             },
             "sample_entries": [sample1, sample2],
             "view_pins": [view_a]
@@ -1004,8 +1008,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
     assert_eq!(proj_b["agent"]["name"], "推理助手");
     assert_eq!(proj_b["book"]["word_target"], 80000);
     assert_eq!(proj_b["book"]["daily_word_target"], 2000);
-    assert_eq!(proj_b["book"]["root"]["kind"], "lane");
-    assert_eq!(proj_b["book_root_valid"], true);
+    assert!(proj_b["book"].get("root").is_none(), "{proj_b}");
 
     let entries_b = e
         .out("entry.list", json!({"book": b, "all": true}))
@@ -1165,7 +1168,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
 }
 
 #[test]
-fn forced_skeleton_targets_cannot_be_excluded_and_missing_targets_save_as_unset() {
+fn forced_skeleton_targets_cannot_be_excluded_and_missing_targets_are_left_out() {
     let e = env();
     let a = e.book();
     let entries_a = e
@@ -1182,7 +1185,7 @@ fn forced_skeleton_targets_cannot_be_excluded_and_missing_targets_save_as_unset(
         .unwrap()
         .to_owned();
 
-    // `书稿` is referenced by `project.book.root`, a tab, and `tpl-storyline.settings.home`: cannot exclude!
+    // `书稿` is referenced by a tab and `tpl-storyline.settings.home`: cannot exclude!
     assert!(
         e.try_call(
             "project_template.save",
@@ -1228,31 +1231,27 @@ fn forced_skeleton_targets_cannot_be_excluded_and_missing_targets_save_as_unset(
             .all(|ent| ent["title"] != "附录架")
     );
 
-    // Now trash `构想` (mounted by a tab) and set `book.root` to `附录架` then trash `附录架`,
-    // so both `book.root` and `构想`'s tab mount point to trashed entries (`project-templates.md` §3 row 1;
-    // the tab is left out since 2026-11-15).
-    e.call(
-        "project.update",
-        json!({"book": a, "root": {"kind": "entry", "entry": extra_folder}}),
-    );
+    // Now trash `构想` (mounted by a tab), so the tab's mount points to a
+    // trashed entry (`project-templates.md` §3 row 1; the tab is left out
+    // since 2026-11-15). The book has no start to break (DW).
     e.call("entry.trash", json!({"book": a, "id": extra_folder}));
     e.call("entry.trash", json!({"book": a, "id": ideas_a}));
 
     let saved_broken = e.out(
         "project_template.save",
-        json!({"book": a, "name": "起点已删模板"}),
+        json!({"book": a, "name": "构想已删模板"}),
     );
     let b = e.out(
         "project.create",
-        json!({"name": "待重选起点的新书", "template_id": saved_broken["id"]}),
+        json!({"name": "缺了构想的新书", "template_id": saved_broken["id"]}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
 
     let proj_b = e.out("project.get", json!({"book": b}));
-    assert_eq!(proj_b["book"]["root"], json!({"kind": "unset"}));
-    assert_eq!(proj_b["book_root_valid"], false);
+    assert!(proj_b["book"].is_object(), "{proj_b}");
+    assert!(proj_b["book"].get("root").is_none(), "{proj_b}");
     // The tab on the trashed 构想 is left out of the template: a tab is
     // called by what it shows and is never remounted (`kernel-v5.md` §5,
     // 2026-11-15), so the new book has one tab fewer and every tab shows
@@ -1267,7 +1266,7 @@ fn forced_skeleton_targets_cannot_be_excluded_and_missing_targets_save_as_unset(
 }
 
 #[test]
-fn deleted_prose_history_never_leaks_source_is_untouched_and_derived_from_populates() {
+fn deleted_prose_history_never_leaks_source_is_untouched_and_nothing_is_derived() {
     // 1. Create a project from an external community template value with author attribution.
     let e = env();
     let base_val = dr_doc::v3::novel_project_template_value();
@@ -1275,8 +1274,6 @@ fn deleted_prose_history_never_leaks_source_is_untouched_and_derived_from_popula
     community_val.name = "古典悬疑".into();
     community_val.credit = Some(dr_model::project_template::ProjectTemplateCredit {
         author: "苏木".into(),
-        homepage: "https://example.com/sumu".into(),
-        derived_from: None,
     });
 
     let a = e.out(
@@ -1290,8 +1287,7 @@ fn deleted_prose_history_never_leaks_source_is_untouched_and_derived_from_popula
                 "origin": "community",
                 "name": "古典悬疑",
                 "credit": {
-                    "author": "苏木",
-                    "homepage": "https://example.com/sumu"
+                    "author": "苏木"
                 }
             }
         }),
@@ -1388,11 +1384,9 @@ fn deleted_prose_history_never_leaks_source_is_untouched_and_derived_from_popula
     assert!(!got_str.contains(secret));
     assert!(got_str.contains("留下的公开示例文字。"));
 
-    // `derivedFrom` was automatically populated from `project.source` (`project-templates.md` §11).
-    assert_eq!(
-        got["value"]["credit"]["derivedFrom"],
-        json!({"name": "古典悬疑", "author": "苏木"})
-    );
+    // Nothing is filled in from `project.source` (no 「改自」 since
+    // 2026-11-15 night): the template saved here carries no credit.
+    assert!(got["value"].get("credit").is_none(), "{}", got["value"]);
 }
 
 #[test]
