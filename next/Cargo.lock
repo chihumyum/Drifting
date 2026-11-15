@@ -2290,6 +2290,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "color_quant",
+ "dr-agent-tools",
  "dr-doc",
  "dr-i18n",
  "dr-model",
