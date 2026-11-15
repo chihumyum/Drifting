@@ -36,8 +36,8 @@ pub mod projects;
 mod view;
 
 pub use view::{
-    ExportBook, ImportBook, ImportLegacyLibrary, PURGE_EXPIRED_AFTER, Shelf, ShelfDialog,
-    SubmitDialog,
+    ExportBook, ExportTemplate, ImportBook, ImportLegacyLibrary, ImportTemplate,
+    PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, SubmitDialog,
 };
 
 use gpui::{App, AppContext as _, KeyBinding};

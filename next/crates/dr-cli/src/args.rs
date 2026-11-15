@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use crate::app::AppCall;
 
 pub const USAGE: &str = "usage: cargo drifting workspace <subcommand>
+       cargo drifting template check <file.driftingtemplate>... [--json]
        cargo drifting app <verb> (a running development build, through its debug bridge)
 
   describe [--json]                         the command registry (--json: with schemas)
@@ -52,6 +53,10 @@ pub enum Command {
         keep: bool,
     },
     App(AppCall),
+    TemplateCheck {
+        files: Vec<PathBuf>,
+        json: bool,
+    },
     Help,
 }
 
@@ -128,6 +133,22 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
                 text: f.text,
                 timeout_ms: f.timeout_ms,
             }));
+        }
+        Some("template") => {
+            return match args.get(1).map(String::as_str) {
+                Some("check" | "validate") => {
+                    let f = flags(args.get(2..).unwrap_or_default())?;
+                    if f.positional.is_empty() {
+                        return Err("a .driftingtemplate file path is required".to_string());
+                    }
+                    Ok(Command::TemplateCheck {
+                        files: f.positional.into_iter().map(PathBuf::from).collect(),
+                        json: f.json,
+                    })
+                }
+                None | Some("help" | "--help") => Ok(Command::Help),
+                Some(other) => Err(format!("unknown subcommand template {other}")),
+            };
         }
         Some(other) => return Err(format!("unknown command {other}")),
     }

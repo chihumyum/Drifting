@@ -151,6 +151,16 @@ mod tests {
             state.user.as_ref().map(|u| u.email.as_str()),
             Some("otp-user@example.test")
         );
+        assert_eq!(
+            state.user.as_ref().and_then(|u| u.profile_name()),
+            None,
+            "passwordless OTP sign-in leaves profile_name unset until the user saves a name"
+        );
+        assert_eq!(
+            state.user.as_ref().map(|u| u.display_name()),
+            Some("otp-user"),
+            "Account Menu display_name still falls back to the email @ prefix"
+        );
 
         // Sign out, then reset password via OTP and sign in with the new password.
         svc.sign_out().expect("sign out");

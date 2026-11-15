@@ -1641,9 +1641,15 @@ impl Workspace {
         if self.modal() {
             return el;
         }
-        el.on_action(
-            cx.listener(|ws, _: &ToggleLeftSidebar, window, cx| ws.toggle_left(window, cx)),
-        )
+        el.can_drop(|value, _, cx| {
+            value
+                .downcast_ref::<gpui::ExternalPaths>()
+                .is_some_and(|paths| crate::pages::can_drop_external_files(paths.paths(), cx))
+        })
+        .on_drop(cx.listener(|_, paths: &gpui::ExternalPaths, window, cx| {
+            crate::pages::drop_external_files(paths.paths(), window, cx);
+        }))
+        .on_action(cx.listener(|ws, _: &ToggleLeftSidebar, window, cx| ws.toggle_left(window, cx)))
         .on_action(
             cx.listener(|ws, _: &ToggleRightSidebar, window, cx| ws.toggle_right(window, cx)),
         )

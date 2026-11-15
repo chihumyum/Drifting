@@ -88,12 +88,20 @@ pub struct HostedUser {
 }
 
 impl HostedUser {
+    /// Returns the explicit profile name set on the account (`None` when
+    /// unset or blank, before [`Self::display_name`] falls back to the email
+    /// `@` prefix).
+    #[must_use]
+    pub fn profile_name(&self) -> Option<&str> {
+        let trimmed = self.name.trim();
+        (!trimmed.is_empty()).then_some(trimmed)
+    }
+
     /// Returns the display name (trimmed `name`, or the part of `email` before `@`).
     #[must_use]
     pub fn display_name(&self) -> &str {
-        let trimmed = self.name.trim();
-        if !trimmed.is_empty() {
-            return trimmed;
+        if let Some(name) = self.profile_name() {
+            return name;
         }
         self.email
             .split('@')
@@ -103,6 +111,9 @@ impl HostedUser {
     }
 
     /// Sanitizes `name` and `image` according to the client contract.
+    /// Leaves `name` empty when unset or out of bounds so [`Self::profile_name`]
+    /// distinguishes an explicit display name from [`Self::display_name`]'s
+    /// email-prefix fallback.
     #[must_use]
     pub fn sanitized(mut self) -> Self {
         self.id = self.id.trim().to_owned();
@@ -111,13 +122,7 @@ impl HostedUser {
         if trimmed_name.is_empty()
             || trimmed_name.encode_utf16().count() > MAX_PROFILE_NAME_UTF16_UNITS
         {
-            self.name = self
-                .email
-                .split('@')
-                .next()
-                .unwrap_or("Author")
-                .trim()
-                .to_owned();
+            self.name.clear();
         } else {
             self.name = trimmed_name.to_owned();
         }

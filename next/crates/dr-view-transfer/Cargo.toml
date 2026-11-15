@@ -28,10 +28,15 @@ gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
 log.workspace = true
 png = { workspace = true, optional = true }
+schemars.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
+dr-account = { workspace = true, features = ["test-support"] }
+dr-platform.workspace = true
 # 《慢钟》 behind the pictures.
 dr-testkit.workspace = true
+dr-view-account.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true
 tempfile.workspace = true

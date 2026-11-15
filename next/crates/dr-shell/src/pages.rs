@@ -418,6 +418,8 @@ pub mod anchors {
 }
 
 type LocateAsset = Rc<dyn Fn(&WeakEntity<Workspace>, &str, &mut Window, &mut App)>;
+type CanDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &App) -> bool>;
+type OnDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &mut Window, &mut App)>;
 
 #[derive(Clone, Default)]
 struct Pages {
@@ -436,6 +438,7 @@ struct Pages {
     library: Option<MakeCompanion>,
     locate_asset: Option<LocateAsset>,
     pending_locate_asset: Option<String>,
+    file_drop: Option<(CanDropFiles, OnDropFiles)>,
 }
 
 /// Ephemeral sand-frame highlight triggered when jumping from a file's 「用在」
@@ -817,4 +820,25 @@ pub(crate) fn make_v3_home(
 ) -> Option<AnyView> {
     let make = cx.try_global::<Pages>()?.v3_home.clone()?;
     Some(make(ws, window, cx))
+}
+
+/// Registers the window-level external file drop handler (M41, `dr-view-transfer`).
+pub fn set_external_file_drop(
+    cx: &mut App,
+    can_drop: impl Fn(&[std::path::PathBuf], &App) -> bool + 'static,
+    on_drop: impl Fn(&[std::path::PathBuf], &mut Window, &mut App) + 'static,
+) {
+    cx.default_global::<Pages>().file_drop = Some((Rc::new(can_drop), Rc::new(on_drop)));
+}
+
+pub(crate) fn can_drop_external_files(paths: &[std::path::PathBuf], cx: &App) -> bool {
+    cx.try_global::<Pages>()
+        .and_then(|p| p.file_drop.as_ref())
+        .is_some_and(|(can_drop, _)| can_drop(paths, cx))
+}
+
+pub(crate) fn drop_external_files(paths: &[std::path::PathBuf], window: &mut Window, cx: &mut App) {
+    if let Some((_, on_drop)) = cx.try_global::<Pages>().and_then(|p| p.file_drop.clone()) {
+        on_drop(paths, window, cx);
+    }
 }

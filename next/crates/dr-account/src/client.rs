@@ -118,25 +118,14 @@ struct RawAuthUser {
 
 impl RawAuthUser {
     fn into_hosted_user(self) -> HostedUser {
-        let name = self
-            .name
-            .map(|n| n.trim().to_string())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| {
-                self.email
-                    .split('@')
-                    .next()
-                    .unwrap_or("Author")
-                    .trim()
-                    .to_string()
-            });
         HostedUser {
             id: self.id,
             email: self.email,
-            name,
+            name: self.name.unwrap_or_default(),
             image: normalize_avatar(self.image.as_deref()),
             email_verified: self.email_verified,
         }
+        .sanitized()
     }
 }
 

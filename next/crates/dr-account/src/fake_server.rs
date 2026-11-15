@@ -493,14 +493,13 @@ fn route_request(
             if !guard.accounts_by_email.contains_key(&email) {
                 guard.next_id += 1;
                 let id = format!("usr_{}", guard.next_id);
-                let name = email.split('@').next().unwrap_or("Author").to_string();
                 guard.accounts_by_email.insert(
                     email.clone(),
                     StoredAccount {
                         user: HostedUser {
                             id,
                             email: email.clone(),
-                            name,
+                            name: String::new(),
                             image: None,
                             email_verified: true,
                         },
