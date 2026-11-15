@@ -37,7 +37,6 @@ impl<'de> Deserialize<'de> for BookCreateIn {
         deserializer: D,
     ) -> std::result::Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct RawBookCreateIn {
             name: String,
             #[serde(default)]
