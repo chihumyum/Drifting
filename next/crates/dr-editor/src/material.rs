@@ -198,7 +198,7 @@ impl Render for MaterialBlock {
                 .absolute()
                 .top(px(5.))
                 .right(px(5.))
-                .child(sand::comment_dot(8.0, false, &theme.palette))
+                .child(sand::comment_dot(8.0, false, theme.palette))
         });
 
         let target = if facts.kind == "image" {

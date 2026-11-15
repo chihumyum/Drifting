@@ -959,7 +959,7 @@ impl MediaPage {
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let at = point(at.x + px(8.0), at.y + px(8.0));
         let scope = self.frame_scope.clone();
-        let region_for_composer = region.clone();
+        let region_for_composer = region;
         let view = cx.new(|cx| match scope {
             Some(dr_shell::FrameScope::Embed {
                 entry,

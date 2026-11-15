@@ -1121,7 +1121,7 @@ impl RenderOnce for CommentUnderline {
                     }
                     let h = 6.0 + hot;
                     let alpha = palette.pigment * (0.85 + 0.15 * hot);
-                    let tint = sand_color(&palette, palette.comment).alpha(alpha);
+                    let tint = sand_color(palette, palette.comment).alpha(alpha);
                     let clip = Bounds {
                         origin: bounds.origin - point(px(1.0), px(0.0)),
                         size: size(px(w), px(7.0)),

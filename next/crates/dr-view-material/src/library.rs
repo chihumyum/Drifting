@@ -1031,7 +1031,7 @@ impl LibraryPanel {
                                     .absolute()
                                     .top(px(-2.0))
                                     .right(px(-2.0))
-                                    .child(sand::comment_dot(7.0, dot_hot, &p)),
+                                    .child(sand::comment_dot(7.0, dot_hot, p)),
                             )
                             .into_any_element()
                     };

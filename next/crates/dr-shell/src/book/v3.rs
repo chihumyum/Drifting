@@ -745,10 +745,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         .iter()
         .any(|c| matches!(c.spot, OpenSpotKind::Embed { .. }))
     {
-        let mut cache: std::collections::HashMap<
-            (String, String),
-            Option<std::collections::HashMap<String, Option<String>>>,
-        > = std::collections::HashMap::new();
+        let mut cache = std::collections::HashMap::new();
         v3.open_comments.retain_mut(|c| {
             let OpenSpotKind::Embed {
                 entry,

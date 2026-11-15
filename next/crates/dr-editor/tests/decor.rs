@@ -846,8 +846,10 @@ fn opening_chapter_and_book_editor_projects_existing_unprojected_checklist_and_t
             .read(move |d| {
                 let copy = d.fork();
                 let prose = dr_doc::prose::BorrowedProse::new(&copy, &doc_id).unwrap();
-                let mut attrs = dr_model::prose::BlockAttrs::default();
-                attrs.list = Some(dr_model::kind::ListKind::Task);
+                let attrs = dr_model::prose::BlockAttrs {
+                    list: Some(dr_model::kind::ListKind::Task),
+                    ..Default::default()
+                };
                 prose.txn().set_block_attrs(0, &attrs).unwrap();
                 copy.commit();
                 copy.export(loro::ExportMode::all_updates()).unwrap()
@@ -1043,8 +1045,10 @@ fn synced_checklist_edits_on_second_device_do_not_write_back_book_comments(
                 let before = d.oplog_vv();
                 let copy = d.fork();
                 let prose = dr_doc::prose::BorrowedProse::new(&copy, &doc_id).unwrap();
-                let mut attrs = dr_model::prose::BlockAttrs::default();
-                attrs.list = Some(dr_model::kind::ListKind::Task);
+                let attrs = dr_model::prose::BlockAttrs {
+                    list: Some(dr_model::kind::ListKind::Task),
+                    ..Default::default()
+                };
                 let mut txn = prose.txn();
                 txn.set_block_attrs(5, &attrs).unwrap();
                 txn.insert_text(5, "远端设备敲入：").unwrap();

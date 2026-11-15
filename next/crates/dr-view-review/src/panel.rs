@@ -290,9 +290,9 @@ impl ReviewView {
         if !self.origin_filter.matches(&item.origin) {
             self.origin_filter = OriginFilter::All;
         }
-        if item.status == "resolved" && self.status_filter == StatusFilter::Open {
-            self.status_filter = StatusFilter::All;
-        } else if item.status != "resolved" && self.status_filter == StatusFilter::Resolved {
+        if (item.status == "resolved" && self.status_filter == StatusFilter::Open)
+            || (item.status != "resolved" && self.status_filter == StatusFilter::Resolved)
+        {
             self.status_filter = StatusFilter::All;
         }
         let listing = self.listing();
