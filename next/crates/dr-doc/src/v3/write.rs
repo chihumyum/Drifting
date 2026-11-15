@@ -424,6 +424,7 @@ impl TemplateWriterV3 {
         )?;
         set(&cfg, "default_rows", spec.config.default_rows as i64)?;
         set(&cfg, "default_cols", spec.config.default_cols as i64)?;
+        set(&cfg, "arrangement", spec.config.arrangement.as_ref())?;
         let defs_list: Vec<LoroValue> = spec
             .config
             .defs
@@ -636,6 +637,17 @@ impl EntryWriterV3 {
         if items.get(id.as_str()).is_some() {
             items.delete(id.as_str())?;
         }
+        Ok(self)
+    }
+
+    /// This entry's own arrangement of its media module `module`
+    /// (`arrangement:<module>`); `None` goes back to the template's.
+    pub fn arrangement(
+        &self,
+        module: &ModuleId,
+        arrangement: Option<&MediaArrangement>,
+    ) -> Result<&Self> {
+        set(&self.map, &format!("arrangement:{module}"), arrangement)?;
         Ok(self)
     }
 
@@ -1189,6 +1201,39 @@ impl RelationTypeWriterV3 {
     }
 }
 
+/// Writes one folder of the asset library (`asset_folders.<id>`).
+pub struct AssetFolderWriter {
+    pub(crate) map: LoroMap,
+}
+
+impl AssetFolderWriter {
+    pub fn name(&self, v: &str) -> Result<&Self> {
+        set(&self.map, "name", v)?;
+        Ok(self)
+    }
+
+    pub fn parent(&self, v: Option<&AssetFolderId>) -> Result<&Self> {
+        set(&self.map, "parent", v)?;
+        Ok(self)
+    }
+
+    pub fn pos(&self, v: Option<&PosKey>) -> Result<&Self> {
+        set(&self.map, "pos", v)?;
+        Ok(self)
+    }
+
+    pub fn deleted_at(&self, v: Option<Timestamp>) -> Result<&Self> {
+        set(&self.map, "deleted_at", v)?;
+        Ok(self)
+    }
+
+    /// The folder whose trashing took this one to Recently Deleted.
+    pub fn trashed_with(&self, v: Option<&AssetFolderId>) -> Result<&Self> {
+        set(&self.map, "trashed_with", v)?;
+        Ok(self)
+    }
+}
+
 /// Writes one comment (`comments` map, schema v5).
 pub struct CommentWriterV3 {
     pub(crate) map: LoroMap,
@@ -1240,11 +1285,6 @@ impl CommentWriterV3 {
 
     pub fn status(&self, v: &CommentStatus) -> Result<&Self> {
         set(&self.map, "status", v)?;
-        Ok(self)
-    }
-
-    pub fn priority(&self, v: Option<&CommentPriority>) -> Result<&Self> {
-        set(&self.map, "priority", v)?;
         Ok(self)
     }
 
@@ -1647,6 +1687,13 @@ impl<'a> BookTxnV3<'a> {
         Ok((id, w))
     }
 
+    /// A folder of the asset library (`asset_folders`).
+    pub fn asset_folder(&mut self, id: &AssetFolderId) -> Result<AssetFolderWriter> {
+        Ok(AssetFolderWriter {
+            map: self.entity(book_v3::ASSET_FOLDERS, id.as_str())?,
+        })
+    }
+
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
         crate::catalog::write::CatalogTxn {
             view: crate::catalog::read::CatalogView { doc: self.view.doc },
@@ -1766,6 +1813,27 @@ impl<'a> BookTxnV3<'a> {
             if let Some(LoroValue::Map(want_rows)) = old.field(k) {
                 let sub = map.ensure_mergeable_map(k)?;
                 sync_nested_map(&sub, want_rows)?;
+            }
+        }
+
+        // Restore the entry's own media arrangements (`arrangement:<module>`).
+        let is_arrangement = |k: &str| k.starts_with("arrangement:");
+        let have: Vec<String> = map
+            .keys()
+            .filter(|k| is_arrangement(k))
+            .map(|k| k.to_string())
+            .collect();
+        let want: Vec<String> = old
+            .keys()
+            .into_iter()
+            .filter(|k| is_arrangement(k))
+            .collect();
+        for k in have.iter().filter(|k| !want.contains(k)) {
+            map.delete(k)?;
+        }
+        for k in &want {
+            if let Some(v) = old.field(k) {
+                map.insert(k, v.clone())?;
             }
         }
         Ok(())
@@ -2026,6 +2094,7 @@ impl<'a> BookTxnV3<'a> {
                 | CollectionV3::RelationTypes
                 | CollectionV3::Comments
                 | CollectionV3::Assets
+                | CollectionV3::AssetFolders
         ) {
             return Err(DocError::NotInProfile("not a structural v3 map"));
         }

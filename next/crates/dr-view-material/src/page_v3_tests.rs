@@ -197,7 +197,8 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
         json!({"book":book_id,"target":{"kind":"entry","id":host_entry},"module":host_module}),
     );
     assert_eq!(comments[0]["target"]["id"], host_entry);
-    assert_eq!(comments[0]["part"]["item"], id);
+    // A media module region names the file (it is in the module once).
+    assert_eq!(comments[0]["part"]["asset"], host_asset);
     assert!((comments[0]["part"]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
     assert_eq!(comments[0]["body"], sample_title);
     let rows = Book::load(&ws, &book_id).unwrap().material_items().to_vec();

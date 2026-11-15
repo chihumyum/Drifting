@@ -428,11 +428,18 @@ pub struct ProseShapeOut {
     /// Embedded asset IDs whose asset is missing or trashed in the book's asset library (shown as placeholders).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub missing_embeds: Vec<String>,
+    /// The files its links point at, in order (one per linked passage).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub file_links: Vec<String>,
+    /// Linked files missing or in Recently Deleted: their links read as
+    /// plain text until the file is back.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_links: Vec<String>,
 }
 
 op! {
     ProseShapeOp = "prose.shape", Read, Shared,
-    "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds.",
+    "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).",
     fn(cx, input: ProseShapeIn) -> ProseShapeOut {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
         if doc.profile().is_none() {
@@ -443,6 +450,7 @@ op! {
         let mut texts = Vec::new();
         let (mut tasks, mut done) = (0u32, 0u32);
         let mut embeds = Vec::new();
+        let mut file_links = Vec::new();
         for p in view.paragraphs() {
             if p.attrs.list == Some(ListKind::Task) {
                 tasks += 1;
@@ -453,27 +461,49 @@ op! {
             {
                 embeds.push(a.as_str().to_owned());
             }
+            // A passage linked to a file: a new link starts where a run links
+            // to a file the previous run did not.
+            let mut previous: Vec<&str> = Vec::new();
+            for r in &p.runs {
+                let here: Vec<&str> = r
+                    .marks
+                    .entities
+                    .iter()
+                    .filter(|l| l.kind == dr_model::kind::EntityKind::Asset)
+                    .map(|l| l.target.as_str())
+                    .collect();
+                for t in &here {
+                    if !previous.contains(t) {
+                        file_links.push((*t).to_owned());
+                    }
+                }
+                previous = here;
+            }
             texts.push(dr_text::block_text(&view, &p));
         }
-        let missing_embeds = if !embeds.is_empty()
+        let live: Option<std::collections::HashSet<String>> = if (!embeds.is_empty() || !file_links.is_empty())
             && let Some(ref book_id) = slot.book
             && let Ok(book_slot) = cx.book(book_id.as_str())
         {
-            let live: std::collections::HashSet<String> = book_slot
-                .reader_v3
-                .view()
-                .assets()
-                .into_iter()
-                .map(|a| a.id.to_string())
-                .collect();
-            embeds
-                .iter()
-                .filter(|id| !live.contains(*id))
-                .cloned()
-                .collect()
+            Some(
+                book_slot
+                    .reader_v3
+                    .view()
+                    .assets()
+                    .into_iter()
+                    .map(|a| a.id.to_string())
+                    .collect(),
+            )
         } else {
-            Vec::new()
+            None
         };
+        let missing = |ids: &[String]| -> Vec<String> {
+            live.as_ref()
+                .map(|live| ids.iter().filter(|id| !live.contains(*id)).cloned().collect())
+                .unwrap_or_default()
+        };
+        let missing_embeds = missing(&embeds);
+        let missing_links = missing(&file_links);
         let shape = dr_text::prose_shape(texts.iter().map(String::as_str));
         Ok(ProseShapeOut {
             paragraphs: shape.paragraphs,
@@ -483,6 +513,8 @@ op! {
             done,
             embeds,
             missing_embeds,
+            file_links,
+            missing_links,
         })
     }
 }

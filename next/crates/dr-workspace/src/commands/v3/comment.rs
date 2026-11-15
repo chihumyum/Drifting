@@ -14,8 +14,7 @@ use dr_doc::prose::{BorrowedProse, EmbedView};
 use dr_model::DocId;
 use dr_model::id::{BodyDocId, EmbedId};
 use dr_model::kind::{
-    CommentAuthorKind, CommentOrigin, CommentPriority, CommentSource, CommentStatus, EntityKind,
-    ProjectionKind,
+    CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind, ProjectionKind,
 };
 use dr_model::shared::{BlockSnapshot, EntityRef};
 use dr_model::v3::{CommentPart, CommentV3 as Comment, ModuleKind, check_comment_part_kind};
@@ -203,9 +202,8 @@ pub struct CommentInfo {
     pub anchored: bool,
     pub quote: Option<String>,
     pub body: String,
-    /// `open` or `resolved`.
+    /// `open` or `resolved` (a comment has no priority).
     pub status: String,
-    pub priority: Option<String>,
     /// `manual`, `marker`, `task`, `agent` or `reader`.
     pub origin: String,
     /// `user`, `ai` or `external`.
@@ -238,7 +236,6 @@ impl From<&Comment> for CommentInfo {
             quote: c.quote.clone(),
             body: c.body.clone(),
             status: c.status.as_str().into(),
-            priority: c.priority.as_ref().map(|p| p.as_str().into()),
             origin: c.origin.as_str().into(),
             author_kind: c.author_kind.as_str().into(),
             author_name: c.author_name.clone(),
@@ -296,9 +293,6 @@ pub struct CommentCreateIn {
     pub anchor: Option<AnchorBytes>,
     #[serde(default)]
     pub body: String,
-    /// `low`, `med` or `high`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub priority: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author_name: Option<String>,
 }
@@ -431,15 +425,15 @@ op! {
                                         return Err(WsError::not_found("patch", patch.as_str()));
                                     }
                                 }
-                                CommentPart::Media { item, .. } => {
-                                    region_file = entry
+                                CommentPart::Media { asset, .. } => {
+                                    if !entry
                                         .media
                                         .get(&mod_spec.id)
-                                        .and_then(|items| items.iter().find(|it| &it.id == item))
-                                        .map(|it| it.asset.clone());
-                                    if region_file.is_none() {
-                                        return Err(WsError::not_found("media", item.as_str()));
+                                        .is_some_and(|items| items.iter().any(|it| &it.asset == asset))
+                                    {
+                                        return Err(WsError::not_found("media", asset.as_str()));
                                     }
+                                    region_file = Some(asset.clone());
                                 }
                                 CommentPart::Region { .. } => {
                                     return Err(WsError::invalid("region part only applies to asset targets"));
@@ -481,8 +475,6 @@ op! {
             }
         }
 
-        let priority = input.priority.as_deref().map(CommentPriority::parse);
-        if let Some(p) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
         // Anchor, quote and block snapshots from the target's prose.
         let mut anchor = None;
         let mut quote = None;
@@ -552,7 +544,7 @@ op! {
             let w = txn.comment(&i2)?;
             w.origin(&origin)?.target(target.as_ref())?.module(module.as_ref())?.part(part.as_ref())?
                 .target_block(block.as_ref())?.anchor(anchor.as_ref())?
-                .quote(quote.as_deref())?.body(&body)?.status(&CommentStatus::Open)?.priority(priority.as_ref())?
+                .quote(quote.as_deref())?.body(&body)?.status(&CommentStatus::Open)?
                 .author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
                 .author_name(an.as_deref())?
                 .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
@@ -568,15 +560,13 @@ op! {
 
 op! {
     CommentUpdate = "comment.update", Write, Book,
-    "Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation.",
+    "Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation.",
     fn(cx, input: CommentUpdateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let old = comments(&slot).iter().find(|c| c.id.as_str() == input.id).cloned()
             .ok_or_else(|| WsError::not_found("comment", &input.id))?;
         let status = input.status.as_deref().map(CommentStatus::parse);
         if let Some(s) = &status && !s.is_known() { return Err(WsError::invalid(format!("unknown status {:?}", s.as_str()))); }
-        let priority: Option<Option<CommentPriority>> = input.priority.as_ref().map(|p| p.as_deref().map(CommentPriority::parse));
-        if let Some(Some(p)) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
         // A checklist item's comment is the line's shadow: resolving it ticks
         // the item in the prose and reopening clears the tick, one ordinary
         // prose change before the comment follows (`kernel-v5.md` §7).
@@ -594,7 +584,6 @@ op! {
                 w.status(s)?.resolved_at((*s == CommentStatus::Resolved).then(now))?;
             }
             if let Some(meta) = &task_meta { w.metadata(Some(meta))?; }
-            if let Some(p) = &priority { w.priority(p.as_ref())?; }
             if let Some(a) = &i.agent_conversation { w.agent_conversation(a.as_deref())?; }
             w.updated_at(Some(now()))?;
             Ok(())
@@ -604,7 +593,6 @@ op! {
             book: input.book.clone(), id: input.id.clone(),
             body: input.body.as_ref().map(|_| old.body.clone()),
             status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
-            priority: input.priority.as_ref().map(|_| old.priority.as_ref().map(|p| p.as_str().to_string())),
             agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
         }));
         Ok(Done { id: input.id })

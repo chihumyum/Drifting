@@ -46,6 +46,9 @@ pub struct Inputs<'a> {
     pub settings: Option<&'a BookSettings>,
     /// Projected TODOs: old id → (new id, kind, document, block).
     pub projected: &'a HashMap<String, (CommentId, ProjectionKind, dr_model::DocId, BlockId)>,
+    /// The tick of each projected checklist TODO's line, by 0.1 comment id:
+    /// its status follows the tick (`kernel-v5.md` §13).
+    pub task_ticks: &'a HashMap<String, bool>,
     /// Anchors made on the imported prose documents, by comment or patch id.
     pub anchors: &'a HashMap<String, Anchor>,
     /// Where an old block id went (any document of the book).
@@ -637,12 +640,34 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             notes.add("comment-body-formatting-kept-as-text");
             originals.push(("comments", c.id.clone(), "body", c.body_json.clone()));
         }
-        let status = legacy::comment_status(&c.status);
+        let mut status = legacy::comment_status(&c.status);
+        let mut resolved_at = parse_opt(c.resolved_at.as_deref());
+        // A checklist item's comment is the line's shadow: the tick wins.
+        if let Some(tick) = inp.task_ticks.get(&c.id) {
+            let want = if *tick {
+                CommentStatus::Resolved
+            } else {
+                CommentStatus::Open
+            };
+            if want != status {
+                notes.add("task-status-follows-tick");
+                if want == CommentStatus::Open {
+                    resolved_at = None;
+                } else if resolved_at.is_none() {
+                    resolved_at = parse_opt(Some(c.updated_at.as_str()));
+                }
+                status = want;
+            }
+        }
         if c.status == "converted" {
             notes.add("comment-status-converted");
         }
         if c.source == "copilot" || c.author_kind == "copilot" {
             notes.add("comment-copilot-values");
+        }
+        // Kept in the source replay; a format-5 comment has none (§7).
+        if c.priority.as_deref().is_some_and(|p| !p.is_empty()) {
+            notes.add("comment-priority-dropped");
         }
         w.author_kind(&legacy::comment_author_kind(&c.author_kind))?
             .author(c.author_id.as_deref())?
@@ -653,7 +678,7 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             .metadata(c.metadata_json.as_deref())?
             .quote(anchor.quote().as_deref())?
             .agent_conversation(conversations.get(c.id.as_str()).map(String::as_str))?
-            .resolved_at(parse_opt(c.resolved_at.as_deref()))?
+            .resolved_at(resolved_at)?
             .created_at(parse_iso(&c.created_at))?
             .updated_at(parse_iso(&c.updated_at))?
             .body(&body)?;
@@ -722,7 +747,9 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             height: a.height,
             created_at: parse_iso(&a.created_at),
             folder: None,
+            pos: None,
             deleted_at: None,
+            trashed_with: None,
         })?;
     }
     for (m, pos) in r.materials.iter().zip(ranks(r.materials.len())) {

@@ -1858,13 +1858,14 @@ mod v3_panel_tests {
         let material = mat_info.id.clone();
         let mat_entry = mat_info.entry.clone().unwrap();
         let mat_mod = mat_info.module.clone().unwrap();
+        let mat_file = mat_info.asset.clone().unwrap();
         // Floating/unlocated comments need no range anchoring. This host test
         // exercises scope and navigation through the actual panel.
         let inputs = [
             json!({"target":{"kind":"entry","id":entry},"module":"mod-prose"}),
             json!({"target":{"kind":"entry","id":entry}}),
             json!({"target":{"kind":"entry","id":other_entry},"module":"mod-prose"}),
-            json!({"target":{"kind":"entry","id":mat_entry},"module":mat_mod,"part":{"kind":"media","item":material}}),
+            json!({"target":{"kind":"entry","id":mat_entry},"module":mat_mod,"part":{"kind":"media","asset":mat_file}}),
             json!({}),
         ];
         let comments: Vec<String> = inputs

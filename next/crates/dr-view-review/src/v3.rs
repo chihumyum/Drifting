@@ -74,7 +74,6 @@ impl Item {
             quote: c.quote.clone(),
             body: c.body.clone(),
             status: c.status.as_str().into(),
-            priority: c.priority.as_ref().map(|p| p.as_str().into()),
             origin: c.origin.as_str().into(),
             author_kind: c.author_kind.as_str().into(),
             author_name: c.author_name.clone(),
@@ -113,10 +112,23 @@ fn invalid(e: impl ToString) -> WsError {
     WsError::Invalid(e.to_string())
 }
 
-fn target(comment: &CommentV3) -> Option<Target> {
+fn target(comment: &CommentV3, v: &dr_doc::v3::BookViewV3<'_>) -> Option<Target> {
     let target = comment.target.as_ref()?;
-    if let Some(m::CommentPart::Media { item, .. }) = &comment.part {
-        return Some(Target::Material(item.to_string()));
+    if let Some(m::CommentPart::Media { asset, .. }) = &comment.part {
+        // A comment on a file in a media module names the file (it is in
+        // the module once); its page is the module's item holding it.
+        let item = m::EntryId::parse(&target.id)
+            .ok()
+            .filter(|_| target.kind == EntityKind::Entry)
+            .and_then(|e| v.entry(&e))
+            .and_then(|e| {
+                let items = e.media.get(comment.target_module.as_ref()?)?;
+                items
+                    .iter()
+                    .find(|i| &i.asset == asset)
+                    .map(|i| i.id.to_string())
+            });
+        return Some(Target::Material(item.unwrap_or_else(|| asset.to_string())));
     }
     match target.kind {
         EntityKind::Entry => Some(Target::Entry {
@@ -212,7 +224,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                 .into_iter()
                 .enumerate()
                 .map(|(idx, comment)| {
-                    let target = target(&comment);
+                    let target = target(&comment, &v);
                     let mut title = String::new();
                     let mut module_name = None;
                     let found = match &target {

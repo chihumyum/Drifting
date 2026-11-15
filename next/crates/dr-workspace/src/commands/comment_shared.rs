@@ -12,15 +12,10 @@ pub struct CommentUpdateIn {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
-    /// `open` or `resolved`.
+    /// `open` or `resolved`. On a checklist item's comment this ticks or
+    /// clears the item in the prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::commands::double_option"
-    )]
-    pub priority: Option<Option<String>>,
     /// The Agent conversation started from this comment.
     #[serde(
         default,

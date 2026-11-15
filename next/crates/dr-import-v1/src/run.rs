@@ -999,6 +999,25 @@ fn write_library(
         // Projected TODOs get deterministic ids.
         let mut projected: HashMap<String, (CommentId, ProjectionKind, DocId, BlockId)> =
             HashMap::new();
+        // The tick of every 0.1 checklist item, by the ids of the item and of
+        // its paragraph: a checklist comment's status follows it (the tick
+        // wins where the TODO's status disagrees, `kernel-v5.md` §13).
+        let mut ticks: HashMap<String, bool> = HashMap::new();
+        for b in &bodies {
+            for l in &b.lines.lines {
+                for c in l.path.iter().filter(|c| c.kind == "taskItem") {
+                    let checked = c.attrs.get("checked").and_then(Value::as_bool) == Some(true);
+                    for id in [c.attrs.get("id"), l.attrs.get("id")]
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                    {
+                        ticks.entry(id.to_owned()).or_insert(checked);
+                    }
+                }
+            }
+        }
+        let mut task_ticks: HashMap<String, bool> = HashMap::new();
         for c in &rows.comments {
             let meta: Value = c
                 .metadata_json
@@ -1036,6 +1055,11 @@ fn write_library(
                 notes.add("projected-todo-without-block");
                 continue;
             };
+            if kind == ProjectionKind::NoteTask
+                && let Some(tick) = old_block.and_then(|b| ticks.get(b))
+            {
+                task_ticks.insert(c.id.clone(), *tick);
+            }
             let new = CommentId::for_projection(&kind, &doc, &block);
             projected.insert(c.id.clone(), (new, kind, doc, block));
         }
@@ -1362,6 +1386,7 @@ fn write_library(
             rows: &rows,
             settings: Some(settings),
             projected: &catalog_projected,
+            task_ticks: &task_ticks,
             anchors: &anchors_made,
             span: &span,
         };

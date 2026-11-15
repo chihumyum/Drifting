@@ -728,7 +728,6 @@ impl Layers {
                 id: id.clone(),
                 body: None,
                 status: Some(if done { "open" } else { "resolved" }.into()),
-                priority: None,
                 agent_conversation: None,
             };
             let ws = self.ws.clone();

@@ -889,8 +889,14 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     }
     let mut material_assets = std::collections::HashMap::new();
     let mut non_text_materials = std::collections::HashMap::new();
+    // A material whose file row is gone has no file to embed or link to.
+    let files: BTreeSet<&str> = expected.source_rows["project_asset"]
+        .iter()
+        .filter_map(|r| r["id"].as_str())
+        .collect();
     for row in &expected.source_rows["library_item"] {
         if let (Some(id), Some(aid)) = (row["id"].as_str(), row["asset_id"].as_str())
+            && files.contains(aid)
             && let Ok(asset) = AssetId::parse(aid)
         {
             material_assets.insert(id.to_owned(), asset);
@@ -3334,7 +3340,8 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
 }
 
 #[test]
-fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlinks_prose() {
+fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links() {
+    use dr_model::id::AssetFolderId;
     use dr_model::shared::{EntityRef, MaterialRegion};
     use serde_json::json;
 
@@ -3346,6 +3353,7 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     const BOOK_NO_NOTES: &str = "01900000-0000-7000-8000-000000000002";
     const ASSET_B2: &str = "01900000-0000-7000-8000-0000000000ac";
     const IMAGE_B2: &str = "01900000-0000-7000-8000-0000000000f4";
+    const IMAGE_NO_FILE: &str = "01900000-0000-7000-8000-0000000000f5";
     const PDF_BYTES: &[u8] = b"%PDF-1.4\nsynthetic-pdf-for-step7\n%%EOF";
 
     let old = fixture::build();
@@ -3377,7 +3385,8 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     )
     .unwrap();
 
-    // PDF asset + library_item in the same media-only folder.
+    // PDF asset + library_item in the note folder 「资料」: a folder holding
+    // both is rebuilt on both sides.
     c.execute(
         "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'pdf', 'application/pdf', ?3, ?4, NULL, NULL, ?5)",
         rusqlite::params![
@@ -3391,7 +3400,14 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     .unwrap();
     c.execute(
         "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '城防志.pdf', 'pdf', ?3, NULL, NULL, NULL, NULL, 2, ?4, ?4, NULL, ?5, 0)",
-        rusqlite::params![PDF_ITEM, BOOK, ASSET_PDF, T0, MF_ARCH],
+        rusqlite::params![PDF_ITEM, BOOK, ASSET_PDF, T0, FOLDER],
+    )
+    .unwrap();
+    // An image material whose file row is gone (damaged 0.1 data): a link
+    // to it has nothing to point at.
+    c.execute(
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '缺图', 'image', '01900000-0000-7000-8000-0000000000ad', NULL, NULL, NULL, NULL, 3, ?3, ?3, NULL, NULL, 0)",
+        rusqlite::params![IMAGE_NO_FILE, BOOK, T0],
     )
     .unwrap();
 
@@ -3413,7 +3429,8 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     )
     .unwrap();
 
-    // Seed-only idea linking both IMAGE (becomes plain text + receipt entry) and NOTE (stays linked).
+    // Seed-only idea linking IMAGE (a link to its file), the image without a
+    // file (plain text + receipt entry) and NOTE (stays linked).
     let linking_prose = json!({
         "type": "doc",
         "content": [{
@@ -3425,6 +3442,12 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
                     "type": "text",
                     "text": "插图原件",
                     "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": IMAGE}}]
+                },
+                {"type": "text", "text": "、"},
+                {
+                    "type": "text",
+                    "text": "缺图",
+                    "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": IMAGE_NO_FILE}}]
                 },
                 {"type": "text", "text": "与"},
                 {
@@ -3504,13 +3527,28 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     let v = book.view();
     compare(&v, &expected, &lib);
 
-    // 1. Image and PDF are in the built-in asset library carrying their nested folder path.
+    // 1. Image and PDF are in the built-in asset library, in folders of the
+    // same names as the 0.1 folders, nested as they were (`kernel-v5.md` §13).
+    let fid = |s: &str| AssetFolderId::parse(s).unwrap();
     let img_asset = v.asset(&AssetId::parse(ASSET).unwrap()).unwrap();
     assert_eq!(img_asset.name, "插图");
-    assert_eq!(img_asset.folder.as_deref(), Some("参考图/建筑"));
+    assert_eq!(img_asset.folder, Some(fid(MF_ARCH)));
     let pdf_asset = v.asset(&AssetId::parse(ASSET_PDF).unwrap()).unwrap();
     assert_eq!(pdf_asset.name, "城防志.pdf");
-    assert_eq!(pdf_asset.folder.as_deref(), Some("参考图/建筑"));
+    assert_eq!(pdf_asset.folder, Some(fid(FOLDER)));
+    let folders: Vec<(String, String, Option<AssetFolderId>)> = v
+        .asset_folders()
+        .into_iter()
+        .map(|f| (f.id.to_string(), f.name, f.parent))
+        .collect();
+    assert_eq!(folders.len(), 3, "{folders:?}");
+    for want in [
+        (MF_REF.to_string(), "参考图".to_string(), None),
+        (MF_ARCH.to_string(), "建筑".to_string(), Some(fid(MF_REF))),
+        (FOLDER.to_string(), "资料".to_string(), None),
+    ] {
+        assert!(folders.contains(&want), "{want:?} in {folders:?}");
+    }
 
     // 2. Media-only folders do not become entries; note folders & notes live under "文本素材".
     assert!(v.entry(&eid(MF_REF)).is_none());
@@ -3576,7 +3614,8 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     assert_eq!(rel.from, EntityRef::new(EntityKind::Asset, ASSET));
     assert_eq!(rel.to, EntityRef::new(EntityKind::Entry, CHAPTER));
 
-    // 4. Prose entityLink to IMAGE becomes plain text + receipt/summary record; link to NOTE remains.
+    // 4. The prose link to IMAGE points at its file; the one to the image
+    // without a file is plain text + receipt/summary record; NOTE's remains.
     let linking_doc_id = adapter::body_id(IDEA_LINKING, MOD_PROSE);
     let linking_bytes = lib
         .load_copy(&linking_doc_id.to_string())
@@ -3590,12 +3629,13 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     )
     .unwrap();
     let para = linking_doc.view().paragraphs().next().unwrap();
-    assert_eq!(para.text(), "参见插图原件与待查笔记");
-    let unlinked_run = para
-        .runs
-        .iter()
-        .find(|r| r.text.contains("插图原件"))
-        .unwrap();
+    assert_eq!(para.text(), "参见插图原件、缺图与待查笔记");
+    let file_run = para.runs.iter().find(|r| r.text == "插图原件").unwrap();
+    assert_eq!(file_run.marks.entities.len(), 1, "{:?}", para.runs);
+    assert_eq!(file_run.marks.entities[0].kind, EntityKind::Asset);
+    assert_eq!(file_run.marks.entities[0].target, ASSET);
+    assert!(file_run.marks.entities[0].block.is_none());
+    let unlinked_run = para.runs.iter().find(|r| r.text.contains("缺图")).unwrap();
     assert!(unlinked_run.marks.entities.is_empty());
     let linked_run = para.runs.iter().find(|r| r.text == "待查笔记").unwrap();
     assert_eq!(linked_run.marks.entities.len(), 1);
@@ -3603,12 +3643,19 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
 
     let book1_rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
     assert_eq!(book1_rec.unlinked_asset_links.len(), 1);
-    assert_eq!(book1_rec.unlinked_asset_links[0].material_id, IMAGE);
-    assert_eq!(book1_rec.unlinked_asset_links[0].material_title, "插图");
-    assert_eq!(book1_rec.unlinked_asset_links[0].text, "插图原件");
+    assert_eq!(book1_rec.unlinked_asset_links[0].material_id, IMAGE_NO_FILE);
+    assert_eq!(book1_rec.unlinked_asset_links[0].material_title, "缺图");
+    assert_eq!(book1_rec.unlinked_asset_links[0].text, "缺图");
+    // No priority comes over (the 0.1 fixture has one comment with one).
+    assert_eq!(
+        book1_rec.notes.0.get("comment-priority-dropped"),
+        Some(&1),
+        "{:?}",
+        book1_rec.notes
+    );
     let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
-    assert!(summary_md.contains("插图"));
-    assert!(summary_md.contains("插图原件"));
+    assert!(summary_md.contains("缺图"));
+    assert!(summary_md.contains("批注的优先级没有导入"));
 
     // 5. Project with zero text materials does NOT create a "文本素材" top-level entry.
     let book2_bytes = lib
@@ -3624,6 +3671,8 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
     .unwrap();
     assert_eq!(book2.view().assets().len(), 1);
     assert_eq!(book2.view().assets()[0].id.as_str(), ASSET_B2);
+    assert_eq!(book2.view().assets()[0].folder, None, "at the top");
+    assert!(book2.view().asset_folders().is_empty());
     assert!(
         !book2
             .view()
@@ -3633,4 +3682,76 @@ fn step7_asset_library_imports_media_folders_direct_comments_relations_and_unlin
         "project without text materials must not create 文本素材"
     );
     lib.close().unwrap();
+}
+
+/// A 0.1 checklist TODO whose state disagrees with its line's tick imports
+/// as the tick (`kernel-v5.md` §13): the comment is the line's shadow.
+#[test]
+fn a_checklist_todo_whose_state_disagrees_with_its_tick_imports_as_the_tick() {
+    let note_doc = adapter::body_id(NOTE, MOD_PROSE);
+    let todo = CommentId::for_projection(
+        &ProjectionKind::NoteTask,
+        &note_doc,
+        &BlockId::parse("tp1").unwrap(),
+    );
+    // (0.1 status, line ticked) -> the imported status.
+    for (status, ticked, want) in [
+        ("resolved", false, CommentStatus::Open),
+        ("open", true, CommentStatus::Resolved),
+    ] {
+        let old = fixture::build();
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.execute(
+            "UPDATE comment SET status = ?2, resolved_at = CASE ?2 WHEN 'resolved' THEN ?3 ELSE NULL END WHERE id = ?1",
+            rusqlite::params![NOTE_TODO, status, T1],
+        )
+        .unwrap();
+        if ticked {
+            let body = NOTE_JSON.replacen(
+                r#""id":"ti1","checked":false"#,
+                r#""id":"ti1","checked":true"#,
+                1,
+            );
+            assert_ne!(body, NOTE_JSON);
+            c.execute(
+                "UPDATE library_item SET body_json = ?2 WHERE id = ?1",
+                rusqlite::params![NOTE, body],
+            )
+            .unwrap();
+        }
+        drop(c);
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("library");
+        let mut opts = options(&old);
+        opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+        let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+        let Outcome::Imported(receipt) = outcome else {
+            panic!("expected imported");
+        };
+        let lib = open(&root);
+        let bytes = lib
+            .load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap();
+        let book =
+            BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+        let comment = book.view().comment(&todo).expect("the checklist comment");
+        assert_eq!(comment.status, want, "0.1 {status}, ticked {ticked}");
+        assert_eq!(
+            comment.resolved_at.is_some(),
+            want == CommentStatus::Resolved
+        );
+        let prose_bytes = lib
+            .load_copy(&note_doc.to_string())
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap();
+        let prose = ProseDoc::load(note_doc.clone(), random_device_peer(), &[prose_bytes]).unwrap();
+        let line = prose.view().paragraphs().next().unwrap();
+        assert_eq!(line.attrs.checked, ticked, "the tick is kept");
+        let rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
+        assert_eq!(rec.notes.0.get("task-status-follows-tick"), Some(&1));
+        lib.close().unwrap();
+    }
 }

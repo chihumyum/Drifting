@@ -20,7 +20,7 @@ use crate::error::{DocError, Result};
 use crate::peer::{PeerId, genesis_peer};
 use crate::schema::{self, GENESIS_VERSION, SCHEMA_VERSION};
 
-pub use embed::{EmbedKind, EmbedView, TableLine, TableWriter};
+pub use embed::{EmbedKind, EmbedView, FileEmbedLook, TableLine, TableWriter};
 pub use event::{ProseEvent, TextChange, Trigger};
 pub use txn::{ProseTxn, StyleKey};
 pub use view::{BlockRef, Paragraph, Paragraphs, ProseView, Run};

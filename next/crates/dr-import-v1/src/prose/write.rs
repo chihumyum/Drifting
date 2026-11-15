@@ -97,9 +97,12 @@ fn insert(txn: &mut ProseTxn<'_>, pos: usize, p: &Para) -> Result<()> {
 
 fn insert_embed(txn: &mut ProseTxn<'_>, pos: usize, embed: &EmbedView) -> Result<()> {
     match embed {
-        EmbedView::Asset { id, asset } => {
+        EmbedView::Asset { id, asset, look } => {
             let a = asset.clone().expect("plans only embed known assets");
             txn.insert_embed(pos, id, &EmbedKind::Asset(a))?;
+            if !look.is_empty() {
+                txn.set_file_embed_look(id, look)?;
+            }
         }
         EmbedView::Table {
             id,
@@ -365,9 +368,12 @@ fn insert_embed_v3(
     table_cells: &BTreeMap<(String, String), TableCellPlan>,
 ) -> Result<()> {
     match embed {
-        EmbedView::Asset { id, asset } => {
+        EmbedView::Asset { id, asset, look } => {
             let a = asset.clone().expect("plans only embed known assets");
             txn.insert_embed(pos, id, &EmbedKind::Asset(a))?;
+            if !look.is_empty() {
+                txn.set_file_embed_look(id, look)?;
+            }
         }
         EmbedView::Table {
             id,

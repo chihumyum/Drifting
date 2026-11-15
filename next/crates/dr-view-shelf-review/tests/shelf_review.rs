@@ -132,7 +132,6 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
                 range: None,
                 anchor: None,
                 body: "Synthetic check lighthouse lantern".into(),
-                priority: None,
                 author_name: None,
             },
         )
@@ -153,7 +152,6 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
                 range: None,
                 anchor: None,
                 body: "Synthetic pacing observation".into(),
-                priority: None,
                 author_name: None,
             },
         )

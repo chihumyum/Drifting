@@ -4,7 +4,7 @@ pub(crate) fn register(r: &mut Registry) {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Key {
-    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, facts, memory or project.
+    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, assets, asset_folders, facts, memory or project.
     pub collection: String,
     pub id: String,
 }
@@ -119,7 +119,8 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 ));
             }
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
-            | "relations" | "relation_types" | "comments" | "assets" | "facts" | "memory" => {
+            | "relations" | "relation_types" | "comments" | "assets" | "asset_folders"
+            | "facts" | "memory" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;

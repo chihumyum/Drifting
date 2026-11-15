@@ -94,6 +94,7 @@ str_like!(
     CommentId,
     MediaItemId,
     AssetId,
+    AssetFolderId,
     KvEntryId,
     MemoryId,
     EmbedId,
@@ -124,6 +125,9 @@ str_like!(
     dr_model::v3::ChildDisplayMode,
     dr_model::v3::FormatShortcuts,
     dr_model::v3::FieldType,
+    dr_model::v3::MediaArrangement,
+    dr_model::v3::EmbedSize,
+    dr_model::v3::EmbedAlign,
 );
 
 /// Set `key` on `map` to `v` (or remove it).
@@ -283,7 +287,7 @@ impl<'a> F<'a> {
                 patch: p.id("patch")?,
             }),
             "media" => Some(CommentPart::Media {
-                item: p.id("item")?,
+                asset: p.id("asset")?,
                 region: p.region("region"),
             }),
             "region" => Some(CommentPart::Region {
@@ -414,9 +418,9 @@ pub(crate) fn comment_part_to_loro(part: &dr_model::v3::CommentPart) -> LoroValu
             m.push(("kind".into(), "patch".into()));
             m.push(("patch".into(), patch.as_str().into()));
         }
-        CommentPart::Media { item, region } => {
+        CommentPart::Media { asset, region } => {
             m.push(("kind".into(), "media".into()));
-            m.push(("item".into(), item.as_str().into()));
+            m.push(("asset".into(), asset.as_str().into()));
             if let Some(r) = region {
                 m.push(("region".into(), region_to_loro(r)));
             }

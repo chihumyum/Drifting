@@ -337,6 +337,7 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             rows: &rows,
             settings: Some(settings),
             projected: &HashMap::new(),
+            task_ticks: &HashMap::new(),
             anchors: &HashMap::new(),
             span: &|_| None,
         };

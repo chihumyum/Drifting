@@ -978,7 +978,7 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
             "module": "mod-media",
             "part": {
                 "kind": "media",
-                "item": "media-map-1",
+                "asset": "asset-map",
                 // The map is an image: its regions name no page (DY fix 18).
                 "region": {"x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
             },
@@ -991,7 +991,7 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
         // Wrong module kind for part.
         json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "field", "field": "origin"}, "body": "bad"}),
         json!({"book": b, "target": target, "module": "mod-fields", "part": {"kind": "kv_row", "row": "row-1"}, "body": "bad"}),
-        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "media", "item": "media-map-1"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "media", "asset": "asset-map"}, "body": "bad"}),
         json!({"book": b, "target": target, "module": "mod-fields", "range": [0, 1], "body": "bad"}),
         // Missing sub-items inside matching module.
         json!({"book": b, "target": target, "module": "mod-fields", "part": {"kind": "field", "field": "missing"}, "body": "bad"}),
@@ -999,7 +999,7 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
         json!({"book": b, "target": target, "module": "mod-plot", "part": {"kind": "plot_cell", "row": default_row, "col": "missing"}, "body": "bad"}),
         json!({"book": b, "target": target, "module": "mod-patches", "part": {"kind": "patch", "patch": "missing"}, "body": "bad"}),
         json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "missing"}, "body": "bad"}),
-        json!({"book": b, "target": target, "module": "mod-media", "part": {"kind": "media", "item": "missing"}, "body": "bad"}),
+        json!({"book": b, "target": target, "module": "mod-media", "part": {"kind": "media", "asset": "asset-missing"}, "body": "bad"}),
         // Table embed is not a file embed.
         json!({"book": b, "target": target, "module": "mod-prose", "part": {"kind": "embed", "embed": "emb-tbl-1"}, "body": "bad"}),
         // Combining part with prose range, omitting module, or floating with part.
@@ -1172,7 +1172,7 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
         find(&e, &c_media)["part"],
         json!({
             "kind": "media",
-            "item": "media-map-1",
+            "asset": "asset-map",
             "region": {"x": 0.2, "y": 0.3, "w": 0.4, "h": 0.5}
         })
     );

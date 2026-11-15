@@ -93,8 +93,9 @@ pub struct AnchorRecord {
     pub cursor: bool,
 }
 
-/// A 0.1 `entityLink` pointing to an image or PDF material that became plain
-/// text because assets are not entries (`kernel-v5.md` §13).
+/// A 0.1 `entityLink` pointing to an image or PDF material that has no file:
+/// there is nothing to link to, so the words stay as plain text
+/// (`kernel-v5.md` §13; a link to a material with a file points at it).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlinkedAssetLink {
@@ -503,6 +504,7 @@ fn explain(key: &str) -> Option<&'static str> {
         }
         "template-unreadable" => "有模板读不出来，没有导入（旧的字段原样留着）",
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
+        "comment-priority-dropped" => "批注的优先级没有导入（批注不再分优先级）",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
         "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
         "act-binding-shared-idea-split" => {
@@ -512,7 +514,7 @@ fn explain(key: &str) -> Option<&'static str> {
             "幕绑定的构想在默认时间线视图里原本就有位置，保留了原位置而未用幕跨度覆盖"
         }
         "entity-link-to-asset-kept-as-text" => {
-            "正文中指向图片或 PDF 素材的链接已转为普通文字（文件进素材库，不再是条目），逐条列在下方"
+            "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方"
         }
         _ => return None,
     })
@@ -635,7 +637,7 @@ pub fn summary_zh(r: &Receipt) -> String {
             s.push('\n');
         }
         if !b.unlinked_asset_links.is_empty() {
-            s.push_str("已转为普通文字的图片 / PDF 素材链接明细：\n\n");
+            s.push_str("已转为普通文字的图片 / PDF 素材链接明细（素材没有文件）：\n\n");
             for item in &b.unlinked_asset_links {
                 s.push_str(&format!(
                     "- `{}` 中「{}」→ 原素材「{}」（`{}`）\n",

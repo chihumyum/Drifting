@@ -2173,8 +2173,10 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         width: Some(800),
         height: Some(600),
         created_at: Some(Timestamp(1234)),
-        folder: Some("参考图/城防".into()),
+        folder: Some(AssetFolderId::parse("af-maps").unwrap()),
+        pos: Some(PosKey::first()),
         deleted_at: None,
+        trashed_with: None,
     };
     let item_1 = MediaItemId::parse("mi-1").unwrap();
     let item_2 = MediaItemId::parse("mi-2").unwrap();
@@ -2234,7 +2236,7 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
             .target(Some(&EntityRef::new(EntityKind::Entry, "m-map")))?
             .module(Some(&mid(MOD_MEDIA)))?
             .part(Some(&CommentPart::Media {
-                item: item_1.clone(),
+                asset: img_id.clone(),
                 region: Some(MaterialRegion::new(None, 0.1, 0.2, 0.3, 0.4).unwrap()),
             }))?
             .body("城门位置")?;
@@ -2258,9 +2260,10 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
     assert_eq!(doc.view().assets()[0].name, "地图.png");
     assert_eq!(doc.view().assets()[0].created_at, Some(Timestamp(1234)));
     assert_eq!(
-        doc.view().assets()[0].folder.as_deref(),
-        Some("参考图/城防")
+        doc.view().assets()[0].folder.as_ref().map(|f| f.as_str()),
+        Some("af-maps")
     );
+    assert_eq!(doc.view().assets()[0].pos, Some(PosKey::first()));
     assert!(!doc.view().comment(&asset_cid).unwrap().target_missing);
 
     // Media items sort by (pos, id), keep unregistered asset ids on read without dropping rows,

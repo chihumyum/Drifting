@@ -33,6 +33,7 @@ pub(super) fn new_entry(
         fields: BTreeMap::new(),
         kv: BTreeMap::new(),
         media: BTreeMap::new(),
+        arrangements: BTreeMap::new(),
         primary: None,
         created_at: Some(now()),
         updated_at: None,

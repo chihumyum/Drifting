@@ -9,6 +9,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<KvRemove>()
         .add::<MediaPut>()
         .add::<MediaRemove>()
+        .add::<MediaArrange>()
         .add::<ProseRead>()
         .add::<ProseSet>()
         .add::<ProseReplace>()
@@ -104,6 +105,12 @@ pub struct Data {
     pub missing_files: Vec<String>,
     pub kv: Vec<types::KvEntry>,
     pub media: Vec<types::MediaItem>,
+    /// A `media` module: how this entry lays its files out (its own choice,
+    /// else its template's, else `featured`), and whether it is its own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arrangement: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub own_arrangement: bool,
     pub patches: Vec<content::Patch>,
     pub grid: Option<content::Grid>,
     pub relations: Vec<content::Relation>,
@@ -154,7 +161,10 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
             super::entry::mark_missing_media(member, &files);
         }
     }
-    let relations = if definition.is_some_and(|m| m.kind == m::ModuleKind::Relations) {
+    let relations = if definition
+        .as_ref()
+        .is_some_and(|m| m.kind == m::ModuleKind::Relations)
+    {
         convert(v.relations_of(&dr_model::shared::EntityRef {
             kind: dr_model::kind::EntityKind::Entry,
             id: e.id.to_string(),
@@ -177,10 +187,17 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
         id.as_str(),
         &fields,
     );
+    let is_media = definition
+        .as_ref()
+        .is_some_and(|m| m.kind == m::ModuleKind::Media);
+    let arrangement = is_media.then(|| e.media_arrangement(&id, &templates).as_str().to_owned());
+    let own_arrangement = is_media && e.arrangements.contains_key(&id);
     Ok(Data {
         module: summary,
         fields,
         missing_files,
+        arrangement,
+        own_arrangement,
         kv: convert(e.kv.get(&id).cloned().unwrap_or_default())?,
         media,
         patches: convert(v.patches_of(&e.id, &id))?,
@@ -419,6 +436,8 @@ op! {
         if !v.assets().iter().any(|a| a.id == item.asset) {
             return Err(WsError::not_found("asset", item.asset.as_str()));
         }
+        // A file sits in a media module once (`MEDIA-ASSET-ONCE`).
+        m::check_media_asset_once(e.media.get(&module.id).map(Vec::as_slice).unwrap_or(&[]), &item)?;
         let id = e.id.clone();
         let replaced = media_item(&id, &module.id, item.id.as_str());
         let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
@@ -448,6 +467,42 @@ op! {
         let replaced = media_item(&id, &module.id, item.as_str());
         let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
             t.entries().entry(&e.id)?.remove_media(&module.id, &item)?;
+            Ok(())
+        })?;
+        undo(cx, &s, &at, vec![key("entries", &id)]);
+        cx.effect(EffectAction::Updated, "entry", id.as_str(), None);
+        Ok(Done { id: id.to_string() })
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct MediaArrangeIn {
+    #[serde(flatten)]
+    pub target: In,
+    /// `featured` (one large picture, a row of small ones to switch),
+    /// `grid` or `list`; `null` goes back to the template's.
+    #[serde(default)]
+    pub arrangement: Option<String>,
+}
+op! {
+    MediaArrange="module.set_arrangement",Write,Book,"Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.",fn(cx,input:MediaArrangeIn)->Done {
+        let s = cx.book_v3(&input.target.book)?;
+        let (e, module) = selected(&s.reader_v3.view(), &input.target)?;
+        if module.kind != m::ModuleKind::Media {
+            return Err(WsError::invalid("module is not media"));
+        }
+        let arrangement = input.arrangement.as_deref().map(m::MediaArrangement::parse);
+        if arrangement.as_ref().is_some_and(|a| !a.is_known()) {
+            return Err(WsError::invalid("unknown media arrangement"));
+        }
+        if e.arrangements.get(&module.id) == arrangement.as_ref() {
+            cx.undo_nothing();
+            return Ok(Done { id: e.id.to_string() });
+        }
+        let id = e.id.clone();
+        let field = format!("arrangement:{}", module.id);
+        let replaced = rec(CollectionV3::Entries, &id).at([field.as_str()]);
+        let (_, at) = cx.write_book_v3(&s, Replaces::records([replaced]), move |t| {
+            t.entries().entry(&e.id)?.arrangement(&module.id, arrangement.as_ref())?;
             Ok(())
         })?;
         undo(cx, &s, &at, vec![key("entries", &id)]);

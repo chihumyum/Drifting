@@ -80,7 +80,7 @@ fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> S
             "book": e.book,
             "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
             "module": item.module.as_ref().unwrap(),
-            "part": {"kind": "media", "item": on, "region": region},
+            "part": {"kind": "media", "asset": item.asset.as_ref().unwrap(), "region": region},
             "body": body,
         }),
     )["id"]
@@ -455,7 +455,7 @@ fn the_column_reads_in_page_order_and_a_choice_turns_to_its_page(cx: &mut TestAp
             "book": e.book,
             "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
             "module": item.module.as_ref().unwrap(),
-            "part": {"kind": "media", "item": id},
+            "part": {"kind": "media", "asset": item.asset.as_ref().unwrap()},
             "body": "整份"
         }),
     );

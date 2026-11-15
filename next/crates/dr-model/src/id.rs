@@ -266,6 +266,10 @@ id_type!(
     MediaItemId
 );
 id_type!(
+    /// A folder (素材夹) of the asset library (`asset_folders`).
+    AssetFolderId
+);
+id_type!(
     /// A field definition inside a template's `fields` module (`FieldDef.id`,
     /// never `FieldDef.name`).
     FieldId

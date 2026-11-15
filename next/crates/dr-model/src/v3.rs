@@ -20,12 +20,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::check::Violation;
 pub use crate::id::{
-    AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId, EntryTemplateId,
-    FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId, PlotRowId, RelationId,
-    RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
+    AssetFolderId, AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId,
+    EntryTemplateId, FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId,
+    PlotRowId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
 };
 use crate::kind::{
-    CommentAuthorKind, CommentOrigin, CommentPriority, CommentSource, CommentStatus, EntityKind,
+    CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind,
     RelationOrientation, SystemRelationKey,
 };
 use crate::order::cmp_order;
@@ -156,6 +156,43 @@ v3_open_enum!(
         Members = "members",
         /// Files with captions and order (`media:<module_id>` on the entry, `kernel-v5.md` §6).
         Media = "media",
+    }
+);
+
+v3_open_enum!(
+    /// How a `media` module lays out its files (`kernel-v5.md` §6 媒体模块的摆法):
+    /// one large picture with a row of small ones to switch, a grid, or a
+    /// list. The template's module gives the default; an entry may choose
+    /// its own for its module (`arrangement:<module>`, never `layout`).
+    #[derive(Default)]
+    MediaArrangement {
+        #[default]
+        Featured = "featured",
+        Grid = "grid",
+        List = "list",
+    }
+);
+
+v3_open_enum!(
+    /// The size of an image embedded in prose (`kernel-v5.md` §6): small,
+    /// medium, or the width of the text. A PDF embed is a card and has none.
+    #[derive(Default)]
+    EmbedSize {
+        Small = "small",
+        #[default]
+        Medium = "medium",
+        Full = "full",
+    }
+);
+
+v3_open_enum!(
+    /// Where an image embedded in prose sits (`kernel-v5.md` §6).
+    #[derive(Default)]
+    EmbedAlign {
+        Left = "left",
+        #[default]
+        Center = "center",
+        Right = "right",
     }
 );
 
@@ -328,6 +365,10 @@ pub struct ModuleConfig {
     /// For `plot_grid` modules: initial column count (defaults to 3).
     #[serde(default = "default_plot_lines_u32")]
     pub default_cols: u32,
+    /// For `media` modules: how entries of the template lay the files out
+    /// unless an entry chooses its own (`None`: the default, `featured`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arrangement: Option<MediaArrangement>,
 }
 
 fn default_plot_lines_u32() -> u32 {
@@ -349,6 +390,7 @@ impl Default for ModuleConfig {
             initial_kv: Vec::new(),
             default_rows: default_plot_lines_u32(),
             default_cols: default_plot_lines_u32(),
+            arrangement: None,
         }
     }
 }
@@ -790,6 +832,48 @@ pub fn sort_media(items: &mut [MediaItem]) {
     items.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
 }
 
+/// Invariant `MEDIA-ASSET-ONCE` (`kernel-v5.md` §11): a file sits in one
+/// media module at most once. `item` (new, or an update of its own id) may
+/// not hold a file another item of `items` already holds.
+pub fn check_media_asset_once(items: &[MediaItem], item: &MediaItem) -> Result<(), Violation> {
+    if items
+        .iter()
+        .any(|other| other.id != item.id && other.asset == item.asset)
+    {
+        return fail(
+            "MEDIA-ASSET-ONCE",
+            format!("file {} is already in this media module", item.asset),
+        );
+    }
+    Ok(())
+}
+
+/// Invariant `ASSET-FOLDER-TREE` (`kernel-v5.md` §11): asset folders form a
+/// tree. Moving `folder` under `parent` (`None`: the top) may not put it
+/// under itself. `parents` maps each folder to its parent.
+pub fn check_asset_folder_parent(
+    parents: &BTreeMap<AssetFolderId, Option<AssetFolderId>>,
+    folder: &AssetFolderId,
+    parent: Option<&AssetFolderId>,
+) -> Result<(), Violation> {
+    let mut at = parent.cloned();
+    let mut steps = 0;
+    while let Some(p) = at {
+        if &p == folder {
+            return fail(
+                "ASSET-FOLDER-TREE",
+                format!("asset folder {folder} cannot live under itself"),
+            );
+        }
+        steps += 1;
+        if steps > parents.len() {
+            break;
+        }
+        at = parents.get(&p).cloned().flatten();
+    }
+    Ok(())
+}
+
 /// An entry in the book's unified `entries` `LoroTree` (`kernel-v4.md` "条目").
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
@@ -821,6 +905,10 @@ pub struct Entry {
     /// Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.
     #[serde(default)]
     pub media: BTreeMap<ModuleId, Vec<MediaItem>>,
+    /// This entry's own arrangement of a media module (`arrangement:<module_id>`);
+    /// a module without one uses its template's ([`Entry::media_arrangement`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub arrangements: BTreeMap<ModuleId, MediaArrangement>,
     /// Stored primary membership host; use [`Entry::effective_primary`] to read.
     pub primary: Option<EntryId>,
     pub created_at: Option<Timestamp>,
@@ -980,6 +1068,22 @@ impl Entry {
             }
         }
         out
+    }
+
+    /// How this entry lays out its media module `module`: its own choice,
+    /// else its active template's default for the module, else `featured`.
+    pub fn media_arrangement(
+        &self,
+        module: &ModuleId,
+        templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    ) -> MediaArrangement {
+        if let Some(own) = self.arrangements.get(module) {
+            return own.clone();
+        }
+        self.effective_template(templates)
+            .and_then(|t| t.module(module))
+            .and_then(|m| m.config.arrangement.clone())
+            .unwrap_or_default()
     }
 
     /// Aliases of this entry extracted from any `fields` module in its active
@@ -1286,9 +1390,11 @@ pub enum CommentPart {
     PlotCell { row: PlotRowId, col: PlotColId },
     /// A patch inside a `patches` module.
     Patch { patch: PatchId },
-    /// A file inside a `media` module, optionally with a region on the image or PDF page.
+    /// A file inside a `media` module, optionally with a region on the image
+    /// or PDF page. The file names the place: it sits in the module once
+    /// (`MEDIA-ASSET-ONCE`), so the comment survives the item being put back.
     Media {
-        item: MediaItemId,
+        asset: AssetId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<MaterialRegion>,
     },
@@ -1329,8 +1435,8 @@ pub struct CommentV3 {
     pub author: Option<String>,
     pub author_name: Option<String>,
     pub body: String,
+    /// Open or resolved; a comment has no priority (`kernel-v5.md` §7).
     pub status: CommentStatus,
-    pub priority: Option<CommentPriority>,
     pub source: CommentSource,
     pub metadata: Option<String>,
     pub agent_conversation: Option<String>,
@@ -2689,6 +2795,7 @@ mod tests {
             fields: BTreeMap::new(),
             kv: BTreeMap::new(),
             media: BTreeMap::new(),
+            arrangements: BTreeMap::new(),
             primary: None,
             created_at: Some(Timestamp(1000)),
             updated_at: None,

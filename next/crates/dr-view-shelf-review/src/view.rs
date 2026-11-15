@@ -1104,7 +1104,6 @@ impl ShelfReviewView {
                         range: None,
                         anchor: None,
                         body,
-                        priority: None,
                         author_name: None,
                     },
                 )

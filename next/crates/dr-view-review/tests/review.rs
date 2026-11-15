@@ -515,7 +515,7 @@ fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppConte
             "body": title,
             "target": {"kind": "entry", "id": entry_id},
             "module": "mod-media",
-            "part": {"kind": "media", "item": id}
+            "part": {"kind": "media", "asset": asset}
         }),
     )["id"]
         .as_str()

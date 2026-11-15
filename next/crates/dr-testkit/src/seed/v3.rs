@@ -156,7 +156,9 @@ impl SeedFile {
             height: image.then_some(i64::from(self.height)),
             created_at: Some(Timestamp(T0)),
             folder: None,
+            pos: None,
             deleted_at,
+            trashed_with: None,
         }
     }
 }
@@ -586,8 +588,11 @@ pub const TPL_SHOWCASE_GALLERY: &str = "tpl-showcase-gallery";
 /// an entry under 构想 (a map and the field notebook), a picture and the
 /// notebook embedded in the first two chapters, and comments on them: a
 /// region on the media module's map, a region on a PDF page, a region
-/// straight on the unused file, and one on the embedded picture. Synthetic
-/// bytes only ([`crate::media`]); T5 and T6 accept against it.
+/// straight on the unused file, and one on the embedded picture. The library
+/// has folders: 「参考图」 (the unused file) holding 「东岸」 (the map), and
+/// 「废稿」 in Recently Deleted with the deleted file, trashed with it; the
+/// notebook and the plan are at the top. Synthetic bytes only
+/// ([`crate::media`]); T5 and T6 accept against it.
 pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
     use dr_doc::prose::EmbedKind;
     let book = b.book_id().clone();
@@ -642,14 +647,41 @@ pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
         };
     embed_in(&mut b.prose, &chapters[0], &embed_plan, &plan.id)?;
     embed_in(&mut b.prose, &chapters[1], &embed_notes, &notebook.id)?;
-    let records = [
+    let folder = |i: usize| AssetFolderId::parse(&id("showcase-folder", i)).expect("id");
+    let (refs, coast, scrap) = (folder(0), folder(1), folder(2));
+    let top = positions(3);
+    let first = PosKey::first();
+    let mut records = [
         unused.record("海边参考.png", None),
         trashed.record("旧草图.png", Some(Timestamp(T0))),
         map.record("东岸全图.png", None),
         notebook.record("潮汐笔记.pdf", None),
         plan.record("钟楼平面.png", None),
     ];
+    let places = [
+        (Some(&refs), &first),
+        (Some(&scrap), &first),
+        (Some(&coast), &first),
+        (None, &top[0]),
+        (None, &top[1]),
+    ];
+    for (a, (folder, pos)) in records.iter_mut().zip(places) {
+        a.folder = folder.cloned();
+        a.pos = Some(pos.clone());
+    }
     let (r, _) = b.book.edit_at(Origin::Import, Some(T0), |t| {
+        let folders = positions(2);
+        t.asset_folder(&refs)?
+            .name("参考图")?
+            .pos(Some(&folders[0]))?;
+        t.asset_folder(&coast)?
+            .name("东岸")?
+            .parent(Some(&refs))?
+            .pos(Some(&first))?;
+        t.asset_folder(&scrap)?
+            .name("废稿")?
+            .pos(Some(&folders[1]))?
+            .deleted_at(Some(Timestamp(T0)))?;
         for a in &records {
             t.put_asset(a)?;
         }
@@ -715,7 +747,7 @@ pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
             EntityRef::new(EntityKind::Entry, gallery.as_str()),
             Some(mid(MOD_MEDIA)),
             CommentPart::Media {
-                item: media_map.clone(),
+                asset: map.id.clone(),
                 region: Some(region(None, 0.55, 0.3)),
             },
             "灯塔应该在北岬，不在这里",
@@ -726,7 +758,7 @@ pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
             EntityRef::new(EntityKind::Entry, gallery.as_str()),
             Some(mid(MOD_MEDIA)),
             CommentPart::Media {
-                item: media_notes.clone(),
+                asset: notebook.id.clone(),
                 region: Some(region(Some(2), 0.1, 0.2)),
             },
             "这张潮汐表和第四章对不上",
@@ -1117,9 +1149,6 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 .created_at(Some(Timestamp(T0 + k as i64)))?
                 .updated_at(Some(Timestamp(T0 + k as i64)))?
                 .resolved_at(c.resolved.then_some(Timestamp(T0 + k as i64 + 60)))?;
-            if let Some(pr) = c.priority {
-                w.priority(Some(&CommentPriority::parse(pr)))?;
-            }
         }
         Ok(())
     })?;
@@ -1535,18 +1564,18 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             None
         };
         let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
-        let mut first_folder_by_asset: BTreeMap<&AssetId, String> = BTreeMap::new();
+        let files = dr_samples::v3::file_folders(&material_folders, &materials);
+        for f in &files.folders {
+            t.asset_folder(&f.id)?
+                .name(&f.name)?
+                .parent(f.parent.as_ref())?
+                .pos(f.pos.as_ref())?;
+        }
         for m in &materials {
             if let Some(asset) = &m.asset {
                 first_title_by_asset
                     .entry(asset)
                     .or_insert(m.title.as_str());
-                if !first_folder_by_asset.contains_key(asset)
-                    && let Some(fid) = &m.folder
-                    && let Some(path) = dr_samples::v3::material_folder_path(&material_folders, fid)
-                {
-                    first_folder_by_asset.insert(asset, path);
-                }
             }
             if m.kind == MaterialKind::Text {
                 let root_id = text_materials_root
@@ -1580,8 +1609,12 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     .unwrap_or_default()
                     .to_string();
             }
-            if asset.folder.is_none() {
-                asset.folder = first_folder_by_asset.get(&asset.id).cloned();
+            if asset.folder.is_none()
+                && asset.pos.is_none()
+                && let Some((folder, pos)) = files.places.get(&asset.id)
+            {
+                asset.folder = folder.clone();
+                asset.pos = Some(pos.clone());
             }
             t.put_asset(&asset)?;
         }
@@ -1713,7 +1746,6 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .author_kind(&c.author_kind)?
                 .status(&c.status)?
                 .source(&c.source)?
-                .priority(c.priority.as_ref())?
                 .body(&c.body)?
                 .created_at(c.created_at)?
                 .updated_at(c.updated_at)?
@@ -2242,7 +2274,6 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             json!({
                 "origin": c.origin.as_str(),
                 "status": c.status.as_str(),
-                "priority": c.priority.as_ref().map(|p| p.as_str().to_string()),
                 "target": c.target.as_ref().map(|t| names.entity(t)),
                 "quote": c.quote,
                 "snapshots": c.snapshots.iter().map(|s| s.text.clone()).collect::<Vec<_>>(),

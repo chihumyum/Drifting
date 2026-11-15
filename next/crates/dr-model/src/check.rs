@@ -93,7 +93,9 @@ mod tests {
             height: Some(1),
             created_at: None,
             folder: None,
+            pos: None,
             deleted_at: None,
+            trashed_with: None,
         };
         assert!(asset_shape(&img).is_ok());
         let mut pdf = img.clone();

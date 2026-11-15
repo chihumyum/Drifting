@@ -336,7 +336,8 @@ fn a_handed_off_library_imports_completely() {
         text_at(&chapter_doc, bc.anchor.as_ref().unwrap()),
         "引文第一段\n引文第二段"
     );
-    assert_eq!(bc.priority, Some(CommentPriority::High));
+    // Format 5: a comment has no priority; the report says it was dropped.
+    assert_eq!(r.books[0].notes.0.get("comment-priority-dropped"), Some(&1));
     let t = v.comment(&note_todo).unwrap();
     assert_eq!(t.origin, dr_model::kind::CommentOrigin::Task);
     assert_eq!(t.projection.as_ref().map(|p| p.block.as_str()), Some("tp1"));
@@ -480,7 +481,10 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(chapter_doc.view().entity_links()[0].1.target, ELEMENT);
     let note_prose = prose_doc(&lib, &format!("body:{NOTE}/mod-prose"));
     let np: Vec<_> = note_prose.view().paragraphs().collect();
-    assert_eq!(np[0].attrs.todo.as_ref(), Some(&note_todo));
+    // Format 5: the line carries no link to a TODO; its tick is its state
+    // and the checklist comment is projected from it.
+    assert!(np[0].attrs.todo.is_none());
+    assert!(!np[0].attrs.checked);
     assert!(np[1].attrs.checked);
     let embed = np[2].embed().cloned().unwrap();
     assert!(

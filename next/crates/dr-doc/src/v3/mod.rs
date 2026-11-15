@@ -122,12 +122,13 @@ pub enum CollectionV3 {
     Relations,
     Comments,
     Assets,
+    AssetFolders,
     Facts,
     Memory,
 }
 
 impl CollectionV3 {
-    pub const ALL: [CollectionV3; 14] = [
+    pub const ALL: [CollectionV3; 15] = [
         CollectionV3::Meta,
         CollectionV3::Project,
         CollectionV3::Entries,
@@ -140,6 +141,7 @@ impl CollectionV3 {
         CollectionV3::Relations,
         CollectionV3::Comments,
         CollectionV3::Assets,
+        CollectionV3::AssetFolders,
         CollectionV3::Facts,
         CollectionV3::Memory,
     ];
@@ -158,6 +160,7 @@ impl CollectionV3 {
             CollectionV3::Relations => book_v3::RELATIONS,
             CollectionV3::Comments => book_v3::COMMENTS,
             CollectionV3::Assets => book_v3::ASSETS,
+            CollectionV3::AssetFolders => book_v3::ASSET_FOLDERS,
             CollectionV3::Facts => book_v3::FACTS,
             CollectionV3::Memory => book_v3::MEMORY,
         }

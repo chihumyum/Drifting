@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use dr_model::id::{BlockId, EmbedId, EntryId, ModuleId};
+use dr_model::id::{AssetId, BlockId, EmbedId, EntryId, ModuleId};
 use dr_model::kind::EntityKind;
 use dr_model::prose::PARAGRAPH_END;
 use dr_model::v3::EntityLinkV3;
@@ -19,7 +19,19 @@ fn invalid() -> DocError {
 }
 
 fn check(link: &EntityLinkV3) -> Result<()> {
-    let valid = link.kind == EntityKind::Entry && EntryId::parse(&link.target).is_ok();
+    // An entry (optionally one prose module and a block range), or a file of
+    // the asset library (`kernel-v5.md` §6: prose can link to a file; such a
+    // link names no module or blocks).
+    let valid = match link.kind {
+        EntityKind::Entry => EntryId::parse(&link.target).is_ok(),
+        EntityKind::Asset => {
+            AssetId::parse(&link.target).is_ok()
+                && link.module.is_none()
+                && link.block.is_none()
+                && link.end_block.is_none()
+        }
+        _ => false,
+    };
     if valid { Ok(()) } else { Err(invalid()) }
 }
 

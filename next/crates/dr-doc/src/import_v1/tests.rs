@@ -556,7 +556,9 @@ fn materials_folders_and_assets() {
         height: Some(3),
         created_at: None,
         folder: None,
+        pos: None,
         deleted_at: None,
+        trashed_with: None,
     };
     let m1 = MaterialId::parse("m1").unwrap();
     let m2 = MaterialId::parse("m2").unwrap();
@@ -772,7 +774,9 @@ fn references_to_missing_entities_read_as_none() {
             height: None,
             created_at: None,
             folder: None,
+            pos: None,
             deleted_at: None,
+            trashed_with: None,
         })?;
         t.element(&e)?
             .name("安")?

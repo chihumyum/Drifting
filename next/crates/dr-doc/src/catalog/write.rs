@@ -6,6 +6,7 @@ use crate::schema::book_v3 as book;
 use dr_model::Timestamp;
 use dr_model::id::*;
 use dr_model::kind::*;
+use dr_model::pos::PosKey;
 use dr_model::shared::{Asset, EntityRef, KvEntry};
 use loro::{LoroMap, LoroValue};
 pub(crate) struct CatalogTxn<'a> {
@@ -125,9 +126,11 @@ pub struct AssetWriter {
 }
 setters!(AssetWriter {
     name: &str => "name",
-    folder: Option<&str> => "folder",
+    folder: Option<&AssetFolderId> => "folder",
+    pos: Option<&PosKey> => "pos",
     created_at: Option<Timestamp> => "created_at",
     deleted_at: Option<Timestamp> => "deleted_at",
+    trashed_with: Option<&AssetFolderId> => "trashed_with",
 });
 
 impl CatalogTxn<'_> {
@@ -155,10 +158,14 @@ impl CatalogTxn<'_> {
                     set(&m, "created_at", a.created_at)?;
                 }
                 if have.folder.is_none() && a.folder.is_some() {
-                    set(&m, "folder", a.folder.as_deref())?;
+                    set(&m, "folder", a.folder.as_ref())?;
+                }
+                if have.pos.is_none() && a.pos.is_some() {
+                    set(&m, "pos", a.pos.as_ref())?;
                 }
                 if have.is_trashed() && !a.is_trashed() {
                     set(&m, "deleted_at", None::<Timestamp>)?;
+                    set(&m, "trashed_with", None::<&AssetFolderId>)?;
                 }
                 return Ok(());
             }
@@ -173,8 +180,10 @@ impl CatalogTxn<'_> {
         set(&m, "width", a.width)?;
         set(&m, "height", a.height)?;
         set(&m, "created_at", a.created_at)?;
-        set(&m, "folder", a.folder.as_deref())?;
+        set(&m, "folder", a.folder.as_ref())?;
+        set(&m, "pos", a.pos.as_ref())?;
         set(&m, "deleted_at", a.deleted_at)?;
+        set(&m, "trashed_with", a.trashed_with.as_ref())?;
         Ok(())
     }
     pub fn memory(&mut self, id: &MemoryId) -> Result<MemoryWriter> {

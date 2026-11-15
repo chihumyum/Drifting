@@ -939,8 +939,10 @@ impl<'a> BookView<'a> {
                     width: f.i64("width"),
                     height: f.i64("height"),
                     created_at: f.ts("created_at"),
-                    folder: f.opt_string("folder").filter(|s| !s.is_empty()),
+                    folder: f.id("folder"),
+                    pos: f.pos("pos"),
                     deleted_at: f.ts("deleted_at"),
+                    trashed_with: None,
                 })
             })
             .collect()

@@ -110,7 +110,7 @@ fn v3_material_assets_and_failed_note_creation_respect_book_and_byte_boundaries(
     );
     let mark = item(e.out(
         "comment.create",
-        json!({"book":b,"target":{"kind":"entry","id":pic},"module":"mod-media","body":"Synthetic region","part":{"kind":"media","item":media,"region":{"x":0.1,"y":0.2,"w":0.3,"h":0.4}}}),
+        json!({"book":b,"target":{"kind":"entry","id":pic},"module":"mod-media","body":"Synthetic region","part":{"kind":"media","asset":stored.asset_id,"region":{"x":0.1,"y":0.2,"w":0.3,"h":0.4}}}),
     ));
     assert_eq!(raw(&e, &b)["comments"][&mark]["part"]["region"]["w"], 0.3);
     e.call("entry.trash", json!({"book":b,"id":pic}));
