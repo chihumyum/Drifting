@@ -1075,9 +1075,24 @@ fn control(def: &'static SettingDef, _: &mut Window, cx: &mut App) -> AnyElement
     let key = def.key;
     match def.kind {
         Kind::Module(_) => div().into_any_element(),
-        Kind::Switch => Switch::new(key, file.bool(key))
-            .on_change(move |on, _, cx| set(key, Value::Bool(on), cx))
-            .into_any_element(),
+        // dr-ui's Switch draws no accessibility node; the row's name and
+        // state go on a box around it (as the template editor's switches do).
+        Kind::Switch => {
+            let on = file.bool(key);
+            div()
+                .id(ElementId::Name(format!("switch-{key}").into()))
+                .role(gpui::Role::CheckBox)
+                .aria_label(t(cx, def.label))
+                .aria_toggled(if on {
+                    gpui::Toggled::True
+                } else {
+                    gpui::Toggled::False
+                })
+                .child(
+                    Switch::new(key, on).on_change(move |on, _, cx| set(key, Value::Bool(on), cx)),
+                )
+                .into_any_element()
+        }
         Kind::Choice(options) => {
             let value = file.str(key).unwrap_or_default();
             let index = options.iter().position(|o| o.value == value).unwrap_or(0);

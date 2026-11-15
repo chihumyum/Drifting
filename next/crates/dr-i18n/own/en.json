@@ -120,6 +120,9 @@
     }
   },
   "settings": {
+    "appearance": {
+      "reduce_motion": "Turn off animations"
+    },
     "editor": {
       "justify": "Justify"
     },

@@ -1038,6 +1038,7 @@
       "interface_text_smallest": "Smallest",
       "interface_text_standard": "Standard",
       "light": "Light",
+      "reduce_motion": "Turn off animations",
       "replay_guides": "Tour when a book first opens",
       "replay_guides_action": "Show again",
       "system": "Follow system",

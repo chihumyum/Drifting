@@ -122,6 +122,9 @@
     }
   },
   "settings": {
+    "appearance": {
+      "reduce_motion": "Desativar animações"
+    },
     "editor": {
       "justify": "Justificar"
     },
