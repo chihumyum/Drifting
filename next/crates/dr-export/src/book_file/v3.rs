@@ -153,7 +153,12 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         .map_err(damaged)?;
     let paths = Paths::of(&json.changes);
     each_key(&json.changes, &paths, |path, key| {
-        if plain_identity(path) && !key.starts_with("todo:") && !key.starts_with("rt-generic:") {
+        // 「全部」 has the same fixed id in every book (`TAB-ROOT-ALWAYS`).
+        if plain_identity(path)
+            && !key.starts_with("todo:")
+            && !key.starts_with("rt-generic:")
+            && key != dr_model::v3::ALL_TAB_ID
+        {
             fresh(&mut rw, key);
         }
     });
@@ -531,6 +536,10 @@ impl Rewriter<'_> {
             [root, _, media, _, _] if root == "entries" && media == "media" => key == "asset",
             [root, _, field] if root == "templates" && field == "settings" => key == "home",
             [root, _] if root == "embeds" && !self.book => key == "asset",
+            // `layout:<book>`: the tab the project is on follows its tab.
+            [root] if self.layout && root == dr_doc::schema::side::TAB => {
+                key == dr_doc::schema::side::TAB_ID
+            }
             _ => false,
         };
         if reference {
