@@ -606,6 +606,7 @@ pub struct MaterialRow {
     pub provenance_json: Option<String>,
     pub folder: Option<String>,
     pub task_todos: bool,
+    pub updated_at: String,
 }
 
 #[derive(Clone, Debug)]
@@ -682,6 +683,9 @@ pub struct BookRows {
     pub memory: Vec<MemoryRow>,
     pub writing_days: Vec<WritingDayRow>,
     pub assets: Vec<AssetRow>,
+    /// Duplicate 0.1 `project_asset` rows merged into an earlier asset with
+    /// identical `(sha256, size, kind)`: `merged_asset_id -> kept_asset_id`.
+    pub asset_aliases: HashMap<String, String>,
 }
 
 impl Legacy {
@@ -966,7 +970,7 @@ impl Legacy {
             },
         )?;
         b.materials = self.rows(
-            "SELECT id, title, kind, asset_id, notes_json, order_key, provenance_json, folder_id, task_todos FROM library_item WHERE project_id = ?1 ORDER BY order_key, id",
+            "SELECT id, title, kind, asset_id, notes_json, order_key, provenance_json, folder_id, task_todos, updated_at FROM library_item WHERE project_id = ?1 ORDER BY order_key, id",
             p,
             |r| {
                 Ok(MaterialRow {
@@ -979,6 +983,7 @@ impl Legacy {
                     provenance_json: r.get(6)?,
                     folder: r.get(7)?,
                     task_todos: r.get::<_, i64>(8)? != 0,
+                    updated_at: r.get(9)?,
                 })
             },
         )?;
@@ -1052,7 +1057,7 @@ fn merge_same_bytes(b: &mut BookRows) {
     let mut first: HashMap<String, String> = HashMap::new();
     let mut alias: HashMap<String, String> = HashMap::new();
     b.assets.retain(|a| {
-        let key = format!("{}|{}", a.sha256, a.size);
+        let key = format!("{}|{}|{}", a.sha256, a.size, a.kind);
         match first.get(&key) {
             Some(kept) => {
                 alias.insert(a.id.clone(), kept.clone());
@@ -1077,6 +1082,7 @@ fn merge_same_bytes(b: &mut BookRows) {
             e.portrait = Some(kept.clone());
         }
     }
+    b.asset_aliases = alias;
 }
 
 fn tree_row(r: &Row<'_>) -> rusqlite::Result<TreeRow> {

@@ -626,7 +626,7 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                     .attrs
                     .get("assetId")
                     .and_then(Value::as_str)
-                    .and_then(|a| AssetId::parse(a).ok())
+                    .and_then(|a| (ctx.asset)(a).or_else(|| AssetId::parse(a).ok()))
                     .or_else(|| {
                         line.attrs
                             .get("libraryItemId")
@@ -1237,7 +1237,7 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                     .attrs
                     .get("assetId")
                     .and_then(Value::as_str)
-                    .and_then(|a| AssetId::parse(a).ok())
+                    .and_then(|a| (ctx.asset)(a).or_else(|| AssetId::parse(a).ok()))
                     .or_else(|| {
                         line.attrs
                             .get("libraryItemId")

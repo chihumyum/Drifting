@@ -3,7 +3,7 @@
 //! - **`.driftingproject`** ([`book`]): the bookshelf card's export icon
 //!   ([`dr_view_shelf::ExportBook`]) and 「导入书（.driftingproject）」
 //!   ([`dr_view_shelf::ImportBook`]), as the 0.1 shelf; the file is
-//!   `dr_export::book_file` (format version 4).
+//!   `dr_export::book_file` (format version 5).
 //!
 //! - **Importing documents** ([`documents`]): Markdown, text and Word
 //!   files into a chosen level of the open book using its resolved default

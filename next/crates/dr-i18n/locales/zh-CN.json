@@ -770,7 +770,7 @@
       "importFailedTitle": "无法导入",
       "invalid": "这个文件已损坏，无法导入。",
       "legacy": "这个文件是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",
-      "older": "这个文件是 Drifting 以前的开发版导出的，这一版已经不读那种格式。"
+      "older": "这是以前格式的书文件，这一版已经不再读取。"
     },
     "delete": {
       "deleting": "删除中…"

@@ -425,6 +425,31 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(v.assets()[0].id.as_str(), ASSET);
     assert_eq!(v.assets()[0].name, "插图");
     assert_eq!(v.assets()[0].sha256, sha256_bytes(IMAGE_BYTES));
+    let image_desc_comment = v
+        .comment(&dr_import_v1::book::material_comment_id(
+            &BookId::parse(BOOK).unwrap(),
+            IMAGE,
+            "description",
+        ))
+        .expect("image description imported as resolved comment on asset");
+    assert_eq!(
+        image_desc_comment.target,
+        Some(dr_model::shared::EntityRef::new(
+            dr_model::kind::EntityKind::Asset,
+            ASSET,
+        ))
+    );
+    assert_eq!(image_desc_comment.target_module, None);
+    assert_eq!(image_desc_comment.part, None);
+    assert_eq!(
+        image_desc_comment.origin,
+        dr_model::kind::CommentOrigin::Manual
+    );
+    assert_eq!(
+        image_desc_comment.status,
+        dr_model::kind::CommentStatus::Resolved
+    );
+    assert_eq!(image_desc_comment.body, "未庄的土谷祠");
     assert!(
         r.originals
             .iter()
@@ -617,21 +642,16 @@ fn a_handed_off_library_imports_completely() {
     let summary = std::fs::read_to_string(dir.join(receipt::SUMMARY)).unwrap();
     assert!(summary.contains("阿Q正传") && summary.contains("一字不差"));
     assert!(summary.contains("当时的标题"));
-    // The image material's description has no place in the book (a file
-    // has none of its own): it is listed in the report, and its original
-    // stays in the receipt (DY fix 9; where it goes is the author's call).
+    // Material descriptions and provenances become resolved manual comments;
+    // the report lists only the counts (`kernel-v5.md` §15 #19), while raw JSON
+    // stays in `import_original`.
     assert!(
-        summary.contains(&format!("「插图」（`{IMAGE}`）：说明「未庄的土谷祠」")),
+        summary.contains("旧版素材上的 1 条说明、0 条出处已转为已解决的批注"),
         "{summary}"
     );
-    assert_eq!(
-        r.books[0]
-            .material_texts
-            .iter()
-            .find(|t| t.material_id == IMAGE)
-            .map(|t| (t.kind.as_str(), t.description.as_str())),
-        Some(("image", "未庄的土谷祠"))
-    );
+    assert!(!summary.contains("未庄的土谷祠"), "{summary}");
+    assert_eq!(r.books[0].material_descriptions_to_comments, 1);
+    assert_eq!(r.books[0].material_provenances_to_comments, 0);
     assert_eq!(
         in_library(&format!(
             "SELECT count(*) FROM import_original WHERE collection = 'materials' AND id = '{IMAGE}' AND field = 'description'"
@@ -1170,7 +1190,9 @@ fn materials_that_do_not_come_over_are_each_one_line_of_the_report() {
     assert!(dropped.contains(&MaterialDropped::WithoutFile {
         material_id: "01900000-0000-7000-8000-0000000000e2".into(),
         material_title: "没文件的图".into(),
+        description: None,
         relations: vec!["01900000-0000-7000-8000-0000000000e5".into()],
+        comments: vec![],
     }));
     assert!(dropped.contains(&MaterialDropped::UnknownKind {
         material_id: "01900000-0000-7000-8000-0000000000e3".into(),

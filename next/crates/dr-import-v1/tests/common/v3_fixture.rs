@@ -174,6 +174,24 @@ pub fn build() -> Old {
         "INSERT INTO timeline_marker (id, project_id, narrative_order, label, drift_node_id, created_at, updated_at) VALUES ('pin-2', ?1, 6.25, '另一时间钉', NULL, ?2, ?2)",
         params![BOOK, T0],
     );
+    exec(
+        &c,
+        "UPDATE library_item SET provenance_json = ?1 WHERE id = ?2",
+        params![
+            format!(
+                r#"{{"v":1,"origin":"generated","generation":{{"provider":"chatgpt-subscription","model":"gpt-image-1","prompt":"未庄的土谷祠\n\n画风：水墨淡彩","subjectPrompt":"未庄的土谷祠","styleText":"水墨淡彩","extraPrompt":"不要现代器物","target":{{"kind":"element","id":"{ELEMENT}"}},"generationId":"gen-1","conversationId":"conv-1","sourceItemIds":[],"generatedAt":"2025-01-02T03:04:05.000Z"}}}}"#
+            ),
+            IMAGE
+        ],
+    );
+    exec(
+        &c,
+        "UPDATE library_item SET notes_json = ?1 WHERE id = ?2",
+        params![
+            r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"王胡与小D的记事"}]}]}"#,
+            NOTE
+        ],
+    );
     // This retired view preference is in the real handoff capture list.
     let stamp: String = c
         .query_row(

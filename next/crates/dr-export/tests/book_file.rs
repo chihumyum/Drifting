@@ -89,9 +89,15 @@ fn bad_files_are_refused_and_nothing_is_written() {
         Err(BookFileError::Legacy)
     ));
 
-    // From a newer Drifting, and from an earlier development build (format
-    // 3, before the documents beside the book).
-    for (version, name) in [(5, "newer"), (3, "older")] {
+    // From a newer Drifting (6), earlier book-file formats (2, 3, 4), and
+    // format 1 (legacy).
+    for (version, name) in [
+        (6, "newer"),
+        (4, "older4"),
+        (3, "older3"),
+        (2, "older2"),
+        (1, "legacy1"),
+    ] {
         let file = e.dir.path().join(format!("{name}.driftingproject"));
         let mut w = zip::ZipWriter::new(std::fs::File::create(&file).unwrap());
         w.start_file("manifest.json", zip::write::SimpleFileOptions::default())
@@ -103,7 +109,8 @@ fn bad_files_are_refused_and_nothing_is_written() {
         w.finish().unwrap();
         let refused = book_file::import_book(&e.ws, &file, &|_| {});
         match version {
-            5 => assert!(matches!(refused, Err(BookFileError::Newer)), "{refused:?}"),
+            6 => assert!(matches!(refused, Err(BookFileError::Newer)), "{refused:?}"),
+            1 => assert!(matches!(refused, Err(BookFileError::Legacy)), "{refused:?}"),
             _ => assert!(matches!(refused, Err(BookFileError::Older)), "{refused:?}"),
         }
     }

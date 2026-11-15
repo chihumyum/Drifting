@@ -1,5 +1,6 @@
-//! One book in one file: `.driftingproject`, versions 2 (legacy) and 3 (v3 books). The 0.1 client
-//! wrote version 1; docs/book-transfer.md).
+//! One book in one file: `.driftingproject`, format version 5 (`kernel-v5.md` §18).
+//! Earlier book-file formats (2, 3 and 4) are refused as older formats, and
+//! version 1 (written by the 0.1 client) is refused as legacy; `docs/book-transfer.md`.
 //!
 //! ```text
 //! manifest.json                          format, version, title, checksums
@@ -54,10 +55,11 @@ use crate::files::readable_stem;
 mod v3;
 
 pub const FORMAT: &str = "drifting.book";
-/// 4 from `kernel-v4.md`: the book's writing days and checkpoint manifests
-/// travel in `stats:<book>` and `checkpoints:<book>`. Only this version is
-/// read; 3 was written only by development builds before it.
-pub const FORMAT_VERSION: u32 = 4;
+/// 5 from `kernel-v5.md` §18: unified entries, asset-library folders
+/// (`asset_folders`), media modules, file links and `layout:<book>` travel in
+/// the archive. Only this version is read; formats 2, 3 and 4 are refused as
+/// older book-file formats.
+pub const FORMAT_VERSION: u32 = 5;
 pub const EXTENSION: &str = "driftingproject";
 /// What the 0.1 client and development builds before 2026-11-14 named
 /// these files. Import reads a file by its content, so one still named this
@@ -81,9 +83,9 @@ pub enum BookFileError {
     /// Made by a newer Drifting.
     #[error("the book was exported by a newer Drifting")]
     Newer,
-    /// Exported by an earlier development build of this client, in a format
-    /// this build no longer reads (format 3 and before).
-    #[error("the book was exported by an earlier build, in a format no longer read")]
+    /// Exported in an earlier book-file format this build no longer reads
+    /// (formats 2, 3 and 4).
+    #[error("the book is in an earlier book-file format no longer read")]
     Older,
     #[error("the book is larger than a book file can hold")]
     TooLarge,
@@ -393,8 +395,8 @@ fn read_file(path: &Path) -> Result<Contents> {
     if header.format_version > FORMAT_VERSION {
         return Err(BookFileError::Newer);
     }
-    // 3: written by development builds of this client before `kernel-v4.md`.
-    if header.format_version == 3 {
+    // 2..=4: earlier book-file formats before `kernel-v5.md` §18, no longer read.
+    if (2..FORMAT_VERSION).contains(&header.format_version) {
         return Err(BookFileError::Older);
     }
     if header.format_version < FORMAT_VERSION {

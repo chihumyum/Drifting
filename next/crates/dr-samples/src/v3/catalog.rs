@@ -260,21 +260,21 @@ pub fn file_folders(
             .folder
             .as_ref()
             .filter(|f| by_id.contains_key(f) && folder_id(f).is_some());
+        if let Some(f) = folder {
+            let mut cur = Some(f);
+            while let Some(fid) = cur {
+                if !wanted.insert(fid) {
+                    break;
+                }
+                cur = by_id.get(fid).and_then(|mf| mf.parent.as_ref());
+            }
+        }
         match first.get(asset) {
             Some(Some(_)) => continue,
             Some(None) if folder.is_none() => continue,
             _ => {}
         }
         first.insert(asset, folder);
-    }
-    for folder in first.values().flatten() {
-        let mut cur = Some(*folder);
-        while let Some(fid) = cur {
-            if !wanted.insert(fid) {
-                break;
-            }
-            cur = by_id.get(fid).and_then(|f| f.parent.as_ref());
-        }
     }
     fn next_key<K: Ord + Clone>(last: &mut BTreeMap<K, PosKey>, at: &K) -> PosKey {
         let key = last.get(at).map_or_else(PosKey::first, PosKey::after);
@@ -1291,12 +1291,15 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
                 _ => CommentOrigin::Manual,
             },
         };
+        let material_whole =
+            comment.metadata.as_deref() == Some(r#"{"drImportV1":"material-comment"}"#);
         let (module, part) = match &comment.target {
             Some(t) if t.kind == EntityKind::Material => match materials_by_id.get(t.id.as_str()) {
                 Some(m) if m.kind != MaterialKind::Text => (
                     None,
                     comment.region.map(|region| CommentPart::Region { region }),
                 ),
+                _ if material_whole => (None, None),
                 _ => (Some(mid(MOD_PROSE)), None),
             },
             other => (other.as_ref().and_then(target_module), None),
@@ -1322,6 +1325,9 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             }
             map(t)
         });
+        let kept_metadata = (!material_whole)
+            .then_some(comment.metadata.as_deref())
+            .flatten();
         w.origin(&origin)?
             .target(mapped_comment_target.as_ref())?
             .module(module.as_ref())?
@@ -1336,7 +1342,7 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .body(&comment.body)?
             .status(&comment.status)?
             .source(&comment.source)?
-            .metadata(comment.metadata.as_deref())?
+            .metadata(kept_metadata)?
             .agent_conversation(comment.agent_conversation.as_deref())?
             .resolved_at(comment.resolved_at)?
             .created_at(comment.created_at)?

@@ -13,11 +13,11 @@ use dr_import_v1::{
 };
 use serde::{Deserialize, Serialize};
 
-/// A development reimport writes book format 4 (`kernel-v4.md`). A target or
-/// a pending record of an earlier format (`reimport-v3-…`) is left as it is
-/// and never resumed.
-const PREFIX: &str = "reimport-v4-";
-const PENDING: &str = "reimport-v4-pending.json";
+/// A development reimport writes book format 5 (`kernel-v5.md`). A target or
+/// a pending record of an earlier format (`reimport-v3-…`, `reimport-v4-…`) is
+/// left as it is and never resumed.
+const PREFIX: &str = "reimport-v5-";
+const PENDING: &str = "reimport-v5-pending.json";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

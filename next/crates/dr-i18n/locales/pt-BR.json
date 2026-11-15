@@ -783,7 +783,7 @@
       "importFailedTitle": "Não foi possível importar",
       "invalid": "Este arquivo está danificado e não pode ser importado.",
       "legacy": "Este arquivo foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",
-      "older": "Este arquivo foi exportado por uma versão de desenvolvimento anterior do Drifting, em um formato que esta versão não lê mais."
+      "older": "Este arquivo de livro está em um formato anterior que esta versão não lê mais."
     },
     "delete": {
       "deleting": "Excluindo…"
