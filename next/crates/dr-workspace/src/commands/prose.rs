@@ -242,7 +242,7 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
     for l in &input.links {
         let doc = doc_id(&l.doc)?;
         let kind = dr_model::kind::EntityKind::parse(&l.target.kind);
-        if !kind.may_be_linked_v3() {
+        if !kind.may_be_linked_v3() && kind != dr_model::kind::EntityKind::Asset {
             return Err(WsError::invalid(format!(
                 "{:?} cannot be linked",
                 l.target.kind

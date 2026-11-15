@@ -357,10 +357,129 @@ fn input(book: &BookId) -> CheckinInput {
             documents: Vec::new(),
             project_memory: Vec::new(),
             working_memory: Some(String::new()),
-            open_todos: Vec::new(),
+            open_comments: Vec::new(),
             entry_titles: Vec::new(),
         },
     }
+}
+
+#[test]
+fn v5_note_and_manuscript_bodies_participate_in_both_delta_modes_by_provenance() {
+    use dr_doc::v3::novel::{MOD_PROSE, TPL_CHAPTER, TPL_NOTE};
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dr_workspace::Workspace::open_dir(dir.path(), "k6-v5-delta-provenance").unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let book = seeded.books[0].book_id().clone();
+    let chapter = seeded.books[0]
+        .book
+        .view()
+        .entries()
+        .into_iter()
+        .find(|e| {
+            e.template
+                .as_ref()
+                .is_some_and(|t| t.as_str() == TPL_CHAPTER)
+        })
+        .unwrap();
+    seeded.write_to(ws.library()).unwrap();
+
+    let created_note = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "entry.create",
+            json!({"book": book, "template": TPL_NOTE, "title": "田野笔记"}),
+        )
+        .unwrap();
+    let note_id = created_note["output"]["id"].as_str().unwrap().to_owned();
+    let note_doc = format!("body:{note_id}/{MOD_PROSE}");
+    let chapter_doc = format!("body:{}/{MOD_PROSE}", chapter.id);
+    ws.call(
+        &dr_workspace::Actor::User,
+        "module.set_prose",
+        json!({
+            "book": book,
+            "owner": note_id,
+            "module": MOD_PROSE,
+            "paragraphs": [{"text": "初版随记。"}]
+        }),
+    )
+    .unwrap();
+
+    let baseline = cursor(ws.library(), &book);
+
+    // Agent edit on chapter + synced remote edit on note: visible in AllProse, excluded from LocalAuthorBodies.
+    insert(ws.library(), &chapter_doc, Origin::agent("s1", 1));
+    let remote = ws.library().load_copy(&note_doc).unwrap();
+    remote.set_peer_id(42).unwrap();
+    let remote_id: DocId = note_doc.parse().unwrap();
+    let remote_prose = BorrowedProse::new(&remote, &remote_id).unwrap();
+    remote_prose.txn().insert_text(0, "远端补充。").unwrap();
+    remote.commit_with(
+        loro::CommitOptions::new()
+            .origin("user")
+            .timestamp(dr_store::now_ms() / 1000),
+    );
+    ws.library()
+        .open_doc(&note_doc, OpenDoc::Existing)
+        .unwrap()
+        .import(
+            remote.export(loro::ExportMode::all_updates()).unwrap(),
+            Origin::Sync,
+        )
+        .unwrap();
+    let non_author_all = collect_delta(
+        ws.library(),
+        &request(
+            &book,
+            baseline.clone(),
+            DeltaMode::AllProse,
+            CHECKIN_DOCUMENT_LIMIT,
+        ),
+    )
+    .unwrap();
+    assert!(
+        non_author_all
+            .documents
+            .iter()
+            .any(|d| d.doc == chapter_doc)
+    );
+    assert!(non_author_all.documents.iter().any(|d| d.doc == note_doc));
+    let non_author_local = collect_delta(
+        ws.library(),
+        &request(
+            &book,
+            baseline,
+            DeltaMode::LocalAuthorBodies,
+            ORGANIZE_DOCUMENT_LIMIT,
+        ),
+    )
+    .unwrap();
+    assert!(non_author_local.documents.is_empty());
+
+    // Local author edits on both chapter and note: visible in both AllProse and LocalAuthorBodies.
+    let author_base = cursor(ws.library(), &book);
+    insert(ws.library(), &chapter_doc, Origin::User);
+    insert(ws.library(), &note_doc, Origin::User);
+    for mode in [DeltaMode::AllProse, DeltaMode::LocalAuthorBodies] {
+        let batch = collect_delta(
+            ws.library(),
+            &request(&book, author_base.clone(), mode, ORGANIZE_DOCUMENT_LIMIT),
+        )
+        .unwrap();
+        assert!(batch.documents.iter().any(|d| d.doc == chapter_doc));
+        assert!(batch.documents.iter().any(|d| d.doc == note_doc));
+    }
+
+    // Structure check-in prompt and context use unified open comments + project_agent guidance.
+    assert!(STRUCTURE_CHECKIN_SYSTEM_PROMPT.contains("project_agent"));
+    assert!(STRUCTURE_CHECKIN_SYSTEM_PROMPT.contains("open comments"));
+    assert!(!STRUCTURE_CHECKIN_SYSTEM_PROMPT.contains("open TODOs"));
+    let mut sample = input(&book).context;
+    sample.open_comments = vec!["c1 [task]: 补齐伏笔".into()];
+    let rendered = build_checkin_context(&sample);
+    assert!(rendered.contains("Open comments:\nc1 [task]: 补齐伏笔"));
+
+    ws.shutdown().unwrap();
 }
 
 #[test]

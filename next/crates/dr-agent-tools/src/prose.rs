@@ -46,8 +46,18 @@ pub fn comment_anchors(doc: &str, list: &Value) -> Vec<CommentAnchor> {
     comments
         .iter()
         .filter_map(|comment| {
-            if comment["target"]["kind"].as_str() != Some(doc.kind().prefix())
-                || comment["target"]["id"].as_str() != Some(doc.entity_id())
+            let matches_doc = match &doc {
+                dr_model::DocId::Body(body) => {
+                    comment["target"]["kind"].as_str() == Some("entry")
+                        && comment["target"]["id"].as_str() == Some(body.entry().as_str())
+                        && comment["module"].as_str() == Some(body.module().as_str())
+                }
+                _ => {
+                    comment["target"]["kind"].as_str() == Some(doc.kind().prefix())
+                        && comment["target"]["id"].as_str() == Some(doc.entity_id())
+                }
+            };
+            if !matches_doc
                 || comment["unlocated"] != false
                 || comment.get("part").is_some_and(|part| !part.is_null())
             {

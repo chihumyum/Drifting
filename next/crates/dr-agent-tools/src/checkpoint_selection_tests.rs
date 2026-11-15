@@ -16,7 +16,7 @@ use crate::{Error, Result, catalog::Catalog, resolve::ResolvedCall};
 
 /// The selection before only lookups loaded the book.
 fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<String>> {
-    if call.name.starts_with("comment.") {
+    if call.name.starts_with("layout.") {
         return Ok(Vec::new());
     }
     let book = BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?;
@@ -48,6 +48,7 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     let copy = ws.library().load_copy(&format!("book:{book}"))?;
     let borrowed = BorrowedBookV3::new(&copy, &book).map_err(|e| Error::Invalid(e.to_string()))?;
     let view = borrowed.view();
+    let headers = view.entry_headers_with(&std::collections::BTreeMap::new());
     if call.name == "entry.set_level"
         && args["level"] == false
         && let Some(id) = args["id"].as_str()
@@ -56,15 +57,58 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
         && !parent.is_trashed()
         && parent.is_level()
     {
-        for child in view
-            .entries_raw()
-            .into_iter()
-            .filter(|c| c.parent.as_ref() == Some(&parent_id))
-        {
-            ids.insert(child.id.to_string());
+        let mut descendants = BTreeSet::new();
+        let mut frontier = vec![parent_id];
+        while let Some(cur) = frontier.pop() {
+            for child in headers.values() {
+                if child.parent.as_ref() == Some(&cur)
+                    && !child.is_trashed()
+                    && descendants.insert(child.id.clone())
+                {
+                    frontier.push(child.id.clone());
+                }
+            }
         }
+        ids.extend(descendants.into_iter().map(|eid| eid.to_string()));
     }
     let mut endpoints = Vec::new();
+    let mut comments = Vec::new();
+    let mut assets = Vec::new();
+    let mut folders = Vec::new();
+    if call.name == "comment.create"
+        && let (Some(kind), Some(id)) = (
+            args["target"]["kind"].as_str(),
+            args["target"]["id"].as_str(),
+        )
+    {
+        endpoints.push((EntityKind::from(kind), id.to_owned()));
+    }
+    if matches!(
+        call.name.as_str(),
+        "comment.update" | "comment.reanchor" | "comment.trash" | "comment.restore"
+    ) && let Some(id) = args["id"].as_str()
+    {
+        comments.push(id.to_owned());
+    }
+    if matches!(
+        call.name.as_str(),
+        "asset.rename" | "asset.move" | "asset.trash" | "asset.restore"
+    ) && let Some(id) = args["id"].as_str()
+    {
+        assets.push(id.to_owned());
+    }
+    if matches!(
+        call.name.as_str(),
+        "asset_folder.rename" | "asset_folder.move" | "asset_folder.trash" | "asset_folder.restore"
+    ) && let Some(id) = args["id"].as_str()
+    {
+        folders.push(id.to_owned());
+    }
+    if call.name == "asset_folder.create"
+        && let Some(parent) = args["parent"].as_str()
+    {
+        folders.push(parent.to_owned());
+    }
     if matches!(
         call.name.as_str(),
         "relation.create" | "module.put_relation"
@@ -121,16 +165,70 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
                         endpoints.extend([(r.from.kind, r.from.id), (r.to.kind, r.to.id)]);
                     }
                 }
+                Some("comments") => comments.push(id.to_owned()),
+                Some("assets") => assets.push(id.to_owned()),
+                Some("asset_folders") => folders.push(id.to_owned()),
                 _ => {}
             }
         }
     }
+    for fid_str in folders {
+        if let Ok(fid) = dr_model::id::AssetFolderId::parse(&fid_str) {
+            let (_, files) = crate::resolve::asset_folder_subtree(&view, &fid);
+            assets.extend(files.into_iter().map(|a| a.id.to_string()));
+        }
+    }
+    let mut patches = Vec::new();
     for (kind, id) in endpoints {
-        if kind == EntityKind::Entry {
-            ids.insert(id);
-        } else if kind == EntityKind::Patch
-            && let Some(patch) = view.patches().iter().find(|p| p.id.as_str() == id)
-        {
+        match kind {
+            EntityKind::Entry => {
+                ids.insert(id);
+            }
+            EntityKind::Patch => patches.push(id),
+            EntityKind::Comment => comments.push(id),
+            EntityKind::Asset => assets.push(id),
+            _ => {}
+        }
+    }
+    if !comments.is_empty() {
+        let stored_comments = view.comments();
+        for cid in comments {
+            if let Some(c) = stored_comments.iter().find(|c| c.id.as_str() == cid)
+                && let Some(t) = &c.target
+            {
+                match t.kind {
+                    EntityKind::Entry => {
+                        ids.insert(t.id.clone());
+                    }
+                    EntityKind::Patch => patches.push(t.id.clone()),
+                    EntityKind::Asset => assets.push(t.id.clone()),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if !assets.is_empty() {
+        let asset_set: BTreeSet<String> = assets.into_iter().collect();
+        for r in view.relations_raw() {
+            for (a_end, other) in [(&r.from, &r.to), (&r.to, &r.from)] {
+                if a_end.kind == EntityKind::Asset && asset_set.contains(&a_end.id) {
+                    match other.kind {
+                        EntityKind::Entry => {
+                            ids.insert(other.id.clone());
+                        }
+                        EntityKind::Patch => patches.push(other.id.clone()),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        ids.extend(super::entries_referencing_assets(
+            ws, &book, &view, &headers, &asset_set,
+        )?);
+    }
+    let stored_patches = view.patches();
+    for pid in patches {
+        if let Some(patch) = stored_patches.iter().find(|p| p.id.as_str() == pid) {
             ids.insert(patch.entry.to_string());
         }
     }
@@ -140,6 +238,16 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
 /// The calls whose checkpoint has to find a record in the book (with the
 /// arguments below, which name every kind of record).
 const LOOKUPS: &[&str] = &[
+    "asset.move",
+    "asset.rename",
+    "asset.restore",
+    "asset.trash",
+    "asset_folder.move",
+    "asset_folder.rename",
+    "asset_folder.restore",
+    "asset_folder.trash",
+    "comment.reanchor",
+    "comment.update",
     "entry.set_level",
     "entry_history.restore",
     "module.put_relation",
@@ -327,17 +435,30 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
             // Only a lookup loads the book; the full argument set makes
             // every lookup a call can do.
             let looks_up = !Named::of(&call).lookups.is_empty();
-            if n == 1 && !name.starts_with("comment.") {
+            if n == 1 && !name.starts_with("layout.") {
                 assert_eq!(looks_up, LOOKUPS.contains(&name.as_str()), "{name}");
             }
             if n == 0 {
                 assert!(!looks_up, "{name}, arguments {n}");
             }
             if n == 6 {
-                // Only an `id` that may be a relation's is looked up.
                 assert_eq!(
                     looks_up,
-                    matches!(name.as_str(), "relation.delete" | "module.remove_relation"),
+                    matches!(
+                        name.as_str(),
+                        "relation.delete"
+                            | "module.remove_relation"
+                            | "comment.update"
+                            | "comment.reanchor"
+                            | "asset.rename"
+                            | "asset.move"
+                            | "asset.trash"
+                            | "asset.restore"
+                            | "asset_folder.rename"
+                            | "asset_folder.move"
+                            | "asset_folder.trash"
+                            | "asset_folder.restore"
+                    ),
                     "{name}, arguments {n}"
                 );
             }
@@ -399,9 +520,9 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
         members
     );
 
-    // Turning off an entry's level switch checkpoints the entry and its direct
-    // children (live and trashed), excluding grandchildren; turning it on
-    // neither loads the book nor checkpoints children.
+    // Turning off an entry's level switch checkpoints the entry and every live
+    // descendant (including grandchildren), excluding already-trashed children;
+    // turning it on neither loads the book nor checkpoints children.
     let parent_level = out(
         "entry.create",
         json!({"book": book, "title": "Synthetic container", "level": true}),
@@ -445,14 +566,35 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
         json!({"id": parent_level, "level": false}),
     );
     assert!(!Named::of(&off_call).lookups.is_empty());
-    let mut expected_off = vec![
-        parent_level.clone(),
-        live_child.clone(),
-        trashed_child.clone(),
-    ];
+    let mut expected_off = vec![parent_level.clone(), live_child.clone(), grandchild.clone()];
     expected_off.sort();
     let actual_off = entries(&ws, &key, &off_call).unwrap();
     assert_eq!(actual_off, expected_off);
-    assert!(!actual_off.contains(&grandchild));
+    assert!(!actual_off.contains(&trashed_child));
+
+    // Comment creation on an entry selects that entry directly without loading
+    // the book; updating that comment looks up and selects the entry.
+    let c_create = call(
+        "comment.create",
+        json!({"target": {"kind": "entry", "id": character}, "body": "Synthetic comment"}),
+    );
+    assert!(Named::of(&c_create).lookups.is_empty());
+    assert_eq!(
+        entries(&ws, &key, &c_create).unwrap(),
+        vec![character.clone()]
+    );
+    let cid = out(
+        "comment.create",
+        json!({"book": book, "target": {"kind": "entry", "id": character}, "body": "Synthetic comment"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let c_update = call("comment.update", json!({"id": cid, "status": "resolved"}));
+    assert!(!Named::of(&c_update).lookups.is_empty());
+    assert_eq!(
+        entries(&ws, &key, &c_update).unwrap(),
+        vec![character.clone()]
+    );
     ws.close();
 }

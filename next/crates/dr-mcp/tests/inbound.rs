@@ -294,6 +294,61 @@ async fn main_chain(unix: bool, through_bridge: bool) {
     let catalog = f.catalog(0);
     assert_eq!(listed.tools.len(), catalog.entries().len());
     assert!(listed.tools.iter().any(|tool| tool.name == "prose.replace"));
+    for required in [
+        "project.get",
+        "project.update",
+        "tab.put",
+        "book.sequence",
+        "module.put_media",
+        "module.remove_media",
+        "module.set_arrangement",
+        "asset.list",
+        "asset_folder.create",
+        "layout.get",
+        "layout.put",
+    ] {
+        assert!(
+            listed.tools.iter().any(|tool| tool.name == required),
+            "expected v5 inbound MCP catalog to expose {required}"
+        );
+    }
+    assert!(
+        !listed.tools.iter().any(|tool| {
+            let name = tool.name.as_ref();
+            name.starts_with("material.")
+                || name.starts_with("material_folder.")
+                || name.starts_with("todo.")
+                || matches!(
+                    name,
+                    "asset.purge" | "asset_folder.purge" | "comment.delete" | "comment.project"
+                )
+        }),
+        "retired material/todo and destructive purge/delete operations must stay excluded from MCP"
+    );
+    let comment_update = listed
+        .tools
+        .iter()
+        .find(|tool| tool.name == "comment.update")
+        .unwrap();
+    assert!(
+        comment_update
+            .input_schema
+            .get("properties")
+            .and_then(Value::as_object)
+            .is_some_and(|props| !props.contains_key("priority")),
+        "comment.update MCP schema must not expose legacy todo priority"
+    );
+    let prose_link = listed
+        .tools
+        .iter()
+        .find(|tool| tool.name == "prose.link")
+        .unwrap();
+    assert!(
+        serde_json::to_string(&prose_link.input_schema)
+            .unwrap()
+            .contains("\"asset\""),
+        "prose.link MCP schema must allow asset targets"
+    );
     assert!(
         !listed
             .tools

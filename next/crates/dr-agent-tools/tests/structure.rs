@@ -646,3 +646,125 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
         format!("body:{manuscript_id}/{MOD_DESCRIPTION}")
     );
 }
+
+#[test]
+fn v5_structure_projects_book_and_tabs_and_bounds_heavy_seed_size() {
+    let f = Fixture::new();
+    let initial = f.context();
+    let initial_book = initial
+        .project_book
+        .as_ref()
+        .expect("novel project starts with a book");
+    assert!(initial_book.root_valid);
+    assert_eq!(initial_book.word_target, Some(3000));
+    assert!(!initial.project_tabs.is_empty());
+    assert!(initial.project_tabs.iter().all(|t| t.mount_valid));
+    assert!(initial.entry_count > 0);
+    assert_eq!(
+        initial.entries_by_template.values().copied().sum::<usize>(),
+        initial.entry_count
+    );
+
+    // Media module write_tools include `module.set_arrangement`.
+    f.out(
+        "entry_template.put_module",
+        json!({
+            "book": f.book,
+            "template": TPL_CHAPTER,
+            "module": {"id": "mod-media-v5", "kind": "media", "name": "插图"}
+        }),
+    );
+    let with_media = f.context();
+    let media_mod = with_media
+        .templates
+        .iter()
+        .find(|t| t.id == TPL_CHAPTER)
+        .unwrap()
+        .modules
+        .iter()
+        .find(|m| m.id == "mod-media-v5")
+        .unwrap();
+    assert!(
+        media_mod
+            .capabilities
+            .write_tools
+            .contains(&"module.set_arrangement".to_string())
+    );
+
+    // Project book and tab updates bump structure_revision and reflect exact state.
+    f.out(
+        "project.update",
+        json!({"book": f.book, "word_target": 12000, "daily_word_target": 1500}),
+    );
+    let after_book = f.context();
+    assert_ne!(after_book.structure_revision, with_media.structure_revision);
+    assert_eq!(
+        after_book.project_book.as_ref().unwrap().word_target,
+        Some(12000)
+    );
+    assert_eq!(
+        after_book.project_book.as_ref().unwrap().daily_word_target,
+        Some(1500)
+    );
+
+    let made_tab = f.out(
+        "tab.put",
+        json!({
+            "book": f.book,
+            "name": "成书预览",
+            "mount": {"kind": "book"}
+        }),
+    );
+    let after_tab = f.context();
+    assert_ne!(after_tab.structure_revision, after_book.structure_revision);
+    assert!(
+        after_tab
+            .project_tabs
+            .iter()
+            .any(|t| t.id == made_tab["id"] && t.name == "成书预览" && t.mount_valid)
+    );
+
+    // Heavy seed: StructureContext stays bounded by summarizing omitted levels by depth & template.
+    let heavy_dir = tempfile::tempdir().unwrap();
+    let heavy_ws = Workspace::open_dir(heavy_dir.path(), "v5-heavy-structure").unwrap();
+    let heavy_seed = seed::generate_v3(Preset::Heavy, seed::DEFAULT_SEED).unwrap();
+    let heavy_book = heavy_seed.books[0].book_id().clone();
+    heavy_seed.write_to(heavy_ws.library()).unwrap();
+    // Turn on `level` across entries so the book has far more than 32 levels.
+    let all_entries = heavy_ws
+        .call(
+            &Actor::User,
+            "entry.list",
+            json!({"book": heavy_book, "all": true}),
+        )
+        .unwrap()["output"]
+        .as_array()
+        .unwrap()
+        .clone();
+    for item in all_entries.iter().take(60) {
+        if item["level"] == false {
+            let _ = heavy_ws.call(
+                &Actor::User,
+                "entry.set_level",
+                json!({"book": heavy_book, "id": item["id"], "level": true}),
+            );
+        }
+    }
+
+    let heavy_ctx = StructureContext::for_book(&heavy_ws, &heavy_book, None)
+        .unwrap()
+        .unwrap();
+    let heavy_contrib = heavy_ctx.to_contribution().unwrap();
+    assert!(
+        heavy_contrib.text.len() < 64 * 1024,
+        "heavy StructureContext JSON exceeded 64 KiB: {} bytes",
+        heavy_contrib.text.len()
+    );
+    assert!(heavy_ctx.levels.len() <= 32);
+    assert!(heavy_ctx.levels_omitted > 0);
+    let depth_sum: usize = heavy_ctx.levels_by_depth.iter().map(|d| d.total).sum();
+    assert_eq!(depth_sum, heavy_ctx.levels.len() + heavy_ctx.levels_omitted);
+    assert!(heavy_ctx.project_agent.is_some());
+    assert!(!heavy_ctx.templates.is_empty());
+    heavy_ws.close();
+}

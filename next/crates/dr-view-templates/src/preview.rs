@@ -537,14 +537,12 @@ mod tests {
                 serde_json::to_value(&resolved.sources).unwrap()
             );
             assert_eq!(level.effective_settings.values, resolved.settings);
+            assert!(!level.level);
             assert!(level.effective_settings.values.accept);
             assert_eq!(level.effective_settings.values.home, None);
-            assert!(
-                level
-                    .actions
-                    .iter()
-                    .any(|a| a.name == "Synthetic preview action" && a.home_id == level.id)
-            );
+            assert!(level.actions.iter().any(|a| {
+                a.name == "Synthetic preview action" && a.home_id.is_empty() && a.adds_membership
+            }));
         }
         let after = workspace.observe(&format!("book:{book}")).unwrap();
         assert_eq!((after.version, after.value), (before.version, before.value));

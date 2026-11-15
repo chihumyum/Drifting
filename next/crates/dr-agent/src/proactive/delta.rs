@@ -28,6 +28,15 @@ pub struct DocumentCursor {
     pub counters: BTreeMap<u64, i32>,
 }
 
+/// Provenance filter over a book's live entry prose documents (`DocId::Body`).
+///
+/// Format 5 has one kind of entry (`Entry`) and retired `material:` text
+/// documents (`kernel-v5.md` §6): note entries, description/idea/element prose
+/// modules (`in_book = false`), manuscript prose modules (`in_book = true`),
+/// and retained prose bodies all participate as ordinary entry bodies without
+/// inspecting template IDs. `AllProse` includes local author, Agent, and
+/// synced remote changes; `LocalAuthorBodies` includes local author changes
+/// only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeltaMode {
     AllProse,
@@ -77,11 +86,7 @@ pub struct DeltaBatch {
     pub captured_ms: i64,
 }
 
-fn live_targets(
-    lib: &Library,
-    book: &BookId,
-    _mode: DeltaMode,
-) -> Result<BTreeMap<String, CardTarget>> {
+fn live_targets(lib: &Library, book: &BookId) -> Result<BTreeMap<String, CardTarget>> {
     let copy = lib.load_copy(&format!("book:{book}"))?;
 
     let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book)?;
@@ -182,7 +187,7 @@ pub fn collect_delta(lib: &Library, request: &DeltaRequest) -> Result<DeltaBatch
     if request.limit == 0 || request.limit > 64 {
         return Err(Error::Protocol("invalid suggestion batch limit".into()));
     }
-    let targets = live_targets(lib, &request.book, request.mode)?;
+    let targets = live_targets(lib, &request.book)?;
     let epoch = lib.epoch();
     let peers: BTreeMap<String, u64> = lib.local_read(|conn| {
         let mut stmt = conn.prepare("SELECT doc_id, peer_id FROM loro_peer WHERE epoch = ?1")?;
