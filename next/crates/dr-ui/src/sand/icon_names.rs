@@ -16,6 +16,7 @@ crate::assets::masks! {
     Books => "books",
     BothWays => "both-ways",
     Branch => "branch",
+    Bridges => "bridges",
     BrushBroken => "brush-broken",
     BrushLaid => "brush-laid",
     BrushLifted => "brush-lifted",

@@ -85,6 +85,8 @@ name-seal.png               名章: an upright seal, a head and shoulders cut wh
 inkstone.png                砚: a slab, its well inked solid (models and API)
 grip.png                    three short slants in a corner (a resize grip)
 hook.png                    ↳: one stroke down and round, a head at its end (a deep link)
+bridges.png                 筝柱: three strings, a bridge set on each at a different place
+                            (manage the left column's Tabs; the author picked seed 9202)
 lift.png                    上提: one heavy stroke pulled up, a 「人」 head on it (send to the Agent)
 lift-bent.png               汇流上提: the same head, its shaft bent in from the lower left like a
                             stream running in to join the current (add to the Agent's running task)
@@ -1421,6 +1423,14 @@ def lanes_stagger(rng):
     """错落三短横 (sort by storyline order): three storyline dashes, each starting a step later."""
     return _dashes((4, 24, 44), (12, 38, 64)), new()
 
+def bridges(rng):
+    """筝柱 (manage the Tabs): three strings, a bridge set on each at a different place."""
+    a = new()
+    for y, x in ((26, 32), (48, 64), (70, 42)):
+        brush(a, line((12, y), (84, y + 0.5)), G * 0.75, rng, load0=0.95, dry=0.3, taper=(0.04, 0.12))
+        fill_poly(a, [(x - 9, y + 7), (x, y - 9), (x + 9, y + 7)], rng, rough=0.6)
+    return a
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -1459,6 +1469,7 @@ OBJECTS = {
     "insert-row": (insert_row, 8192), "list-bullet": (list_bullet, 8201), "list-ordered": (list_ordered, 8211),
     "table": (table, 8222), "code": (code, 8230), "highlight": (highlight, 8240),
     "brush-writing": (brush_writing, 8081), "alpha-down": (alpha_down, 8091), "lanes-stagger": (lanes_stagger, 8102),
+    "bridges": (bridges, 9202),
 }
 # Drawn beside the shipped folding fan and incense and not written out: to
 # ship one instead, put it in OBJECTS under the shipped icon's name.
