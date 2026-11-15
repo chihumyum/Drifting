@@ -8,6 +8,7 @@ pub mod context;
 mod control;
 pub mod driver;
 pub mod evidence;
+pub mod guidance;
 mod journal;
 pub mod long_task;
 pub mod memory;

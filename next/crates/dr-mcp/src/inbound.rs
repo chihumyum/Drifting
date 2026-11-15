@@ -664,7 +664,7 @@ impl ServerHandler for Peer {
                 .build(),
         )
             .with_server_info(Implementation::new("Drifting", env!("CARGO_PKG_VERSION")))
-            .with_instructions(format!("Current open book: {book}. Tools are Drifting's canonical author tools plus the open book's template actions (named action:…); the list follows the open book and announces changes with notifications/tools/list_changed. Read the current book and complete target content before editing. Calls share the in-app Agent scheduler; changes commit directly with durable receipts. The result's session identifies this external connection and its durable settlement receipts. Complete entry history is restored by the author in the app. Switching books ends its read coverage. A canceled or disconnected call may already have committed; inspect before retrying. Calls are never replayed automatically."))
+            .with_instructions(format!("Current open book: {book}. Tools are Drifting's canonical author tools plus the open book's template actions (named action:…); the list follows the open book and announces changes with notifications/tools/list_changed. Read the current book and complete target content before editing. Calls share the in-app Agent scheduler; changes commit directly with durable receipts. The result's session identifies this external connection and its durable settlement receipts. Complete entry history is restored by the author in the app. Switching books ends its read coverage. A canceled or disconnected call may already have committed; inspect before retrying. Calls are never replayed automatically. {}", dr_agent::guidance::PROJECT_GUIDANCE_RULE))
     }
 
     async fn list_tools(
