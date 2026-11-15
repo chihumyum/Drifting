@@ -22,14 +22,94 @@ pub(crate) fn register(r: &mut Registry) {
 
 // ---- books ----------------------------------------------------------------
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize)]
 pub struct BookCreateIn {
     pub name: String,
     #[serde(default)]
     pub summary: String,
     /// Optional project template; omitted uses the built-in writing template.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template: Option<crate::commands::v3::types::ProjectTemplate>,
+    pub template: Option<crate::commands::v3::types::ProjectCreateTemplate>,
+}
+
+impl<'de> Deserialize<'de> for BookCreateIn {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawBookCreateIn {
+            name: String,
+            #[serde(default)]
+            summary: String,
+            #[serde(default)]
+            template: Option<serde_json::Value>,
+            #[serde(default)]
+            template_id: Option<String>,
+            #[serde(default)]
+            source: Option<crate::commands::v3::types::ProjectTemplateRef>,
+        }
+
+        let raw = RawBookCreateIn::deserialize(deserializer)?;
+        let template = match (raw.template, raw.template_id) {
+            (Some(_), Some(_)) => {
+                return Err(serde::de::Error::custom(
+                    "cannot specify both template and template_id",
+                ));
+            }
+            (None, Some(template_id)) => {
+                if raw.source.is_some() {
+                    return Err(serde::de::Error::custom(
+                        "cannot specify custom source together with template_id",
+                    ));
+                }
+                Some(crate::commands::v3::types::ProjectCreateTemplate::Library { template_id })
+            }
+            (Some(serde_json::Value::Null), None) | (None, None) => {
+                if raw.source.is_some() {
+                    return Err(serde::de::Error::custom("source requires a template value"));
+                }
+                None
+            }
+            (Some(val), None) => Some(
+                crate::commands::v3::types::ProjectCreateTemplate::parse_json_value(
+                    val, raw.source,
+                )
+                .map_err(serde::de::Error::custom)?,
+            ),
+        };
+        Ok(Self {
+            name: raw.name,
+            summary: raw.summary,
+            template,
+        })
+    }
+}
+
+impl JsonSchema for BookCreateIn {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("BookCreateIn")
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct BookCreateInSchema {
+            name: String,
+            #[serde(default)]
+            summary: String,
+            /// Optional project template; omitted uses the built-in writing template.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            template: Option<crate::commands::v3::types::ProjectCreateTemplate>,
+            /// Optional saved library template ID (`project-template:<id>`) to create from.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            template_id: Option<String>,
+            /// Optional provenance recorded in `project.source` when `template` is a canonical template value.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            source: Option<crate::commands::v3::types::ProjectTemplateRef>,
+        }
+        BookCreateInSchema::json_schema(generator)
+    }
 }
 
 op! {

@@ -1383,14 +1383,11 @@ where
         })
         .collect();
 
-    // 5. Extract `memberships` (kept when `member` is a checked sample entry and both ends are included).
+    // 5. Extract `memberships` (`project-templates.md` §3: kept whenever both ends are included).
     let all_memberships = book_view.memberships();
     let mut kept_domain_memberships = Vec::new();
     let mut extracted_memberships = Vec::new();
     for m in &all_memberships {
-        if !selection.sample_entries.contains(&m.member) {
-            continue;
-        }
         let (Some(host_sym), Some(member_sym)) =
             (entry_refs.get(&m.host), entry_refs.get(&m.member))
         else {
@@ -1444,9 +1441,6 @@ where
         );
         let mut placements = Vec::new();
         for p in eff_placements {
-            if !selection.sample_entries.contains(&p.entry) {
-                continue;
-            }
             if check_timeline_placement_in_lane(
                 &filtered_view_for_check,
                 &p.entry,

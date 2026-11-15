@@ -202,6 +202,11 @@ module.set_arrangement: project, tab, media, layout, and book sequence commands 
 project.create: library-wide lifecycle operation
 project.get: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 project.update: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+project_template.get: no current-book input boundary
+project_template.list: no current-book input boundary
+project_template.remove: library-wide lifecycle operation
+project_template.save: library-wide lifecycle operation
+project_template.update: library-wide lifecycle operation
 recent.touch: storage, editor, or derived-state maintenance
 tab.move: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 tab.put: project, tab, media, layout, and book sequence commands need T7 facade read coverage
