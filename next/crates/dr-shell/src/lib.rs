@@ -50,6 +50,7 @@ use dr_platform::DeepLinks;
 use dr_platform::crash::CrashReporting;
 use gpui::{App, AppContext as _, Global, Window, WindowHandle};
 
+pub use dr_view_review::agent_bridge as review_agent;
 pub use settings::{Settings, SettingsFile};
 pub use strings::{Strings, t};
 pub use workspace::Workspace;

@@ -69,6 +69,24 @@ impl Workspace {
         Some(revealed)
     }
 
+    /// Switches `pane` in the right sidebar from Review to Agent, focusing a
+    /// comment's conversation with a `‹ 回审阅` back link.
+    pub fn open_companion_for_comment(
+        &mut self,
+        pane: crate::panes::PaneId,
+        req: dr_view_review::agent_bridge::CompanionFocusRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.super_view = None;
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        self.right.panes.focused = pane;
+        self.right.panes.reveal(super::RightTab::Companion);
+        dr_view_review::agent_bridge::request_open_conversation(req, cx);
+        self.changed(cx);
+    }
+
     /// ⌘⌥M: the composer comes up beside the selection of the editor that
     /// has focus (one chapter's or the whole book's).
     pub(super) fn on_new_comment(

@@ -109,6 +109,7 @@ impl ReviewView {
                 scope: None,
                 snapshot: crate::v3::Snapshot::default(),
                 open: Rc::new(|_, _, _| {}),
+                open_agent: None,
                 marks: Rc::new(|_| None),
             }),
             v3_load: 0,
@@ -162,10 +163,12 @@ impl ReviewView {
             self.write_errors.clear();
             self.reveal = None;
             self.loaded = false;
+            let prev_open_agent = self.v3.as_ref().and_then(|s| s.open_agent.clone());
             self.v3 = Some(crate::v3_panel::State {
                 scope: target.clone(),
                 snapshot: crate::v3::Snapshot::default(),
                 open: open.clone(),
+                open_agent: prev_open_agent,
                 marks: marks.clone(),
             });
         }
@@ -183,6 +186,12 @@ impl ReviewView {
         }
         if changed_book || changed_target {
             cx.notify();
+        }
+    }
+
+    pub(crate) fn set_open_agent(&mut self, open_agent: Option<crate::v3_panel::OpenAgent>) {
+        if let Some(state) = &mut self.v3 {
+            state.open_agent = open_agent;
         }
     }
 

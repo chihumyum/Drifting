@@ -1238,6 +1238,24 @@ fn v3_review_open(
     }))
 }
 
+fn v3_review_open_agent(
+    ws: &Workspace,
+    pane: PaneId,
+    cx: &mut Context<Workspace>,
+) -> Option<dr_view_review::v3_panel::OpenAgent> {
+    let owner = V3PanelOwner::of(ws)?;
+    let shell = cx.weak_entity();
+    Some(Rc::new(move |req, window, cx| {
+        shell
+            .update(cx, |ws, cx| {
+                if owner.matches(ws) {
+                    ws.open_companion_for_comment(pane, req, window, cx);
+                }
+            })
+            .ok();
+    }))
+}
+
 fn right_body(
     tab: RightTab,
     ws: &Workspace,
@@ -1349,25 +1367,29 @@ fn right_body(
             let Some(open) = v3_review_open(ws, cx) else {
                 return div().into_any_element();
             };
+            let open_agent = v3_review_open_agent(ws, pane, cx);
             let book = ws.book.clone();
             let marks = Rc::new(move |target: &dr_view_review::v3::Target| {
                 v3_review_target(target.clone()).map(|t| book.mark(&t).0)
             });
+            let review_id = format!("review-{}", pane_slug(pane));
+            let panel = dr_view_review::v3_panel::panel(
+                &review_id,
+                &ws.book_id,
+                scope,
+                locale,
+                platform,
+                open,
+                marks,
+                cx,
+            );
+            dr_view_review::v3_panel::set_open_agent(&review_id, open_agent, cx);
             div()
                 .id(SharedString::from(format!("v3-review-{}", pane_slug(pane))))
                 .size_full()
                 .role(gpui::Role::Group)
                 .aria_label(t(cx, keys::right_sidebar::tabs::REVIEW))
-                .child(dr_view_review::v3_panel::panel(
-                    &format!("review-{}", pane_slug(pane)),
-                    &ws.book_id,
-                    scope,
-                    locale,
-                    platform,
-                    open,
-                    marks,
-                    cx,
-                ))
+                .child(panel)
                 .into_any_element()
         }
     }
