@@ -796,3 +796,70 @@ fn a_device_without_the_prose_yet_keeps_the_todo() {
     let o = project(&b_dev, &ch, &[], None);
     assert_eq!(o["output"]["removed"], json!([todo_id(&ch, 1)]));
 }
+
+#[test]
+fn embed_comment_stays_located_until_synced_prose_shows_embed_removed() {
+    use dr_doc::prose::EmbedKind;
+    use dr_model::id::{AssetId, EmbedId};
+
+    let a = env();
+    let b_dev = env();
+    let b = a.book();
+    let ch = chapter(&a, &b, "前一段。");
+    a.call(
+        "asset.put",
+        json!({"book": b, "id": "asset-pic", "name": "平面图.png", "kind": "image",
+               "mime": "image/png", "size": 12, "sha256": "a".repeat(64),
+               "width": 100, "height": 80}),
+    );
+    let embed = EmbedId::new_v7();
+    let embed_for_edit = embed.clone();
+    let s = a.ws().prose_session(&ch.doc).unwrap();
+    s.edit(move |t| {
+        t.split(4)?;
+        t.insert_embed(
+            5,
+            &embed_for_edit,
+            &EmbedKind::Asset(AssetId::parse("asset-pic").unwrap()),
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    let cid = id(&a.out(
+        "comment.create",
+        json!({
+            "book": b,
+            "target": {"kind": "entry", "id": ch.id},
+            "module": "mod-prose",
+            "part": {"kind": "embed", "embed": embed.as_str()},
+            "body": "核对比例尺"
+        }),
+    ));
+
+    // Device B gets the book before the prose: the embed is not missing yet.
+    sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
+    let listed = b_dev.out("comment.list", json!({"book": b}));
+    assert_eq!(listed[0]["id"], cid.as_str());
+    assert_eq!(listed[0]["unlocated"], false);
+
+    // Once the prose arrives and the embed is deleted, both devices mark it unlocated.
+    sync_doc(a.ws(), b_dev.ws(), &ch.doc);
+    assert_eq!(
+        b_dev.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        false
+    );
+    s.edit(|t| {
+        let len = t.view().len();
+        t.delete(4..len - 1)
+    })
+    .unwrap();
+    sync_doc(a.ws(), b_dev.ws(), &ch.doc);
+    assert_eq!(
+        a.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        true
+    );
+    assert_eq!(
+        b_dev.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        true
+    );
+}

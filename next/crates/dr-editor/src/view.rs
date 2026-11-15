@@ -104,6 +104,8 @@ impl EventEmitter<CommentRequested> for ChapterEditor {}
 impl EventEmitter<PositionLinkCopied> for ChapterEditor {}
 impl EventEmitter<EntityLinkOpened> for ChapterEditor {}
 impl EventEmitter<MaterialOpened> for ChapterEditor {}
+impl EventEmitter<EmbedCommentRequested> for ChapterEditor {}
+impl EventEmitter<EmbedFrameRequested> for ChapterEditor {}
 impl EventEmitter<WritingTyped> for ChapterEditor {}
 
 /// The author started writing in `doc`: typed text, an input method's
@@ -123,6 +125,23 @@ pub struct WritingTyped {
 pub struct MaterialOpened {
     pub doc: String,
     pub material: String,
+}
+
+/// Hover card's 写批注 on an embedded file `embed` (`asset`) in `doc`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmbedCommentRequested {
+    pub doc: String,
+    pub embed: String,
+    pub asset: String,
+    pub at: gpui::Point<gpui::Pixels>,
+}
+
+/// Hover card's 框一块写批注 on an embedded file `embed` (`asset`) in `doc`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmbedFrameRequested {
+    pub doc: String,
+    pub embed: String,
+    pub asset: String,
 }
 
 /// A plain click on a live entity link in `doc`: the host opens what it
@@ -410,6 +429,17 @@ impl ChapterEditor {
             NoteEvent::OpenMaterial(material) => cx.emit(MaterialOpened {
                 doc: self.doc_id.clone(),
                 material,
+            }),
+            NoteEvent::CommentEmbed { embed, asset, at } => cx.emit(EmbedCommentRequested {
+                doc: self.doc_id.clone(),
+                embed,
+                asset,
+                at,
+            }),
+            NoteEvent::FrameEmbed { embed, asset } => cx.emit(EmbedFrameRequested {
+                doc: self.doc_id.clone(),
+                embed,
+                asset,
             }),
             NoteEvent::Typed => cx.emit(WritingTyped {
                 doc: self.doc_id.clone(),

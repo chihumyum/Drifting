@@ -34,6 +34,17 @@ pub enum NoteEvent {
     Edited,
     /// Open material `id` (an embed's click).
     OpenMaterial(String),
+    /// Open the comment composer on embedded file `embed` (`asset`) at `at`.
+    CommentEmbed {
+        embed: String,
+        asset: String,
+        at: gpui::Point<gpui::Pixels>,
+    },
+    /// Open the asset viewer in region-drawing mode for embedded file `embed` (`asset`).
+    FrameEmbed {
+        embed: String,
+        asset: String,
+    },
     /// The author typed in a cell ([`gpui_prose::AuthorTyped`]).
     Typed,
     OpenLinkV3(dr_model::v3::EntityLinkV3),
@@ -68,6 +79,33 @@ impl NoteHost {
 
     pub(crate) fn open_material(&self, id: &str, cx: &mut App) {
         (self.notify)(NoteEvent::OpenMaterial(id.to_owned()), cx);
+    }
+
+    pub(crate) fn comment_embed(
+        &self,
+        embed: &str,
+        asset: &str,
+        at: gpui::Point<gpui::Pixels>,
+        cx: &mut App,
+    ) {
+        (self.notify)(
+            NoteEvent::CommentEmbed {
+                embed: embed.to_owned(),
+                asset: asset.to_owned(),
+                at,
+            },
+            cx,
+        );
+    }
+
+    pub(crate) fn frame_embed(&self, embed: &str, asset: &str, cx: &mut App) {
+        (self.notify)(
+            NoteEvent::FrameEmbed {
+                embed: embed.to_owned(),
+                asset: asset.to_owned(),
+            },
+            cx,
+        );
     }
 
     /// The paragraph and first offset of embed `id` in the body.

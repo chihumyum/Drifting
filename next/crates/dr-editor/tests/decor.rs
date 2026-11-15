@@ -825,3 +825,251 @@ fn a_checklist_item_is_written_when_the_caret_goes_to_another_chapter(cx: &mut T
     assert!(wait_for(cx, |_| task_bodies(&e, &two) == ["问钟楼的年代"]));
     assert!(task_bodies(&e, &one).is_empty());
 }
+
+#[gpui::test]
+fn opening_chapter_and_book_editor_projects_existing_unprojected_checklist_and_todo_markers(
+    cx: &mut TestAppContext,
+) {
+    let e = env();
+    let one = chapter(&e, "待勾清单\nTODO: 查钟楼文献");
+    let two = chapter(&e, "第二章待办\n待办：补夜景描写");
+
+    // Turn paragraph 0 of both chapters into checklist items directly in Loro
+    // before any editor opens, so neither `task` nor `marker` is projected yet.
+    for doc in [&one, &two] {
+        let handle =
+            e.ws.library()
+                .open_doc(doc, dr_store::OpenDoc::Existing)
+                .unwrap();
+        let doc_id = dr_model::DocId::parse(doc).unwrap();
+        let bytes = handle
+            .read(move |d| {
+                let copy = d.fork();
+                let prose = dr_doc::prose::BorrowedProse::new(&copy, &doc_id).unwrap();
+                let mut attrs = dr_model::prose::BlockAttrs::default();
+                attrs.list = Some(dr_model::kind::ListKind::Task);
+                prose.txn().set_block_attrs(0, &attrs).unwrap();
+                copy.commit();
+                copy.export(loro::ExportMode::all_updates()).unwrap()
+            })
+            .unwrap();
+        e.ws.import_remote(doc, Some(("prose", &e.book)), bytes, &Actor::User)
+            .unwrap();
+    }
+
+    let entry_one = one.trim_start_matches("body:").split('/').next().unwrap();
+    let entry_two = two.trim_start_matches("body:").split('/').next().unwrap();
+    assert!(
+        out(
+            &e.ws,
+            &Actor::User,
+            "comment.list",
+            json!({"book": e.book, "target": {"kind": "entry", "id": entry_one}}),
+        )
+        .as_array()
+        .unwrap()
+        .is_empty()
+    );
+
+    // Opening `ChapterEditor` projects chapter one's existing checklist + marker immediately.
+    let (_chapter_view, vcx) = open(cx, &e, &one);
+    assert!(wait_for(vcx, |_| {
+        let list = out(
+            &e.ws,
+            &Actor::User,
+            "comment.list",
+            json!({"book": e.book, "target": {"kind": "entry", "id": entry_one}}),
+        );
+        let arr = list.as_array().unwrap();
+        arr.iter()
+            .any(|c| c["origin"] == "task" && c["body"] == "待勾清单")
+            && arr
+                .iter()
+                .any(|c| c["origin"] == "marker" && c["body"] == "查钟楼文献")
+    }));
+
+    // Opening `BookEditor` projects chapter two's existing checklist + marker immediately.
+    let (_book_view, vcx) = open_book(cx, &e);
+    assert!(wait_for(vcx, |_| {
+        let list = out(
+            &e.ws,
+            &Actor::User,
+            "comment.list",
+            json!({"book": e.book, "target": {"kind": "entry", "id": entry_two}}),
+        );
+        let arr = list.as_array().unwrap();
+        arr.iter()
+            .any(|c| c["origin"] == "task" && c["body"] == "第二章待办")
+            && arr
+                .iter()
+                .any(|c| c["origin"] == "marker" && c["body"] == "补夜景描写")
+    }));
+}
+
+#[gpui::test]
+fn unchecking_a_checked_checklist_box_reopens_its_review_comment(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = chapter(&e, "正文。\n");
+    let entry = doc.trim_start_matches("body:").split('/').next().unwrap();
+    let (view, cx) = open(cx, &e, &doc);
+    let editor = prose(&view, cx);
+    focus(&editor, cx);
+
+    type_task(&editor, cx, 0, 1, 4, "核对月相");
+    editor.update_in(cx, |ed, window, cx| ed.select(0, 1..1, window, cx));
+    assert!(wait_for(cx, |_| task_bodies(&e, &doc) == ["核对月相"]));
+
+    // Move caret onto the checklist line and click its checkbox once -> checked & resolved.
+    editor.update_in(cx, |ed, window, cx| {
+        ed.select(0, 5..5, window, cx);
+        assert!(ed.toggle_tasks(cx));
+    });
+    assert!(wait_for(cx, |_| {
+        let list = out(
+            &e.ws,
+            &Actor::User,
+            "comment.list",
+            json!({"book": e.book, "origin": "task", "target": {"kind": "entry", "id": entry}}),
+        );
+        list.as_array()
+            .unwrap()
+            .first()
+            .and_then(|c| c["status"].as_str())
+            == Some("resolved")
+    }));
+
+    // Click the checked box again -> checkbox unticks and comment returns to `open`.
+    editor.update_in(cx, |ed, _window, cx| {
+        assert!(ed.toggle_tasks(cx));
+    });
+    assert!(wait_for(cx, |cx| {
+        let unchecked_in_editor = editor.read_with(cx, |ed, _| {
+            !matches!(
+                ed.book().chapters[0]
+                    .doc
+                    .line(1)
+                    .block
+                    .get(gpui_prose::schema::block::CHECKED),
+                Some(loro::LoroValue::Bool(true))
+            )
+        });
+        let list = out(
+            &e.ws,
+            &Actor::User,
+            "comment.list",
+            json!({"book": e.book, "origin": "task", "target": {"kind": "entry", "id": entry}}),
+        );
+        let open_in_review = list
+            .as_array()
+            .unwrap()
+            .first()
+            .and_then(|c| c["status"].as_str())
+            == Some("open");
+        unchecked_in_editor && open_in_review
+    }));
+}
+
+#[gpui::test]
+fn synced_checklist_edits_on_second_device_do_not_write_back_book_comments(
+    cx: &mut TestAppContext,
+) {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let e_a = env();
+    let doc = chapter(&e_a, "第一段。\n第二段。");
+
+    let book_doc = format!("book:{}", e_a.book);
+    let book_bytes = e_a
+        .ws
+        .library()
+        .open_doc(&book_doc, dr_store::OpenDoc::Existing)
+        .unwrap()
+        .read(|d| d.export(loro::ExportMode::Snapshot).unwrap())
+        .unwrap();
+    let prose_bytes = e_a
+        .ws
+        .library()
+        .open_doc(&doc, dr_store::OpenDoc::Existing)
+        .unwrap()
+        .read(|d| d.export(loro::ExportMode::Snapshot).unwrap())
+        .unwrap();
+
+    let dir_b = tempfile::tempdir().unwrap();
+    let lib_b = Library::open(dir_b.path(), library_options("device-b")).unwrap();
+    let ws_b = Workspace::open(lib_b, WorkspaceOptions::default()).unwrap();
+    ws_b.import_remote(
+        &book_doc,
+        Some(("book", &e_a.book)),
+        book_bytes,
+        &Actor::Sync,
+    )
+    .unwrap();
+    ws_b.import_remote(&doc, Some(("prose", &e_a.book)), prose_bytes, &Actor::Sync)
+        .unwrap();
+    let e_b = Env {
+        dir: dir_b,
+        ws: ws_b,
+        book: e_a.book.clone(),
+    };
+
+    let (view_b, cx) = open(cx, &e_b, &doc);
+    let editor_b = prose(&view_b, cx);
+    focus(&editor_b, cx);
+    wait_for(cx, |_| true);
+
+    let book_writes_b = Arc::new(AtomicUsize::new(0));
+    let watched_book = e_b.book.clone();
+    let counter = book_writes_b.clone();
+    let _sub = e_b.ws.subscribe(move |ev| {
+        if let dr_workspace::WsEvent::Book(b) = ev
+            && b.book.to_string() == watched_book
+        {
+            counter.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+
+    // Device A turns paragraph 1 into a checklist item and edits its text,
+    // syncing the prose updates to Device B while Device B has the chapter open.
+    let delta_bytes = {
+        let handle_a = e_a
+            .ws
+            .library()
+            .open_doc(&doc, dr_store::OpenDoc::Existing)
+            .unwrap();
+        let doc_id = dr_model::DocId::parse(&doc).unwrap();
+        handle_a
+            .read(move |d| {
+                let before = d.oplog_vv();
+                let copy = d.fork();
+                let prose = dr_doc::prose::BorrowedProse::new(&copy, &doc_id).unwrap();
+                let mut attrs = dr_model::prose::BlockAttrs::default();
+                attrs.list = Some(dr_model::kind::ListKind::Task);
+                let mut txn = prose.txn();
+                txn.set_block_attrs(5, &attrs).unwrap();
+                txn.insert_text(5, "远端设备敲入：").unwrap();
+                copy.commit();
+                copy.export(loro::ExportMode::updates(&before)).unwrap()
+            })
+            .unwrap()
+    };
+
+    e_b.ws
+        .import_remote(&doc, Some(("prose", &e_b.book)), delta_bytes, &Actor::Sync)
+        .unwrap();
+
+    assert!(wait_for(cx, |cx| {
+        view_b
+            .read_with(cx, |v, cx| v.plain_text(cx))
+            .contains("远端设备敲入：第二段。")
+    }));
+    // Move selection on Device B as well to verify neither incoming sync nor
+    // subsequent caret movement writes a competing `comment.project` commit.
+    editor_b.update_in(cx, |ed, window, cx| ed.select(0, 0..0, window, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        book_writes_b.load(Ordering::SeqCst),
+        0,
+        "passive open editor on Device B must not write book comments on synced prose edits"
+    );
+}

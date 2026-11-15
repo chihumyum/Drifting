@@ -17,8 +17,11 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use dr_model::id::AssetId;
+use dr_model::v3::CommentPart;
 use dr_store::asset::Variant;
+use dr_ui::components::hover_card::{CardAction, CardBody, HoverCard};
 use dr_ui::sand::{self, Icon};
+use dr_ui::theme::Theme;
 use gpui::{
     Context, FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement, Render,
     StatefulInteractiveElement as _, Styled, StyledImage as _, Window, div, img,
@@ -37,6 +40,8 @@ pub struct MaterialFacts {
     /// The image to show: an image's `display` variant (else its source),
     /// a PDF's `thumbnail`.
     pub picture: Option<PathBuf>,
+    /// Whether this embedded file has at least one open comment on it.
+    pub has_open_comment: bool,
 }
 
 /// Asset `id`'s record alone (no usages: one embed does not scan the book),
@@ -107,10 +112,22 @@ impl MaterialBlock {
         } else {
             path(Variant::Display).or_else(|| path(Variant::Source))
         };
+        let embed_id = self.embed.clone();
+        let has_open_comment = crate::v3::read(&self.host.ws, &self.host.book, move |v| {
+            v.comments().into_iter().any(|c| {
+                !c.is_done()
+                    && matches!(
+                        &c.part,
+                        Some(CommentPart::Embed { embed, .. }) if embed.as_str() == embed_id
+                    )
+            })
+        })
+        .unwrap_or(false);
         Some(MaterialFacts {
             title: m["name"].as_str().unwrap_or_default().to_owned(),
             kind,
             picture,
+            has_open_comment,
         })
     }
 
@@ -118,6 +135,20 @@ impl MaterialBlock {
     pub fn open(&self, cx: &mut gpui::App) {
         if let Some(id) = &self.material {
             self.host.open_material(id.as_str(), cx);
+        }
+    }
+
+    /// Opens the comment composer on this embedded file.
+    pub fn comment(&self, at: gpui::Point<gpui::Pixels>, cx: &mut gpui::App) {
+        if let Some(id) = &self.material {
+            self.host.comment_embed(&self.embed, id.as_str(), at, cx);
+        }
+    }
+
+    /// Opens the asset viewer in region-drawing mode for this embedded file.
+    pub fn frame(&self, cx: &mut gpui::App) {
+        if let Some(id) = &self.material {
+            self.host.frame_embed(&self.embed, id.as_str(), cx);
         }
     }
 
@@ -133,7 +164,8 @@ impl MaterialBlock {
 }
 
 impl Render for MaterialBlock {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = Theme::of(window, cx);
         let style = self.host.style.borrow().clone();
         let (ink, muted) = (style.text, style.muted);
         let ring = style.cursor.opacity(0.5);
@@ -154,12 +186,28 @@ impl Render for MaterialBlock {
                 .child("这条素材已被删除。")
                 .into_any_element();
         };
-        if facts.kind == "image" {
+        let can_frame = matches!(facts.kind.as_str(), "image" | "pdf");
+        let kind_label = match facts.kind.as_str() {
+            "image" => "图片",
+            "pdf" => "PDF",
+            _ => "文件",
+        };
+        let card_mark = sand::Kind::Material;
+        let dot = facts.has_open_comment.then(|| {
+            div()
+                .absolute()
+                .top(px(5.))
+                .right(px(5.))
+                .child(sand::comment_dot(8.0, false, &theme.palette))
+        });
+
+        let target = if facts.kind == "image" {
             let picture = match facts.picture.clone() {
                 Some(path) => {
                     let (open, pick) = (this.clone(), this.clone());
                     div()
                         .id("picture")
+                        .relative()
                         .rounded(px(4.))
                         .when(selected, |d| d.border_2().border_color(ring))
                         .cursor_pointer()
@@ -177,9 +225,11 @@ impl Render for MaterialBlock {
                                 .rounded(px(4.))
                                 .object_fit(ObjectFit::Contain),
                         )
+                        .children(dot)
                         .into_any_element()
                 }
                 None => div()
+                    .relative()
                     .w_full()
                     .h(px(120.))
                     .flex()
@@ -192,11 +242,12 @@ impl Render for MaterialBlock {
                     .text_size(px(12.))
                     .text_color(muted)
                     .child("加载中…")
+                    .children(dot)
                     .into_any_element(),
             };
             let open = this.clone();
-            return div()
-                .id(id)
+            div()
+                .id(id.clone())
                 .w_full()
                 .flex()
                 .flex_col()
@@ -213,58 +264,109 @@ impl Render for MaterialBlock {
                         .on_click(move |_, _, cx| open.update(cx, |b, cx| b.open(cx)))
                         .child(facts.title.clone()),
                 )
-                .into_any_element();
-        }
-        // A PDF (or a text material): a card.
-        let thumb = match facts.picture.clone() {
-            Some(path) => img(path)
-                .size(px(48.))
-                .rounded(px(4.))
-                .object_fit(ObjectFit::Cover)
-                .into_any_element(),
-            None => div()
-                .size(px(48.))
+                .into_any_element()
+        } else {
+            // A PDF (or a text material): a card.
+            let thumb = match facts.picture.clone() {
+                Some(path) => img(path)
+                    .size(px(48.))
+                    .rounded(px(4.))
+                    .object_fit(ObjectFit::Cover)
+                    .into_any_element(),
+                None => div()
+                    .size(px(48.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(sand::icon(Icon::FileText, 24., muted))
+                    .into_any_element(),
+            };
+            let label = if facts.kind == "pdf" { "PDF" } else { "文本" };
+            let open = this.clone();
+            div()
+                .id(id.clone())
+                .relative()
+                .w_full()
                 .flex()
                 .items_center()
-                .justify_center()
-                .child(sand::icon(Icon::FileText, 24., muted))
-                .into_any_element(),
+                .gap(px(12.))
+                .p(px(4.))
+                .rounded(px(8.))
+                .when(selected, |d| d.border_2().border_color(ring))
+                .hover(|s| s.bg(muted.opacity(0.08)))
+                .cursor_pointer()
+                .on_click(move |_, _, cx| open.update(cx, |b, cx| b.open(cx)))
+                .child(thumb)
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.))
+                        .child(
+                            div()
+                                .text_size(px(14.))
+                                .text_color(ink)
+                                .font_weight(FontWeight::NORMAL)
+                                .child(facts.title.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(10.))
+                                .text_color(muted)
+                                .font_family("Menlo")
+                                .child(label),
+                        ),
+                )
+                .children(dot)
+                .into_any_element()
         };
-        let label = if facts.kind == "pdf" { "PDF" } else { "文本" };
-        let open = this.clone();
-        div()
-            .id(id)
-            .w_full()
-            .flex()
-            .items_center()
-            .gap(px(12.))
-            .p(px(4.))
-            .rounded(px(8.))
-            .when(selected, |d| d.border_2().border_color(ring))
-            .hover(|s| s.bg(muted.opacity(0.08)))
-            .cursor_pointer()
-            .on_click(move |_, _, cx| open.update(cx, |b, cx| b.open(cx)))
-            .child(thumb)
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(2.))
-                    .child(
-                        div()
-                            .text_size(px(14.))
-                            .text_color(ink)
-                            .font_weight(FontWeight::NORMAL)
-                            .child(facts.title.clone()),
+
+        let hover_id = gpui::SharedString::from(format!("dr-editor-material-hover-{}", self.embed));
+        let card_title = facts.title.clone();
+        let embed_id = self.embed.clone();
+        HoverCard::new(hover_id, target, move |_, _| {
+            let open_entity = this.clone();
+            let comment_entity = this.clone();
+            let frame_entity = this.clone();
+            let mut actions = vec![
+                CardAction::new(
+                    gpui::SharedString::from(format!("embed-open-{embed_id}")),
+                    Icon::OpenBook,
+                    "打开",
+                )
+                .on_click(move |_, _, cx| open_entity.update(cx, |b, cx| b.open(cx)))
+                .into_any_element(),
+                CardAction::new(
+                    gpui::SharedString::from(format!("embed-comment-{embed_id}")),
+                    Icon::CommentPlus,
+                    "写批注",
+                )
+                .on_click(move |_, window, cx| {
+                    let at = window.mouse_position();
+                    comment_entity.update(cx, |b, cx| b.comment(at, cx));
+                })
+                .into_any_element(),
+            ];
+            if can_frame {
+                actions.push(
+                    CardAction::new(
+                        gpui::SharedString::from(format!("embed-frame-{embed_id}")),
+                        Icon::Fullscreen,
+                        "框一块写批注",
                     )
-                    .child(
-                        div()
-                            .text_size(px(10.))
-                            .text_color(muted)
-                            .font_family("Menlo")
-                            .child(label),
-                    ),
+                    .on_click(move |_, _, cx| frame_entity.update(cx, |b, cx| b.frame(cx)))
+                    .into_any_element(),
+                );
+            }
+            CardBody::new(
+                gpui::SharedString::from(format!("embed-card-{embed_id}")),
+                card_title.clone(),
             )
+            .mark(card_mark, None)
+            .meta(div().child(kind_label))
+            .section(actions)
             .into_any_element()
+        })
+        .into_any_element()
     }
 }

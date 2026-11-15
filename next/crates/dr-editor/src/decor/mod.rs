@@ -41,6 +41,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use dr_doc::v3::CollectionV3 as Collection;
@@ -52,7 +53,7 @@ use dr_store::OpenDoc;
 use dr_text::{LinkMatcher, LinkTarget};
 use dr_workspace::commands::comment::{
     CommentProject, CommentProjectIn, CommentReanchor, CommentReanchorIn, CommentTaskIn,
-    CommentUpdate, CommentUpdateIn, TodoMarkerIn,
+    TodoMarkerIn,
 };
 use dr_workspace::dto::AnchorBytes;
 use dr_workspace::{Actor, Workspace, WsEvent};
@@ -61,7 +62,7 @@ use futures::channel::mpsc;
 use gpui::{App, AppContext, Context, Entity, Focusable, Subscription, Task, WeakEntity, Window};
 use gpui_prose::render::{Decoration, DecorationEvent, Emphasis, Look, Tick, TickLane, Touch};
 use gpui_prose::schema::inline;
-use gpui_prose::{EditorEvent, HostStep, ProseEditor, ProseExtension};
+use gpui_prose::{EditorEvent, HostStep, ProseEditor};
 
 use crate::anchors;
 use crate::book::{BookEditor, BookEditorEvent};
@@ -105,6 +106,10 @@ struct CommentMark {
 struct Part {
     doc: String,
     comments: Vec<CommentMark>,
+    /// Block ids of the chapter's TODO markers last seen.
+    marker_rows: Vec<Option<String>>,
+    /// `(block id, checked)` of the chapter's checklist items last seen.
+    task_rows: Vec<(Option<String>, bool)>,
     /// Comments or Agent marks were handed to the editor (so an empty list
     /// has to be handed too, to take them away).
     had_comments: bool,
@@ -118,6 +123,8 @@ impl Part {
         Part {
             doc,
             comments: Vec::new(),
+            marker_rows: Vec::new(),
+            task_rows: Vec::new(),
             had_comments: false,
             had_agent: false,
             links_dirty: true,
@@ -197,6 +204,7 @@ impl Decor {
         window: &mut Window,
         cx: &mut Context<ChapterEditor>,
     ) {
+        self.layers.update(cx, |l, cx| l.flush_editing(cx));
         let (looks, extension) = self.carried(cx);
         *self = Decor::new(ws, book, doc, editor, extension, window, cx);
         self.keep_looks(looks, cx);
@@ -212,6 +220,7 @@ impl Decor {
         window: &mut Window,
         cx: &mut Context<BookEditor>,
     ) {
+        self.layers.update(cx, |l, cx| l.flush_editing(cx));
         let (looks, extension) = self.carried(cx);
         *self = Decor::for_book(ws, book, docs, editor, extension, window, cx);
         self.keep_looks(looks, cx);
@@ -258,7 +267,9 @@ pub struct Layers {
     /// The paragraph last sent as `editing` with `todo.project`, and its
     /// chapter.
     editing: Option<(usize, String)>,
+    dirty_editing: bool,
     focused: bool,
+    remote_origin: Arc<Mutex<HashMap<String, bool>>>,
     links_task: Option<Task<()>>,
     _subs: Vec<Subscription>,
     _ws: dr_workspace::events::Subscription,
@@ -295,7 +306,10 @@ impl Layers {
                 window,
                 |this, _, e: &EditorEvent, window, cx| match e {
                     EditorEvent::SelectionChanged => this.on_selection(cx),
-                    EditorEvent::Edited { chapter } => this.links_soon(Some(*chapter), window, cx),
+                    EditorEvent::Edited { chapter } => {
+                        this.mark_local(*chapter);
+                        this.links_soon(Some(*chapter), window, cx);
+                    }
                     // An undo brought anchored text back: the comments' new
                     // anchors are stored.
                     EditorEvent::AnchorsChanged { changes, .. } => {
@@ -321,10 +335,7 @@ impl Layers {
             }),
             cx.on_focus_out(&focus, window, |this, _, _, cx| {
                 this.focused = false;
-                if let Some((chapter, _)) = this.editing.take() {
-                    let markers = this.markers(chapter, cx);
-                    this.send_projection(chapter, &markers, None, cx);
-                }
+                this.flush_editing(cx);
             }),
         ];
         let index = docs
@@ -332,7 +343,8 @@ impl Layers {
             .enumerate()
             .map(|(i, d)| (d.clone(), i))
             .collect();
-        let ws_sub = Self::watch(ws, book, &docs, window, cx);
+        let remote_origin = Arc::new(Mutex::new(HashMap::new()));
+        let ws_sub = Self::watch(ws, book, &docs, remote_origin.clone(), window, cx);
         let mut layers = Layers {
             ws: ws.clone(),
             book: book.to_owned(),
@@ -346,11 +358,23 @@ impl Layers {
             name_reads: 0,
             shown_jump: 0,
             editing: None,
+            dirty_editing: false,
             focused: false,
+            remote_origin,
             links_task: None,
             _subs: subs,
             _ws: ws_sub,
         };
+        for chapter in 0..layers.parts.len() {
+            let markers = layers.markers(chapter, cx);
+            let task_rows = layers.task_rows(chapter, cx);
+            let has_any = !markers.is_empty() || !task_rows.is_empty();
+            layers.parts[chapter].marker_rows = markers.iter().map(|m| m.block.clone()).collect();
+            layers.parts[chapter].task_rows = task_rows;
+            if has_any {
+                layers.send_projection(chapter, &markers, None, cx);
+            }
+        }
         layers.load_comments(0, cx);
         layers.load_names(cx);
         layers
@@ -362,6 +386,7 @@ impl Layers {
         ws: &Workspace,
         book: &str,
         docs: &[String],
+        remote_origin: Arc<Mutex<HashMap<String, bool>>>,
         window: &mut Window,
         cx: &mut Context<Layers>,
     ) -> dr_workspace::events::Subscription {
@@ -384,7 +409,14 @@ impl Layers {
                 }
                 WsEvent::Prose(p) => {
                     let doc = p.doc.to_string();
-                    docs.contains(&doc).then_some(Notice::Prose(doc))
+                    if docs.contains(&doc) {
+                        if let Ok(mut origins) = remote_origin.lock() {
+                            origins.insert(doc.clone(), p.origin == dr_store::Origin::Sync);
+                        }
+                        Some(Notice::Prose(doc))
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             };
@@ -465,12 +497,6 @@ impl Layers {
                 .await;
             this.update(cx, |this, cx| match found {
                 Ok(read) => {
-                    // Task items linked to a TODO show its state.
-                    if this.extension.set_todos(read.todos)
-                        && let Some(editor) = this.editor.upgrade()
-                    {
-                        editor.update(cx, |_, cx| cx.notify());
-                    }
                     let stale = read
                         .chapters
                         .iter()
@@ -699,10 +725,12 @@ impl Layers {
         window: &mut Window,
         cx: &mut Context<Layers>,
     ) {
+        self.editing = None;
+        self.dirty_editing = false;
         let Some(editor) = self.editor.upgrade() else {
             return;
         };
-        let (todo, checked) = {
+        let checked = {
             let e = editor.read(cx);
             let Some(c) = e.book().chapters.get(chapter) else {
                 return;
@@ -711,35 +739,11 @@ impl Layers {
                 return;
             }
             let attrs = &c.doc.line(line).block;
-            let todo = match attrs.get(gpui_prose::schema::block::TODO) {
-                Some(loro::LoroValue::String(id)) if !id.is_empty() => Some(id.to_string()),
-                _ => None,
-            };
-            let checked = matches!(
+            matches!(
                 attrs.get(gpui_prose::schema::block::CHECKED),
                 Some(loro::LoroValue::Bool(true))
-            );
-            (todo, checked)
+            )
         };
-        if let Some(id) = todo {
-            let done = self.extension.task_done(&id).unwrap_or(false);
-            let input = CommentUpdateIn {
-                book: self.book.clone(),
-                id: id.clone(),
-                body: None,
-                status: Some(if done { "open" } else { "resolved" }.into()),
-                agent_conversation: None,
-            };
-            let ws = self.ws.clone();
-            cx.background_executor()
-                .spawn(async move {
-                    if let Err(e) = ws.run::<CommentUpdate>(&Actor::User, input) {
-                        log::warn!("dr-editor: comment.update {id}: {e}");
-                    }
-                })
-                .detach();
-            return;
-        }
         editor.update(cx, |e, cx| {
             e.edit_chapter(chapter, HostStep::Own, window, cx, |doc| {
                 let value = (!checked).then_some(loro::LoroValue::Bool(true));
@@ -1033,17 +1037,59 @@ impl Layers {
     /// Whether paragraph `block` of `chapter` is a checklist item, as the
     /// editor holds the text.
     fn is_task(&self, chapter: usize, block: &str, cx: &App) -> bool {
+        self.task_rows(chapter, cx)
+            .iter()
+            .any(|(b, _)| b.as_deref() == Some(block))
+    }
+
+    fn task_rows(&self, chapter: usize, cx: &App) -> Vec<(Option<String>, bool)> {
         let Some(editor) = self.editor.upgrade() else {
-            return false;
+            return Vec::new();
         };
         let e = editor.read(cx);
         let Some(c) = e.book().chapters.get(chapter) else {
-            return false;
+            return Vec::new();
         };
         let doc = &c.doc;
         todo::task_items(doc.lines()[..doc.visible_lines()].iter())
-            .iter()
-            .any(|t| t.block.as_deref() == Some(block))
+            .into_iter()
+            .map(|t| (t.block, t.checked))
+            .collect()
+    }
+
+    fn mark_local(&self, chapter: usize) {
+        if let Some(part) = self.parts.get(chapter)
+            && let Ok(mut origins) = self.remote_origin.lock()
+        {
+            origins.insert(part.doc.clone(), false);
+        }
+    }
+
+    fn is_remote_change(&self, chapter: usize) -> bool {
+        let Some(part) = self.parts.get(chapter) else {
+            return false;
+        };
+        self.remote_origin
+            .lock()
+            .ok()
+            .and_then(|o| o.get(&part.doc).copied())
+            == Some(true)
+    }
+
+    fn flush_editing(&mut self, cx: &mut Context<Layers>) {
+        let dirty = std::mem::replace(&mut self.dirty_editing, false);
+        if let Some((chapter, block)) = self.editing.take()
+            && dirty
+        {
+            let markers = self.markers(chapter, cx);
+            if markers
+                .iter()
+                .any(|m| m.block.as_deref() == Some(block.as_str()))
+                || self.is_task(chapter, &block, cx)
+            {
+                self.send_projection(chapter, &markers, None, cx);
+            }
+        }
     }
 
     /// The caret moved (or the editor got focus): a TODO or a checklist
@@ -1055,9 +1101,13 @@ impl Layers {
             return;
         }
         let left = std::mem::replace(&mut self.editing, editing.clone());
+        let dirty = std::mem::replace(&mut self.dirty_editing, false);
         let Some((chapter, block)) = left else {
             return;
         };
+        if !dirty {
+            return;
+        }
         let markers = self.markers(chapter, cx);
         if markers
             .iter()
@@ -1069,7 +1119,7 @@ impl Layers {
         }
     }
 
-    /// A chapter's TODO markers changed: projected with the whole list.
+    /// A chapter's TODO markers or checklist items changed.
     fn markers_changed(
         &mut self,
         chapter: usize,
@@ -1079,13 +1129,44 @@ impl Layers {
         if chapter >= self.parts.len() {
             return;
         }
+        let next_markers: Vec<Option<String>> = markers.iter().map(|m| m.block.clone()).collect();
+        let next_tasks = self.task_rows(chapter, cx);
+        let marker_rows_changed = self.parts[chapter].marker_rows != next_markers;
+        let task_rows_changed = self.parts[chapter].task_rows != next_tasks;
+        self.parts[chapter].marker_rows = next_markers;
+        self.parts[chapter].task_rows = next_tasks;
+
+        if self.is_remote_change(chapter) {
+            if marker_rows_changed {
+                self.parts[chapter].links_dirty = true;
+                self.run_links_now(cx);
+            }
+            return;
+        }
+
         let editing = self.caret_block(cx);
         self.editing = editing.clone();
-        let still = editing.filter(|(c, _)| *c == chapter).map(|(_, b)| b);
-        self.send_projection(chapter, markers, still, cx);
-        // The keyword's colour at once.
-        self.parts[chapter].links_dirty = true;
-        self.run_links_now(cx);
+        if let Some((c, ref block)) = editing
+            && c == chapter
+            && (markers
+                .iter()
+                .any(|m| m.block.as_deref() == Some(block.as_str()))
+                || self.parts[chapter]
+                    .task_rows
+                    .iter()
+                    .any(|(b, _)| b.as_deref() == Some(block.as_str())))
+        {
+            self.dirty_editing = true;
+        }
+        if !self.focused || marker_rows_changed || task_rows_changed {
+            let still = editing.filter(|(c, _)| *c == chapter).map(|(_, b)| b);
+            self.send_projection(chapter, markers, still, cx);
+        }
+        if marker_rows_changed {
+            // The keyword's colour at once.
+            self.parts[chapter].links_dirty = true;
+            self.run_links_now(cx);
+        }
     }
 
     fn send_projection(
@@ -1185,10 +1266,9 @@ type Seen<T> = (T, Option<u64>);
 /// each document's resolved on its holder: `(chapter, (found, seen))` for
 /// every chapter, empty where there are none.
 /// What one read of the comments gives: each chapter's open anchored
-/// comments, and whether each TODO of the book is done.
+/// comments.
 struct CommentsRead {
     chapters: Vec<(usize, Seen<CommentFound>)>,
-    todos: HashMap<String, bool>,
 }
 
 fn comment_ranges(
@@ -1202,14 +1282,12 @@ fn comment_ranges(
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(|e| e.to_string())?;
     let wanted: HashSet<String> = docs.iter().map(|(d, _)| d.clone()).collect();
-    let (mut by_doc, todos) = handle
+    let mut by_doc = handle
         .read(move |d| {
             let mut out: HashMap<String, Vec<(String, bool, EncodedAnchor)>> = HashMap::new();
-            let mut todos = HashMap::new();
 
             let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
             for c in reader.view().comments() {
-                todos.insert(c.id.to_string(), c.is_done());
                 if c.status != CommentStatus::Open || c.target_missing {
                     continue;
                 }
@@ -1232,7 +1310,7 @@ fn comment_ranges(
                     ));
                 }
             }
-            Ok::<_, dr_doc::DocError>((out, todos))
+            Ok::<_, dr_doc::DocError>(out)
         })
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
@@ -1263,10 +1341,7 @@ fn comment_ranges(
             .map_err(|e| e.to_string())?;
         out.push((chapter, found));
     }
-    Ok(CommentsRead {
-        chapters: out,
-        todos,
-    })
+    Ok(CommentsRead { chapters: out })
 }
 
 /// A mark and where it is now (`None`: its words are gone).
