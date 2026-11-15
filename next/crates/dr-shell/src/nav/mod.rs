@@ -81,6 +81,24 @@ impl Target {
     pub fn is_singleton(&self) -> bool {
         matches!(self, Target::Book(_))
     }
+
+    /// Whether `self` and `other` are one page: an entry is one page
+    /// whichever of its modules a target names (the module only says where
+    /// to scroll), anything else only itself.
+    pub fn same_page(&self, other: &Target) -> bool {
+        match (self, other) {
+            (Target::Entry { id: a, .. }, Target::Entry { id: b, .. }) => a == b,
+            _ => self == other,
+        }
+    }
+
+    /// The module a target names, if it names one.
+    pub fn module(&self) -> Option<&ModuleId> {
+        match self {
+            Target::Entry { module, .. } => module.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 /// One side of a split, or a whole tab.
@@ -134,9 +152,9 @@ impl Split {
     }
 
     pub fn side_of(&self, target: &Target) -> Option<Side> {
-        if &self.left.target == target {
+        if self.left.target.same_page(target) {
             Some(Side::Left)
-        } else if &self.right.target == target {
+        } else if self.right.target.same_page(target) {
             Some(Side::Right)
         } else {
             None
@@ -179,7 +197,7 @@ impl Tab {
 
     pub fn contains(&self, target: &Target) -> bool {
         match self {
-            Tab::Leaf(leaf) => &leaf.target == target,
+            Tab::Leaf(leaf) => leaf.target.same_page(target),
             Tab::Split(split) => split.side_of(target).is_some(),
         }
     }
@@ -256,6 +274,10 @@ pub struct Navigator {
     /// Lines a location link asked for, for the page being opened.
     #[serde(skip)]
     reveal: Option<(Target, Lines)>,
+    /// The module an open asked for on an entry page that was already
+    /// open (under another of its targets): the page scrolls to it once.
+    #[serde(skip)]
+    section: Option<(Target, ModuleId)>,
 }
 
 impl Default for Navigator {
@@ -267,6 +289,7 @@ impl Default for Navigator {
             history: VecDeque::from([Page::Home]),
             cursor: 0,
             reveal: None,
+            section: None,
         }
     }
 }
@@ -301,7 +324,8 @@ impl Navigator {
     /// unfocused side is not: only the page with the focus is "where the
     /// author is".
     pub fn is_selected(&self, target: &Target) -> bool {
-        self.current() == Some(target)
+        self.current()
+            .is_some_and(|current| current.same_page(target))
     }
 
     pub fn is_open(&self, target: &Target) -> bool {
@@ -326,7 +350,16 @@ impl Navigator {
     /// The lines a link asked for, once, for `target`'s editor.
     pub fn take_reveal(&mut self, target: &Target) -> Option<Lines> {
         match &self.reveal {
-            Some((t, _)) if t == target => self.reveal.take().map(|(_, lines)| lines),
+            Some((t, _)) if t.same_page(target) => self.reveal.take().map(|(_, lines)| lines),
+            _ => None,
+        }
+    }
+
+    /// The module an open asked for on `target`'s page, once: the page was
+    /// already open under another of its targets, and scrolls to it.
+    pub fn take_section(&mut self, target: &Target) -> Option<ModuleId> {
+        match &self.section {
+            Some((t, _)) if t.same_page(target) => self.section.take().map(|(_, m)| m),
             _ => None,
         }
     }
@@ -337,6 +370,13 @@ impl Navigator {
         if let Some(index) = self.tabs.iter().position(|tab| tab.contains(&target)) {
             if !how.activate {
                 return;
+            }
+            // One page per entry: a module named on an entry already open
+            // under another target is where its page scrolls to.
+            if let Some(module) = target.module()
+                && !self.tabs[index].leaves().any(|leaf| leaf.target == target)
+            {
+                self.section = Some((target.clone(), module.clone()));
             }
             if let Tab::Split(split) = &mut self.tabs[index]
                 && let Some(side) = split.side_of(&target)
@@ -390,7 +430,7 @@ impl Navigator {
 
     fn leaf_mut(&mut self, index: usize, target: &Target) -> Option<&mut Leaf> {
         match self.tabs.get_mut(index)? {
-            Tab::Leaf(leaf) if &leaf.target == target => Some(leaf),
+            Tab::Leaf(leaf) if leaf.target.same_page(target) => Some(leaf),
             Tab::Split(split) => {
                 let side = split.side_of(target)?;
                 Some(split.side_mut(side))
@@ -576,7 +616,7 @@ impl Navigator {
         let mut index = 0;
         while index < self.tabs.len() {
             match &self.tabs[index] {
-                Tab::Leaf(leaf) if &leaf.target == target => {
+                Tab::Leaf(leaf) if leaf.target.same_page(target) => {
                     self.close(index);
                     continue;
                 }
@@ -589,12 +629,11 @@ impl Navigator {
             }
             index += 1;
         }
-        let gone = Page::Target(target.clone());
         let before = self.cursor;
         let mut kept = VecDeque::new();
         let mut cursor = 0;
         for (i, page) in self.history.drain(..).enumerate() {
-            if page == gone {
+            if matches!(&page, Page::Target(t) if t.same_page(target)) {
                 continue;
             }
             if kept.back() == Some(&page) {
@@ -704,6 +743,7 @@ impl Navigator {
         saved.history = VecDeque::from([saved.page()]);
         saved.cursor = 0;
         saved.reveal = None;
+        saved.section = None;
         saved
     }
 }
@@ -939,5 +979,40 @@ mod tests {
         );
         assert_eq!(restored.page(), Page::Target(ch(1)));
         assert!(!restored.can_go_back());
+    }
+
+    #[test]
+    fn an_entry_opens_in_one_tab_whichever_module_a_target_names() {
+        let page = |module: Option<&str>| Target::Entry {
+            id: dr_model::id::EntryId::parse("c7").unwrap(),
+            module: module.map(|m| m.parse().unwrap()),
+        };
+        let mut nav = Navigator::default();
+        // From the left column (the entry) and from the home page (its
+        // body): one tab, selected either way.
+        nav.open(page(None), Open::KEEP);
+        nav.open(page(Some("mod-prose")), Open::PREVIEW);
+        assert_eq!(keys(&nav), ["entry:c7"]);
+        assert!(nav.is_selected(&page(None)));
+        assert!(nav.is_selected(&page(Some("mod-prose"))));
+        // The module is where the open page scrolls to, once.
+        assert_eq!(
+            nav.take_section(&page(None)).map(|m| m.to_string()),
+            Some("mod-prose".to_owned())
+        );
+        assert_eq!(nav.take_section(&page(None)), None);
+        // The target the tab was opened with asks for no scroll.
+        nav.open(page(None), Open::KEEP);
+        assert_eq!(nav.take_section(&page(None)), None);
+        // Another entry still has a tab of its own.
+        nav.open(ch(1), Open::KEEP);
+        assert_eq!(keys(&nav), ["entry:c7", "entry:c1/mod-prose"]);
+        // Trashing the entry closes its tab whichever target names it.
+        nav.forget(&page(Some("mod-other")));
+        assert_eq!(keys(&nav), ["entry:c1/mod-prose"]);
+        assert!(
+            nav.history()
+                .all(|p| !matches!(p, Page::Target(t) if t.same_page(&page(None))))
+        );
     }
 }

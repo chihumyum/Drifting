@@ -238,8 +238,10 @@ fn open(
     view.read_with(cx, |w, _| w.editor_of(target).unwrap().clone())
 }
 
+/// One entry, one page (kernel v5, T1): opened with and without a module it
+/// is one tab whose bodies are mounted once; closing it releases them.
 #[gpui::test]
-fn two_pages_of_one_body_keep_their_own_mounted_editor_and_release(cx: &mut TestAppContext) {
+fn one_page_per_entry_shares_its_mounted_editors_and_releases_them(cx: &mut TestAppContext) {
     let (_dir, lib, book, entry) = fixture();
     let (view, bodies, cx) = setup(cx, &lib, &book, None);
     let whole = target(&entry, None);
@@ -247,35 +249,12 @@ fn two_pages_of_one_body_keep_their_own_mounted_editor_and_release(cx: &mut Test
     let first = open(&view, cx, &whole);
     let first_roots: Vec<_> = bodies.borrow().clone();
     let second = open(&view, cx, &exact);
-    assert_ne!(first.entity_id(), second.entity_id());
+    assert_eq!(first.entity_id(), second.entity_id());
+    view.read_with(cx, |w, _| assert_eq!(w.nav.tabs().len(), 1));
     assert_eq!(
-        first.read_with(cx, |e, _| e.doc_id().to_owned()),
-        second.read_with(cx, |e, _| e.doc_id().to_owned())
-    );
-    second.update_in(cx, |e, window, cx| {
-        e.editor().update(cx, |p, cx| p.select(0, 0..2, window, cx))
-    });
-    assert_eq!(
-        first.read_with(cx, |e, cx| e.editor().read(cx).selection().head),
-        0
-    );
-    view.update(cx, |w, cx| {
-        w.nav.close_active();
-        cx.notify();
-    });
-    wait(&view, cx, |w, _| !w.editors.contains_key(&exact.key()));
-    cx.run_until_parked();
-    assert!(
-        bodies
-            .borrow()
-            .iter()
-            .skip(first_roots.len())
-            .all(|v| v.upgrade().is_none())
-    );
-    assert!(first_roots.iter().all(|v| v.upgrade().is_some()));
-    assert_eq!(
-        view.read_with(cx, |w, _| w.editor_of(&whole).unwrap().entity_id()),
-        first.entity_id()
+        bodies.borrow().len(),
+        first_roots.len(),
+        "no second page mounts the bodies again"
     );
     // Getter returning None releases the shell's old editor as well.
     let root = first_roots
@@ -291,6 +270,17 @@ fn two_pages_of_one_body_keep_their_own_mounted_editor_and_release(cx: &mut Test
         w.editor_of(&whole)
             .is_some_and(|e| e.entity_id() != first.entity_id())
     });
+    drop(root);
+    // Closing the one tab releases every body of the page.
+    view.update(cx, |w, cx| {
+        w.nav.close_active();
+        cx.notify();
+    });
+    wait(&view, cx, |w, _| {
+        !w.editors.contains_key(&whole.key()) && w.editor_of(&exact).is_none()
+    });
+    cx.run_until_parked();
+    assert!(bodies.borrow().iter().all(|v| v.upgrade().is_none()));
 }
 
 #[gpui::test]

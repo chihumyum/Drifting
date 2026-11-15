@@ -790,9 +790,29 @@ impl Workspace {
         }
     }
 
-    /// The editor of `target`'s page, once it is open (one document).
+    /// The page `target` is on: its own, or the entry's page opened under
+    /// another of its targets (one page per entry).
+    pub(crate) fn page_of(&self, target: &Target) -> Option<&PageEditor> {
+        self.editors.get(&target.key()).or_else(|| {
+            self.editors.iter().find_map(|(key, page)| {
+                Target::from_key(key)
+                    .is_some_and(|t| t.same_page(target))
+                    .then_some(page)
+            })
+        })
+    }
+
+    /// The editor of `target`'s page, once it is open (one document): the
+    /// module a target names, else the page's.
     pub fn editor_of(&self, target: &Target) -> Option<&Entity<ChapterEditor>> {
-        match self.editors.get(&target.key())?.view.as_ref()? {
+        let page = self.page_of(target)?;
+        let view = match target.module() {
+            Some(module) if page.mounted.contains_key(module.as_str()) => {
+                &page.mounted[module.as_str()].view
+            }
+            _ => page.view.as_ref()?,
+        };
+        match view {
             PageView::Doc(e) => Some(e),
             PageView::Book(_) => None,
         }
@@ -814,12 +834,12 @@ impl Workspace {
 
     /// The editor of `target`'s page, whichever kind.
     pub fn page_view(&self, target: &Target) -> Option<&PageView> {
-        self.editors.get(&target.key())?.view.as_ref()
+        self.page_of(target)?.view.as_ref()
     }
 
     /// The view a module draws for `target`'s whole page, if it does.
     pub fn module_page(&self, target: &Target) -> Option<&AnyView> {
-        Some(&self.editors.get(&target.key())?.module.as_ref()?.view)
+        Some(&self.page_of(target)?.module.as_ref()?.view)
     }
 
     /// The editors of the pages on screen: opened when first shown, a
@@ -840,6 +860,17 @@ impl Workspace {
                 if !view.read(cx).synced {
                     view.update(cx, |v, cx| v.sync_parts(window, cx));
                 }
+                // One page per entry: a module asked for on a page already
+                // open is where it scrolls (and reveals a location) and what
+                // takes typing.
+                let section = self.nav.take_section(target).map(|m| m.to_string());
+                match (self.nav.take_reveal(target), section) {
+                    (Some(lines), section) => {
+                        view.update(cx, |v, cx| v.reveal_in(section, lines, cx))
+                    }
+                    (None, Some(module)) => view.update(cx, |v, cx| v.show_module(module, cx)),
+                    (None, None) => {}
+                }
                 let focus = view.read(cx).preferred_focus();
                 if let Some(module) = self
                     .editors
@@ -849,9 +880,6 @@ impl Workspace {
                 {
                     module.focus = focus;
                     self.focused_editor = None;
-                }
-                if let Some(lines) = self.nav.take_reveal(target) {
-                    view.update(cx, |v, cx| v.reveal(lines, cx));
                 }
                 continue;
             }
@@ -979,6 +1007,12 @@ impl Workspace {
                     .values()
                     .filter_map(|p| p.module.as_ref())
                     .any(|m| m.focus.contains_focused(window, cx))
+                // An entry page's own head (its title) is the page's too.
+                || self
+                    .editors
+                    .values()
+                    .filter_map(|p| p.v3.as_ref())
+                    .any(|v| v.read(cx).focus.contains_focused(window, cx))
         });
         // Module renderers hand focus from their wrapper to a child editor.
         // Remember the actual owned handle while it is still in the tree;

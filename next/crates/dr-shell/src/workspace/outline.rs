@@ -466,7 +466,7 @@ fn v3_outline_editor(
     // Different entry/module tabs each compose their own editor instances.
     // Only the editor mounted under this exact page may receive its rail's
     // caret; another live tab reading the same document is not its owner.
-    let page = w.editors.get(&target.key())?;
+    let page = w.page_of(target)?;
     let page_focus = page
         .v3
         .as_ref()
@@ -834,9 +834,7 @@ mod tests {
     use super::*;
 
     #[gpui::test]
-    fn active_v3_page_owns_its_outline_editor_among_duplicate_module_pages(
-        cx: &mut gpui::TestAppContext,
-    ) {
+    fn an_entry_opened_from_two_targets_owns_one_outline_editor(cx: &mut gpui::TestAppContext) {
         use gpui::{AppContext as _, Context, FocusHandle, Render, prelude::*};
         use std::{cell::RefCell, time::Instant};
         struct ProsePart {
@@ -985,19 +983,20 @@ mod tests {
                 cx.run_until_parked();
             }
         }
-        assert_eq!(
-            made.borrow().len(),
-            2,
-            "both live tabs retain their own editor"
-        );
+        // One entry, one tab (kernel v5, T1): the second target is the same
+        // page, so its body is mounted once.
+        assert_eq!(made.borrow().len(), 1, "one page, one body editor");
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.tabs().len(), 1));
         cx.update(|window, cx| {
-            let selected = v3_outline_editor(shell.read(cx), shell.entity_id(), &first, window, cx)
-                .expect("the current page has a mounted prose editor");
-            let PageView::Doc(selected) = selected else {
-                panic!("module editor")
-            };
-            assert_eq!(selected.entity_id(), made.borrow()[0].entity_id());
-            assert_ne!(selected.entity_id(), made.borrow()[1].entity_id());
+            for target in [&first, &second] {
+                let selected =
+                    v3_outline_editor(shell.read(cx), shell.entity_id(), target, window, cx)
+                        .expect("the current page has a mounted prose editor");
+                let PageView::Doc(selected) = selected else {
+                    panic!("module editor")
+                };
+                assert_eq!(selected.entity_id(), made.borrow()[0].entity_id());
+            }
         });
     }
 

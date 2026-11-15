@@ -230,7 +230,10 @@ fn document_addresses_preserve_targets_and_refuse_foreign_books(cx: &mut TestApp
         id: entry.parse().unwrap(),
         module: Some("unavailable".parse().unwrap()),
     };
+    // On a page of its own (one entry is one tab: with the entry's page
+    // open the module would only be where it scrolls).
     view.update(cx, |w, cx| {
+        while w.nav.close_active() {}
         w.open(missing.clone(), dr_shell::nav::Open::KEEP, cx)
     });
     wait(&view, cx, |w, cx| {

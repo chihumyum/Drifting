@@ -78,7 +78,8 @@ impl Workspace {
         });
         self.shelf_open = false;
         self.super_view = None;
-        self.nav.open_at(target, lines);
+        self.nav.open_at(target.clone(), lines);
+        self.visited_on_open_page(&target, cx);
         self.changed(cx);
         if self.top_layer().is_none() {
             self.refocus(window, cx);

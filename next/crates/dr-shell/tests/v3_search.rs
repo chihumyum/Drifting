@@ -112,8 +112,10 @@ fn choose(
     line: Option<u32>,
 ) {
     cx.simulate_keystrokes("enter");
+    // One entry is one tab (kernel v5, T1): a module of an entry already
+    // open is a place on its page.
     wait(view, cx, |ws, _| {
-        ws.search.is_none() && ws.nav.current() == Some(target)
+        ws.search.is_none() && ws.nav.current().is_some_and(|c| c.same_page(target))
     });
     wait(view, cx, |ws, cx| {
         if let Some(editor) = ws.editor_of(target) {
@@ -122,8 +124,9 @@ fn choose(
             line == Some((2 * paragraph + 1) as u32)
         } else {
             ws.editors
-                .get(&target.key())
-                .and_then(|p| p.v3.as_ref())
+                .iter()
+                .find(|(k, _)| Target::from_key(k).is_some_and(|t| t.same_page(target)))
+                .and_then(|(_, p)| p.v3.as_ref())
                 .is_some_and(|p| p.read(cx).revealed.map(|l| l.start) == line)
         }
     });
@@ -131,9 +134,10 @@ fn choose(
         if let Some(editor) = ws.editor_of(target) {
             editor.read(cx).editor().focus_handle(cx)
         } else {
-            ws.editors[&target.key()]
-                .v3
-                .as_ref()
+            ws.editors
+                .iter()
+                .find(|(k, _)| Target::from_key(k).is_some_and(|t| t.same_page(target)))
+                .and_then(|(_, p)| p.v3.as_ref())
                 .unwrap()
                 .read(cx)
                 .preferred_focus()

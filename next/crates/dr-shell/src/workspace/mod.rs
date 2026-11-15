@@ -1437,8 +1437,25 @@ impl Workspace {
         if how.title {
             self.title_first = Some(target.key());
         }
-        self.nav.open(target, how);
+        self.nav.open(target.clone(), how);
+        self.visited_on_open_page(&target, cx);
         self.changed(cx);
+    }
+
+    /// An entry asked for (with a module or without) whose page is already
+    /// in front under another of its targets (one page per entry): the page
+    /// only scrolls, so the visit is noted here (F3's recent pages remember
+    /// the exact target, as when it opened a page of its own).
+    pub(super) fn visited_on_open_page(&mut self, target: &Target, cx: &mut Context<Self>) {
+        if self
+            .nav
+            .current()
+            .is_some_and(|current| current != target && current.same_page(target))
+        {
+            self.record_recent(Some(target), cx);
+            // That is the visit: the page in front is not noted again.
+            self.touched = self.nav.current().map(Target::key);
+        }
     }
 
     pub fn promote(&mut self, target: &Target, cx: &mut Context<Self>) {
