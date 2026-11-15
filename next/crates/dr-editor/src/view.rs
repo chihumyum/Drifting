@@ -91,6 +91,8 @@ pub struct ChapterEditor {
     pub(crate) decor: crate::decor::Decor,
     /// A material note's tables and materials (`None` elsewhere).
     embeds: Option<Rc<NoteEmbeds>>,
+    /// Nearest paragraph gap `(line_ix, local_y, local_left, width)` during file drag-over.
+    drop_gap: Option<(usize, gpui::Pixels, gpui::Pixels, gpui::Pixels)>,
     /// Immersive writing: typewriter scrolling forced on (M26).
     immersive: bool,
     /// The page a body is part of ([`Self::set_page_scroll`]).
@@ -186,8 +188,9 @@ impl ChapterEditor {
             cx,
         );
         let ws_events = Self::watch(&ws, doc_id, window, cx);
-        let (assist, assist_events) =
-            Self::make_assist(&ws, book, &editor, doc_id, &settings, window, cx);
+        let (assist, assist_events) = Self::make_assist(
+            &ws, book, &editor, &extension, doc_id, &settings, window, cx,
+        );
         let decor =
             crate::decor::Decor::new(&ws, book, doc_id, &editor, extension.clone(), window, cx);
         let mut this = ChapterEditor {
@@ -206,6 +209,7 @@ impl ChapterEditor {
             _assist_events: assist_events,
             decor,
             embeds,
+            drop_gap: None,
             immersive: false,
             page_scroll: None,
             _editor_events: editor_events,
@@ -221,12 +225,14 @@ impl ChapterEditor {
         ws: &Workspace,
         book: &str,
         editor: &Entity<ProseEditor>,
+        extension: &Rc<DriftingExtension>,
         doc_id: &str,
         settings: &EditorSettings,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> (Entity<crate::assist::Assist>, Subscription) {
         let note = is_note(ws, book, doc_id);
+        let ext = extension.clone();
         let assist = cx.new(|cx| {
             let mut a = crate::assist::Assist::new(
                 ws.clone(),
@@ -238,6 +244,7 @@ impl ChapterEditor {
             );
             a.set_auto_links(settings.auto_entity_links);
             a.set_note(note);
+            a.set_extension(ext);
             a
         });
         let events = cx.subscribe_in(
@@ -880,23 +887,341 @@ impl ChapterEditor {
                 .and_then(|t| crate::table::clip::parse_grid(&t))
                 .filter(|g| crate::table::clip::is_table(g))
         });
-        let Some(cells) = cells else {
-            return false;
-        };
-        let marks = match crate::table::clip::marks_from_clipboard(&item) {
-            Ok(m) => m,
-            Err(e) => {
-                crate::links::clipboard_refused(cx, e);
-                return true;
+        if let Some(cells) = cells {
+            let marks = match crate::table::clip::marks_from_clipboard(&item) {
+                Ok(m) => m,
+                Err(e) => {
+                    crate::links::clipboard_refused(cx, e);
+                    return true;
+                }
+            };
+            if !self.editor.read(cx).selection().is_empty() {
+                self.editor
+                    .update(cx, |e, cx| e.press_backspace(window, cx));
             }
-        };
-        if !self.editor.read(cx).selection().is_empty() {
-            self.editor
-                .update(cx, |e, cx| e.press_backspace(window, cx));
+            let offset = self.editor.read(cx).selection().head;
+            crate::embeds::insert_table(&embeds, offset, cells, marks, window, cx);
+            return true;
         }
-        let offset = self.editor.read(cx).selection().head;
-        crate::embeds::insert_table(&embeds, offset, cells, marks, window, cx);
-        true
+        // Format 5 (`v5-tracks.md` §T5): pasting an image or image/PDF file paths
+        // imports into the asset library (new pasted images at index 0; identical
+        // bytes reuse the existing asset) and embeds at the caret.
+        for entry in item.entries() {
+            match entry {
+                gpui::ClipboardEntry::Image(image) => {
+                    let bytes = image.bytes().to_vec();
+                    let title = crate::file_host::pasted_image_title(cx);
+                    if !self.editor.read(cx).selection().is_empty() {
+                        self.editor
+                            .update(cx, |e, cx| e.press_backspace(window, cx));
+                    }
+                    let offset = self.editor.read(cx).selection().head;
+                    let ws = self.ws.clone();
+                    let book = self.book.clone();
+                    let host_fn = crate::file_host::import_bytes_fn(cx);
+                    cx.spawn(async move |this, cx| {
+                        let res = cx
+                            .background_spawn(async move {
+                                crate::file_host::import_pasted_bytes_blocking(
+                                    host_fn.as_ref(),
+                                    &ws,
+                                    &book,
+                                    bytes,
+                                    &title,
+                                )
+                            })
+                            .await;
+                        if let Ok(file) = res {
+                            this.update(cx, |this, cx| {
+                                if let (Some(em), Ok(aid)) =
+                                    (this.embeds.clone(), dr_model::id::AssetId::parse(&file.id))
+                                    && let Some(eid) =
+                                        crate::embeds::insert_material(&em, offset, aid, cx)
+                                {
+                                    crate::file_host::trigger_flash(
+                                        [
+                                            format!("embed_id:{eid}"),
+                                            format!("library-asset:{}", file.id),
+                                            file.id,
+                                        ],
+                                        cx,
+                                    );
+                                }
+                            })
+                            .ok();
+                        }
+                    })
+                    .detach();
+                    return true;
+                }
+                gpui::ClipboardEntry::ExternalPaths(paths) => {
+                    let paths = paths.paths().to_vec();
+                    let has_supported = paths.iter().any(|p| {
+                        p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+                            matches!(
+                                e.to_ascii_lowercase().as_str(),
+                                "png"
+                                    | "jpg"
+                                    | "jpeg"
+                                    | "gif"
+                                    | "webp"
+                                    | "bmp"
+                                    | "tif"
+                                    | "tiff"
+                                    | "pdf"
+                            )
+                        })
+                    });
+                    if !has_supported {
+                        continue;
+                    }
+                    if !self.editor.read(cx).selection().is_empty() {
+                        self.editor
+                            .update(cx, |e, cx| e.press_backspace(window, cx));
+                    }
+                    let offset = self.editor.read(cx).selection().head;
+                    self.import_and_embed_paths(paths, None, Some(offset), cx);
+                    return true;
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn update_drop_gap(
+        &mut self,
+        mouse: gpui::Point<gpui::Pixels>,
+        container: gpui::Bounds<gpui::Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        use gpui::px;
+        if !container.contains(&mouse) {
+            if self.drop_gap.take().is_some() {
+                cx.notify();
+            }
+            return;
+        }
+        let mut best: Option<(usize, gpui::Pixels, gpui::Pixels, gpui::Pixels, f32)> = None;
+        {
+            let e = self.editor.read(cx);
+            let doc = &e.book().chapters[0].doc;
+            let wrap = e.style().max_width;
+            for ix in 0..doc.visible_lines() {
+                let start = doc.line_start(ix);
+                let end = start + doc.line(ix).chars;
+                let line_box = e
+                    .range_bounds(0, start..end)
+                    .map(|b| (b.top(), b.bottom(), b.left(), wrap))
+                    .or_else(|| {
+                        let embed_id = doc.line(ix).embed()?;
+                        let b = self
+                            .embeds
+                            .as_ref()?
+                            .material_block(embed_id)?
+                            .read(cx)
+                            .last_bounds()?;
+                        Some((b.top(), b.bottom(), b.left(), b.size.width))
+                    });
+                if let Some((top, bottom, left, width)) = line_box {
+                    for (gap_ix, gap_y) in [(ix, top), (ix + 1, bottom)] {
+                        let dist = (f32::from(mouse.y) - f32::from(gap_y)).abs();
+                        if best.as_ref().is_none_or(|b| dist < b.4) {
+                            best = Some((gap_ix, gap_y, left, width, dist));
+                        }
+                    }
+                }
+            }
+        }
+        let next = match best {
+            Some((ix, y, left, width, _)) => {
+                Some((ix, y - container.origin.y, left - container.origin.x, width))
+            }
+            None => Some((
+                0,
+                px(20.),
+                px(24.),
+                (container.size.width - px(48.)).max(px(80.)),
+            )),
+        };
+        if self.drop_gap != next {
+            self.drop_gap = next;
+            cx.notify();
+        }
+    }
+
+    /// Drops library assets (or folders) into paragraph gap `line_ix` (`None`: current drop gap or caret).
+    pub fn drop_asset_drag(
+        &mut self,
+        drag: &dr_ui::AssetDrag,
+        line_ix: Option<usize>,
+        cx: &mut Context<Self>,
+    ) {
+        let gap = line_ix.or_else(|| self.drop_gap.take().map(|g| g.0));
+        if drag.book != self.book {
+            return;
+        }
+        if drag.folders.is_empty() {
+            self.embed_assets_at_gap(drag.assets.clone(), gap, cx);
+            return;
+        }
+        let ws = self.ws.clone();
+        let book = self.book.clone();
+        let direct = drag.assets.clone();
+        let folders = drag.folders.clone();
+        cx.spawn(async move |this, cx| {
+            let expanded = cx
+                .background_spawn(async move {
+                    crate::v3::read(&ws, &book, move |v| {
+                        let all_folders: Vec<_> = v.asset_folders();
+                        let mut subtree = std::collections::HashSet::new();
+                        fn collect(
+                            all: &[dr_model::shared::AssetFolder],
+                            root: &str,
+                            out: &mut std::collections::HashSet<String>,
+                        ) {
+                            if !out.insert(root.to_owned()) {
+                                return;
+                            }
+                            for f in all {
+                                if f.parent.as_ref().is_some_and(|p| p.as_str() == root) {
+                                    collect(all, f.id.as_str(), out);
+                                }
+                            }
+                        }
+                        for fid in &folders {
+                            collect(&all_folders, fid, &mut subtree);
+                        }
+                        let mut assets = direct;
+                        let mut in_folders: Vec<_> = v
+                            .assets()
+                            .into_iter()
+                            .filter(|a| {
+                                a.folder
+                                    .as_ref()
+                                    .is_some_and(|f| subtree.contains(f.as_str()))
+                            })
+                            .collect();
+                        in_folders.sort_by(|a, b| {
+                            dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id))
+                        });
+                        for a in in_folders {
+                            let s = a.id.to_string();
+                            if !assets.contains(&s) {
+                                assets.push(s);
+                            }
+                        }
+                        assets
+                    })
+                    .unwrap_or_default()
+                })
+                .await;
+            this.update(cx, |this, cx| this.embed_assets_at_gap(expanded, gap, cx))
+                .ok();
+        })
+        .detach();
+    }
+
+    /// Imports external file paths into the library and embeds them at `gap` (or `caret`).
+    pub fn drop_external_paths(
+        &mut self,
+        paths: Vec<std::path::PathBuf>,
+        line_ix: Option<usize>,
+        cx: &mut Context<Self>,
+    ) {
+        let gap = line_ix.or_else(|| self.drop_gap.take().map(|g| g.0));
+        self.import_and_embed_paths(paths, gap, None, cx);
+    }
+
+    fn embed_assets_at_gap(
+        &mut self,
+        asset_ids: Vec<String>,
+        gap: Option<usize>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(embeds) = self.embeds.clone() else {
+            return;
+        };
+        let mut cur_gap = gap.unwrap_or_else(|| {
+            let e = self.editor.read(cx);
+            let sel = e.selection();
+            let doc = &e.book().chapters[0].doc;
+            doc.line_of(sel.head) + 1
+        });
+        let mut flash_keys = Vec::new();
+        for id in asset_ids {
+            if let Ok(aid) = dr_model::id::AssetId::parse(&id)
+                && let Some(eid) =
+                    crate::embeds::insert_material_before_line(&embeds, cur_gap, aid, cx)
+            {
+                cur_gap += 1;
+                flash_keys.push(format!("embed_id:{eid}"));
+            }
+        }
+        crate::file_host::trigger_flash(flash_keys, cx);
+        cx.notify();
+    }
+
+    fn import_and_embed_paths(
+        &mut self,
+        paths: Vec<std::path::PathBuf>,
+        gap: Option<usize>,
+        caret_offset: Option<usize>,
+        cx: &mut Context<Self>,
+    ) {
+        if paths.is_empty() {
+            return;
+        }
+        let ws = self.ws.clone();
+        let book = self.book.clone();
+        let host_fn = crate::file_host::import_paths_fn(cx);
+        cx.spawn(async move |this, cx| {
+            let imported = cx
+                .background_spawn(async move {
+                    crate::file_host::import_paths_blocking(host_fn.as_ref(), &ws, &book, &paths)
+                })
+                .await;
+            if imported.is_empty() {
+                return;
+            }
+            this.update(cx, |this, cx| {
+                let Some(embeds) = this.embeds.clone() else {
+                    return;
+                };
+                let mut flash_keys = Vec::new();
+                if let Some(mut cur_gap) = gap {
+                    for file in imported {
+                        if let Ok(aid) = dr_model::id::AssetId::parse(&file.id)
+                            && let Some(eid) = crate::embeds::insert_material_before_line(
+                                &embeds, cur_gap, aid, cx,
+                            )
+                        {
+                            cur_gap += 1;
+                            flash_keys.push(format!("embed_id:{eid}"));
+                            flash_keys.push(format!("library-asset:{}", file.id));
+                            flash_keys.push(file.id);
+                        }
+                    }
+                } else {
+                    let base =
+                        caret_offset.unwrap_or_else(|| this.editor.read(cx).selection().head);
+                    for file in imported {
+                        if let Ok(aid) = dr_model::id::AssetId::parse(&file.id)
+                            && let Some(eid) =
+                                crate::embeds::insert_material(&embeds, base, aid, cx)
+                        {
+                            flash_keys.push(format!("embed_id:{eid}"));
+                            flash_keys.push(format!("library-asset:{}", file.id));
+                            flash_keys.push(file.id);
+                        }
+                    }
+                }
+                crate::file_host::trigger_flash(flash_keys, cx);
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
     }
 }
 
@@ -907,7 +1232,10 @@ enum Notice {
 }
 
 impl Render for ChapterEditor {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !cx.has_active_drag() && self.drop_gap.is_some() {
+            self.drop_gap = None;
+        }
         let flat = crate::v3::body(&self.doc_id).is_some();
         let inner = if flat {
             crate::assist::wrap_flat_module(&self.assist, ProseEditor::element(&self.editor, cx))
@@ -919,14 +1247,50 @@ impl Render for ChapterEditor {
         if self.embeds.is_none() {
             return inner.into_any_element();
         }
-        // A material note or v3 body with embeds: tables on the clipboard and the highlight key.
+        // A material note or v3 body with embeds: tables on the clipboard, file drops/paste, and the highlight key.
         use gpui::{
-            InteractiveElement as _, ParentElement as _, Styled as _, prelude::FluentBuilder as _,
+            DragMoveEvent, ExternalPaths, InteractiveElement as _, ParentElement as _, Styled as _,
+            prelude::FluentBuilder as _, px,
         };
         use gpui_prose::input::actions::{Copy, Cut, Paste};
+        let accent = dr_ui::theme::Theme::of(window, cx).palette.accent.solid();
+        let dropline = self
+            .drop_gap
+            .filter(|_| cx.has_active_drag())
+            .map(|(_, y, left, width)| {
+                gpui::div()
+                    .id("dr-editor-dropline")
+                    .absolute()
+                    .left(left)
+                    .top(y - px(1.))
+                    .w(width)
+                    .h(px(2.))
+                    .rounded_full()
+                    .bg(accent)
+            });
         gpui::div()
+            .id("dr-editor-chapter-drop-zone")
+            .relative()
             .when(flat, |d| d.w_full())
             .when(!flat, |d| d.size_full())
+            .on_drag_move::<dr_ui::AssetDrag>(cx.listener(
+                |this, e: &DragMoveEvent<dr_ui::AssetDrag>, _, cx| {
+                    if e.drag(cx).book == this.book {
+                        this.update_drop_gap(e.event.position, e.bounds, cx);
+                    }
+                },
+            ))
+            .on_drag_move::<ExternalPaths>(cx.listener(
+                |this, e: &DragMoveEvent<ExternalPaths>, _, cx| {
+                    this.update_drop_gap(e.event.position, e.bounds, cx);
+                },
+            ))
+            .on_drop(cx.listener(|this, drag: &dr_ui::AssetDrag, _, cx| {
+                this.drop_asset_drag(drag, None, cx);
+            }))
+            .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
+                this.drop_external_paths(paths.paths().to_vec(), None, cx);
+            }))
             .capture_action(cx.listener(|this, _: &Copy, window, cx| {
                 if this.note_copy(false, window, cx) {
                     cx.stop_propagation();
@@ -953,6 +1317,7 @@ impl Render for ChapterEditor {
                 }),
             )
             .child(inner)
+            .children(dropline)
             .into_any_element()
     }
 }

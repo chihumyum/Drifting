@@ -405,6 +405,13 @@ impl Layers {
                     if notices.contains(&Notice::Book) || notices.contains(&Notice::Comments) {
                         this.load_names(cx);
                     }
+                    if notices.contains(&Notice::Book) {
+                        this.extension.invalidate();
+                        this.links_soon(None, window, cx);
+                        if let Some(editor) = this.editor.upgrade() {
+                            editor.update(cx, |_, cx| cx.notify());
+                        }
+                    }
                     for n in &notices {
                         if let Notice::Prose(doc) = n
                             && let Some(chapter) = this.index.get(doc).copied()
@@ -940,19 +947,24 @@ impl Layers {
                 find_links(e, chapter, &self.extension, self.names.as_deref())
             };
             self.parts[chapter].links_dirty = false;
+            let mut badges = Vec::new();
             let links = found
                 .links
                 .into_iter()
                 .enumerate()
-                .map(|(ix, (range, alive))| {
-                    Decoration::new(
-                        format!("l{ix}"),
-                        range,
-                        Look::Underline(looks.entity_underline(alive)),
-                    )
-                    .touch(Touch::HOVER)
+                .map(|(ix, (range, alive, file_pdf))| {
+                    let id: gpui::SharedString = if let Some(is_pdf) = file_pdf {
+                        let id = gpui::SharedString::from(format!("f{ix}"));
+                        badges.push((id.clone(), is_pdf));
+                        id
+                    } else {
+                        gpui::SharedString::from(format!("l{ix}"))
+                    };
+                    Decoration::new(id, range, Look::Underline(looks.entity_underline(alive)))
+                        .touch(Touch::HOVER)
                 })
                 .collect();
+            self.extension.set_file_link_badges(chapter, badges);
             let suggestions = found
                 .suggestions
                 .into_iter()
@@ -1326,8 +1338,9 @@ fn link_names(
 /// What the text says about links, suggestions and TODO keywords.
 #[derive(Debug, Default, PartialEq)]
 pub(crate) struct FoundLinks {
-    /// Entity-linked runs and whether their target is alive.
-    pub links: Vec<(Range<usize>, bool)>,
+    /// Entity-linked runs, whether their target is alive, and `Some(is_pdf)`
+    /// when the run points to a live file (`Asset` / `Material`).
+    pub links: Vec<(Range<usize>, bool, Option<bool>)>,
     /// Names not linked yet.
     pub suggestions: Vec<Range<usize>>,
     /// TODO keywords.
@@ -1344,27 +1357,56 @@ pub(crate) fn find_links(
     let doc = &editor.book().chapters[chapter].doc;
     let mut found = FoundLinks::default();
     let mut start = 0;
-    let alive_memo: RefCell<std::collections::HashMap<String, bool>> = RefCell::default();
+    let alive_memo: RefCell<std::collections::HashMap<(dr_model::kind::EntityKind, String), bool>> =
+        RefCell::default();
     for line in &doc.lines()[..doc.visible_lines()] {
         let mut linked: Vec<Range<usize>> = Vec::new();
+        let mut prev_file_id: Option<String> = None;
         for span in line.spans.iter() {
             let mut target = None;
+            let mut file_link: Option<(String, bool)> = None;
             for (key, value) in span.marks.iter() {
                 if let Some(id) = inline::entity_target(key) {
                     let kind = link_kind(value);
                     let alive = *alive_memo
                         .borrow_mut()
-                        .entry(id.to_owned())
+                        .entry((kind.clone(), id.to_owned()))
                         .or_insert_with(|| extension.alive(&kind, id));
-                    target = Some(target.unwrap_or(false) || alive);
+                    if matches!(
+                        kind,
+                        dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material
+                    ) {
+                        if !alive {
+                            // Trashed file links degrade to ordinary prose text.
+                            continue;
+                        }
+                        file_link = Some((id.to_owned(), extension.is_pdf_asset(id)));
+                        target = Some(true);
+                    } else {
+                        target = Some(target.unwrap_or(false) || alive);
+                    }
                 }
             }
             if let Some(alive) = target {
                 let range = line.char_of_byte(span.range.start)..line.char_of_byte(span.range.end);
-                found
-                    .links
-                    .push((start + range.start..start + range.end, alive));
+                let abs = start + range.start..start + range.end;
+                if let Some((fid, is_pdf)) = file_link {
+                    if prev_file_id.as_deref() == Some(fid.as_str())
+                        && let Some((last_range, _, Some(_))) = found.links.last_mut()
+                        && last_range.end == abs.start
+                    {
+                        last_range.end = abs.end;
+                    } else {
+                        found.links.push((abs, true, Some(is_pdf)));
+                    }
+                    prev_file_id = Some(fid);
+                } else {
+                    found.links.push((abs, alive, None));
+                    prev_file_id = None;
+                }
                 linked.push(range);
+            } else {
+                prev_file_id = None;
             }
         }
         if let Some(matcher) = names {

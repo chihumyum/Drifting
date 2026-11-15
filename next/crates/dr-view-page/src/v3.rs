@@ -179,7 +179,25 @@ impl BodyModule {
                             editor.update(cx, |e, cx| e.set_page_scroll(Some(page), cx));
                         }
                         let assist = editor.read(cx).assist().clone();
-                        view._links = Some(bind_links(&assist, &host.page, window, cx));
+                        let links = bind_links(&assist, &host.page, window, cx);
+                        let page_ws = host.page.workspace.clone();
+                        let mat_sub = cx.subscribe(
+                            &editor,
+                            move |_, _, e: &dr_editor::MaterialOpened, cx| {
+                                if let Ok(id) = dr_model::id::MediaItemId::parse(&e.material) {
+                                    page_ws
+                                        .update(cx, |ws, cx| {
+                                            ws.open(
+                                                dr_shell::nav::Target::Material(id),
+                                                dr_shell::nav::Open::PREVIEW,
+                                                cx,
+                                            );
+                                        })
+                                        .ok();
+                                }
+                            },
+                        );
+                        view._links = Some(gpui::Subscription::join(links, mat_sub));
                         view.editor = Some(editor);
                         view.reveal_now(window, cx);
                         let workspace = view.host.page.workspace.clone();

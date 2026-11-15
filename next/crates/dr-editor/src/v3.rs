@@ -328,10 +328,14 @@ pub struct LinkTargets {
 }
 impl crate::links::LinkTargets for LinkTargets {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        if !matches!(kind, dr_model::kind::EntityKind::Entry) {
-            return false;
-        }
-        let target = dr_model::shared::EntityRef::new(kind.clone(), id);
+        let normalized = match kind {
+            dr_model::kind::EntityKind::Entry => dr_model::kind::EntityKind::Entry,
+            dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material => {
+                dr_model::kind::EntityKind::Asset
+            }
+            _ => return false,
+        };
+        let target = dr_model::shared::EntityRef::new(normalized, id);
         read(&self.workspace, &self.book, move |v| {
             v.entity_exists(&target)
         })
@@ -346,8 +350,20 @@ impl crate::links::LinkTargets for LinkTargets {
                 .filter(|e| !e.is_trashed())
                 .map(|e| e.id.to_string())
                 .collect();
-            (entries, std::collections::HashSet::new())
+            let assets = v.assets().into_iter().map(|a| a.id.to_string()).collect();
+            (entries, assets)
         })
         .ok()
+    }
+
+    fn pdf_assets(&self) -> std::collections::HashSet<String> {
+        read(&self.workspace, &self.book, |v| {
+            v.assets()
+                .into_iter()
+                .filter(|a| a.kind == dr_model::kind::AssetKind::Pdf)
+                .map(|a| a.id.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
     }
 }

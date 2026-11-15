@@ -308,7 +308,7 @@ fn the_slash_menu_of_a_note_has_its_own_entries(cx: &mut TestAppContext) {
             "行内代码",
             "提示块",
             "高亮",
-            "插入素材…",
+            "图片或 PDF…",
             "人物链接",
             "批注"
         ]
@@ -592,8 +592,8 @@ fn a_chapter_has_unified_prose_formats_while_plain_shortcuts_stay_literal(cx: &m
     assert!(o.view.read_with(o.cx, |v, _| v.note_embeds().is_some()));
     assert_eq!(
         o.slash("素材"),
-        [],
-        "under 书稿's Plain shortcuts the slash menu has no file entry (T5 adds one to every prose document)"
+        [MenuRow::Note(NoteChoice::Material)],
+        "every prose document offers 图片或 PDF… in its slash menu (`v5-tracks.md` §T5)"
     );
     o.cx.simulate_keystrokes("escape");
     for _ in 0..3 {

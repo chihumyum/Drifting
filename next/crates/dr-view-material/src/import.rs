@@ -96,17 +96,23 @@ pub struct Imported {
     pub reused: bool,
 }
 
-/// Default name for a pasted image: `<prefix> MM-DD HH.mm` in local time.
+/// Default name for a pasted image: replaces `{{stamp}}` with `MM-DD HH.mm` in
+/// local time (or appends ` MM-DD HH.mm` when `prefix` carries no placeholder).
 pub fn pasted_image_title(prefix: &str) -> String {
     use chrono::{Datelike as _, Local, Timelike as _};
     let now = Local::now();
-    format!(
-        "{prefix} {:02}-{:02} {:02}.{:02}",
+    let stamp = format!(
+        "{:02}-{:02} {:02}.{:02}",
         now.month(),
         now.day(),
         now.hour(),
         now.minute(),
-    )
+    );
+    if prefix.contains("{{stamp}}") {
+        prefix.replace("{{stamp}}", &stamp)
+    } else {
+        format!("{prefix} {stamp}")
+    }
 }
 
 /// What an import of several files came to.
@@ -377,6 +383,9 @@ mod tests {
         );
         assert_eq!(kind_of_bytes(b"hello"), None);
         assert_eq!(title_of("东岸速写.final.png"), "东岸速写.final");
+        let stamped = pasted_image_title("粘贴的图片 {{stamp}}");
+        assert!(!stamped.contains("{{stamp}}"), "{stamped}");
+        assert!(stamped.starts_with("粘贴的图片 "), "{stamped}");
     }
 
     #[test]

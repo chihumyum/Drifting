@@ -34,20 +34,35 @@
 //!   loses focus, and on Esc. Never on a right click: there are no custom
 //!   context menus.
 
+use std::cell::Cell;
+use std::collections::HashSet;
 use std::ops::Range;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
+use dr_model::pos::{PosKey, cmp_pos};
+use dr_store::asset::Variant;
 use dr_text::autolink::LinkTarget;
+use dr_ui::components::menu::{float_shadow, slab_edge};
 use dr_ui::components::{Align, IconButton, Layer, Menu, MenuItem, MenuWidth, Place, RowIcon};
+use dr_ui::fonts::{Role, weight};
+use dr_ui::input::{FieldEvent, TextField};
 use dr_ui::sand::{self, Icon};
+use dr_ui::style::DrStyled as _;
 use dr_ui::theme::Theme;
+use dr_ui::tokens::radius;
+use dr_workspace::commands::ListIn;
+use dr_workspace::commands::asset::{
+    AssetFolderInfo, AssetFolderList, AssetFolderListIn, AssetInfo, AssetList,
+};
 use dr_workspace::{Actor, Workspace};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    App, Bounds, Context, Entity, EventEmitter, InteractiveElement, IntoElement, KeyDownEvent,
-    ParentElement, Pixels, Render, SharedString, StatefulInteractiveElement, Styled, Subscription,
-    Task, Window, div, point, px, size,
+    AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, EventEmitter,
+    Focusable as _, InteractiveElement, IntoElement, KeyDownEvent, ObjectFit, ParentElement,
+    PathPromptOptions, Pixels, Render, SharedString, StatefulInteractiveElement, Styled,
+    StyledImage as _, Subscription, Task, Window, canvas, div, img, point, px, size,
 };
 use gpui_prose::input::actions::{MoveDown, MoveUp, Newline, SetBody, SetH1, SetH2, SetH3};
 use gpui_prose::render::DecorationEvent;
@@ -55,7 +70,6 @@ use gpui_prose::schema::{block, inline};
 use gpui_prose::text::{BlockKind, ORIGIN_USER};
 use gpui_prose::{EditorEvent, HostStep, ProseEditor};
 use loro::LoroValue;
-use serde_json::json;
 
 use crate::entity_links::{self, NameIndex};
 
@@ -224,18 +238,9 @@ impl NoteChoice {
         NoteChoice::Material,
     ];
 
-    /// Every unified prose format (all except `插入素材…`, which stays on
-    /// `material:<id>` until D / T5).
-    pub const PROSE: [NoteChoice; 8] = [
-        NoteChoice::Bullet,
-        NoteChoice::Ordered,
-        NoteChoice::Task,
-        NoteChoice::Table,
-        NoteChoice::Code,
-        NoteChoice::InlineCode,
-        NoteChoice::Callout,
-        NoteChoice::Highlight,
-    ];
+    /// Every unified prose format (`kernel-v5.md` §6, `v5-tracks.md` §T5:
+    /// every prose document offers `图片或 PDF…`).
+    pub const PROSE: [NoteChoice; 9] = NoteChoice::ALL;
 
     pub fn label(self) -> &'static str {
         match self {
@@ -247,7 +252,7 @@ impl NoteChoice {
             NoteChoice::InlineCode => "行内代码",
             NoteChoice::Callout => "提示块",
             NoteChoice::Highlight => "高亮",
-            NoteChoice::Material => "插入素材…",
+            NoteChoice::Material => "图片或 PDF…",
         }
     }
 
@@ -261,7 +266,7 @@ impl NoteChoice {
             NoteChoice::InlineCode => &["inline code", "inline-code", "inline", "code", "`"],
             NoteChoice::Callout => &["callout", "note", "tip"],
             NoteChoice::Highlight => &["highlight", "mark", "=="],
-            NoteChoice::Material => &["material", "image", "pdf", "图片", "素材"],
+            NoteChoice::Material => &["material", "image", "pdf", "file", "图片", "文件", "素材"],
         }
     }
 
@@ -274,7 +279,7 @@ impl NoteChoice {
             NoteChoice::Code | NoteChoice::InlineCode => Icon::Code,
             NoteChoice::Callout => Icon::StickyNote,
             NoteChoice::Highlight => Icon::Highlight,
-            NoteChoice::Material => Icon::ImagePlus,
+            NoteChoice::Material => Icon::Image,
         }
     }
 
@@ -377,6 +382,32 @@ pub enum AssistEvent {
     InsertMaterial { chapter: usize, material: String },
 }
 
+#[derive(Clone, Debug)]
+struct MentionAsset {
+    id: String,
+    name: String,
+    pdf: bool,
+    initials: crate::pinyin::Initials,
+}
+
+#[derive(Clone, Debug)]
+struct PickerAsset {
+    id: String,
+    name: String,
+    pdf: bool,
+    folder: Option<String>,
+    thumb: Option<PathBuf>,
+}
+
+struct MaterialPickerState {
+    search: Entity<TextField>,
+    _search_sub: Subscription,
+    query: String,
+    folder: Option<String>,
+    assets: Vec<PickerAsset>,
+    folders: Vec<AssetFolderInfo>,
+}
+
 /// The pickers, automatic links and selection bar of one editor.
 pub struct Assist {
     ws: Workspace,
@@ -384,7 +415,14 @@ pub struct Assist {
     /// Each chapter's prose document (`node:<id>`, …), in the editor's order.
     docs: Vec<String>,
     editor: Entity<ProseEditor>,
+    extension: Option<Rc<crate::links::DriftingExtension>>,
+    assist_origin: Rc<Cell<gpui::Point<Pixels>>>,
     names: Option<Rc<NameIndex>>,
+    mention_assets: Option<Vec<MentionAsset>>,
+    material_picker: Option<MaterialPickerState>,
+    /// How many times `asset.list` ran for the slash file picker (for tests;
+    /// `v5-tracks.md` §T5 requires once per picker open, never inside `render`).
+    pub material_list_calls: usize,
     /// How many times the book's names were dropped to be read again (for
     /// tests).
     pub names_dropped: usize,
@@ -465,7 +503,12 @@ impl Assist {
             book: book.to_owned(),
             docs,
             editor,
+            extension: None,
+            assist_origin: Rc::new(Cell::new(point(px(0.), px(0.)))),
             names: None,
+            mention_assets: None,
+            material_picker: None,
+            material_list_calls: 0,
             names_dropped: 0,
             auto_links: true,
             pending: Vec::new(),
@@ -548,9 +591,14 @@ impl Assist {
         self.pending.clear();
         self.link_task = None;
         self.menu = None;
+        self.material_picker = None;
         self.dismissed = None;
         self.hide_bar();
         cx.notify();
+    }
+
+    pub fn set_extension(&mut self, ext: Rc<crate::links::DriftingExtension>) {
+        self.extension = Some(ext);
     }
 
     /// The book's names changed (an element made or renamed, an alias, a
@@ -559,6 +607,7 @@ impl Assist {
     /// `autolink`); its links reach this editor as someone else's write.
     pub fn invalidate_names(&mut self, cx: &mut Context<Self>) {
         self.names = None;
+        self.mention_assets = None;
         self.names_dropped += 1;
         cx.notify();
     }
@@ -648,6 +697,7 @@ impl Assist {
                     // An undo: nothing of it is the author's typing.
                     self.line_counts = Self::lines(&self.editor, cx);
                     self.menu = None;
+                    self.material_picker = None;
                     cx.notify();
                     return;
                 }
@@ -858,6 +908,7 @@ impl Assist {
                 return;
             }
             self.menu = None;
+            self.material_picker = None;
             cx.notify();
             return;
         }
@@ -885,6 +936,7 @@ impl Assist {
         };
         let Some((kind, chapter, at, query)) = found else {
             self.dismissed = None;
+            self.material_picker = None;
             if self.menu.take().is_some() {
                 cx.notify();
             }
@@ -971,41 +1023,94 @@ impl Assist {
                 }
                 rows
             }
-            MenuKind::Material => self.material_rows(),
+            MenuKind::Material => self.filtered_material_rows(),
             MenuKind::Mention => {
-                let Some(names) = self.names() else {
-                    return Vec::new();
-                };
                 let own = self.own_id(chapter).map(str::to_owned);
-                let rows: Vec<MenuRow> = names
-                    .search(query, MAX_ROWS + 1)
-                    .into_iter()
-                    .filter(|(_, t, _)| Some(&t.id) != own.as_ref())
-                    .take(MAX_ROWS)
-                    .map(|(name, target, group)| MenuRow::Link {
-                        name,
-                        target,
-                        group,
+                let mut rows: Vec<MenuRow> = self
+                    .names()
+                    .map(|names| {
+                        names
+                            .search(query, MAX_ROWS + 1)
+                            .into_iter()
+                            .filter(|(_, t, _)| Some(&t.id) != own.as_ref())
+                            .take(MAX_ROWS)
+                            .map(|(name, target, group)| MenuRow::Link {
+                                name,
+                                target,
+                                group,
+                            })
+                            .collect::<Vec<_>>()
                     })
-                    .collect();
-
+                    .unwrap_or_default();
+                let asset_matches = self.search_mention_assets(query);
+                if !asset_matches.is_empty() {
+                    if rows.len() + asset_matches.len() > MAX_ROWS {
+                        let reserve = asset_matches.len().min(8);
+                        rows.truncate(MAX_ROWS.saturating_sub(reserve));
+                    }
+                    let room = MAX_ROWS.saturating_sub(rows.len());
+                    rows.extend(asset_matches.into_iter().take(room).map(|a| MenuRow::Link {
+                        name: a.name,
+                        target: LinkTarget::new(dr_model::kind::EntityKind::Asset, a.id),
+                        group: entity_links::NameGroup::Asset,
+                    }));
+                }
                 rows
             }
         }
+    }
+
+    fn load_mention_assets(&mut self) -> &[MentionAsset] {
+        if self.mention_assets.is_none() {
+            let loaded = crate::v3::read(&self.ws, &self.book, |v| {
+                v.assets()
+                    .into_iter()
+                    .map(|a| MentionAsset {
+                        id: a.id.to_string(),
+                        pdf: a.kind == dr_model::kind::AssetKind::Pdf,
+                        initials: crate::pinyin::Initials::of(&a.name),
+                        name: a.name,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+            self.mention_assets = Some(loaded);
+        }
+        self.mention_assets.as_deref().unwrap_or(&[])
+    }
+
+    fn search_mention_assets(&mut self, query: &str) -> Vec<MentionAsset> {
+        let q = query.to_lowercase();
+        let mut matched: Vec<(bool, MentionAsset)> = self
+            .load_mention_assets()
+            .iter()
+            .filter_map(|a| {
+                let contains = a.name.to_lowercase().contains(&q);
+                (contains || a.initials.matches(&q)).then(|| (contains, a.clone()))
+            })
+            .collect();
+        matched.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then_with(|| entity_links::compare_names(&a.1.name, &b.1.name))
+        });
+        matched.into_iter().map(|(_, a)| a).collect()
     }
 
     /// Moves the picker's current row by `delta`, wrapping.
     pub fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
         if let Some(m) = &mut self.menu {
             let n = m.rows.len() as isize;
-            m.selected = ((m.selected as isize + delta).rem_euclid(n)) as usize;
-            cx.notify();
+            if n > 0 {
+                m.selected = ((m.selected as isize + delta).rem_euclid(n)) as usize;
+                cx.notify();
+            }
         }
     }
 
     /// Esc: the picker closes and stays closed for this trigger.
     pub fn dismiss(&mut self, cx: &mut Context<Self>) {
         self.close_card();
+        self.material_picker = None;
         if let Some(m) = self.menu.take() {
             self.dismissed = Some((m.chapter, m.at));
         }
@@ -1016,6 +1121,7 @@ impl Assist {
     /// Chooses row `ix` of the open picker (the current one when `None`).
     pub fn choose(&mut self, ix: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
         let Some(menu) = self.menu.take() else { return };
+        self.material_picker = None;
         let Some(row) = menu.rows.get(ix.unwrap_or(menu.selected)).cloned() else {
             return;
         };
@@ -1036,42 +1142,259 @@ impl Assist {
             MenuRow::Action(action) => self.apply_action(chapter, at..caret, action, window, cx),
             MenuRow::Note(choice) => self.apply_note(chapter, at..caret, choice, window, cx),
             MenuRow::Material { id, .. } => {
+                let focus = self.editor.read(cx).focus_handle(cx);
+                window.focus(&focus, cx);
                 cx.emit(AssistEvent::InsertMaterial {
                     chapter,
                     material: id,
                 });
             }
-            MenuRow::Nothing(_) => {}
+            MenuRow::Nothing(_) => {
+                let focus = self.editor.read(cx).focus_handle(cx);
+                window.focus(&focus, cx);
+            }
         }
         self.dismissed = None;
         cx.notify();
     }
 
-    /// The images and PDFs of the book, for 插入素材….
-    fn material_rows(&self) -> Vec<MenuRow> {
-        let list = self
-            .ws
-            .call(&Actor::User, "asset.list", json!({ "book": self.book }))
-            .ok()
-            .and_then(|out| out["output"].as_array().cloned())
-            .unwrap_or_default();
-        let rows: Vec<MenuRow> = list
+    /// Filters the open slash file picker by query text without re-calling `asset.list`.
+    pub fn set_material_picker_query(&mut self, query: impl Into<String>, cx: &mut Context<Self>) {
+        let q = query.into();
+        if let Some(p) = &mut self.material_picker {
+            p.query = q.clone();
+            p.search.update(cx, |f, cx| {
+                if f.text() != q {
+                    f.set_text(q, cx);
+                }
+            });
+        }
+        self.sync_material_picker_rows(cx);
+    }
+
+    /// Filters the open slash file picker by folder (`None` = `全部`) without re-calling `asset.list`.
+    pub fn set_material_picker_folder(&mut self, folder: Option<String>, cx: &mut Context<Self>) {
+        if let Some(p) = &mut self.material_picker {
+            p.folder = folder;
+        }
+        self.sync_material_picker_rows(cx);
+    }
+
+    fn sync_material_picker_rows(&mut self, cx: &mut Context<Self>) {
+        let rows = self.filtered_material_rows();
+        if let Some(m) = self.menu.as_mut().filter(|m| m.kind == MenuKind::Material) {
+            m.rows = rows;
+            m.selected = m.selected.min(m.rows.len().saturating_sub(1));
+            cx.notify();
+        }
+    }
+
+    fn filtered_picker_assets(&self) -> Vec<PickerAsset> {
+        let Some(p) = &self.material_picker else {
+            return Vec::new();
+        };
+        let subtree: Option<HashSet<String>> = p.folder.as_ref().map(|fid| {
+            let mut set = HashSet::new();
+            collect_picker_subtree(&p.folders, fid, &mut set);
+            set
+        });
+        let q = p.query.trim().to_lowercase();
+        p.assets
             .iter()
-            .filter(|m| matches!(m["kind"].as_str(), Some("image" | "pdf")))
-            .filter_map(|m| {
-                Some(MenuRow::Material {
-                    id: m["id"].as_str()?.to_owned(),
-                    title: m["name"].as_str().unwrap_or_default().to_owned(),
-                    pdf: m["kind"].as_str() == Some("pdf"),
-                })
+            .filter(|a| match &subtree {
+                Some(set) => a.folder.as_deref().is_some_and(|f| set.contains(f)),
+                None => true,
             })
-            .take(MAX_ROWS)
+            .filter(|a| q.is_empty() || a.name.to_lowercase().contains(&q))
+            .cloned()
+            .collect()
+    }
+
+    fn filtered_material_rows(&self) -> Vec<MenuRow> {
+        let rows: Vec<MenuRow> = self
+            .filtered_picker_assets()
+            .into_iter()
+            .map(|a| MenuRow::Material {
+                id: a.id,
+                title: a.name,
+                pdf: a.pdf,
+            })
             .collect();
         if rows.is_empty() {
-            vec![MenuRow::Nothing("还没有图片或 PDF 素材。")]
+            vec![MenuRow::Nothing("还没有文件")]
         } else {
             rows
         }
+    }
+
+    fn open_material_picker(
+        &mut self,
+        chapter: usize,
+        at: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.material_list_calls += 1;
+        let mut raw_assets: Vec<AssetInfo> = self
+            .ws
+            .run::<AssetList>(
+                &Actor::User,
+                ListIn {
+                    book: self.book.clone(),
+                    trashed: false,
+                },
+            )
+            .map(|o| o.output)
+            .unwrap_or_default();
+        raw_assets.sort_by(|a, b| {
+            let pa = a.pos.as_deref().and_then(|s| PosKey::parse(s).ok());
+            let pb = b.pos.as_deref().and_then(|s| PosKey::parse(s).ok());
+            cmp_pos((pa.as_ref(), &a.id), (pb.as_ref(), &b.id))
+        });
+        let mut raw_folders: Vec<AssetFolderInfo> = self
+            .ws
+            .run::<AssetFolderList>(
+                &Actor::User,
+                AssetFolderListIn {
+                    book: self.book.clone(),
+                    trashed: false,
+                },
+            )
+            .map(|o| o.output)
+            .unwrap_or_default();
+        raw_folders.sort_by(|a, b| {
+            let pa = a.pos.as_deref().and_then(|s| PosKey::parse(s).ok());
+            let pb = b.pos.as_deref().and_then(|s| PosKey::parse(s).ok());
+            cmp_pos((pa.as_ref(), &a.id), (pb.as_ref(), &b.id))
+        });
+        let store = self.ws.library();
+        let assets: Vec<PickerAsset> = raw_assets
+            .into_iter()
+            .filter(|a| matches!(a.kind.as_str(), "image" | "pdf"))
+            .map(|a| {
+                let thumb = store
+                    .asset(&a.id, Variant::Thumbnail)
+                    .ok()
+                    .flatten()
+                    .or_else(|| store.asset(&a.id, Variant::Display).ok().flatten())
+                    .or_else(|| store.asset(&a.id, Variant::Source).ok().flatten())
+                    .and_then(|r| r.path.exists().then_some(r.path));
+                PickerAsset {
+                    id: a.id,
+                    name: a.name,
+                    pdf: a.kind == "pdf",
+                    folder: a.folder,
+                    thumb,
+                }
+            })
+            .collect();
+
+        let strings = crate::file_host::strings(cx);
+        let search = cx.new(|cx| {
+            TextField::new(
+                ElementId::Name("dr-editor-file-pick-search".into()),
+                window,
+                cx,
+            )
+            .small()
+            .placeholder(strings.find_file)
+        });
+        let search_sub = cx.subscribe_in(
+            &search,
+            window,
+            |this, field, ev: &FieldEvent, window, cx| match ev {
+                FieldEvent::Changed(q) => {
+                    if let Some(p) = &mut this.material_picker {
+                        p.query = q.clone();
+                    }
+                    this.sync_material_picker_rows(cx);
+                }
+                FieldEvent::Submitted(_) => {
+                    this.choose(None, window, cx);
+                }
+                FieldEvent::Cancelled => {
+                    if !field.read(cx).text().is_empty() {
+                        field.update(cx, |f, cx| f.set_text(String::new(), cx));
+                        if let Some(p) = &mut this.material_picker {
+                            p.query.clear();
+                        }
+                        this.sync_material_picker_rows(cx);
+                    } else {
+                        let focus = this.editor.read(cx).focus_handle(cx);
+                        window.focus(&focus, cx);
+                        this.dismiss(cx);
+                    }
+                }
+                FieldEvent::Blurred => {}
+            },
+        );
+        self.material_picker = Some(MaterialPickerState {
+            search,
+            _search_sub: search_sub,
+            query: String::new(),
+            folder: None,
+            assets,
+            folders: raw_folders,
+        });
+        let rows = self.filtered_material_rows();
+        self.menu = Some(OpenMenu {
+            kind: MenuKind::Material,
+            chapter,
+            at,
+            query: String::new(),
+            rows,
+            selected: 0,
+        });
+        self.menu_fresh = true;
+    }
+
+    fn pick_material_from_computer(
+        &mut self,
+        chapter: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.menu = None;
+        self.material_picker = None;
+        let focus = self.editor.read(cx).focus_handle(cx);
+        window.focus(&focus, cx);
+        cx.notify();
+        let prompt = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: true,
+            prompt: None,
+        });
+        let ws = self.ws.clone();
+        let book = self.book.clone();
+        let host_fn = crate::file_host::import_paths_fn(cx);
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = prompt.await else {
+                return;
+            };
+            if paths.is_empty() {
+                return;
+            }
+            let imported = cx
+                .background_spawn(async move {
+                    crate::file_host::import_paths_blocking(host_fn.as_ref(), &ws, &book, &paths)
+                })
+                .await;
+            this.update(cx, |_, cx| {
+                let mut flash_keys = Vec::new();
+                for file in imported {
+                    flash_keys.push(format!("library-asset:{}", file.id));
+                    flash_keys.push(file.id.clone());
+                    cx.emit(AssistEvent::InsertMaterial {
+                        chapter,
+                        material: file.id,
+                    });
+                }
+                crate::file_host::trigger_flash(flash_keys, cx);
+            })
+            .ok();
+        })
+        .detach();
     }
 
     /// A material note's own slash entries: `/query` goes, then the entry.
@@ -1161,18 +1484,7 @@ impl Assist {
                         .editor
                         .update(cx, |e, cx| e.toggle_mark(inline::CODE, window, cx)),
                     NoteChoice::Table => cx.emit(AssistEvent::InsertTable { chapter }),
-                    _ => {
-                        let rows = self.material_rows();
-                        self.menu = Some(OpenMenu {
-                            kind: MenuKind::Material,
-                            chapter,
-                            at: range.start,
-                            query: String::new(),
-                            rows,
-                            selected: 0,
-                        });
-                        self.menu_fresh = true;
-                    }
+                    _ => self.open_material_picker(chapter, range.start, window, cx),
                 }
             }
         }
@@ -1662,7 +1974,9 @@ impl Assist {
                     } else {
                         group.label().into()
                     };
-                    list = list.section(label, &theme);
+                    if !label.is_empty() {
+                        list = list.section(label, &theme);
+                    }
                     section = Some(*group);
                 }
 
@@ -1687,19 +2001,45 @@ impl Assist {
                 _ => {}
             }
             let (icon, label, trailing): (RowIcon, SharedString, Option<&str>) = match row {
-                MenuRow::Link { name, group, .. } => {
-                    let kind = match group {
-                        NameGroup::Element => sand::Kind::Element,
-                        NameGroup::Chapter => sand::Kind::Chapter(0),
-                        NameGroup::Idea => sand::Kind::Drift { loose: false },
-                        NameGroup::Entry | NameGroup::Other => sand::Kind::Category,
-                    };
-                    (RowIcon::Mark(kind, None), name.clone().into(), None)
+                MenuRow::Link {
+                    name,
+                    target,
+                    group,
+                } => {
+                    if *group == NameGroup::Asset {
+                        let is_pdf = self
+                            .mention_assets
+                            .as_ref()
+                            .and_then(|list| list.iter().find(|a| a.id == target.id))
+                            .is_some_and(|a| a.pdf);
+                        (
+                            if is_pdf { Icon::FileText } else { Icon::Image }.into(),
+                            name.clone().into(),
+                            if is_pdf { Some("PDF") } else { None },
+                        )
+                    } else {
+                        let kind = match group {
+                            NameGroup::Element => sand::Kind::Element,
+                            NameGroup::Chapter => sand::Kind::Chapter(0),
+                            NameGroup::Idea => sand::Kind::Drift { loose: false },
+                            NameGroup::Entry | NameGroup::Asset | NameGroup::Other => {
+                                sand::Kind::Category
+                            }
+                        };
+                        (RowIcon::Mark(kind, None), name.clone().into(), None)
+                    }
                 }
 
                 MenuRow::Block(choice) => (choice.icon().into(), self.block_label(*choice), None),
                 MenuRow::Action(action) => (action.icon().into(), action.label().into(), None),
-                MenuRow::Note(choice) => (choice.icon().into(), choice.label().into(), None),
+                MenuRow::Note(choice) => {
+                    let label = if *choice == NoteChoice::Material {
+                        crate::file_host::strings(cx).slash_image_or_pdf
+                    } else {
+                        choice.label().into()
+                    };
+                    (choice.icon().into(), label, None)
+                }
                 MenuRow::Material { title, pdf, .. } => (
                     if *pdf { Icon::FileText } else { Icon::Image }.into(),
                     title.clone().into(),
@@ -1719,6 +2059,220 @@ impl Assist {
             list = list.item(item);
         }
         list
+    }
+
+    fn material_picker_element(
+        &self,
+        menu: &OpenMenu,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(picker) = &self.material_picker else {
+            return div().into_any_element();
+        };
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        let strings = crate::file_host::strings(cx);
+        let all_count = picker.assets.len();
+        let all_selected = picker.folder.is_none();
+        let mut chips = div().flex().flex_row().flex_wrap().gap(px(4.));
+        chips = chips.child(
+            div()
+                .id("dr-editor-file-pick-chip-all")
+                .px(px(8.))
+                .py(px(2.))
+                .rounded(px(999.))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .bg(if all_selected {
+                    p.accent.alpha(0.16)
+                } else {
+                    p.ink(1).alpha(0.04)
+                })
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(if all_selected {
+                    p.ink(1).solid()
+                } else {
+                    p.ink(3).solid()
+                })
+                .child(format!("{} {all_count}", strings.all_folders))
+                .on_click(cx.listener(|a, _, _, cx| a.set_material_picker_folder(None, cx))),
+        );
+        for folder in &picker.folders {
+            let mut set = HashSet::new();
+            collect_picker_subtree(&picker.folders, &folder.id, &mut set);
+            let count = picker
+                .assets
+                .iter()
+                .filter(|a| a.folder.as_deref().is_some_and(|f| set.contains(f)))
+                .count();
+            let selected = picker.folder.as_deref() == Some(folder.id.as_str());
+            let fid = folder.id.clone();
+            chips = chips.child(
+                div()
+                    .id(ElementId::Name(
+                        format!("dr-editor-file-pick-chip-{}", folder.id).into(),
+                    ))
+                    .px(px(8.))
+                    .py(px(2.))
+                    .rounded(px(999.))
+                    .cursor_pointer()
+                    .role(gpui::Role::Button)
+                    .bg(if selected {
+                        p.accent.alpha(0.16)
+                    } else {
+                        p.ink(1).alpha(0.04)
+                    })
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(if selected {
+                        p.ink(1).solid()
+                    } else {
+                        p.ink(3).solid()
+                    })
+                    .child(format!("{} {count}", folder.name))
+                    .on_click(cx.listener(move |a, _, _, cx| {
+                        a.set_material_picker_folder(Some(fid.clone()), cx);
+                    })),
+            );
+        }
+
+        let shown = self.filtered_picker_assets();
+        let mut grid = div()
+            .id("dr-editor-file-pick-grid")
+            .max_h(px(248.))
+            .overflow_y_scroll()
+            .flex()
+            .flex_row()
+            .flex_wrap()
+            .gap(px(6.));
+        if shown.is_empty() {
+            grid = grid.child(
+                div()
+                    .w_full()
+                    .py(px(18.))
+                    .flex()
+                    .justify_center()
+                    .font_role(Role::Ui)
+                    .type_px(s.secondary, s.line_body)
+                    .text_color(p.ink(4).solid())
+                    .child(strings.empty),
+            );
+        } else {
+            for (ix, asset) in shown.into_iter().enumerate() {
+                let is_current = ix == menu.selected;
+                grid = grid.child(
+                    div()
+                        .id(ElementId::Name(
+                            format!("dr-editor-file-pick-cell-{}", asset.id).into(),
+                        ))
+                        .w(px(100.))
+                        .p(px(4.))
+                        .rounded(px(radius::SM))
+                        .cursor_pointer()
+                        .role(gpui::Role::Button)
+                        .aria_label(asset.name.clone())
+                        .when(is_current, |d| {
+                            d.bg(p.accent.alpha(0.12))
+                                .border_1()
+                                .border_color(p.accent.alpha(0.45))
+                        })
+                        .hover(move |st| st.bg(p.ink(1).alpha(0.06)))
+                        .flex()
+                        .flex_col()
+                        .gap(px(3.))
+                        .child(
+                            div()
+                                .w_full()
+                                .h(px(70.))
+                                .rounded(px(4.))
+                                .overflow_hidden()
+                                .bg(p.ink(1).alpha(0.05))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(match asset.thumb {
+                                    Some(path) => img(path)
+                                        .size_full()
+                                        .object_fit(if asset.pdf {
+                                            ObjectFit::Contain
+                                        } else {
+                                            ObjectFit::Cover
+                                        })
+                                        .into_any_element(),
+                                    None => sand::icon(
+                                        if asset.pdf {
+                                            Icon::FileText
+                                        } else {
+                                            Icon::Image
+                                        },
+                                        18.,
+                                        p.ink(3).solid(),
+                                    )
+                                    .into_any_element(),
+                                }),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(asset.name),
+                        )
+                        .on_click(cx.listener(move |a, _, window, cx| {
+                            a.choose(Some(ix), window, cx);
+                        })),
+                );
+            }
+        }
+
+        let chapter = menu.chapter;
+        div()
+            .id("dr-editor-file-picker")
+            .relative()
+            .occlude()
+            .w(px(340.))
+            .p(px(10.))
+            .rounded(px(radius::SHEET))
+            .bg(p.desk.solid())
+            .shadow(float_shadow(p))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(slab_edge(p, radius::SHEET))
+            .on_mouse_down_out(cx.listener(|a, _, _, cx| a.dismiss(cx)))
+            .child(picker.search.clone())
+            .child(chips)
+            .child(grid)
+            .child(div().h(px(1.)).w_full().bg(p.hairline()))
+            .child(
+                div()
+                    .id("dr-editor-file-pick-from-disk")
+                    .px(px(8.))
+                    .py(px(5.))
+                    .rounded(px(radius::MENU_ROW))
+                    .cursor_pointer()
+                    .role(gpui::Role::MenuItem)
+                    .hover(move |st| st.bg(p.ink(1).alpha(0.06)))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(8.))
+                    .font_role(Role::Index)
+                    .type_px(s.secondary, s.line_body)
+                    .text_color(p.ink(2).solid())
+                    .weight(weight::MEDIUM)
+                    .child(sand::icon(Icon::ImagePlus, 14., p.ink(2).solid()))
+                    .child(strings.pick_from_computer)
+                    .on_click(cx.listener(move |a, _, window, cx| {
+                        a.pick_material_from_computer(chapter, window, cx);
+                    })),
+            )
+            .into_any_element()
     }
 
     fn bar_element(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1831,12 +2385,43 @@ impl Assist {
 
 impl Render for Assist {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let mut root = div().absolute().top_0().left_0().size_0();
+        let origin_cell = self.assist_origin.clone();
+        let mut root = div().absolute().top_0().left_0().size_0().child(
+            canvas(
+                move |bounds, _, _| origin_cell.set(bounds.origin),
+                |_, _, _, _| {},
+            )
+            .size_0(),
+        );
+        if let Some(ext) = &self.extension {
+            let origin = self.assist_origin.get();
+            let e = self.editor.read(cx);
+            let link_color = e.style().link.opacity(0.85);
+            for chapter in 0..self.docs.len() {
+                for (id, is_pdf) in ext.file_link_badges(chapter) {
+                    if let Some(painted) = e.painted_decoration(chapter, "links", &id)
+                        && let Some(last_box) = painted.boxes.last().copied()
+                    {
+                        let left = last_box.right() - origin.x + px(1.5);
+                        let top = last_box.center().y - origin.y - px(5.5);
+                        root = root.child(div().absolute().left(left).top(top).child(sand::icon(
+                            if is_pdf { Icon::FileText } else { Icon::Image },
+                            11.,
+                            link_color,
+                        )));
+                    }
+                }
+            }
+        }
         let focused = {
             let e = self.editor.read(cx);
             gpui::Focusable::focus_handle(e, cx).is_focused(window)
         };
-        if let Some(menu) = self.menu.clone().filter(|_| focused) {
+        if let Some(menu) = self
+            .menu
+            .clone()
+            .filter(|m| focused || m.kind == MenuKind::Material)
+        {
             let e = self.editor.read(cx);
             let anchor = e
                 .range_bounds(menu.chapter, menu.at..menu.at + 1)
@@ -1847,11 +2432,12 @@ impl Render for Assist {
                     align: Align::Start,
                     gap: 2.,
                 };
-                root = root.child(dr_ui::components::float(
-                    place,
-                    Layer::Popover,
-                    self.menu_element(&menu, window, cx),
-                ));
+                let popup = if menu.kind == MenuKind::Material {
+                    self.material_picker_element(&menu, window, cx)
+                } else {
+                    self.menu_element(&menu, window, cx).into_any_element()
+                };
+                root = root.child(dr_ui::components::float(place, Layer::Popover, popup));
             }
             // The trigger was just typed: place the menu again once the
             // editor has drawn it.
@@ -1886,7 +2472,7 @@ impl Render for Assist {
                             }
                         });
                     })
-                    .child(crate::link_card::card_element(&card.facts));
+                    .child(crate::link_card::card_element_in(&card.facts, window, cx));
                 root = root.child(dr_ui::components::float(
                     Place::below(rect, 8.),
                     Layer::Popover,
@@ -1978,12 +2564,69 @@ fn wrap_at(
                 cx.stop_propagation();
             }
         })
-        .capture_key_down(move |event: &KeyDownEvent, _, cx| {
-            if event.keystroke.key == "escape" {
+        .capture_key_down(move |event: &KeyDownEvent, window, cx| {
+            let key = event.keystroke.key.as_str();
+            if key == "escape" {
                 let a = esc.read(cx);
                 if a.menu.is_some() || a.bar.is_some() || a.card.is_some() {
+                    let focus = a.editor.read(cx).focus_handle(cx);
+                    window.focus(&focus, cx);
                     esc.update(cx, |a, cx| a.dismiss(cx));
                     cx.stop_propagation();
+                }
+                return;
+            }
+            if esc
+                .read(cx)
+                .menu
+                .as_ref()
+                .is_some_and(|m| m.kind == MenuKind::Material)
+                && !event.keystroke.modifiers.modified()
+            {
+                match key {
+                    "up" => {
+                        esc.update(cx, |a, cx| {
+                            let step = if a.menu.as_ref().is_some_and(|m| m.rows.len() > 3) {
+                                -3
+                            } else {
+                                -1
+                            };
+                            a.move_selection(step, cx);
+                        });
+                        cx.stop_propagation();
+                    }
+                    "down" => {
+                        esc.update(cx, |a, cx| {
+                            let step = if a.menu.as_ref().is_some_and(|m| m.rows.len() > 3) {
+                                3
+                            } else {
+                                1
+                            };
+                            a.move_selection(step, cx);
+                        });
+                        cx.stop_propagation();
+                    }
+                    "left" => {
+                        let search_focused =
+                            esc.read(cx).material_picker.as_ref().is_some_and(|p| {
+                                p.search.read(cx).focus_handle(cx).is_focused(window)
+                            });
+                        if !search_focused {
+                            esc.update(cx, |a, cx| a.move_selection(-1, cx));
+                            cx.stop_propagation();
+                        }
+                    }
+                    "right" => {
+                        let search_focused =
+                            esc.read(cx).material_picker.as_ref().is_some_and(|p| {
+                                p.search.read(cx).focus_handle(cx).is_focused(window)
+                            });
+                        if !search_focused {
+                            esc.update(cx, |a, cx| a.move_selection(1, cx));
+                            cx.stop_propagation();
+                        }
+                    }
+                    _ => {}
                 }
             }
         })
@@ -2007,6 +2650,17 @@ fn wrap_at(
                 root.child(editor).child(assist.clone())
             }
         })
+}
+
+fn collect_picker_subtree(folders: &[AssetFolderInfo], root: &str, out: &mut HashSet<String>) {
+    if !out.insert(root.to_owned()) {
+        return;
+    }
+    for f in folders {
+        if f.parent.as_deref() == Some(root) {
+            collect_picker_subtree(folders, &f.id, out);
+        }
+    }
 }
 
 #[cfg(test)]
