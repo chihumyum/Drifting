@@ -814,11 +814,11 @@ pub fn validate_project_template_value(
 
     // 7. Validate `project.book` and `project.tabs`.
     let has_book = val.project.book.is_some();
-    if let Some(book) = &val.project.book {
-        if book.word_target.is_some_and(|n| n < 0) || book.daily_word_target.is_some_and(|n| n < 0)
-        {
-            return inv("project.book word targets cannot be negative");
-        }
+    if let Some(book) = &val.project.book
+        && (book.word_target.is_some_and(|n| n < 0)
+            || book.daily_word_target.is_some_and(|n| n < 0))
+    {
+        return inv("project.book word targets cannot be negative");
     }
 
     let mut mounted: Vec<&TemplateTabMount> = Vec::with_capacity(val.project.tabs.len());

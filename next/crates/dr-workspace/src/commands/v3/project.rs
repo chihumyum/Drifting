@@ -212,14 +212,13 @@ pub(super) fn validate_project_template(
             return Err(WsError::invalid("duplicate view id in project template"));
         }
     }
-    if let Some(book) = &pt.project.book {
-        if [book.word_target_set, book.daily_word_target_set]
+    if let Some(book) = &pt.project.book
+        && [book.word_target_set, book.daily_word_target_set]
             .into_iter()
             .flatten()
             .any(|n| n < 0)
-        {
-            return Err(WsError::invalid("a word target cannot be negative"));
-        }
+    {
+        return Err(WsError::invalid("a word target cannot be negative"));
     }
     let has_book = pt.project.book.is_some();
     let mut tab_ids = BTreeSet::new();

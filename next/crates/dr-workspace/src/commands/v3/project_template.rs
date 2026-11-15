@@ -431,6 +431,19 @@ fn extract_working_copy(
     Ok(value)
 }
 
+/// What a `project_template.save` given to a working copy sets over what
+/// the copy holds; the default sets nothing (the saver's own saves).
+#[derive(Debug, Default)]
+pub struct WorkingCopyWords {
+    /// The template's name instead of the copy's book name.
+    pub name: Option<String>,
+    /// The template's description instead of the copy's profile.
+    pub description: Option<String>,
+    /// The words for the Agent instead of the copy's project's (`Some(None)`:
+    /// none).
+    pub agent: Option<Option<TemplateAgent>>,
+}
+
 /// Save the working copy `book` over the template it edits, when what it
 /// holds differs from the template (`WORKING-COPY-LOCAL`). `None` when
 /// `book` is no working copy or its template is gone; otherwise the
@@ -439,11 +452,7 @@ pub fn save_working_copy(
     ws: &Workspace,
     actor: &Actor,
     book: &str,
-    words: Option<(
-        Option<String>,
-        Option<String>,
-        Option<Option<TemplateAgent>>,
-    )>,
+    words: WorkingCopyWords,
 ) -> Result<Option<ProjectTemplateSummary>> {
     let Some(note) = ws.working_copy_note(book)? else {
         return Ok(None);
@@ -454,7 +463,11 @@ pub fn save_working_copy(
         Err(WsError::NotFound { .. }) => return Ok(None),
         Err(e) => return Err(e),
     };
-    let (name, description, agent) = words.unwrap_or_default();
+    let WorkingCopyWords {
+        name,
+        description,
+        agent,
+    } = words;
     let mut value = extract_working_copy(ws, book, &current, name, description)?;
     if let Some(agent) = agent {
         value.project.agent = agent;
@@ -509,7 +522,11 @@ op! {
                 ws,
                 cx.actor(),
                 &input.book,
-                Some((input.name, input.description, agent)),
+                WorkingCopyWords {
+                    name: input.name,
+                    description: input.description,
+                    agent,
+                },
             )?
             .ok_or_else(|| WsError::not_found("project_template", &note.template))?;
             cx.irreversible();
@@ -809,7 +826,7 @@ fn left_behind(
         // In step with the template, or the template has not moved since
         // the copy last saved: its last writes (if the App stopped before
         // they were saved) go over the template now.
-        save_working_copy(ws, actor, &copy.book_id, None)?;
+        save_working_copy(ws, actor, &copy.book_id, WorkingCopyWords::default())?;
         return Ok(Left::Use);
     }
     if held == note.digest {

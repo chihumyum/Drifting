@@ -251,6 +251,11 @@ impl Saver {
 }
 
 fn save(ws: &Workspace, book: &str) -> crate::Result<()> {
-    crate::commands::v3::project_template::save_working_copy(ws, &crate::Actor::User, book, None)
-        .map(|_| ())
+    crate::commands::v3::project_template::save_working_copy(
+        ws,
+        &crate::Actor::User,
+        book,
+        crate::commands::v3::project_template::WorkingCopyWords::default(),
+    )
+    .map(|_| ())
 }
