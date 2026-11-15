@@ -586,6 +586,50 @@ fn a_checklist_item_is_one_comment_on_every_device_and_a_late_tick_waits() {
     assert_eq!(task_comment(&b_dev, &ch, 0).unwrap()["status"], "resolved");
 }
 
+/// The author, 2026-11-15: a checklist item's comment is the line's shadow.
+/// Giving it other words or deleting it is refused (the line in the prose is
+/// what to change); resolving, reopening and linking an Agent conversation
+/// still go through. A marker's comment is edited and deleted as before.
+#[test]
+fn a_checklist_comment_takes_no_other_words_and_is_not_deleted() {
+    let e = env();
+    let b = e.book();
+    let ch = checklist(&e, &b);
+    project_tasks(&e, &ch);
+    let id = task_id(&ch, 0);
+    let refused = e.try_call(
+        "comment.update",
+        json!({"book": b, "id": id, "body": "别的字"}),
+    );
+    assert!(matches!(refused, Err(WsError::Invalid(_))), "{refused:?}");
+    let refused = e.try_call("comment.delete", json!({"book": b, "id": id}));
+    assert!(matches!(refused, Err(WsError::Invalid(_))), "{refused:?}");
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["body"], "买灯芯");
+    // The same words are no change; the conversation and the status go through.
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": id, "body": "买灯芯", "agent_conversation": "conv-1"}),
+    );
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": id, "status": "resolved"}),
+    );
+    assert!(ticked(&e, &ch, 0));
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["status"], "resolved");
+
+    // A TODO marker's comment: its words and its deletion are the author's.
+    let s = e.ws().prose_session(&ch.doc).unwrap();
+    // 「普通的一段。」 starts at character 11.
+    s.edit(|t| t.insert_text(11, "TODO: ")).unwrap();
+    project(&e, &ch, &[(2, "普通的一段。")], None);
+    let marker = todo_id(&ch, 2);
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": marker, "body": "改过的字"}),
+    );
+    e.call("comment.delete", json!({"book": b, "id": marker}));
+}
+
 /// A guarded writer whose read of the comment is stale is refused before
 /// the item is ticked: a refused resolve leaves the prose as it was. With a
 /// current read of the comment and of the prose it goes through.
