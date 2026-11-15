@@ -261,3 +261,8 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 
 素材「关联」对话框的条目列表浮在对话框之上（`Select::in_dialog()`，列表限高 280）；永久测试 `associations.rs` 的 `the_entry_list_floats_above_its_dialog`。`book-media-writes-v3.json` 要先造库再带 `--profile` 跑，步骤写在场景说明和 [handoff/README.md](../handoff/README.md)「真窗口验收」。
 
+## 内核 v5（T6）：文件悬停卡写批注与三处批注查看器（2026-11-15）
+
+- 素材库文件悬停卡（`dr-view-material/src/library.rs`）底部新增「写批注」与（图片/PDF）「框一块写批注」；当文件在全书任意位置（文件自身、媒体模块项、正文嵌入）有未解决批注时，缩略图右上角显示砂点（`dr_ui::sand::comment_dot`）。
+- 文件查看器（`dr-view-material/src/page.rs`）支持按 `FrameScope`（文件自身、媒体模块项、正文嵌入）框选写区域批注（PDF 记录页码），并在右侧栏汇总列出该文件在全书三处的全部批注：文件自身置顶，随后每个用到它的条目一组，卡片带空心圆解决/重开按钮及跳回对应条目模块的箭头，不改动右栏审阅面板状态。契约测试：`dr-view-material/tests/material.rs` 的 `asset_library_viewer_lists_three_places_and_jumps_to_each`。详见 [M18](m18-review.md)。
+
