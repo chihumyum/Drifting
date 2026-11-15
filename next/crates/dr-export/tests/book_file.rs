@@ -176,3 +176,46 @@ fn conversation_archive_copy_preserves_immutable_payloads() {
     );
     assert_eq!(copied.get_text("body").len_unicode(), 0);
 }
+
+/// DZ: a project file carries the tabs and the tab the project is on.
+/// 「全部」 keeps its fixed id; the other tabs get fresh ids, their mounts
+/// follow the fresh entry ids, and the copy is on its own copy of the tab.
+#[test]
+fn tabs_and_the_selected_tab_survive_export_and_import() {
+    let e = env();
+    let b = book(&e.ws);
+    let project = out(&e.ws, "project.get", json!({"book": b}));
+    let tabs = project["tabs"].as_array().unwrap().clone();
+    assert_eq!(tabs[0]["id"], "tab-all");
+    let chosen = tabs[2]["id"].as_str().unwrap().to_owned();
+    out(&e.ws, "tab.select", json!({"book": b, "id": chosen}));
+    let file = e.dir.path().join("tabs.driftingproject");
+    book_file::export_book(&e.ws, &b, &file, &|_| {}).unwrap();
+    let copy = book_file::import_book(&e.ws, &file, &|_| {}).unwrap().book;
+    assert_ne!(copy, b);
+
+    let got = out(&e.ws, "project.get", json!({"book": copy}));
+    let got_tabs = got["tabs"].as_array().unwrap();
+    assert_eq!(got_tabs.len(), tabs.len());
+    assert_eq!(got_tabs[0]["id"], "tab-all");
+    let mounted = |book: &str, mount: &Value| -> Value {
+        match mount["kind"].as_str().unwrap() {
+            "entry" => out(
+                &e.ws,
+                "entry.get",
+                json!({"book": book, "id": mount["entry"]}),
+            )["title"]
+                .clone(),
+            kind => json!(kind),
+        }
+    };
+    for (was, now) in tabs.iter().zip(got_tabs) {
+        assert_eq!(mounted(&b, &was["mount"]), mounted(&copy, &now["mount"]));
+        assert_eq!(now["mount_valid"], true, "{now}");
+        if was["id"] != "tab-all" {
+            assert_ne!(was["id"], now["id"]);
+        }
+    }
+    assert_eq!(got["selected_tab"], got_tabs[2]["id"]);
+    assert_eq!(project["selected_tab"], Value::Null);
+}

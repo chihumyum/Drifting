@@ -1120,6 +1120,7 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
             | "tab.put"
             | "tab.remove"
             | "tab.move"
+            | "tab.select"
             | "book.sequence"
             | "module.put_media"
             | "module.remove_media"

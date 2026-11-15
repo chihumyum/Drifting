@@ -75,38 +75,43 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
             daily_word_target_set: None,
         })
     );
+    // 「全部」 (the root, fixed id) first, then 书稿, 构想, 要素, 故事线; a tab
+    // has no name of its own, it is called what it mounts.
     assert_eq!(
         proj.tabs
             .iter()
-            .map(|t| (t.name.as_str(), &t.mount))
+            .map(|t| (t.id.as_str(), &t.mount))
             .collect::<Vec<_>>(),
         vec![
+            (ALL_TAB_ID, &TabMount::Root),
             (
-                "书稿",
+                roots.tab_manuscript.as_str(),
                 &TabMount::Entry {
                     entry: roots.manuscript.clone()
                 }
             ),
             (
-                "构想",
+                roots.tab_ideas.as_str(),
                 &TabMount::Entry {
                     entry: roots.ideas.clone()
                 }
             ),
             (
-                "要素",
+                roots.tab_elements.as_str(),
                 &TabMount::Entry {
                     entry: roots.elements.clone()
                 }
             ),
             (
-                "故事线",
+                roots.tab_storylines.as_str(),
                 &TabMount::Entry {
                     entry: roots.storylines.clone()
                 }
             ),
         ]
     );
+    // 「全部」 is stored, not only read in.
+    assert_eq!(v.stored_tabs(), proj.tabs);
     let tpls = v.templates_map();
     for id in [
         TPL_MANUSCRIPT,
@@ -232,6 +237,39 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].id, roots.narrative_view);
     assert_eq!(views[0].name, "叙事时间线");
+}
+
+/// DZ: every project has 「全部」. A template without a root tab gets it
+/// stored first, under the fixed id; the structure snapshot reads the same
+/// tabs as the view.
+#[test]
+fn applying_a_template_without_a_root_tab_stores_all_first() {
+    let mut doc = BookDocV3::create(bid(), 1).unwrap();
+    let pt = ProjectTemplate {
+        project: ProjectDefinition {
+            tabs: vec![ProjectTab {
+                id: TabId::parse("t-book").unwrap(),
+                pos: Some(PosKey::first()),
+                mount: TabMount::Book,
+            }],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    doc.edit(Origin::User, |t| apply_project_template(t, &pt))
+        .0
+        .unwrap();
+    let v = doc.view();
+    let stored = v.stored_tabs();
+    assert_eq!(
+        stored
+            .iter()
+            .map(|t| (t.id.as_str(), &t.mount))
+            .collect::<Vec<_>>(),
+        [(ALL_TAB_ID, &TabMount::Root), ("t-book", &TabMount::Book)]
+    );
+    assert_eq!(v.project().tabs, stored);
+    assert_eq!(v.structure_snapshot().project().tabs, stored);
 }
 
 #[test]

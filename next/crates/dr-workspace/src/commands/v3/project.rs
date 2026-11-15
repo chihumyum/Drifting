@@ -14,6 +14,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<TabPut>()
         .add::<TabRemove>()
         .add::<TabMove>()
+        .add::<TabSelect>()
         .add::<BookSequence>()
         .add::<FactList>()
         .add::<FactPut>()
@@ -223,6 +224,7 @@ pub(super) fn validate_project_template(
     }
     let has_book = pt.project.book.is_some();
     let mut tab_ids = BTreeSet::new();
+    let mut checked_tabs: Vec<m::ProjectTab> = Vec::with_capacity(pt.project.tabs.len());
     let default_positions = if pt.project.tabs.iter().any(|t| t.pos.is_none()) {
         let mut chain = Vec::with_capacity(pt.project.tabs.len());
         let mut cur = PosKey::first();
@@ -235,8 +237,6 @@ pub(super) fn validate_project_template(
         Vec::new()
     };
     for (idx, tab) in pt.project.tabs.iter_mut().enumerate() {
-        name_ok(&tab.name)?;
-        tab.name = tab.name.trim().to_owned();
         if !tab_ids.insert(tab.id.clone()) {
             return Err(WsError::invalid("duplicate tab id in project template"));
         }
@@ -244,6 +244,8 @@ pub(super) fn validate_project_template(
             tab.pos = default_positions.get(idx).cloned();
         }
         m::check_tab_mount(&tab.mount, has_book, &entries, &templates, &views)?;
+        m::check_tab_mount_once(&checked_tabs, &tab.mount)?;
+        checked_tabs.push(tab.clone());
     }
     BookGraphV3 {
         entries,
@@ -258,39 +260,30 @@ pub(super) fn validate_project_template(
     Ok(pt)
 }
 
-fn read_project_dto(s: &dr_doc::v3::BookStructureV3) -> types::Project {
-    let p = s.project();
-    let book_root_valid = p
-        .book
-        .as_ref()
-        .is_none_or(|b| s.is_valid_book_root(&b.root));
-    let tabs = p
-        .tabs
-        .iter()
-        .map(|t| types::ProjectTab {
-            id: t.id.to_string(),
-            name: t.name.clone(),
-            pos: t.pos.as_ref().map(|k| k.as_str().to_owned()),
-            mount: (&t.mount).into(),
-            mount_valid: s.is_valid_tab_mount(&t.mount),
-        })
-        .collect();
-    types::Project {
-        source: p.source.as_ref().map(Into::into),
-        agent: p.agent.as_ref().map(Into::into),
-        book: p.book.as_ref().map(Into::into),
-        book_root_valid,
-        tabs,
+/// What a tab is called, for a command's effect: the title of the entry or
+/// the name of the view it mounts; `None` for the root and the book sequence
+/// (the page names those, 「全部」 and 「成书」) and for an entry or view the
+/// book does not have.
+fn mount_name(v: &dr_doc::v3::BookViewV3<'_>, mount: &m::TabMount) -> Option<String> {
+    match mount {
+        m::TabMount::Entry { entry } => v.entry(entry).map(|e| e.title),
+        m::TabMount::View { view } => v
+            .timeline_views_raw()
+            .into_iter()
+            .find(|tv| &tv.id == view)
+            .map(|tv| tv.name),
+        m::TabMount::Root | m::TabMount::Book => None,
     }
 }
 
 op! {
     ProjectGet = "project.get", Read, Shared,
-    "Read the project definition: template source, Agent instructions, book switch/start/word targets, and left-sidebar tabs.",
+    "Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.",
     fn(cx, input: BookIn) -> types::Project {
         let slot = cx.book_v3(&input.book)?;
         let s = slot.reader_v3.view().structure_snapshot();
-        Ok(read_project_dto(&s))
+        let stored = cx.workspace().stored_tab(slot.book.as_str())?;
+        Ok(types::Project::of(&s).with_selected_tab(stored))
     }
 }
 
@@ -519,125 +512,93 @@ op! {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TabPutIn {
     pub book: String,
-    /// Existing tab id to update; omitted to create a new tab.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    /// Tab display name (required on create; omit on update to keep).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    /// Target mounted on this tab (required on create; omit on update to keep).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mount: Option<types::TabMount>,
-    /// Where the tab goes (a new tab goes last by default).
+    /// What the new tab mounts: an entry with its level switch or
+    /// 「收别处的条目」 on, a view, or the book sequence (the root is
+    /// always mounted, on 「全部」). A tab is called what it mounts.
+    pub mount: types::TabMount,
+    /// Where the tab goes (last by default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<Place>,
 }
 
 op! {
     TabPut = "tab.put", Write, Book,
-    "Create or edit a left-sidebar tab (root, level entry, view or book sequence).",
-    fn(cx, input: TabPutIn) -> Named {
+    "Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab.",
+    fn(cx, input: TabPutIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
         let proj = v.project();
-        let existing = match &input.id {
-            Some(id) => Some(
-                proj.tabs
-                    .iter()
-                    .find(|t| t.id.as_str() == id)
-                    .cloned()
-                    .ok_or_else(|| WsError::not_found("tab", id))?,
-            ),
-            None => None,
-        };
-        let id: TabId = match &existing {
-            Some(t) => t.id.clone(),
-            None => TabId::new_v7(),
-        };
-        let name = match (&input.name, &existing) {
-            (Some(n), _) => {
-                name_ok(n)?;
-                n.trim().to_owned()
-            }
-            (None, Some(t)) => t.name.clone(),
-            (None, None) => return Err(WsError::invalid("tab name is required")),
-        };
-        let mount = match (&input.mount, &existing) {
-            (Some(m_in), _) => {
-                let mount: m::TabMount = convert(m_in)?;
-                let entries = v.entries_map();
-                let templates = v.templates_map();
-                let views: BTreeMap<TimelineViewId, m::TimelineView> = v
-                    .timeline_views_raw()
-                    .into_iter()
-                    .map(|tv| (tv.id.clone(), tv))
-                    .collect();
-                m::check_tab_mount(&mount, proj.book.is_some(), &entries, &templates, &views)?;
-                mount
-            }
-            (None, Some(t)) => t.mount.clone(),
-            (None, None) => return Err(WsError::invalid("tab mount is required")),
-        };
+        let mount: m::TabMount = convert(&input.mount)?;
+        let entries = v.entries_map();
+        let templates = v.templates_map();
+        let views: BTreeMap<TimelineViewId, m::TimelineView> = v
+            .timeline_views_raw()
+            .into_iter()
+            .map(|tv| (tv.id.clone(), tv))
+            .collect();
+        m::check_tab_mount(&mount, proj.book.is_some(), &entries, &templates, &views)?;
+        m::check_tab_mount_once(&proj.tabs, &mount)?;
+        let id = TabId::new_v7();
         let others: Vec<(String, Option<PosKey>)> = proj
             .tabs
             .iter()
-            .filter(|t| t.id != id)
             .map(|t| (t.id.to_string(), t.pos.clone()))
             .collect();
-        let pos = match (&input.place, &existing) {
-            (Some(place), _) => Some(pos_for(&others, place)?),
-            (None, Some(t)) => t.pos.clone(),
-            (None, None) => Some(pos_for(&others, &Place::Last)?),
-        };
+        let pos = Some(pos_for(&others, input.place.as_ref().unwrap_or(&Place::Last))?);
+        let name = mount_name(&v, &mount);
         let tab = m::ProjectTab {
             id: id.clone(),
-            name,
             pos,
             mount,
         };
-        let t2 = tab.clone();
-        let replaced = Replaces::records(
-            existing
-                .iter()
-                .map(|t| rec(CollectionV3::Project, "tabs").at([t.id.as_str()])),
-        );
-        let (_, at) = cx.write_book_v3(&slot, replaced, move |txn| {
-            txn.project().put_tab(&t2)?;
+        let (_, at) = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
+            txn.project().put_tab(&tab)?;
             Ok(())
         })?;
         undo(cx, &slot, &at, vec![key("project", format!("tabs/{id}"))]);
-        match existing {
-            Some(_) => cx.effect(EffectAction::Updated, "tab", id.as_str(), Some(&tab.name)),
-            None => cx.effect(EffectAction::Created, "tab", id.as_str(), Some(&tab.name)),
-        }
-        Ok(Named {
-            id: id.to_string(),
-            name: tab.name,
-        })
+        cx.effect(EffectAction::Created, "tab", id.as_str(), name.as_deref());
+        Ok(Done { id: id.to_string() })
     }
 }
 
 op! {
     TabRemove = "tab.remove", Write, Book,
-    "Remove a left-sidebar tab.",
+    "Remove a left-sidebar tab (not what it mounts); 「全部」 stays.",
     fn(cx, input: EntityIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
-        let old = slot
-            .reader_v3
-            .view()
+        let v = slot.reader_v3.view();
+        let old = v
             .project()
             .tabs
             .into_iter()
             .find(|t| t.id.as_str() == input.id)
             .ok_or_else(|| WsError::not_found("tab", &input.id))?;
-        let id = old.id.clone();
-        let replaced = Replaces::records([rec(CollectionV3::Project, "tabs").at([id.as_str()])]);
+        m::check_tab_removable(&old)?;
+        // A stored repeat of the same mount (two devices mounted it at once)
+        // goes with it, or it would show up in its place (`TAB-MOUNT-ONCE`).
+        let ids: Vec<TabId> = v
+            .stored_tabs()
+            .into_iter()
+            .filter(|t| t.id == old.id || t.mount == old.mount)
+            .map(|t| t.id)
+            .collect();
+        let name = mount_name(&v, &old.mount);
+        let replaced = Replaces::records(
+            ids.iter()
+                .map(|id| rec(CollectionV3::Project, "tabs").at([id.as_str()])),
+        );
+        let keys = ids
+            .iter()
+            .map(|id| key("project", format!("tabs/{id}")))
+            .collect();
         let (_, at) = cx.write_book_v3(&slot, replaced, move |txn| {
-            txn.project().remove_tab(&id)?;
+            for id in &ids {
+                txn.project().remove_tab(id)?;
+            }
             Ok(())
         })?;
-        undo(cx, &slot, &at, vec![key("project", format!("tabs/{}", input.id))]);
-        cx.effect(EffectAction::Purged, "tab", &input.id, Some(&old.name));
+        undo(cx, &slot, &at, keys);
+        cx.effect(EffectAction::Purged, "tab", &input.id, name.as_deref());
         Ok(Done { id: input.id })
     }
 }
@@ -651,10 +612,11 @@ pub struct TabMoveIn {
 
 op! {
     TabMove = "tab.move", Write, Book,
-    "Change a left-sidebar tab's position.",
+    "Change a left-sidebar tab's position (「全部」 included).",
     fn(cx, input: TabMoveIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
-        let proj = slot.reader_v3.view().project();
+        let v = slot.reader_v3.view();
+        let proj = v.project();
         let mut tab = proj
             .tabs
             .iter()
@@ -669,14 +631,43 @@ op! {
             .collect();
         tab.pos = Some(pos_for(&others, &input.place)?);
         let id = tab.id.clone();
-        let name = tab.name.clone();
+        let name = mount_name(&v, &tab.mount);
+        // The whole record is written: 「全部」 read in but not stored is
+        // stored now, under its fixed id, so two devices that each move it
+        // write one record.
         let replaced = Replaces::records([rec(CollectionV3::Project, "tabs").at([id.as_str()])]);
         let (_, at) = cx.write_book_v3(&slot, replaced, move |txn| {
             txn.project().put_tab(&tab)?;
             Ok(())
         })?;
         undo(cx, &slot, &at, vec![key("project", format!("tabs/{}", input.id))]);
-        cx.effect(EffectAction::Updated, "tab", &input.id, Some(&name));
+        cx.effect(EffectAction::Updated, "tab", &input.id, name.as_deref());
+        Ok(Done { id: input.id })
+    }
+}
+
+op! {
+    TabSelect = "tab.select", Write, Book,
+    "Remember the left-sidebar tab the project is on, for every device (kept in `layout:<book>`; not undoable; leaves the book document untouched).",
+    fn(cx, input: EntityIn) -> Done {
+        let slot = cx.book_v3(&input.book)?;
+        let tab = slot
+            .reader_v3
+            .view()
+            .project()
+            .tabs
+            .into_iter()
+            .find(|t| t.id.as_str() == input.id)
+            .ok_or_else(|| WsError::not_found("tab", &input.id))?;
+        let unchanged =
+            cx.workspace().stored_tab(slot.book.as_str())?.as_deref() == Some(tab.id.as_str());
+        if !unchanged {
+            cx.write_layout(&slot.book, move |txn| {
+                txn.set_tab(Some(&tab.id))?;
+                Ok(())
+            })?;
+        }
+        cx.irreversible();
         Ok(Done { id: input.id })
     }
 }

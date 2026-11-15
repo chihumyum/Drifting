@@ -142,6 +142,11 @@ pub mod side {
     /// Free-canvas coordinates: `"<scope>/<mode>"` → mergeable map of
     /// `entry_id -> [x, y]`.
     pub const POSITIONS: &str = "positions";
+    /// The left-sidebar tab the project is on (`layout:<book>` only): a map
+    /// whose [`TAB_ID`] is the tab id, one value every device shares.
+    pub const TAB: &str = "tab";
+    /// The key of [`TAB`] holding the tab id.
+    pub const TAB_ID: &str = "id";
 }
 
 /// Paragraph attributes: marks on the paragraph's terminating `\n`, always

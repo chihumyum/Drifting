@@ -143,7 +143,8 @@ fn committed_entry_reads_follow_the_announced_changes() {
 // ---- the book document, and the two documents beside it -------------------
 
 /// The events recorded since the last call, oldest first, each told by its
-/// kind: `book`, `stats` (with the day keys it names), `checkpoints`, or `layout`.
+/// kind: `book`, `stats` (with the day keys it names), `checkpoints`, or
+/// `layout` (with the canvases it names, and `tab` when it chose a tab).
 fn kinds(seen: &Arc<Mutex<Vec<WsEvent>>>) -> Vec<String> {
     std::mem::take(&mut *seen.lock().unwrap())
         .into_iter()
@@ -151,7 +152,11 @@ fn kinds(seen: &Arc<Mutex<Vec<WsEvent>>>) -> Vec<String> {
             WsEvent::Book(_) => Some("book".to_string()),
             WsEvent::Stats(s) => Some(format!("stats {}", s.days.join(","))),
             WsEvent::Checkpoints(c) => Some(format!("checkpoints {}", c.points.len())),
-            WsEvent::Layout(l) => Some(format!("layout {}", l.scopes.join(","))),
+            WsEvent::Layout(l) => Some(format!(
+                "layout {}{}",
+                l.scopes.join(","),
+                if l.tab { " tab" } else { "" }
+            )),
             _ => None,
         })
         .collect()
@@ -553,4 +558,75 @@ fn layout_writes_leave_the_book_document_alone() {
         json!({})
     );
     assert_eq!(e.ws().version(&doc).unwrap(), before);
+}
+
+/// DZ / `LAYOUT-DOC-QUIET`: choosing the tab the project is on writes only
+/// `layout:<book>`: no book version, no book event, no undo step, no book
+/// write guard; choosing the same tab again writes nothing.
+#[test]
+fn selecting_a_tab_leaves_the_book_and_undo_alone() {
+    use dr_workspace::{RecordKey, RecordPrecondition, WritePreconditions};
+
+    let e = env();
+    let b = e.book();
+    let doc = format!("book:{b}");
+    let project = e.out("project.get", json!({"book": b}));
+    let tab = project["tabs"][1]["id"].as_str().unwrap().to_owned();
+    let ms = project["tabs"][1]["mount"]["entry"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let stale = WritePreconditions::default().with_shown(
+        e.ws()
+            .observe_records(&doc, &[RecordKey::entry(&ms)])
+            .unwrap()
+            .into_iter()
+            .map(RecordPrecondition::from),
+    );
+    e.call(
+        "entry.update",
+        json!({"book": b, "id": ms, "title": "正文"}),
+    );
+    let (seen, _sub) = record(&e);
+    let before = e.ws().version(&doc).unwrap();
+    let layout_before = e.ws().version(&format!("layout:{b}")).unwrap();
+
+    e.ws()
+        .call_guarded(
+            &Actor::User,
+            "tab.select",
+            json!({"book": b, "id": tab}),
+            stale,
+        )
+        .unwrap();
+    assert_eq!(e.ws().version(&doc).unwrap(), before);
+    assert_ne!(
+        e.ws().version(&format!("layout:{b}")).unwrap(),
+        layout_before
+    );
+    {
+        let raw = seen.lock().unwrap();
+        assert!(
+            !raw.iter()
+                .any(|ev| matches!(ev, WsEvent::Local(l) if l.table == "ws_journal")),
+            "choosing a tab is not a step to undo"
+        );
+    }
+    assert_eq!(kinds(&seen), ["layout  tab".to_string()]);
+    let selected = || e.out("project.get", json!({"book": b}))["selected_tab"].clone();
+    assert_eq!(selected(), json!(tab));
+
+    // The same tab again: nothing is written.
+    let layout_now = e.ws().version(&format!("layout:{b}")).unwrap();
+    e.call("tab.select", json!({"book": b, "id": tab}));
+    assert_eq!(e.ws().version(&format!("layout:{b}")).unwrap(), layout_now);
+    assert_eq!(kinds(&seen), Vec::<String>::new());
+
+    // Undo takes back the rename, not the choice.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("entry.get", json!({"book": b, "id": ms}))["title"],
+        "书稿"
+    );
+    assert_eq!(selected(), json!(tab));
 }

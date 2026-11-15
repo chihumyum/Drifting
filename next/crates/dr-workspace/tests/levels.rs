@@ -318,7 +318,7 @@ fn host_accepts_members_and_serves_as_lane_without_level_switch() {
     );
     let tab = e.out(
         "tab.put",
-        json!({"book":b,"name":"主线栏","mount":{"kind":"entry","entry":lane}}),
+        json!({"book":b,"mount":{"kind":"entry","entry":lane}}),
     )["id"]
         .as_str()
         .unwrap()
@@ -461,12 +461,12 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
         json!({"book":b,"view":view,"lane":lane}),
     );
 
-    // Default novel project: book root is 书稿, 4 default tabs all valid.
+    // Default novel project: book root is 书稿, 「全部」 and 4 default tabs, all valid.
     let proj = e.out("project.get", json!({"book":b}));
     assert_eq!(proj["source"]["id"], "builtin:novel");
     assert_eq!(proj["book"]["root"], json!({"kind":"entry","entry":ms}));
     assert_eq!(proj["book_root_valid"], true);
-    assert_eq!(proj["tabs"].as_array().unwrap().len(), 4);
+    assert_eq!(proj["tabs"].as_array().unwrap().len(), 5);
     assert!(
         proj["tabs"]
             .as_array()
@@ -475,25 +475,18 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
             .all(|t| t["mount_valid"] == true)
     );
 
-    // Put tabs for all four mount targets: root, entry, view, book.
-    let t_root = e.out(
-        "tab.put",
-        json!({"book":b,"name":"全项目","mount":{"kind":"root"}}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    // Tabs for all four mount targets: root (「全部」, already there), entry,
+    // view, book.
+    let t_root = proj["tabs"][0]["id"].as_str().unwrap().to_owned();
+    assert_eq!(proj["tabs"][0]["mount"], json!({"kind":"root"}));
     let t_view = e.out(
         "tab.put",
-        json!({"book":b,"name":"主视图","mount":{"kind":"view","view":view}}),
+        json!({"book":b,"mount":{"kind":"view","view":view}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let t_book = e.out(
-        "tab.put",
-        json!({"book":b,"name":"成书","mount":{"kind":"book"}}),
-    )["id"]
+    let t_book = e.out("tab.put", json!({"book":b,"mount":{"kind":"book"}}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -512,13 +505,13 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
     refused(
         &e,
         "tab.put",
-        json!({"book":b,"name":"非层级","mount":{"kind":"entry","entry":chapter}}),
+        json!({"book":b,"mount":{"kind":"entry","entry":chapter}}),
         "TAB-MOUNT-VALID",
     );
     refused(
         &e,
         "tab.put",
-        json!({"book":b,"name":"假视图","mount":{"kind":"view","view":"tv-missing"}}),
+        json!({"book":b,"mount":{"kind":"view","view":"tv-missing"}}),
         "TAB-MOUNT-VALID",
     );
 
@@ -564,7 +557,7 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
         .to_owned();
     let t_app = e.out(
         "tab.put",
-        json!({"book":b,"name":"附录栏","mount":{"kind":"entry","entry":appendix}}),
+        json!({"book":b,"mount":{"kind":"entry","entry":appendix}}),
     )["id"]
         .as_str()
         .unwrap()
@@ -588,13 +581,18 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
     let empty_seq = e.out("book.sequence", json!({"book":b}));
     assert_eq!(empty_seq["root_valid"], false);
     assert_eq!(empty_seq["entries"], json!([]));
-    // Unrelated writes and renaming the invalid-mounted tab without changing mount succeed.
+    // Unrelated writes and moving the invalid-mounted tab succeed.
     e.call(
         "entry.update",
         json!({"book":b,"id":chapter,"title":"第一章 改"}),
     );
-    e.call("tab.put", json!({"book":b,"id":t_app,"name":"旧附录栏"}));
-    e.call("tab.remove", json!({"book":b,"id":t_root}));
+    e.call("tab.move", json!({"book":b,"id":t_app,"place":"first"}));
+    refused(
+        &e,
+        "tab.remove",
+        json!({"book":b,"id":t_root}),
+        "TAB-ROOT-ALWAYS",
+    );
     e.call("tab.remove", json!({"book":b,"id":t_view}));
 
     // Turning the book off keeps `{kind: "book"}` tab stored with `mount_valid == false`,
@@ -614,7 +612,7 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
     refused(
         &e,
         "tab.put",
-        json!({"book":b,"name":"新成书","mount":{"kind":"book"}}),
+        json!({"book":b,"mount":{"kind":"book"}}),
         "TAB-MOUNT-VALID",
     );
     let shelf = e.out("book.shelf", json!({}));
@@ -697,8 +695,12 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
     let custom_proj = e.out("project.get", json!({"book":custom}));
     assert_eq!(custom_proj["source"]["id"], "research-cards");
     assert!(custom_proj["book"].is_null());
+    // The template's root tab is 「全部」, under the fixed id; its old `name`
+    // is read and ignored.
     assert_eq!(custom_proj["tabs"].as_array().unwrap().len(), 1);
-    assert_eq!(custom_proj["tabs"][0]["name"], "全部卡片");
+    assert_eq!(custom_proj["tabs"][0]["id"], "tab-all");
+    assert_eq!(custom_proj["tabs"][0]["mount"], json!({"kind":"root"}));
+    assert!(custom_proj["tabs"][0].get("name").is_none());
 }
 
 #[test]

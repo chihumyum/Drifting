@@ -848,10 +848,13 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "LAYOUT-DOC-QUIET",
-        "画布坐标（看板、网格、关系图）存在 layout:<书> 小文档里，读写不触碰书目文档：书目版本不变、不发书目事件、不进撤销日志、不参加书目的写入守卫",
+        "画布坐标（看板、网格、关系图）和停在哪个 Tab 存在 layout:<书> 小文档里，读写不触碰书目文档：书目版本不变、不发书目事件、不进撤销日志、不参加书目的写入守卫",
         [Structure, Command],
-        "layout.put 与 layout.clear 经 Cx::write_layout 只写 layout:<书>（<范围>/<摆法> -> 条目 id -> 坐标），标记 irreversible，不写 book:<id> 也不跑书目记录守卫；工作区单发 WsEvent::Layout",
-        ["layout_writes_leave_the_book_document_alone"]
+        "layout.put、layout.clear 与 tab.select 经 Cx::write_layout 只写 layout:<书>（<范围>/<摆法> -> 条目 id -> 坐标；tab.id），标记 irreversible，不写 book:<id> 也不跑书目记录守卫；工作区单发 WsEvent::Layout",
+        [
+            "layout_writes_leave_the_book_document_alone",
+            "selecting_a_tab_leaves_the_book_and_undo_alone"
+        ]
     ),
     inv!(
         "BOOK-FORMAT-5-ONLY",
@@ -931,6 +934,28 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "v5_book_root_and_tab_mount_validate_all_four_kinds",
             "project_tabs_mount_four_targets_and_keep_invalid_mounts"
+        ]
+    ),
+    inv!(
+        "TAB-MOUNT-ONCE",
+        "同一样东西只挂一个 Tab：命令层预防（挂第二次被拒，说明是哪个 Tab 挂着）；两台设备同时挂上同一样，合并以后读取只留 (pos, id) 排在前面的那个，数据留着",
+        [Command, Read],
+        "tab.put 用 dr_model::v3::check_tab_mount_once 对照读出来的 Tab（含「全部」）拒绝；读取时 dr_model::v3::shown_project_tabs 按 (pos, id) 排好后只留每种挂载的第一个；tab.remove 一并删掉存着的、挂同一样的重复记录",
+        [
+            "shown_tabs_keep_the_first_of_each_mount_and_always_have_all_first",
+            "a_mount_goes_on_one_tab_and_the_root_tab_stays",
+            "two_devices_mounting_one_entry_read_one_tab"
+        ]
+    ),
+    inv!(
+        "TAB-ROOT-ALWAYS",
+        "挂根的「全部」一直有一个：用固定的 id；项目里没存它时读取补上一个、排在最前，tab.move 动它时才写进书里；删不掉",
+        [Command, Read],
+        "dr_model::v3::ALL_TAB_ID；shown_project_tabs 在没有挂根的 Tab 时补一个、位置在最前且只由 Tab 本身算出；写书模板、apply_project_template 和 ProjectTemplate::with_fresh_ids 都带上它；tab.remove 用 check_tab_removable 拒绝",
+        [
+            "shown_tabs_keep_the_first_of_each_mount_and_always_have_all_first",
+            "a_mount_goes_on_one_tab_and_the_root_tab_stays",
+            "a_book_without_all_reads_it_first_and_stores_it_once_moved"
         ]
     ),
     inv!(
@@ -1031,7 +1056,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 93;
+pub const ACTIVE_CONTRACTS: usize = 95;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

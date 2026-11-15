@@ -206,6 +206,7 @@ recent.touch: storage, editor, or derived-state maintenance
 tab.move: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 tab.put: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 tab.remove: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+tab.select: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.move_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.remove_lane: local timeline edits need exact lane, placement, and pin read coverage

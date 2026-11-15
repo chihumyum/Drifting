@@ -1,7 +1,8 @@
 //! The three small documents beside a book document (`kernel-v4.md` §8 &
 //! `kernel-v5.md` §8): `stats:<book>` holds the book's writing days,
 //! `checkpoints:<book>` its complete-entry checkpoint manifests, and
-//! `layout:<book>` its free-canvas positions (`<scope>/<mode> -> entry -> [x, y]`).
+//! `layout:<book>` its free-canvas positions (`<scope>/<mode> -> entry -> [x, y]`)
+//! and the left-sidebar tab the project is on (`tab.id`).
 //!
 //! None is prose and none is the book: no editing profile, not
 //! counted, searched or exported, no TODO projection. They belong to the
@@ -16,7 +17,7 @@
 
 use std::collections::BTreeMap;
 
-use dr_model::id::{BookId, DeviceKey, EntryId};
+use dr_model::id::{BookId, DeviceKey, EntryId, TabId};
 use dr_model::shared::WritingDay;
 use dr_model::{Day, DocId, Origin};
 use loro::{
@@ -281,6 +282,20 @@ impl LayoutView<'_> {
             })
             .collect()
     }
+
+    /// The left-sidebar tab the project is on, as stored (`tab.id`): `None`
+    /// when none was chosen or the value is not a tab id. It may name a tab
+    /// that has since been removed; the book says which tabs there are.
+    pub fn tab(&self) -> Option<TabId> {
+        match self
+            .doc
+            .get_map(schema::side::TAB)
+            .get(schema::side::TAB_ID)
+        {
+            Some(ValueOrContainer::Value(LoroValue::String(id))) => TabId::parse(id.as_str()).ok(),
+            _ => None,
+        }
+    }
 }
 
 /// Writes to a `layout:<book>` document. Does not commit.
@@ -312,6 +327,24 @@ impl<'a> LayoutTxn<'a> {
             entry.as_str(),
             LoroValue::List(vec![LoroValue::Double(x), LoroValue::Double(y)].into()),
         )?;
+        Ok(())
+    }
+
+    /// Remember the left-sidebar tab the project is on (`None`: forget it).
+    /// One value for the whole project: a concurrent choice on another
+    /// device wins or loses as a whole.
+    pub fn set_tab(&mut self, tab: Option<&TabId>) -> Result<()> {
+        let map = self.doc.get_map(schema::side::TAB);
+        match tab {
+            Some(id) => {
+                map.insert(schema::side::TAB_ID, id.as_str())?;
+            }
+            None => {
+                if map.get(schema::side::TAB_ID).is_some() {
+                    map.delete(schema::side::TAB_ID)?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -790,5 +823,38 @@ mod tests {
                 "another canvas is untouched"
             );
         }
+    }
+
+    /// The tab the project is on is one value of `layout:<book>`: two
+    /// devices that each choose one agree on one after they merge, and the
+    /// book is not part of it.
+    #[test]
+    fn the_selected_tab_is_one_value_both_devices_agree_on() {
+        let book = BookId::parse("b1").unwrap();
+        let (t1, t2) = (TabId::parse("t-1").unwrap(), TabId::parse("t-2").unwrap());
+        let mut a = LayoutDoc::create(book.clone(), peer(1)).unwrap();
+        let mut b = LayoutDoc::create(book, peer(2)).unwrap();
+        assert_eq!(a.view().tab(), None);
+        a.edit(Origin::User, |t| t.set_tab(Some(&t1))).0.unwrap();
+        assert_eq!(a.view().tab(), Some(t1.clone()));
+        b.edit(Origin::User, |t| t.set_tab(Some(&t2))).0.unwrap();
+        let to_b = a.export_updates_since(&b.version()).unwrap();
+        let to_a = b.export_updates_since(&a.version()).unwrap();
+        b.import(&to_b, Origin::Sync).unwrap();
+        a.import(&to_a, Origin::Sync).unwrap();
+        let merged = a.view().tab();
+        assert!(merged == Some(t1.clone()) || merged == Some(t2.clone()));
+        assert_eq!(b.view().tab(), merged);
+        // Canvas positions do not touch it, and forgetting it leaves none.
+        let e1 = EntryId::parse("e-1").unwrap();
+        a.edit(Origin::User, |t| {
+            t.put_position("ideas/board", &e1, 1.0, 2.0)
+        })
+        .0
+        .unwrap();
+        assert_eq!(a.view().tab(), merged);
+        a.edit(Origin::User, |t| t.set_tab(None)).0.unwrap();
+        assert_eq!(a.view().tab(), None);
+        assert_eq!(a.view().positions("ideas/board").len(), 1);
     }
 }

@@ -601,14 +601,24 @@ impl<'a> BookViewV3<'a> {
                 daily_word_target_set: bf.i64("daily_word_target"),
             }
         });
-        let mut tabs: Vec<ProjectTab> = match f.get("tabs") {
+        ProjectDefinition {
+            source,
+            agent,
+            book,
+            tabs: shown_project_tabs(Self::read_stored_tabs(f.get("tabs"))),
+        }
+    }
+
+    /// The tab records stored under `project.tabs`, sorted by `(pos, id)`.
+    /// An old `name` key is not read: a tab is called what it mounts.
+    pub(super) fn read_stored_tabs(v: Option<&LoroValue>) -> Vec<ProjectTab> {
+        let mut tabs: Vec<ProjectTab> = match v {
             Some(LoroValue::Map(m)) => m
                 .iter()
                 .filter_map(|(id, tv)| {
                     let tf = F(tv);
                     Some(ProjectTab {
                         id: TabId::parse(id).ok()?,
-                        name: tf.string("name"),
                         pos: tf.pos("pos"),
                         mount: Self::read_tab_mount(tf.sub("mount")?)?,
                     })
@@ -617,17 +627,23 @@ impl<'a> BookViewV3<'a> {
             _ => Vec::new(),
         };
         sort_project_tabs(&mut tabs);
-        ProjectDefinition {
-            source,
-            agent,
-            book,
-            tabs,
-        }
+        tabs
     }
 
+    /// The project definition. Its tabs are the ones the project shows
+    /// ([`shown_project_tabs`]): one per mount, with 「全部」 first when no
+    /// stored tab is mounted at the root.
     pub fn project(&self) -> ProjectDefinition {
         let v = self.doc.get_map(book_v3::PROJECT).get_deep_value();
         Self::read_project(Some(&v))
+    }
+
+    /// Every tab record stored under `project.tabs`, sorted by `(pos, id)`:
+    /// a repeated mount included, 「全部」 only when it is stored. For the
+    /// writes that must see what [`Self::project`] leaves out.
+    pub fn stored_tabs(&self) -> Vec<ProjectTab> {
+        let v = self.doc.get_map(book_v3::PROJECT).get_deep_value();
+        Self::read_stored_tabs(F(&v).get("tabs"))
     }
 
     pub fn trashed_at(&self) -> Option<Timestamp> {
