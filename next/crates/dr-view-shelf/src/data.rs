@@ -180,13 +180,16 @@ fn read_entry_summary(lib: &Library, book_id: &str) -> (bool, u32, Vec<RecentEnt
         .enumerate()
         .filter(|(_, e)| v.is_content(&e.id) && ancestors_live(v, e.parent.as_deref()))
         .map(|(idx, e)| {
-            let entry_ms = e.updated_at.or(e.created_at).map(|s| s * 1000);
-            let edited_ms = match (body_ts.get(&e.id).copied(), entry_ms) {
-                (Some(a), Some(b)) => Some(a.max(b)),
-                (Some(a), None) => Some(a),
-                (None, Some(b)) => Some(b),
-                (None, None) => None,
-            };
+            let created_ms = e.created_at.map(|c| {
+                uuid_v7_ms(&e.id)
+                    .filter(|ms| ms.div_euclid(1000) == c)
+                    .unwrap_or(c * 1000)
+            });
+            let updated_ms = e.updated_at.map(|u| u * 1000);
+            let edited_ms = [body_ts.get(&e.id).copied(), updated_ms, created_ms]
+                .into_iter()
+                .flatten()
+                .max();
             (
                 idx,
                 RecentEntry {
@@ -207,6 +210,19 @@ fn read_entry_summary(lib: &Library, book_id: &str) -> (bool, u32, Vec<RecentEnt
         .map(|(_, entry)| entry)
         .collect();
     (has_book, count, recent)
+}
+
+fn uuid_v7_ms(id: &str) -> Option<i64> {
+    if id.len() != 36 {
+        return None;
+    }
+    let bytes = id.as_bytes();
+    if bytes[8] != b'-' || bytes[13] != b'-' || bytes[14] != b'7' {
+        return None;
+    }
+    let hi = u64::from_str_radix(&id[0..8], 16).ok()?;
+    let lo = u64::from_str_radix(&id[9..13], 16).ok()?;
+    Some(((hi << 16) | lo) as i64)
 }
 
 fn ancestors_live<'a>(v: &'a dr_shell::book::v3::BookV3, mut cur: Option<&'a str>) -> bool {
@@ -276,5 +292,14 @@ mod tests {
         assert_eq!(progress(500, Some(0)), None);
         assert_eq!(progress(500, Some(1000)), Some(0.5));
         assert_eq!(progress(5000, Some(1000)), Some(1.0));
+    }
+
+    #[test]
+    fn uuid_v7_extracts_subsecond_creation_ms() {
+        assert_eq!(
+            uuid_v7_ms("01a1de2b-df74-7401-b3b2-54df5fa0a665"),
+            Some(0x01a1_de2b_df74)
+        );
+        assert_eq!(uuid_v7_ms("not-a-uuid"), None);
     }
 }
