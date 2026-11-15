@@ -13507,6 +13507,65 @@ expression: json
     "concurrency": "shared",
     "input": {
       "properties": {
+        "author": {
+          "description": "Optional explicit display name of the signed-in account (`None` or blank\nomits `credit` in the exported file).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The saved project template to export (`project-template:<id>`).",
+          "type": "string"
+        },
+        "path": {
+          "description": "Destination `.driftingtemplate` file path.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "title": "ProjectTemplateExportIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "project_template.export",
+    "output": {
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "path",
+        "bytes"
+      ],
+      "title": "ProjectTemplateExportOut",
+      "type": "object"
+    },
+    "summary": "Export a saved project template to a deterministic .driftingtemplate file."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
         "id": {
           "type": "string"
         }
@@ -13620,6 +13679,113 @@ expression: json
       "type": "object"
     },
     "summary": "Read a saved project template and its validated value."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "path": {
+          "description": "Path to a `.driftingtemplate` file on disk.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ProjectTemplateImportIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project_template.import",
+    "output": {
+      "$defs": {
+        "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
+          "properties": {
+            "author": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "description": "Summary card of a saved project template in `project-template:<id>`.",
+      "properties": {
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplateCredit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "entry_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "has_book": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`\"own\"` (saved from a project on this library) or `\"file\"` (imported from `.driftingtemplate`).",
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "template_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "origin",
+        "revision",
+        "locale",
+        "has_book",
+        "template_count",
+        "entry_count"
+      ],
+      "title": "ProjectTemplateSummary",
+      "type": "object"
+    },
+    "summary": "Validate and import a .driftingtemplate file as a new saved project template in this library."
   },
   {
     "access": "read",

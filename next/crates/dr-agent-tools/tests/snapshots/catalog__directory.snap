@@ -221,7 +221,9 @@ module.edit_patch: field edits belong to a view that showed the field; use the r
 module.prose_document: storage, editor, or derived-state maintenance
 project.create: library-wide lifecycle operation
 project_template.edit: library-wide lifecycle operation
+project_template.export: library-wide lifecycle operation
 project_template.get: no current-book input boundary
+project_template.import: library-wide lifecycle operation
 project_template.list: no current-book input boundary
 project_template.remove: library-wide lifecycle operation
 project_template.save: library-wide lifecycle operation

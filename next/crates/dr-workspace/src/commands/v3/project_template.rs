@@ -1,5 +1,6 @@
 //! Library-level saved project templates (`project-template:<id>`):
-//! `project_template.{list, get, save, update, remove}` (`project-templates.md` §5, §7, §13),
+//! `project_template.{list, get, save, update, remove, import, export}`
+//! (`project-templates.md` §5, §6, §7, §11, §13),
 //! and the working copy a template is edited in: `project_template.edit`,
 //! `project_template.working_copies` (§12, `WORKING-COPY-LOCAL`).
 
@@ -11,7 +12,8 @@ use dr_doc::project_template::{
 };
 use dr_doc::v3::{BookViewV3, BorrowedBookV3};
 use dr_model::project_template::{
-    ProjectTemplateValue, StoredTemplateOrigin, TemplateAgent, to_canonical_json,
+    MAX_PROJECT_TEMPLATE_BYTES, ProjectTemplateCredit, ProjectTemplateError, ProjectTemplateValue,
+    StoredTemplateOrigin, TemplateAgent, parse_project_template_json, to_canonical_json,
     validate_project_template_value,
 };
 use dr_store::OpenDoc;
@@ -22,6 +24,8 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ProjectTemplateSave>()
         .add::<ProjectTemplateUpdate>()
         .add::<ProjectTemplateRemove>()
+        .add::<ProjectTemplateImport>()
+        .add::<ProjectTemplateExport>()
         .add::<ProjectTemplateEdit>()
         .add::<ProjectTemplateWorkingCopies>();
 }
@@ -915,5 +919,173 @@ op! {
             .iter()
             .map(|b| working_copy_of(ws, b))
             .collect())
+    }
+}
+
+/// Read a saved project template's current name (`project-template:<id>`).
+pub fn saved_template_name(ws: &Workspace, id: &str) -> Result<String> {
+    let pt_id: ProjectTemplateDocId = pid("project_template", id)?;
+    let (_, value) = load_saved_template(ws, &pt_id)?;
+    Ok(value.name)
+}
+
+/// Prepare a saved project template for `.driftingtemplate` file export,
+/// overwriting `credit` strictly with `author` (`None` or blank omits `credit`
+/// without mutating the stored library document).
+pub fn prepare_export_template(
+    ws: &Workspace,
+    id: &str,
+    author: Option<&str>,
+) -> Result<(ProjectTemplateDocId, ProjectTemplateValue)> {
+    let pt_id: ProjectTemplateDocId = pid("project_template", id)?;
+    let (_, mut value) = load_saved_template(ws, &pt_id)?;
+    value.credit = author
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|a| ProjectTemplateCredit {
+            author: a.to_owned(),
+        });
+    if value.made_with.is_empty() {
+        value.made_with = ws.library().options().app_version.clone();
+    }
+    validate_project_template_value(&value).map_err(|e| WsError::invalid(e.to_string()))?;
+    Ok((pt_id, value))
+}
+
+fn read_template_file_checked(path: &std::path::Path) -> Result<ProjectTemplateValue> {
+    use std::io::Read as _;
+    let max = MAX_PROJECT_TEMPLATE_BYTES as u64;
+    let file = std::fs::File::open(path)
+        .map_err(|e| WsError::invalid(format!("{}: {e}", path.display())))?;
+    let meta_len = file
+        .metadata()
+        .map_err(|e| WsError::invalid(format!("{}: {e}", path.display())))?
+        .len();
+    if meta_len > max {
+        return Err(WsError::invalid(
+            ProjectTemplateError::TooLarge {
+                bytes: meta_len.min(usize::MAX as u64) as usize,
+                max: MAX_PROJECT_TEMPLATE_BYTES,
+            }
+            .to_string(),
+        ));
+    }
+    let mut bytes = Vec::with_capacity((meta_len as usize).min(MAX_PROJECT_TEMPLATE_BYTES));
+    file.take(max + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| WsError::invalid(format!("{}: {e}", path.display())))?;
+    if bytes.len() > MAX_PROJECT_TEMPLATE_BYTES {
+        return Err(WsError::invalid(
+            ProjectTemplateError::TooLarge {
+                bytes: bytes.len(),
+                max: MAX_PROJECT_TEMPLATE_BYTES,
+            }
+            .to_string(),
+        ));
+    }
+    let raw = std::str::from_utf8(&bytes)
+        .map_err(|_| WsError::invalid("the file is not a UTF-8 Drifting project template"))?;
+    parse_project_template_json(raw).map_err(|e| WsError::invalid(e.to_string()))
+}
+
+fn write_template_file_atomic(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write as _;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let dir = match path.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d,
+        _ => std::path::Path::new("."),
+    };
+    let name = path
+        .file_name()
+        .ok_or_else(|| WsError::invalid("destination path has no file name"))?;
+    let temp = dir.join(format!(
+        ".{}.{}-{}.part",
+        name.to_string_lossy(),
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let written = (|| -> std::io::Result<()> {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
+        file.write_all(bytes)?;
+        file.flush()?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&temp, path)
+    })();
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&temp);
+        return Err(WsError::Internal(format!("{}: {e}", path.display())));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateImportIn {
+    /// Path to a `.driftingtemplate` file on disk.
+    pub path: String,
+}
+
+op! {
+    ProjectTemplateImport = "project_template.import", Write, Library,
+    "Validate and import a .driftingtemplate file as a new saved project template in this library.",
+    fn(cx, input: ProjectTemplateImportIn) -> ProjectTemplateSummary {
+        let value = read_template_file_checked(std::path::Path::new(&input.path))?;
+        let summary = store_project_template_value(
+            cx.workspace(),
+            cx.actor(),
+            StoredTemplateOrigin::File,
+            &value,
+            None,
+        )?;
+        cx.irreversible();
+        cx.effect(
+            EffectAction::Created,
+            "project_template",
+            &summary.id,
+            Some(&summary.name),
+        );
+        Ok(summary)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateExportIn {
+    /// The saved project template to export (`project-template:<id>`).
+    pub id: String,
+    /// Destination `.driftingtemplate` file path.
+    pub path: String,
+    /// Optional explicit display name of the signed-in account (`None` or blank
+    /// omits `credit` in the exported file).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateExportOut {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub bytes: u64,
+}
+
+op! {
+    ProjectTemplateExport = "project_template.export", Read, Shared,
+    "Export a saved project template to a deterministic .driftingtemplate file.",
+    fn(cx, input: ProjectTemplateExportIn) -> ProjectTemplateExportOut {
+        let (pt_id, value) =
+            prepare_export_template(cx.workspace(), &input.id, input.author.as_deref())?;
+        let json = to_canonical_json(&value).map_err(|e| WsError::invalid(e.to_string()))?;
+        let dest = std::path::Path::new(&input.path);
+        write_template_file_atomic(dest, json.as_bytes())?;
+        Ok(ProjectTemplateExportOut {
+            id: pt_id.to_string(),
+            name: value.name,
+            path: input.path,
+            bytes: json.len() as u64,
+        })
     }
 }

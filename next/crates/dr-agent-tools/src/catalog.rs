@@ -1157,6 +1157,12 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "module.prose_document" {
         return Some("storage, editor, or derived-state maintenance");
     }
+    if matches!(
+        spec.name,
+        "project_template.import" | "project_template.export"
+    ) {
+        return Some("library-wide lifecycle operation");
+    }
     common_exclusion(spec, BookKernelVersion::V3)
 }
 
@@ -1369,6 +1375,20 @@ mod tests {
             Write,
             Book,
             Some(3)
+        );
+        pending!(
+            TemplateImport,
+            "project_template.import",
+            Write,
+            Book,
+            Some(5)
+        );
+        pending!(
+            TemplateExport,
+            "project_template.export",
+            Read,
+            Shared,
+            Some(5)
         );
 
         for spec in registry.iter() {
