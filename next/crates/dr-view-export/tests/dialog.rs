@@ -1,7 +1,9 @@
-//! The export dialogs on a real workspace (GPUI's test platform): the
-//! manuscript's choices, the save panel, cancellation and the written file.
+//! The manuscript export dialog on a real workspace (GPUI's test platform):
+//! `只导成书正文` vs manual residence-tree selection, partial/full level ticks,
+//! bookless projects opening with the whole tree ticked, `条目标题` persistence,
+//! cancellation, and written EPUB/Word files.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use dr_export::Format;
 use dr_i18n::{Locale, Platform};
@@ -15,6 +17,7 @@ struct Env {
     dir: tempfile::TempDir,
     ws: Workspace,
     book: String,
+    group: String,
     chapters: Vec<String>,
 }
 
@@ -35,7 +38,19 @@ fn env() -> Env {
         .to_owned();
     let group = dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-group", "第一卷", None)
         ["id"]
-        .clone();
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &ws,
+        "module.set_prose",
+        json!({
+            "book": book,
+            "owner": group,
+            "module": "mod-description",
+            "paragraphs": [{"text": "第一卷导语：自己勾树时导出。"}]
+        }),
+    );
     let mut chapters = Vec::new();
     for (title, text) in [
         ("停摆", "钟楼停了。\n她抬头看。"),
@@ -44,18 +59,26 @@ fn env() -> Env {
     ] {
         let id = out(
             &ws,
-            "entry.create", json!({"book": book, "parent": group, "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
+            "entry.create",
+            json!({
+                "book": book,
+                "parent": group,
+                "template": "tpl-chapter",
+                "title": title,
+                "bodies": {"mod-prose": text}
+            }),
         )["id"]
             .as_str()
             .unwrap()
             .to_owned();
         chapters.push(id);
     }
-    out(&ws, "entry.trash", json!({"book":book,"id":chapters[2]}));
+    out(&ws, "entry.trash", json!({"book": book, "id": chapters[2]}));
     Env {
         dir,
         ws,
         book,
+        group,
         chapters,
     }
 }
@@ -94,83 +117,27 @@ fn wait_for(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestCont
 }
 
 #[gpui::test]
-fn v3_export_selects_manuscript_entries_and_saves_without_builtin_acts(cx: &mut TestAppContext) {
-    let dir = tempfile::tempdir().unwrap();
-    let lib = Library::open(dir.path().join("library"), library_options("test")).unwrap();
-    let seed = dr_testkit::seed::generate_v3(
-        dr_testkit::seed::Preset::Tiny,
-        dr_testkit::seed::DEFAULT_SEED,
-    )
-    .unwrap();
-    let book = seed.books[0].book_id().to_string();
-    seed.write_to(&lib).unwrap();
-    let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let entries = dr_export::v3::outline(&ws, &book).unwrap().entries;
-    let chosen = entries[0].id.clone();
-    let e = Env {
-        dir,
-        ws,
-        book,
-        chapters: entries.into_iter().map(|e| e.id).collect(),
-    };
-    let (dialog, cx) = open(
-        cx,
-        &e,
-        Request::Manuscript {
-            chapter: Some(chosen.clone()),
-        },
-    );
-    wait_for(cx, |cx| {
-        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
-    });
-    dialog.read_with(cx, |d, cx| {
-        let m = d.manuscript().unwrap();
-        assert!(m.v3);
-        assert!(!m.whole_book);
-        assert_eq!(m.chapters(), [chosen]);
-        assert!(!m.outline.as_ref().unwrap().has_acts());
-        let (options, labels) = m.options(cx);
-        assert!(!options.act_titles);
-        assert_eq!(labels.untitled_chapter, "未命名条目");
-    });
-    let path = e.dir.path().join("v3-manuscript.docx");
-    dialog.update(cx, |d, cx| {
-        let m = d.manuscript_mut().unwrap();
-        m.format = Format::Docx;
-        m.export(cx);
-    });
-    cx.run_until_parked();
-    assert!(cx.did_prompt_for_new_path());
-    cx.simulate_new_path_selection({
-        let path = path.clone();
-        move |_| Some(path)
-    });
-    wait_for(cx, |cx| {
-        dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
-    });
-    assert_eq!(
-        dialog.read_with(cx, |d, _| d.manuscript().unwrap().feedback.clone()),
-        Some(dr_view_export::ManuscriptFeedback::Saved)
-    );
-    assert_eq!(&std::fs::read(path).unwrap()[..2], b"PK");
-}
-
-#[gpui::test]
-fn the_whole_book_exports_as_epub_and_chosen_chapters_as_word(cx: &mut TestAppContext) {
+fn book_project_defaults_to_only_book_prose_and_tree_selection_cascades_levels(
+    cx: &mut TestAppContext,
+) {
     let e = env();
-    let (dialog, cx) = open(cx, &e, Request::Manuscript { chapter: None });
+    let (dialog, cx) = open(cx, &e, Request::Manuscript);
     wait_for(cx, |cx| {
         dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
     dialog.read_with(cx, |d, cx| {
         let m = d.manuscript().unwrap();
-        assert!(m.whole_book);
-        // Every manuscript entry except the trashed one, and the book name.
+        assert!(m.only_book_prose);
+        assert!(m.selected.is_empty());
+        assert!(m.entry_titles);
         assert_eq!(m.chapters(), e.chapters[..2].to_vec());
         assert_eq!(m.title(cx), "慢钟");
         assert_eq!(m.format, Format::Epub);
         assert!(m.can_export(cx));
-        assert!(!m.outline.as_ref().unwrap().has_acts());
+        let (options, labels) = m.options(cx);
+        assert_eq!(options.chapters, None);
+        assert!(!options.act_titles && options.chapter_titles);
+        assert_eq!(labels.untitled_chapter, "未命名条目");
     });
 
     let epub = e.dir.path().join("慢钟.epub");
@@ -193,23 +160,69 @@ fn the_whole_book_exports_as_epub_and_chosen_chapters_as_word(cx: &mut TestAppCo
     let bytes = std::fs::read(&epub).unwrap();
     assert_eq!(&bytes[..2], b"PK", "an EPUB is a zip");
 
-    // The choices are kept for the next export of this book.
     let kept = cx.update(|_, cx| Prefs::get(cx));
     assert_eq!(kept.books[&e.book].format, Format::Epub);
+    assert!(kept.books[&e.book].entry_titles);
 
-    // Only the second chapter, as Word.
+    // Turn off `只导成书正文`: tree starts unticked until the author ticks levels/entries.
     dialog.update(cx, |d, cx| {
         let m = d.manuscript_mut().unwrap();
         m.format = Format::Docx;
-        m.whole_book = false;
-        m.select_all(false);
-        assert!(!m.can_export(cx), "no chapter chosen");
-        m.toggle(&e.chapters[1]);
-        let (options, _) = m.options(cx);
-        assert_eq!(options.chapters, Some(vec![e.chapters[1].clone()]));
-        assert!(!options.act_titles && options.chapter_titles);
+        m.set_only_book_prose(false);
+        assert!(!m.only_book_prose);
+        assert!(
+            !m.can_export(cx),
+            "nothing ticked yet after turning off 只导成书正文"
+        );
+
+        // Clicking level `第一卷` ticks itself and both live child chapters.
+        m.toggle_tree_entry(&e.group);
+        let group_node = m.node(&e.group).unwrap();
+        assert!(m.is_full(group_node));
+        assert_eq!(
+            m.chapters(),
+            vec![
+                e.group.clone(),
+                e.chapters[0].clone(),
+                e.chapters[1].clone()
+            ]
+        );
+
+        // Unticking one child leaves `第一卷` ticked (partial indicator: `is_some && !is_full`).
+        m.toggle_tree_entry(&e.chapters[0]);
+        let group_node = m.node(&e.group).unwrap();
+        assert!(!m.is_full(group_node) && m.is_some(group_node));
+        assert_eq!(m.chapters(), vec![e.group.clone(), e.chapters[1].clone()]);
+
+        // Turn off `条目标题` and verify options.
+        m.entry_titles = false;
     });
-    let docx = e.dir.path().join("面馆.docx");
+    let (tree_opts, tree_labels) =
+        dialog.read_with(cx, |d, cx| d.manuscript().unwrap().options(cx));
+    assert_eq!(
+        tree_opts.chapters,
+        Some(vec![e.group.clone(), e.chapters[1].clone()])
+    );
+    assert!(!tree_opts.act_titles && !tree_opts.chapter_titles);
+    let tree_manuscript = dr_export::v3::read_manuscript(
+        &e.ws,
+        &e.book,
+        &tree_opts,
+        &tree_labels,
+        "zh-CN",
+        None,
+        SystemTime::UNIX_EPOCH,
+    )
+    .unwrap();
+    let tree_json = serde_json::to_string(&tree_manuscript.sections).unwrap();
+    assert!(
+        tree_json.contains("第一卷导语：自己勾树时导出。"),
+        "manual tree selection exports non-in_book prose modules"
+    );
+    assert!(tree_json.contains("「再来一碗。」"));
+    assert!(!tree_json.contains("钟楼停了。"));
+
+    let docx = e.dir.path().join("第一卷-选导出.docx");
     dialog.update(cx, |d, cx| d.manuscript_mut().unwrap().export(cx));
     cx.run_until_parked();
     cx.simulate_new_path_selection({
@@ -219,29 +232,21 @@ fn the_whole_book_exports_as_epub_and_chosen_chapters_as_word(cx: &mut TestAppCo
     wait_for(cx, |cx| {
         dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
     });
-    assert_eq!(&std::fs::read(&docx).unwrap()[..2], b"PK");
+    let docx_bytes = std::fs::read(&docx).unwrap();
+    assert_eq!(&docx_bytes[..2], b"PK");
+
+    let kept_after = cx.update(|_, cx| Prefs::get(cx));
+    assert_eq!(kept_after.books[&e.book].format, Format::Docx);
+    assert!(!kept_after.books[&e.book].entry_titles);
 }
 
 #[gpui::test]
-fn from_a_chapter_the_choice_starts_with_it(cx: &mut TestAppContext) {
+fn cancelled_save_panel_writes_nothing_and_leaves_feedback_empty(cx: &mut TestAppContext) {
     let e = env();
-    let chapter = e.chapters[1].clone();
-    let (dialog, cx) = open(
-        cx,
-        &e,
-        Request::Manuscript {
-            chapter: Some(chapter.clone()),
-        },
-    );
+    let (dialog, cx) = open(cx, &e, Request::Manuscript);
     wait_for(cx, |cx| {
         dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
-    dialog.read_with(cx, |d, _| {
-        let m = d.manuscript().unwrap();
-        assert!(!m.whole_book);
-        assert_eq!(m.chapters(), vec![chapter.clone()]);
-    });
-    // A cancelled save panel writes nothing and says nothing.
     dialog.update(cx, |d, cx| d.manuscript_mut().unwrap().export(cx));
     cx.run_until_parked();
     cx.simulate_new_path_selection(|_| None);
@@ -254,9 +259,9 @@ fn from_a_chapter_the_choice_starts_with_it(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn export_dialog_reads_the_one_book_from_the_root(cx: &mut TestAppContext) {
-    use std::time::SystemTime;
-
+fn export_dialog_reads_book_from_root_and_bookless_project_starts_with_whole_tree_ticked(
+    cx: &mut TestAppContext,
+) {
     let e = env();
     let extra_box = out(
         &e.ws,
@@ -275,7 +280,7 @@ fn export_dialog_reads_the_one_book_from_the_root(cx: &mut TestAppContext) {
             "template": "tpl-manuscript",
             "level": true,
             "title": "番外",
-            "bodies": {"mod-description": "番外说明不导出"}
+            "bodies": {"mod-description": "番外说明只在勾树时导出"}
         }),
     )["id"]
         .as_str()
@@ -296,96 +301,81 @@ fn export_dialog_reads_the_one_book_from_the_root(cx: &mut TestAppContext) {
         .unwrap()
         .to_owned();
 
-    // One book per project, read from the root (DW): 书稿's chapters, then
-    // the chapter under 外集 / 番外 (no part selector, no start).
-    let (initial_dialog, cx_initial) = open(cx, &e, Request::Manuscript { chapter: None });
+    // With `成书` enabled, `只导成书正文` defaults on and reads the single book sequence from the root.
+    let (initial_dialog, cx_initial) = open(cx, &e, Request::Manuscript);
     wait_for(cx_initial, |cx| {
         initial_dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
     initial_dialog.read_with(cx_initial, |d, cx| {
         let m = d.manuscript().unwrap();
         assert!(m.outline.as_ref().unwrap().has_book);
+        assert!(m.only_book_prose);
         assert!(m.can_export(cx));
         let mut want = e.chapters[..2].to_vec();
         want.push(epilogue.clone());
         assert_eq!(m.chapters(), want);
     });
 
-    // Exporting one chapter of it.
-    let (dialog, cx_side) = open(
-        cx,
-        &e,
-        Request::Manuscript {
-            chapter: Some(epilogue.clone()),
-        },
-    );
-    wait_for(cx_side, |cx| {
-        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
-    });
-    let (chosen_opts, chosen_labels) = dialog.update(cx_side, |d, cx| {
-        let m = d.manuscript_mut().unwrap();
-        assert!(m.outline.as_ref().unwrap().has_book);
-        assert!(!m.whole_book);
-        assert_eq!(m.chapters(), vec![epilogue.clone()]);
-        let (opts, labels) = m.options(cx);
-        m.export(cx);
-        (opts, labels)
-    });
-    let read_back = dr_export::v3::read_manuscript(
-        &e.ws,
-        &e.book,
-        &chosen_opts,
-        &chosen_labels,
-        "zh-CN",
-        None,
-        SystemTime::UNIX_EPOCH,
-    )
-    .unwrap();
-    assert_eq!(read_back.sections.len(), 1);
-    match &read_back.sections[0] {
-        dr_export::Section::Chapter { title, blocks, .. } => {
-            assert_eq!(title, "后记");
-            assert_eq!(blocks.len(), 1);
-        }
-        other => panic!("unexpected section: {other:?}"),
-    }
-
-    cx_side.run_until_parked();
-    let epub = e.dir.path().join("番外.epub");
-    cx_side.simulate_new_path_selection({
-        let epub = epub.clone();
-        move |_| Some(epub)
-    });
-    wait_for(cx_side, |cx| {
-        dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
-    });
-    assert_eq!(
-        dialog.read_with(cx_side, |d, _| d.manuscript().unwrap().feedback.clone()),
-        Some(dr_view_export::ManuscriptFeedback::Saved)
-    );
-    let bytes = std::fs::read(&epub).unwrap();
-    assert_eq!(&bytes[..2], b"PK");
-
-    // When `成书` is turned off (`has_book: false`), the export dialog disables export.
+    // When `成书` is turned off (`has_book: false`), there is no `只导成书正文`
+    // switch and the entire residence tree starts ticked and ready to export.
     out(
         &e.ws,
         "project.update",
         json!({"book": e.book, "has_book": false}),
     );
-    let (bookless_dialog, cx_bookless) = open(cx, &e, Request::Manuscript { chapter: None });
+    let (bookless_dialog, cx_bookless) = open(cx, &e, Request::Manuscript);
     wait_for(cx_bookless, |cx| {
         bookless_dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
+    let (bookless_opts, bookless_labels) = bookless_dialog.update(cx_bookless, |d, cx| {
+        let m = d.manuscript_mut().unwrap();
+        let outline = m.outline.as_ref().unwrap();
+        assert!(!outline.has_book);
+        assert!(!m.only_book_prose);
+        assert_eq!(m.chapters(), outline.tree_ids());
+        assert!(m.can_export(cx));
+        let (opts, labels) = m.options(cx);
+        assert_eq!(opts.chapters, Some(outline.tree_ids()));
+        m.export(cx);
+        (opts, labels)
+    });
+    let bookless_manuscript = dr_export::v3::read_manuscript(
+        &e.ws,
+        &e.book,
+        &bookless_opts,
+        &bookless_labels,
+        "zh-CN",
+        None,
+        SystemTime::UNIX_EPOCH,
+    )
+    .unwrap();
+    let bookless_json = serde_json::to_string(&bookless_manuscript.sections).unwrap();
+    assert!(bookless_json.contains("番外说明只在勾树时导出"));
+    cx_bookless.run_until_parked();
+    assert!(cx_bookless.did_prompt_for_new_path());
+    let epub = e.dir.path().join("无成书整树导出.epub");
+    cx_bookless.simulate_new_path_selection({
+        let epub = epub.clone();
+        move |_| Some(epub)
+    });
+    wait_for(cx_bookless, |cx| {
+        bookless_dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
+    });
+    assert_eq!(
+        bookless_dialog.read_with(cx_bookless, |d, _| d.manuscript().unwrap().feedback.clone()),
+        Some(dr_view_export::ManuscriptFeedback::Saved)
+    );
+    let epub_bytes = std::fs::read(&epub).unwrap();
+    assert_eq!(&epub_bytes[..2], b"PK");
+
+    // Unticking everything in a bookless project disables export.
     bookless_dialog.update(cx_bookless, |d, cx| {
         let m = d.manuscript_mut().unwrap();
-        assert!(!m.outline.as_ref().unwrap().has_book);
+        m.select_all(false);
         assert!(m.chapters().is_empty());
         assert!(!m.can_export(cx));
         m.export(cx);
     });
     cx_bookless.run_until_parked();
-    assert!(
-        !cx_bookless.did_prompt_for_new_path(),
-        "bookless project must not prompt to export"
-    );
+    assert!(!cx_bookless.did_prompt_for_new_path());
 }

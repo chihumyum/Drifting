@@ -1,18 +1,18 @@
-//! dr-view-export: export (module M41), over dr-export.
+//! dr-view-export: manuscript export dialog (module M41), over dr-export.
 //!
-//! - 「导出成稿」 ([`Request::Manuscript`]): the 0.1 client's
-//!   `ManuscriptExportDialog`. Format (EPUB, PDF, Word), the whole book or
-//!   chosen chapters (grouped under their acts), act and chapter titles on
-//!   or off, the book's title, author and cover; then the save panel, and
-//!   the file is laid out and written off the main thread. H1, H2 and H3
-//!   always travel (dr-export); there is no switch for them.
-//! - 「分享」 ([`Request::Markdown`]): the 0.1 client's `MarkdownShareDialog`.
-//!   The whole book or one page as Markdown, read-only; copy it all, or save
-//!   it as a `.md` file.
+//! - 「导出成稿」 ([`Request::Manuscript`]): opened from the workspace avatar
+//!   menu. Chooses format (EPUB, PDF, Word), scope (when the project has
+//!   `成书` enabled, 「只导成书正文」 defaults on and exports the book sequence's
+//!   `in_book` prose; turning it off—or opening a project without `成书`, where
+//!   the whole tree starts ticked—lets the author tick the residence tree and
+//!   export all content of the ticked entries with tree hierarchy), the single
+//!   「条目标题」 switch, and book info (title, author, cover); then opens the
+//!   save panel and writes the file off the main thread. H1, H2 and H3 inside
+//!   prose always travel (dr-export).
 //!
 //! The shell opens one [`ExportDialog`] over the workspace and drops it on
-//! [`ExportEvent::Close`]. docs/rust-rewrite/modules/m41-export.md has the
-//! rules and the decisions.
+//! [`ExportEvent::Close`]. `docs/rust-rewrite/modules/m41-export.md` has the
+//! rules and decisions.
 
 mod manuscript;
 pub mod prefs;
@@ -27,10 +27,10 @@ use gpui::{Context, EventEmitter, IntoElement, Render, Window, div, prelude::*};
 pub use manuscript::{Busy, Feedback as ManuscriptFeedback, ManuscriptState};
 
 /// What the author asked for.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Request {
-    /// 「导出成稿」; opened from a chapter, 「选中章节」 starts with just it.
-    Manuscript { chapter: Option<String> },
+    /// 「导出成稿」, opened for the whole project from the workspace avatar menu.
+    Manuscript,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,8 +61,8 @@ impl ExportDialog {
     ) -> ExportDialog {
         let i18n = I18n::new(locale, platform);
         let inner = match request {
-            Request::Manuscript { chapter } => {
-                Inner::Manuscript(ManuscriptState::new(lib, book, chapter, i18n, window, cx))
+            Request::Manuscript => {
+                Inner::Manuscript(ManuscriptState::new(lib, book, i18n, window, cx))
             }
         };
         ExportDialog { inner }

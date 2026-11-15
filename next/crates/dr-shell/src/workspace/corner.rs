@@ -12,19 +12,10 @@
 //!   Panel (the timeline makes way).
 //! - **Outline** (`toc-raked`): shows or hides the outline rail in the
 //!   page's left margin (M04). Kept in the book's local layout.
-//! - **⋯** (`more`): the page's menu, top to bottom:
-//!   - 分享 (M41's Markdown share) on chapter, idea, element, storyline and
-//!     category pages, and on a chapter 导出成稿 too;
-//!   - a chapter's writing status (草稿 / 已完成 / 已弃用, the current one
-//!     ticked);
-//!   - the rows modules add for the page ([`crate::pages::add_page_menu`]:
-//!     an element's 更改类目 …);
-//!   - 历史快照… on every prose page (M09, [`Workspace::open_history`]);
-//!   - last, what deletes: a chapter's 删除节点 (into the trash; its tab
-//!     closes through F3's event, as for anyone's deletion) and the
-//!     modules' dangerous rows.
-//!
-//!   The whole book's ⋯ has its share and export.
+//! - **⋯** (`more`): the page's menu (`page_actions`): rows modules add for
+//!   the page ([`crate::pages::add_page_menu`]), 历史快照… on material prose
+//!   pages, and dangerous rows at the bottom. Manuscript export moved to the
+//!   workspace avatar menu (`account.rs`).
 //! - **一炷香** (`incense`): [`ToggleImmersiveWriting`]. In a split only the
 //!   right page has it, as in the 0.1 client.
 //!
@@ -138,12 +129,11 @@ pub fn corner(
             .into_any_element(),
         );
     }
-    // Every prose or entry page has a ⋯ menu; the whole book's holds its
-    // export when `成书` is enabled (M41).
-    let has_book = w.book.v3().is_none_or(|v| v.project.book.is_some());
+    // Every prose or entry page has a ⋯ menu (`page_actions`). Manuscript
+    // export lives in the workspace avatar menu (`account.rs`).
     let doc_page = target.and_then(crate::book::doc_of).is_some()
         || matches!(target, Some(Target::Entry { .. }));
-    if doc_page || (has_book && target.is_some_and(Target::is_book)) {
+    if doc_page {
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -236,9 +226,6 @@ pub fn corner(
             };
             Some(more_menu(ws, target, &host, bounds, &theme, cx))
         }
-        (false, Some(t), true, Some(bounds)) if has_book && t.is_book() => {
-            Some(book_menu(ws, bounds, cx))
-        }
         _ => None,
     };
 
@@ -257,55 +244,6 @@ pub fn corner(
         .children(incense)
         .children(menu)
         .into_any_element()
-}
-
-/// M41's two rows at the top of a ⋯ menu (the 0.1 order): share the page
-/// (or the whole book) as Markdown, export the manuscript.
-fn export_items(menu: Menu, ws: &Entity<Workspace>, chapter: Option<&str>, cx: &mut App) -> Menu {
-    let export = {
-        let ws = ws.clone();
-        let chapter = chapter.map(str::to_owned);
-        MenuItem::new(
-            "corner-export",
-            Icon::CaseRise,
-            t(cx, keys::manuscript_export::MENU),
-        )
-        .on_click(move |_, window, cx| {
-            let chapter = chapter.clone();
-            ws.update(cx, |ws, cx| {
-                ws.corner_menu = None;
-                ws.open_export(dr_view_export::Request::Manuscript { chapter }, window, cx);
-            });
-        })
-    };
-    menu.item(export)
-}
-
-/// The whole book's ⋯ menu: share it, export it.
-fn book_menu(
-    ws: &Entity<Workspace>,
-    bounds: gpui::Bounds<gpui::Pixels>,
-    cx: &mut App,
-) -> AnyElement {
-    let menu = export_items(Menu::new("corner-book-menu"), ws, None, cx);
-    let dismiss = ws.clone();
-    overlay::float(
-        Place::Rect {
-            rect: bounds,
-            align: Align::End,
-            gap: 6.0,
-        },
-        Layer::Popover,
-        div()
-            .on_mouse_down_out(move |_, _, cx| {
-                dismiss.update(cx, |ws, cx| {
-                    ws.corner_menu = None;
-                    cx.notify();
-                })
-            })
-            .child(menu),
-    )
-    .into_any_element()
 }
 
 /// A row of the page's actions in the ⋯ menu: the menu closes, then the
@@ -340,19 +278,7 @@ fn more_menu(
     cx: &mut App,
 ) -> AnyElement {
     let mut menu = Menu::new("corner-more-menu");
-    let chapter_export = match (target, host.book.v3()) {
-        (Target::Entry { id, .. }, Some(v))
-            if v.project.book.is_some() && v.manuscript.iter().any(|b| b.entry == id.as_str()) =>
-        {
-            Some(id.as_str())
-        }
-        _ => None,
-    };
     let mut has_rows = false;
-    if let Some(chapter) = chapter_export {
-        menu = export_items(menu, ws, Some(chapter), cx);
-        has_rows = true;
-    }
     for section in super::page_actions::page_actions(ws, host, target, cx) {
         if section.items.is_empty() {
             continue;
@@ -391,19 +317,16 @@ fn more_menu(
 }
 
 impl Workspace {
-    /// M41: the manuscript export or the Markdown share, over the workspace
-    /// in the slot other crates' dialogs use, until it closes.
+    /// M41: opens the manuscript export dialog over the workspace (for both
+    /// `成书` and bookless projects) until it closes.
     pub fn open_export(
         &mut self,
         request: dr_view_export::Request,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if matches!(request, dr_view_export::Request::Manuscript { .. })
-            && self.book.v3().is_some_and(|v| v.project.book.is_none())
-        {
-            return;
-        }
+        self.notifications_open = false;
+        self.account_open = false;
         let strings = crate::Strings::get(cx);
         let (locale, platform) = (strings.locale(), strings.platform());
         let (lib, book) = (self.library.clone(), self.book_id.clone());

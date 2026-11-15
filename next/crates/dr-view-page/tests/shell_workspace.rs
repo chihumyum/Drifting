@@ -1519,8 +1519,7 @@ fn the_export_choices_come_back_after_a_restart(cx: &mut TestAppContext, cx2: &m
     let (_view, vcx) = setup(cx, SettingsFile::open(dir.path()), None);
     let mine = BookPrefs {
         format: Format::Pdf,
-        act_titles: false,
-        chapter_titles: true,
+        entry_titles: false,
         title: Some("慢钟（修订）".into()),
     };
     let book = mine.clone();

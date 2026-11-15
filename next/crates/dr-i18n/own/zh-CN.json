@@ -78,6 +78,7 @@
     "entry_total": "条目数量",
     "entry_words": "条目字数",
     "material_words": "素材字数",
+    "only_book_prose": "只导成书正文",
     "retained_content": "保留的内容",
     "selected_entries": "选中条目",
     "untitled_entry": "未命名条目"

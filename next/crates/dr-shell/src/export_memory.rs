@@ -19,23 +19,26 @@ use serde_json::Value;
 
 use crate::settings::Settings;
 
-/// A book's export choices as the settings file has them.
+/// A project's export choices as the settings file has them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Stored {
     format: Format,
-    act_titles: bool,
-    chapter_titles: bool,
+    #[serde(default = "default_entry_titles")]
+    entry_titles: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     title: Option<String>,
+}
+
+fn default_entry_titles() -> bool {
+    true
 }
 
 impl From<&BookPrefs> for Stored {
     fn from(p: &BookPrefs) -> Stored {
         Stored {
             format: p.format,
-            act_titles: p.act_titles,
-            chapter_titles: p.chapter_titles,
+            entry_titles: p.entry_titles,
             title: p.title.clone(),
         }
     }
@@ -45,8 +48,7 @@ impl From<Stored> for BookPrefs {
     fn from(s: Stored) -> BookPrefs {
         BookPrefs {
             format: s.format,
-            act_titles: s.act_titles,
-            chapter_titles: s.chapter_titles,
+            entry_titles: s.entry_titles,
             title: s.title.filter(|t| !t.trim().is_empty()),
         }
     }
@@ -118,8 +120,7 @@ mod tests {
     fn a_book_s_choices_round_trip_as_the_file_has_them() {
         let prefs = BookPrefs {
             format: Format::Docx,
-            act_titles: false,
-            chapter_titles: true,
+            entry_titles: false,
             title: Some("慢钟（修订）".into()),
         };
         let value = serde_json::to_value(Stored::from(&prefs)).unwrap();
@@ -127,8 +128,7 @@ mod tests {
             value,
             serde_json::json!({
                 "format": "docx",
-                "actTitles": false,
-                "chapterTitles": true,
+                "entryTitles": false,
                 "title": "慢钟（修订）",
             })
         );
@@ -137,7 +137,7 @@ mod tests {
         // A newer build's format is not read (and not lost).
         assert!(
             serde_json::from_value::<Stored>(serde_json::json!({
-                "format": "odt", "actTitles": true, "chapterTitles": true
+                "format": "odt", "entryTitles": true
             }))
             .is_err()
         );

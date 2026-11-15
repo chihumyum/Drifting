@@ -1,6 +1,6 @@
-//! M41 in the shell over a real library (《慢钟》): the export dialogs open
-//! in the workspace's dialog slot from a chapter and from the whole book,
-//! read the book, and go away when they close.
+//! M41 in the shell over a real library (《慢钟》): manuscript export opens
+//! in the workspace's dialog slot (both when `成书` is enabled and when
+//! `成书` is disabled), reads the project, and goes away when it closes.
 
 use std::time::{Duration, Instant};
 
@@ -73,24 +73,28 @@ fn dialog(ws: &Workspace) -> Option<Entity<ExportDialog>> {
 fn the_export_dialogs_open_over_the_workspace_and_close(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
     let (view, cx) = setup(cx, lib);
-    let third = view.update_in(cx, |ws, window, cx| {
-        let id = ws.book.v3().unwrap().manuscript[2].entry.clone();
+    let expected: Vec<String> = view.update_in(cx, |ws, window, cx| {
+        let ids: Vec<String> = ws
+            .book
+            .v3()
+            .unwrap()
+            .manuscript
+            .iter()
+            .map(|b| b.entry.clone())
+            .collect();
+        let third = ids[2].clone();
         ws.open(
             Target::Entry {
-                id: id.parse().unwrap(),
+                id: third.parse().unwrap(),
                 module: Some("mod-prose".parse().unwrap()),
             },
             Open::KEEP,
             cx,
         );
-        ws.open_export(
-            Request::Manuscript {
-                chapter: Some(id.clone()),
-            },
-            window,
-            cx,
-        );
-        id
+        ws.account_open = true;
+        ws.open_export(Request::Manuscript, window, cx);
+        assert!(!ws.account_open, "opening export closes the account menu");
+        ids
     });
     assert!(
         view.read_with(cx, |ws, _| ws.covered()),
@@ -99,15 +103,12 @@ fn the_export_dialogs_open_over_the_workspace_and_close(cx: &mut TestAppContext)
     wait_for(&view, cx, |ws, cx| {
         dialog(ws).is_some_and(|d| d.read(cx).manuscript().is_some_and(|m| m.outline.is_some()))
     });
-    let chosen = view.read_with(cx, |ws, cx| {
-        dialog(ws)
-            .unwrap()
-            .read(cx)
-            .manuscript()
-            .unwrap()
-            .chapters()
+    view.read_with(cx, |ws, cx| {
+        let d = dialog(ws).unwrap();
+        let m = d.read(cx).manuscript().unwrap();
+        assert!(m.only_book_prose);
+        assert_eq!(m.chapters(), expected);
     });
-    assert_eq!(chosen, vec![third.clone()]);
     // Closing drops it.
     let d = view.read_with(cx, |ws, _| dialog(ws).unwrap());
     d.update(cx, |d, cx| d.close(cx));
@@ -116,7 +117,7 @@ fn the_export_dialogs_open_over_the_workspace_and_close(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
-fn bookless_project_blocks_manuscript_export_dialog(cx: &mut TestAppContext) {
+fn bookless_project_opens_manuscript_export_with_whole_tree_selected(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
     let books = lib
         .call(
@@ -142,11 +143,22 @@ fn bookless_project_blocks_manuscript_export_dialog(cx: &mut TestAppContext) {
     view.update_in(cx, |ws, window, cx| {
         let root_id = ws.book.v3().unwrap().roots[0].clone();
         ws.open(Target::Book(root_id.parse().unwrap()), Open::KEEP, cx);
-        ws.open_export(Request::Manuscript { chapter: None }, window, cx);
+        ws.open_export(Request::Manuscript, window, cx);
     });
-    cx.run_until_parked();
     assert!(
-        view.read_with(cx, |ws, _| ws.dialog.is_none() && !ws.covered()),
-        "manuscript export dialog must not open when project.book is disabled"
+        view.read_with(cx, |ws, _| ws.covered()),
+        "bookless projects open manuscript export"
     );
+    wait_for(&view, cx, |ws, cx| {
+        dialog(ws).is_some_and(|d| d.read(cx).manuscript().is_some_and(|m| m.outline.is_some()))
+    });
+    view.read_with(cx, |ws, cx| {
+        let d = dialog(ws).unwrap();
+        let m = d.read(cx).manuscript().unwrap();
+        let outline = m.outline.as_ref().unwrap();
+        assert!(!outline.has_book);
+        assert!(!m.only_book_prose);
+        assert_eq!(m.chapters(), outline.tree_ids());
+        assert!(m.can_export(cx));
+    });
 }

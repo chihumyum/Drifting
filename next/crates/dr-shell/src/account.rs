@@ -293,8 +293,8 @@ pub fn menu(
         window.dispatch_action(Box::new(crate::actions::SendFeedback), cx);
     })
     .child(row(Icon::Comment, t(cx, keys::user_menu::FEEDBACK), None));
-    // Inside a book: 「导入」 Markdown, text and Word files into it (M41; the
-    // 0.1 user menu's row).
+    // Inside a project: 「导入」 Markdown, text and Word files, and 「导出成稿」
+    // (M41; workspace avatar menu only, not on the shelf).
     let import = (id == "workspace-account").then(|| {
         let to_import = close.clone();
         glass::glass_box(
@@ -323,6 +323,30 @@ pub fn menu(
                     .child("MD · DOCX · TXT")
                     .into_any_element(),
             ),
+        ))
+    });
+    let export = (id == "workspace-account").then(|| {
+        let to_export = close.clone();
+        glass::glass_box(
+            child("export"),
+            GlassKind::Hidden,
+            Mode::default(),
+            false,
+            Spec::new(Tone::Clear, radius::MENU_ROW),
+            window,
+            cx,
+        )
+        .cursor_pointer()
+        .on_click(move |_, window, cx| {
+            to_export(window, cx);
+            crate::workspace::with_workspace_in(window.window_handle(), cx, |ws, window, cx| {
+                ws.open_export(dr_view_export::Request::Manuscript, window, cx);
+            });
+        })
+        .child(row(
+            Icon::ArrowOut,
+            t(cx, keys::manuscript_export::MENU),
+            None,
         ))
     });
     let to_settings = close.clone();
@@ -386,6 +410,7 @@ pub fn menu(
             ),
         ))
         .children(import)
+        .children(export)
         .child(feedback)
         .child(settings)
         .children(account_action);
