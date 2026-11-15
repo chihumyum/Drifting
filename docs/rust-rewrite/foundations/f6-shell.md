@@ -1213,3 +1213,34 @@ G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 �
 - **`BookV3::shown_precondition(&RecordKey)`**：按只增不改原则公开快照已读取记录的 `RecordPrecondition`（`if_replaced = false`），供同文件夹排序提交显式携带 `RecordKey::children_of(parent)` 与锚点条目的前置守卫。
 - **拖动改了先后以后按一次 ⌘Z / Ctrl+Z 撤回**：走的是本页开头「内核 v4 收尾：在窗口里撤销书的结构」那一套（`workspace/undo.rs` 的 `on_edit_undo`）。P1 交回时自己另写过一份排队撤销，和它是同一件事；2026-11-15 合进 `main` 时只留了 `main` 上那一份，P1 的那份（`history_ops`、`on_undo`、`on_redo`）没有并进来。永久回归见 `dr-shell/tests/v5_p1_undo.rs`：设置盖着时 ⌘Z 不动书，连按两次依次撤回，重做两次依次回来。
 
+
+## 内核 v5 · T1 左栏的 Tab、条目页、一个条目一个标签页（2026-11-15）
+
+**大白话。** 左栏上面那一排不再是「最外层那几个层级」，而是项目自己记着的一组 Tab（`project.tabs`），作者自己加、删、改名、调先后、换挂的东西。条目页的头上只有一处标题和记号，都能改。同一个条目不管从哪里打开（主页带模块、左栏不带模块）都是同一个标签页。照 `kernel-v5.md` 第 5、8、16 节和 `handoff/v5-tracks.md` 的「T1」做，形状照外壳原型（作者 2026-11-15 选的那一版）。
+
+**左栏**（`v3/sidebar.rs`、`v3/tabs.rs`）：
+
+- **Tab 那一行**：项目的 Tab 按先后排成一排玻璃按钮（`Segmented`，当前那个选中），行末一个「⋯」。放不下时放得下的留着，最后是「更多 N」，点开一张单子列出其余的；当前 Tab 在「更多」里时「更多 N」是选中态。不横着滚。挂的东西不在了的 Tab 画成弱下去的样子（`Segmented::faint`，`dr-ui` 只加不改）。
+- **「⋯」的单子**：每个 Tab 一行：把手（拖着调先后，`tab.move`）、能直接改的名字（`tab.put`，空名不存，Esc 放回）、灰字写它挂着什么（点了出「挂什么」的单子换挂的东西）、指着这一行时行尾一个去掉（`tab.remove`，不删挂的东西）；最下面细线和「＋ 加一个 Tab」。
+- **「挂什么」的单子**：「最外层」、一节「条目」（开着层级或收别处的条目的，带记号，按树缩进，能折叠）、一节「视图」（能折叠）、「成书」（项目开着成书时才有）。加一个 Tab 时 Tab 行上先多出一个选中的「新 Tab」；选完 Tab 名取挂的东西的名字（原型没画，监管会话补的），出现以后自动选中。
+- **四种挂法里看到的**：根和条目照旧是 `LevelDisplay`（根是 `ROOT_LEVEL`，即空字符串，列最外层的条目）；视图是各条泳道（记号加名字）和沿刻度排的条目（`BookV3::lane_entries`，挂在两条线上的章两条下面都出现），在一条泳道里拖动改的是刻度（`tabs::drop_in_view` → `timeline_view.place`，落在新邻居中间）；成书是成书序列，行首序号（`manuscript_number`），拖动改起点那里的顺序（起点是文件夹：`tabs::move_beside` 换算 `index` 调 `entry.move`，文件夹在视图里时按 `entry.get` 的 `below.children` 换算；起点是视图或泳道：刻度）。
+- **挂的东西没了**（`tabs::gone`）：条目进了最近删除（「「回忆线」进了最近删除」，名字从 `BookV3::trashed_titles` 读）、条目两个开关都关了、视图删了、项目关了成书、或者书里根本没有它。Tab 还在、名字照旧，内容区一句原因加「换挂的东西」。
+- **停在哪个 Tab** 记在本机（`v3.sidebar.tab`，存 Tab 的 id）。调试桥的 `v3Sidebar` 给 `tabs`（每个带 `gone`）、`selected`（Tab 的 id）、`entry`（它挂的条目，场景用这个）、`display`、`adding`、`popup`、`registered`、`templates`。`Sidebar::select(id)` 认 Tab 的 id，也认挂着的条目 id（基准测试和场景用）。
+- 最外层没挂到任何 Tab 的条目不再单独列在左栏底部（`#v3-loose-roots` 去掉了）：挂一个「最外层」的 Tab 就看得到；没挂到 Tab 的层级照旧能从主页、搜索、结构视图打开。
+
+**条目页**（`v3/page.rs`）：
+
+- 头上一处：登记进来的页头（`add_entry_head`，`dr-view-page` 的 `entry_head.rs`：记号按钮加能直接改的标题，下面一行小字是模板名）；没登记时外壳自己画只读的记号、标题、模板名。整书视图按钮照旧在右边。
+- 头下面是登记进来的「头下的部分」（`add_entry_head_part`，比如泳道的颜色，`dr-view-elements` 的 `storyline.rs`）：页面没有它的时候每次重排都问一次，它不适用时画空。
+- 两块「下面的条目」（`Block::Below`，开关是「层级」）和「挂在这里的条目」（`Block::Attached`，开关是「收别处的条目」）：开关就是块头，后面块名、小灰字、（第二块在视图里时）带视图图标的小标、右端「＋ 新建」。开关关着的块只剩块头。块头下面一行设置：第一块「自动链接」，第二块「新条目住在」（下拉，第一项是「没设」，写的是条目自己的覆盖，`entry.update` 的 `overrides`）。模板里有 `children`／`members` 模块就按模块的位置放，没有就排在模块后面，第二块在第一块后面。「设置」那一块只剩「默认模板」「显示」「格式快捷输入」。
+- 第一块的新建走 `EntryAction::New`（住进），第二块走新加的 `EntryAction::NewAttached`（挂到，`entry.create` 带 `host`）；两个都由 `dr-view-elements` 登记。
+- `Section` 多了 `display`（块开着时的显示方式）；块的 `kind` 是 `children`／`members`，挂上的部件是 `display`／`members`。`DisplaySurface` 多了 `Members`（条目页的第二块）。
+- `EntryPage::show_module(module)`：已经开着的条目页滚到某个模块（见下一条）。
+
+**一个条目一个标签页**（`nav/mod.rs`、`workspace/editors.rs`）：`Target::same_page` 认条目 id、不认模块。开着的标签页里已经有这个条目时，带模块的目标只是让页面滚到那个模块（`Navigator::take_section`，外壳交给 `EntryPage::show_module`）；左栏高亮、`is_open`、关闭和删除时关标签页都按同一个条目认。`editor_of`／`page_view`／`module_page`（和大纲找编辑器）先按 key 找，找不到就按同一个条目找（`Workspace::page_of`），目标带模块时给那个模块的编辑器。带行号的位置（链接、搜索结果）落在已经开着的页上时，揭示的是那个模块（`EntryPage::reveal_in`），键盘也交给它（`EntryPage::preferred_focus` 先看后来要的模块）。最近访问照旧按确切的目标记（`Workspace::visited_on_open_page`：带模块的目标落在已开的页上时另记一次）。光标在条目页自己的头上（标题）时算这一页的，换页时照旧交给新页的正文。
+
+**关层级的确认框**（`v3/level_switch.rs`）：标题是「关掉「人物」的层级？」（`turnOffLevelQuestion`），按钮是危险色的「关掉」；纸条照旧「关闭层级 · 人物」。
+
+**记号**（`book/v3.rs`、`v3/mark.rs`）：`mark(name, id)` 认七种砂笔的名字（`SAND_MARKS`，加模板里用的三个别名），别的合规的一个字（`is_glyph_mark`，emoji 也行）画成 `sand::Kind::Glyph`，认不出的名字照旧画方印。`v3::mark::MarkPicker` 是条目页头和模板编辑器共用的选记号卡：「砂笔」一格格（选中态是砂笔框）、「一个字」一个小输入框（回车或离开时存）、条目的卡上还有「用模板的记号」。原型里那排颜色不做。
+
+**测试**：`dr-shell/tests/v5_t1_tabs.rs`（改 Tab 名不改条目名；一个层级挂两个 Tab；调先后、去掉、⌘Z 回来；关成书后成书 Tab 显示为空并说原因；条目进最近删除、视图删了；没挂到 Tab 的层级照样打开；从主页和左栏打开是同一个标签页；记号换成一个字、砂笔、⌘Z、回到模板的、模板换成 emoji；视图 Tab 里拖动改刻度、成书 Tab 里拖动改手动先后；视图沿刻度列泳道的条目）；`nav/mod.rs` 的 `an_entry_opens_in_one_tab_whichever_module_a_target_names`；`v3/tabs.rs` 的刻度落点单测；`dr-shell/tests/v3.rs` 的关层级测试加了标题那一句。

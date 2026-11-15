@@ -634,3 +634,14 @@ G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅�
 
 **待协调**：沉浸写作的打字机滚动在正文里按页面露出的部分对齐，作者在条目页里开沉浸写作的观感没在真窗口里看过。
 
+
+## 内核 v5 · T1 条目页的页头与两块（2026-11-15）
+
+**大白话。** 以前章节页有两个标题（条目页自己画一个不能改的，正文里第一篇进成书的正文又画一个能改的），而只有「说明」正文的条目（分类、分组、故事线、放章的文件夹、构想看板）在界面上没有地方改名。现在每个条目页的头上只有一处：左边一个记号按钮，右边能直接改的标题，下面一行小字是模板名。点记号出一张选记号的卡（砂笔一格格、一个字、用模板的记号）。照 `kernel-v5.md` 第 8、16 节和外壳原型「界面二」。
+
+- **页头**（`dr-view-page/src/entry_head.rs`，经外壳的 `add_entry_head` 登记）：标题离开时存（回车离开），Esc 放回，空的不存。存法照搬正文页眉的草稿规则（`head/drafts.rs`）：`entry.update` 的 `title` 守着页头显示过的那个标题（`settlement::held_to`），别处同时改过就不覆盖、打的字留在框里，下面出「保存失败」和「重试」；正在打的标题在退出 App、换库之前先存（`settlement::register`，`Drafts::drain`）；存过以后旧的快照不会把旧标题放回来。改记号写 `entry.update` 的 `mark`（`null` 是回到模板的），守着页面看到的这个条目。章节 ⁂「新建下一章」打开的新章，标题拿到光标、全选（`NewTitles::take_entry`，延后一帧，正文那时已经看到标题优先）；正文的「标题优先」看页头的标题有没有光标（`entry_head::title_focused`）。光标在页头的标题里时，外壳把它算作这一页的（换标签页时照旧交给新页的正文）。
+- **正文自己的页眉**（`head.rs`、`lib.rs`）：条目页里的正文（`Chrome::on_entry_page`，`BodyModule` 用它）不再画标题，页序行、梗概、横线照旧；整书视图和单独的章节编辑器里每章照旧有能改的标题（`PageHead::shows_title`）。页头高度估计跟着少一行。
+- **两块**：见 [f6-shell.md](../foundations/f6-shell.md) 的「内核 v5 · T1」。
+- **故事线页**：泳道的颜色那一条现在是条目页「头下的部分」（`dr-view-elements/src/storyline.rs` 的 `LaneColor`），故事线页就是外壳普通的条目页，它的「说明」正文和别的条目的正文一样被外壳收编：查找、实时字数、批注入口都有。以前它是自己的 `add_page_view` 页面，里面套一个条目页，外壳拿不到里面的编辑器。
+
+**测试**：`dr-view-page/tests/v5_t1_head.rs`（章节页只有页头一个标题、整书视图每章有标题；分类、分组、故事线在页头改名；从左栏打开故事线页，「说明」正文能查找、有实时字数、能写批注；新建的章打开时页头标题拿到光标、全选，正文不抢；从 `tests/v3.rs` 跟着标题挪过来的三条：退出前存下正在打的标题、别处改过时留着打的字并拦住换库、存过以后旧快照和 Esc 都不放回旧标题）。一个条目一个标签页以后改了期望的：`tests/mounted.rs` 的 `actual_body_makers_isolate_tabs_and_drive_find_selection_comment_save`、`versioned_module_click_reveals_block_range`，`tests/shell_workspace.rs` 的 `a_page_holding_a_section_in_view_and_cmd_z_leave_each_other_alone`（见交回报告）。

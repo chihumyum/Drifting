@@ -532,3 +532,15 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 新增永久回归见 `dr-view-elements/tests/v5_p1_reorder.rs` 与 `dr-shell/tests/v5_p1_undo.rs`。
 
 留到打磨阶段的一处（2026-11-15 合并时记）：按「修改时间」看的时候，每次书有变动都在主线程把全部正文文档的时间和撤销记录重读一遍（`data::v3::updated_timestamps`），重型书上可能卡。它不是默认的看法，先不拦；打磨时挪到后台或缓存。
+
+## 内核 v5 · T1 层级的列表与拖动（2026-11-15）
+
+**大白话。** 放章的那个列表不再能在「全书顺序 / 按故事线」之间切，也没有「未归属」那一组了：左栏的 Tab 和条目页上都只有这棵树。树里开着「收别处的条目」的条目展开后先是住着的，再是挂着的；所以故事线的 Tab 里每条故事线展开就是挂在它上面的章，挂在两条线上的章两条下面都有。照 `kernel-v5.md` 第 16 节「层级的列表」和作者 2026-11-15 的「去掉，只留树」。
+
+- **一棵树**（`panel.rs` 的 `rows_sorted`，参数从 `grouped` 换成 `DisplaySurface`）：`Page` 是条目页的「下面的条目」（只列住着的）；`Members` 是「挂在这里的条目」（只列挂着的，每行右边灰字「住在「构想」」）；`Sidebar` 是 Tab 里的树（第一行是这个层级自己，在视图里时上面一个带视图图标的小标，然后住着的、再挂着的）。树里挂着的条目在它挂的每一处都出现，也在它住的地方出现；只有「挂到自己下面」这种环会被截掉。`Row::Section` 和 `Section` 去掉了，`Row::Member` 带上 `depth`；`board_sections` 换成 `board_ids`。`ROOT_LEVEL`（空字符串）是最外层，给挂在根上的 Tab 用。
+- **拖到条目上是住还是挂**（`data.rs` 的 `drop_attaches`、`resolve_drop_with`、`drop_target_with`、`prepare_drop_with`）：只开着层级的搬进去住；只收别处条目的挂上去；两样都开着的（写书模板里的「分类」）搬进去住，按住 ⌥ 拖是挂上去。左栏、条目页、看板都照这一条。旧的 `resolve_drop`／`drop_target`／`prepare_drop` 留着，等于不按 ⌥。
+- **挂到这个条目上新建**（`data.rs` 的 `creation_attached`、`dialogs.rs` 的 `open_attached`、`menu.rs` 登记的 `EntryAction::NewAttached`）：条目页第二块的「＋ 新建」打开同一个新建框，建好的条目挂在这个条目上，住处照它的「新条目住在」。
+- **设置那一块**（`category.rs`）只剩「默认模板」「显示」「格式快捷输入」；「自动链接」「收别处的条目」「新条目住在」挪到条目页两块的块头和设置行。「泳道」的标签去掉了。
+- **看板的位置**：拖动写在这个层级的范围（`layout.put` 的 `scope` 是层级 id），读的时候以前用的是另一个字符串，拖完重开就回到默认位置；现在读写同一个范围。
+
+**删掉和改了期望的测试**（`tests/v3_levels.rs`）：`grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves`、`grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane` 删了（按故事线分组和「未归属」整段去掉），换成 `the_manuscript_list_is_only_its_tree`、`a_storyline_opens_to_its_chapters_and_a_chapter_on_two_shows_under_both`；`residence_tree_is_ordered_foldable_and_separate_from_membership` 改写成 `a_level_lists_its_tree_and_what_is_attached_after_what_lives_under_it`；`board_page_separates_members_without_changing_the_navigation_canvas` 改写成 `board_blocks_list_residents_and_attached_apart_and_a_tab_shows_both`。新增 `tests/v5_t1_lists.rs`（⌥ 拖动、既住又挂只列一次）。
