@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::credentials::Credentials;
 use crate::oauth::{OAuth, OAuthCancellation, OAuthEndpoints};
-use crate::{ProviderError, Result, SseParser, anthropic, deepseek, responses};
+use crate::{ProviderError, Result, SseParser, anthropic, chat, deepseek, local, responses};
 
 static EXECUTOR: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
@@ -86,6 +86,8 @@ impl Endpoints {
             Provider::Anthropic => &self.anthropic,
             Provider::Openai => &self.openai,
             Provider::Chatgpt => &self.chatgpt,
+            // A local route carries its own address (`ProviderDriver::endpoint`).
+            Provider::Local => "",
         }
     }
 }
@@ -190,12 +192,33 @@ impl ProviderDriver {
         }
     }
 
+    /// The configured endpoint, or a local route's own server. Both are
+    /// checked before any request: HTTPS or this computer for the four
+    /// providers, this computer or the local network for a local server.
+    fn endpoint(&self, request: &DriverRequest) -> Result<String> {
+        let route = &request.config.route;
+        if route.provider == Provider::Local {
+            let local = route.local.as_ref().ok_or_else(|| {
+                ProviderError::new(dr_agent::ModelErrorCategory::Unsupported, false)
+            })?;
+            let endpoint = format!(
+                "{}/v1/chat/completions",
+                local.base_url.trim_end_matches('/')
+            );
+            local::validate_endpoint(&endpoint)?;
+            return Ok(endpoint);
+        }
+        let endpoint = self.endpoints.get(route.provider);
+        validate_endpoint(endpoint)?;
+        Ok(endpoint.to_owned())
+    }
+
     async fn run(
         &self,
         request: DriverRequest,
         sender: &mut mpsc::Sender<dr_agent::Result<DriverEvent>>,
     ) -> Result<()> {
-        validate_endpoint(self.endpoints.get(request.config.route.provider))?;
+        let endpoint = self.endpoint(&request)?;
         let single = single_request(&request)?;
         let buffered = !request.tools.is_empty();
         let mut search = !single && request.config.web_search && !search_was_rejected(&request);
@@ -207,7 +230,14 @@ impl ProviderDriver {
         for attempt in 0..attempts {
             let mut pending = Vec::new();
             match self
-                .attempt(&request, buffered, sender, &mut pending, &mut search)
+                .attempt(
+                    &request,
+                    &endpoint,
+                    buffered,
+                    sender,
+                    &mut pending,
+                    &mut search,
+                )
                 .await
             {
                 Ok(()) => {
@@ -228,6 +258,7 @@ impl ProviderDriver {
     async fn attempt(
         &self,
         request: &DriverRequest,
+        endpoint: &str,
         buffered: bool,
         sender: &mut mpsc::Sender<dr_agent::Result<DriverEvent>>,
         pending: &mut Vec<DriverEvent>,
@@ -247,7 +278,7 @@ impl ProviderDriver {
             let mut http = self
                 .http
                 .raw()
-                .post(self.endpoints.get(provider))
+                .post(endpoint)
                 .header("accept", "text/event-stream")
                 .json(&body);
             if provider == Provider::Chatgpt {
@@ -257,6 +288,18 @@ impl ProviderDriver {
                     .await?;
                 refreshed |= auth_retry;
                 http = auth.apply(http);
+            } else if provider == Provider::Local {
+                // Most local servers take no key: none stored, no header.
+                let server = request
+                    .config
+                    .route
+                    .local
+                    .as_ref()
+                    .map(|local| local.server.as_str())
+                    .unwrap_or_default();
+                if let Some(key) = self.credentials.local_key(server).await? {
+                    http = http.bearer_auth(key);
+                }
             } else {
                 let key = self
                     .credentials
@@ -309,6 +352,7 @@ impl ProviderDriver {
                 Provider::Deepseek => body["thinking"]["type"] == "enabled",
                 Provider::Openai | Provider::Chatgpt => body["reasoning"]["effort"] != "none",
                 Provider::Anthropic => body["thinking"]["type"] == "adaptive",
+                Provider::Local => false,
             };
             let mut decoder = Decoder::new(provider, index_offset, thinking);
             let mut stream = response.bytes_stream();
@@ -464,6 +508,7 @@ fn wire_request(request: &DriverRequest, search: bool) -> Result<Value> {
         Provider::Anthropic => anthropic::request(request, search),
         Provider::Deepseek => deepseek::request(request, search),
         Provider::Openai | Provider::Chatgpt => responses::request(request, search),
+        Provider::Local => chat::request(request, search),
     }
 }
 
@@ -521,6 +566,7 @@ enum Decoder {
     Anthropic(anthropic::Decoder),
     Deepseek(deepseek::Decoder),
     Responses(responses::Decoder),
+    Local(chat::Decoder),
 }
 
 impl Decoder {
@@ -533,6 +579,7 @@ impl Decoder {
             Provider::Openai | Provider::Chatgpt => {
                 Self::Responses(responses::Decoder::with_config(offset, provider, thinking))
             }
+            Provider::Local => Self::Local(chat::Decoder::new(offset)),
         }
     }
     fn push(&mut self, event: &crate::SseEvent) -> Result<Vec<DriverEvent>> {
@@ -540,6 +587,7 @@ impl Decoder {
             Self::Anthropic(d) => d.push(event),
             Self::Deepseek(d) => d.push(event),
             Self::Responses(d) => d.push(event),
+            Self::Local(d) => d.push(event),
         }
     }
     fn finish(&self) -> Result<Option<Vec<Value>>> {
@@ -547,6 +595,7 @@ impl Decoder {
             Self::Anthropic(d) => d.finish(),
             Self::Deepseek(d) => d.finish(),
             Self::Responses(d) => d.finish(),
+            Self::Local(d) => d.finish(),
         }
     }
     fn next_index(&self) -> u32 {

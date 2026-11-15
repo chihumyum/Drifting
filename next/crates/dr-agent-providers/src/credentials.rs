@@ -155,6 +155,52 @@ impl Credentials {
         .await
     }
 
+    /// A local server's optional key. Most local servers take none; absence
+    /// is not an error.
+    pub fn local_candidate(server: &str, value: &str) -> Result<Self> {
+        let key = local_key_id(server)?;
+        let value = value.trim();
+        if !valid_secret(value) {
+            return Err(ProviderError::protocol("invalid API key"));
+        }
+        let store = Arc::new(SecretStore::in_memory());
+        store.set(&key, value)?;
+        Ok(Self::new(store))
+    }
+
+    pub async fn has_local_key(&self, server: &str) -> Result<bool> {
+        let key = local_key_id(server)?;
+        self.with_store(move |store| Ok(store.contains(&key)?))
+            .await
+    }
+
+    pub async fn local_key(&self, server: &str) -> Result<Option<String>> {
+        let key = local_key_id(server)?;
+        self.with_store(move |store| {
+            Ok(store
+                .get(&key)
+                .map_err(ProviderError::from)?
+                .filter(|value| valid_secret(value)))
+        })
+        .await
+    }
+
+    pub async fn set_local_key(&self, server: &str, value: impl Into<String>) -> Result<()> {
+        let key = local_key_id(server)?;
+        let value = value.into();
+        if !valid_secret(&value) {
+            return Err(ProviderError::protocol("invalid API key"));
+        }
+        self.with_store(move |store| store.set(&key, &value).map_err(ProviderError::from))
+            .await
+    }
+
+    pub async fn remove_local_key(&self, server: &str) -> Result<()> {
+        let key = local_key_id(server)?;
+        self.with_store(move |store| store.delete(&key).map_err(ProviderError::from))
+            .await
+    }
+
     /// A damaged legacy record reads as signed out; it never reaches HTTP headers.
     pub async fn tokens(&self) -> Result<Option<StoredTokens>> {
         self.with_store(|store| {
@@ -228,7 +274,24 @@ pub fn api_key_id(provider: Provider) -> Result<&'static str> {
         Provider::Chatgpt => Err(ProviderError::protocol(
             "ChatGPT uses OAuth, not an API key",
         )),
+        Provider::Local => Err(ProviderError::protocol(
+            "a local server's key is named by the server",
+        )),
     }
+}
+
+/// `byok.local.<server id>`: one entry per local server. The id is the app's
+/// own opaque identifier (letters, digits, `-`, `_`), never an address.
+pub fn local_key_id(server: &str) -> Result<String> {
+    if server.is_empty()
+        || server.len() > 64
+        || !server
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+    {
+        return Err(ProviderError::protocol("invalid local server id"));
+    }
+    Ok(format!("byok.local.{server}"))
 }
 
 #[cfg(test)]
@@ -260,6 +323,37 @@ mod tests {
         );
         assert!(!store.contains("byok.anthropic").unwrap());
         assert!(Credentials::candidate(Provider::Chatgpt, "synthetic-key").is_err());
+    }
+
+    #[tokio::test]
+    async fn local_keys_are_one_entry_per_server_and_optional() {
+        let store = Arc::new(SecretStore::in_memory());
+        let credentials = Credentials::new(store.clone());
+        assert!(!credentials.has_local_key("server-a").await.unwrap());
+        assert_eq!(credentials.local_key("server-a").await.unwrap(), None);
+        credentials
+            .set_local_key("server-a", "synthetic-local")
+            .await
+            .unwrap();
+        assert!(credentials.has_local_key("server-a").await.unwrap());
+        assert!(!credentials.has_local_key("server-b").await.unwrap());
+        assert_eq!(
+            store.get("byok.local.server-a").unwrap().as_deref(),
+            Some("synthetic-local")
+        );
+        credentials.remove_local_key("server-a").await.unwrap();
+        assert!(store.get("byok.local.server-a").unwrap().is_none());
+        for bad in ["", "a b", "../x", "http://localhost:11434", &"x".repeat(65)] {
+            assert!(local_key_id(bad).is_err(), "{bad:?}");
+        }
+        assert!(api_key_id(Provider::Local).is_err());
+        let candidate = Credentials::local_candidate("server-a", " synthetic ").unwrap();
+        assert_eq!(
+            candidate.local_key("server-a").await.unwrap().as_deref(),
+            Some("synthetic")
+        );
+        assert!(Credentials::local_candidate("server-a", "  ").is_err());
+        assert!(store.get("byok.local.server-a").unwrap().is_none());
     }
 
     #[tokio::test]

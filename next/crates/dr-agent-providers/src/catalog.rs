@@ -118,6 +118,8 @@ fn bundled(
         Provider::Anthropic => ("messages-v1", 1_000_000, 128_000, 768),
         Provider::Openai => ("responses-v1", 1_050_000, 128_000, 640),
         Provider::Chatgpt => ("responses-codex-v1", 1_050_000, 128_000, 640),
+        // Never listed: a local server's models come from the server itself.
+        Provider::Local => ("chat-completions-local-v1", 32_768, 8_192, 512),
     };
     ModelInfo {
         provider,
@@ -204,6 +206,7 @@ pub fn bundled_models(provider: Provider) -> Vec<ModelInfo> {
             ),
             ("gpt-6-luna", "GPT-6 Luna · efficient", "6 Luna", true),
         ],
+        Provider::Local => &[],
     };
     rows.iter()
         .map(|(id, label, short, off)| bundled(provider, id, label, short, *off))
@@ -255,6 +258,8 @@ pub fn models_url(provider: Provider) -> &'static str {
         Provider::Anthropic => "https://api.anthropic.com/v1/models",
         Provider::Openai => "https://api.openai.com/v1/models",
         Provider::Chatgpt => "https://chatgpt.com/backend-api/codex/models",
+        // `local::discover` asks each server; there is no shared list.
+        Provider::Local => "",
     }
 }
 
@@ -588,7 +593,7 @@ pub fn supported_api_model(provider: Provider, id: &str) -> bool {
     match provider {
         Provider::Deepseek => id.starts_with("deepseek-"),
         Provider::Anthropic => id.starts_with("claude-"),
-        Provider::Chatgpt => false,
+        Provider::Chatgpt | Provider::Local => false,
         Provider::Openai => {
             let Some(rest) = id.strip_prefix("gpt-") else {
                 return false;

@@ -11,6 +11,10 @@ pub enum Provider {
     Openai,
     #[serde(rename = "openai-codex")]
     Chatgpt,
+    /// A model server on this computer or the local network (Ollama,
+    /// LM Studio, llama.cpp …). The route names which one.
+    #[serde(rename = "local")]
+    Local,
 }
 
 impl Provider {
@@ -20,6 +24,7 @@ impl Provider {
             Self::Anthropic => "anthropic",
             Self::Openai => "openai",
             Self::Chatgpt => "openai-codex",
+            Self::Local => "local",
         }
     }
 }
@@ -58,6 +63,18 @@ pub struct ModelRoute {
     pub provider: Provider,
     pub model: String,
     pub thinking: ThinkingLevel,
+    /// Only for [`Provider::Local`]: which server, frozen with the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local: Option<LocalRoute>,
+}
+
+/// The local server a run talks to. The address is frozen into the run like
+/// the model; the server id names its key in the credential store.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LocalRoute {
+    pub server: String,
+    /// `scheme://host[:port][/path]`, without a trailing `/v1`.
+    pub base_url: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +96,7 @@ impl RunConfig {
                 provider,
                 model: model.into(),
                 thinking: ThinkingLevel::Off,
+                local: None,
             },
             capabilities: None,
             system_prompt: String::new(),
@@ -89,9 +107,13 @@ impl RunConfig {
     }
 
     pub fn validate(&self) -> crate::Result<()> {
+        let local = self.route.local.as_ref().is_some_and(|local| {
+            !local.server.trim().is_empty() && !local.base_url.trim().is_empty()
+        });
         if self.route.model.trim().is_empty()
             || self.max_model_rounds == Some(0)
             || self.max_output_tokens == Some(0)
+            || local != (self.route.provider == Provider::Local)
         {
             return Err(crate::Error::Protocol(
                 "model and positive author-selected limits required".into(),
@@ -111,4 +133,38 @@ pub struct ModelCapabilities {
     pub supports_thinking_off: Option<bool>,
     pub supports_summary: Option<bool>,
     pub supports_verbosity: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_local_route_names_its_server_and_older_routes_still_read() {
+        let mut config = RunConfig::new(Provider::Local, "synthetic-local");
+        assert!(config.validate().is_err(), "a local run needs its server");
+        config.route.local = Some(LocalRoute {
+            server: "synthetic-server".into(),
+            base_url: "http://localhost:11434".into(),
+        });
+        config.validate().unwrap();
+        let value = serde_json::to_value(&config.route).unwrap();
+        assert_eq!(value["provider"], "local");
+        assert_eq!(value["local"]["server"], "synthetic-server");
+        let mut blank = config.clone();
+        blank.route.local.as_mut().unwrap().base_url = " ".into();
+        assert!(blank.validate().is_err());
+
+        let mut remote = RunConfig::new(Provider::Deepseek, "deepseek-flash");
+        remote.validate().unwrap();
+        let value = serde_json::to_value(&remote.route).unwrap();
+        assert!(value.get("local").is_none(), "nothing new is written");
+        let read: ModelRoute = serde_json::from_value(serde_json::json!({
+            "provider": "deepseek", "model": "deepseek-flash", "thinking": "off"
+        }))
+        .unwrap();
+        assert_eq!(read, remote.route);
+        remote.route.local = config.route.local.clone();
+        assert!(remote.validate().is_err(), "only a local run has a server");
+    }
 }

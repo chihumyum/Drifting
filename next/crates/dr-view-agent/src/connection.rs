@@ -37,6 +37,8 @@ pub fn provider_name(provider: Provider) -> &'static str {
         Provider::Deepseek => "DeepSeek",
         Provider::Anthropic => "Anthropic",
         Provider::Openai => "OpenAI",
+        // Each local server is shown by its own name (`LocalServer::label`).
+        Provider::Local => "Local",
     }
 }
 
@@ -45,7 +47,7 @@ pub fn key_page(provider: Provider) -> Option<&'static str> {
         Provider::Deepseek => Some("https://platform.deepseek.com/api_keys"),
         Provider::Anthropic => Some("https://console.anthropic.com/settings/keys"),
         Provider::Openai => Some("https://platform.openai.com/api-keys"),
-        Provider::Chatgpt => None,
+        Provider::Chatgpt | Provider::Local => None,
     }
 }
 
@@ -71,6 +73,7 @@ impl Default for Preferences {
                 provider: model.provider,
                 model: model.id.clone(),
                 thinking: default_thinking(&model),
+                local: None,
             },
             max_model_rounds: Some(50),
         }
@@ -534,6 +537,7 @@ impl Connections {
             provider,
             model: id.into(),
             thinking,
+            local: None,
         };
         self.failure = None;
         self.save(cx);

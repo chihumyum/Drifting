@@ -176,11 +176,11 @@ fn wire_effort(level: ThinkingLevel) -> &'static str {
     }
 }
 
-fn wire_call(call: &ToolCall) -> Value {
+pub(crate) fn wire_call(call: &ToolCall) -> Value {
     json!({"id":call.id,"type":"function","function":{"name":call.name,"arguments":call.arguments.to_string()}})
 }
 
-fn tool_result(payload: &Value) -> Result<String> {
+pub(crate) fn tool_result(payload: &Value) -> Result<String> {
     let output = payload
         .get("output")
         .ok_or_else(|| ProviderError::protocol("tool result has no output"))?;
@@ -195,7 +195,7 @@ fn tool_result(payload: &Value) -> Result<String> {
     })
 }
 
-fn check_tool_closure(messages: &[Value]) -> Result<()> {
+pub(crate) fn check_tool_closure(messages: &[Value]) -> Result<()> {
     let mut pending = BTreeSet::new();
     for item in messages {
         if let Some(calls) = item.get("tool_calls").and_then(Value::as_array) {
@@ -487,13 +487,13 @@ fn optional_number(value: &Value, key: &str) -> Result<u64> {
         Some(_) => number(value, key),
     }
 }
-fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
+pub(crate) fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value
         .get(key)
         .and_then(Value::as_str)
         .ok_or_else(|| ProviderError::protocol(format!("invalid {key}")))
 }
-fn nonblank<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
+pub(crate) fn nonblank<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     let text = string(value, key)?;
     if text.trim().is_empty() {
         Err(ProviderError::protocol(format!("empty {key}")))
@@ -501,13 +501,13 @@ fn nonblank<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
         Ok(text)
     }
 }
-fn optional_string<'a>(value: &'a Value, key: &str) -> Result<Option<&'a str>> {
+pub(crate) fn optional_string<'a>(value: &'a Value, key: &str) -> Result<Option<&'a str>> {
     match value.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(_) => string(value, key).map(Some),
     }
 }
-fn stream_error(value: &Value) -> ProviderError {
+pub(crate) fn stream_error(value: &Value) -> ProviderError {
     let error = &value["error"];
     let code = error["code"].as_str().unwrap_or_default();
     let status = error["status"]
