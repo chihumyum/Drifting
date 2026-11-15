@@ -42,9 +42,30 @@ fn rename_failure_and_book_refresh_keep_the_draft(cx: &mut TestAppContext) {
         },
     )
     .unwrap();
+    let count = |name: &str| {
+        ws.call(
+            &dr_workspace::Actor::User,
+            name,
+            serde_json::json!({"book": book}),
+        )
+        .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .len()
+    };
+    let (templates, files) = (count("entry_template.list"), count("asset.list"));
     let imported =
         crate::import::import_bytes(&ws, &book, None, dr_testkit::media::png(24, 24), "测试图片")
             .unwrap();
+    // A dropped file goes into the library only: no template is made.
+    assert_eq!(count("entry_template.list"), templates);
+    assert_eq!(count("asset.list"), files + 1);
+    // The same bytes dropped again are the file already there.
+    let again =
+        crate::import::import_bytes(&ws, &book, None, dr_testkit::media::png(24, 24), "又一次")
+            .unwrap();
+    assert_eq!(again.material, imported.material);
+    assert_eq!(count("asset.list"), files + 1);
     let material = Book::load(&ws, &book)
         .unwrap()
         .material_items()

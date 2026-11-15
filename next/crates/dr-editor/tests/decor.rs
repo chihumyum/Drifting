@@ -718,3 +718,110 @@ fn code_blocks_and_callouts_are_written_in_notes(cx: &mut TestAppContext) {
     assert!(stored.iter().any(|k| k == block::CODE_BLOCK), "{stored:?}");
     assert!(stored.iter().any(|k| k == block::CALLOUT), "{stored:?}");
 }
+
+// ----- a checklist item the caret leaves ---------------------------------------------------
+
+/// The bodies of the checklist comments on `doc`'s entry.
+fn task_bodies(e: &Env, doc: &str) -> Vec<String> {
+    let id = doc.trim_start_matches("body:").split('/').next().unwrap();
+    let mut bodies: Vec<String> = out(
+        &e.ws,
+        &Actor::User,
+        "comment.list",
+        json!({"book": e.book, "origin": "task", "target": {"kind": "entry", "id": id}}),
+    )
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|c| c["body"].as_str().unwrap().to_owned())
+    .collect();
+    bodies.sort();
+    bodies
+}
+
+/// Focuses `editor` in its (active) window: focus events flow only there.
+fn focus(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    editor.update_in(cx, |e, window, cx| window.focus(&e.focus_handle(cx), cx));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+}
+
+/// Makes paragraph `line` of `chapter` a checklist item, with the caret at
+/// `caret` (in that paragraph), and types `text` there key by key.
+fn type_task(
+    editor: &Entity<ProseEditor>,
+    cx: &mut VisualTestContext,
+    chapter: usize,
+    line: usize,
+    caret: usize,
+    text: &str,
+) {
+    use gpui_prose::schema::block;
+    editor.update_in(cx, |e, window, cx| {
+        e.select(chapter, caret..caret, window, cx);
+        e.edit_chapter(chapter, gpui_prose::HostStep::Own, window, cx, move |d| {
+            d.set_block_attr(line, block::LIST, Some("task".into()), "user");
+            None
+        });
+    });
+    cx.run_until_parked();
+    for c in text.chars() {
+        let s = c.to_string();
+        editor.update_in(cx, |e, window, cx| {
+            e.replace_text_in_range(None, &s, window, cx)
+        });
+    }
+    cx.run_until_parked();
+}
+
+/// A checklist item typed with the caret in it, and an item whose words are
+/// changed there, are written when the caret moves to another paragraph of
+/// the chapter: the comment is there with the item's words (review item 1
+/// of the DY hand-back).
+#[gpui::test]
+fn a_checklist_item_is_written_when_the_caret_leaves_it(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = chapter(&e, "正文。\n");
+    let (view, cx) = open(cx, &e, &doc);
+    let editor = prose(&view, cx);
+    focus(&editor, cx);
+    // The second paragraph (empty, at 4) becomes an item and is typed.
+    type_task(&editor, cx, 0, 1, 4, "买灯芯");
+    // The caret moves to the first paragraph.
+    editor.update_in(cx, |e, window, cx| e.select(0, 1..1, window, cx));
+    assert!(wait_for(cx, |_| task_bodies(&e, &doc) == ["买灯芯"]));
+    // The item's words are changed with the caret in it, then it leaves.
+    editor.update_in(cx, |e, window, cx| e.select(0, 7..7, window, cx));
+    cx.run_until_parked();
+    for c in "和火柴".chars() {
+        let s = c.to_string();
+        editor.update_in(cx, |e, window, cx| {
+            e.replace_text_in_range(None, &s, window, cx)
+        });
+    }
+    cx.run_until_parked();
+    editor.update_in(cx, |e, window, cx| e.select(0, 1..1, window, cx));
+    assert!(wait_for(cx, |_| task_bodies(&e, &doc) == ["买灯芯和火柴"]));
+}
+
+/// In the whole book, a checklist item typed in one chapter is written when
+/// the caret moves into another chapter.
+#[gpui::test]
+fn a_checklist_item_is_written_when_the_caret_goes_to_another_chapter(cx: &mut TestAppContext) {
+    let e = env();
+    let one = chapter(&e, "第一章的字。");
+    let two = chapter(&e, "雨夜。\n");
+    let (view, cx) = open_book(cx, &e);
+    let editor = view.read_with(cx, |v, _| v.editor().clone());
+    assert!(wait_for(cx, |cx| editor
+        .read_with(cx, |e, _| e.book().chapters.len())
+        == 2));
+    focus(&editor, cx);
+    // The second chapter's second paragraph (empty, at 4) becomes an item.
+    type_task(&editor, cx, 1, 1, 4, "问钟楼的年代");
+    editor.update_in(cx, |e, window, cx| e.select(0, 1..1, window, cx));
+    assert!(wait_for(cx, |_| task_bodies(&e, &two) == ["问钟楼的年代"]));
+    assert!(task_bodies(&e, &one).is_empty());
+}

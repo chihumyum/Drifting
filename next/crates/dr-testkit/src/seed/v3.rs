@@ -669,6 +669,9 @@ pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
         a.folder = folder.cloned();
         a.pos = Some(pos.clone());
     }
+    // The deleted file went to Recently Deleted with 「废稿」: restoring the
+    // folder brings it back.
+    records[1].trashed_with = Some(scrap.clone());
     let (r, _) = b.book.edit_at(Origin::Import, Some(T0), |t| {
         let folders = positions(2);
         t.asset_folder(&refs)?

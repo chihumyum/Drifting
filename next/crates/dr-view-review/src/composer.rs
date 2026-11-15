@@ -320,6 +320,11 @@ impl CommentComposer {
         let body = self.field.read(cx).text();
         let (range, part) = match self.anchor {
             Anchor::Range(start, end) => (Some((start, end)), None),
+            // Straight on a file of the asset library: a region of it.
+            Anchor::Region(region) if self.target.kind == "asset" => (
+                None,
+                Some(dr_workspace::dto::CommentPartDto::Region { region }),
+            ),
             Anchor::Region(r) => (
                 None,
                 Some(dr_workspace::dto::CommentPartDto::Media {
