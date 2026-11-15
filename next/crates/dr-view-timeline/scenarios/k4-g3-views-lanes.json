@@ -105,6 +105,21 @@
       }
     },
     {
+      "app": "ui.find",
+      "params": {
+        "label": "New lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1300,
+        "y": 550,
+        "dy": 380
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "${entries.[template=tpl-storyline].title}",
@@ -146,6 +161,21 @@
       "params": {
         "label": "Add lane",
         "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "New lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1300,
+        "y": 550,
+        "dy": 380
       }
     },
     {

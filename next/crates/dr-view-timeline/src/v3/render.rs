@@ -54,10 +54,7 @@ impl Timeline {
                         theme.palette.ink(3).solid(),
                     ))
                     .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::Views,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::Views, e.position()));
                         cx.notify();
                     })),
             );
@@ -73,10 +70,7 @@ impl Timeline {
                 PanelIconButton::new("v3-place-entry", Icon::FileText)
                     .label(t(cx, keys::v3_timeline::PLACE_ENTRY))
                     .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::PickLane,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::PickLane, e.position()));
                         cx.notify();
                     })),
             )
@@ -87,10 +81,7 @@ impl Timeline {
                     PanelIconButton::new("v3-timeline-lanes", Icon::Layers)
                         .label(t(cx, keys::v3_timeline::ADD_LANE))
                         .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Lanes,
-                                at: e.position(),
-                            });
+                            this.popup = Some(Popup::new(MenuOf::Lanes, e.position()));
                             cx.notify();
                         })),
                 ),
@@ -188,10 +179,8 @@ impl Timeline {
                         )
                         .on_click(cx.listener(
                             move |this, e: &ClickEvent, _, cx| {
-                                this.popup = Some(Popup {
-                                    of: MenuOf::Entries(id.clone()),
-                                    at: e.position(),
-                                });
+                                this.popup =
+                                    Some(Popup::new(MenuOf::Entries(id.clone()), e.position()));
                                 cx.notify();
                             },
                         )),
@@ -312,10 +301,8 @@ impl Timeline {
                     )
                     .on_click(cx.listener(
                         move |this, e: &ClickEvent, _, cx| {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Bind(pin_id.clone()),
-                                at: e.position(),
-                            });
+                            this.popup =
+                                Some(Popup::new(MenuOf::Bind(pin_id.clone()), e.position()));
                             cx.notify();
                         },
                     )),
@@ -433,10 +420,10 @@ impl Timeline {
                         .on_click(cx.listener(
                             move |this, e: &ClickEvent, _, cx| {
                                 if accepts {
-                                    this.popup = Some(Popup {
-                                        of: MenuOf::Entries(target_lane.clone()),
-                                        at: e.position(),
-                                    });
+                                    this.popup = Some(Popup::new(
+                                        MenuOf::Entries(target_lane.clone()),
+                                        e.position(),
+                                    ));
                                     cx.notify();
                                 } else {
                                     this.create_entry_in_lane(target_lane.clone(), cx);
@@ -483,10 +470,7 @@ impl Timeline {
                     }));
                 } else if templates.len() > 1 {
                     new_lane = new_lane.on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::LaneTemplates,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::LaneTemplates, e.position()));
                         cx.notify();
                     }));
                 }
@@ -503,10 +487,7 @@ impl Timeline {
                     }));
                 } else if templates.len() > 1 {
                     new_act = new_act.on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::ActTrackTemplates,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::ActTrackTemplates, e.position()));
                         cx.notify();
                     }));
                 }
@@ -595,6 +576,7 @@ impl Timeline {
             .role(gpui::Role::Group)
             .aria_label(label)
             .max_h(px(360.))
+            .track_scroll(&popup.scroll)
             .overflow_y_scroll()
             .child(menu);
         Some(
@@ -684,10 +666,8 @@ impl Timeline {
                     .label(t(cx, keys::v3_timeline::NEW_ENTRY_IN_LANE))
                     .on_click(cx.listener(
                         move |this, e: &ClickEvent, _, cx| {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Entries(id.clone()),
-                                at: e.position(),
-                            });
+                            this.popup =
+                                Some(Popup::new(MenuOf::Entries(id.clone()), e.position()));
                             cx.notify();
                         },
                     )),
@@ -747,10 +727,8 @@ impl Timeline {
                         PanelIconButton::new(SharedString::from(actions_id), Icon::More)
                             .label(t(cx, keys::v3_timeline::LANE_ACTIONS))
                             .on_click(cx.listener(move |this, e: &ClickEvent, _, cx| {
-                                this.popup = Some(Popup {
-                                    of: MenuOf::LaneActions(id.clone()),
-                                    at: e.position(),
-                                });
+                                this.popup =
+                                    Some(Popup::new(MenuOf::LaneActions(id.clone()), e.position()));
                                 cx.notify();
                             })),
                     ),
@@ -871,10 +849,7 @@ impl Timeline {
                         if e.click_count() > 1 {
                             this.rename_pin(id.clone(), w, cx);
                         } else {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Pin(id.clone()),
-                                at: e.position(),
-                            });
+                            this.popup = Some(Popup::new(MenuOf::Pin(id.clone()), e.position()));
                             cx.notify();
                         }
                     }))
@@ -1028,13 +1003,13 @@ impl Timeline {
                 .label(t(cx, keys::v3_timeline::PLACEMENT_ACTIONS))
                 .on_click(cx.listener(move |this, e: &ClickEvent, _, cx| {
                     cx.stop_propagation();
-                    this.popup = Some(Popup {
-                        of: MenuOf::Clip {
+                    this.popup = Some(Popup::new(
+                        MenuOf::Clip {
                             entry: entry.clone(),
                             lane: lane_id.clone(),
                         },
-                        at: e.position(),
-                    });
+                        e.position(),
+                    ));
                     cx.notify();
                 }));
                 let drop_lane = lane.id.clone();

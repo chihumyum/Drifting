@@ -35,6 +35,16 @@ enum MenuOf {
 struct Popup {
     of: MenuOf,
     at: Point<Pixels>,
+    scroll: ScrollHandle,
+}
+impl Popup {
+    fn new(of: MenuOf, at: Point<Pixels>) -> Self {
+        Self {
+            of,
+            at,
+            scroll: ScrollHandle::new(),
+        }
+    }
 }
 #[derive(Clone, Copy)]
 enum EditKind {

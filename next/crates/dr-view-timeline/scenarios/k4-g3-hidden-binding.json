@@ -239,10 +239,39 @@
       }
     },
     {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/host": "${first.id}",
+        "/26/host": "${second.id}",
+        "/26/pos": "aD",
+        "/27": null
+      },
+      "save": "after_remove_memberships",
+      "note": "内核 v5：从最后一个视图拿出泳道时，将该泳道在视图中的先后写回挂名 pos。"
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "Add lane",
         "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "New lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1300,
+        "y": 550,
+        "dy": 380
       }
     },
     {
@@ -471,7 +500,7 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "": "${memberships}"
+        "": "${after_remove_memberships}"
       }
     },
     {
