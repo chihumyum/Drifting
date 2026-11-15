@@ -620,10 +620,21 @@ pub mod v3 {
             anchor: Some((onto, _)),
         } = &target
         {
-            for key in [
+            let mut keys = vec![
                 RecordKey::children_of(parent.as_deref()),
                 RecordKey::entry(onto),
-            ] {
+            ];
+            if let Some(pid) = parent.as_deref() {
+                keys.extend(
+                    v.timeline_views
+                        .iter()
+                        .filter(|tv| {
+                            tv.deleted_at.is_none() && tv.lanes.iter().any(|l| l.entry == pid)
+                        })
+                        .map(|tv| RecordKey::timeline_view(&tv.id)),
+                );
+            }
+            for key in keys {
                 if let Some(pre) = v.shown_precondition(&key)
                     && !edit
                         .preconditions
@@ -658,8 +669,52 @@ pub mod v3 {
                 anchor: Some((onto, after)),
             } = &self.target
             {
-                // The command's index counts raw tree siblings, including
-                // logical trash. Never use the filtered sidebar row number.
+                if let Some(pid) = parent.as_deref() {
+                    let views: Vec<dr_workspace::commands::v3::types::TimelineView> =
+                        serde_json::from_value(
+                            lib.call(
+                                &Actor::User,
+                                "timeline_view.list",
+                                json!({"book": self.edit.input["book"]}),
+                            )?["output"]
+                                .clone(),
+                        )
+                        .map_err(|e| WsError::Internal(e.to_string()))?;
+                    let in_live_view = views.iter().any(|tv| {
+                        tv.deleted_at.is_none() && tv.lanes.iter().any(|l| l.entry == pid)
+                    });
+                    if in_live_view {
+                        // A folder in a live view orders its residents along its
+                        // authoritative view scale (`entry.move` resolves `index`
+                        // against `residents_along_view`, live siblings only).
+                        let got = lib.call(
+                            &Actor::User,
+                            "entry.get",
+                            json!({"book": self.edit.input["book"], "id": pid}),
+                        )?["output"]
+                            .clone();
+                        let children = got["below"]["children"].as_array().ok_or_else(|| {
+                            WsError::Invalid("target parent is no longer a level".into())
+                        })?;
+                        let sibling_ids: Vec<&str> =
+                            children.iter().filter_map(|c| c["id"].as_str()).collect();
+                        let current_pos = sibling_ids.iter().position(|id| *id == self.moving);
+                        let index = sibling_ids
+                            .iter()
+                            .copied()
+                            .filter(|id| *id != self.moving)
+                            .position(|id| id == onto.as_str())
+                            .ok_or_else(|| {
+                                WsError::Invalid("drop anchor is no longer a sibling".into())
+                            })?
+                            + usize::from(*after);
+                        self.edit.input["index"] = json!(index);
+                        return Ok(current_pos != Some(index));
+                    }
+                }
+                // Outside a live view, the command's index counts raw tree
+                // siblings, including logical trash. Never use the filtered
+                // sidebar row number.
                 let entries = lib.call(
                     &Actor::User,
                     "entry.list",
