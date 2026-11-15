@@ -431,6 +431,98 @@ async fn headless_bridge_forwards_the_complete_author_tool_chain() {
     main_chain(false, true).await;
 }
 
+/// PT4 (`project-templates.md` §10, §13): of the project templates MCP lists
+/// `list`, `get` and `save` and nothing that imports, exports or edits one;
+/// a save runs through the in-app Agent's path, held to what it read, and
+/// leaves its receipt. The server's instructions state the general rule
+/// about guidance.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_templates_reach_mcp_through_list_get_and_save_only() {
+    let f = Fixture::new(false, library_options("pt4-inbound-templates")).await;
+    let mut client = f.client().await;
+    assert!(
+        client
+            .peer_info()
+            .unwrap()
+            .instructions
+            .as_ref()
+            .unwrap()
+            .contains(dr_agent::guidance::PROJECT_GUIDANCE_RULE)
+    );
+    let listed = client.list_tools(None).await.unwrap();
+    let family: std::collections::BTreeSet<String> = listed
+        .tools
+        .iter()
+        .map(|tool| tool.name.to_string())
+        .filter(|name| name.starts_with("project_template."))
+        .collect();
+    assert_eq!(
+        family,
+        [
+            "project_template.get",
+            "project_template.list",
+            "project_template.save"
+        ]
+        .map(String::from)
+        .into()
+    );
+    let save = listed
+        .tools
+        .iter()
+        .find(|tool| tool.name == "project_template.save")
+        .unwrap();
+    let properties = save.input_schema.get("properties").unwrap();
+    assert!(properties.get("book").is_none() && properties.get("credit").is_none());
+
+    let saved = reply(
+        &call(
+            &client,
+            "project_template.save",
+            json!({"name":"外部存的模板"}),
+        )
+        .await,
+    );
+    let id = saved["output"]["output"]["id"].as_str().unwrap().to_owned();
+    assert!(!saved["settlements"].as_array().unwrap().is_empty());
+    // Replacing it needs it read first.
+    let unread = call(&client, "project_template.save", json!({"replace": id})).await;
+    assert_eq!(unread.is_error, Some(true));
+    assert!(text(&unread).contains("read_required"), "{}", text(&unread));
+    let templates = reply(&call(&client, "project_template.list", json!({})).await);
+    assert!(
+        templates["output"]["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == id.as_str())
+    );
+    let replaced = reply(&call(&client, "project_template.save", json!({"replace": id})).await);
+    assert_eq!(replaced["output"]["output"]["revision"], 2);
+    assert_eq!(replaced["output"]["output"]["name"], "外部存的模板");
+
+    let writes = f.ws.library().write_seq().unwrap();
+    for name in [
+        "project_template.edit",
+        "project_template.working_copies",
+        "project_template.update",
+        "project_template.remove",
+        "project_template.import",
+        "project_template.export",
+    ] {
+        let refused = call(&client, name, json!({"id": id})).await;
+        assert_eq!(refused.is_error, Some(true), "{name}");
+        assert!(
+            text(&refused).contains("not in Drifting's author-tool catalog"),
+            "{name}: {}",
+            text(&refused)
+        );
+    }
+    assert_eq!(f.ws.library().write_seq().unwrap(), writes);
+    timeout(WAIT, client.close()).await.unwrap().unwrap();
+    drop(client);
+    f.finish().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn switching_a_b_a_requires_new_reads_and_new_sessions_on_the_same_wire() {
     let f = Fixture::new(false, library_options("m32-inbound-book-epoch")).await;

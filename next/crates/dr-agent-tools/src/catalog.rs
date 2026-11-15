@@ -17,6 +17,17 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
+/// The project template commands the Agent and MCP reach (`project-templates.md`
+/// §10, §13). The rest of the family (importing, exporting, editing in a
+/// working copy, renaming, removing, the community) is the author's own.
+pub const OPEN_PROJECT_TEMPLATE_TOOLS: [&str; 3] = [
+    "project_template.list",
+    "project_template.get",
+    "project_template.save",
+];
+
+const CLOSED_PROJECT_TEMPLATE: &str = "a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's";
+
 /// Change this when facade handler semantics change without a schema change.
 /// Versioned facade revision for universal kernel v5 books and template verbs.
 pub const FACADE_REVISION_V3: &str = "k6-author-facade-v5-r1";
@@ -307,6 +318,15 @@ impl Catalog {
                     .remove("id");
                 input_schema["not"] = json!({"required":["id"]});
             }
+            if spec.name == "project_template.save" {
+                // A template is credited to the account that exports it
+                // (v5-tracks 第 48 条); the Agent gives no credit.
+                input_schema["properties"]
+                    .as_object_mut()
+                    .expect("registered command properties")
+                    .remove("credit");
+                input_schema["not"] = json!({"required":["credit"]});
+            }
             let output_schema = outcome_schema(spec.name, output_schema_for(spec, version));
             let description = if spec.name.ends_with("_template.set_body") {
                 format!(
@@ -328,6 +348,11 @@ impl Catalog {
             } else if version == BookKernelVersion::V3 && spec.name == "comment.create" {
                 format!(
                     "{} Targets an entry, any module of an entry, a module sub-part (field, kv_row, plot_cell, patch, media, embed), a prose block or passage, an asset-library file (with optional region), or floating. Read the target or module first; read exact source prose before anchoring (a block needs that paragraph; ranges, anchor bytes, and embeds need the full document).",
+                    spec.summary
+                )
+            } else if spec.name == "project_template.save" {
+                format!(
+                    "{} It saves the current project. A new template needs `name`; with `replace` (a template read in this turn with project_template.list or project_template.get) it keeps that template's name and description unless they are given. `agent` is the words for the Agent the template carries: left out, the project's; null, none; given, these, in the template only (the project keeps its own). A template's working copy saves only over the template it edits, which has to be read first too.",
                     spec.summary
                 )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.update" {
@@ -1129,6 +1154,14 @@ fn decode_verb_segment(encoded: &str) -> Option<String> {
 }
 
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
+    // Saved project templates belong to the library, not the book: list and
+    // get take no book and save is a library write, so the common rules
+    // below would close them. They are open by name; the rest of the family
+    // stays closed by name, whatever boundary a later command has.
+    if spec.name.starts_with("project_template.") {
+        return (!OPEN_PROJECT_TEMPLATE_TOOLS.contains(&spec.name))
+            .then_some(CLOSED_PROJECT_TEMPLATE);
+    }
     // Public F3 additions must not bypass the facade's read coverage and
     // restore protocol merely by acquiring a book-scoped input schema.
     if spec.name.starts_with("entry_snapshot.") {
@@ -1312,6 +1345,60 @@ mod tests {
             Some("storage, editor, or derived-state maintenance")
         );
         assert!(!allowed_v3(spec));
+    }
+
+    /// PT4 (`project-templates.md` §10, §13): of the project templates only
+    /// `list`, `get` and `save` reach the Agent and MCP. Importing, exporting,
+    /// editing and the community stay the author's even when a later command
+    /// of the family takes the current book; these synthetic specs give them
+    /// that boundary, so the rule is held by name, not by a missing `book`.
+    #[test]
+    fn project_template_commands_beyond_list_get_and_save_stay_closed() {
+        let mut synthetic = Registry::default();
+        macro_rules! family {
+            ($ty:ident, $name:literal, $access:ident, $concurrency:ident) => {
+                struct $ty;
+                impl Op for $ty {
+                    const NAME: &'static str = $name;
+                    const ACCESS: Access = Access::$access;
+                    const CONCURRENCY: Concurrency = Concurrency::$concurrency;
+                    const SUMMARY: &'static str = "Synthetic project template command";
+                    type Input = dr_workspace::commands::BookIn;
+                    type Output = Value;
+                    fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {
+                        unreachable!("synthetic project template commands are never dispatched")
+                    }
+                }
+                synthetic.add::<$ty>();
+            };
+        }
+        family!(Import, "project_template.import", Write, Book);
+        family!(Export, "project_template.export", Read, Shared);
+        family!(Edit, "project_template.edit", Write, Book);
+        family!(Copies, "project_template.working_copies", Read, Shared);
+        family!(Community, "project_template.community_get", Read, Shared);
+        family!(Update, "project_template.update", Write, Book);
+        family!(Remove, "project_template.remove", Write, Book);
+        for spec in synthetic.iter() {
+            assert_eq!(
+                common_exclusion(spec, BookKernelVersion::V3),
+                None,
+                "{} has a current-book boundary",
+                spec.name
+            );
+            assert!(exclusion_v3(spec).is_some(), "{} must stay out", spec.name);
+            assert!(!allowed_v3(spec), "{} must refuse direct calls", spec.name);
+        }
+        // The three that are open stay open by name, though list and get take
+        // no book and save is a library write.
+        for name in OPEN_PROJECT_TEMPLATE_TOOLS {
+            let spec = registry().get(name).expect("registered");
+            assert!(
+                common_exclusion(spec, BookKernelVersion::V3).is_some(),
+                "{name}"
+            );
+            assert!(allowed_v3(spec), "{name}");
+        }
     }
 
     #[test]
