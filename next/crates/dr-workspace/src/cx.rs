@@ -455,6 +455,26 @@ impl<'a> Cx<'a> {
         })
     }
 
+    /// A guarded caller's preconditions about the records `replaces` names,
+    /// compared in a read of the book document before the command writes
+    /// anything. For a command that writes prose first and the book after
+    /// it: a book commit refused for a stale read must not leave the prose
+    /// written (`comment.update` ticking a checklist item). The book commit
+    /// compares them again in its own write job.
+    pub(crate) fn check_book_guards(&self, slot: &BookSlot, replaces: &Replaces) -> Result<()> {
+        let Some(guards) = self.guards.clone() else {
+            return Ok(());
+        };
+        let (id, book, replaces) = (
+            format!("book:{}", slot.book),
+            slot.book.clone(),
+            replaces.clone(),
+        );
+        slot.handle
+            .read(move |doc| guards.check_book(&id, doc, &book, &replaces))??;
+        Ok(())
+    }
+
     /// Step 3 on a v3 book document (`BookTxnV3`), one commit. `replaces`
     /// is what a guarded caller must have read (f3-write-guards.md); the
     /// comparison runs in this write job, before `f`.

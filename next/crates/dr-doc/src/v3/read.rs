@@ -2068,8 +2068,22 @@ impl<'a> BookViewV3<'a> {
 
     // ---- assets, facts, memory, writing days ----------------------------
 
+    /// Every file of the asset library, Recently Deleted included. A folder
+    /// id that names no folder (the folder was purged on one device while
+    /// another moved the file into it) reads as the top of the library, so
+    /// the file is never out of sight.
     pub fn assets_raw(&self) -> Vec<Asset> {
-        crate::catalog::read::CatalogView { doc: self.doc }.assets_raw()
+        let folders = self.asset_folder_ids();
+        crate::catalog::read::CatalogView { doc: self.doc }
+            .assets_raw()
+            .into_iter()
+            .map(|mut a| {
+                if a.folder.as_ref().is_some_and(|f| !folders.contains(f)) {
+                    a.folder = None;
+                }
+                a
+            })
+            .collect()
     }
 
     /// The live files of the asset library: not in Recently Deleted
@@ -2083,9 +2097,18 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
+    /// One file as recorded (Recently Deleted included); a folder id that
+    /// names no folder reads as the top, as in [`Self::assets_raw`].
     pub fn asset_raw(&self, id: &AssetId) -> Option<Asset> {
         let v = entity(self.doc, book_v3::ASSETS, id.as_str())?;
-        crate::catalog::read::decode_asset(id.as_str(), &v)
+        let mut a = crate::catalog::read::decode_asset(id.as_str(), &v)?;
+        if a.folder
+            .as_ref()
+            .is_some_and(|f| entity(self.doc, book_v3::ASSET_FOLDERS, f.as_str()).is_none())
+        {
+            a.folder = None;
+        }
+        Some(a)
     }
 
     pub fn asset(&self, id: &AssetId) -> Option<Asset> {
@@ -2097,12 +2120,11 @@ impl<'a> BookViewV3<'a> {
     }
 
     /// Every folder of the asset library, Recently Deleted included, in
-    /// manual order within each parent.
+    /// manual order within each parent. A parent id that names no folder
+    /// (purged on one device while another moved this folder into it) reads
+    /// as the top of the library.
     pub fn asset_folders_raw(&self) -> Vec<AssetFolder> {
-        let mut out: Vec<AssetFolder> = entities(self.doc, book_v3::ASSET_FOLDERS)
-            .iter()
-            .filter_map(|(id, v)| decode_asset_folder(id, v))
-            .collect();
+        let mut out: Vec<AssetFolder> = self.asset_folder_map().into_values().collect();
         sort_asset_folders(&mut out);
         out
     }
@@ -2110,23 +2132,49 @@ impl<'a> BookViewV3<'a> {
     /// The live folders: neither trashed nor under a trashed one.
     pub fn asset_folders(&self) -> Vec<AssetFolder> {
         let map = self.asset_folder_map();
-        self.asset_folders_raw()
-            .into_iter()
+        let mut out: Vec<AssetFolder> = map
+            .values()
             .filter(|f| !folder_chain_trashed(&map, Some(&f.id)))
-            .collect()
+            .cloned()
+            .collect();
+        sort_asset_folders(&mut out);
+        out
     }
 
     pub fn asset_folder_raw(&self, id: &AssetFolderId) -> Option<AssetFolder> {
         let v = entity(self.doc, book_v3::ASSET_FOLDERS, id.as_str())?;
-        decode_asset_folder(id.as_str(), &v)
+        let mut f = decode_asset_folder(id.as_str(), &v)?;
+        if f.parent
+            .as_ref()
+            .is_some_and(|p| entity(self.doc, book_v3::ASSET_FOLDERS, p.as_str()).is_none())
+        {
+            f.parent = None;
+        }
+        Some(f)
     }
 
-    fn asset_folder_map(&self) -> BTreeMap<AssetFolderId, AssetFolder> {
+    fn asset_folder_ids(&self) -> BTreeSet<AssetFolderId> {
         entities(self.doc, book_v3::ASSET_FOLDERS)
             .iter()
             .filter_map(|(id, v)| decode_asset_folder(id, v))
-            .map(|f| (f.id.clone(), f))
+            .map(|f| f.id)
             .collect()
+    }
+
+    fn asset_folder_map(&self) -> BTreeMap<AssetFolderId, AssetFolder> {
+        let mut map: BTreeMap<AssetFolderId, AssetFolder> =
+            entities(self.doc, book_v3::ASSET_FOLDERS)
+                .iter()
+                .filter_map(|(id, v)| decode_asset_folder(id, v))
+                .map(|f| (f.id.clone(), f))
+                .collect();
+        let ids: BTreeSet<AssetFolderId> = map.keys().cloned().collect();
+        for f in map.values_mut() {
+            if f.parent.as_ref().is_some_and(|p| !ids.contains(p)) {
+                f.parent = None;
+            }
+        }
+        map
     }
 
     pub fn facts(&self) -> Vec<KvEntry> {

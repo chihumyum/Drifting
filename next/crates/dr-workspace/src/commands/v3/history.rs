@@ -154,9 +154,10 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                                 r.book_id == s.book.as_str() && r.sha256 == was.sha256
                             });
                         if !kept {
-                            return Err(WsError::invalid(format!(
-                                "asset {id} was purged; its bytes are gone"
-                            )));
+                            // Not there any more (not a refusal to try
+                            // again): an undo step that would do this is
+                            // retired (`Workspace::run_step`).
+                            return Err(WsError::not_found("asset bytes", id.to_string()));
                         }
                     }
                 }

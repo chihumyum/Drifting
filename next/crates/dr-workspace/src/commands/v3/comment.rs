@@ -180,7 +180,9 @@ pub struct CommentProjectIn {
     /// Paragraphs starting with TODO / 待办 markers.
     #[serde(default)]
     pub markers: Vec<TodoMarkerIn>,
-    /// Task list items (`- [ ]` / `- [x]`) when task projection is active on this prose document.
+    /// Present (even empty): project the document's checklist items too.
+    /// Their text and ticks are read from the document itself, not from
+    /// this list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tasks: Option<Vec<CommentTaskIn>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -276,7 +278,9 @@ pub struct CommentCreateIn {
     /// Specific sub-item inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<CommentPartDto>,
-    /// `manual`, `marker`, `task`, `agent` or `reader`; defaults from the caller.
+    /// `manual`, `agent` or `reader`; defaults from the caller. `marker`
+    /// and `task` are refused: those comments are only made by
+    /// `comment.project`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
     /// What it is on; omitted: a floating comment.
@@ -572,6 +576,10 @@ op! {
         // prose change before the comment follows (`kernel-v5.md` §7).
         let task_meta = match (&status, &old.projection) {
             (Some(s), Some(p)) if p.kind == ProjectionKind::NoteTask && *s != old.status => {
+                // The tick is written before the comment: a guarded caller
+                // whose read of the comment is stale is refused here, not
+                // after the item is ticked.
+                cx.check_book_guards(&slot, &Replaces::record(CollectionV3::Comments, &old.id))?;
                 Some(tick_task(cx, &old, &p.block, *s == CommentStatus::Resolved)?)
             }
             _ => None,
@@ -689,7 +697,7 @@ op! {
 
 op! {
     CommentProject = "comment.project", Write, Book,
-    "Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or task gets a comment, an open one whose source line is gone is deleted, resolved ones stay; deterministic ids merge across devices.",
+    "Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or checklist item gets a comment; a marker's open comment whose line is gone is deleted and its resolved one stays; a checklist item's comment follows the line's text and tick (ticked = resolved) and is deleted with the line, resolved or not; deterministic ids merge across devices.",
     fn(cx, input: CommentProjectIn) -> CommentProjected {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
         let (owner, module) = match &doc {

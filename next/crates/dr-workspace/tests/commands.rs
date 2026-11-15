@@ -1184,8 +1184,14 @@ fn stored_asset(e: &Env, book: &str, asset: &str, name: &str, bytes: &[u8]) -> V
 #[test]
 fn a_purged_file_does_not_come_back_through_undo_or_entry_history() {
     use dr_store::asset::Variant;
-    let e = env();
+    let mut e = env();
     let b = e.book();
+    // A step that has nothing to do with the file, made before its steps.
+    let ch = chapter(&e, &b, "一");
+    e.call(
+        "entry.update",
+        json!({"book": b, "id": ch, "title": "改过的"}),
+    );
     stored_asset(
         &e,
         &b,
@@ -1200,9 +1206,18 @@ fn a_purged_file_does_not_come_back_through_undo_or_entry_history() {
     let before = e.out("entry_history.version", json!({"book": b}))["version"].clone();
     e.call("asset.trash", json!({"book": b, "id": "asset-gone"}));
     e.call("asset.purge", json!({"book": b, "id": "asset-gone"}));
-    assert!(
-        e.ws().undo_in(&Actor::User, &b, None).unwrap().is_none(),
-        "neither the trash nor the rename can be undone into an empty file"
+    // The retired steps stay retired across a restart, and only they are:
+    // Undo passes over the trash and the rename to the step before them.
+    e.reopen();
+    let undone = e.ws().undo_in(&Actor::User, &b, None).unwrap();
+    assert_eq!(
+        undone.map(|u| u.entry.command),
+        Some("entry.update".to_owned()),
+        "neither the trash nor the rename is undone into an empty file"
+    );
+    assert_eq!(
+        e.out("entry.get", json!({"book": b, "id": ch}))["title"],
+        "一"
     );
     assert!(matches!(
         e.try_call("asset.get", json!({"book": b, "id": "asset-gone"})),
@@ -1216,7 +1231,10 @@ fn a_purged_file_does_not_come_back_through_undo_or_entry_history() {
         "entry_history.restore",
         json!({"book": b, "at": before, "targets": [{"collection": "assets", "id": "asset-gone"}]}),
     );
-    assert!(matches!(revived, Err(WsError::Invalid(_))), "{revived:?}");
+    assert!(
+        matches!(revived, Err(WsError::NotFound { .. })),
+        "{revived:?}"
+    );
     assert!(
         e.ws()
             .library()
@@ -1752,6 +1770,39 @@ fn purging_a_folder_deletes_the_bytes_of_its_files() {
     );
 }
 
+/// A folder trashed with its files is one undo step. Purging one of those
+/// files from Recently Deleted takes only that file out of the step: Undo
+/// still brings the folder and the other file back, and never the purged
+/// one.
+#[test]
+fn purging_one_file_of_a_trashed_folder_leaves_the_rest_of_the_step_undoable() {
+    let e = env();
+    let b = e.book();
+    let folder = new_folder(&e, &b, "一组", None);
+    put_bytes(&e, &b, "asset-stay", "留.png", b"\x89PNG\r\n\x1a\nstays");
+    put_bytes(&e, &b, "asset-go", "走.png", b"\x89PNG\r\n\x1a\ngoes");
+    for id in ["asset-stay", "asset-go"] {
+        e.call("asset.move", json!({"book": b, "id": id, "folder": folder}));
+    }
+    e.call("asset_folder.trash", json!({"book": b, "id": folder}));
+    e.call("asset.purge", json!({"book": b, "id": "asset-go"}));
+    let undone = e.ws().undo_in(&Actor::User, &b, None).unwrap();
+    assert_eq!(
+        undone.map(|u| u.entry.command),
+        Some("asset_folder.trash".to_owned())
+    );
+    assert_eq!(folders_in(&e, &b, None), ["一组"]);
+    assert_eq!(files_in(&e, &b, Some(&folder)), ["asset-stay"]);
+    assert_eq!(
+        e.out("asset.list", json!({"book": b, "trashed": true}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "the purged file is not back"
+    );
+}
+
 /// Step 8: prose can link to a file. The link is one of the file's usages
 /// and in the book's index; while the file is in Recently Deleted the link
 /// reads as plain text (`missing_links`, `FILE-REFS-LIVE`), and on restore
@@ -1852,6 +1903,79 @@ fn the_same_bytes_put_again_give_back_the_file_already_there() {
     let listed = e.out("asset.list", json!({"book": b, "trashed": true}));
     assert_eq!(listed.as_array().unwrap().len(), 1);
     assert!(listed[0]["deleted_at"].is_null(), "restored");
+}
+
+/// The same bytes put again when their file went to Recently Deleted with
+/// its folder: the file comes back to the top of the library (its folder
+/// cannot hold it), live; the folder stays where it is, and one undo puts
+/// the file back with it.
+#[test]
+fn the_same_bytes_bring_a_file_back_out_of_a_trashed_folder() {
+    let e = env();
+    let b = e.book();
+    let folder = new_folder(&e, &b, "废稿", None);
+    let bytes = b"\x89PNG\r\n\x1a\nwent-with-its-folder";
+    put_bytes(&e, &b, "asset-kept", "a.png", bytes);
+    e.call(
+        "asset.move",
+        json!({"book": b, "id": "asset-kept", "folder": folder}),
+    );
+    e.call("asset_folder.trash", json!({"book": b, "id": folder}));
+    assert_eq!(e.out("asset.list", json!({"book": b})), json!([]));
+    let (again, _) = put_bytes(&e, &b, "asset-again", "b.png", bytes);
+    assert_eq!(again["id"], "asset-kept");
+    assert_eq!(files_in(&e, &b, None), ["asset-kept"]);
+    let all = e.out("asset.list", json!({"book": b, "trashed": true}));
+    assert_eq!(all.as_array().unwrap().len(), 1, "no second file");
+    assert!(all[0]["deleted_at"].is_null());
+    assert_eq!(
+        e.out("asset_folder.list", json!({"book": b})),
+        json!([]),
+        "the folder stays in Recently Deleted"
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(e.out("asset.list", json!({"book": b})), json!([]));
+    e.call("asset_folder.restore", json!({"book": b, "id": folder}));
+    assert_eq!(files_in(&e, &b, Some(&folder)), ["asset-kept"]);
+}
+
+/// A file whose record is here while its bytes are not (the record synced
+/// before them): the same bytes put on this device are not folded into it,
+/// which would delete the only copy this device holds. They are a file of
+/// their own.
+#[test]
+fn the_same_bytes_are_not_folded_into_a_file_whose_bytes_are_not_here() {
+    use dr_store::asset::Variant;
+    let e = env();
+    let b = e.book();
+    let bytes = b"\x89PNG\r\n\x1a\nrecord-before-bytes";
+    put_bytes(&e, &b, "asset-remote", "a.png", bytes);
+    // As when the record came through sync and its bytes have not.
+    assert!(
+        e.ws()
+            .library()
+            .remove_book_asset(&b, "asset-remote")
+            .unwrap()
+    );
+    let (out, _) = put_bytes(&e, &b, "asset-local", "b.png", bytes);
+    assert_eq!(out["id"], "asset-local");
+    assert!(
+        e.ws()
+            .library()
+            .asset("asset-local", Variant::Source)
+            .unwrap()
+            .is_some(),
+        "the bytes this device holds are kept"
+    );
+    let mut listed: Vec<String> = e
+        .out("asset.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap().to_owned())
+        .collect();
+    listed.sort();
+    assert_eq!(listed, ["asset-local", "asset-remote"]);
 }
 
 /// Step 8: an entry's own arrangement of a media module overrides the

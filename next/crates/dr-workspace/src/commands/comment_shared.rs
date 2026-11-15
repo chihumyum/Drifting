@@ -62,10 +62,12 @@ pub struct TodoMarkerIn {
 pub struct CommentTaskIn {
     /// The task list paragraph's block id.
     pub block: String,
-    /// The task text.
+    /// The item's text as the caller sees it. Not used: `comment.project`
+    /// reads the text from the document.
     #[serde(default)]
     pub task: String,
-    /// Whether the task item's checkbox is checked (`true` -> `resolved`, `false` -> `open`).
+    /// The item's tick as the caller sees it. Not used: `comment.project`
+    /// reads the tick from the document (ticked = resolved).
     #[serde(default)]
     pub checked: bool,
 }
@@ -73,7 +75,8 @@ pub struct CommentTaskIn {
 pub struct CommentProjected {
     /// Comments made for new markers or task items.
     pub created: Vec<String>,
-    /// Open projected comments whose marker or task item is gone, deleted.
+    /// Projected comments deleted because their line is gone: a marker's
+    /// open comment, a checklist item's comment whether resolved or not.
     pub removed: Vec<String>,
     /// Open projected comments whose marker or task item is missing here, kept
     /// because this device has not yet received the prose they were made from

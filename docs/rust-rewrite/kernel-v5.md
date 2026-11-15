@@ -420,9 +420,10 @@
 15. **铺满的界面细节**：按钮的样子、铺开和收回的动画、卡片大小、底栏铺满时抽屉默认放哪个文件夹等。作者：「UI细节先不定吧。」
 16. **挂成书序列的 Tab 铺满怎么摆。** 没谈过。挂视图的 Tab 铺满和底栏视图铺满是同一个画面，这是讨论会话的推论，也没问过作者（第 17 节「左栏 Tab 铺满」）。
 17. **条目页的「关系」模块怎么显示一个文件、在哪里建一条指向文件的关系。** 数据上关系的端点可以是文件（第 6、10 节），文件原型里只画了显示（缩略图、名字、关系类型），作者没谈。
-19. **0.1 素材上的说明和出处，导入后放哪。** 0.1 里每个素材有一段说明，文本素材还有出处。格式 5 里文件没有自己的说明（第 6 节），笔记模板也只有一篇正文，所以导入后这些文字在书里没有去处。数据层预审时发现它们只留在导入回执里。现在先逐条列进导入报告，不悄悄消失；最终放哪（比如变成文件上的一条批注、并进笔记正文的开头、只留在报告里）没问过作者。
+19. **0.1 素材上的说明和出处，导入后放哪。** 0.1 里每个素材有一段说明；「出处」实际只写在生成的图片和换下来的立绘上（记着模型和提示词），文本素材上没有（2026-11-15 审导入时对着 0.1 的源码核对过，这一条原来写反了）。格式 5 里文件没有自己的说明（第 6 节），笔记模板也只有一篇正文，所以导入后这些文字在书里没有去处。数据层预审时发现它们只留在导入回执里。现在说明逐条列进导入报告，不悄悄消失；出处现在只对文本素材取了，等于一条都没列，改成不分种类都列是 T8 的事。最终放哪（比如变成文件上的一条批注、并进笔记正文的开头、只留在报告里）没问过作者。
 20. **在左栏新建的故事线不在视图里，挂在它上面的章没有故事线颜色。** 第 16 节把「是不是泳道」改成了「在不在视图里」，章的颜色取自它主归属的那条泳道。写书模板的默认视图一开始是空的，所以新项目里在左栏建一条故事线、把章挂上去，章没有颜色，要把故事线拖进视图才有。要不要在新建故事线时自动把它放进默认视图，没问过作者。
 21. **拖到一个既开着层级、又收别处条目的条目上，算搬进去住还是挂上去。** 现在照 v4 是挂上去。写书模板里只有「分类」两样都开着，再就是作者自己把两样都打开的条目；「分组」已经改成默认不收（见「替作者定的」），所以把章拖到分卷上是搬进去。把一个要素从一个分类拖到另一个分类上，现在是挂上去而不是搬家，这一点没问过作者。
+22. **清单项自动变成的批注，能不能直接改它的字、直接删掉它。** 这种批注是正文里那一行的影子：字跟着那一行，那一行删了它跟着删。现在命令层不拦直接改、直接删：改的字下一次同步会被那一行盖回去，删掉的会被重新建出来。界面上 T6 不给这两个入口；帮手和 MCP 那边要不要在命令层直接拒绝、提示去改正文那一行，没问过作者（监管会话倾向拒绝）。
 
 ## 16. 层级与挂名拆开
 
@@ -683,6 +684,22 @@
 - **画布坐标不在写坐标时顺手回收。** 修补那一路做成了「每次写坐标时删掉书里找不到的条目的坐标」。坐标和书分开同步，坐标可能先到，那样会误删别的设备刚建的条目的坐标。改成只在清除条目的那一步回收；现在没有清除单个条目的命令，所以现在不回收。
 - **模板把「收别处的条目」从关改成开时，回来的成员补上刻度位置。** 修补那一路只做了条目自己改的情形。读的一侧本来就容忍没位置的成员（排在最后），这里是补齐。
 
+2026-11-15 监管会话审文件、批注、导入的修补和数据层第八步（DY）时定的。前五条是数据层那一路自己定、监管会话认可的，后面是监管会话审的时候加的：
+
+- **跟着素材夹进最近删除的文件，记着是哪个素材夹带走的**（`trashed_with`）。恢复素材夹时只带回这一批；在那之前自己单独删掉的留在最近删除里。原来想用同一个删除时间去认，时间只精确到秒，会把先删的也带回来。
+- **恢复一个素材夹或文件时，它原来的上一级还在最近删除里，就落到素材库最外层。**
+- **条目给自己的媒体模块换摆法，单独一条命令**（`module.set_arrangement`），不走 `entry.update`。键名是 `arrangement:<模块>`。
+- **图注存成纯文字。**
+- **旧调用方还传优先级时静默忽略**，不报错（输入里不认识的字段一律忽略的老规矩）；场景文件里的由门禁拦。
+- **同样的字节只算一个文件，有一个例外。** 素材库里已经有这份字节的记录、但它的字节还没同步到这台设备时，作者在这台设备上放进同样的文件，照新文件记，不并进那条记录。并进去就得删掉刚放的这份，而它是这台设备上唯一的一份。代价是那边的字节到了以后有两个一样的文件，作者删一个就行。
+- **同样的字节再放进来、而已有的那个文件是跟着素材夹进最近删除的**：文件回到最外层（调用方指定了素材夹就去那里），素材夹留在最近删除里。
+- **指着一个不存在的素材夹的文件和素材夹，读作在最外层。** 一台设备清除了素材夹，另一台同时往里挪了东西，合并后会这样；不这样读，它们是活的却哪也不显示。
+- **撤销的那一步要改的东西已经不在了，这一步作废，接着撤更早的一步。** 两种情形会碰到：在审阅栏解决了一条清单来的批注、随后在正文里删掉了那一行（批注跟着没了）；在这台设备上改过名的文件被另一台设备清除了。原来每按一次撤销都报「保存失败」，更早的步骤全被挡住。只对「找不到」这一种错这样做；被守卫拒绝之类的错照旧留着，可以再试。重做同理。
+- **帮手解决清单来的批注：先查它对这条批注的读取是不是过期，再去正文打勾。** 原来是先打勾再查，被拒的解决会留下一个勾，下一次同步又把批注变成已解决。
+- **`module.set_arrangement` 先不对帮手开放**，和往媒体模块放文件、拿走文件一样，等 T7 做完读取保护。它不用先读就能写。
+- **导入 0.1 时，每个清单项都投成批注**，不只是原来有待办的那些行（T8 做）。不这样的话，没有待办的清单行要等作者打开那篇才有批注。
+- **导入 0.1 时，字节相同被并掉的那个素材原来所在的素材夹照样重建**，哪怕是空的（T8 做）。
+
 ## 和输入不一样的地方
 
 - **归属自己的顺序没有整个删掉。** 作者说让视图里的轨道顺序作为泳道唯一的顺序。泳道照做了；但一个收别处条目、不在任何视图里的文件夹（要素的分类）仍然要给挂名进来的条目排先后，所以归属上的 `pos` 留着给它用。
@@ -790,7 +807,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 | 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
 | --- | --- | --- | --- |
-| `dr-shell/src/book/v3.rs` | `BookV3` 快照加了 `project`、`layouts`（从 `layout:<书>` 解析）、`accepts_members(id)`、`has_below(id)`、`is_lane(id)`（查是否在任一活视图的 `lanes` 中）、`is_book_root_entry(id)`；`appearance(id)` 优先读 `entry.mark` 再退回模板 `mark`；`levels` 覆盖所有 `has_below` 的活条目；`materials` 临时从条目媒体模块投影以兼容未迁完的旧调用方 | 左栏从 `project.tabs` 驱动（根、层级、视图、成书序列四种挂载及增删改名调序与失效空态）；左栏树支持展开只开 `accept` 的条目看挂名成员；清理过渡期的 `materials` 投影 | `project.get`、`tab.*`、`BookV3::{project, has_below, accepts_members}` |
+| `dr-shell/src/book/v3.rs` | `BookV3` 快照加了 `project`、`layouts`（从 `layout:<书>` 解析）、`accepts_members(id)`、`has_below(id)`、`is_lane(id)`（查是否在任一活视图的 `lanes` 中）、`is_book_root_entry(id)`；`appearance(id)` 优先读 `entry.mark` 再退回模板 `mark`；`levels` 覆盖所有 `has_below` 的活条目；`materials` 临时从条目媒体模块投影以兼容未迁完的旧调用方（第八步的修补以后，没放进任何媒体模块的素材库文件也列成一个独立的素材，它没有 `entry` 和 `module`，素材页对它的批注直接挂在文件上、改名走 `asset.rename`） | 左栏从 `project.tabs` 驱动（根、层级、视图、成书序列四种挂载及增删改名调序与失效空态）；左栏树支持展开只开 `accept` 的条目看挂名成员；清理过渡期的 `materials` 投影 | `project.get`、`tab.*`、`BookV3::{project, has_below, accepts_members}` |
 | `dr-shell/src/workspace/mod.rs`、`sidebar.rs`、`links.rs`、`recent.rs`、`nav/mod.rs` | 订阅 `WsEvent::Layout` 刷新画布坐标；退役 `material:` 文档地址与路由；侧栏／最近访问适配 `has_below` 与去 `lane`（单字 `mark` 目前仍走砂笔图标回退占位） | 同一个条目（带不带模块）只开一个标签页；故事线／泳道页里的说明正文按 `(entry, module)` 收编进外壳（查找、字数、批注）；页头收成一处「可点选砂笔／单字记号 + 可编辑标题」（区分砂笔名与单字直接画文字） | `entry.update { title, mark }`、`is_valid_mark` |
 | `dr-shell/src/v3/level_switch.rs` | 适配 `entry.set_level` 返回 `trashed` 以及去 `lane` 后的状态读取 | 关层级确认框统一收成一种（「下面的 N 个条目会放进最近删除。」，N 数下面全部活条目），删掉 v4 为挂名／泳道拆分的旧分支和文案键 | `entry.set_level` |
 | `dr-view-page/src/v3.rs` | 编译适配：识别 `ModuleKind::Media` 与 `ModuleKind::Members` 分支占位、去 `lane` 设置字段 | 页头合并可编辑标题与记号选择器；「层级」和「收别处的条目」两个开关并排（「新条目住在」跟后者，层级关着时隐藏「自动链接」）；条目页分块渲染「下面的条目」（调 `parent`）和「挂在这里的条目」（调 `host`，既住又挂只列一次） | `entry.set_level`、`entry.update`、`entry.create { parent / host }`、`ModuleKind::Members` |
@@ -832,7 +849,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 | `dr-view-page`（新文件） | `v3.rs` 仅留 `ModuleKind::Media` 空分支 | 条目页实现媒体模块组件：拖入／选择文件（同时进素材库）、移除、拖拽调序、编辑说明文字、复用图片／PDF 查看器 | `module.{put_media, remove_media}`、`asset.put` |
 | `dr-view-shelf-review/src/drawer.rs`、`model.rs`、`shelf.rs`、`view.rs` | 去掉 `material.*` 调用，保留最小可编译数据源 | 全书「审阅与素材」舞台的素材一侧对接内置素材库 `asset.list` 与引用跳转 | `asset.list` |
 | 第八步：素材夹（`dr-view-material`） | 没有界面改动；`dr-shell` 的素材投影照旧不读 `folder` | 素材库列表与瀑布流按 `asset_folder.list` 和每个文件的 `folder`／`pos` 分夹、手动排；素材夹的建、改名、在里面新建、移到素材夹、放进最近删除（连带里面的，一步撤销）、最近删除里恢复和清除；文件「移到素材夹」与拖动调先后 | `asset_folder.*`、`asset.move`、`asset.list` 的 `folder`／`pos` |
-| 第八步：正文链到文件、嵌入的样子（`dr-editor`） | `decor/mod.rs` 只去掉 `CommentUpdateIn.priority` 一行 | 正文链接目标多一种「素材库里的文件」（`EntityLinkV3 { kind: asset }`，点了在稿纸上打开查看器）；文件在最近删除里时链接画成普通文字（`prose.shape` 的 `missing_links`）；嵌的图三档大小、三种对齐、图注（`ProseSession::set_file_embed_look`），PDF 是一张卡片、没有这三项；斜杠菜单「图片或 PDF…」的小窗按素材夹筛 | `ProseTxn::link_entity_v3`、`FileEmbedLook`、`EmbedView::Asset { look }`、`prose.shape` |
+| 第八步：正文链到文件、嵌入的样子（`dr-editor`） | `decor/mod.rs` 去掉 `CommentUpdateIn.priority`；另外编辑器开始把清单项发给 `comment.project`（`todo.rs` 的 `task_items`，`book.rs`、`view.rs` 记着每章的清单项，清单变了、光标离开清单行、失焦、切换文档时发；打开时不发，归 T6） | 正文链接目标多一种「素材库里的文件」（`EntityLinkV3 { kind: asset }`，点了在稿纸上打开查看器）；文件在最近删除里时链接画成普通文字（`prose.shape` 的 `missing_links`）；嵌的图三档大小、三种对齐、图注（`ProseSession::set_file_embed_look`），PDF 是一张卡片、没有这三项；斜杠菜单「图片或 PDF…」的小窗按素材夹筛 | `ProseTxn::link_entity_v3`、`FileEmbedLook`、`EmbedView::Asset { look }`、`prose.shape` |
 | 第八步：媒体模块的摆法（`dr-view-page`） | 没有界面改动 | 媒体模块按 `module.read` 的 `arrangement` 摆（一大张加一排小图、格子、列表），条目自己换摆法写 `module.set_arrangement`，可回到模板的；放进同一个文件第二次时给出拒绝 | `module.set_arrangement`、`module.read` 的 `arrangement`／`own_arrangement` |
 
 ### T6 审阅（`t6-review`）
@@ -859,7 +876,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 | 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
 | --- | --- | --- | --- |
 | `dr-import-v1`、`dr-samples` | **数据映射已在 D 做完并带回归测试**：写书项目模板 v5、笔记迁入最外层「文本素材」（含原笔记文件夹子层级，关 `accept`）、图片与 PDF 进 `assets` 素材库（第八步起住进同名的素材夹，不再记路径）、图／PDF 上的区域批注直接挂 `asset`、关系端点改 `asset`、指向图／PDF 的正文链接（第八步起导成指向那个文件的链接；只有素材没有文件的才退化为纯文本，写入回执 `unlinked_asset_links` 与 `summary.md`）、故事线与未归属泳道建成 `level = false, accept = true` | 核对 `dr-view-import` 界面展示与导入报告文案（待办已并入批注、文本素材层级、素材库与退化链接明细），用合成 0.1 库跑真窗口导入 | `ImportReceipt::unlinked_asset_links` |
-| 第八步：`dr-import-v1`、`dr-samples`、`dr-testkit`（数据层这边已做） | 装图片和 PDF 的 0.1 素材夹（连同上面各层）重建成同 id、同名、同样套着的素材夹（`dr_samples::v3::file_folders`），文件住进它第一个有素材夹的素材所在的那一个；两样都有的素材夹两边各建一个；批注不带优先级（回执 `comment-priority-dropped`）；任务行不再写 `todoId`、留着自己的勾（回执 `task-todo-link-replaced-by-projection`），状态和勾不一致的清单待办以勾为准（回执 `task-status-follows-tick`）；showcase 种子的素材库有三个素材夹（「参考图」套「东岸」，「废稿」在最近删除里、带着那个删掉的文件） | `dr-view-import` 的报告里把这三条回执说成人话（文案在 `receipt.rs` 已有中文） | `file_folders`、`FileFolders`、`ImportReceipt::{unlinked_asset_links, books[].notes}` |
+| 第八步：`dr-import-v1`、`dr-samples`、`dr-testkit`（数据层这边已做） | 装图片和 PDF 的 0.1 素材夹（连同上面各层）重建成同 id、同名、同样套着的素材夹（`dr_samples::v3::file_folders`），文件住进它第一个有素材夹的素材所在的那一个；两样都有的素材夹两边各建一个；批注不带优先级（回执 `comment-priority-dropped`）；任务行不再写 `todoId`、留着自己的勾（回执 `task-todo-link-replaced-by-projection`），状态和勾不一致的清单待办以勾为准（回执 `task-status-follows-tick`）；showcase 种子的素材库有三个素材夹（「参考图」套「东岸」，「废稿」在最近删除里、带着那个删掉的文件） | `dr-view-import` 的报告里把这三条回执说成人话（`receipt.rs` 的 `explain` 里现在只有 `comment-priority-dropped` 有中文，另外两条要补） | `file_folders`、`FileFolders`、`ImportReceipt::{unlinked_asset_links, books[].notes}` |
 
 | `dr-export/src/book_file.rs`、`book_file/v3.rs` | 书文件重写器最小补上 `layout:<书>` 文档 id 改写与 `project`／`assets` 根保留，使现有往返测试通过 | 书文件格式号正式升到 5，只读格式 5（格式 4 及更早报「这是以前格式的书文件」且不落盘任何数据），完整核对 `project`、三篇小文档与素材库字节往返 | `BOOK_FORMAT_VERSION`、`DocId::Layout` |
 | `dr-export/src/import/write.rs`、`dr-view-transfer/src/documents.rs` | 适配 `has_below`（只开 `accept` 的故事线也能作为导入目标挂入章节）及无「素材」根层级的默认树 | 随书文件格式 5 一起跑真窗口导出／导入验收 | — |

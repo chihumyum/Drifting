@@ -64,7 +64,6 @@ module.remove_kv [write] Remove a key/value row from a module.
 module.remove_patch [write] Remove one patch record without deleting relations or other entries.
 module.remove_relation [write] Remove one relation projected in an entry's relations module.
 module.replace_prose [write] Replace an exact passage in an entry's prose module, addressed by block ID.
-module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
 module.set_prose [write] Write paragraphs of an entry's or a template's prose module.
 prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
@@ -101,7 +100,7 @@ book.get shared 7aa7dad72cc42adaea132950a7e50ab758a08978ac83e2b7da205924c46f55d1
 book.update book 9a90277657c4441ee61bc8c4cb8ccda16ae8bd0eea2307ce5466e07125dd16e6
 book.writing_days shared 7456fa20c292ff01ba5948cbf25cf60c4419d0c70a0beccb8ccacac14a6c9c6d
 comment.anchors shared 6037013e3822f940bf6e909320a500a43e849931fa263b3f288d524f512b3296
-comment.create book eefa8cf034cc741c6f91d81c8f4a3b65810b16f4925fbd62f8008f55057b9e12
+comment.create book 168f9a5cda769b7c1a8eb8e202d902f8e80e7c5489fabb0b1ce72759b0e7c119
 comment.list shared 25674570b1c65455880c21a29890f662eb1c3ccd4c80972f7cba826bf9a65512
 comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
 comment.update book 474ed66c58e3d60faee54a33b1528067bfb0f2393359fad348c32f3faf529cd7
@@ -148,7 +147,6 @@ module.remove_kv book c6d1352977661fa9e411c6e1268c716cf6297000184efb96d85e24220d
 module.remove_patch book ffeafb086b827f15ec82f7429eb791d304bb3cabb310981c29ad09ba7e02ae7f
 module.remove_relation book ad0a0133f4008380d509da3afa73769520249691be6c664bfe623f2997e414ac
 module.replace_prose book e581a5caa6580bda940fa72441653e04e5f39221b347e198d3b82f6727e348de
-module.set_arrangement book 1fc6b0801fa4429a585b965867933937d93af16435560dd68cd819ebee7a3220
 module.set_field book b54533bb4286e0188bf353fc7237116bf1cb4a53e89f414997cf37409f7f80df
 module.set_prose book 777d32d1c4f404cf9263135f6c19b8b28058adb74cdb925ae230aadb09e524da
 prose.link book 6c03a9a67d332f49af1ec3c40f90a71d79bec4589b1a471ca0690e6a1f1f5824
@@ -200,6 +198,7 @@ module.edit_patch: field edits belong to a view that showed the field; use the r
 module.prose_document: storage, editor, or derived-state maintenance
 module.put_media: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 module.remove_media: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+module.set_arrangement: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 project.create: library-wide lifecycle operation
 project.get: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 project.update: project, tab, media, layout, and book sequence commands need T7 facade read coverage

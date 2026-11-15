@@ -34,7 +34,8 @@ pub struct JournalEntry {
     pub book: Option<String>,
     pub effects: Vec<Effect>,
     /// `live`, `undone` (can be redone) or `dead` (undone, and a newer
-    /// command cleared the redo stack).
+    /// command cleared the redo stack; or what the step would change is
+    /// gone, so it can no longer be undone or redone).
     pub state: String,
     pub undoable: bool,
 }
@@ -57,6 +58,28 @@ fn from_json<T: serde::de::DeserializeOwned>(s: &str) -> Result<T> {
 
 fn changed(tx: &mut LocalTx<'_>, seq: i64, kind: LocalChangeKind) {
     tx.changed(LocalChange::new(TABLE, seq.to_string(), kind));
+}
+
+/// A journal row's undo (or redo) without the record `gone` among the
+/// `targets` its history restores name. `None` when the row can no longer
+/// run: a restore is left with no target, or the stored value does not read.
+/// `Some(None)` when the row has no undo (or redo).
+fn without_target(stored: Option<&str>, gone: &serde_json::Value) -> Option<Option<String>> {
+    let Some(stored) = stored else {
+        return Some(None);
+    };
+    let mut steps: Vec<Invocation> = serde_json::from_str(stored).ok()?;
+    for step in &mut steps {
+        let Some(targets) = step.input.get_mut("targets").and_then(|t| t.as_array_mut()) else {
+            continue;
+        };
+        let before = targets.len();
+        targets.retain(|t| t != gone);
+        if targets.len() < before && targets.is_empty() {
+            return None;
+        }
+    }
+    serde_json::to_string(&steps).ok().map(Some)
 }
 
 impl Journal {
@@ -247,30 +270,58 @@ impl Journal {
         })?)
     }
 
-    /// Retire every actor's live or undone rows in `book` whose undo or redo
-    /// restores the record `collection/id` from history: once that record is
-    /// purged (an asset's bytes deleted), bringing it back would show an empty
-    /// file, so Undo skips those steps instead of reviving it. Returns how
-    /// many rows turned `dead`.
-    pub(crate) fn forget_record(&self, book: &str, collection: &str, id: &str) -> Result<usize> {
-        let needle = to_json(&serde_json::json!({ "collection": collection, "id": id }))?;
+    /// Retire one row: what its undo or redo would change is gone, so the
+    /// step can never run (`Workspace::run_step`).
+    pub(crate) fn retire(&self, seq: i64) -> Result<()> {
         Ok(self.lib.local_write(|tx| {
-            let seqs: Vec<i64> = tx
+            tx.execute(
+                "UPDATE ws_journal SET state = 'dead', changed_ts = ?2 WHERE seq = ?1",
+                params![seq, now_ms()],
+            )?;
+            changed(tx, seq, LocalChangeKind::Update);
+            Ok(())
+        })?)
+    }
+
+    /// The record `collection/id` of `book` was purged (an asset's bytes
+    /// deleted): no step may bring it back as an empty file. In every
+    /// actor's live or undone rows whose undo or redo restores it from
+    /// history, it is taken out of what the step restores; a step left with
+    /// nothing to restore is retired (`dead`), so Undo passes over it. A
+    /// step that took several records at once (a folder trashed with its
+    /// files) still brings the others back. Returns how many rows changed.
+    pub(crate) fn forget_record(&self, book: &str, collection: &str, id: &str) -> Result<usize> {
+        let gone = serde_json::json!({ "collection": collection, "id": id });
+        let needle = to_json(&gone)?;
+        Ok(self.lib.local_write(|tx| {
+            let rows: Vec<(i64, Option<String>, Option<String>)> = tx
                 .prepare(
-                    "SELECT seq FROM ws_journal WHERE book = ?1 AND state IN ('live', 'undone')
+                    "SELECT seq, undo, redo FROM ws_journal
+                     WHERE book = ?1 AND state IN ('live', 'undone')
                      AND (instr(coalesce(undo, ''), ?2) > 0 OR instr(coalesce(redo, ''), ?2) > 0)",
                 )?
-                .query_map(params![book, needle], |r| r.get(0))?
+                .query_map(params![book, needle], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })?
                 .collect::<rusqlite::Result<_>>()?;
             let now = now_ms();
-            for seq in &seqs {
-                tx.execute(
-                    "UPDATE ws_journal SET state = 'dead', changed_ts = ?2 WHERE seq = ?1",
-                    params![seq, now],
-                )?;
+            for (seq, undo, redo) in &rows {
+                match (
+                    without_target(undo.as_deref(), &gone),
+                    without_target(redo.as_deref(), &gone),
+                ) {
+                    (Some(undo), Some(redo)) => tx.execute(
+                        "UPDATE ws_journal SET undo = ?2, redo = ?3, changed_ts = ?4 WHERE seq = ?1",
+                        params![seq, undo, redo, now],
+                    )?,
+                    _ => tx.execute(
+                        "UPDATE ws_journal SET state = 'dead', changed_ts = ?2 WHERE seq = ?1",
+                        params![seq, now],
+                    )?,
+                };
                 changed(tx, *seq, LocalChangeKind::Update);
             }
-            Ok(seqs.len())
+            Ok(rows.len())
         })?)
     }
 

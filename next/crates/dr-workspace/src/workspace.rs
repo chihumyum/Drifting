@@ -32,6 +32,10 @@ use crate::sync::{SyncController, SyncNowOutput, SyncStatusSnapshot};
 /// Every `<scope>/<mode>` position map stored in `layout:<book>`.
 pub type LayoutPositions = BTreeMap<String, BTreeMap<String, (f64, f64)>>;
 
+/// What running a journal step's inverses gives: their effects, and the
+/// inverses that take them back (`None`: not reversible).
+type StepDone = (Vec<crate::cx::Effect>, Option<Vec<Invocation>>);
+
 /// Options of a workspace.
 #[derive(Clone)]
 pub struct WorkspaceOptions {
@@ -937,33 +941,41 @@ impl Workspace {
     /// the inverse commands it declared). `None` when there is nothing.
     pub fn undo(&self, actor: &Actor) -> Result<Option<Outcome<Value>>> {
         let key = actor.journal_key();
-        let Some((seq, inverses)) = self.inner.journal.last_undoable(&key)? else {
-            return Ok(None);
-        };
-        let (effects, redo) = self.run_inverses(actor, &inverses)?;
-        self.inner.journal.mark_undone(seq, redo.as_deref())?;
-        Ok(Some(Outcome {
-            output: Value::Null,
-            effects,
-            undo: redo,
-            journal: Some(seq),
-        }))
+        loop {
+            let Some((seq, inverses)) = self.inner.journal.last_undoable(&key)? else {
+                return Ok(None);
+            };
+            let Some((effects, redo)) = self.run_step(actor, seq, &inverses)? else {
+                continue;
+            };
+            self.inner.journal.mark_undone(seq, redo.as_deref())?;
+            return Ok(Some(Outcome {
+                output: Value::Null,
+                effects,
+                undo: redo,
+                journal: Some(seq),
+            }));
+        }
     }
 
     /// Redo the command `actor` undid last.
     pub fn redo(&self, actor: &Actor) -> Result<Option<Outcome<Value>>> {
         let key = actor.journal_key();
-        let Some((seq, redo)) = self.inner.journal.last_redoable(&key)? else {
-            return Ok(None);
-        };
-        let (effects, undo) = self.run_inverses(actor, &redo)?;
-        self.inner.journal.mark_redone(seq, undo.as_deref())?;
-        Ok(Some(Outcome {
-            output: Value::Null,
-            effects,
-            undo,
-            journal: Some(seq),
-        }))
+        loop {
+            let Some((seq, redo)) = self.inner.journal.last_redoable(&key)? else {
+                return Ok(None);
+            };
+            let Some((effects, undo)) = self.run_step(actor, seq, &redo)? else {
+                continue;
+            };
+            self.inner.journal.mark_redone(seq, undo.as_deref())?;
+            return Ok(Some(Outcome {
+                output: Value::Null,
+                effects,
+                undo,
+                journal: Some(seq),
+            }));
+        }
     }
 
     /// [`Workspace::undo`] within one book: `actor`'s latest undoable
@@ -975,54 +987,71 @@ impl Workspace {
     /// undone.
     pub fn undo_in(&self, actor: &Actor, book: &str, only: Option<i64>) -> Result<Option<Undone>> {
         let key = actor.journal_key();
-        let Some((entry, inverses)) =
-            Self::book_own(self.inner.journal.undoable_in(&key, book, 1)?)
-        else {
-            return Ok(None);
-        };
-        if only.is_some_and(|seq| seq != entry.seq) {
-            return Ok(None);
+        loop {
+            let Some((entry, inverses)) =
+                Self::book_own(self.inner.journal.undoable_in(&key, book, 1)?)
+            else {
+                return Ok(None);
+            };
+            if only.is_some_and(|seq| seq != entry.seq) {
+                return Ok(None);
+            }
+            let Some((effects, redo)) = self.run_step(actor, entry.seq, &inverses)? else {
+                // The step asked for is retired: nothing was undone.
+                if only.is_some() {
+                    return Ok(None);
+                }
+                continue;
+            };
+            self.inner.journal.mark_undone(entry.seq, redo.as_deref())?;
+            return Ok(Some(Undone {
+                entry: JournalEntry {
+                    state: "undone".into(),
+                    ..entry
+                },
+                outcome: Outcome {
+                    output: Value::Null,
+                    effects,
+                    undo: redo,
+                    journal: None,
+                },
+            }));
         }
-        let (effects, redo) = self.run_inverses(actor, &inverses)?;
-        self.inner.journal.mark_undone(entry.seq, redo.as_deref())?;
-        Ok(Some(Undone {
-            entry: JournalEntry {
-                state: "undone".into(),
-                ..entry
-            },
-            outcome: Outcome {
-                output: Value::Null,
-                effects,
-                undo: redo,
-                journal: None,
-            },
-        }))
     }
 
     /// [`Workspace::redo`] within one book, as [`Workspace::undo_in`].
     pub fn redo_in(&self, actor: &Actor, book: &str, only: Option<i64>) -> Result<Option<Undone>> {
         let key = actor.journal_key();
-        let Some((entry, redo)) = Self::book_own(self.inner.journal.redoable_in(&key, book, 1)?)
-        else {
-            return Ok(None);
-        };
-        if only.is_some_and(|seq| seq != entry.seq) {
-            return Ok(None);
+        loop {
+            let Some((entry, redo)) =
+                Self::book_own(self.inner.journal.redoable_in(&key, book, 1)?)
+            else {
+                return Ok(None);
+            };
+            if only.is_some_and(|seq| seq != entry.seq) {
+                return Ok(None);
+            }
+            let Some((effects, undo)) = self.run_step(actor, entry.seq, &redo)? else {
+                // The step asked for is retired: nothing was redone.
+                if only.is_some() {
+                    return Ok(None);
+                }
+                continue;
+            };
+            self.inner.journal.mark_redone(entry.seq, undo.as_deref())?;
+            return Ok(Some(Undone {
+                entry: JournalEntry {
+                    state: "live".into(),
+                    ..entry
+                },
+                outcome: Outcome {
+                    output: Value::Null,
+                    effects,
+                    undo,
+                    journal: None,
+                },
+            }));
         }
-        let (effects, undo) = self.run_inverses(actor, &redo)?;
-        self.inner.journal.mark_redone(entry.seq, undo.as_deref())?;
-        Ok(Some(Undone {
-            entry: JournalEntry {
-                state: "live".into(),
-                ..entry
-            },
-            outcome: Outcome {
-                output: Value::Null,
-                effects,
-                undo,
-                journal: None,
-            },
-        }))
     }
 
     /// The newest of `rows` when it is a book-level command. A library-level
@@ -1038,11 +1067,29 @@ impl Workspace {
         book_level.then_some(row)
     }
 
-    fn run_inverses(
+    /// Run the inverses of journal row `seq` (an undo or a redo). `None`
+    /// when what the step would change is no longer there (`NotFound`: a
+    /// comment that went with its checklist line, a file purged on another
+    /// device): the row is retired, so Undo and Redo go on to the next step
+    /// instead of failing on this one for ever. Any other error leaves the
+    /// row as it is (a refused write can be tried again).
+    fn run_step(
         &self,
         actor: &Actor,
+        seq: i64,
         inverses: &[Invocation],
-    ) -> Result<(Vec<crate::cx::Effect>, Option<Vec<Invocation>>)> {
+    ) -> Result<Option<StepDone>> {
+        match self.run_inverses(actor, inverses) {
+            Ok(done) => Ok(Some(done)),
+            Err(WsError::NotFound { .. }) => {
+                self.inner.journal.retire(seq)?;
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn run_inverses(&self, actor: &Actor, inverses: &[Invocation]) -> Result<StepDone> {
         let mut effects = Vec::new();
         let mut back: Vec<Vec<Invocation>> = Vec::new();
         let mut reversible = true;

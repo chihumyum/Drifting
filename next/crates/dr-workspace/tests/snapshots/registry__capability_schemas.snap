@@ -2858,7 +2858,7 @@ expression: json
           ]
         },
         "origin": {
-          "description": "`manual`, `marker`, `task`, `agent` or `reader`; defaults from the caller.",
+          "description": "`manual`, `agent` or `reader`; defaults from the caller. `marker`\nand `task` are refused: those comments are only made by\n`comment.project`.",
           "type": [
             "string",
             "null"
@@ -3392,12 +3392,12 @@ expression: json
             },
             "checked": {
               "default": false,
-              "description": "Whether the task item's checkbox is checked (`true` -> `resolved`, `false` -> `open`).",
+              "description": "The item's tick as the caller sees it. Not used: `comment.project`\nreads the tick from the document (ticked = resolved).",
               "type": "boolean"
             },
             "task": {
               "default": "",
-              "description": "The task text.",
+              "description": "The item's text as the caller sees it. Not used: `comment.project`\nreads the text from the document.",
               "type": "string"
             }
           },
@@ -3444,7 +3444,7 @@ expression: json
           "type": "array"
         },
         "tasks": {
-          "description": "Task list items (`- [ ]` / `- [x]`) when task projection is active on this prose document.",
+          "description": "Present (even empty): project the document's checklist items too.\nTheir text and ticks are read from the document itself, not from\nthis list.",
           "items": {
             "$ref": "#/$defs/CommentTaskIn"
           },
@@ -3472,7 +3472,7 @@ expression: json
           "type": "array"
         },
         "removed": {
-          "description": "Open projected comments whose marker or task item is gone, deleted.",
+          "description": "Projected comments deleted because their line is gone: a marker's\nopen comment, a checklist item's comment whether resolved or not.",
           "items": {
             "type": "string"
           },
@@ -3494,7 +3494,7 @@ expression: json
       "title": "CommentProjected",
       "type": "object"
     },
-    "summary": "Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or task gets a comment, an open one whose source line is gone is deleted, resolved ones stay; deterministic ids merge across devices."
+    "summary": "Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or checklist item gets a comment; a marker's open comment whose line is gone is deleted and its resolved one stays; a checklist item's comment follows the line's text and tick (ticked = resolved) and is deleted with the line, resolved or not; deterministic ids merge across devices."
   },
   {
     "access": "write",

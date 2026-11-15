@@ -1123,6 +1123,7 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
             | "book.sequence"
             | "module.put_media"
             | "module.remove_media"
+            | "module.set_arrangement"
             | "asset.list"
             | "layout.get"
             | "layout.put"

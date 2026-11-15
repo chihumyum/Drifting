@@ -10,7 +10,7 @@ use dr_model::id::{BlockId, CommentId};
 use dr_model::kind::ProjectionKind;
 use dr_store::OpenDoc;
 use dr_workspace::dto::AnchorBytes;
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::{Actor, RecordKey, Workspace, WritePreconditions, WsError};
 use loro::ExportMode;
 use serde_json::{Value, json};
 
@@ -584,6 +584,146 @@ fn a_checklist_item_is_one_comment_on_every_device_and_a_late_tick_waits() {
     project_tasks(&b_dev, &ch);
     assert!(ticked(&b_dev, &ch, 0));
     assert_eq!(task_comment(&b_dev, &ch, 0).unwrap()["status"], "resolved");
+}
+
+/// A guarded writer whose read of the comment is stale is refused before
+/// the item is ticked: a refused resolve leaves the prose as it was. With a
+/// current read of the comment and of the prose it goes through.
+#[test]
+fn a_refused_resolve_of_a_checklist_comment_leaves_the_item_unticked() {
+    let e = env();
+    let b = e.book();
+    let ch = checklist(&e, &b);
+    project_tasks(&e, &ch);
+    let id = task_id(&ch, 0);
+    let agent = Actor::agent("dy-guard", 1, "comment.update");
+    let book_doc = format!("book:{b}");
+    let read = || {
+        WritePreconditions::from_observations([e.ws().observe(&ch.doc).unwrap()]).with_records(
+            e.ws()
+                .observe_records(&book_doc, &[RecordKey::record("comments", id.as_str())])
+                .unwrap(),
+        )
+    };
+    let stale = read();
+    // The author changes the comment after the Agent read it.
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": id, "agent_conversation": "conv-1"}),
+    );
+    let refused = e.ws().call_guarded(
+        &agent,
+        "comment.update",
+        json!({"book": b, "id": id, "status": "resolved"}),
+        stale,
+    );
+    assert!(matches!(refused, Err(WsError::Conflict(_))), "{refused:?}");
+    assert!(!ticked(&e, &ch, 0), "the refused resolve ticked nothing");
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["status"], "open");
+    e.ws()
+        .call_guarded(
+            &agent,
+            "comment.update",
+            json!({"book": b, "id": id, "status": "resolved"}),
+            read(),
+        )
+        .unwrap();
+    assert!(ticked(&e, &ch, 0));
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["status"], "resolved");
+}
+
+/// A step whose target is gone is retired. Resolving a checklist item's
+/// comment and then deleting the line (its comment goes with it) leaves a
+/// step with nothing to undo: Undo passes over it to the step before,
+/// instead of failing on it for ever.
+#[test]
+fn undo_passes_over_the_resolve_of_a_checklist_item_that_is_gone() {
+    let e = env();
+    let b = e.book();
+    let ch = checklist(&e, &b);
+    project_tasks(&e, &ch);
+    for i in [0, 1] {
+        e.call(
+            "comment.update",
+            json!({"book": b, "id": task_id(&ch, i), "status": "resolved"}),
+        );
+    }
+    // 「问钟楼的年代」 is characters 4..10, its newline at 10.
+    let s = e.ws().prose_session(&ch.doc).unwrap();
+    s.edit(|t| t.delete(4..11)).unwrap();
+    let o = project_tasks(&e, &ch);
+    assert_eq!(o["output"]["removed"], json!([task_id(&ch, 1)]));
+    // The newest step resolved item 1, which is gone; the one before it
+    // resolved item 0.
+    let undone = e.ws().undo(&Actor::User).unwrap();
+    assert!(
+        undone.is_some(),
+        "the step before the retired one is undone"
+    );
+    assert!(!ticked(&e, &ch, 0));
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["status"], "open");
+    assert!(task_comment(&e, &ch, 1).is_none());
+    // Redo brings item 0's resolve back; the retired step never returns.
+    e.ws().redo(&Actor::User).unwrap().unwrap();
+    assert!(ticked(&e, &ch, 0));
+    assert!(e.ws().redo(&Actor::User).unwrap().is_none());
+}
+
+/// A file purged on another device: this device's step that changed the
+/// file (a rename) has nothing to bring back. Undo retires it and goes on
+/// to the step before, instead of failing on it for ever.
+#[test]
+fn undo_passes_over_a_step_on_a_file_another_device_purged() {
+    let a = env();
+    let b_dev = env();
+    let b = a.book();
+    let ch = a.out(
+        "entry.create",
+        json!({"book": b, "parent": common::acceptance::novel_root(a.ws(), &b, "tpl-manuscript"),
+               "template": "tpl-chapter", "title": "一"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    a.call(
+        "asset.put",
+        json!({"book": b, "id": "asset-far", "name": "远.png", "kind": "image",
+               "mime": "image/png", "size": 10, "sha256": "e".repeat(64),
+               "width": 2, "height": 2}),
+    );
+    sync(a.ws(), b_dev.ws());
+    // On B: an unrelated step, then a rename of the file.
+    b_dev.call(
+        "entry.update",
+        json!({"book": b, "id": ch, "title": "改过的"}),
+    );
+    b_dev.call(
+        "asset.rename",
+        json!({"book": b, "id": "asset-far", "name": "近.png"}),
+    );
+    // On A: the file is purged; B gets the book.
+    sync_doc(b_dev.ws(), a.ws(), &format!("book:{b}"));
+    a.call("asset.trash", json!({"book": b, "id": "asset-far"}));
+    a.call("asset.purge", json!({"book": b, "id": "asset-far"}));
+    sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
+    assert_eq!(
+        b_dev.out("asset.list", json!({"book": b, "trashed": true})),
+        json!([])
+    );
+    let undone = b_dev.ws().undo_in(&Actor::User, &b, None).unwrap();
+    assert_eq!(
+        undone.map(|u| u.entry.command),
+        Some("entry.update".to_owned())
+    );
+    assert_eq!(
+        b_dev.out("entry.get", json!({"book": b, "id": ch}))["title"],
+        "一"
+    );
+    assert_eq!(
+        b_dev.out("asset.list", json!({"book": b, "trashed": true})),
+        json!([]),
+        "the purged file did not come back as an empty one"
+    );
 }
 
 #[test]

@@ -133,16 +133,34 @@ op! {
         }
         // The same bytes are already a file of the library
         // (`ASSET-BYTES-UNIQUE`): that one, not a second.
-        if let Some(have) = view
+        let library = cx.workspace().library();
+        let held = |id: &AssetId| -> Result<bool> {
+            Ok(library
+                .asset(id.as_str(), dr_store::asset::Variant::Source)?
+                .is_some_and(|r| r.book_id == slot.book.as_str()))
+        };
+        let same: Vec<Asset> = view
             .assets_raw()
             .into_iter()
-            .find(|x| x.sha256 == a.sha256 && x.size == a.size && x.kind == a.kind)
-        {
-            let library = cx.workspace().library();
-            if library
-                .asset(a.id.as_str(), dr_store::asset::Variant::Source)?
-                .is_some_and(|r| r.book_id == slot.book.as_str())
-            {
+            .filter(|x| x.sha256 == a.sha256 && x.size == a.size && x.kind == a.kind)
+            .collect();
+        let mut have = None;
+        for x in &same {
+            if held(&x.id)? {
+                have = Some(x.clone());
+                break;
+            }
+        }
+        let callers_copy = held(&a.id)?;
+        // A file recorded here whose bytes have not reached this device (its
+        // record synced first) is not what the caller's bytes are folded
+        // into: that would delete the only copy this device holds. They stay
+        // a file of their own until the author removes one of the two.
+        if have.is_none() && !callers_copy {
+            have = same.into_iter().next();
+        }
+        if let Some(have) = have {
+            if callers_copy {
                 // The copy the caller stored for bytes the library has.
                 library.remove_book_asset(slot.book.as_str(), a.id.as_str())?;
             }
@@ -174,14 +192,21 @@ fn restore_or_fill(
     have: Asset,
     wanted: Option<&Asset>,
 ) -> Result<Done> {
-    let live = slot.reader_v3.view().asset(&have.id).is_some();
-    let in_trashed_folder = !have.is_trashed() && !live;
+    let view = slot.reader_v3.view();
+    let live = view.asset(&have.id).is_some();
+    // Its folder is in Recently Deleted (it went there with it, or a merge
+    // put it into one): the folder cannot hold it, so it comes back to the
+    // folder the caller names, else to the top of the library.
+    let in_trashed_folder = have
+        .folder
+        .as_ref()
+        .is_some_and(|f| !view.asset_folders().iter().any(|x| &x.id == f));
     let name = wanted
         .filter(|w| have.name.is_empty() && !w.name.is_empty())
         .map(|w| w.name.clone());
     let folder = wanted
         .and_then(|w| w.folder.clone())
-        .filter(|_| have.folder.is_none());
+        .filter(|_| have.folder.is_none() || in_trashed_folder);
     if live && name.is_none() && folder.is_none() {
         cx.undo_nothing();
         return Ok(Done {

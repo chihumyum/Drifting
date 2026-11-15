@@ -2198,6 +2198,8 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
     let asset_cid = CommentId::parse("c-asset-region").unwrap();
 
     let (mut doc, _roots) = novel_book(77, |t, roots| {
+        t.asset_folder(&AssetFolderId::parse("af-maps").unwrap())?
+            .name("地图")?;
         t.put_asset(&img)?;
         t.template(&tid("tpl-custom-media"))?
             .set_full(&EntryTemplate {
@@ -2339,6 +2341,64 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         2
     );
     assert!(!doc.view().comment(&cid).unwrap().target_missing);
+}
+
+/// A folder purged on one device while another moved a file or a folder
+/// into it leaves ids that name no folder. They read as the top of the
+/// library, so nothing is out of sight (and nothing reads as trashed).
+#[test]
+fn a_file_or_folder_whose_folder_is_gone_reads_at_the_top_of_the_library() {
+    use dr_model::kind::AssetKind;
+    use dr_model::shared::Asset;
+
+    let gone = AssetFolderId::parse("af-gone").unwrap();
+    let kept = AssetFolderId::parse("af-kept").unwrap();
+    let file = AssetId::parse("as-stray").unwrap();
+    let (mut doc, _roots) = novel_book(78, |t, _| {
+        t.asset_folder(&gone)?.name("旧图")?;
+        t.asset_folder(&kept)?.name("草图")?.parent(Some(&gone))?;
+        t.put_asset(&Asset {
+            id: file.clone(),
+            kind: AssetKind::Image,
+            name: "灯塔.png".into(),
+            mime: "image/png".into(),
+            size: 7,
+            sha256: "b".repeat(64),
+            width: Some(2),
+            height: Some(2),
+            created_at: Some(Timestamp(1)),
+            folder: Some(gone.clone()),
+            pos: Some(PosKey::first()),
+            deleted_at: None,
+            trashed_with: None,
+        })
+    });
+    assert_eq!(doc.view().asset(&file).unwrap().folder, Some(gone.clone()));
+    assert_eq!(
+        doc.view().asset_folder_raw(&kept).unwrap().parent,
+        Some(gone.clone())
+    );
+
+    // What the merge leaves: the folder's record is gone, the two ids stay.
+    doc.edit(Origin::User, |t| {
+        t.purge(CollectionV3::AssetFolders, gone.as_str())
+    })
+    .0
+    .unwrap();
+    let v = doc.view();
+    assert_eq!(v.asset(&file).unwrap().folder, None);
+    assert_eq!(v.asset_raw(&file).unwrap().folder, None);
+    assert_eq!(v.assets().len(), 1);
+    assert_eq!(v.assets()[0].folder, None);
+    assert_eq!(v.assets_raw()[0].folder, None);
+    assert_eq!(v.asset_folder_raw(&kept).unwrap().parent, None);
+    for folders in [v.asset_folders(), v.asset_folders_raw()] {
+        assert_eq!(folders.len(), 1);
+        assert_eq!(
+            (folders[0].id.as_str(), &folders[0].parent),
+            ("af-kept", &None)
+        );
+    }
 }
 
 /// DY fix 5: the whole-book read marks a comment on a prose embed as not
