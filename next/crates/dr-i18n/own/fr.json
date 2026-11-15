@@ -222,7 +222,6 @@
   "v3Levels": {
     "accept": "Accepter les entrées d’ailleurs",
     "autoLink": "Liens automatiques",
-    "byStoryline": "Par fil narratif",
     "collapse": "Replier {{name}}",
     "create": "Créer",
     "defaultTemplate": "Modèle par défaut",
@@ -233,8 +232,6 @@
     "formatPlain": "Texte brut",
     "formatShortcuts": "Raccourcis de mise en forme",
     "home": "Emplacement des nouvelles entrées",
-    "lane": "Couloir",
-    "manuscriptOrder": "Ordre du manuscrit",
     "members": "Entrées rattachées",
     "none": "Aucun",
     "off": "Désactivé",
@@ -250,8 +247,7 @@
     "sourceOverride": "Remplacement · {{name}}",
     "sourceTemplate": "Modèle · {{name}} · {{level}}",
     "thisLevel": "Ce niveau",
-    "title": "Titre",
-    "unassigned": "Sans rattachement"
+    "title": "Titre"
   },
   "v3Settings": {
     "codeCopied": "Copié",
@@ -263,6 +259,7 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "attachedEntries": "Rattachées ici",
     "belongTo": "Rattacher à",
     "board": "Tableau",
     "bookView": "Vue livre",
@@ -277,11 +274,17 @@
     "hideOutline": "Masquer la table des matières",
     "islands": "Îles",
     "levelSwitch": "Niveau",
-    "levelSwitchHint": "Activé, des entrées peuvent se trouver dessous",
     "list": "Liste",
+    "livesIn": "Dans « {{name}} »",
+    "livesOutermost": "Au niveau supérieur",
+    "mark": "Signe",
+    "markFromTemplate": "Utiliser le signe du modèle",
+    "markGlyph": "Un caractère",
+    "markSand": "Signes de sable",
     "newEntry": "Nouveau",
     "newTemplate": "Nouveau modèle",
     "open": "Ouvrir",
+    "outermost": "Niveau supérieur",
     "settings": "Réglages",
     "showOutline": "Afficher la table des matières",
     "templates": "Modèles",
@@ -289,9 +292,27 @@
     "turnOffLevelBody_one": "{{count}} entrée en dessous sera déplacée vers les suppressions récentes.",
     "turnOffLevelBody_other": "{{count}} entrées en dessous seront déplacées vers les suppressions récentes.",
     "turnOffLevelConfirm": "Désactiver",
+    "turnOffLevelQuestion": "Désactiver le niveau de « {{name}} » ?",
     "turnOffLevelTitle": "Désactiver le niveau",
     "untitledEntry": "Entrée sans titre",
     "untitledNamed": "{{name}} sans titre"
+  },
+  "v3Tabs": {
+    "add": "Ajouter un onglet",
+    "book": "Manuscrit",
+    "entries": "Entrées",
+    "goneBookOff": "Le manuscrit du projet est désactivé",
+    "goneClosed": "« {{name}} » a le niveau désactivé et n’accepte aucune entrée d’ailleurs",
+    "goneMissing": "Ce qu’affichait « {{name}} » n’existe plus",
+    "goneTrashed": "« {{name}} » est dans les suppressions récentes",
+    "goneViewDeleted": "La vue « {{name}} » a été supprimée",
+    "manage": "Gérer les onglets",
+    "more": "{{count}} de plus",
+    "newTab": "Nouvel onglet",
+    "remount": "Afficher autre chose",
+    "remove": "Retirer",
+    "reorder": "Glisser pour réordonner",
+    "views": "Vues"
   },
   "v3Timeline": {
     "actLevelName": "Actes",

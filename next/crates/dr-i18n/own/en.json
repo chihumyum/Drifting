@@ -221,7 +221,6 @@
   "v3Levels": {
     "accept": "Accept entries from elsewhere",
     "autoLink": "Automatic links",
-    "byStoryline": "By storyline",
     "collapse": "Collapse {{name}}",
     "create": "Create",
     "defaultTemplate": "Default template",
@@ -232,8 +231,6 @@
     "formatPlain": "Plain text",
     "formatShortcuts": "Formatting shortcuts",
     "home": "New entries reside in",
-    "lane": "Swimlane",
-    "manuscriptOrder": "Manuscript order",
     "members": "Assigned entries",
     "none": "None",
     "off": "Off",
@@ -249,8 +246,7 @@
     "sourceOverride": "Override · {{name}}",
     "sourceTemplate": "Template · {{name}} · {{level}}",
     "thisLevel": "This level",
-    "title": "Title",
-    "unassigned": "Unassigned"
+    "title": "Title"
   },
   "v3Settings": {
     "codeCopied": "Copied",
@@ -262,6 +258,7 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "attachedEntries": "Attached here",
     "belongTo": "Assign to",
     "board": "Board",
     "bookView": "Book view",
@@ -276,11 +273,17 @@
     "hideOutline": "Hide TOC",
     "islands": "Islands",
     "levelSwitch": "Level",
-    "levelSwitchHint": "Allows entries below when on",
     "list": "List",
+    "livesIn": "In “{{name}}”",
+    "livesOutermost": "At the top level",
+    "mark": "Mark",
+    "markFromTemplate": "Use the template’s mark",
+    "markGlyph": "One character",
+    "markSand": "Sand marks",
     "newEntry": "New",
     "newTemplate": "New template",
     "open": "Open",
+    "outermost": "Top level",
     "settings": "Settings",
     "showOutline": "Show TOC",
     "templates": "Templates",
@@ -288,9 +291,27 @@
     "turnOffLevelBody_one": "{{count}} entry below will move to Recently Deleted.",
     "turnOffLevelBody_other": "{{count}} entries below will move to Recently Deleted.",
     "turnOffLevelConfirm": "Turn off",
+    "turnOffLevelQuestion": "Turn off Level for “{{name}}”?",
     "turnOffLevelTitle": "Turn off Level",
     "untitledEntry": "Untitled entry",
     "untitledNamed": "Untitled {{name}}"
+  },
+  "v3Tabs": {
+    "add": "Add a tab",
+    "book": "Manuscript",
+    "entries": "Entries",
+    "goneBookOff": "The project’s manuscript is turned off",
+    "goneClosed": "“{{name}}” has Level off and accepts no entries from elsewhere",
+    "goneMissing": "What “{{name}}” showed is gone",
+    "goneTrashed": "“{{name}}” is in Recently Deleted",
+    "goneViewDeleted": "The view “{{name}}” was deleted",
+    "manage": "Manage tabs",
+    "more": "{{count}} more",
+    "newTab": "New tab",
+    "remount": "Show something else",
+    "remove": "Remove",
+    "reorder": "Drag to reorder",
+    "views": "Views"
   },
   "v3Timeline": {
     "actLevelName": "Acts",

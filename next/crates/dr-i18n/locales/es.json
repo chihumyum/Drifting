@@ -1544,7 +1544,6 @@
   "v3Levels": {
     "accept": "Aceptar entradas de otros lugares",
     "autoLink": "Enlaces automáticos",
-    "byStoryline": "Por línea argumental",
     "collapse": "Contraer {{name}}",
     "create": "Crear",
     "defaultTemplate": "Plantilla predeterminada",
@@ -1555,8 +1554,6 @@
     "formatPlain": "Texto sin formato",
     "formatShortcuts": "Atajos de formato",
     "home": "Ubicación de las nuevas entradas",
-    "lane": "Carril",
-    "manuscriptOrder": "Orden del manuscrito",
     "members": "Entradas asignadas",
     "none": "Ninguna",
     "off": "Desactivado",
@@ -1572,8 +1569,7 @@
     "sourceOverride": "Anulación · {{name}}",
     "sourceTemplate": "Plantilla · {{name}} · {{level}}",
     "thisLevel": "Este nivel",
-    "title": "Título",
-    "unassigned": "Sin asignar"
+    "title": "Título"
   },
   "v3Settings": {
     "codeCopied": "Copiado",
@@ -1585,6 +1581,7 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "attachedEntries": "Vinculadas aquí",
     "belongTo": "Asignar a",
     "board": "Tablero",
     "bookView": "Vista de libro",
@@ -1599,11 +1596,17 @@
     "hideOutline": "Ocultar índice",
     "islands": "Islas",
     "levelSwitch": "Nivel",
-    "levelSwitchHint": "Al activarlo, admite entradas debajo",
     "list": "Lista",
+    "livesIn": "En «{{name}}»",
+    "livesOutermost": "En el nivel superior",
+    "mark": "Marca",
+    "markFromTemplate": "Usar la marca de la plantilla",
+    "markGlyph": "Un carácter",
+    "markSand": "Marcas de arena",
     "newEntry": "Nuevo",
     "newTemplate": "Nueva plantilla",
     "open": "Abrir",
+    "outermost": "Nivel superior",
     "settings": "Ajustes",
     "showOutline": "Mostrar índice",
     "templates": "Plantillas",
@@ -1611,9 +1614,27 @@
     "turnOffLevelBody_one": "{{count}} entrada debajo se moverá a Eliminados recientemente.",
     "turnOffLevelBody_other": "{{count}} entradas debajo se moverán a Eliminados recientemente.",
     "turnOffLevelConfirm": "Desactivar",
+    "turnOffLevelQuestion": "¿Desactivar el nivel de «{{name}}»?",
     "turnOffLevelTitle": "Desactivar nivel",
     "untitledEntry": "Entrada sin título",
     "untitledNamed": "{{name}} sin título"
+  },
+  "v3Tabs": {
+    "add": "Añadir una pestaña",
+    "book": "Manuscrito",
+    "entries": "Entradas",
+    "goneBookOff": "El manuscrito del proyecto está desactivado",
+    "goneClosed": "«{{name}}» tiene el nivel desactivado y no acepta entradas de otros sitios",
+    "goneMissing": "Lo que mostraba «{{name}}» ya no existe",
+    "goneTrashed": "«{{name}}» está en Eliminados recientemente",
+    "goneViewDeleted": "Se eliminó la vista «{{name}}»",
+    "manage": "Gestionar pestañas",
+    "more": "{{count}} más",
+    "newTab": "Nueva pestaña",
+    "remount": "Mostrar otra cosa",
+    "remove": "Quitar",
+    "reorder": "Arrastra para reordenar",
+    "views": "Vistas"
   },
   "v3Timeline": {
     "actLevelName": "Actos",
