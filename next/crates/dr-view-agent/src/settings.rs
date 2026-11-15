@@ -22,6 +22,7 @@ use gpui::{
 use crate::{
     connection::{Connections, PROVIDERS, Readiness, provider_name, thinking_levels},
     connection_view::{ConnectionView, thinking_label},
+    local_view::{self, LocalConnectionView},
     onboarding::{self, Event, Step},
 };
 
@@ -57,6 +58,31 @@ pub fn init(connections: Entity<Connections>, cx: &mut App) {
                 })
                 .clone();
             div().w_full().child(view).into_any_element()
+        });
+    }
+    // 「本地模型」 under the four, after a hairline (作者 2026-11-16, 乙).
+    {
+        let connections = connections.clone();
+        let views: Rc<RefCell<HashMap<gpui::WindowId, Entity<LocalConnectionView>>>> =
+            Rc::default();
+        let closed_views = views.clone();
+        cx.on_window_closed(move |_, window| {
+            closed_views.borrow_mut().remove(&window);
+        })
+        .detach();
+        settings::set_module_row(cx, "models.local", move |window, cx| {
+            let view = views
+                .borrow_mut()
+                .entry(window.window_handle().window_id())
+                .or_insert_with(|| {
+                    cx.new(|cx| LocalConnectionView::new(connections.clone(), true, window, cx))
+                })
+                .clone();
+            div()
+                .w_full()
+                .child(local_view::divider(window, cx))
+                .child(view)
+                .into_any_element()
         });
     }
     for key in [
@@ -105,15 +131,33 @@ fn preference_control(
     let busy = state.operation.is_some();
     match key {
         registry::AGENT_PROVIDER => {
-            let providers: Vec<_> = PROVIDERS
+            // A local server is chosen like a provider, by its own name.
+            let providers: Vec<(Provider, Option<String>, String)> = PROVIDERS
                 .into_iter()
                 .filter(|provider| state.readiness(*provider) == Readiness::Ready)
+                .map(|provider| (provider, None, provider_name(provider).to_owned()))
+                .chain(
+                    state
+                        .local_servers()
+                        .iter()
+                        .filter(|server| !server.models.is_empty())
+                        .map(|server| {
+                            (
+                                Provider::Local,
+                                Some(server.id.clone()),
+                                server.label.clone(),
+                            )
+                        }),
+                )
                 .collect();
             let current = state.preferences().route.provider;
-            let selected = providers.iter().position(|provider| *provider == current);
+            let current_server = state.preferences().local_server.clone();
+            let selected = providers.iter().position(|(provider, server, _)| {
+                *provider == current && (current != Provider::Local || *server == current_server)
+            });
             let mut choices: Vec<_> = providers
                 .iter()
-                .map(|provider| Choice::new(Icon::Thinking, provider_name(*provider)))
+                .map(|(_, _, name)| Choice::new(Icon::Thinking, name.clone()))
                 .collect();
             if selected.is_none() {
                 choices.insert(
@@ -128,13 +172,24 @@ fn preference_control(
             Select::new(key, choices, selected.unwrap_or(0))
                 .disabled(busy || providers.is_empty())
                 .on_change(move |index, _, cx| {
-                    if let Some(provider) = index
+                    if let Some((provider, server, _)) = index
                         .checked_sub(offset)
                         .and_then(|index| providers.get(index))
                     {
-                        connections.update(cx, |connections, cx| {
-                            connections.select_provider(*provider, cx);
-                            connections.load_catalog(*provider, cx);
+                        connections.update(cx, |connections, cx| match server {
+                            Some(server) => {
+                                let model = connections
+                                    .local_server(server)
+                                    .and_then(|server| server.models.first())
+                                    .map(|model| model.id.clone());
+                                if let Some(model) = model {
+                                    connections.select_local(server, &model, cx);
+                                }
+                            }
+                            None => {
+                                connections.select_provider(*provider, cx);
+                                connections.load_catalog(*provider, cx);
+                            }
                         });
                     }
                 })
@@ -142,11 +197,28 @@ fn preference_control(
         }
         registry::AGENT_MODEL => {
             let provider = state.preferences().route.provider;
-            let models: Vec<_> = state
-                .models(provider)
-                .iter()
-                .map(|model| (model.id.clone(), model.label.clone()))
-                .collect();
+            let local = (provider == Provider::Local)
+                .then(|| {
+                    state
+                        .preferences()
+                        .local_server
+                        .as_deref()
+                        .and_then(|id| state.local_server(id))
+                })
+                .flatten()
+                .cloned();
+            let models: Vec<_> = match &local {
+                Some(server) => server
+                    .models
+                    .iter()
+                    .map(|model| (model.id.clone(), model.id.clone()))
+                    .collect(),
+                None => state
+                    .models(provider)
+                    .iter()
+                    .map(|model| (model.id.clone(), model.label.clone()))
+                    .collect(),
+            };
             let selected = models
                 .iter()
                 .position(|(id, _)| id == &state.preferences().route.model);
@@ -164,15 +236,22 @@ fn preference_control(
                 );
             }
             let offset = usize::from(selected.is_none());
+            let ready = local.is_some() || state.readiness(provider) == Readiness::Ready;
+            let server = local.map(|server| server.id);
             Select::new(key, choices, selected.unwrap_or(0))
-                .disabled(busy || state.readiness(provider) != Readiness::Ready)
+                .disabled(busy || !ready)
                 .on_change(move |index, _, cx| {
                     if let Some((id, _)) = index
                         .checked_sub(offset)
                         .and_then(|index| models.get(index))
                     {
-                        connections.update(cx, |connections, cx| {
-                            connections.select_model(provider, id, cx);
+                        connections.update(cx, |connections, cx| match &server {
+                            Some(server) => {
+                                connections.select_local(server, id, cx);
+                            }
+                            None => {
+                                connections.select_model(provider, id, cx);
+                            }
                         });
                     }
                 })

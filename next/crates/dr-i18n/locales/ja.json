@@ -1545,6 +1545,16 @@
   "v3Settings": {
     "codeCopied": "コピーしました",
     "copyCode": "コードをコピー",
+    "localModels": {
+      "add": "追加",
+      "addKey": "キーを追加",
+      "context": "コンテキスト",
+      "editAddress": "アドレスを変更",
+      "modelName": "モデル名",
+      "name": "ローカルモデル",
+      "notLocal": "このコンピュータかローカルネットワークのアドレスのみ入力できます",
+      "unreachable": "このアドレスに接続できません"
+    },
     "providerAnthropic": "Agentで使用します。",
     "providerDeepseek": "Agentで使用します。",
     "providerOpenai": "Agentで使用します。",

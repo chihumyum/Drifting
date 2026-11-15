@@ -9,8 +9,8 @@ use std::{
 };
 
 use dr_agent::{
-    Cancellation, Driver, DriverEvent, DriverRequest, FinishReason, ModelErrorCategory, ModelRoute,
-    Provider, RunConfig, ThinkingLevel,
+    Cancellation, Driver, DriverEvent, DriverRequest, FinishReason, LocalRoute, ModelCapabilities,
+    ModelErrorCategory, ModelRoute, Provider, RunConfig, ThinkingLevel,
 };
 use dr_agent_providers::{
     ProviderDriver,
@@ -23,6 +23,8 @@ use dr_shell::{Settings, settings::registry};
 use futures::{FutureExt, StreamExt, future::BoxFuture, future::Shared};
 use gpui::{App, Context, Task};
 use serde::{Deserialize, Serialize};
+
+use crate::local::{self, LocalFailure, LocalServer, LocalServerModel};
 
 pub const PROVIDERS: [Provider; 4] = [
     Provider::Chatgpt,
@@ -63,6 +65,10 @@ pub enum Readiness {
 pub struct Preferences {
     pub route: ModelRoute,
     pub max_model_rounds: Option<u32>,
+    /// With a local route: which server (device memory, not an account
+    /// preference — the address means nothing on another computer).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_server: Option<String>,
 }
 
 impl Default for Preferences {
@@ -76,6 +82,7 @@ impl Default for Preferences {
                 local: None,
             },
             max_model_rounds: Some(50),
+            local_server: None,
         }
     }
 }
@@ -88,7 +95,8 @@ impl Preferences {
         let file = Settings::read(cx);
         Self::from_value(Some(serde_json::json!({
             "route": {"provider":file.get(registry::AGENT_PROVIDER), "model":file.get(registry::AGENT_MODEL), "thinking":file.get(registry::AGENT_THINKING)},
-            "max_model_rounds":file.get(registry::AGENT_MAX_MODEL_ROUNDS)
+            "max_model_rounds":file.get(registry::AGENT_MAX_MODEL_ROUNDS),
+            "local_server":local::read_selected(cx),
         })))
     }
     pub fn from_value(value: Option<serde_json::Value>) -> Self {
@@ -378,6 +386,13 @@ pub struct Connections {
     catalog_generation: HashMap<Provider, u64>,
     login_cancel: Option<LoginCancellation>,
     task: Option<Task<()>>,
+    local: Vec<LocalServer>,
+    /// 「测试连接」 for one server: `None` while it runs.
+    pub local_test: Option<(String, Option<Result<(), LocalFailure>>)>,
+    /// A failed key removal or disconnect, shown under that server.
+    pub local_failure: Option<(String, LocalFailure)>,
+    local_listed: HashMap<String, std::time::Instant>,
+    local_generation: u64,
 }
 
 impl Connections {
@@ -419,6 +434,11 @@ impl Connections {
             catalog_generation: HashMap::new(),
             login_cancel: None,
             task: None,
+            local: local::read(cx),
+            local_test: None,
+            local_failure: None,
+            local_listed: HashMap::new(),
+            local_generation: 0,
         };
         connections.refresh(cx);
         connections
@@ -444,6 +464,11 @@ impl Connections {
             .unwrap_or(Readiness::Checking)
     }
     pub fn usable(&self) -> Option<bool> {
+        if self.preferences.route.provider == Provider::Local {
+            // No live check: a server that is down still counts as connected
+            // and the send reports the failure (作者 2026-11-16, 甲).
+            return Some(self.selected_local().is_some());
+        }
         match self.readiness(self.preferences.route.provider) {
             Readiness::Checking => None,
             Readiness::Ready => Some(true),
@@ -465,6 +490,25 @@ impl Connections {
             .find(|model| model.id == self.preferences.route.model)
     }
     pub fn run_config(&self) -> dr_agent::Result<RunConfig> {
+        if self.preferences.route.provider == Provider::Local {
+            let (server, model) = self.selected_local().ok_or_else(|| {
+                dr_agent::Error::Protocol("connect the selected local model".into())
+            })?;
+            let mut config = RunConfig::new(Provider::Local, &model.id);
+            config.route.local = Some(LocalRoute {
+                server: server.id.clone(),
+                base_url: server.base_url.clone(),
+            });
+            // A local model has no reasoning setting and no hosted search.
+            config.web_search = false;
+            config.capabilities = Some(ModelCapabilities {
+                context_window: model.context_window(),
+                supports_thinking_off: Some(true),
+                ..ModelCapabilities::default()
+            });
+            config.max_model_rounds = self.preferences.max_model_rounds;
+            return Ok(config);
+        }
         if self.usable() != Some(true) {
             return Err(dr_agent::Error::Protocol(
                 "connect the selected model provider".into(),
@@ -505,6 +549,7 @@ impl Connections {
                     .expect("validated Agent preference");
             }
         });
+        local::write_selected(self.preferences.local_server.as_deref(), cx);
         cx.refresh_windows();
     }
 
@@ -539,6 +584,7 @@ impl Connections {
             thinking,
             local: None,
         };
+        self.preferences.local_server = None;
         self.failure = None;
         self.save(cx);
         cx.notify();
@@ -942,6 +988,261 @@ impl Connections {
             })
             .ok();
         }));
+    }
+}
+
+/// Local model servers. The connection form (`local_view`) does the network
+/// step through [`ConnectionService::probe_local`]; these keep the list,
+/// the selection and the per-model settings.
+impl Connections {
+    pub fn service(&self) -> ConnectionService {
+        self.service.clone()
+    }
+
+    pub fn local_servers(&self) -> &[LocalServer] {
+        &self.local
+    }
+
+    pub fn local_server(&self, id: &str) -> Option<&LocalServer> {
+        self.local.iter().find(|server| server.id == id)
+    }
+
+    /// The selected local server and model, if both still exist.
+    pub fn selected_local(&self) -> Option<(&LocalServer, &LocalServerModel)> {
+        if self.preferences.route.provider != Provider::Local {
+            return None;
+        }
+        let server = self.local_server(self.preferences.local_server.as_deref()?)?;
+        Some((server, server.model(&self.preferences.route.model)?))
+    }
+
+    fn write_local(&mut self, cx: &mut Context<Self>) {
+        local::write(&self.local, cx);
+        cx.notify();
+    }
+
+    /// A connected (or reconnected) server. `select` makes its first model
+    /// the route, as connecting one of the four providers does.
+    pub fn put_local(&mut self, server: LocalServer, select: bool, cx: &mut Context<Self>) {
+        let id = server.id.clone();
+        let first = server.models.first().map(|model| model.id.clone());
+        match self.local.iter_mut().find(|old| old.id == server.id) {
+            Some(old) => *old = server,
+            None => self.local.push(server),
+        }
+        self.local_listed
+            .insert(id.clone(), std::time::Instant::now());
+        self.local_failure = None;
+        self.local_test = None;
+        self.write_local(cx);
+        let selected_here = self.preferences.route.provider == Provider::Local
+            && self.preferences.local_server.as_deref() == Some(id.as_str());
+        if let Some(first) = first
+            && (select || (selected_here && self.selected_local().is_none()))
+        {
+            self.select_local(&id, &first, cx);
+        }
+    }
+
+    pub fn select_local(&mut self, server: &str, model: &str, cx: &mut Context<Self>) -> bool {
+        if self
+            .local_server(server)
+            .and_then(|found| found.model(model))
+            .is_none()
+        {
+            return false;
+        }
+        // The reasoning level stays what it was for the providers that
+        // have one; a local run always goes without (`run_config`).
+        self.preferences.route = ModelRoute {
+            provider: Provider::Local,
+            model: model.into(),
+            thinking: self.preferences.route.thinking,
+            local: None,
+        };
+        self.preferences.local_server = Some(server.into());
+        self.failure = None;
+        self.save(cx);
+        cx.notify();
+        true
+    }
+
+    /// 「断开」: the key goes first; the server stays if that fails.
+    pub fn disconnect_local(&mut self, id: &str, cx: &mut Context<Self>) {
+        let Some(server) = self.local_server(id).cloned() else {
+            return;
+        };
+        self.local_generation += 1;
+        let generation = self.local_generation;
+        let service = self.service.clone();
+        let http = service.driver().http().clone();
+        let task = http.spawn(async move { service.forget_local_key(&server.id).await });
+        let id = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let result = task.await.unwrap_or(Err(LocalFailure::Storage));
+            this.update(cx, |this, cx| {
+                if this.local_generation != generation {
+                    return;
+                }
+                match result {
+                    Ok(()) => {
+                        this.local.retain(|server| server.id != id);
+                        this.local_listed.remove(&id);
+                        if this
+                            .local_test
+                            .as_ref()
+                            .is_some_and(|(test, _)| *test == id)
+                        {
+                            this.local_test = None;
+                        }
+                        this.local_failure = None;
+                        this.write_local(cx);
+                    }
+                    Err(error) => {
+                        this.local_failure = Some((id.clone(), error));
+                        cx.notify();
+                    }
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// 「测试连接」: 「可用」, 「连不上这个地址」 or 「密钥无效」.
+    pub fn test_local(&mut self, id: &str, cx: &mut Context<Self>) {
+        let Some(server) = self.local_server(id).cloned() else {
+            return;
+        };
+        if self
+            .local_test
+            .as_ref()
+            .is_some_and(|(_, result)| result.is_none())
+        {
+            return;
+        }
+        self.local_test = Some((id.to_owned(), None));
+        self.local_failure = None;
+        cx.notify();
+        let service = self.service.clone();
+        let http = service.driver().http().clone();
+        let task = http.spawn(async move { service.check_local(&server).await });
+        let id = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let result = task.await.unwrap_or(Err(LocalFailure::Unreachable));
+            this.update(cx, |this, cx| {
+                if this
+                    .local_test
+                    .as_ref()
+                    .is_some_and(|(test, pending)| *test == id && pending.is_none())
+                {
+                    this.local_test = Some((id, Some(result)));
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// A model name typed for a server without a model list.
+    pub fn add_local_model(&mut self, id: &str, model: &str, cx: &mut Context<Self>) -> bool {
+        let model = model.trim();
+        if !dr_agent_providers::local::valid_model_id(model) {
+            return false;
+        }
+        let Some(server) = self.local.iter_mut().find(|server| server.id == id) else {
+            return false;
+        };
+        if server.model(model).is_none() {
+            server.models.push(LocalServerModel::new(model, None));
+        }
+        self.write_local(cx);
+        true
+    }
+
+    /// The × on a typed model. The last one gone takes the server with it.
+    pub fn remove_local_model(&mut self, id: &str, model: &str, cx: &mut Context<Self>) {
+        let Some(server) = self.local.iter_mut().find(|server| server.id == id) else {
+            return;
+        };
+        server.models.retain(|old| old.id != model);
+        if server.models.is_empty() {
+            self.disconnect_local(id, cx);
+        } else {
+            self.write_local(cx);
+        }
+    }
+
+    /// 「上下文」 in Settings: the author's value wins over the server's.
+    pub fn set_local_context(
+        &mut self,
+        id: &str,
+        model: &str,
+        context: Option<u64>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(found) = self
+            .local
+            .iter_mut()
+            .find(|server| server.id == id)
+            .and_then(|server| server.models.iter_mut().find(|old| old.id == model))
+        else {
+            return;
+        };
+        if found.context_override != context {
+            found.context_override = context;
+            self.write_local(cx);
+        }
+    }
+
+    /// Opening the model menu asks listed servers again, at most every five
+    /// minutes each. A server that does not answer keeps its list.
+    pub fn load_local_catalogs(&mut self, cx: &mut Context<Self>) {
+        let due: Vec<LocalServer> = self
+            .local
+            .iter()
+            .filter(|server| {
+                !server.manual
+                    && self.local_listed.get(&server.id).is_none_or(|at| {
+                        at.elapsed() >= std::time::Duration::from_millis(catalog::CACHE_MS)
+                    })
+            })
+            .cloned()
+            .collect();
+        for server in due {
+            self.local_listed
+                .insert(server.id.clone(), std::time::Instant::now());
+            let service = self.service.clone();
+            let http = service.driver().http().clone();
+            let asked = server.clone();
+            let task = http.spawn(async move { service.relist_local(&asked).await });
+            cx.spawn(async move |this, cx| {
+                let Ok(Some(discovery)) = task.await else {
+                    return;
+                };
+                this.update(cx, |this, cx| {
+                    let Some(current) = this
+                        .local
+                        .iter_mut()
+                        .find(|current| current.id == server.id)
+                    else {
+                        return;
+                    };
+                    // Changed meanwhile (edited, models typed): leave it.
+                    if current.base_url != server.base_url || current.manual {
+                        return;
+                    }
+                    let models = local::merge_models(&current.models, &discovery.models);
+                    if current.models != models {
+                        current.models = models;
+                        this.write_local(cx);
+                    }
+                })
+                .ok();
+            })
+            .detach();
+        }
     }
 }
 

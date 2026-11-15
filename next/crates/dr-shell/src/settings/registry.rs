@@ -198,6 +198,15 @@ pub static INFO_ROWS: &[InfoRow] = &[
         description: None,
         action: RowAction::Module,
     },
+    // Ollama, LM Studio, llama.cpp … on this computer or the local network.
+    InfoRow {
+        id: "models.local",
+        section: Section::Models,
+        group: None,
+        label: keys::v3_settings::local_models::NAME,
+        description: None,
+        action: RowAction::Module,
+    },
     InfoRow {
         id: "agent.onboarding",
         section: Section::Agent,
@@ -539,6 +548,8 @@ pub static REGISTRY: &[SettingDef] = &[
             "anthropic",
             "openai",
             "openai-codex",
+            // A local model server; which one is this device's memory.
+            "local",
         ])),
         default: Initial::Str("deepseek"),
         scope: Scope::Account,

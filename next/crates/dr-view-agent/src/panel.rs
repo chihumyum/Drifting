@@ -114,7 +114,7 @@ impl AgentPanel {
                 .placeholder(t(cx, k::composer::PLACEHOLDER))
         });
         let dictation = cx.new(|cx| crate::speech::Dictation::new(composer.clone(), window, cx));
-        let connect = cx.new(|cx| ConnectionView::new(connections.clone(), window, cx));
+        let connect = cx.new(|cx| ConnectionView::new_companion(connections.clone(), window, cx));
         let mut panel = Self {
             ws,
             hub: hub.clone(),
