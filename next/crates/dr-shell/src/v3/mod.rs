@@ -46,6 +46,8 @@ pub enum DisplaySurface {
 pub struct EntryHost {
     pub page: PageViewHost,
     pub entry: String,
+    /// The entry page the head is drawn on (invalid when drawn alone).
+    pub entry_page: gpui::WeakEntity<page::EntryPage>,
 }
 
 #[derive(Clone)]

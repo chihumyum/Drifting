@@ -4,7 +4,8 @@
 //! template under them. It is the one place an entry is renamed on its page,
 //! whatever its modules (a chapter's body draws no title of its own here).
 //!
-//! The title is stored when the field is left (Enter leaves it); Esc puts
+//! The title is stored when the field is left (Enter leaves it for the
+//! entry's first body, if it has one); Esc puts
 //! the stored title back; an empty title is not stored. A title being typed
 //! is stored before the app quits or the library is swapped, held to the
 //! title the head showed: one set elsewhere meanwhile is not overwritten,
@@ -208,7 +209,16 @@ impl EntryHead {
             FieldEvent::Changed(value) => self.draft.text = value.clone(),
             FieldEvent::Submitted(_) => {
                 self.save(false, cx);
-                window.blur(cx);
+                // Enter hands the caret to the text, when there is one.
+                let body = self
+                    .host
+                    .entry_page
+                    .upgrade()
+                    .and_then(|page| page.read(cx).body_focus());
+                match body {
+                    Some(body) => window.focus(&body, cx),
+                    None => window.blur(cx),
+                }
             }
             FieldEvent::Blurred => self.save(false, cx),
             FieldEvent::Cancelled => {

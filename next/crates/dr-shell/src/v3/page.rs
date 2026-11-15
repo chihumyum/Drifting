@@ -263,11 +263,21 @@ impl EntryPage {
     pub fn state(&self) -> serde_json::Value {
         serde_json::json!({ "target": self.target.key(), "sections": self.sections, "module": match &self.target { Target::Entry { module, .. } => module.as_ref().map(ToString::to_string), _ => None }, "reveal": self.revealed, "head": self.parts.contains_key("head") })
     }
-    fn entry_host(&self, id: &str) -> EntryHost {
+    fn entry_host(&self, id: &str, cx: &Context<Self>) -> EntryHost {
         EntryHost {
             page: self.host.clone(),
             entry: id.to_owned(),
+            entry_page: cx.entity().downgrade(),
         }
+    }
+    /// What takes the caret when the head hands it to the text: the first
+    /// body's, if the entry has one.
+    pub fn body_focus(&self) -> Option<FocusHandle> {
+        self.sections
+            .iter()
+            .filter(|s| s.kind == "prose")
+            .find_map(|s| self.parts.get(&format!("module:{}", s.id)))
+            .and_then(|(_, part)| part.focus.clone())
     }
     fn mount_module(
         &mut self,
@@ -400,7 +410,7 @@ impl EntryPage {
         {
             let id = id.to_string();
             if !self.parts.contains_key("head")
-                && let Some(head) = super::entry_head(self.entry_host(&id), window, cx)
+                && let Some(head) = super::entry_head(self.entry_host(&id, cx), window, cx)
             {
                 self.parts.insert("head".into(), ("head".into(), head));
             }
@@ -408,7 +418,7 @@ impl EntryPage {
             for (i, make) in super::entry_head_parts(cx).into_iter().enumerate() {
                 let key = format!("head-part:{i}");
                 if !self.parts.contains_key(&key)
-                    && let Some(part) = make(self.entry_host(&id), window, cx)
+                    && let Some(part) = make(self.entry_host(&id, cx), window, cx)
                 {
                     self.parts.insert(key.clone(), ("head-part".into(), part));
                 }

@@ -299,6 +299,7 @@ fn standalone_head(
             book: std::rc::Rc::new(Book::load(lib, book).unwrap()),
         },
         entry: entry.to_owned(),
+        entry_page: gpui::WeakEntity::new_invalid(),
     };
     let window =
         cx.add_window(|window, cx| dr_view_page::entry_head::EntryHead::new(host, window, cx));

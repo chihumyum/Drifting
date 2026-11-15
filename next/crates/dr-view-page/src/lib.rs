@@ -196,6 +196,21 @@ impl PageChrome for Chrome {
     }
 }
 
+/// The kind of field a page's title is.
+pub type TitleField = dr_ui::input::TextArea;
+
+/// The title field of the page showing `doc`: the body's own head in the
+/// whole book or a standalone editor, else the head of `entry`'s page (one
+/// title per entry, `kernel-v5.md` §8). For the debug bridge and tests.
+pub fn title_field(doc: &str, entry: Option<&str>, cx: &App) -> Option<Entity<TitleField>> {
+    if let Some((head, _)) = page_views(doc, cx)
+        && head.read(cx).shows_title()
+    {
+        return Some(head.read(cx).title().clone());
+    }
+    entry_head::head_of(entry?, cx).map(|head| head.read(cx).title().clone())
+}
+
 /// The head and end views made last for `doc` (in whichever editor drew it
 /// last), while they live: for the shell and for tests.
 pub fn page_views(doc: &str, cx: &App) -> Option<(Entity<PageHead>, Entity<PageEnd>)> {
