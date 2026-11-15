@@ -2252,8 +2252,12 @@ pub fn filter_valid_memberships(
         .collect()
 }
 
-/// Invariant 8 (`V3-TIMELINE-LANE-ENABLED`, `kernel-v5.md` §16): a timeline
-/// swimlane must point to a live entry with `level == true` or `accept == true`.
+/// Invariant 8 (`V3-TIMELINE-LANE-ENABLED`, `kernel-v5.md` §16 「泳道」): a
+/// timeline swimlane must point to a live entry that takes entries from
+/// elsewhere (`accept`, [`Entry::accepts_members`]); its level switch does not
+/// count (DV, 2026-11-16: an entry with only its level on is no lane). The
+/// command layer refuses a new such lane; readers
+/// ([`effective_timeline_lanes`]) leave out a stored one, data kept.
 pub fn check_timeline_lane(
     entry_id: &EntryId,
     entries: &BTreeMap<EntryId, Entry>,
@@ -2265,17 +2269,18 @@ pub fn check_timeline_lane(
             format!("lane entry {entry_id} is not live"),
         );
     };
-    if !entry.has_below(templates) {
+    if !entry.accepts_members(templates) {
         return fail(
             "V3-TIMELINE-LANE-ENABLED",
-            format!("entry {entry_id} has neither its level switch nor accept enabled"),
+            format!("entry {entry_id} does not take entries from elsewhere (accept is off)"),
         );
     }
     Ok(())
 }
 
 /// Read-side filter for Invariant 8 (`V3-TIMELINE-LANE-ENABLED`): ignores lanes
-/// whose target entry is missing, trashed, or has neither `level` nor `accept`.
+/// whose target entry is missing, trashed, or does not take entries from
+/// elsewhere (`accept` off, whatever its level switch). The stored lane stays.
 pub fn effective_timeline_lanes(
     lanes: &[TimelineLane],
     entries: &BTreeMap<EntryId, Entry>,
@@ -2320,10 +2325,10 @@ pub fn is_in_any_view(
     })
 }
 
-/// Whether `entry_id` belongs to swimlane `lane_id` (`kernel-v5.md` §16):
-/// either directly residing under `lane_id` (when `lane_id` has `level == true`)
-/// or validly belonging to `lane_id` via `memberships` (when `lane_id` has
-/// `accept == true`).
+/// Whether `entry_id` belongs to swimlane `lane_id` (`kernel-v5.md` §16
+/// 「泳道」): it is validly hung on `lane_id` (a membership, `lane_id` taking
+/// entries from elsewhere). Living under `lane_id` does not count (DV,
+/// 2026-11-16: a lane holds only what is hung on it).
 pub fn is_entry_in_lane(
     lane_id: &EntryId,
     entry_id: &EntryId,
@@ -2334,11 +2339,8 @@ pub fn is_entry_in_lane(
     let Some(lane) = entries.get(lane_id).filter(|e| !e.is_trashed()) else {
         return false;
     };
-    let Some(entry) = entries.get(entry_id).filter(|e| !e.is_trashed()) else {
+    if entries.get(entry_id).is_none_or(Entry::is_trashed) {
         return false;
-    };
-    if lane.is_level() && effective_parent_id(entry, entries).as_ref() == Some(lane_id) {
-        return true;
     }
     lane.accepts_members(templates)
         && lane_id != entry_id
@@ -2384,9 +2386,9 @@ pub fn check_timeline_placement_in_lane(
 }
 
 /// Command-layer helper for Invariant 9 (`V3-TIMELINE-PLACEMENT-IN-LANE`):
-/// after removing `(lane_id, member_id)` from `memberships` or moving an entry
-/// out of a lane folder, if `member_id` is no longer in any swimlane of `view`,
-/// removes `member_id`'s placement from `view`.
+/// after removing `(lane_id, member_id)` from `memberships`, if `member_id` is
+/// no longer in any swimlane of `view`, removes `member_id`'s placement from
+/// `view`.
 pub fn prune_placement_if_not_in_view_lanes(
     view: &mut TimelineView,
     member_id: &EntryId,
@@ -2728,14 +2730,15 @@ pub fn is_valid_flatten_from(
 }
 
 /// Invariant `TAB-MOUNT-VALID` (`kernel-v5.md` §5, §11 & §16): a tab mount must
-/// be the root, a live entry with `level == true` or `accept == true`, a
-/// non-deleted view, or the book sequence when `has_book` is on.
+/// be the root, a live entry with `level == true` or `accept == true`, or the
+/// book sequence when `has_book` is on. A Tab cannot mount a view (DV,
+/// 2026-11-16, author: 「左栏不能挂视图，视图和底栏是绑定的。」): a view
+/// mount is always refused, so a Tab a book stored on a view reads as gone.
 pub fn check_tab_mount(
     mount: &TabMount,
     has_book: bool,
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
-    views: &BTreeMap<TimelineViewId, TimelineView>,
 ) -> Result<(), Violation> {
     match mount {
         TabMount::Root => Ok(()),
@@ -2756,15 +2759,10 @@ pub fn check_tab_mount(
             }
             Ok(())
         }
-        TabMount::View { view } => {
-            if views.get(view).is_none_or(|v| v.deleted_at.is_some()) {
-                return fail(
-                    "TAB-MOUNT-VALID",
-                    format!("tab mount view {view} does not exist"),
-                );
-            }
-            Ok(())
-        }
+        TabMount::View { view } => fail(
+            "TAB-MOUNT-VALID",
+            format!("a tab cannot mount a view (view {view}); views go with the bottom panel"),
+        ),
         TabMount::Book => {
             if !has_book {
                 return fail(
@@ -3910,10 +3908,23 @@ mod tests {
             ),
         ]);
 
-        // Both a non-level `accept` entry (`line-1`) AND a level folder (`folder`)
-        // can be swimlanes; a leaf with neither (`ch-1`) cannot.
+        // A non-level `accept` entry (`line-1`) is a swimlane; a level folder
+        // that takes no entries from elsewhere (`folder`) is not (DV,
+        // 2026-11-16), nor is a leaf with neither switch (`ch-1`). The folder
+        // with 「收别处的条目」 turned on is one.
         assert!(check_timeline_lane(&eid("line-1"), &entries, &templates).is_ok());
-        assert!(check_timeline_lane(&eid("folder"), &entries, &templates).is_ok());
+        assert_eq!(
+            check_timeline_lane(&eid("folder"), &entries, &templates)
+                .unwrap_err()
+                .invariant,
+            "V3-TIMELINE-LANE-ENABLED"
+        );
+        let mut both = entries.clone();
+        both.get_mut(&eid("folder")).unwrap().overrides = Some(LevelSettingsOverride {
+            accept: Some(true),
+            ..Default::default()
+        });
+        assert!(check_timeline_lane(&eid("folder"), &both, &templates).is_ok());
         assert_eq!(
             check_timeline_lane(&eid("ch-1"), &entries, &templates)
                 .unwrap_err()
@@ -3938,7 +3949,7 @@ mod tests {
                     act_track: None,
                 },
                 TimelineLane {
-                    entry: eid("folder"),
+                    entry: eid("folder"), // only a level: ignored on read, kept
                     pos: None,
                     act_track: None,
                 },
@@ -3969,8 +3980,9 @@ mod tests {
             deleted_at: None,
         };
 
-        // `ch-1` belongs to `line-1` via membership; `ch-res` resides directly under `folder`;
-        // `ch-2` is in neither.
+        // `ch-1` belongs to `line-1` via membership; `ch-res` resides directly
+        // under `folder`, which is no lane, so it is on no lane; `ch-2` is in
+        // neither.
         let memberships = vec![membership("line-1", "ch-1")];
 
         assert!(
@@ -3983,7 +3995,7 @@ mod tests {
             )
             .is_ok()
         );
-        assert!(
+        assert_eq!(
             check_timeline_placement_in_lane(
                 &view,
                 &eid("ch-res"),
@@ -3991,8 +4003,29 @@ mod tests {
                 &entries,
                 &templates
             )
-            .is_ok()
+            .unwrap_err()
+            .invariant,
+            "V3-TIMELINE-PLACEMENT-IN-LANE"
         );
+        // Living under a lane is not being on it: with `folder` taking entries
+        // from elsewhere, `ch-res` (only living under it) is still on no lane.
+        assert!(
+            check_timeline_placement_in_lane(
+                &view,
+                &eid("ch-res"),
+                &memberships,
+                &both,
+                &templates
+            )
+            .is_err()
+        );
+        assert!(is_entry_in_lane(
+            &eid("folder"),
+            &eid("ch-res"),
+            &[membership("folder", "ch-res")],
+            &both,
+            &templates
+        ));
         assert_eq!(
             check_timeline_placement_in_lane(
                 &view,
@@ -4006,12 +4039,22 @@ mod tests {
             "V3-TIMELINE-PLACEMENT-IN-LANE"
         );
 
-        // Read-side `effective_timeline_placements` returns both `ch-1` and `ch-res`.
+        // Read-side `effective_timeline_placements` returns `ch-1` only; the
+        // stored lane and placement of `folder` and `ch-res` stay in `view`.
         let eff = effective_timeline_placements(&view, &memberships, &entries, &templates);
         assert_eq!(
             eff.iter().map(|p| p.entry.clone()).collect::<Vec<_>>(),
-            vec![eid("ch-1"), eid("ch-res")]
+            vec![eid("ch-1")]
         );
+        assert_eq!(
+            effective_timeline_lanes(&view.lanes, &entries, &templates)
+                .iter()
+                .map(|l| l.entry.clone())
+                .collect::<Vec<_>>(),
+            vec![eid("line-1")]
+        );
+        assert!(view.lanes.iter().any(|l| l.entry == eid("folder")));
+        assert!(view.placements.iter().any(|p| p.entry == eid("ch-res")));
 
         // When `ch-1` is removed from its last lane in `view`, its placement is pruned too.
         assert!(prune_placement_if_not_in_view_lanes(
@@ -4022,11 +4065,11 @@ mod tests {
             &templates
         ));
         assert!(view.placements.iter().all(|p| p.entry != eid("ch-1")));
-        // `ch-res` still resides under `folder`, so it is NOT pruned.
+        // `ch-2` is still hung on `line-1` here, so it is NOT pruned.
         assert!(!prune_placement_if_not_in_view_lanes(
             &mut view,
-            &eid("ch-res"),
-            &[],
+            &eid("ch-2"),
+            &[membership("line-1", "ch-2")],
             &entries,
             &templates
         ));
@@ -4256,14 +4299,13 @@ mod tests {
             assert!(!valid(&bad), "{bad:?}");
         }
 
-        assert!(check_tab_mount(&TabMount::Root, false, &entries, &templates, &views).is_ok());
+        assert!(check_tab_mount(&TabMount::Root, false, &entries, &templates).is_ok());
         assert!(
             check_tab_mount(
                 &TabMount::Entry { entry: eid("ms") },
                 false,
                 &entries,
                 &templates,
-                &views
             )
             .is_ok()
         );
@@ -4276,11 +4318,12 @@ mod tests {
                 false,
                 &entries,
                 &templates,
-                &views
             )
             .is_ok()
         );
-        assert!(
+        // A Tab cannot mount a view, even one that is there (DV, 2026-11-16).
+        assert!(views.contains_key(&view_id));
+        assert_eq!(
             check_tab_mount(
                 &TabMount::View {
                     view: view_id.clone()
@@ -4288,13 +4331,14 @@ mod tests {
                 false,
                 &entries,
                 &templates,
-                &views
             )
-            .is_ok()
+            .unwrap_err()
+            .invariant,
+            "TAB-MOUNT-VALID"
         );
-        assert!(check_tab_mount(&TabMount::Book, true, &entries, &templates, &views).is_ok());
+        assert!(check_tab_mount(&TabMount::Book, true, &entries, &templates).is_ok());
         assert_eq!(
-            check_tab_mount(&TabMount::Book, false, &entries, &templates, &views)
+            check_tab_mount(&TabMount::Book, false, &entries, &templates)
                 .unwrap_err()
                 .invariant,
             "TAB-MOUNT-VALID"
@@ -4305,7 +4349,6 @@ mod tests {
                 true,
                 &entries,
                 &templates,
-                &views
             )
             .unwrap_err()
             .invariant,

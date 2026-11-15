@@ -83,10 +83,6 @@ pub struct RestoreFieldsIn {
     /// last live view (`VIEW-LANE-EXIT-RESTORES-ORDER`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub membership_pos: Vec<(String, String)>,
-    /// Folder entry ID whose direct child order was written back when it left
-    /// its last live view (`VIEW-FOLDER-ORDER-FROM-SCALE`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub child_order: Option<String>,
 }
 
 /// A lane of a view, or one of its fields, as the key of a write guard.
@@ -99,7 +95,6 @@ fn lane_key(view: &TimelineViewId, lane: &EntryId, field: Option<&str>) -> dr_do
 #[derive(Default)]
 struct UndoExtra {
     membership_pos: Vec<(String, String)>,
-    child_order: Option<String>,
 }
 
 fn finish(
@@ -111,7 +106,7 @@ fn finish(
     before: loro::Frontiers,
     expected: String,
 ) -> Result<Done> {
-    if fields.is_empty() && extra.membership_pos.is_empty() && extra.child_order.is_none() {
+    if fields.is_empty() && extra.membership_pos.is_empty() {
         cx.undo_nothing();
     } else {
         cx.undo_with(Invocation::new(
@@ -123,7 +118,6 @@ fn finish(
                 expected,
                 fields,
                 membership_pos: extra.membership_pos,
-                child_order: extra.child_order,
             },
         ));
         cx.effect(EffectAction::Updated, "timeline_view", &view, None);
@@ -189,7 +183,7 @@ op! {
 }
 op! {
     LaneAdd = "timeline_view.add_lane", Write, Book,
-    "Add one live lane to a view without replacing existing lane records or changing memberships.",
+    "Add one live lane to a view without replacing existing lane records or changing memberships. A lane is an entry that takes entries from elsewhere (「收别处的条目」 on); an entry with only its level switch on is refused. The lane holds what is hung on it, not what lives under it.",
     fn(cx, input: LaneAddIn) -> Done {
         let slot = cx.book_v3(&input.target.book)?;
         let id: TimelineViewId = pid("timeline view", &input.target.view)?;
@@ -209,7 +203,7 @@ op! {
             let pos = position(&tv, &lane, &place)?;
             let snapshot = v.structure_snapshot();
             let mut unplaced = Vec::new();
-            for item in snapshot.lane_entries_order(&lane) {
+            for item in snapshot.lane_members_order(&lane) {
                 if v.timeline_field_snapshot(&id, &TimelineFieldV3::Placement(item.id.clone()))?
                     .is_none()
                 {
@@ -291,7 +285,7 @@ op! {
 }
 op! {
     LaneRemove = "timeline_view.remove_lane", Write, Book,
-    "Remove one view lane and newly orphaned visible positions, saving its scale order back to manual order when leaving its last live view.",
+    "Remove one view lane and newly orphaned visible positions, saving the scale order of what is hung on it back to the memberships' manual order when leaving its last live view.",
     fn(cx, input: LaneIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: TimelineViewId = pid("timeline view", &input.view)?;
@@ -308,20 +302,15 @@ op! {
             let entries_map = v.entries_map();
             let templates_map = v.templates_map();
             let remaining: BTreeSet<_> = tv.lanes.iter().filter(|l| l.entry != lane).map(|l| &l.entry).collect();
+            // A lane holds what is hung on it (DV, 2026-11-16): living under
+            // a lane puts nothing on it.
             let prune: Vec<_> = m::effective_timeline_placements(&tv, &ms, &entries_map, &templates_map)
                 .into_iter()
                 .filter(|p| {
-                    let was_in_lane = ms.iter().any(|m| m.host == lane && m.member == p.entry)
-                        || entries_map
-                            .get(&p.entry)
-                            .is_some_and(|e| e.parent.as_ref() == Some(&lane));
+                    let was_in_lane = ms.iter().any(|m| m.host == lane && m.member == p.entry);
                     let in_remaining = ms
                         .iter()
-                        .any(|m| m.member == p.entry && remaining.contains(&m.host))
-                        || entries_map
-                            .get(&p.entry)
-                            .and_then(|e| e.parent.as_ref())
-                            .is_some_and(|par| remaining.contains(par));
+                        .any(|m| m.member == p.entry && remaining.contains(&m.host));
                     was_in_lane && !in_remaining
                 })
                 .map(|p| p.entry)
@@ -345,7 +334,7 @@ op! {
                 });
             let wb = if was_effective_here && !in_other_live_view {
                 let snapshot = v.structure_snapshot();
-                super::plan_lane_exit_writeback(&v, &snapshot, &tv, &lane)?
+                super::plan_lane_exit_writeback(&snapshot, &tv, &lane)?
             } else {
                 super::LaneExitWriteback::default()
             };
@@ -365,16 +354,12 @@ op! {
                     Some(&loro::LoroValue::from(pos.as_str())),
                 )?;
             }
-            if let Some(children) = &wb.child_order {
-                super::reorder_stored_children(tx, &lane, children)?;
-            }
             let extra = UndoExtra {
                 membership_pos: wb
                     .member_pos
                     .into_iter()
                     .map(|(m, _)| (lane.to_string(), m.to_string()))
                     .collect(),
-                child_order: wb.child_order.map(|_| lane.to_string()),
             };
             Ok((
                 fields,
@@ -431,19 +416,7 @@ op! {
             let exp_pos = expected.membership_pos_restore_state(&host_id, &member_id)?;
             mpos_pairs.push((host_id, member_id, old_pos, exp_pos));
         }
-        let child_order_pair = if let Some(parent_s) = &input.child_order {
-            let parent_id: EntryId = pid("entry", parent_s)?;
-            // The order to put back, as stored then; compared below on the
-            // live entries only, so an entry trashed since (a creation
-            // undone in between) is no reason to refuse.
-            let old_children = old.direct_child_ids(Some(&parent_id));
-            let exp_children = super::live_child_ids(&expected, &parent_id);
-            Some((parent_id, old_children, exp_children))
-        } else {
-            None
-        };
         let mpos_receipt = input.membership_pos;
-        let corder_receipt = input.child_order;
         // An inverse compares every selected field itself, below.
         let ((fields, expected), before) = cx.write_book_v3(&slot, Replaces::nothing(), move |tx| {
             let v = tx.view();
@@ -457,11 +430,6 @@ op! {
                     return Err(WsError::Conflict("selected membership order changed after the recorded write".into()));
                 }
             }
-            if let Some((parent_id, _, exp_children)) = &child_order_pair
-                && super::live_child_ids(&v, parent_id) != *exp_children
-            {
-                return Err(WsError::Conflict("selected folder child order changed after the recorded write".into()));
-            }
             // All historical/current paths and retained state pass before
             // any write. Independent fields remain outside this inverse.
             {
@@ -473,9 +441,6 @@ op! {
                     tx.restore_membership_pos(host_id, member_id, old_pos.1.as_ref())?;
                 }
             }
-            if let Some((parent_id, old_children, _)) = &child_order_pair {
-                super::reorder_stored_children(tx, parent_id, old_children)?;
-            }
             Ok((pairs.into_iter().map(|(field, _, _, _)| field).collect(), frontiers_hex(&tx.view().state_frontiers())))
         })?;
         finish(
@@ -485,7 +450,6 @@ op! {
             fields,
             UndoExtra {
                 membership_pos: mpos_receipt,
-                child_order: corder_receipt,
             },
             before,
             expected,

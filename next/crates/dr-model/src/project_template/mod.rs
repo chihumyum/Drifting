@@ -210,13 +210,15 @@ pub struct TemplateTab {
     pub mount: TemplateTabMount,
 }
 
-/// Symbolic left-sidebar tab mount (`project.tabs[].mount`).
+/// Symbolic left-sidebar tab mount (`project.tabs[].mount`): the root, an
+/// entry or the book. A Tab cannot mount a view (DV, 2026-11-16, author:
+/// 「左栏不能挂视图，视图和底栏是绑定的。」), so a template value with
+/// `{"kind": "view"}` is refused as an unknown variant.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TemplateTabMount {
     Root,
     Entry { entry: String },
-    View { view: String },
     Book,
 }
 

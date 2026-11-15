@@ -201,6 +201,30 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     let proj = view.project();
     // The book reads from the root: no start is written.
     assert!(proj.book.is_some());
+    // No Tab mounts a view, and every lane takes entries from elsewhere
+    // (DV, 2026-11-16).
+    let snapshot = view.structure_snapshot();
+    assert!(
+        proj.tabs
+            .iter()
+            .all(|t| snapshot.is_valid_tab_mount(&t.mount)),
+        "{:?}",
+        proj.tabs
+    );
+    for tv in view.timeline_views_raw() {
+        for l in &tv.lanes {
+            assert!(
+                dr_model::v3::check_timeline_lane(
+                    &l.entry,
+                    snapshot.entries_map(),
+                    snapshot.templates_map()
+                )
+                .is_ok(),
+                "lane {}",
+                l.entry
+            );
+        }
+    }
     assert_eq!(
         outermost_with_prose(view.structure_snapshot().book_sequence())
             .into_iter()

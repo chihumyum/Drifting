@@ -527,8 +527,9 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
         json!({"book": a, "view": view_a, "lane": main_line_a}),
     );
 
-    // Update project definition: custom agent, targets, and 4 tab mount kinds
-    // (an old caller's book start is ignored: DW).
+    // Update project definition: custom agent, targets, and a Tab on the
+    // book (an old caller's book start is ignored: DW; a Tab cannot mount a
+    // view: DV).
     e.call(
         "project.update",
         json!({
@@ -545,14 +546,6 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
             },
             "word_target": 80000,
             "daily_word_target": 2000
-        }),
-    );
-    e.call(
-        "tab.put",
-        json!({
-            "book": a,
-            "name": "全视图",
-            "mount": {"kind": "view", "view": view_a}
         }),
     );
     e.call(

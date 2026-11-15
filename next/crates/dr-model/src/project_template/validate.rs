@@ -678,8 +678,8 @@ pub fn validate_project_template_value(
         });
     }
 
-    // 6. Validate `views` (lanes, placements, pins).
-    let mut domain_views: BTreeMap<TimelineViewId, TimelineView> = BTreeMap::new();
+    // 6. Validate `views` (lanes, placements, pins). A lane takes entries
+    // from elsewhere (`V3-TIMELINE-LANE-ENABLED`, DV 2026-11-16).
     let mut v_pos = PosKey::first();
     for (v_idx, v) in val.views.iter().enumerate() {
         if v_idx > 0 {
@@ -724,7 +724,7 @@ pub fn validate_project_template_value(
         }
 
         let mut temp_view = TimelineView {
-            id: vid.clone(),
+            id: vid,
             name: v.name.trim().to_owned(),
             pos: Some(v_pos.clone()),
             lanes,
@@ -808,8 +808,6 @@ pub fn validate_project_template_value(
                 entry: pin_entry,
             });
         }
-
-        domain_views.insert(vid, temp_view);
     }
 
     // 7. Validate `project.book` and `project.tabs`.
@@ -843,18 +841,8 @@ pub fn validate_project_template_value(
                     entry: dummy_entry_map[entry].clone(),
                 }
             }
-            TemplateTabMount::View { view } => {
-                if !is_symbolic_view_ref(view) || !view_sym_set.contains(view) {
-                    return inv(format!(
-                        "tab mount view {view:?} does not resolve to a view"
-                    ));
-                }
-                TabMount::View {
-                    view: TimelineViewId::parse(view).expect("validated"),
-                }
-            }
         };
-        check_tab_mount(&domain_mount, has_book, &entries, &templates, &domain_views)?;
+        check_tab_mount(&domain_mount, has_book, &entries, &templates)?;
     }
 
     // 8. Validate `template_prose`.

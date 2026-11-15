@@ -122,6 +122,25 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
         for p in &book.prose {
             assert!(v.owns_prose(p.doc_id()), "{}", p.doc_id());
         }
+        // No Tab mounts a view and every lane takes entries from elsewhere
+        // (DV, 2026-11-16).
+        for tab in &v.project().tabs {
+            assert!(
+                dr_model::v3::check_tab_mount(&tab.mount, true, &entries_map, &templates_map)
+                    .is_ok(),
+                "{name}: {tab:?}"
+            );
+        }
+        for tv in v.timeline_views_raw() {
+            for l in &tv.lanes {
+                assert!(
+                    dr_model::v3::check_timeline_lane(&l.entry, &entries_map, &templates_map)
+                        .is_ok(),
+                    "{name}: lane {}",
+                    l.entry
+                );
+            }
+        }
     }
 
     let s_v2 = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).unwrap();

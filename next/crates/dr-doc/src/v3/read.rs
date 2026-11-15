@@ -1120,9 +1120,9 @@ impl<'a> BookViewV3<'a> {
         effective_parent_id(e, &entries)
     }
 
-    /// Live child entries whose effective parent is `parent`, in authoritative
-    /// folder order (the reference view's scale when `parent` is a folder in a
-    /// live view, otherwise manual folder order).
+    /// Live child entries whose effective parent is `parent`, in its manual
+    /// folder order (also while it is a lane in a view: a lane holds what is
+    /// hung on it, DV 2026-11-16).
     pub fn children_of(&self, parent: Option<&EntryId>) -> Vec<Entry> {
         self.structure_snapshot()
             .children_of(parent)

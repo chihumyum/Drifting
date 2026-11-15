@@ -428,7 +428,7 @@ fn a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves
 }
 
 #[test]
-fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
+fn project_tabs_mount_three_targets_and_keep_invalid_mounts() {
     let e = env();
     let b = e.book();
     let ms = root(&e, &b, "tpl-manuscript");
@@ -469,17 +469,17 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
             .all(|t| t["mount_valid"] == true)
     );
 
-    // Tabs for all four mount targets: root (「全部」, already there), entry,
-    // view, book.
+    // Tabs for the three mount targets: root (「全部」, already there), entry,
+    // book. A Tab cannot mount a view (DV, `kernel-v5.md` §15 item 15), not
+    // even one that is there.
     let t_root = proj["tabs"][0]["id"].as_str().unwrap().to_owned();
     assert_eq!(proj["tabs"][0]["mount"], json!({"kind":"root"}));
-    let t_view = e.out(
+    refused(
+        &e,
         "tab.put",
         json!({"book":b,"mount":{"kind":"view","view":view}}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+        "TAB-MOUNT-VALID",
+    );
     let t_book = e.out("tab.put", json!({"book":b,"mount":{"kind":"book"}}))["id"]
         .as_str()
         .unwrap()
@@ -572,7 +572,7 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
         json!({"book":b,"id":t_root}),
         "TAB-ROOT-ALWAYS",
     );
-    e.call("tab.remove", json!({"book":b,"id":t_view}));
+    e.call("tab.remove", json!({"book":b,"id":t_app}));
 
     // Turning the book off keeps `{kind: "book"}` tab stored with `mount_valid == false`,
     // hides shelf words & daily target, and makes `writing_day.record` a no-op.

@@ -1,11 +1,12 @@
-//! A folder's order while it is in a view and after it leaves its last one
-//! (`kernel-v5.md` §4, §16 「泳道」): undo across a later entry, the
-//! write-back touching only what lives directly in the folder, and every
-//! entry of a lane getting a position on the scale.
+//! A lane's order while it is in a view and after it leaves (`kernel-v5.md`
+//! §4, §16 「泳道」): every entry hung on a lane gets a position on the scale,
+//! also when it comes back from Recently Deleted or when its lane takes
+//! entries from elsewhere again; what only lives under a lane gets none (DV,
+//! 2026-11-16: a lane holds only what is hung on it, and a folder's order is
+//! always its manual order).
 mod common;
 use common::*;
-use dr_workspace::{Actor, Workspace};
-use loro::ExportMode;
+use dr_workspace::Actor;
 use serde_json::{Value, json};
 
 struct Book<'a> {
@@ -16,9 +17,6 @@ struct Book<'a> {
 impl<'a> Book<'a> {
     fn new(e: &'a Env) -> Self {
         Self { b: e.book(), e }
-    }
-    fn on(e: &'a Env, b: &str) -> Self {
-        Self { e, b: b.to_owned() }
     }
     fn root(&self, template: &str) -> String {
         acceptance::novel_root(self.e.ws(), &self.b, template)
@@ -42,25 +40,6 @@ impl<'a> Book<'a> {
         input["book"] = json!(self.b);
         self.e.call(name, input)
     }
-    /// The live entries stored directly under `parent`, in their manual
-    /// order (what is stored, whether or not the folder is in a view).
-    fn live_children(&self, parent: &str) -> Vec<String> {
-        let book = dr_model::id::BookId::parse(&self.b).unwrap();
-        let parent = dr_model::id::EntryId::parse(parent).unwrap();
-        self.e
-            .ws()
-            .read_book_v3(&self.b, move |doc, _| {
-                Ok(dr_doc::v3::BorrowedBookV3::new(doc, &book)
-                    .unwrap()
-                    .view()
-                    .entries_raw()
-                    .into_iter()
-                    .filter(|e| e.parent.as_ref() == Some(&parent) && !e.is_trashed())
-                    .map(|e| e.id.to_string())
-                    .collect())
-            })
-            .unwrap()
-    }
     fn parent(&self, id: &str) -> Value {
         self.e.out("entry.get", json!({"book": self.b, "id": id}))["parent"].clone()
     }
@@ -82,189 +61,104 @@ impl<'a> Book<'a> {
             .get(entry)
             .and_then(|p| p["at"].as_f64())
     }
-}
-
-/// Every stored document of `from` imported into `to`, the book first, as
-/// another device's sync would.
-fn sync(from: &Workspace, to: &Workspace) {
-    let mut docs = from.library().docs(None, None).unwrap();
-    docs.sort_by_key(|d| (d.kind != "book", d.doc_id.clone()));
-    for d in docs {
-        if from.library().head(&d.doc_id).unwrap().is_none() {
-            continue;
-        }
-        let bytes = from
-            .library()
-            .load_copy(&d.doc_id)
+    /// Whether `timeline_view.list` shows `entry` on the scale of `view`.
+    fn shown(&self, view: &str, entry: &str) -> bool {
+        self.e
+            .out("timeline_view.list", json!({"book": self.b}))
+            .as_array()
             .unwrap()
-            .export(ExportMode::all_updates())
+            .iter()
+            .filter(|v| v["id"] == view)
+            .flat_map(|v| v["placements"].as_array().unwrap().clone())
+            .any(|p| p["entry"] == entry)
+    }
+    /// Stores `lane` in `view` directly, as a book written before a lane had
+    /// to take entries from elsewhere could (the command refuses it now).
+    fn store_lane(&self, view: &str, lane: &str) {
+        let book = dr_model::id::BookId::parse(&self.b).unwrap();
+        let view = dr_model::id::TimelineViewId::parse(view).unwrap();
+        let lane = dr_model::id::EntryId::parse(lane).unwrap();
+        self.e
+            .ws()
+            .library()
+            .open_doc(&format!("book:{}", self.b), dr_store::OpenDoc::Existing)
+            .unwrap()
+            .write(dr_store::Origin::Import, move |doc| {
+                dr_doc::v3::BorrowedBookV3::new(doc, &book)
+                    .unwrap()
+                    .txn()
+                    .timeline_view(&view)
+                    .unwrap()
+                    .put_lane(&lane, None)
+                    .unwrap();
+            })
             .unwrap();
-        to.import_remote(
-            &d.doc_id,
-            Some((&d.kind, d.book_id.as_deref().unwrap_or(""))),
-            bytes,
-            &Actor::Sync,
-        )
-        .unwrap();
     }
 }
 
-/// DX 10: a folder leaves its last view (its scale order goes back into the
-/// folder), a chapter is created and undone, then the folder's leaving is
-/// undone too: the trashed chapter is no reason to refuse.
+/// DX 12, after DV: an entry hung on a lane and trashed before the lane went
+/// into the view gets a position when it comes back.
 #[test]
-fn undoing_a_folders_last_view_exit_ignores_entries_trashed_since() {
+fn an_entry_restored_onto_a_lane_that_entered_a_view_meanwhile_is_placed() {
     let e = env();
     let k = Book::new(&e);
     let ms = k.root("tpl-manuscript");
+    let storylines = k.root("tpl-storylines");
     let view = k.view();
-    let c: Vec<String> = ["一", "二", "三"]
-        .iter()
-        .map(|t| k.create(&ms, "tpl-chapter", t))
-        .collect();
-    k.call("timeline_view.add_lane", json!({"view": view, "lane": ms}));
-    k.call("entry.move", json!({"id": c[2], "parent": ms, "index": 0}));
-    k.call(
-        "timeline_view.remove_lane",
-        json!({"view": view, "lane": ms}),
-    );
-    assert_eq!(
-        k.live_children(&ms),
-        vec![c[2].clone(), c[0].clone(), c[1].clone()]
-    );
-    let four = k.create(&ms, "tpl-chapter", "四");
-    e.ws().undo(&Actor::User).unwrap().expect("the creation");
-    assert!(k.live_children(&ms).iter().all(|id| id != &four));
-    e.ws()
-        .undo(&Actor::User)
-        .expect("undoing the exit is not refused")
-        .expect("the exit");
-    assert_eq!(k.live_children(&ms), c, "the manual order is back");
-    let lanes = e.out("timeline_view.list", json!({"book": k.b}))[0]["lanes"].clone();
-    assert!(
-        lanes.as_array().unwrap().iter().any(|l| l["entry"] == ms),
-        "{lanes}"
-    );
-}
-
-/// DX 11: the write-back only puts in order what is stored directly in the
-/// folder. An entry a merge left under a level that is now off reads as
-/// living in the folder, but it stays where it is stored.
-#[test]
-fn leaving_the_last_view_never_moves_an_entry_stored_elsewhere_into_the_folder() {
-    let (ea, ez) = (env(), env());
-    let a = Book::new(&ea);
-    let ms = a.root("tpl-manuscript");
-    let view = a.view();
-    let c: Vec<String> = ["一", "二", "三"]
-        .iter()
-        .map(|t| a.create(&ms, "tpl-chapter", t))
-        .collect();
-    let group = a.create(&ms, "tpl-group", "卷");
-    a.call("timeline_view.add_lane", json!({"view": view, "lane": ms}));
-    a.call("entry.move", json!({"id": c[2], "parent": ms, "index": 0}));
-    sync(ea.ws(), ez.ws());
-    let z = Book::on(&ez, &a.b);
-    // Offline: A puts a chapter in the group, Z turns the group's level off.
-    let inside = a.create(&group, "tpl-chapter", "卷中");
-    z.call("entry.set_level", json!({"id": group, "level": false}));
-    sync(ez.ws(), ea.ws());
-    assert_eq!(
-        a.parent(&inside),
-        group,
-        "the merge keeps where it is stored"
-    );
-    a.call(
-        "timeline_view.remove_lane",
-        json!({"view": view, "lane": ms}),
-    );
-    assert_eq!(a.parent(&inside), group, "the write-back left it alone");
-    assert_eq!(
-        a.live_children(&ms),
-        vec![c[2].clone(), c[0].clone(), c[1].clone(), group.clone()]
-    );
-}
-
-/// DX 11: two devices. Z moves a chapter out of the folder while A takes
-/// the folder out of its last view: A's write-back moves only what is out
-/// of order, so Z's move is not undone by it.
-#[test]
-fn leaving_the_last_view_keeps_another_devices_move_out_of_the_folder() {
-    let (ea, ez) = (env(), env());
-    let a = Book::new(&ea);
-    let ms = a.root("tpl-manuscript");
-    let ideas = a.root("tpl-ideas");
-    let view = a.view();
-    let c: Vec<String> = ["一", "二", "三", "四"]
-        .iter()
-        .map(|t| a.create(&ms, "tpl-chapter", t))
-        .collect();
-    a.call("timeline_view.add_lane", json!({"view": view, "lane": ms}));
-    // Along the scale: 二 三 四 一.
-    a.call("entry.move", json!({"id": c[0], "parent": ms, "index": 3}));
-    sync(ea.ws(), ez.ws());
-    let z = Book::on(&ez, &a.b);
-    z.call("entry.move", json!({"id": c[2], "parent": ideas}));
-    a.call(
-        "timeline_view.remove_lane",
-        json!({"view": view, "lane": ms}),
-    );
-    sync(ez.ws(), ea.ws());
-    sync(ea.ws(), ez.ws());
-    for k in [&a, &z] {
-        assert_eq!(k.parent(&c[2]), ideas, "Z's move stands");
-        assert_eq!(
-            k.live_children(&ms),
-            vec![c[1].clone(), c[3].clone(), c[0].clone()]
-        );
-    }
-}
-
-/// DX 12: an entry trashed before its folder went into the view gets a
-/// position when it comes back.
-#[test]
-fn an_entry_restored_into_a_folder_that_entered_a_view_meanwhile_is_placed() {
-    let e = env();
-    let k = Book::new(&e);
-    let ms = k.root("tpl-manuscript");
-    let view = k.view();
+    let line = k.create(&storylines, "tpl-storyline", "主线");
     let one = k.create(&ms, "tpl-chapter", "一");
     let two = k.create(&ms, "tpl-chapter", "二");
+    for c in [&one, &two] {
+        k.call("membership.add", json!({"host": line, "member": c}));
+    }
     k.call("entry.trash", json!({"id": two}));
-    k.call("timeline_view.add_lane", json!({"view": view, "lane": ms}));
+    k.call(
+        "timeline_view.add_lane",
+        json!({"view": view, "lane": line}),
+    );
     assert!(k.at(&view, &two).is_none());
     k.call("entry.restore", json!({"id": two}));
     let (a1, a2) = (k.at(&view, &one).unwrap(), k.at(&view, &two).unwrap());
     assert!(a2 > a1, "{a1} {a2}");
 }
 
-/// DX 12: an entry restored to another residence (its folder is gone) loses
-/// its position in the views of the folder it no longer lives in.
+/// DV: coming back to another residence takes no position away. The entry
+/// lived in a lane with both switches and hung on it; the lane is trashed
+/// with it, the entry alone is restored into the nearest level, and when the
+/// lane comes back the entry is on it where it was.
 #[test]
-fn an_entry_restored_elsewhere_leaves_its_old_folders_views() {
+fn an_entry_restored_elsewhere_keeps_its_place_on_the_lane_it_hangs_on() {
     let e = env();
     let k = Book::new(&e);
     let ms = k.root("tpl-manuscript");
     let view = k.view();
     let group = k.create(&ms, "tpl-group", "卷");
-    let inside = k.create(&group, "tpl-chapter", "卷中");
+    k.call(
+        "entry.update",
+        json!({"id": group, "overrides": {"accept": true}}),
+    );
+    let inside = e.out(
+        "entry.create",
+        json!({"book": k.b, "host": group, "template": "tpl-chapter", "title": "卷中"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(k.parent(&inside), group, "it lives under the lane");
     k.call(
         "timeline_view.add_lane",
         json!({"view": view, "lane": group}),
     );
-    assert!(k.at(&view, &inside).is_some());
+    let at = k
+        .at(&view, &inside)
+        .expect("hung on the lane: on the scale");
     k.call("entry.trash", json!({"id": group}));
     k.call("entry.restore", json!({"id": inside}));
     assert_eq!(k.parent(&inside), ms, "it lands in the nearest level");
-    assert!(
-        k.at(&view, &inside).is_none(),
-        "{:?}",
-        k.stored_placements(&view)
-    );
-    // Undo puts it back as it was.
-    e.ws().undo(&Actor::User).unwrap().unwrap();
-    assert_eq!(k.parent(&inside), group);
-    assert!(k.at(&view, &inside).is_some());
+    assert_eq!(k.at(&view, &inside), Some(at), "its position is kept");
+    k.call("entry.restore", json!({"id": group}));
+    assert!(k.shown(&view, &inside), "on the lane again where it was");
+    assert_eq!(k.at(&view, &inside), Some(at));
 }
 
 /// DX 12: several entries coming back at once each get their own position.
@@ -292,8 +186,9 @@ fn entries_restored_together_land_on_distinct_positions() {
     assert_ne!(ax, ay);
 }
 
-/// DX 12: turning 「收别处的条目」 back on for a lane already in a view
-/// places the members that come back.
+/// DX 12, after DV: a lane stored in a view while it took no entries from
+/// elsewhere (a book from before DV) reads as not in the view; turning
+/// 「收别处的条目」 on places what is hung on it, not what lives under it.
 #[test]
 fn members_coming_back_to_a_lane_in_a_view_are_placed() {
     let e = env();
@@ -312,29 +207,23 @@ fn members_coming_back_to_a_lane_in_a_view_are_placed() {
         "entry.update",
         json!({"id": folder, "overrides": {"accept": false}}),
     );
-    k.call(
-        "timeline_view.add_lane",
-        json!({"view": view, "lane": folder}),
-    );
-    assert!(k.at(&view, &resident).is_some());
+    k.store_lane(&view, &folder);
+    assert!(k.at(&view, &resident).is_none());
     assert!(k.at(&view, &member).is_none());
     k.call(
         "entry.update",
         json!({"id": folder, "overrides": {"accept": true}}),
     );
-    let (ar, am) = (
-        k.at(&view, &resident).unwrap(),
-        k.at(&view, &member).unwrap(),
-    );
-    assert!(am > ar, "{ar} {am}");
+    assert!(k.at(&view, &member).is_some());
+    assert!(k.at(&view, &resident).is_none(), "only what is hung on it");
     // One undo takes the switch and the position back.
     e.ws().undo(&Actor::User).unwrap().unwrap();
     assert!(k.at(&view, &member).is_none());
 }
 
 /// The same when it is the template that starts taking entries from
-/// elsewhere: the members of its lanes already in a view are placed, in
-/// the same step as the template.
+/// elsewhere: the members of its lanes already stored in a view are placed,
+/// in the same step as the template.
 #[test]
 fn members_coming_back_when_the_template_takes_entries_again_are_placed() {
     let e = env();
@@ -372,21 +261,15 @@ fn members_coming_back_when_the_template_takes_entries_again_are_placed() {
         json!({"id": own, "overrides": {"accept": false}}),
     );
     for lane in [&folder, &own] {
-        k.call(
-            "timeline_view.add_lane",
-            json!({"view": view, "lane": lane}),
-        );
+        k.store_lane(&view, lane);
     }
-    assert!(k.at(&view, &resident).is_some());
+    assert!(k.at(&view, &resident).is_none());
     assert!(k.at(&view, &member).is_none());
     assert!(k.at(&view, &other).is_none());
 
     accept(true);
-    let (ar, am) = (
-        k.at(&view, &resident).unwrap(),
-        k.at(&view, &member).unwrap(),
-    );
-    assert!(am > ar, "{ar} {am}");
+    assert!(k.at(&view, &member).is_some());
+    assert!(k.at(&view, &resident).is_none(), "only what is hung on it");
     assert!(
         k.at(&view, &other).is_none(),
         "its lane keeps its own setting, off"

@@ -224,8 +224,8 @@ pub fn act_track_template() -> EntryTemplate {
         color: None,
         agent: Some(TemplateAgentConfig {
             name: "幕轨道".into(),
-            description: "作为时间线幕轨道的泳道层级，里面的条目在视图顶部按区间长度展示。".into(),
-            instructions: "在幕轨道下新建条目默认使用构想模板并住在本层级下，也可把已有条目归属进来赋予区间长度。".into(),
+            description: "作为时间线幕轨道的泳道，挂在它上面的条目在视图顶部按区间长度展示；只住在下面、没挂上来的条目不在轨道上。".into(),
+            instructions: "在幕轨道上新建条目是挂到它上面，默认使用构想模板并住在本层级下；也可把已有条目挂上来赋予区间长度。".into(),
         }),
         modules: with_description(vec![color_fields_module()]),
         level: true,

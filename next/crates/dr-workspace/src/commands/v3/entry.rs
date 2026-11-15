@@ -337,19 +337,18 @@ op! {
             e.primary = Some(h.clone());
         }
         changes_ok(&before, &after)?;
-        let mut seen_views = BTreeSet::new();
+        // An entry goes on a lane by being hung on it (`host`); living under
+        // a lane (`parent`) puts nothing on the scale (DV, 2026-11-16).
         let mut auto_views: Vec<(TimelineViewId, f64)> = Vec::new();
-        for lane_cand in [host.as_ref(), parent.as_ref()].into_iter().flatten() {
-            for tv in membership::live_views_with_lane(&v, lane_cand) {
-                if seen_views.insert(tv.id.clone()) {
-                    let end = m::timeline_scale_end(&m::effective_timeline_placements(
-                        &tv,
-                        &before.memberships,
-                        &before.entries,
-                        &before.templates,
-                    ));
-                    auto_views.push((tv.id, end));
-                }
+        for lane in host.iter() {
+            for tv in membership::live_views_with_lane(&v, lane) {
+                let end = m::timeline_scale_end(&m::effective_timeline_placements(
+                    &tv,
+                    &before.memberships,
+                    &before.entries,
+                    &before.templates,
+                ));
+                auto_views.push((tv.id, end));
             }
         }
         module::initialize(cx, &slot, &e, &before.templates, &input.bodies)?;
@@ -542,7 +541,7 @@ pub struct MoveIn {
     pub index: Option<usize>,
 }
 op! {
-    EntryMove = "entry.move", Write, Book, "Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order.",
+    EntryMove = "entry.move", Write, Book, "Move an entry's residence and its position in the folder's manual order (`index` among the folder's stored children). Moving where an entry lives never hangs it on a lane or moves it on a timeline scale.",
     fn(cx,input:MoveIn)->Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
@@ -561,167 +560,12 @@ op! {
         }
         changes_ok(&before, &after)?;
 
-        let snapshot = v.structure_snapshot();
-        let old_parent = e.parent.clone();
-        let target_ref_view = parent
-            .as_ref()
-            .and_then(|pid| snapshot.lane_reference_view(pid));
-
-        // Prune orphaned placements when moving out of a folder that was in live views.
-        let mut pruned_views: Vec<TimelineViewId> = Vec::new();
-        if old_parent != parent
-            && let Some(old_pid) = &old_parent
-        {
-            for tv in membership::live_views_with_lane(&v, old_pid) {
-                if m::effective_timeline_placements(
-                    &tv,
-                    &before.memberships,
-                    &before.entries,
-                    &before.templates,
-                )
-                .iter()
-                .any(|p| p.entry == e.id)
-                    && !m::is_entry_in_view_lanes(
-                        &tv,
-                        &e.id,
-                        &after.memberships,
-                        &after.entries,
-                        &after.templates,
-                    )
-                {
-                    pruned_views.push(tv.id);
-                }
-            }
-        }
-
+        // A folder's order is its manual order, also while the folder is a
+        // lane in a view: a lane holds what is hung on it, so moving where an
+        // entry lives touches no place on a scale (DV, 2026-11-16).
         let id = e.id.clone();
         let moved = Replaces::record(CollectionV3::Entries, &e.id);
-        let mut keys = vec![key("entries", &id)];
-        let mut touched_views: BTreeSet<TimelineViewId> = pruned_views.iter().cloned().collect();
-
-        if let Some(ref_tv) = target_ref_view {
-            let ref_vid = ref_tv.id.clone();
-            let pid = parent.as_ref().unwrap();
-            let peers: Vec<EntryId> = snapshot
-                .residents_along_view(ref_tv, pid)
-                .into_iter()
-                .filter(|x| x.id != e.id)
-                .map(|x| x.id.clone())
-                .collect();
-            let count = peers.len();
-            let index = input.index.unwrap_or(count);
-            if index > count {
-                return Err(WsError::invalid("index exceeds sibling count"));
-            }
-
-            let mut placements_to_write: Vec<(TimelineViewId, EntryId, f64, Option<f64>)> =
-                Vec::new();
-            let live_views = membership::live_views_with_lane(&v, pid);
-
-            if input.index.is_none() && old_parent != parent {
-                // Entering a view-governed folder without an explicit index:
-                // land at scale end in every live view containing `pid` where unplaced.
-                for tv in &live_views {
-                    if v.timeline_placement_snapshot(&tv.id, &e.id)?.is_none() {
-                        let end = m::timeline_scale_end(&m::effective_timeline_placements(
-                            tv,
-                            &before.memberships,
-                            &before.entries,
-                            &before.templates,
-                        ));
-                        placements_to_write.push((tv.id.clone(), e.id.clone(), end, None));
-                        touched_views.insert(tv.id.clone());
-                    }
-                }
-            } else {
-                // Compute scale updates on `ref_vid` so `e.id` lands at `index` among `peers`.
-                let eff_ps = m::effective_timeline_placements(
-                    ref_tv,
-                    &after.memberships,
-                    &after.entries,
-                    &after.templates,
-                );
-                let mut at_map: BTreeMap<EntryId, (f64, Option<f64>)> = eff_ps
-                    .iter()
-                    .map(|p| (p.entry.clone(), (p.at, p.span)))
-                    .collect();
-                let mut next_end = m::timeline_scale_end(&eff_ps);
-                for peer in &peers {
-                    if !at_map.contains_key(peer) {
-                        at_map.insert(peer.clone(), (next_end, None));
-                        placements_to_write.push((ref_vid.clone(), peer.clone(), next_end, None));
-                        next_end += 1.0;
-                    }
-                }
-                let e_span = at_map.get(&e.id).and_then(|(_, sp)| *sp);
-                let peer_ats: Vec<f64> = peers.iter().map(|p| at_map[p].0).collect();
-                let target_at = if count == 0 {
-                    next_end
-                } else if index == 0 {
-                    peer_ats[0] - 1.0
-                } else if index == count {
-                    peer_ats[count - 1] + 1.0
-                } else {
-                    let left = peer_ats[index - 1];
-                    let right = peer_ats[index];
-                    let mid = (left + right) / 2.0;
-                    if left < mid && mid < right {
-                        mid
-                    } else {
-                        for peer in &peers[index..] {
-                            let (cur_at, cur_sp) = at_map[peer];
-                            placements_to_write.push((
-                                ref_vid.clone(),
-                                peer.clone(),
-                                cur_at + 1.0,
-                                cur_sp,
-                            ));
-                        }
-                        left + 0.5
-                    }
-                };
-                placements_to_write.push((ref_vid.clone(), e.id.clone(), target_at, e_span));
-                touched_views.insert(ref_vid.clone());
-
-                if old_parent != parent {
-                    for tv in &live_views {
-                        if tv.id != ref_vid
-                            && v.timeline_placement_snapshot(&tv.id, &e.id)?.is_none()
-                        {
-                            let end = m::timeline_scale_end(&m::effective_timeline_placements(
-                                tv,
-                                &before.memberships,
-                                &before.entries,
-                                &before.templates,
-                            ));
-                            placements_to_write.push((tv.id.clone(), e.id.clone(), end, None));
-                            touched_views.insert(tv.id.clone());
-                        }
-                    }
-                }
-            }
-
-            let change_residence = old_parent != parent;
-            let (_, at) = cx.write_book_v3(&slot, moved, move |t| {
-                if change_residence {
-                    t.entries().move_to(&e.id, parent.as_ref())?;
-                }
-                for vid in &pruned_views {
-                    t.timeline_view(vid)?.remove_placement(&e.id)?;
-                }
-                for (vid, eid, coord, span) in &placements_to_write {
-                    t.timeline_view(vid)?.put_placement(eid, *coord, *span)?;
-                }
-                Ok(())
-            })?;
-            for vid in touched_views {
-                keys.push(key("timeline_views", vid));
-            }
-            undo(cx, &slot, &at, keys);
-            cx.effect(EffectAction::Moved, "entry", id.as_str(), None);
-            return Ok(Done { id: input.id });
-        }
-
+        let keys = vec![key("entries", &id)];
         let count = before
             .entries
             .values()
@@ -733,14 +577,8 @@ op! {
         }
         let (_, at) = cx.write_book_v3(&slot, moved, move |t| {
             t.entries().move_to_at(&e.id, parent.as_ref(), index)?;
-            for vid in &pruned_views {
-                t.timeline_view(vid)?.remove_placement(&e.id)?;
-            }
             Ok(())
         })?;
-        for vid in touched_views {
-            keys.push(key("timeline_views", vid));
-        }
         undo(cx, &slot, &at, keys);
         cx.effect(EffectAction::Moved, "entry", id.as_str(), None);
         Ok(Done { id: input.id })
@@ -778,7 +616,6 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     }
     let mut relocated: Vec<(EntryId, Option<EntryId>)> = Vec::new();
     let mut auto_placements: Vec<(TimelineViewId, EntryId, f64)> = Vec::new();
-    let mut pruned: Vec<(TimelineViewId, EntryId)> = Vec::new();
     if !trashed {
         // If a restored entry's stored parent can no longer hold entries
         // (missing, trashed, or `level == false`), relocate it to the nearest
@@ -816,16 +653,12 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
             ..before.clone()
         };
         changes_ok(&before, &after)?;
-        // Every entry coming back that is in a lane of a live view gets a
-        // position there if it has none (`VIEW-LANE-MEMBERS-PLACED`): its
-        // folder may have entered the view while it was in Recently Deleted,
-        // or it lives somewhere new. Each one gets its own position, at the
-        // scale's end, in tree order. One restored somewhere new leaves the
-        // views of the folder it no longer lives in.
-        let old_parent: BTreeMap<&EntryId, Option<&EntryId>> = relocated
-            .iter()
-            .map(|(rid, _)| (rid, before.entries[rid].parent.as_ref()))
-            .collect();
+        // Every entry coming back that is hung on a lane of a live view gets a
+        // position there if it has none (`VIEW-LANE-MEMBERS-PLACED`): the
+        // lane may have entered the view while it was in Recently Deleted.
+        // Each one gets its own position, at the scale's end, in tree order.
+        // Where it lives does not put it on a lane (DV, 2026-11-16), so being
+        // restored somewhere new takes no position away.
         let restored: Vec<EntryId> = v
             .entries_raw()
             .into_iter()
@@ -858,15 +691,6 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
                     });
                     auto_placements.push((tv.id.clone(), rid.clone(), *at));
                     *at += 1.0;
-                } else if !in_lanes
-                    && placed
-                    && old_parent
-                        .get(rid)
-                        .copied()
-                        .flatten()
-                        .is_some_and(|p| tv.lanes.iter().any(|l| &l.entry == p))
-                {
-                    pruned.push((tv.id.clone(), rid.clone()));
                 }
             }
         }
@@ -874,7 +698,6 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
     let changed = ids.clone();
     let reloc_writes = relocated;
     let place_writes = auto_placements.clone();
-    let prune_writes = pruned.clone();
     // The named entry; the subtree that follows it is planned above.
     let named = rec(CollectionV3::Entries, &input.id).at(["deleted_at"]);
     let (_, at) = cx.write_book_v3(&slot, Replaces::records([named]), move |t| {
@@ -887,17 +710,10 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
         for (vid, rid, end) in &place_writes {
             t.timeline_view(vid)?.put_placement(rid, *end, None)?;
         }
-        for (vid, rid) in &prune_writes {
-            t.timeline_view(vid)?.remove_placement(rid)?;
-        }
         Ok(())
     })?;
     let mut keys: Vec<_> = ids.iter().map(|id| key("entries", id)).collect();
-    let placed_vids: BTreeSet<_> = auto_placements
-        .into_iter()
-        .map(|(vid, _, _)| vid)
-        .chain(pruned.into_iter().map(|(vid, _)| vid))
-        .collect();
+    let placed_vids: BTreeSet<_> = auto_placements.into_iter().map(|(vid, _, _)| vid).collect();
     for vid in placed_vids {
         keys.push(key("timeline_views", vid));
     }

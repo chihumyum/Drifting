@@ -1432,7 +1432,7 @@ expression: json
           "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
+              "description": "Live entries living under it, in the folder's manual order, also while it is a lane in a\nview (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
@@ -3491,7 +3491,7 @@ expression: json
           "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
+              "description": "Live entries living under it, in the folder's manual order, also while it is a lane in a\nview (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#"
               },
@@ -3962,7 +3962,7 @@ expression: json
           "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
+              "description": "Live entries living under it, in the folder's manual order, also while it is a lane in a\nview (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#"
               },
@@ -4455,7 +4455,7 @@ expression: json
           "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
+              "description": "Live entries living under it, in the folder's manual order, also while it is a lane in a\nview (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
@@ -4954,7 +4954,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order."
+    "summary": "Move an entry's residence and its position in the folder's manual order (`index` among the folder's stored children). Moving where an entry lives never hangs it on a lane or moves it on a timeline scale."
   },
   {
     "access": "write",
@@ -10440,7 +10440,7 @@ expression: json
           "description": "What lies below an entry (`下面` / `挂在这里`).",
           "properties": {
             "children": {
-              "description": "Live entries living under it, in folder/scale order (`Some` only when `level` is on).",
+              "description": "Live entries living under it, in the folder's manual order, also while it is a lane in a\nview (`Some` only when `level` is on).",
               "items": {
                 "$ref": "#/$defs/Entry"
               },
@@ -12614,7 +12614,7 @@ expression: json
           "type": "object"
         },
         "ProjectTab": {
-          "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, a view's name, 「成书」, 「全部」 for the root).\nAn old `name` in a template's tab is ignored.",
+          "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, 「成书」, 「全部」 for the root; an old Tab on a\nview, the view's name).\nAn old `name` in a template's tab is ignored.",
           "properties": {
             "id": {
               "type": "string"
@@ -12725,6 +12725,7 @@ expression: json
           "type": "object"
         },
         "TabMount": {
+          "description": "What a left-sidebar tab mounts. `view` is only ever read: a book can\nstore a Tab on a view from before a Tab could not mount one (DV,\n2026-11-16); it reads with `mount_valid = false`, and `tab.put` refuses it.",
           "oneOf": [
             {
               "properties": {
@@ -13109,7 +13110,7 @@ expression: json
           "type": "object"
         },
         "ProjectTab": {
-          "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, a view's name, 「成书」, 「全部」 for the root).\nAn old `name` in a template's tab is ignored.",
+          "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, 「成书」, 「全部」 for the root; an old Tab on a\nview, the view's name).\nAn old `name` in a template's tab is ignored.",
           "properties": {
             "id": {
               "type": "string"
@@ -13187,6 +13188,7 @@ expression: json
           "type": "object"
         },
         "TabMount": {
+          "description": "What a left-sidebar tab mounts. `view` is only ever read: a book can\nstore a Tab on a view from before a Tab could not mount one (DV,\n2026-11-16); it reads with `mount_valid = false`, and `tab.put` refuses it.",
           "oneOf": [
             {
               "properties": {
@@ -15132,6 +15134,7 @@ expression: json
           ]
         },
         "TabMount": {
+          "description": "What a left-sidebar tab mounts. `view` is only ever read: a book can\nstore a Tab on a view from before a Tab could not mount one (DV,\n2026-11-16); it reads with `mount_valid = false`, and `tab.put` refuses it.",
           "oneOf": [
             {
               "properties": {
@@ -15198,7 +15201,7 @@ expression: json
         },
         "mount": {
           "$ref": "#/$defs/TabMount",
-          "description": "What the new tab mounts: an entry with its level switch or\n「收别处的条目」 on, a view, or the book sequence (the root is\nalways mounted, on 「全部」). A tab is called what it mounts."
+          "description": "What the new tab mounts: an entry with its level switch or\n「收别处的条目」 on, or the book sequence (the root is always\nmounted, on 「全部」). A tab cannot mount a view. A tab is called\nwhat it mounts."
         },
         "place": {
           "anyOf": [
@@ -15234,7 +15237,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab."
+    "summary": "Add a left-sidebar tab that mounts a level entry or the book sequence; one thing is mounted on one tab. A tab cannot mount a view (views go with the bottom panel)."
   },
   {
     "access": "write",
@@ -15413,7 +15416,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add one live lane to a view without replacing existing lane records or changing memberships."
+    "summary": "Add one live lane to a view without replacing existing lane records or changing memberships. A lane is an entry that takes entries from elsewhere (「收别处的条目」 on); an entry with only its level switch on is refused. The lane holds what is hung on it, not what lives under it."
   },
   {
     "access": "write",
@@ -15451,7 +15454,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit."
+    "summary": "Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save the scale order of what is hung on them back to the memberships' manual order in the same commit."
   },
   {
     "access": "read",
@@ -16115,7 +16118,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove one view lane and newly orphaned visible positions, saving its scale order back to manual order when leaving its last live view."
+    "summary": "Remove one view lane and newly orphaned visible positions, saving the scale order of what is hung on it back to the memberships' manual order when leaving its last live view."
   },
   {
     "access": "write",
@@ -16293,13 +16296,6 @@ expression: json
         },
         "book": {
           "type": "string"
-        },
-        "child_order": {
-          "description": "Folder entry ID whose direct child order was written back when it left\nits last live view (`VIEW-FOLDER-ORDER-FROM-SCALE`).",
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "expected": {
           "description": "State after the recorded write; selected values must still match.",

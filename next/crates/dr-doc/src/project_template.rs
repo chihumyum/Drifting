@@ -1137,9 +1137,9 @@ where
                         .is_some_and(|e| e.has_below(&live_templates))
                 })
                 .map(|sym| TemplateTabMount::Entry { entry: sym.clone() }),
-            TabMount::View { view } => view_refs
-                .get(view)
-                .map(|sym| TemplateTabMount::View { view: sym.clone() }),
+            // A Tab cannot mount a view (DV, 2026-11-16); one a project
+            // stored from before is not carried into the template.
+            TabMount::View { .. } => None,
         };
         // A tab whose target is not in the template is left out: a tab is
         // called by what it shows and is never remounted (`kernel-v5.md` §5).
@@ -1820,14 +1820,12 @@ pub fn from_seed_template(
                     ))
                 })?,
             },
-            TabMount::View { view } => TemplateTabMount::View {
-                view: view_refs.get(view).cloned().ok_or_else(|| {
-                    ProjectTemplateError::Invalid(format!(
-                        "tab {} view {view} missing from seed views",
-                        tab.id
-                    ))
-                })?,
-            },
+            TabMount::View { view } => {
+                return Err(ProjectTemplateError::Invalid(format!(
+                    "tab {} mounts view {view}: a tab cannot mount a view",
+                    tab.id
+                )));
+            }
         };
         tabs.push(TemplateTab { mount });
     }
@@ -2135,9 +2133,6 @@ pub fn materialize_project_template(
             TemplateTabMount::Book => TabMount::Book,
             TemplateTabMount::Entry { entry } => TabMount::Entry {
                 entry: entry_map[entry].clone(),
-            },
-            TemplateTabMount::View { view } => TabMount::View {
-                view: view_map[view].clone(),
             },
         };
         tabs.push(ProjectTab {

@@ -779,17 +779,24 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-TIMELINE-LANE-ENABLED",
-        "视图里的泳道是活着、开着「层级」或「收别处的条目」的条目",
+        "视图里的泳道是活着、开着「收别处的条目」的条目；只开着「层级」的条目不是泳道（2026-11-16 DV）。书里已经存着的只开层级的泳道读作不在视图里，数据留着",
         [Command, Read],
-        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::has_below（开着层级或收别处的条目）；读取时 effective_timeline_lanes 忽略不满足的条目",
-        ["v3_timeline_lanes_and_placements_require_lane_membership"]
+        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::accepts_members，只查这次写入新加的泳道（timeline_view.put 不重查视图里原有的泳道）；读取时 effective_timeline_lanes 忽略不满足的条目，存着的泳道和位置不删",
+        [
+            "v3_timeline_lanes_and_placements_require_lane_membership",
+            "an_entry_with_only_its_level_on_cannot_become_a_lane",
+            "an_old_lane_that_is_only_a_level_reads_as_not_in_the_view_and_nothing_is_lost"
+        ]
     ),
     inv!(
         "V3-TIMELINE-PLACEMENT-IN-LANE",
-        "视图里的条目在这个视图的某条泳道里（住在开着层级的泳道下，或挂在开着收别处条目的泳道上）：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
+        "视图里的条目挂在这个视图的某条泳道上（泳道上只有挂着的，住在泳道下面不算，2026-11-16 DV）：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
         [Command, Read],
-        "命令层用 check_timeline_placement_in_lane / is_entry_in_view_lanes 校验条目在至少一条有效泳道里（直接住着或有效挂名），移出或摘名时用 prune_placement_if_not_in_view_lanes 清理孤立位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
-        ["v3_timeline_lanes_and_placements_require_lane_membership"]
+        "命令层用 check_timeline_placement_in_lane / is_entry_in_view_lanes 校验条目在至少一条有效泳道上有有效挂名，摘名时用 prune_placement_if_not_in_view_lanes 清理孤立位置；entry.create 带 parent、entry.move 不写位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
+        [
+            "v3_timeline_lanes_and_placements_require_lane_membership",
+            "a_lane_with_both_switches_holds_only_what_is_hung_on_it"
+        ]
     ),
     inv!(
         "V3-AUTOLINK-NAME-UNIQUE",
@@ -911,12 +918,15 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "TAB-MOUNT-VALID",
-        "Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目、一个没删的视图，或成书序列（项目开着成书时）：命令层预防；读取时不满足就显示为失效，数据留着",
+        "Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目，或成书序列（项目开着成书时）；Tab 不能挂视图（2026-11-16 DV）：命令层预防；读取时不满足就显示为失效（书里存着的挂视图的 Tab 视图还在也读作不在），数据留着",
         [Command, Read],
-        "命令层用 dr_model::v3::check_tab_mount 校验 Tab 挂载；读取时保留原记录并标出 mount_valid = false",
+        "命令层用 dr_model::v3::check_tab_mount 校验 Tab 挂载，挂视图一律拒绝；模板格式的 TemplateTabMount 没有 view 一种，另存时挂视图的 Tab 不进模板；读取时保留原记录并标出 mount_valid = false",
         [
             "v5_flatten_starts_and_tab_mounts_validate_all_four_kinds",
-            "project_tabs_mount_four_targets_and_keep_invalid_mounts"
+            "project_tabs_mount_three_targets_and_keep_invalid_mounts",
+            "a_tab_cannot_mount_a_view_and_an_old_one_reads_gone",
+            "saving_a_project_with_a_tab_on_a_view_leaves_that_tab_out",
+            "a_tab_on_a_view_or_a_lane_that_is_only_a_level_is_refused"
         ]
     ),
     inv!(
@@ -943,9 +953,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "VIEW-LANE-MEMBERS-PLACED",
-        "视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置：命令层在条目进到泳道里（挂上来或住进去）或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
+        "视图里每条泳道上的每个条目（挂着的；2026-11-16 起住着的不算）都有刻度位置：命令层在条目挂上来或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
         [Command, Read],
-        "membership.add、entry.create、entry.move、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位的住处子条目与挂名成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_entries_order 与 lane_members_order 按它所在的第一个视图的刻度排，无位置的排在最后",
+        "membership.add、entry.create（带 host）、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位的挂名成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_members_order 按它所在的第一个视图的刻度排，无位置的排在最后",
         [
             "lane_members_order_follows_reference_view_scale_and_places_unpositioned_last",
             "joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos"
@@ -953,17 +963,13 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "VIEW-LANE-EXIT-RESTORES-ORDER",
-        "泳道进出视图不打乱它里面的条目的先后：放进第一个视图时按手动先后落位；离开最后一个没删的视图（拿出泳道、删视图）时把刻度上的先后写回（挂着的写回归属的 pos，住着的写回文件夹里的手动先后），和拿出泳道同一次提交、一步撤销；还在别的视图里时不写",
+        "泳道进出视图不打乱挂在它上面的条目的先后：放进第一个视图时按归属的手动先后落位；离开最后一个没删的视图（拿出泳道、删视图）时把刻度上的先后写回归属的 pos，和拿出泳道同一次提交、一步撤销；还在别的视图里时不写。住在泳道下面的条目不上刻度，文件夹里的手动先后一直是它自己的（2026-11-16 DV 删了「住着的写回文件夹里的先后」和契约 VIEW-FOLDER-ORDER-FROM-SCALE）",
         [Command],
-        "timeline_view.add_lane 与 timeline_view.put 按手动先后给住着的和挂着的条目落位；timeline_view.remove_lane、timeline_view.put、timeline_view.delete 在泳道离开最后一个视图时写回 pos 与 LoroTree 兄弟顺序，登记恢复键一步撤销",
-        ["lane_entering_and_leaving_views_preserves_order_and_undoes_in_one_step"]
-    ),
-    inv!(
-        "VIEW-FOLDER-ORDER-FROM-SCALE",
-        "文件夹在视图里时，它下面的先后读刻度（以它所在的第一个视图为准，视图按 (pos, id) 排），手动先后留着不读、也不双写；entry.move 带 index 落进这样的文件夹时改刻度上的位置",
-        [Structure, Command, Read],
-        "BookStructureV3 对在活视图里的层级按 lane_reference_view 的刻度重排 children 与先序序列，manual_children 保留原始树顺序；entry.move 对在视图里的父级计算刻度位置写进参考视图，同父级内调先后不改 LoroTree 兄弟顺序",
-        ["folder_in_view_reads_and_moves_by_scale_without_touching_manual_order"]
+        "timeline_view.add_lane 与 timeline_view.put 按归属的手动先后给挂着的条目落位；timeline_view.remove_lane、timeline_view.put、timeline_view.delete 在泳道离开最后一个视图时写回归属的 pos，登记恢复键一步撤销",
+        [
+            "lane_entering_and_leaving_views_preserves_order_and_undoes_in_one_step",
+            "a_lane_with_both_switches_holds_only_what_is_hung_on_it"
+        ]
     ),
     inv!(
         "WORKING-COPY-LOCAL",
@@ -1051,7 +1057,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 94;
+pub const ACTIVE_CONTRACTS: usize = 93;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
