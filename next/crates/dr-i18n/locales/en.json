@@ -203,9 +203,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Reopen",
-      "resolve": "Resolve",
-      "toNote": "To comment",
-      "toTodo": "To TODO"
+      "resolve": "Resolve"
     },
     "card": {
       "emptyComment": "Empty comment"
@@ -536,9 +534,7 @@
       "drawHint": "Drag over the image to mark a region",
       "empty": "Drag over the image or page to add the first comment.",
       "listLabel": "Comments on this material",
-      "page": "Page {{page}}",
-      "stopDrawing": "Stop commenting",
-      "whole": "Whole material"
+      "stopDrawing": "Stop commenting"
     },
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
@@ -925,7 +921,6 @@
       "floating": "Not attached"
     },
     "newComment": "New comment",
-    "resolved": "Resolved ({{count}})",
     "scopes": {
       "current": "Current"
     },

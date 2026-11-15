@@ -342,7 +342,6 @@ reviewPanel.filters.comment
 reviewPanel.filters.todo
 reviewPanel.scopes.current
 reviewPanel.empty
-reviewPanel.resolved
 reviewPanel.groups.floating
 reviewPanel.groups.deleted
 reviewPanel.commentPlaceholder
@@ -373,8 +372,6 @@ importDialog.status.committed
 importDialog.summary.done
 agentPanel.pending.cancelling
 settings.hosted.connect_errors.cancelled
-commentRail.actions.toNote
-commentRail.actions.toTodo
 reviewPanel.sourceFloating
 commentRail.snapshot.changed
 settings.editor.typewriter_position
@@ -534,8 +531,6 @@ materialEditor.regions.stopDrawing
 materialEditor.regions.drawHint
 materialEditor.regions.listLabel
 materialEditor.regions.empty
-materialEditor.regions.page
-materialEditor.regions.whole
 memoMaterial.preview.noImage
 memoMaterial.preview.noPdf
 memoMaterial.preview.openPdfFailed

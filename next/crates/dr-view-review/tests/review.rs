@@ -11,7 +11,10 @@ use dr_editor::{ChapterEditor, EditorSettings};
 use dr_i18n::{Locale, Platform};
 
 use dr_store::Library;
-use dr_view_review::{CommentComposer, Filter, ReviewView};
+use dr_view_review::{
+    CommentComposer, OriginFilter, ReviewView, StatusFilter,
+    agent_bridge::{self, CommentAgentRequest, CompanionFocusRequest, ConversationPinwheel},
+};
 use dr_workspace::{Actor, NavTarget, Workspace, WorkspaceOptions, library_options};
 use gpui::{
     Context, Entity, IntoElement, ParentElement, Render, Styled, TestAppContext, VisualTestContext,
@@ -205,12 +208,14 @@ fn the_tab_filters_scopes_and_groups_by_place(cx: &mut TestAppContext) {
     // Grouped by place, the floating one last.
     let groups = ids(&view, cx);
     assert_eq!(groups.last().unwrap(), &vec!["浮动批注".to_owned()]);
-    view.update(cx, |v, cx| v.set_filter(Filter::Todos, cx));
+    view.update(cx, |v, cx| v.set_origin_filter(OriginFilter::Marker, cx));
     let todos = ids(&view, cx).concat();
     assert_eq!(todos, ["二的待办"]);
+    view.update(cx, |v, cx| v.set_origin_filter(OriginFilter::Manual, cx));
+    assert_eq!(ids(&view, cx).concat().len(), 2);
     // 当前: only the open tab's chapter.
     view.update(cx, |v, cx| {
-        v.set_filter(Filter::All, cx);
+        v.set_origin_filter(OriginFilter::All, cx);
         v.set_current_only(true, cx);
     });
     assert_eq!(ids(&view, cx), vec![vec!["一的批注".to_owned()]]);
@@ -428,9 +433,10 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
         1
     );
     assert!(view.read_with(cx, |v, _| {
-        v.listing().open.iter().any(|g| {
-            g.key() == format!("entry:{two}/mod-prose") && g.items.iter().any(|i| i.id == from_two)
-        })
+        v.listing()
+            .open
+            .iter()
+            .any(|g| g.key() == format!("entry:{two}") && g.items.iter().any(|i| i.id == from_two))
     }));
     out(
         &e.ws,
@@ -527,7 +533,8 @@ fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppConte
     );
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .source_summary(&comment)
-        .is_some_and(|s| s.0.as_ref() == title))));
+        .is_some_and(|s| s.0.as_ref() == format!("{title} · 附件")))));
+    assert_eq!(view.read_with(cx, |v, _| v.where_label(&comment)), "附件");
     view.update(cx, |v, cx| v.set_current_only(true, cx));
     assert!(listed_ids(&view, cx).contains(&comment));
     cx.update(|window, cx| view.update(cx, |v, cx| v.jump(&comment, window, cx)));
@@ -540,5 +547,670 @@ fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppConte
     );
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .source_summary(&comment)
-        .is_some_and(|s| s.0.as_ref() == renamed))));
+        .is_some_and(|s| s.0.as_ref() == format!("{renamed} · 附件")))));
+}
+
+#[gpui::test]
+fn entry_only_grouping_merges_all_modules_and_formats_each_where_label(cx: &mut TestAppContext) {
+    let e = env();
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "tpl-all-places",
+                "name": "全模块条目",
+                "modules": [
+                    {"id": "mod-prose", "kind": "prose", "name": "正文"},
+                    {
+                        "id": "mod-fields",
+                        "kind": "fields",
+                        "name": "设定",
+                        "config": {
+                            "defs": [{"id": "f-role", "name": "身份", "field_type": "text"}]
+                        }
+                    },
+                    {"id": "mod-kv", "kind": "kv", "name": "属性"},
+                    {"id": "mod-patches", "kind": "patches", "name": "补丁"},
+                    {"id": "mod-plot", "kind": "plot_grid", "name": "情节"}
+                ]
+            }
+        }),
+    );
+    let eid = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "template": "tpl-all-places",
+            "title": "钟楼守夜人",
+            "bodies": {"mod-prose": "TODO: 核对钟声\n雨夜铜铃。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "module.set_field",
+        json!({"book": e.book, "entry": eid, "module": "mod-fields", "field": "f-role", "value": "守钟人"}),
+    );
+    let kv_id = "00000000-0000-7000-8000-000000000081";
+    out(
+        &e.ws,
+        "module.put_kv",
+        json!({
+            "book": e.book,
+            "entry": eid,
+            "module": "mod-kv",
+            "row": {"id": kv_id, "key": "兵器", "value": "铜锤"}
+        }),
+    );
+    let patch_id = out(
+        &e.ws,
+        "module.put_patch",
+        json!({
+            "book": e.book,
+            "entry": eid,
+            "module": "mod-patches",
+            "title": "断桥",
+            "body": "第三幕断桥重修"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let row_id = "00000000-0000-7000-8000-000000000082";
+    let col_id = "00000000-0000-7000-8000-000000000083";
+    out(
+        &e.ws,
+        "module.put_grid",
+        json!({
+            "book": e.book,
+            "entry": eid,
+            "module": "mod-plot",
+            "grid": {
+                "cell_w": 180.0,
+                "cell_h": 110.0,
+                "rows": [{"id": row_id, "pos": "a0", "label": "伏笔"}],
+                "columns": [{"id": col_id, "pos": "a0", "label": "第一章"}],
+                "cells": [{"row": row_id, "column": col_id, "text": "停摆"}]
+            }
+        }),
+    );
+
+    let mk = |module: Option<&str>, part: Option<Value>, body: &str| -> String {
+        let mut input = json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": eid},
+            "body": body,
+        });
+        if let Some(m) = module {
+            input["module"] = json!(m);
+        }
+        if let Some(p) = part {
+            input["part"] = p;
+        }
+        out(&e.ws, "comment.create", input)["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+
+    let c_entry = mk(None, None, "整体结构再紧一点");
+    let c_module = mk(Some("mod-fields"), None, "设定模块还要补");
+    let c_field = mk(
+        Some("mod-fields"),
+        Some(json!({"kind": "field", "field": "f-role"})),
+        "身份称呼统一",
+    );
+    let c_kv = mk(
+        Some("mod-kv"),
+        Some(json!({"kind": "kv_row", "row": kv_id})),
+        "兵器太重",
+    );
+    let c_patch = mk(
+        Some("mod-patches"),
+        Some(json!({"kind": "patch", "patch": patch_id})),
+        "断桥时机延后",
+    );
+    let c_plot = mk(
+        Some("mod-plot"),
+        Some(json!({"kind": "plot_cell", "row": row_id, "col": col_id})),
+        "停摆细节补齐",
+    );
+    project_marker(&e, &eid, "核对钟声");
+    let c_marker = listed(&e)
+        .into_iter()
+        .find(|c| c["origin"] == "marker")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let (view, opened, cx) = open_tab(cx, &e, None);
+    assert!(wait_for(cx, |cx| listed_ids(&view, cx).len() == 7));
+    redraw(cx);
+
+    // Every comment on this entry belongs to a single entry group (`entry:{eid}`).
+    view.read_with(cx, |v, _| {
+        let listing = v.listing();
+        assert_eq!(listing.open.len(), 1);
+        assert_eq!(listing.open[0].key(), format!("entry:{eid}"));
+        assert_eq!(listing.open[0].items.len(), 7);
+
+        assert_eq!(v.where_label(&c_entry).as_ref(), "");
+        assert_eq!(v.where_label(&c_module).as_ref(), "设定");
+        assert_eq!(v.where_label(&c_field).as_ref(), "设定 · 身份");
+        assert_eq!(v.where_label(&c_kv).as_ref(), "属性 · 兵器");
+        assert_eq!(v.where_label(&c_patch).as_ref(), "补丁 · 断桥");
+        assert_eq!(v.where_label(&c_plot).as_ref(), "情节 · 伏笔 × 第一章");
+        assert_eq!(v.where_label(&c_marker).as_ref(), "正文");
+
+        assert_eq!(
+            v.source_summary(&c_field).and_then(|s| s.1).as_deref(),
+            Some("守钟人")
+        );
+        assert_eq!(
+            v.source_summary(&c_kv).and_then(|s| s.1).as_deref(),
+            Some("铜锤")
+        );
+        assert_eq!(
+            v.source_summary(&c_patch).and_then(|s| s.1).as_deref(),
+            Some("第三幕断桥重修")
+        );
+        assert_eq!(
+            v.source_summary(&c_plot).and_then(|s| s.1).as_deref(),
+            Some("停摆")
+        );
+        assert_eq!(
+            v.source_summary(&c_marker).and_then(|s| s.1),
+            None,
+            "marker-projected cards never quote original text"
+        );
+    });
+
+    cx.update(|window, cx| {
+        view.update(cx, |v, cx| {
+            v.jump(&c_entry, window, cx);
+            v.jump(&c_field, window, cx);
+            v.jump(&c_plot, window, cx);
+        });
+    });
+    assert_eq!(
+        opened.borrow().as_slice(),
+        [
+            format!("entry:{eid}"),
+            format!("entry:{eid}/mod-fields"),
+            format!("entry:{eid}/mod-plot"),
+        ]
+    );
+}
+
+#[gpui::test]
+fn standalone_asset_comments_group_under_file_and_jump_to_material(cx: &mut TestAppContext) {
+    let e = env();
+    let asset = "00000000-0000-7000-8000-000000000091";
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": e.book,
+            "id": asset,
+            "name": "钟楼图纸.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": 128,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000091",
+            "page_count": 3
+        }),
+    );
+    let whole = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "asset", "id": asset},
+            "body": "整份图纸比例偏小"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let paged = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "asset", "id": asset},
+            "part": {"kind": "region", "region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4, "page": 2}},
+            "body": "第二页齿轮标号重复"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let (view, opened, cx) = open_tab(cx, &e, None);
+    assert!(wait_for(cx, |cx| listed_ids(&view, cx).len() == 2));
+    redraw(cx);
+
+    view.read_with(cx, |v, _| {
+        let listing = v.listing();
+        assert_eq!(listing.open.len(), 1);
+        let group = &listing.open[0];
+        assert_eq!(group.key(), format!("material:{asset}"));
+        assert_eq!(v.group_header(group).1.as_ref(), "钟楼图纸.pdf");
+        assert!(group.items.iter().all(|i| !i.unlocated));
+        assert_eq!(v.where_label(&whole).as_ref(), "整个文件");
+        assert_eq!(v.where_label(&paged).as_ref(), "第 2 页");
+    });
+
+    cx.update(|window, cx| view.update(cx, |v, cx| v.jump(&paged, window, cx)));
+    assert_eq!(opened.borrow().as_slice(), [format!("material:{asset}")]);
+}
+
+#[gpui::test]
+fn missing_field_and_deleted_prose_embed_stay_in_entry_group_as_unlocated_and_jump_to_entry(
+    cx: &mut TestAppContext,
+) {
+    use dr_doc::prose::EmbedKind;
+    use dr_model::id::{AssetId, EmbedId};
+
+    let e = env();
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "tpl-embed-field",
+                "name": "图文设定",
+                "modules": [
+                    {"id": "mod-prose", "kind": "prose", "name": "正文"},
+                    {
+                        "id": "mod-fields",
+                        "kind": "fields",
+                        "name": "设定",
+                        "config": {
+                            "defs": [{"id": "f-era", "name": "年代", "field_type": "text"}]
+                        }
+                    }
+                ]
+            }
+        }),
+    );
+    let eid = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "template": "tpl-embed-field",
+            "title": "旧钟楼",
+            "bodies": {"mod-prose": "北塔。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "module.set_field",
+        json!({"book": e.book, "entry": eid, "module": "mod-fields", "field": "f-era", "value": "民国初年"}),
+    );
+    let asset = "00000000-0000-7000-8000-000000000095";
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": e.book,
+            "id": asset,
+            "name": "北塔立面.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 64,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000095",
+            "width": 32,
+            "height": 32
+        }),
+    );
+    let doc = format!("body:{eid}/mod-prose");
+    let embed_id = EmbedId::new_v7();
+    let embed_for_edit = embed_id.clone();
+    let session = e.ws.prose_session(&doc).unwrap();
+    session
+        .edit(move |t| {
+            t.split(3)?;
+            t.insert_embed(
+                4,
+                &embed_for_edit,
+                &EmbedKind::Asset(AssetId::parse(asset).unwrap()),
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let c_field = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": eid},
+            "module": "mod-fields",
+            "part": {"kind": "field", "field": "f-era"},
+            "body": "核对具体年份"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let c_embed = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": eid},
+            "module": "mod-prose",
+            "part": {"kind": "embed", "embed": embed_id.as_str()},
+            "body": "立面窗户数量不对"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let (view, opened, cx) = open_tab(cx, &e, None);
+    assert!(wait_for(cx, |cx| listed_ids(&view, cx).len() == 2));
+    view.read_with(cx, |v, _| {
+        assert!(v.listing().open[0].items.iter().all(|i| !i.unlocated));
+    });
+
+    // Remove the field definition from the template and delete the embed from prose.
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "tpl-embed-field",
+                "name": "图文设定",
+                "modules": [
+                    {"id": "mod-prose", "kind": "prose", "name": "正文"},
+                    {"id": "mod-fields", "kind": "fields", "name": "设定", "config": {"defs": []}}
+                ]
+            }
+        }),
+    );
+    session
+        .edit(|t| {
+            let len = t.view().len();
+            t.delete(3..len - 1)
+        })
+        .unwrap();
+    view.update(cx, |v, cx| v.reload_now(cx));
+    assert!(wait_for(cx, |cx| {
+        view.read_with(cx, |v, _| {
+            let open = &v.listing().open;
+            open.len() == 1
+                && open[0].key() == format!("entry:{eid}")
+                && open[0].items.len() == 2
+                && open[0].items.iter().all(|i| i.unlocated)
+        })
+    }));
+    redraw(cx);
+
+    // Jumping from a `找不到原处` card falls back to opening the whole entry.
+    cx.update(|window, cx| {
+        view.update(cx, |v, cx| {
+            v.jump(&c_field, window, cx);
+            v.jump(&c_embed, window, cx);
+        });
+    });
+    assert_eq!(
+        opened.borrow().as_slice(),
+        [format!("entry:{eid}"), format!("entry:{eid}")]
+    );
+}
+
+#[gpui::test]
+fn two_row_filters_checklist_fold_task_guards_and_prose_tick_undo(cx: &mut TestAppContext) {
+    let e = env();
+    let ch = chapter(&e, "一", "TODO: 查潮汐\n普通正文。\n核查海图\n清点缆绳");
+    let doc = format!("body:{ch}/mod-prose");
+    let session = e.ws.prose_session(&doc).unwrap();
+    // Paragraph 0: "TODO: 查潮汐" (len 9, nl at 9); Paragraph 1: "普通正文。" (starts 10, nl 15);
+    // Paragraph 2: "核查海图" (starts 16, nl 20); Paragraph 3: "清点缆绳" (starts 21).
+    for pos in [16, 21] {
+        session
+            .edit(move |t| {
+                t.set_block_attrs(
+                    pos,
+                    &dr_model::prose::BlockAttrs {
+                        list: Some(dr_model::kind::ListKind::Task),
+                        ..Default::default()
+                    },
+                )
+            })
+            .unwrap();
+    }
+    let p0 = out(&e.ws, "prose.read", json!({"doc": doc}))["paragraphs"][0]["block_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "comment.project",
+        json!({
+            "doc": doc,
+            "markers": [{"block": p0, "task": "查潮汐"}],
+            "tasks": []
+        }),
+    );
+    let c_manual = comment(&e, Some(&ch), "note", "手写批注");
+    let c_reader = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "origin": "reader",
+            "author_name": "林读者",
+            "target": {"kind": "entry", "id": ch},
+            "module": "mod-prose",
+            "body": "读者感想"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let c_agent =
+        e.ws.call(
+            &Actor::agent("s-1", 1, "comment.create"),
+            "comment.create",
+            json!({
+                "book": e.book,
+                "origin": "agent",
+                "target": {"kind": "entry", "id": ch},
+                "module": "mod-prose",
+                "body": "Agent 巡检"
+            }),
+        )
+        .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+
+    let (view, _, cx) = open_tab(cx, &e, None);
+    assert!(wait_for(cx, |cx| listed_ids(&view, cx).len() == 6));
+    let group_key = format!("entry:{ch}");
+
+    // Row 2 origin filters.
+    for (origin, expected_len) in [
+        (OriginFilter::All, 6),
+        (OriginFilter::Manual, 1),
+        (OriginFilter::Marker, 1),
+        (OriginFilter::Task, 2),
+        (OriginFilter::Agent, 1),
+        (OriginFilter::Reader, 1),
+    ] {
+        view.update(cx, |v, cx| v.set_origin_filter(origin, cx));
+        assert_eq!(listed_ids(&view, cx).len(), expected_len, "{origin:?}");
+    }
+    view.update(cx, |v, cx| v.set_origin_filter(OriginFilter::All, cx));
+    assert!(!view.read_with(cx, |v, _| v.is_task_fold_open(&group_key)));
+    view.update(cx, |v, cx| v.toggle_task_fold(&group_key, cx));
+    assert!(view.read_with(cx, |v, _| v.is_task_fold_open(&group_key)));
+    redraw(cx);
+
+    let task_id = listed(&e)
+        .into_iter()
+        .find(|c| c["origin"] == "task" && c["body"] == "核查海图")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // Checklist (`task`) cards refuse inline edit and delete in ReviewView.
+    cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&task_id, window, cx)));
+    assert_eq!(
+        view.read_with(cx, |v, _| v.editing_id().map(str::to_owned)),
+        None
+    );
+    view.update(cx, |v, cx| v.delete(&task_id, cx));
+    cx.run_until_parked();
+    assert!(listed(&e).iter().any(|c| c["id"] == task_id.as_str()));
+    let _ = (&c_manual, &c_reader, &c_agent);
+
+    let is_ticked = || {
+        let parsed = dr_model::DocId::parse(&doc).unwrap();
+        e.ws.library()
+            .open_doc(&doc, dr_store::OpenDoc::Existing)
+            .unwrap()
+            .read(move |d| {
+                dr_doc::prose::BorrowedProse::new(d, &parsed)
+                    .unwrap()
+                    .view()
+                    .paragraphs()
+                    .nth(2)
+                    .is_some_and(|p| p.attrs.checked)
+            })
+            .unwrap()
+    };
+
+    // Resolving a checklist card ticks its prose line, and one Undo restores both.
+    view.update(cx, |v, cx| v.set_done(&task_id, true, cx));
+    assert!(wait_for(cx, |_| {
+        listed(&e)
+            .iter()
+            .any(|c| c["id"] == task_id.as_str() && c["status"] == "resolved")
+    }));
+    assert!(is_ticked());
+    view.update(cx, |v, cx| v.set_status_filter(StatusFilter::Resolved, cx));
+    assert!(wait_for(cx, |cx| {
+        view.read_with(cx, |v, _| v.listing().resolved_count == 1)
+    }));
+    redraw(cx);
+
+    e.ws.undo(&Actor::User).unwrap().expect("undo step");
+    assert!(!is_ticked());
+    assert!(
+        listed(&e)
+            .iter()
+            .any(|c| c["id"] == task_id.as_str() && c["status"] == "open")
+    );
+}
+
+#[gpui::test]
+fn handoff_to_agent_tracks_pinwheel_states_and_reuses_conversation(cx: &mut TestAppContext) {
+    let e = env();
+    let ch = chapter(&e, "一", "雨夜，钟楼停了。");
+    let cid = comment(&e, Some(&ch), "note", "钟声太突兀");
+
+    let opened_agent: Rc<RefCell<Vec<CompanionFocusRequest>>> = Rc::default();
+    let (view, _, cx) = open_tab(cx, &e, None);
+    assert!(wait_for(cx, |cx| listed_ids(&view, cx).contains(&cid)));
+
+    let dispatched: Rc<RefCell<Vec<CommentAgentRequest>>> = Rc::default();
+    let d_clone = dispatched.clone();
+    let tracker = cx.update(|_, cx| {
+        agent_bridge::register(
+            Box::new(move |req, _| {
+                d_clone.borrow_mut().push(req);
+                Ok("conv-review-1".to_owned())
+            }),
+            Box::new(|_, _| false),
+            cx,
+        )
+    });
+
+    // First handoff without extra note.
+    view.update(cx, |v, cx| v.hand_to_agent(&cid, String::new(), cx));
+    {
+        let reqs = dispatched.borrow();
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].comment_id, cid);
+        assert_eq!(reqs[0].existing_conversation, None);
+        assert_eq!(reqs[0].extra_note, "");
+        assert_eq!(reqs[0].header, "批注 · 正文");
+        assert_eq!(reqs[0].quote.as_deref(), Some("雨夜"));
+        assert_eq!(reqs[0].body, "钟声太突兀");
+    }
+
+    // Running -> UnviewedDone -> viewed clears pinwheel.
+    let conv_id = "conv-review-1";
+    out(
+        &e.ws,
+        "comment.update",
+        json!({"book": e.book, "id": cid, "agent_conversation": conv_id}),
+    );
+    view.update(cx, |v, cx| v.reload_now(cx));
+    assert!(wait_for(cx, |cx| {
+        view.read_with(cx, |v, _| {
+            v.listing().open[0].items[0].agent_conversation.as_deref() == Some(conv_id)
+        })
+    }));
+
+    cx.update(|_, cx| {
+        tracker.update(cx, |t, cx| t.set_running(&e.book, conv_id, true, false, cx));
+        assert_eq!(
+            agent_bridge::pinwheel_state(&e.book, conv_id, cx),
+            ConversationPinwheel::Running
+        );
+
+        tracker.update(cx, |t, cx| {
+            t.set_running(&e.book, conv_id, false, false, cx)
+        });
+        assert_eq!(
+            agent_bridge::pinwheel_state(&e.book, conv_id, cx),
+            ConversationPinwheel::UnviewedDone
+        );
+    });
+    redraw(cx);
+
+    // Second handoff with extra note reuses `agent_conversation`.
+    view.update(cx, |v, cx| {
+        v.hand_to_agent(&cid, "  顺便统一前后语气  ".into(), cx)
+    });
+    {
+        let reqs = dispatched.borrow();
+        assert_eq!(reqs.len(), 2);
+        assert_eq!(reqs[1].existing_conversation.as_deref(), Some(conv_id));
+        assert_eq!(reqs[1].extra_note, "顺便统一前后语气");
+    }
+
+    // Opening the conversation marks it viewed and hides the pinwheel.
+    let oa_clone = opened_agent.clone();
+    cx.update(|window, cx| {
+        view.update(cx, |v, cx| v.open_agent_conversation(&cid, window, cx));
+        if let Some(req) = tracker.update(cx, |t, _| t.take_pending_open(&e.book)) {
+            oa_clone.borrow_mut().push(req);
+        }
+        assert_eq!(
+            agent_bridge::pinwheel_state(&e.book, conv_id, cx),
+            ConversationPinwheel::Hidden
+        );
+    });
+    assert_eq!(opened_agent.borrow().len(), 1);
+    assert_eq!(opened_agent.borrow()[0].conversation_id, conv_id);
+    assert_eq!(opened_agent.borrow()[0].return_title, "一 · 正文");
 }

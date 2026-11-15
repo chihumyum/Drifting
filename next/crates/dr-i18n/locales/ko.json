@@ -203,9 +203,7 @@
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",
-      "resolve": "해결 처리",
-      "toNote": "댓글로 전환",
-      "toTodo": "할 일로 전환"
+      "resolve": "해결 처리"
     },
     "card": {
       "emptyComment": "빈 댓글"
@@ -529,9 +527,7 @@
       "drawHint": "이미지 위를 드래그하여 영역 표시",
       "empty": "이미지나 페이지 위를 드래그하여 첫 댓글을 추가하세요.",
       "listLabel": "이 자료의 댓글",
-      "page": "{{page}}페이지",
-      "stopDrawing": "댓글 달기 종료",
-      "whole": "자료 전체"
+      "stopDrawing": "댓글 달기 종료"
     },
     "zoomIn": "확대",
     "zoomOut": "축소",
@@ -918,7 +914,6 @@
       "floating": "연결되지 않음"
     },
     "newComment": "새 댓글",
-    "resolved": "해결됨({{count}}개)",
     "scopes": {
       "current": "현재"
     },

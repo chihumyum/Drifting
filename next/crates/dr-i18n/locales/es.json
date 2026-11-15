@@ -204,9 +204,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",
-      "resolve": "Resolver",
-      "toNote": "A comentario",
-      "toTodo": "A tarea"
+      "resolve": "Resolver"
     },
     "card": {
       "emptyComment": "Comentario vacío"
@@ -539,9 +537,7 @@
       "drawHint": "Arrastra sobre la imagen para marcar una región",
       "empty": "Arrastra sobre la imagen o página para añadir el primer comentario.",
       "listLabel": "Comentarios de este material",
-      "page": "Página {{page}}",
-      "stopDrawing": "Dejar de comentar",
-      "whole": "Todo el material"
+      "stopDrawing": "Dejar de comentar"
     },
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
@@ -934,7 +930,6 @@
       "floating": "Sin adjuntar"
     },
     "newComment": "Nuevo comentario",
-    "resolved": "Resueltos ({{count}})",
     "scopes": {
       "current": "Actual"
     },

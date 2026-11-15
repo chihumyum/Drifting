@@ -202,9 +202,7 @@
   "commentRail": {
     "actions": {
       "reopen": "未解决",
-      "resolve": "解决",
-      "toNote": "转批注",
-      "toTodo": "转 TODO"
+      "resolve": "解决"
     },
     "card": {
       "emptyComment": "空批注"
@@ -527,9 +525,7 @@
       "drawHint": "在画面上拖出一个区域来批注",
       "empty": "在画面或页面上拖出区域，写下第一条批注。",
       "listLabel": "这条素材的批注",
-      "page": "第 {{page}} 页",
-      "stopDrawing": "结束批注",
-      "whole": "整条素材"
+      "stopDrawing": "结束批注"
     },
     "zoomIn": "放大",
     "zoomOut": "缩小",
@@ -912,7 +908,6 @@
       "floating": "未挂载"
     },
     "newComment": "新建批注",
-    "resolved": "已解决（{{count}}）",
     "scopes": {
       "current": "当前"
     },

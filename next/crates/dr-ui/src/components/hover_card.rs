@@ -59,6 +59,7 @@ pub struct HoverCardState {
     pub phase: Phase,
     over_target: bool,
     over_card: bool,
+    hold: bool,
     /// Where the thing was when its card opened.
     anchor: Option<Bounds<Pixels>>,
     target: Option<Bounds<Pixels>>,
@@ -72,6 +73,7 @@ impl HoverCardState {
             phase: Phase::Idle,
             over_target: false,
             over_card: false,
+            hold: false,
             anchor: None,
             target: None,
             scrolled_at: None,
@@ -146,11 +148,11 @@ fn pointer_left(state: &Entity<HoverCardState>, from_card: bool, cx: &mut App) {
             s.over_target = false;
         }
         match s.phase {
-            Phase::Waiting if !s.over_target => s.dismiss(),
-            Phase::Open if !s.over_target && !s.over_card => {
+            Phase::Waiting if !s.over_target && !s.hold => s.dismiss(),
+            Phase::Open if !s.over_target && !s.over_card && !s.hold => {
                 s.phase = Phase::Leaving;
                 s.task = Some(after(&cx.entity(), dwell::HOVER_CARD_GRACE, cx, |s| {
-                    if s.phase == Phase::Leaving && !s.over_card && !s.over_target {
+                    if s.phase == Phase::Leaving && !s.over_card && !s.over_target && !s.hold {
                         s.dismiss();
                     }
                 }));
@@ -168,6 +170,7 @@ pub struct HoverCard {
     target: AnyElement,
     card: super::Build,
     open: Option<bool>,
+    hold: bool,
     beside: bool,
     press: Option<SharedString>,
 }
@@ -183,9 +186,16 @@ impl HoverCard {
             target: target.into_any_element(),
             card: Rc::new(card),
             open: None,
+            hold: false,
             beside: false,
             press: None,
         }
+    }
+
+    /// Prevents an open card from dismissing while a child sub-flyout is active.
+    pub fn keep_open(mut self, hold: bool) -> Self {
+        self.hold = hold;
+        self
     }
 
     /// A press opens the card instead of closing it: the thing is a button
@@ -215,6 +225,23 @@ impl HoverCard {
 impl RenderOnce for HoverCard {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let state = window.use_keyed_state(self.id.clone(), cx, |_, _| HoverCardState::new());
+        let hold = self.hold;
+        state.update(cx, |s, cx| {
+            let was_held = s.hold;
+            s.hold = hold;
+            if hold && s.phase == Phase::Leaving {
+                s.phase = Phase::Open;
+                s.task = None;
+            } else if was_held && !hold && s.phase == Phase::Open && !s.over_target && !s.over_card
+            {
+                s.phase = Phase::Leaving;
+                s.task = Some(after(&cx.entity(), dwell::HOVER_CARD_GRACE, cx, |s| {
+                    if s.phase == Phase::Leaving && !s.over_card && !s.over_target && !s.hold {
+                        s.dismiss();
+                    }
+                }));
+            }
+        });
         if let Some(open) = self.open {
             state.update(cx, |s, _| {
                 if open && s.phase != Phase::Open {

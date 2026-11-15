@@ -203,9 +203,7 @@
   "commentRail": {
     "actions": {
       "reopen": "重新開啟",
-      "resolve": "標為已解決",
-      "toNote": "轉為註解",
-      "toTodo": "轉為待辦"
+      "resolve": "標為已解決"
     },
     "card": {
       "emptyComment": "空白註解"
@@ -529,9 +527,7 @@
       "drawHint": "在圖片上拖曳以標記區域",
       "empty": "在圖片或頁面上拖曳，即可新增第一則註解。",
       "listLabel": "此素材的註解",
-      "page": "第 {{page}} 頁",
-      "stopDrawing": "停止註解",
-      "whole": "整份素材"
+      "stopDrawing": "停止註解"
     },
     "zoomIn": "放大",
     "zoomOut": "縮小",
@@ -918,7 +914,6 @@
       "floating": "未附加"
     },
     "newComment": "新增註解",
-    "resolved": "已解決（{{count}}）",
     "scopes": {
       "current": "目前"
     },

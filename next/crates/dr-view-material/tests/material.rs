@@ -142,6 +142,7 @@ fn open(cx: &mut TestAppContext, e: &Env, id: &str) -> (Entity<MediaPage>, Visua
         .material_items()
         .iter()
         .find(|m| m.id == id)
+        .or_else(|| book.v3().and_then(|b| b.asset_material(id)))
         .and_then(|m| MediaKind::parse(&m.kind))
         .unwrap();
     let host = PageViewHost {
@@ -531,4 +532,189 @@ fn a_material_without_its_file_says_so(cx: &mut TestAppContext) {
         page.read_with(cx, |p, _| p.trouble().is_some())
     });
     assert!(!page.read_with(&vcx, |p, _| p.ready()));
+}
+
+#[gpui::test]
+fn asset_library_viewer_lists_three_places_and_jumps_to_each(cx: &mut TestAppContext) {
+    use dr_doc::prose::EmbedKind;
+    use dr_model::id::{AssetId, EmbedId};
+    use dr_view_material::regions::AssetPlace;
+
+    let e = env();
+    let asset = dr_view_material::import::import_bytes(
+        &e.ws,
+        &e.book,
+        None,
+        dr_testkit::media::png(24, 18),
+        "灯塔旧照",
+    )
+    .unwrap()
+    .material;
+
+    // 1. Entry with a media module holding `asset`.
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "tpl-photo-entry",
+                "name": "人物档案",
+                "modules": [{"id": "mod-photos", "kind": "media", "name": "照片"}]
+            }
+        }),
+    );
+    let lin = out(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "template": "tpl-photo-entry", "title": "林晚"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let media_item = "00000000-0000-7000-8000-0000000000a1";
+    out(
+        &e.ws,
+        "module.put_media",
+        json!({
+            "book": e.book,
+            "entry": lin,
+            "module": "mod-photos",
+            "item": {"id": media_item, "asset": asset}
+        }),
+    );
+
+    // 2. Chapter entry whose prose embeds `asset`.
+    let ch1 = out(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"),
+            "template": "tpl-chapter",
+            "title": "第一章 雾季",
+            "bodies": {"mod-prose": "雾起时。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc = format!("body:{ch1}/mod-prose");
+    let embed_id = EmbedId::new_v7();
+    let embed_for_edit = embed_id.clone();
+    let asset_for_edit = AssetId::parse(&asset).unwrap();
+    e.ws.prose_session(&doc)
+        .unwrap()
+        .edit(move |t| {
+            t.split(4)?;
+            t.insert_embed(5, &embed_for_edit, &EmbedKind::Asset(asset_for_edit))?;
+            Ok(())
+        })
+        .unwrap();
+
+    // Comments on all three places: the file itself, the media item, and the prose embed.
+    let c_direct = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "asset", "id": asset},
+            "body": "找一张冬天的。"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let c_media = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": lin},
+            "module": "mod-photos",
+            "part": {"kind": "media", "asset": asset},
+            "body": "放在照片里太暗了。"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let c_embed = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book,
+            "target": {"kind": "entry", "id": ch1},
+            "module": "mod-prose",
+            "part": {"kind": "embed", "embed": embed_id.as_str()},
+            "body": "嵌在这里太大。"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // Open `asset` directly from the asset library (`MediaPage::new(asset, ...)`).
+    let (page, mut cx) = open(cx, &e, &asset);
+    let cx = &mut cx;
+    wait_for(cx, |cx| page.read_with(cx, |p, _| p.comments().len() == 3));
+
+    cx.update(|_, cx| {
+        let p = page.read(cx);
+        let find = |id: &str| p.comments().iter().find(|l| l.item.id == id).unwrap();
+        let l_direct = find(&c_direct);
+        let l_media = find(&c_media);
+        let l_embed = find(&c_embed);
+
+        assert_eq!(l_direct.asset_place(), AssetPlace::Direct);
+        assert_eq!(p.comment_where(l_direct, cx).as_ref(), "整个文件");
+        assert_eq!(p.jump_target(l_direct), None);
+
+        assert_eq!(
+            l_media.asset_place(),
+            AssetPlace::Media {
+                entry: lin.clone(),
+                module: "mod-photos".into(),
+            }
+        );
+        assert_eq!(p.comment_where(l_media, cx).as_ref(), "照片 · 灯塔旧照");
+        assert_eq!(
+            p.jump_target(l_media).map(|t| t.key()),
+            Some(format!("entry:{lin}/mod-photos"))
+        );
+
+        assert_eq!(
+            l_embed.asset_place(),
+            AssetPlace::Embed {
+                entry: ch1.clone(),
+                module: "mod-prose".into(),
+                embed: embed_id.to_string(),
+            }
+        );
+        assert_eq!(p.comment_where(l_embed, cx).as_ref(), "正文 · 灯塔旧照");
+        assert_eq!(
+            p.jump_target(l_embed).map(|t| t.key()),
+            Some(format!("entry:{ch1}/mod-prose"))
+        );
+    });
+
+    let jumped_media = page.update(cx, |p, cx| p.jump_comment(&c_media, cx));
+    assert_eq!(
+        jumped_media.map(|t| t.key()),
+        Some(format!("entry:{lin}/mod-photos"))
+    );
+    assert_eq!(
+        cx.update(|_, cx| dr_view_review::ReviewFocus::get(cx).jump.map(|j| j.comment)),
+        Some(c_media)
+    );
+
+    let jumped_embed = page.update(cx, |p, cx| p.jump_comment(&c_embed, cx));
+    assert_eq!(
+        jumped_embed.map(|t| t.key()),
+        Some(format!("entry:{ch1}/mod-prose"))
+    );
+    assert_eq!(
+        cx.update(|_, cx| dr_view_review::ReviewFocus::get(cx).jump.map(|j| j.comment)),
+        Some(c_embed)
+    );
 }

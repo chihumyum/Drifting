@@ -204,9 +204,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Rouvrir",
-      "resolve": "Résoudre",
-      "toNote": "En commentaire",
-      "toTodo": "En tâche"
+      "resolve": "Résoudre"
     },
     "card": {
       "emptyComment": "Commentaire vide"
@@ -539,9 +537,7 @@
       "drawHint": "Faites glisser sur l’image pour marquer une zone",
       "empty": "Faites glisser sur l’image ou la page pour ajouter le premier commentaire.",
       "listLabel": "Commentaires de cette ressource",
-      "page": "Page {{page}}",
-      "stopDrawing": "Arrêter les commentaires",
-      "whole": "Ressource entière"
+      "stopDrawing": "Arrêter les commentaires"
     },
     "zoomIn": "Zoom avant",
     "zoomOut": "Zoom arrière",
@@ -934,7 +930,6 @@
       "floating": "Non rattachés"
     },
     "newComment": "Nouveau commentaire",
-    "resolved": "Résolus ({{count}})",
     "scopes": {
       "current": "Actuel"
     },

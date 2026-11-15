@@ -29,7 +29,8 @@ use dr_workspace::{Workspace, WsEvent, events::Subscription};
 use gpui::{App, AppContext, Entity, Global, KeyBinding, SharedString, actions};
 
 pub use composer::{Anchor, CommentComposer, ComposerEvent};
-pub use model::{Filter, Group, Listing, Place};
+pub use dr_editor::decor::ReviewFocus;
+pub use model::{Filter, Group, Listing, OriginFilter, Place, StatusFilter};
 pub use panel::ReviewView;
 
 actions!(
