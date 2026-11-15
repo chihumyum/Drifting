@@ -779,6 +779,13 @@ fn resolve_asset_block(
     }
 }
 
+struct ManuscriptPlan {
+    book_title: String,
+    done_todos: Arc<HashSet<CommentId>>,
+    live_assets: Arc<HashMap<AssetId, Asset>>,
+    plans: Vec<SectionPlan>,
+}
+
 /// Reads a manuscript from `book`:
 ///
 /// - When `options.chapters` is `None` (「只导成书正文」), exports
@@ -802,12 +809,12 @@ pub fn read_manuscript(
     let book_id = BookId::parse(book).map_err(invalid)?;
     let selected_opt = options.chapters.clone();
     let labels_for_doc = labels.clone();
-    let (book_title, done_todos, live_assets, plans): (
-        String,
-        Arc<HashSet<CommentId>>,
-        Arc<HashMap<AssetId, Asset>>,
-        Vec<SectionPlan>,
-    ) = ws
+    let ManuscriptPlan {
+        book_title,
+        done_todos,
+        live_assets,
+        plans,
+    } = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(invalid)?
@@ -885,7 +892,12 @@ pub fn read_manuscript(
                     out
                 }
             };
-            Ok::<_, ExportError>((meta.name, done, assets, plans))
+            Ok::<_, ExportError>(ManuscriptPlan {
+                book_title: meta.name,
+                done_todos: done,
+                live_assets: assets,
+                plans,
+            })
         })
         .map_err(invalid)??;
 
