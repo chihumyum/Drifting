@@ -614,14 +614,18 @@ mod tests {
             _ => panic!("expected unplaced asset to resolve to Material page target"),
         }
 
+        // A file a media module holds is still a file of the asset library
+        // (T5, `kernel-v5.md` §6): its change opens the file's own viewer,
+        // which lists the media module among its usages, not the media item.
         let placed_targets = change_targets(&run, 4);
         assert_eq!(placed_targets.len(), 1);
         assert_eq!(placed_targets[0].key(), format!("asset:{placed_asset}"));
         match resolve_change(&workspace, &book, &placed_targets[0], false).unwrap() {
             ChangeLocation::Page(target) => {
-                assert_eq!(target.key(), format!("material:{placed_item}"))
+                assert_eq!(target.key(), format!("material:{placed_asset}"));
+                assert_ne!(target.key(), format!("material:{placed_item}"));
             }
-            _ => panic!("expected placed asset to resolve to its Material item target"),
+            _ => panic!("expected placed asset to resolve to its file's Material target"),
         }
 
         workspace.shutdown().unwrap();
