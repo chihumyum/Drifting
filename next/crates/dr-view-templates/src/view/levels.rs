@@ -135,6 +135,81 @@ impl TemplateEditor {
         options.push((self.draft.id.clone(), self.draft.name.clone()));
         options
     }
+    /// 「新条目住在」: it follows 「收别处的条目」 (`kernel-v5.md` §16).
+    pub(super) fn home_setting(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let mut homes: Vec<(Option<String>, SharedString)> = vec![(None, t(cx, k::THIS_LEVEL))];
+        if let Some(book) = self.host.book.v3() {
+            homes.extend(
+                book.entries
+                    .iter()
+                    .filter(|entry| book.levels.contains_key(&entry.id))
+                    .map(|entry| (Some(entry.id.clone()), entry.title.clone().into())),
+            );
+        }
+        let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
+        choices.extend(
+            homes
+                .iter()
+                .map(|(_, label)| Choice::new(Icon::ChevronDown, label.clone())),
+        );
+        let selected = self
+            .draft
+            .settings
+            .home
+            .as_ref()
+            .and_then(|value| homes.iter().position(|(id, _)| id == value))
+            .map_or(0, |ix| ix + 1);
+        let entity = cx.entity();
+        let select = self
+            .select("k5-home", choices, selected)
+            .on_change(move |ix, _, cx| {
+                entity.update(cx, |this, cx| {
+                    this.draft.settings.home = ix.checked_sub(1).map(|ix| homes[ix].0.clone());
+                    cx.notify();
+                })
+            });
+        self.setting_row(
+            "home",
+            k::HOME,
+            select.into_any_element(),
+            self.draft.settings.home.is_some(),
+            cx,
+        )
+    }
+    /// 「收别处的条目」, beside the default 「层级」 (`kernel-v5.md` §16
+    /// 「两个开关」).
+    pub(super) fn accept_switch(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let on = self.draft.settings.accept.unwrap_or(false);
+        let entity = cx.entity();
+        div()
+            .id("k5-accept")
+            .role(gpui::Role::Group)
+            .aria_label(t(cx, k::ACCEPT))
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .child(
+                div()
+                    .id("k5-toggle-accept")
+                    .role(gpui::Role::CheckBox)
+                    .aria_label(t(cx, k::ACCEPT))
+                    .aria_toggled(if on {
+                        gpui::Toggled::True
+                    } else {
+                        gpui::Toggled::False
+                    })
+                    .child(
+                        Switch::new("k5-switch-accept", on).on_change(move |value, _, cx| {
+                            entity.update(cx, |this, cx| {
+                                this.draft.settings.accept = Some(value);
+                                cx.notify();
+                            })
+                        }),
+                    ),
+            )
+            .child(t(cx, k::ACCEPT))
+            .into_any_element()
+    }
     pub(super) fn level_settings(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let mut section = div()
             .flex()
@@ -211,47 +286,11 @@ impl TemplateEditor {
             self.draft.settings.display.is_some(),
             cx,
         ));
-        section = section
-            .child(self.bool_setting("auto_link", k::AUTO_LINK, true, cx))
-            .child(self.bool_setting("accept", k::ACCEPT, true, cx));
-        let mut homes: Vec<(Option<String>, SharedString)> = vec![(None, t(cx, k::THIS_LEVEL))];
-        if let Some(book) = self.host.book.v3() {
-            homes.extend(
-                book.entries
-                    .iter()
-                    .filter(|entry| book.levels.contains_key(&entry.id))
-                    .map(|entry| (Some(entry.id.clone()), entry.title.clone().into())),
-            );
+        // 「自动链接」 only manages what lives below: not shown while the
+        // default 「层级」 is off (`kernel-v5.md` §16 「两个开关」).
+        if self.draft.level {
+            section = section.child(self.bool_setting("auto_link", k::AUTO_LINK, true, cx));
         }
-        let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
-        choices.extend(
-            homes
-                .iter()
-                .map(|(_, label)| Choice::new(Icon::ChevronDown, label.clone())),
-        );
-        let selected = self
-            .draft
-            .settings
-            .home
-            .as_ref()
-            .and_then(|value| homes.iter().position(|(id, _)| id == value))
-            .map_or(0, |ix| ix + 1);
-        let entity = cx.entity();
-        let select = self
-            .select("k5-home", choices, selected)
-            .on_change(move |ix, _, cx| {
-                entity.update(cx, |this, cx| {
-                    this.draft.settings.home = ix.checked_sub(1).map(|ix| homes[ix].0.clone());
-                    cx.notify();
-                })
-            });
-        section = section.child(self.setting_row(
-            "home",
-            k::HOME,
-            select.into_any_element(),
-            self.draft.settings.home.is_some(),
-            cx,
-        ));
         let formats = ["full", "notes", "plain"];
         let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
         choices.extend(

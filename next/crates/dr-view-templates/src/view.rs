@@ -154,7 +154,6 @@ enum Input {
 #[derive(Clone)]
 enum Picker {
     Add,
-    Mark,
 }
 #[derive(Clone)]
 struct ModuleDrag {
@@ -177,6 +176,11 @@ pub struct TemplateEditor {
     focus: FocusHandle,
     scroll: ScrollHandle,
     picker: Option<(Picker, gpui::Point<gpui::Pixels>)>,
+    /// The mark picker (`kernel-v5.md` §8) and where it opened.
+    marks: Option<(
+        Entity<dr_shell::v3::mark::MarkPicker>,
+        gpui::Point<gpui::Pixels>,
+    )>,
     saving: bool,
     error: Option<bool>, // true: concurrent edit; false: command refused or storage failure
     preview_open: bool,
@@ -213,21 +217,6 @@ pub fn type_label(kind: &str, cx: &App) -> SharedString {
     t(cx, key)
 }
 
-fn mark_label(mark: &str, cx: &App) -> SharedString {
-    t(
-        cx,
-        match mark {
-            "book" => k::MARK_BOOK,
-            "file-text" => k::MARK_SEAL,
-            "lightbulb" => k::MARK_SPIRAL,
-            "folder" => k::MARK_CORNER,
-            "compass" => k::MARK_DASH,
-            "git-branch" => k::MARK_WAVE,
-            _ => k::MARK_SQUARE,
-        },
-    )
-}
-
 impl TemplateEditor {
     pub fn new(
         host: PageViewHost,
@@ -253,6 +242,7 @@ impl TemplateEditor {
             focus: cx.focus_handle(),
             scroll: ScrollHandle::new(),
             picker: None,
+            marks: None,
             saving: false,
             error: None,
             preview_open: false,
@@ -497,8 +487,7 @@ impl TemplateEditor {
     }
     fn picker(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let (which, at) = self.picker.clone()?;
-        let values = match which {
-            Picker::Mark => model::MARKS.to_vec(),
+        let values: Vec<&str> = match which {
             // Any template takes any module, 「下面的条目」 once.
             Picker::Add => model::MODULES
                 .iter()
@@ -511,32 +500,22 @@ impl TemplateEditor {
         for value in values {
             let label = match which {
                 Picker::Add => type_label(value, cx),
-                Picker::Mark => mark_label(value, cx),
             };
             let value = value.to_owned();
-            let mark = matches!(which, Picker::Mark);
-            let icon = if mark {
-                dr_ui::components::RowIcon::Mark(
-                    dr_shell::book::v3::mark(Some(&value), &self.draft.id),
-                    None,
-                )
-            } else {
-                Icon::Plus.into()
-            };
             menu = menu.item(
-                MenuItem::new(SharedString::from(format!("k5-pick-{value}")), icon, label)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if mark {
-                            this.draft.mark = Some(value.clone());
-                        } else {
-                            model::add_module(
-                                &mut this.draft,
-                                model::module(&value, type_label(&value, cx).to_string()),
-                            );
-                        }
-                        this.picker = None;
-                        cx.notify();
-                    })),
+                MenuItem::new(
+                    SharedString::from(format!("k5-pick-{value}")),
+                    Icon::Plus,
+                    label,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    model::add_module(
+                        &mut this.draft,
+                        model::module(&value, type_label(&value, cx).to_string()),
+                    );
+                    this.picker = None;
+                    cx.notify();
+                })),
             );
         }
         let list = div()
@@ -553,6 +532,48 @@ impl TemplateEditor {
             overlay::float_in_dialog(Place::Point(at), list).into_any_element()
         } else {
             overlay::float(Place::Point(at), Layer::Popover, list).into_any_element()
+        })
+    }
+
+    /// Opens the mark picker: a sand mark or one character (`kernel-v5.md`
+    /// §8). A template has no mark to fall back to, so it offers none.
+    fn show_marks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let at = window.mouse_position();
+        let pick = cx.entity().downgrade();
+        let dismiss = cx.entity().downgrade();
+        let picker = cx.new(|cx| {
+            dr_shell::v3::mark::MarkPicker::new(
+                self.draft.id.clone(),
+                self.draft.mark.clone(),
+                false,
+                move |mark, _, cx| {
+                    let _ = pick.update(cx, |this, cx| {
+                        if mark.is_some() {
+                            this.draft.mark = mark;
+                        }
+                        this.marks = None;
+                        cx.notify();
+                    });
+                },
+                move |_, cx| {
+                    let _ = dismiss.update(cx, |this, cx| {
+                        this.marks = None;
+                        cx.notify();
+                    });
+                },
+                window,
+                cx,
+            )
+        });
+        self.marks = Some((picker, at));
+        cx.notify();
+    }
+    fn mark_picker(&self) -> Option<AnyElement> {
+        let (picker, at) = self.marks.clone()?;
+        Some(if self.in_dialog() {
+            overlay::float_in_dialog(Place::Point(at), picker).into_any_element()
+        } else {
+            overlay::float(Place::Point(at), Layer::Popover, picker).into_any_element()
         })
     }
 
@@ -785,7 +806,7 @@ impl Render for TemplateEditor {
                     .role(gpui::Role::Button)
                     .aria_label(t(cx, k::MARK))
                     .cursor_pointer()
-                    .on_click(cx.listener(|this, _, w, cx| this.show_picker(Picker::Mark, w, cx)))
+                    .on_click(cx.listener(|this, _, w, cx| this.show_marks(w, cx)))
                     .child(sand::KindMark::new("k5-mark-symbol", mark).scale(1.5)),
             )
             .child(div().flex_1().min_w_0().type_px(28., 40.).child(name))
@@ -905,7 +926,23 @@ impl Render for TemplateEditor {
                     .child(t(cx, k::COLOR))
                     .child(color),
             )
-            .child(level_switch)
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .flex_wrap()
+                    .items_center()
+                    .gap(px(24.))
+                    .child(level_switch)
+                    .child(self.accept_switch(cx)),
+            )
+            .children(
+                self.draft
+                    .settings
+                    .accept
+                    .unwrap_or(false)
+                    .then(|| self.home_setting(cx)),
+            )
             .child(linkable_switch);
         {
             content = content.child(t(cx, k::MODULES));
@@ -934,12 +971,13 @@ impl Render for TemplateEditor {
                     ),
             );
         }
-        // The settings for what lives below show while the default switch
-        // is on; their values stay when it is off.
+        // The settings for what lives below show while either switch is on
+        // (both lists read them); their values stay when they are off.
+        if self.draft.level || self.draft.settings.accept.unwrap_or(false) {
+            content = content.child(self.level_settings(cx));
+        }
         if self.draft.level {
-            content = content
-                .child(self.level_settings(cx))
-                .child(self.actions(window, cx));
+            content = content.child(self.actions(window, cx));
         }
         content = content.child(self.guidance(window, cx));
         if let Some(conflict) = self.error {
@@ -972,7 +1010,8 @@ impl Render for TemplateEditor {
             .text_color(p.ink(1).solid())
             .child(head)
             .child(body)
-            .children(self.picker(cx));
+            .children(self.picker(cx))
+            .children(self.mark_picker());
         if self.creating {
             let close = cx.entity_id();
             Dialog::new("k5-create", t(cx, k::NEW_TEMPLATE))

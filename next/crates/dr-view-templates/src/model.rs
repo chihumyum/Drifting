@@ -30,16 +30,6 @@ pub const FIELDS: &[&str] = &[
     "aliases",
 ];
 /// The vocabulary already rendered by the shell's shared sand mark function.
-pub const MARKS: &[&str] = &[
-    "book",
-    "file-text",
-    "lightbulb",
-    "folder",
-    "compass",
-    "git-branch",
-    "square",
-];
-
 /// A new template; new entries start with the switch off and auto-linking on.
 pub fn blank(name: String) -> EntryTemplate {
     EntryTemplate {
