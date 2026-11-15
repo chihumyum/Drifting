@@ -50,10 +50,15 @@ use dr_platform::DeepLinks;
 use dr_platform::crash::CrashReporting;
 use gpui::{App, AppContext as _, Global, Window, WindowHandle};
 
+pub use dr_editor::decor::ReviewFocus;
+pub use dr_view_review::NewComment;
 pub use dr_view_review::agent_bridge as review_agent;
 pub use settings::{Settings, SettingsFile};
 pub use strings::{Strings, t};
 pub use workspace::Workspace;
+pub use workspace::review::{
+    FrameCommentIntent, FrameScope, comment_underline, record_entry_title_bounds, take_frame_intent,
+};
 
 /// What the shell needs to know about the app it runs in.
 #[derive(Clone, Copy, Debug)]

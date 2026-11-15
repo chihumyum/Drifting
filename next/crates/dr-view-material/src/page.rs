@@ -124,6 +124,7 @@ pub struct MediaPage {
     stage: Option<Bounds<Pixels>>,
     gesture: Option<Gesture>,
     drawing: bool,
+    frame_scope: Option<dr_shell::FrameScope>,
     selected: Option<String>,
     /// The comment whose rectangle or card the pointer is on.
     pointed: Option<String>,
@@ -219,6 +220,7 @@ impl MediaPage {
             stage: None,
             gesture: None,
             drawing: false,
+            frame_scope: None,
             selected: None,
             pointed: None,
             comments: Vec::new(),
@@ -243,9 +245,21 @@ impl MediaPage {
         };
         page.subscribe(window, cx);
         page.sync_fields(window, cx);
+        page.consume_frame_intent(cx);
         page.load(cx);
         page.reload_comments(cx);
         page
+    }
+
+    fn consume_frame_intent(&mut self, cx: &mut Context<Self>) {
+        let asset_key = self
+            .info()
+            .and_then(|m| m.asset.clone())
+            .unwrap_or_else(|| self.id.clone());
+        if let Some(scope) = dr_shell::take_frame_intent(&asset_key, cx) {
+            self.frame_scope = Some(scope);
+            self.drawing = true;
+        }
     }
 
     /// The material's id.
@@ -258,7 +272,11 @@ impl MediaPage {
     }
 
     fn info(&self) -> Option<&dr_shell::book::MaterialInfo> {
-        self.book.material_items().iter().find(|m| m.id == self.id)
+        self.book
+            .material_items()
+            .iter()
+            .find(|m| m.id == self.id)
+            .or_else(|| self.book.v3().and_then(|b| b.asset_material(&self.id)))
     }
 
     fn subscribe(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -814,8 +832,11 @@ impl MediaPage {
     pub fn set_drawing(&mut self, on: bool, cx: &mut Context<Self>) {
         if self.drawing != on {
             self.drawing = on;
-            if !on && matches!(self.gesture, Some(Gesture::Draw { .. })) {
-                self.gesture = None;
+            if !on {
+                self.frame_scope = None;
+                if matches!(self.gesture, Some(Gesture::Draw { .. })) {
+                    self.gesture = None;
+                }
             }
             cx.notify();
         }
@@ -937,16 +958,76 @@ impl MediaPage {
         };
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let at = point(at.x + px(8.0), at.y + px(8.0));
-        let view = cx.new(|cx| {
-            CommentComposer::for_region(
-                lib, book, target, module_id, asset, region, at, locale, window, cx,
-            )
+        let scope = self.frame_scope.clone();
+        let region_for_composer = region.clone();
+        let view = cx.new(|cx| match scope {
+            Some(dr_shell::FrameScope::Embed {
+                entry,
+                module,
+                embed,
+                ..
+            }) => CommentComposer::for_part(
+                lib,
+                book,
+                entry,
+                module,
+                dr_workspace::dto::CommentPartDto::Embed {
+                    embed,
+                    region: Some(region_for_composer),
+                },
+                at,
+                locale,
+                window,
+                cx,
+            ),
+            Some(dr_shell::FrameScope::Media {
+                entry,
+                module,
+                asset,
+            }) => CommentComposer::for_region(
+                lib,
+                book,
+                Target {
+                    kind: "entry".into(),
+                    id: entry,
+                },
+                Some(module),
+                asset,
+                region_for_composer,
+                at,
+                locale,
+                window,
+                cx,
+            ),
+            Some(dr_shell::FrameScope::Asset { asset }) => CommentComposer::for_asset(
+                lib,
+                book,
+                asset,
+                Some(region_for_composer),
+                at,
+                locale,
+                window,
+                cx,
+            ),
+            None => CommentComposer::for_region(
+                lib,
+                book,
+                target,
+                module_id,
+                asset,
+                region_for_composer,
+                at,
+                locale,
+                window,
+                cx,
+            ),
         });
         let sub = cx.subscribe_in(&view, window, |page, _, e: &ComposerEvent, window, cx| {
             match e {
                 ComposerEvent::Saved(id) => {
                     page.selected = Some(id.clone());
                     page.drawing = false;
+                    page.frame_scope = None;
                 }
                 ComposerEvent::Done => {
                     page.composer = None;
@@ -1043,8 +1124,12 @@ impl MediaPage {
             dr_view_review::v3::load(&lib, &book)
                 .map(|snapshot| {
                     let cards: Vec<_> = snapshot.items.iter().map(|i| i.card()).collect();
-                    let place = place.as_ref().map(|(e, m)| (e.as_str(), m.as_str()));
-                    regions::listed(&cards, &id, place)
+                    if let Some((e, m)) = &place {
+                        regions::listed(&cards, &id, Some((e.as_str(), m.as_str())))
+                    } else {
+                        let embed_assets = matching_embed_assets(&lib, &cards, &id);
+                        regions::listed_for_asset_library(&cards, &id, &embed_assets)
+                    }
                 })
                 .unwrap_or_default()
         });
@@ -1509,11 +1594,179 @@ impl MediaPage {
                     .text_color(p.ink(4).solid())
                     .child(t(cx, keys::material_editor::regions::EMPTY)),
             );
+            return list;
         }
+        let is_asset_library = self.info().and_then(|m| m.entry.as_ref()).is_none();
+        if !is_asset_library {
+            for l in &self.comments {
+                list = list.child(self.card(l, window, cx));
+            }
+            return list;
+        }
+        let mut direct_items = Vec::new();
+        let mut media_groups: Vec<((String, String), Vec<&Listed>)> = Vec::new();
+        let mut embed_groups: Vec<((String, String), Vec<&Listed>)> = Vec::new();
         for l in &self.comments {
-            list = list.child(self.card(l, window, cx));
+            match l.asset_place() {
+                regions::AssetPlace::Direct => direct_items.push(l),
+                regions::AssetPlace::Media { entry, module } => {
+                    if let Some((_, bucket)) = media_groups
+                        .iter_mut()
+                        .find(|((e, m), _)| e == &entry && m == &module)
+                    {
+                        bucket.push(l);
+                    } else {
+                        media_groups.push(((entry, module), vec![l]));
+                    }
+                }
+                regions::AssetPlace::Embed { entry, module, .. } => {
+                    if let Some((_, bucket)) = embed_groups
+                        .iter_mut()
+                        .find(|((e, m), _)| e == &entry && m == &module)
+                    {
+                        bucket.push(l);
+                    } else {
+                        embed_groups.push(((entry, module), vec![l]));
+                    }
+                }
+            }
+        }
+        if !direct_items.is_empty() {
+            list = list.child(
+                div()
+                    .px(px(4.0))
+                    .pt(px(2.0))
+                    .font_role(Role::Structure)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(3).solid())
+                    .child(t(cx, keys::v3_review::WHOLE_FILE)),
+            );
+            for l in direct_items {
+                list = list.child(self.card(l, window, cx));
+            }
+        }
+        for ((entry, module), bucket) in media_groups {
+            list = list.child(self.place_header(&entry, &module, bucket[0], false, window, cx));
+            for l in bucket {
+                list = list.child(self.card(l, window, cx));
+            }
+        }
+        for ((entry, module), bucket) in embed_groups {
+            list = list.child(self.place_header(&entry, &module, bucket[0], true, window, cx));
+            for l in bucket {
+                list = list.child(self.card(l, window, cx));
+            }
         }
         list
+    }
+
+    fn place_header(
+        &self,
+        entry: &str,
+        module: &str,
+        first: &Listed,
+        is_embed: bool,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        let nav_target = dr_shell::nav::Target::from_key(&format!("entry:{entry}/{module}"));
+        let (mark, color) = nav_target
+            .as_ref()
+            .map(|t| self.book.mark(t))
+            .unwrap_or((dr_ui::sand::Kind::Element, None));
+        let mut kind_mark = dr_ui::sand::KindMark::new(
+            ElementId::Name(
+                format!(
+                    "material-place-mark-{}-{entry}-{module}",
+                    if is_embed { "embed" } else { "media" }
+                )
+                .into(),
+            ),
+            mark,
+        );
+        if let Some(c) = color {
+            kind_mark = kind_mark.color(c);
+        }
+        let entry_title = self
+            .book
+            .v3()
+            .and_then(|b| b.entry(entry))
+            .map(|e| e.title.clone())
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| t(cx, keys::common::UNTITLED).to_string());
+        let mod_name = self
+            .book
+            .v3()
+            .and_then(|b| b.template_of(entry))
+            .and_then(|tpl| tpl.modules.iter().find(|m| m.id == module))
+            .map(|m| m.name.clone())
+            .unwrap_or_default();
+        let label = if mod_name.is_empty() {
+            entry_title
+        } else {
+            format!("{entry_title} · {mod_name}")
+        };
+        let ws = self.workspace.clone();
+        let comment_id = first.item.id.clone();
+        let jump_label = t(cx, keys::v3_review::JUMP_TO_PLACE);
+        let jump = nav_target.map(|target| {
+            div()
+                .id(ElementId::Name(
+                    format!(
+                        "material-place-jump-{}-{entry}-{module}",
+                        if is_embed { "embed" } else { "media" }
+                    )
+                    .into(),
+                ))
+                .size(px(20.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(3.0))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .aria_label(jump_label)
+                .hover(|st| st.bg(p.ink(1).alpha(0.05)))
+                .on_click(move |_, window, cx| {
+                    cx.stop_propagation();
+                    if let Some(ws) = ws.upgrade() {
+                        let cid = comment_id.clone();
+                        let target = target.clone();
+                        ws.update(cx, |ws, cx| {
+                            ws.reveal_comment(&cid, Some(target), window, cx);
+                        });
+                    }
+                })
+                .child(dr_ui::sand::icon(
+                    Icon::ArrowForward,
+                    12.0,
+                    p.ink(3).solid(),
+                ))
+        });
+        div()
+            .px(px(4.0))
+            .pt(px(4.0))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(6.0))
+            .child(kind_mark)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .text_ellipsis()
+                    .font_role(Role::Structure)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(2).solid())
+                    .child(label),
+            )
+            .children(jump)
+            .into_any_element()
     }
 
     fn card(&self, l: &Listed, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -1652,8 +1905,62 @@ fn seal(number: usize, color: Rgb, faded: bool, paper: Rgb) -> impl IntoElement 
         )
 }
 
+fn matching_embed_assets(
+    lib: &Library,
+    cards: &[dr_workspace::dto::CommentInfo],
+    want_asset: &str,
+) -> std::collections::HashSet<(String, String, String)> {
+    let mut pairs = std::collections::HashSet::new();
+    for c in cards {
+        if let (Some(t), Some(module), Some(dr_workspace::dto::CommentPartDto::Embed { .. })) =
+            (&c.target, &c.module, &c.part)
+            && t.kind == "entry"
+        {
+            pairs.insert((t.id.clone(), module.clone()));
+        }
+    }
+    let mut out = std::collections::HashSet::new();
+    for (entry, module) in pairs {
+        let Ok(eid) = dr_model::id::EntryId::parse(&entry) else {
+            continue;
+        };
+        let Ok(mid) = dr_model::id::ModuleId::parse(&module) else {
+            continue;
+        };
+        let doc_id = dr_model::DocId::Body(dr_model::id::BodyDocId::new(eid, mid));
+        let name = doc_id.to_string();
+        if lib.library().doc_info(&name).ok().flatten().is_none() {
+            continue;
+        }
+        let Ok(handle) = lib.library().open_doc(&name, dr_store::OpenDoc::Existing) else {
+            continue;
+        };
+        let want = want_asset.to_owned();
+        if let Ok(found) = handle.read(move |doc| {
+            let mut hits = Vec::new();
+            if let Ok(prose) = dr_doc::prose::BorrowedProse::new(doc, &doc_id) {
+                let pv = prose.view();
+                for (_, em_id) in pv.embed_refs() {
+                    if let Some(dr_doc::prose::EmbedView::Asset {
+                        asset: Some(aid), ..
+                    }) = pv.embed(&em_id)
+                        && aid.as_str() == want
+                    {
+                        hits.push((entry.clone(), module.clone(), em_id.to_string()));
+                    }
+                }
+            }
+            hits
+        }) {
+            out.extend(found);
+        }
+    }
+    out
+}
+
 impl Render for MediaPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.consume_frame_intent(cx);
         self.keep_rendered(window, cx);
         let column = !self.comments.is_empty() || self.drawing;
         let composer = self.composer.as_ref().map(|(view, at, _)| {

@@ -293,7 +293,6 @@ fn the_composer_writes_a_comment_on_the_selection(cx: &mut TestAppContext) {
         .update(|window, cx| CommentComposer::for_selection(&editor, ws, Locale::ZhCn, window, cx))
         .expect("a composer for the selection");
     composer.update(cx, |c, cx| {
-        c.set_todo(true, cx);
         c.set_text("钟楼要写清楚", cx);
         c.save(cx);
     });

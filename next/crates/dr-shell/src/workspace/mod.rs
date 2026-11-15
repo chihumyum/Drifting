@@ -25,7 +25,7 @@ mod mounted;
 pub mod outline;
 pub mod page_actions;
 mod recent;
-mod review;
+pub mod review;
 mod sea;
 mod search;
 mod sidebar;

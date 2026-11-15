@@ -88,6 +88,7 @@ pub struct Fields {
     module_stale: bool,
     module_epoch: u64,
     module_registered: bool,
+    _review_focus: Subscription,
 }
 
 impl Fields {
@@ -98,6 +99,7 @@ impl Fields {
         cx: &mut Context<Self>,
     ) -> Fields {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
+        let review_focus = cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify());
         cx.spawn(async move |this, cx| this.update(cx, |f, cx| f.follow(cx)).ok())
             .detach();
         Fields {
@@ -114,6 +116,7 @@ impl Fields {
             module_stale: false,
             module_epoch: 0,
             module_registered: false,
+            _review_focus: review_focus,
         }
     }
 
@@ -431,6 +434,73 @@ impl Render for Fields {
                     entity.update(cx, |f, cx| f.remove(ix, cx))
                 }
             };
+            let kv_target = match (&self.owner, row.id.as_ref()) {
+                (Owner::Module { entry, module }, Some(rid)) => {
+                    Some((entry.clone(), module.clone(), rid.clone()))
+                }
+                _ => None,
+            };
+            let kv_ul = kv_target.as_ref().and_then(|(entry, module, rid)| {
+                let ids = self
+                    .book
+                    .v3()
+                    .map(|b| b.kv_row_comments(entry, module, rid))
+                    .unwrap_or_default();
+                dr_shell::comment_underline(
+                    ElementId::Name(format!("{group}-ul").into()),
+                    ids,
+                    self.ws.clone(),
+                    cx,
+                )
+            });
+            let value_focus = row.value.focus_handle(cx);
+            let comment_btn = kv_target.clone().map(|(entry, module, rid)| {
+                let ws = self.ws.clone();
+                let ret = value_focus.clone();
+                let label = t(cx, keys::v3_review::WRITE_COMMENT);
+                div()
+                    .id(ElementId::Name(format!("{group}-comment").into()))
+                    .size(px(18.0))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .role(gpui::Role::Button)
+                    .aria_label(label)
+                    .map(|el| {
+                        if focused {
+                            el
+                        } else {
+                            el.invisible().group_hover(group.clone(), |st| st.visible())
+                        }
+                    })
+                    .on_click(move |e, window, cx| {
+                        cx.stop_propagation();
+                        if let Some(ws) = ws.upgrade() {
+                            let pos = e.position();
+                            let entry = entry.clone();
+                            let module = module.clone();
+                            let rid = rid.clone();
+                            let ret = ret.clone();
+                            ws.update(cx, |ws, cx| {
+                                ws.open_part_composer(
+                                    &entry,
+                                    &module,
+                                    dr_workspace::dto::CommentPartDto::KvRow { row: rid },
+                                    Some(pos),
+                                    Some(ret),
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    })
+                    .child(sand::icon(Icon::CommentPlus, 11.0, p.ink(4).solid()))
+            });
+            let ws_action = self.ws.clone();
+            let kv_action = kv_target;
+            let focus_action = value_focus;
             let x = div()
                 .id(ElementId::Name(format!("{group}-remove").into()))
                 .size(px(18.0))
@@ -461,6 +531,28 @@ impl Render for Fields {
                     cx,
                 )
                 .group(group.clone())
+                .on_action(move |_: &dr_shell::NewComment, window, cx| {
+                    if let Some((entry, module, rid)) = &kv_action {
+                        cx.stop_propagation();
+                        if let Some(ws) = ws_action.upgrade() {
+                            let entry = entry.clone();
+                            let module = module.clone();
+                            let rid = rid.clone();
+                            let ret = focus_action.clone();
+                            ws.update(cx, |ws, cx| {
+                                ws.open_part_composer(
+                                    &entry,
+                                    &module,
+                                    dr_workspace::dto::CommentPartDto::KvRow { row: rid },
+                                    None,
+                                    Some(ret),
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    }
+                })
                 .pl(px(10.0))
                 .pr(px(6.0))
                 .py(px(5.0))
@@ -499,6 +591,7 @@ impl Render for Fields {
                                 .aria_label(t(cx, keys::kv_editor::VALUE_PLACEHOLDER))
                         })
                         .child(row.value.clone())
+                        .children(kv_ul)
                         .children(row.failed.then(|| t(cx, keys::k4_pages::SAVE_FAILED)))
                         .children(row.failed.then(|| {
                             dr_ui::components::Button::new(
@@ -510,6 +603,7 @@ impl Render for Fields {
                             ))
                         })),
                 )
+                .children(comment_btn)
                 .child(x),
             );
         }

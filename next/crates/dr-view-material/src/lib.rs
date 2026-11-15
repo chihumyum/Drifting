@@ -60,6 +60,7 @@ pub fn init(cx: &mut App) {
             .material_items()
             .iter()
             .find(|m| m.id == id)
+            .or_else(|| host.book.v3().and_then(|b| b.asset_material(&id)))
             .and_then(|m| MediaKind::parse(&m.kind))?;
         let page = cx.new(|cx| MediaPage::new(id, kind, host, window, cx));
         let focus = page.read(cx).focus_handle(cx);

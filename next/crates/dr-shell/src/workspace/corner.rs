@@ -138,9 +138,10 @@ pub fn corner(
             .into_any_element(),
         );
     }
-    // Every prose page has a ⋯ menu (its snapshot history at least); the
-    // whole book's holds its share and export (M41).
-    let doc_page = target.and_then(crate::book::doc_of).is_some();
+    // Every prose or entry page has a ⋯ menu; the whole book's holds its
+    // share and export (M41).
+    let doc_page = target.and_then(crate::book::doc_of).is_some()
+        || matches!(target, Some(Target::Entry { .. }));
     if doc_page || matches!(target, Some(Target::Book(_))) {
         let opener = ws.clone();
         let page = key.clone();

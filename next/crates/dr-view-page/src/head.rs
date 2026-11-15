@@ -86,6 +86,7 @@ impl PageHead {
                 head.hand_over(window, cx)
             }),
             cx.subscribe_in(&synopsis, window, Self::on_synopsis),
+            cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify()),
         ];
         if let Some(workspace) = host.workspace.upgrade() {
             subscriptions.push(cx.observe(&workspace, |head, _, cx| {
@@ -523,16 +524,50 @@ impl Render for PageHead {
             .child(div().flex().flex_row().child(dot()).child(words));
         let synopsis_size = body - tk::SYNOPSIS_LESS;
         let (outer, inner) = column(cx);
+        let title_comments = dr_editor::v3::body(&page.doc)
+            .and_then(|(eid, _)| {
+                self.host
+                    .workspace
+                    .upgrade()
+                    .and_then(|ws| ws.read(cx).book.v3().map(|b| b.entry_title_comments(&eid)))
+                    .or_else(|| {
+                        self.book
+                            .as_ref()
+                            .and_then(|b| b.v3().map(|b| b.entry_title_comments(&eid)))
+                    })
+            })
+            .unwrap_or_default();
+        let title_ul = dr_shell::comment_underline(
+            ElementId::Name(format!("page-title-ul-{}", page.doc).into()),
+            title_comments,
+            self.host.workspace.clone(),
+            cx,
+        );
+        let title_probe = dr_editor::v3::body(&page.doc).map(|(eid, _)| {
+            gpui::canvas(
+                move |bounds, _, cx| {
+                    dr_shell::record_entry_title_bounds(eid.clone(), bounds, cx);
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+        });
         let text = inner
             .pt(px(tk::TOP))
             .child(folio)
             .child(
                 div()
+                    .relative()
                     .mb(px(tk::TITLE_GAP))
                     .font_role(Role::Prose)
                     .type_px(tk::TITLE_SIZE, tk::TITLE_SIZE * tk::TITLE_LINE)
                     .text_color(p.ink(1).solid())
+                    .children(title_probe)
                     .child(self.title.clone())
+                    .children(title_ul)
                     .when(!page.has_synopsis && self.drafts.is_some(), |d| {
                         d.child(self.errors_v3(cx))
                     }),

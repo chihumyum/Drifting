@@ -208,6 +208,7 @@ impl LibraryPanel {
         cx: &mut Context<Self>,
     ) -> LibraryPanel {
         let mut subs = Vec::new();
+        subs.push(cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify()));
         if shell.upgrade().is_some() {
             // Made while the workspace draws: its book is read once that
             // drawing is done.
@@ -1004,13 +1005,43 @@ impl LibraryPanel {
                         m.title.clone().into()
                     };
                     let sub = card::subline(m, cx);
+                    let comment_ids = match (&m.entry, &m.module, &m.asset) {
+                        (Some(e), Some(md), Some(a)) => self
+                            .book
+                            .v3()
+                            .map(|b| b.media_comments(e, md, a))
+                            .unwrap_or_default(),
+                        (None, _, Some(a)) => self
+                            .book
+                            .v3()
+                            .map(|b| b.any_asset_comments(a))
+                            .unwrap_or_default(),
+                        _ => Vec::new(),
+                    };
+                    let rf = dr_shell::ReviewFocus::get(cx);
+                    let dot_hot = rf.cards.iter().any(|c| comment_ids.contains(c));
+                    let thumb = if comment_ids.is_empty() {
+                        card::thumb(m, 32.0, window, cx).into_any_element()
+                    } else {
+                        div()
+                            .relative()
+                            .child(card::thumb(m, 32.0, window, cx))
+                            .child(
+                                div()
+                                    .absolute()
+                                    .top(px(-2.0))
+                                    .right(px(-2.0))
+                                    .child(sand::comment_dot(7.0, dot_hot, &p)),
+                            )
+                            .into_any_element()
+                    };
                     let lead = div()
                         .flex()
                         .flex_row()
                         .items_center()
                         .gap(px(6.0))
                         .child(KindMark::new(rid("mark"), sand::Kind::Material))
-                        .child(card::thumb(m, 32.0, window, cx));
+                        .child(thumb);
                     SandCell::new(rid("cell"), title)
                         .lead(lead)
                         .subline(sub)
@@ -1240,11 +1271,14 @@ impl LibraryPanel {
             return body.into_any_element();
         }
         let material = key.trim_start_matches("i:").to_owned();
-        let kind = self
+        let mat_info = self
             .book
             .material_items()
             .iter()
             .find(|m| m.id == material)
+            .cloned();
+        let kind = mat_info
+            .as_ref()
             .map(|m| m.kind.clone())
             .unwrap_or_default();
         let mut view = vec![{
@@ -1265,10 +1299,81 @@ impl LibraryPanel {
                 Rc::new(move |p, _, cx| p.open_in_system(&m, cx)),
             ));
         }
+        let mut comment_actions: Vec<AnyElement> = Vec::new();
+        if self.book.v3().is_some()
+            && let Some(info) = mat_info
+            && let Some(asset) = info.asset.clone()
+        {
+            let entry = info.entry.clone();
+            let module = info.module.clone();
+            let asset_a = asset.clone();
+            comment_actions.push(action(
+                "write-comment",
+                Icon::CommentPlus,
+                t(cx, keys::v3_review::WRITE_COMMENT),
+                Rc::new(move |p, window, cx| {
+                    p.card_open = None;
+                    if let Some(ws) = p.shell.upgrade() {
+                        let entry = entry.clone();
+                        let module = module.clone();
+                        let asset = asset_a.clone();
+                        ws.update(cx, |ws, cx| match (entry, module) {
+                            (Some(e), Some(md)) => {
+                                ws.open_part_composer(
+                                    &e,
+                                    &md,
+                                    dr_workspace::dto::CommentPartDto::Media {
+                                        asset,
+                                        region: None,
+                                    },
+                                    None,
+                                    None,
+                                    window,
+                                    cx,
+                                );
+                            }
+                            _ => {
+                                ws.open_asset_composer(&asset, None, None, window, cx);
+                            }
+                        });
+                    }
+                }),
+            ));
+            if kind != "text" {
+                let entry = info.entry.clone();
+                let module = info.module.clone();
+                let asset_b = asset;
+                comment_actions.push(action(
+                    "frame-comment",
+                    Icon::Fullscreen,
+                    t(cx, keys::v3_review::DRAW_REGION_COMMENT),
+                    Rc::new(move |p, _, cx| {
+                        p.card_open = None;
+                        if let Some(ws) = p.shell.upgrade() {
+                            let scope = match (entry.clone(), module.clone()) {
+                                (Some(e), Some(md)) => dr_shell::FrameScope::Media {
+                                    entry: e,
+                                    module: md,
+                                    asset: asset_b.clone(),
+                                },
+                                _ => dr_shell::FrameScope::Asset {
+                                    asset: asset_b.clone(),
+                                },
+                            };
+                            ws.update(cx, |ws, cx| ws.open_frame_viewer(scope, cx));
+                        }
+                    }),
+                ));
+            }
+        }
         body = body
             .mark(sand::Kind::Material, None)
             .count(card::kind_label(&kind, cx))
-            .section(view)
+            .section(view);
+        if !comment_actions.is_empty() {
+            body = body.section(comment_actions);
+        }
+        body = body
             .section(vec![rename])
             .section(moves)
             .section(vec![delete]);

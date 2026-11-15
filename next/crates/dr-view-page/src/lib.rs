@@ -55,6 +55,7 @@ pub fn init(cx: &mut App) {
     history::init(cx);
     v3::register(cx);
     dr_shell::v3::history::register(cx);
+    dr_shell::v3::register_entry_comment_card(cx);
 }
 
 /// A page's head and end.
