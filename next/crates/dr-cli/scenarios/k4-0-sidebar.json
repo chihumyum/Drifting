@@ -95,15 +95,15 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3Sidebar/roots/0": "${roots.0.id}",
-        "/v3Sidebar/roots/1": "${roots.1.id}",
-        "/v3Sidebar/roots/2": "${roots.2.id}",
-        "/v3Sidebar/roots/3": "${roots.3.id}",
-        "/v3Sidebar/selected": "${roots.0.id}",
+        "/v3Sidebar/tabs/0/mount/entry": "${roots.0.id}",
+        "/v3Sidebar/tabs/1/mount/entry": "${roots.1.id}",
+        "/v3Sidebar/tabs/2/mount/entry": "${roots.2.id}",
+        "/v3Sidebar/tabs/3/mount/entry": "${roots.3.id}",
+        "/v3Sidebar/entry": "${roots.0.id}",
         "/v3Sidebar/display": "list",
         "/v3Sidebar/registered": true
       },
-      "note": "K4-0.6：根层级逐项成为标签，选中的根由 G2 注册的显示画出"
+      "note": "K4-0.6：项目定义里的 Tab 逐个成为标签（kernel-v5 §5），选中的 Tab 挂着的层级由 G2 注册的显示画出"
     },
     {
       "app": "ui.press",
@@ -116,7 +116,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.0.id}"
+          "/v3Sidebar/entry": "${roots.0.id}"
         }
       }
     },
@@ -131,7 +131,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.1.id}"
+          "/v3Sidebar/entry": "${roots.1.id}"
         }
       }
     },
@@ -146,7 +146,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.2.id}"
+          "/v3Sidebar/entry": "${roots.2.id}"
         }
       }
     },
@@ -161,7 +161,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.3.id}"
+          "/v3Sidebar/entry": "${roots.3.id}"
         }
       }
     },
@@ -448,6 +448,18 @@
       "save": "added"
     },
     {
+      "call": "tab.put",
+      "input": {
+        "book": "${books.0.id}",
+        "name": "验收顶层",
+        "mount": {
+          "kind": "entry",
+          "entry": "${added.id}"
+        }
+      },
+      "save": "addedTab"
+    },
+    {
       "app": "ui.find",
       "params": {
         "role": "RadioButton",
@@ -465,7 +477,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${added.id}"
+          "/v3Sidebar/entry": "${added.id}"
         }
       }
     },
@@ -480,16 +492,23 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.0.id}"
+          "/v3Sidebar/entry": "${added.id}",
+          "/v3Sidebar/selected": "${addedTab.id}"
         }
       }
     },
     {
       "app": "ui.find",
       "params": {
+        "role": "Label",
+        "label": "“验收顶层” is in Recently Deleted"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
         "role": "RadioButton",
-        "label": "验收顶层",
-        "absent": true
+        "label": "验收顶层"
       }
     },
     {
@@ -503,7 +522,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.2.id}"
+          "/v3Sidebar/entry": "${roots.2.id}"
         }
       }
     },
@@ -544,7 +563,7 @@
       "params": {
         "state": {
           "/left/open": true,
-          "/v3Sidebar/selected": "${roots.2.id}"
+          "/v3Sidebar/entry": "${roots.2.id}"
         }
       }
     },

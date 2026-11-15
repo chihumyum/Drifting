@@ -828,11 +828,13 @@ fn main() {
     let mut grouped_rows_ms = Vec::new();
     for _ in 0..(if cfg.quick { 3 } else { 15 }) {
         let t0 = Instant::now();
+        // The level's tree as a left-column Tab lists it (the storyline
+        // grouping was retired in kernel v5, §16 「层级的列表」).
         let r = level_rows(
             &book_snapshot,
             &manuscript_level_id,
             LevelKind::List,
-            true,
+            DisplaySurface::Sidebar,
             &BTreeSet::new(),
             4,
         );
@@ -930,7 +932,6 @@ fn main() {
             h.update(|_, _, cx| {
                 let entity = cx.new(|_| LevelDisplay::new(h_clone, LevelKind::List));
                 entity.update(cx, |ld, cx| {
-                    ld.grouped = true;
                     ld.refresh(b, cx);
                 });
             });

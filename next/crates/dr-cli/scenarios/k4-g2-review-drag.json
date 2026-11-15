@@ -625,7 +625,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.3.id}"
+          "/v3Sidebar/entry": "${roots.3.id}"
         },
         "timeout_ms": 15000
       }
@@ -797,7 +797,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Sidebar/selected": "${roots.0.id}"
+          "/v3Sidebar/entry": "${roots.0.id}"
         },
         "timeout_ms": 15000
       }
@@ -1095,7 +1095,9 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/v3Page/sections/2": null
+          "/v3Page/sections/1/kind": "prose",
+          "/v3Page/sections/2/kind": "children",
+          "/v3Page/sections/4": null
         },
         "timeout_ms": 15000
       }

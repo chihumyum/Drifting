@@ -167,7 +167,7 @@
         "state": {
           "/left/open": true,
           "/v3Sidebar/registered": true,
-          "/v3Sidebar/selected": "${entries.[template=tpl-manuscript].id}"
+          "/v3Sidebar/entry": "${entries.[template=tpl-manuscript].id}"
         }
       }
     },

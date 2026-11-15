@@ -351,13 +351,6 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Accept entries from elsewhere",
-        "role": "CheckBox"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
         "role": "PopUpButton",
         "within": {
           "role": "Group",
@@ -375,20 +368,6 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Manuscript",
-        "role": "CheckBox"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Manuscript",
-        "role": "CheckBox"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
         "role": "PopUpButton",
         "within": {
           "role": "Group",
@@ -401,20 +380,6 @@
       "params": {
         "label": "Notes",
         "role": "MenuItem"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Swimlane",
-        "role": "CheckBox"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Accept entries from elsewhere",
-        "role": "CheckBox"
       }
     },
     {
@@ -440,10 +405,9 @@
           "default_template": "tpl-chapter",
           "display": "list",
           "auto_link": true,
-          "accept": false,
+          "accept": true,
           "home": "${homes.[template=tpl-manuscript].id}",
-          "format_shortcuts": "notes",
-          "lane": true
+          "format_shortcuts": "notes"
         },
         "/[id=${created.[name=Acceptance level].id}]/modules/0/kind": "prose",
         "/[id=${created.[name=Acceptance level].id}]/modules/0/config/in_book": false,
@@ -906,29 +870,7 @@
         "role": "Button",
         "within": {
           "role": "Group",
-          "label": "Accept entries from elsewhere"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore",
-        "role": "Button",
-        "within": {
-          "role": "Group",
           "label": "New entries reside in"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore",
-        "role": "Button",
-        "within": {
-          "role": "Group",
-          "label": "Manuscript"
         }
       }
     },
@@ -941,34 +883,6 @@
           "role": "Group",
           "label": "Formatting shortcuts"
         }
-      }
-    },
-    {
-      "app": "input.scroll",
-      "params": {
-        "x": 590,
-        "y": 480,
-        "dy": 200
-      },
-      "note": "The last row's Restore sits below the window: scroll it in."
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore",
-        "role": "Button",
-        "within": {
-          "role": "Group",
-          "label": "Swimlane"
-        }
-      }
-    },
-    {
-      "app": "input.scroll",
-      "params": {
-        "x": 590,
-        "y": 480,
-        "dy": -200
       }
     },
     {
@@ -992,9 +906,7 @@
         "/[id=${created.[name=Acceptance level].id}]/settings": {
           "display": null,
           "auto_link": null,
-          "accept": null,
-          "format_shortcuts": null,
-          "lane": null
+          "format_shortcuts": null
         }
       }
     },

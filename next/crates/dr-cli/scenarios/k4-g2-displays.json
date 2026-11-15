@@ -97,40 +97,21 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Residents"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
         "label": "${chapters.0.title}"
       },
       "note": "G2 列表：有效树按文稿顺序列出，使用共同条目单元格"
     },
     {
-      "app": "ui.press",
-      "params": {
-        "label": "By storyline",
-        "role": "RadioButton"
-      }
-    },
-    {
       "app": "ui.find",
       "params": {
-        "label": "${entries.[template=tpl-storyline].title}"
+        "label": "By storyline",
+        "absent": true
       },
-      "note": "G2 列表：按主归属泳道分组"
+      "note": "kernel-v5 §16：层级的列表只有树，没有「全书顺序 / 按故事线」的切换"
     },
     {
       "app": "ui.screenshot",
       "png": "01-list.png"
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Manuscript order",
-        "role": "RadioButton"
-      }
     },
     {
       "app": "ui.press",
