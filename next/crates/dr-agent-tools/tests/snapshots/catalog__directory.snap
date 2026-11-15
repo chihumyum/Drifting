@@ -2,10 +2,17 @@
 source: crates/dr-agent-tools/tests/catalog.rs
 expression: table
 ---
-asset.get [read] Read an asset's metadata and live usages in the book.
+asset.get [read] Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
+asset.move [write] Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.rename [write] Rename a live asset in the built-in asset library.
-asset.restore [write] Restore a trashed asset from Recently Deleted back into the asset library.
+asset.restore [write] Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted).
 asset.trash [write] Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.
+asset_folder.create [write] Make a folder (素材夹) in the asset library, last among the folders of its parent (or the top).
+asset_folder.list [read] List the folders of the asset library, in manual order within each parent (with `trashed: true`, those in Recently Deleted too).
+asset_folder.move [write] Put a folder of the asset library into another folder (or the top) and/or at another place among its siblings; a folder never goes into itself or below itself.
+asset_folder.rename [write] Rename a folder of the asset library.
+asset_folder.restore [write] Bring a folder of the asset library back from Recently Deleted with what went there with it (to the top when its parent is still in Recently Deleted).
+asset_folder.trash [write] Move a folder of the asset library to Recently Deleted with everything in it (its files and folders), in one step: places using those files read as placeholders.
 book.get [read] Read book metadata and project word targets; aggregate counts use the statistics adapter.
 book.update [write] Update selected book metadata fields without replacing other book data.
 book.writing_days [read] A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
@@ -13,7 +20,7 @@ comment.anchors [read] The stored anchors of the comments on one entity's prose,
 comment.create [write] Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating. Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.
 comment.list [read] List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo). Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.
-comment.update [write] Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation.
+comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation.
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -57,13 +64,14 @@ module.remove_kv [write] Remove a key/value row from a module.
 module.remove_patch [write] Remove one patch record without deleting relations or other entries.
 module.remove_relation [write] Remove one relation projected in an entry's relations module.
 module.replace_prose [write] Replace an exact passage in an entry's prose module, addressed by block ID.
+module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
 module.set_prose [write] Write paragraphs of an entry's or a template's prose module.
 prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
 prose.read [read] Read paragraphs of a prose document (text, block id, heading level).
 prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore [write] Restore a prose document to an earlier version, as a new change (history stays).
-prose.shape [read] Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds.
+prose.shape [read] Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).
 prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
 recent.list [read] List this device's live pages, retaining each entry's selected module.
 relation.create [write] Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
@@ -78,35 +86,42 @@ timeline_view.remove [write] Remove an entry from a timeline lane and prune posi
 timeline_view.remove_pin [write] Remove a time pin from a timeline view.
 
 Schema and facade revisions:
-asset.get shared 86848edbd6295ee4e2688ffd3e2f99bad631da551ee55c6cbd2b518d22ecc063
+asset.get shared 79ab5e9a5647a97ec18cc8faf20a38d44c4050255da039cb1113b52201c8fcd8
+asset.move book 9747cfcd70efa2e07d6b0b88f5eb80eaf8e77b731820a94dedad0a70d947d56e
 asset.rename book 0d99dea52617c118145d8da7716b5dfe05eeb866c85a4a9d39fb463801ec673a
-asset.restore book 45d90626e170d4e6b38ba56c722dae97274647adb8d438dc5a1b99d6035adbcb
+asset.restore book f417a0d8d504924c302690b81ee89a3d430ae340af7fc6b4d5ba4706a3daea72
 asset.trash book a354ecaf7cb70406b0fcff636b5222d82d64f66a3a453183f2c08e07163ca060
+asset_folder.create book 75a58bf409b8580ee3c096aa5c8aa01f80a27b1fb09585d998b442a599831d58
+asset_folder.list shared 032dfb612280f19c4931eb6aeff6762fa7cc30374747002573c893ca2220fe64
+asset_folder.move book 80a55fe7352683cbef84bc5f62e7869391c94ed86ded143785501b75627f16c9
+asset_folder.rename book 20aad52af61c2620aa126d5903a98917f97fe97fa7066ed83b09e597ef4f8d57
+asset_folder.restore book ccd699719f139201deffcecf2e1e83c11eb2891a7a9e31939955be8c335788bd
+asset_folder.trash book 903af847fb190ea5032fb114c708c1901cbaf73b9dde0367259fdd070b4d53e5
 book.get shared 7aa7dad72cc42adaea132950a7e50ab758a08978ac83e2b7da205924c46f55d1
 book.update book 9a90277657c4441ee61bc8c4cb8ccda16ae8bd0eea2307ce5466e07125dd16e6
 book.writing_days shared 7456fa20c292ff01ba5948cbf25cf60c4419d0c70a0beccb8ccacac14a6c9c6d
 comment.anchors shared 6037013e3822f940bf6e909320a500a43e849931fa263b3f288d524f512b3296
-comment.create book 6cb992634ed617b18497c3f2c3010c7cf79269768ca44144b18d2712d5b686aa
-comment.list shared 5a21a7bbf82df1da64f0220d4d2cc0113d5ee2ec0c6c50c71c1e74d92e0d14df
+comment.create book eefa8cf034cc741c6f91d81c8f4a3b65810b16f4925fbd62f8008f55057b9e12
+comment.list shared 25674570b1c65455880c21a29890f662eb1c3ccd4c80972f7cba826bf9a65512
 comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
-comment.update book 52acb1f028f0b975bdbaeaea68fdb25bfbe722f457ec1f04bc091f70c9353292
-entry.create book 1b07f814a96f7e1b44e61334354f78811de49be4ce982e2ca83ea2ccdb81222f
-entry.get shared ee3c07e573f2d059db19f8a69d285c795f0f6b89555f9ba700855bb3c74015d8
-entry.list shared 3fef7b602b87cb050272cce836fd4626d81a4806080dac0c4aa1d996bd6f860b
+comment.update book 474ed66c58e3d60faee54a33b1528067bfb0f2393359fad348c32f3faf529cd7
+entry.create book 7a8d42c91ad7f0b6e13ebe4170beaa322e1ed51dca7594e3d891775ab8ce681d
+entry.get shared 5fa15156628ac4d9cfad9da5fa61c1b6914878cf0fe53e81972694ef97f97094
+entry.list shared d399a45cf1a6fef24d722f2d0fdfc2f0bb9802fa5aa9152ffc2aed3d89d6671d
 entry.move book e05c9572c836ea0a9b74f1068d159c2ff9fde00c7e5247f8cf4f4849f8b44da1
 entry.restore book 98c91cc19a5727423eb8835270f0a4d4dc6beaf4fd4805b8c8b12f7a9fcf25af
 entry.set_level book b084bce61144fb93115c67c47b66de9bf4664136a8e22540c81d168d6b7bc570
 entry.trash book 75846ecda0176e96269ba2281dc5f8b04c8376076a6f060b85851df92aa18d17
 entry.update book a60103e4b347f411ac94a74a7c9c4feaf82601e8e44a9d8f6ec50b00ec2cc32c
-entry_history.restore book 97b1bd7bcfa2f39c01a0986294d014ada574441d224c2b2789441b99bd721d9f
+entry_history.restore book c9507bba5727bee3c1b6dd38316bc09c5b06dcd84b6ab7b5ead5adb6cfd0cbfb
 entry_history.version shared e589c0a1a82e11d5257deca222107426f1bc70799a503124af8e92f6ba8d87e2
 entry_relation_type.delete book 941419186bf7719b675024dd57143835d12d870011b5727551d421c3e1904734
 entry_relation_type.list shared 2d9cb0c84e84e002ac76d85276dec733527391548b77b23ccf2a632b22c5abc1
 entry_relation_type.put book 620bd6fc8a188d829a0d6910b5aaa0565d085aa52d4cb1665defec56a563be74
 entry_template.delete book a34c42bb2335233e6a11ec1d2da0b28ab10a5c7fbd5a596d6092ae655bfa5d82
-entry_template.list shared be7aa5974aea2d4294b998bcf5ec9c9d79c4ab5ef65bdbf5568218e853e89b2a
-entry_template.put book 413524f245248cb255b8632d5d4eee18b680ffffbc144b275f907cdcafdea6bb
-entry_template.put_module book 16da1382aac3afa08524edd8542977cc2f8efbc95f5c5a87c1b8e8099add5272
+entry_template.list shared febbf3447482cbd4ba16315511ecc3f876931b23941bdb264ed9e054d90da045
+entry_template.put book baef2a58fbe7718757d38cf6673000426a13b3a739cc34d69aa038cb0d347cef
+entry_template.put_module book ff104188b8bd3de9dbc53f78f544d180ed4e4d5a1c4a04904cdda2f6dead83e5
 entry_template.remove_module book 2c0a93b4410b1becab502c42ed3dfae63959483cef10215fc9df0f396c9fcf04
 fact.list shared aaad77f6d6ef8658fc346a42b712c4dc6b207432c4c9933badffb11a28237904
 fact.put book bd497225b6141d8401dfb419d7fac4d6271fec8850d1d4f1b4ff7c424f5dc96b
@@ -122,24 +137,25 @@ memory.list shared c6786cddd95725d3f271a57cec91ddfa79cefaa986eee616ffb5efd3bd823
 memory.remove book c41c6bf10a777f7bebd08f7f31133f642b93fd939ac4eca5bf67e62e6ca8b396
 memory.restore book 8d9d2e52fdc3a28a6548f45145ebdc6357b39adb5fd00c922aa5fb4dca3bef96
 memory.update book 52be2d020fc5da4965b6519b2965b16e75936cd951305c7a3bb5eb505273f032
-module.list shared bb78b7ba886841816409c5a7c3aa352c7748c1a67bcb401160919878bc18f550
+module.list shared ed0908291c4f9db59420aac36eef61b56a43ee74a8e945322f324ec6527cde18
 module.put_grid book 4fdb0b2ce4542d367554c530475049d76a5cd59689d0902bd79bd5ba5dd2bb4e
 module.put_kv book 7340170b3fec2382306f19ab03fe141e13149f581e891307f8d91ffdbd8c4197
 module.put_patch book 84cb1e99042c9a21e153a09774598e0edc7ae22c2e4296a387cf8bb433c99d80
 module.put_relation book 71749a75394e1a0d39cf3a97e4163d5aeaa947c9bdc99f3667a8469a7a4fbc7c
-module.read shared e42a4867036ddac324995d70bce650e7cac71c8839876452cf0ce39d8bd8c346
+module.read shared 930012823c173b646608bf8451d1e1aeb834b6ed52c970b607fdba7c3c39a7e9
 module.read_prose shared a6518479d09fa8637ab28ca288066c314193cc61d1415c93df3e343271ff3e8d
 module.remove_kv book c6d1352977661fa9e411c6e1268c716cf6297000184efb96d85e24220dd42460
 module.remove_patch book ffeafb086b827f15ec82f7429eb791d304bb3cabb310981c29ad09ba7e02ae7f
 module.remove_relation book ad0a0133f4008380d509da3afa73769520249691be6c664bfe623f2997e414ac
 module.replace_prose book e581a5caa6580bda940fa72441653e04e5f39221b347e198d3b82f6727e348de
+module.set_arrangement book 1fc6b0801fa4429a585b965867933937d93af16435560dd68cd819ebee7a3220
 module.set_field book b54533bb4286e0188bf353fc7237116bf1cb4a53e89f414997cf37409f7f80df
 module.set_prose book 777d32d1c4f404cf9263135f6c19b8b28058adb74cdb925ae230aadb09e524da
 prose.link book 6c03a9a67d332f49af1ec3c40f90a71d79bec4589b1a471ca0690e6a1f1f5824
 prose.read shared 1f00cfcf0d0b223435c53a2520fd5d3cd8a9ca87303b1b3d3fee400916de486d
 prose.replace book 0a4a1a7d57351546552a8c9a1fb1e19cd3bd3d8fe974dfb820810729a5b77e9e
 prose.restore book 934bad1bf84f97302d2d488c41c7dd2ad571923c8aee94c06cebdedf9d4e75be
-prose.shape shared 79278d06167df60b727305ad3cdd0f8fc656e6e55b9a5a4944dbc0e670ac29ec
+prose.shape shared 739c311cb68e52e7869885390aa8950476a43b6e30f962408880c48c2458c63e
 prose.unlink book 3457b6a41761025177ffb71174c995f5191c7781664c29377dfc5c879a6a2292
 recent.list shared 16d9f49bf144526e2694761d2b79c2969bb2662e828d97878ef857ad58f65e33
 relation.create book 58b8d33e8f2e30658a54f582007d9a33c7598d2ac405196c288d4f9760aacc48
@@ -158,6 +174,7 @@ Excluded registry operations:
 asset.list: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 asset.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 asset.put: storage, editor, or derived-state maintenance
+asset_folder.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 book.list: no current-book input boundary
 book.purge: library-wide lifecycle operation
 book.purge_expired: library-wide lifecycle operation

@@ -100,19 +100,19 @@ impl Listed {
     }
 }
 
-/// The comments on material `id` among `items`, in reading order and
-/// numbered.
+/// The comments on file `id` (an asset id) among `items`, in reading order
+/// and numbered: those on it in a media module and those straight on it.
 pub fn listed(items: &[CommentInfo], id: &str) -> Vec<Listed> {
     let mut mine: Vec<&CommentInfo> = items
         .iter()
         .filter(|c| {
             matches!(
                 &c.part,
-                Some(dr_workspace::dto::CommentPartDto::Media { item, .. }) if item == id
+                Some(dr_workspace::dto::CommentPartDto::Media { asset, .. }) if asset == id
             ) || c
                 .target
                 .as_ref()
-                .is_some_and(|t| t.kind == "material" && t.id == id)
+                .is_some_and(|t| matches!(t.kind.as_str(), "asset" | "material") && t.id == id)
         })
         .collect();
     let order = |c: &CommentInfo| match c.region() {
@@ -163,7 +163,7 @@ mod tests {
             }),
             module: Some("mod-media".into()),
             part: Some(dr_workspace::dto::CommentPartDto::Media {
-                item: on.into(),
+                asset: on.into(),
                 region,
             }),
             unlocated: false,
@@ -172,7 +172,6 @@ mod tests {
             quote: None,
             body: id.into(),
             status: "open".into(),
-            priority: None,
             author_kind: "user".into(),
             author_name: None,
             source: "manual".into(),

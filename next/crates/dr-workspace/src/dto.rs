@@ -113,9 +113,8 @@ pub struct CommentInfo {
     pub anchored: bool,
     pub quote: Option<String>,
     pub body: String,
-    /// `open` or `resolved`.
+    /// `open` or `resolved` (a comment has no priority).
     pub status: String,
-    pub priority: Option<String>,
     /// `manual`, `marker`, `task`, `agent` or `reader`.
     pub origin: String,
     /// `user`, `ai` or `external`.
@@ -156,9 +155,10 @@ pub enum CommentPartDto {
     PlotCell { row: String, col: String },
     /// A patch inside a `patches` module.
     Patch { patch: String },
-    /// A file inside a `media` module, optionally with a region on the image or PDF page.
+    /// A file inside a `media` module (by the file: it sits in a module once),
+    /// optionally with a region on the image or PDF page.
     Media {
-        item: String,
+        asset: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         region: Option<Region>,
     },
@@ -201,8 +201,8 @@ impl CommentPartDto {
             Self::Patch { patch } => CommentPart::Patch {
                 patch: pid("patch", patch)?,
             },
-            Self::Media { item, region } => CommentPart::Media {
-                item: pid("media_item", item)?,
+            Self::Media { asset, region } => CommentPart::Media {
+                asset: pid("asset", asset)?,
                 region: region.as_ref().map(to_reg).transpose()?,
             },
             Self::Region { region } => CommentPart::Region {
@@ -233,8 +233,8 @@ impl From<&dr_model::v3::CommentPart> for CommentPartDto {
             CommentPart::Patch { patch } => Self::Patch {
                 patch: patch.to_string(),
             },
-            CommentPart::Media { item, region } => Self::Media {
-                item: item.to_string(),
+            CommentPart::Media { asset, region } => Self::Media {
+                asset: asset.to_string(),
                 region: region.as_ref().map(Region::from),
             },
             CommentPart::Region { region } => Self::Region {

@@ -438,6 +438,31 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 }
             }
         }
+        // Library files no media module holds are materials of their own
+        // (the asset library, `kernel-v5.md` §6), until T5 lists `asset.list`.
+        let placed: BTreeSet<String> = materials.iter().filter_map(|m| m.asset.clone()).collect();
+        for a in assets_by_id
+            .values()
+            .filter(|a| !placed.contains(a.id.as_str()))
+        {
+            materials.push(MaterialInfo {
+                id: a.id.to_string(),
+                kind: if a.mime == "application/pdf" {
+                    "pdf"
+                } else {
+                    "image"
+                }
+                .to_owned(),
+                title: a.name.clone(),
+                description: String::new(),
+                asset: Some(a.id.to_string()),
+                folder: None,
+                pos: None,
+                task_todos: false,
+                entry: None,
+                module: None,
+            });
+        }
         let material_folders: Vec<GroupInfo> = Vec::new();
 
         // What a view can write over from this snapshot: every entry and its

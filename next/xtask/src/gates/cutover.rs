@@ -87,12 +87,19 @@ fn test_modules(path: &str, text: &str) -> Vec<String> {
     }
     out
 }
+/// Parameters the current commands no longer take: a comment has no
+/// priority (`kernel-v5.md` §7, §12; retired 2026-11-15). Unknown fields are
+/// ignored on input, so a scenario passing one would test nothing.
+fn retired_param() -> Regex {
+    Regex::new(r#""priority"\s*:"#).expect("retired parameter pattern")
+}
 fn old_command() -> Regex {
     Regex::new(r#"\"(?:book\.create|todo\.project|history\.(?:agent_changes|undo_agent)|level\.(?:get|list)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin|material|material_folder)\.[a-z_]+)\""#).expect("cutover pattern")
 }
 pub fn run(repo: &Repo) -> Result<Outcome, String> {
     let mut out = Outcome::default();
     let commands = old_command();
+    let params = retired_param();
     let imports = Regex::new(r"dr_(?:doc|model)::(?:\{[^}]*\b)?import_v1\b").unwrap();
     let model_uses = Regex::new(r"\bcrate::import_v1\b").unwrap();
     let novel = novel_template();
@@ -206,9 +213,16 @@ pub fn run(repo: &Repo) -> Result<Outcome, String> {
                 hit.as_str()
             ));
         }
+        if let Some(hit) = params.find(&text) {
+            out.fail(format!(
+                "{}: scenario passes retired parameter {}",
+                f.path,
+                hit.as_str()
+            ));
+        }
     }
     out.summary = format!(
-        "{checked} product Rust files; source replay imports, built-in template ids, retired commands, paths and scenarios checked"
+        "{checked} product Rust files; source replay imports, built-in template ids, retired commands, paths and scenarios (commands and parameters) checked"
     );
     Ok(out)
 }
@@ -258,6 +272,13 @@ mod tests {
             "next/crates/dr-model/src/import_v1/ids.rs"
         ));
         assert!(!canonical_model("next/crates/dr-doc/src/catalog/fields.rs"));
+    }
+    #[test]
+    fn a_scenario_passing_a_comment_priority_is_caught() {
+        let re = retired_param();
+        assert!(re.is_match(r#"{"book": "b", "id": "c", "priority": "high"}"#));
+        assert!(re.is_match(r#"{"priority":null}"#));
+        assert!(!re.is_match(r#"{"status": "resolved", "body": "priority matters"}"#));
     }
     #[test]
     fn test_only_module_files_are_found_from_their_declarations() {

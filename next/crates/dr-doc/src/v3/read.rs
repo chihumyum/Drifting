@@ -769,6 +769,7 @@ impl<'a> BookViewV3<'a> {
                                 .i64("default_cols")
                                 .map(|n| n.max(1) as u32)
                                 .unwrap_or(default_cfg.default_cols),
+                            arrangement: c.kind("arrangement"),
                         },
                         None => ModuleConfig {
                             defs,
@@ -896,6 +897,7 @@ impl<'a> BookViewV3<'a> {
 
         let mut kv: BTreeMap<ModuleId, Vec<KvEntry>> = BTreeMap::new();
         let mut media: BTreeMap<ModuleId, Vec<MediaItem>> = BTreeMap::new();
+        let mut arrangements: BTreeMap<ModuleId, MediaArrangement> = BTreeMap::new();
         if let LoroValue::Map(meta_map) = &n.meta {
             for (k, v) in meta_map.iter() {
                 if let Some(mid) = k.strip_prefix("kv:")
@@ -912,6 +914,11 @@ impl<'a> BookViewV3<'a> {
                     if !items.is_empty() {
                         media.insert(module_id, items);
                     }
+                } else if let Some(mid) = k.strip_prefix("arrangement:")
+                    && let Ok(module_id) = ModuleId::parse(mid)
+                    && let LoroValue::String(a) = v
+                {
+                    arrangements.insert(module_id, MediaArrangement::parse(a));
                 }
             }
         }
@@ -928,6 +935,7 @@ impl<'a> BookViewV3<'a> {
             fields,
             kv,
             media,
+            arrangements,
             primary: f.id("primary"),
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
@@ -1065,6 +1073,7 @@ impl<'a> BookViewV3<'a> {
                     fields,
                     kv: BTreeMap::new(),
                     media: BTreeMap::new(),
+                    arrangements: BTreeMap::new(),
                     primary: None,
                     created_at: h.created_at,
                     updated_at: None,
@@ -1627,9 +1636,8 @@ impl<'a> BookViewV3<'a> {
                 )
             }),
             EntityKind::Comment => self.entity_map(book_v3::COMMENTS, &r.id).is_some(),
-            EntityKind::Asset => self
-                .entity_map(book_v3::ASSETS, &r.id)
-                .is_some_and(|m| F(&m.get_deep_value()).ts("deleted_at").is_none()),
+            // In Recently Deleted itself or with its folder: not there.
+            EntityKind::Asset => AssetId::parse(&r.id).is_ok_and(|id| self.asset(&id).is_some()),
             _ => false,
         }
     }
@@ -1850,11 +1858,41 @@ impl<'a> BookViewV3<'a> {
                         ) if e.as_str() == entry.id.as_str() && mo.as_str() == mod_id.as_str()
                     )
                 }),
-            CommentPart::Media { item, .. } => !entry
+            CommentPart::Media { asset, .. } => !entry
                 .media
                 .get(mod_id)
-                .is_some_and(|items| items.iter().any(|i| &i.id == item)),
+                .is_some_and(|items| items.iter().any(|i| &i.asset == asset)),
             CommentPart::Region { .. } => true,
+        }
+    }
+
+    /// Whether `module` is gone from the live entry `target`'s active
+    /// template (a comment on the whole module then has no place).
+    fn comment_module_missing(
+        &self,
+        target: &EntityRef,
+        module: &ModuleId,
+        lookup: Option<&CommentPartLookup>,
+    ) -> bool {
+        if target.kind != EntityKind::Entry {
+            return true;
+        }
+        let has = |e: &Entry, templates: &BTreeMap<EntryTemplateId, EntryTemplate>| {
+            !e.is_trashed()
+                && e.effective_template(templates)
+                    .is_some_and(|t| t.modules.iter().any(|m| &m.id == module))
+        };
+        match lookup {
+            Some((templates, entries)) => {
+                entries.get(&target.id).is_none_or(|e| !has(e, templates))
+            }
+            None => {
+                let Ok(eid) = EntryId::parse(&target.id) else {
+                    return true;
+                };
+                self.entry(&eid)
+                    .is_none_or(|e| !has(&e, &self.templates_map()))
+            }
         }
     }
 
@@ -1892,6 +1930,12 @@ impl<'a> BookViewV3<'a> {
             } else if let Some(ref p) = part {
                 target_missing =
                     self.comment_part_missing(target.as_ref(), target_module.as_ref(), p, lookup);
+            } else if let (Some(t), Some(mod_id)) = (target.as_ref(), target_module.as_ref())
+                && whole_module(&f)
+            {
+                // A comment on the whole module: gone with the module
+                // (the template switched, the module was removed).
+                target_missing = self.comment_module_missing(t, mod_id, lookup);
             }
         }
         let author_kind = f.kind("author_kind").unwrap_or(CommentAuthorKind::User);
@@ -1935,7 +1979,6 @@ impl<'a> BookViewV3<'a> {
                 .opt_string("body")
                 .unwrap_or_else(|| f.string("projection_text")),
             status: f.kind("status").unwrap_or(CommentStatus::Open),
-            priority: f.kind("priority"),
             source: f.kind("source").unwrap_or(CommentSource::Manual),
             metadata: f.opt_string("metadata"),
             agent_conversation: f.opt_string("agent_conversation"),
@@ -1960,9 +2003,7 @@ impl<'a> BookViewV3<'a> {
             F(v).entity_ref("target_kind", "target")
                 .is_some_and(|t| matches!(t.kind, EntityKind::Entry | EntityKind::Patch))
         });
-        let needs_parts = raw
-            .iter()
-            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
+        let needs_parts = raw.iter().any(|(_, v)| needs_place_lookup(v));
         let entries = needs_entries.then(|| self.entry_existence_sets());
         let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
@@ -1978,13 +2019,31 @@ impl<'a> BookViewV3<'a> {
         if raw.is_empty() {
             return Vec::new();
         }
-        let needs_parts = raw
-            .iter()
-            .any(|(_, v)| F(v).get("part").is_some() || F(v).get("region").is_some());
+        let needs_parts = raw.iter().any(|(_, v)| needs_place_lookup(v));
         let lookup = needs_parts.then(|| self.comment_part_lookup());
         raw.iter()
             .filter_map(|(id, v)| self.read_comment_with(id, v, Some(entries), lookup.as_ref()))
             .collect()
+    }
+
+    /// The book's comments (with `entries`, [`Self::comments_with_entries`]),
+    /// also marking a comment on a prose embed `target_missing` when that
+    /// prose no longer holds the embed (`kernel-v5.md` §7: the place is gone).
+    /// The book does not see inside prose: `embeds` gives the file embeds of
+    /// `body:<entry>/<module>`, or `None` when that prose is not known here,
+    /// and the comment then reads as the book alone says. Asked once per
+    /// prose that a comment on an embed points into.
+    pub fn comments_with_embeds(
+        &self,
+        entries: Option<&(HashSet<String>, HashSet<String>)>,
+        embeds: &mut dyn FnMut(&EntryId, &ModuleId) -> Option<HashSet<EmbedId>>,
+    ) -> Vec<CommentV3> {
+        let mut out = match entries {
+            Some(e) => self.comments_with_entries(e),
+            None => self.comments(),
+        };
+        mark_missing_embeds(&mut out, embeds);
+        out
     }
 
     /// `(id, target, target_module, anchor)` for every anchored comment without
@@ -2013,8 +2072,15 @@ impl<'a> BookViewV3<'a> {
         crate::catalog::read::CatalogView { doc: self.doc }.assets_raw()
     }
 
+    /// The live files of the asset library: not in Recently Deleted
+    /// themselves, nor in a folder that is (a file a merge put into a
+    /// trashed folder reads as trashed with it).
     pub fn assets(&self) -> Vec<Asset> {
-        crate::catalog::read::CatalogView { doc: self.doc }.assets()
+        let folders = self.asset_folder_map();
+        self.assets_raw()
+            .into_iter()
+            .filter(|a| !a.is_trashed() && !folder_chain_trashed(&folders, a.folder.as_ref()))
+            .collect()
     }
 
     pub fn asset_raw(&self, id: &AssetId) -> Option<Asset> {
@@ -2023,7 +2089,44 @@ impl<'a> BookViewV3<'a> {
     }
 
     pub fn asset(&self, id: &AssetId) -> Option<Asset> {
-        self.asset_raw(id).filter(|a| !a.is_trashed())
+        let a = self.asset_raw(id).filter(|a| !a.is_trashed())?;
+        if a.folder.is_some() && folder_chain_trashed(&self.asset_folder_map(), a.folder.as_ref()) {
+            return None;
+        }
+        Some(a)
+    }
+
+    /// Every folder of the asset library, Recently Deleted included, in
+    /// manual order within each parent.
+    pub fn asset_folders_raw(&self) -> Vec<AssetFolder> {
+        let mut out: Vec<AssetFolder> = entities(self.doc, book_v3::ASSET_FOLDERS)
+            .iter()
+            .filter_map(|(id, v)| decode_asset_folder(id, v))
+            .collect();
+        sort_asset_folders(&mut out);
+        out
+    }
+
+    /// The live folders: neither trashed nor under a trashed one.
+    pub fn asset_folders(&self) -> Vec<AssetFolder> {
+        let map = self.asset_folder_map();
+        self.asset_folders_raw()
+            .into_iter()
+            .filter(|f| !folder_chain_trashed(&map, Some(&f.id)))
+            .collect()
+    }
+
+    pub fn asset_folder_raw(&self, id: &AssetFolderId) -> Option<AssetFolder> {
+        let v = entity(self.doc, book_v3::ASSET_FOLDERS, id.as_str())?;
+        decode_asset_folder(id.as_str(), &v)
+    }
+
+    fn asset_folder_map(&self) -> BTreeMap<AssetFolderId, AssetFolder> {
+        entities(self.doc, book_v3::ASSET_FOLDERS)
+            .iter()
+            .filter_map(|(id, v)| decode_asset_folder(id, v))
+            .map(|f| (f.id.clone(), f))
+            .collect()
     }
 
     pub fn facts(&self) -> Vec<KvEntry> {
@@ -2359,6 +2462,7 @@ impl<'a> BookViewV3<'a> {
                 | CollectionV3::RelationTypes
                 | CollectionV3::Comments
                 | CollectionV3::Assets
+                | CollectionV3::AssetFolders
                 | CollectionV3::Facts
                 | CollectionV3::Memory
         ) {
@@ -2460,6 +2564,89 @@ fn retained_record_state(
         Some(_) => unreachable!("map container id"),
     };
     Ok((parent.get(key).is_some(), retained))
+}
+
+fn decode_asset_folder(id: &str, v: &LoroValue) -> Option<AssetFolder> {
+    let f = F(v);
+    Some(AssetFolder {
+        id: AssetFolderId::parse(id).ok()?,
+        name: f.string("name"),
+        parent: f.id("parent"),
+        pos: f.pos("pos"),
+        deleted_at: f.ts("deleted_at"),
+        trashed_with: f.id("trashed_with"),
+    })
+}
+
+/// Whether `start` or a folder above it is in Recently Deleted. A cycle a
+/// merge made reads as not trashed (the walk stops).
+fn folder_chain_trashed(
+    folders: &BTreeMap<AssetFolderId, AssetFolder>,
+    start: Option<&AssetFolderId>,
+) -> bool {
+    let mut at = start.cloned();
+    let mut steps = 0;
+    while let Some(id) = at {
+        let Some(f) = folders.get(&id) else {
+            return false;
+        };
+        if f.is_trashed() {
+            return true;
+        }
+        steps += 1;
+        if steps > folders.len() {
+            return false;
+        }
+        at = f.parent.clone();
+    }
+    false
+}
+
+/// A comment on a whole module: it names a module and no place in it (no
+/// part, no anchored passage, no paragraph).
+fn whole_module(f: &F<'_>) -> bool {
+    f.get("part").is_none()
+        && f.anchor("anchor").is_none()
+        && f.id::<BlockId>("target_block").is_none()
+}
+
+/// Whether reading `v` needs the entries and templates to tell whether its
+/// place is still there (a module part, a region, or a whole module).
+fn needs_place_lookup(v: &LoroValue) -> bool {
+    let f = F(v);
+    f.get("part").is_some()
+        || f.get("region").is_some()
+        || (f.get("module").is_some() && whole_module(&f))
+}
+
+/// Mark every located comment on a prose embed `target_missing` when its
+/// prose no longer holds that embed. `embeds` gives the file embeds of
+/// `body:<entry>/<module>` (`None`: not known here, left as it is); it is
+/// asked once per prose document.
+pub fn mark_missing_embeds(
+    comments: &mut [CommentV3],
+    embeds: &mut dyn FnMut(&EntryId, &ModuleId) -> Option<HashSet<EmbedId>>,
+) {
+    let mut known: HashMap<(EntryId, ModuleId), Option<HashSet<EmbedId>>> = HashMap::new();
+    for c in comments.iter_mut().filter(|c| !c.target_missing) {
+        let (Some(target), Some(module), Some(CommentPart::Embed { embed, .. })) =
+            (&c.target, &c.target_module, &c.part)
+        else {
+            continue;
+        };
+        if target.kind != EntityKind::Entry {
+            continue;
+        }
+        let Ok(entry) = EntryId::parse(&target.id) else {
+            continue;
+        };
+        let present = known
+            .entry((entry.clone(), module.clone()))
+            .or_insert_with(|| embeds(&entry, module));
+        if present.as_ref().is_some_and(|set| !set.contains(embed)) {
+            c.target_missing = true;
+        }
+    }
 }
 
 // An absent empty parent can be created for a new view's first lane. Never

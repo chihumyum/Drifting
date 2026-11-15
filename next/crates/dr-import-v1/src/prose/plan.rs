@@ -244,8 +244,9 @@ pub struct Plan {
     pub notes: Notes,
     /// JSON of dropped inline nodes, kept in the receipt.
     pub dropped_inline: Vec<String>,
-    /// `(material_id, material_title, text)` of 0.1 `entityLink`s to non-text
-    /// materials turned into plain text (`kernel-v5.md` §13).
+    /// `(material_id, material_title, text)` of 0.1 `entityLink`s to image or
+    /// PDF materials without a file, kept as plain text (`kernel-v5.md` §13;
+    /// a link to one with a file points at the file).
     pub unlinked_asset_links: Vec<(String, String, String)>,
 }
 
@@ -537,26 +538,22 @@ fn line_attrs(line: &Line, ctx: &Context<'_>, notes: &mut Notes) -> BlockAttrs {
             }
             "callout" => a.callout = Some("note".into()),
             "taskItem" if Some(depth) == item => {
-                let todo = c
-                    .attrs
+                // Format 5: the tick is the item's state and its comment is
+                // projected from the line (`kernel-v5.md` §7); a 0.1 link to
+                // a TODO (`todoId`) is not carried, and where the TODO's
+                // status and the tick disagree, the tick wins.
+                a.checked = c.attrs.get("checked").and_then(Value::as_bool) == Some(true);
+                if c.attrs
                     .get("todoId")
                     .and_then(Value::as_str)
-                    .filter(|t| !t.is_empty());
-                match todo {
-                    Some(t) => {
-                        a.todo = (ctx.todo)(t).or_else(|| CommentId::parse(t).ok());
-                    }
-                    None => {
-                        a.checked = c.attrs.get("checked").and_then(Value::as_bool) == Some(true);
-                    }
+                    .is_some_and(|t| !t.is_empty())
+                {
+                    notes.add("task-todo-link-replaced-by-projection");
                 }
             }
             "bulletList" | "orderedList" | "taskList" | "listItem" | "taskItem" => {}
             other => notes.add(format!("unknown-container:{other}")),
         }
-    }
-    if a.todo.is_some() {
-        a.checked = false;
     }
     let restricted = a.clone().restricted_to(ctx.profile);
     if restricted != a {
@@ -649,6 +646,7 @@ pub fn plan(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                             EmbedView::Asset {
                                 id: eid,
                                 asset: Some(a),
+                                look: Default::default(),
                             },
                         ));
                     }
@@ -951,6 +949,7 @@ fn runs_of_v3(
             "code" => range.for_each(|i| states[i].code = true),
             "entityLink" => {
                 let v: Value = serde_json::from_str(&span.attrs).unwrap_or(Value::Null);
+                let mut file_link = None;
                 if let Some(target) = v
                     .get("targetId")
                     .and_then(Value::as_str)
@@ -964,17 +963,35 @@ fn runs_of_v3(
                     if old_kind == dr_model::kind::EntityKind::Material
                         && let Some(title) = (ctx.non_text_material)(target)
                     {
-                        let linked_text: String = chars[range.clone()]
-                            .iter()
-                            .filter(|&&c| c != INLINE_OBJECT)
-                            .map(|&c| if c == HARD_BREAK { '\n' } else { c })
-                            .collect();
-                        notes.add("entity-link-to-asset-kept-as-text");
-                        unlinked_asset_links.push((target.to_string(), title, linked_text));
-                        continue;
+                        match (ctx.asset)(target) {
+                            // An image or a PDF is a file of the asset
+                            // library: the link points at that file
+                            // (`kernel-v5.md` §6, §13).
+                            Some(asset) => {
+                                file_link = Some(EntityLinkV3 {
+                                    target: asset.to_string(),
+                                    kind: dr_model::kind::EntityKind::Asset,
+                                    module: None,
+                                    block: None,
+                                    end_block: None,
+                                });
+                            }
+                            // No file to point at: the words stay, listed
+                            // in the receipt.
+                            None => {
+                                let linked_text: String = chars[range.clone()]
+                                    .iter()
+                                    .filter(|&&c| c != INLINE_OBJECT)
+                                    .map(|&c| if c == HARD_BREAK { '\n' } else { c })
+                                    .collect();
+                                notes.add("entity-link-to-asset-kept-as-text");
+                                unlinked_asset_links.push((target.to_string(), title, linked_text));
+                                continue;
+                            }
+                        }
                     }
                 }
-                if let Some(link) = entity_link_v3(&span.attrs, ctx, notes) {
+                if let Some(link) = file_link.or_else(|| entity_link_v3(&span.attrs, ctx, notes)) {
                     for i in range {
                         let have = &mut states[i].entities;
                         if let Some(other) = have.iter_mut().find(|l| l.target == link.target) {
@@ -1240,6 +1257,7 @@ pub fn plan_v3(prose: &Prose, blocks: &DocBlocks, ctx: &Context<'_>) -> Plan {
                             EmbedView::Asset {
                                 id: eid,
                                 asset: Some(a),
+                                look: Default::default(),
                             },
                         ));
                     }
@@ -1429,11 +1447,14 @@ mod tests {
         let p = plan(&prose, &blocks, &c);
         let a0 = &p.paras[0].attrs;
         assert_eq!(a0.list, Some(ListKind::Task));
+        // Format 5: no link to a TODO; the tick is the item's state (its
+        // comment is projected from the line, the tick wins).
+        assert!(a0.todo.is_none(), "{a0:?}");
+        assert!(a0.checked, "the 0.1 tick is kept");
         assert_eq!(
-            a0.todo.as_ref().unwrap().as_str(),
-            "todo:note_task:body:m/mod-prose#tp1"
+            p.notes.0.get("task-todo-link-replaced-by-projection"),
+            Some(&1)
         );
-        assert!(!a0.checked, "a linked task has no state of its own");
         assert!(p.paras[1].attrs.checked);
         assert_eq!(p.paras[2].attrs.list, Some(ListKind::Bullet));
         assert_eq!(p.paras[2].attrs.list_level, 1);

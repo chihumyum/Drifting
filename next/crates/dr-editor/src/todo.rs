@@ -49,6 +49,33 @@ pub fn parse(text: &str) -> Option<(Range<usize>, String)> {
     Some((lead..lead + word + sep, task.trim().to_owned()))
 }
 
+/// A checklist item (a `task` list paragraph) as the editor holds it. Every
+/// one becomes a comment (`kernel-v5.md` §7); the workspace reads its text
+/// and tick from the document when it projects them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskItem {
+    pub block: Option<String>,
+    pub task: String,
+    pub checked: bool,
+}
+
+/// Every checklist item among `lines`, in order.
+pub fn task_items<'a>(
+    lines: impl IntoIterator<Item = &'a gpui_prose::text::Line>,
+) -> Vec<TaskItem> {
+    use gpui_prose::schema::block;
+    use loro::LoroValue;
+    lines
+        .into_iter()
+        .filter(|l| matches!(l.block.get(block::LIST), Some(LoroValue::String(k)) if k.as_str() == "task"))
+        .map(|l| TaskItem {
+            block: l.bid().map(str::to_owned),
+            task: l.text.trim().to_owned(),
+            checked: matches!(l.block.get(block::CHECKED), Some(LoroValue::Bool(true))),
+        })
+        .collect()
+}
+
 /// Every marker among `paragraphs` (`(text, block id)` in order).
 pub fn markers<'a>(
     paragraphs: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,

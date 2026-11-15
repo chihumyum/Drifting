@@ -42,9 +42,16 @@ fn rename_failure_and_book_refresh_keep_the_draft(cx: &mut TestAppContext) {
         },
     )
     .unwrap();
-    crate::import::import_bytes(&ws, &book, None, dr_testkit::media::png(24, 24), "测试图片")
-        .unwrap();
-    let material = Book::load(&ws, &book).unwrap().material_items()[0].clone();
+    let imported =
+        crate::import::import_bytes(&ws, &book, None, dr_testkit::media::png(24, 24), "测试图片")
+            .unwrap();
+    let material = Book::load(&ws, &book)
+        .unwrap()
+        .material_items()
+        .iter()
+        .find(|m| m.id == imported.material)
+        .unwrap()
+        .clone();
     cx.update(|cx| {
         dr_shell::init(
             ShellInfo {
@@ -116,10 +123,12 @@ fn rename_failure_and_book_refresh_keep_the_draft(cx: &mut TestAppContext) {
     );
     // Even if an external deletion removes the row, its input stays until cancel.
     cx.update(|window, cx| panel.update(cx, |p, cx| p.start_rename(&key, window, cx)));
+    // The imported file lives in the asset library alone (no entry).
+    assert!(material.entry.is_none());
     ws.call(
         &dr_workspace::Actor::User,
-        "entry.trash",
-        serde_json::json!({"book":book,"id":material.entry.as_ref().unwrap()}),
+        "asset.trash",
+        serde_json::json!({"book":book,"id":material.id}),
     )
     .unwrap();
     panel.update(cx, |p, cx| {

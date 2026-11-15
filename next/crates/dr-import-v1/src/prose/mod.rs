@@ -166,7 +166,10 @@ mod tests {
         let back = read::read_paras(&doc.view());
         assert!(round_trips(&back, ProseProfile::Prose));
         assert!(back[0].runs[0].marks.highlight.as_deref() == Some("#ff0"));
-        assert_eq!(back[1].attrs.todo.as_ref().unwrap().as_str(), "todo-x");
+        // Format 5: the 0.1 link to a TODO is not carried; the line's own
+        // tick is its state.
+        assert!(back[1].attrs.todo.is_none());
+        assert!(!back[1].attrs.checked);
         assert_eq!(back[2].attrs.list, Some(dr_model::kind::ListKind::Ordered));
     }
 

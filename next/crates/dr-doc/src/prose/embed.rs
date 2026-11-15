@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use dr_model::id::{AssetId, EmbedId};
 use dr_model::pos::{PosKey, cmp_pos};
+use dr_model::v3::{EmbedAlign, EmbedSize};
 use loro::{LoroMap, LoroText, LoroValue, ValueOrContainer};
 
 use crate::error::Result;
@@ -26,6 +27,23 @@ pub struct TableLine {
     pub pos: Option<PosKey>,
 }
 
+/// How an embedded image shows: its size, where it sits and its caption
+/// (`kernel-v5.md` §6). Unset size and alignment read as the defaults
+/// (medium, centred) when drawn.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FileEmbedLook {
+    pub size: Option<EmbedSize>,
+    pub align: Option<EmbedAlign>,
+    /// The caption under the image (empty: none).
+    pub caption: String,
+}
+
+impl FileEmbedLook {
+    pub fn is_empty(&self) -> bool {
+        self.size.is_none() && self.align.is_none() && self.caption.is_empty()
+    }
+}
+
 /// An embed as read.
 #[derive(Clone, Debug, PartialEq)]
 pub enum EmbedView {
@@ -41,12 +59,12 @@ pub enum EmbedView {
     Asset {
         id: EmbedId,
         asset: Option<AssetId>,
+        /// How an embedded image shows (`kernel-v5.md` §6); a PDF embed is a
+        /// card and has none of these.
+        look: FileEmbedLook,
     },
     /// A kind this version does not know.
-    Other {
-        id: EmbedId,
-        kind: String,
-    },
+    Other { id: EmbedId, kind: String },
 }
 
 fn sub_map(m: &LoroMap, key: &str) -> Option<LoroMap> {
@@ -119,6 +137,11 @@ impl EmbedView {
             Some("asset") => EmbedView::Asset {
                 id,
                 asset: str_of(m, "asset").and_then(|s| AssetId::parse(&s).ok()),
+                look: FileEmbedLook {
+                    size: str_of(m, "size").map(|s| EmbedSize::parse(&s)),
+                    align: str_of(m, "align").map(|s| EmbedAlign::parse(&s)),
+                    caption: str_of(m, "caption").unwrap_or_default(),
+                },
             },
             other => EmbedView::Other {
                 id,

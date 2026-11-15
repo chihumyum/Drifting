@@ -111,6 +111,39 @@ fn complete_restore_and_pre_restore_checkpoint_survive_reopen_and_preserve_other
         2
     );
 }
+/// DY fix 15: an entry's own title, its synopsis (梗概) and its other fields
+/// go back with a checkpoint, not only its prose (the history tests left
+/// for single documents only cover template prose).
+#[test]
+fn title_synopsis_and_fields_go_back_with_a_checkpoint() {
+    let (e, b, id) = setup();
+    let field = |name: &str, value: Value| {
+        e.call(
+            "module.set_field",
+            json!({"book":b,"entry":id,"module":"mod-fields","field":name,"value":value}),
+        );
+    };
+    field("summary", json!("老的梗概"));
+    field("status", json!("draft"));
+    let p = capture(&e, &b, &id);
+    e.call("entry.update", json!({"book":b,"id":id,"title":"After"}));
+    field("summary", json!("新的梗概"));
+    field("status", json!("finished"));
+    let got = |e: &Env| e.out("entry.get", json!({"book":b,"id":id}));
+    assert_eq!(got(&e)["title"], "After");
+    e.out("entry_snapshot.restore", input(&e, &b, &id, &p));
+    let now = got(&e);
+    assert_eq!(now["title"], "Before");
+    assert_eq!(now["fields"]["mod-fields"]["summary"], "老的梗概");
+    assert_eq!(now["fields"]["mod-fields"]["status"], "draft");
+    // The journal takes the restore back: the later values return.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    let back = got(&e);
+    assert_eq!(back["title"], "After");
+    assert_eq!(back["fields"]["mod-fields"]["summary"], "新的梗概");
+    assert_eq!(back["fields"]["mod-fields"]["status"], "finished");
+}
+
 #[test]
 fn stale_book_or_body_refuses_every_write_and_preserves_new_input() {
     let (e, b, id) = setup();

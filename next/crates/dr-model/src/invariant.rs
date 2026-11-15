@@ -381,12 +381,14 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "CMT-ENUMS",
-        "批注的状态、作者种类、写入渠道、来源（origin）、优先级取值固定",
+        "批注的状态、作者种类、写入渠道、来源（origin）取值固定；批注没有优先级（格式 5，2026-11-15 去掉）",
         [Read],
-        "开放枚举；旧值（如 copilot）照读",
+        "开放枚举；旧值（如 copilot）照读；导入 0.1 时优先级不带过来，回执记 comment-priority-dropped",
         [
             "unknown_values_survive",
-            "comments_keep_unlocated_targets_and_anchor_into_prose"
+            "comments_keep_unlocated_targets_and_anchor_into_prose",
+            "comments_with_anchors_and_metadata",
+            "step8_asset_library_imports_folders_direct_comments_relations_and_file_links"
         ]
     ),
     inv!(
@@ -430,6 +432,62 @@ pub const INVARIANTS: &[Invariant] = &[
         [Read],
         "元数据（书目文档的 assets）和字节（存储的本机资源目录，F2）分开；界面读不到字节时在画面上说一句没有这个文件（M19 的 Trouble::Missing），不报错、不崩。字节同步到达后自动重新显示要等 F2 的资源同步，现在是打开页面时读一次",
         ["a_material_without_its_file_says_so"]
+    ),
+    inv!(
+        "FILE-REFS-LIVE",
+        "链接、嵌入、媒体模块、关系、批注指向的文件都在，没进最近删除",
+        [Read],
+        "读取时不在：正文链接读作普通文字的样子（prose.shape 的 missing_links），嵌入和媒体模块显示占位（missing_embeds、missing），关系读作不在，直接挂在文件上的批注标成找不到原处；数据留着，恢复后回来（kernel-v5.md 第 11 节）",
+        [
+            "a_prose_link_to_a_file_is_a_usage_and_reads_as_text_while_the_file_is_trashed",
+            "a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored",
+            "asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"
+        ]
+    ),
+    inv!(
+        "MEDIA-ASSET-ONCE",
+        "同一个文件在同一个媒体模块里只出现一次",
+        [Command],
+        "check::check_media_asset_once（module.put_media）：第二项放同一个文件拒绝，改这一项自己不拒；批注的「哪一处」因此用文件指媒体模块里的那一项",
+        ["a_file_goes_into_a_media_module_once"]
+    ),
+    inv!(
+        "ASSET-BYTES-UNIQUE",
+        "素材库里同样的字节只有一个文件",
+        [Command],
+        "asset.put：同样的 sha256、大小和种类已有一个文件时给回它的 id（在最近删除里就恢复），调用方为新 id 存的那份字节删掉；导入 0.1 时字节相同的两个文件并成一个",
+        [
+            "the_same_bytes_put_again_give_back_the_file_already_there",
+            "materials_that_do_not_come_over_are_each_one_line_of_the_report"
+        ]
+    ),
+    inv!(
+        "ASSET-FOLDER-TREE",
+        "素材夹套成一棵树：上一级是素材夹或最外层，不成环",
+        [Command, Read],
+        "v3::check_asset_folder_parent（asset_folder.move）拒绝挪到自己或自己下面；读取时合并出的环不算进了最近删除（往上找到环就停）",
+        ["asset_folders_nest_rename_move_and_keep_their_order_across_reopen"]
+    ),
+    inv!(
+        "ASSET-FOLDER-TRASH",
+        "素材夹进最近删除时，里面的文件和素材夹一起进，恢复时一起回来；清除时一起清除、删字节",
+        [Command],
+        "asset_folder.trash 在同一次提交里给里面还活着的文件和素材夹写删除时间和 trashed_with（带走它们的那个素材夹），一步撤销；asset_folder.restore 只带回 trashed_with 是同一批的，自己先进了最近删除的留着；asset_folder.purge 清除整棵、删本书的字节",
+        [
+            "trashing_a_folder_takes_its_files_and_folders_and_comes_back_both_ways",
+            "purging_a_folder_deletes_the_bytes_of_its_files"
+        ]
+    ),
+    inv!(
+        "TASK-COMMENT-ONE",
+        "每个清单项有且只有一条批注，勾和批注的状态一致",
+        [Command, Structure],
+        "comment.project 从正文本身读清单项的字和勾：那一行在批注就在，改了字跟着改，删了跟着删（解没解决都删）；comment.update 对清单来的批注解决、重开写的是正文里那一项的勾，一步撤销；id 由（种类、文档、块）算出，两台设备同一条；导入 0.1 时状态和勾不一致以勾为准",
+        [
+            "checklist_items_are_comments_whose_tick_is_their_status_both_ways",
+            "a_checklist_item_is_one_comment_on_every_device_and_a_late_tick_waits",
+            "a_checklist_todo_whose_state_disagrees_with_its_tick_imports_as_the_tick"
+        ]
     ),
     inv!(
         "KV-LIST",
@@ -566,7 +624,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "TODO-SINGLE-TRUTH",
         "待办只有一份真相：链了待办的任务行没有自己的勾选状态，显示待办的状态",
         [Structure, Read],
-        "BlockAttrs 里 todo 有值时 checked 不写、读时忽略；界面读 BookView::todo_done",
+        "BlockAttrs 里 todo 有值时 checked 不写、读时忽略；界面读 BookView::todo_done。格式 5 不再写这种链接（导入 0.1 时去掉，记 task-todo-link-replaced-by-projection）：清单项的勾就是它的状态，批注跟着勾（TASK-COMMENT-ONE）",
         [
             "a_task_line_linked_to_a_todo_has_no_state_of_its_own",
             "projected_todos_are_one_entity_on_every_device"
@@ -973,7 +1031,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 87;
+pub const ACTIVE_CONTRACTS: usize = 93;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

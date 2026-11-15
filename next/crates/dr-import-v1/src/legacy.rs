@@ -1038,7 +1038,44 @@ impl Legacy {
                 })
             },
         )?;
+        merge_same_bytes(&mut b);
         Ok(b)
+    }
+}
+
+/// One file per bytes (`kernel-v5.md` §11: the asset library holds the
+/// same bytes once). A second 0.1 asset with the bytes of an earlier one
+/// (0.1 kept one per material) is that earlier file: the second material,
+/// and an element portrait, point at it, and the import report lists the
+/// second material's title, which the one file cannot keep.
+fn merge_same_bytes(b: &mut BookRows) {
+    let mut first: HashMap<String, String> = HashMap::new();
+    let mut alias: HashMap<String, String> = HashMap::new();
+    b.assets.retain(|a| {
+        let key = format!("{}|{}", a.sha256, a.size);
+        match first.get(&key) {
+            Some(kept) => {
+                alias.insert(a.id.clone(), kept.clone());
+                false
+            }
+            None => {
+                first.insert(key, a.id.clone());
+                true
+            }
+        }
+    });
+    if alias.is_empty() {
+        return;
+    }
+    for m in &mut b.materials {
+        if let Some(kept) = m.asset.as_ref().and_then(|a| alias.get(a)) {
+            m.asset = Some(kept.clone());
+        }
+    }
+    for e in &mut b.elements {
+        if let Some(kept) = e.portrait.as_ref().and_then(|a| alias.get(a)) {
+            e.portrait = Some(kept.clone());
+        }
     }
 }
 

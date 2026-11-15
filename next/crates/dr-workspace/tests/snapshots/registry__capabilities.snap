@@ -2,13 +2,21 @@
 source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
-asset.get                    query    shared   Read an asset's metadata and live usages in the book.
-asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its live usages (media modules, prose embeds, relations). Set `trashed: true` to include Recently Deleted.
+asset.get                    query    shared   Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
+asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted.
+asset.move                   command  book     Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
-asset.put                    command  book     Record an imported asset in the project's built-in asset library (bytes live in storage).
+asset.put                    command  book     Record an imported file in the project's built-in asset library (bytes live in storage). The same bytes are one file: when the library has them already, that file's id is given back (restored from Recently Deleted if it was there).
 asset.rename                 command  book     Rename a live asset in the built-in asset library.
-asset.restore                command  book     Restore a trashed asset from Recently Deleted back into the asset library.
+asset.restore                command  book     Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted).
 asset.trash                  command  book     Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.
+asset_folder.create          command  book     Make a folder (素材夹) in the asset library, last among the folders of its parent (or the top).
+asset_folder.list            query    shared   List the folders of the asset library, in manual order within each parent (with `trashed: true`, those in Recently Deleted too).
+asset_folder.move            command  book     Put a folder of the asset library into another folder (or the top) and/or at another place among its siblings; a folder never goes into itself or below itself.
+asset_folder.purge           command  book     Permanently purge a folder of the asset library that is in Recently Deleted, with every folder and file in it (their bytes are deleted).
+asset_folder.rename          command  book     Rename a folder of the asset library.
+asset_folder.restore         command  book     Bring a folder of the asset library back from Recently Deleted with what went there with it (to the top when its parent is still in Recently Deleted).
+asset_folder.trash           command  book     Move a folder of the asset library to Recently Deleted with everything in it (its files and folders), in one step: places using those files read as placeholders.
 book.get                     query    shared   Read book metadata and project word targets; aggregate counts use the statistics adapter.
 book.list                    query    shared   List the library's books (trashed ones when asked).
 book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.
@@ -25,7 +33,7 @@ comment.delete               command  book     Delete a comment (its relations g
 comment.list                 query    shared   List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.project              command  book     Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or task gets a comment, an open one whose source line is gone is deleted, resolved ones stay; deterministic ids merge across devices.
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
-comment.update               command  book     Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation.
+comment.update               command  book     Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation.
 entry.create                 command  book     Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list                   query    shared   Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -85,6 +93,7 @@ module.remove_media          command  book     Remove a file item from an entry'
 module.remove_patch          command  book     Remove one patch record without deleting relations or other entries.
 module.remove_relation       command  book     Remove one relation projected in an entry's relations module.
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
+module.set_arrangement       command  book     Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
 module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module.
 project.create               command  library  Create a project from a project template (defaults to the built-in writing template).
@@ -94,7 +103,7 @@ prose.link                   command  book     Link anchored ranges of prose doc
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
-prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds.
+prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).
 prose.unlink                 command  book     Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
 recent.list                  query    shared   List this device's live pages, retaining each entry's selected module.
 recent.touch                 command  book     Record an entry and optional module on this device without an undo step.

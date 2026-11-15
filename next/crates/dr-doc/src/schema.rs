@@ -108,6 +108,8 @@ pub mod book_v3 {
     pub const RELATIONS: &str = "relations";
     pub const COMMENTS: &str = "comments";
     pub const ASSETS: &str = "assets";
+    /// The asset library's folders (素材夹, format 5): id → `{name, parent, pos, deleted_at}`.
+    pub const ASSET_FOLDERS: &str = "asset_folders";
     pub const FACTS: &str = "facts";
     pub const MEMORY: &str = "memory";
 
@@ -122,6 +124,7 @@ pub mod book_v3 {
         RELATIONS,
         COMMENTS,
         ASSETS,
+        ASSET_FOLDERS,
         MEMORY,
     ];
 }

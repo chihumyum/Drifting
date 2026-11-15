@@ -51,8 +51,8 @@ use dr_store::OpenDoc;
 
 use dr_text::{LinkMatcher, LinkTarget};
 use dr_workspace::commands::comment::{
-    CommentProject, CommentProjectIn, CommentReanchor, CommentReanchorIn, CommentUpdate,
-    CommentUpdateIn, TodoMarkerIn,
+    CommentProject, CommentProjectIn, CommentReanchor, CommentReanchorIn, CommentTaskIn,
+    CommentUpdate, CommentUpdateIn, TodoMarkerIn,
 };
 use dr_workspace::dto::AnchorBytes;
 use dr_workspace::{Actor, Workspace, WsEvent};
@@ -728,7 +728,6 @@ impl Layers {
                 id: id.clone(),
                 body: None,
                 status: Some(if done { "open" } else { "resolved" }.into()),
-                priority: None,
                 agent_conversation: None,
             };
             let ws = self.ws.clone();
@@ -1081,6 +1080,29 @@ impl Layers {
         let Some(part) = self.parts.get(chapter) else {
             return;
         };
+        // Every checklist item of every prose module becomes a comment
+        // (`kernel-v5.md` §7); the workspace reads their text and tick from
+        // the document itself.
+        let tasks = self
+            .editor
+            .upgrade()
+            .and_then(|editor| {
+                let e = editor.read(cx);
+                let doc = &e.book().chapters.get(chapter)?.doc;
+                Some(crate::todo::task_items(
+                    doc.lines()[..doc.visible_lines()].iter(),
+                ))
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|t| {
+                Some(CommentTaskIn {
+                    block: t.block?,
+                    task: t.task,
+                    checked: t.checked,
+                })
+            })
+            .collect();
         let input = CommentProjectIn {
             doc: part.doc.clone(),
             markers: markers
@@ -1092,7 +1114,7 @@ impl Layers {
                     })
                 })
                 .collect(),
-            tasks: None,
+            tasks: Some(tasks),
             editing,
         };
         let ws = self.ws.clone();

@@ -60,17 +60,11 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
         &sample_title,
     )
     .unwrap();
-    let id = imported.material;
-    let host_info = Book::load(&ws, &book_id)
-        .unwrap()
-        .material_items()
-        .iter()
-        .find(|m| m.id == id)
-        .unwrap()
-        .clone();
-    let host_entry = host_info.entry.clone().unwrap();
-    let host_module = host_info.module.clone().unwrap();
-    let host_asset = host_info.asset.clone().unwrap();
+    // The import puts the file into the asset library only; the page under
+    // test shows it as an item of an entry's media module.
+    let host_asset = imported.material.clone();
+    let (host_entry, host_module, id) =
+        crate::import::place_in_media_entry(&ws, &book_id, &host_asset, &sample_title).unwrap();
     cx.update(|cx| {
         dr_shell::init(
             ShellInfo {
@@ -203,7 +197,8 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
         json!({"book":book_id,"target":{"kind":"entry","id":host_entry},"module":host_module}),
     );
     assert_eq!(comments[0]["target"]["id"], host_entry);
-    assert_eq!(comments[0]["part"]["item"], id);
+    // A media module region names the file (it is in the module once).
+    assert_eq!(comments[0]["part"]["asset"], host_asset);
     assert!((comments[0]["part"]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
     assert_eq!(comments[0]["body"], sample_title);
     let rows = Book::load(&ws, &book_id).unwrap().material_items().to_vec();

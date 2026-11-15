@@ -1,7 +1,9 @@
 //! Tests for the universal kernel book document (`dr-doc::v3`).
 
+use std::collections::HashSet;
+
 use dr_model::id::*;
-use dr_model::kind::EntityKind;
+use dr_model::kind::{CommentOrigin, EntityKind};
 use dr_model::pos::PosKey;
 use dr_model::shared::{EntityRef, KvEntry};
 use dr_model::v3::*;
@@ -2185,8 +2187,10 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         width: Some(800),
         height: Some(600),
         created_at: Some(Timestamp(1234)),
-        folder: Some("参考图/城防".into()),
+        folder: Some(AssetFolderId::parse("af-maps").unwrap()),
+        pos: Some(PosKey::first()),
         deleted_at: None,
+        trashed_with: None,
     };
     let item_1 = MediaItemId::parse("mi-1").unwrap();
     let item_2 = MediaItemId::parse("mi-2").unwrap();
@@ -2246,7 +2250,7 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
             .target(Some(&EntityRef::new(EntityKind::Entry, "m-map")))?
             .module(Some(&mid(MOD_MEDIA)))?
             .part(Some(&CommentPart::Media {
-                item: item_1.clone(),
+                asset: img_id.clone(),
                 region: Some(MaterialRegion::new(None, 0.1, 0.2, 0.3, 0.4).unwrap()),
             }))?
             .body("城门位置")?;
@@ -2270,9 +2274,10 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
     assert_eq!(doc.view().assets()[0].name, "地图.png");
     assert_eq!(doc.view().assets()[0].created_at, Some(Timestamp(1234)));
     assert_eq!(
-        doc.view().assets()[0].folder.as_deref(),
-        Some("参考图/城防")
+        doc.view().assets()[0].folder.as_ref().map(|f| f.as_str()),
+        Some("af-maps")
     );
+    assert_eq!(doc.view().assets()[0].pos, Some(PosKey::first()));
     assert!(!doc.view().comment(&asset_cid).unwrap().target_missing);
 
     // Media items sort by (pos, id), keep unregistered asset ids on read without dropping rows,
@@ -2334,4 +2339,129 @@ fn media_items_assets_and_media_comment_parts_round_trip() {
         2
     );
     assert!(!doc.view().comment(&cid).unwrap().target_missing);
+}
+
+/// DY fix 5: the whole-book read marks a comment on a prose embed as not
+/// located once its prose no longer holds the embed (asked through
+/// `comments_with_embeds`; prose it does not know leaves the comment as is).
+#[test]
+fn comments_on_a_gone_embed_read_as_not_located_on_the_book_side() {
+    let chapter = tid(TPL_CHAPTER);
+    let cid = CommentId::parse("c-embed").unwrap();
+    let embed = EmbedId::parse("emb-1").unwrap();
+    let (doc, _) = novel_book(78, |t, roots| {
+        t.entries().create(
+            &eid("ch"),
+            Some(&roots.manuscript),
+            "一",
+            Some(&chapter),
+            false,
+        )?;
+        t.comment(&cid)?
+            .origin(&CommentOrigin::Manual)?
+            .target(Some(&EntityRef::new(EntityKind::Entry, "ch")))?
+            .module(Some(&mid(MOD_PROSE)))?
+            .part(Some(&CommentPart::Embed {
+                embed: embed.clone(),
+                region: None,
+            }))?
+            .body("图")?;
+        Ok(())
+    });
+    let mut asked = Vec::new();
+    let read = |present: Option<HashSet<EmbedId>>, asked: &mut Vec<(EntryId, ModuleId)>| {
+        doc.view()
+            .comments_with_embeds(None, &mut |e, m| {
+                asked.push((e.clone(), m.clone()));
+                present.clone()
+            })
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap()
+            .target_missing
+    };
+    assert!(!read(Some(HashSet::from([embed.clone()])), &mut asked));
+    assert!(read(Some(HashSet::new()), &mut asked));
+    assert!(!read(None, &mut asked), "unknown prose leaves it located");
+    assert_eq!(asked, vec![(eid("ch"), mid(MOD_PROSE)); 3]);
+    // The plain read cannot see inside prose and keeps it located.
+    assert!(!doc.view().comment(&cid).unwrap().target_missing);
+}
+
+/// DY fix 6: a comment on a whole module reads as not located once the
+/// module is gone (the entry's template changed, the module was removed);
+/// switching back brings it back.
+#[test]
+fn a_whole_module_comment_is_not_located_once_its_module_is_gone() {
+    let cid = CommentId::parse("c-module").unwrap();
+    let whole = CommentId::parse("c-entry").unwrap();
+    let (mut doc, roots) = novel_book(79, |t, roots| {
+        t.entries().create(
+            &eid("idea"),
+            Some(&roots.ideas),
+            "念",
+            Some(&tid(TPL_NOTE)),
+            false,
+        )?;
+        t.comment(&cid)?
+            .origin(&CommentOrigin::Manual)?
+            .target(Some(&EntityRef::new(EntityKind::Entry, "idea")))?
+            .module(Some(&mid(MOD_PROSE)))?
+            .body("整篇")?;
+        t.comment(&whole)?
+            .origin(&CommentOrigin::Manual)?
+            .target(Some(&EntityRef::new(EntityKind::Entry, "idea")))?
+            .body("整个条目")?;
+        Ok(())
+    });
+    let _ = roots;
+    let missing = |doc: &BookDocV3, id: &CommentId| {
+        (
+            doc.view().comment(id).unwrap().target_missing,
+            doc.view()
+                .comments()
+                .into_iter()
+                .find(|c| &c.id == id)
+                .unwrap()
+                .target_missing,
+        )
+    };
+    assert_eq!(missing(&doc, &cid), (false, false));
+    // A template without that module: the comment has no place.
+    doc.edit(Origin::User, |t| {
+        t.template(&tid("tpl-bare"))?.set_full(&EntryTemplate {
+            id: tid("tpl-bare"),
+            name: "空".into(),
+            mark: None,
+            color: None,
+            agent: None,
+            modules: Vec::new(),
+            level: false,
+            linkable: true,
+            settings: LevelSettingsOverride::default(),
+            verbs: Vec::new(),
+            deleted_at: None,
+        })?;
+        t.entries()
+            .entry(&eid("idea"))?
+            .template(Some(&tid("tpl-bare")))
+            .map(|_| ())
+    })
+    .0
+    .unwrap();
+    assert_eq!(missing(&doc, &cid), (true, true));
+    assert_eq!(
+        missing(&doc, &whole),
+        (false, false),
+        "the entry is still there"
+    );
+    doc.edit(Origin::User, |t| {
+        t.entries()
+            .entry(&eid("idea"))?
+            .template(Some(&tid(TPL_NOTE)))
+            .map(|_| ())
+    })
+    .0
+    .unwrap();
+    assert_eq!(missing(&doc, &cid), (false, false));
 }

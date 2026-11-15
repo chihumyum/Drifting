@@ -7,20 +7,24 @@ expression: json
     "access": "read",
     "concurrency": "shared",
     "input": {
-      "description": "One entity of a book.",
       "properties": {
         "book": {
           "type": "string"
         },
         "id": {
           "type": "string"
+        },
+        "usages": {
+          "default": true,
+          "description": "List where the file is used (the default). `false` reads only the\nrecord: a caller showing one embedded file does not pay for scanning\nevery entry and prose index of the book, and `usages` comes back empty.",
+          "type": "boolean"
         }
       },
       "required": [
         "book",
         "id"
       ],
-      "title": "EntityIn",
+      "title": "AssetGetIn",
       "type": "object"
     },
     "kind": "query",
@@ -83,6 +87,58 @@ expression: json
               "type": "object"
             },
             {
+              "description": "A link in a live entry's active `prose` module pointing at this file.",
+              "properties": {
+                "block": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "link",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "An image field of a live entry's active `fields` module holding this file.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "field",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module",
+                "field"
+              ],
+              "type": "object"
+            },
+            {
               "description": "A relation where one end is this asset and the other end is live.",
               "properties": {
                 "kind": {
@@ -138,6 +194,7 @@ expression: json
           ]
         },
         "folder": {
+          "description": "The asset-library folder it is in (absent: the top).",
           "type": [
             "string",
             "null"
@@ -162,6 +219,13 @@ expression: json
         },
         "name": {
           "type": "string"
+        },
+        "pos": {
+          "description": "Its place among the files of its folder (manual order).",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "sha256": {
           "type": "string"
@@ -200,7 +264,7 @@ expression: json
       "title": "AssetInfo",
       "type": "object"
     },
-    "summary": "Read an asset's metadata and live usages in the book."
+    "summary": "Read an asset's metadata and live usages in the book (`usages: false` reads the record alone)."
   },
   {
     "access": "read",
@@ -245,6 +309,7 @@ expression: json
               ]
             },
             "folder": {
+              "description": "The asset-library folder it is in (absent: the top).",
               "type": [
                 "string",
                 "null"
@@ -269,6 +334,13 @@ expression: json
             },
             "name": {
               "type": "string"
+            },
+            "pos": {
+              "description": "Its place among the files of its folder (manual order).",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "sha256": {
               "type": "string"
@@ -362,6 +434,58 @@ expression: json
               "type": "object"
             },
             {
+              "description": "A link in a live entry's active `prose` module pointing at this file.",
+              "properties": {
+                "block": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "link",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "An image field of a live entry's active `fields` module holding this file.",
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "field",
+                  "type": "string"
+                },
+                "module": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "module",
+                "field"
+              ],
+              "type": "object"
+            },
+            {
               "description": "A relation where one end is this asset and the other end is live.",
               "properties": {
                 "kind": {
@@ -406,7 +530,60 @@ expression: json
       "title": "Array_of_AssetInfo",
       "type": "array"
     },
-    "summary": "List assets in the project's built-in asset library (sorted by asset id), each with its live usages (media modules, prose embeds, relations). Set `trashed: true` to include Recently Deleted."
+    "summary": "List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "folder": {
+          "default": null,
+          "description": "The folder to put the file in (a live folder id); `null`: the top of\nthe library.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "description": "Its place among that folder's files (0 first); omitted: last.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "AssetMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order)."
   },
   {
     "access": "write",
@@ -454,7 +631,7 @@ expression: json
           "type": "string"
         },
         "folder": {
-          "description": "Original 0.1 material folder path when imported (optional).",
+          "description": "The asset-library folder to put a new file in (a live folder id);\nomitted: the top of the library. It goes last in that folder.",
           "type": [
             "string",
             "null"
@@ -525,7 +702,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Record an imported asset in the project's built-in asset library (bytes live in storage)."
+    "summary": "Record an imported file in the project's built-in asset library (bytes live in storage). The same bytes are one file: when the library has them already, that file's id is given back (restored from Recently Deleted if it was there)."
   },
   {
     "access": "write",
@@ -606,7 +783,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Restore a trashed asset from Recently Deleted back into the asset library."
+    "summary": "Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted)."
   },
   {
     "access": "write",
@@ -644,6 +821,331 @@ expression: json
       "type": "object"
     },
     "summary": "Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "description": "The folder it goes in (a live folder id); omitted: the top.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "name"
+      ],
+      "title": "AssetFolderCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset_folder.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Make a folder (素材夹) in the asset library, last among the folders of its parent (or the top)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "trashed": {
+          "default": false,
+          "description": "Include the folders in Recently Deleted.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "AssetFolderListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "asset_folder.list",
+    "output": {
+      "$defs": {
+        "AssetFolderInfo": {
+          "description": "One folder of the asset library.",
+          "properties": {
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "parent": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "parent",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/AssetFolderInfo"
+      },
+      "title": "Array_of_AssetFolderInfo",
+      "type": "array"
+    },
+    "summary": "List the folders of the asset library, in manual order within each parent (with `trashed: true`, those in Recently Deleted too)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "description": "Its place among that folder's folders (0 first); omitted: last.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "parent": {
+          "default": null,
+          "description": "The folder it goes in (a live folder id); `null`: the top.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "AssetFolderMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset_folder.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Put a folder of the asset library into another folder (or the top) and/or at another place among its siblings; a folder never goes into itself or below itself."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset_folder.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Permanently purge a folder of the asset library that is in Recently Deleted, with every folder and file in it (their bytes are deleted)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "name"
+      ],
+      "title": "AssetFolderRenameIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset_folder.rename",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename a folder of the asset library."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset_folder.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Bring a folder of the asset library back from Recently Deleted with what went there with it (to the top when its parent is still in Recently Deleted)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset_folder.trash",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a folder of the asset library to Recently Deleted with everything in it (its files and folders), in one step: places using those files read as placeholders."
   },
   {
     "access": "read",
@@ -1148,6 +1650,13 @@ expression: json
         },
         "Entry": {
           "properties": {
+            "arrangements": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
+              "type": "object"
+            },
             "below": {
               "anyOf": [
                 {
@@ -1218,6 +1727,16 @@ expression: json
               },
               "default": {},
               "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
+            "missing_files": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
               "type": "object"
             },
             "name_conflict": {
@@ -2199,9 +2718,9 @@ expression: json
               "type": "object"
             },
             {
-              "description": "A file inside a `media` module, optionally with a region on the image or PDF page.",
+              "description": "A file inside a `media` module (by the file: it sits in a module once),\noptionally with a region on the image or PDF page.",
               "properties": {
-                "item": {
+                "asset": {
                   "type": "string"
                 },
                 "kind": {
@@ -2221,7 +2740,7 @@ expression: json
               },
               "required": [
                 "kind",
-                "item"
+                "asset"
               ],
               "type": "object"
             },
@@ -2355,13 +2874,6 @@ expression: json
             }
           ],
           "description": "Specific sub-item inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`)."
-        },
-        "priority": {
-          "description": "`low`, `med` or `high`.",
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "range": {
           "description": "Anchor it to characters `[start, end)` of the target's prose.",
@@ -2584,12 +3096,6 @@ expression: json
               ],
               "description": "Sub-part inside `module` (`embed`, `field`, `kv_row`, `plot_cell`, `patch`, `media`)."
             },
-            "priority": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "projection": {
               "description": "Generated from prose (`marker` or `note_task`).",
               "type": [
@@ -2608,7 +3114,7 @@ expression: json
               "type": "string"
             },
             "status": {
-              "description": "`open` or `resolved`.",
+              "description": "`open` or `resolved` (a comment has no priority).",
               "type": "string"
             },
             "target": {
@@ -2650,7 +3156,6 @@ expression: json
             "quote",
             "body",
             "status",
-            "priority",
             "origin",
             "author_kind",
             "author_name",
@@ -2765,9 +3270,9 @@ expression: json
               "type": "object"
             },
             {
-              "description": "A file inside a `media` module, optionally with a region on the image or PDF page.",
+              "description": "A file inside a `media` module (by the file: it sits in a module once),\noptionally with a region on the image or PDF page.",
               "properties": {
-                "item": {
+                "asset": {
                   "type": "string"
                 },
                 "kind": {
@@ -2787,7 +3292,7 @@ expression: json
               },
               "required": [
                 "kind",
-                "item"
+                "asset"
               ],
               "type": "object"
             },
@@ -3083,14 +3588,8 @@ expression: json
         "id": {
           "type": "string"
         },
-        "priority": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "status": {
-          "description": "`open` or `resolved`.",
+          "description": "`open` or `resolved`. On a checklist item's comment this ticks or\nclears the item in the prose.",
           "type": [
             "string",
             "null"
@@ -3119,7 +3618,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change a comment: its text, status (resolve / reopen), priority or linked Agent conversation."
+    "summary": "Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation."
   },
   {
     "access": "write",
@@ -3470,6 +3969,13 @@ expression: json
         }
       },
       "properties": {
+        "arrangements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
+          "type": "object"
+        },
         "below": {
           "anyOf": [
             {
@@ -3540,6 +4046,16 @@ expression: json
           },
           "default": {},
           "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+          "type": "object"
+        },
+        "missing_files": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
           "type": "object"
         },
         "name_conflict": {
@@ -3924,6 +4440,13 @@ expression: json
         }
       },
       "properties": {
+        "arrangements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
+          "type": "object"
+        },
         "below": {
           "anyOf": [
             {
@@ -3994,6 +4517,16 @@ expression: json
           },
           "default": {},
           "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+          "type": "object"
+        },
+        "missing_files": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
           "type": "object"
         },
         "name_conflict": {
@@ -4163,6 +4696,13 @@ expression: json
         },
         "Entry": {
           "properties": {
+            "arrangements": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
+              "type": "object"
+            },
             "below": {
               "anyOf": [
                 {
@@ -4233,6 +4773,16 @@ expression: json
               },
               "default": {},
               "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
+            "missing_files": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
               "type": "object"
             },
             "name_conflict": {
@@ -4862,7 +5412,7 @@ expression: json
         "Key": {
           "properties": {
             "collection": {
-              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, facts, memory or project.",
+              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, assets, asset_folders, facts, memory or project.",
               "type": "string"
             },
             "id": {
@@ -5933,6 +6483,13 @@ expression: json
                 "null"
               ]
             },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "color_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the display color.",
@@ -6681,6 +7238,13 @@ expression: json
                 "null"
               ]
             },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "color_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the display color.",
@@ -7178,6 +7742,13 @@ expression: json
                 "null"
               ]
             },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "color_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the display color.",
@@ -7535,6 +8106,13 @@ expression: json
             "aliases_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
               "type": [
                 "string",
                 "null"
@@ -9379,6 +9957,13 @@ expression: json
                 "null"
               ]
             },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "color_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the display color.",
@@ -10115,6 +10700,13 @@ expression: json
         },
         "Entry": {
           "properties": {
+            "arrangements": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
+              "type": "object"
+            },
             "below": {
               "anyOf": [
                 {
@@ -10185,6 +10777,16 @@ expression: json
               },
               "default": {},
               "description": "Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.",
+              "type": "object"
+            },
+            "missing_files": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "description": "Image fields whose file is in Recently Deleted or not in the book:\n`module_id -> field ids`, shown as placeholders (the value stays).\nSet by readers, ignored on input.",
               "type": "object"
             },
             "name_conflict": {
@@ -10597,6 +11199,13 @@ expression: json
                 "null"
               ]
             },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "color_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the display color.",
@@ -10955,6 +11564,13 @@ expression: json
         }
       },
       "properties": {
+        "arrangement": {
+          "description": "A `media` module: how this entry lays its files out (its own choice,\nelse its template's, else `featured`), and whether it is its own.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "below": {
           "anyOf": [
             {
@@ -10994,8 +11610,18 @@ expression: json
           },
           "type": "array"
         },
+        "missing_files": {
+          "description": "Image fields whose file is in Recently Deleted or not in the book\n(shown as placeholders; the values stay).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "module": {
           "$ref": "#/$defs/Summary"
+        },
+        "own_arrangement": {
+          "type": "boolean"
         },
         "patches": {
           "items": {
@@ -11013,6 +11639,7 @@ expression: json
       "required": [
         "module",
         "fields",
+        "missing_files",
         "kv",
         "media",
         "patches",
@@ -11370,6 +11997,55 @@ expression: json
       "type": "object"
     },
     "summary": "Replace an exact passage in an entry's prose module, addressed by block ID."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "arrangement": {
+          "default": null,
+          "description": "`featured` (one large picture, a row of small ones to switch),\n`grid` or `list`; `null` goes back to the template's.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module"
+      ],
+      "title": "MediaArrangeIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.set_arrangement",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed."
   },
   {
     "access": "write",
@@ -11871,6 +12547,13 @@ expression: json
             "aliases_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "arrangement": {
+              "description": "For `media` modules: the default arrangement (`featured`, `grid`,\n`list`); entries may choose their own.",
               "type": [
                 "string",
                 "null"
@@ -13423,8 +14106,22 @@ expression: json
           },
           "type": "array"
         },
+        "file_links": {
+          "description": "The files its links point at, in order (one per linked passage).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "missing_embeds": {
           "description": "Embedded asset IDs whose asset is missing or trashed in the book's asset library (shown as placeholders).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing_links": {
+          "description": "Linked files missing or in Recently Deleted: their links read as\nplain text until the file is back.",
           "items": {
             "type": "string"
           },
@@ -13460,7 +14157,7 @@ expression: json
       "title": "ProseShapeOut",
       "type": "object"
     },
-    "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the assets it embeds."
+    "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted)."
   },
   {
     "access": "write",

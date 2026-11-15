@@ -45,6 +45,25 @@ fn live_entries_and_media_hosts(
     (live, hosts)
 }
 
+/// The end a material's associations hang on: a media item's host entry, or
+/// a live file of the asset library itself (relations may end at files,
+/// `kernel-v5.md` §10), with the host to leave out of the choices.
+fn own_end(
+    view: &dr_doc::v3::BookViewV3<'_>,
+    hosts: &HashMap<String, String>,
+    material: &str,
+) -> Option<(EntityRef, Option<String>)> {
+    if let Some(host) = hosts.get(material) {
+        return Some((
+            EntityRef::new(EntityKind::Entry, host.clone()),
+            Some(host.clone()),
+        ));
+    }
+    let asset = dr_model::id::AssetId::parse(material).ok()?;
+    view.asset(&asset)
+        .map(|_| (EntityRef::new(EntityKind::Asset, material), None))
+}
+
 /// The live entry choices and this media item's host entry associations.
 pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<EntryLink>> {
     let book_id = BookId::parse(book).map_err(invalid)?;
@@ -61,10 +80,9 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
                 return Err(invalid("material is unavailable"));
             }
             let (live, hosts) = live_entries_and_media_hosts(&view);
-            let Some(host_id) = hosts.get(&material) else {
+            let Some((own, host_id)) = own_end(&view, &hosts, &material) else {
                 return Err(invalid("material is unavailable"));
             };
-            let own = EntityRef::new(EntityKind::Entry, host_id.clone());
             let ty = dr_doc::catalog::generic_relation_type_id(&book_id);
             let linked: HashSet<_> = view
                 .relations_raw()
@@ -78,7 +96,7 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
                 .collect();
             let mut choices: Vec<_> = live
                 .values()
-                .filter(|e| e.id.as_str() != host_id)
+                .filter(|e| host_id.as_deref() != Some(e.id.as_str()))
                 .map(|e| EntryLink {
                     id: e.id.to_string(),
                     title: e.title.clone(),
@@ -103,7 +121,7 @@ pub fn set_entry_link(
     let ty = dr_doc::catalog::generic_relation_type_id(&book_id).to_string();
     let mat = material.to_owned();
     let target_entry = entry.to_owned();
-    let (host_id, existing) = ws
+    let (own, existing) = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
@@ -116,19 +134,18 @@ pub fn set_entry_link(
                 return Err(invalid("book is in the trash"));
             }
             let (live, hosts) = live_entries_and_media_hosts(&v);
-            let Some(host_id) = hosts.get(&mat).cloned() else {
+            let Some((own, host_id)) = own_end(&v, &hosts, &mat) else {
                 return Err(WsError::NotFound {
                     what: "material",
                     id: mat,
                 });
             };
-            if !live.contains_key(&target_entry) || target_entry == host_id {
+            if !live.contains_key(&target_entry) || host_id.as_deref() == Some(&target_entry) {
                 return Err(WsError::NotFound {
                     what: "entry",
                     id: target_entry,
                 });
             }
-            let own = EntityRef::new(EntityKind::Entry, host_id.clone());
             let other = EntityRef::new(EntityKind::Entry, target_entry);
             let ty = dr_doc::catalog::generic_relation_type_id(&book_id);
             let existing: Vec<String> = v
@@ -140,7 +157,7 @@ pub fn set_entry_link(
                 })
                 .map(|r| r.id.to_string())
                 .collect();
-            Ok((host_id, existing))
+            Ok((own, existing))
         })??;
     if linked {
         if existing.is_empty() {
@@ -149,8 +166,8 @@ pub fn set_entry_link(
                 CreateIn {
                     book: book.to_owned(),
                     from: Target {
-                        kind: "entry".into(),
-                        id: host_id,
+                        kind: own.kind.as_str().into(),
+                        id: own.id,
                     },
                     to: Target {
                         kind: "entry".into(),
@@ -198,6 +215,11 @@ pub fn related(ws: &Workspace, book: &str, entry: &str) -> Result<HashSet<String
             let mut out = HashSet::new();
             for r in v.relations_of(&target) {
                 for end in [r.from, r.to] {
+                    // A library file related to the entry is a material of its own.
+                    if end.kind == EntityKind::Asset {
+                        out.insert(end.id.clone());
+                        continue;
+                    }
                     if end.kind == EntityKind::Entry
                         && end.id != entry
                         && let Some(host) = live.get(&end.id)
@@ -232,16 +254,24 @@ pub fn shelf_relations(
                 return Err(invalid("book is in the trash"));
             }
             let (live, _) = live_entries_and_media_hosts(&v);
+            // Entry–entry associations through media hosts, and library
+            // files related to a live entry (a file is a material of its own).
+            let end_ok = |end: &EntityRef| match end.kind {
+                EntityKind::Entry => live.contains_key(&end.id),
+                EntityKind::Asset => true,
+                _ => false,
+            };
             let rels = v.relations_matching(|r| {
-                r.from.kind == EntityKind::Entry
-                    && r.to.kind == EntityKind::Entry
-                    && live.contains_key(&r.from.id)
-                    && live.contains_key(&r.to.id)
+                end_ok(&r.from)
+                    && end_ok(&r.to)
+                    && (r.from.kind == EntityKind::Entry || r.to.kind == EntityKind::Entry)
             });
             let mut linked = HashSet::new();
             for r in &rels {
                 for end in [&r.from, &r.to] {
-                    if let Some(host) = live.get(&end.id) {
+                    if end.kind == EntityKind::Asset {
+                        linked.insert(end.id.clone());
+                    } else if let Some(host) = live.get(&end.id) {
                         for item in host.media.values().flatten() {
                             linked.insert(item.id.to_string());
                         }
@@ -261,7 +291,9 @@ pub fn shelf_relations(
                             .filter(|r| r.from == target || r.to == target)
                         {
                             for end in [r.from, r.to] {
-                                if end.id != entry
+                                if end.kind == EntityKind::Asset {
+                                    set.insert(end.id.clone());
+                                } else if end.id != entry
                                     && let Some(host) = live.get(&end.id)
                                 {
                                     for item in host.media.values().flatten() {

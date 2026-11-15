@@ -50,11 +50,16 @@ fn env() -> Env {
     }
 }
 
-/// A material of `kind` whose source is `bytes`.
+/// A material of `kind` whose source is `bytes`: the file in the asset
+/// library, shown as an item of an entry's media module (the page these
+/// tests drive).
 fn material(e: &Env, _kind: &str, title: &str, bytes: Vec<u8>, _size: (u32, u32)) -> String {
-    dr_view_material::import::import_bytes(&e.ws, &e.book, None, bytes, title)
+    let asset = dr_view_material::import::import_bytes(&e.ws, &e.book, None, bytes, title)
         .unwrap()
-        .material
+        .material;
+    dr_view_material::import::place_in_media_entry(&e.ws, &e.book, &asset, title)
+        .unwrap()
+        .2
 }
 
 fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> String {
@@ -75,7 +80,7 @@ fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> S
             "book": e.book,
             "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
             "module": item.module.as_ref().unwrap(),
-            "part": {"kind": "media", "item": on, "region": region},
+            "part": {"kind": "media", "asset": item.asset.as_ref().unwrap(), "region": region},
             "body": body,
         }),
     )["id"]
@@ -450,7 +455,7 @@ fn the_column_reads_in_page_order_and_a_choice_turns_to_its_page(cx: &mut TestAp
             "book": e.book,
             "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
             "module": item.module.as_ref().unwrap(),
-            "part": {"kind": "media", "item": id},
+            "part": {"kind": "media", "asset": item.asset.as_ref().unwrap()},
             "body": "整份"
         }),
     );

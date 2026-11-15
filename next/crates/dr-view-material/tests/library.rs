@@ -191,8 +191,9 @@ fn a_selection_selects_all_clears_and_is_deleted(cx: &mut TestAppContext) {
     let e = env();
     let (panel, mut cx) = open(cx, &e);
     let cx = &mut cx;
+    // Two different pictures: the same bytes would be one file.
     let a = file(&e, "a.png", dr_testkit::media::png(32, 32));
-    let b = file(&e, "b.png", dr_testkit::media::png(32, 32));
+    let b = file(&e, "b.png", dr_testkit::media::png(32, 33));
     panel.update(cx, |p, cx| p.import_paths(vec![a, b], None, cx));
     wait_for(cx, |cx| !panel.read_with(cx, |p, _| p.importing()));
     reload(&e, &panel, cx);

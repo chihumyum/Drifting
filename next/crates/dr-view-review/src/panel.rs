@@ -554,7 +554,6 @@ impl ReviewView {
             id: id.to_owned(),
             body: None,
             status: None,
-            priority: None,
             agent_conversation: None,
         }
     }
@@ -2066,7 +2065,7 @@ mod v3_write_tests {
         call(
             &lib,
             "comment.update",
-            json!({"book":book,"id":a,"priority":"high"}),
+            json!({"book":book,"id":a,"agent_conversation":"conv-elsewhere"}),
         );
         view.update(cx, |v, cx| v.reload(cx));
         wait(cx, |cx| view.read_with(cx, |v, _| v.pending.is_none()));
@@ -2088,7 +2087,7 @@ mod v3_write_tests {
                 .unwrap()
         };
         assert_eq!(get(&a)["body"], draft);
-        assert_eq!(get(&a)["priority"], "high");
+        assert_eq!(get(&a)["agent_conversation"], "conv-elsewhere");
         assert_eq!(get(&b)["status"], "resolved");
         assert_eq!(get(&hidden)["body"], body);
         cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&a, window, cx)));

@@ -49,7 +49,8 @@ pub struct CommentComposer {
     book: String,
     target: Target,
     module: Option<String>,
-    media_item: Option<String>,
+    /// The file a rectangle is drawn on (an asset id).
+    asset: Option<String>,
     anchor: Anchor,
     /// Captured while opening a v3 composer, before another writer can move
     /// the selected characters. A capture failure never falls back to offsets.
@@ -191,15 +192,15 @@ impl CommentComposer {
         Self::with_anchor(ws, book, target, None, None, anchor, at, locale, window, cx)
     }
 
-    /// A composer for a rectangle on an image or PDF media item (`item`) on
-    /// `module` of `target`, its top left corner at `at`.
+    /// A composer for a rectangle on an image or PDF file (`asset`) in the
+    /// media module `module` of `target`, its top left corner at `at`.
     #[allow(clippy::too_many_arguments)]
     pub fn for_region(
         ws: Workspace,
         book: String,
         target: Target,
         module: Option<String>,
-        item: String,
+        asset: String,
         region: Region,
         at: Point<Pixels>,
         locale: Locale,
@@ -212,7 +213,7 @@ impl CommentComposer {
             book,
             target,
             module,
-            Some(item),
+            Some(asset),
             anchor,
             at,
             locale,
@@ -227,7 +228,7 @@ impl CommentComposer {
         book: String,
         target: Target,
         explicit_module: Option<String>,
-        media_item: Option<String>,
+        asset: Option<String>,
         anchor: Anchor,
         at: Point<Pixels>,
         locale: Locale,
@@ -269,7 +270,7 @@ impl CommentComposer {
             book,
             target,
             module,
-            media_item,
+            asset,
             anchor,
             source_anchor,
             todo: false,
@@ -322,17 +323,16 @@ impl CommentComposer {
             Anchor::Region(r) => (
                 None,
                 Some(dr_workspace::dto::CommentPartDto::Media {
-                    item: self
-                        .media_item
-                        .clone()
-                        .unwrap_or_else(|| self.target.id.clone()),
+                    asset: self.asset.clone().unwrap_or_else(|| self.target.id.clone()),
                     region: Some(r),
                 }),
             ),
         };
         let input = CommentCreateIn {
             book: self.book.clone(),
-            origin: Some(if self.todo { "marker" } else { "manual" }.into()),
+            // Written in the composer: by hand, whatever the toggle says
+            // (marker and checklist comments are only projected from prose).
+            origin: Some("manual".into()),
             target: Some(dr_workspace::commands::v3::comment::Target {
                 kind: self.target.kind.clone(),
                 id: self.target.id.clone(),
@@ -343,7 +343,6 @@ impl CommentComposer {
             block_id: None,
             range,
             body,
-            priority: None,
             author_name: None,
         };
         // Named calls select the book version. A v3 body always carries the

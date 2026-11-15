@@ -489,8 +489,10 @@ pub(crate) fn decode_asset(id: &str, v: &LoroValue) -> Option<Asset> {
         width: f.i64("width"),
         height: f.i64("height"),
         created_at: f.ts("created_at"),
-        folder: f.opt_string("folder").filter(|s| !s.is_empty()),
+        folder: f.id("folder"),
+        pos: f.pos("pos"),
         deleted_at: f.ts("deleted_at"),
+        trashed_with: f.id("trashed_with"),
     })
 }
 
@@ -499,12 +501,6 @@ impl CatalogView<'_> {
         entities(self.doc, book::ASSETS)
             .iter()
             .filter_map(|(id, v)| decode_asset(id, v))
-            .collect()
-    }
-    pub fn assets(&self) -> Vec<Asset> {
-        self.assets_raw()
-            .into_iter()
-            .filter(|a| !a.is_trashed())
             .collect()
     }
     pub fn entity_snapshot(&self, root: &str, id: &str) -> Option<EntitySnapshot> {

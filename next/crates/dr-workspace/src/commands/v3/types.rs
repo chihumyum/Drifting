@@ -70,6 +70,10 @@ pub struct ModuleConfig {
     /// For `plot_grid` modules: initial column count (defaults to 3).
     #[serde(default = "default_plot_lines_u32")]
     pub default_cols: u32,
+    /// For `media` modules: the default arrangement (`featured`, `grid`,
+    /// `list`); entries may choose their own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arrangement: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -238,6 +242,16 @@ pub struct Entry {
     /// Items of `media` modules (`media:<module_id>`): `module_id -> sorted MediaItem list`.
     #[serde(default)]
     pub media: BTreeMap<String, Vec<MediaItem>>,
+    /// Image fields whose file is in Recently Deleted or not in the book:
+    /// `module_id -> field ids`, shown as placeholders (the value stays).
+    /// Set by readers, ignored on input.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub missing_files: BTreeMap<String, Vec<String>>,
+    /// This entry's own arrangement of a media module (`featured`, `grid`
+    /// or `list`): `module_id -> arrangement`; a module not listed uses its
+    /// template's (`module.read` gives the effective one).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub arrangements: BTreeMap<String, String>,
     /// Stored primary membership host; membership queries filter invalid records.
     pub primary: Option<String>,
     pub created_at: Option<i64>,
@@ -391,6 +405,7 @@ impl Default for ModuleConfig {
             initial_kv: Vec::new(),
             default_rows: default_plot_lines_u32(),
             default_cols: default_plot_lines_u32(),
+            arrangement: None,
         }
     }
 }
@@ -470,6 +485,7 @@ impl From<&dr_model::v3::ModuleConfig> for ModuleConfig {
             initial_kv: v.initial_kv.iter().map(Into::into).collect(),
             default_rows: v.default_rows,
             default_cols: v.default_cols,
+            arrangement: v.arrangement.as_ref().map(|a| a.as_str().to_owned()),
         }
     }
 }
@@ -622,6 +638,12 @@ impl From<&dr_model::v3::Entry> for Entry {
                 .media
                 .iter()
                 .map(|(mid, items)| (mid.to_string(), items.iter().map(Into::into).collect()))
+                .collect(),
+            missing_files: BTreeMap::new(),
+            arrangements: v
+                .arrangements
+                .iter()
+                .map(|(m, a)| (m.to_string(), a.as_str().to_owned()))
                 .collect(),
             primary: v.primary.as_ref().map(ToString::to_string),
             created_at: v.created_at.map(|t| t.0),

@@ -415,6 +415,177 @@ fn a_todo_resolved_on_one_device_stays_resolved_when_another_projects_it_late() 
     }
 }
 
+fn task_id(ch: &Chapter, i: usize) -> String {
+    CommentId::for_projection(
+        &ProjectionKind::NoteTask,
+        &DocId::parse(&ch.doc).unwrap(),
+        &BlockId::parse(&ch.blocks[i]).unwrap(),
+    )
+    .to_string()
+}
+
+fn project_tasks(e: &Env, ch: &Chapter) -> Value {
+    e.call(
+        "comment.project",
+        json!({"doc": ch.doc, "markers": [], "tasks": []}),
+    )
+}
+
+fn task_comments(e: &Env, ch: &Chapter) -> Vec<Value> {
+    e.out(
+        "comment.list",
+        json!({"book": ch.book, "origin": "task", "target": {"kind": "entry", "id": ch.id}}),
+    )
+    .as_array()
+    .unwrap()
+    .clone()
+}
+
+fn task_comment(e: &Env, ch: &Chapter, i: usize) -> Option<Value> {
+    task_comments(e, ch)
+        .into_iter()
+        .find(|c| c["id"] == task_id(ch, i).as_str())
+}
+
+/// Whether paragraph `i` of `ch`'s prose is a ticked checklist item.
+fn ticked(e: &Env, ch: &Chapter, i: usize) -> bool {
+    let doc = DocId::parse(&ch.doc).unwrap();
+    let block = BlockId::parse(&ch.blocks[i]).unwrap();
+    e.ws()
+        .library()
+        .open_doc(&ch.doc, OpenDoc::Existing)
+        .unwrap()
+        .read(move |d| {
+            dr_doc::prose::BorrowedProse::new(d, &doc)
+                .unwrap()
+                .view()
+                .paragraphs()
+                .find(|p| p.id.as_ref() == Some(&block))
+                .is_some_and(|p| p.attrs.checked)
+        })
+        .unwrap()
+}
+
+/// A chapter whose first two paragraphs are checklist items.
+fn checklist(e: &Env, b: &str) -> Chapter {
+    let ch = chapter(e, b, "买灯芯\n问钟楼的年代\n普通的一段。");
+    let s = e.ws().prose_session(&ch.doc).unwrap();
+    for pos in [0, 4] {
+        s.edit(move |t| {
+            t.set_block_attrs(
+                pos,
+                &dr_model::prose::BlockAttrs {
+                    list: Some(dr_model::kind::ListKind::Task),
+                    ..Default::default()
+                },
+            )
+        })
+        .unwrap();
+    }
+    ch
+}
+
+/// DY fix 8 / step 8: every checklist item is a comment (origin `task`, its
+/// id from the line). The tick is the status both ways: a tick resolves, a
+/// resolve ticks (undoable), a reopen clears; the text follows the line, and
+/// a line that is gone takes its comment with it, resolved or not.
+#[test]
+fn checklist_items_are_comments_whose_tick_is_their_status_both_ways() {
+    let e = env();
+    let b = e.book();
+    let ch = checklist(&e, &b);
+    let o = project_tasks(&e, &ch);
+    let mut created: Vec<String> = o["output"]["created"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_owned())
+        .collect();
+    created.sort();
+    let mut want = vec![task_id(&ch, 0), task_id(&ch, 1)];
+    want.sort();
+    assert_eq!(created, want);
+    let first = task_comment(&e, &ch, 0).unwrap();
+    assert_eq!(
+        (&first["body"], &first["status"], &first["origin"]),
+        (&json!("买灯芯"), &json!("open"), &json!("task"))
+    );
+    // A tick in the prose resolves the item's comment.
+    let s = e.ws().prose_session(&ch.doc).unwrap();
+    s.edit(|t| t.set_checked(0, true)).unwrap();
+    project_tasks(&e, &ch);
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["status"], "resolved");
+    // Resolving a comment ticks its item; the object-level undo takes both back.
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": task_id(&ch, 1), "status": "resolved"}),
+    );
+    assert!(ticked(&e, &ch, 1));
+    assert_eq!(task_comment(&e, &ch, 1).unwrap()["status"], "resolved");
+    project_tasks(&e, &ch);
+    assert_eq!(task_comment(&e, &ch, 1).unwrap()["status"], "resolved");
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert!(!ticked(&e, &ch, 1));
+    assert_eq!(task_comment(&e, &ch, 1).unwrap()["status"], "open");
+    // Reopening clears the tick.
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": task_id(&ch, 0), "status": "open"}),
+    );
+    assert!(!ticked(&e, &ch, 0));
+    project_tasks(&e, &ch);
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["status"], "open");
+    // The text follows the line.
+    // 「问钟楼的年代」 is characters 4..10, its newline at 10.
+    s.edit(|t| t.insert_text(10, "和年月")).unwrap();
+    project_tasks(&e, &ch);
+    assert_eq!(
+        task_comment(&e, &ch, 1).unwrap()["body"],
+        "问钟楼的年代和年月"
+    );
+    // A resolved item whose line is gone: its comment goes too.
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": task_id(&ch, 1), "status": "resolved"}),
+    );
+    s.edit(|t| t.delete(4..14)).unwrap();
+    let o = project_tasks(&e, &ch);
+    assert_eq!(o["output"]["removed"], json!([task_id(&ch, 1)]));
+    assert!(task_comment(&e, &ch, 1).is_none());
+    assert!(task_comment(&e, &ch, 0).is_some());
+}
+
+/// Step 8: two devices projecting the same checklist item get one comment;
+/// a device that has the resolve but not yet the tick keeps it resolved.
+#[test]
+fn a_checklist_item_is_one_comment_on_every_device_and_a_late_tick_waits() {
+    let a = env();
+    let b_dev = env();
+    let b = a.book();
+    let ch = checklist(&a, &b);
+    sync(a.ws(), b_dev.ws());
+    project_tasks(&a, &ch);
+    project_tasks(&b_dev, &ch);
+    sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
+    sync_doc(b_dev.ws(), a.ws(), &format!("book:{b}"));
+    for dev in [&a, &b_dev] {
+        assert_eq!(task_comments(dev, &ch).len(), 2, "one comment per item");
+    }
+    // A resolves item 0 (ticking it); B gets the book before the prose.
+    a.call(
+        "comment.update",
+        json!({"book": b, "id": task_id(&ch, 0), "status": "resolved"}),
+    );
+    sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
+    let o = project_tasks(&b_dev, &ch);
+    assert_eq!(o["output"]["waiting"], json!([task_id(&ch, 0)]));
+    assert_eq!(task_comment(&b_dev, &ch, 0).unwrap()["status"], "resolved");
+    sync_doc(a.ws(), b_dev.ws(), &ch.doc);
+    project_tasks(&b_dev, &ch);
+    assert!(ticked(&b_dev, &ch, 0));
+    assert_eq!(task_comment(&b_dev, &ch, 0).unwrap()["status"], "resolved");
+}
+
 #[test]
 fn a_device_without_the_prose_yet_keeps_the_todo() {
     let a = env();

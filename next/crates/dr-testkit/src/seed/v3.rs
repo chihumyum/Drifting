@@ -5,7 +5,7 @@
 //! schema (`BookDocV3` + `body:<entry_id>/<module_id>` / `body:<entry_id>/mod-description`
 //! / `material:<id>` prose documents).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use dr_corpus::para::{self, Para};
 use dr_doc::loro_types::VersionVector;
@@ -13,9 +13,9 @@ use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_doc::side::{CheckpointsDoc, LayoutDoc, LayoutTxn, StatsDoc, StatsTxn};
 use dr_doc::v3::novel::{
-    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE, NovelRootEntries,
-    TPL_CATEGORY, TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA, TPL_IDEA_GROUP,
-    TPL_IDEAS, TPL_MANUSCRIPT, TPL_NOTE, TPL_STORYLINE, TPL_STORYLINES,
+    MOD_DESCRIPTION, MOD_FIELDS, MOD_KV, MOD_MEDIA, MOD_PATCHES, MOD_PLOT_GRID, MOD_PROSE,
+    NovelRootEntries, TPL_CATEGORY, TPL_CHAPTER, TPL_CHARACTER, TPL_ELEMENTS, TPL_GROUP, TPL_IDEA,
+    TPL_IDEA_GROUP, TPL_IDEAS, TPL_MANUSCRIPT, TPL_NOTE, TPL_STORYLINE, TPL_STORYLINES,
     novel_project_template_with, novel_project_templates,
 };
 use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, book_genesis};
@@ -25,7 +25,9 @@ use dr_model::import_v1::{MaterialKind, StorylineId};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, InlineStyle};
-use dr_model::shared::{BlockSnapshot, EntityRef, KvEntry, canonical_symmetric};
+use dr_model::shared::{
+    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, canonical_symmetric,
+};
 use dr_model::v3::*;
 use dr_model::{DocId, Origin, Timestamp};
 use dr_samples::WriteError;
@@ -88,8 +90,120 @@ pub struct SeededBookV3 {
     pub checkpoints: CheckpointsDoc,
     /// `layout:<book>`: board positions.
     pub layout: LayoutDoc,
+    /// The bytes of the files in the book's asset library (synthetic, from
+    /// [`crate::media`]), written into the library's store with the book.
+    pub files: Vec<SeedFile>,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: Counters,
+}
+
+/// One file of a seeded book's asset library: its id and the synthetic bytes
+/// it is stored with (`kernel-v5.md` §6 素材库).
+#[derive(Clone, Debug)]
+pub struct SeedFile {
+    pub id: AssetId,
+    pub kind: AssetKind,
+    pub mime: &'static str,
+    pub ext: &'static str,
+    pub width: u32,
+    pub height: u32,
+    pub bytes: Vec<u8>,
+}
+
+impl SeedFile {
+    /// A drawn map of `w` × `h` ([`crate::media::png`]).
+    pub fn image(id: &str, w: u32, h: u32) -> Self {
+        Self {
+            id: AssetId::parse(id).expect("valid asset id"),
+            kind: AssetKind::Image,
+            mime: "image/png",
+            ext: "png",
+            width: w,
+            height: h,
+            bytes: crate::media::png(w, h),
+        }
+    }
+
+    /// The three-page field notebook ([`crate::media::sample_pdf`]).
+    pub fn pdf(id: &str) -> Self {
+        let (w, h) = crate::media::A5;
+        Self {
+            id: AssetId::parse(id).expect("valid asset id"),
+            kind: AssetKind::Pdf,
+            mime: "application/pdf",
+            ext: "pdf",
+            width: w as u32,
+            height: h as u32,
+            bytes: crate::media::sample_pdf(),
+        }
+    }
+
+    /// Its record in the book's asset library.
+    pub fn record(&self, name: &str, deleted_at: Option<Timestamp>) -> Asset {
+        use sha2::{Digest, Sha256};
+        let image = self.kind == AssetKind::Image;
+        Asset {
+            id: self.id.clone(),
+            name: name.into(),
+            kind: self.kind.clone(),
+            mime: self.mime.into(),
+            size: self.bytes.len() as i64,
+            sha256: Sha256::digest(&self.bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+            width: image.then_some(i64::from(self.width)),
+            height: image.then_some(i64::from(self.height)),
+            created_at: Some(Timestamp(T0)),
+            folder: None,
+            pos: None,
+            deleted_at,
+            trashed_with: None,
+        }
+    }
+}
+
+/// Store the bytes of `b`'s files in `lib`'s asset store (the documents are
+/// [`write_book_v3`]'s). A library a person or a window opens wants both;
+/// a test of documents alone (sync counts, digests) writes only those, and
+/// the book's file records then read as "not on this device yet".
+pub fn write_book_files_v3(
+    lib: &dr_store::Library,
+    b: &SeededBookV3,
+) -> std::result::Result<usize, WriteError> {
+    store_files(lib, b.book_id(), &b.files)?;
+    Ok(b.files.len())
+}
+
+/// Store the source bytes of `files` for `book` (skipping one already there).
+fn store_files(
+    lib: &dr_store::Library,
+    book: &BookId,
+    files: &[SeedFile],
+) -> std::result::Result<(), WriteError> {
+    use dr_store::asset::{Variant, VariantBytes};
+    for f in files {
+        if lib.asset(f.id.as_str(), Variant::Source)?.is_some() {
+            continue;
+        }
+        let mut import = lib.begin_asset_import(book.as_str(), f.id.as_str())?;
+        let written = import.write_variant(
+            Variant::Source,
+            &VariantBytes {
+                bytes: f.bytes.clone(),
+                mime: f.mime.into(),
+                ext: f.ext.into(),
+                width: f.width,
+                height: f.height,
+            },
+        );
+        if let Err(e) = written {
+            let _ = import.abandon();
+            return Err(e.into());
+        }
+        import.commit()?;
+    }
+    Ok(())
 }
 
 impl SeededBookV3 {
@@ -125,6 +239,18 @@ impl SeededV3 {
         let mut written = 0;
         for b in &self.books {
             written += write_book_v3(lib, b)?;
+        }
+        Ok(written)
+    }
+
+    /// Store the bytes of every book's files ([`write_book_files_v3`]).
+    pub fn write_files_to(
+        &self,
+        lib: &dr_store::Library,
+    ) -> std::result::Result<usize, WriteError> {
+        let mut written = 0;
+        for b in &self.books {
+            written += write_book_files_v3(lib, b)?;
         }
         Ok(written)
     }
@@ -229,6 +355,8 @@ pub struct BuilderV3 {
     pub stats: StatsDoc,
     pub checkpoints: CheckpointsDoc,
     pub layout: LayoutDoc,
+    /// The bytes of the book's files (see [`SeededBookV3::files`]).
+    pub files: Vec<SeedFile>,
     groups: BTreeMap<&'static str, Vec<String>>,
     counters: Counters,
     clock: i64,
@@ -246,6 +374,7 @@ impl BuilderV3 {
             layout: LayoutDoc::create(book_id.clone(), import_peer(&layout_id))?,
             book: BookDocV3::create(book_id, import_peer(&doc_id))?,
             prose: Vec::new(),
+            files: Vec::new(),
             groups: BTreeMap::new(),
             counters: Counters::default(),
             clock: T0,
@@ -310,6 +439,7 @@ impl BuilderV3 {
             stats: self.stats,
             checkpoints: self.checkpoints,
             layout: self.layout,
+            files: self.files,
             groups: self.groups,
             counters: self.counters,
         }
@@ -411,6 +541,23 @@ fn init_text_materials_root(txn: &mut BookTxnV3<'_>, id: &EntryId) -> Result<()>
         accept: Some(false),
         ..Default::default()
     }))?;
+    // A left-bar tab of its own, as the import gives it.
+    let tab = TabId::parse(dr_samples::v3::TEXT_MATERIALS_TAB).expect("valid tab id");
+    let project = txn.view().project();
+    if !project.tabs.iter().any(|t| t.id == tab) {
+        let last = project
+            .tabs
+            .iter()
+            .filter_map(|t| t.pos.as_ref())
+            .max()
+            .cloned();
+        txn.project().put_tab(&ProjectTab {
+            id: tab,
+            name: "文本素材".into(),
+            pos: Some(last.map_or_else(PosKey::first, |p| p.after())),
+            mount: TabMount::Entry { entry: id.clone() },
+        })?;
+    }
     Ok(())
 }
 
@@ -431,6 +578,217 @@ fn ensure_plain_note_template(txn: &mut BookTxnV3<'_>) -> Result<EntryTemplateId
         txn.template(&id)?.set_full(&tpl)?;
     }
     Ok(id)
+}
+
+/// The template of the showcase's picture book: one media module.
+pub const TPL_SHOWCASE_GALLERY: &str = "tpl-showcase-gallery";
+
+/// Give the showcase's first book a filled asset library (`kernel-v5.md` §6,
+/// §7): a file nobody uses, one in Recently Deleted, two in a media module of
+/// an entry under 构想 (a map and the field notebook), a picture and the
+/// notebook embedded in the first two chapters, and comments on them: a
+/// region on the media module's map, a region on a PDF page, a region
+/// straight on the unused file, and one on the embedded picture. The library
+/// has folders: 「参考图」 (the unused file) holding 「东岸」 (the map), and
+/// 「废稿」 in Recently Deleted with the deleted file, trashed with it; the
+/// notebook and the plan are at the top. Synthetic bytes only
+/// ([`crate::media`]); T5 and T6 accept against it.
+pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
+    use dr_doc::prose::EmbedKind;
+    let book = b.book_id().clone();
+    let id = |kind: &str, i: usize| super::build::id(0, book.as_str(), kind, i);
+    let unused = SeedFile::image(&id("showcase-asset", 0), 360, 360);
+    let trashed = SeedFile::image(&id("showcase-asset", 1), 240, 140);
+    let map = SeedFile::image(&id("showcase-asset", 2), 640, 420);
+    let notebook = SeedFile::pdf(&id("showcase-asset", 3));
+    let plan = SeedFile::image(&id("showcase-asset", 4), 480, 320);
+    let (gallery, media_map, media_notes) = (
+        EntryId::parse(&id("showcase-gallery", 0)).expect("id"),
+        MediaItemId::parse(&id("showcase-media", 0)).expect("id"),
+        MediaItemId::parse(&id("showcase-media", 1)).expect("id"),
+    );
+    let (embed_plan, embed_notes) = (
+        EmbedId::parse(&id("showcase-embed", 0)).expect("id"),
+        EmbedId::parse(&id("showcase-embed", 1)).expect("id"),
+    );
+    let view = b.book.view();
+    let ideas = view
+        .root_entry_by_template(&tid(TPL_IDEAS))
+        .ok_or(DocError::NotInProfile("the showcase book has no 构想"))?
+        .id;
+    let structure = view.structure_snapshot();
+    let chapters: Vec<EntryId> = structure
+        .book_sequence()
+        .into_iter()
+        .map(|f| f.entry.id.clone())
+        .filter(|e| {
+            view.entry(e)
+                .is_some_and(|x| x.template.as_ref() == Some(&tid(TPL_CHAPTER)))
+        })
+        .take(2)
+        .collect();
+    if chapters.len() < 2 {
+        return Err(DocError::NotInProfile(
+            "the showcase book has fewer than two chapters",
+        ));
+    }
+    let embed_in =
+        |prose: &mut Vec<ProseDoc>, chapter: &EntryId, embed: &EmbedId, asset: &AssetId| {
+            let doc_id = body_doc_id(chapter.as_str(), MOD_PROSE);
+            let p = prose
+                .iter_mut()
+                .find(|p| p.doc_id() == &doc_id)
+                .ok_or(DocError::NotInProfile("a showcase chapter has no prose"))?;
+            let kind = EmbedKind::Asset(asset.clone());
+            let (r, _) = p.edit_at(Origin::Import, Some(T0), |t| {
+                t.insert_embed(0, embed, &kind).map(|_| ())
+            });
+            r
+        };
+    embed_in(&mut b.prose, &chapters[0], &embed_plan, &plan.id)?;
+    embed_in(&mut b.prose, &chapters[1], &embed_notes, &notebook.id)?;
+    let folder = |i: usize| AssetFolderId::parse(&id("showcase-folder", i)).expect("id");
+    let (refs, coast, scrap) = (folder(0), folder(1), folder(2));
+    let top = positions(3);
+    let first = PosKey::first();
+    let mut records = [
+        unused.record("海边参考.png", None),
+        trashed.record("旧草图.png", Some(Timestamp(T0))),
+        map.record("东岸全图.png", None),
+        notebook.record("潮汐笔记.pdf", None),
+        plan.record("钟楼平面.png", None),
+    ];
+    let places = [
+        (Some(&refs), &first),
+        (Some(&scrap), &first),
+        (Some(&coast), &first),
+        (None, &top[0]),
+        (None, &top[1]),
+    ];
+    for (a, (folder, pos)) in records.iter_mut().zip(places) {
+        a.folder = folder.cloned();
+        a.pos = Some(pos.clone());
+    }
+    let (r, _) = b.book.edit_at(Origin::Import, Some(T0), |t| {
+        let folders = positions(2);
+        t.asset_folder(&refs)?
+            .name("参考图")?
+            .pos(Some(&folders[0]))?;
+        t.asset_folder(&coast)?
+            .name("东岸")?
+            .parent(Some(&refs))?
+            .pos(Some(&first))?;
+        t.asset_folder(&scrap)?
+            .name("废稿")?
+            .pos(Some(&folders[1]))?
+            .deleted_at(Some(Timestamp(T0)))?;
+        for a in &records {
+            t.put_asset(a)?;
+        }
+        t.template(&tid(TPL_SHOWCASE_GALLERY))?
+            .set_full(&EntryTemplate {
+                id: tid(TPL_SHOWCASE_GALLERY),
+                name: "图集".into(),
+                mark: Some("image".into()),
+                color: None,
+                agent: None,
+                modules: vec![ModuleSpec::media(mid(MOD_MEDIA), "图")],
+                level: false,
+                linkable: false,
+                settings: LevelSettingsOverride::default(),
+                verbs: Vec::new(),
+                deleted_at: None,
+            })?;
+        let w = t.entries().create(
+            &gallery,
+            Some(&ideas),
+            "东岸图集",
+            Some(&tid(TPL_SHOWCASE_GALLERY)),
+            false,
+        )?;
+        let items = [
+            (&media_map, &map.id, "东岸全貌"),
+            (&media_notes, &notebook.id, "第四章用的潮汐表"),
+        ];
+        let pos = positions(items.len());
+        for (i, (item, asset, caption)) in items.iter().enumerate() {
+            w.put_media(
+                &mid(MOD_MEDIA),
+                &MediaItem {
+                    id: (*item).clone(),
+                    asset: (*asset).clone(),
+                    caption: (*caption).into(),
+                    pos: Some(pos[i].clone()),
+                },
+            )?;
+        }
+        let on = |t: &mut BookTxnV3<'_>,
+                  i: usize,
+                  target: EntityRef,
+                  module: Option<ModuleId>,
+                  part: CommentPart,
+                  body: &str|
+         -> Result<()> {
+            let c = CommentId::parse(&id("showcase-comment", i)).expect("id");
+            t.comment(&c)?
+                .origin(&CommentOrigin::Manual)?
+                .target(Some(&target))?
+                .module(module.as_ref())?
+                .part(Some(&part))?
+                .body(body)?
+                .status(&CommentStatus::Open)?
+                .created_at(Some(Timestamp(T0)))?;
+            Ok(())
+        };
+        let region = |page, x, y| MaterialRegion::new(page, x, y, 0.2, 0.15).expect("region");
+        on(
+            t,
+            0,
+            EntityRef::new(EntityKind::Entry, gallery.as_str()),
+            Some(mid(MOD_MEDIA)),
+            CommentPart::Media {
+                asset: map.id.clone(),
+                region: Some(region(None, 0.55, 0.3)),
+            },
+            "灯塔应该在北岬，不在这里",
+        )?;
+        on(
+            t,
+            1,
+            EntityRef::new(EntityKind::Entry, gallery.as_str()),
+            Some(mid(MOD_MEDIA)),
+            CommentPart::Media {
+                asset: notebook.id.clone(),
+                region: Some(region(Some(2), 0.1, 0.2)),
+            },
+            "这张潮汐表和第四章对不上",
+        )?;
+        on(
+            t,
+            2,
+            EntityRef::new(EntityKind::Asset, unused.id.as_str()),
+            None,
+            CommentPart::Region {
+                region: region(None, 0.3, 0.4),
+            },
+            "这块礁石可以写进第七章",
+        )?;
+        on(
+            t,
+            3,
+            EntityRef::new(EntityKind::Entry, chapters[0].as_str()),
+            Some(mid(MOD_PROSE)),
+            CommentPart::Embed {
+                embed: embed_plan.clone(),
+                region: None,
+            },
+            "平面图的门开错了方向",
+        )?;
+        Ok(())
+    });
+    r?;
+    b.files.extend([unused, trashed, map, notebook, plan]);
+    Ok(())
 }
 
 /// Write a synthetic [`Plan`] directly as v3 documents.
@@ -791,9 +1149,6 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 .created_at(Some(Timestamp(T0 + k as i64)))?
                 .updated_at(Some(Timestamp(T0 + k as i64)))?
                 .resolved_at(c.resolved.then_some(Timestamp(T0 + k as i64 + 60)))?;
-            if let Some(pr) = c.priority {
-                w.priority(Some(&CommentPriority::parse(pr)))?;
-            }
         }
         Ok(())
     })?;
@@ -833,7 +1188,19 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
         })?;
     }
 
+    reference_file(&mut b)?;
     Ok(b.finish())
+}
+
+/// One file in the asset library, used nowhere: every seeded book has it
+/// (the direct presets and the books converted from v2 alike, so the
+/// smallest one has a file too; `kernel-v5.md` §6 素材库).
+fn reference_file(b: &mut BuilderV3) -> Result<()> {
+    let book = b.book.book_id().clone();
+    let file = SeedFile::image(&super::build::id(0, book.as_str(), "v3-asset", 0), 320, 200);
+    let record = file.record("参考图", None);
+    b.files.push(file);
+    b.edit_book(|t| t.put_asset(&record))
 }
 
 /// Convert a v2.2 [`SeededBook`] (such as the sample books and showcase shelf)
@@ -1197,18 +1564,18 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             None
         };
         let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
-        let mut first_folder_by_asset: BTreeMap<&AssetId, String> = BTreeMap::new();
+        let files = dr_samples::v3::file_folders(&material_folders, &materials);
+        for f in &files.folders {
+            t.asset_folder(&f.id)?
+                .name(&f.name)?
+                .parent(f.parent.as_ref())?
+                .pos(f.pos.as_ref())?;
+        }
         for m in &materials {
             if let Some(asset) = &m.asset {
                 first_title_by_asset
                     .entry(asset)
                     .or_insert(m.title.as_str());
-                if !first_folder_by_asset.contains_key(asset)
-                    && let Some(fid) = &m.folder
-                    && let Some(path) = dr_samples::v3::material_folder_path(&material_folders, fid)
-                {
-                    first_folder_by_asset.insert(asset, path);
-                }
             }
             if m.kind == MaterialKind::Text {
                 let root_id = text_materials_root
@@ -1242,8 +1609,12 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                     .unwrap_or_default()
                     .to_string();
             }
-            if asset.folder.is_none() {
-                asset.folder = first_folder_by_asset.get(&asset.id).cloned();
+            if asset.folder.is_none()
+                && asset.pos.is_none()
+                && let Some((folder, pos)) = files.places.get(&asset.id)
+            {
+                asset.folder = folder.clone();
+                asset.pos = Some(pos.clone());
             }
             t.put_asset(&asset)?;
         }
@@ -1375,7 +1746,6 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .author_kind(&c.author_kind)?
                 .status(&c.status)?
                 .source(&c.source)?
-                .priority(c.priority.as_ref())?
                 .body(&c.body)?
                 .created_at(c.created_at)?
                 .updated_at(c.updated_at)?
@@ -1444,6 +1814,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             Ok(())
         })?;
     }
+    reference_file(&mut b)?;
     Ok(b.finish())
 }
 
@@ -1833,8 +2204,39 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         .filter(|e| !e.is_trashed() && e.is_level() && under_materials(e.parent.as_ref()))
         .map(|f| (f.id.to_string(), f.title.clone()))
         .collect();
-    let mut materials: Vec<Value> = entries
-        .iter()
+    // The notes in their order on the tree (the order is part of what is
+    // compared, not a title sort), then the files in id order.
+    let structure = v.structure_snapshot();
+    let mut in_order: Vec<&Entry> = Vec::new();
+    let mut seen_notes: BTreeSet<EntryId> = BTreeSet::new();
+    let mut stack: Vec<EntryId> = Vec::new();
+    if let Some(root) = &mat_root {
+        stack.extend(
+            structure
+                .children_of(Some(root))
+                .iter()
+                .rev()
+                .map(|c| c.id.clone()),
+        );
+    }
+    // Pre-order: an entry, then what lives under it, siblings in their order.
+    while let Some(at) = stack.pop() {
+        if !seen_notes.insert(at.clone()) {
+            continue;
+        }
+        if let Some(e) = entries.iter().find(|e| e.id == at) {
+            in_order.push(e);
+        }
+        stack.extend(
+            structure
+                .children_of(Some(&at))
+                .iter()
+                .rev()
+                .map(|c| c.id.clone()),
+        );
+    }
+    let mut materials: Vec<Value> = in_order
+        .into_iter()
         .filter(|e| !e.is_trashed() && !e.is_level() && under_materials(e.parent.as_ref()))
         .map(|m| {
             let folder = m.parent.as_ref().and_then(|f| folders.get(f.as_str()));
@@ -1853,7 +2255,9 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             }))
         })
         .collect::<std::result::Result<_, String>>()?;
-    for a in v.assets() {
+    let mut files = v.assets();
+    files.sort_by(|a, b| a.id.cmp(&b.id));
+    for a in files {
         materials.push(json!({
             "title": a.name,
             "kind": a.kind.as_str(),
@@ -1862,7 +2266,6 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             "body": Value::Null,
         }));
     }
-    materials.sort_by_key(|m| (m["title"].to_string(), m["folder"].to_string()));
 
     let mut comments: Vec<Value> = v
         .comments()
@@ -1871,7 +2274,6 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
             json!({
                 "origin": c.origin.as_str(),
                 "status": c.status.as_str(),
-                "priority": c.priority.as_ref().map(|p| p.as_str().to_string()),
                 "target": c.target.as_ref().map(|t| names.entity(t)),
                 "quote": c.quote,
                 "snapshots": c.snapshots.iter().map(|s| s.text.clone()).collect::<Vec<_>>(),

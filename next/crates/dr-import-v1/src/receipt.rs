@@ -93,8 +93,9 @@ pub struct AnchorRecord {
     pub cursor: bool,
 }
 
-/// A 0.1 `entityLink` pointing to an image or PDF material that became plain
-/// text because assets are not entries (`kernel-v5.md` §13).
+/// A 0.1 `entityLink` pointing to an image or PDF material that has no file:
+/// there is nothing to link to, so the words stay as plain text
+/// (`kernel-v5.md` §13; a link to a material with a file points at it).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlinkedAssetLink {
@@ -103,6 +104,52 @@ pub struct UnlinkedAssetLink {
     pub material_id: String,
     pub material_title: String,
     pub text: String,
+}
+
+/// Words on a 0.1 material that the book has no place for (`kernel-v5.md`
+/// §15 第 19 条: a file has no description of its own, a note has one
+/// prose): listed for the author, the original kept in `import_original`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaterialText {
+    pub material_id: String,
+    pub material_title: String,
+    /// `text`, `image` or `pdf`.
+    pub kind: String,
+    /// The material's description, as plain text (empty when none).
+    pub description: String,
+    /// A text material's provenance, as 0.1 stored it (JSON), if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<String>,
+}
+
+/// Something of the 0.1 materials that has no counterpart in the new book.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum MaterialDropped {
+    /// A material folder that held nothing (no material, no folder with one).
+    EmptyFolder { folder_id: String, name: String },
+    /// An image or PDF material whose file is not in the 0.1 library: its
+    /// title, and the relations that pointed at it.
+    WithoutFile {
+        material_id: String,
+        material_title: String,
+        relations: Vec<String>,
+    },
+    /// A material of a kind this version does not know.
+    UnknownKind {
+        material_id: String,
+        material_title: String,
+        material_kind: String,
+    },
+    /// A second material on the same file: one file in the library, named
+    /// after the first; this one's title is not kept.
+    SameFile {
+        material_id: String,
+        material_title: String,
+        kept_title: String,
+        asset_id: String,
+    },
 }
 
 /// One book.
@@ -138,6 +185,13 @@ pub struct BookRecord {
     pub material_assets: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub non_text_materials: BTreeMap<String, String>,
+    /// Descriptions and provenance the book has no place for, material by
+    /// material (where they go is the author's to decide).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub material_texts: Vec<MaterialText>,
+    /// What of the 0.1 materials did not come over, one line each.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub materials_dropped: Vec<MaterialDropped>,
 }
 
 /// Everything one import did.
@@ -450,6 +504,7 @@ fn explain(key: &str) -> Option<&'static str> {
         }
         "template-unreadable" => "有模板读不出来，没有导入（旧的字段原样留着）",
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
+        "comment-priority-dropped" => "批注的优先级没有导入（批注不再分优先级）",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
         "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
         "act-binding-shared-idea-split" => {
@@ -459,7 +514,7 @@ fn explain(key: &str) -> Option<&'static str> {
             "幕绑定的构想在默认时间线视图里原本就有位置，保留了原位置而未用幕跨度覆盖"
         }
         "entity-link-to-asset-kept-as-text" => {
-            "正文中指向图片或 PDF 素材的链接已转为普通文字（文件进素材库，不再是条目），逐条列在下方"
+            "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方"
         }
         _ => return None,
     })
@@ -582,12 +637,78 @@ pub fn summary_zh(r: &Receipt) -> String {
             s.push('\n');
         }
         if !b.unlinked_asset_links.is_empty() {
-            s.push_str("已转为普通文字的图片 / PDF 素材链接明细：\n\n");
+            s.push_str("已转为普通文字的图片 / PDF 素材链接明细（素材没有文件）：\n\n");
             for item in &b.unlinked_asset_links {
                 s.push_str(&format!(
                     "- `{}` 中「{}」→ 原素材「{}」（`{}`）\n",
                     item.old_doc_id, item.text, item.material_title, item.material_id
                 ));
+            }
+            s.push('\n');
+        }
+        if !b.material_texts.is_empty() {
+            s.push_str(
+                "旧版素材上的说明和出处，书里暂时没有地方放（文件没有自己的说明，笔记只有一篇正文），原文记在回执里：\n\n",
+            );
+            for t in &b.material_texts {
+                s.push_str(&format!(
+                    "- 「{}」（`{}`）",
+                    t.material_title, t.material_id
+                ));
+                if !t.description.is_empty() {
+                    s.push_str(&format!("：说明「{}」", t.description));
+                }
+                if let Some(p) = &t.provenance {
+                    s.push_str(&format!("；出处 `{p}`"));
+                }
+                s.push('\n');
+            }
+            s.push('\n');
+        }
+        if !b.materials_dropped.is_empty() {
+            s.push_str("旧版素材里没有带过来的：\n\n");
+            for d in &b.materials_dropped {
+                let line = match d {
+                    MaterialDropped::EmptyFolder { folder_id, name } => {
+                        format!("空的素材夹「{name}」（`{folder_id}`）")
+                    }
+                    MaterialDropped::WithoutFile {
+                        material_id,
+                        material_title,
+                        relations,
+                    } => {
+                        let mut l =
+                            format!("没有文件的素材「{material_title}」（`{material_id}`）");
+                        if !relations.is_empty() {
+                            l.push_str(&format!(
+                                "，连同指向它的 {} 条关系（{}）",
+                                relations.len(),
+                                relations
+                                    .iter()
+                                    .map(|r| format!("`{r}`"))
+                                    .collect::<Vec<_>>()
+                                    .join("、")
+                            ));
+                        }
+                        l
+                    }
+                    MaterialDropped::UnknownKind {
+                        material_id,
+                        material_title,
+                        material_kind,
+                    } => format!(
+                        "不认识种类（`{material_kind}`）的素材「{material_title}」（`{material_id}`）"
+                    ),
+                    MaterialDropped::SameFile {
+                        material_id,
+                        material_title,
+                        kept_title,
+                        ..
+                    } => format!(
+                        "和「{kept_title}」是同一个文件的素材「{material_title}」（`{material_id}`）：素材库里只有一份，用了前者的名字"
+                    ),
+                };
+                s.push_str(&format!("- {line}\n"));
             }
             s.push('\n');
         }

@@ -4,6 +4,14 @@
 
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
 
+## 数据层第八步：素材夹、指向文件的链接、清单待办（DY，2026-11-15）
+
+大白话：0.1 里装图片和 PDF 的素材夹，现在在素材库里重建成同名、同样套着的素材夹，图和 PDF 住进去（以前只记一串「原素材夹路径」）；正文里指向图片和 PDF 的链接导成指向那个文件的链接（以前变成普通文字），只有素材本身没有文件的才变成普通文字、逐条记在回执里；批注上的优先级不带过来；清单项不再链到待办，行自己的勾留着，0.1 里状态和勾对不上的以勾为准。
+
+- 映射在 `dr_samples::v3::file_folders`（素材夹 id、名字、上下级、先后照 0.1；文件住进它第一个有素材夹的素材那一个），导入和 `dr_testkit::seed` 共用；装笔记的素材夹照旧变成「文本素材」下面的层级，两样都有的两边各建一个。
+- 回执新增三条说明：`comment-priority-dropped`（有说明文字）、`task-todo-link-replaced-by-projection`、`task-status-follows-tick`；`unlinked_asset_links` 只列素材没有文件的那几处，`summary.md` 的明细标题跟着改。
+- 测试：`dr-import-v1/tests/v3_import.rs` 的 `step8_asset_library_imports_folders_direct_comments_relations_and_file_links`（原来的 `step7_…_unlinks_prose` 改写：断言素材夹、文件住处、指向图片的链接、没有文件的那一处、不带优先级）和 `a_checklist_todo_whose_state_disagrees_with_its_tick_imports_as_the_tick`；`tests/import.rs` 与 `src/prose/{plan,mod}.rs` 里断言「任务行链到待办、没有自己的勾」「批注带优先级」的旧断言照新规则换掉。
+
 ## 内核 v4：统一条目导入收尾（T4，2026-11-13）
 
 ### 做了什么（大白话）

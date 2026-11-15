@@ -2,6 +2,12 @@
 
 2026-11-08，第一个里程碑；同一天第二个里程碑（来源悬停卡、多行输入、全书视图里写批注，见[下面](#第二个里程碑)）和第三个里程碑（来源卡挪到卡旁边、加「原文」，见[下面](#第三个里程碑)）。计划见 [modules.md 的 M18](../modules.md)。审阅标签和批注撰写框在新 crate `next/crates/dr-view-review/`；正文上的那一半（批注砂笔、TODO 关键字、滚动条刻度、`TODO:` 投成 TODO、撤销后重新锚定）在 `dr-editor` 的 `decor` 模块，写在 [f4d-render.md 的第二轮](../foundations/f4d-render.md#第二轮接进-drifting)。两边通过 `dr_editor::decor::ReviewFocus` 说话。外壳里挂了七处，逐条列在下面。
 
+## 数据层第八步：去掉优先级、清单项都是批注、整条目和整模块的批注（DY，2026-11-15）
+
+大白话：批注没有优先级了；任何条目正文里的清单项各是一条批注，正文打勾就是解决、解决就是正文打勾（撤销一步回来），改字跟着改，删掉那一行批注跟着删；能对整个条目、整个模块写批注；媒体模块里的区域批注按文件指。界面还没按新的样子做（T6），这里只去掉了写入和卡片上的优先级，编辑框按文件写区域批注。
+
+- 测试：`dr-workspace/tests/editor.rs` 的 `checklist_items_are_comments_whose_tick_is_their_status_both_ways`、`a_checklist_item_is_one_comment_on_every_device_and_a_late_tick_waits`，`tests/commands.rs` 的 `comments_on_a_whole_entry_and_a_whole_module_persist`；`comments_with_anchors_and_metadata` 原来断言优先级照存，改成断言列出来的批注没有优先级。
+
 ## 做了什么（大白话）
 
 1. **右栏「审阅」标签有内容了。** 上面一排三选一（全部 / 批注 / TODO），右边一个「当前」开关：开着列直接附着于当前对象或经通用关联指向它的批注/TODO（本轮收尾补齐后者），关着列全书的。下面按位置分组：每一章、每条构想、每个要素一组，组名是它的标题；最新的那条所在的组排最前，组里最新的在上；没挂在任何东西上的排在后面（「未挂载」），挂的东西已经删了的单独一组（「已删除」）。已解决的折在最底下「已解决（n）」里，点开才列。

@@ -39,21 +39,24 @@ pub struct MaterialFacts {
     pub picture: Option<PathBuf>,
 }
 
-/// Asset `id`'s name, if it is in the book.
-pub(crate) fn title_of(host: &NoteHost, id: &str) -> Option<String> {
-    let list = host
+/// Asset `id`'s record alone (no usages: one embed does not scan the book),
+/// if it is a live file of the book.
+fn record_of(host: &NoteHost, id: &str) -> Option<serde_json::Value> {
+    let got = host
         .ws
         .call(
             &dr_workspace::Actor::User,
-            "asset.list",
-            json!({ "book": host.book }),
+            "asset.get",
+            json!({ "book": host.book, "id": id, "usages": false }),
         )
         .ok()?;
-    list["output"]
-        .as_array()?
-        .iter()
-        .find(|m| m["id"].as_str() == Some(id))
-        .and_then(|m| m["name"].as_str().map(str::to_owned))
+    let record = got["output"].clone();
+    record["deleted_at"].is_null().then_some(record)
+}
+
+/// Asset `id`'s name, if it is in the book.
+pub(crate) fn title_of(host: &NoteHost, id: &str) -> Option<String> {
+    record_of(host, id).and_then(|m| m["name"].as_str().map(str::to_owned))
 }
 
 /// One embedded asset.
@@ -92,20 +95,7 @@ impl MaterialBlock {
 
     fn look_up(&self) -> Option<MaterialFacts> {
         let id = self.material.as_ref()?;
-        let list = self
-            .host
-            .ws
-            .call(
-                &dr_workspace::Actor::User,
-                "asset.list",
-                json!({ "book": self.host.book }),
-            )
-            .ok()?;
-        let m = list["output"]
-            .as_array()?
-            .iter()
-            .find(|m| m["id"].as_str() == Some(id.as_str()))?
-            .clone();
+        let m = record_of(&self.host, id.as_str())?;
         let kind = m["kind"].as_str().unwrap_or("image").to_owned();
         let asset = m["id"].as_str();
         let path = |variant: Variant| {

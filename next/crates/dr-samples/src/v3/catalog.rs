@@ -15,6 +15,10 @@ use dr_model::v3::*;
 
 use super::*;
 
+/// The left-bar tab an import gives the 「文本素材」 level (one per book, so a
+/// replayed catalog finds it again).
+pub const TEXT_MATERIALS_TAB: &str = "tab-text-materials";
+
 pub(crate) fn invalid(message: impl Into<String>) -> DocError {
     DocError::Loro(loro::LoroError::ArgErr(message.into().into()))
 }
@@ -225,36 +229,91 @@ fn restrictions(kinds: &[EntityKind]) -> Vec<EntityKind> {
     out.into_iter().collect()
 }
 
-/// Join ancestor 0.1 `material_folder` names with `/` (`kernel-v5.md` §13).
-pub fn material_folder_path(
+/// The asset library's folders and the files' places, rebuilt from 0.1
+/// (`kernel-v5.md` §6, §13): every material folder that holds an image or a
+/// PDF, directly or through its child folders, becomes an asset folder with
+/// the same id, name and nesting, in the source order; a file lives in the
+/// folder of its first material that has one, in the materials' order. A
+/// folder holding notes as well is rebuilt here and as a level under
+/// 「文本素材」 alike.
+#[derive(Debug, Default)]
+pub struct FileFolders {
+    pub folders: Vec<dr_model::shared::AssetFolder>,
+    pub places: BTreeMap<AssetId, (Option<AssetFolderId>, PosKey)>,
+}
+
+pub fn file_folders(
     folders: &[dr_model::import_v1::MaterialFolder],
-    folder_id: &dr_model::import_v1::MaterialFolderId,
-) -> Option<String> {
-    let by_id: BTreeMap<
-        &dr_model::import_v1::MaterialFolderId,
-        &dr_model::import_v1::MaterialFolder,
-    > = folders.iter().map(|f| (&f.id, f)).collect();
-    let mut parts = Vec::new();
-    let mut cur = Some(folder_id);
-    let mut seen = BTreeSet::new();
-    while let Some(fid) = cur {
-        let Some(f) = by_id.get(fid) else {
-            break;
+    materials: &[dr_model::import_v1::Material],
+) -> FileFolders {
+    use dr_model::import_v1::{MaterialFolder, MaterialFolderId};
+    let by_id: BTreeMap<&MaterialFolderId, &MaterialFolder> =
+        folders.iter().map(|f| (&f.id, f)).collect();
+    let folder_id = |f: &MaterialFolderId| AssetFolderId::parse(f.as_str()).ok();
+    let mut wanted: BTreeSet<&MaterialFolderId> = BTreeSet::new();
+    let mut first: BTreeMap<&AssetId, Option<&MaterialFolderId>> = BTreeMap::new();
+    for m in materials.iter().filter(|m| m.kind != MaterialKind::Text) {
+        let Some(asset) = &m.asset else {
+            continue;
         };
-        if !seen.insert(fid.clone()) {
-            break;
+        let folder = m
+            .folder
+            .as_ref()
+            .filter(|f| by_id.contains_key(f) && folder_id(f).is_some());
+        match first.get(asset) {
+            Some(Some(_)) => continue,
+            Some(None) if folder.is_none() => continue,
+            _ => {}
         }
-        if !f.name.is_empty() {
-            parts.push(f.name.as_str());
+        first.insert(asset, folder);
+    }
+    for folder in first.values().flatten() {
+        let mut cur = Some(*folder);
+        while let Some(fid) = cur {
+            if !wanted.insert(fid) {
+                break;
+            }
+            cur = by_id.get(fid).and_then(|f| f.parent.as_ref());
         }
-        cur = f.parent.as_ref();
     }
-    if parts.is_empty() {
-        None
-    } else {
-        parts.reverse();
-        Some(parts.join("/"))
+    fn next_key<K: Ord + Clone>(last: &mut BTreeMap<K, PosKey>, at: &K) -> PosKey {
+        let key = last.get(at).map_or_else(PosKey::first, PosKey::after);
+        last.insert(at.clone(), key.clone());
+        key
     }
+    let mut out = FileFolders::default();
+    let mut last_folder: BTreeMap<Option<AssetFolderId>, PosKey> = BTreeMap::new();
+    for f in folders.iter().filter(|f| wanted.contains(&f.id)) {
+        let Some(id) = folder_id(&f.id) else {
+            continue;
+        };
+        let parent = f
+            .parent
+            .as_ref()
+            .filter(|p| wanted.contains(p))
+            .and_then(folder_id);
+        out.folders.push(dr_model::shared::AssetFolder {
+            id,
+            name: f.name.clone(),
+            pos: Some(next_key(&mut last_folder, &parent)),
+            parent,
+            deleted_at: None,
+            trashed_with: None,
+        });
+    }
+    let mut last_file: BTreeMap<Option<AssetFolderId>, PosKey> = BTreeMap::new();
+    for m in materials.iter().filter(|m| m.kind != MaterialKind::Text) {
+        let Some(asset) = &m.asset else {
+            continue;
+        };
+        if out.places.contains_key(asset) {
+            continue;
+        }
+        let folder = first.get(asset).copied().flatten().and_then(folder_id);
+        let pos = next_key(&mut last_file, &folder);
+        out.places.insert(asset.clone(), (folder, pos));
+    }
+    out
 }
 
 /// Every 0.1 `material_folder` holding a text material directly or via child
@@ -873,6 +932,28 @@ pub fn sync_catalog(
         }
     }
     entries.finish()?;
+    // The author's notes have a left-bar tab of their own, or they would be
+    // hard to find after the import (`kernel-v5.md` 「替作者定的」).
+    if let Some(text_root) = &text_materials_root {
+        let id = TabId::parse(TEXT_MATERIALS_TAB).expect("valid tab id");
+        let project = txn.view().project();
+        if !project.tabs.iter().any(|t| t.id == id) {
+            let last = project
+                .tabs
+                .iter()
+                .filter_map(|t| t.pos.as_ref())
+                .max()
+                .cloned();
+            txn.project().put_tab(&ProjectTab {
+                id,
+                name: "文本素材".into(),
+                pos: Some(last.map_or_else(PosKey::first, |p| p.after())),
+                mount: TabMount::Entry {
+                    entry: text_root.clone(),
+                },
+            })?;
+        }
+    }
 
     for m in txn.view().memberships_raw() {
         txn.remove_membership(&m.host, &m.member)?;
@@ -1044,20 +1125,28 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
     let materials_by_id: BTreeMap<&str, &dr_model::import_v1::Material> =
         materials.iter().map(|m| (m.id.as_str(), m)).collect();
     let mut first_title_by_asset: BTreeMap<&AssetId, &str> = BTreeMap::new();
-    let mut first_folder_by_asset: BTreeMap<&AssetId, String> = BTreeMap::new();
     for m in &materials {
-        if let Some(asset) = &m.asset {
-            if !m.title.is_empty() {
-                first_title_by_asset
-                    .entry(asset)
-                    .or_insert(m.title.as_str());
-            }
-            if let Some(fid) = &m.folder
-                && let Some(path) = material_folder_path(&folders, fid)
-            {
-                first_folder_by_asset.entry(asset).or_insert(path);
-            }
+        if let Some(asset) = &m.asset
+            && !m.title.is_empty()
+        {
+            first_title_by_asset
+                .entry(asset)
+                .or_insert(m.title.as_str());
         }
+    }
+    let files = file_folders(&folders, &materials);
+    let wanted_folders: BTreeSet<_> = files.folders.iter().map(|f| f.id.clone()).collect();
+    for old in txn.view().asset_folders_raw() {
+        if !wanted_folders.contains(&old.id) {
+            txn.purge(dr_doc::v3::CollectionV3::AssetFolders, old.id.as_str())?;
+        }
+    }
+    for f in &files.folders {
+        txn.asset_folder(&f.id)?
+            .name(&f.name)?
+            .parent(f.parent.as_ref())?
+            .pos(f.pos.as_ref())?
+            .deleted_at(f.deleted_at)?;
     }
     let wanted_assets: BTreeSet<_> = source.assets().into_iter().map(|a| a.id).collect();
     for old in txn.view().assets_raw() {
@@ -1073,13 +1162,18 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
                 .unwrap_or_default()
                 .to_string();
         }
-        if asset.folder.is_none() {
-            asset.folder = first_folder_by_asset.get(&asset.id).cloned();
+        if asset.folder.is_none()
+            && asset.pos.is_none()
+            && let Some((folder, pos)) = files.places.get(&asset.id)
+        {
+            asset.folder = folder.clone();
+            asset.pos = Some(pos.clone());
         }
         txn.put_asset(&asset)?;
         txn.asset(&asset.id)?
             .name(&asset.name)?
-            .folder(asset.folder.as_deref())?
+            .folder(asset.folder.as_ref())?
+            .pos(asset.pos.as_ref())?
             .deleted_at(asset.deleted_at)?;
     }
 
@@ -1241,7 +1335,6 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .author_name(comment.author_name.as_deref())?
             .body(&comment.body)?
             .status(&comment.status)?
-            .priority(comment.priority.as_ref())?
             .source(&comment.source)?
             .metadata(comment.metadata.as_deref())?
             .agent_conversation(comment.agent_conversation.as_deref())?

@@ -101,12 +101,51 @@ pub struct Asset {
     /// When the file was added to the asset library.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<Timestamp>,
-    /// Original 0.1 material folder path recorded during import, if any.
+    /// The asset-library folder (素材夹) it is in (`None`: the top).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub folder: Option<String>,
+    pub folder: Option<AssetFolderId>,
+    /// Its place among the files of its folder (manual order).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pos: Option<PosKey>,
     /// Set when trashed from the asset library; bytes stay until purged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<Timestamp>,
+    /// The folder whose trashing took it to Recently Deleted (restoring that
+    /// folder brings it back); `None` when it was trashed on its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_with: Option<AssetFolderId>,
+}
+
+/// A folder (素材夹) of the asset library (`asset_folders`, `kernel-v5.md`
+/// §6 & §10): folders nest, in manual order. Trashing one trashes what is in
+/// it in the same commit, each marked `trashed_with` that folder, which is
+/// how restoring the folder knows what went with it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetFolder {
+    pub id: AssetFolderId,
+    pub name: String,
+    /// The folder it is in (`None`: the top of the library).
+    #[serde(default)]
+    pub parent: Option<AssetFolderId>,
+    #[serde(default)]
+    pub pos: Option<PosKey>,
+    #[serde(default)]
+    pub deleted_at: Option<Timestamp>,
+    /// The folder whose trashing took it to Recently Deleted (`None`: it was
+    /// trashed on its own, or is live).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_with: Option<AssetFolderId>,
+}
+
+impl AssetFolder {
+    pub fn is_trashed(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+}
+
+/// Sort asset folders (or files) of one folder by position key, ties by id.
+pub fn sort_asset_folders(folders: &mut [AssetFolder]) {
+    folders.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
 }
 
 impl Asset {

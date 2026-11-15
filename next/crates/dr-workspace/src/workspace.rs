@@ -1432,6 +1432,28 @@ impl Workspace {
         ))
     }
 
+    /// The file embeds `body:<entry>/<module>` holds now, for marking the
+    /// comments on an embed that is gone as not located
+    /// (`dr_doc::v3::BookViewV3::comments_with_embeds`). `None` when that
+    /// prose is not in this library.
+    pub fn prose_file_embeds(
+        &self,
+        entry: &dr_model::id::EntryId,
+        module: &dr_model::id::ModuleId,
+    ) -> Option<std::collections::HashSet<dr_model::id::EmbedId>> {
+        let doc = DocId::Body(dr_model::id::BodyDocId::new(entry.clone(), module.clone()));
+        self.library().doc_info(&doc.to_string()).ok()??;
+        let slot = self.prose_slot(&doc).ok()?;
+        let view = slot.reader.view();
+        Some(
+            view.embed_refs()
+                .into_iter()
+                .map(|(_, e)| e)
+                .filter(|e| matches!(view.embed(e), Some(dr_doc::prose::EmbedView::Asset { .. })))
+                .collect(),
+        )
+    }
+
     /// Read a canonical v3 book document and its committed frontier version
     /// together in a single holder read job. Rejects non-v3 books without
     /// modifying them.

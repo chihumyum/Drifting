@@ -33,6 +33,7 @@ pub(super) fn new_entry(
         fields: BTreeMap::new(),
         kv: BTreeMap::new(),
         media: BTreeMap::new(),
+        arrangements: BTreeMap::new(),
         primary: None,
         created_at: Some(now()),
         updated_at: None,
@@ -41,18 +42,65 @@ pub(super) fn new_entry(
     }
 }
 
-pub(super) fn mark_missing_media(entry: &mut types::Entry, known_assets: &BTreeSet<String>) {
-    for items in entry.media.values_mut() {
-        for item in items {
-            item.missing = !known_assets.contains(&item.asset);
+/// What readers need to show a file that is gone as a placeholder: the live
+/// files of the book, and every template's image fields.
+pub(super) struct Files {
+    pub(super) live: BTreeSet<String>,
+    images: BTreeMap<String, BTreeSet<(String, String)>>,
+}
+
+impl Files {
+    pub(super) fn of(v: &BookViewV3<'_>) -> Self {
+        Self {
+            live: v.assets().into_iter().map(|a| a.id.to_string()).collect(),
+            images: crate::commands::asset::image_fields(&v.templates_map()),
         }
     }
+
+    /// Image fields of `module` on an entry of `template` whose file is gone.
+    pub(super) fn missing_fields(
+        &self,
+        template: Option<&str>,
+        module: &str,
+        values: &BTreeMap<String, types::FieldValue>,
+    ) -> Vec<String> {
+        let Some(images) = template.and_then(|t| self.images.get(t)) else {
+            return Vec::new();
+        };
+        values
+            .iter()
+            .filter(|(field, value)| {
+                images.contains(&(module.to_owned(), (*field).clone()))
+                    && matches!(value, types::FieldValue::Text(s) if !self.live.contains(s))
+            })
+            .map(|(field, _)| field.clone())
+            .collect()
+    }
+}
+
+pub(super) fn mark_missing_media(entry: &mut types::Entry, files: &Files) {
+    for items in entry.media.values_mut() {
+        for item in items {
+            item.missing = !files.live.contains(&item.asset);
+        }
+    }
+    entry.missing_files = entry
+        .fields
+        .iter()
+        .map(|(module, values)| {
+            (
+                module.clone(),
+                files.missing_fields(entry.template.as_deref(), module, values),
+            )
+        })
+        .filter(|(_, fields)| !fields.is_empty())
+        .collect();
     if let Some(b) = &mut entry.below {
         for child in b.children.iter_mut().flatten() {
-            mark_missing_media(child, known_assets);
+            mark_missing_media(child, files);
         }
         for member in b.members.iter_mut().flatten() {
-            mark_missing_media(member, known_assets);
+            mark_missing_media(member, files);
         }
     }
 }
@@ -112,8 +160,7 @@ op! {
     fn(cx, input: ListIn) -> Vec<types::Entry> {
         let slot = cx.book_v3(&input.book)?;
         let view = slot.reader_v3.view();
-        let known_assets: BTreeSet<String> =
-            view.assets().into_iter().map(|a| a.id.to_string()).collect();
+        let files = Files::of(&view);
         let v = view.structure_snapshot();
         let p: Option<EntryId> = input
             .parent
@@ -133,7 +180,7 @@ op! {
                     if input.below {
                         out.below = below(&v, &e.id);
                     }
-                    mark_missing_media(&mut out, &known_assets);
+                    mark_missing_media(&mut out, &files);
                     out
                 })
                 .collect(),
@@ -149,14 +196,13 @@ op! {
         let e = view
             .entry(&id)
             .ok_or_else(|| WsError::not_found("entry", &input.id))?;
-        let known_assets: BTreeSet<String> =
-            view.assets().into_iter().map(|a| a.id.to_string()).collect();
+        let files = Files::of(&view);
         let mut out: types::Entry = (&e).into();
         let snap = view.structure_snapshot();
         if e.has_below(snap.templates_map()) && !e.is_trashed() {
             out.below = below(&snap, &id);
         }
-        mark_missing_media(&mut out, &known_assets);
+        mark_missing_media(&mut out, &files);
         Ok(out)
     }
 }

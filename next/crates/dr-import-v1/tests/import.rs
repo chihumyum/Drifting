@@ -336,7 +336,8 @@ fn a_handed_off_library_imports_completely() {
         text_at(&chapter_doc, bc.anchor.as_ref().unwrap()),
         "引文第一段\n引文第二段"
     );
-    assert_eq!(bc.priority, Some(CommentPriority::High));
+    // Format 5: a comment has no priority; the report says it was dropped.
+    assert_eq!(r.books[0].notes.0.get("comment-priority-dropped"), Some(&1));
     let t = v.comment(&note_todo).unwrap();
     assert_eq!(t.origin, dr_model::kind::CommentOrigin::Task);
     assert_eq!(t.projection.as_ref().map(|p| p.block.as_str()), Some("tp1"));
@@ -400,6 +401,21 @@ fn a_handed_off_library_imports_completely() {
                 && e.title == "文本素材"
         })
         .unwrap();
+    // The level has a left-bar tab of its own, after the template's four
+    // (DY fix 16): the author finds the notes after the import.
+    let tabs = {
+        let mut t = v.project().tabs;
+        dr_model::v3::sort_project_tabs(&mut t);
+        t
+    };
+    assert_eq!(tabs.len(), 5);
+    assert_eq!(tabs[4].name, "文本素材");
+    assert_eq!(
+        tabs[4].mount,
+        dr_model::v3::TabMount::Entry {
+            entry: text_materials_root.id.clone()
+        }
+    );
     let folder = v.entry(&EntryId::parse(FOLDER).unwrap()).unwrap();
     assert_eq!(folder.parent.as_ref(), Some(&text_materials_root.id));
     let note = v.entry(&EntryId::parse(NOTE).unwrap()).unwrap();
@@ -465,7 +481,10 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(chapter_doc.view().entity_links()[0].1.target, ELEMENT);
     let note_prose = prose_doc(&lib, &format!("body:{NOTE}/mod-prose"));
     let np: Vec<_> = note_prose.view().paragraphs().collect();
-    assert_eq!(np[0].attrs.todo.as_ref(), Some(&note_todo));
+    // Format 5: the line carries no link to a TODO; its tick is its state
+    // and the checklist comment is projected from it.
+    assert!(np[0].attrs.todo.is_none());
+    assert!(!np[0].attrs.checked);
     assert!(np[1].attrs.checked);
     let embed = np[2].embed().cloned().unwrap();
     assert!(
@@ -598,6 +617,27 @@ fn a_handed_off_library_imports_completely() {
     let summary = std::fs::read_to_string(dir.join(receipt::SUMMARY)).unwrap();
     assert!(summary.contains("阿Q正传") && summary.contains("一字不差"));
     assert!(summary.contains("当时的标题"));
+    // The image material's description has no place in the book (a file
+    // has none of its own): it is listed in the report, and its original
+    // stays in the receipt (DY fix 9; where it goes is the author's call).
+    assert!(
+        summary.contains(&format!("「插图」（`{IMAGE}`）：说明「未庄的土谷祠」")),
+        "{summary}"
+    );
+    assert_eq!(
+        r.books[0]
+            .material_texts
+            .iter()
+            .find(|t| t.material_id == IMAGE)
+            .map(|t| (t.kind.as_str(), t.description.as_str())),
+        Some(("image", "未庄的土谷祠"))
+    );
+    assert_eq!(
+        in_library(&format!(
+            "SELECT count(*) FROM import_original WHERE collection = 'materials' AND id = '{IMAGE}' AND field = 'description'"
+        )),
+        1
+    );
     assert!(!dir.join("staging").exists(), "the staging copy is removed");
     let identity = std::fs::read_to_string(new.device.join("sync-installation-v2.json")).unwrap();
     assert!(
@@ -1021,6 +1061,145 @@ fn imported_points_can_follow_the_usual_retention() {
     );
     assert!(labels.iter().any(|l| l.label == "import"));
     lib.close().unwrap();
+}
+
+/// DY fix 11: a library imported in several runs is checked against every
+/// run's records, not only the latest one's (which imported nothing new).
+#[test]
+fn verification_reads_every_import_run_of_a_library() {
+    let old = build_v3(true);
+    let new = new_library();
+    imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    let again = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    assert_eq!(again.books[0].status, "already-imported");
+    let truth = new.root.parent().unwrap().join("truth.jsonl");
+    let line = serde_json::json!({
+        "documentId": format!("node-content:{CHAPTER}"),
+        "prose": serde_json::from_str::<serde_json::Value>(CHAPTER_JSON).unwrap(),
+    });
+    std::fs::write(&truth, format!("{line}\n")).unwrap();
+    let v = dr_import_v1::verify::check_truth(&new.root, &truth).unwrap();
+    assert_eq!(v["bodiesWithYjs"], 1, "{v}");
+    assert_eq!(v["notImported"], 0, "{v}");
+}
+
+/// DY fix 10: what of the 0.1 materials does not come over is one line each
+/// in the receipt and in the report: an empty folder, an image material
+/// without its file (with the relations that pointed at it), a material of
+/// an unknown kind, a second material on the same file.
+#[test]
+fn materials_that_do_not_come_over_are_each_one_line_of_the_report() {
+    let old = build_v3(true);
+    {
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        // A material whose file row is gone (as damaged 0.1 data has it).
+        c.pragma_update(None, "foreign_keys", false).unwrap();
+        let t0 = "2025-01-01T00:00:00.000Z";
+        let item = |id: &str, title: &str, kind: &str, asset: Option<&str>, order: i64| {
+            c.execute(
+                "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, ?3, ?4, ?5, NULL, NULL, NULL, NULL, ?6, ?7, ?7, NULL, NULL, 0)",
+                rusqlite::params![id, BOOK, title, kind, asset, order, t0],
+            )
+            .unwrap();
+        };
+        c.execute(
+            "INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES ('01900000-0000-7000-8000-0000000000e1', ?1, '空夹', NULL, ?2, ?2)",
+            rusqlite::params![BOOK, t0],
+        )
+        .unwrap();
+        item(
+            "01900000-0000-7000-8000-0000000000e2",
+            "没文件的图",
+            "image",
+            Some("01900000-0000-7000-8000-0000000000e9"),
+            5,
+        );
+        // A second 0.1 file with the same bytes as the image's (0.1 kept
+        // one file per material): one file in the library.
+        c.execute(
+            "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES ('01900000-0000-7000-8000-0000000000e8', ?1, 'image', 'image/png', ?2, ?3, 4, 3, ?4)",
+            rusqlite::params![BOOK, IMAGE_BYTES.len() as i64, sha256_bytes(IMAGE_BYTES), t0],
+        )
+        .unwrap();
+        let dir = old
+            .root
+            .join("assets")
+            .join(BOOK)
+            .join("01900000-0000-7000-8000-0000000000e8");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("source.png"), IMAGE_BYTES).unwrap();
+        item(
+            "01900000-0000-7000-8000-0000000000e4",
+            "同一张图",
+            "image",
+            Some("01900000-0000-7000-8000-0000000000e8"),
+            7,
+        );
+        // A web link material: a kind format 5 has nothing for.
+        c.execute(
+            "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES ('01900000-0000-7000-8000-0000000000e3', ?1, '怪东西', 'url', NULL, 'https://example.invalid/x', NULL, NULL, NULL, 6, ?2, ?2, NULL, NULL, 0)",
+            rusqlite::params![BOOK, t0],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at) SELECT '01900000-0000-7000-8000-0000000000e5', ?1, 'library_item', '01900000-0000-7000-8000-0000000000e2', 'node', ?2, id, ?3, ?3 FROM entity_relation_type WHERE system_key = 'generic-association' LIMIT 1",
+            rusqlite::params![BOOK, CHAPTER, t0],
+        )
+        .unwrap();
+    }
+    let new = new_library();
+    let r = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    use dr_import_v1::receipt::MaterialDropped;
+    let dropped = &r.books[0].materials_dropped;
+    assert!(dropped.contains(&MaterialDropped::EmptyFolder {
+        folder_id: "01900000-0000-7000-8000-0000000000e1".into(),
+        name: "空夹".into(),
+    }));
+    assert!(dropped.contains(&MaterialDropped::WithoutFile {
+        material_id: "01900000-0000-7000-8000-0000000000e2".into(),
+        material_title: "没文件的图".into(),
+        relations: vec!["01900000-0000-7000-8000-0000000000e5".into()],
+    }));
+    assert!(dropped.contains(&MaterialDropped::UnknownKind {
+        material_id: "01900000-0000-7000-8000-0000000000e3".into(),
+        material_title: "怪东西".into(),
+        material_kind: "url".into(),
+    }));
+    assert!(dropped.contains(&MaterialDropped::SameFile {
+        material_id: "01900000-0000-7000-8000-0000000000e4".into(),
+        material_title: "同一张图".into(),
+        kept_title: "插图".into(),
+        asset_id: ASSET.into(),
+    }));
+    assert_eq!(dropped.len(), 4, "{dropped:?}");
+    let summary =
+        std::fs::read_to_string(receipt::directory(&new.root).join(receipt::SUMMARY)).unwrap();
+    for line in [
+        "空的素材夹「空夹」",
+        "没有文件的素材「没文件的图」",
+        "不认识种类（`url`）的素材「怪东西」",
+        "和「插图」是同一个文件的素材「同一张图」",
+    ] {
+        assert!(summary.contains(line), "{line} in {summary}");
+    }
+    // The receipt row of the book keeps them too.
+    let conn = rusqlite::Connection::open(dr_store::LibraryPaths::new(&new.root).db).unwrap();
+    let json: String = conn
+        .query_row("SELECT record_json FROM import_book", [], |r| r.get(0))
+        .unwrap();
+    assert!(json.contains("materialsDropped") && json.contains("没文件的图"));
 }
 
 #[test]

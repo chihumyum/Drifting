@@ -120,6 +120,45 @@ impl ProseSession {
         Ok(())
     }
 
+    /// Set how the embedded image `embed` shows: its size, alignment and
+    /// caption (`kernel-v5.md` §6). A PDF embed is a card and takes none of
+    /// them (refused), nor does an embed whose file is not a live image.
+    pub fn set_file_embed_look(
+        &self,
+        embed: &dr_model::id::EmbedId,
+        look: &dr_doc::prose::FileEmbedLook,
+    ) -> Result<()> {
+        if look.size.as_ref().is_some_and(|s| !s.is_known())
+            || look.align.as_ref().is_some_and(|a| !a.is_known())
+        {
+            return Err(WsError::invalid("unknown embed size or alignment"));
+        }
+        let asset = match self.reader().view().embed(embed) {
+            Some(dr_doc::prose::EmbedView::Asset { asset: Some(a), .. }) => a,
+            _ => return Err(WsError::not_found("file embed", embed.as_str())),
+        };
+        let Some(book) = &self.slot.book else {
+            return Err(WsError::invalid("canonical prose needs its owning book"));
+        };
+        let Some(inner) = self.workspace.upgrade() else {
+            return Err(WsError::Internal("workspace is closed".into()));
+        };
+        let ws = Workspace { inner };
+        let kind = ws
+            .book_slot(book)?
+            .reader_v3
+            .view()
+            .asset_raw(&asset)
+            .map(|a| a.kind);
+        if kind != Some(dr_model::kind::AssetKind::Image) {
+            return Err(WsError::invalid(
+                "only an embedded image has a size, an alignment and a caption",
+            ));
+        }
+        let (embed, look) = (embed.clone(), look.clone());
+        self.edit(move |txn| txn.set_file_embed_look(&embed, &look))
+    }
+
     /// Insert an asset embed at `at`, verifying first that `asset` is recorded
     /// in the owning book (`MEDIA-AND-EMBED-ASSET-EXISTS`).
     pub fn insert_asset_embed(

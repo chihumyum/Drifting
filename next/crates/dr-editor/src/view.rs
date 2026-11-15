@@ -79,6 +79,9 @@ pub struct ChapterEditor {
     extension: Rc<DriftingExtension>,
     editor: Entity<ProseEditor>,
     todos: Vec<TodoMarker>,
+    /// The checklist items last seen: a change (a tick, a new or edited
+    /// item) asks for the projection as a marker change does.
+    tasks: Vec<crate::todo::TaskItem>,
     /// The page around the text: its facts and the host's chrome (M03).
     pages: crate::page::Pages,
     /// The pickers, automatic links and the selection bar.
@@ -197,6 +200,7 @@ impl ChapterEditor {
             extension,
             editor,
             todos: Vec::new(),
+            tasks: Vec::new(),
             pages: Default::default(),
             assist,
             _assist_events: assist_events,
@@ -208,6 +212,7 @@ impl ChapterEditor {
             _ws_events: ws_events,
         };
         this.todos = this.find_todos(cx);
+        this.tasks = this.find_tasks(cx);
         this
     }
 
@@ -512,10 +517,20 @@ impl ChapterEditor {
         )
     }
 
+    fn find_tasks(&self, cx: &App) -> Vec<crate::todo::TaskItem> {
+        let editor = self.editor.read(cx);
+        let doc = &editor.book().chapters[0].doc;
+        crate::todo::task_items(doc.lines()[..doc.visible_lines()].iter())
+    }
+
     fn update_todos(&mut self, cx: &mut Context<Self>) {
         let todos = self.find_todos(cx);
-        if todos != self.todos {
+        let tasks = self.find_tasks(cx);
+        // The checklist items project with the markers: a changed item asks
+        // for the projection too.
+        if todos != self.todos || tasks != self.tasks {
             self.todos = todos.clone();
+            self.tasks = tasks;
             cx.emit(ChapterEditorEvent::TodoMarkers(todos));
         }
     }
@@ -561,6 +576,7 @@ impl ChapterEditor {
         self.decor
             .rebind(&self.ws, &self.book, doc_id, &self.editor, window, cx);
         self.todos = self.find_todos(cx);
+        self.tasks = self.find_tasks(cx);
         cx.emit(ChapterEditorEvent::TodoMarkers(self.todos.clone()));
         cx.notify();
         Ok(())

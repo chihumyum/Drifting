@@ -4,7 +4,7 @@ pub(crate) fn register(r: &mut Registry) {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Key {
-    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, facts, memory or project.
+    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, comments, assets, asset_folders, facts, memory or project.
     pub collection: String,
     pub id: String,
 }
@@ -119,7 +119,8 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 ));
             }
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
-            | "relations" | "relation_types" | "comments" | "assets" | "facts" | "memory" => {
+            | "relations" | "relation_types" | "comments" | "assets" | "asset_folders"
+            | "facts" | "memory" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
@@ -136,6 +137,27 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                             .any(|r| r.relation_type == id)
                     {
                         return Err(WsError::invalid("relation type is in use"));
+                    }
+                }
+                if c == CollectionV3::Assets {
+                    // A purged file's bytes are gone: its record is not
+                    // brought back from history as an empty file.
+                    let id: AssetId = pid("asset", &target.id)?;
+                    if current.asset_raw(&id).is_none()
+                        && let Some(was) = old.asset_raw(&id)
+                    {
+                        let kept = cx
+                            .workspace()
+                            .library()
+                            .asset(id.as_str(), dr_store::asset::Variant::Source)?
+                            .is_some_and(|r| {
+                                r.book_id == s.book.as_str() && r.sha256 == was.sha256
+                            });
+                        if !kept {
+                            return Err(WsError::invalid(format!(
+                                "asset {id} was purged; its bytes are gone"
+                            )));
+                        }
                     }
                 }
                 if matches!(

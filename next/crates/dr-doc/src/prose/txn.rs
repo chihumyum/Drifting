@@ -22,7 +22,7 @@ use loro::cursor::Side;
 use loro::{LoroText, LoroValue};
 
 use super::attrs::{encode_block, encode_entity};
-use super::embed::{EmbedKind, EmbedView, TableWriter};
+use super::embed::{EmbedKind, EmbedView, FileEmbedLook, TableWriter};
 use super::view::{ProseView, Run};
 use crate::error::{DocError, Result};
 use crate::schema::{block, inline};
@@ -485,6 +485,30 @@ impl<'a> ProseTxn<'a> {
         Ok(())
     }
 
+    /// Tick or clear the task box of the paragraph containing `pos`, and only
+    /// that key (`kernel-v5.md` §7: a checklist item's tick is its comment's
+    /// status). A stale `todo` link from an older format is dropped with it,
+    /// so the tick alone is the item's state.
+    pub fn set_checked(&mut self, pos: usize, checked: bool) -> Result<()> {
+        if pos >= self.len() {
+            return Err(DocError::BadRange {
+                start: pos,
+                end: pos,
+                len: self.len(),
+            });
+        }
+        let nl = self.newline_at_or_after(pos)?;
+        if checked {
+            self.view
+                .text
+                .mark(nl..nl + 1, block::CHECKED, LoroValue::Bool(true))?;
+        } else {
+            self.view.text.unmark(nl..nl + 1, block::CHECKED)?;
+        }
+        self.view.text.unmark(nl..nl + 1, block::TODO)?;
+        Ok(())
+    }
+
     /// Apply `f` to every non-newline segment of `range`.
     fn per_segment(
         &self,
@@ -593,6 +617,34 @@ impl<'a> ProseTxn<'a> {
             }
         }
         Ok(TableWriter { entry })
+    }
+
+    /// Set how the file embed `id` shows: size, alignment and caption, each
+    /// written or cleared as given (`kernel-v5.md` §6). Only images take
+    /// these; the caller checks the file is one (a PDF embed is a card).
+    pub fn set_file_embed_look(&mut self, id: &EmbedId, look: &FileEmbedLook) -> Result<()> {
+        if !matches!(self.view.embed(id), Some(EmbedView::Asset { .. })) {
+            return Err(DocError::Missing {
+                collection: "embeds",
+                id: id.to_string(),
+            });
+        }
+        let entry = self.view.embeds.ensure_mergeable_map(id.as_str())?;
+        for (key, value) in [
+            ("size", look.size.as_ref().map(|s| s.as_str().to_owned())),
+            ("align", look.align.as_ref().map(|a| a.as_str().to_owned())),
+            (
+                "caption",
+                (!look.caption.is_empty()).then(|| look.caption.clone()),
+            ),
+        ] {
+            match value {
+                Some(v) => entry.insert(key, v)?,
+                None if entry.get(key).is_some() => entry.delete(key)?,
+                None => {}
+            }
+        }
+        Ok(())
     }
 
     /// A writer for an existing table embed's entry.

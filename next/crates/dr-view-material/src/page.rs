@@ -898,12 +898,15 @@ impl MediaPage {
             kind: "entry".into(),
             id: entry_id.unwrap_or_else(|| self.id.clone()),
         };
-        let item = self.id.clone();
+        let asset = self
+            .info()
+            .and_then(|m| m.asset.clone())
+            .unwrap_or_else(|| self.id.clone());
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let at = point(at.x + px(8.0), at.y + px(8.0));
         let view = cx.new(|cx| {
             CommentComposer::for_region(
-                lib, book, target, module_id, item, region, at, locale, window, cx,
+                lib, book, target, module_id, asset, region, at, locale, window, cx,
             )
         });
         let sub = cx.subscribe_in(&view, window, |page, _, e: &ComposerEvent, window, cx| {
@@ -995,7 +998,11 @@ impl MediaPage {
     // Comments.
 
     fn reload_comments(&mut self, cx: &mut Context<Self>) {
-        let (lib, book, id) = (self.lib.clone(), self.book_id.clone(), self.id.clone());
+        let id = self
+            .info()
+            .and_then(|m| m.asset.clone())
+            .unwrap_or_else(|| self.id.clone());
+        let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let task = cx.background_executor().spawn(async move {
             dr_view_review::v3::load(&lib, &book)
                 .map(|snapshot| {
