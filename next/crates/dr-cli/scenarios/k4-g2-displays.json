@@ -68,7 +68,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -92,6 +92,22 @@
       "params": {
         "until": "time",
         "ms": 1200
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.0.title}",
+        "role": "RadioButton"
+      },
+      "note": "A project opens on 「全部」 (kernel-v5 §5, T1); the manuscript's list is the 书稿 Tab."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/entry": "${roots.0.id}"
+        }
       }
     },
     {
@@ -151,14 +167,18 @@
       "note": "G2 看板：从 layout 读取坐标，条目能打开"
     },
     {
-      "call": "entry.create",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "parent": "${roots.1.id}",
-        "template": "tpl-idea",
-        "title": "Synthetic board A"
+        "id": "019a3f62-5400-73cf-9bf7-887287abd661"
       },
-      "save": "boardA"
+      "save": "boardA",
+      "expect": {
+        "/title": "构想组1",
+        "/template": "tpl-idea-group",
+        "/parent": "${roots.1.id}"
+      },
+      "note": "layout.put takes positions keyed by entry id, and the scenario language does not expand references in object keys; since 2026-11-15 a position needs a live entry. So the board uses the lite seed's two 构想 groups, whose ids the seed fixes; this step fails first if the seed changes."
     },
     {
       "call": "layout.put",
@@ -167,7 +187,7 @@
         "scope": "${roots.1.id}",
         "mode": "board",
         "positions": {
-          "${boardA.id}": [
+          "019a3f62-5400-73cf-9bf7-887287abd661": [
             16.0,
             140.0
           ]
@@ -175,14 +195,18 @@
       }
     },
     {
-      "call": "entry.create",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "parent": "${roots.1.id}",
-        "template": "tpl-idea",
-        "title": "Synthetic board B"
+        "id": "019a3f62-57e8-79e7-b63f-bdcc1afbd49a"
       },
-      "save": "boardB"
+      "save": "boardB",
+      "expect": {
+        "/title": "构想组2",
+        "/template": "tpl-idea-group",
+        "/parent": "${roots.1.id}"
+      },
+      "note": "layout.put takes positions keyed by entry id, and the scenario language does not expand references in object keys; since 2026-11-15 a position needs a live entry. So the board uses the lite seed's two 构想 groups, whose ids the seed fixes; this step fails first if the seed changes."
     },
     {
       "call": "layout.put",
@@ -191,7 +215,7 @@
         "scope": "${roots.1.id}",
         "mode": "board",
         "positions": {
-          "${boardB.id}": [
+          "019a3f62-57e8-79e7-b63f-bdcc1afbd49a": [
             56.0,
             220.0
           ]
@@ -201,14 +225,14 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic board A"
+        "label": "${boardA.title}"
       },
       "save": "boardANode"
     },
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic board B"
+        "label": "${boardB.title}"
       },
       "note": "保存真窗口 AX 坐标；check-v3-displays.py 断言两张卡片的相对位置为 (40,80)，对应 layout.board",
       "save": "boardBNode"

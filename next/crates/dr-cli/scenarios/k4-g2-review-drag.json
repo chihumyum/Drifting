@@ -113,14 +113,18 @@
       "save": "sibling"
     },
     {
-      "call": "entry.create",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "parent": "${roots.1.id}",
-        "template": "tpl-idea",
-        "title": "Synthetic board A"
+        "id": "019a3f62-5400-73cf-9bf7-887287abd661"
       },
-      "save": "boardA"
+      "save": "boardA",
+      "expect": {
+        "/title": "构想组1",
+        "/template": "tpl-idea-group",
+        "/parent": "${roots.1.id}"
+      },
+      "note": "layout.put takes positions keyed by entry id, and the scenario language does not expand references in object keys; since 2026-11-15 a position needs a live entry. So the board uses the lite seed's two 构想 groups, whose ids the seed fixes; this step fails first if the seed changes."
     },
     {
       "call": "layout.put",
@@ -129,7 +133,7 @@
         "scope": "${roots.1.id}",
         "mode": "board",
         "positions": {
-          "${boardA.id}": [
+          "019a3f62-5400-73cf-9bf7-887287abd661": [
             16.0,
             140.0
           ]
@@ -143,7 +147,7 @@
         "scope": "${roots.1.id}",
         "mode": "grid",
         "positions": {
-          "${boardA.id}": [
+          "019a3f62-5400-73cf-9bf7-887287abd661": [
             2.0,
             3.0
           ]
@@ -157,7 +161,7 @@
         "scope": "root",
         "mode": "relation_graph",
         "positions": {
-          "${boardA.id}": [
+          "019a3f62-5400-73cf-9bf7-887287abd661": [
             7.0,
             8.0
           ]
@@ -165,14 +169,18 @@
       }
     },
     {
-      "call": "entry.create",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "parent": "${roots.1.id}",
-        "template": "tpl-idea",
-        "title": "Synthetic board B"
+        "id": "019a3f62-57e8-79e7-b63f-bdcc1afbd49a"
       },
-      "save": "boardB"
+      "save": "boardB",
+      "expect": {
+        "/title": "构想组2",
+        "/template": "tpl-idea-group",
+        "/parent": "${roots.1.id}"
+      },
+      "note": "layout.put takes positions keyed by entry id, and the scenario language does not expand references in object keys; since 2026-11-15 a position needs a live entry. So the board uses the lite seed's two 构想 groups, whose ids the seed fixes; this step fails first if the seed changes."
     },
     {
       "call": "layout.put",
@@ -181,7 +189,7 @@
         "scope": "${roots.1.id}",
         "mode": "board",
         "positions": {
-          "${boardB.id}": [
+          "019a3f62-57e8-79e7-b63f-bdcc1afbd49a": [
             56.0,
             220.0
           ]
@@ -195,7 +203,7 @@
         "scope": "${roots.1.id}",
         "mode": "grid",
         "positions": {
-          "${boardB.id}": [
+          "019a3f62-57e8-79e7-b63f-bdcc1afbd49a": [
             2.0,
             3.0
           ]
@@ -209,7 +217,7 @@
         "scope": "root",
         "mode": "relation_graph",
         "positions": {
-          "${boardB.id}": [
+          "019a3f62-57e8-79e7-b63f-bdcc1afbd49a": [
             7.0,
             8.0
           ]
@@ -311,7 +319,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         },
         "timeout_ms": 15000
       }
@@ -328,6 +336,23 @@
         "state": {
           "/left/open": true,
           "/v3Sidebar/registered": true
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.0.title}",
+        "role": "RadioButton"
+      },
+      "note": "A project opens on 「全部」 (kernel-v5 §5, T1); the manuscript's tree is the 书稿 Tab."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/entry": "${roots.0.id}"
         },
         "timeout_ms": 15000
       }
@@ -551,7 +576,8 @@
         "role": "Group",
         "count": 1
       },
-      "save": "assignDropFrom"
+      "save": "assignDropFrom",
+      "note": "An entry with both 「层级」 and 「收别处的条目」 on takes a plain drop as a resident (kernel-v5 §16 「挂名」, T1; ⌥ attaches, which the bridge's drag does not carry, and the left column will only move from T9 on)."
     },
     {
       "app": "ui.find",
@@ -583,9 +609,10 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3/levels/${host.id}/members": [
+        "/v3/levels/${host.id}/children": [
           "${moved.id}"
-        ]
+        ],
+        "/v3/levels/${host.id}/members": []
       }
     },
     {
@@ -595,7 +622,7 @@
         "id": "${moved.id}"
       },
       "expect": {
-        "/parent": "${b.id}"
+        "/parent": "${host.id}"
       }
     },
     {
@@ -610,9 +637,10 @@
     {
       "app": "ui.find",
       "params": {
-        "role": "Heading",
-        "label": "Assigned entries"
-      }
+        "role": "CheckBox",
+        "label": "Accept entries from elsewhere"
+      },
+      "note": "The host's page has the 「挂在这里的条目」 block; its head is the 「收别处的条目」 switch (T1)."
     },
     {
       "app": "ui.press",
@@ -667,7 +695,47 @@
       "params": {
         "label": "New",
         "role": "MenuItem"
+      },
+      "pending": "The storyline's hover card offers 「新建」, but its dialog submits entry.create with parent = the storyline, which has 「层级」 off: every 「创建」 is refused (V3-LEAF-NO-CHILDREN, found 2026-11-16 by sc-scenarios-v5; dr-view-elements dialogs::v3 create should send host for an entry that only takes attached entries). The same dialog is driven below from the storyline page's 「挂在这里的条目」 block."
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-storyline].id}"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-storyline].id}"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": 1800
+      },
+      "note": "The storyline's 「说明」 body comes first; bring the 「挂在这里的条目」 block's head into the window."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New",
+        "role": "Button"
+      },
+      "note": "The storyline page shows only the 「挂在这里的条目」 block open (「层级」 off), so its 「＋ 新建」 is the one New button: a new entry attached to the storyline, living where 「新条目住在」 says (T1)."
     },
     {
       "app": "input.type",
@@ -942,7 +1010,6 @@
       "app": "state.get",
       "expect": {
         "/v3/levels/${host.id}/members": [
-          "${moved.id}",
           "${created.0.id}"
         ]
       }
@@ -1022,9 +1089,7 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3/levels/${host.id}/members": [
-          "${moved.id}"
-        ]
+        "/v3/levels/${host.id}/members": []
       }
     },
     {
@@ -1155,7 +1220,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic board A",
+        "label": "${boardA.title}",
         "role": "Button",
         "count": 1
       },
@@ -1164,7 +1229,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic board B",
+        "label": "${boardB.title}",
         "role": "Button",
         "count": 1
       },
@@ -1253,7 +1318,7 @@
         "scope": "${roots.1.id}",
         "mode": "board",
         "positions": {
-          "${boardB.id}": [
+          "019a3f62-57e8-79e7-b63f-bdcc1afbd49a": [
             96.0,
             300.0
           ]
@@ -1289,7 +1354,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic board A",
+        "label": "${boardA.title}",
         "role": "Button",
         "count": 1
       },
@@ -1298,7 +1363,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Synthetic board B",
+        "label": "${boardB.title}",
         "role": "Button",
         "count": 1
       },
@@ -1410,6 +1475,13 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      },
+      "note": "One page per entry (T1): an entry already open keeps its page whichever module is named, so close it first to open the page scoped to one module."
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${moved.id}/mod-prose"
@@ -1447,6 +1519,12 @@
         },
         "timeout_ms": 15000,
         "absent": true
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
       }
     },
     {
