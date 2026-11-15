@@ -33,7 +33,7 @@
 | PT3 `pt3-template-ui` | 另存对话框、「全部项目」左栏的我的模板、编辑模板的工作区（随改随存）、新建对话框 | 作者 2026-11-15 夜里说了迁；PT1、T1 已在 `main`，等 DW 和 T2（`ready/v5-pt3-template-ui`） |
 | PT4 `pt4-template-agent` | 帮手的通用规则、结构说明带来源、工具目录 | PT1、T7、DW 已在 `main`，监管会话在做（`ready/v5-pt4-template-agent`） |
 | PT5 社区模板 | **先不开工**（第二期，还要作者建社区仓库） | — |
-| T5b `t5b-whole-files` | 整书视图里插文件：斜杠菜单、拖放、⌘V 和单章一样 | 已提出（会话卡片在等作者点），等开工 |
+| T5b `t5b-whole-files` | 整书视图里插文件：斜杠菜单、拖放、⌘V 和单章一样 | 已合进 `main`（2026-11-16） |
 | SC `sc-scenarios-v5` | 35 个还等着格式 3 的场景改成格式 5、照新界面更新 | 现在就能开工 |
 | T7b `t7b-agent-checklist` | 帮手能写清单行：`module.set_prose` 的段落带清单和勾，读出来也带 | 现在就能开工 |
 
@@ -89,7 +89,7 @@ git -C ~/Drifting rev-parse -q --verify refs/heads/ready/kernel-v5-data-layer
 - **T2、T3b、PT2、PT4**：各等自己的指针 `ready/v5-<路>`（`ready/v5-t2-project`、`ready/v5-t3b-export`、`ready/v5-pt2-template-file`、`ready/v5-pt4-template-agent`）。监管会话在 DW 合进 `main`、合并后的树上检查通过时一起建。作者对 T2、PT3 的原型说了迁（「都迁」），T3b 照同一句。
 - **PT3**：等 `ready/v5-pt3-template-ui`，DW 和 T2 都合进 `main` 以后建。
 - **T9**（2026-11-16 加）：等 `ready/v5-t9-fill`，T2 合进 `main`、合并后的树上检查通过以后建（T1、T5、T6 已在 `main`）。作者对铺满的原型说了迁。
-- **T5b、SC、T7b**：不等指针，`main` 上有本页就可以开工（T5b 等作者点那张会话卡片）。
+- **T5b、SC、T7b**：不等指针，`main` 上有本页就可以开工（T5b 2026-11-16 已合进 `main`）。
 
 开工时：
 
@@ -785,7 +785,7 @@ git worktree add ~/Drifting-v5-<路> -b codex/v5-<路> main
 
 ## T5b 整书视图里插文件（`t5b-whole-files`）
 
-- **现状**（2026-11-15 夜里加）：已提出，监管会话的一张会话卡片在等作者点，等开工。
+- **现状**：2026-11-16 合进 `main`，做法和测试见 [m05-book.md](../modules/m05-book.md) 的 T5b 一节。两处等作者定：整书视图里拖放以后光标跟到落点那一章（为了 ⌘Z 撤对那一章，单章编辑器不动光标）；选文件窗口开着时点到别的章，文件嵌在打开菜单那一章的末尾。
 - **依据**：kernel-v5 第 6 节「把图片拖进或粘进正文」；T5 一节的「往正文里放文件」，和它「预审数据层时记下」的第一条（任何一篇正文都要能插文件）。
 - **范围**：`dr-editor` 的整书视图（`book.rs`）。单章的做法在 `view.rs` 和 `file_host.rs`，复用，不另写一套。
 - **要做的**：整书视图里，斜杠菜单的「图片或 PDF…」、从素材库或系统拖进来、⌘V 粘贴，和在单章里一样：文件进素材库（同样的字节给回已有的那一个），嵌入落在光标或落点所在的那一章，画砂框，一步撤销。

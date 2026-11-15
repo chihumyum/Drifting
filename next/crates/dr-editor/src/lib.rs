@@ -33,6 +33,7 @@ pub mod links;
 pub mod material;
 pub mod page;
 pub mod pinyin;
+mod prose_files;
 pub mod rules;
 pub mod settings;
 pub mod source;
