@@ -1,5 +1,7 @@
 # F1：dr-model 与 dr-doc
 
+> 2026-11-15 DZ（左栏 Tab 的数据）：`ProjectTab` 没有 `name`（旧键读的时候不管）；「全部」的固定 id 是 `dr_model::v3::ALL_TAB_ID`（`"tab-all"`）；`shown_project_tabs` 给出项目看到的 Tab（排好、每种挂载只留第一个、缺了「全部」就在最前补上），`BookViewV3::project()` 和 `BookStructureV3::project()` 都经过它，`BookViewV3::stored_tabs()` 是书里存着的原样；`layout:<书>` 多一个根映射 `tab`（`LayoutView::tab`、`LayoutTxn::set_tab`），记项目停在哪个 Tab。契约加 `TAB-MOUNT-ONCE`、`TAB-ROOT-ALWAYS`（共 95 条）。见 [kernel-v5.md](../kernel-v5.md) 第 5、18 节。
+
 > 2026-11-15 内核 v5：书目格式升到 5（`meta.v = 5`，创世版本 `5`）。新增项目定义根 `project`（来源、帮手说明、成书配置与四种起点、四种左栏 Tab）、画布坐标小文档 `layout:<书>`（`dr_doc::side` 第三篇）、媒体模块 `media:<模块>` 与正文文件嵌入（`kind = "asset"`）；「层级」与「收别处的条目」（`accept`）拆成互不依赖的两个开关，泳道不再是设置、自动链接只看住处；`materials`／`material_folders`／`material:` 正文文档退役，内置素材库直接用 `assets` 清单（带加入时间、原素材夹路径、最近删除，未引用不清理），批注去掉 `kind` 并支持模块内子处（含按 `FieldId` 锚定字段）与素材库文件直接批注。设计和接口见 [kernel-v5.md](../kernel-v5.md) 与 [loro-schema.md](../loro-schema.md)。
 
 > 2026-11-13 内核 v4：书目格式升到 4。只有一种条目：`TemplateKind`、层级模板／叶子模板、「允许的模板」（`allow`）和固定的 `about` 说明都删了；条目自己带「层级」开关（`Entry::level`），模板给新建时的默认值（`level`）和「名字参与自动链接」（`linkable`），每篇正文各有 `in_book`。写作日和快照点清单挪进每本书旁边的两篇小文档（`stats:<书>`、`checkpoints:<书>`，`dr_doc::side`）。设计和最终接口见 [kernel-v4.md](../kernel-v4.md)；下文凡是层级／叶子、`about`、书目里的 `writing_days` 的说法，都是当时的记录。

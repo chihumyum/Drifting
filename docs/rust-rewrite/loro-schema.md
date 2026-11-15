@@ -212,10 +212,10 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 1. **创世与版本门禁**：`book:<书>` 创世版本升为 `5`，`meta.v = 5`；内置锁定关系类型 `system:generic-association:<书>` 的允许端点更新为 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`。写作日只在项目开着成书（`project.book` 非空）时记录。
 2. **项目定义根 `project`**：取代散落在 `meta` 里的模板来源与全书目标，集中保存：
-   - `source`：`{id, version}`（内置「写书」模板为 `builtin:novel` 版本 `3`）；
+   - `source`：`{id, version}`（内置「写书」模板为 `builtin:novel`，版本 `3`；2026-11-15 DZ 起 `4`：默认 Tab 是「全部」加书稿、构想、要素、故事线，不带名字）；
    - `agent`（子映射 `{name, description, instructions}`）：整本项目的帮手说明（从原「书稿」条目模板挪入）；
    - `book`（可选子映射，关闭成书时为空）：`root`（成书起点：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, entry}` 四种）、`word_target`、`daily_word_target`。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；成书序列与整书视图共用同一套遍历规则（条目与根先序遍历并带挂名且每条目只收一次；视图与泳道沿刻度排）；
-   - `tabs`（id → `{name, pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。
+   - `tabs`（id → `{pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。Tab 没有名字，叫它挂的东西的名字（2026-11-15 DZ 起不再写 `name`，旧的 `name` 键读的时候不管）。同一样东西只挂一个 Tab：读取时按 `(pos, id)` 排好，挂载重复的只留第一个（`TAB-MOUNT-ONCE`）。挂根的「全部」用固定的 id `tab-all`（`dr_model::v3::ALL_TAB_ID`）；没存挂根的 Tab 时读取补一个、排在最前，`tab.move` 动它时才写进书里（`TAB-ROOT-ALWAYS`）。
 3. **视图刻度接管顺序**：`timeline_views`（视图）的刻度是泳道在视图内期间唯一的顺序权威。条目挂进泳道或直接住进作为泳道的层级时，自动落在包含该泳道的各活视图刻度末尾（已有最后一格右端 `+ 1.0`，空视图为 `0.0`，见 `timeline_scale_end`）；条目（开着「层级」或「收别处的条目」）第一次加入某视图作泳道时，其直接子条目（手动先后）与挂名成员（按 `memberships.pos`）依次自动落位。在视图内期间不读不写 `memberships.pos` 或文件夹手动先后；当泳道离开它所在的**最后一个**活视图（移出泳道或删除视图）时，将该视图刻度上的先后一次性写回 `memberships.pos` 与直接子条目的手动先后，同一次提交、一步撤销。
 4. **批注与待办合并**：`comments` 去掉 `kind`（批注与待办合一）；`origin` 区分 `manual`、`marker`（正文 `TODO:`）、`task`（正文任务清单项）、`agent`、`reader`；`target_kind` 为 `entry` 或 `asset`：
    - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处（正文锚点与块快照直接存在批注字段上）：字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`{kind: "kv_row", row}`）、情节规划格（`{kind: "plot_cell", row, col}`）、补丁（`{kind: "patch", patch}`）、媒体模块里的文件（`{kind: "media", asset, region?}`，2026-11-15 起按文件指：一个文件在一个媒体模块里只出现一次）、正文嵌入（`{kind: "embed", embed, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
@@ -245,7 +245,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | 根容器 | 类型 | 格式 5 内容 |
 | --- | --- | --- |
 | `meta` | LoroMap | 书名、梗概、创建时间、删除时间等元数据；`v = 5`、`book` |
-| `project` | LoroMap | 项目定义：`source`（`{id, version}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{name, pos, mount}`） |
+| `project` | LoroMap | 项目定义：`source`（`{id, version}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{pos, mount}`；没有名字，「全部」是 `tab-all`） |
 | `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
 | `memberships` | LoroMap | `<宿主条目 id>\|<成员条目 id>` → `{host, member, pos, created_at}`；宿主只要求活着且 `accept` 为真；宿主不在任何活视图里时按 `pos` 排 |
@@ -277,8 +277,8 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 | | `stats:<书 id>` | `checkpoints:<书 id>` | `layout:<书 id>`（格式 5 起） |
 | --- | --- | --- | --- |
-| 根容器 | `meta`（`v = 1`、`doc`），`writing_days` 映射 | `meta`（`v = 1`、`doc`），`entry_checkpoints` 映射 | `meta`（`v = 1`、`doc`），`positions` 映射 |
-| 内容 | `"<设备>\|<日期>"` → 字数；项目开着成书时才记；各设备只写自己的键，负数记成 0，坏键坏值跳过 | 快照点 id → 不可覆写的格式 1 JSON 清单：书／条目身份、毫秒时间、来源、书 frontier、全部登记正文 frontier、内容指纹与校验和；修剪删键。详见 [M09](modules/m09-history.md) | `positions[<范围>/<模式>][<条目 id>] = {x, y}`（如 `<层级 id>/board`、`<层级 id>/island`、`relations/graph`）；非有限数拒写、坏值跳过 |
+| 根容器 | `meta`（`v = 1`、`doc`），`writing_days` 映射 | `meta`（`v = 1`、`doc`），`entry_checkpoints` 映射 | `meta`（`v = 1`、`doc`），`positions` 映射，`tab` 映射（2026-11-15 DZ 加） |
+| 内容 | `"<设备>\|<日期>"` → 字数；项目开着成书时才记；各设备只写自己的键，负数记成 0，坏键坏值跳过 | 快照点 id → 不可覆写的格式 1 JSON 清单：书／条目身份、毫秒时间、来源、书 frontier、全部登记正文 frontier、内容指纹与校验和；修剪删键。详见 [M09](modules/m09-history.md) | `positions[<范围>/<模式>][<条目 id>] = {x, y}`（如 `<层级 id>/board`、`<层级 id>/island`、`relations/graph`）；非有限数拒写、坏值跳过；`tab.id` 是项目停在哪个 Tab（`tab.select` 写，各设备一个值，不进撤销；记着的 Tab 不在了读作没有） |
 | 事件 | `WsEvent::Stats` | `WsEvent::Checkpoints` | `WsEvent::Layout` |
 | 是不是正文 | 不是：没有编辑配置，不计字数、不搜索、不导出、不投批注 | 同左 | 同左 |
 | 属于谁 | id 里的那本书；登记在书名下，导出书文件、彻底删除都带上 | 同左 | 同左 |
@@ -427,7 +427,7 @@ v2.1 起，设备自己投出的待办写成种子变更（`BookTxn::project_tod
 
 v3 条目树、模块保留、归属、时间线和全库文档 id 的约束见 [kernel-v3.md 的不变量](kernel-v3.md#不变量)及上方 v3 书目一节；以下保留共用及 v2.2 的摘要。
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，同日数据层第八步加 6 条后 93 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，同日数据层第八步加 6 条后 93 条，DZ 加 `TAB-MOUNT-ONCE`、`TAB-ROOT-ALWAYS` 后 95 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |
