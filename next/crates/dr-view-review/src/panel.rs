@@ -1929,6 +1929,7 @@ impl Render for ReviewView {
                 status_options,
                 self.status_filter.index(),
             )
+            .pad_x(7.0)
             .on_change(move |ix, _, cx| {
                 entity.update(cx, |this, cx| {
                     this.set_status_filter(StatusFilter::ALL[ix], cx)
@@ -1965,6 +1966,8 @@ impl Render for ReviewView {
                 origin_options,
                 self.origin_filter.index(),
             )
+            .pad_x(5.5)
+            .text_size(13.5)
             .on_change(move |ix, _, cx| {
                 entity.update(cx, |this, cx| {
                     this.set_origin_filter(OriginFilter::ALL[ix], cx)
@@ -1989,10 +1992,12 @@ impl Render for ReviewView {
             )
             .child(
                 div()
+                    .id(ElementId::Name(format!("{}-origin-scroll", self.id).into()))
+                    .w_full()
                     .flex()
                     .flex_row()
                     .items_center()
-                    .overflow_x_hidden()
+                    .overflow_x_scroll()
                     .child(origin_seg),
             );
 

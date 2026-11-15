@@ -524,7 +524,15 @@ impl Render for PageHead {
             .child(div().flex().flex_row().child(dot()).child(words));
         let synopsis_size = body - tk::SYNOPSIS_LESS;
         let (outer, inner) = column(cx);
-        let title_comments = dr_editor::v3::body(&page.doc)
+        let in_entry_shell = self.host.workspace.upgrade().is_some_and(|ws| {
+            matches!(
+                ws.read(cx).nav.current(),
+                Some(dr_shell::nav::Target::Entry { .. })
+            )
+        });
+        let title_comments = (!in_entry_shell)
+            .then(|| dr_editor::v3::body(&page.doc))
+            .flatten()
             .and_then(|(eid, _)| {
                 self.host
                     .workspace
@@ -543,18 +551,21 @@ impl Render for PageHead {
             self.host.workspace.clone(),
             cx,
         );
-        let title_probe = dr_editor::v3::body(&page.doc).map(|(eid, _)| {
-            gpui::canvas(
-                move |bounds, _, cx| {
-                    dr_shell::record_entry_title_bounds(eid.clone(), bounds, cx);
-                },
-                |_, _, _, _| {},
-            )
-            .absolute()
-            .top_0()
-            .left_0()
-            .size_full()
-        });
+        let title_probe = (!in_entry_shell)
+            .then(|| dr_editor::v3::body(&page.doc))
+            .flatten()
+            .map(|(eid, _)| {
+                gpui::canvas(
+                    move |bounds, _, cx| {
+                        dr_shell::record_entry_title_bounds(eid.clone(), bounds, cx);
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .top_0()
+                .left_0()
+                .size_full()
+            });
         let text = inner
             .pt(px(tk::TOP))
             .child(folio)

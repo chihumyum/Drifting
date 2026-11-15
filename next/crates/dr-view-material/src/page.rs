@@ -35,7 +35,7 @@ use dr_shell::pages::PageViewHost;
 use dr_shell::strings::{Strings, tf};
 use dr_shell::{Workspace, t};
 use dr_ui::Theme;
-use dr_ui::components::{Button, IconButton};
+use dr_ui::components::IconButton;
 use dr_ui::fonts::{Role, weight};
 use dr_ui::glass::{self, Kind as GlassKind, Mode, Spec, Tone};
 use dr_ui::input::{FieldEvent, TextArea};
@@ -1854,12 +1854,55 @@ impl MediaPage {
                     p.ink(3).solid(),
                 ))
         });
+        let ring_group: SharedString = format!("media-ring-{}", id).into();
+        let status_label = t(cx, status);
+        let ring = glass::glass_box(
+            eid("status"),
+            GlassKind::Surface,
+            Mode::default(),
+            done,
+            Spec::new(Tone::Clear, 10.0),
+            window,
+            cx,
+        )
+        .group(ring_group.clone())
+        .size(px(20.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_full()
+        .cursor_pointer()
+        .role(gpui::Role::Button)
+        .aria_label(status_label)
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            toggle.update(cx, |p, cx| p.set_done(&c1, !done, cx));
+        })
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .when(!done, |d| {
+                    d.opacity(0.0).group_hover(ring_group, |st| st.opacity(1.0))
+                })
+                .child(dr_ui::sand::icon(
+                    Icon::Check,
+                    11.0,
+                    if done { p.ink(1) } else { p.ink(3) }.solid(),
+                )),
+        );
         let head = div()
             .flex()
             .flex_row()
             .items_center()
             .gap(px(6.0))
-            .child(seal(l.number, color, done, p.page))
+            .children(
+                l.region()
+                    .is_some()
+                    .then(|| seal(l.number, color, done, p.page)),
+            )
             .children(origin_word.map(|w| {
                 div()
                     .font_role(Role::Index)
@@ -1869,14 +1912,7 @@ impl MediaPage {
             }))
             .child(div().flex_1())
             .children(jump_btn)
-            .child(
-                Button::new(eid("status"), t(cx, status))
-                    .text()
-                    .small()
-                    .on_click(move |_, _, cx| {
-                        toggle.update(cx, |p, cx| p.set_done(&c1, !done, cx))
-                    }),
-            );
+            .child(ring);
         let where_row = (!place.is_empty()).then(|| {
             div()
                 .font_role(Role::Index)
