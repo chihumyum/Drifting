@@ -275,6 +275,10 @@ fn chapter_slash_picker_loads_assets_once_and_filters_by_folder_and_query(cx: &m
         (Some(MenuKind::Material), 1),
         "opening the slash file picker calls asset.list once"
     );
+    assert!(
+        o.cx.update(|window, cx| !o.editor.read(cx).focus_handle(cx).is_focused(window)),
+        "opening the slash file picker moves keyboard focus into its search field"
+    );
 
     // Multiple renders and folder/query filters never call `asset.list` again.
     draw(o.cx);
@@ -321,6 +325,10 @@ fn chapter_slash_picker_loads_assets_once_and_filters_by_folder_and_query(cx: &m
 
     o.action(Newline);
     assert_eq!(o.lines(), [OBJ, ""]);
+    assert!(
+        o.cx.update(|window, cx| o.editor.read(cx).focus_handle(cx).is_focused(window)),
+        "choosing a file returns keyboard focus to the prose editor"
+    );
 }
 
 #[gpui::test]

@@ -1328,6 +1328,7 @@ impl Assist {
                 FieldEvent::Blurred => {}
             },
         );
+        let search_focus = search.read(cx).focus_handle(cx);
         self.material_picker = Some(MaterialPickerState {
             search,
             _search_sub: search_sub,
@@ -1346,6 +1347,7 @@ impl Assist {
             selected: 0,
         });
         self.menu_fresh = true;
+        window.focus(&search_focus, cx);
     }
 
     fn pick_material_from_computer(

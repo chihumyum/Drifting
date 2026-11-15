@@ -1239,7 +1239,7 @@ impl MediaPage {
         div()
             .flex_none()
             .px(px(28.0))
-            .pt(px(20.0))
+            .pt(px(dr_shell::workspace::TITLEBAR_HEIGHT + 12.0))
             .pb(px(6.0))
             .flex()
             .flex_col()
