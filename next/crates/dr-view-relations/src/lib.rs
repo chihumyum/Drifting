@@ -3,6 +3,8 @@ pub mod legend;
 pub mod look;
 pub mod model;
 mod section;
+#[doc(hidden)]
+pub use section::EntryRelations;
 pub use section::register_modules;
 
 /// The name a relation type is shown by: the built-in generic association

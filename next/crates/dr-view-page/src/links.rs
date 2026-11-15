@@ -17,6 +17,50 @@ pub fn init(cx: &mut App) {
         let book = book.to_owned();
         let scope = std::ptr::from_ref(library.library()) as usize;
         let window = dr_shell::workspace::active_workspace(cx);
+        if matches!(
+            link.kind,
+            dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material
+        ) {
+            let asset_id = link.target.clone();
+            let check_lib = library.clone();
+            let check_book = book.clone();
+            let check_id = asset_id.clone();
+            let resolved = cx.background_executor().spawn(async move {
+                dr_editor::v3::read(&check_lib, &check_book, move |v| {
+                    v.assets().iter().any(|a| a.id.as_str() == check_id)
+                })
+                .ok()
+                .filter(|alive| *alive)
+                .and_then(|_| dr_model::id::MediaItemId::parse(&asset_id).ok())
+            });
+            cx.spawn(async move |cx| {
+                let Some(id) = resolved.await else {
+                    return;
+                };
+                let Some(window) = window else {
+                    return;
+                };
+                cx.update(|cx| {
+                    dr_shell::workspace::update_workspace(window, cx, move |ws, _, cx| {
+                        if dr_shell::release::is_releasing(cx)
+                            || ws.book_id != book
+                            || ws.library.as_ref().is_none_or(|lib| {
+                                std::ptr::from_ref(lib.library()) as usize != scope
+                            })
+                        {
+                            return;
+                        }
+                        ws.open(
+                            dr_shell::nav::Target::Material(id),
+                            dr_shell::nav::Open::PREVIEW,
+                            cx,
+                        );
+                    })
+                });
+            })
+            .detach();
+            return;
+        }
         let resolved = cx.background_executor().spawn(async move {
             dr_editor::v3_link::resolve(&library, &book, &link).map(|address| (book, address))
         });

@@ -31,7 +31,7 @@ use crate::card;
 use crate::folders::{self, Entry, Tree};
 use crate::library::{
     ClearSelection, DragGhost, KEY_CONTEXT, LibraryPanel, MaterialDrag, PasteFiles, SelectAll,
-    ViewMode,
+    ViewMode, drag_selection, make_drag,
 };
 use crate::library_data::CurrentItem;
 use crate::page::MediaKind;
@@ -257,10 +257,7 @@ impl LibraryPanel {
         } else {
             self.name_of(&key).into()
         };
-        let drag = MaterialDrag {
-            selection: target,
-            label,
-        };
+        let drag = make_drag(self.book_id(), target, label);
         let into = self.drop_folder_for(entry);
         let (into_a, into_b) = (into.clone(), into);
         let material_target = match entry {
@@ -281,13 +278,16 @@ impl LibraryPanel {
             })
             .drag_over::<MaterialDrag>(move |st, _, _, _| st.bg(wash))
             .on_drop(cx.listener(move |p, drag: &MaterialDrag, _, cx| {
+                if drag.book != p.book_id() {
+                    return;
+                }
                 if let Some(before_id) = &material_target
-                    && drag.selection.folders.is_empty()
-                    && drag.selection.materials.len() == 1
+                    && drag.folders.is_empty()
+                    && drag.assets.len() == 1
                 {
-                    p.reorder_material_before(&drag.selection.materials[0], before_id, cx);
+                    p.reorder_material_before(&drag.assets[0], before_id, cx);
                 } else {
-                    p.move_to(drag.selection.clone(), into_a.clone(), cx);
+                    p.move_to(drag_selection(drag), into_a.clone(), cx);
                 }
             }))
             .drag_over::<ExternalPaths>(move |st, _, _, _| st.bg(wash))
@@ -350,10 +350,11 @@ impl LibraryPanel {
                 })
                 .into_any_element()
         };
-        let drag = MaterialDrag {
-            selection: self.picker.target(&key),
-            label: self.name_of(&key).into(),
-        };
+        let drag = make_drag(
+            self.book_id(),
+            self.picker.target(&key),
+            self.name_of(&key).into(),
+        );
         let with_card = self.wrap_hover_card("cur", &key, cell, cx);
         div()
             .id(rid("row"))
@@ -543,10 +544,11 @@ impl LibraryPanel {
         })
         .into_any_element();
 
-        let drag = MaterialDrag {
-            selection: self.picker.target(&key),
-            label: self.name_of(&key).into(),
-        };
+        let drag = make_drag(
+            self.book_id(),
+            self.picker.target(&key),
+            self.name_of(&key).into(),
+        );
         let before_id = m.id.clone();
         let into = m
             .folder
@@ -564,10 +566,13 @@ impl LibraryPanel {
             })
             .drag_over::<MaterialDrag>(move |st, _, _, _| st.bg(wash))
             .on_drop(cx.listener(move |p, drag: &MaterialDrag, _, cx| {
-                if drag.selection.folders.is_empty() && drag.selection.materials.len() == 1 {
-                    p.reorder_material_before(&drag.selection.materials[0], &before_id, cx);
+                if drag.book != p.book_id() {
+                    return;
+                }
+                if drag.folders.is_empty() && drag.assets.len() == 1 {
+                    p.reorder_material_before(&drag.assets[0], &before_id, cx);
                 } else {
-                    p.move_to(drag.selection.clone(), into.clone(), cx);
+                    p.move_to(drag_selection(drag), into.clone(), cx);
                 }
             }))
             .child(with_card)
@@ -701,10 +706,11 @@ impl LibraryPanel {
         })
         .into_any_element();
 
-        let drag = MaterialDrag {
-            selection: self.picker.target(&key),
-            label: folder.name.clone().into(),
-        };
+        let drag = make_drag(
+            self.book_id(),
+            self.picker.target(&key),
+            folder.name.clone().into(),
+        );
         let into_a = Some(folder.id.clone());
         let into_b = Some(folder.id.clone());
         let wash = p.accent.alpha(0.12);
@@ -719,7 +725,10 @@ impl LibraryPanel {
             })
             .drag_over::<MaterialDrag>(move |st, _, _, _| st.bg(wash))
             .on_drop(cx.listener(move |p, drag: &MaterialDrag, _, cx| {
-                p.move_to(drag.selection.clone(), into_a.clone(), cx)
+                if drag.book != p.book_id() {
+                    return;
+                }
+                p.move_to(drag_selection(drag), into_a.clone(), cx)
             }))
             .drag_over::<ExternalPaths>(move |st, _, _, _| st.bg(wash))
             .on_drop(cx.listener(move |p, paths: &ExternalPaths, _, cx| {
@@ -1572,8 +1581,11 @@ impl Render for LibraryPanel {
                     .border_color(gpui::transparent_black())
                     .drag_over::<MaterialDrag>(move |st, _, _, _| st.bg(wash))
                     .on_drop(cx.listener(|p, drag: &MaterialDrag, _, cx| {
+                        if drag.book != p.book_id() {
+                            return;
+                        }
                         let dest = p.masonry_folder.clone();
-                        p.move_to(drag.selection.clone(), dest, cx)
+                        p.move_to(drag_selection(drag), dest, cx)
                     }))
                     .drag_over::<ExternalPaths>(move |st, _, _, _| st.bg(wash).border_color(ring))
                     .on_drop(cx.listener(|p, paths: &ExternalPaths, _, cx| {

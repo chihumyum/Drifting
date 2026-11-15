@@ -25,6 +25,7 @@ pub struct BodyModule {
 
 pub fn register(cx: &mut App) {
     crate::whole::register(cx);
+    crate::media::register(cx);
     dr_shell::v3::add_module_view(cx, "prose", |host, window, cx| {
         let page = host.page.clone();
         let view = cx.new(|cx| BodyModule::new(host, window, cx));
@@ -316,7 +317,7 @@ pub(crate) fn bind_links<T: 'static>(
                 };
                 dr_shell::nav::Target::Entry { id, module }
             }
-            dr_model::kind::EntityKind::Material => {
+            dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material => {
                 let Ok(id) = dr_model::id::MediaItemId::parse(&target.id) else {
                     return;
                 };

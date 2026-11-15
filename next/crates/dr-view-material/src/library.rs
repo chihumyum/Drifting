@@ -91,12 +91,24 @@ pub fn bindings() -> Vec<KeyBinding> {
     ]
 }
 
-/// Rows being dragged: a selection of materials and folders. Public for
-/// M23 and `dr-editor` prose drop targets.
-#[derive(Clone, Debug)]
-pub struct MaterialDrag {
-    pub selection: Selection,
-    pub label: SharedString,
+/// Rows being dragged: a selection of materials and folders. Shared across the
+/// library, `MediaModule`, and `dr-editor` prose drop targets.
+pub type MaterialDrag = dr_ui::AssetDrag;
+
+pub(crate) fn make_drag(book: String, sel: Selection, label: SharedString) -> MaterialDrag {
+    MaterialDrag {
+        book,
+        assets: sel.materials,
+        folders: sel.folders,
+        label,
+    }
+}
+
+pub(crate) fn drag_selection(drag: &MaterialDrag) -> Selection {
+    Selection {
+        folders: drag.folders.clone(),
+        materials: drag.assets.clone(),
+    }
 }
 
 /// What follows the pointer while rows are dragged.
