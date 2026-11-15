@@ -73,11 +73,11 @@ module.remove_relation [write] Remove one relation projected in an entry's relat
 module.replace_prose [write] Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
-module.set_prose [write] Write paragraphs of an entry's or a template's prose module.
+module.set_prose [write] Write paragraphs of an entry's or a template's prose module: all of them, in order, as module.read_prose reads them. Unchanged paragraphs stay; one whose words change is edited in place and keeps its id and comments. A list item has `list` (bullet, ordered or task) and `list_level`. A task item is a checklist item and also a comment whose words are the line's: `checked` ticked resolves it, cleared reopens it, and taking the line out deletes the comment.
 project.get [read] Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.
 project.update [write] Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.
 prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
-prose.read [read] Read paragraphs of a prose document (text, block id, heading level).
+prose.read [read] Read paragraphs of a prose document (text, block id, heading level; a list item's kind and level, a checklist item's tick).
 prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore [write] Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape [read] Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).
@@ -162,7 +162,7 @@ module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc
 module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
 module.put_relation book 6c58d5ad0245c9628ead52a2417d4128f8d00931ee1d96a3c78f8c1eac838b27
 module.read shared e332c220d374d16b14387ad0f9ba9b7f8a3dd95ed9cc1b4531fce04df3680265
-module.read_prose shared 250ce3bcbbe6bcf0da07ea3314af6a22e735a57c52338dc6b0a4d86f41ce770f
+module.read_prose shared b6facfa8753e1c3f85fcae373219161e5d5e38367cd147040c03b8ccc22ca59b
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
 module.remove_patch book b2496984384d9ab6e800d68bc25cd1c4bc80f17bb8df7bc60d529665e8393757
@@ -170,11 +170,11 @@ module.remove_relation book f6feacd2cf1fff9c7b1a6d23dee8b55725ade5a91165fa00dbf5
 module.replace_prose book 361c1bd302fe4686ec8f8436f775f745cc53d462662430b50e2a831a4c2c4dd3
 module.set_arrangement book c8baf155d081545d2e0ec82afb21683e91b57eefaa9b93a548da03a68d0175cc
 module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845989258
-module.set_prose book 64ae28c4a64983a8c7c747c5f878afa354f8b96b5fb33b3bb395ca08aa8f551c
+module.set_prose book 469b61d50a65d8f80b190ac715c479c1dead92745a954d67e4574301f478fe67
 project.get shared 6cf53f13ecc5a55b0a2f78072624b7c3b165f2a1fc4c6945d3ae304b9b435320
 project.update book 60ae8e1ce3c04396a76576e6eb7fa73d6e2dfef42de7952fa58f05decdb296af
 prose.link book 5e611d1d29d83cfbdb6617bc5ab4a556e8033b72ddc377c108d8d69b8c10ab7a
-prose.read shared 3dd0218c218770d03d38c33a2b264717b3464caaad18d0e3648c46b09524ac9d
+prose.read shared 1e6fde6b01a9c6e9889dc9194c89f93669df269eb331cde732f98d8130ae7848
 prose.replace book b0591c896fc08245ca4e332124d791755507388cceb727caae65f527fbfe068f
 prose.restore book 74a6b009a098de0e87f1c44b27f65c1a1c111286e8aba3e56ab7cbe39b62efd1
 prose.shape shared 05387f9196c7c9346e7d57241e24f4648686980238fcd7030d508724784b9b74
