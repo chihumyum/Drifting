@@ -74,16 +74,7 @@
 - 真窗口失败先看 `app.info` 和结果里的 environment。确实是被遮挡、窗口失活、不在前台，才原样重跑一次，第一轮的记录留着；不是这几种原因就当真失败处理。
 - 机器很忙时，等画完、等后台补建索引的测试偶尔会超时：单独重跑一次，过了就算过，在交回里记一句。这两种情况以外不重跑，更不给断言加重试。
 - 场景按名字找控件（`ui.press`、`ui.find` 的 `label`、`role`、`within`），少按坐标点；目标可能在窗口外时先滚动到一个不随上文变的位置（比如页尾），再按名字按。默认打开的底部时间线会盖住窗口下部，要点窗口下部的控件先用 `workspace::ToggleBottomTimeline` 收起它。
-- 需要预先造库的场景：`dr-view-review/scenarios/book-media-writes-v3.json` 不自己造库。先取一个没用过的 profile 名（`DRIFTING_PROFILE` 的规矩见上），造库，再带这个 profile 跑：
-
-  ```bash
-  cd next
-  P=media-$(date +%H%M%S)
-  cargo run -p dr-view-material --example v3-media-fixture -- "$HOME/Library/Application Support/cc.drifting.next.dev.$P/library"
-  cargo drifting workspace scenario crates/dr-view-review/scenarios/book-media-writes-v3.json --app target/debug/drifting --profile "$P" --yes
-  ```
-
-  跑完这个 profile 的数据要自己删（`--profile` 的运行不替你删）。
+- `dr-view-review/scenarios/book-media-writes-v3.json` 从 2026-11-16 起和别的场景一样自己写 lite 种子（素材库里自带一张合成图片），不再先用 `v3-media-fixture` 造库、也不用带 `--profile`。
 - 调试桥的鼠标事件现在不带修饰键（`Modifiers::none()`）。要验按住 Shift 点这类操作，得先给调试桥加上：默认语义不变，修饰键贯穿真实的按下、移动、抬起，补上默认、指定、无效参数三种契约测试。
 
 ## 整合
