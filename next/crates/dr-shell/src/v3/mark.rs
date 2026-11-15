@@ -19,6 +19,8 @@ use std::rc::Rc;
 
 /// What the author picked: a mark, or `None` (the template's mark again).
 pub type OnPick = Rc<dyn Fn(Option<String>, &mut Window, &mut App)>;
+/// The pointer went down outside the card.
+pub type OnDismiss = Rc<dyn Fn(&mut Window, &mut App)>;
 
 pub struct MarkPicker {
     /// Whose mark it is (an entry's or a template's id): it fixes a
@@ -29,7 +31,7 @@ pub struct MarkPicker {
     template_row: bool,
     glyph: Entity<TextField>,
     on_pick: OnPick,
-    on_dismiss: Rc<dyn Fn(&mut Window, &mut App)>,
+    on_dismiss: OnDismiss,
     _glyph: Subscription,
 }
 

@@ -131,6 +131,7 @@ pub fn write(
 /// One row of an entry in a Tab's list: its mark and title, opening it on
 /// a click (kept on a double click), its hover card, and dragging to change
 /// the order `drop` writes. `lead` goes before the mark (a number).
+#[allow(clippy::too_many_arguments)]
 fn entry_row(
     host: &PageViewHost,
     scope: &str,
