@@ -262,9 +262,7 @@ fn scale_copy_never_calls_view_scale_time_across_all_locales() {
 }
 
 #[gpui::test]
-fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_open_whole_book(
-    cx: &mut TestAppContext,
-) {
+fn view_drag_aligns_lane_and_whole_book_and_menus_open_whole_book(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
     let initial = Book::load(&lib, &id).unwrap();
     let b0 = initial.v3().unwrap();
@@ -374,13 +372,27 @@ fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_o
     t.update(cx, |t, cx| t.select("t4-auth-view".into(), cx));
     sync_all(&host, &ws, &lib, &id, cx);
 
-    // Set `t4-auth-view` as `project.book.root` via `set_view_as_book_root` (wired to `v3-view-set-book-root`).
-    t.update(cx, |t, cx| t.set_view_as_book_root(cx));
-    wait(cx, |_| {
-        call(&lib, "project.get", json!({"book": id}))["book"]["root"]
-            == json!({"kind": "view", "view": "t4-auth-view"})
-    });
-    sync_all(&host, &ws, &lib, &id, cx);
+    // A whole-book view of `t4-auth-view` (or one of its lanes), read along
+    // its scale. The book has no start, so no menu sets one (DW).
+    let flat = |from: dr_model::v3::FlattenFrom| -> Vec<String> {
+        let book_id_parsed: dr_model::id::BookId = id.parse().unwrap();
+        lib.read_book_v3(&id, move |doc, _| {
+            let bb = dr_doc::v3::BorrowedBookV3::new(doc, &book_id_parsed).unwrap();
+            let view = bb.view();
+            let s = view.structure_snapshot();
+            Ok(s.sequence(&from, true)
+                .unwrap()
+                .into_iter()
+                .map(|f| f.entry.id.to_string())
+                .collect())
+        })
+        .unwrap()
+    };
+    let view_seq = || {
+        flat(dr_model::v3::FlattenFrom::View {
+            view: "t4-auth-view".parse().unwrap(),
+        })
+    };
 
     // Drag `ch_a` (initially at `at = 0.0`) rightward past `ch_b` (`offset_x = 320.0`, `at = 16.0`)
     // on `lane_top` so order on `lane_top` becomes `[ch_b, ch_a]`.
@@ -398,7 +410,7 @@ fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_o
         snap.v3().unwrap().levels[&lane_top].members == vec![ch_b.clone(), ch_a.clone()]
     });
 
-    // Verify all 3 surfaces agree: lane page, whole-book sequence, and manuscript sequence!
+    // The lane page and the whole-book view of the view agree.
     let snap = Book::load(&lib, &id).unwrap();
     let v = snap.v3().unwrap();
     assert_eq!(
@@ -406,30 +418,7 @@ fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_o
         vec![ch_b.clone(), ch_a.clone()]
     );
     // `ch_b` is at `1.0`, `ch_c` is at `2.0`, and `ch_a` was dragged to `16.0`: `[ch_b, ch_c, ch_a]`.
-    let manuscript_seq: Vec<String> = v.manuscript.iter().map(|m| m.entry.clone()).collect();
-    assert_eq!(
-        manuscript_seq,
-        vec![ch_b.clone(), ch_c.clone(), ch_a.clone()]
-    );
-    let book_id_parsed: dr_model::id::BookId = id.parse().unwrap();
-    let whole_view_seq: Vec<String> = lib
-        .read_book_v3(&id, move |doc, _| {
-            let bb = dr_doc::v3::BorrowedBookV3::new(doc, &book_id_parsed).unwrap();
-            let view = bb.view();
-            let s = view.structure_snapshot();
-            Ok(s.sequence(
-                &dr_model::v3::BookRoot::View {
-                    view: "t4-auth-view".parse().unwrap(),
-                },
-                true,
-            )
-            .unwrap()
-            .into_iter()
-            .map(|f| f.entry.id.to_string())
-            .collect())
-        })
-        .unwrap();
-    assert_eq!(whole_view_seq, manuscript_seq);
+    assert_eq!(view_seq(), vec![ch_b.clone(), ch_c.clone(), ch_a.clone()]);
 
     // Same-coordinate tie-breaking: place `ch_a` (top lane) and `ch_c` (bottom lane) at exact `at = 50.0`.
     call(
@@ -442,18 +431,7 @@ fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_o
         "timeline_view.place",
         json!({"book": id, "view": "t4-auth-view", "entry": ch_c, "at": 50.0}),
     );
-    let tie_top_first: Vec<String> = Book::load(&lib, &id)
-        .unwrap()
-        .v3()
-        .unwrap()
-        .manuscript
-        .iter()
-        .map(|m| m.entry.clone())
-        .collect();
-    assert_eq!(
-        tie_top_first,
-        vec![ch_b.clone(), ch_a.clone(), ch_c.clone()]
-    );
+    assert_eq!(view_seq(), vec![ch_b.clone(), ch_a.clone(), ch_c.clone()]);
 
     // Reorder `lane_bottom` above `lane_top`: tie-breaking flips to `[ch_b, ch_c, ch_a]`!
     sync_all(&host, &ws, &lib, &id, cx);
@@ -467,21 +445,10 @@ fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_o
             .unwrap()["lanes"][0]["entry"]
             == lane_bottom
     });
-    let tie_bottom_first: Vec<String> = Book::load(&lib, &id)
-        .unwrap()
-        .v3()
-        .unwrap()
-        .manuscript
-        .iter()
-        .map(|m| m.entry.clone())
-        .collect();
-    assert_eq!(
-        tie_bottom_first,
-        vec![ch_b.clone(), ch_c.clone(), ch_a.clone()]
-    );
+    assert_eq!(view_seq(), vec![ch_b.clone(), ch_c.clone(), ch_a.clone()]);
 
-    // Open Whole-Book View from the view and from a lane via the real LaneActions menu,
-    // and set the lane as `project.book.root`!
+    // Open Whole-Book View from the view and from a lane via the real
+    // LaneActions menu; neither menu sets a book start any more.
     sync_all(&host, &ws, &lib, &id, cx);
     t.update(cx, |t, cx| t.open_book_view(cx));
     let view_target = Target::BookView("t4-auth-view".parse().unwrap());
@@ -507,21 +474,15 @@ fn view_drag_aligns_lane_whole_book_and_manuscript_and_menus_set_book_root_and_o
     let actions_pt = cx.debug_bounds(lane_actions_sel).unwrap().center();
     cx.simulate_click(actions_pt, Modifiers::none());
     frame(cx);
-    let set_lane_root_pt = cx.debug_bounds("v3-lane-set-book-root").unwrap().center();
-    cx.simulate_click(set_lane_root_pt, Modifiers::none());
-    wait(cx, |_| {
-        call(&lib, "project.get", json!({"book": id}))["book"]["root"]
-            == json!({"kind": "lane", "view": "t4-auth-view", "entry": lane_top})
-    });
-    let lane_root_manuscript: Vec<String> = Book::load(&lib, &id)
-        .unwrap()
-        .v3()
-        .unwrap()
-        .manuscript
-        .iter()
-        .map(|m| m.entry.clone())
-        .collect();
-    assert_eq!(lane_root_manuscript, vec![ch_b, ch_a]);
+    assert!(cx.debug_bounds("v3-lane-open-book").is_some());
+    assert!(cx.debug_bounds("v3-lane-set-book-root").is_none());
+    assert_eq!(
+        flat(dr_model::v3::FlattenFrom::Lane {
+            view: "t4-auth-view".parse().unwrap(),
+            entry: lane_top.parse().unwrap(),
+        }),
+        vec![ch_b, ch_a]
+    );
 }
 
 #[gpui::test]

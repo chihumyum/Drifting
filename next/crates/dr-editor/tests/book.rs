@@ -1075,7 +1075,7 @@ fn opens_from_timeline_view_and_lane_roots_with_scale_tie_breaking_and_live_relo
     cx: &mut TestAppContext,
 ) {
     use dr_doc::v3::novel::TPL_ACT_TRACK;
-    use dr_model::v3::BookRoot;
+    use dr_model::v3::FlattenFrom;
 
     let e = env();
     let storylines_root = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, TPL_STORYLINES);
@@ -1178,11 +1178,11 @@ fn opens_from_timeline_view_and_lane_roots_with_scale_tie_breaking_and_live_relo
         );
     }
 
-    // 1. Open from `BookRoot::View`: order is `[id_act, id_a, id_b]` (each once).
+    // 1. Open from `FlattenFrom::View`: order is `[id_act, id_a, id_b]` (each once).
     {
         let ws = e.ws.clone();
         let book = e.book.clone();
-        let root = BookRoot::View {
+        let root = FlattenFrom::View {
             view: view_id.parse().unwrap(),
         };
         cx.executor().allow_parking();
@@ -1213,11 +1213,11 @@ fn opens_from_timeline_view_and_lane_roots_with_scale_tie_breaking_and_live_relo
         );
     }
 
-    // 2. Open from `BookRoot::Lane { view, entry: lane_b }`: only `lane_b`'s entries in scale order.
+    // 2. Open from `FlattenFrom::Lane { view, entry: lane_b }`: only `lane_b`'s entries in scale order.
     {
         let ws = e.ws.clone();
         let book = e.book.clone();
-        let root = BookRoot::Lane {
+        let root = FlattenFrom::Lane {
             view: view_id.parse().unwrap(),
             entry: lane_b.parse().unwrap(),
         };
@@ -1230,7 +1230,7 @@ fn opens_from_timeline_view_and_lane_roots_with_scale_tie_breaking_and_live_relo
             view.read_with(vcx, |v, _| v.chapter_docs().map(str::to_owned).collect());
         assert_eq!(docs, vec![doc_b.clone(), doc_a.clone()]);
 
-        // Removing `lane_b` from `view_id` invalidates `BookRoot::Lane` and clears stale chapters.
+        // Removing `lane_b` from `view_id` makes `FlattenFrom::Lane` no start and clears stale chapters.
         out(
             &e.ws,
             &Actor::User,

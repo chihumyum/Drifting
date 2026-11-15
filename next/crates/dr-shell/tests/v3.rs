@@ -140,8 +140,8 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
             template: "tpl-manuscript".into()
         }
     );
-    assert!(v.is_book_root_entry(&root.id));
-    assert!(!v.is_book_root_entry(child));
+    // The book has no start (DW): nothing marks 书稿 as one.
+    assert!(v.project.book.is_some());
     assert_ne!(v.revision, b.v3().unwrap().revision);
     let legacy = dr_testkit::seed::acceptance::empty_source(ws.library());
     let before = ws.library().head(&format!("book:{legacy}")).unwrap();

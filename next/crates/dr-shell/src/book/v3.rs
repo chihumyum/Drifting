@@ -141,8 +141,6 @@ pub struct BookV3 {
     /// same read.
     #[serde(skip)]
     colors: BTreeMap<String, String>,
-    #[serde(skip)]
-    ordinals: BTreeMap<String, u32>,
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
@@ -346,25 +344,12 @@ impl BookV3 {
             .map(|c| c.id.clone())
             .collect()
     }
-    /// The 1-based chapter ordinal of `id` when it carries book prose in the
-    /// manuscript sequence and lives under no entry with book prose of its
-    /// own (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
-    pub fn manuscript_number(&self, id: &str) -> Option<u32> {
-        self.ordinals.get(id).copied()
-    }
     /// Whether `id` holds content rather than organising it: its template
     /// is `linkable` (`kernel-v4.md` §2), and an entry without a template
     /// counts as content. A content entry is shown as a card whether or not
     /// its switch is on; only an organising entry is shown as a group.
     pub fn is_content(&self, id: &str) -> bool {
         self.entry(id).is_some() && self.template_of(id).is_none_or(|t| t.linkable)
-    }
-    /// Whether `id` is the entry currently configured as `project.book.root`.
-    pub fn is_book_root_entry(&self, id: &str) -> bool {
-        matches!(
-            self.project.book.as_ref().map(|b| &b.root),
-            Some(types::BookRoot::Entry { entry }) if entry == id
-        )
     }
     /// Metadata for every entry surface. Entry `mark` overrides template `mark`;
     /// the sand renderer maps the built-in marks to the existing visual family.
@@ -405,24 +390,12 @@ impl BookV3 {
             .is_some_and(|e| e.level || self.accepts_members(id))
     }
     /// The live view whose scale orders what lives under and is attached
-    /// to `id` while it is a lane (`kernel-v5.md` §4 「视图：刻度」): the
-    /// book's start view when `id` is a lane in it, else the first live
-    /// view it is a lane in.
+    /// to `id` while it is a lane (`kernel-v5.md` §4 「视图：刻度」): the first
+    /// live view it is a lane in.
     pub fn ordering_view(&self, id: &str) -> Option<&types::TimelineView> {
-        let has = |v: &&types::TimelineView| {
-            v.deleted_at.is_none() && v.lanes.iter().any(|l| l.entry == id)
-        };
-        let start = match self.project.book.as_ref().map(|b| &b.root) {
-            Some(types::BookRoot::View { view } | types::BookRoot::Lane { view, .. }) => {
-                Some(view.as_str())
-            }
-            _ => None,
-        };
         self.timeline_views
             .iter()
-            .filter(has)
-            .find(|v| Some(v.id.as_str()) == start)
-            .or_else(|| self.timeline_views.iter().find(has))
+            .find(|v| v.deleted_at.is_none() && v.lanes.iter().any(|l| l.entry == id))
     }
     /// A live timeline view.
     pub fn timeline_view(&self, id: &str) -> Option<&types::TimelineView> {
@@ -640,11 +613,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         let project = types::Project::of(&structure);
         // The book sequence (`project.book`): entries with book prose, in sequence order.
         let mut manuscript = Vec::new();
-        let mut ordinals = BTreeMap::new();
         for e in structure.book_sequence() {
-            if let Some(n) = e.ordinal {
-                ordinals.insert(e.entry.id.to_string(), n);
-            }
             for prose in e.prose {
                 manuscript.push(ManuscriptBody {
                     entry: e.entry.id.to_string(),
@@ -832,7 +801,6 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 project,
                 shown,
                 manuscript,
-                ordinals,
                 entries,
                 templates,
                 roots,

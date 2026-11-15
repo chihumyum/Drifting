@@ -359,7 +359,6 @@
     "ruler": "눈금자",
     "selectLane": "레인 선택",
     "setActTrack": "막 트랙으로 사용 · {{name}}",
-    "setBookRoot": "책 시작점으로 설정",
     "unsetActTrack": "일반 레인으로 전환 · {{name}}",
     "views": "보기"
   },

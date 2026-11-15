@@ -53,10 +53,9 @@ fn entry<'a>(e: &'a Env, template: &str) -> &'a Value {
 // ProseEditor's paste_text/on_cut helpers.
 fn manuscript_root(e: &Env) -> String {
     dr_editor::v3::read(&e.ws, &e.book, |v| {
-        dr_editor::v3::manuscript_roots(&v)
-            .into_iter()
-            .next()
+        v.root_entry_by_template(&dr_doc::v3::novel::TPL_MANUSCRIPT.parse().unwrap())
             .unwrap()
+            .id
             .to_string()
     })
     .unwrap()

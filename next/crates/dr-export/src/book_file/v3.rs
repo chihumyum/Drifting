@@ -731,9 +731,11 @@ impl Rewriter<'_> {
                     .into(),
             );
         }
-        if ((path == ["project", "book"] && key == "root")
-            || (matches!(path, [root, field, _] if root == "project" && field == "tabs")
-                && key == "mount"))
+        // A tab's mount names an entry or a view. (An older book's
+        // `project.book.root` is carried as it is: the book has no start any
+        // more and it is never read.)
+        if matches!(path, [root, field, _] if root == "project" && field == "tabs")
+            && key == "mount"
             && let LoroValue::Map(m) = value
         {
             return LoroValue::Map(

@@ -531,23 +531,6 @@ impl<'a> BookViewV3<'a> {
         }
     }
 
-    pub(super) fn read_book_root(f: F<'_>) -> Option<BookRoot> {
-        match f.string("kind").as_str() {
-            "root" => Some(BookRoot::Root),
-            "entry" => Some(BookRoot::Entry {
-                entry: f.id("entry")?,
-            }),
-            "view" => Some(BookRoot::View {
-                view: f.id("view")?,
-            }),
-            "lane" => Some(BookRoot::Lane {
-                view: f.id("view")?,
-                entry: f.id("entry")?,
-            }),
-            _ => None,
-        }
-    }
-
     pub(super) fn read_tab_mount(f: F<'_>) -> Option<TabMount> {
         match f.string("kind").as_str() {
             "root" => Some(TabMount::Root),
@@ -576,22 +559,11 @@ impl<'a> BookViewV3<'a> {
                     .opt_string("origin")
                     .map(|s| ProjectTemplateOrigin::parse(&s));
                 let name = pt.opt_string("name").filter(|s| !s.is_empty());
+                // Only the author's name: an older `homepage` or
+                // `derived_from` stored here is not read.
                 let credit = pt.sub("credit").and_then(|cf| {
-                    let derived_from = cf.sub("derived_from").and_then(|df| {
-                        let name = df.string("name");
-                        if name.is_empty() {
-                            None
-                        } else {
-                            Some(ProjectTemplateDerivedFrom {
-                                name,
-                                author: df.string("author"),
-                            })
-                        }
-                    });
                     let c = ProjectTemplateCredit {
                         author: cf.string("author"),
-                        homepage: cf.string("homepage"),
-                        derived_from,
                     };
                     (!c.is_empty()).then_some(c)
                 });
@@ -616,16 +588,11 @@ impl<'a> BookViewV3<'a> {
                 Some(cfg)
             }
         });
-        let book = f.sub("book").map(|bf| {
-            let root = bf
-                .sub("root")
-                .and_then(Self::read_book_root)
-                .unwrap_or(BookRoot::Unset);
-            ProjectBook {
-                root,
-                word_target_set: bf.i64("word_target"),
-                daily_word_target_set: bf.i64("daily_word_target"),
-            }
+        // An older book may still store a `root` (the book's start, gone
+        // 2026-11-15): it is not read; the book reads from the root.
+        let book = f.sub("book").map(|bf| ProjectBook {
+            word_target_set: bf.i64("word_target"),
+            daily_word_target_set: bf.i64("daily_word_target"),
         });
         ProjectDefinition {
             source,

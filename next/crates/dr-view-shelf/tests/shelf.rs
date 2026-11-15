@@ -225,6 +225,76 @@ fn a_last_book_gone_opens_all_projects(cx: &mut TestAppContext) {
     assert!(view.read_with(cx, |ws, _| ws.book.id.is_empty()));
 }
 
+/// DW (`WORKING-COPY-LOCAL`): a template's working copy is never the
+/// project the window opens on: one remembered as the last book opens
+/// 全部项目, it is no card there, and opening it remembers nothing.
+#[gpui::test]
+fn a_working_copy_is_never_the_last_book(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let books: Vec<String> = library
+        .library()
+        .docs(None, Some("book"))
+        .unwrap()
+        .into_iter()
+        .filter_map(|d| d.doc_id.strip_prefix("book:").map(str::to_owned))
+        .collect();
+    use dr_workspace::commands::v3::project_template::{
+        ProjectTemplateEdit, ProjectTemplateEditIn, ProjectTemplateSave, ProjectTemplateSaveIn,
+    };
+    let template = library
+        .run::<ProjectTemplateSave>(
+            &Actor::User,
+            ProjectTemplateSaveIn {
+                book: books[0].clone(),
+                name: Some("模板".into()),
+                description: None,
+                locale: None,
+                credit: None,
+                agent: None,
+                exclude_skeleton: Vec::new(),
+                sample_entries: Vec::new(),
+                view_pins: Vec::new(),
+                replace: None,
+            },
+        )
+        .unwrap()
+        .output
+        .id;
+    let copy = library
+        .run::<ProjectTemplateEdit>(&Actor::User, ProjectTemplateEditIn { id: template })
+        .unwrap()
+        .output
+        .book;
+    let mut settings = SettingsFile::in_memory();
+    settings.set_last_book(&copy);
+    let (view, cx) = setup_with(cx, library, settings);
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        view.read_with(cx, |ws, _| ws.shelf_open)
+    });
+    assert!(view.read_with(cx, |ws, _| ws.book.id.is_empty()));
+    let shelf = shelf_of(&view, cx);
+    shelf_until(&shelf, cx, |d| d.books.len() == 2);
+    assert!(shelf.read_with(cx, |s, _| {
+        s.data
+            .as_deref()
+            .is_some_and(|d| d.books.iter().all(|b| b.id != copy))
+    }));
+
+    // A project opened is remembered; the copy opened after it (as editing
+    // its template does) is not.
+    let project = books[1].clone();
+    view.update_in(cx, |ws, window, cx| ws.open_book(&project, window, cx));
+    wait_for(cx, |cx| {
+        view.read_with(cx, |ws, _| ws.book.id == project)
+            && cx.update(|_, cx| dr_shell::Settings::read(cx).last_book() == Some(project.as_str()))
+    });
+    view.update_in(cx, |ws, window, cx| ws.open_book(&copy, window, cx));
+    wait_for(cx, |cx| view.read_with(cx, |ws, _| ws.book.id == copy));
+    let after = cx.update(|_, cx| dr_shell::Settings::read(cx).last_book().map(str::to_owned));
+    assert_eq!(after.as_deref(), Some(project.as_str()));
+}
+
 #[gpui::test]
 fn a_card_opens_its_book_the_row_of_projects_drops_and_the_red_light_closes(
     cx: &mut TestAppContext,

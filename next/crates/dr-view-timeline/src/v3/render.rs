@@ -112,15 +112,6 @@ impl Timeline {
                         .on_click(cx.listener(move |this, _, _, cx| this.select(id.clone(), cx))),
                     );
                 }
-                let is_view_book_root = self.view().is_some_and(|selected| {
-                    book.project.book.as_ref().is_some_and(|b| {
-                        matches!(
-                            &b.root,
-                            dr_workspace::commands::v3::types::BookRoot::View { view }
-                                if view == &selected.id
-                        )
-                    })
-                });
                 menu = menu
                     .child(
                         MenuItem::new(
@@ -130,16 +121,6 @@ impl Timeline {
                         )
                         .disabled(self.view().is_none())
                         .on_click(cx.listener(|this, _, _, cx| this.open_book_view(cx))),
-                    )
-                    .child(
-                        MenuItem::new(
-                            "v3-view-set-book-root",
-                            Icon::Books,
-                            t(cx, keys::v3_timeline::SET_BOOK_ROOT),
-                        )
-                        .checked(is_view_book_root)
-                        .disabled(self.view().is_none())
-                        .on_click(cx.listener(|this, _, _, cx| this.set_view_as_book_root(cx))),
                     )
                     .child(
                         MenuItem::new(
@@ -401,15 +382,6 @@ impl Timeline {
             MenuOf::LaneActions(lane_id) => {
                 let target_lane = lane_id.clone();
                 let accepts = book.accepts_members(lane_id);
-                let is_lane_book_root = self.view().is_some_and(|selected| {
-                    book.project.book.as_ref().is_some_and(|b| {
-                        matches!(
-                            &b.root,
-                            dr_workspace::commands::v3::types::BookRoot::Lane { view, entry }
-                                if view == &selected.id && entry == lane_id
-                        )
-                    })
-                });
                 menu = menu
                     .child(
                         MenuItem::new(
@@ -440,18 +412,6 @@ impl Timeline {
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.open_lane_book_view(target_lane.clone(), cx)
-                        }))
-                    })
-                    .child({
-                        let target_lane = lane_id.clone();
-                        MenuItem::new(
-                            "v3-lane-set-book-root",
-                            Icon::Books,
-                            t(cx, keys::v3_timeline::SET_BOOK_ROOT),
-                        )
-                        .checked(is_lane_book_root)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.set_lane_as_book_root(target_lane.clone(), cx)
                         }))
                     });
             }

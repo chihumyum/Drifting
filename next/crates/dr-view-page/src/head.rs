@@ -171,7 +171,7 @@ impl PageHead {
 
     /// The folio label shown at the start of the folio line.
     pub fn folio_label(&self, cx: &gpui::App) -> SharedString {
-        folio_label_of(&self.page, self.has_book(cx), cx)
+        folio_label_of(&self.page, cx)
     }
 
     /// The placeholder shown when the title field is empty.
@@ -356,26 +356,13 @@ fn title_placeholder_of(page: &PageInfo, has_book: bool, cx: &gpui::App) -> Shar
     }
 }
 
-fn folio_label_of(page: &PageInfo, has_book: bool, cx: &gpui::App) -> SharedString {
-    if !has_book {
-        return if !page.template_name.is_empty() {
-            SharedString::from(page.template_name.clone())
-        } else {
-            t(cx, keys::v3_shell::ENTRY_UNTEMPLATED)
-        };
-    }
-    match (page.kind, page.number) {
-        (PageKind::Chapter, Some(n)) => {
-            tf(cx, keys::node_editor::folio::CHAPTER_NUMBER, &[("n", &n)])
-        }
-        (PageKind::Chapter, None) => t(cx, keys::node_editor::folio::CHAPTER),
-        (PageKind::Other, _) => {
-            if !page.template_name.is_empty() {
-                SharedString::from(page.template_name.clone())
-            } else {
-                t(cx, keys::v3_shell::ENTRY_UNTEMPLATED)
-            }
-        }
+fn folio_label_of(page: &PageInfo, cx: &gpui::App) -> SharedString {
+    // The App numbers no chapter (author, 2026-11-15 night: 「所有正文APP都不
+    // 编号」): every page names its template.
+    if !page.template_name.is_empty() {
+        SharedString::from(page.template_name.clone())
+    } else {
+        t(cx, keys::v3_shell::ENTRY_UNTEMPLATED)
     }
 }
 
@@ -494,8 +481,8 @@ impl Render for PageHead {
         let body = editor_settings(cx).font_size;
         let page = &self.page;
         let has_book = self.has_book(cx);
-        // The folio line: 「第 N 章」 or the template name, the storyline's dash and name, the words.
-        let number = folio_label_of(page, has_book, cx);
+        // The folio line: the template name, the storyline's dash and name, the words.
+        let number = folio_label_of(page, cx);
         let entry_mark = page
             .color
             .as_deref()

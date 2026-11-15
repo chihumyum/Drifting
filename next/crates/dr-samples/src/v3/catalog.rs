@@ -535,14 +535,6 @@ pub fn sync_catalog(
         .summary(&meta.summary)?
         .created_at(meta.created_at)?
         .deleted_at(meta.deleted_at)?;
-    let existing_root = txn
-        .view()
-        .project()
-        .book
-        .map(|b| b.root)
-        .unwrap_or_else(|| BookRoot::Entry {
-            entry: roots.manuscript.clone(),
-        });
     txn.project()
         .source(Some(&ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
@@ -550,7 +542,6 @@ pub fn sync_catalog(
             ..ProjectTemplateRef::default()
         }))?
         .book(Some(&ProjectBook {
-            root: existing_root,
             word_target_set: meta.word_target_set,
             daily_word_target_set: meta.daily_word_target_set,
         }))?;

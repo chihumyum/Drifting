@@ -1291,7 +1291,7 @@ expression: json
       "title": "Array_of_BookInfo",
       "type": "array"
     },
-    "summary": "List the library's books (trashed ones when asked)."
+    "summary": "List the library's books (trashed ones when asked); a template's working copy is not one of them."
   },
   {
     "access": "write",
@@ -1413,108 +1413,9 @@ expression: json
     "book_version": 5,
     "concurrency": "shared",
     "input": {
-      "$defs": {
-        "BookRoot": {
-          "oneOf": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "root",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "entry",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "kind": {
-                  "const": "view",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
-              "properties": {
-                "kind": {
-                  "const": "unset",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            }
-          ]
-        }
-      },
       "properties": {
         "book": {
           "type": "string"
-        },
-        "in_book_only": {
-          "default": true,
-          "description": "When `true` (default), include only prose modules with `in_book == true` and number entries.\nSet `false` for whole-book view (`整书视图`) to include all prose modules along the walk.",
-          "type": "boolean"
-        },
-        "root": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BookRoot"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Optional start override (e.g. for whole-book view or previewing a start).\nWhen omitted, reads from `project.book.root` (empty when `project.book` is off)."
         }
       },
       "required": [
@@ -1566,87 +1467,6 @@ expression: json
             "sources"
           ],
           "type": "object"
-        },
-        "BookRoot": {
-          "oneOf": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "root",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "entry",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "kind": {
-                  "const": "view",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
-              "properties": {
-                "kind": {
-                  "const": "unset",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            }
-          ]
         },
         "Entry": {
           "properties": {
@@ -1999,6 +1819,7 @@ expression: json
           "type": "object"
         },
         "SequenceEntry": {
+          "description": "One entry of the book sequence. The App numbers nothing: an author who\nwants chapter numbers writes them.",
           "properties": {
             "depth": {
               "format": "uint32",
@@ -2007,15 +1828,6 @@ expression: json
             },
             "entry": {
               "$ref": "#/$defs/Entry"
-            },
-            "ordinal": {
-              "description": "1-based chapter ordinal when `prose` has at least one `in_book` prose module; `None` otherwise.",
-              "format": "uint32",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
             },
             "prose": {
               "items": {
@@ -2027,7 +1839,6 @@ expression: json
           "required": [
             "entry",
             "depth",
-            "ordinal",
             "prose"
           ],
           "type": "object"
@@ -2111,6 +1922,7 @@ expression: json
       },
       "properties": {
         "entries": {
+          "description": "The whole project read from the root, book prose only (empty when\nthe project has no book).",
           "items": {
             "$ref": "#/$defs/SequenceEntry"
           },
@@ -2118,31 +1930,16 @@ expression: json
         },
         "has_book": {
           "type": "boolean"
-        },
-        "root": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BookRoot"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "root_valid": {
-          "type": "boolean"
         }
       },
       "required": [
         "has_book",
-        "root",
-        "root_valid",
         "entries"
       ],
       "title": "BookSequenceOut",
       "type": "object"
     },
-    "summary": "Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start)."
+    "summary": "Read the ordered book sequence: the whole project from the root, book prose only (empty when the project has no book)."
   },
   {
     "access": "read",
@@ -2291,7 +2088,7 @@ expression: json
       "title": "Array_of_ShelfBook",
       "type": "array"
     },
-    "summary": "Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first."
+    "summary": "Everything the bookshelf shows, in one read: every book (not a template's working copy) with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first."
   },
   {
     "access": "write",
@@ -12202,87 +11999,6 @@ expression: json
     "concurrency": "library",
     "input": {
       "$defs": {
-        "BookRoot": {
-          "oneOf": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "root",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "entry",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "kind": {
-                  "const": "view",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
-              "properties": {
-                "kind": {
-                  "const": "unset",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            }
-          ]
-        },
         "EntryTemplate": {
           "properties": {
             "agent": {
@@ -12694,6 +12410,7 @@ expression: json
           "type": "object"
         },
         "ProjectBook": {
+          "description": "The book (`project.book`): on when present, with its two word targets.\nIt has no start: the book reads the whole project from the root. An old\n`root` in an input is ignored.",
           "properties": {
             "daily_word_target": {
               "default": null,
@@ -12712,9 +12429,6 @@ expression: json
                 "integer",
                 "null"
               ]
-            },
-            "root": {
-              "$ref": "#/$defs/BookRoot"
             },
             "word_target": {
               "default": null,
@@ -12735,9 +12449,6 @@ expression: json
               ]
             }
           },
-          "required": [
-            "root"
-          ],
           "type": "object"
         },
         "ProjectCreateTemplate": {
@@ -12966,38 +12677,12 @@ expression: json
           "type": "object"
         },
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
               "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
-              "type": "string"
             }
           },
-          "type": "object"
-        },
-        "ProjectTemplateDerivedFrom": {
-          "properties": {
-            "author": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
           "type": "object"
         },
         "ProjectTemplateRef": {
@@ -13375,88 +13060,8 @@ expression: json
     "name": "project.get",
     "output": {
       "$defs": {
-        "BookRoot": {
-          "oneOf": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "root",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "entry",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "kind": {
-                  "const": "view",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
-              "properties": {
-                "kind": {
-                  "const": "unset",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            }
-          ]
-        },
         "ProjectBook": {
+          "description": "The book (`project.book`): on when present, with its two word targets.\nIt has no start: the book reads the whole project from the root. An old\n`root` in an input is ignored.",
           "properties": {
             "daily_word_target": {
               "default": null,
@@ -13475,9 +13080,6 @@ expression: json
                 "integer",
                 "null"
               ]
-            },
-            "root": {
-              "$ref": "#/$defs/BookRoot"
             },
             "word_target": {
               "default": null,
@@ -13499,7 +13101,6 @@ expression: json
             }
           },
           "required": [
-            "root",
             "word_target",
             "daily_word_target",
             "word_target_set",
@@ -13538,38 +13139,12 @@ expression: json
           "type": "object"
         },
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
               "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
-              "type": "string"
             }
           },
-          "type": "object"
-        },
-        "ProjectTemplateDerivedFrom": {
-          "properties": {
-            "author": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
           "type": "object"
         },
         "ProjectTemplateRef": {
@@ -13720,10 +13295,13 @@ expression: json
           ],
           "default": null
         },
-        "book_root_valid": {
-          "default": true,
-          "description": "Whether `book.root` currently points to a valid start (`true` when `book` is `None`).",
-          "type": "boolean"
+        "editing_template": {
+          "default": null,
+          "description": "The saved project template (`project-template:<id>`) this project is\nthe working copy of (编辑模板的工作区), when it is one\n([`Self::with_editing_template`]).",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "selected_tab": {
           "default": null,
@@ -13757,14 +13335,14 @@ expression: json
         "source",
         "agent",
         "book",
-        "book_root_valid",
         "tabs",
-        "selected_tab"
+        "selected_tab",
+        "editing_template"
       ],
       "title": "Project",
       "type": "object"
     },
-    "summary": "Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on."
+    "summary": "Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of."
   },
   {
     "access": "write",
@@ -13772,87 +13350,6 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
-        "BookRoot": {
-          "oneOf": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "root",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "entry",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "kind": {
-                  "const": "view",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view"
-              ],
-              "type": "object"
-            },
-            {
-              "properties": {
-                "entry": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "lane",
-                  "type": "string"
-                },
-                "view": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "view",
-                "entry"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
-              "properties": {
-                "kind": {
-                  "const": "unset",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "type": "object"
-            }
-          ]
-        },
         "TemplateAgentConfig": {
           "properties": {
             "description": {
@@ -13898,7 +13395,7 @@ expression: json
           ]
         },
         "has_book": {
-          "description": "Turn the book (`成书`) on (`Some(true)`) or off (`Some(false)`). Omit to keep.",
+          "description": "Turn the book (`成书`) on (`Some(true)`) or off (`Some(false)`). Omit to keep.\nThe book has no start: it reads the whole project from the root (an\nold caller's `root` is ignored).",
           "type": [
             "boolean",
             "null"
@@ -13910,17 +13407,6 @@ expression: json
             "string",
             "null"
           ]
-        },
-        "root": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BookRoot"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Book sequence start (`成书起点`). Required when turning `has_book` from off to on."
         },
         "summary": {
           "description": "The project's profile (as `book.update` sets it); omit to keep.",
@@ -13959,7 +13445,61 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write."
+    "summary": "Update the project definition: Agent instructions, whether the project has a book, and word targets; with the project's name and profile, all in one undoable write."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "id": {
+          "description": "The saved template to edit.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ProjectTemplateEditIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project_template.edit",
+    "output": {
+      "description": "A template's working copy (`project_template.edit`,\n`project_template.working_copies`).",
+      "properties": {
+        "book": {
+          "description": "The working copy's book: open it like any project.",
+          "type": "string"
+        },
+        "created_at": {
+          "description": "When it was made (Unix milliseconds).",
+          "format": "int64",
+          "type": "integer"
+        },
+        "name": {
+          "description": "Its name (the template's, as edited there); `None` when its book\ndocument is not there (a copy cut short while it was being made).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "description": "The saved template it edits.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "template",
+        "name",
+        "created_at"
+      ],
+      "title": "WorkingCopy",
+      "type": "object"
+    },
+    "summary": "Edit a saved project template in its working copy: a project made from it the way project.create makes one, kept on this device and out of the project lists, recording no writing days; every change made in it saves itself over the template. A working copy left from before is used again when it is in step with the template."
   },
   {
     "access": "read",
@@ -13982,38 +13522,12 @@ expression: json
     "output": {
       "$defs": {
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
               "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
-              "type": "string"
             }
           },
-          "type": "object"
-        },
-        "ProjectTemplateDerivedFrom": {
-          "properties": {
-            "author": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
           "type": "object"
         },
         "ProjectTemplateSummary": {
@@ -14120,38 +13634,12 @@ expression: json
     "output": {
       "$defs": {
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
               "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
-              "type": "string"
             }
           },
-          "type": "object"
-        },
-        "ProjectTemplateDerivedFrom": {
-          "properties": {
-            "author": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
           "type": "object"
         },
         "ProjectTemplateSummary": {
@@ -14277,42 +13765,47 @@ expression: json
     "input": {
       "$defs": {
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
-              "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
               "type": "string"
             }
           },
           "type": "object"
         },
-        "ProjectTemplateDerivedFrom": {
+        "TemplateAgentConfig": {
           "properties": {
-            "author": {
+            "description": {
+              "default": "",
+              "description": "One-sentence description of what this template is and when to use it.",
+              "type": "string"
+            },
+            "instructions": {
+              "default": "",
+              "description": "Detailed instructions on what to pay attention to when reading or writing.",
               "type": "string"
             },
             "name": {
+              "default": "",
+              "description": "Name the Agent uses for entries of this template.",
               "type": "string"
             }
           },
-          "required": [
-            "name"
-          ],
           "type": "object"
         }
       },
       "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateAgentConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The words for the Agent the template carries (`project.agent`):\nleft out, the project's own; `null`, none; given, these (the\nproject keeps its own either way)."
+        },
         "book": {
           "type": "string"
         },
@@ -14325,11 +13818,14 @@ expression: json
               "type": "null"
             }
           ],
-          "description": "Optional author attribution (`credit`). When saving from an imported/community\nproject without an explicit `derivedFrom`, `derivedFrom` is filled from `project.source`."
+          "description": "Optional author attribution (`credit`: the author's name). Nothing is\nfilled in from `project.source`."
         },
         "description": {
-          "default": "",
-          "type": "string"
+          "description": "Left out when replacing: the replaced template keeps its own; a\nworking copy takes its book's profile.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "exclude_skeleton": {
           "default": [],
@@ -14347,7 +13843,11 @@ expression: json
           ]
         },
         "name": {
-          "type": "string"
+          "description": "The template's name. Needed for a new template; replacing one\n(`replace`) without it keeps the name that one has. A working copy\nsaves under its book's name when it is left out.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "replace": {
           "description": "Optional existing `project-template:<id>` to replace (`revision` increments by 1).",
@@ -14374,8 +13874,7 @@ expression: json
         }
       },
       "required": [
-        "book",
-        "name"
+        "book"
       ],
       "title": "ProjectTemplateSaveIn",
       "type": "object"
@@ -14385,38 +13884,12 @@ expression: json
     "output": {
       "$defs": {
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
               "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
-              "type": "string"
             }
           },
-          "type": "object"
-        },
-        "ProjectTemplateDerivedFrom": {
-          "properties": {
-            "author": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
           "type": "object"
         }
       },
@@ -14494,7 +13967,7 @@ expression: json
       "title": "ProjectTemplateSummary",
       "type": "object"
     },
-    "summary": "Save a project's structure and selected sample items as a project template."
+    "summary": "Save a project's structure and selected sample items as a project template, or a template's working copy over that template."
   },
   {
     "access": "write",
@@ -14529,38 +14002,12 @@ expression: json
     "output": {
       "$defs": {
         "ProjectTemplateCredit": {
+          "description": "A template's credit: its author's name only (no homepage, no 「改自」;\nan old caller's extra keys are ignored).",
           "properties": {
             "author": {
               "type": "string"
-            },
-            "derivedFrom": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "homepage": {
-              "type": "string"
             }
           },
-          "type": "object"
-        },
-        "ProjectTemplateDerivedFrom": {
-          "properties": {
-            "author": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
           "type": "object"
         }
       },
@@ -14639,6 +14086,59 @@ expression: json
       "type": "object"
     },
     "summary": "Rename a saved project template or update its description."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "title": "ProjectTemplateWorkingCopiesIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "project_template.working_copies",
+    "output": {
+      "$defs": {
+        "WorkingCopy": {
+          "description": "A template's working copy (`project_template.edit`,\n`project_template.working_copies`).",
+          "properties": {
+            "book": {
+              "description": "The working copy's book: open it like any project.",
+              "type": "string"
+            },
+            "created_at": {
+              "description": "When it was made (Unix milliseconds).",
+              "format": "int64",
+              "type": "integer"
+            },
+            "name": {
+              "description": "Its name (the template's, as edited there); `None` when its book\ndocument is not there (a copy cut short while it was being made).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "description": "The saved template it edits.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "book",
+            "template",
+            "name",
+            "created_at"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/WorkingCopy"
+      },
+      "title": "Array_of_WorkingCopy",
+      "type": "array"
+    },
+    "summary": "List the templates' working copies still on this device, oldest first."
   },
   {
     "access": "write",

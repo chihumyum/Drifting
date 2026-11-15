@@ -894,7 +894,11 @@ impl Library {
 
     /// Variants the sync service has not confirmed yet.
     pub fn assets_pending_upload(&self) -> Result<Vec<AssetRecord>> {
-        self.asset_rows("uploaded_ms IS NULL", &[])
+        // A book kept on this device (`local_book`) uploads no bytes.
+        self.asset_rows(
+            "uploaded_ms IS NULL AND book_id NOT IN (SELECT book_id FROM local_book)",
+            &[],
+        )
     }
 
     /// Record that the sync service holds a variant's bytes.

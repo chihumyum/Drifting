@@ -369,7 +369,6 @@
     "ruler": "Regla de escala",
     "selectLane": "Elegir carril",
     "setActTrack": "Usar como pista de actos · {{name}}",
-    "setBookRoot": "Definir como inicio del libro",
     "unsetActTrack": "Volver a carril normal · {{name}}",
     "views": "Vistas"
   },
