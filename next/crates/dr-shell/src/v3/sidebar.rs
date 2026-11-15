@@ -103,13 +103,14 @@ impl Sidebar {
         if !self.restored
             && let Some(v) = self.host.book.v3()
         {
-            // Where the project was left (on any device); else 「全部」.
-            self.selected = v
-                .project
-                .selected_tab
-                .clone()
-                .filter(|id| tabs.contains(id))
-                .or_else(|| self.root_tab());
+            // Where the project was left (on any device); a Tab that is
+            // gone since goes to the first Tab, never having chosen one to
+            // 「全部」 (Tab prototype, 2026-11-15).
+            self.selected = match v.stored_tab.clone() {
+                Some(id) if tabs.contains(&id) => Some(id),
+                Some(_) => tabs.first().cloned(),
+                None => self.root_tab(),
+            };
             self.restored = true;
         }
         if !self.selected.as_ref().is_some_and(|id| tabs.contains(id)) {

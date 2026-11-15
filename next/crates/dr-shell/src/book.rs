@@ -90,6 +90,7 @@ impl Book {
     pub fn with_selected_tab(&self, stored: Option<String>) -> Self {
         let mut out = self.clone();
         if let Snapshot::V3(v3) = &mut out.snapshot {
+            v3.stored_tab = stored.clone();
             v3.project = std::mem::take(&mut v3.project).with_selected_tab(stored);
         }
         out

@@ -461,7 +461,7 @@ fn time_and_name_sort_are_device_local_keep_manual_order_intact_and_refuse_reord
                 book: snap.clone(),
             },
             level: folder.clone(),
-            surface: DisplaySurface::Sidebar,
+            surface: DisplaySurface::Page,
         },
         Display::Grid,
     );
@@ -472,6 +472,23 @@ fn time_and_name_sort_are_device_local_keep_manual_order_intact_and_refuse_reord
         vec![c3.clone(), c2.clone(), c1.clone()]
     );
     drop(restored_view);
+    // A Tab's tree in the left column has no sort of its own (Tab
+    // prototype, 2026-11-15): the saved sort is not read there.
+    let column_view = LevelDisplay::new(
+        LevelHost {
+            page: PageViewHost {
+                workspace: WeakEntity::new_invalid(),
+                library: ws.clone(),
+                book_id: book.clone(),
+                book: snap.clone(),
+            },
+            level: folder.clone(),
+            surface: DisplaySurface::Sidebar,
+        },
+        Display::List,
+    );
+    assert_eq!(column_view.sort, SortOrder::Manual);
+    drop(column_view);
 
     // Drive LevelDisplay::set_sort: must store in local_state only, leave book
     // revision untouched, disable can_reorder when non-manual, and restore exact

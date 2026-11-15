@@ -122,6 +122,11 @@ pub struct BookV3 {
     /// The titles of the entries in Recently Deleted: what a Tab mounted on
     /// one of them says (`kernel-v5.md` §5).
     pub trashed_titles: BTreeMap<String, String>,
+    /// The Tab the project was left on as stored (`layout:<书>`), even when
+    /// that Tab is gone: opening on a gone Tab goes to the first Tab, never
+    /// having chosen one goes to 「全部」 (Tab prototype, 2026-11-15).
+    /// `project.selected_tab` is the same, kept only while the Tab is there.
+    pub stored_tab: Option<String>,
     pub materials: Vec<MaterialInfo>,
     pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
@@ -903,7 +908,8 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         });
     }
     v3.layouts = parse_layout_positions(lib.layout_positions(id)?);
-    v3.project = std::mem::take(&mut v3.project).with_selected_tab(lib.stored_tab(id)?);
+    v3.stored_tab = lib.stored_tab(id)?;
+    v3.project = std::mem::take(&mut v3.project).with_selected_tab(v3.stored_tab.clone());
     v3.entry_index = v3
         .entries
         .iter()

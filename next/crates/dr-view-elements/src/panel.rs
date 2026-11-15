@@ -527,11 +527,14 @@ pub mod v3 {
                 host.page.book_id,
                 sort_memory_key(&host.level)
             );
-            if let Ok(Some(raw)) = host
-                .page
-                .library
-                .library()
-                .local_get(dr_shell::workspace::BOOK_MEMORY_SCOPE, &row)
+            // A Tab's tree in the left column is always the order the author
+            // dragged (Tab prototype, 2026-11-15): no sort of its own.
+            if host.surface != DisplaySurface::Sidebar
+                && let Ok(Some(raw)) = host
+                    .page
+                    .library
+                    .library()
+                    .local_get(dr_shell::workspace::BOOK_MEMORY_SCOPE, &row)
                 && let Ok(parsed) = serde_json::from_str::<String>(&raw)
                 && let Some(saved) = SortOrder::parse(&parsed)
             {
@@ -1243,7 +1246,10 @@ pub mod v3 {
                 root = root.child(self.entry(&self.host.level, 0, false, window, cx));
             }
             if matches!(self.display, Display::List | Display::Grid)
-                && self.host.surface != DisplaySurface::Members
+                && !matches!(
+                    self.host.surface,
+                    DisplaySurface::Members | DisplaySurface::Sidebar
+                )
                 && !self.is_lane()
             {
                 let weak = cx.entity().downgrade();

@@ -354,6 +354,48 @@ fn the_selected_tab_goes_with_the_project(cx: &mut TestAppContext) {
     });
 }
 
+/// The Tab prototype (2026-11-15): a project left on a Tab that is gone
+/// since (removed on another device, say) opens on the first Tab, not on
+/// 「全部」; only a project never left on a Tab opens on 「全部」.
+#[gpui::test]
+fn opening_on_a_tab_that_is_gone_goes_to_the_first_tab(cx: &mut TestAppContext) {
+    let (_dir, lib, id) = seed();
+    let (ideas_tab, first_other) = {
+        let book = Book::load(&lib, &id).unwrap();
+        let v = book.v3().unwrap();
+        let ideas = root_of(v, "tpl-ideas");
+        let ideas_tab = v
+            .project
+            .tabs
+            .iter()
+            .find(|t| {
+                t.mount
+                    == TabMount::Entry {
+                        entry: ideas.clone(),
+                    }
+            })
+            .unwrap()
+            .id
+            .clone();
+        (ideas_tab, v.project.tabs[1].id.clone())
+    };
+    // 「全部」 dragged to the end, so the first Tab is another one.
+    call(
+        &lib,
+        "tab.move",
+        json!({"book": id, "id": "tab-all", "place": "last"}),
+    );
+    call(&lib, "tab.select", json!({"book": id, "id": ideas_tab}));
+    call(&lib, "tab.remove", json!({"book": id, "id": ideas_tab}));
+    let (view, cx) = open(cx, &lib, &id);
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let sidebar = sidebar(&view, cx);
+    pump(cx);
+    sidebar.read_with(cx, |s, cx| {
+        assert_eq!(s.state(cx)["selected"], json!(first_other), "the first Tab")
+    });
+}
+
 #[gpui::test]
 fn a_tab_whose_mount_is_gone_fades_comes_back_and_can_be_removed(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
