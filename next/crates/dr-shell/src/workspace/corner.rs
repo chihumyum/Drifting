@@ -142,7 +142,7 @@ pub fn corner(
     // whole book's holds its export when `成书` is enabled (M41).
     let has_book = w.book.v3().is_none_or(|v| v.project.book.is_some());
     let doc_page = target.and_then(crate::book::doc_of).is_some();
-    if doc_page || (has_book && matches!(target, Some(Target::Book(_)))) {
+    if doc_page || (has_book && target.is_some_and(Target::is_book)) {
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -235,7 +235,7 @@ pub fn corner(
             };
             Some(more_menu(ws, target, &host, bounds, &theme, cx))
         }
-        (false, Some(Target::Book(_)), true, Some(bounds)) if has_book => {
+        (false, Some(t), true, Some(bounds)) if has_book && t.is_book() => {
             Some(book_menu(ws, bounds, cx))
         }
         _ => None,

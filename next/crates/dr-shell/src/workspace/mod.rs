@@ -913,6 +913,16 @@ impl Workspace {
                         if let dr_workspace::NavTarget::Entry { id, module: None } = &entity.target
                         {
                             gone.push(Target::Book(id.clone()));
+                            for tab in self.nav.tabs() {
+                                for leaf in tab.leaves() {
+                                    if matches!(
+                                        &leaf.target,
+                                        Target::BookLane { entry, .. } if entry == id
+                                    ) {
+                                        gone.push(leaf.target.clone());
+                                    }
+                                }
+                            }
                         }
                         if let Some(target) = book::target(entity.target) {
                             gone.push(target);
@@ -1954,7 +1964,7 @@ pub(crate) use nav::Side as PageSide;
 pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
     use dr_i18n::keys::top_timeline::untitled;
     let untitled = match target {
-        Target::Book(_) => {
+        Target::Book(_) | Target::BookView(_) => {
             let base = match book.title(target).filter(|t| !t.trim().is_empty()) {
                 Some(title) => title.to_owned(),
                 None => crate::t(cx, dr_i18n::keys::v3_shell::UNTITLED_ENTRY).to_string(),
@@ -1964,6 +1974,33 @@ pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
                 crate::t(cx, dr_i18n::keys::v3_shell::BOOK_VIEW)
             )
             .into();
+        }
+        Target::BookLane { view, .. } => {
+            let lane_base = match book.title(target).filter(|t| !t.trim().is_empty()) {
+                Some(title) => title.to_owned(),
+                None => crate::t(cx, dr_i18n::keys::v3_shell::UNTITLED_ENTRY).to_string(),
+            };
+            let view_name = book
+                .v3()
+                .and_then(|b| {
+                    b.timeline_views
+                        .iter()
+                        .find(|v| v.deleted_at.is_none() && v.id == view.as_str())
+                        .map(|v| v.name.trim())
+                })
+                .filter(|n| !n.is_empty());
+            return match view_name {
+                Some(v) => format!(
+                    "{v} · {lane_base} · {}",
+                    crate::t(cx, dr_i18n::keys::v3_shell::BOOK_VIEW)
+                )
+                .into(),
+                None => format!(
+                    "{lane_base} · {}",
+                    crate::t(cx, dr_i18n::keys::v3_shell::BOOK_VIEW)
+                )
+                .into(),
+            };
         }
 
         Target::Material(_) => untitled::LIBRARY_ITEM,

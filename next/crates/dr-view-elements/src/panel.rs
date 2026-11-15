@@ -104,11 +104,13 @@ pub mod v3 {
             return Vec::new();
         };
         let mut out = Vec::new();
-        let active_sort = if matches!(display, Display::List | Display::Grid) && !grouped {
-            sort
-        } else {
-            SortOrder::Manual
-        };
+        let root_is_lane = v.is_lane(level);
+        let active_sort =
+            if matches!(display, Display::List | Display::Grid) && !grouped && !root_is_lane {
+                sort
+            } else {
+                SortOrder::Manual
+            };
         if grouped && display == Display::List {
             // The entries carrying book prose under this level, in the
             // manuscript sequence's order, whatever their switch; numbered
@@ -232,8 +234,13 @@ pub mod v3 {
                         depth,
                     });
                     if !folded.contains(&id) {
+                        let child_sort = if v.is_lane(&id) {
+                            SortOrder::Manual
+                        } else {
+                            active_sort
+                        };
                         pending.extend(
-                            ordered_ids(v, &child.children, active_sort, updated)
+                            ordered_ids(v, &child.children, child_sort, updated)
                                 .into_iter()
                                 .rev()
                                 .map(|id| (id, depth + 1)),
@@ -563,9 +570,16 @@ pub mod v3 {
             this.rebuild();
             this
         }
+        pub fn is_lane(&self) -> bool {
+            self.host
+                .page
+                .book
+                .v3()
+                .is_some_and(|v| v.is_lane(&self.host.level))
+        }
         pub fn can_reorder(&self) -> bool {
             matches!(self.display, Display::List | Display::Grid)
-                && self.sort == SortOrder::Manual
+                && (self.is_lane() || self.sort == SortOrder::Manual)
                 && !(self.grouped && self.display == Display::List)
         }
         fn sync_workspace_memory(&mut self, ws: &dr_shell::Workspace) -> bool {
@@ -1259,15 +1273,15 @@ pub mod v3 {
                 );
             }
             if matches!(self.display, Display::List | Display::Grid)
+                && !self.is_lane()
                 && !(self.grouped && self.display == Display::List)
             {
                 let weak = cx.entity().downgrade();
+                let sort_sel = format!("g2-sort-scroll-{}", self.host.level);
                 root = root.child(
                     div()
-                        .id(SharedString::from(format!(
-                            "g2-sort-scroll-{}",
-                            self.host.level
-                        )))
+                        .id(SharedString::from(sort_sel.clone()))
+                        .debug_selector(move || sort_sel.clone())
                         .overflow_x_scroll()
                         .flex_shrink_0()
                         .child(

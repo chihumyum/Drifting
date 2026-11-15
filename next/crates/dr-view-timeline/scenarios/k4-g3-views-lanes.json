@@ -64,7 +64,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/bottom/pane": "timeline"
         }
       }
@@ -102,6 +102,21 @@
       "params": {
         "label": "Add lane",
         "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "New lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1300,
+        "y": 550,
+        "dy": 380
       }
     },
     {
@@ -146,6 +161,21 @@
       "params": {
         "label": "Add lane",
         "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "New lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1300,
+        "y": 550,
+        "dy": 380
       }
     },
     {

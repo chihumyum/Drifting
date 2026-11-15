@@ -27,6 +27,7 @@ use std::rc::Rc;
 
 use dr_model::id::EntryId;
 use dr_model::shared::EncodedAnchor;
+use dr_model::v3::BookRoot;
 use dr_workspace::{Workspace, WsError, WsEvent};
 use futures::StreamExt;
 use futures::channel::mpsc;
@@ -152,10 +153,21 @@ fn partition(sections: &[BookSection]) -> (Vec<Listed>, BookHeadings) {
     )
 }
 
-/// Flattens `from` and everything below it in reading order (`kernel-v4.md` §7).
-fn list(ws: &Workspace, book: &str, from: &EntryId) -> Result<Vec<BookSection>, WsError> {
-    let from = from.clone();
-    let res = crate::v3::read(ws, book, move |v| crate::v3::flatten_book(&v, &from))?;
+/// Stable reading-position key for a [`BookRoot`].
+pub fn book_root_position_key(root: &BookRoot) -> String {
+    match root {
+        BookRoot::Root => "root".to_owned(),
+        BookRoot::Entry { entry } => entry.to_string(),
+        BookRoot::View { view } => format!("view:{view}"),
+        BookRoot::Lane { view, entry } => format!("lane:{view}/{entry}"),
+        BookRoot::Unset => String::new(),
+    }
+}
+
+/// Flattens `root` in reading order (`kernel-v5.md` §3, §16).
+fn list(ws: &Workspace, book: &str, root: &BookRoot) -> Result<Vec<BookSection>, WsError> {
+    let root = root.clone();
+    let res = crate::v3::read(ws, book, move |v| crate::v3::flatten_book_root(&v, &root))?;
     res.map_err(|e| WsError::Invalid(e.to_string()))
 }
 
@@ -215,7 +227,8 @@ fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDo
 /// on the main thread with [`BookEditor::with_prepared`], which cannot fail.
 pub struct PreparedBook {
     book: String,
-    from: EntryId,
+    root: BookRoot,
+    from_key: String,
     sections: Vec<BookSection>,
     listed: Vec<Listed>,
     headings: BookHeadings,
@@ -228,9 +241,14 @@ impl PreparedBook {
         &self.book
     }
 
-    /// The starting level entry's id.
+    /// The starting [`BookRoot`].
+    pub fn root(&self) -> &BookRoot {
+        &self.root
+    }
+
+    /// The starting level entry's id (or position key for non-entry roots).
     pub fn from_entry(&self) -> &str {
-        self.from.as_str()
+        &self.from_key
     }
 
     /// Every section in flattened reading order, including prose-less entries.
@@ -280,7 +298,8 @@ impl gpui_prose::EmbedViews for BookEmbeds {
 pub struct BookEditor {
     ws: Workspace,
     book: String,
-    from: EntryId,
+    root: BookRoot,
+    from_key: String,
     sections: Vec<BookSection>,
     headings: BookHeadings,
     chapters: Vec<Listed>,
@@ -331,13 +350,37 @@ impl BookEditor {
         Ok(Self::with_prepared(ws, prepared, settings, window, cx))
     }
 
+    /// Opens `root` (`Entry`, `View`, `Lane`, or `Root`) in `book`
+    /// (`kernel-v5.md` §3, §16) on the calling thread.
+    pub fn open_root(
+        ws: Workspace,
+        book: &str,
+        root: BookRoot,
+        settings: EditorSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<BookEditor, WsError> {
+        let prepared = Self::prepare_root(&ws, book, root)?;
+        Ok(Self::with_prepared(ws, prepared, settings, window, cx))
+    }
+
     /// The slow half of opening `from` in `book`, for any thread: the flattened
     /// sections, every prose module's session and document (on all cores), and
     /// the comment anchors. Fails when `book`, `from`, or a chapter cannot be
     /// read, or when `from` is not a live entry with its switch on.
     pub fn prepare(ws: &Workspace, book: &str, from: &str) -> Result<PreparedBook, WsError> {
-        let from = EntryId::parse(from).map_err(|e| WsError::Invalid(e.to_string()))?;
-        let sections = list(ws, book, &from)?;
+        let entry = EntryId::parse(from).map_err(|e| WsError::Invalid(e.to_string()))?;
+        Self::prepare_root(ws, book, BookRoot::Entry { entry })
+    }
+
+    /// The slow half of opening `root` (`Entry`, `View`, `Lane`, or `Root`) in
+    /// `book`, for any thread (`kernel-v5.md` §3, §16).
+    pub fn prepare_root(
+        ws: &Workspace,
+        book: &str,
+        root: BookRoot,
+    ) -> Result<PreparedBook, WsError> {
+        let sections = list(ws, book, &root)?;
         let (listed, headings) = partition(&sections);
         let mut docs = open_all(ws, book, &listed)?;
         if !docs.is_empty() {
@@ -352,9 +395,11 @@ impl BookEditor {
                 Err(e) => log::warn!("dr-editor: comment anchors of {book}: {e}"),
             }
         }
+        let from_key = book_root_position_key(&root);
         Ok(PreparedBook {
             book: book.to_owned(),
-            from,
+            root,
+            from_key,
             sections,
             listed,
             headings,
@@ -373,7 +418,8 @@ impl BookEditor {
     ) -> BookEditor {
         let book_id = prepared.book.clone();
         let book = book_id.as_str();
-        let from = prepared.from.clone();
+        let root = prepared.root.clone();
+        let from_key = prepared.from_key.clone();
         let sections = prepared.sections.clone();
         let headings = prepared.headings.clone();
         let base_style = ProseStyle::default();
@@ -456,7 +502,8 @@ impl BookEditor {
         let mut this = BookEditor {
             ws,
             book: book_id,
-            from,
+            root,
+            from_key,
             sections,
             headings,
             chapters,
@@ -691,11 +738,11 @@ impl BookEditor {
     /// in place when the prose document sequence is unchanged; added, removed
     /// or reordered prose documents rebuild the view where the reader was.
     fn follow_book(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let sections = match list(&self.ws, &self.book, &self.from) {
+        let sections = match list(&self.ws, &self.book, &self.root) {
             Ok(sections) => sections,
             Err(_) => {
-                // `from` was trashed or its switch was turned off; clear any
-                // stale content until the host closes this view.
+                // `root` was trashed or invalidated; clear any stale content
+                // until the host closes this view.
                 if !self.sections.is_empty() || !self.chapters.is_empty() {
                     self.install_sections(Vec::new(), Vec::new(), window, cx);
                 }
@@ -753,7 +800,8 @@ impl BookEditor {
             &self.ws,
             PreparedBook {
                 book: self.book.clone(),
-                from: self.from.clone(),
+                root: self.root.clone(),
+                from_key: self.from_key.clone(),
                 sections: sections.clone(),
                 listed,
                 headings: headings.clone(),
@@ -829,7 +877,7 @@ impl BookEditor {
     /// Rebuilds the view (reusing already open sessions) at the same reading
     /// position.
     pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Result<(), WsError> {
-        let sections = list(&self.ws, &self.book, &self.from)?;
+        let sections = list(&self.ws, &self.book, &self.root)?;
         let (listed, _) = partition(&sections);
         let missing: Vec<Listed> = listed
             .iter()
@@ -990,9 +1038,14 @@ impl BookEditor {
 
     // ----- navigation ---------------------------------------------------------
 
-    /// The starting level entry's id.
+    /// The starting [`BookRoot`].
+    pub fn root(&self) -> &BookRoot {
+        &self.root
+    }
+
+    /// The starting level entry's id (or position key for non-entry roots).
     pub fn from_entry(&self) -> &str {
-        self.from.as_str()
+        &self.from_key
     }
 
     /// Every flattened section in reading order, including prose-less entries.

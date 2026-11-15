@@ -23,7 +23,9 @@ use std::{cell::Cell, rc::Rc};
 enum MenuOf {
     Views,
     Lanes,
+    LaneTemplates,
     ActTrackTemplates,
+    LaneActions(String),
     PickLane,
     Entries(String),
     Clip { entry: String, lane: String },
@@ -33,6 +35,16 @@ enum MenuOf {
 struct Popup {
     of: MenuOf,
     at: Point<Pixels>,
+    scroll: ScrollHandle,
+}
+impl Popup {
+    fn new(of: MenuOf, at: Point<Pixels>) -> Self {
+        Self {
+            of,
+            at,
+            scroll: ScrollHandle::new(),
+        }
+    }
 }
 #[derive(Clone, Copy)]
 enum EditKind {
@@ -187,12 +199,18 @@ impl Timeline {
                 for (entry, p) in self.pending.iter().filter(|(_, p)| p.view == v.id) {
                     for lane in &mut lanes {
                         lane.clips.retain(|c| &c.entry != entry);
-                        if p.lane.as_deref() == Some(&lane.id)
-                            || b.memberships
+                        let is_resident = b.entry(&lane.id).is_some_and(|le| le.level)
+                            && b.entry(entry)
+                                .is_some_and(|ce| ce.parent.as_deref() == Some(lane.id.as_str()));
+                        let is_member = b.accepts_members(&lane.id)
+                            && b.memberships
                                 .iter()
-                                .any(|m| m.host == lane.id && &m.member == entry)
-                        {
+                                .any(|m| m.host == lane.id && &m.member == entry);
+                        if p.lane.as_deref() == Some(&lane.id) || is_resident || is_member {
                             lane.clips.push(p.place.clone());
+                            lane.clips.sort_by(|a, b| {
+                                a.at.total_cmp(&b.at).then_with(|| a.entry.cmp(&b.entry))
+                            });
                         }
                     }
                 }
@@ -248,6 +266,33 @@ impl Timeline {
                 })
                 .ok();
         }
+    }
+    pub fn open_book_view(&mut self, cx: &mut Context<Self>) {
+        self.popup = None;
+        let Some(view_id) = self.view().and_then(|v| v.id.parse().ok()) else {
+            cx.notify();
+            return;
+        };
+        self.ws
+            .update(cx, |ws, cx| {
+                ws.open(Target::BookView(view_id), Open::KEEP, cx);
+            })
+            .ok();
+        cx.notify();
+    }
+    pub fn open_lane_book_view(&mut self, lane: String, cx: &mut Context<Self>) {
+        self.popup = None;
+        let (Some(view), Ok(entry)) = (self.view().and_then(|v| v.id.parse().ok()), lane.parse())
+        else {
+            cx.notify();
+            return;
+        };
+        self.ws
+            .update(cx, |ws, cx| {
+                ws.open(Target::BookLane { view, entry }, Open::KEEP, cx);
+            })
+            .ok();
+        cx.notify();
     }
     pub fn rename(&mut self, new: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.popup = None;

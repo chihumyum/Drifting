@@ -54,13 +54,57 @@
         "book": "${books.0.id}",
         "id": "${original.0.lanes.0.entry}"
       },
-      "save": "first"
+      "save": "existing_first"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "${existing_first.template}",
+        "title": "Synthetic lane A"
+      },
+      "save": "created_first"
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created_first.id}",
+        "parent": null,
+        "index": 1
+      }
     },
     {
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${original.0.lanes.1.entry}"
+        "id": "${created_first.id}"
+      },
+      "save": "first"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "${existing_first.template}",
+        "title": "Synthetic lane B"
+      },
+      "save": "created_second"
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created_second.id}",
+        "parent": null,
+        "index": 2
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created_second.id}"
       },
       "save": "second"
     },
@@ -98,7 +142,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/bottom/pane": "timeline"
         }
       }
@@ -460,7 +504,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Time ruler",
+        "label": "Scale ruler",
         "role": "Group",
         "count": 1
       },
@@ -504,7 +548,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Rename time pin",
+        "label": "Rename scale pin",
         "role": "MenuItem"
       }
     },
@@ -700,7 +744,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "entry:${first.id}"
+        "target": "entry:${existing_first.id}"
       }
     },
     {
@@ -708,7 +752,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "entry:${first.id}"
+          "/page": "entry:${existing_first.id}"
         }
       }
     },
@@ -744,12 +788,12 @@
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${first.id}"
+        "id": "${existing_first.id}"
       },
       "expect": {
         "/fields/mod-fields/color": "#456789",
-        "/parent": "${first.parent}",
-        "/pos": "${first.pos}"
+        "/parent": "${existing_first.parent}",
+        "/pos": "${existing_first.pos}"
       }
     },
     {

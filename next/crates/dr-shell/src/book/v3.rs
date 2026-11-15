@@ -178,6 +178,18 @@ impl BookV3 {
             // A flattened book view stays valid while the entry survives and
             // can hold or accept entries below it.
             Target::Book(id) => self.has_below(id.as_str()),
+            Target::BookView(view) => self
+                .timeline_views
+                .iter()
+                .any(|v| v.deleted_at.is_none() && v.id == view.as_str()),
+            Target::BookLane { view, entry } => {
+                self.has_below(entry.as_str())
+                    && self.timeline_views.iter().any(|v| {
+                        v.deleted_at.is_none()
+                            && v.id == view.as_str()
+                            && v.lanes.iter().any(|l| l.entry == entry.as_str())
+                    })
+            }
             // A switched template may leave a retained prose module. Its page
             // renderer resolves module.list; removing a definition must not
             // close the author's tab while the entry and its content survive.
@@ -252,6 +264,7 @@ impl BookV3 {
     pub fn is_lane(&self, id: &str) -> bool {
         self.timeline_views
             .iter()
+            .filter(|v| v.deleted_at.is_none())
             .any(|v| v.lanes.iter().any(|l| l.entry == id))
     }
 }
@@ -583,6 +596,16 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 title: t.name.clone(),
                 mark: mark(t.mark.as_deref(), &t.id),
                 color: t.color.as_deref().and_then(color_of),
+            },
+        );
+    }
+    for v in v3.timeline_views.iter().filter(|v| v.deleted_at.is_none()) {
+        index.insert(
+            format!("timeline-view:{}", v.id),
+            Entry {
+                title: v.name.clone(),
+                mark: sand::Kind::All,
+                color: None,
             },
         );
     }

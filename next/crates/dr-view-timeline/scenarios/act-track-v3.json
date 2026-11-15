@@ -63,7 +63,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/bottom/pane": "timeline"
         }
       }
@@ -336,7 +336,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/bottom/pane": "timeline",
           "/v3/timeline_views": "${before_quit_views}"
         }
@@ -397,13 +397,23 @@
       "png": "02-act-track-after-reopen.png"
     },
     {
-      "call": "entry.set_level",
+      "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
-        "id": "${after_track.0.lanes.0.entry}",
-        "level": false
+        "id": "${after_track.0.lanes.1.entry}"
       },
-      "note": "6. 关掉泳道条目的层级开关：幕轨道与孤立摆放暂时收起，重新打开开关后原样恢复。"
+      "save": "story_lane"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${story_lane.id}",
+        "overrides": {
+          "accept": false
+        }
+      },
+      "note": "6. 关掉一条泳道的「收别处的条目」开关：该泳道与孤立摆放暂时收起，重新打开开关后原样恢复。"
     },
     {
       "call": "timeline_view.list",
@@ -424,7 +434,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Lane Acts",
+        "label": "Lane ${story_lane.title}",
         "role": "Group",
         "absent": true
       }
@@ -434,11 +444,13 @@
       "png": "03-act-track-level-off.png"
     },
     {
-      "call": "entry.set_level",
+      "call": "entry.update",
       "input": {
         "book": "${books.0.id}",
-        "id": "${after_track.0.lanes.0.entry}",
-        "level": true
+        "id": "${story_lane.id}",
+        "overrides": {
+          "accept": null
+        }
       }
     },
     {
@@ -448,6 +460,14 @@
         "state": {
           "/v3/timeline_views": "${before_quit_views}"
         }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane ${story_lane.title}",
+        "role": "Group",
+        "count": 1
       }
     },
     {
