@@ -1185,7 +1185,6 @@ impl ReviewView {
         agent_bridge::ensure_watched(&self.book, conv_id, cx);
         let state = agent_bridge::pinwheel_state(&self.book, conv_id, cx);
         let now = anim::now();
-        let reduce = Theme::of(window, cx).reduce_motion;
         let sample = match state {
             ConversationPinwheel::Hidden => {
                 self.pinwheels.borrow_mut().remove(&item.id);
@@ -1197,7 +1196,7 @@ impl ReviewView {
                     .entry(item.id.clone())
                     .or_insert_with(|| sand::PinwheelTrack::spinning(now));
                 track.sync(true, now);
-                track.sample(now, reduce)
+                track.sample(now)
             }
             ConversationPinwheel::UnviewedDone => {
                 let mut map = self.pinwheels.borrow_mut();
@@ -1205,7 +1204,7 @@ impl ReviewView {
                     .entry(item.id.clone())
                     .or_insert_with(sand::PinwheelTrack::finished);
                 track.sync(false, now);
-                track.sample(now, reduce)
+                track.sample(now)
             }
         };
         let p = Theme::of(window, cx).palette;

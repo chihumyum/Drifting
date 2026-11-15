@@ -88,7 +88,9 @@ pub fn thinking_still(size_px: f32, color: Hsla) -> Div {
 }
 
 /// 风·林·火·山: 68 frames side by side, stepped forward at 125ms a frame
-/// while `running`; still, it holds the 57th frame (山).
+/// while `running`; still, it holds the 57th frame (山). It plays under
+/// reduced motion too (it says the Agent is still at work), so callers pass
+/// whether it runs and nothing else.
 pub fn thinking(size_px: f32, color: Hsla, running: bool, window: &Window) -> impl IntoElement {
     let frame = if running {
         let ms = anim::now()
@@ -218,32 +220,10 @@ impl PinwheelTrack {
         }
     }
 
-    pub fn sample(&mut self, now: Instant, reduce_motion: bool) -> PinwheelSample {
-        if reduce_motion {
-            return match self.phase {
-                PinwheelPhase::Spinning { .. } => PinwheelSample {
-                    angle_rad: 0.0,
-                    hollow_alpha: 1.0,
-                    solid_alpha: 0.0,
-                    animating: false,
-                },
-                PinwheelPhase::Stopping { angle0, .. } => {
-                    self.phase = PinwheelPhase::Resting { angle: angle0 };
-                    PinwheelSample {
-                        angle_rad: angle0,
-                        hollow_alpha: 0.0,
-                        solid_alpha: 1.0,
-                        animating: false,
-                    }
-                }
-                PinwheelPhase::Resting { angle } => PinwheelSample {
-                    angle_rad: angle,
-                    hollow_alpha: 0.0,
-                    solid_alpha: 1.0,
-                    animating: false,
-                },
-            };
-        }
+    /// Where the pinwheel is at `now`. It turns under reduced motion too:
+    /// like the loader and the thinking mark it says the Agent is still at
+    /// work, so it is not one of the movements 关闭动态效果 stops.
+    pub fn sample(&mut self, now: Instant) -> PinwheelSample {
         match self.phase {
             PinwheelPhase::Spinning { started_at, angle0 } => {
                 let dt = now.saturating_duration_since(started_at).as_secs_f32();
@@ -1289,7 +1269,7 @@ mod frame_tests {
         let t0 = Instant::now();
         let mut pw = PinwheelTrack::spinning(t0);
 
-        let s0 = pw.sample(t0, false);
+        let s0 = pw.sample(t0);
         assert!((s0.angle_rad - 0.0).abs() < 1e-5);
         assert_eq!(
             (s0.hollow_alpha, s0.solid_alpha, s0.animating),
@@ -1297,7 +1277,7 @@ mod frame_tests {
         );
 
         // Half a turn in 0.8s counter-clockwise (-PI).
-        let s_half = pw.sample(t0 + Duration::from_millis(800), false);
+        let s_half = pw.sample(t0 + Duration::from_millis(800));
         assert!((s_half.angle_rad + std::f32::consts::PI).abs() < 1e-3);
         assert_eq!((s_half.hollow_alpha, s_half.solid_alpha), (1.0, 0.0));
 
@@ -1305,7 +1285,7 @@ mod frame_tests {
         let t_done = t0 + Duration::from_millis(800);
         pw.sync(false, t_done);
 
-        let mid_slow = pw.sample(t_done + Duration::from_millis(1500), false);
+        let mid_slow = pw.sample(t_done + Duration::from_millis(1500));
         assert!(mid_slow.angle_rad < s_half.angle_rad);
         assert_eq!(
             (
@@ -1316,21 +1296,21 @@ mod frame_tests {
             (1.0, 0.0, true)
         );
 
-        let at_stop = pw.sample(t_done + Duration::from_secs(3), false);
+        let at_stop = pw.sample(t_done + Duration::from_secs(3));
         let expected_end = -std::f32::consts::PI - 337.5_f32.to_radians();
         assert!((at_stop.angle_rad - expected_end).abs() < 1e-3);
         assert!((at_stop.hollow_alpha - 1.0).abs() < 1e-4);
         assert!((at_stop.solid_alpha - 0.0).abs() < 1e-4);
 
         // Halfway through the 0.6s fill cross-fade: both hollow and solid at 0.5, same stopped angle.
-        let mid_fill = pw.sample(t_done + Duration::from_millis(3300), false);
+        let mid_fill = pw.sample(t_done + Duration::from_millis(3300));
         assert!((mid_fill.angle_rad - expected_end).abs() < 1e-3);
         assert!((mid_fill.hollow_alpha - 0.5).abs() < 1e-3);
         assert!((mid_fill.solid_alpha - 0.5).abs() < 1e-3);
         assert!(mid_fill.animating);
 
         // Settled solid after 3.6s.
-        let settled = pw.sample(t_done + Duration::from_millis(3650), false);
+        let settled = pw.sample(t_done + Duration::from_millis(3650));
         assert!((settled.angle_rad - expected_end).abs() < 1e-3);
         assert_eq!(
             (settled.hollow_alpha, settled.solid_alpha, settled.animating),
@@ -1340,7 +1320,7 @@ mod frame_tests {
         // Handed off again: resumes spinning hollow from its resting angle.
         let t_again = t_done + Duration::from_secs(5);
         pw.sync(true, t_again);
-        let resumed = pw.sample(t_again, false);
+        let resumed = pw.sample(t_again);
         assert_eq!(
             (resumed.hollow_alpha, resumed.solid_alpha, resumed.animating),
             (1.0, 0.0, true)
