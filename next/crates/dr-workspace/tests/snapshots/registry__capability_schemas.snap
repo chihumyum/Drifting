@@ -11692,6 +11692,13 @@ expression: json
                 "null"
               ]
             },
+            "checked": {
+              "description": "A checklist item's tick (on `task` items only): ticked is its comment\nresolved.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "heading": {
               "description": "0 for body text, 1–3 for H1–H3.",
               "format": "uint8",
@@ -11701,6 +11708,19 @@ expression: json
             },
             "index": {
               "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "list": {
+              "description": "A list item's kind: `bullet`, `ordered` or `task` (a checklist item,\nwhich is also a comment); omitted for a paragraph that is not one.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "list_level": {
+              "description": "How deep a list item is nested; omitted when 0.",
+              "format": "uint32",
               "minimum": 0,
               "type": "integer"
             },
@@ -12127,11 +12147,32 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
+        "ListItemKind": {
+          "description": "A list item's kind, written as in the project template format (§10).",
+          "oneOf": [
+            {
+              "enum": [
+                "bullet",
+                "ordered"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "task",
+              "description": "A checklist item: it is also a comment (origin `task`) whose words are\nthe line's, and its tick is that comment's status.",
+              "type": "string"
+            }
+          ]
+        },
         "TemplateParagraph": {
           "description": "One paragraph of a body template.",
           "properties": {
+            "checked": {
+              "description": "A checklist item's tick (only with `list: \"task\"`): ticked is its\ncomment resolved, cleared is it open.",
+              "type": "boolean"
+            },
             "heading": {
-              "description": "1, 2 or 3 for H1/H2/H3; omitted for body text.",
+              "description": "1, 2 or 3 for H1/H2/H3; omitted (or 0, as a read gives it) for body text.",
               "format": "uint8",
               "maximum": 255,
               "minimum": 0,
@@ -12139,6 +12180,23 @@ expression: json
                 "integer",
                 "null"
               ]
+            },
+            "list": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ListItemKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A list item: `bullet`, `ordered` or `task` (a checklist item). Omitted\nfor a paragraph that is not one."
+            },
+            "list_level": {
+              "description": "How deep a list item is nested, 0 the outermost (only with `list`).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
             },
             "text": {
               "default": "",
@@ -12194,7 +12252,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Write paragraphs of an entry's or a template's prose module."
+    "summary": "Write paragraphs of an entry's or a template's prose module: all of them, in order, as module.read_prose reads them. Unchanged paragraphs stay; one whose words change is edited in place and keeps its id and comments. A list item has `list` (bullet, ordered or task) and `list_level`. A task item is a checklist item and also a comment whose words are the line's: `checked` ticked resolves it, cleared reopens it, and taking the line out deletes the comment."
   },
   {
     "access": "write",
@@ -14788,6 +14846,13 @@ expression: json
                 "null"
               ]
             },
+            "checked": {
+              "description": "A checklist item's tick (on `task` items only): ticked is its comment\nresolved.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "heading": {
               "description": "0 for body text, 1–3 for H1–H3.",
               "format": "uint8",
@@ -14797,6 +14862,19 @@ expression: json
             },
             "index": {
               "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "list": {
+              "description": "A list item's kind: `bullet`, `ordered` or `task` (a checklist item,\nwhich is also a comment); omitted for a paragraph that is not one.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "list_level": {
+              "description": "How deep a list item is nested; omitted when 0.",
+              "format": "uint32",
               "minimum": 0,
               "type": "integer"
             },
@@ -14838,7 +14916,7 @@ expression: json
       "title": "ProseText",
       "type": "object"
     },
-    "summary": "Read paragraphs of a prose document (text, block id, heading level)."
+    "summary": "Read paragraphs of a prose document (text, block id, heading level; a list item's kind and level, a checklist item's tick)."
   },
   {
     "access": "write",

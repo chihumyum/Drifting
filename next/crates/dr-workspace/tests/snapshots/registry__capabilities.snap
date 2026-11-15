@@ -95,7 +95,7 @@ module.remove_relation       command  book     Remove one relation projected in 
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement       command  book     Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
-module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module.
+module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module: all of them, in order, as module.read_prose reads them. Unchanged paragraphs stay; one whose words change is edited in place and keeps its id and comments. A list item has `list` (bullet, ordered or task) and `list_level`. A task item is a checklist item and also a comment whose words are the line's: `checked` ticked resolves it, cleared reopens it, and taking the line out deletes the comment.
 project.create               command  library  Create a project from a project template (defaults to the built-in writing template).
 project.get                  query    shared   Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.
 project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.
@@ -105,7 +105,7 @@ project_template.remove      command  library  Permanently delete a saved projec
 project_template.save        command  library  Save a project's structure and selected sample items as a project template.
 project_template.update      command  library  Rename a saved project template or update its description.
 prose.link                   command  book     Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
-prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
+prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level; a list item's kind and level, a checklist item's tick).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).

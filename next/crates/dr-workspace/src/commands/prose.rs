@@ -49,6 +49,40 @@ pub struct ParagraphInfo {
     /// 0 for body text, 1–3 for H1–H3.
     pub heading: u8,
     pub text: String,
+    /// A list item's kind: `bullet`, `ordered` or `task` (a checklist item,
+    /// which is also a comment); omitted for a paragraph that is not one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list: Option<String>,
+    /// How deep a list item is nested; omitted when 0.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub list_level: u32,
+    /// A checklist item's tick (on `task` items only): ticked is its comment
+    /// resolved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checked: Option<bool>,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+impl ParagraphInfo {
+    fn of(index: usize, p: &dr_doc::prose::Paragraph) -> Self {
+        let list = p.attrs.list.as_ref();
+        Self {
+            index,
+            block_id: p.id.as_ref().map(|b| b.to_string()),
+            heading: p.attrs.heading.map(|h| h.level() as u8).unwrap_or(0),
+            text: p.text(),
+            list: list.map(|l| l.as_str().to_owned()),
+            list_level: if list.is_some() {
+                p.attrs.list_level
+            } else {
+                0
+            },
+            checked: (list == Some(&ListKind::Task)).then_some(p.attrs.checked),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -61,7 +95,7 @@ pub struct ProseText {
 
 op! {
     ProseRead = "prose.read", Read, Shared,
-    "Read paragraphs of a prose document (text, block id, heading level).",
+    "Read paragraphs of a prose document (text, block id, heading level; a list item's kind and level, a checklist item's tick).",
     fn(cx, input: ProseReadIn) -> ProseText {
         let doc = doc_id(&input.doc)?;
         let slot = cx.prose(&doc)?;
@@ -74,12 +108,7 @@ op! {
             for (i, p) in view.paragraphs().enumerate() {
                 total += 1;
                 if i >= input.from && paragraphs.len() < limit {
-                    paragraphs.push(ParagraphInfo {
-                        index: i,
-                        block_id: p.id.as_ref().map(|b| b.to_string()),
-                        heading: p.attrs.heading.map(|h| h.level() as u8).unwrap_or(0),
-                        text: p.text(),
-                    });
+                    paragraphs.push(ParagraphInfo::of(i, &p));
                 }
             }
             Ok(ProseText { paragraphs, total, version: frontiers_hex(&state.oplog_frontiers()) })
