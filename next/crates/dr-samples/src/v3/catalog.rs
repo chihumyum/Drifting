@@ -547,6 +547,7 @@ pub fn sync_catalog(
         .source(Some(&ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
+            ..ProjectTemplateRef::default()
         }))?
         .book(Some(&ProjectBook {
             root: existing_root,

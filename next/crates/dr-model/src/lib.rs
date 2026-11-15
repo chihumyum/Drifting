@@ -27,6 +27,7 @@ pub mod kind;
 pub mod order;
 pub mod origin;
 pub mod pos;
+pub mod project_template;
 pub mod prose;
 pub mod shared;
 pub mod time;

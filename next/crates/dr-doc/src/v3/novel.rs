@@ -19,7 +19,32 @@ use crate::v3::read::BookViewV3;
 use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
+pub const NOVEL_PROJECT_TEMPLATE_NAME: &str = "写书";
 pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 3;
+
+/// Provenance recorded in `project.source` when creating a project from the
+/// built-in writing project template (`project-templates.md` §8).
+pub fn novel_project_template_source() -> ProjectTemplateRef {
+    ProjectTemplateRef {
+        id: NOVEL_PROJECT_TEMPLATE_ID.into(),
+        version: NOVEL_PROJECT_TEMPLATE_VERSION,
+        origin: Some(ProjectTemplateOrigin::Builtin),
+        name: Some(NOVEL_PROJECT_TEMPLATE_NAME.into()),
+        credit: None,
+    }
+}
+
+/// Canonical [`dr_model::project_template::ProjectTemplateValue`] of the
+/// built-in writing project template (`project-templates.md` §8 & §15).
+pub fn novel_project_template_value() -> dr_model::project_template::ProjectTemplateValue {
+    crate::project_template::from_seed_template(
+        &novel_project_template(),
+        NOVEL_PROJECT_TEMPLATE_NAME,
+        "以成书为目标的小说或长篇写作项目。",
+        NOVEL_PROJECT_TEMPLATE_VERSION,
+    )
+    .expect("built-in novel project template must pass the canonical project template validator")
+}
 
 // ---- Stable built-in template IDs ----------------------------------------
 
@@ -908,6 +933,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
         source: Some(ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
+            ..ProjectTemplateRef::default()
         }),
         agent: Some(novel_project_agent()),
         book: Some(ProjectBook {
