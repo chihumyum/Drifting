@@ -67,6 +67,11 @@ pub mod project_template {
     pub const INFO: &str = "info";
     pub const PAYLOAD: &str = "payload";
     pub const VALUE: &str = "value";
+    /// `payload.record`: the saved template's `info` and its canonical
+    /// `value` written as one value, so two devices saving or renaming at
+    /// once keep one whole record (`info` and `value` keys inside it).
+    pub const RECORD: &str = "record";
+    pub const RECORD_INFO: &str = "info";
 }
 
 /// Root containers of the book document.
