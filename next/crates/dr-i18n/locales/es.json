@@ -222,7 +222,6 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Cerrar",
-    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Creando…",
     "customColor": "Color personalizado",
@@ -262,11 +261,6 @@
       "collapsePlotPlanner": "Contraer planificador de trama",
       "expandPlotPlanner": "Expandir planificador de trama",
       "more": "Más acciones"
-    },
-    "menu": {
-      "deleteMaterial": "Eliminar material",
-      "moveMaterialToFolder": "Mover a carpeta…",
-      "openMaterialInSystem": "Abrir con la aplicación predeterminada"
     },
     "status": {
       "discarded": "Descartado",
@@ -529,13 +523,10 @@
     "retry": "Reintentar"
   },
   "materialEditor": {
-    "deleteConfirm": "¿Eliminar el material «{{title}}»? Esta acción no se puede deshacer.",
     "deleteFailed": "No se pudo eliminar el material.",
     "descriptionPlaceholder": "Añade una descripción…",
     "embed": {
-      "importFile": "Importar imagen o PDF…",
-      "importing": "Importando…",
-      "pastedImage": "Imagen pegada"
+      "importing": "Importando…"
     },
     "regions": {
       "draw": "Comentar una región",
@@ -551,25 +542,12 @@
     "zoomReset": "Ajustar a la vista"
   },
   "materialFolders": {
-    "deleteConfirm": "¿Eliminar la carpeta «{{name}}»? Todo su contenido subirá un nivel; no se eliminará ningún material.",
-    "deleteSelectionConfirm": "¿Eliminar los {{count}} elementos seleccionados? Los materiales se eliminan; el contenido de las carpetas eliminadas sube un nivel.",
-    "empty": "Aún no hay materiales. Usa el botón Nueva carpeta de arriba para organizarlos.",
     "menu": {
-      "collapseAll": "Contraer todo dentro",
-      "delete": "Eliminar carpeta",
-      "deleteSelection": "Eliminar {{count}} elementos",
-      "expandAll": "Expandir todo dentro",
-      "move": "Mover a carpeta…",
-      "moveSelection": "Mover {{count}} elementos a una carpeta…",
-      "newFolder": "Nueva carpeta",
-      "newSubfolder": "Nueva carpeta dentro",
-      "open": "Abrir",
-      "rename": "Renombrar"
+      "open": "Abrir"
     },
     "picker": {
       "createAndMove": "Crear y mover",
-      "newPlaceholder": "Nombre de la nueva carpeta",
-      "title": "Mover a carpeta"
+      "newPlaceholder": "Nombre de la nueva carpeta"
     },
     "root": "Todos los materiales",
     "untitled": "Nueva carpeta"
@@ -581,11 +559,7 @@
     "dialog": {
       "create": "Crear",
       "newTodo": "Nueva tarea",
-      "titlePlaceholder": "Título",
       "todoPlaceholder": "Contenido de la tarea…"
-    },
-    "empty": {
-      "noRelated": "No hay materiales vinculados al elemento actual."
     },
     "error": {
       "openFile": "No se pudo abrir el archivo: {{error}}",
@@ -597,7 +571,6 @@
       "text": "Nota"
     },
     "menu": {
-      "deleteMaterial": "Eliminar material",
       "openInSystem": "Abrir en aplicación del sistema"
     },
     "preview": {
@@ -621,7 +594,6 @@
       "hideKind": "Haz clic para ocultar esta clase",
       "material": "Material",
       "meta": "{{todos}} tareas · {{comments}} comentarios · {{materials}} materiales",
-      "newMaterialButton": "Nuevo material",
       "noFilteredMaterials": "Ningún material coincide con los filtros.",
       "noMaterials": "Este proyecto aún no tiene materiales.",
       "noOrphans": "Todos los materiales están vinculados al menos a una entidad.",
@@ -639,10 +611,6 @@
     },
     "todo": {
       "empty": "(tarea vacía)"
-    },
-    "toolbar": {
-      "count": "{{count}} materiales",
-      "newMaterial": "Nuevo material"
     }
   },
   "mobileWorkspace": {
@@ -888,8 +856,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Vincular entidad",
-      "remove": "Quitar relación"
+      "linkEntity": "Vincular entidad"
     },
     "filters": {
       "all": "Todo"
@@ -900,9 +867,6 @@
       "node": "Capítulo",
       "patch": "Evolución",
       "storyline": "Trama"
-    },
-    "picker": {
-      "placeholder": "Buscar entidades vinculables…"
     },
     "sections": {
       "relations": "Relaciones"
@@ -1649,6 +1613,61 @@
   "v3Transfer": {
     "filesTitle": "Archivos",
     "targetTitle": "Destino"
+  },
+  "v5Files": {
+    "addFiles": "Añadir archivos",
+    "alignCenter": "Centrar",
+    "alignHeading": "Alineación",
+    "alignLeft": "Izquierda",
+    "alignRight": "Derecha",
+    "allFolders": "Todo",
+    "clearField": "Limpiar",
+    "currentSection": "Actual",
+    "empty": "Sin archivos",
+    "fileCount_one": "{{count}} archivo",
+    "fileCount_other": "{{count}} archivos",
+    "findFile": "Buscar archivo",
+    "itemCount_one": "{{count}} elemento",
+    "itemCount_other": "{{count}} elementos",
+    "kindImage": "Imagen",
+    "kindPdf": "PDF",
+    "layoutFeatured": "Destacado",
+    "layoutGrid": "Cuadrícula",
+    "layoutList": "Lista",
+    "libraryRoot": "Biblioteca",
+    "locateInLibrary": "Mostrar en la biblioteca",
+    "mediaCaptionPlaceholder": "Leyenda",
+    "moveToFolder": "Mover a carpeta",
+    "moveToTrash": "Mover a Eliminados",
+    "newFolder": "Nueva carpeta",
+    "newSubfolder": "Nueva subcarpeta",
+    "open": "Abrir",
+    "openInSystem": "Abrir en el sistema",
+    "otherSection": "Otros",
+    "pageCount_one": "{{count}} página",
+    "pageCount_other": "{{count}} páginas",
+    "pastedImage": "Imagen pegada {{stamp}}",
+    "pickFromComputer": "Elegir del ordenador…",
+    "pickFromLibrary": "Elegir de la biblioteca…",
+    "proseCaptionPlaceholder": "Pie de foto",
+    "purge": "Eliminar definitivamente",
+    "removeFromHere": "Quitar de aquí",
+    "removeFromProse": "Quitar del texto",
+    "rename": "Cambiar nombre",
+    "resetArrangement": "Restaurar valor de plantilla",
+    "restore": "Restaurar",
+    "sizeFull": "Ancho del texto",
+    "sizeHeading": "Tamaño",
+    "sizeMedium": "Mediano",
+    "sizeSmall": "Pequeño",
+    "slashImageOrPdf": "Imagen o PDF…",
+    "topLevel": "Nivel superior",
+    "trashSection": "Eliminados",
+    "usageCount_one": "{{count}} lugar",
+    "usageCount_other": "{{count}} lugares",
+    "usedIn": "Usado en",
+    "viewList": "Lista",
+    "viewMasonry": "Mosaico"
   },
   "voiceAgent": {
     "error": {

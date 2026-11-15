@@ -69,6 +69,8 @@ pub struct BookV3 {
     pub materials: Vec<MaterialInfo>,
     pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
+    pub media_items: BTreeMap<String, MaterialInfo>,
+    #[serde(skip)]
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
     template_index: BTreeMap<String, usize>,
@@ -181,7 +183,10 @@ impl BookV3 {
             // close the author's tab while the entry and its content survive.
             Target::Entry { id, .. } => self.entry(id.as_str()).is_some(),
             Target::Template(id) => self.template(id.as_str()).is_some(),
-            Target::Material(id) => self.materials.iter().any(|m| m.id == id.as_str()),
+            Target::Material(id) => {
+                self.materials.iter().any(|m| m.id == id.as_str())
+                    || self.media_items.contains_key(id.as_str())
+            }
         }
     }
     /// The 1-based chapter ordinal of `id` when it carries book prose in the
@@ -410,60 +415,65 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .iter()
             .map(Into::into)
             .collect();
-        let assets_by_id: BTreeMap<String, dr_model::shared::Asset> = view
-            .assets()
-            .into_iter()
-            .map(|a| (a.id.to_string(), a))
+        let mut live_assets = view.assets();
+        live_assets.sort_by(|a, b| {
+            dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id))
+        });
+        let assets_by_id: BTreeMap<String, dr_model::shared::Asset> = live_assets
+            .iter()
+            .map(|a| (a.id.to_string(), a.clone()))
             .collect();
-        let mut materials = Vec::new();
-        for e in structure.entries().filter(|e| !e.is_trashed()) {
-            for (mod_id, items) in &e.media {
-                for item in items {
-                    let kind = match assets_by_id.get(item.asset.as_str()) {
-                        Some(a) if a.mime == "application/pdf" => "pdf",
-                        _ => "image",
-                    };
-                    materials.push(MaterialInfo {
-                        id: item.id.to_string(),
-                        kind: kind.to_owned(),
-                        title: e.title.clone(),
-                        description: item.caption.clone(),
-                        asset: Some(item.asset.to_string()),
-                        folder: None,
-                        pos: item.pos.as_ref().map(|k| k.as_str().to_owned()),
-                        task_todos: false,
-                        entry: Some(e.id.to_string()),
-                        module: Some(mod_id.to_string()),
-                    });
-                }
-            }
-        }
-        // Library files no media module holds are materials of their own
-        // (the asset library, `kernel-v5.md` §6), until T5 lists `asset.list`.
-        let placed: BTreeSet<String> = materials.iter().filter_map(|m| m.asset.clone()).collect();
-        for a in assets_by_id
-            .values()
-            .filter(|a| !placed.contains(a.id.as_str()))
-        {
-            materials.push(MaterialInfo {
+        let materials: Vec<MaterialInfo> = live_assets
+            .iter()
+            .map(|a| MaterialInfo {
                 id: a.id.to_string(),
-                kind: if a.mime == "application/pdf" {
-                    "pdf"
-                } else {
-                    "image"
-                }
-                .to_owned(),
+                kind: a.kind.as_str().to_owned(),
                 title: a.name.clone(),
                 description: String::new(),
                 asset: Some(a.id.to_string()),
-                folder: None,
-                pos: None,
+                folder: a.folder.as_ref().map(ToString::to_string),
+                pos: a.pos.as_ref().map(|k| k.as_str().to_owned()),
                 task_todos: false,
                 entry: None,
                 module: None,
-            });
+            })
+            .collect();
+        let material_folders: Vec<GroupInfo> = view
+            .asset_folders()
+            .into_iter()
+            .map(|f| GroupInfo {
+                id: f.id.to_string(),
+                name: f.name,
+                color: None,
+                parent: f.parent.map(|p| p.to_string()),
+            })
+            .collect();
+        let mut media_items = BTreeMap::new();
+        for e in structure.entries().filter(|e| !e.is_trashed()) {
+            for (mod_id, items) in &e.media {
+                for item in items {
+                    let (kind, title) = match assets_by_id.get(item.asset.as_str()) {
+                        Some(a) => (a.kind.as_str(), a.name.clone()),
+                        None => ("image", e.title.clone()),
+                    };
+                    media_items.insert(
+                        item.id.to_string(),
+                        MaterialInfo {
+                            id: item.id.to_string(),
+                            kind: kind.to_owned(),
+                            title,
+                            description: item.caption.clone(),
+                            asset: Some(item.asset.to_string()),
+                            folder: None,
+                            pos: item.pos.as_ref().map(|k| k.as_str().to_owned()),
+                            task_todos: false,
+                            entry: Some(e.id.to_string()),
+                            module: Some(mod_id.to_string()),
+                        },
+                    );
+                }
+            }
         }
-        let material_folders: Vec<GroupInfo> = Vec::new();
 
         // What a view can write over from this snapshot: every entry and its
         // place among its siblings, every template, membership, and timeline
@@ -508,6 +518,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 timeline_views,
                 materials,
                 material_folders,
+                media_items,
                 ..Default::default()
             },
         ))
@@ -533,7 +544,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         .map(|(i, record)| (record.key.clone(), i))
         .collect();
     let mut index = std::collections::HashMap::with_capacity(
-        v3.materials.len() + v3.entries.len() + v3.templates.len(),
+        v3.materials.len() + v3.media_items.len() + v3.entries.len() + v3.templates.len(),
     );
     for m in &v3.materials {
         index.insert(
@@ -544,6 +555,15 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 color: None,
             },
         );
+    }
+    for m in v3.media_items.values() {
+        index
+            .entry(format!("material:{}", m.id))
+            .or_insert_with(|| Entry {
+                title: m.title.clone(),
+                mark: sand::Kind::Material,
+                color: None,
+            });
     }
     for e in &v3.entries {
         let a = v3.appearance(&e.id).expect("indexed entry");

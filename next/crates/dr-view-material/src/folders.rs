@@ -26,9 +26,12 @@ use std::collections::{HashMap, HashSet};
 
 use dr_shell::book::{Book, MaterialInfo};
 use dr_workspace::commands::EntityIn;
-use dr_workspace::commands::asset::{AssetRename, AssetRenameIn, AssetTrash};
-use dr_workspace::commands::v3::entry::{EntryTrash, EntryUpdate, UpdateIn as EntryUpdateIn};
-use dr_workspace::commands::v3::module::{In as ModuleIn, MediaRemove, MediaRemoveIn};
+use dr_workspace::commands::asset::{
+    AssetFolderCreate, AssetFolderCreateIn, AssetFolderList, AssetFolderListIn, AssetFolderMove,
+    AssetFolderMoveIn, AssetFolderPurge, AssetFolderRename, AssetFolderRenameIn,
+    AssetFolderRestore, AssetFolderTrash, AssetMove, AssetMoveIn, AssetPurge, AssetRename,
+    AssetRenameIn, AssetRestore, AssetTrash,
+};
 use dr_workspace::dto::GroupInfo;
 use dr_workspace::{Actor, Workspace as Library};
 
@@ -191,6 +194,25 @@ impl<'a> Tree<'a> {
         materials: &'a [MaterialInfo],
         only: Option<&HashSet<String>>,
     ) -> Tree<'a> {
+        Self::build(folders, materials, only, true)
+    }
+
+    /// The tree preserving the stored manual order of `folders` and
+    /// `materials` (`pos` order from `asset_folder.list` / `asset.list`).
+    pub fn new_ordered(
+        folders: &'a [GroupInfo],
+        materials: &'a [MaterialInfo],
+        only: Option<&HashSet<String>>,
+    ) -> Tree<'a> {
+        Self::build(folders, materials, only, false)
+    }
+
+    fn build(
+        folders: &'a [GroupInfo],
+        materials: &'a [MaterialInfo],
+        only: Option<&HashSet<String>>,
+        sorted: bool,
+    ) -> Tree<'a> {
         let by_id: HashMap<&str, &GroupInfo> = folders.iter().map(|f| (f.id.as_str(), f)).collect();
         let mut children: HashMap<Option<&str>, Vec<&GroupInfo>> = HashMap::new();
         for f in folders {
@@ -201,8 +223,10 @@ impl<'a> Tree<'a> {
                 .filter(|p| by_id.contains_key(p) && !reaches(&by_id, p, &f.id));
             children.entry(parent).or_default().push(f);
         }
-        for list in children.values_mut() {
-            list.sort_by(|a, b| natural(&a.name, &b.name).then_with(|| a.id.cmp(&b.id)));
+        if sorted {
+            for list in children.values_mut() {
+                list.sort_by(|a, b| natural(&a.name, &b.name).then_with(|| a.id.cmp(&b.id)));
+            }
         }
         let mut by_folder: HashMap<Option<&str>, Vec<&MaterialInfo>> = HashMap::new();
         for m in materials {
@@ -212,8 +236,10 @@ impl<'a> Tree<'a> {
             let folder = m.folder.as_deref().filter(|f| by_id.contains_key(f));
             by_folder.entry(folder).or_default().push(m);
         }
-        for list in by_folder.values_mut() {
-            list.sort_by(|a, b| material_order(a, b));
+        if sorted {
+            for list in by_folder.values_mut() {
+                list.sort_by(|a, b| material_order(a, b));
+            }
         }
         let mut tree = Tree {
             folders: by_id,
@@ -223,6 +249,48 @@ impl<'a> Tree<'a> {
         };
         tree.count(None);
         tree
+    }
+
+    /// Direct child folders under `parent` (`None`: root).
+    pub fn children_of(&self, parent: Option<&str>) -> &[&'a GroupInfo] {
+        self.children
+            .iter()
+            .find(|(k, _)| **k == parent)
+            .map_or(&[], |(_, v)| v.as_slice())
+    }
+
+    /// Direct materials in `folder` (`None`: root).
+    pub fn materials_of(&self, folder: Option<&str>) -> &[&'a MaterialInfo] {
+        self.materials
+            .iter()
+            .find(|(k, _)| **k == folder)
+            .map_or(&[], |(_, v)| v.as_slice())
+    }
+
+    /// Up to `limit` materials anywhere below `folder` (direct first, then
+    /// sub-folders depth-first) for a folder's mosaic preview.
+    pub fn preview_materials(&self, folder: &str, limit: usize) -> Vec<&'a MaterialInfo> {
+        let mut out = Vec::new();
+        self.collect_preview(folder, limit, &mut out);
+        out
+    }
+
+    fn collect_preview(&self, folder: &str, limit: usize, out: &mut Vec<&'a MaterialInfo>) {
+        if out.len() >= limit {
+            return;
+        }
+        for m in self.materials_of(Some(folder)) {
+            out.push(*m);
+            if out.len() >= limit {
+                return;
+            }
+        }
+        for sub in self.children_of(Some(folder)) {
+            self.collect_preview(&sub.id, limit, out);
+            if out.len() >= limit {
+                return;
+            }
+        }
     }
 
     fn count(&mut self, key: Option<&'a str>) -> usize {
@@ -443,121 +511,229 @@ fn run<O: dr_workspace::Op>(lib: &Library, input: O::Input) -> Result<O::Output,
         .map_err(|e| e.to_string())
 }
 
-/// Moves `sel` into `folder` (`None`: the root): the materials first, then
-/// the folders (a folder never into itself or below itself).
+fn resolve_asset_id(lib: &Library, book: &str, id: &str) -> Result<String, String> {
+    let loaded = Book::load(lib, book).map_err(|e| e.to_string())?;
+    Ok(loaded
+        .material_info(id)
+        .and_then(|m| m.asset.clone())
+        .unwrap_or_else(|| id.to_owned()))
+}
+
+/// Moves `sel` into `folder` (`None`: the root): the files first, then the
+/// folders (a folder never into itself or below itself).
 pub fn move_to(
-    _lib: &Library,
-    _book: &str,
+    lib: &Library,
+    book: &str,
     sel: &Selection,
     folder: Option<&str>,
 ) -> Result<(), String> {
-    if folder.is_none() && sel.folders.is_empty() {
-        return Ok(());
-    }
-    Err("material folders are retired in format 5".into())
-}
-
-/// A new folder `name` in `parent` (`None`: the root); retired in format 5.
-pub fn create_folder(
-    _lib: &Library,
-    _book: &str,
-    _name: &str,
-    _parent: Option<&str>,
-) -> Result<String, String> {
-    Err("material folders are retired in format 5".into())
-}
-
-pub fn rename_folder(_lib: &Library, _book: &str, _id: &str, _name: &str) -> Result<(), String> {
-    Err("material folders are retired in format 5".into())
-}
-
-pub fn rename_material(lib: &Library, book: &str, id: &str, title: &str) -> Result<(), String> {
-    let loaded = Book::load(lib, book).map_err(|e| e.to_string())?;
-    let row = loaded
-        .material_items()
-        .iter()
-        .find(|m| m.id == id)
-        .ok_or_else(|| format!("material not found: {id}"))?;
-    let Some(entry) = row.entry.clone() else {
-        // A library file of its own: its name is the file's.
-        return run::<AssetRename>(
+    let mut seen_assets = HashSet::new();
+    for id in &sel.materials {
+        let asset_id = resolve_asset_id(lib, book, id)?;
+        if !seen_assets.insert(asset_id.clone()) {
+            continue;
+        }
+        run::<AssetMove>(
             lib,
-            AssetRenameIn {
+            AssetMoveIn {
                 book: book.to_owned(),
-                id: id.to_owned(),
-                name: title.to_owned(),
+                id: asset_id,
+                folder: folder.map(str::to_owned),
+                index: None,
             },
-        )
-        .map(|_| ());
-    };
-    run::<EntryUpdate>(
+        )?;
+    }
+    if !sel.folders.is_empty() {
+        let folders: Vec<GroupInfo> = run::<AssetFolderList>(
+            lib,
+            AssetFolderListIn {
+                book: book.to_owned(),
+                trashed: false,
+            },
+        )?
+        .into_iter()
+        .map(|f| GroupInfo {
+            id: f.id,
+            name: f.name,
+            color: None,
+            parent: f.parent,
+        })
+        .collect();
+        let tree = Tree::new_ordered(&folders, &[], None);
+        for fid in &sel.folders {
+            if folder.is_some_and(|dest| tree.within(dest, fid)) {
+                continue;
+            }
+            run::<AssetFolderMove>(
+                lib,
+                AssetFolderMoveIn {
+                    book: book.to_owned(),
+                    id: fid.clone(),
+                    parent: folder.map(str::to_owned),
+                    index: None,
+                },
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Moves a single file into `folder` at `index` (manual drag reorder or top
+/// placement after paste).
+pub fn move_asset_at(
+    lib: &Library,
+    book: &str,
+    id: &str,
+    folder: Option<&str>,
+    index: Option<usize>,
+) -> Result<(), String> {
+    let asset_id = resolve_asset_id(lib, book, id)?;
+    run::<AssetMove>(
         lib,
-        EntryUpdateIn {
+        AssetMoveIn {
             book: book.to_owned(),
-            id: entry,
-            title: Some(title.to_owned()),
-            mark: None,
-            template: None,
-            overrides: None,
+            id: asset_id,
+            folder: folder.map(str::to_owned),
+            index,
         },
     )
     .map(|_| ())
 }
 
-/// Deletes `sel`: removes each selected media item and trashes its host entry
-/// when no other media items remain on that entry.
+/// Moves a single folder into `parent` at `index` (manual drag reorder).
+pub fn move_folder_at(
+    lib: &Library,
+    book: &str,
+    id: &str,
+    parent: Option<&str>,
+    index: Option<usize>,
+) -> Result<(), String> {
+    run::<AssetFolderMove>(
+        lib,
+        AssetFolderMoveIn {
+            book: book.to_owned(),
+            id: id.to_owned(),
+            parent: parent.map(str::to_owned),
+            index,
+        },
+    )
+    .map(|_| ())
+}
+
+/// A new folder `name` in `parent` (`None`: the root).
+pub fn create_folder(
+    lib: &Library,
+    book: &str,
+    name: &str,
+    parent: Option<&str>,
+) -> Result<String, String> {
+    run::<AssetFolderCreate>(
+        lib,
+        AssetFolderCreateIn {
+            book: book.to_owned(),
+            name: name.to_owned(),
+            parent: parent.map(str::to_owned),
+        },
+    )
+    .map(|n| n.id)
+}
+
+pub fn rename_folder(lib: &Library, book: &str, id: &str, name: &str) -> Result<(), String> {
+    run::<AssetFolderRename>(
+        lib,
+        AssetFolderRenameIn {
+            book: book.to_owned(),
+            id: id.to_owned(),
+            name: name.to_owned(),
+        },
+    )
+    .map(|_| ())
+}
+
+pub fn rename_material(lib: &Library, book: &str, id: &str, title: &str) -> Result<(), String> {
+    let asset_id = resolve_asset_id(lib, book, id)?;
+    run::<AssetRename>(
+        lib,
+        AssetRenameIn {
+            book: book.to_owned(),
+            id: asset_id,
+            name: title.to_owned(),
+        },
+    )
+    .map(|_| ())
+}
+
+/// Moves selected files and folders to Recently Deleted (`asset.trash` /
+/// `asset_folder.trash`).
 pub fn delete(lib: &Library, book: &str, sel: &Selection) -> Result<(), String> {
-    if !sel.folders.is_empty() {
-        return Err("material folders are retired in format 5".into());
-    }
-    if sel.materials.is_empty() {
-        return Ok(());
-    }
-    let loaded = Book::load(lib, book).map_err(|e| e.to_string())?;
+    let mut seen_assets = HashSet::new();
     for id in &sel.materials {
-        let row = loaded
-            .material_items()
-            .iter()
-            .find(|m| m.id == *id)
-            .ok_or_else(|| format!("material not found: {id}"))?;
-        let (Some(entry), Some(module)) = (row.entry.clone(), row.module.clone()) else {
-            // A library file of its own goes to Recently Deleted.
-            run::<AssetTrash>(
-                lib,
-                EntityIn {
-                    book: book.to_owned(),
-                    id: id.clone(),
-                },
-            )?;
+        let asset_id = resolve_asset_id(lib, book, id)?;
+        if !seen_assets.insert(asset_id.clone()) {
             continue;
-        };
-        run::<MediaRemove>(
+        }
+        run::<AssetTrash>(
             lib,
-            MediaRemoveIn {
-                target: ModuleIn {
-                    book: book.to_owned(),
-                    entry: entry.clone(),
-                    module,
-                },
-                item: id.clone(),
+            EntityIn {
+                book: book.to_owned(),
+                id: asset_id,
             },
         )?;
-        let siblings_left = loaded
-            .material_items()
-            .iter()
-            .filter(|m| m.entry.as_ref() == Some(&entry) && m.id != *id)
-            .count();
-        if siblings_left == 0 {
-            let _ = run::<EntryTrash>(
-                lib,
-                EntityIn {
-                    book: book.to_owned(),
-                    id: entry,
-                },
-            );
-        }
+    }
+    for fid in &sel.folders {
+        run::<AssetFolderTrash>(
+            lib,
+            EntityIn {
+                book: book.to_owned(),
+                id: fid.clone(),
+            },
+        )?;
     }
     Ok(())
+}
+
+pub fn restore_asset(lib: &Library, book: &str, id: &str) -> Result<(), String> {
+    run::<AssetRestore>(
+        lib,
+        EntityIn {
+            book: book.to_owned(),
+            id: id.to_owned(),
+        },
+    )
+    .map(|_| ())
+}
+
+pub fn purge_asset(lib: &Library, book: &str, id: &str) -> Result<(), String> {
+    run::<AssetPurge>(
+        lib,
+        EntityIn {
+            book: book.to_owned(),
+            id: id.to_owned(),
+        },
+    )
+    .map(|_| ())
+}
+
+pub fn restore_folder(lib: &Library, book: &str, id: &str) -> Result<(), String> {
+    run::<AssetFolderRestore>(
+        lib,
+        EntityIn {
+            book: book.to_owned(),
+            id: id.to_owned(),
+        },
+    )
+    .map(|_| ())
+}
+
+pub fn purge_folder(lib: &Library, book: &str, id: &str) -> Result<(), String> {
+    run::<AssetFolderPurge>(
+        lib,
+        EntityIn {
+            book: book.to_owned(),
+            id: id.to_owned(),
+        },
+    )
+    .map(|_| ())
 }
 
 #[cfg(test)]

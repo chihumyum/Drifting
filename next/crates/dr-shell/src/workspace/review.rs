@@ -35,6 +35,15 @@ impl Workspace {
         self.changed(cx);
     }
 
+    /// Opens the right sidebar on the 素材库 tab.
+    pub fn reveal_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.super_view = None;
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        self.right.panes.reveal(super::RightTab::Library);
+        self.changed(cx);
+    }
+
     /// Reveal a comment which the caller has resolved in the current book.
     /// Floating/unlocated comments belong in Review; located comments also
     /// open their actual page and use M18's existing focus signal.

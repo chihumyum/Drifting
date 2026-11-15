@@ -247,3 +247,83 @@ fn v3_panel_emits_module_destination_without_a_legacy_jump(cx: &mut gpui::TestAp
     panel.update(cx, |p, cx| p.set_query("", cx));
     assert!(panel.read_with(cx, |p, _| p.v3_groups().unwrap().is_empty()));
 }
+
+#[test]
+fn search_matches_live_asset_names_and_excludes_trashed_files_and_folders() {
+    let (_dir, ws, book) = fixture();
+    let folder = call(
+        &ws,
+        "asset_folder.create",
+        json!({"book": book, "name": "地图夹"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let put = |id: &str, name: &str, sha: &str, folder: Option<&str>| {
+        call(
+            &ws,
+            "asset.put",
+            json!({
+                "book": book,
+                "id": id,
+                "name": name,
+                "kind": "image",
+                "mime": "image/png",
+                "size": 128,
+                "sha256": sha,
+                "width": 64,
+                "height": 48,
+                "folder": folder,
+            }),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let a = put(
+        &dr_model::id::new_uuid_v7(),
+        "东岸旧港海图",
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        None,
+    );
+    let b = put(
+        &dr_model::id::new_uuid_v7(),
+        "西岸礁石海图",
+        "2222222222222222222222222222222222222222222222222222222222222222",
+        Some(&folder),
+    );
+    let targets = |q: &str| -> Vec<Target> {
+        v3::search(&ws, &book, q, 100)
+            .unwrap()
+            .into_iter()
+            .map(|g| g.target)
+            .collect()
+    };
+    let found = targets("海图");
+    assert!(found.contains(&Target::Material(a.clone())));
+    assert!(found.contains(&Target::Material(b.clone())));
+
+    // Trashing a file directly hides it from search; restoring brings it back.
+    call(&ws, "asset.trash", json!({"book": book, "id": a}));
+    let found = targets("海图");
+    assert!(!found.contains(&Target::Material(a.clone())));
+    assert!(found.contains(&Target::Material(b.clone())));
+    call(&ws, "asset.restore", json!({"book": book, "id": a}));
+    assert!(targets("海图").contains(&Target::Material(a.clone())));
+
+    // Trashing an asset folder hides files inside it even though their own deleted_at is None.
+    call(
+        &ws,
+        "asset_folder.trash",
+        json!({"book": book, "id": folder}),
+    );
+    let found = targets("海图");
+    assert!(found.contains(&Target::Material(a.clone())));
+    assert!(!found.contains(&Target::Material(b.clone())));
+    call(
+        &ws,
+        "asset_folder.restore",
+        json!({"book": book, "id": folder}),
+    );
+    assert!(targets("海图").contains(&Target::Material(b)));
+}

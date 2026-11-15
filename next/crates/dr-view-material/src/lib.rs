@@ -26,11 +26,12 @@
 //! the author's note, still opens in the editor), and the 素材库 tab shows
 //! [`library::LibraryPanel`].
 
-mod associations;
 pub mod card;
 pub mod folders;
 pub mod import;
 pub mod library;
+pub mod library_data;
+mod library_render;
 pub mod media;
 pub mod menu;
 pub mod page;
@@ -50,6 +51,7 @@ pub fn init(cx: &mut App) {
     cx.bind_keys(library::bindings());
     menu::register(cx);
     dr_shell::pages::set_library(cx, library::make);
+    dr_shell::pages::set_locate_asset(cx, library::locate_asset);
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
         let Target::Material(id) = target else {
             return None;
@@ -57,9 +59,7 @@ pub fn init(cx: &mut App) {
         let id = id.to_string();
         let kind = host
             .book
-            .material_items()
-            .iter()
-            .find(|m| m.id == id)
+            .material_info(&id)
             .and_then(|m| MediaKind::parse(&m.kind))?;
         let page = cx.new(|cx| MediaPage::new(id, kind, host, window, cx));
         let focus = page.read(cx).focus_handle(cx);

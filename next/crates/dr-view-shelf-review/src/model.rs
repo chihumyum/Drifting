@@ -27,7 +27,7 @@ pub const DRAWER_DEFAULT_HEIGHT: f32 = 260.0;
 pub const STAGE_MIN_HEIGHT: f32 = 200.0;
 
 /// Fixed material kind chip order.
-pub const KIND_ORDER: [&str; 3] = ["text", "image", "pdf"];
+pub const KIND_ORDER: [&str; 2] = ["image", "pdf"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rail {

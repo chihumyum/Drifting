@@ -1147,7 +1147,7 @@ pub fn link_target(
     use dr_model::kind::EntityKind;
     let target = match kind {
         EntityKind::Entry => Target::from_key(&format!("entry:{id}"))?,
-        EntityKind::Material => Target::from_key(&format!("material:{id}"))?,
+        EntityKind::Material | EntityKind::Asset => Target::from_key(&format!("material:{id}"))?,
         _ => return None,
     };
     book.exists(&target).then_some(target)

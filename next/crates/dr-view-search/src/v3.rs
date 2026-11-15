@@ -145,7 +145,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
     let handle = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
-    let (entries, templates, patches, grids) = handle.read(move |doc| {
+    let (entries, templates, patches, grids, live_assets) = handle.read(move |doc| {
         if !dr_doc::v3::is_book_doc(doc) {
             return Err(invalid("v3 search requires a v3 book"));
         }
@@ -159,6 +159,7 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
             v.templates_map(),
             v.patches(),
             v.plot_grids(),
+            v.assets(),
         ))
     })??;
     let map: BTreeMap<_, _> = entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
@@ -366,6 +367,19 @@ pub fn search(ws: &Workspace, book: &str, query: &str, limit: usize) -> Result<V
                 rows,
             );
         }
+    }
+    for asset in live_assets {
+        if out.remaining == 0 {
+            break;
+        }
+        out.add(
+            Target::Material(asset.id.to_string()),
+            &asset.name,
+            None,
+            row(&asset.name, query, Field::Title, None)
+                .into_iter()
+                .collect(),
+        );
     }
     Ok(out.groups)
 }

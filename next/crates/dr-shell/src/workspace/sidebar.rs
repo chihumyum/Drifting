@@ -1854,7 +1854,7 @@ mod v3_panel_tests {
             .unwrap()
             .id
             .clone();
-        let mat_info = &v.materials[0];
+        let mat_info = v.media_items.values().next().unwrap();
         let material = mat_info.id.clone();
         let mat_entry = mat_info.entry.clone().unwrap();
         let mat_mod = mat_info.module.clone().unwrap();

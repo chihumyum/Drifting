@@ -30,6 +30,7 @@ pub mod end;
 pub mod head;
 mod history;
 mod links;
+pub mod media;
 pub mod settlement;
 pub mod v3;
 pub mod whole;

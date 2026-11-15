@@ -220,7 +220,6 @@
   "common": {
     "cancel": "キャンセル",
     "close": "閉じる",
-    "confirm": "確認",
     "counting": "集計中…",
     "creating": "作成中…",
     "customColor": "カスタムカラー",
@@ -260,11 +259,6 @@
       "collapsePlotPlanner": "プロットプランナーを折りたたむ",
       "expandPlotPlanner": "プロットプランナーを展開",
       "more": "その他の操作"
-    },
-    "menu": {
-      "deleteMaterial": "資料を削除",
-      "moveMaterialToFolder": "フォルダーに移動…",
-      "openMaterialInSystem": "既定のアプリで開く"
     },
     "status": {
       "discarded": "不採用",
@@ -518,13 +512,10 @@
     "retry": "再試行"
   },
   "materialEditor": {
-    "deleteConfirm": "資料「{{title}}」を削除しますか？この操作は取り消せません。",
     "deleteFailed": "資料を削除できませんでした。",
     "descriptionPlaceholder": "説明を追加…",
     "embed": {
-      "importFile": "画像または PDF を読み込む…",
-      "importing": "インポート中…",
-      "pastedImage": "貼り付けた画像"
+      "importing": "インポート中…"
     },
     "regions": {
       "draw": "範囲にコメント",
@@ -540,25 +531,12 @@
     "zoomReset": "表示範囲に合わせる"
   },
   "materialFolders": {
-    "deleteConfirm": "フォルダー「{{name}}」を削除しますか？中の項目はすべて1つ上の階層に移ります。資料は削除されません。",
-    "deleteSelectionConfirm": "選択した{{count}}項目を削除しますか？資料は削除されます。削除したフォルダーの中身は1つ上の階層に移ります。",
-    "empty": "資料はまだありません。上の「新しいフォルダー」ボタンで整理できます。",
     "menu": {
-      "collapseAll": "中の項目をすべて折りたたむ",
-      "delete": "フォルダーを削除",
-      "deleteSelection": "{{count}}項目を削除",
-      "expandAll": "中の項目をすべて展開",
-      "move": "フォルダーに移動…",
-      "moveSelection": "{{count}}項目をフォルダーに移動…",
-      "newFolder": "新しいフォルダー",
-      "newSubfolder": "中にフォルダーを作成",
-      "open": "開く",
-      "rename": "名前を変更"
+      "open": "開く"
     },
     "picker": {
       "createAndMove": "作成して移動",
-      "newPlaceholder": "新しいフォルダー名",
-      "title": "フォルダーに移動"
+      "newPlaceholder": "新しいフォルダー名"
     },
     "root": "すべての資料",
     "untitled": "新しいフォルダー"
@@ -570,11 +548,7 @@
     "dialog": {
       "create": "作成",
       "newTodo": "新しいTODO",
-      "titlePlaceholder": "タイトル",
       "todoPlaceholder": "TODOの内容…"
-    },
-    "empty": {
-      "noRelated": "現在の項目に関連資料はありません。"
     },
     "error": {
       "openFile": "ファイルを開けません：{{error}}",
@@ -586,7 +560,6 @@
       "text": "メモ"
     },
     "menu": {
-      "deleteMaterial": "資料を削除",
       "openInSystem": "システムのアプリで開く"
     },
     "preview": {
@@ -610,7 +583,6 @@
       "hideKind": "クリックでこの種類を隠す",
       "material": "資料",
       "meta": "TODO {{todos}}件・コメント{{comments}}件・資料{{materials}}件",
-      "newMaterialButton": "新しい資料",
       "noFilteredMaterials": "条件に一致する資料はありません。",
       "noMaterials": "この作品に資料はまだありません。",
       "noOrphans": "すべての資料が1つ以上のエンティティに関連付いています。",
@@ -628,10 +600,6 @@
     },
     "todo": {
       "empty": "（空のTODO）"
-    },
-    "toolbar": {
-      "count": "{{count}}件の資料",
-      "newMaterial": "新しい資料"
     }
   },
   "mobileWorkspace": {
@@ -871,8 +839,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "エンティティをリンク",
-      "remove": "関係を削除"
+      "linkEntity": "エンティティをリンク"
     },
     "filters": {
       "all": "すべて"
@@ -883,9 +850,6 @@
       "node": "章",
       "patch": "変化記録",
       "storyline": "ストーリーライン"
-    },
-    "picker": {
-      "placeholder": "リンク可能なエンティティを検索…"
     },
     "sections": {
       "relations": "関係"
@@ -1631,6 +1595,57 @@
   "v3Transfer": {
     "filesTitle": "ファイル",
     "targetTitle": "対象"
+  },
+  "v5Files": {
+    "addFiles": "ファイルを追加",
+    "alignCenter": "中央",
+    "alignHeading": "配置",
+    "alignLeft": "左寄せ",
+    "alignRight": "右寄せ",
+    "allFolders": "すべて",
+    "clearField": "クリア",
+    "currentSection": "現在",
+    "empty": "ファイルなし",
+    "fileCount_other": "{{count}} 件のファイル",
+    "findFile": "ファイルを検索",
+    "itemCount_other": "{{count}} 件",
+    "kindImage": "画像",
+    "kindPdf": "PDF",
+    "layoutFeatured": "大きく表示",
+    "layoutGrid": "グリッド",
+    "layoutList": "リスト",
+    "libraryRoot": "素材ライブラリ",
+    "locateInLibrary": "素材ライブラリで表示",
+    "mediaCaptionPlaceholder": "キャプション",
+    "moveToFolder": "フォルダへ移動",
+    "moveToTrash": "最近削除した項目へ移動",
+    "newFolder": "新規フォルダ",
+    "newSubfolder": "中に新規フォルダ",
+    "open": "開く",
+    "openInSystem": "システムで開く",
+    "otherSection": "その他",
+    "pageCount_other": "{{count}} ページ",
+    "pastedImage": "貼り付けた画像 {{stamp}}",
+    "pickFromComputer": "コンピュータから選択…",
+    "pickFromLibrary": "素材ライブラリから選択…",
+    "proseCaptionPlaceholder": "キャプション",
+    "purge": "完全に削除",
+    "removeFromHere": "ここから外す",
+    "removeFromProse": "本文から外す",
+    "rename": "名前を変更",
+    "resetArrangement": "テンプレートの既定に戻す",
+    "restore": "復元",
+    "sizeFull": "本文幅",
+    "sizeHeading": "サイズ",
+    "sizeMedium": "中",
+    "sizeSmall": "小",
+    "slashImageOrPdf": "画像または PDF…",
+    "topLevel": "最上位",
+    "trashSection": "最近削除した項目",
+    "usageCount_other": "{{count}} 箇所",
+    "usedIn": "使用箇所",
+    "viewList": "リスト",
+    "viewMasonry": "メイソンリー"
   },
   "voiceAgent": {
     "error": {

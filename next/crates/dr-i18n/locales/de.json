@@ -220,7 +220,6 @@
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",
-    "confirm": "Bestätigen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
     "customColor": "Eigene Farbe",
@@ -260,11 +259,6 @@
       "collapsePlotPlanner": "Handlungsplaner einklappen",
       "expandPlotPlanner": "Handlungsplaner ausklappen",
       "more": "Weitere Aktionen"
-    },
-    "menu": {
-      "deleteMaterial": "Material löschen",
-      "moveMaterialToFolder": "In Ordner verschieben…",
-      "openMaterialInSystem": "In Standard-App öffnen"
     },
     "status": {
       "discarded": "Verworfen",
@@ -525,13 +519,10 @@
     "retry": "Erneut versuchen"
   },
   "materialEditor": {
-    "deleteConfirm": "Material „{{title}}“ löschen? Dies kann nicht rückgängig gemacht werden.",
     "deleteFailed": "Material konnte nicht gelöscht werden.",
     "descriptionPlaceholder": "Beschreibung hinzufügen…",
     "embed": {
-      "importFile": "Bild oder PDF importieren…",
-      "importing": "Wird importiert…",
-      "pastedImage": "Eingefügtes Bild"
+      "importing": "Wird importiert…"
     },
     "regions": {
       "draw": "Bereich kommentieren",
@@ -547,25 +538,12 @@
     "zoomReset": "An Ansicht anpassen"
   },
   "materialFolders": {
-    "deleteConfirm": "Ordner „{{name}}“ löschen? Der gesamte Inhalt wird eine Ebene nach oben verschoben; es wird kein Material gelöscht.",
-    "deleteSelectionConfirm": "Die {{count}} ausgewählten Einträge löschen? Materialien werden gelöscht; der Inhalt gelöschter Ordner wird eine Ebene nach oben verschoben.",
-    "empty": "Noch keine Materialien. Mit „Neuer Ordner“ oben lassen sie sich organisieren.",
     "menu": {
-      "collapseAll": "Alle enthaltenen Einträge einklappen",
-      "delete": "Ordner löschen",
-      "deleteSelection": "{{count}} Einträge löschen",
-      "expandAll": "Alle enthaltenen Einträge ausklappen",
-      "move": "In Ordner verschieben…",
-      "moveSelection": "{{count}} Einträge in Ordner verschieben…",
-      "newFolder": "Neuer Ordner",
-      "newSubfolder": "Unterordner erstellen",
-      "open": "Öffnen",
-      "rename": "Umbenennen"
+      "open": "Öffnen"
     },
     "picker": {
       "createAndMove": "Erstellen und verschieben",
-      "newPlaceholder": "Name des neuen Ordners",
-      "title": "In Ordner verschieben"
+      "newPlaceholder": "Name des neuen Ordners"
     },
     "root": "Alle Materialien",
     "untitled": "Neuer Ordner"
@@ -577,11 +555,7 @@
     "dialog": {
       "create": "Erstellen",
       "newTodo": "Neue Aufgabe",
-      "titlePlaceholder": "Titel",
       "todoPlaceholder": "Aufgabeninhalt…"
-    },
-    "empty": {
-      "noRelated": "Keine Materialien mit dem aktuellen Eintrag verknüpft."
     },
     "error": {
       "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
@@ -593,7 +567,6 @@
       "text": "Notiz"
     },
     "menu": {
-      "deleteMaterial": "Material löschen",
       "openInSystem": "In System-App öffnen"
     },
     "preview": {
@@ -617,7 +590,6 @@
       "hideKind": "Klicken, um diese Art auszublenden",
       "material": "Material",
       "meta": "{{todos}} Aufgaben · {{comments}} Kommentare · {{materials}} Materialien",
-      "newMaterialButton": "Neues Material",
       "noFilteredMaterials": "Keine Materialien entsprechen den Filtern.",
       "noMaterials": "Dieses Projekt hat noch keine Materialien.",
       "noOrphans": "Alle Materialien sind mit mindestens einer Entität verknüpft.",
@@ -635,10 +607,6 @@
     },
     "todo": {
       "empty": "(leere Aufgabe)"
-    },
-    "toolbar": {
-      "count": "{{count}} Materialien",
-      "newMaterial": "Neues Material"
     }
   },
   "mobileWorkspace": {
@@ -878,8 +846,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Entität verknüpfen",
-      "remove": "Beziehung entfernen"
+      "linkEntity": "Entität verknüpfen"
     },
     "filters": {
       "all": "Alle"
@@ -890,9 +857,6 @@
       "node": "Kapitel",
       "patch": "Entwicklung",
       "storyline": "Handlungsstrang"
-    },
-    "picker": {
-      "placeholder": "Verknüpfbare Entitäten suchen…"
     },
     "sections": {
       "relations": "Beziehungen"
@@ -1639,6 +1603,61 @@
   "v3Transfer": {
     "filesTitle": "Dateien",
     "targetTitle": "Ziel"
+  },
+  "v5Files": {
+    "addFiles": "Dateien hinzufügen",
+    "alignCenter": "Zentriert",
+    "alignHeading": "Ausrichtung",
+    "alignLeft": "Links",
+    "alignRight": "Rechts",
+    "allFolders": "Alle",
+    "clearField": "Leeren",
+    "currentSection": "Aktuell",
+    "empty": "Keine Dateien",
+    "fileCount_one": "{{count}} Datei",
+    "fileCount_other": "{{count}} Dateien",
+    "findFile": "Datei suchen",
+    "itemCount_one": "{{count}} Element",
+    "itemCount_other": "{{count}} Elemente",
+    "kindImage": "Bild",
+    "kindPdf": "PDF",
+    "layoutFeatured": "Groß",
+    "layoutGrid": "Raster",
+    "layoutList": "Liste",
+    "libraryRoot": "Bibliothek",
+    "locateInLibrary": "In Bibliothek zeigen",
+    "mediaCaptionPlaceholder": "Beschriftung",
+    "moveToFolder": "In Ordner verschieben",
+    "moveToTrash": "In „Zuletzt gelöscht“ legen",
+    "newFolder": "Neuer Ordner",
+    "newSubfolder": "Unterordner erstellen",
+    "open": "Öffnen",
+    "openInSystem": "Im System öffnen",
+    "otherSection": "Weitere",
+    "pageCount_one": "{{count}} Seite",
+    "pageCount_other": "{{count}} Seiten",
+    "pastedImage": "Eingefügtes Bild {{stamp}}",
+    "pickFromComputer": "Vom Computer wählen…",
+    "pickFromLibrary": "Aus Bibliothek wählen…",
+    "proseCaptionPlaceholder": "Bildunterschrift",
+    "purge": "Endgültig löschen",
+    "removeFromHere": "Hier entfernen",
+    "removeFromProse": "Aus Text entfernen",
+    "rename": "Umbenennen",
+    "resetArrangement": "Auf Vorlage zurücksetzen",
+    "restore": "Wiederherstellen",
+    "sizeFull": "Textbreite",
+    "sizeHeading": "Größe",
+    "sizeMedium": "Mittel",
+    "sizeSmall": "Klein",
+    "slashImageOrPdf": "Bild oder PDF…",
+    "topLevel": "Oberste Ebene",
+    "trashSection": "Zuletzt gelöscht",
+    "usageCount_one": "{{count}} Stelle",
+    "usageCount_other": "{{count}} Stellen",
+    "usedIn": "Verwendet in",
+    "viewList": "Liste",
+    "viewMasonry": "Masonry"
   },
   "voiceAgent": {
     "error": {

@@ -1,35 +1,7 @@
-//! The right sidebar's 素材库 tab (the 0.1 client's `LibraryPanel` and
-//! `MaterialFolderTree`, desktop): the book's materials in the author's
-//! folders.
-//!
-//! - **Head**: 「当前」 (only the materials related to the page in front),
-//!   the count, 审阅与素材 (the Super View), 新建素材夹, and + with 笔记 (a
-//!   new note, opened to write in) and 从文件导入图片或 PDF….
-//! - **Rows**: folders as thin rows in the structure face (a disclosure,
-//!   the folder, the name, the count of materials below it); materials as
-//!   taller cells (the slip mark, a thumbnail, the title, a note's first
-//!   words or the file's kind). The material open in front has the brush
-//!   round it.
-//! - **Clicks**: a click opens a material (a double click keeps its tab) or
-//!   folds a folder; ⌘-click and ⇧-click select several (a wash under
-//!   them); ⌥-click folds everything inside a folder; ⌘A selects every row,
-//!   Esc lets go. New folders, notes and imports go into the folder last
-//!   clicked.
-//! - **Hover card** on each row, as everywhere (no right-click menu): open,
-//!   open in the system's app, rename, move (every folder by its path,
-//!   right in the card), new sub-folder, expand or collapse all, delete —
-//!   for the whole selection when the row is part of one. Deleting asks
-//!   first.
-//! - **Dragging**: a row (or the selection it is part of) onto a folder
-//!   moves it there; onto a material, into that material's folder; onto
-//!   the empty part of the list, to the root.
-//! - **Importing**: files dragged in from the system, ⌘V of a copied image
-//!   or files, and the + menu's picker become materials (images and PDFs;
-//!   anything else is skipped and said so), filed where they were dropped.
-//!
-//! The panel is two views, [`LibraryPanel`] (the rows) and [`LibraryHead`]
-//! (the head row), registered with the shell by [`crate::init`]
-//! (`dr_shell::pages::set_library`).
+//! The right sidebar's 素材库 tab (`LibraryPanel` and `LibraryHead`, desktop):
+//! format-5 file library with list & two-column masonry views, automatic
+//! `当前` pinning and `其他` deduplication, nested asset folders (`素材夹`),
+//! hover cards with `用在` usage jumps, and `最近删除`.
 
 #[cfg(test)]
 #[path = "library_v3_tests.rs"]
@@ -40,34 +12,28 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use dr_i18n::keys;
-use dr_shell::book::Book;
+use dr_shell::book::{Book, MaterialInfo};
 use dr_shell::nav::{Open, Target};
 use dr_shell::strings::tf;
-use dr_shell::workspace::SuperView;
-use dr_shell::{Workspace, t};
+use dr_shell::{Settings, Workspace, t};
 use dr_ui::Theme;
-use dr_ui::components::{
-    Button, CardAction, CardBody, EmptyState, HoverCard, IconButton, Layer, Menu, MenuItem,
-    SandCell, ScopeToggle,
-    overlay::{self, Dialog, Place},
-};
 use dr_ui::fonts::Role;
 use dr_ui::input::field::{FieldEvent, TextField};
-use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
-use dr_workspace::Workspace as Library;
+use dr_workspace::commands::asset::{AssetFolderInfo, AssetInfo};
+use dr_workspace::dto::GroupInfo;
+use dr_workspace::{Workspace as Library, WsEvent};
 use gpui::{
-    AnyElement, App, AppContext as _, ClickEvent, ClipboardEntry, Context, ElementId, Entity,
-    ExternalPaths, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyBinding,
-    ParentElement, PathPromptOptions, Pixels, Point, Render, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, actions, div,
-    prelude::FluentBuilder, px,
+    App, AppContext as _, ClickEvent, ClipboardEntry, Context, ElementId, Entity, FocusHandle,
+    Focusable, IntoElement, KeyBinding, ParentElement, PathPromptOptions, Render, ScrollHandle,
+    SharedString, Styled, Subscription, Task, WeakEntity, Window, actions, div, px,
 };
+use serde_json::json;
 
-use crate::card;
 use crate::folders::{self, Entry, Picker, Selection, Tree};
 use crate::import;
+use crate::library_data::{self, CurrentItem, LibrarySnapshot, ResolvedUsage};
 
 actions!(
     material_library,
@@ -84,6 +50,33 @@ actions!(
 /// The key context of the library's rows.
 pub const KEY_CONTEXT: &str = "MaterialLibrary";
 
+/// Device-memory key persisting list vs. masonry across restarts.
+pub const VIEW_MEMORY_KEY: &str = "material-library-view";
+
+/// List or two-column masonry (`v5-tracks.md` line 393).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ViewMode {
+    #[default]
+    List,
+    Masonry,
+}
+
+impl ViewMode {
+    pub fn from_stored(raw: Option<&str>) -> Self {
+        match raw {
+            Some("masonry") => Self::Masonry,
+            _ => Self::List,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Masonry => "masonry",
+        }
+    }
+}
+
 /// The library's shortcuts: ⌘A, Esc, ⌘V (Ctrl off macOS).
 pub fn bindings() -> Vec<KeyBinding> {
     let (all, paste) = if cfg!(target_os = "macos") {
@@ -98,17 +91,29 @@ pub fn bindings() -> Vec<KeyBinding> {
     ]
 }
 
-/// Rows being dragged: a selection of materials and folders. Public for
-/// M23, whose cards drag materials into the same folders.
-#[derive(Clone, Debug)]
-pub struct MaterialDrag {
-    pub selection: Selection,
-    pub label: SharedString,
+/// Rows being dragged: a selection of materials and folders. Shared across the
+/// library, `MediaModule`, and `dr-editor` prose drop targets.
+pub type MaterialDrag = dr_ui::AssetDrag;
+
+pub(crate) fn make_drag(book: String, sel: Selection, label: SharedString) -> MaterialDrag {
+    MaterialDrag {
+        book,
+        assets: sel.materials,
+        folders: sel.folders,
+        label,
+    }
+}
+
+pub(crate) fn drag_selection(drag: &MaterialDrag) -> Selection {
+    Selection {
+        folders: drag.folders.clone(),
+        materials: drag.assets.clone(),
+    }
 }
 
 /// What follows the pointer while rows are dragged.
-struct DragGhost {
-    label: SharedString,
+pub(crate) struct DragGhost {
+    pub(crate) label: SharedString,
 }
 
 impl Render for DragGhost {
@@ -130,42 +135,50 @@ impl Render for DragGhost {
     }
 }
 
-/// What a hover card's row does to the panel.
-type RowAction = Rc<dyn Fn(&mut LibraryPanel, &mut Window, &mut Context<LibraryPanel>)>;
-
-struct Renaming {
-    key: String,
-    busy: bool,
-    error: bool,
-    field: Entity<TextField>,
-    _sub: Subscription,
+pub(crate) struct Renaming {
+    pub(crate) key: String,
+    pub(crate) busy: bool,
+    pub(crate) error: bool,
+    pub(crate) field: Entity<TextField>,
+    pub(crate) _sub: Subscription,
 }
 
 /// The rows of the 素材库 tab.
 pub struct LibraryPanel {
-    shell: WeakEntity<Workspace>,
-    lib: Option<Library>,
-    book: Rc<Book>,
-    book_epoch: u64,
-    focus: FocusHandle,
-    expanded: HashSet<String>,
-    picker: Picker,
-    /// Where new folders, notes and imports go.
-    current_folder: Option<String>,
-    renaming: Option<Renaming>,
-    related_only: bool,
-    /// The page the related materials were read for, and them.
-    related: Option<(String, HashSet<String>)>,
-    v3_related_generation: u64,
-    v3_related_pending: Option<Task<()>>,
-    importing: usize,
-    menu: Option<Point<Pixels>>,
-    /// A row to rename as soon as it is drawn (a folder just made).
-    rename_when_shown: Option<String>,
+    pub(crate) shell: WeakEntity<Workspace>,
+    pub(crate) lib: Option<Library>,
+    pub(crate) book: Rc<Book>,
+    pub(crate) book_epoch: u64,
+    pub(crate) focus: FocusHandle,
+    pub(crate) scroll: ScrollHandle,
+    pub(crate) list_width: f32,
+    pub(crate) view_mode: ViewMode,
+    /// Folder drilled into while in `ViewMode::Masonry`.
+    pub(crate) masonry_folder: Option<String>,
+    pub(crate) expanded: HashSet<String>,
+    pub(crate) current_collapsed: bool,
+    pub(crate) other_collapsed: bool,
+    pub(crate) trash_collapsed: bool,
+    pub(crate) picker: Picker,
+    /// Where new folders and imports go by default.
+    pub(crate) current_folder: Option<String>,
+    pub(crate) renaming: Option<Renaming>,
+    /// `(key, select_all)` to open inline rename as soon as its row is drawn.
+    pub(crate) rename_when_shown: Option<(String, bool)>,
+    /// Asset id to expand, scroll to, and sand-flash once drawn.
+    pub(crate) pending_reveal: Option<String>,
+    /// Key whose hover card has `移到素材夹` unfolded.
+    pub(crate) move_open_for: Option<String>,
     /// A row whose hover card is held open (captures, tests).
-    card_open: Option<String>,
-    pending: Vec<Task<()>>,
-    _subs: Vec<Subscription>,
+    pub(crate) card_open: Option<String>,
+    pub(crate) importing: usize,
+    pub(crate) snapshot: Option<LibrarySnapshot>,
+    pub(crate) snapshot_stale: bool,
+    pub(crate) snapshot_gen: u64,
+    pub(crate) snapshot_task: Option<Task<()>>,
+    pub(crate) bus_sub: Option<dr_workspace::events::Subscription>,
+    pub(crate) pending: Vec<Task<()>>,
+    pub(crate) _subs: Vec<Subscription>,
 }
 
 impl Focusable for LibraryPanel {
@@ -174,9 +187,8 @@ impl Focusable for LibraryPanel {
     }
 }
 
-/// Runs `work` on the library off the main thread, then `done` on the
-/// panel.
-fn spawn_lib<R: Send + 'static>(
+/// Runs `work` on the library off the main thread, then `done` on the panel.
+pub(crate) fn spawn_lib<R: Send + 'static>(
     lib: Option<Library>,
     scope: (String, u64),
     cx: &mut Context<LibraryPanel>,
@@ -207,10 +219,11 @@ impl LibraryPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> LibraryPanel {
+        let stored_view = Settings::device_memory(cx, VIEW_MEMORY_KEY);
+        let view_mode = ViewMode::from_stored(stored_view.as_ref().and_then(|v| v.as_str()));
+        let pending_locate = take_queued_locate(cx);
         let mut subs = Vec::new();
         if shell.upgrade().is_some() {
-            // Made while the workspace draws: its book is read once that
-            // drawing is done.
             cx.spawn(async move |this, cx| {
                 this.update(cx, |p, cx| {
                     if let Some(ws) = p.shell.upgrade() {
@@ -223,40 +236,55 @@ impl LibraryPanel {
             .detach();
         }
         if let Some(ws) = shell.upgrade() {
-            // The shell reads the book again after every change, and the
-            // page in front changes with the tabs.
             subs.push(cx.observe(&ws, |panel, ws, cx| {
                 let book = ws.read(cx).book.clone();
                 if !Rc::ptr_eq(&book, &panel.book) {
                     panel.set_book(book, cx);
+                } else {
+                    cx.notify();
                 }
-                panel.keep_related(cx);
             }));
         }
-        LibraryPanel {
+        let mut panel = LibraryPanel {
             shell,
             lib,
-            book,
+            book: Rc::default(),
             book_epoch: 0,
             focus: cx.focus_handle(),
+            scroll: ScrollHandle::new(),
+            list_width: 276.0,
+            view_mode,
+            masonry_folder: None,
             expanded: HashSet::new(),
+            current_collapsed: false,
+            other_collapsed: false,
+            trash_collapsed: false,
             picker: Picker::default(),
             current_folder: None,
             renaming: None,
-            related_only: false,
-            related: None,
-            v3_related_generation: 0,
-            v3_related_pending: None,
-            importing: 0,
-            menu: None,
             rename_when_shown: None,
+            pending_reveal: pending_locate,
+            move_open_for: None,
             card_open: None,
+            importing: 0,
+            snapshot: None,
+            snapshot_stale: true,
+            snapshot_gen: 0,
+            snapshot_task: None,
+            bus_sub: None,
             pending: Vec::new(),
             _subs: subs,
+        };
+        if !book.id.is_empty() {
+            panel.set_book(book, cx);
+            // Reset epoch to 0 on initial construction so unit tests start cleanly.
+            panel.book_epoch = 0;
+            panel.reload_snapshot(cx);
         }
+        panel
     }
 
-    fn book_id(&self) -> String {
+    pub(crate) fn book_id(&self) -> String {
         self.book.id.clone()
     }
 
@@ -264,96 +292,138 @@ impl LibraryPanel {
         &self.book
     }
 
+    pub fn view_mode(&self) -> ViewMode {
+        self.view_mode
+    }
+
+    pub fn set_view_mode(&mut self, mode: ViewMode, cx: &mut Context<Self>) {
+        if self.view_mode == mode {
+            return;
+        }
+        self.view_mode = mode;
+        if mode == ViewMode::List {
+            self.masonry_folder = None;
+        }
+        Settings::set_device_memory(cx, VIEW_MEMORY_KEY, Some(json!(mode.as_str())));
+        cx.notify();
+    }
+
+    pub fn masonry_folder(&self) -> Option<&str> {
+        self.masonry_folder.as_deref()
+    }
+
+    pub fn set_masonry_folder(&mut self, folder: Option<String>, cx: &mut Context<Self>) {
+        self.current_folder = folder.clone();
+        self.masonry_folder = folder;
+        cx.notify();
+    }
+
     /// Shows another book's lists (the shell's, or a test's).
     pub fn set_book(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
-        if self.book.id != book.id {
+        let changed_book = self.book.id != book.id;
+        if changed_book {
             self.book_epoch += 1;
             self.renaming = None;
             self.rename_when_shown = None;
             self.current_folder = None;
+            self.masonry_folder = None;
+            self.move_open_for = None;
             self.importing = 0;
             self.picker.clear();
+            self.snapshot = None;
+            self.watch_book(&book.id, cx);
         }
         self.book = book;
-        self.related = None;
-        self.v3_related_generation += 1;
-        self.v3_related_pending = None;
+        self.snapshot_stale = true;
+        if let Some(mf) = &self.masonry_folder
+            && !self.live_folders().iter().any(|f| &f.id == mf)
+        {
+            self.masonry_folder = None;
+        }
         let order = self.order();
         self.picker.keep(&order);
+        self.reload_snapshot(cx);
         cx.notify();
     }
 
-    /// The page in front, as a target the library's relations use.
-    fn front(&self, cx: &App) -> Option<Target> {
-        let ws = self.shell.upgrade()?;
-        ws.read(cx).nav.current().cloned()
-    }
-
-    /// The material open in front, if one is.
-    fn active(&self, cx: &App) -> Option<String> {
-        match self.front(cx)? {
-            Target::Material(id) => Some(id.to_string()),
-            _ => None,
-        }
-    }
-
-    pub fn related_only(&self) -> bool {
-        self.related_only
-    }
-
-    pub fn set_related_only(&mut self, on: bool, cx: &mut Context<Self>) {
-        if self.related_only != on {
-            self.related = None;
-        }
-        self.related_only = on;
-        self.keep_related(cx);
-        cx.notify();
-    }
-
-    /// Reads which materials relate to the page in front, when the filter
-    /// is on and the page changed.
-    fn keep_related(&mut self, cx: &mut Context<Self>) {
-        self.keep_related_v3(cx);
-    }
-
-    fn keep_related_v3(&mut self, cx: &mut Context<Self>) {
-        if !self.related_only {
-            self.v3_related_pending = None;
-            self.v3_related_generation += 1;
-            return;
-        }
-        let front = self.front(cx);
-        let key = front.as_ref().map(Target::key).unwrap_or_default();
-        if self
-            .related
-            .as_ref()
-            .is_some_and(|(current, _)| current == &key)
-        {
-            return;
-        }
-        self.v3_related_generation += 1;
-        self.v3_related_pending = None;
-        // Never flash the previous entry's materials while the next read runs.
-        self.related = Some((key.clone(), HashSet::new()));
-        let Some(Target::Entry { id, .. }) = front else {
+    fn watch_book(&mut self, book_id: &str, cx: &mut Context<Self>) {
+        self.bus_sub = None;
+        let Some(lib) = &self.lib else {
             return;
         };
-        let Some(lib) = self.lib.clone() else { return };
+        if book_id.is_empty() {
+            return;
+        }
+        let target_book = book_id.to_owned();
+        let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
+        let sub = lib.subscribe(move |e| match e {
+            WsEvent::Book(b) if b.book.to_string() == target_book => {
+                let _ = tx.unbounded_send(());
+            }
+            WsEvent::Prose(_) => {
+                let _ = tx.unbounded_send(());
+            }
+            _ => {}
+        });
+        let epoch = self.book_epoch;
+        let watched_book = book_id.to_owned();
+        self.pending.push(cx.spawn(async move |this, cx| {
+            use futures::StreamExt as _;
+            while rx.next().await.is_some() {
+                while rx.try_recv().is_ok() {}
+                let ok = this
+                    .update(cx, |p, cx| {
+                        if p.book.id == watched_book && p.book_epoch == epoch {
+                            p.reload_snapshot(cx);
+                        }
+                    })
+                    .is_ok();
+                if !ok {
+                    break;
+                }
+            }
+        }));
+        self.bus_sub = Some(sub);
+    }
+
+    pub(crate) fn reload_snapshot(&mut self, cx: &mut Context<Self>) {
+        let Some(lib) = self.lib.clone() else {
+            self.snapshot_task = None;
+            return;
+        };
         let book = self.book_id();
+        if book.is_empty() {
+            self.snapshot_task = None;
+            return;
+        }
+        self.snapshot_gen += 1;
+        let generation = self.snapshot_gen;
+        let epoch = self.book_epoch;
+        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
+        let untitled_label = t(cx, keys::common::UNTITLED).to_string();
         let requested_book = book.clone();
-        let generation = self.v3_related_generation;
-        let task = cx
-            .background_executor()
-            .spawn(async move { crate::v3::related(&lib, &requested_book, id.as_str()) });
-        self.v3_related_pending = Some(cx.spawn(async move |this, cx| {
+        let task = cx.background_executor().spawn(async move {
+            library_data::load_snapshot(&lib, &requested_book, &relations_label, &untitled_label)
+        });
+        self.snapshot_task = Some(cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |p, cx| {
-                if p.book_id() != book || p.v3_related_generation != generation {
+                if p.book.id != book || p.book_epoch != epoch || p.snapshot_gen != generation {
                     return;
                 }
                 match result {
-                    Ok(ids) => p.related = Some((key, ids)),
-                    Err(e) => log::warn!("material library: v3 associations: {e}"),
+                    Ok(snap) => {
+                        p.snapshot = Some(snap);
+                        p.snapshot_stale = false;
+                        if let Some(mf) = &p.masonry_folder
+                            && !p.live_folders().iter().any(|f| &f.id == mf)
+                        {
+                            p.masonry_folder = None;
+                        }
+                        let order = p.order();
+                        p.picker.keep(&order);
+                    }
+                    Err(e) => log::warn!("material library: snapshot: {e}"),
                 }
                 cx.notify();
             })
@@ -361,26 +431,129 @@ impl LibraryPanel {
         }));
     }
 
-    /// The materials the filter shows (`None`: all).
-    fn shown(&self) -> Option<&HashSet<String>> {
-        if !self.related_only {
-            return None;
+    pub fn live_folders(&self) -> &[GroupInfo] {
+        if !self.snapshot_stale
+            && let Some(snap) = &self.snapshot
+        {
+            return &snap.live_folders;
         }
-        self.related.as_ref().map(|(_, ids)| ids)
+        self.book.material_folders()
     }
 
-    /// The rows as shown.
+    pub fn live_materials(&self) -> &[MaterialInfo] {
+        if !self.snapshot_stale
+            && let Some(snap) = &self.snapshot
+        {
+            return &snap.live_materials;
+        }
+        self.book.material_items()
+    }
+
+    pub fn trashed_assets(&self) -> &[AssetInfo] {
+        self.snapshot
+            .as_ref()
+            .map_or(&[], |s| s.trashed_assets.as_slice())
+    }
+
+    pub fn trashed_folders(&self) -> &[AssetFolderInfo] {
+        self.snapshot
+            .as_ref()
+            .map_or(&[], |s| s.trashed_folders.as_slice())
+    }
+
+    pub fn asset_info(&self, id: &str) -> Option<&AssetInfo> {
+        self.snapshot.as_ref()?.by_id.get(id)
+    }
+
+    pub fn usages_of(&self, id: &str) -> &[ResolvedUsage] {
+        self.snapshot
+            .as_ref()
+            .and_then(|s| s.usages.get(id))
+            .map_or(&[], Vec::as_slice)
+    }
+
+    pub(crate) fn usage_count(&self, id: &str) -> usize {
+        self.usages_of(id).len()
+    }
+
+    pub(crate) fn live_count(&self) -> usize {
+        self.live_materials().len()
+    }
+
+    /// The page in front on the paper.
+    pub(crate) fn front(&self, cx: &App) -> Option<Target> {
+        let ws = self.shell.upgrade()?;
+        ws.read(cx).nav.current().cloned()
+    }
+
+    /// The material open in front, if one is.
+    pub(crate) fn active(&self, cx: &App) -> Option<String> {
+        match self.front(cx)? {
+            Target::Material(id) => {
+                let raw = id.to_string();
+                Some(
+                    self.book
+                        .material_info(&raw)
+                        .and_then(|m| m.asset.clone())
+                        .unwrap_or(raw),
+                )
+            }
+            _ => None,
+        }
+    }
+
+    /// `当前` items for the entry currently open on the paper (`Empty` when a
+    /// file or nothing is open, or when drilled into a masonry folder).
+    pub fn current_section(&self, cx: &App) -> Vec<CurrentItem> {
+        if self.view_mode == ViewMode::Masonry && self.masonry_folder.is_some() {
+            return Vec::new();
+        }
+        let Some(Target::Entry { id, .. }) = self.front(cx) else {
+            return Vec::new();
+        };
+        self.current_for_entry(id.as_str(), cx)
+    }
+
+    /// Computes `当前` items for an explicit `entry_id`.
+    pub fn current_for_entry(&self, entry_id: &str, cx: &App) -> Vec<CurrentItem> {
+        let Some(snap) = &self.snapshot else {
+            return Vec::new();
+        };
+        let relations = t(cx, keys::references_panel::sections::RELATIONS);
+        let live: HashSet<&str> = self
+            .live_materials()
+            .iter()
+            .map(|m| m.id.as_str())
+            .collect();
+        snap.current_for_entry(entry_id, &relations)
+            .into_iter()
+            .filter(|c| live.contains(c.asset_id.as_str()))
+            .collect()
+    }
+
+    /// Rows in `其他` after deduplicating `current` (`0`-count folders kept).
+    pub fn other_entries_for(&self, current: &[CurrentItem]) -> Vec<Entry> {
+        if current.is_empty() {
+            return self.entries();
+        }
+        let pinned: HashSet<&str> = current.iter().map(|c| c.asset_id.as_str()).collect();
+        let rest: HashSet<String> = self
+            .live_materials()
+            .iter()
+            .filter(|m| !pinned.contains(m.id.as_str()))
+            .map(|m| m.id.clone())
+            .collect();
+        Tree::new_ordered(self.live_folders(), self.live_materials(), Some(&rest))
+            .entries(&self.expanded, false)
+    }
+
+    /// All live rows without `当前` suppression.
     pub fn entries(&self) -> Vec<Entry> {
-        let shown = self.shown();
-        Tree::new(
-            self.book.material_folders(),
-            self.book.material_items(),
-            shown,
-        )
-        .entries(&self.expanded, shown.is_some())
+        Tree::new_ordered(self.live_folders(), self.live_materials(), None)
+            .entries(&self.expanded, false)
     }
 
-    fn order(&self) -> Vec<String> {
+    pub(crate) fn order(&self) -> Vec<String> {
         self.entries().iter().map(Entry::key).collect()
     }
 
@@ -390,6 +563,13 @@ impl LibraryPanel {
 
     pub fn current_folder(&self) -> Option<&str> {
         self.current_folder.as_deref()
+    }
+
+    pub(crate) fn target_folder(&self) -> Option<String> {
+        self.masonry_folder
+            .clone()
+            .or_else(|| self.current_folder.clone())
+            .filter(|fid| self.live_folders().iter().any(|f| &f.id == fid))
     }
 
     pub fn importing(&self) -> bool {
@@ -411,12 +591,8 @@ impl LibraryPanel {
 
     /// Everything inside `folder` open or closed.
     pub fn set_open_all(&mut self, folder: &str, open: bool, cx: &mut Context<Self>) {
-        let ids = Tree::new(
-            self.book.material_folders(),
-            self.book.material_items(),
-            None,
-        )
-        .subtree(folder);
+        let ids =
+            Tree::new_ordered(self.live_folders(), self.live_materials(), None).subtree(folder);
         for id in ids {
             if open {
                 self.expanded.insert(id);
@@ -452,16 +628,19 @@ impl LibraryPanel {
         }
         if let Some(id) = key.strip_prefix("f:") {
             self.current_folder = Some(id.to_owned());
-            let open = !self.is_open(id);
-            self.set_open(id, open, cx);
+            if self.view_mode == ViewMode::Masonry {
+                self.masonry_folder = Some(id.to_owned());
+            } else {
+                let open = !self.is_open(id);
+                self.set_open(id, open, cx);
+            }
         } else if let Some(id) = key.strip_prefix("i:") {
             self.current_folder = self
-                .book
-                .material_items()
+                .live_materials()
                 .iter()
                 .find(|m| m.id == id)
                 .and_then(|m| m.folder.clone())
-                .filter(|f| self.book.material_folders().iter().any(|x| &x.id == f));
+                .filter(|f| self.live_folders().iter().any(|x| &x.id == f));
             let how = if e.click_count() > 1 {
                 Open::KEEP
             } else {
@@ -472,7 +651,7 @@ impl LibraryPanel {
         cx.notify();
     }
 
-    fn open(&mut self, material: &str, how: Open, cx: &mut Context<Self>) {
+    pub(crate) fn open(&mut self, material: &str, how: Open, cx: &mut Context<Self>) {
         let Ok(id) = material.parse() else {
             return;
         };
@@ -482,6 +661,63 @@ impl LibraryPanel {
                 ws.open(Target::Material(id), how, cx)
             });
         }
+    }
+
+    pub(crate) fn jump_to_usage(&mut self, usage: &ResolvedUsage, cx: &mut Context<Self>) {
+        let Ok(entry_id) = usage.entry_id.parse() else {
+            return;
+        };
+        let module = usage.module_id.as_deref().and_then(|m| m.parse().ok());
+        dr_shell::pages::UsageFlash::trigger(usage.flash_keys.clone(), cx);
+        if let Some(ws) = self.shell.upgrade() {
+            ws.update(cx, |ws, cx| {
+                ws.super_view = None;
+                ws.open(
+                    Target::Entry {
+                        id: entry_id,
+                        module,
+                    },
+                    Open::KEEP,
+                    cx,
+                );
+            });
+        }
+    }
+
+    /// Expands ancestor folders, clears conflicting masonry drill-down, and
+    /// triggers a sand-frame flash on `asset_id`.
+    pub fn reveal_and_flash_asset(&mut self, asset_id: &str, cx: &mut Context<Self>) {
+        let folders = self.live_folders().to_vec();
+        let folder_of = self
+            .live_materials()
+            .iter()
+            .find(|m| m.id == asset_id)
+            .and_then(|m| m.folder.clone());
+        if let Some(mf) = &self.masonry_folder
+            && folder_of.as_deref() != Some(mf.as_str())
+        {
+            self.masonry_folder = None;
+        }
+        let mut at = folder_of;
+        let mut seen = HashSet::new();
+        while let Some(fid) = at {
+            if !seen.insert(fid.clone()) {
+                break;
+            }
+            self.expanded.insert(fid.clone());
+            at = folders
+                .iter()
+                .find(|f| f.id == fid)
+                .and_then(|f| f.parent.clone());
+        }
+        self.current_collapsed = false;
+        self.other_collapsed = false;
+        let key = folders::material_key(asset_id);
+        self.picker.selected = vec![key.clone()];
+        self.picker.anchor = Some(key);
+        dr_shell::pages::UsageFlash::trigger([format!("library-asset:{asset_id}")], cx);
+        self.pending_reveal = None;
+        cx.notify();
     }
 
     /// Holds row `key`'s hover card open (`None`: back to the pointer).
@@ -516,6 +752,7 @@ impl LibraryPanel {
         if let Some(f) = &folder {
             self.expanded.insert(f.clone());
         }
+        self.move_open_for = None;
         let book = self.book_id();
         spawn_lib(
             self.lib.clone(),
@@ -527,6 +764,62 @@ impl LibraryPanel {
                     log::warn!("material: move: {e}");
                 }
                 p.picker.clear();
+                p.reload_snapshot(cx);
+                cx.notify();
+            },
+        );
+    }
+
+    /// Reorders a single dragged file onto sibling `before_material_id`.
+    pub fn reorder_material_before(
+        &mut self,
+        dragged_id: &str,
+        before_material_id: &str,
+        cx: &mut Context<Self>,
+    ) {
+        if dragged_id == before_material_id {
+            return;
+        }
+        let Some(target) = self
+            .live_materials()
+            .iter()
+            .find(|m| m.id == before_material_id)
+        else {
+            return;
+        };
+        let folder = target
+            .folder
+            .clone()
+            .filter(|fid| self.live_folders().iter().any(|f| &f.id == fid));
+        let siblings: Vec<&str> = self
+            .live_materials()
+            .iter()
+            .filter(|m| {
+                let mf = m
+                    .folder
+                    .as_deref()
+                    .filter(|fid| self.live_folders().iter().any(|f| f.id == *fid));
+                mf == folder.as_deref() && m.id != dragged_id
+            })
+            .map(|m| m.id.as_str())
+            .collect();
+        let idx = siblings
+            .iter()
+            .position(|id| *id == before_material_id)
+            .unwrap_or(siblings.len());
+        let book = self.book_id();
+        let id = dragged_id.to_owned();
+        spawn_lib(
+            self.lib.clone(),
+            (self.book_id(), self.book_epoch),
+            cx,
+            move |lib| folders::move_asset_at(lib, &book, &id, folder.as_deref(), Some(idx)),
+            |p, done, cx| {
+                if let Err(e) = done {
+                    log::warn!("material: reorder: {e}");
+                }
+                p.picker.clear();
+                p.reload_snapshot(cx);
                 cx.notify();
             },
         );
@@ -547,9 +840,8 @@ impl LibraryPanel {
             |p, made, cx| match made {
                 Ok(id) => {
                     p.current_folder = Some(id.clone());
-                    // Named once its row is there (the book is read again
-                    // after the write).
-                    p.rename_when_shown = Some(folders::folder_key(&id));
+                    p.rename_when_shown = Some((folders::folder_key(&id), true));
+                    p.reload_snapshot(cx);
                     cx.notify();
                 }
                 Err(e) => log::warn!("material: new folder: {e}"),
@@ -557,33 +849,33 @@ impl LibraryPanel {
         );
     }
 
-    /// A new note in the current folder; retired as standalone material in format 5.
-    pub fn new_note(&mut self, cx: &mut Context<Self>) {
-        spawn_lib(
-            self.lib.clone(),
-            (self.book_id(), self.book_epoch),
-            cx,
-            move |_lib| Err::<String, String>("text materials are retired in format 5".into()),
-            |p, made, cx| match made {
-                Ok(id) => p.open(&id, Open::KEEP, cx),
-                Err(e) => log::warn!("material: new note: {e}"),
-            },
-        );
-    }
-
-    fn name_of(&self, key: &str) -> String {
+    pub(crate) fn name_of(&self, key: &str) -> String {
         if let Some(id) = key.strip_prefix("f:") {
             return self
-                .book
-                .material_folders()
+                .live_folders()
                 .iter()
                 .find(|f| f.id == id)
                 .map(|f| f.name.clone())
                 .unwrap_or_default();
         }
+        if let Some(id) = key.strip_prefix("tf:") {
+            return self
+                .trashed_folders()
+                .iter()
+                .find(|f| f.id == id)
+                .map(|f| f.name.clone())
+                .unwrap_or_default();
+        }
+        if let Some(id) = key.strip_prefix("ti:") {
+            return self
+                .trashed_assets()
+                .iter()
+                .find(|a| a.id == id)
+                .map(|a| a.name.clone())
+                .unwrap_or_default();
+        }
         let id = key.strip_prefix("i:").unwrap_or(key);
-        self.book
-            .material_items()
+        self.live_materials()
             .iter()
             .find(|m| m.id == id)
             .map(|m| m.title.clone())
@@ -592,18 +884,32 @@ impl LibraryPanel {
 
     /// Row `key`'s name in a field, the caret in it.
     pub fn start_rename(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.start_rename_mode(key, false, window, cx);
+    }
+
+    pub(crate) fn start_rename_mode(
+        &mut self,
+        key: &str,
+        select_all: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.renaming.is_some() {
             return;
         }
         let name = self.name_of(key);
         let field = cx.new(|cx| {
-            TextField::new(
+            let mut f = TextField::new(
                 ElementId::Name(format!("library-rename-{key}").into()),
                 window,
                 cx,
             )
             .small()
-            .with_text(name)
+            .with_text(name);
+            if select_all {
+                f.select_all_text(cx);
+            }
+            f
         });
         let k = key.to_owned();
         let sub = cx.subscribe_in(
@@ -630,7 +936,7 @@ impl LibraryPanel {
         cx.notify();
     }
 
-    fn finish_rename(
+    pub(crate) fn finish_rename(
         &mut self,
         key: &str,
         text: Option<String>,
@@ -640,7 +946,6 @@ impl LibraryPanel {
         if self.renaming.as_ref().is_none_or(|r| r.key != key) {
             return;
         }
-
         if self.renaming.as_ref().is_some_and(|r| r.busy) {
             return;
         }
@@ -677,6 +982,7 @@ impl LibraryPanel {
                         r.field.update(cx, |f, cx| f.set_disabled(false, cx));
                         if done.is_ok() {
                             p.renaming = None;
+                            p.reload_snapshot(cx);
                         } else {
                             r.error = true;
                         }
@@ -701,48 +1007,12 @@ impl LibraryPanel {
         self.renaming.as_ref().map(|r| &r.field)
     }
 
-    /// Asks before deleting `sel` (deleted materials can be brought back
-    /// with undo or history; folders give what is in them to their parent).
-    pub fn ask_delete(&mut self, sel: Selection, cx: &mut Context<Self>) {
+    /// Moves `sel` to Recently Deleted immediately without a confirmation
+    /// dialog (`v5-tracks.md` line 399).
+    pub fn delete(&mut self, sel: Selection, cx: &mut Context<Self>) {
         if sel.is_empty() {
             return;
         }
-        let question = if sel.len() > 1 {
-            tf(
-                cx,
-                keys::material_folders::DELETE_SELECTION_CONFIRM,
-                &[("count", &sel.len())],
-            )
-        } else if let Some(f) = sel.folders.first() {
-            let name = self.name_of(&folders::folder_key(f));
-            tf(
-                cx,
-                keys::material_folders::DELETE_CONFIRM,
-                &[("name", &name)],
-            )
-        } else {
-            let id = &sel.materials[0];
-            let mut title = self.name_of(&folders::material_key(id));
-            if title.trim().is_empty() {
-                title = t(cx, keys::top_timeline::untitled::LIBRARY_ITEM).to_string();
-            }
-            tf(
-                cx,
-                keys::material_editor::DELETE_CONFIRM,
-                &[("title", &title)],
-            )
-        };
-        let panel = cx.entity().downgrade();
-        let ask = cx.new(|_| AskDelete {
-            question,
-            selection: sel,
-            panel,
-        });
-        dr_shell::dialogs::show(cx, ask.into());
-    }
-
-    /// Deletes `sel` now (after the question).
-    pub fn delete(&mut self, sel: Selection, cx: &mut Context<Self>) {
         let book = self.book_id();
         if sel
             .folders
@@ -750,6 +1020,13 @@ impl LibraryPanel {
             .any(|f| self.current_folder.as_deref() == Some(f.as_str()))
         {
             self.current_folder = None;
+        }
+        if sel
+            .folders
+            .iter()
+            .any(|f| self.masonry_folder.as_deref() == Some(f.as_str()))
+        {
+            self.masonry_folder = None;
         }
         spawn_lib(
             self.lib.clone(),
@@ -761,12 +1038,82 @@ impl LibraryPanel {
                     log::warn!("material: delete: {e}");
                 }
                 p.picker.clear();
+                p.reload_snapshot(cx);
                 cx.notify();
             },
         );
     }
 
-    /// Imports `paths` into `folder`; says what was skipped.
+    pub fn restore_trashed_asset(&mut self, id: String, cx: &mut Context<Self>) {
+        let book = self.book_id();
+        spawn_lib(
+            self.lib.clone(),
+            (self.book_id(), self.book_epoch),
+            cx,
+            move |lib| folders::restore_asset(lib, &book, &id),
+            |p, done, cx| {
+                if let Err(e) = done {
+                    log::warn!("material: restore asset: {e}");
+                }
+                p.reload_snapshot(cx);
+                cx.notify();
+            },
+        );
+    }
+
+    pub fn purge_trashed_asset(&mut self, id: String, cx: &mut Context<Self>) {
+        let book = self.book_id();
+        spawn_lib(
+            self.lib.clone(),
+            (self.book_id(), self.book_epoch),
+            cx,
+            move |lib| folders::purge_asset(lib, &book, &id),
+            |p, done, cx| {
+                if let Err(e) = done {
+                    log::warn!("material: purge asset: {e}");
+                }
+                p.reload_snapshot(cx);
+                cx.notify();
+            },
+        );
+    }
+
+    pub fn restore_trashed_folder(&mut self, id: String, cx: &mut Context<Self>) {
+        let book = self.book_id();
+        spawn_lib(
+            self.lib.clone(),
+            (self.book_id(), self.book_epoch),
+            cx,
+            move |lib| folders::restore_folder(lib, &book, &id),
+            |p, done, cx| {
+                if let Err(e) = done {
+                    log::warn!("material: restore folder: {e}");
+                }
+                p.reload_snapshot(cx);
+                cx.notify();
+            },
+        );
+    }
+
+    pub fn purge_trashed_folder(&mut self, id: String, cx: &mut Context<Self>) {
+        let book = self.book_id();
+        spawn_lib(
+            self.lib.clone(),
+            (self.book_id(), self.book_epoch),
+            cx,
+            move |lib| folders::purge_folder(lib, &book, &id),
+            |p, done, cx| {
+                if let Err(e) = done {
+                    log::warn!("material: purge folder: {e}");
+                }
+                p.reload_snapshot(cx);
+                cx.notify();
+            },
+        );
+    }
+
+    /// Imports `paths` into `folder`; says what was skipped, and reveals +
+    /// sand-flashes duplicate-byte hits (`v5-tracks.md` lines 398, 416).
     pub fn import_paths(
         &mut self,
         paths: Vec<PathBuf>,
@@ -790,6 +1137,10 @@ impl LibraryPanel {
             |p, report, cx| {
                 p.importing -= 1;
                 p.report(&report.skipped, cx);
+                if let Some(reused) = report.imported.iter().find(|i| i.reused) {
+                    p.pending_reveal = Some(reused.material.clone());
+                }
+                p.reload_snapshot(cx);
                 cx.notify();
             },
         );
@@ -817,12 +1168,14 @@ impl LibraryPanel {
         }
     }
 
-    /// ⌘V: a copied image, or copied files, into the current folder.
+    /// ⌘V: a copied image placed at the very top with its default timestamped
+    /// name selected for inline rename and a sand-frame flash (`v5-tracks.md`
+    /// line 398), or copied files imported into the current folder.
     pub fn paste(&mut self, cx: &mut Context<Self>) {
         let Some(item) = cx.read_from_clipboard() else {
             return;
         };
-        let folder = self.current_folder.clone();
+        let folder = self.target_folder();
         for entry in item.entries() {
             match entry {
                 ClipboardEntry::ExternalPaths(paths) => {
@@ -830,7 +1183,8 @@ impl LibraryPanel {
                 }
                 ClipboardEntry::Image(image) => {
                     let bytes = image.bytes().to_vec();
-                    let title = t(cx, keys::material_editor::embed::PASTED_IMAGE).to_string();
+                    let prefix = t(cx, keys::v5_files::PASTED_IMAGE).to_string();
+                    let title = import::pasted_image_title(&prefix);
                     self.importing += 1;
                     let (book, folder) = (self.book_id(), folder.clone());
                     spawn_lib(
@@ -838,13 +1192,35 @@ impl LibraryPanel {
                         (self.book_id(), self.book_epoch),
                         cx,
                         move |lib| {
-                            import::import_bytes(lib, &book, folder.as_deref(), bytes, &title)
+                            let out =
+                                import::import_bytes(lib, &book, folder.as_deref(), bytes, &title)?;
+                            if !out.reused {
+                                let _ = folders::move_asset_at(
+                                    lib,
+                                    &book,
+                                    &out.material,
+                                    folder.as_deref(),
+                                    Some(0),
+                                );
+                            }
+                            Ok::<_, String>(out)
                         },
                         |p, done, cx| {
                             p.importing -= 1;
-                            if let Err(e) = done {
-                                log::warn!("material: paste: {e}");
-                                p.report(&[(PathBuf::from(e), String::new())], cx);
+                            match done {
+                                Ok(imported) => {
+                                    let id = imported.material;
+                                    p.pending_reveal = Some(id.clone());
+                                    if !imported.reused {
+                                        p.rename_when_shown =
+                                            Some((folders::material_key(&id), true));
+                                    }
+                                    p.reload_snapshot(cx);
+                                }
+                                Err(e) => {
+                                    log::warn!("material: paste: {e}");
+                                    p.report(&[(PathBuf::from(e), String::new())], cx);
+                                }
                             }
                             cx.notify();
                         },
@@ -856,7 +1232,8 @@ impl LibraryPanel {
         cx.notify();
     }
 
-    /// The + menu's picker: images and PDFs from anywhere.
+    /// The header `+` button: picks images and PDFs directly (`v5-tracks.md`
+    /// line 393 — no intermediate menu).
     pub fn pick_files(&mut self, cx: &mut Context<Self>) {
         let picked = cx.prompt_for_paths(PathPromptOptions {
             files: true,
@@ -864,7 +1241,7 @@ impl LibraryPanel {
             multiple: true,
             prompt: None,
         });
-        let folder = self.current_folder.clone();
+        let folder = self.target_folder();
         self.pending.push(cx.spawn(async move |this, cx| {
             let Ok(Ok(Some(paths))) = picked.await else {
                 return;
@@ -874,19 +1251,16 @@ impl LibraryPanel {
         }));
     }
 
-    fn open_in_system(&self, material: &str, cx: &mut App) {
+    pub(crate) fn open_in_system(&self, material: &str, cx: &mut App) {
         let Some(lib) = &self.lib else {
             return;
         };
-        let Some(asset) = self
-            .book
-            .material_items()
+        let asset = self
+            .live_materials()
             .iter()
             .find(|m| m.id == material)
             .and_then(|m| m.asset.clone())
-        else {
-            return;
-        };
+            .unwrap_or_else(|| material.to_owned());
         if let Ok(Some(record)) = lib
             .library()
             .asset(&asset, dr_store::asset::Variant::Source)
@@ -894,652 +1268,50 @@ impl LibraryPanel {
             cx.open_with_system(&record.path);
         }
     }
-
-    fn open_menu(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
-        self.menu = Some(at);
-        cx.notify();
-    }
-
-    fn close_menu(&mut self, cx: &mut Context<Self>) {
-        self.menu = None;
-        cx.notify();
-    }
-
-    // Drawing.
-
-    /// The folder a drop on row `entry` goes into.
-    fn drop_folder(&self, entry: &Entry) -> Option<String> {
-        match entry {
-            Entry::Folder { id, .. } => Some(id.clone()),
-            Entry::Material { id, .. } => self
-                .book
-                .material_items()
-                .iter()
-                .find(|m| &m.id == id)
-                .and_then(|m| m.folder.clone())
-                .filter(|f| self.book.material_folders().iter().any(|x| &x.id == f)),
-        }
-    }
-
-    fn row(
-        &self,
-        entry: &Entry,
-        active: Option<&str>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let theme = Theme::of(window, cx);
-        let p = theme.palette;
-        let key = entry.key();
-        let this = cx.entity();
-        let selected = self.picker.is_selected(&key);
-        let is_active = matches!(entry, Entry::Material { id, .. } if Some(id.as_str()) == active);
-        let rid = |part: &str| ElementId::Name(format!("library-{part}-{key}").into());
-
-        let cell: AnyElement = if let Some(r) = self.renaming.as_ref().filter(|r| r.key == key) {
-            div()
-                .h(px(theme.scale.row_height))
-                .px(px(10.0))
-                .flex()
-                .items_center()
-                .child(div().flex_1().child(r.field.clone()))
-                .into_any_element()
-        } else {
-            let (k, click) = (key.clone(), this.clone());
-            let on_click = move |e: &ClickEvent, window: &mut Window, cx: &mut App| {
-                click.update(cx, |p, cx| p.click(&k, e, window, cx))
-            };
-            match entry {
-                Entry::Folder {
-                    id: _,
-                    name,
-                    open,
-                    count,
-                    ..
-                } => {
-                    let lead = div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(4.0))
-                        .child(sand::icon(
-                            if *open {
-                                Icon::ChevronDown
-                            } else {
-                                Icon::ChevronRight
-                            },
-                            11.0,
-                            p.ink(4).solid(),
-                        ))
-                        .child(sand::icon(
-                            if *open {
-                                Icon::FolderOpen
-                            } else {
-                                Icon::Folder
-                            },
-                            14.0,
-                            p.ink(3).solid(),
-                        ));
-                    SandCell::new(rid("cell"), name.clone())
-                        .font(Role::Structure)
-                        .lead(lead)
-                        .child(
-                            div()
-                                .flex_none()
-                                .font_role(Role::Index)
-                                .type_px(theme.scale.caption, theme.scale.line_caption)
-                                .text_color(p.muted().solid())
-                                .child(count.to_string()),
-                        )
-                        .on_click(on_click)
-                        .into_any_element()
-                }
-                Entry::Material { id, .. } => {
-                    let Some(m) = self.book.material_items().iter().find(|m| &m.id == id) else {
-                        return div().into_any_element();
-                    };
-                    let title: SharedString = if m.title.trim().is_empty() {
-                        t(cx, keys::top_timeline::untitled::LIBRARY_ITEM)
-                    } else {
-                        m.title.clone().into()
-                    };
-                    let sub = card::subline(m, cx);
-                    let lead = div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(6.0))
-                        .child(KindMark::new(rid("mark"), sand::Kind::Material))
-                        .child(card::thumb(m, 32.0, window, cx));
-                    SandCell::new(rid("cell"), title)
-                        .lead(lead)
-                        .subline(sub)
-                        .selected(is_active)
-                        .on_click(on_click)
-                        .into_any_element()
-                }
-            }
-        };
-
-        let target = self.picker.target(&key);
-        let label: SharedString = if target.len() > 1 {
-            tf(
-                cx,
-                keys::memo_material::toolbar::COUNT,
-                &[("count", &target.len())],
-            )
-        } else {
-            self.name_of(&key).into()
-        };
-        let drag = MaterialDrag {
-            selection: target,
-            label,
-        };
-        let into = self.drop_folder(entry);
-        let (into_a, into_b) = (into.clone(), into);
-        let wash = p.accent.alpha(0.12);
-        let card_id = ElementId::Name(format!("library-card-{key}").into());
-        let (card_entity, card_key) = (this.clone(), key.clone());
-        let card = move |window: &mut Window, cx: &mut App| {
-            card_entity.update(cx, |p, cx| p.card(&card_key, window, cx))
-        };
-        let with_card = if self.renaming.is_some() {
-            cell
-        } else {
-            HoverCard::new(card_id, cell, card)
-                .force_open(self.card_open.as_deref() == Some(key.as_str()))
-                .into_any_element()
-        };
-        div()
-            .id(rid("row"))
-            .pl(px(entry.depth() as f32 * 14.0))
-            .rounded(px(radius::SM))
-            .when(selected && !is_active, |d| d.bg(p.accent.alpha(0.08)))
-            .on_drag(drag, |drag, _, _, cx| {
-                cx.new(|_| DragGhost {
-                    label: drag.label.clone(),
-                })
-            })
-            .drag_over::<MaterialDrag>(move |st, _, _, _| st.bg(wash))
-            .on_drop(cx.listener(move |p, drag: &MaterialDrag, _, cx| {
-                p.move_to(drag.selection.clone(), into_a.clone(), cx)
-            }))
-            .drag_over::<ExternalPaths>(move |st, _, _, _| st.bg(wash))
-            .on_drop(cx.listener(move |p, paths: &ExternalPaths, _, cx| {
-                p.import_paths(paths.paths().to_vec(), into_b.clone(), cx)
-            }))
-            .child(with_card)
-            .into_any_element()
-    }
-
-    /// A row's hover card: what it is, then what can be done to it (or to
-    /// the selection it is part of).
-    fn card(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(window, cx);
-        let this = cx.entity();
-        let sel = self.picker.target(key);
-        let tree = Tree::new(
-            self.book.material_folders(),
-            self.book.material_items(),
-            None,
-        );
-        let id = |part: &str| ElementId::Name(format!("library-card-{part}-{key}").into());
-        let title: SharedString = {
-            let name = self.name_of(key);
-            if name.trim().is_empty() {
-                t(cx, keys::top_timeline::untitled::LIBRARY_ITEM)
-            } else {
-                name.into()
-            }
-        };
-        let action = |part: &str, icon: Icon, label: SharedString, run: RowAction| {
-            let entity = this.clone();
-            CardAction::new(id(part), icon, label)
-                .on_click(move |_, window, cx| {
-                    let run = run.clone();
-                    entity.update(cx, |p, cx| run(p, window, cx))
-                })
-                .into_any_element()
-        };
-        // Where it can move: the root and every folder, here in the card.
-        let current = if sel.len() > 1 {
-            None
-        } else if let Some(f) = sel.folders.first() {
-            self.book
-                .material_folders()
-                .iter()
-                .find(|x| &x.id == f)
-                .and_then(|x| x.parent.clone())
-        } else {
-            sel.materials.first().and_then(|m| {
-                self.book
-                    .material_items()
-                    .iter()
-                    .find(|x| &x.id == m)
-                    .and_then(|x| x.folder.clone())
-            })
-        };
-        let root = t(cx, keys::material_folders::ROOT).to_string();
-        let mut moves: Vec<AnyElement> = vec![
-            div()
-                .px(px(dr_ui::tokens::menu::HOVER_CARD_PAD))
-                .font_role(Role::Index)
-                .type_px(theme.scale.caption, theme.scale.line_caption)
-                .text_color(theme.palette.muted().solid())
-                .child(if sel.len() > 1 {
-                    tf(
-                        cx,
-                        keys::material_folders::menu::MOVE_SELECTION,
-                        &[("count", &sel.len())],
-                    )
-                } else {
-                    t(cx, keys::material_folders::menu::MOVE)
-                })
-                .into_any_element(),
-        ];
-        let single = sel.len() <= 1;
-        for (i, choice) in tree
-            .choices(&sel, current.as_deref(), &root)
-            .into_iter()
-            .enumerate()
-        {
-            let (entity, s, to) = (this.clone(), sel.clone(), choice.folder.clone());
-            let icon = if choice.folder.is_some() {
-                Icon::Folder
-            } else {
-                Icon::FolderNone
-            };
-            let here = single && choice.current;
-            let row =
-                CardAction::new(id(&format!("move-{i}")), icon, choice.path.clone()).current(here);
-            moves.push(if here {
-                row.into_any_element()
-            } else {
-                row.on_click(move |_, _, cx| {
-                    entity.update(cx, |p, cx| p.move_to(s.clone(), to.clone(), cx))
-                })
-                .into_any_element()
-            });
-        }
-        let delete = {
-            let s = sel.clone();
-            let label = if sel.len() > 1 {
-                tf(
-                    cx,
-                    keys::material_folders::menu::DELETE_SELECTION,
-                    &[("count", &sel.len())],
-                )
-            } else if sel.folders.is_empty() {
-                t(cx, keys::memo_material::menu::DELETE_MATERIAL)
-            } else {
-                t(cx, keys::material_folders::menu::DELETE)
-            };
-            let entity = this.clone();
-            CardAction::new(id("delete"), Icon::Trash, label)
-                .danger()
-                .on_click(move |_, _, cx| entity.update(cx, |p, cx| p.ask_delete(s.clone(), cx)))
-                .into_any_element()
-        };
-        let mut body = CardBody::new(id("body"), title);
-        if sel.len() > 1 {
-            return body
-                .count(tf(
-                    cx,
-                    keys::memo_material::toolbar::COUNT,
-                    &[("count", &sel.len())],
-                ))
-                .section(moves)
-                .section(vec![delete])
-                .into_any_element();
-        }
-        let rename = {
-            let k = key.to_owned();
-            action(
-                "rename",
-                Icon::Edit,
-                t(cx, keys::material_folders::menu::RENAME),
-                Rc::new(move |p, window, cx| p.start_rename(&k, window, cx)),
-            )
-        };
-        if let Some(folder) = key.strip_prefix("f:") {
-            let f = folder.to_owned();
-            let mut contents = vec![{
-                let f = f.clone();
-                action(
-                    "new-sub",
-                    Icon::FolderPlus,
-                    t(cx, keys::material_folders::menu::NEW_SUBFOLDER),
-                    Rc::new(move |p, _, cx| p.new_folder(Some(f.clone()), cx)),
-                )
-            }];
-            if tree.subtree(folder).len() > 1 {
-                let (a, b) = (f.clone(), f.clone());
-                contents.push(action(
-                    "expand-all",
-                    Icon::FoldingFan,
-                    t(cx, keys::material_folders::menu::EXPAND_ALL),
-                    Rc::new(move |p, _, cx| p.set_open_all(&a, true, cx)),
-                ));
-                contents.push(action(
-                    "collapse-all",
-                    Icon::FoldingFanClosed,
-                    t(cx, keys::material_folders::menu::COLLAPSE_ALL),
-                    Rc::new(move |p, _, cx| p.set_open_all(&b, false, cx)),
-                ));
-            }
-            body = body
-                .count(tf(
-                    cx,
-                    keys::memo_material::toolbar::COUNT,
-                    &[("count", &tree.total(folder))],
-                ))
-                .section(contents)
-                .section(vec![rename])
-                .section(moves)
-                .section(vec![delete]);
-            return body.into_any_element();
-        }
-        let material = key.trim_start_matches("i:").to_owned();
-        let kind = self
-            .book
-            .material_items()
-            .iter()
-            .find(|m| m.id == material)
-            .map(|m| m.kind.clone())
-            .unwrap_or_default();
-        let mut view = vec![{
-            let m = material.clone();
-            action(
-                "open",
-                Icon::OpenBook,
-                t(cx, keys::material_folders::menu::OPEN),
-                Rc::new(move |p, _, cx| p.open(&m, Open::KEEP, cx)),
-            )
-        }];
-        if kind != "text" {
-            let m = material.clone();
-            view.push(action(
-                "open-system",
-                Icon::ArrowOut,
-                t(cx, keys::memo_material::menu::OPEN_IN_SYSTEM),
-                Rc::new(move |p, _, cx| p.open_in_system(&m, cx)),
-            ));
-        }
-        body = body
-            .mark(sand::Kind::Material, None)
-            .count(card::kind_label(&kind, cx))
-            .section(view)
-            .section(vec![rename])
-            .section(moves)
-            .section(vec![delete]);
-        body.into_any_element()
-    }
-}
-
-impl Render for LibraryPanel {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::of(window, cx);
-        let p = theme.palette;
-        let active = self.active(cx);
-        let entries = self.entries();
-        if let Some(key) = self.rename_when_shown.clone()
-            && entries.iter().any(|e| e.key() == key)
-        {
-            self.rename_when_shown = None;
-            self.start_rename(&key, window, cx);
-        }
-        let rows: Vec<AnyElement> = entries
-            .iter()
-            .map(|e| self.row(e, active.as_deref(), window, cx))
-            .collect();
-        let wash = p.accent.alpha(0.06);
-        let empty = rows.is_empty().then(|| {
-            let sentence = if self.related_only {
-                t(cx, keys::memo_material::empty::NO_RELATED)
-            } else {
-                t(cx, keys::material_folders::EMPTY)
-            };
-            EmptyState::new("library-empty", sentence).icon(Icon::LibCurio)
-        });
-        let importing = (self.importing > 0).then(|| {
-            div()
-                .px(px(12.0))
-                .py(px(4.0))
-                .font_role(Role::Index)
-                .type_px(theme.scale.caption, theme.scale.line_caption)
-                .text_color(p.muted().solid())
-                .child(t(cx, keys::material_editor::embed::IMPORTING))
-        });
-        div()
-            .id("material-library")
-            .key_context(KEY_CONTEXT)
-            .track_focus(&self.focus)
-            .on_action(cx.listener(|p, _: &SelectAll, _, cx| p.select_all(cx)))
-            .on_action(cx.listener(|p, _: &ClearSelection, _, cx| p.clear_selection(cx)))
-            .on_action(cx.listener(|p, _: &PasteFiles, _, cx| p.paste(cx)))
-            .size_full()
-            .flex()
-            .flex_col()
-            .children(importing)
-            .child(
-                div()
-                    .id("material-library-rows")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .px(px(12.0))
-                    .pt(px(6.0))
-                    .pb(px(12.0))
-                    .flex()
-                    .flex_col()
-                    .gap(px(1.0))
-                    .rounded(px(radius::SM))
-                    // The empty part of the list is the root.
-                    .drag_over::<MaterialDrag>(move |st, _, _, _| st.bg(wash))
-                    .on_drop(cx.listener(|p, drag: &MaterialDrag, _, cx| {
-                        p.move_to(drag.selection.clone(), None, cx)
-                    }))
-                    .drag_over::<ExternalPaths>(move |st, _, _, _| st.bg(wash))
-                    .on_drop(cx.listener(|p, paths: &ExternalPaths, _, cx| {
-                        let folder = p.current_folder.clone();
-                        p.import_paths(paths.paths().to_vec(), folder, cx)
-                    }))
-                    .children(rows)
-                    .children(empty)
-                    .child(
-                        // Below the rows: a click lets go of the selection
-                        // and files new things at the root.
-                        div()
-                            .id("material-library-rest")
-                            .flex_1()
-                            .min_h(px(40.0))
-                            .on_click(cx.listener(|p, _: &ClickEvent, window, cx| {
-                                window.focus(&p.focus, cx);
-                                p.current_folder = None;
-                                p.clear_selection(cx);
-                            })),
-                    ),
-            )
-    }
-}
-
-/// The 素材库 tab's head row: 当前, the count, the Super View, 新建素材夹, +.
-pub struct LibraryHead {
-    panel: Entity<LibraryPanel>,
-    _sub: Subscription,
-}
-
-impl LibraryHead {
-    pub fn new(panel: Entity<LibraryPanel>, cx: &mut Context<Self>) -> LibraryHead {
-        let sub = cx.observe(&panel, |_, _, cx| cx.notify());
-        LibraryHead { panel, _sub: sub }
-    }
-}
-
-impl Render for LibraryHead {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::of(window, cx);
-        let (p, s) = (theme.palette, theme.scale);
-        let panel = self.panel.read(cx);
-        let count = panel.book.material_items().len();
-        let related = panel.related_only;
-        let can_relate = matches!(panel.front(cx), Some(Target::Entry { .. }));
-        let menu_at = panel.menu;
-        let (toggle, folder, plus, sv) = (
-            self.panel.clone(),
-            self.panel.clone(),
-            self.panel.clone(),
-            panel.shell.clone(),
-        );
-        let menu = menu_at.map(|at| {
-            let (note, pick, dismiss) =
-                (self.panel.clone(), self.panel.clone(), self.panel.clone());
-            overlay::float(
-                Place::Point(at),
-                Layer::Popover,
-                div()
-                    .id("library-new-float")
-                    .occlude()
-                    .on_mouse_down_out(move |_, _, cx| dismiss.update(cx, |p, cx| p.close_menu(cx)))
-                    .child(
-                        Menu::new("library-new-menu")
-                            .section(t(cx, keys::memo_material::toolbar::NEW_MATERIAL), &theme)
-                            .item(
-                                MenuItem::new(
-                                    "library-new-note",
-                                    Icon::FileText,
-                                    card::kind_label("text", cx),
-                                )
-                                .on_click(move |_, _, cx| {
-                                    note.update(cx, |p, cx| {
-                                        p.close_menu(cx);
-                                        p.new_note(cx)
-                                    })
-                                }),
-                            )
-                            .item(
-                                MenuItem::new(
-                                    "library-import",
-                                    Icon::ImagePlus,
-                                    t(cx, keys::material_editor::embed::IMPORT_FILE),
-                                )
-                                .on_click(move |_, _, cx| {
-                                    pick.update(cx, |p, cx| {
-                                        p.close_menu(cx);
-                                        p.pick_files(cx)
-                                    })
-                                }),
-                            ),
-                    ),
-            )
-        });
-        div()
-            .size_full()
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(6.0))
-            .child(
-                ScopeToggle::new(
-                    "library-related",
-                    t(cx, keys::review_panel::scopes::CURRENT),
-                    related && can_relate,
-                )
-                .disabled(!can_relate)
-                .on_change(move |on, _, cx| toggle.update(cx, |p, cx| p.set_related_only(on, cx))),
-            )
-            .child(div().flex_1())
-            .child(
-                div()
-                    .font_role(Role::Index)
-                    .type_px(s.caption, s.line_caption)
-                    .text_color(p.ink(4).solid())
-                    .child(tf(
-                        cx,
-                        keys::memo_material::toolbar::COUNT,
-                        &[("count", &count)],
-                    )),
-            )
-            .child(
-                IconButton::new("library-super-view", Icon::LibCurio)
-                    .label(t(cx, keys::bottom_status_bar::TODO_LIBRARY))
-                    .on_click(move |_, _, cx| {
-                        if let Some(ws) = sv.upgrade() {
-                            ws.update(cx, |ws, cx| {
-                                ws.toggle_super_view(SuperView::ReviewMaterials, cx)
-                            });
-                        }
-                    }),
-            )
-            .child(
-                IconButton::new("library-new-folder", Icon::FolderPlus)
-                    .label(t(cx, keys::material_folders::menu::NEW_FOLDER))
-                    .on_click(move |_, _, cx| {
-                        folder.update(cx, |p, cx| {
-                            let parent = p.current_folder.clone();
-                            p.new_folder(parent, cx)
-                        })
-                    }),
-            )
-            .child(
-                IconButton::new("library-new", Icon::Plus)
-                    .label(t(cx, keys::memo_material::toolbar::NEW_MATERIAL))
-                    .on_click(move |e, _, cx| {
-                        let at = e.position();
-                        plus.update(cx, |p, cx| p.open_menu(at, cx))
-                    }),
-            )
-            .children(menu)
-    }
-}
-
-/// 「确认」 before deleting: the question, 取消 and the danger's 确认.
-struct AskDelete {
-    question: SharedString,
-    selection: Selection,
-    panel: WeakEntity<LibraryPanel>,
-}
-
-impl Render for AskDelete {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let me = cx.entity_id();
-        let (cancel, close) = (me, me);
-        let (panel, sel) = (self.panel.clone(), self.selection.clone());
-        let mut dialog = Dialog::new("library-delete", t(cx, keys::common::CONFIRM));
-        for paragraph in self.question.split("\n\n") {
-            dialog = dialog.body(div().child(SharedString::from(paragraph.to_owned())));
-        }
-        dialog
-            .action(
-                Button::new("library-delete-cancel", t(cx, keys::common::CANCEL))
-                    .on_click(move |_, _, cx| dr_shell::dialogs::hide(cx, cancel)),
-            )
-            .action(
-                Button::new("library-delete-confirm", t(cx, keys::common::CONFIRM))
-                    .danger()
-                    .on_click(move |_, _, cx| {
-                        dr_shell::dialogs::hide(cx, me);
-                        if let Some(p) = panel.upgrade() {
-                            let sel = sel.clone();
-                            p.update(cx, |p, cx| p.delete(sel, cx));
-                        }
-                    }),
-            )
-            .on_close(move |_, cx| dr_shell::dialogs::hide(cx, close))
-    }
 }
 
 /// The 素材库 panels the shell has made (one per pane showing the tab).
 #[derive(Default)]
-struct Panels(Vec<WeakEntity<LibraryPanel>>);
+struct Panels {
+    open: Vec<WeakEntity<LibraryPanel>>,
+    pending_locate: Option<String>,
+}
 
 impl gpui::Global for Panels {}
+
+fn take_queued_locate(cx: &mut App) -> Option<String> {
+    let from_panels = cx
+        .try_global::<Panels>()
+        .and_then(|p| p.pending_locate.clone());
+    if from_panels.is_some() {
+        cx.default_global::<Panels>().pending_locate = None;
+        return from_panels;
+    }
+    dr_shell::pages::take_pending_locate_asset(cx)
+}
 
 /// The 素材库 panels open now.
 pub fn panels(cx: &App) -> Vec<Entity<LibraryPanel>> {
     cx.try_global::<Panels>()
-        .map(|p| p.0.iter().filter_map(WeakEntity::upgrade).collect())
+        .map(|p| p.open.iter().filter_map(WeakEntity::upgrade).collect())
         .unwrap_or_default()
+}
+
+/// Reveals the right sidebar's 素材库 tab and flashes `asset_id` (`在素材库里找到`).
+pub fn locate_asset(
+    _ws: &WeakEntity<Workspace>,
+    asset_id: &str,
+    _window: &mut Window,
+    cx: &mut App,
+) {
+    let mounted = panels(cx);
+    if mounted.is_empty() {
+        cx.default_global::<Panels>().pending_locate = Some(asset_id.to_owned());
+    } else {
+        for panel in mounted {
+            panel.update(cx, |p, cx| p.reveal_and_flash_asset(asset_id, cx));
+        }
+    }
 }
 
 /// The panel and its head for the shell (`dr_shell::pages::set_library`).
@@ -1551,12 +1323,11 @@ pub fn make(
     let lib = cx
         .try_global::<dr_shell::Services>()
         .and_then(|s| s.library.clone());
-    // Made while the workspace draws: its book is read just after.
     let panel = cx.new(|cx| LibraryPanel::new(shell, lib, Rc::default(), window, cx));
     let made = cx.default_global::<Panels>();
-    made.0.retain(|p| p.upgrade().is_some());
-    made.0.push(panel.downgrade());
-    let head = cx.new(|cx| LibraryHead::new(panel.clone(), cx));
+    made.open.retain(|p| p.upgrade().is_some());
+    made.open.push(panel.downgrade());
+    let head = cx.new(|cx| crate::library_render::LibraryHead::new(panel.clone(), cx));
     dr_shell::pages::LeftPanel {
         head: head.into(),
         body: panel.into(),

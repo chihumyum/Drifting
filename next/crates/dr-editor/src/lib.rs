@@ -26,6 +26,7 @@ pub mod convert;
 pub mod decor;
 pub mod embeds;
 pub mod entity_links;
+pub mod file_host;
 pub mod highlight;
 pub mod link_card;
 pub mod links;
