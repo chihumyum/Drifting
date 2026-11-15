@@ -254,7 +254,7 @@ fn from_a_chapter_the_choice_starts_with_it(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
+fn export_dialog_reads_the_one_book_from_the_root(cx: &mut TestAppContext) {
     use std::time::SystemTime;
 
     let e = env();
@@ -296,7 +296,8 @@ fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
         .unwrap()
         .to_owned();
 
-    // Default `project.book.root` is `书稿` (one manuscript per project; no part selector).
+    // One book per project, read from the root (DW): 书稿's chapters, then
+    // the chapter under 外集 / 番外 (no part selector, no start).
     let (initial_dialog, cx_initial) = open(cx, &e, Request::Manuscript { chapter: None });
     wait_for(cx_initial, |cx| {
         initial_dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
@@ -305,18 +306,12 @@ fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
         let m = d.manuscript().unwrap();
         assert!(m.outline.as_ref().unwrap().has_book);
         assert!(m.can_export(cx));
-        assert_eq!(m.chapters(), e.chapters[..2].to_vec());
+        let mut want = e.chapters[..2].to_vec();
+        want.push(epilogue.clone());
+        assert_eq!(m.chapters(), want);
     });
 
-    // Switching `project.book.root` to `外集 / 番外` makes that folder the book sequence.
-    out(
-        &e.ws,
-        "project.update",
-        json!({
-            "book": e.book,
-            "root": {"kind": "entry", "entry": side_root}
-        }),
-    );
+    // Exporting one chapter of it.
     let (dialog, cx_side) = open(
         cx,
         &e,

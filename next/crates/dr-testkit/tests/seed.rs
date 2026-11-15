@@ -203,17 +203,9 @@ fn check_v3_invariants(book: &seed::SeededBookV3) {
         .into_iter()
         .map(|tv| (tv.id.clone(), tv))
         .collect();
+    // The book reads from the root: no start to check.
     let proj = view.project();
     assert!(proj.book.is_some());
-    assert!(
-        dr_model::v3::check_book_root(
-            &proj.book.as_ref().unwrap().root,
-            &entries,
-            &templates,
-            &views_map,
-        )
-        .is_ok()
-    );
     for tab in &proj.tabs {
         assert!(
             dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &templates, &views_map)
@@ -284,20 +276,15 @@ fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
     check_v3_invariants(book);
     let view = book.book.view();
     let tpl_ms = dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_MANUSCRIPT).unwrap();
-    let ms = view
-        .root_entry_by_template(&tpl_ms)
-        .expect("manuscript root entry");
-    assert_eq!(
-        view.project().book.as_ref().map(|b| &b.root),
-        Some(&dr_model::v3::BookRoot::Entry {
-            entry: ms.id.clone(),
-        })
+    assert!(
+        view.root_entry_by_template(&tpl_ms).is_some(),
+        "manuscript root entry"
     );
+    // The book reads from the root: no start is written.
+    assert!(view.project().book.is_some());
     let structure = view.structure_snapshot();
-    let leaves: Vec<_> = structure
-        .book_sequence()
+    let leaves: Vec<_> = outermost_with_prose(structure.book_sequence())
         .into_iter()
-        .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.clone())
         .collect();
     assert_eq!(leaves.len(), spec.chapters.count);
@@ -375,20 +362,15 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
 
     let view = book.book.view();
     let tpl_ms = dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_MANUSCRIPT).unwrap();
-    let ms = view
-        .root_entry_by_template(&tpl_ms)
-        .expect("manuscript root entry");
-    assert_eq!(
-        view.project().book.as_ref().map(|b| &b.root),
-        Some(&dr_model::v3::BookRoot::Entry {
-            entry: ms.id.clone(),
-        })
+    assert!(
+        view.root_entry_by_template(&tpl_ms).is_some(),
+        "manuscript root entry"
     );
+    // The book reads from the root: no start is written.
+    assert!(view.project().book.is_some());
     let structure = view.structure_snapshot();
-    let chapters: Vec<_> = structure
-        .book_sequence()
+    let chapters: Vec<_> = outermost_with_prose(structure.book_sequence())
         .into_iter()
-        .filter(|e| e.ordinal.is_some())
         .map(|e| e.entry.clone())
         .collect();
     let pairs: Vec<(&str, &str)> = chapters
@@ -818,4 +800,23 @@ fn the_showcase_books_keep_the_v3_invariants() {
     for book in &dr_testkit::samples::showcase_v3(DEFAULT_SEED).unwrap() {
         check_v3_invariants(book);
     }
+}
+
+/// The outermost entries of the book sequence that carry book prose (the
+/// chapters; one living under an entry with book prose of its own is part of
+/// it). The App numbers nothing.
+fn outermost_with_prose<'a>(seq: Vec<dr_doc::v3::FlatEntry<'a>>) -> Vec<dr_doc::v3::FlatEntry<'a>> {
+    let mut inside: Option<u32> = None;
+    seq.into_iter()
+        .filter(|e| {
+            if inside.is_some_and(|d| e.depth <= d) {
+                inside = None;
+            }
+            let outer = inside.is_none() && !e.prose.is_empty();
+            if outer {
+                inside = Some(e.depth);
+            }
+            outer
+        })
+        .collect()
 }

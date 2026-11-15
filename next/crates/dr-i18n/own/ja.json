@@ -349,7 +349,6 @@
     "ruler": "目盛り",
     "selectLane": "レーンを選択",
     "setActTrack": "幕トラックにする · {{name}}",
-    "setBookRoot": "成書の起点にする",
     "unsetActTrack": "通常のレーンに戻す · {{name}}",
     "views": "ビュー"
   },

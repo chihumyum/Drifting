@@ -216,17 +216,13 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
                 .all(|id| entries.get(id).is_some_and(|a| !a.is_trashed()))
     };
     // The book sequence (`project.book`): when `成书` is enabled, the book's
-    // words are its book prose and its chapters are the entries it numbers;
-    // when `成书` is off (`project.book` is `None`), word counts are absent.
+    // words are its book prose and its chapters the entries carrying book
+    // prose (nothing is numbered, so no entry under another is left out of
+    // the count); when `成书` is off (`project.book` is `None`), word counts
+    // are absent.
     let project = structure.project();
     let sequence = structure.book_sequence();
-    let numbered: std::collections::BTreeSet<_> = sequence
-        .iter()
-        .filter(|e| e.ordinal.is_some())
-        .map(|e| e.entry.id.clone())
-        .collect();
-    // Every entry carrying book prose, numbered or not (one under an entry
-    // with book prose of its own has no number since 2026-11-13).
+    // Every entry carrying book prose.
     let with_prose: std::collections::BTreeSet<_> = sequence
         .iter()
         .filter(|e| !e.prose.is_empty())
@@ -275,7 +271,7 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
             .find(|f| f.key.trim() == "副标题")
             .map(|f| f.value.trim().to_owned())
             .filter(|v| !v.is_empty()),
-        chapters: numbered.len() as u32,
+        chapters: with_prose.len() as u32,
         storylines: {
             let lane_ids =
                 dr_model::v3::active_lane_ids(&v.timeline_views_raw(), entries, templates);

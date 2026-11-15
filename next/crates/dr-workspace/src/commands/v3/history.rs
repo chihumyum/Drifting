@@ -99,12 +99,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
             "project" => {
                 if !matches!(
                     target.id.as_str(),
-                    "source"
-                        | "agent"
-                        | "book"
-                        | "book/root"
-                        | "book/word_target"
-                        | "book/daily_word_target"
+                    "source" | "agent" | "book" | "book/word_target" | "book/daily_word_target"
                 ) && !target.id.starts_with("tabs/")
                 {
                     return Err(WsError::invalid("unsupported project history key"));
@@ -265,7 +260,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
     let book = s.book.clone();
     let restored = Replaces::records(input.targets.iter().filter_map(|target| {
         let c = CollectionV3::from_root(&target.collection)?;
-        // A project key names a value inside a record (`book/root`,
+        // A project key names a value inside a record (`book/word_target`,
         // `tabs/<id>`): guard it as that path, the way the writes do.
         if c == CollectionV3::Project
             && let Some((record, inside)) = target.id.split_once('/')

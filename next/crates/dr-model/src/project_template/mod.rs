@@ -96,35 +96,20 @@ impl StoredTemplateOrigin {
     }
 }
 
-/// Optional attribution carried by a project template and recorded in `project.source.credit`.
+/// Optional attribution carried by a project template and recorded in
+/// `project.source.credit`: the author's name only (2026-11-15 night: no
+/// homepage, no 「改自」; a template carrying either is refused).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectTemplateCredit {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub author: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub homepage: String,
-    #[serde(
-        rename = "derivedFrom",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub derived_from: Option<ProjectTemplateDerivedFrom>,
 }
 
 impl ProjectTemplateCredit {
     pub fn is_empty(&self) -> bool {
-        self.author.is_empty() && self.homepage.is_empty() && self.derived_from.is_none()
+        self.author.is_empty()
     }
-}
-
-/// Upstream template attribution (`credit.derivedFrom`).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectTemplateDerivedFrom {
-    pub name: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub author: String,
 }
 
 /// Closed-schema project template value (`project-templates.md` §4).
@@ -203,27 +188,16 @@ impl From<&TemplateAgent> for TemplateAgentConfig {
     }
 }
 
-/// Book configuration inside [`TemplateProject`].
-/// `root == None` represents an unset book start (creates a project with `BookRoot::Unset`).
+/// Book configuration inside [`TemplateProject`]: the book is on, with two
+/// word targets. The book has no start (it reads from the root,
+/// `kernel-v5.md` §3); a template still carrying `root` is refused.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplateProjectBook {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub root: Option<TemplateBookRoot>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub word_target: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub daily_word_target: Option<i64>,
-}
-
-/// Symbolic book-sequence start (`project.book.root`).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum TemplateBookRoot {
-    Root,
-    Entry { entry: String },
-    View { view: String },
-    Lane { view: String, entry: String },
 }
 
 /// One left-sidebar tab in `project.tabs` (array order defines order). A

@@ -30,6 +30,22 @@ fn create(e: &Env, b: &str, t: &str, title: &str) -> String {
         json!({"book":b,"parent":parent,"template":t,"title":title}),
     ))
 }
+/// Put `view` before every other view (the first view an entry is in
+/// orders it, `kernel-v5.md` §4).
+fn put_view_first(e: &Env, b: &str, view: &str) {
+    let mut tv = e
+        .out("timeline_view.list", json!({"book":b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == view)
+        .unwrap()
+        .clone();
+    let a0 = dr_model::pos::PosKey::parse("a0").unwrap();
+    let first = dr_model::pos::PosKey::between(None, Some(&a0)).unwrap();
+    tv["pos"] = json!(first.as_str());
+    e.call("timeline_view.put", json!({"book":b,"view":tv}));
+}
 fn raw(e: &Env, b: &str) -> Value {
     e.ws().observe(&format!("book:{b}")).unwrap().value
 }
@@ -864,8 +880,8 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
         18.0
     );
 
-    // 4. `entry.get` (`below.members`) follows `v1` by default, and switches to `v2`
-    //    when `project.book.root` names `v2`.
+    // 4. `entry.get` (`below.members`) follows `v1`, the first view the lane
+    //    is in, and switches to `v2` when `v2` comes first.
     e.call(
         "timeline_view.place",
         json!({"book":b,"view":"v2","entry":direct,"at":-5}),
@@ -882,10 +898,7 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
         below_ids(&lane),
         vec![seed.clone(), joined.clone(), direct.clone()]
     );
-    e.call(
-        "project.update",
-        json!({"book":b,"root":{"kind":"view","view":"v2"}}),
-    );
+    put_view_first(&e, &b, "v2");
     assert_eq!(below_ids(&lane), vec![direct, seed, joined]);
 }
 
@@ -1083,7 +1096,7 @@ fn folder_in_view_reads_and_moves_by_scale_without_touching_manual_order() {
             .as_array()
             .unwrap()
             .iter()
-            .filter(|row| !row["ordinal"].is_null())
+            .filter(|row| !row["prose"].as_array().unwrap().is_empty())
             .map(|row| row["entry"]["id"].as_str().unwrap().to_owned())
             .collect()
     };
@@ -1167,7 +1180,8 @@ fn folder_in_view_reads_and_moves_by_scale_without_touching_manual_order() {
             .is_none()
     );
 
-    // When `ms` is in two views (`v1`, `v2`) and `project.book.root` points to `v2`, `v2` wins.
+    // When `ms` is in two views (`v1`, `v2`), the first of them orders it:
+    // `v2` once it comes first.
     e.call(
         "timeline_view.put",
         json!({"book":b,"view":{"id":"v2","name":"V2","pos":"a1","lanes":[{"entry":ms}],
@@ -1177,19 +1191,12 @@ fn folder_in_view_reads_and_moves_by_scale_without_touching_manual_order() {
         below_children(&e, &ms),
         vec![c3.clone(), c1.clone(), c2.clone()]
     );
-    e.call(
-        "project.update",
-        json!({"book":b,"root":{"kind":"view","view":"v2"}}),
-    );
+    put_view_first(&e, &b, "v2");
     assert_eq!(
         below_children(&e, &ms),
         vec![c2.clone(), c1.clone(), c3.clone()]
     );
     // Removing `ms` from `v2` leaves it in `v1`, so manual order is still untouched.
-    e.call(
-        "project.update",
-        json!({"book":b,"root":{"kind":"entry","entry":ms}}),
-    );
     e.call(
         "timeline_view.remove_lane",
         json!({"book":b,"view":"v2","lane":ms}),

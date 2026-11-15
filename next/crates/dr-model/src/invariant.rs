@@ -897,34 +897,17 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "MANUSCRIPT-OWN-PROSE-FIRST",
-        "成书序列：文件夹和根起点按住处先序走，每个条目先给出自己 in_book 开着的正文，再走它下面的条目；视图和泳道起点只沿刻度取泳道成员；回收站里的连同下面都不算",
+        "成书没有起点，总是从根读：照住处先序走整棵树（层级开着时先住在下面的，按文件夹的手动先后、在视图里时按刻度；收别处的条目开着时再挂着的），每个条目先给出自己 in_book 开着的正文，再走它下面的；回收站里的连同下面都不算；App 不给成书里的条目编号",
         [Structure, Read],
-        "BookStructureV3::sequence 与 book_sequence 共用同一个读取器（导出、全书字数、章节编号、书架都用它），ordinal 只编给有成书正文的条目（哪些不编见 MANUSCRIPT-NUMBER-OUTERMOST-PROSE）",
+        "BookStructureV3::book_sequence 用 FlattenFrom::Root 调同一个读取器 sequence（导出、全书字数、挂成书的 Tab、书架都用它）；书里旧的 project.book.root 读的时候不管",
         ["the_manuscript_sequence_puts_each_entrys_own_book_prose_before_what_lives_under_it"]
     ),
     inv!(
-        "MANUSCRIPT-NUMBER-OUTERMOST-PROSE",
-        "章节编号：条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，在成书序列里的位置、导出的内容、全书字数都不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定）；条目起点本身的正文（前言）照旧编号，也不拦住下面的章",
-        [Structure, Read],
-        "BookStructureV3::sequence 按先序走时记住正在里面的那个有编号条目的深度（BookRoot::Entry 起点本身深度为 0，不记），回到同一深度或更浅才出来；book_entries 仍按「带成书正文」收，不看编号",
-        ["entries_under_an_entry_with_book_prose_keep_their_place_and_words_without_a_number"]
-    ),
-    inv!(
         "FLATTEN-MEMBERS-ONCE",
-        "成书序列和整书视图共用同一个读法：文件夹和根起点在每个节点下先走住在下面的（层级开着时）、再走归属进来的（收别处的条目开着时），每个条目只出现一次",
+        "成书序列和整书视图共用同一个读法：从根或一个条目出发时，每个节点下先走住在下面的（层级开着时）、再走挂进来的（收别处的条目开着时）；从视图或视图里的一条泳道出发时沿刻度取泳道里的条目；每个条目只出现一次",
         [Structure, Read],
-        "BookStructureV3::sequence 用已访问集合挡住重复和环，整书视图（in_book_only = false）与成书序列（in_book_only = true）是同一个读法",
+        "BookStructureV3::sequence(FlattenFrom, in_book_only) 用已访问集合挡住重复和环，整书视图（任意 FlattenFrom）与成书序列（FlattenFrom::Root、in_book_only = true）是同一个读法",
         ["flattening_a_lane_reads_its_members_in_lane_order_once_and_leaves_the_manuscript_alone"]
-    ),
-    inv!(
-        "BOOK-ROOT-VALID",
-        "成书的起点是根，或一个活着的、开着层级或「收别处的条目」的条目，或一个没删的视图，或这个视图里的一条有效泳道：命令层预防；读取时不满足就读作没有成书内容，数据留着",
-        [Command, Read],
-        "命令层用 dr_model::v3::check_book_root 校验起点；读取时 BookStructureV3::book_sequence 在没有成书或起点失效时返回空，不改数据",
-        [
-            "v5_book_root_and_tab_mount_validate_all_four_kinds",
-            "project_book_root_reads_all_four_starts_and_tolerates_missing"
-        ]
     ),
     inv!(
         "TAB-MOUNT-VALID",
@@ -932,7 +915,7 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "命令层用 dr_model::v3::check_tab_mount 校验 Tab 挂载；读取时保留原记录并标出 mount_valid = false",
         [
-            "v5_book_root_and_tab_mount_validate_all_four_kinds",
+            "v5_flatten_starts_and_tab_mounts_validate_all_four_kinds",
             "project_tabs_mount_four_targets_and_keep_invalid_mounts"
         ]
     ),
@@ -962,7 +945,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "VIEW-LANE-MEMBERS-PLACED",
         "视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置：命令层在条目进到泳道里（挂上来或住进去）或泳道加进视图时自动落到刻度末尾，且泳道在视图里时不读不写归属上的 pos；读取时没有刻度位置的排在最后，泳道页按参考视图刻度排",
         [Command, Read],
-        "membership.add、entry.create、entry.move、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位的住处子条目与挂名成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_entries_order 与 lane_members_order 按成书起点视图或首个视图的刻度排，无位置的排在最后",
+        "membership.add、entry.create、entry.move、timeline_view.place、timeline_view.add_lane、timeline_view.put 用 timeline_scale_end 给未落位的住处子条目与挂名成员补在刻度末尾，对在视图里的宿主不写 pos；BookStructureV3::lane_entries_order 与 lane_members_order 按它所在的第一个视图的刻度排，无位置的排在最后",
         [
             "lane_members_order_follows_reference_view_scale_and_places_unpositioned_last",
             "joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without_pos"
@@ -977,7 +960,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "VIEW-FOLDER-ORDER-FROM-SCALE",
-        "文件夹在视图里时，它下面的先后读刻度（以成书起点那个视图为准，否则它所在的第一个视图），手动先后留着不读、也不双写；entry.move 带 index 落进这样的文件夹时改刻度上的位置",
+        "文件夹在视图里时，它下面的先后读刻度（以它所在的第一个视图为准，视图按 (pos, id) 排），手动先后留着不读、也不双写；entry.move 带 index 落进这样的文件夹时改刻度上的位置",
         [Structure, Command, Read],
         "BookStructureV3 对在活视图里的层级按 lane_reference_view 的刻度重排 children 与先序序列，manual_children 保留原始树顺序；entry.move 对在视图里的父级计算刻度位置写进参考视图，同父级内调先后不改 LoroTree 兄弟顺序",
         ["folder_in_view_reads_and_moves_by_scale_without_touching_manual_order"]
@@ -1056,7 +1039,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 95;
+pub const ACTIVE_CONTRACTS: usize = 93;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

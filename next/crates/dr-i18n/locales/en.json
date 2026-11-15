@@ -618,10 +618,6 @@
     "back": "Back"
   },
   "nodeEditor": {
-    "folio": {
-      "chapter": "Chapter",
-      "chapterNumber": "Chapter {{n}}"
-    },
     "meta": {
       "words": "{{count}} words"
     }
@@ -1632,7 +1628,6 @@
     "ruler": "Scale ruler",
     "selectLane": "Select lane",
     "setActTrack": "Use as act track · {{name}}",
-    "setBookRoot": "Set as book start",
     "unsetActTrack": "Use as regular lane · {{name}}",
     "views": "Views"
   },

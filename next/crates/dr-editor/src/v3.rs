@@ -150,16 +150,29 @@ fn sections_from_flat(flat: Vec<dr_doc::v3::FlatEntry<'_>>) -> Vec<crate::book::
     out
 }
 
-/// Flattens a [`dr_model::v3::BookRoot`] (`Root`, `Entry`, `View`, or `Lane`)
-/// via the unified [`dr_doc::v3::BookStructureV3::sequence`] reader
-/// (`kernel-v5.md` §3, §16), keeping entries without `in_book` prose so the
-/// view renders their headings and hierarchy.
-pub fn flatten_book_root(
+/// Flattens a whole-book view from `from` (`Root`, `Entry`, `View`, or
+/// `Lane`) via the unified [`dr_doc::v3::BookStructureV3::sequence`] reader
+/// (`kernel-v5.md` §3, §16), keeping entries without prose so the view
+/// renders their headings and hierarchy. Each entry shows its book prose and
+/// the prose that carries its page head ([`carries_page_head`]): a chapter,
+/// an idea and an element read as before ideas and elements left the book;
+/// a 「说明」 and a bare note stay out.
+pub fn flatten_from(
     view: &BookViewV3<'_>,
-    root: &dr_model::v3::BookRoot,
-) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::InvalidBookRoot> {
+    from: &dr_model::v3::FlattenFrom,
+) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::InvalidFlattenFrom> {
     let structure = view.structure_snapshot();
-    let flat = structure.sequence(root, true)?;
+    let templates = structure.templates_map();
+    let flat = structure
+        .sequence(from, false)?
+        .into_iter()
+        .map(|mut e| {
+            let template = e.entry.effective_template(templates);
+            e.prose
+                .retain(|p| p.in_book || carries_page_head(template, p.module.as_str()));
+            e
+        })
+        .collect();
     Ok(sections_from_flat(flat))
 }
 
@@ -171,24 +184,32 @@ pub fn flatten_book(
     view: &BookViewV3<'_>,
     from: &dr_model::id::EntryId,
 ) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
-    flatten_book_root(
+    flatten_from(
         view,
-        &dr_model::v3::BookRoot::Entry {
+        &dr_model::v3::FlattenFrom::Entry {
             entry: from.clone(),
         },
     )
     .map_err(|_| dr_doc::v3::NotALevel(from.clone()))
 }
 
-/// Level entry configured as the project's book start (`project.book.root`), when applicable.
-pub fn manuscript_roots(view: &BookViewV3<'_>) -> Vec<dr_model::id::EntryId> {
-    let structure = view.structure_snapshot();
-    match structure.project().book.as_ref().map(|b| &b.root) {
-        Some(r @ dr_model::v3::BookRoot::Entry { entry }) if structure.is_valid_book_root(r) => {
-            vec![entry.clone()]
-        }
-        _ => Vec::new(),
-    }
+/// Whether `module` of `template` carries the page head (title, synopsis
+/// and the folio line): the first prose module of a content template
+/// (`linkable`) that has a fields module, the chapter, idea and element
+/// kind of page; the 「说明」 of an organising entry (a storyline, a folder)
+/// and a bare note have none. Whether the prose is in the book does not
+/// matter (DW, author 2026-11-15 night). An entry without a template has it.
+pub fn carries_page_head(template: Option<&dr_model::v3::EntryTemplate>, module: &str) -> bool {
+    let Some(t) = template else {
+        return true;
+    };
+    t.linkable
+        && t.modules
+            .iter()
+            .any(|m| m.kind == dr_model::v3::ModuleKind::Fields)
+        && t.prose_modules()
+            .next()
+            .is_some_and(|m| m.id.as_str() == module)
 }
 
 pub(crate) fn page_infos(
@@ -202,10 +223,16 @@ pub(crate) fn page_infos(
         let entries = structure.entries_map();
         let templates = structure.templates_map();
         let views: Vec<_> = structure.timeline_views().cloned().collect();
-        let number_by_id: std::collections::HashMap<dr_model::id::EntryId, u32> = structure
+        // The entries the book holds through this module (book prose).
+        let in_book: std::collections::HashSet<(dr_model::id::EntryId, String)> = structure
             .book_sequence()
             .into_iter()
-            .filter_map(|e| Some((e.entry.id.clone(), e.ordinal?)))
+            .flat_map(|e| {
+                let id = e.entry.id.clone();
+                e.prose
+                    .into_iter()
+                    .map(move |p| (id.clone(), p.module.to_string()))
+            })
             .collect();
         docs.iter()
             .map(|doc| {
@@ -222,17 +249,10 @@ pub(crate) fn page_infos(
                 info.title = entry.title.clone();
                 let template = entry.effective_template(templates);
                 info.template_name = template.map(|t| t.name.clone()).unwrap_or_default();
-                let is_primary_book_prose = match template {
-                    Some(t) => t
-                        .book_prose_modules()
-                        .next()
-                        .is_some_and(|m| m.id.as_str() == module),
-                    None => true,
-                };
-                if is_primary_book_prose {
+                let is_primary = carries_page_head(template, &module);
+                if is_primary {
                     info.chrome = true;
-                    info.number = number_by_id.get(&eid).copied();
-                    info.kind = if info.number.is_some() {
+                    info.kind = if in_book.contains(&(eid.clone(), module.clone())) {
                         crate::page::PageKind::Chapter
                     } else {
                         crate::page::PageKind::Other
@@ -258,7 +278,7 @@ pub(crate) fn page_infos(
                         }
                     }
                     // Secondary prose modules carry their own module name rather than the entry heading.
-                    if !is_primary_book_prose && t.prose_modules().nth(1).is_some() {
+                    if !is_primary && t.prose_modules().nth(1).is_some() {
                         info.title = t
                             .modules
                             .iter()

@@ -469,7 +469,7 @@ fn home_settings_save_word_targets_across_home_stats_and_shelf(cx: &mut TestAppC
 }
 
 #[test]
-fn word_count_chapter_numbering_and_export_agree_across_entry_view_and_lane_book_roots() {
+fn word_count_and_export_agree_on_the_book_read_from_the_root() {
     let dir = tempfile::tempdir().unwrap();
     let store = dr_store::Library::open(dir.path(), library_options("0.2.0-dev")).unwrap();
     let ws = Library::open(store, WorkspaceOptions::default()).unwrap();
@@ -517,7 +517,7 @@ fn word_count_chapter_numbering_and_export_agree_across_entry_view_and_lane_book
             "parent": ideas_root,
             "template": "tpl-chapter",
             "title": "外章",
-            "bodies": {"mod-prose": "这篇虽然用了章节模板，但住在构想下。"}
+            "bodies": {"mod-prose": "这篇用了章节模板，住在构想下，也在成书里。"}
         }),
     )["id"]
         .as_str()
@@ -618,7 +618,7 @@ fn word_count_chapter_numbering_and_export_agree_across_entry_view_and_lane_book
             .map(|d| d.entry.as_deref().unwrap())
             .collect();
         assert_eq!(stats_ids, expected_ids);
-        assert!(!stats_ids.contains(&outside.as_str()));
+        assert!(!stats_ids.contains(&note.as_str()));
         assert_eq!(
             stats.book_words(&Live::default()).unwrap().words,
             expected_words
@@ -631,36 +631,24 @@ fn word_count_chapter_numbering_and_export_agree_across_entry_view_and_lane_book
         assert_eq!(cover.chapters, expected_ids.len());
         assert_eq!(cover.words.iter().sum::<u64>(), expected_words);
 
-        // 2. Shell book sequence & chapter numbering (`BookV3::manuscript_number`)
+        // 2. Shell book sequence (nothing is numbered).
         let shell_book = dr_shell::book::Book::load(&ws, &book).unwrap();
         let v3 = shell_book.v3().unwrap();
         let ms_ids: Vec<&str> = v3.manuscript.iter().map(|b| b.entry.as_str()).collect();
         assert_eq!(ms_ids, expected_ids);
-        for (idx, id) in expected_ids.iter().enumerate() {
-            let ordinal = (idx + 1) as u32;
-            assert_eq!(v3.manuscript_number(id), Some(ordinal));
-        }
-        assert_eq!(v3.manuscript_number(&outside), None);
     };
 
-    // Case 1: BookRoot::Entry (`ms_root` -> `[ch1, ch2]`)
-    assert_all_consumers_agree(&[ch1.as_str(), ch2.as_str()]);
+    // From the root: 书稿's chapters, then the chapter living under 构想
+    // (an idea's prose is not book prose).
+    assert_all_consumers_agree(&[ch1.as_str(), ch2.as_str(), outside.as_str()]);
 
-    // Case 2: BookRoot::View (`view_id` -> `[ch2, note, ch1]`)
+    // 构想 moved before 书稿: its chapter comes first.
     call(
         &ws,
-        "project.update",
-        json!({"book": book, "root": {"kind": "view", "view": view_id}}),
+        "entry.move",
+        json!({"book": book, "id": ideas_root, "parent": null, "index": 0}),
     );
-    assert_all_consumers_agree(&[ch2.as_str(), note.as_str(), ch1.as_str()]);
-
-    // Case 3: BookRoot::Lane (`lane_a` in `view_id` -> `[note, ch1]`)
-    call(
-        &ws,
-        "project.update",
-        json!({"book": book, "root": {"kind": "lane", "entry": lane_a, "view": view_id}}),
-    );
-    assert_all_consumers_agree(&[note.as_str(), ch1.as_str()]);
+    assert_all_consumers_agree(&[outside.as_str(), ch1.as_str(), ch2.as_str()]);
 
     ws.close();
 }

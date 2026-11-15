@@ -8,8 +8,8 @@ use serde::Deserialize;
 use super::{
     MAX_PROJECT_TEMPLATE_AGENT_CHARS, MAX_PROJECT_TEMPLATE_BYTES, MAX_PROJECT_TEMPLATE_ENTRIES,
     MAX_PROJECT_TEMPLATE_TEMPLATES, PROJECT_TEMPLATE_FORMAT, PROJECT_TEMPLATE_FORMAT_VERSION,
-    ProjectTemplateCredit, ProjectTemplateValue, TemplateBlockAttrs, TemplateBookRoot,
-    TemplateEntry, TemplateFieldDef, TemplateFieldType, TemplateLevelSettings, TemplateModuleKind,
+    ProjectTemplateCredit, ProjectTemplateValue, TemplateBlockAttrs, TemplateEntry,
+    TemplateFieldDef, TemplateFieldType, TemplateLevelSettings, TemplateModuleKind,
     TemplateParagraph, TemplateRelationEndpointKind, TemplateRun, TemplateTabMount, TemplateTable,
 };
 use crate::check::{Violation, non_empty_name};
@@ -19,11 +19,11 @@ use crate::prose::{MAX_INDENT, OBJECT_CHAR, PARAGRAPH_END};
 use crate::shared::normalize_relation_type_name;
 use crate::time::Day;
 use crate::v3::{
-    BookGraph, BookRoot, Entry, EntryTemplate, FieldValue, Membership, ModuleKind, TabMount,
-    TimelineLane, TimelinePin, TimelinePlacement, TimelineView, check_book_root, check_entry_move,
-    check_entry_template, check_membership, check_new_violations, check_parent_is_level,
-    check_tab_mount, check_timeline_lane, check_timeline_placement_in_lane,
-    check_timeline_target_live, is_valid_mark,
+    BookGraph, Entry, EntryTemplate, FieldValue, Membership, ModuleKind, TabMount, TimelineLane,
+    TimelinePin, TimelinePlacement, TimelineView, check_entry_move, check_entry_template,
+    check_membership, check_new_violations, check_parent_is_level, check_tab_mount,
+    check_timeline_lane, check_timeline_placement_in_lane, check_timeline_target_live,
+    is_valid_mark,
 };
 
 /// Why a project template failed parsing or validation.
@@ -110,23 +110,6 @@ fn has_bad_inline_control(s: &str) -> bool {
 fn has_bad_multiline_control(s: &str) -> bool {
     s.chars()
         .any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t')
-}
-
-fn check_https_homepage(url: &str) -> Result<(), ProjectTemplateError> {
-    let Some(rest) = url.strip_prefix("https://") else {
-        return inv(format!("credit.homepage must use https:// (found {url:?})"));
-    };
-    if rest.is_empty()
-        || rest.starts_with('/')
-        || rest.chars().any(|c| c.is_control() || c.is_whitespace())
-    {
-        return inv(format!("invalid credit.homepage URL {url:?}"));
-    }
-    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
-    if host.is_empty() || host.starts_with('.') || host.ends_with('.') {
-        return inv(format!("invalid credit.homepage host in {url:?}"));
-    }
-    Ok(())
 }
 
 /// Serialize `value` into deterministic UTF-8 JSON (stable key order and 2-space indent),
@@ -836,48 +819,6 @@ pub fn validate_project_template_value(
         {
             return inv("project.book word targets cannot be negative");
         }
-        if let Some(root) = &book.root {
-            let domain_root = match root {
-                TemplateBookRoot::Root => BookRoot::Root,
-                TemplateBookRoot::Entry { entry } => {
-                    if !is_symbolic_entry_ref(entry) || !entry_sym_set.contains(entry) {
-                        return inv(format!(
-                            "project.book.root entry {entry:?} does not resolve to an included entry"
-                        ));
-                    }
-                    BookRoot::Entry {
-                        entry: dummy_entry_map[entry].clone(),
-                    }
-                }
-                TemplateBookRoot::View { view } => {
-                    if !is_symbolic_view_ref(view) || !view_sym_set.contains(view) {
-                        return inv(format!(
-                            "project.book.root view {view:?} does not resolve to a view"
-                        ));
-                    }
-                    BookRoot::View {
-                        view: TimelineViewId::parse(view).expect("validated"),
-                    }
-                }
-                TemplateBookRoot::Lane { view, entry } => {
-                    if !is_symbolic_view_ref(view) || !view_sym_set.contains(view) {
-                        return inv(format!(
-                            "project.book.root view {view:?} does not resolve to a view"
-                        ));
-                    }
-                    if !is_symbolic_entry_ref(entry) || !entry_sym_set.contains(entry) {
-                        return inv(format!(
-                            "project.book.root lane entry {entry:?} does not resolve to an included entry"
-                        ));
-                    }
-                    BookRoot::Lane {
-                        view: TimelineViewId::parse(view).expect("validated"),
-                        entry: dummy_entry_map[entry].clone(),
-                    }
-                }
-            };
-            check_book_root(&domain_root, &entries, &templates, &domain_views)?;
-        }
     }
 
     let mut mounted: Vec<&TemplateTabMount> = Vec::with_capacity(val.project.tabs.len());
@@ -967,15 +908,6 @@ pub fn validate_project_template_value(
 fn validate_credit(credit: &ProjectTemplateCredit) -> Result<(), ProjectTemplateError> {
     if has_bad_inline_control(&credit.author) {
         return inv("credit.author contains control characters");
-    }
-    if !credit.homepage.is_empty() {
-        check_https_homepage(&credit.homepage)?;
-    }
-    if let Some(df) = &credit.derived_from {
-        non_empty_name(&df.name)?;
-        if has_bad_inline_control(&df.name) || has_bad_inline_control(&df.author) {
-            return inv("credit.derivedFrom contains control characters");
-        }
     }
     Ok(())
 }

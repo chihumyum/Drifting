@@ -265,8 +265,8 @@ pub struct ProjectTemplateSaveIn {
     /// Optional BCP-47 locale tag (defaults to `"zh-CN"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
-    /// Optional author attribution (`credit`). When saving from an imported/community
-    /// project without an explicit `derivedFrom`, `derivedFrom` is filled from `project.source`.
+    /// Optional author attribution (`credit`: the author's name). Nothing is
+    /// filled in from `project.source`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credit: Option<types::ProjectTemplateCredit>,
     /// Unlocked skeleton entries (`level` or `accept` on) to exclude from the template.
@@ -361,29 +361,8 @@ op! {
             }
         }
 
-        // Auto-fill `credit.derivedFrom` when saving from an imported/community project
-        // (`project-templates.md` §11: "从一个来自别人模板的项目另存、再导出时，「改自」自动填上游的名字和署名").
-        let mut credit: Option<dr_model::project_template::ProjectTemplateCredit> =
+        let credit: Option<dr_model::project_template::ProjectTemplateCredit> =
             input.credit.as_ref().map(Into::into);
-        if credit.as_ref().and_then(|c| c.derived_from.as_ref()).is_none()
-            && let Some(src) = book_view.project().source
-            && matches!(
-                src.origin,
-                Some(m::ProjectTemplateOrigin::File | m::ProjectTemplateOrigin::Community)
-            )
-            && let Some(upstream_name) = src.name.filter(|s| !s.trim().is_empty())
-        {
-            let upstream_author = src
-                .credit
-                .as_ref()
-                .map(|c| c.author.clone())
-                .unwrap_or_default();
-            let c = credit.get_or_insert_with(Default::default);
-            c.derived_from = Some(dr_model::project_template::ProjectTemplateDerivedFrom {
-                name: upstream_name,
-                author: upstream_author,
-            });
-        }
         let credit = credit.filter(|c| !c.is_empty());
 
         let locale = input

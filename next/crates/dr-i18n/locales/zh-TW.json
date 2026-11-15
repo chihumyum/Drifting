@@ -611,10 +611,6 @@
     "back": "返回"
   },
   "nodeEditor": {
-    "folio": {
-      "chapter": "章節",
-      "chapterNumber": "第 {{n}} 章"
-    },
     "meta": {
       "words": "{{count}} 字"
     }
@@ -1624,7 +1620,6 @@
     "ruler": "刻度標尺",
     "selectLane": "選擇泳道",
     "setActTrack": "設為幕軌道 · {{name}}",
-    "setBookRoot": "設為成書起點",
     "unsetActTrack": "取消幕軌道 · {{name}}",
     "views": "視圖"
   },
