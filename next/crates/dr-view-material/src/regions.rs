@@ -100,19 +100,27 @@ impl Listed {
     }
 }
 
-/// The comments on file `id` (an asset id) among `items`, in reading order
-/// and numbered: those on it in a media module and those straight on it.
-pub fn listed(items: &[CommentInfo], id: &str) -> Vec<Listed> {
+/// The comments a page of file `id` (an asset id) lists among `items`, in
+/// reading order and numbered: those straight on the file, and, on the page
+/// of an item of a media module (`place` = its entry and module), those on
+/// this file in that entry's module, not another entry's.
+pub fn listed(items: &[CommentInfo], id: &str, place: Option<(&str, &str)>) -> Vec<Listed> {
     let mut mine: Vec<&CommentInfo> = items
         .iter()
         .filter(|c| {
-            matches!(
+            let on_item = matches!(
                 &c.part,
                 Some(dr_workspace::dto::CommentPartDto::Media { asset, .. }) if asset == id
-            ) || c
-                .target
-                .as_ref()
-                .is_some_and(|t| matches!(t.kind.as_str(), "asset" | "material") && t.id == id)
+            ) && place.is_some_and(|(entry, module)| {
+                c.module.as_deref() == Some(module)
+                    && c.target
+                        .as_ref()
+                        .is_some_and(|t| t.kind == "entry" && t.id == entry)
+            });
+            on_item
+                || c.target
+                    .as_ref()
+                    .is_some_and(|t| t.kind == "asset" && t.id == id)
         })
         .collect();
     let order = |c: &CommentInfo| match c.region() {
@@ -187,6 +195,48 @@ mod tests {
         Some(Region { page, x, y, w, h })
     }
 
+    /// A page lists the comments on its own entry's item and those straight
+    /// on the file; a file only in the library lists the latter alone.
+    #[test]
+    fn a_page_lists_its_own_items_comments_and_the_files() {
+        let mut other = comment("other-entry", "f", region(None, 0.1, 0.1, 0.2, 0.2), 2);
+        other.target.as_mut().unwrap().id = "entry-2".into();
+        let mut direct = comment("on-file", "f", None, 3);
+        direct.target = Some(Target {
+            kind: "asset".into(),
+            id: "f".into(),
+        });
+        direct.module = None;
+        direct.part = Some(dr_workspace::dto::CommentPartDto::Region {
+            region: Region {
+                page: None,
+                x: 0.5,
+                y: 0.5,
+                w: 0.1,
+                h: 0.1,
+            },
+        });
+        let items = vec![
+            comment("own", "f", region(None, 0.1, 0.1, 0.2, 0.2), 1),
+            other,
+            direct,
+        ];
+        let ids = |listed: Vec<Listed>| -> Vec<String> {
+            let mut ids: Vec<String> = listed.into_iter().map(|l| l.item.id).collect();
+            ids.sort();
+            ids
+        };
+        assert_eq!(
+            ids(listed(&items, "f", Some(("entry-1", "mod-media")))),
+            ["on-file", "own"]
+        );
+        assert_eq!(
+            ids(listed(&items, "f", Some(("entry-2", "mod-media")))),
+            ["on-file", "other-entry"]
+        );
+        assert_eq!(ids(listed(&items, "f", None)), ["on-file"]);
+    }
+
     #[test]
     fn a_drag_is_a_rectangle_inside_the_picture() {
         let r = UnitRect::between((0.8, 0.9), (0.2, -0.5));
@@ -217,7 +267,7 @@ mod tests {
             comment("p1-high", "m1", region(Some(1), 0.5, 0.2, 0.2, 0.2), 4),
             comment("elsewhere", "m2", region(None, 0.1, 0.1, 0.2, 0.2), 0),
         ];
-        let listed = listed(&items, "m1");
+        let listed = listed(&items, "m1", Some(("entry-1", "mod-media")));
         let ids: Vec<&str> = listed.iter().map(|l| l.item.id.as_str()).collect();
         assert_eq!(ids, ["p1-high", "p1-low", "p2-top", "whole"]);
         assert_eq!(
@@ -235,7 +285,7 @@ mod tests {
             comment("small", "m", region(None, 0.4, 0.4, 0.2, 0.2), 2),
             comment("paged", "m", region(Some(1), 0.4, 0.4, 0.1, 0.1), 3),
         ];
-        let listed = listed(&items, "m");
+        let listed = listed(&items, "m", Some(("entry-1", "mod-media")));
         assert_eq!(hit(&listed, None, (0.5, 0.5)).unwrap().item.id, "small");
         assert_eq!(hit(&listed, None, (0.1, 0.1)).unwrap().item.id, "big");
         assert_eq!(

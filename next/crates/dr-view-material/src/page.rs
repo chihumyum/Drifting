@@ -44,6 +44,7 @@ use dr_ui::style::DrStyled;
 use dr_ui::tokens::color::Rgb;
 use dr_ui::tokens::{Story, glass as g, radius};
 use dr_view_review::{CommentComposer, ComposerEvent};
+use dr_workspace::commands::asset::{AssetRename, AssetRenameIn};
 use dr_workspace::commands::comment::{CommentUpdate, CommentUpdateIn};
 use dr_workspace::commands::v3::entry::{EntryUpdate, UpdateIn as EntryUpdateIn};
 use dr_workspace::commands::v3::module::{In as ModuleIn, MediaPut, MediaPutIn};
@@ -382,13 +383,17 @@ impl MediaPage {
         let Some(current) = self.info().cloned() else {
             return;
         };
-        let (Some(entry), Some(module), Some(asset)) = (
-            current.entry.clone(),
-            current.module.clone(),
-            current.asset.clone(),
-        ) else {
+        let Some(asset) = current.asset.clone() else {
             return;
         };
+        // A media item's name is its entry's title and its description the
+        // item's caption; a file only in the asset library has its own name
+        // and no description.
+        let place = current.entry.clone().zip(current.module.clone());
+        let description = description.filter(|_| place.is_some());
+        if title.is_none() && description.is_none() {
+            return;
+        }
         let lib = self.lib.clone();
         let book = self.book_id.clone();
         let item_id = self.id.clone();
@@ -412,20 +417,33 @@ impl MediaPage {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    if let Some(t) = title_to_save {
-                        lib.run::<EntryUpdate>(
-                            &Actor::User,
-                            EntryUpdateIn {
-                                book: book.clone(),
-                                id: entry.clone(),
-                                title: Some(t),
-                                mark: None,
-                                template: None,
-                                overrides: None,
-                            },
-                        )?;
+                    match (title_to_save, &place) {
+                        (Some(t), Some((entry, _))) => {
+                            lib.run::<EntryUpdate>(
+                                &Actor::User,
+                                EntryUpdateIn {
+                                    book: book.clone(),
+                                    id: entry.clone(),
+                                    title: Some(t),
+                                    mark: None,
+                                    template: None,
+                                    overrides: None,
+                                },
+                            )?;
+                        }
+                        (Some(t), None) => {
+                            lib.run::<AssetRename>(
+                                &Actor::User,
+                                AssetRenameIn {
+                                    book: book.clone(),
+                                    id: asset.clone(),
+                                    name: t,
+                                },
+                            )?;
+                        }
+                        (None, _) => {}
                     }
-                    if let Some(c) = desc_to_save {
+                    if let (Some(c), Some((entry, module))) = (desc_to_save, place) {
                         lib.run::<MediaPut>(
                             &Actor::User,
                             MediaPutIn {
@@ -894,14 +912,29 @@ impl MediaPage {
             .info()
             .map(|m| (m.entry.clone(), m.module.clone()))
             .unwrap_or((None, None));
-        let target = Target {
-            kind: "entry".into(),
-            id: entry_id.unwrap_or_else(|| self.id.clone()),
-        };
         let asset = self
             .info()
             .and_then(|m| m.asset.clone())
             .unwrap_or_else(|| self.id.clone());
+        // An item of an entry's media module: on that entry's module. A file
+        // only in the asset library: straight on the file (a region, no
+        // module).
+        let (target, module_id) = match (entry_id, module_id) {
+            (Some(entry), Some(module)) => (
+                Target {
+                    kind: "entry".into(),
+                    id: entry,
+                },
+                Some(module),
+            ),
+            _ => (
+                Target {
+                    kind: "asset".into(),
+                    id: asset.clone(),
+                },
+                None,
+            ),
+        };
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let at = point(at.x + px(8.0), at.y + px(8.0));
         let view = cx.new(|cx| {
@@ -1002,12 +1035,16 @@ impl MediaPage {
             .info()
             .and_then(|m| m.asset.clone())
             .unwrap_or_else(|| self.id.clone());
+        let place = self
+            .info()
+            .and_then(|m| m.entry.clone().zip(m.module.clone()));
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let task = cx.background_executor().spawn(async move {
             dr_view_review::v3::load(&lib, &book)
                 .map(|snapshot| {
                     let cards: Vec<_> = snapshot.items.iter().map(|i| i.card()).collect();
-                    regions::listed(&cards, &id)
+                    let place = place.as_ref().map(|(e, m)| (e.as_str(), m.as_str()));
+                    regions::listed(&cards, &id, place)
                 })
                 .unwrap_or_default()
         });
