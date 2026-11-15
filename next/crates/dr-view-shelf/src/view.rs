@@ -870,6 +870,12 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
     let s = theme.scale;
     let locale = Settings::locale(cx);
     let library = match &shelf.data {
+        Some(data) if !data.books.is_empty() && !data.books.iter().any(|b| b.has_book) => tp(
+            cx,
+            keys::all_projects::LIBRARY_PROJECTS,
+            data.books.len() as u64,
+            &[("count", &data.books.len())],
+        ),
         Some(data) => tp(
             cx,
             keys::all_projects::LIBRARY,
@@ -1130,14 +1136,17 @@ fn books(
     let p = Theme::of(window, cx).palette;
     let art = shelf.art.clone();
     let style = art::cover_style(cx);
+    let pointed_id = shelf.pointed.clone();
     let cards: Vec<AnyElement> = match &shelf.data {
         Some(data) => data
             .books
             .clone()
             .into_iter()
             .map(|book| {
+                let is_pointed = pointed_id.as_deref() == Some(book.id.as_str());
                 card(
                     book,
+                    is_pointed,
                     now,
                     art.as_deref(),
                     style,
@@ -1150,13 +1159,15 @@ fn books(
         None => Vec::new(),
     };
     let ready = shelf.data.is_some();
-    // A year of writing days over the books, every book together; the book
-    // under the pointer alone, in its colour.
+    // A year of writing days over the book-enabled projects, every book together;
+    // the book under the pointer alone, in its colour. Projects with `成书` off
+    // neither contribute cells nor focus the heatmap.
     let heat = match (&art, &shelf.data) {
         (Some(art), Some(data)) => {
             let books: Vec<HeatmapBook> = data
                 .books
                 .iter()
+                .filter(|b| b.has_book)
                 .map(|b| HeatmapBook {
                     id: b.id.clone().into(),
                     name: if b.name.trim().is_empty() {
@@ -1167,21 +1178,30 @@ fn books(
                     color: art::book_color(&b.id, p),
                 })
                 .collect();
-            let taken = shelf.press_taken.clone();
-            Some(
-                div()
-                    .id("shelf-heat-place")
-                    .mb(px(14.0))
-                    .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| taken.set(true))
-                    // Not the empty desk: a double click starts nothing.
-                    .on_click(|_, _, cx| cx.stop_propagation())
-                    .child(WritingHeatmap::new(
-                        "shelf-heat",
-                        art.year.clone(),
-                        Rc::new(books),
-                        shelf.pointed.clone().map(SharedString::from),
-                    )),
-            )
+            if !data.books.is_empty() && books.is_empty() {
+                None
+            } else {
+                let focus = shelf
+                    .pointed
+                    .as_ref()
+                    .filter(|id| books.iter().any(|b| b.id.as_ref() == id.as_str()))
+                    .map(|id| SharedString::from(id.clone()));
+                let taken = shelf.press_taken.clone();
+                Some(
+                    div()
+                        .id("shelf-heat-place")
+                        .mb(px(14.0))
+                        .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| taken.set(true))
+                        // Not the empty desk: a double click starts nothing.
+                        .on_click(|_, _, cx| cx.stop_propagation())
+                        .child(WritingHeatmap::new(
+                            "shelf-heat",
+                            art.year.clone(),
+                            Rc::new(books),
+                            focus,
+                        )),
+                )
+            }
         }
         _ => None,
     };
@@ -1257,6 +1277,7 @@ fn books(
 #[allow(clippy::too_many_arguments)]
 fn card(
     book: ShelfBook,
+    is_pointed: bool,
     now: i64,
     art: Option<&ShelfArt>,
     style: CoverStyle,
@@ -1313,7 +1334,7 @@ fn card(
             .child(grouped(n, locale))
     };
     let unit = |text: SharedString| div().child(text);
-    let meta =
+    let meta = if book.has_book {
         div()
             .mt(px(12.0))
             .flex()
@@ -1324,16 +1345,19 @@ fn card(
             .font_role(Role::Index)
             .type_px(s.caption, s.caption * 1.4)
             .text_color(p.ink(4).solid())
-            .child(
+            .child({
+                let book_id = book.id.clone();
                 div()
+                    .id(ElementId::Name(format!("shelf-words-{}", book.id).into()))
+                    .debug_selector(move || format!("shelf-words-{book_id}"))
                     .flex()
                     .child(div().mr(px(3.0)).text_color(p.ink(2).solid()).child(
                         book.words.map(|n| compact(n, locale)).unwrap_or_else(|| {
                             t(cx, keys::workspace_word_tally::COUNTING).to_string()
                         }),
                     ))
-                    .child(unit(t(cx, keys::project_picker::desk::WORDS_UNIT))),
-            )
+                    .child(unit(t(cx, keys::project_picker::desk::WORDS_UNIT)))
+            })
             .child(
                 div()
                     .flex()
@@ -1355,13 +1379,46 @@ fn card(
                         book.elements as u64,
                         &[],
                     ))),
-            );
+            )
+    } else {
+        let book_id = book.id.clone();
+        div()
+            .mt(px(12.0))
+            .flex()
+            .flex_row()
+            .flex_wrap()
+            .gap_x(px(14.0))
+            .gap_y(px(4.0))
+            .font_role(Role::Index)
+            .type_px(s.caption, s.caption * 1.4)
+            .text_color(p.ink(2).solid())
+            .child(
+                div()
+                    .id(ElementId::Name(
+                        format!("shelf-entry-count-{}", book.id).into(),
+                    ))
+                    .debug_selector(move || format!("shelf-entry-count-{book_id}"))
+                    .child(tp(
+                        cx,
+                        keys::k4_book::ENTRY_COUNT,
+                        book.entry_count as u64,
+                        &[("count", &grouped(book.entry_count as u64, locale))],
+                    )),
+            )
+    };
     let progress_row = book
-        .words
+        .has_book
+        .then_some(book.words)
+        .flatten()
         .and_then(|words| progress(words, book.word_target))
         .map(|value| {
             let target = book.word_target.unwrap_or(0).max(0) as u64;
+            let book_id = book.id.clone();
             div()
+                .id(ElementId::Name(
+                    format!("shelf-progress-wrap-{}", book.id).into(),
+                ))
+                .debug_selector(move || format!("shelf-progress-wrap-{book_id}"))
                 .mt_auto()
                 .pt(px(14.0))
                 .flex()
@@ -1393,8 +1450,8 @@ fn card(
                     .color(p.ink(2)),
                 )
         });
-    // The last 30 days: their words and a strip of sand.
-    let strip = art.map(|art| {
+    // The last 30 days: their words and a strip of sand (book-enabled projects only).
+    let strip = book.has_book.then_some(art).flatten().map(|art| {
         let recent = art.recent(&book.id);
         let total: u64 = recent.iter().sum();
         let words = grouped(total, locale);
@@ -1403,7 +1460,12 @@ fn card(
         } else {
             "—".into()
         };
+        let book_id = book.id.clone();
         div()
+            .id(ElementId::Name(
+                format!("shelf-strip-wrap-{}", book.id).into(),
+            ))
+            .debug_selector(move || format!("shelf-strip-wrap-{book_id}"))
             .mt_auto()
             .pt(px(14.0))
             .flex()
@@ -1431,7 +1493,65 @@ fn card(
                 ),
             ))
     });
+    let recent_list =
+        (!book.has_book && is_pointed && !book.recent_entries.is_empty()).then(|| {
+            let book_id = book.id.clone();
+            let mut rows = div()
+                .id(ElementId::Name(
+                    format!("shelf-recent-entries-{}", book.id).into(),
+                ))
+                .debug_selector(move || format!("shelf-recent-entries-{book_id}"))
+                .mt_auto()
+                .pt(px(10.0))
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .child(
+                    div()
+                        .font_role(Role::Index)
+                        .type_px(11.0, 11.0)
+                        .text_color(p.ink(4).solid())
+                        .child(t(cx, keys::all_projects::RECENT_ENTRIES)),
+                );
+            for item in &book.recent_entries {
+                let entry_title: SharedString = if item.title.trim().is_empty() {
+                    t(cx, keys::k4_book::UNTITLED_ENTRY)
+                } else {
+                    item.title.clone().into()
+                };
+                rows = rows.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_baseline()
+                        .justify_between()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.caption * 1.35)
+                                .text_color(p.ink(2).solid())
+                                .truncate()
+                                .child(entry_title),
+                        )
+                        .when_some(item.edited_ms, |el, at| {
+                            el.child(
+                                div()
+                                    .flex_none()
+                                    .font_role(Role::Index)
+                                    .type_px(11.0, 11.0)
+                                    .text_color(p.ink(4).solid())
+                                    .child(format::ago(at, now, cx)),
+                            )
+                        }),
+                );
+            }
+            rows
+        });
     let has_strip = strip.is_some();
+    let has_recent = recent_list.is_some();
     let progress_row = progress_row.map(|row| {
         if has_strip {
             row.mt_0().pt(px(12.0))
@@ -1447,8 +1567,12 @@ fn card(
         Status::Paused => (keys::project_picker::status::PAUSED, p.ink(4)),
     };
     let foot = div()
-        .when(has_progress || has_strip, |el| el.mt(px(10.0)))
-        .when(!has_progress && !has_strip, |el| el.mt_auto())
+        .when(has_progress || has_strip || has_recent, |el| {
+            el.mt(px(10.0))
+        })
+        .when(!has_progress && !has_strip && !has_recent, |el| {
+            el.mt_auto()
+        })
         .flex()
         .flex_row()
         .items_center()
@@ -1614,6 +1738,7 @@ fn card(
             .child(meta)
             .children(strip)
             .children(progress_row)
+            .children(recent_list)
             .child(foot),
     )
     .flex_1()
@@ -1817,6 +1942,35 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
         }
         DialogState::Trash { book } => {
             let confirm = entity.clone();
+            let body = if book.has_book {
+                tf(
+                    cx,
+                    keys::project_picker::trash::BODY_WITHOUT_CHAPTERS,
+                    &[
+                        (
+                            "words",
+                            &book.words.map(|n| grouped(n, locale)).unwrap_or_else(|| {
+                                t(cx, keys::workspace_word_tally::COUNTING).to_string()
+                            }),
+                        ),
+                        ("elements", &book.elements),
+                    ],
+                )
+            } else {
+                tf(
+                    cx,
+                    keys::project_picker::trash::BODY_WITHOUT_BOOK,
+                    &[(
+                        "entries",
+                        &tp(
+                            cx,
+                            keys::k4_book::ENTRY_COUNT,
+                            book.entry_count as u64,
+                            &[("count", &grouped(book.entry_count as u64, locale))],
+                        ),
+                    )],
+                )
+            };
             Dialog::new(
                 "shelf-trash",
                 tf(
@@ -1825,19 +1979,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                     &[("name", &book.name)],
                 ),
             )
-            .body(div().child(tf(
-                cx,
-                keys::project_picker::trash::BODY_WITHOUT_CHAPTERS,
-                &[
-                    (
-                        "words",
-                        &book.words.map(|n| grouped(n, locale)).unwrap_or_else(|| {
-                            t(cx, keys::workspace_word_tally::COUNTING).to_string()
-                        }),
-                    ),
-                    ("elements", &book.elements),
-                ],
-            )))
+            .body(div().child(body))
             .body(
                 div()
                     .text_color(p.muted().solid())

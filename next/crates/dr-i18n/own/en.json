@@ -4,10 +4,13 @@
     "import": "Import project",
     "importFile": "Import project (.driftingproject)",
     "importLegacy": "Import Drifting 0.1",
+    "libraryProjects_one": "{{count}} project",
+    "libraryProjects_other": "{{count}} projects",
     "library_one": "{{count}} project · {{words}} words",
     "library_other": "{{count}} projects · {{words}} words",
     "nameLabel": "Name",
     "newProject": "New project",
+    "recentEntries": "Recently edited",
     "summaryPlaceholder": "Describe the project in one or two sentences.",
     "title": "All projects",
     "transfer": {
@@ -112,6 +115,7 @@
       "older": "This file was exported by an earlier development build of Drifting, in a format this version no longer reads."
     },
     "trash": {
+      "bodyWithoutBook": "This project ({{entries}}) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "bodyWithoutChapters": "This project ({{words}} words · {{elements}} elements) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted."
     }
   },

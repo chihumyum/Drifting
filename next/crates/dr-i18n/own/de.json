@@ -4,10 +4,13 @@
     "import": "Projekt importieren",
     "importFile": "Projekt importieren (.driftingproject)",
     "importLegacy": "Drifting 0.1 importieren",
+    "libraryProjects_one": "{{count}} Projekt",
+    "libraryProjects_other": "{{count}} Projekte",
     "library_one": "{{count}} Projekt · {{words}} Wörter",
     "library_other": "{{count}} Projekte · {{words}} Wörter",
     "nameLabel": "Name",
     "newProject": "Neues Projekt",
+    "recentEntries": "Zuletzt bearbeitet",
     "summaryPlaceholder": "Beschreibe das Projekt in ein, zwei Sätzen.",
     "title": "Alle Projekte",
     "transfer": {
@@ -112,6 +115,7 @@
       "older": "Diese Datei wurde von einer früheren Entwicklungsversion von Drifting in einem Format exportiert, das diese Version nicht mehr liest."
     },
     "trash": {
+      "bodyWithoutBook": "Dieses Projekt ({{entries}}) verlässt „Alle Projekte“. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
       "bodyWithoutChapters": "Dieses Projekt ({{words}} Wörter · {{elements}} Elemente) verlässt „Alle Projekte“. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht."
     }
   },

@@ -69,6 +69,13 @@ impl WritingYear {
         let mut year = WritingYear::empty(today);
         let span = year.days.len();
         for book in books {
+            if dr_shell::book::Book::load(ws, book)
+                .ok()
+                .and_then(|b| b.v3().map(|v| v.project.book.is_some()))
+                == Some(false)
+            {
+                continue;
+            }
             let out = ws.call(
                 &Actor::User,
                 "book.writing_days",

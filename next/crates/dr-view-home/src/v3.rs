@@ -515,6 +515,20 @@ impl Render for Home {
                 } else if let Some(entry) = book.v3().and_then(|v| {
                     v.entries
                         .iter()
+                        .filter(|e| {
+                            v.is_content(&e.id) && {
+                                let mut cur = e.parent.as_deref();
+                                let mut seen = std::collections::BTreeSet::new();
+                                loop {
+                                    let Some(pid) = cur else { break true };
+                                    if !seen.insert(pid) {
+                                        break false;
+                                    }
+                                    let Some(p) = v.entry(pid) else { break false };
+                                    cur = p.parent.as_deref();
+                                }
+                            }
+                        })
                         .max_by_key(|e| e.updated_at.or(e.created_at))
                 }) {
                     pages.push(RecentPage {

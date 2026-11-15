@@ -96,10 +96,13 @@
     "import": "匯入專案",
     "importFile": "匯入專案（.driftingproject）",
     "importLegacy": "匯入 Drifting 0.1",
+    "libraryProjects_one": "{{count}} 個專案",
+    "libraryProjects_other": "{{count}} 個專案",
     "library_one": "{{count}} 個專案 · {{words}} 字",
     "library_other": "{{count}} 個專案 · {{words}} 字",
     "nameLabel": "名稱",
     "newProject": "新專案",
+    "recentEntries": "最近修改",
     "summaryPlaceholder": "用一兩句話說明這個專案是什麼。",
     "title": "全部專案",
     "transfer": {
@@ -850,6 +853,7 @@
       "writing": "寫作中"
     },
     "trash": {
+      "bodyWithoutBook": "此專案（{{entries}}）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "bodyWithoutChapters": "此專案（{{words}} 字 · {{elements}} 個要素）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "confirm": "移至最近刪除",
       "deleteNow": "立即刪除",

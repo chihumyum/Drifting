@@ -96,11 +96,15 @@
     "import": "Importar proyecto",
     "importFile": "Importar proyecto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "libraryProjects_many": "{{count}} proyectos",
+    "libraryProjects_one": "{{count}} proyecto",
+    "libraryProjects_other": "{{count}} proyectos",
     "library_many": "{{count}} proyectos · {{words}} palabras",
     "library_one": "{{count}} proyecto · {{words}} palabras",
     "library_other": "{{count}} proyectos · {{words}} palabras",
     "nameLabel": "Nombre",
     "newProject": "Nuevo proyecto",
+    "recentEntries": "Editados recientemente",
     "summaryPlaceholder": "Describe el proyecto en una o dos frases.",
     "title": "Todos los proyectos",
     "transfer": {
@@ -865,6 +869,7 @@
       "writing": "Escribiendo"
     },
     "trash": {
+      "bodyWithoutBook": "Este proyecto ({{entries}}) saldrá de Todos los proyectos. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
       "bodyWithoutChapters": "Este proyecto ({{words}} palabras · {{elements}} elementos) saldrá de Todos los proyectos. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
       "confirm": "Mover a eliminados recientemente",
       "deleteNow": "Eliminar ahora",
