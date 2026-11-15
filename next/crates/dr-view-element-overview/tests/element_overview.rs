@@ -348,10 +348,12 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
         (el.id.clone(), el.home_island_id.clone())
     });
 
-    // 1. Drop onto `accept: true` island -> adds membership while preserving `orig_home`.
+    // 1. Drop with ⌥ onto an island whose category takes entries in and from
+    //    elsewhere -> adds membership while preserving `orig_home` (without ⌥
+    //    it would move in, kernel-v5 §16 「挂名」).
     let added = vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
-            v.drop_element_onto_island(&el_id, &accept_level, cx)
+            v.drop_element_onto_island(&el_id, &accept_level, true, cx)
         })
     });
     assert!(added, "drop onto accept:true island should succeed");
@@ -386,7 +388,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
     // 2. Drop onto `accept: false` category -> moves residence, and `undo` restores `orig_home`.
     let moved = vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
-            v.drop_element_onto_island(&el_id, &move_level, cx)
+            v.drop_element_onto_island(&el_id, &move_level, false, cx)
         })
     });
     assert!(

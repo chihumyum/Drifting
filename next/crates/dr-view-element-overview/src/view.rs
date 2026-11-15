@@ -1303,11 +1303,14 @@ impl ElementOverview {
         }
     }
 
-    /// Drops `element_id` onto canonical v3 level `onto_level_id` via G2 `prepare_drop`.
+    /// Drops `element_id` onto canonical v3 level `onto_level_id` via G2
+    /// `prepare_drop_with`: onto an entry with both switches on it moves in,
+    /// and attaches with ⌥ held (`attach`, `kernel-v5.md` §16 「挂名」).
     pub fn drop_element_onto_island(
         &mut self,
         element_id: &str,
         onto_level_id: &str,
+        attach: bool,
         cx: &mut Context<Self>,
     ) -> bool {
         if crate::is_frozen(cx) {
@@ -1316,7 +1319,7 @@ impl ElementOverview {
         let Some(lib) = self.lib.clone() else {
             return false;
         };
-        match g2_data::prepare_drop(&self.book, element_id, onto_level_id, false)
+        match g2_data::prepare_drop_with(&self.book, element_id, onto_level_id, false, attach)
             .and_then(|m| m.commit(&lib))
         {
             Ok(_) => {
@@ -1915,12 +1918,18 @@ impl ElementOverview {
                     p.paper.alpha(0.75)
                 })
                 .on_drop(
-                    cx.listener(move |this, drag: &ElementCarryDrag, _window, cx| {
+                    cx.listener(move |this, drag: &ElementCarryDrag, window, cx| {
                         this.drop_island_id = None;
                         if drag.mode == ElementLayoutMode::Isles
                             && let Some(onto_level) = target_level_drop.as_deref()
                         {
-                            let _ = this.drop_element_onto_island(&drag.element_id, onto_level, cx);
+                            let attach = window.modifiers().alt;
+                            let _ = this.drop_element_onto_island(
+                                &drag.element_id,
+                                onto_level,
+                                attach,
+                                cx,
+                            );
                         }
                     }),
                 )
