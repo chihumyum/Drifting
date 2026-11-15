@@ -113,7 +113,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/id": "${books.0.id}",
-          "/book/version": 3,
+          "/book/version": 5,
           "/page": "entry:${entries.[template=tpl-chapter].id}/link-second",
           "/v3Page/reveal/start": 3,
           "/v3Page/focus/child": true
@@ -160,15 +160,16 @@
         "link": "drifting:entries/id-${entries.[template=tpl-chapter].id}/modules/id-mod-prose/prose.md#L3-L7"
       },
       "expect": {
-        "/opened": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
-      }
+        "/opened": "entry:${entries.[template=tpl-chapter].id}/link-second"
+      },
+      "note": "One page per entry (kernel-v5 §16, T1): a module named on an entry already open is where its page scrolls; the tab keeps the key it was opened with. Typing below lands in mod-prose."
     },
     {
       "app": "ui.wait",
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+          "/page": "entry:${entries.[template=tpl-chapter].id}/link-second",
           "/v3Page/reveal/start": 3,
           "/v3Page/reveal/end": 7,
           "/v3Page/focus/child": true,

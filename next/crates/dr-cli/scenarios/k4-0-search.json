@@ -1,5 +1,5 @@
 {
-  "about": "F6 搜索宿主：lite 从真实快捷键搜索标题、多篇正文和素材；精确模块/段落跳转、重复命中当前页后立即输入及撤销、前进后退和刷新。正文来自共享种子，仅加识别标记。",
+  "about": "F6 搜索宿主：lite 从真实快捷键搜索标题、多篇正文和素材库里的文件名；精确模块/段落跳转、重复命中当前页后立即输入及撤销、前进后退和刷新。正文来自共享种子，仅加识别标记。",
   "steps": [
     {
       "seed": "lite"
@@ -99,7 +99,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/loaded": true,
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -215,12 +215,13 @@
         "timeout_ms": 30000,
         "state": {
           "/layer": null,
-          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
-          "/v3Page/module": "search-second-body",
+          "/page": "entry:${entries.[template=tpl-chapter].id}",
+          "/v3Page/module": null,
           "/v3Page/reveal/start": 3,
           "/v3Page/focus/child": true
         }
-      }
+      },
+      "note": "One page per entry (kernel-v5 §16, T1): the body a hit names is where the entry's page scrolls and what takes typing (step 35 reads it back); the page keeps its key."
     },
     {
       "app": "ui.find",
@@ -272,7 +273,7 @@
       "params": {
         "state": {
           "/layer": null,
-          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
+          "/page": "entry:${entries.[template=tpl-chapter].id}",
           "/v3Page/focus/child": true
         },
         "timeout_ms": 30000
@@ -342,9 +343,10 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}"
+          "/page": "home"
         }
-      }
+      },
+      "note": "One page per entry: jumping to a body on the open page is not a page of its own in back/forward, so back leaves the entry for where the run came from."
     },
     {
       "app": "action.dispatch",
@@ -357,7 +359,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
+          "/page": "entry:${entries.[template=tpl-chapter].id}",
           "/v3Page/focus/child": true
         }
       }
@@ -365,28 +367,21 @@
     {
       "app": "nav.open",
       "expect": {
-        "/opened": "material:${loaded.v3.materials.[kind=text].id}"
+        "/opened": "material:${loaded.v3.materials.[kind=image].id}"
       },
       "note": "素材由同一本 v3 书的元数据确认存在，桥接导航不再拒绝",
       "params": {
-        "target": "material:${loaded.v3.materials.[kind=text].id}"
+        "target": "material:${loaded.v3.materials.[kind=image].id}"
       }
     },
     {
-      "call": "prose.read",
+      "call": "asset.rename",
       "input": {
-        "doc": "material:${loaded.v3.materials.[kind=text].id}"
+        "book": "${books.0.id}",
+        "id": "${loaded.v3.materials.[kind=image].id}",
+        "name": "F6MaterialProbe ${loaded.v3.materials.[kind=image].title}"
       },
-      "save": "materialBody"
-    },
-    {
-      "call": "prose.replace",
-      "input": {
-        "doc": "material:${loaded.v3.materials.[kind=text].id}",
-        "block_id": "${materialBody.paragraphs.0.block_id}",
-        "find": "${materialBody.paragraphs.0.text}",
-        "replace": "F6MaterialProbe ${materialBody.paragraphs.0.text}"
-      }
+      "note": "The library holds files only (kernel-v5 §6); text materials became entries. A file is found by its name (T5), so the probe goes into the file's name."
     },
     {
       "app": "input.key",
@@ -417,8 +412,8 @@
         "timeout_ms": 30000,
         "state": {
           "/search/searching": false,
-          "/search/groups/0/target": "material:${loaded.v3.materials.[kind=text].id}",
-          "/search/groups/0/rows/0/line": 1
+          "/search/groups/0/target": "material:${loaded.v3.materials.[kind=image].id}",
+          "/search/groups/0/rows/0/line": null
         }
       }
     },
@@ -434,7 +429,7 @@
         "timeout_ms": 30000,
         "state": {
           "/layer": null,
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },
@@ -451,15 +446,15 @@
         "timeout_ms": 30000,
         "state": {
           "/book/name": "Synthetic v3 refreshed",
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },
     {
       "app": "state.get",
       "expect": {
-        "/page": "material:${loaded.v3.materials.[kind=text].id}",
-        "/pageTitle": "${loaded.v3.materials.[kind=text].title}",
+        "/page": "material:${loaded.v3.materials.[kind=image].id}",
+        "/pageTitle": "F6MaterialProbe ${loaded.v3.materials.[kind=image].title}",
         "/book/name": "Synthetic v3 refreshed"
       },
       "note": "书刷新后合法素材目标仍打开，不被 v3 exists 过滤"

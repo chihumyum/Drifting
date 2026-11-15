@@ -55,9 +55,10 @@
       "app": "ui.press",
       "params": {
         "role": "button",
-        "label": "New book",
+        "label": "New project",
         "timeout_ms": 15000
-      }
+      },
+      "note": "The shelf is 「全部项目」 now (allProjects.*, 2026-11-14)."
     },
     {
       "app": "input.type",
@@ -75,7 +76,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true,
           "/shelf": false
         },
@@ -87,7 +88,7 @@
       "save": "created",
       "expect": {
         "/book/name": "Canonical switch probe",
-        "/book/version": 3
+        "/book/version": 5
       }
     },
     {
@@ -178,7 +179,7 @@
       "params": {
         "text": "切换正文。",
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         },
         "timeout_ms": 30000
       }
@@ -207,7 +208,7 @@
       "app": "state.get",
       "expect": {
         "/book/id": "${created.book.id}",
-        "/book/version": 3
+        "/book/version": 5
       }
     },
     {
@@ -303,7 +304,7 @@
       "params": {
         "state": {
           "/book/id": "${source.book}",
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true,
           "/shelf": false
         },
@@ -315,7 +316,7 @@
       "save": "imported_open",
       "expect": {
         "/book/id": "${source.book}",
-        "/book/version": 3
+        "/book/version": 5
       }
     },
     {

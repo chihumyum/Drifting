@@ -68,7 +68,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true,
           "/page": "home",
           "/shelf": false
@@ -233,7 +233,7 @@
       "params": {
         "state": {
           "/page": "home",
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/name": "${books.0.name}",
           "/shelf": false
         }
@@ -295,7 +295,7 @@
       "params": {
         "state": {
           "/page": "home",
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },

@@ -95,7 +95,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000

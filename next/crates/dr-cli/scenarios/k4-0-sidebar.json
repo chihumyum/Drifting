@@ -67,7 +67,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -452,13 +452,26 @@
       "call": "tab.put",
       "input": {
         "book": "${books.0.id}",
-        "name": "验收顶层",
         "mount": {
           "kind": "entry",
           "entry": "${added.id}"
+        },
+        "place": {
+          "after": "tab-all"
         }
       },
-      "save": "addedTab"
+      "save": "addedTab",
+      "note": "A Tab is called by what it mounts (kernel-v5 §5; DZ dropped the tab's own name). It goes right after 「全部」: the row does not scroll sideways yet, so a seventh Tab at the end could not be pressed (see the pending step)."
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 200,
+        "y": 56,
+        "dx": -600,
+        "dy": 0
+      },
+      "pending": "The Tab row should scroll sideways when it does not fit (Tab prototype, T1), but neither a sideways nor an upright wheel moves it in the real window (2026-11-16): a Tab past the column's edge cannot be reached. Product issue reported by sc-scenarios-v5; once fixed, add the Tab last and scroll here."
     },
     {
       "app": "ui.find",
@@ -501,9 +514,10 @@
     {
       "app": "ui.find",
       "params": {
-        "role": "Label",
-        "label": "“验收顶层” is in Recently Deleted"
-      }
+        "role": "StaticText",
+        "label": "“验收顶层” is gone"
+      },
+      "note": "A Tab whose mount is gone says only that, whatever the reason (Tab prototype, T1)."
     },
     {
       "app": "ui.find",
