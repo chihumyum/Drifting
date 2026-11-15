@@ -143,10 +143,7 @@ pub fn validate_import(
         merged.import(&waiting).map_err(|e| e.to_string())?;
     }
     merged.import(bytes).map_err(|e| e.to_string())?;
-    if let Some(ValueOrContainer::Value(LoroValue::String(raw))) = merged
-        .get_map(schema::project_template::PAYLOAD)
-        .get(schema::project_template::VALUE)
-    {
+    if let Some(raw) = (ProjectTemplateView { doc: &merged }).raw_payload() {
         parse_project_template_json(raw.as_str()).map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -161,12 +158,16 @@ pub struct ProjectTemplateView<'a> {
 impl ProjectTemplateView<'_> {
     /// Read `info` metadata (`None` if the document only has genesis and no saved info yet).
     pub fn info(&self) -> Option<ProjectTemplateInfo> {
-        let LoroValue::Map(m) = self
-            .doc
-            .get_map(schema::project_template::INFO)
-            .get_deep_value()
-        else {
-            return None;
+        let m = match self.record() {
+            Some((info, _)) => info,
+            None => match self
+                .doc
+                .get_map(schema::project_template::INFO)
+                .get_deep_value()
+            {
+                LoroValue::Map(m) => m,
+                _ => return None,
+            },
         };
         let name = match m.get("name") {
             Some(LoroValue::String(s)) if !s.trim().is_empty() => s.to_string(),
@@ -200,6 +201,9 @@ impl ProjectTemplateView<'_> {
 
     /// Raw canonical JSON string stored in `payload.value`.
     pub fn raw_payload(&self) -> Option<String> {
+        if let Some((_, value)) = self.record() {
+            return Some(value);
+        }
         match self
             .doc
             .get_map(schema::project_template::PAYLOAD)
@@ -208,6 +212,28 @@ impl ProjectTemplateView<'_> {
             Some(ValueOrContainer::Value(LoroValue::String(s))) => Some(s.to_string()),
             _ => None,
         }
+    }
+
+    /// `payload.record`: `info` and the canonical value saved as one value
+    /// (`None` for a document saved before it, which keeps `info` and
+    /// `payload.value` apart).
+    fn record(&self) -> Option<(loro::LoroMapValue, String)> {
+        let Some(ValueOrContainer::Value(LoroValue::Map(record))) = self
+            .doc
+            .get_map(schema::project_template::PAYLOAD)
+            .get(schema::project_template::RECORD)
+        else {
+            return None;
+        };
+        let info = match record.get(schema::project_template::RECORD_INFO) {
+            Some(LoroValue::Map(info)) => info.clone(),
+            _ => return None,
+        };
+        let value = match record.get(schema::project_template::VALUE) {
+            Some(LoroValue::String(value)) => value.to_string(),
+            _ => return None,
+        };
+        Some((info, value))
     }
 
     /// Parse and validate `payload.value`, overlaying `info.name`, `info.description`
@@ -251,33 +277,25 @@ impl<'a> ProjectTemplateTxn<'a> {
         validate_project_template_value(&normalized)?;
         let json = to_canonical_json(&normalized)?;
 
-        let info_map = self.doc.get_map(schema::project_template::INFO);
-        info_map
-            .insert("name", normalized.name.as_str())
-            .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
-        info_map
-            .insert("description", normalized.description.as_str())
-            .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
-        info_map
-            .insert("origin", info.origin.as_str())
-            .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
-        info_map
-            .insert("revision", info.revision)
-            .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
+        let mut info_value: std::collections::HashMap<String, LoroValue> = [
+            ("name", LoroValue::from(normalized.name.as_str())),
+            (
+                "description",
+                LoroValue::from(normalized.description.as_str()),
+            ),
+            ("origin", LoroValue::from(info.origin.as_str())),
+            ("revision", LoroValue::from(info.revision)),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect();
         if let Some(created_at) = info.created_at {
-            info_map
-                .insert("created_at", created_at.0)
-                .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
+            info_value.insert("created_at".into(), LoroValue::from(created_at.0));
         }
         if let Some(updated_at) = info.updated_at {
-            info_map
-                .insert("updated_at", updated_at.0)
-                .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
+            info_value.insert("updated_at".into(), LoroValue::from(updated_at.0));
         }
-
-        let payload_map = self.doc.get_map(schema::project_template::PAYLOAD);
-        payload_map
-            .insert(schema::project_template::VALUE, json.as_str())
+        self.write_record(info_value, json)
             .map_err(|e| ProjectTemplateError::Invalid(e.to_string()))?;
         Ok(())
     }
@@ -290,14 +308,59 @@ impl<'a> ProjectTemplateTxn<'a> {
         description: Option<&str>,
         updated_at: Timestamp,
     ) -> Result<()> {
-        let info_map = self.doc.get_map(schema::project_template::INFO);
-        if let Some(n) = name {
-            info_map.insert("name", n.trim())?;
+        // A rename writes the whole record again, so a rename and a save on
+        // two devices at once keep one whole record, not one's name over the
+        // other's content.
+        let view = self.view();
+        let (Some(current), Some(value)) = (view.info(), view.raw_payload()) else {
+            return Err(crate::DocError::NotInProfile(
+                "a project template is renamed only once it is saved",
+            ));
+        };
+        let mut info: std::collections::HashMap<String, LoroValue> = [
+            (
+                "name",
+                LoroValue::from(name.map(str::trim).unwrap_or(&current.name)),
+            ),
+            (
+                "description",
+                LoroValue::from(description.unwrap_or(&current.description)),
+            ),
+            ("origin", LoroValue::from(current.origin.as_str())),
+            ("revision", LoroValue::from(current.revision)),
+            ("updated_at", LoroValue::from(updated_at.0)),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect();
+        if let Some(created_at) = current.created_at {
+            info.insert("created_at".into(), LoroValue::from(created_at.0));
         }
-        if let Some(d) = description {
-            info_map.insert("description", d)?;
-        }
-        info_map.insert("updated_at", updated_at.0)?;
+        self.write_record(info, value)
+    }
+
+    /// Writes `payload.record` as one value: the last record written wins
+    /// whole when two devices write at once.
+    fn write_record(
+        &mut self,
+        info: std::collections::HashMap<String, LoroValue>,
+        value: String,
+    ) -> Result<()> {
+        let record: std::collections::HashMap<String, LoroValue> = [
+            (
+                schema::project_template::RECORD_INFO.to_owned(),
+                LoroValue::from(info),
+            ),
+            (
+                schema::project_template::VALUE.to_owned(),
+                LoroValue::from(value),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        self.doc
+            .get_map(schema::project_template::PAYLOAD)
+            .insert(schema::project_template::RECORD, LoroValue::from(record))?;
         Ok(())
     }
 }

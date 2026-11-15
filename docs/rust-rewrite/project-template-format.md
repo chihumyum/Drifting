@@ -8,7 +8,7 @@
 
 ## 1. 总则与封闭结构
 
-项目模板是从项目当前状态提取出来的一份**无历史、无个人与设备标识、封闭结构**的纯数据值。书库里 `project-template:<id>` 的 `payload.value`、导出的 `.driftingtemplate` 文本文件、社区仓库里的模板文件，以及 `project.create` 接收的完整模板值，都是同一份结构，过同一个校验器。
+项目模板是从项目当前状态提取出来的一份**无历史、无个人与设备标识、封闭结构**的纯数据值。书库里 `project-template:<id>` 的 `payload.record` 里的 `value`、导出的 `.driftingtemplate` 文本文件、社区仓库里的模板文件，以及 `project.create` 接收的完整模板值，都是同一份结构，过同一个校验器。
 
 1. **结构封闭（与书目文档相反）**：书目文档遵循 `UNKNOWN-KEPT` 保留未知字段和未知枚举串；项目模板的所有结构体一律开启 `deny_unknown_fields`，所有枚举只接受本规格列出的已知取值。出现未知键、未知模块种类、未知字段类型、未知摆法或未知标记键一律拒收（`ProjectTemplateError::MalformedJson`）。
 2. **先验大小与版本头，再走封闭反序列化**：`parse_project_template_json` 按固定顺序检查：

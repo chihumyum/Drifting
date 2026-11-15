@@ -295,11 +295,11 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | 根容器 | 类型 | 内容 |
 | --- | --- | --- |
 | `meta` | LoroMap | 创世写 `v = 1`、`doc = "project-template:<模板 id>"`（创世版本 `1`，时间戳 `0`） |
-| `info` | LoroMap | `name`、`description`、`origin`（`"own"` 从自己的项目另存 ／ `"file"` 从模板文件导入）、`revision`（`>= 1`）、`created_at`、`updated_at`（毫秒） |
-| `payload` | LoroMap | 单个键 `value`，存 `drifting.project-template` 版本 `1` 的规范化 UTF-8 JSON 字符串（`to_canonical_json`） |
+| `info` | LoroMap | 2026-11-15 以前存的模板用：`name`、`description`、`origin`（`"own"` 从自己的项目另存 ／ `"file"` 从模板文件导入）、`revision`（`>= 1`）、`created_at`、`updated_at`（毫秒）。现在不再写，只在没有 `payload.record` 时读 |
+| `payload` | LoroMap | `record`：一整个值 `{info: {name, description, origin, revision, created_at?, updated_at?}, value: <规范化 JSON 字符串>}`，`value` 是 `drifting.project-template` 版本 `1` 的规范化 UTF-8 JSON（`to_canonical_json`）。2026-11-15 以前存的模板只有键 `value`（那份 JSON），读的时候没有 `record` 才读它 |
 
-- **整个换，不逐项合并**：`project_template.save` 校验通过后把整份规范化 JSON 写进 `payload.value` 这一个寄存器并同步更新 `info`；两台设备各自重存同一份模板时按 LWW 收敛到其中一整份，不会出现一半一半的模板。`project_template.update`（改名、改描述）只写 `info`，读取 `ProjectTemplateView::value` 时将 `info.{name, description, revision}` 叠回解析结果并复核校验器。
-- **导入校验**：`project_template::validate_import` 检查 `meta.v == 1`、`meta.doc` 与文档身份一致，且合并后的 `payload.value`（若存在）必须通过统一的封闭校验器 `parse_project_template_json`。
+- **整个换，不逐项合并**：`project_template.save` 校验通过后把名字、描述、来源、`revision`、时间和整份规范化 JSON 作为一个值写进 `payload.record` 这一个寄存器；`project_template.update`（改名、改描述）读出整份、改了再整份写回。两台设备同时重存或改名，按 LWW 收敛到其中一整份：名字、描述永远和它们一起存下的内容在一起。原来名字在 `info`、内容在 `payload.value`，两个寄存器各自 LWW，一边说明没改（写入没留下操作）时两边的操作数不同，就会出现「甲的名字、乙的内容」（2026-11-15 合并 PT1 后测出来，`dr-doc` 的 `concurrent_saves_keep_the_name_with_its_own_content` 复现并守住）。
+- **导入校验**：`project_template::validate_import` 检查 `meta.v == 1`、`meta.doc` 与文档身份一致，且合并后的模板内容（`payload.record` 里的 `value`，没有时读 `payload.value`）若存在必须通过统一的封闭校验器 `parse_project_template_json`。
 - **直接清除，不进回收站**：`project_template.remove` 直接调用 `purge_doc`，清除记录随书库同步传到其他设备。
 - **不干扰任何书**：没有编辑配置（`DocKind::profile()` 为空），不是书的正文（`is_book_text() == false`），发 `WsEvent::ProjectTemplate`，不计字数、不进搜索索引、不进成书导出与书文件、不进 Markdown 文件夹、不参加任何书的写入守卫。
 

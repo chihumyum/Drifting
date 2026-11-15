@@ -172,6 +172,116 @@ fn project_template_doc_lww_replaces_whole_payload_and_update_touches_only_info(
     assert_eq!(after_val.description, "新简介");
 }
 
+/// Two devices saving one template at once keep one whole record: the name,
+/// description and revision always come with the content they were saved
+/// with, whichever device wins, never one device's name over the other's
+/// content. Tried over many device-id pairs, since which one wins depends
+/// on them.
+#[test]
+fn concurrent_saves_keep_the_name_with_its_own_content() {
+    // One device keeps the description and the other changes it: a field
+    // written with the value it already has leaves no change behind, so the
+    // two saves write a different number of fields.
+    let info = |name: &str, description: &str, revision: i64, at: i64| ProjectTemplateInfo {
+        name: name.to_owned(),
+        description: description.to_owned(),
+        origin: StoredTemplateOrigin::Own,
+        revision,
+        created_at: Some(Timestamp(1_000)),
+        updated_at: Some(Timestamp(at)),
+    };
+    let full = novel_project_template_value();
+    for pair in 0..40u64 {
+        let id = ProjectTemplateDocId::new_v7();
+        // Which device has the larger id alternates.
+        let (low, high) = (1 + pair, 9_000 - pair);
+        let (peer_a, peer_b) = if pair % 2 == 0 {
+            (low, high)
+        } else {
+            (high, low)
+        };
+        let mut a = ProjectTemplateDoc::create(id.clone(), peer_a).unwrap();
+        let mut b = ProjectTemplateDoc::create(id.clone(), peer_b).unwrap();
+        let mut first = full.clone();
+        first.name = "起初".to_owned();
+        a.edit(Origin::User, |txn| {
+            txn.save(&info("起初", "原来的说明", 1, 1_000), &first)
+                .map_err(|_| DocError::NotInProfile("save"))
+        })
+        .0
+        .unwrap();
+        b.import(
+            &a.export_updates_since(&VersionVector::default()).unwrap(),
+            Origin::Sync,
+        )
+        .unwrap();
+        let before = a.version();
+
+        // A keeps only the manuscript; B keeps everything, under other names.
+        let mut short = full.clone();
+        short.name = "甲".to_owned();
+        short.entries.truncate(1);
+        short.project.tabs.retain(|t| match &t.mount {
+            TemplateTabMount::Root => true,
+            TemplateTabMount::Entry { entry } => entry == "e1",
+            _ => false,
+        });
+        for tpl in &mut short.templates {
+            if tpl.settings.home.is_some() {
+                tpl.settings.home = Some(Some("e1".to_owned()));
+            }
+        }
+        a.edit(Origin::User, |txn| {
+            txn.save(&info("甲", "原来的说明", 2, 2_000), &short)
+                .map_err(|_| DocError::NotInProfile("save a"))
+        })
+        .0
+        .unwrap();
+        let mut long = full.clone();
+        long.name = "乙".to_owned();
+        b.edit(Origin::User, |txn| {
+            txn.save(&info("乙", "乙的说明", 2, 2_500), &long)
+                .map_err(|_| DocError::NotInProfile("save b"))
+        })
+        .0
+        .unwrap();
+        let from_a = a.export_updates_since(&before).unwrap();
+        let from_b = b.export_updates_since(&before).unwrap();
+        a.import(&from_b, Origin::Sync).unwrap();
+        b.import(&from_a, Origin::Sync).unwrap();
+
+        let (got_a, got_b) = (a.view().value().unwrap(), b.view().value().unwrap());
+        assert_eq!(got_a, got_b, "pair {pair}: both devices agree");
+        let info_a = a.view().info().unwrap();
+        assert_eq!(
+            info_a.name, got_a.name,
+            "pair {pair}: the list shows the same name"
+        );
+        match got_a.name.as_str() {
+            "甲" => assert_eq!(
+                got_a.entries.len(),
+                1,
+                "pair {pair}: 甲 with its own content"
+            ),
+            "乙" => assert_eq!(
+                got_a.entries.len(),
+                full.entries.len(),
+                "pair {pair}: 乙 with its own content"
+            ),
+            other => panic!("pair {pair}: unexpected name {other}"),
+        }
+        let description = if got_a.name == "甲" {
+            "原来的说明"
+        } else {
+            "乙的说明"
+        };
+        assert_eq!(
+            got_a.description, description,
+            "pair {pair}: its own description"
+        );
+    }
+}
+
 #[test]
 fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
     let tpl_char_id = EntryTemplateId::parse("utpl-char").unwrap();
