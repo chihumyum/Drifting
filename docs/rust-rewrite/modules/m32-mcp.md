@@ -1,6 +1,8 @@
 # M32 MCP
 
 > 2026-11-15 内核 v5（T7）：入站 MCP 继续直接复用 `AgentTools` 生成的同一份目录，不另建工具表。基础目录同步更新为格式 5 的 **94** 项开放工具（新增 `project.*`、`tab.*`、`book.sequence`、`module.put_media`／`remove_media`／`set_arrangement`、`asset.*`、`asset_folder.*`、`layout.*`；`comment.update` Schema 移除 `priority`；`prose.link` Schema 允许 `asset` 目标），继续排除已退役的 `material.*`／`todo.*` 以及 `asset.purge`、`asset_folder.purge`、`comment.delete`、`comment.project`。开着书时附加的模板动作随格式 5 按 `accept` 判住进（`home`）并用 `adds_membership` 区分「住进」与「挂到」。`dr-mcp/tests/inbound.rs` 已补齐格式 5 入站目录与 Schema 一致性回归。
+>
+> 2026-11-16 内核 v5（PT4）：入站目录跟着 M29 多了 `project_template.list`、`get`、`save`，没有导入、导出、编辑模板（`edit`、`working_copies`）和改名、删除；服务说明（`get_info` 的 instructions）末尾加了通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`。回归：`dr-mcp/tests/inbound.rs` 的 `project_templates_reach_mcp_through_list_get_and_save_only`。
 
 交回状态：分支 `codex/m32-mcp`，实现提交 `0f3a1dc6`，本提交补记交回。入站、出站及设置验收已完成；全量检查中的书架超时与通过的串行复验见「验收」，真实客户端和 Windows 原生运行仍见「待协调」。
 
