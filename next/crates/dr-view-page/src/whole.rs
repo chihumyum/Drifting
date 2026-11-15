@@ -1,14 +1,15 @@
-//! V3 flattened book view (`Target::Book(from)`): every `in_book` body module
-//! reachable from a `level == true` entry, in flattened manuscript/membership order.
+//! V3 flattened book view (`Target::Book` / `Target::BookView` /
+//! `Target::BookLane`): every `in_book` body module in the unified
+//! [`dr_model::v3::BookRoot`] sequence (`kernel-v5.md` §3, §16).
 use dr_editor::BookEditor;
-use dr_model::id::EntryId;
+use dr_model::{id::EntryId, v3::BookRoot};
 use dr_shell::pages::{ModulePage, PageEditorRef, PageHost, PageViewHost};
 use gpui::{prelude::*, *};
 use std::rc::Rc;
 
 pub struct WholeBook {
     host: PageViewHost,
-    from: EntryId,
+    root: BookRoot,
     focus: FocusHandle,
     editor: Option<Entity<BookEditor>>,
     loading: Option<Task<()>>,
@@ -19,15 +20,14 @@ pub struct WholeBook {
 
 pub fn register(cx: &mut App) {
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
-        let dr_shell::nav::Target::Book(from) = target else {
+        let Some(root) = target.book_root() else {
             return None;
         };
         if host.book.v3().is_none() || !host.book.exists(target) {
             return None;
         }
-        let from = from.clone();
         let page = host.clone();
-        let view = cx.new(|cx| WholeBook::new(host, from, window, cx));
+        let view = cx.new(|cx| WholeBook::new_root(host, root, window, cx));
         dr_shell::v3::register_editor_status(
             &page,
             &view,
@@ -54,12 +54,21 @@ impl WholeBook {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::new_root(host, BookRoot::Entry { entry: from }, window, cx)
+    }
+
+    pub fn new_root(
+        host: PageViewHost,
+        root: BookRoot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let focus = cx.focus_handle();
         cx.on_focus(&focus, window, |v, window, cx| v.focus_editor(window, cx))
             .detach();
         let mut view = Self {
             host,
-            from,
+            root,
             focus,
             editor: None,
             loading: None,
@@ -87,11 +96,10 @@ impl WholeBook {
     fn load(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.failed = false;
         let host = self.host.clone();
-        let from = self.from.to_string();
-        let prepared =
-            cx.background_spawn(
-                async move { BookEditor::prepare(&host.library, &host.book_id, &from) },
-            );
+        let root = self.root.clone();
+        let prepared = cx.background_spawn(async move {
+            BookEditor::prepare_root(&host.library, &host.book_id, root)
+        });
         self.loading = Some(cx.spawn_in(window, async move |this, cx| {
             let ready = prepared.await;
             this.update_in(cx, |v, window, cx| {

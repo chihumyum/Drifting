@@ -644,10 +644,11 @@ fn right_header(
             // Read from the navigation model: what the stats follow.
             let key = match ws.nav.current() {
                 None => k::NONE,
-                Some(Target::Book(_)) => keys::v3_shell::BOOK_VIEW,
+                Some(t) if t.is_book() => keys::v3_shell::BOOK_VIEW,
 
                 Some(Target::Material(_)) => k::MATERIAL,
                 Some(Target::Entry { .. } | Target::Template(_)) => keys::v3_shell::ENTRIES,
+                Some(_) => keys::v3_shell::BOOK_VIEW,
             };
             row.child(meta(t(cx, key), &theme)).into_any_element()
         }
@@ -1123,7 +1124,8 @@ fn heading_row(
 fn v3_stats_scope(target: Option<&Target>) -> Option<dr_view_stats::v3::Scope> {
     use dr_view_stats::v3::Scope;
     match target {
-        None | Some(Target::Book(_)) => Some(Scope::Book),
+        None => Some(Scope::Book),
+        Some(t) if t.is_book() => Some(Scope::Book),
         Some(Target::Entry { id, module }) => Some(Scope::Entry {
             id: id.to_string(),
             module: module.as_ref().map(ToString::to_string),
@@ -1150,7 +1152,8 @@ fn v3_stats_target(scope: dr_view_stats::v3::Scope) -> Option<Target> {
 fn v3_review_scope(target: Option<&Target>) -> Option<Option<dr_view_review::v3::Target>> {
     use dr_view_review::v3::Target as ReviewTarget;
     Some(match target {
-        None | Some(Target::Book(_)) => None,
+        None => None,
+        Some(t) if t.is_book() => None,
         Some(Target::Entry { id, module }) => Some(ReviewTarget::Entry {
             id: id.to_string(),
             module: module.as_ref().map(ToString::to_string),

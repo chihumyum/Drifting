@@ -141,7 +141,7 @@ pub fn corner(
     // Every prose page has a ⋯ menu (its snapshot history at least); the
     // whole book's holds its share and export (M41).
     let doc_page = target.and_then(crate::book::doc_of).is_some();
-    if doc_page || matches!(target, Some(Target::Book(_))) {
+    if doc_page || target.is_some_and(Target::is_book) {
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -234,7 +234,7 @@ pub fn corner(
             };
             Some(more_menu(ws, target, &host, bounds, &theme, cx))
         }
-        (false, Some(Target::Book(_)), true, Some(bounds)) => Some(book_menu(ws, bounds, cx)),
+        (false, Some(t), true, Some(bounds)) if t.is_book() => Some(book_menu(ws, bounds, cx)),
         _ => None,
     };
 

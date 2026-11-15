@@ -124,16 +124,7 @@ pub fn prepare_body(
     crate::SessionSource::open_verified_v3(ws, doc)
 }
 
-/// Flattens `from` and everything below it for the book view
-/// (`kernel-v4.md` §7): `from`'s own book prose first, then depth-first in
-/// manuscript and membership order, keeping entries that carry no book prose
-/// so the view renders their headings and hierarchy.
-pub fn flatten_book(
-    view: &BookViewV3<'_>,
-    from: &dr_model::id::EntryId,
-) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
-    let structure = view.structure_snapshot();
-    let flat = structure.flatten(from, dr_doc::v3::Flatten { in_book_only: true })?;
+fn sections_from_flat(flat: Vec<dr_doc::v3::FlatEntry<'_>>) -> Vec<crate::book::BookSection> {
     let mut out = Vec::new();
     for e in flat {
         let entry = e.entry.id.to_string();
@@ -156,7 +147,37 @@ pub fn flatten_book(
             }
         }
     }
-    Ok(out)
+    out
+}
+
+/// Flattens a [`dr_model::v3::BookRoot`] (`Root`, `Entry`, `View`, or `Lane`)
+/// via the unified [`dr_doc::v3::BookStructureV3::sequence`] reader
+/// (`kernel-v5.md` §3, §16), keeping entries without `in_book` prose so the
+/// view renders their headings and hierarchy.
+pub fn flatten_book_root(
+    view: &BookViewV3<'_>,
+    root: &dr_model::v3::BookRoot,
+) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::InvalidBookRoot> {
+    let structure = view.structure_snapshot();
+    let flat = structure.sequence(root, true)?;
+    Ok(sections_from_flat(flat))
+}
+
+/// Flattens `from` and everything below it for the book view
+/// (`kernel-v4.md` §7): `from`'s own book prose first, then depth-first in
+/// manuscript and membership order, keeping entries that carry no book prose
+/// so the view renders their headings and hierarchy.
+pub fn flatten_book(
+    view: &BookViewV3<'_>,
+    from: &dr_model::id::EntryId,
+) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
+    flatten_book_root(
+        view,
+        &dr_model::v3::BookRoot::Entry {
+            entry: from.clone(),
+        },
+    )
+    .map_err(|_| dr_doc::v3::NotALevel(from.clone()))
 }
 
 /// Level entry configured as the project's book start (`project.book.root`), when applicable.

@@ -44,9 +44,9 @@ impl Workspace {
                             e.read(cx).book_id() == self.book_id
                                 && e.read(cx).doc_id() == format!("material:{id}")
                         }
-                        (Target::Book(from), PageView::Book(e)) => {
+                        (t, PageView::Book(e)) if t.book_root().is_some() => {
                             e.read(cx).book_id() == self.book_id
-                                && e.read(cx).from_entry() == from.as_str()
+                                && Some(e.read(cx).root()) == t.book_root().as_ref()
                         }
                         _ => false,
                     };
@@ -71,8 +71,8 @@ impl Workspace {
                 let binding = self.bind_mounted_editor(view.clone(), window, cx);
                 if new_instance
                     && let PageView::Book(editor) = view
-                    && let Target::Book(from) = &target
-                    && let Some(at) = self.book_positions.get(from.as_str())
+                    && let Some(pos_key) = target.book_position_key()
+                    && let Some(at) = self.book_positions.get(&pos_key)
                 {
                     editor.update(cx, |e, cx| e.restore(&at.into(), cx));
                 }
