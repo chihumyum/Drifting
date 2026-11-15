@@ -239,8 +239,8 @@ fn tiny(cx: &mut TestAppContext) -> (tempfile::TempDir, Library, String) {
 }
 
 /// The material page `id` (a media item, or a file only in the library).
-fn open_page<'a>(
-    cx: &'a mut TestAppContext,
+fn open_page(
+    cx: &mut TestAppContext,
     ws: &Library,
     book_id: &str,
     id: &str,
