@@ -757,3 +757,65 @@ fn every_preset_has_a_file_and_the_showcase_fills_its_asset_library() {
     );
     ws.close();
 }
+
+/// The showcase's asset library has folders (review item 5 of the DY
+/// hand-back): 「参考图」 holding 「东岸」, and 「废稿」 in Recently Deleted
+/// with the deleted file, which went there with it: restoring 「废稿」
+/// brings 「旧草图.png」 back.
+#[test]
+fn the_showcase_library_has_folders_and_its_deleted_folder_comes_back_with_its_file() {
+    use dr_workspace::Actor;
+    use serde_json::json;
+    let dir = tempfile::tempdir().unwrap();
+    let lib =
+        dr_store::Library::open(dir.path(), dr_workspace::library_options("seed-folders")).unwrap();
+    let showcase = dr_testkit::samples::showcase_v3(DEFAULT_SEED).unwrap();
+    seed::write_book_v3(&lib, &showcase[0]).unwrap();
+    seed::write_book_files_v3(&lib, &showcase[0]).unwrap();
+    let ws = dr_workspace::Workspace::open(lib, Default::default()).unwrap();
+    let out = |name: &str, input: serde_json::Value| {
+        ws.call(&Actor::User, name, input).unwrap()["output"].clone()
+    };
+    let book = showcase[0].book_id().to_string();
+    let folders = out("asset_folder.list", json!({"book": book, "trashed": true}));
+    let folders = folders.as_array().unwrap();
+    assert_eq!(folders.len(), 3, "{folders:?}");
+    let folder = |name: &str| folders.iter().find(|f| f["name"] == name).unwrap().clone();
+    let (refs, coast, scrap) = (folder("参考图"), folder("东岸"), folder("废稿"));
+    assert!(refs["parent"].is_null() && refs["deleted_at"].is_null());
+    assert_eq!(coast["parent"], refs["id"]);
+    assert!(coast["deleted_at"].is_null());
+    assert!(scrap["parent"].is_null());
+    assert!(scrap["deleted_at"].is_i64(), "in Recently Deleted");
+    let files = |ws_out: serde_json::Value| ws_out.as_array().unwrap().clone();
+    let all = files(out("asset.list", json!({"book": book, "trashed": true})));
+    let file = |name: &str| all.iter().find(|f| f["name"] == name).unwrap().clone();
+    assert_eq!(file("海边参考.png")["folder"], refs["id"]);
+    assert_eq!(file("东岸全图.png")["folder"], coast["id"]);
+    assert_eq!(file("旧草图.png")["folder"], scrap["id"]);
+    assert!(file("旧草图.png")["deleted_at"].is_i64());
+    for top in ["潮汐笔记.pdf", "钟楼平面.png"] {
+        assert!(file(top)["folder"].is_null(), "{top}");
+    }
+    out(
+        "asset_folder.restore",
+        json!({"book": book, "id": scrap["id"]}),
+    );
+    let live = files(out("asset.list", json!({"book": book})));
+    let back = live
+        .iter()
+        .find(|f| f["name"] == "旧草图.png")
+        .expect("the deleted file came back with its folder");
+    assert_eq!(back["folder"], scrap["id"]);
+    assert!(back["deleted_at"].is_null());
+    ws.close();
+}
+
+/// Every showcase book keeps the canonical invariants the synthetic presets
+/// keep.
+#[test]
+fn the_showcase_books_keep_the_v3_invariants() {
+    for book in &dr_testkit::samples::showcase_v3(DEFAULT_SEED).unwrap() {
+        check_v3_invariants(book);
+    }
+}
