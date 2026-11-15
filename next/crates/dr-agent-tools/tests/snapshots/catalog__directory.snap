@@ -20,7 +20,7 @@ comment.anchors [read] The stored anchors of the comments on one entity's prose,
 comment.create [write] Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating. Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.
 comment.list [read] List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo). Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.
-comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation.
+comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose.
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -103,7 +103,7 @@ comment.anchors shared 6037013e3822f940bf6e909320a500a43e849931fa263b3f288d524f5
 comment.create book 168f9a5cda769b7c1a8eb8e202d902f8e80e7c5489fabb0b1ce72759b0e7c119
 comment.list shared 25674570b1c65455880c21a29890f662eb1c3ccd4c80972f7cba826bf9a65512
 comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
-comment.update book 474ed66c58e3d60faee54a33b1528067bfb0f2393359fad348c32f3faf529cd7
+comment.update book 7e2bbcfc1056042113d24e2b6d4fd404d6ddf4ad4a65033e32e2882e3cf91992
 entry.create book 7a8d42c91ad7f0b6e13ebe4170beaa322e1ed51dca7594e3d891775ab8ce681d
 entry.get shared 5fa15156628ac4d9cfad9da5fa61c1b6914878cf0fe53e81972694ef97f97094
 entry.list shared d399a45cf1a6fef24d722f2d0fdfc2f0bb9802fa5aa9152ffc2aed3d89d6671d
