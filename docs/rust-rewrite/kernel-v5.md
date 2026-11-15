@@ -81,7 +81,8 @@
 
 - 项目定义里有没有「成书」，决定这个项目有没有「最后合成一本书」这回事。**一个项目只有一本书。**
 - **成书 = 整个项目里进成书的正文，从根照树读出来。** 没有起点，也没有选起点的地方。（作者 2026-11-15 夜里：「默认全部。用户如果需要导出「成书」，单独做导出逻辑，手动选导出什么。」）进不进成书只看正文模块上的 `in_book`（v4 已有），不看条目住在哪、用什么名字。数据里也不留起点（监管会话定，「替作者定的」）。
-- 全书字数和目标、章节编号、书架上的字数、挂成书的 Tab、导出时的「只导成书正文」都只看这一串。带着成书正文的条目从 1 起编号（沿用 v4）。条目自己有成书正文时，住在它下面的条目（不管隔几层）不再单独编号，位置、导出的内容和全书字数不变；自己没有成书正文的中间层不拦住下面的条目编号（作者 2026-11-13 定，2026-11-13 补记）。原来还有半句「成书的起点本身有正文（前言）时不拦住下面的章」，是实现时补的、待作者确认；起点去掉以后它跟着没有了。
+- 全书字数和目标、书架上的字数、挂成书的 Tab、导出时的「只导成书正文」都只看这一串。
+- **App 不给任何条目编号**（作者 2026-11-15 夜里：「所有正文APP都不编号。作者自己有需求自己编。」，第 15 节第 28 条）。页眉、悬停卡、挂成书的 Tab、帮手的结构说明都不出「第 N 章」和序号；导出里章节标题的编号归任务书 T3b。原来这里写的是带着成书正文的条目从 1 起编号、条目自己有成书正文时下面的不再单独编号（契约 `MANUSCRIPT-NUMBER-OUTERMOST-PROSE`），连同「起点本身有前言时不拦住下面的章」，都去掉了。
 - **没开成书的项目里没有字数这类东西**：全书字数和目标、每日目标、章节编号、统计面板和书架上的字数都不出现，写作日也不记（写作日记的就是成书的字数增量）。导出成稿照样有，只是没有「只导成书正文」那一行（2026-11-15 夜里改；原来写的是导出成书也不出现）。
 - **导出成稿不受成书限制**（作者 2026-11-15 夜里：「导出成稿，不收成书限制。像勾什么就勾什么，这里可以导出结构化的东西，不是面向出版的。给导出这里额外一个选项，直接导出所有成书entry的成书正文。这个才是面向出版的。」）。「范围」是整棵树，像左栏的「全部」，只有住处那棵树，想勾什么勾什么，导出勾了的条目的全部内容，层级照树（「自己勾时，导出全部内容。」）。树上面一行开关「只导成书正文」：开着时导出的就是这一串，面向出版。打开对话框时它开着（原型会话定的，「替作者定的」）。界面在任务书 T3b。
 - 成书正文里嵌的图片，导出时带上，连同图注；图的大小和对齐不带（2026-11-15 监管会话定，「替作者定的」）。
@@ -101,7 +102,7 @@
 - **一个用「章」模板的条目拖进构想那个文件夹，它还是章**，不自动换模板，也照旧在成书里，排在构想那个文件夹在树上的位置。
 - **根上几个文件夹的先后会影响成书。** 故事线排在放章的文件夹前面，就会先按故事线把章收进来，没挂到任何故事线的章排在后面。
 - **想让章的先后照一个视图排**，把放章的文件夹拖进那个视图（第 4 节）。不在任何视图里的条目照树上的手动先后。
-- **写书项目的成书只有章。** 写书模板里构想、要素的正文原来照 v4 算「进成书」，只为保住稿纸的页头（「替作者定的」DX 那一组）；一律从根读以后它们会进全书字数、编号和导出，所以改成不进成书，页头改成不跟着「进成书」走（写任务书时补的，监管会话确认；任务书 DW）。
+- **写书项目的成书只有章。** 写书模板里构想、要素的正文原来照 v4 算「进成书」，只为保住稿纸的页头（「替作者定的」DX 那一组）；一律从根读以后它们会进全书字数和导出，所以改成不进成书，页头改成不跟着「进成书」走（写任务书时补的，作者 2026-11-15 夜里答「甲」；任务书 DW）。页头现在给内容条目（模板 `linkable`、有字段模块）的第一篇正文：章、构想、要素照旧有，故事线这种只有「说明」的、只有一篇正文的笔记照旧没有（`dr_editor::v3::carries_page_head`，DW 定的认法，「替作者定的」）。整书视图也照这个认：每个条目给出进成书的正文和带页头的那一篇，构想和要素在整书视图里照旧看得到。
 
 ### 去掉的
 
@@ -313,6 +314,7 @@
 | --- | --- |
 | 成书的层级不嵌套、只认最外层（`V3-MANUSCRIPT-NO-NEST`） | **删** |
 | 成书序列：条目自己的成书正文在它下面的条目之前（`MANUSCRIPT-OWN-PROSE-FIRST`） | **改**：成书从根读，所以总是成立（2026-11-15 夜里；原来只对文件夹和根这种起点成立） |
+| 章节编号：条目自己有成书正文时，下面的条目不再单独编号（`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`） | **删**（2026-11-15 夜里，DW）：App 不再给任何条目编号（作者：「所有正文APP都不编号。作者自己有需求自己编。」） |
 | 带归属的摊平每个条目只出现一次、成书序列不带归属（`FLATTEN-MEMBERS-ONCE`） | **改**：成书序列也带归属，和整书视图是同一个读法 |
 | 成书的起点是根，或一个活着的、开着层级或「收别处的条目」的条目，或一个没删的视图，或这个视图里的一条有效泳道（`BOOK-ROOT-VALID`） | 原来是**加**。2026-11-15 夜里**删**：成书没有起点了（第 15 节第 27 条，任务书 DW） |
 | 视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置 | **加**。命令层：进到泳道里时落在末尾；读取时没有位置的排在最后 |
@@ -329,6 +331,7 @@
 | 素材夹进最近删除时，里面的文件和素材夹一起进，恢复时一起回来 | **加**（2026-11-15）。命令层：同一次提交，一步撤销；用到这些文件的地方照上面读作占位 |
 | 每个清单项有且只有一条批注，勾和批注的状态一致 | **加**（2026-11-15）。投影时维护：那一行在批注就在，改了字跟着改，删了跟着删（解没解决都删）；对清单来的批注解决、重开，写的是正文里那一项的勾 |
 | 画布坐标不写书目文档 | **加**，照 `SIDE-DOC-QUIET` |
+| 编辑模板的工作区只在这台设备上：不进项目列表、不记写作日、文档文件和清除记录都不同步；它的每一次写入都照另存覆盖它在编辑的那份模板，模板自己的来历照原来的（`WORKING-COPY-LOCAL`） | **加**（2026-11-15 夜里，DW）。书库的本机表 `local_book` 在写第一篇文档前打标记；同步的几张单子和项目列表都不列它；工作区的保存器听书库事件，合并写入以后覆盖模板 |
 | 素材相关的各条 | **删**，由上面几条和条目自己的不变量接住 |
 | 归属到的层级活着、开关开着、解析后收别处的条目（`V3-MEMBERSHIP-RULES`） | **改**（第 16 节）：被挂的条目活着、开着「收别处的条目」，只看它自己和它的模板；不看层级开关 |
 | 视图里的泳道是开关开着、`lane` 为真的条目（`V3-TIMELINE-LANE-ENABLED`） | **改**（第 16 节）：活着、开着「层级」或「收别处的条目」的条目 |
@@ -360,7 +363,7 @@
 | `asset.rename`、`asset.trash`、`asset.restore`、`asset.purge`、`asset.list` | **新增**（2026-11-14）。素材库：改名、删除进最近删除、恢复、清除；列出全部文件和每个被用在哪（媒体模块、正文嵌入、正文链接、关系）。名字由数据层定 |
 | 素材夹的建、改名、挪、删、恢复、清除；文件换素材夹、调先后 | **新增**（2026-11-15）。删素材夹时里面的文件和素材夹一起进最近删除；清除时里面的一起清除、删字节。名字由数据层定 |
 | `comment.*` | 没有 `kind`，没有优先级参数；`module` 可以是任何模块；多一个 `part`；`todo.project` 并成投批注，清单项也在这里投，名字沿用数据层第三步定下的；对清单来的批注解决、重开，改的是正文里那一项的勾 |
-| `book.sequence`（名字待定） | 一个读取接口给出成书序列和编号，导出、字数、编号、书架、整书视图都用它 |
+| `book.sequence`（名字待定） | 一个读取接口给出成书序列，导出、字数、书架、整书视图都用它（DW 起从根读、不带编号，第 18 节） |
 | `material.*`、`material_folder.*` | **删**，门禁列进退役命令 |
 
 帮手工具和 MCP 的目录跟着命令表重新生成。帮手的结构说明加上项目定义（帮手说明、成书开没开、Tab；2026-11-15 夜里起没有成书起点），版本号改成书目版本常量（现在还写死成 3）。
@@ -449,6 +452,10 @@
     - **另存为项目模板**是一个大对话框，勾子条目带上上面几层，写给 Agent 能改、只进模板；覆盖不问、留原来的名字和描述。**我的模板**一条一条排在「全部项目」的左栏里。**编辑模板**是一个单独的工作区，在里面用平常的界面改，保存直接覆盖。**导出模板**不出对话框，署名用账号名，不要主页。**新建项目**只挑模板、不起名字，右边摆着模板里有什么，建好叫「未命名」、打开作品主页、标题选中。形状在 [project-templates.md](project-templates.md) 第 6、7、8、12 节和任务书 PT2、PT3。
     - **推翻的**：第 1 条（写书模板的默认起点）；第 3 节原来的四种起点、它们的读法和「起点不在了」；第 25 条从「还没定」变成定了；任务书「作者已经定下的」第 2、11 条和第 12 条里「导出成书不出现」那一半；T2 原来要做的起点选框、提示和对应的回归测试；project-templates.md 第 6 节「导出时填署名和主页、列出带走的东西」、第 12 节「模板的内容不在这几处改」；模板格式里的 `book.root` 和 `credit.homepage`。
     - 作者说「你定」「自己定」的三处和原型会话照常理画的一处，原型会话定了，作者没逐条确认，记在「替作者定的」。同一轮消息里还问了「导出成稿交给导出那一路照这个改吗」，作者没单独答；原型会话按「都迁」含导出处理，回复里告诉了作者。
+
+2026-11-15 夜里，DW 做的时候作者追问的答复（监管会话转来，任务书还没跟上；DW 照这几条做了）：
+
+28. **写书模板里构想、要素的正文不进成书，页头不看进不进成书**（「甲」）；**App 不再给任何条目编号**（「所有正文APP都不编号。作者自己有需求自己编。」）；**编辑模板的工作区随改随存**（「移除手动保存的按钮，改了什么就自动保存。和之前的其他关系改动一样处理」）：工作区里每一步写入以后照另存覆盖它在编辑的那一份模板，撤销照普通改动来、模板跟着回去；**工作区没有「放弃」，顶上也没有那一条提示**，看上去和普通项目一样，点红灯回到「全部项目」；**「改自」整个去掉**：模板格式里没有 `derivedFrom`，另存时不自动填，`credit` 只剩 `author`，取导出的人的账号显示名。留下的工作区怎么复用或清掉交给 DW 定（「替作者定的」最后一组）。推翻第 27 条里「保存直接覆盖」「没存就走先问一句」「放弃」几处和 project-templates.md 第 12 节相应的写法。
 
 **还没定：**
 
@@ -755,6 +762,15 @@
 - **模板格式去掉 `credit.homepage`，`credit.author` 导出时取账号名，没登录就没有署名。** 格式还没发布，直接改，不留兼容；`formatVersion` 仍是 1。
 - 写任务书时补的，等监管会话确认：**写书模板里构想、要素的正文改成不进成书，稿纸的页头不再跟着「进成书」走。** 一律从根读以后，这两种的正文照原来的值会进全书字数、编号和导出（见上面 DX 那一组第二条）。
 
+DW 做数据层时监管会话定的（2026-11-15 夜里，作者的答复见第 15 节第 28 条）：
+
+- **编辑模板的工作区记在书库的本机表里，不记在书目文档里。** 书库的 `local_book`（`dr-store` 迁移 `0008`）在写第一篇文档之前给这本书打上「只在这台设备上」的标记，同步读的单子都不列它（文档、文件字节、清除记录），一行留着不删；工作区在 `note` 里记它在编辑哪一份模板、上次和模板一致时的修订号和内容摘要。书目文档里的字段不行：`project.create` 最后才写书目文档，正文先写，同步得在那之前就知道。
+- **随改随存怎么存。** 工作区的保存器听书库事件：书目文档、正文、模板正文这三种文档有写入提交，就记下这个工作区，等 250 毫秒把接着来的写入合并，再照另存从它提取（活着的条目全当示例带上、时间钉都带、名字和描述取书名和简介、写给 Agent 取项目定义、`credit`、来源和语言照那一份原来的），内容和模板一样就不写，不一样就覆盖、`revision` 加一。关工作区（`Workspace::close`）和退出前（`before_quit`）把还在等的存掉。
+- **留下的工作区怎么办。** 再编辑同一份模板时：它和模板一样，或者模板从它上次存过以后没动过（App 存之前就停了），就把它最后的改动存进模板、接着用它；模板在别处动过（别的设备、从别的项目覆盖），而它没有自己的改动，就清掉它、照模板新建一个；两边都动过，它留着（`project_template.working_copies` 列得出来），另建一个新的。不会丢改动。
+- **页头给内容条目的第一篇正文。** 模板是内容（`linkable`）、有字段模块的，第一篇正文有页头；没有模板的条目照旧有。这样章、构想、要素照旧有页头，故事线、文件夹的「说明」和只有一篇正文的笔记照旧没有，和改之前一样，只是不再看「进成书」。整书视图给出进成书的正文和带页头的那一篇。
+- **书架上的「章」数**数成书序列里带成书正文的条目，和外壳的成书列表、统计、封面数的是同一串（原来数的是有编号的条目，编号去掉以后不再把住在带成书正文的条目下面的那些除外）。
+- **`book.sequence` 不再收 `root` 和 `in_book_only`**，总是给成书序列；整书视图另用 `BookStructureV3::sequence(&FlattenFrom, ..)`。
+
 ## 和输入不一样的地方
 
 - **归属自己的顺序没有整个删掉。** 作者说让视图里的轨道顺序作为泳道唯一的顺序。泳道照做了；但一个收别处条目、不在任何视图里的文件夹（要素的分类）仍然要给挂名进来的条目排先后，所以归属上的 `pos` 留着给它用。
@@ -847,7 +863,20 @@
 
 D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-comments`）做完数据层第八步（文件、批注两组原型定下的数据改动）和十八条修补后，在各处补上第八步的接口和缺口（标「第八步」）。格式 5 的数据层（`dr-model`、`dr-doc`、`dr-store`、`dr-index`、`dr-workspace`、`dr-testkit`）以及保证种子、样书、0.1 导入映射正确的 `dr-import-v1`、`dr-samples` 到此定下；界面、帮手、导出、书文件只做了「能编译、测试能过」的最小桥接改动。下面先列定下来的接口名字，再按 [handoff/v5-tracks.md](handoff/v5-tracks.md) 的 T1–T8 逐处列出最小改动与待完成的缺口。
 
-**2026-11-15 夜里**：成书去掉了起点（第 15 节第 27 条）。下面凡是 `BookRoot`、`check_book_root`、`is_valid_book_root`、`book_root_valid`、`project.update` 的 `root`、`project.book.root`、「设为成书起点」、「成书起点那个视图」的，任务书 DW 一步都去掉；整书视图的出发点另起一个类型，名字以 DW 交回时为准。原文留着，各处标「DW 去掉」。
+**2026-11-15 夜里**：成书去掉了起点（第 15 节第 27 条）。下面凡是 `BookRoot`、`check_book_root`、`is_valid_book_root`、`book_root_valid`、`project.update` 的 `root`、`project.book.root`、「设为成书起点」、「成书起点那个视图」的，任务书 DW 一步都去掉了；编号（`ordinal`、`manuscript_number`、`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`）和模板格式的 `credit.homepage`、`credit.derivedFrom` 也去掉了（第 15 节第 28 条）。原文留着，各处标「DW 去掉」；现在的名字见下面「DW 交回」。
+
+### DW 交回：从根读、不编号、模板格式、编辑模板的工作区（2026-11-15 夜里）
+
+- **项目定义**：`dr_model::v3::ProjectBook { word_target_set, daily_word_target_set }`（`Default`；没有 `root`，书里旧的 `book.root` 读的时候不管、不改写）。`project.get` 的 `types::Project`：`book: Option<ProjectBook { word_target, daily_word_target, word_target_set, daily_word_target_set }>`，没有 `book_root_valid`；多一个 `editing_template: Option<String>`（这本书是哪份模板的工作区；外壳的 `BookV3::project` 用 `types::Project::of` 建，要它时加 `.with_editing_template(ws.working_copy_template(book)?)`）。`project.update { name?, summary?, agent?, has_book?, word_target?, daily_word_target? }`：`has_book: true` 从关到开不用别的参数；旧调用方还传的 `root` 不认、忽略。条目历史的项目键只认 `source`、`agent`、`book`、`book/word_target`、`book/daily_word_target`、`tabs/<id>`。
+- **成书序列**：`BookStructureV3::book_sequence() -> Vec<FlatEntry>`（开着成书时 `sequence(&FlattenFrom::Root, true)`，否则空）、`book_entries()`、`book_docs()`；`FlatEntry { entry, depth, prose }` 没有 `ordinal`，`BookStructureV3::ordinal` 去掉。`book.sequence { book } -> { has_book, entries: [{ entry, depth, prose }] }`（不再收 `root`、`in_book_only`，不再给 `root`、`root_valid`、`ordinal`）。外壳 `BookV3::manuscript_number` 去掉，`BookV3::manuscript`、`book_entries()` 照旧。`book.shelf` 的 `chapters` 数带成书正文的条目。
+- **整书视图的出发点**：`dr_model::v3::FlattenFrom { Root, Entry { entry }, View { view }, Lane { view, entry } }`（`serde` 的 `kind` 标签照旧是 `root`／`entry`／`view`／`lane`）；`dr_model::v3::is_valid_flatten_from(from, entries, templates, views)`、`BookStructureV3::is_valid_flatten_from`；`BookStructureV3::sequence(&FlattenFrom, in_book_only) -> Result<_, InvalidFlattenFrom>`、`flatten(&EntryId, Flatten)`。`dr-shell` 的 `Target::flatten_from()`（原 `book_root()`）；`dr-editor` 的 `v3::flatten_from(view, &FlattenFrom)`（原 `flatten_book_root`，给出进成书的正文和带页头的那一篇）、`v3::carries_page_head(template, module)`、`book::flatten_position_key(&FlattenFrom)`（原 `book_root_position_key`，给出的键不变：`root`、条目 id、`view:<id>`、`lane:<视图>/<条目>`）；`BookEditor::{open_root, prepare_root, root()}`、`dr_view_page::WholeBook::new_root` 名字不变，收 `FlattenFrom`。`dr-editor` 的 `manuscript_roots` 去掉。
+- **文件夹在视图里的先后**：`BookStructureV3::lane_reference_view`、`children_of`、`lane_members_order`、外壳 `BookV3::ordering_view` 都只看它所在的第一个视图（视图按 `(pos, id)` 排）。
+- **页头**：`dr-editor` 的 `PageInfo` 没有 `number`；`PageKind::Chapter` 是成书里的条目带页头的那一篇正文，其余 `Other`；页眉的第一项一律是模板名（`folio_label` 不再出「第 N 章」）。
+- **模板格式**（`dr_model::project_template`）：`TemplateProjectBook { word_target?, daily_word_target? }`（`deny_unknown_fields`，带 `root` 拒收），`TemplateBookRoot` 去掉；`ProjectTemplateCredit { author }`（带 `homepage`、`derivedFrom` 拒收），`ProjectTemplateDerivedFrom` 去掉；`formatVersion` 仍是 `1`。从项目提取时不再强制带上「被成书起点指着的」条目，也不再从 `project.source` 自动填任何署名。`project.source.credit` 读写也只剩 `author`。
+- **`project_template.save`**（只加不改）：`name` 变成可选（新建时必须有；`replace` 时不给就留原来的名字）、`description` 可选（`replace` 时不给就留原来的）；多收 `agent`（不给：用项目的；`null`：模板里没有；给了：用它，只进模板，项目不变）。`book` 是工作区时就是工作区的保存：只能存回它编辑的那一份（别的 `replace` 拒收），不收 `exclude_skeleton`、`sample_entries`、`view_pins`、`credit`；内容和模板一样就不写。函数 `commands::v3::project_template::{save_working_copy, content_digest}` 给工作区的保存器用。
+- **编辑模板的工作区**：`project_template.edit { id } -> WorkingCopy { book, template, name, created_at }`（`Write`、`Library`；和 `project.create` 是同一条路 `novel_book::create_book`，名字和简介是模板的名字和描述；留下的工作区照「替作者定的」最后一组复用或清掉）、`project_template.working_copies {} -> [WorkingCopy]`（还留在这台设备上的，最早的在前）。`Workspace::{is_working_copy, working_copy_template, working_copy_books, flush_working_copies}`。工作区随改随存（`dr_workspace::working_copy::Saver`，合并 250 毫秒），`Workspace::close`、`before_quit` 存掉还在等的。没有放弃的命令（作者：工作区没有「放弃」）。帮手和 MCP 的目录里没有这两条（书库一级、不带当前书）。
+- **书库**：`dr_store::Library::{keep_local, local_book, local_books, set_local_note, is_local_doc, syncable_docs}`、`dr_store::LocalBook { book_id, note, created_ms }`；`docs_with_local_changes`、`export_for_upload`、`purged_docs`、`assets_pending_upload` 不列只在本机的书；`dr-sync` 改用 `syncable_docs`。迁移 `0008_local_book`（`xtask` 的迁移清单加了一行，未发布）。
+- **契约**：删 `BOOK-ROOT-VALID`、`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`，加 `WORKING-COPY-LOCAL`，改 `MANUSCRIPT-OWN-PROSE-FIRST`、`FLATTEN-MEMBERS-ONCE`、`VIEW-FOLDER-ORDER-FROM-SCALE` 的说明；共 94 条。
 
 ### 最终的接口名字
 
@@ -866,7 +895,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
   - `CommentV3` 无 `kind`、无优先级（第八步去掉 `priority` 和 `CommentPriority` 的写入与读取）；`origin: CommentOrigin`（`Manual | Marker | Task | Agent | Reader | Other`）；`target: Option<EntityRef>`（`EntityKind::Entry` 或 `EntityKind::Asset`），`target_module: Option<ModuleId>`（任意模块），`part: Option<CommentPart>`（`Field { field: FieldId }`、`KvRow`、`PlotCell`、`Patch`、`Media { asset: AssetId, region }`（第八步起按文件指，原来的 `item` 去掉）、`Embed`、`Region { region }`），`target_missing: bool`；
   - `Asset` 含 `id`、`kind`、`mime`、`size`、`sha256`、`width`、`height`、`name`、`created_at`、`folder: Option<AssetFolderId>`、`pos: Option<PosKey>`、`deleted_at`、`trashed_with: Option<AssetFolderId>`（第八步：`folder` 从「原素材夹路径」改成素材夹 id，加 `pos`、`trashed_with`）及 `is_trashed()`；`AssetFolder { id: AssetFolderId, name, parent, pos, deleted_at, trashed_with }`、`sort_asset_folders`；`EntityKind::Asset`（`"asset"`）可用于批注目标、关系端点和正文链接；
   - 第八步的媒体与嵌入类型：`MediaArrangement`（`Featured`（默认）| `Grid` | `List`）、`ModuleConfig.arrangement`、`Entry.arrangements: BTreeMap<ModuleId, MediaArrangement>` 与 `Entry::media_arrangement(module, templates)`（条目自己的盖过模板的）；`EmbedSize`（`Small` | `Medium`（默认）| `Full`）、`EmbedAlign`（`Left` | `Center`（默认）| `Right`）；谓词 `check_media_asset_once(items, item)`（`MEDIA-ASSET-ONCE`）、`check_asset_folder_parent(parents, folder, parent)`（`ASSET-FOLDER-TREE`）；
-  - 活动契约共 95 条（`ACTIVE_CONTRACTS`；DZ 加 `TAB-MOUNT-ONCE`、`TAB-ROOT-ALWAYS`，`LAYOUT-DOC-QUIET` 带上停在哪个 Tab；含 `ASSET-LIBRARY-KEEPS-UNREFERENCED`，第八步加 `FILE-REFS-LIVE`、`MEDIA-ASSET-ONCE`、`ASSET-BYTES-UNIQUE`、`ASSET-FOLDER-TREE`、`ASSET-FOLDER-TRASH`、`TASK-COMMENT-ONE`，改 `CMT-ENUMS`（没有优先级）和 `TODO-SINGLE-TRUTH` 的做法说明）。
+  - 活动契约共 95 条（DW 以后 94 条，见上面「DW 交回」）（`ACTIVE_CONTRACTS`；DZ 加 `TAB-MOUNT-ONCE`、`TAB-ROOT-ALWAYS`，`LAYOUT-DOC-QUIET` 带上停在哪个 Tab；含 `ASSET-LIBRARY-KEEPS-UNREFERENCED`，第八步加 `FILE-REFS-LIVE`、`MEDIA-ASSET-ONCE`、`ASSET-BYTES-UNIQUE`、`ASSET-FOLDER-TREE`、`ASSET-FOLDER-TRASH`、`TASK-COMMENT-ONE`，改 `CMT-ENUMS`（没有优先级）和 `TODO-SINGLE-TRUTH` 的做法说明）。
 
 **`dr_doc`（文档读写）**
 
