@@ -24,6 +24,14 @@ fn comments(slot: &BookSlot) -> Vec<Comment> {
     slot.reader_v3.view().comments()
 }
 
+/// Whether `comment` was projected from a checklist item.
+fn is_checklist(comment: &Comment) -> bool {
+    comment
+        .projection
+        .as_ref()
+        .is_some_and(|p| p.kind == ProjectionKind::NoteTask)
+}
+
 /// Tick (`checked`) or clear the checklist item `block` that `comment` was
 /// projected from, and give the metadata the comment keeps: the prose version
 /// with the new tick, so another device follows only once it has that prose.
@@ -564,13 +572,22 @@ op! {
 
 op! {
     CommentUpdate = "comment.update", Write, Book,
-    "Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation.",
+    "Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose.",
     fn(cx, input: CommentUpdateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let old = comments(&slot).iter().find(|c| c.id.as_str() == input.id).cloned()
             .ok_or_else(|| WsError::not_found("comment", &input.id))?;
         let status = input.status.as_deref().map(CommentStatus::parse);
         if let Some(s) = &status && !s.is_known() { return Err(WsError::invalid(format!("unknown status {:?}", s.as_str()))); }
+        // A checklist item's comment is the line's shadow (`kernel-v5.md` §7,
+        // the author 2026-11-15): its words are read from the line, so other
+        // words are refused here instead of being overwritten by the next
+        // projection.
+        if is_checklist(&old) && input.body.as_ref().is_some_and(|b| b != &old.body) {
+            return Err(WsError::invalid(
+                "a checklist item's comment follows its line: change the line in the prose",
+            ));
+        }
         // A checklist item's comment is the line's shadow: resolving it ticks
         // the item in the prose and reopening clears the tick, one ordinary
         // prose change before the comment follows (`kernel-v5.md` §7).
@@ -609,11 +626,19 @@ op! {
 
 op! {
     CommentDelete = "comment.delete", Write, Book,
-    "Delete a comment (its relations go with it).",
+    "Delete a comment (its relations go with it). A checklist item's comment is not deleted here: it goes when its line is deleted in the prose.",
     fn(cx, input: EntityIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: CommentId = pid("comment", &input.id)?;
-        if !comments(&slot).iter().any(|c| c.id == id) { return Err(WsError::not_found("comment", &input.id)); }
+        let Some(old) = comments(&slot).into_iter().find(|c| c.id == id) else {
+            return Err(WsError::not_found("comment", &input.id));
+        };
+        // The next projection would make it again from its line.
+        if is_checklist(&old) {
+            return Err(WsError::invalid(
+                "a checklist item's comment goes with its line: delete the line in the prose",
+            ));
+        }
         let target = dr_model::shared::EntityRef::new(EntityKind::Comment, input.id.clone());
         let (rels, _) = purge_fallout(&slot, &target);
         let mut touched: Vec<(String, String)> = vec![("comments".into(), input.id.clone())];
