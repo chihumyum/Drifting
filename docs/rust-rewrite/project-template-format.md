@@ -1,0 +1,209 @@
+# 项目模板格式规格（`drifting.project-template` 版本 1）
+
+2026-11-15 由 PT1（[handoff/v5-tracks.md](handoff/v5-tracks.md)「PT1 项目模板的数据」）随书目格式 5（[kernel-v5.md](kernel-v5.md)）定稿。设计背景、产品边界与两期分工见 [project-templates.md](project-templates.md)；本页是模板值（`ProjectTemplateValue`）与唯一校验器（`dr_model::project_template`）逐字段的正式规格。
+
+- 类型与唯一校验器：`next/crates/dr-model/src/project_template/`（`ProjectTemplateValue`、`parse_project_template_json`、`validate_project_template_value`、`to_canonical_json`）。
+- 书库模板文档、从项目提取与展开建书：`next/crates/dr-doc/src/project_template.rs`。
+- 工作区命令与统一 `project.create`：`next/crates/dr-workspace/src/commands/v3/project_template.rs`、`novel_book.rs`。
+
+## 1. 总则与封闭结构
+
+项目模板是从项目当前状态提取出来的一份**无历史、无个人与设备标识、封闭结构**的纯数据值。书库里 `project-template:<id>` 的 `payload.value`、导出的 `.driftingtemplate` 文本文件、社区仓库里的模板文件，以及 `project.create` 接收的完整模板值，都是同一份结构，过同一个校验器。
+
+1. **结构封闭（与书目文档相反）**：书目文档遵循 `UNKNOWN-KEPT` 保留未知字段和未知枚举串；项目模板的所有结构体一律开启 `deny_unknown_fields`，所有枚举只接受本规格列出的已知取值。出现未知键、未知模块种类、未知字段类型、未知摆法或未知标记键一律拒收（`ProjectTemplateError::MalformedJson`）。
+2. **先验大小与版本头，再走封闭反序列化**：`parse_project_template_json` 按固定顺序检查：
+   - UTF-8 字节长度超过上限先报 `TooLarge`；
+   - 先读 `(format, formatVersion)` 头：`format` 不是 `"drifting.project-template"` 报 `InvalidFormat`；`formatVersion > 1` 报 `UnsupportedFormatVersion { found, supported: 1 }`（即使未来版本新增了本版不认识的字段，旧客户端也稳定给出「模板格式版本更新」而不是「未知字段」）；`formatVersion <= 0` 报 `InvalidFormatVersion`；
+   - 再做封闭结构反序列化与完整语义校验 `validate_project_template_value`。
+3. **规范化序列化（`to_canonical_json`）**：UTF-8 编码、2 空格缩进、末尾单个 `\n`；对象键按结构体声明顺序与 `BTreeMap` 字典序固定排列，默认空值按本规格省略，同一份模板值重复导出逐字节相同。
+4. **硬上限**：
+
+| 上限项 | 常量 | 数值 | 说明 |
+| --- | --- | --- | --- |
+| 序列化体积 | `MAX_PROJECT_TEMPLATE_BYTES` | `2,097,152`（2 MiB） | 原始输入字节数与规范化写出字节数均不得超过 |
+| 条目模板数 | `MAX_PROJECT_TEMPLATE_TEMPLATES` | `200` | `templates` 数组长度上限 |
+| 起始／示例条目数 | `MAX_PROJECT_TEMPLATE_ENTRIES` | `2,000` | `entries` 数组长度上限 |
+| 帮手说明总字数 | `MAX_PROJECT_TEMPLATE_AGENT_CHARS` | `100,000` | 按 Unicode 标量计，累计 `project.agent.{name, description, instructions}`、`templates[].agent.{name, description, instructions}`、`templates[].modules[].agent.instructions`、`templates[].verbs[].{name, description}` |
+
+## 2. 代号与标识符规则
+
+- **条目代号（`e1`、`e2`、…）**：以小写 `e` 开头，后接 1–6 位十进制数字且首位不为 `0`（`is_symbolic_entry_ref`）。在 `entries[].ref` 中唯一；真实 UUID、书 id、文件 id 均不合法。
+- **视图代号（`v1`、`v2`、…）**：以小写 `v` 开头，后接 1–6 位十进制数字且首位不为 `0`（`is_symbolic_view_ref`）。在 `views[].ref` 中唯一。
+- **项目内标识符（原样保留）**：条目模板 `id`（如 `tpl-chapter`）、模块 `id`（如 `mod-prose`）、字段 `id`、动作 `id` 沿用项目内部名字，须满足 `check_id`（非空、不超过 256 字节、不含控制字符；条目模板 `id` 与模块 `id` 还不得含 `/` 或 `|`）。新建项目时不改写这些内部标识符。
+- **顺序由数组先后决定**：`project.tabs`、`templates[].modules`、`templates[].modules[].config.defs`、`initial_kv`、`templates[].verbs`、`entries`（先序遍历，同一 `parent` 下的先后即兄弟手动顺序）、`memberships`（同一 `host` 下的成员先后）、`views`、`views[].lanes` 均不存分数索引 `pos`；展开建书时按数组顺序重新生成 `PosKey`。
+
+## 3. 顶层对象（`ProjectTemplateValue`）
+
+| 字段 | JSON 键 | 类型 | 必填／默认 | 校验规则 |
+| --- | --- | --- | --- | --- |
+| `format` | `format` | `string` | 必填 | 固定为 `"drifting.project-template"` |
+| `format_version` | `formatVersion` | `i64` | 必填 | 当前固定为 `1` |
+| `made_with` | `madeWith` | `string` | 默认 `""` | 单行文本，不含控制字符（生成端记录客户端版本，可空） |
+| `name` | `name` | `string` | 必填 | 去首尾空白后非空，不含控制字符 |
+| `description` | `description` | `string` | 默认 `""` | 可多行（允许 `\n`、`\r`、`\t`，禁其余控制字符） |
+| `locale` | `locale` | `string` | 默认 `""` | 单行语言标签（如 `"zh-Hans"`），不含控制字符 |
+| `revision` | `revision` | `i64` | 必填 | `>= 1`；替换已有模板重存时递增 |
+| `credit` | `credit` | `ProjectTemplateCredit?` | 可选，空时省略 | 见下表 |
+| `project` | `project` | `TemplateProject` | 必填 | 项目定义（不含 `source`），见第 4 节 |
+| `templates` | `templates` | `TemplateEntryTemplate[]` | 默认 `[]` | 条目模板列表，`id` 不重复，最多 200 项，见第 5 节 |
+| `relation_types` | `relation_types` | `TemplateRelationType[]` | 默认 `[]` | 作者自建关系类型（不含系统内置通用关联），见第 6 节 |
+| `entries` | `entries` | `TemplateEntry[]` | 默认 `[]` | 骨架与示例条目，最多 2,000 项，见第 7 节 |
+| `memberships` | `memberships` | `TemplateMembership[]` | 默认 `[]` | 挂名归属与主归属，见第 8 节 |
+| `views` | `views` | `TemplateView[]` | 默认 `[]` | 视图、泳道、刻度位置与时间钉，见第 9 节 |
+| `template_prose` | `template_prose` | `Map<string, TemplateParagraph[]>` | 默认 `{}` | 键为 `"<条目模板 id>/<模块 id>"`，目标须是 `templates` 中存在的 `prose` 模块；段落规格见第 10 节 |
+
+### `credit`（署名与上游来源）
+
+| JSON 键 | 类型 | 校验规则 |
+| --- | --- | --- |
+| `author` | `string`（空串省略） | 单行文本，不含控制字符 |
+| `homepage` | `string`（空串省略） | 非空时必须以 `https://` 开头，含合法非空域名，不含空白或控制字符 |
+| `derivedFrom` | `{ name, author? }`（空时省略） | `name` 去首尾空白后非空；从来源为 `file` 或 `community` 的项目另存时，若调用方未显式覆盖则自动填入上游模板名与作者 |
+
+## 4. 项目定义（`project`）
+
+对齐格式 5 书目的 `project` 根（[kernel-v5.md](kernel-v5.md) 第 2、10 节），去掉只属于实例书的 `source` 与 Tab 的 `id`／`pos`：
+
+- `agent`（可选 `{ name, description, instructions }`）：整本项目的帮手说明；`name` 不含控制字符，`description`／`instructions` 允许换行与制表符。
+- `book`（可选 `TemplateProjectBook`）：
+  - **缺键或 `null`**：项目关闭「成书」（`project.book == None`）。
+  - **存在对象**：项目开启「成书」：
+    - `root`（可选 `TemplateBookRoot`）：缺键或 `null` 表示成书起点未选（展开为 `BookRoot::Unset`）；有值时按 `kind` 分四种：
+      - `{"kind": "root"}`：从最外层开始；
+      - `{"kind": "entry", "entry": "e…"}`：指定条目须在 `entries` 中存在且满足 `has_below`（`level` 或有效 `accept` 为真）；
+      - `{"kind": "view", "view": "v…"}`：指定视图须在 `views` 中存在；
+      - `{"kind": "lane", "view": "v…", "entry": "e…"}`：指定视图须存在，且 `entry` 须是该视图 `lanes` 中的有效泳道；
+    - `word_target`、`daily_word_target`（可选 `i64`）：存在时须 `>= 1`（`0` 在提取时规范化为缺省 `None`）。
+- `tabs`（`TemplateTab[]`，默认 `[]`）：左栏自定义 Tab，数组先后即显示先后：
+  - `name`：去首尾空白后非空，不含控制字符；
+  - `mount`（可选 `TemplateTabMount`）：
+    - 缺键或 `null`：原目标在另存时已缺失，展开建书时生成空挂载占位（界面显示为空并提示重选）；
+    - `{"kind": "root"}`：挂最外层；
+    - `{"kind": "entry", "entry": "e…"}`：目标条目须存在且满足 `has_below`；
+    - `{"kind": "view", "view": "v…"}`：目标视图须存在；
+    - `{"kind": "book"}`：挂成书序列，仅当 `project.book` 存在（开启成书）时合法。
+
+## 5. 条目模板（`templates[]`）
+
+对齐格式 5 的 `EntryTemplate`（拆开「层级」与「收别处的条目」，去掉 `lane`、`kind`、`allow`；见 [kernel-v5.md](kernel-v5.md) 第 16 节）：
+
+| JSON 键 | 类型 | 默认 | 校验规则 |
+| --- | --- | --- | --- |
+| `id` | `string` | 必填 | 合法 `EntryTemplateId`，在 `templates` 内唯一 |
+| `name` | `string` | 必填 | 去首尾空白后非空，不含控制字符 |
+| `mark` | `string?` | `null` | 存在时须通过 `is_valid_mark`（已知砂笔图标名或单个非空白字符） |
+| `color` | `string?` | `null` | 单行颜色串，不含控制字符 |
+| `agent` | `TemplateAgent?` | `null` | 条目模板级帮手说明 |
+| `modules` | `TemplateModuleSpec[]` | `[]` | 模块 `id` 在同一条目模板内唯一 |
+| `level` | `bool` | `false` | 用此模板新建条目时「层级」开关的初值 |
+| `linkable` | `bool` | `true` | 是否可作为自动链接与行内条目链接的目标 |
+| `settings` | `TemplateLevelSettings` | `{}` | 见下表（无 `lane`） |
+| `verbs` | `TemplateVerbSpec[]` | `[]` | 动作 `id` 在同一条目模板内唯一；`name` 非空；`target_template` 存在时须指 `templates` 中的模板 |
+
+### 「下面」与挂名设置（`TemplateLevelSettings`：用于 `templates[].settings` 与 `entries[].overrides`）
+
+| JSON 键 | 取值 | 继承与校验规则 |
+| --- | --- | --- |
+| `default_template` | 缺键 ／ `null` ／ `"<条目模板 id>"` | 三态：缺键表示不覆盖（沿住处祖先继承）；显式 `null` 表示清空默认模板；字符串须存在于 `templates` |
+| `display` | `"list"` \| `"grid"` \| `"board"` \| `"island"` | 沿住处祖先继承 |
+| `auto_link` | `bool` | 沿住处祖先继承；只看住处父链，不看挂名 |
+| `accept` | `bool` | 「收别处的条目」开关，只读条目自身 `overrides.accept` 与自身模板 `settings.accept`，不沿树继承 |
+| `home` | 缺键 ／ `null` ／ `"e…"` | 「新条目住在」，不沿树继承；三态：缺键不覆盖、显式 `null` 表示落最外层、`"e…"` 须指向 `entries` 中 `level == true` 的条目 |
+| `format_shortcuts` | `"full"` \| `"notes"` \| `"plain"` | 沿住处祖先继承 |
+
+### 模块定义（`TemplateModuleSpec` 与 `TemplateModuleConfig`）
+
+- `id`：合法 `ModuleId`；`name`：非空单行文本；`kind`：封闭枚举 `"prose"` \| `"fields"` \| `"kv"` \| `"patches"` \| `"relations"` \| `"plot_grid"` \| `"children"` \| `"members"` \| `"media"`。
+- `agent`（可选）：`{ writable: bool (默认 true), read_tier?: string, instructions: string }`。
+- `config`：
+  - `show_outline`（`bool`，默认 `false`）、`task_todos`（`bool`，默认 `false`）、`in_book`（`bool`，默认 `true`）；
+  - `defs`（`TemplateFieldDef[]`，仅 `kind == "fields"` 时允许非空）：字段 `id` 在模块内唯一，`name` 非空，`field_type` 为封闭枚举 `"text"` \| `"long_text"` \| `"number"` \| `"date"` \| `"select"` \| `"multi_select"` \| `"image"` \| `"entity_ref"` \| `"aliases"` \| `"toggle"`：
+    - `options`：`select`／`multi_select` 的选项列表，项非空且互不重复；非选项型字段须为空；
+    - `target_template`：仅 `entity_ref` 可设，须存在于 `templates`；
+    - `default_value`：类型须与 `field_type` 匹配（`date` 为合法 `YYYY-MM-DD`，`number` 为有限实数，`select`／`multi_select` 落在 `options` 内，`entity_ref` 为代号 `"e…"` 且目标条目满足 `target_template`；**第一期不带文件，`image` 字段不得带非空 `default_value`**）；
+  - 字段角色 `aliases_field`、`color_field`、`status_field`、`summary_field`、`portrait_field`：有值时须指向本模块 `defs` 中已定义的字段 `id`；
+  - `initial_kv`（`TemplateKvRow[]`，仅 `kind == "kv"` 允许非空）：`{ key, value }`，`key` 去空白后非空；
+  - `default_rows`、`default_cols`（`u32`，默认 `3`）：须 `>= 1`；
+  - `arrangement`（可选 `"featured"` \| `"grid"` \| `"list"`）：仅 `kind == "media"` 允许设置。
+
+## 6. 自定义关系类型（`relation_types[]`）
+
+系统内置的 `system:generic-association:<书 id>` 由书目创世变更自动生成，不写入模板。`relation_types` 只收作者自建的非锁定关系类型，展开建书时生成新的 `RelationTypeId`：
+
+- `name`：非空单行文本；按 `normalize_relation_type_name` 归一化后在 `relation_types` 内唯一，且不得与内置 `"generic association"` 重名；
+- `description`、`source_role`、`target_role`：文本；`color`：可选单行颜色串；
+- `orientation`：`"directed"` \| `"symmetric"`；
+- `source_kinds`：元素取 `"entry"` \| `"comment"` \| `"asset"`（无重复，且符合格式 5 关系起点规则）；
+- `target_kinds`：元素取 `"entry"` \| `"asset"` \| `"comment"` \| `"patch"`（无重复）；
+- `source_templates`、`target_templates`：每个模板 `id` 须存在于 `templates`；当对应端点种类不含 `"entry"`（且非空）时不得声明模板限制。
+
+## 7. 条目（`entries[]`）
+
+| JSON 键 | 类型 | 默认 | 校验规则 |
+| --- | --- | --- | --- |
+| `ref` | `string` | 必填 | 合法代号 `"e…"`，全表唯一 |
+| `parent` | `string?` | `null` | `null` 为顶层；非空时须指向 `entries` 中 `level == true` 的另一条目，整片森林无环 |
+| `title` | `string` | 必填 | 去首尾空白后非空，不含控制字符 |
+| `template` | `string?` | `null` | 非空时须存在于 `templates` |
+| `level` | `bool` | `false` | 条目自身的「层级」开关 |
+| `overrides` | `TemplateLevelSettings?` | `null` | 条目自身的设置覆盖 |
+| `mark` | `string?` | `null` | 存在时须通过 `is_valid_mark` |
+| `fields` | `Map<ModuleId, Map<FieldId, FieldValue>>` | `{}` | 模块须是该条目当前模板上的 `fields` 模块，字段须在 `defs` 中定义且值类型匹配；`entity_ref` 存代号 `"e…"`；第一期 `image` 字段不带值 |
+| `kv` | `Map<ModuleId, TemplateKvRow[]>` | `{}` | 模块须是该条目当前模板上的 `kv` 模块，每行 `key` 非空 |
+| `arrangements` | `Map<ModuleId, TemplateMediaArrangement>` | `{}` | 模块须是该条目当前模板上的 `media` 模块 |
+| `prose` | `Map<ModuleId, TemplateParagraph[]>` | `{}` | 模块须是该条目当前模板上的 `prose` 模块；段落规格见第 10 节 |
+
+此外，整套 `entries`、`templates`、`memberships` 一起跑 `dr-model` 的图级不变量校验：住处在开启 `auto_link` 的有效父链下且 `linkable == true` 的条目，其标题与 `aliases_field` 别名不得重名（`V3-AUTOLINK-NAME-UNIQUE`）。
+
+## 8. 挂名归属（`memberships[]`）
+
+每项为 `{"host": "e…", "member": "e…", "primary"?: bool}`：
+
+- `host` 与 `member` 均须在 `entries` 中存在且 `host != member`；
+- `host` 的有效 `accept`（「收别处的条目」）须为 `true`；
+- 同一对 `(host, member)` 不得重复；
+- 每个 `member` 至多有一条 `primary: true`（对应条目上的 `Entry.primary`）。
+
+## 9. 视图（`views[]`）
+
+每项为 `{"ref": "v…", "name": "…", "lanes": […], "placements": […], "pins": […]}`：
+
+- `ref`：合法代号 `"v…"`，全表唯一；`name`：非空单行文本；
+- `lanes`：`{"entry": "e…", "act_track"?: bool}`，`entry` 在同一视图内唯一，且在 `entries` 中存在并满足 `level || accept`；
+- `placements`：`{"entry": "e…", "at": f64, "span"?: f64}`，`entry` 在同一视图内唯一，`at` 为有限实数，`span` 存在时为 `> 0` 的有限实数，且 `entry` 须直接住在或挂名于该视图的某条 `lane`（`check_timeline_placement_in_lane`）；
+- `pins`：`{"at": f64, "label": "…", "color"?: "…", "entry"?: "e…"}`，`at` 有限，`label` 非空，`entry` 存在时须在 `entries` 中存在。
+
+## 10. 正文段落模型（`TemplateParagraph`）
+
+`template_prose["<tpl>/<mod>"]` 与 `entries[].prose["<mod>"]` 共用同一段落数组结构，不存 Loro 块 ID、光标或历史：
+
+- **表格段**：`table` 非空（`{"cols": u32, "rows": TemplateRun[][][]}`），此时 `attrs` 必须为默认空属性、`runs` 必须为空；`cols >= 1`、`rows.len() >= 1`，每行单元格数等于 `cols`。展开建书时生成新的表格 `EmbedId` 与行列 `PosKey`。
+- **文字／分隔线段**：`table` 缺省：
+  - `attrs`（默认全空时省略）：
+    - `heading`：`1` \| `2` \| `3`（仅对应 H1 / H2 / H3 三级标题，含义由作者自定，三级同等对待）；
+    - `quote`：`bool`；`indent`：`0..=8`；`align`：`"left"`（默认省略）\| `"center"` \| `"right"`；
+    - `rule`：`bool`（为 `true` 时 `runs` 必须为空，且不得与 `heading`、`list`、`code_block`、`callout` 同时出现）；
+    - `list`：`"bullet"` \| `"ordered"` \| `"task"`；`list_level`：`u32`（仅 `list` 存在时可 `> 0`）；`checked`：`bool`（仅 `list == "task"` 时可为 `true`，不存任何批注 `todo` id）；
+    - `code_block`：语言字符串（存在时不得与 `heading`、`list`、`callout` 共存）；
+    - `callout`：非空单行种类字符串（存在时不得与 `heading`、`code_block` 共存）。
+  - `runs`（`TemplateRun[]`）：
+    - `text`：非空字符串，不含段落结束符 `\n`、对象占位符 `\u{fffc}` 及除 `\t` 外的控制字符（段内软换行保留 `\u{2028}`）；
+    - 行内样式：`bold`、`italic`、`underline`、`strike`、`code`（`bool`，`false` 省略），`link`、`highlight`（单行非空字符串，无控制字符）；
+    - `entities`（`TemplateEntityLink[]`）：`{"entry": "e…", "module"?: "<模块 id>"}`。目标条目须在 `entries` 中存在且有效 `linkable == true`；`module` 存在时须是目标条目模板上的 `prose` 模块；同一 `run` 内同一 `entry` 不重复。
+
+## 11. 从项目提取（另存）与展开新建（`project.create`）
+
+### 从项目提取（`extract_project_template`）
+
+1. **只读固定快照与当前正文头**：先导出 `book:<id>` 当前内存快照做一次一致读取，只读未进最近删除（`deleted_at == None` 且有效祖先均未删除）的模板、关系类型、条目、挂名和视图，源项目与 `project.source` 完全不改。
+2. **骨架与示例的边界**：
+   - 骨架条目为 `entry.has_below(&live_templates)`（即 `level == true` 或有效 `accept == true`）的活条目，默认勾选；被活着的 `project.book.root`、`project.tabs[].mount`、`templates[].settings.home` 或已选条目 `overrides.home` 指向的有效目标强制纳入（`forced_skeleton_entries`），忽略调用方的 `exclude_skeleton`。若源项目里这些指针的目标本已进最近删除或不再满足开关条件，则导出为缺省 `None`。
+   - 未勾选为示例的骨架条目只保留 `title`、`template`、`level`、`overrides`、`mark`、模块 `color_field` 指定的颜色字段，以及两端都在已选集合内的 `memberships` 与视图 `placements`（保住泳道与线上的骨架结构）。若某骨架条目被取消且它下面仍有被选中的子孙条目，子孙的 `parent` 上提到最近一个保留下来的层级祖先（没有则落顶层）。
+   - 勾选进 `sample_entries` 的条目额外带走非图片 `fields`、`kv`、`arrangements` 与当前 `prose`；勾选进 `view_pins` 的视图带走未绑定条目或绑定条目已在模板内的时间钉。
+3. **第一期去文件与引用降级**：跳过 `FieldType::Image` 的默认值与字段值、跳过 `media` 模块文件项、跳过正文里的 `EmbedView::Asset` 文件嵌入段；正文与表格里指向未选条目或指向素材库文件（`EntityKind::Asset`）的行内链接去掉链接标记、保留文字与加粗／斜体等原有样式；指向已删条目模板的引用置空。
+
+### 展开新建（`materialize_project_template` + `project.create`）
+
+1. 所有模板来源（内置「写书」`builtin:novel`、书库 `project-template:<id>`、传入的完整模板值、测试种子）统一先转为并通过 `validate_project_template_value`，再由同一条建书路径落盘。
+2. 为每个 `e…`、`v…`、Tab、自定义关系类型、键值行、时间钉、正文块与表格嵌入生成全新 UUIDv7 和分数索引 `PosKey`；把 `source`（`id`、`version`、`origin`、`name`、`credit`）写入新项目的 `project.source`。
+3. **写入顺序与失败回滚**：先写／登记全部模板正文初值与条目正文文档，再写 `stats:<book>`、`checkpoints:<book>`、`layout:<book>` 三篇旁路文档，最后写 `book:<book>`。中途任一步失败（含注入故障）按逆序彻底清除并 `forget_purged_doc` 已写文档，不留半个项目或孤儿文档。

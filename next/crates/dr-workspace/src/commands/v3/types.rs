@@ -714,10 +714,77 @@ impl From<&dr_model::v3::TimelineView> for TimelineView {
 
 // ---- project definition & book sequence (`kernel-v5.md` §2, §3, §5 & §10) ----
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateDerivedFrom {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub author: String,
+}
+
+impl From<&dr_model::project_template::ProjectTemplateDerivedFrom> for ProjectTemplateDerivedFrom {
+    fn from(v: &dr_model::project_template::ProjectTemplateDerivedFrom) -> Self {
+        Self {
+            name: v.name.clone(),
+            author: v.author.clone(),
+        }
+    }
+}
+
+impl From<&ProjectTemplateDerivedFrom> for dr_model::project_template::ProjectTemplateDerivedFrom {
+    fn from(v: &ProjectTemplateDerivedFrom) -> Self {
+        Self {
+            name: v.name.clone(),
+            author: v.author.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateCredit {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub author: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub homepage: String,
+    #[serde(
+        rename = "derivedFrom",
+        alias = "derived_from",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub derived_from: Option<ProjectTemplateDerivedFrom>,
+}
+
+impl From<&dr_model::project_template::ProjectTemplateCredit> for ProjectTemplateCredit {
+    fn from(v: &dr_model::project_template::ProjectTemplateCredit) -> Self {
+        Self {
+            author: v.author.clone(),
+            homepage: v.homepage.clone(),
+            derived_from: v.derived_from.as_ref().map(Into::into),
+        }
+    }
+}
+
+impl From<&ProjectTemplateCredit> for dr_model::project_template::ProjectTemplateCredit {
+    fn from(v: &ProjectTemplateCredit) -> Self {
+        Self {
+            author: v.author.clone(),
+            homepage: v.homepage.clone(),
+            derived_from: v.derived_from.as_ref().map(Into::into),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectTemplateRef {
     pub id: String,
     pub version: i64,
+    /// `builtin`, `own`, `file`, or `community`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credit: Option<ProjectTemplateCredit>,
 }
 
 impl From<&dr_model::v3::ProjectTemplateRef> for ProjectTemplateRef {
@@ -725,7 +792,57 @@ impl From<&dr_model::v3::ProjectTemplateRef> for ProjectTemplateRef {
         Self {
             id: v.id.clone(),
             version: v.version,
+            origin: v.origin.as_ref().map(|o| o.as_str().to_owned()),
+            name: v.name.clone(),
+            credit: v.credit.as_ref().filter(|c| !c.is_empty()).map(Into::into),
         }
+    }
+}
+
+impl ProjectTemplateRef {
+    pub fn into_model(self) -> crate::error::Result<dr_model::v3::ProjectTemplateRef> {
+        use crate::error::WsError;
+        if self.id.trim().is_empty() {
+            return Err(WsError::invalid("project.source.id must not be empty"));
+        }
+        let origin = match self.origin.as_deref() {
+            None => None,
+            Some(raw) => {
+                let parsed = dr_model::v3::ProjectTemplateOrigin::parse(raw);
+                if !parsed.is_known() {
+                    return Err(WsError::invalid(format!(
+                        "unknown project template origin {raw:?}"
+                    )));
+                }
+                Some(parsed)
+            }
+        };
+        let credit = match self.credit {
+            None => None,
+            Some(c) => {
+                let mc: dr_model::project_template::ProjectTemplateCredit = (&c).into();
+                if !mc.homepage.is_empty() && !mc.homepage.starts_with("https://") {
+                    return Err(WsError::invalid(
+                        "credit.homepage must start with \"https://\"",
+                    ));
+                }
+                if let Some(df) = &mc.derived_from
+                    && df.name.trim().is_empty()
+                {
+                    return Err(WsError::invalid(
+                        "credit.derivedFrom.name must not be empty",
+                    ));
+                }
+                (!mc.is_empty()).then_some(mc)
+            }
+        };
+        Ok(dr_model::v3::ProjectTemplateRef {
+            id: self.id,
+            version: self.version,
+            origin,
+            name: self.name.filter(|s| !s.trim().is_empty()),
+            credit,
+        })
     }
 }
 
@@ -875,6 +992,163 @@ pub struct ProjectTemplate {
     pub entries: Vec<ProjectSeedEntry>,
     #[serde(default)]
     pub views: Vec<TimelineView>,
+}
+
+/// Template input accepted by `project.create`: a library template ID, a
+/// canonical `drifting.project-template` value (with optional `source`), or an
+/// inline project seed.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProjectCreateTemplate {
+    /// Load and materialize `project-template:<template_id>` from this library.
+    Library { template_id: String },
+    /// Materialize a canonical `drifting.project-template` value directly.
+    Value {
+        value: Box<dr_model::project_template::ProjectTemplateValue>,
+        source: Option<ProjectTemplateRef>,
+    },
+    /// Materialize an inline project seed.
+    Seed(Box<ProjectTemplate>),
+}
+
+impl ProjectCreateTemplate {
+    pub fn library(template_id: impl Into<String>) -> Self {
+        Self::Library {
+            template_id: template_id.into(),
+        }
+    }
+
+    pub fn from_value(
+        value: dr_model::project_template::ProjectTemplateValue,
+        source: Option<ProjectTemplateRef>,
+    ) -> Self {
+        Self::Value {
+            value: Box::new(value),
+            source,
+        }
+    }
+
+    pub(crate) fn parse_json_value(
+        raw: serde_json::Value,
+        top_source: Option<ProjectTemplateRef>,
+    ) -> std::result::Result<Self, String> {
+        let Some(obj) = raw.as_object() else {
+            return Err("template must be a JSON object".into());
+        };
+        if let Some(tid_val) = obj.get("template_id") {
+            if top_source.is_some() {
+                return Err("cannot specify custom source together with template_id".into());
+            }
+            let tid = tid_val
+                .as_str()
+                .ok_or_else(|| "template_id must be a string".to_owned())?;
+            return Ok(Self::Library {
+                template_id: tid.to_owned(),
+            });
+        }
+        if let Some(inner_val) = obj.get("value") {
+            let embedded_source: Option<ProjectTemplateRef> = match obj.get("source") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(sv) => Some(serde_json::from_value(sv.clone()).map_err(|e| e.to_string())?),
+            };
+            let json_str = serde_json::to_string(inner_val).map_err(|e| e.to_string())?;
+            let parsed = dr_model::project_template::parse_project_template_json(&json_str)
+                .map_err(|e| e.to_string())?;
+            return Ok(Self::Value {
+                value: Box::new(parsed),
+                source: top_source.or(embedded_source),
+            });
+        }
+        if obj.contains_key("format") || obj.contains_key("formatVersion") {
+            let json_str = serde_json::to_string(&raw).map_err(|e| e.to_string())?;
+            let parsed = dr_model::project_template::parse_project_template_json(&json_str)
+                .map_err(|e| e.to_string())?;
+            return Ok(Self::Value {
+                value: Box::new(parsed),
+                source: top_source,
+            });
+        }
+        if top_source.is_some() {
+            return Err(
+                "top-level source requires a canonical drifting.project-template value".into(),
+            );
+        }
+        let seed: ProjectTemplate = serde_json::from_value(raw).map_err(|e| e.to_string())?;
+        Ok(Self::Seed(Box::new(seed)))
+    }
+}
+
+impl Serialize for ProjectCreateTemplate {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        match self {
+            Self::Library { template_id } => {
+                serde_json::json!({ "template_id": template_id }).serialize(serializer)
+            }
+            Self::Value { value, source } => match source {
+                Some(src) => serde_json::json!({
+                    "value": value,
+                    "source": src,
+                })
+                .serialize(serializer),
+                None => value.serialize(serializer),
+            },
+            Self::Seed(seed) => seed.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ProjectCreateTemplate {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let raw = serde_json::Value::deserialize(deserializer)?;
+        Self::parse_json_value(raw, None).map_err(serde::de::Error::custom)
+    }
+}
+
+impl JsonSchema for ProjectCreateTemplate {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("ProjectCreateTemplate")
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let seed_schema = generator.subschema_for::<ProjectTemplate>();
+        let source_schema = generator.subschema_for::<ProjectTemplateRef>();
+        schemars::json_schema!({
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["template_id"],
+                    "properties": {
+                        "template_id": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "description": "Canonical drifting.project-template v1 object.",
+                    "required": ["format", "formatVersion", "name"],
+                    "properties": {
+                        "format": { "type": "string", "const": "drifting.project-template" },
+                        "formatVersion": { "type": "integer", "const": 1 },
+                        "name": { "type": "string" }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": ["value"],
+                    "properties": {
+                        "value": { "type": "object" },
+                        "source": source_schema
+                    },
+                    "additionalProperties": false
+                },
+                seed_schema
+            ]
+        })
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

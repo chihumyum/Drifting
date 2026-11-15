@@ -42,6 +42,7 @@ pub mod error;
 pub mod import_v1;
 pub mod peer;
 pub mod pos;
+pub mod project_template;
 pub mod prose;
 pub mod schema;
 pub mod side;

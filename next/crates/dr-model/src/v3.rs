@@ -22,7 +22,8 @@ use crate::check::Violation;
 pub use crate::id::{
     AssetFolderId, AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId,
     EntryTemplateId, FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId,
-    PlotRowId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId, TimelineViewId,
+    PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId,
+    TimelineViewId,
 };
 use crate::kind::{
     CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind,
@@ -1482,11 +1483,31 @@ pub fn check_comment_part_kind(
     Ok(())
 }
 
-/// Which project template initialized the book (`project.source`).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+v3_open_enum!(
+    /// Where a book's initial project template came from (`project.source.origin`,
+    /// `project-templates.md` §8).
+    ProjectTemplateOrigin {
+        Builtin = "builtin",
+        Own = "own",
+        File = "file",
+        Community = "community",
+    }
+);
+
+pub use crate::project_template::{ProjectTemplateCredit, ProjectTemplateDerivedFrom};
+
+/// Which project template initialized the book (`project.source`,
+/// `project-templates.md` §8).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectTemplateRef {
     pub id: String,
     pub version: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<ProjectTemplateOrigin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credit: Option<ProjectTemplateCredit>,
 }
 
 /// Book metadata in schema v5 (`meta` container, `v = 5`).

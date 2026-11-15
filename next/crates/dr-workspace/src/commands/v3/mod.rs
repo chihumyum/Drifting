@@ -48,6 +48,7 @@ pub mod module;
 mod novel_book;
 pub mod plot;
 pub mod project;
+pub mod project_template;
 pub mod recent;
 pub mod relations;
 pub mod snapshots;
@@ -57,6 +58,7 @@ pub mod types;
 
 pub(crate) fn register(r: &mut Registry) {
     project::register(r);
+    project_template::register(r);
     layout::register(r);
     relations::register(r);
     snapshots::register(r);

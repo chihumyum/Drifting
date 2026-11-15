@@ -593,6 +593,7 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("v3_home.rs"),
         include_str!("v3_membership.rs"),
         include_str!("v3_timeline_edits.rs"),
+        include_str!("project_templates.rs"),
         include_str!("../../dr-agent-tools/tests/checkpoints_v3.rs"),
     ];
     let missing: Vec<&str> = registry()
