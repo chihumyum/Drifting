@@ -131,6 +131,7 @@ pub struct TypedFields {
     images_stale: bool,
     _bus: Option<dr_workspace::events::Subscription>,
     _bus_task: Option<Task<()>>,
+    _review_focus: Subscription,
 }
 impl TypedFields {
     pub fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -154,6 +155,7 @@ impl TypedFields {
             }
         });
 
+        let review_focus = cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify());
         let mut this = Self {
             host,
             inputs: BTreeMap::new(),
@@ -169,6 +171,7 @@ impl TypedFields {
             images_stale: false,
             _bus: Some(bus),
             _bus_task: Some(bus_task),
+            _review_focus: review_focus,
         };
         this.sync(window, cx);
         this.reload_images(cx);
@@ -891,15 +894,109 @@ impl Render for TypedFields {
                 self.host.entry, self.host.module.id, def.id
             );
             let lit = UsageFlash::strength_for(&[fkey.as_str(), def.id.as_str()], window, cx) > 0.0;
+            let row_group =
+                SharedString::from(format!("v3-field-row-{}-{}", self.host.module.id, def.id));
+            let row_focused = self
+                .inputs
+                .get(&def.id)
+                .is_some_and(|i| i.area.focus_handle(cx).is_focused(window));
+            let return_focus = self.inputs.get(&def.id).map(|i| i.area.focus_handle(cx));
+            let field_comments = self
+                .host
+                .page
+                .book
+                .v3()
+                .map(|b| b.field_comments(&self.host.entry, &self.host.module.id, &def.id))
+                .unwrap_or_default();
+            let field_ul = dr_shell::comment_underline(
+                SharedString::from(format!("v3-field-ul-{}-{}", self.host.module.id, def.id)),
+                field_comments,
+                self.host.page.workspace.clone(),
+                cx,
+            );
+            let ws_action = self.host.page.workspace.clone();
+            let entry_action = self.host.entry.clone();
+            let mod_action = self.host.module.id.clone();
+            let field_action = def.id.clone();
+            let focus_action = return_focus.clone();
+            let ws_click = self.host.page.workspace.clone();
+            let entry_click = self.host.entry.clone();
+            let mod_click = self.host.module.id.clone();
+            let field_click = def.id.clone();
+            let focus_click = return_focus;
+            let comment_label = t(cx, dr_i18n::keys::v3_review::WRITE_COMMENT);
+            let comment_btn = div()
+                .id(SharedString::from(format!(
+                    "v3-field-comment-{}-{}",
+                    self.host.module.id, def.id
+                )))
+                .size(px(20.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(3.0))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .aria_label(comment_label)
+                .map(|el| {
+                    if row_focused {
+                        el
+                    } else {
+                        el.invisible()
+                            .group_hover(row_group.clone(), |st| st.visible())
+                    }
+                })
+                .hover(|st| st.bg(p.ink(1).alpha(0.05)))
+                .on_click(move |e, window, cx| {
+                    cx.stop_propagation();
+                    if let Some(ws) = ws_click.upgrade() {
+                        let pos = e.position();
+                        let entry = entry_click.clone();
+                        let module = mod_click.clone();
+                        let field = field_click.clone();
+                        let ret = focus_click.clone();
+                        ws.update(cx, |ws, cx| {
+                            ws.open_part_composer(
+                                &entry,
+                                &module,
+                                dr_workspace::dto::CommentPartDto::Field { field },
+                                Some(pos),
+                                ret,
+                                window,
+                                cx,
+                            );
+                        });
+                    }
+                })
+                .child(dr_ui::sand::icon(Icon::CommentPlus, 12.0, p.ink(4).solid()));
             list = list.child(
                 div()
-                    .id(SharedString::from(format!(
-                        "v3-field-row-{}-{}",
-                        self.host.module.id, def.id
-                    )))
+                    .id(row_group.clone())
+                    .group(row_group)
                     .relative()
                     .role(gpui::Role::Group)
                     .aria_label(def.name.clone())
+                    .on_action(move |_: &dr_shell::NewComment, window, cx| {
+                        cx.stop_propagation();
+                        if let Some(ws) = ws_action.upgrade() {
+                            let entry = entry_action.clone();
+                            let module = mod_action.clone();
+                            let field = field_action.clone();
+                            let ret = focus_action.clone();
+                            ws.update(cx, |ws, cx| {
+                                ws.open_part_composer(
+                                    &entry,
+                                    &module,
+                                    dr_workspace::dto::CommentPartDto::Field { field },
+                                    None,
+                                    ret,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    })
                     .flex()
                     .flex_row()
                     .gap_4()
@@ -916,6 +1013,7 @@ impl Render for TypedFields {
                             .flex_1()
                             .min_w_0()
                             .child(field)
+                            .children(field_ul)
                             .children(self.errors.get(&def.id).map(|k| div().child(t(cx, *k))))
                             .children(
                                 (self.errors.get(&def.id)
@@ -930,6 +1028,7 @@ impl Render for TypedFields {
                                 }),
                             ),
                     )
+                    .child(comment_btn)
                     .child(
                         SandFrame::new(
                             ElementId::Name(

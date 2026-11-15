@@ -206,9 +206,7 @@
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",
-      "resolve": "해결 처리",
-      "toNote": "댓글로 전환",
-      "toTodo": "할 일로 전환"
+      "resolve": "해결 처리"
     },
     "card": {
       "emptyComment": "빈 댓글"
@@ -522,9 +520,7 @@
       "drawHint": "이미지 위를 드래그하여 영역 표시",
       "empty": "이미지나 페이지 위를 드래그하여 첫 댓글을 추가하세요.",
       "listLabel": "이 자료의 댓글",
-      "page": "{{page}}페이지",
-      "stopDrawing": "댓글 달기 종료",
-      "whole": "자료 전체"
+      "stopDrawing": "댓글 달기 종료"
     },
     "zoomIn": "확대",
     "zoomOut": "축소",
@@ -885,7 +881,6 @@
       "floating": "연결되지 않음"
     },
     "newComment": "새 댓글",
-    "resolved": "해결됨({{count}}개)",
     "scopes": {
       "current": "현재"
     },
@@ -1525,6 +1520,31 @@
     "thisLevel": "이 계층",
     "title": "제목",
     "unassigned": "미소속"
+  },
+  "v3Review": {
+    "backToReview": "검토로 돌아가기",
+    "checklistFold": "체크리스트 {{count}}",
+    "commentButton": "메모",
+    "commentFromHeader": "메모 · {{where}}",
+    "commentFromSimple": "메모",
+    "drawRegionComment": "영역을 지정해 메모",
+    "handToAgent": "Agent에게 넘기기",
+    "jumpToPlace": "해당 위치로 이동",
+    "noteForAgent": "Agent에게 남길 말…",
+    "openConversation": "대화 열기",
+    "originAgent": "Agent",
+    "originManual": "직접 작성",
+    "originMarker": "표식",
+    "originReader": "독자",
+    "originReaderNamed": "독자 · {{name}}",
+    "originTask": "체크리스트",
+    "regionPlace": "영역",
+    "regionPlacePaged": "{{page}}쪽",
+    "statusOpen": "미해결",
+    "statusResolved": "해결됨",
+    "unlocated": "원래 위치를 찾을 수 없음",
+    "wholeFile": "파일 전체",
+    "writeComment": "메모 작성"
   },
   "v3Settings": {
     "codeCopied": "복사됨",

@@ -208,9 +208,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",
-      "resolve": "Resolver",
-      "toNote": "Para comentário",
-      "toTodo": "Para tarefa"
+      "resolve": "Resolver"
     },
     "card": {
       "emptyComment": "Comentário vazio"
@@ -533,9 +531,7 @@
       "drawHint": "Arraste sobre a imagem para marcar uma região",
       "empty": "Arraste sobre a imagem ou página para adicionar o primeiro comentário.",
       "listLabel": "Comentários deste material",
-      "page": "Página {{page}}",
-      "stopDrawing": "Parar de comentar",
-      "whole": "Material inteiro"
+      "stopDrawing": "Parar de comentar"
     },
     "zoomIn": "Ampliar",
     "zoomOut": "Reduzir",
@@ -902,7 +898,6 @@
       "floating": "Não vinculados"
     },
     "newComment": "Novo comentário",
-    "resolved": "Resolvidos ({{count}})",
     "scopes": {
       "current": "Atual"
     },
@@ -1542,6 +1537,31 @@
     "thisLevel": "Este nível",
     "title": "Título",
     "unassigned": "Sem atribuição"
+  },
+  "v3Review": {
+    "backToReview": "Voltar à revisão",
+    "checklistFold": "Lista {{count}}",
+    "commentButton": "Comentar",
+    "commentFromHeader": "Comentário · {{where}}",
+    "commentFromSimple": "Comentário",
+    "drawRegionComment": "Selecionar área e comentar",
+    "handToAgent": "Passar ao Agent",
+    "jumpToPlace": "Ir ao local",
+    "noteForAgent": "Nota para Agent…",
+    "openConversation": "Abrir conversa",
+    "originAgent": "Agent",
+    "originManual": "Manual",
+    "originMarker": "Marcações",
+    "originReader": "Leitor",
+    "originReaderNamed": "Leitor · {{name}}",
+    "originTask": "Lista",
+    "regionPlace": "Área",
+    "regionPlacePaged": "Página {{page}}",
+    "statusOpen": "Abertos",
+    "statusResolved": "Resolvidos",
+    "unlocated": "Local original não encontrado",
+    "wholeFile": "Arquivo inteiro",
+    "writeComment": "Escrever comentário"
   },
   "v3Settings": {
     "codeCopied": "Copiado",

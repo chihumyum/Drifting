@@ -870,11 +870,41 @@ impl MediaModule {
         prefix: &str,
         item: &MediaItem,
         target: AnyElement,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         if item.missing {
             return target;
         }
+        // An open comment on this file in this module: one sand dot on the
+        // corner, never a count (`kernel-v5.md` §7).
+        let comment_ids = self
+            .host
+            .page
+            .book
+            .v3()
+            .map(|b| b.media_comments(&self.host.entry, &self.host.module.id, &item.asset))
+            .unwrap_or_default();
+        let target = if comment_ids.is_empty() {
+            target
+        } else {
+            let hot = dr_shell::ReviewFocus::get(cx)
+                .cards
+                .iter()
+                .any(|c| comment_ids.contains(c));
+            let palette = Theme::of(window, cx).palette;
+            div()
+                .relative()
+                .child(target)
+                .child(
+                    div()
+                        .absolute()
+                        .top(px(5.0))
+                        .right(px(5.0))
+                        .child(sand::comment_dot(8.0, hot, palette)),
+                )
+                .into_any_element()
+        };
         let title: SharedString = self
             .meta
             .get(&item.asset)
@@ -897,6 +927,12 @@ impl MediaModule {
         let item_for_open = item.clone();
         let asset_for_locate = item.asset.clone();
         let item_id_for_remove = item.id.clone();
+        let comment_label = t(cx, keys::v3_review::WRITE_COMMENT);
+        let frame_label = t(cx, keys::v3_review::DRAW_REGION_COMMENT);
+        let ws_for_comment = self.host.page.workspace.clone();
+        let comment_entry = self.host.entry.clone();
+        let comment_module = self.host.module.id.clone();
+        let comment_asset = item.asset.clone();
         let cid = format!(
             "media-hc-{prefix}-{}-{}-{}",
             self.host.entry, self.host.module.id, item.id
@@ -954,6 +990,55 @@ impl MediaModule {
             })
             .into_any_element();
 
+            // T6: a comment on this file in this media module, or on a
+            // region of it drawn in the viewer (`v5-tracks.md` §T6).
+            let (ws_c, entry_c, module_c, asset_c) = (
+                ws_for_comment.clone(),
+                comment_entry.clone(),
+                comment_module.clone(),
+                comment_asset.clone(),
+            );
+            let comment_act = CardAction::new(
+                ElementId::Name(format!("{body_id}-comment").into()),
+                RowIcon::Brush(Icon::CommentPlus),
+                comment_label.clone(),
+            )
+            .on_click(move |_, window, cx| {
+                if let Some(ws) = ws_c.upgrade() {
+                    let at = window.mouse_position();
+                    let part = dr_workspace::dto::CommentPartDto::Media {
+                        asset: asset_c.clone(),
+                        region: None,
+                    };
+                    ws.update(cx, |ws, cx| {
+                        ws.open_part_composer(&entry_c, &module_c, part, Some(at), None, window, cx)
+                    });
+                }
+            })
+            .into_any_element();
+            let (ws_f, entry_f, module_f, asset_f) = (
+                ws_for_comment.clone(),
+                comment_entry.clone(),
+                comment_module.clone(),
+                comment_asset.clone(),
+            );
+            let frame_act = CardAction::new(
+                ElementId::Name(format!("{body_id}-frame").into()),
+                RowIcon::Brush(Icon::Fullscreen),
+                frame_label.clone(),
+            )
+            .on_click(move |_, _, cx| {
+                if let Some(ws) = ws_f.upgrade() {
+                    let scope = dr_shell::FrameScope::Media {
+                        entry: entry_f.clone(),
+                        module: module_f.clone(),
+                        asset: asset_f.clone(),
+                    };
+                    ws.update(cx, |ws, cx| ws.open_frame_viewer(scope, cx));
+                }
+            })
+            .into_any_element();
+
             let rem_ent = this.clone();
             let rem_id = item_id_for_remove.clone();
             let remove_act = CardAction::new(
@@ -982,6 +1067,7 @@ impl MediaModule {
                     .child(subtitle.clone()),
             )
             .section(vec![open_act, locate_act])
+            .section(vec![comment_act, frame_act])
             .section(vec![remove_act])
             .into_any_element()
         })
@@ -1226,7 +1312,7 @@ impl MediaModule {
                     ),
                 )
                 .into_any_element();
-            self.item_hover_card("hero", &hero, picture, cx)
+            self.item_hover_card("hero", &hero, picture, window, cx)
         };
 
         let mut strip = div()
@@ -1468,7 +1554,7 @@ impl MediaModule {
             )
             .into_any_element();
 
-            let wrapped = self.item_hover_card("grid", item, pic_card, cx);
+            let wrapped = self.item_hover_card("grid", item, pic_card, window, cx);
             grid = grid.child(
                 div()
                     .id(ElementId::Name(
@@ -1647,7 +1733,7 @@ impl MediaModule {
             )
             .into_any_element();
 
-            let wrapped = self.item_hover_card("list", item, row, cx);
+            let wrapped = self.item_hover_card("list", item, row, window, cx);
             list = list.child(
                 div()
                     .id(ElementId::Name(

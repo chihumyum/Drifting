@@ -114,6 +114,43 @@ impl LibraryPanel {
         UsageFlash::strength_for(&[format!("library-asset:{asset_id}")], window, cx)
     }
 
+    /// A file's thumbnail with one sand dot on its corner when an open comment
+    /// is on the file (directly, in a media module or as a prose embed);
+    /// never a count, and the dot deepens while its card is lit in the review
+    /// panel (`kernel-v5.md` §7).
+    fn with_comment_dot(
+        &self,
+        m: &MaterialInfo,
+        thumb: AnyElement,
+        size: f32,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> AnyElement {
+        let ids = match (&m.asset, self.book.v3()) {
+            (Some(a), Some(b)) => b.any_asset_comments(a),
+            _ => Vec::new(),
+        };
+        if ids.is_empty() {
+            return thumb;
+        }
+        let theme = Theme::of(window, cx);
+        let hot = dr_shell::ReviewFocus::get(cx)
+            .cards
+            .iter()
+            .any(|c| ids.contains(c));
+        div()
+            .relative()
+            .child(thumb)
+            .child(
+                div()
+                    .absolute()
+                    .top(px(-2.0))
+                    .right(px(-2.0))
+                    .child(sand::comment_dot(size, hot, theme.palette)),
+            )
+            .into_any_element()
+    }
+
     fn drop_folder_for(&self, entry: &Entry) -> Option<String> {
         match entry {
             Entry::Folder { id, .. } => Some(id.clone()),
@@ -235,6 +272,7 @@ impl LibraryPanel {
                     };
                     let sub = self.subline_of(m, cx);
                     let lead = card::thumb(m, 40.0, window, cx);
+                    let lead = self.with_comment_dot(m, lead, 7.0, window, cx);
                     SandCell::new(rid("cell"), title)
                         .lead(lead)
                         .subline(sub)
@@ -335,7 +373,10 @@ impl LibraryPanel {
                 .into_any_element()
         } else {
             SandCell::new(rid("cell"), title)
-                .lead(card::thumb(m, 28.0, window, cx))
+                .lead({
+                    let thumb = card::thumb(m, 28.0, window, cx);
+                    self.with_comment_dot(m, thumb, 7.0, window, cx)
+                })
                 .selected(is_active || flash)
                 .child(
                     div()
@@ -484,6 +525,7 @@ impl LibraryPanel {
                     p.ink(4).solid(),
                 )),
         };
+        let pic_box = self.with_comment_dot(m, pic_box.into_any_element(), 8.0, window, cx);
 
         let title_el: AnyElement = if let Some(r) = self.renaming.as_ref().filter(|r| r.key == key)
         {
@@ -1226,7 +1268,50 @@ impl LibraryPanel {
         }
 
         let m_open = material_id.clone();
-        let m_sys = material_id;
+        let m_sys = material_id.clone();
+        // T6: a comment on the whole file, or on a region of it drawn in the
+        // viewer (`kernel-v5.md` §7, `v5-tracks.md` §T6).
+        let comment_asset = live_materials
+            .iter()
+            .find(|m| m.id == material_id)
+            .and_then(|m| m.asset.clone());
+        let comment_actions: Vec<AnyElement> = match comment_asset {
+            Some(asset) if self.book.v3().is_some() => {
+                let asset_a = asset.clone();
+                let asset_b = asset;
+                vec![
+                    action(
+                        "write-comment",
+                        Icon::CommentPlus,
+                        t(cx, keys::v3_review::WRITE_COMMENT),
+                        Rc::new(move |p, window, cx| {
+                            p.card_open = None;
+                            if let Some(ws) = p.shell.upgrade() {
+                                let asset = asset_a.clone();
+                                ws.update(cx, |ws, cx| {
+                                    ws.open_asset_composer(&asset, None, None, window, cx)
+                                });
+                            }
+                        }),
+                    ),
+                    action(
+                        "frame-comment",
+                        Icon::Fullscreen,
+                        t(cx, keys::v3_review::DRAW_REGION_COMMENT),
+                        Rc::new(move |p, _, cx| {
+                            p.card_open = None;
+                            if let Some(ws) = p.shell.upgrade() {
+                                let scope = dr_shell::FrameScope::Asset {
+                                    asset: asset_b.clone(),
+                                };
+                                ws.update(cx, |ws, cx| ws.open_frame_viewer(scope, cx));
+                            }
+                        }),
+                    ),
+                ]
+            }
+            _ => Vec::new(),
+        };
         let actions = vec![
             action(
                 "open",
@@ -1243,10 +1328,11 @@ impl LibraryPanel {
             rename,
         ];
 
-        body.section(actions)
-            .section(moves)
-            .section(vec![delete])
-            .into_any_element()
+        body = body.section(actions);
+        if !comment_actions.is_empty() {
+            body = body.section(comment_actions);
+        }
+        body.section(moves).section(vec![delete]).into_any_element()
     }
 }
 

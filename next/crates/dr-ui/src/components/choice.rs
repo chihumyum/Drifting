@@ -274,6 +274,7 @@ pub struct Segmented {
     report_selected: bool,
     font: Role,
     text_size: Option<f32>,
+    pad_x: f32,
 }
 
 impl Segmented {
@@ -292,6 +293,7 @@ impl Segmented {
             report_selected: false,
             font: Role::Ui,
             text_size: None,
+            pad_x: 10.0,
         }
     }
 
@@ -332,6 +334,12 @@ impl Segmented {
     /// `scale.label`.
     pub fn text_size(mut self, px: f32) -> Self {
         self.text_size = Some(px);
+        self
+    }
+
+    /// Horizontal padding inside each option (default: 10px).
+    pub fn pad_x(mut self, px: f32) -> Self {
+        self.pad_x = px;
         self
     }
 }
@@ -466,7 +474,7 @@ impl RenderOnce for Segmented {
                 div()
                     .id(crate::style::child_id(&self.id.clone(), label.clone()))
                     .relative()
-                    .px(px(10.0))
+                    .px(px(self.pad_x))
                     .flex()
                     .items_center()
                     .text_color(ink.solid())

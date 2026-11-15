@@ -213,9 +213,10 @@ pub fn register(cx: &mut App) {
         let target = dr_shell::v3::entry_target(&host.entry).expect("validated entry id");
         let (mark, color) = host.page.book.mark(&target);
         let title = host.page.book.title(&target).unwrap_or_default().to_owned();
-        let entry = host.entry.clone();
+        let ws = host.page.workspace.clone();
+        let book = host.page.book.clone();
         let planner = cx.new(|cx| {
-            PlotPlanner::for_module(
+            let mut p = PlotPlanner::for_module(
                 PlannerHost {
                     library: host.page.library,
                     book: host.page.book_id,
@@ -227,7 +228,9 @@ pub fn register(cx: &mut App) {
                 host.module.id,
                 window,
                 cx,
-            )
+            );
+            p.set_shell(ws, book, cx);
+            p
         });
         let focus = planner.focus_handle(cx);
         let weak = planner.downgrade();
@@ -235,10 +238,7 @@ pub fn register(cx: &mut App) {
         dr_shell::v3::Rendered::new(view)
             .focus(focus)
             .on_refresh(move |book, cx| {
-                if let Some(e) = book.v3().and_then(|b| b.entry(&entry)) {
-                    weak.update(cx, |p, cx| p.set_title(e.title.clone(), cx))
-                        .ok();
-                }
+                weak.update(cx, |p, cx| p.refresh_book(book, cx)).ok();
             })
     });
 }

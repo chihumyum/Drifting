@@ -20,8 +20,9 @@ use std::{
 };
 
 use gpui::{
-    App, Bounds, ElementId, Entity, Hsla, IntoElement, ParentElement, Pixels, RenderImage,
-    RenderOnce, Styled, Svg, TransformationMatrix, Window, canvas, div, point, px, size, svg,
+    App, Bounds, Div, ElementId, Entity, Hsla, IntoElement, ParentElement, Pixels, RenderImage,
+    RenderOnce, Styled, Svg, Transformation, TransformationMatrix, Window, canvas, div, point,
+    prelude::FluentBuilder, px, radians, size, svg,
 };
 use image::Frame;
 use smallvec::SmallVec;
@@ -46,24 +47,23 @@ pub fn icon(icon: Icon, size_px: f32, color: Hsla) -> Svg {
         .text_color(color)
 }
 
-/// The thinking star (星芒): six frames side by side, played back and forth
-/// at 120ms a frame while `running`; still, it holds the whole star.
-pub fn thinking(size_px: f32, color: Hsla, running: bool, window: &Window) -> impl IntoElement {
-    const FRAMES: usize = 6;
-    let frame = if running {
-        let ms = anim::now()
-            .duration_since(*START.get_or_init(Instant::now))
-            .as_millis() as usize;
-        let step = (ms / 120) % (2 * FRAMES - 2);
-        window.request_animation_frame();
-        if step < FRAMES {
-            step
-        } else {
-            2 * FRAMES - 2 - step
-        }
+/// Total frames in the 风·林·火·山 thinking strip (`icons/thinking.png`).
+pub const THINKING_FRAMES: usize = 68;
+/// Zero-based index of the resting frame for 「已思考」: the 57th frame (山).
+pub const THINKING_STILL_FRAME: usize = 56;
+/// Milliseconds per frame when playing the thinking strip (8 fps, 8.5s loop).
+pub const THINKING_STEP_MS: usize = 125;
+
+/// Pure frame selector for the 68-frame 风·林·火·山 strip.
+pub const fn thinking_frame(elapsed_ms: usize, running: bool) -> usize {
+    if running {
+        (elapsed_ms / THINKING_STEP_MS) % THINKING_FRAMES
     } else {
-        FRAMES - 1
-    };
+        THINKING_STILL_FRAME
+    }
+}
+
+fn thinking_at_frame(size_px: f32, color: Hsla, frame: usize) -> Div {
     div()
         .size(px(size_px))
         .flex_none()
@@ -75,13 +75,275 @@ pub fn thinking(size_px: f32, color: Hsla, running: bool, window: &Window) -> im
                 .absolute()
                 .top_0()
                 .left(px(-(frame as f32) * size_px))
-                .w(px(size_px * FRAMES as f32))
+                .w(px(size_px * THINKING_FRAMES as f32))
                 .h(px(size_px))
                 .text_color(color),
         )
 }
 
+/// Static mountain frame (山, 57th frame) for menus and non-animated badges.
+pub fn thinking_still(size_px: f32, color: Hsla) -> Div {
+    thinking_at_frame(size_px, color, THINKING_STILL_FRAME)
+}
+
+/// 风·林·火·山: 68 frames side by side, stepped forward at 125ms a frame
+/// while `running`; still, it holds the 57th frame (山).
+pub fn thinking(size_px: f32, color: Hsla, running: bool, window: &Window) -> impl IntoElement {
+    let frame = if running {
+        let ms = anim::now()
+            .duration_since(*START.get_or_init(Instant::now))
+            .as_millis() as usize;
+        window.request_animation_frame();
+        thinking_frame(ms, true)
+    } else {
+        THINKING_STILL_FRAME
+    };
+    thinking_at_frame(size_px, color, frame)
+}
+
 static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// Pinwheel timing constants (`kernel-v5` §7, prototype `.ani.pin`).
+pub const PINWHEEL_LAP_SECS: f32 = 1.6;
+pub const PINWHEEL_SLOW_SECS: f32 = 3.0;
+pub const PINWHEEL_FILL_SECS: f32 = 0.6;
+const PINWHEEL_OMEGA: f32 = -std::f32::consts::TAU / PINWHEEL_LAP_SECS;
+
+/// Instantaneous visual state of a comment card's pinwheel.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PinwheelSample {
+    /// Counter-clockwise rotation angle in radians (`0` or negative).
+    pub angle_rad: f32,
+    /// Opacity of the hollow `Icon::Pinwheel` (`0.0..=1.0`).
+    pub hollow_alpha: f32,
+    /// Opacity of the filled `Icon::PinwheelSolid` (`0.0..=1.0`).
+    pub solid_alpha: f32,
+    /// Whether another animation frame is required.
+    pub animating: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PinwheelPhase {
+    Spinning { started_at: Instant, angle0: f32 },
+    Stopping { stopped_at: Instant, angle0: f32 },
+    Resting { angle: f32 },
+}
+
+/// State machine for a comment card's Agent pinwheel:
+/// hollow spinning CCW (`1.6s`/turn) → `3.0s` uniform deceleration on finish →
+/// `0.6s` whole-shape cross-fade into solid → resting solid until viewed.
+#[derive(Clone, Debug)]
+pub struct PinwheelTrack {
+    phase: PinwheelPhase,
+}
+
+impl PinwheelTrack {
+    /// Starts spinning from `0°` at `now`.
+    pub fn spinning(now: Instant) -> Self {
+        Self {
+            phase: PinwheelPhase::Spinning {
+                started_at: now,
+                angle0: 0.0,
+            },
+        }
+    }
+
+    /// Already finished before this view opened (solid, still at `0°`).
+    pub fn finished() -> Self {
+        Self {
+            phase: PinwheelPhase::Resting { angle: 0.0 },
+        }
+    }
+
+    /// Updates the track with whether the Agent conversation is currently running.
+    pub fn sync(&mut self, running: bool, now: Instant) {
+        match (self.phase, running) {
+            (PinwheelPhase::Spinning { .. }, true) => {}
+            (PinwheelPhase::Spinning { started_at, angle0 }, false) => {
+                let dt = now.saturating_duration_since(started_at).as_secs_f32();
+                let cur = (angle0 + PINWHEEL_OMEGA * dt) % std::f32::consts::TAU;
+                self.phase = PinwheelPhase::Stopping {
+                    stopped_at: now,
+                    angle0: cur,
+                };
+            }
+            (PinwheelPhase::Stopping { stopped_at, angle0 }, true) => {
+                let cur = Self::sample_stopping(stopped_at, angle0, now).angle_rad;
+                self.phase = PinwheelPhase::Spinning {
+                    started_at: now,
+                    angle0: cur,
+                };
+            }
+            (PinwheelPhase::Resting { angle }, true) => {
+                self.phase = PinwheelPhase::Spinning {
+                    started_at: now,
+                    angle0: angle,
+                };
+            }
+            (PinwheelPhase::Stopping { .. } | PinwheelPhase::Resting { .. }, false) => {}
+        }
+    }
+
+    fn sample_stopping(stopped_at: Instant, angle0: f32, now: Instant) -> PinwheelSample {
+        let elapsed = now.saturating_duration_since(stopped_at).as_secs_f32();
+        let decel_travel = 0.5 * PINWHEEL_OMEGA * PINWHEEL_SLOW_SECS; // -337.5°
+        if elapsed < PINWHEEL_SLOW_SECS {
+            let u = (elapsed / PINWHEEL_SLOW_SECS).clamp(0.0, 1.0);
+            let progress = u * (2.0 - u);
+            return PinwheelSample {
+                angle_rad: angle0 + decel_travel * progress,
+                hollow_alpha: 1.0,
+                solid_alpha: 0.0,
+                animating: true,
+            };
+        }
+        let end_angle = angle0 + decel_travel;
+        let fill_t = elapsed - PINWHEEL_SLOW_SECS;
+        if fill_t < PINWHEEL_FILL_SECS {
+            let u = (fill_t / PINWHEEL_FILL_SECS).clamp(0.0, 1.0);
+            let s = u * u * (3.0 - 2.0 * u);
+            return PinwheelSample {
+                angle_rad: end_angle,
+                hollow_alpha: 1.0 - s,
+                solid_alpha: s,
+                animating: true,
+            };
+        }
+        PinwheelSample {
+            angle_rad: end_angle,
+            hollow_alpha: 0.0,
+            solid_alpha: 1.0,
+            animating: false,
+        }
+    }
+
+    pub fn sample(&mut self, now: Instant, reduce_motion: bool) -> PinwheelSample {
+        if reduce_motion {
+            return match self.phase {
+                PinwheelPhase::Spinning { .. } => PinwheelSample {
+                    angle_rad: 0.0,
+                    hollow_alpha: 1.0,
+                    solid_alpha: 0.0,
+                    animating: false,
+                },
+                PinwheelPhase::Stopping { angle0, .. } => {
+                    self.phase = PinwheelPhase::Resting { angle: angle0 };
+                    PinwheelSample {
+                        angle_rad: angle0,
+                        hollow_alpha: 0.0,
+                        solid_alpha: 1.0,
+                        animating: false,
+                    }
+                }
+                PinwheelPhase::Resting { angle } => PinwheelSample {
+                    angle_rad: angle,
+                    hollow_alpha: 0.0,
+                    solid_alpha: 1.0,
+                    animating: false,
+                },
+            };
+        }
+        match self.phase {
+            PinwheelPhase::Spinning { started_at, angle0 } => {
+                let dt = now.saturating_duration_since(started_at).as_secs_f32();
+                PinwheelSample {
+                    angle_rad: (angle0 + PINWHEEL_OMEGA * dt) % std::f32::consts::TAU,
+                    hollow_alpha: 1.0,
+                    solid_alpha: 0.0,
+                    animating: true,
+                }
+            }
+            PinwheelPhase::Stopping { stopped_at, angle0 } => {
+                let s = Self::sample_stopping(stopped_at, angle0, now);
+                if !s.animating {
+                    self.phase = PinwheelPhase::Resting { angle: s.angle_rad };
+                }
+                s
+            }
+            PinwheelPhase::Resting { angle } => PinwheelSample {
+                angle_rad: angle,
+                hollow_alpha: 0.0,
+                solid_alpha: 1.0,
+                animating: false,
+            },
+        }
+    }
+}
+
+/// Renders the two-layer pinwheel (`Icon::Pinwheel` + `Icon::PinwheelSolid`)
+/// from a [`PinwheelSample`].
+pub fn pinwheel_element(sample: PinwheelSample, size_px: f32, color: Hsla, window: &Window) -> Div {
+    if sample.animating {
+        window.request_animation_frame();
+    }
+    let tf = Transformation::rotate(radians(sample.angle_rad));
+    div()
+        .size(px(size_px))
+        .flex_none()
+        .relative()
+        .when_some(
+            (sample.hollow_alpha > 0.001).then_some(sample.hollow_alpha),
+            |d, a| {
+                d.child(
+                    icon(Icon::Pinwheel, size_px, color.opacity(a))
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .with_transformation(tf),
+                )
+            },
+        )
+        .when_some(
+            (sample.solid_alpha > 0.001).then_some(sample.solid_alpha),
+            |d, a| {
+                d.child(
+                    icon(Icon::PinwheelSolid, size_px, color.opacity(a))
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .with_transformation(tf),
+                )
+            },
+        )
+}
+
+/// Two-bounce hop (`@keyframes hop1`, 0.55s) for `Icon::Shikigami` when
+/// pointing at 「交给 Agent」 in a comment's hover card.
+pub fn shikigami_hop_icon(
+    size_px: f32,
+    color: Hsla,
+    hop_started: Option<Instant>,
+    reduce_motion: bool,
+    window: &Window,
+) -> Svg {
+    let (dy, rot_deg, active) = match hop_started.filter(|_| !reduce_motion) {
+        Some(t0) => {
+            let u = anim::now().saturating_duration_since(t0).as_secs_f32() / 0.55;
+            if u >= 1.0 {
+                (0.0, 0.0, false)
+            } else if u < 0.25 {
+                let k = u / 0.25;
+                (-3.0 * k, -10.0 * k, true)
+            } else if u < 0.50 {
+                let k = 1.0 - (u - 0.25) / 0.25;
+                (-3.0 * k, -10.0 * k, true)
+            } else if u < 0.72 {
+                let k = (u - 0.50) / 0.22;
+                (-1.5 * k, 5.0 * k, true)
+            } else {
+                let k = 1.0 - (u - 0.72) / 0.28;
+                (-1.5 * k, 5.0 * k, true)
+            }
+        }
+        None => (0.0, 0.0, false),
+    };
+    if active {
+        window.request_animation_frame();
+    }
+    let tf = Transformation::translate(point(px(0.0), px(dy)))
+        .with_rotation(radians(rot_deg.to_radians()));
+    icon(Icon::Shikigami, size_px, color).with_transformation(tf)
+}
 
 /// The kind of thing a [`KindMark`] stands for (materials.md, 「砂笔记号」).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -778,6 +1040,126 @@ fn paint_loose(bounds: Bounds<Pixels>, color: Hsla, window: &mut Window) {
     }
 }
 
+/// A dry comment underline (`SandMask::Ul` in `palette.comment`, `.sand-ul` in
+/// the review prototype): `6px` at rest (`0.85`), `7px` and full pigment when
+/// `hot` (pointed at or its Review card hovered), and wiped left-to-right over
+/// `0.38s` whenever `replay` increments (jumping from Review's arrow).
+#[derive(IntoElement)]
+pub struct CommentUnderline {
+    id: ElementId,
+    hot: bool,
+    replay: u64,
+}
+
+impl CommentUnderline {
+    pub fn new(id: impl Into<ElementId>) -> Self {
+        Self {
+            id: id.into(),
+            hot: false,
+            replay: 0,
+        }
+    }
+
+    pub fn hot(mut self, hot: bool) -> Self {
+        self.hot = hot;
+        self
+    }
+
+    pub fn replay(mut self, replay: u64) -> Self {
+        self.replay = replay;
+        self
+    }
+}
+
+pub struct CommentUnderlineState {
+    hot: Tween,
+    wipe: Tween,
+    replay: u64,
+}
+
+impl RenderOnce for CommentUnderline {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = Theme::of(window, cx);
+        let palette = theme.palette;
+        let reduce = theme.reduce_motion;
+        let target_hot = if self.hot { 1.0 } else { 0.0 };
+        let replay = self.replay;
+        let state = window.use_keyed_state(self.id.clone(), cx, |_, _| CommentUnderlineState {
+            hot: Tween::still(target_hot),
+            wipe: Tween::still(1.0),
+            replay,
+        });
+        state.update(cx, |s, _| {
+            let at = anim::now();
+            let d = |ms: u64| {
+                if reduce {
+                    Duration::ZERO
+                } else {
+                    Duration::from_millis(ms)
+                }
+            };
+            s.hot.retarget(target_hot, at, d(140), Easing::EASE_OUT);
+            if s.replay != replay {
+                s.replay = replay;
+                s.wipe = Tween::still(if reduce { 1.0 } else { 0.0 });
+                s.wipe.retarget(1.0, at, d(380), Easing::EASE_OUT);
+            }
+        });
+        div().w_full().h(px(7.0)).relative().child(
+            canvas(
+                |_, _, _| (),
+                move |bounds, _, window, cx| {
+                    let now = anim::now();
+                    let s = state.read(cx);
+                    let hot = s.hot.value(now);
+                    let wipe = s.wipe.value(now);
+                    anim::keep_going(!s.hot.settled(now) || !s.wipe.settled(now), window);
+                    let full_w = (f32::from(bounds.size.width) + 2.0).max(0.0);
+                    let w = full_w * wipe;
+                    if w <= 0.5 {
+                        return;
+                    }
+                    let h = 6.0 + hot;
+                    let alpha = palette.pigment * (0.85 + 0.15 * hot);
+                    let tint = sand_color(palette, palette.comment).alpha(alpha);
+                    let clip = Bounds {
+                        origin: bounds.origin - point(px(1.0), px(0.0)),
+                        size: size(px(w), px(7.0)),
+                    };
+                    window.with_content_mask(Some(gpui::ContentMask { bounds: clip }), |w_in| {
+                        paint_mask(
+                            SandMask::Ul,
+                            Bounds {
+                                origin: bounds.origin - point(px(1.0), px(0.0)),
+                                size: size(px(full_w), px(h)),
+                            },
+                            tint,
+                            w_in,
+                            cx,
+                        );
+                    });
+                },
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full(),
+        )
+    }
+}
+
+/// A small sand seal dot (`SandMask::Blob2` in `palette.comment`, no count) for
+/// the corner of a commented file's thumbnail.
+pub fn comment_dot(size_px: f32, hot: bool, palette: &Palette) -> Svg {
+    let alpha = palette.pigment * if hot { 1.0 } else { 0.9 };
+    let tint = sand_color(palette, palette.comment).alpha(alpha);
+    svg()
+        .path(SandMask::Blob2.shared_path())
+        .size(px(size_px))
+        .flex_none()
+        .text_color(tint)
+}
+
 #[cfg(test)]
 mod frame_tests {
     use super::*;
@@ -800,5 +1182,82 @@ mod frame_tests {
         let mut plain = FrameState::new(true, 0.0, None);
         plain.select(false, 0.0, true);
         assert!(near(plain.fade.value(now()), 0.0));
+    }
+
+    #[test]
+    fn thinking_steps_sixty_eight_frames_and_rests_on_mountain() {
+        assert_eq!(THINKING_FRAMES, 68);
+        assert_eq!(THINKING_STILL_FRAME, 56);
+        assert_eq!(thinking_frame(0, false), 56);
+        assert_eq!(thinking_frame(99_999, false), 56);
+        assert_eq!(thinking_frame(0, true), 0);
+        assert_eq!(thinking_frame(124, true), 0);
+        assert_eq!(thinking_frame(125, true), 1);
+        assert_eq!(thinking_frame(56 * 125, true), 56);
+        assert_eq!(thinking_frame(67 * 125, true), 67);
+        assert_eq!(thinking_frame(68 * 125, true), 0);
+    }
+
+    #[test]
+    fn pinwheel_spins_ccw_decelerates_three_seconds_then_fades_to_solid() {
+        let t0 = Instant::now();
+        let mut pw = PinwheelTrack::spinning(t0);
+
+        let s0 = pw.sample(t0, false);
+        assert!((s0.angle_rad - 0.0).abs() < 1e-5);
+        assert_eq!(
+            (s0.hollow_alpha, s0.solid_alpha, s0.animating),
+            (1.0, 0.0, true)
+        );
+
+        // Half a turn in 0.8s counter-clockwise (-PI).
+        let s_half = pw.sample(t0 + Duration::from_millis(800), false);
+        assert!((s_half.angle_rad + std::f32::consts::PI).abs() < 1e-3);
+        assert_eq!((s_half.hollow_alpha, s_half.solid_alpha), (1.0, 0.0));
+
+        // Finish at 0.8s: uniform deceleration over 3.0s travels -337.5° more.
+        let t_done = t0 + Duration::from_millis(800);
+        pw.sync(false, t_done);
+
+        let mid_slow = pw.sample(t_done + Duration::from_millis(1500), false);
+        assert!(mid_slow.angle_rad < s_half.angle_rad);
+        assert_eq!(
+            (
+                mid_slow.hollow_alpha,
+                mid_slow.solid_alpha,
+                mid_slow.animating
+            ),
+            (1.0, 0.0, true)
+        );
+
+        let at_stop = pw.sample(t_done + Duration::from_secs(3), false);
+        let expected_end = -std::f32::consts::PI - 337.5_f32.to_radians();
+        assert!((at_stop.angle_rad - expected_end).abs() < 1e-3);
+        assert!((at_stop.hollow_alpha - 1.0).abs() < 1e-4);
+        assert!((at_stop.solid_alpha - 0.0).abs() < 1e-4);
+
+        // Halfway through the 0.6s fill cross-fade: both hollow and solid at 0.5, same stopped angle.
+        let mid_fill = pw.sample(t_done + Duration::from_millis(3300), false);
+        assert!((mid_fill.angle_rad - expected_end).abs() < 1e-3);
+        assert!((mid_fill.hollow_alpha - 0.5).abs() < 1e-3);
+        assert!((mid_fill.solid_alpha - 0.5).abs() < 1e-3);
+        assert!(mid_fill.animating);
+
+        // Settled solid after 3.6s.
+        let settled = pw.sample(t_done + Duration::from_millis(3650), false);
+        assert!((settled.angle_rad - expected_end).abs() < 1e-3);
+        assert_eq!(
+            (settled.hollow_alpha, settled.solid_alpha, settled.animating),
+            (0.0, 1.0, false)
+        );
+
+        // Handed off again: resumes spinning hollow from its resting angle.
+        let t_again = t_done + Duration::from_secs(5);
+        pw.sync(true, t_again);
+        let resumed = pw.sample(t_again, false);
+        assert_eq!(
+            (resumed.hollow_alpha, resumed.solid_alpha, resumed.animating),
+            (1.0, 0.0, true)
+        );
     }
 }

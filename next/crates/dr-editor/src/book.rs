@@ -332,6 +332,9 @@ impl EventEmitter<BookEditorEvent> for BookEditor {}
 impl EventEmitter<crate::view::CommentRequested> for BookEditor {}
 impl EventEmitter<crate::view::PositionLinkCopied> for BookEditor {}
 impl EventEmitter<crate::view::EntityLinkOpened> for BookEditor {}
+impl EventEmitter<crate::view::MaterialOpened> for BookEditor {}
+impl EventEmitter<crate::view::EmbedCommentRequested> for BookEditor {}
+impl EventEmitter<crate::view::EmbedFrameRequested> for BookEditor {}
 impl EventEmitter<crate::view::WritingTyped> for BookEditor {}
 
 impl BookEditor {
@@ -645,7 +648,33 @@ impl BookEditor {
                     cx.emit(crate::view::WritingTyped { doc: c.doc.clone() });
                 }
             }
-            crate::embeds::NoteEvent::OpenMaterial(_) => {}
+            crate::embeds::NoteEvent::OpenMaterial(material) => {
+                if let Some(c) = self.chapters.get(chapter) {
+                    cx.emit(crate::view::MaterialOpened {
+                        doc: c.doc.clone(),
+                        material,
+                    });
+                }
+            }
+            crate::embeds::NoteEvent::CommentEmbed { embed, asset, at } => {
+                if let Some(c) = self.chapters.get(chapter) {
+                    cx.emit(crate::view::EmbedCommentRequested {
+                        doc: c.doc.clone(),
+                        embed,
+                        asset,
+                        at,
+                    });
+                }
+            }
+            crate::embeds::NoteEvent::FrameEmbed { embed, asset } => {
+                if let Some(c) = self.chapters.get(chapter) {
+                    cx.emit(crate::view::EmbedFrameRequested {
+                        doc: c.doc.clone(),
+                        embed,
+                        asset,
+                    });
+                }
+            }
         }
     }
 

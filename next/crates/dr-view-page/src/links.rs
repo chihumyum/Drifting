@@ -29,6 +29,11 @@ pub fn init(cx: &mut App) {
                     restore: dr_shell::t(cx, k::RESTORE),
                     kind_image: dr_shell::t(cx, k::KIND_IMAGE),
                     kind_pdf: dr_shell::t(cx, k::KIND_PDF),
+                    write_comment: dr_shell::t(cx, dr_i18n::keys::v3_review::WRITE_COMMENT),
+                    draw_region_comment: dr_shell::t(
+                        cx,
+                        dr_i18n::keys::v3_review::DRAW_REGION_COMMENT,
+                    ),
                 }
             }),
             format_page_count: std::rc::Rc::new(|pages, cx| {

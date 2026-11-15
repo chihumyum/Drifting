@@ -204,9 +204,7 @@
   "commentRail": {
     "actions": {
       "reopen": "未解决",
-      "resolve": "解决",
-      "toNote": "转批注",
-      "toTodo": "转 TODO"
+      "resolve": "解决"
     },
     "card": {
       "emptyComment": "空批注"
@@ -519,9 +517,7 @@
       "drawHint": "在画面上拖出一个区域来批注",
       "empty": "在画面或页面上拖出区域，写下第一条批注。",
       "listLabel": "这条素材的批注",
-      "page": "第 {{page}} 页",
-      "stopDrawing": "结束批注",
-      "whole": "整条素材"
+      "stopDrawing": "结束批注"
     },
     "zoomIn": "放大",
     "zoomOut": "缩小",
@@ -878,7 +874,6 @@
       "floating": "未挂载"
     },
     "newComment": "新建批注",
-    "resolved": "已解决（{{count}}）",
     "scopes": {
       "current": "当前"
     },
@@ -1518,6 +1513,31 @@
     "thisLevel": "本层",
     "title": "标题",
     "unassigned": "未归属"
+  },
+  "v3Review": {
+    "backToReview": "回审阅",
+    "checklistFold": "清单 {{count}}",
+    "commentButton": "批注",
+    "commentFromHeader": "批注 · {{where}}",
+    "commentFromSimple": "批注",
+    "drawRegionComment": "框一块写批注",
+    "handToAgent": "交给 Agent",
+    "jumpToPlace": "去那一处",
+    "noteForAgent": "写给 Agent…",
+    "openConversation": "打开对话",
+    "originAgent": "Agent",
+    "originManual": "手写",
+    "originMarker": "标记",
+    "originReader": "读者",
+    "originReaderNamed": "读者 · {{name}}",
+    "originTask": "清单",
+    "regionPlace": "框选",
+    "regionPlacePaged": "第 {{page}} 页",
+    "statusOpen": "未解决",
+    "statusResolved": "已解决",
+    "unlocated": "找不到原处",
+    "wholeFile": "整个文件",
+    "writeComment": "写批注"
   },
   "v3Settings": {
     "codeCopied": "已复制",

@@ -138,10 +138,11 @@ pub fn corner(
             .into_any_element(),
         );
     }
-    // Every prose page has a ⋯ menu (its snapshot history at least); the
-    // whole book's holds its export when `成书` is enabled (M41).
+    // Every prose or entry page has a ⋯ menu; the whole book's holds its
+    // export when `成书` is enabled (M41).
     let has_book = w.book.v3().is_none_or(|v| v.project.book.is_some());
-    let doc_page = target.and_then(crate::book::doc_of).is_some();
+    let doc_page = target.and_then(crate::book::doc_of).is_some()
+        || matches!(target, Some(Target::Entry { .. }));
     if doc_page || (has_book && target.is_some_and(Target::is_book)) {
         let opener = ws.clone();
         let page = key.clone();

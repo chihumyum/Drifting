@@ -281,3 +281,8 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
   运行时提问工具、以当前书为界的系统指令。
 - `next/crates/dr-shell/src/release.rs`、`library.rs`、`quit.rs`：统一异步释放边界。
 - `next/crates/dr-view-agent/tests/`、`next/crates/dr-shell/tests/release.rs`：上述契约与集成测试。
+
+## 内核 v5（T6）：风·林·火·山思考动画与批注派发桥（2026-11-15）
+
+- Agent 栏处处（「思考中…」行与展开思考过程标题）随 `dr_ui::sand::thinking` 换用 68 帧「风·林·火·山」砂笔帧条（`icons/thinking.png`，8 fps 顺序循环，「已思考」静止在第 57 帧山），替代原星芒帧条。
+- 新增 `dr-view-agent/src/review_bridge.rs`，向 `dr-view-review::agent_bridge` 登记批注派发桥：支持把批注连同可选补充说明发进新对话或续接 `comment.agent_conversation` 记录的既有对话（读写工具权限、系统提示词不变），实时向审阅栏推送会话运行/完成状态驱动卡片右下角风车动画；从风车或悬停卡打开批注对话时，面板左上角显示返回审阅按钮（`v3Review.backToReview`）。契约测试：`dr-view-agent/tests/comment_handoff.rs`。详见 [M18](m18-review.md)。

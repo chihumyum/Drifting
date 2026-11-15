@@ -60,6 +60,13 @@ struct Navigation {
     review_pane: Option<dr_shell::panes::PaneId>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReturnToReview {
+    pub book_id: String,
+    pub comment_id: String,
+    pub title: String,
+}
+
 pub struct AgentPanel {
     ws: WeakEntity<Workspace>,
     hub: Entity<AgentHub>,
@@ -77,6 +84,7 @@ pub struct AgentPanel {
     starters: Option<StarterSource>,
     book_view: Option<std::rc::Rc<dr_shell::book::Book>>,
     show_list: bool,
+    return_to_review: Option<ReturnToReview>,
     expanded: HashSet<String>,
     busy: bool,
     loading: bool,
@@ -124,6 +132,7 @@ impl AgentPanel {
             starters: None,
             book_view: None,
             show_list: false,
+            return_to_review: None,
             expanded: HashSet::new(),
             busy: false,
             loading: false,
@@ -161,6 +170,24 @@ impl AgentPanel {
         panel
             ._subs
             .push(cx.observe(&hub, |panel, _, cx| panel.bind_controller(cx)));
+        let review_tracker = dr_shell::review_agent::ensure_tracker(cx);
+        panel
+            ._subs
+            .push(cx.observe(&review_tracker, |panel, _, cx| {
+                panel.consume_pending_review_open(cx);
+            }));
+        if cx.has_global::<crate::AgentViews>() {
+            let self_weak = cx.entity().downgrade();
+            let views = cx.global_mut::<crate::AgentViews>();
+            views.panels.retain(|p| p.upgrade().is_some());
+            if !views
+                .panels
+                .iter()
+                .any(|p| p.entity_id() == self_weak.entity_id())
+            {
+                views.panels.push(self_weak);
+            }
+        }
         // The companion factory runs inside Workspace::render. Read it only
         // after that render has returned, then follow its book selection.
         cx.spawn(async move |this, cx| {
@@ -185,6 +212,7 @@ impl AgentPanel {
         self._subs
             .push(cx.observe(&ws, |panel, ws, cx| panel.follow_book(&ws, cx)));
         self.bind_controller(cx);
+        self.consume_pending_review_open(cx);
     }
 
     fn follow_book(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
@@ -247,6 +275,7 @@ impl AgentPanel {
         self.book = book;
         self.name = name;
         self.selected = selected;
+        self.return_to_review = None;
         self.fresh = false;
         self.snapshot = None;
         self.conversations.clear();
@@ -399,6 +428,7 @@ impl AgentPanel {
     pub fn new_conversation(&mut self, cx: &mut Context<Self>) {
         self.dictation.update(cx, |view, cx| view.cancel(cx));
         self.selected = None;
+        self.return_to_review = None;
         self.fresh = true;
         self.snapshot = None;
         self.show_list = false;
@@ -412,6 +442,11 @@ impl AgentPanel {
     }
 
     pub fn select_conversation(&mut self, id: ConversationId, cx: &mut Context<Self>) {
+        self.return_to_review = None;
+        self.select_conversation_keep_return(id, cx);
+    }
+
+    fn select_conversation_keep_return(&mut self, id: ConversationId, cx: &mut Context<Self>) {
         self.dictation.update(cx, |view, cx| view.cancel(cx));
         self.selected = Some(id);
         self.fresh = false;
@@ -422,6 +457,88 @@ impl AgentPanel {
         self.invalidate();
         self.remember(cx);
         self.refresh(cx);
+        cx.notify();
+    }
+
+    pub fn return_to_review(&self) -> Option<&ReturnToReview> {
+        self.return_to_review.as_ref()
+    }
+
+    pub(crate) fn is_visibly_showing(
+        &self,
+        self_id: gpui::EntityId,
+        book_id: &str,
+        conversation_id: &ConversationId,
+        cx: &App,
+    ) -> bool {
+        self.book.as_ref().map(BookId::as_str) == Some(book_id)
+            && self.selected.as_ref() == Some(conversation_id)
+            && !self.show_list
+            && self
+                .ws
+                .upgrade()
+                .is_some_and(|ws| ws.read(cx).companion_visible(self_id))
+    }
+
+    fn consume_pending_review_open(&mut self, cx: &mut Context<Self>) {
+        let Some(tracker) = dr_shell::review_agent::tracker(cx) else {
+            return;
+        };
+        let Some(pending) = tracker.read(cx).peek_pending_open().cloned() else {
+            return;
+        };
+        let current_book = self
+            .book
+            .as_ref()
+            .map(|b| b.as_str().to_owned())
+            .or_else(|| self.ws.upgrade().map(|ws| ws.read(cx).book_id.clone()));
+        if current_book.as_deref() != Some(pending.book_id.as_str()) {
+            return;
+        }
+        let eligible = match self.ws.upgrade() {
+            Some(ws) => {
+                ws.read(cx).companion_visible(cx.entity_id()) || crate::panels(cx).len() <= 1
+            }
+            None => true,
+        };
+        if !eligible {
+            return;
+        }
+        let Some(req) = tracker.update(cx, |t, _| t.take_pending_open(&pending.book_id)) else {
+            return;
+        };
+        if self.book.is_none()
+            && let Ok(book) = BookId::parse(&req.book_id)
+        {
+            self.book = Some(book);
+        }
+        let Ok(conv_id) = ConversationId::parse(&req.conversation_id) else {
+            return;
+        };
+        self.return_to_review = Some(ReturnToReview {
+            book_id: req.book_id.clone(),
+            comment_id: req.comment_id,
+            title: req.return_title,
+        });
+        dr_shell::review_agent::mark_viewed(&req.book_id, &req.conversation_id, cx);
+        self.select_conversation_keep_return(conv_id, cx);
+    }
+
+    pub fn back_to_review(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ret) = self.return_to_review.take() else {
+            return;
+        };
+        if let (Some(book), Some(conv)) = (&self.book, &self.selected) {
+            dr_shell::review_agent::mark_viewed(book.as_str(), conv.as_str(), cx);
+        }
+        if let Some(ws) = self.ws.upgrade() {
+            ws.update(cx, |ws, cx| {
+                if ws.book_id == ret.book_id {
+                    let _ = ws.reveal_comment(&ret.comment_id, None, window, cx);
+                }
+            });
+        }
+        cx.notify();
     }
 
     pub fn snapshot(&self) -> Option<&ChatSnapshot> {
@@ -870,11 +987,34 @@ impl AgentPanel {
             .min_w_0();
         match &message.content {
             MessageContent::User { text } => {
-                row = row
-                    .p(px(12.))
-                    .rounded(px(12.))
-                    .bg(p.paper.solid())
-                    .child(text::wrapped(text.clone()))
+                if let Some((header, body)) =
+                    dr_shell::review_agent::parse_comment_user_message(text)
+                {
+                    let theme = Theme::of(window, cx);
+                    row = row
+                        .p(px(12.))
+                        .rounded(px(12.))
+                        .bg(p.paper.solid())
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.))
+                        .child(
+                            div()
+                                .font_role(Role::Index)
+                                .type_px(theme.scale.caption, theme.scale.line_caption)
+                                .text_color(p.ink(4).solid())
+                                .child(header.to_owned()),
+                        )
+                        .when(!body.is_empty(), |el| {
+                            el.child(text::wrapped(body.to_owned()))
+                        })
+                } else {
+                    row = row
+                        .p(px(12.))
+                        .rounded(px(12.))
+                        .bg(p.paper.solid())
+                        .child(text::wrapped(text.clone()))
+                }
             }
             MessageContent::Assistant { message: assistant } => {
                 row = row.child(self.assistant(assistant_id, assistant, false, window, cx))
@@ -1277,7 +1417,9 @@ impl Render for AgentPanel {
                 let title = if item.title.is_empty() {
                     t(cx, k::history::UNTITLED)
                 } else {
-                    item.title.clone().into()
+                    dr_shell::review_agent::clean_conversation_title(&item.title)
+                        .to_owned()
+                        .into()
                 };
                 content = content.child(
                     Button::new(("agent-conversation", index), title)
@@ -1535,14 +1677,52 @@ impl Render for AgentPanel {
 
 pub struct PanelHead {
     panel: Entity<AgentPanel>,
+    _sub: Option<Subscription>,
 }
 impl PanelHead {
     pub fn new(panel: Entity<AgentPanel>) -> Self {
-        Self { panel }
+        Self { panel, _sub: None }
+    }
+
+    pub fn new_observed(panel: Entity<AgentPanel>, cx: &mut Context<Self>) -> Self {
+        let sub = cx.observe(&panel, |_, _, cx| cx.notify());
+        Self {
+            panel,
+            _sub: Some(sub),
+        }
     }
 }
 impl Render for PanelHead {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(ret) = self.panel.read(cx).return_to_review().cloned() {
+            let panel = self.panel.clone();
+            let back_label = t(cx, dr_i18n::keys::v3_review::BACK_TO_REVIEW);
+            let p = Theme::of(window, cx).palette;
+            return div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .w_full()
+                .min_w_0()
+                .child(
+                    dr_ui::components::IconButton::new(
+                        "agent-back-to-review",
+                        sand::Icon::ArrowBack,
+                    )
+                    .label(back_label)
+                    .on_click(move |_, window, cx| {
+                        panel.update(cx, |p, cx| p.back_to_review(window, cx))
+                    }),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_color(p.ink(1).solid())
+                        .child(ret.title),
+                );
+        }
         let panel = self.panel.clone();
         let new = self.panel.clone();
         div()

@@ -53,6 +53,59 @@ pub struct ManuscriptBody {
 pub type ScopeLayouts = BTreeMap<String, BTreeMap<String, (f64, f64)>>;
 pub type BookLayouts = BTreeMap<String, ScopeLayouts>;
 
+/// A spot outside prose text that can show a comment underline or dot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OpenSpotKind {
+    EntryTitle {
+        entry: String,
+    },
+    ModuleHeader {
+        entry: String,
+        module: String,
+    },
+    Field {
+        entry: String,
+        module: String,
+        field: String,
+    },
+    KvRow {
+        entry: String,
+        module: String,
+        row: String,
+    },
+    PlotCell {
+        entry: String,
+        module: String,
+        row: String,
+        col: String,
+    },
+    Patch {
+        entry: String,
+        module: String,
+        patch: String,
+    },
+    Media {
+        entry: String,
+        module: String,
+        asset: String,
+    },
+    Embed {
+        entry: String,
+        module: String,
+        embed: String,
+        asset: Option<String>,
+    },
+    Asset {
+        asset: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenCommentSpot {
+    pub id: String,
+    pub spot: OpenSpotKind,
+}
+
 #[derive(Clone, Default, Serialize)]
 pub struct BookV3 {
     pub revision: String,
@@ -70,6 +123,8 @@ pub struct BookV3 {
     pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
     pub media_items: BTreeMap<String, MaterialInfo>,
+    #[serde(skip)]
+    pub open_comments: Vec<OpenCommentSpot>,
     #[serde(skip)]
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
@@ -200,6 +255,88 @@ impl BookV3 {
                     || self.media_items.contains_key(id.as_str())
             }
         }
+    }
+    /// Standalone asset viewer row for `id` (present for every live `Asset`,
+    /// even when the same file is also placed in an entry's media module).
+    pub fn open_spot_ids(&self, want: &OpenSpotKind) -> Vec<String> {
+        self.open_comments
+            .iter()
+            .filter(|c| &c.spot == want)
+            .map(|c| c.id.clone())
+            .collect()
+    }
+    pub fn entry_title_comments(&self, entry: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::EntryTitle {
+            entry: entry.to_owned(),
+        })
+    }
+    pub fn module_header_comments(&self, entry: &str, module: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::ModuleHeader {
+            entry: entry.to_owned(),
+            module: module.to_owned(),
+        })
+    }
+    pub fn field_comments(&self, entry: &str, module: &str, field: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::Field {
+            entry: entry.to_owned(),
+            module: module.to_owned(),
+            field: field.to_owned(),
+        })
+    }
+    pub fn kv_row_comments(&self, entry: &str, module: &str, row: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::KvRow {
+            entry: entry.to_owned(),
+            module: module.to_owned(),
+            row: row.to_owned(),
+        })
+    }
+    pub fn plot_cell_comments(
+        &self,
+        entry: &str,
+        module: &str,
+        row: &str,
+        col: &str,
+    ) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::PlotCell {
+            entry: entry.to_owned(),
+            module: module.to_owned(),
+            row: row.to_owned(),
+            col: col.to_owned(),
+        })
+    }
+    pub fn patch_comments(&self, entry: &str, module: &str, patch: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::Patch {
+            entry: entry.to_owned(),
+            module: module.to_owned(),
+            patch: patch.to_owned(),
+        })
+    }
+    pub fn media_comments(&self, entry: &str, module: &str, asset: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::Media {
+            entry: entry.to_owned(),
+            module: module.to_owned(),
+            asset: asset.to_owned(),
+        })
+    }
+    pub fn asset_comments(&self, asset: &str) -> Vec<String> {
+        self.open_spot_ids(&OpenSpotKind::Asset {
+            asset: asset.to_owned(),
+        })
+    }
+    /// Open comments touching `asset` from any of the three places (direct on
+    /// the asset, inside a media module, or embedded in prose).
+    pub fn any_asset_comments(&self, asset: &str) -> Vec<String> {
+        self.open_comments
+            .iter()
+            .filter(|c| match &c.spot {
+                OpenSpotKind::Asset { asset: a } | OpenSpotKind::Media { asset: a, .. } => {
+                    a == asset
+                }
+                OpenSpotKind::Embed { asset: Some(a), .. } => a == asset,
+                _ => false,
+            })
+            .map(|c| c.id.clone())
+            .collect()
     }
     /// The 1-based chapter ordinal of `id` when it carries book prose in the
     /// manuscript sequence and lives under no entry with book prose of its
@@ -487,6 +624,85 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 }
             }
         }
+        let open_comments: Vec<OpenCommentSpot> = view
+            .comments()
+            .into_iter()
+            .filter(|c| c.status == dr_model::kind::CommentStatus::Open && !c.target_missing)
+            .filter_map(|c| {
+                let target = c.target.as_ref()?;
+                let spot = match target.kind {
+                    dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material => {
+                        OpenSpotKind::Asset {
+                            asset: target.id.clone(),
+                        }
+                    }
+                    dr_model::kind::EntityKind::Entry => {
+                        let entry = target.id.clone();
+                        match (&c.target_module, &c.part) {
+                            (Some(m), Some(dr_model::v3::CommentPart::Field { field })) => {
+                                OpenSpotKind::Field {
+                                    entry,
+                                    module: m.to_string(),
+                                    field: field.to_string(),
+                                }
+                            }
+                            (Some(m), Some(dr_model::v3::CommentPart::KvRow { row })) => {
+                                OpenSpotKind::KvRow {
+                                    entry,
+                                    module: m.to_string(),
+                                    row: row.to_string(),
+                                }
+                            }
+                            (Some(m), Some(dr_model::v3::CommentPart::PlotCell { row, col })) => {
+                                OpenSpotKind::PlotCell {
+                                    entry,
+                                    module: m.to_string(),
+                                    row: row.to_string(),
+                                    col: col.to_string(),
+                                }
+                            }
+                            (Some(m), Some(dr_model::v3::CommentPart::Patch { patch })) => {
+                                OpenSpotKind::Patch {
+                                    entry,
+                                    module: m.to_string(),
+                                    patch: patch.to_string(),
+                                }
+                            }
+                            (Some(m), Some(dr_model::v3::CommentPart::Media { asset, .. })) => {
+                                OpenSpotKind::Media {
+                                    entry,
+                                    module: m.to_string(),
+                                    asset: asset.to_string(),
+                                }
+                            }
+                            (Some(m), Some(dr_model::v3::CommentPart::Embed { embed, .. })) => {
+                                OpenSpotKind::Embed {
+                                    entry,
+                                    module: m.to_string(),
+                                    embed: embed.to_string(),
+                                    asset: None,
+                                }
+                            }
+                            (Some(m), None) if c.anchor.is_none() && c.target_block.is_none() => {
+                                OpenSpotKind::ModuleHeader {
+                                    entry,
+                                    module: m.to_string(),
+                                }
+                            }
+                            (None, None) if c.anchor.is_none() && c.target_block.is_none() => {
+                                OpenSpotKind::EntryTitle { entry }
+                            }
+                            _ => return None,
+                        }
+                    }
+                    _ => return None,
+                };
+                Some(OpenCommentSpot {
+                    id: c.id.to_string(),
+                    spot,
+                })
+            })
+            .collect();
 
         // What a view can write over from this snapshot: every entry and its
         // place among its siblings, every template, membership, and timeline
@@ -532,11 +748,69 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 materials,
                 material_folders,
                 media_items,
+                open_comments,
                 ..Default::default()
             },
         ))
     })?;
 
+    if v3
+        .open_comments
+        .iter()
+        .any(|c| matches!(c.spot, OpenSpotKind::Embed { .. }))
+    {
+        let mut cache = std::collections::HashMap::new();
+        v3.open_comments.retain_mut(|c| {
+            let OpenSpotKind::Embed {
+                entry,
+                module,
+                embed,
+                asset,
+            } = &mut c.spot
+            else {
+                return true;
+            };
+            let key = (entry.clone(), module.clone());
+            let map = cache.entry(key).or_insert_with(|| {
+                let eid = dr_model::id::EntryId::parse(entry).ok()?;
+                let mid = dr_model::id::ModuleId::parse(module).ok()?;
+                let doc_id = dr_model::DocId::Body(dr_model::id::BodyDocId::new(eid, mid));
+                let name = doc_id.to_string();
+                lib.library().doc_info(&name).ok()??;
+                let mut out = std::collections::HashMap::new();
+                if let Ok(handle) = lib.library().open_doc(&name, dr_store::OpenDoc::Existing)
+                    && let Ok(found) = handle.read(move |doc| {
+                        let mut m = std::collections::HashMap::new();
+                        if let Ok(prose) = dr_doc::prose::BorrowedProse::new(doc, &doc_id) {
+                            let pv = prose.view();
+                            for (_, eid) in pv.embed_refs() {
+                                if let Some(dr_doc::prose::EmbedView::Asset {
+                                    asset: aid, ..
+                                }) = pv.embed(&eid)
+                                {
+                                    m.insert(eid.to_string(), aid.map(|a| a.to_string()));
+                                }
+                            }
+                        }
+                        m
+                    })
+                {
+                    out = found;
+                }
+                Some(out)
+            });
+            match map {
+                None => true,
+                Some(map) => match map.get(embed.as_str()) {
+                    Some(found) => {
+                        *asset = found.clone();
+                        true
+                    }
+                    None => false,
+                },
+            }
+        });
+    }
     v3.layouts = parse_layout_positions(lib.layout_positions(id)?);
     v3.entry_index = v3
         .entries

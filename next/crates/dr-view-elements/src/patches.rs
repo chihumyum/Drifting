@@ -46,6 +46,7 @@ pub struct Patches {
     pending_add: usize,
     adding: bool,
     add_failed: bool,
+    _review_focus: Subscription,
 }
 pub fn register(cx: &mut App) {
     dr_shell::v3::add_module_view(cx, "patches", |host, window, cx| {
@@ -63,6 +64,7 @@ pub fn register(cx: &mut App) {
 impl Patches {
     pub(crate) fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
         settlement::register(&host.page.library, window.window_handle(), cx);
+        let review_focus = cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify());
         let mut v = Self {
             host,
             records: Vec::new(),
@@ -74,6 +76,7 @@ impl Patches {
             pending_add: 0,
             adding: false,
             add_failed: false,
+            _review_focus: review_focus,
         };
         v.reload(cx);
         v
@@ -468,18 +471,135 @@ impl Render for Patches {
                 .iter()
                 .find(|p| p.id == id)
                 .and_then(|p| p.source_text.clone());
+            let is_saved = self.records.iter().any(|p| p.id == id);
+            let row_focused = row.title.focus_handle(cx).is_focused(window)
+                || row.body.focus_handle(cx).is_focused(window);
+            let title_focus = row.title.focus_handle(cx);
+            let patch_group = SharedString::from(format!("patch-row-{id}"));
+            let patch_comments = if is_saved {
+                self.host
+                    .page
+                    .book
+                    .v3()
+                    .map(|b| b.patch_comments(&self.host.entry, &self.host.module.id, &id))
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            let patch_ul = dr_shell::comment_underline(
+                SharedString::from(format!("patch-ul-{id}")),
+                patch_comments,
+                self.host.page.workspace.clone(),
+                cx,
+            );
+            let theme = dr_ui::Theme::of(window, cx);
+            let comment_btn = is_saved.then(|| {
+                let ws = self.host.page.workspace.clone();
+                let entry = self.host.entry.clone();
+                let module = self.host.module.id.clone();
+                let pid = id.clone();
+                let ret = title_focus.clone();
+                let label = t(cx, dr_i18n::keys::v3_review::WRITE_COMMENT);
+                div()
+                    .id(SharedString::from(format!("patch-comment-{id}")))
+                    .size(px(20.0))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(3.0))
+                    .cursor_pointer()
+                    .role(gpui::Role::Button)
+                    .aria_label(label)
+                    .map(|el| {
+                        if row_focused {
+                            el
+                        } else {
+                            el.invisible()
+                                .group_hover(patch_group.clone(), |st| st.visible())
+                        }
+                    })
+                    .hover(|st| st.bg(theme.palette.ink(1).alpha(0.05)))
+                    .on_click(move |e, window, cx| {
+                        cx.stop_propagation();
+                        if let Some(ws) = ws.upgrade() {
+                            let pos = e.position();
+                            let entry = entry.clone();
+                            let module = module.clone();
+                            let pid = pid.clone();
+                            let ret = ret.clone();
+                            ws.update(cx, |ws, cx| {
+                                ws.open_part_composer(
+                                    &entry,
+                                    &module,
+                                    dr_workspace::dto::CommentPartDto::Patch { patch: pid },
+                                    Some(pos),
+                                    Some(ret),
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    })
+                    .child(dr_ui::sand::icon(
+                        dr_ui::sand::Icon::CommentPlus,
+                        12.0,
+                        theme.palette.ink(4).solid(),
+                    ))
+            });
+            let ws_action = self.host.page.workspace.clone();
+            let entry_action = self.host.entry.clone();
+            let mod_action = self.host.module.id.clone();
+            let pid_action = id.clone();
+            let focus_action = title_focus;
             let retry_id = id.clone();
             list = list.child(
                 div()
+                    .id(patch_group.clone())
+                    .group(patch_group)
+                    .on_action(move |_: &dr_shell::NewComment, window, cx| {
+                        if !is_saved {
+                            return;
+                        }
+                        cx.stop_propagation();
+                        if let Some(ws) = ws_action.upgrade() {
+                            let entry = entry_action.clone();
+                            let module = mod_action.clone();
+                            let pid = pid_action.clone();
+                            let ret = focus_action.clone();
+                            ws.update(cx, |ws, cx| {
+                                ws.open_part_composer(
+                                    &entry,
+                                    &module,
+                                    dr_workspace::dto::CommentPartDto::Patch { patch: pid },
+                                    None,
+                                    Some(ret),
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    })
                     .flex()
                     .flex_col()
                     .gap_2()
                     .child(
                         div()
-                            .id(SharedString::from(format!("patch-title-group-{id}")))
-                            .role(gpui::Role::Group)
-                            .aria_label(t(cx, dr_i18n::keys::k4_pages::TITLE))
-                            .child(row.title.clone()),
+                            .flex()
+                            .flex_row()
+                            .items_start()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .id(SharedString::from(format!("patch-title-group-{id}")))
+                                    .role(gpui::Role::Group)
+                                    .aria_label(t(cx, dr_i18n::keys::k4_pages::TITLE))
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(row.title.clone())
+                                    .children(patch_ul),
+                            )
+                            .children(comment_btn),
                     )
                     .child(
                         div()
@@ -488,11 +608,9 @@ impl Render for Patches {
                             .aria_label(t(cx, dr_i18n::keys::k4_pages::BODY))
                             .child(row.body.clone()),
                     )
-                    .children(source.map(|s| {
-                        div()
-                            .text_color(dr_ui::Theme::of(window, cx).palette.ink(3).solid())
-                            .child(s)
-                    }))
+                    .children(
+                        source.map(|s| div().text_color(theme.palette.ink(3).solid()).child(s)),
+                    )
                     .children(
                         row.error
                             .then(|| t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED)),

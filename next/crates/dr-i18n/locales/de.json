@@ -206,9 +206,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Erneut öffnen",
-      "resolve": "Erledigen",
-      "toNote": "Zu Kommentar",
-      "toTodo": "Zu Aufgabe"
+      "resolve": "Erledigen"
     },
     "card": {
       "emptyComment": "Leerer Kommentar"
@@ -529,9 +527,7 @@
       "drawHint": "Über das Bild ziehen, um einen Bereich zu markieren",
       "empty": "Über das Bild oder die Seite ziehen, um den ersten Kommentar hinzuzufügen.",
       "listLabel": "Kommentare zu diesem Material",
-      "page": "Seite {{page}}",
-      "stopDrawing": "Kommentieren beenden",
-      "whole": "Gesamtes Material"
+      "stopDrawing": "Kommentieren beenden"
     },
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern",
@@ -892,7 +888,6 @@
       "floating": "Nicht angehängt"
     },
     "newComment": "Neuer Kommentar",
-    "resolved": "Erledigt ({{count}})",
     "scopes": {
       "current": "Aktuell"
     },
@@ -1532,6 +1527,31 @@
     "thisLevel": "Diese Ebene",
     "title": "Titel",
     "unassigned": "Nicht zugeordnet"
+  },
+  "v3Review": {
+    "backToReview": "Zurück zur Prüfung",
+    "checklistFold": "Checkliste {{count}}",
+    "commentButton": "Kommentar",
+    "commentFromHeader": "Kommentar · {{where}}",
+    "commentFromSimple": "Kommentar",
+    "drawRegionComment": "Bereich markieren und kommentieren",
+    "handToAgent": "An Agent übergeben",
+    "jumpToPlace": "Zur Stelle springen",
+    "noteForAgent": "Notiz an Agent…",
+    "openConversation": "Gespräch öffnen",
+    "originAgent": "Agent",
+    "originManual": "Manuell",
+    "originMarker": "Markierungen",
+    "originReader": "Leser",
+    "originReaderNamed": "Leser · {{name}}",
+    "originTask": "Checkliste",
+    "regionPlace": "Bereich",
+    "regionPlacePaged": "Seite {{page}}",
+    "statusOpen": "Offen",
+    "statusResolved": "Gelöst",
+    "unlocated": "Ursprungsort fehlt",
+    "wholeFile": "Ganze Datei",
+    "writeComment": "Kommentar schreiben"
   },
   "v3Settings": {
     "codeCopied": "Kopiert",

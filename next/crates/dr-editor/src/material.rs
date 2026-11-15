@@ -4,11 +4,12 @@
 //!   (`Left`, `Center`, `Right`), with an inline `图注` caption below the
 //!   figure (empty captions occupy zero height unless the embed is selected or
 //!   being edited) and a 248px hover card (`大小`, `对齐`, `打开`,
-//!   `在素材库里找到`, `从正文拿走`). Single-click selects; double-click opens
-//!   the viewer.
+//!   `在素材库里找到`, `写批注`, `框一块写批注`, `从正文拿走`). Single-click
+//!   selects; double-click opens the viewer.
 //! - **PDF**: a compact `.pdfc` card (`44×60` first-page thumbnail, filename,
 //!   `PDF · N 页`) that opens the viewer on single click and carries a 248px
-//!   hover card (`打开`, `在素材库里找到`, `从正文拿走`).
+//!   hover card (`打开`, `在素材库里找到`, `写批注`, `框一块写批注`, `从正文拿走`).
+//! - An open comment on the embed puts one sand dot on its corner.
 //! - **Missing / Recently Deleted**: a `.gone` dashed box with the struck-through
 //!   filename (when still in `assets_raw`), folder-trash-aware `恢复`, and
 //!   `从正文拿走`.
@@ -19,7 +20,7 @@ use std::rc::Rc;
 
 use dr_doc::prose::FileEmbedLook;
 use dr_model::id::{AssetId, EmbedId};
-use dr_model::v3::{EmbedAlign, EmbedSize};
+use dr_model::v3::{CommentPart, EmbedAlign, EmbedSize};
 use dr_store::asset::Variant;
 use dr_ui::components::hover_card::{CardAction, CardBody};
 use dr_ui::components::menu::RowIcon;
@@ -54,6 +55,9 @@ pub struct MaterialFacts {
     pub picture: Option<PathBuf>,
     /// Thumbnail path for the 248px hover card preview.
     pub thumb: Option<PathBuf>,
+    /// Whether this embedded file has at least one open comment on it (a
+    /// sand dot on the thumbnail's corner, `kernel-v5.md` §7).
+    pub has_open_comment: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -208,11 +212,25 @@ impl MaterialBlock {
         } else {
             path_of(Variant::Display).or_else(|| path_of(Variant::Source))
         };
+        // Looked up with the rest of the facts, so again only when the book
+        // changes (`EmbedHost::book_changed`), not on every frame.
+        let embed_id = self.embed.clone();
+        let has_open_comment = crate::v3::read(&self.host.ws, &self.host.book, move |v| {
+            v.comments().into_iter().any(|c| {
+                !c.is_done()
+                    && matches!(
+                        &c.part,
+                        Some(CommentPart::Embed { embed, .. }) if embed.as_str() == embed_id
+                    )
+            })
+        })
+        .unwrap_or(false);
         LookupState::Live(MaterialFacts {
             title: rec.name,
             kind: rec.kind,
             picture,
             thumb,
+            has_open_comment,
         })
     }
 
@@ -220,6 +238,20 @@ impl MaterialBlock {
     pub fn open(&self, cx: &mut App) {
         if let Some(id) = &self.material {
             self.host.open_material(id.as_str(), cx);
+        }
+    }
+
+    /// Opens the comment composer on this embedded file (`kernel-v5.md` §7).
+    pub fn comment(&self, at: gpui::Point<Pixels>, cx: &mut App) {
+        if let Some(id) = &self.material {
+            self.host.comment_embed(&self.embed, id.as_str(), at, cx);
+        }
+    }
+
+    /// Opens the viewer in region-drawing mode for this embedded file.
+    pub fn frame(&self, cx: &mut App) {
+        if let Some(id) = &self.material {
+            self.host.frame_embed(&self.embed, id.as_str(), cx);
         }
     }
 
@@ -452,6 +484,27 @@ impl MaterialBlock {
             })
             .into_any_element();
 
+            let comment_ent = this.clone();
+            let comment_act = CardAction::new(
+                ElementId::Name(format!("{body_id}-comment").into()),
+                RowIcon::Brush(Icon::CommentPlus),
+                strings.write_comment.clone(),
+            )
+            .on_click(move |_, window, cx| {
+                let at = window.mouse_position();
+                comment_ent.update(cx, |b, cx| b.comment(at, cx));
+            })
+            .into_any_element();
+
+            let frame_ent = this.clone();
+            let frame_act = CardAction::new(
+                ElementId::Name(format!("{body_id}-frame").into()),
+                RowIcon::Brush(Icon::Fullscreen),
+                strings.draw_region_comment.clone(),
+            )
+            .on_click(move |_, _, cx| frame_ent.update(cx, |b, cx| b.frame(cx)))
+            .into_any_element();
+
             let rem_ent = this.clone();
             let remove_act = CardAction::new(
                 ElementId::Name(format!("{body_id}-remove").into()),
@@ -626,6 +679,7 @@ impl MaterialBlock {
             }
 
             card.section(vec![open_act, locate_act])
+                .section(vec![comment_act, frame_act])
                 .section(vec![remove_act])
                 .into_any_element()
         })
@@ -742,6 +796,17 @@ impl Render for MaterialBlock {
                     flashing,
                 )
                 .color(p.accent);
+                // An open comment on this embed: one sand dot on the corner,
+                // never a count (`kernel-v5.md` §7).
+                let comment_dot = |on: bool| {
+                    on.then(|| {
+                        div()
+                            .absolute()
+                            .top(px(5.))
+                            .right(px(5.))
+                            .child(sand::comment_dot(8.0, false, p))
+                    })
+                };
 
                 if facts.kind == "image" {
                     let size_mode = self.look.size.clone().unwrap_or(EmbedSize::Medium);
@@ -777,6 +842,7 @@ impl Render for MaterialBlock {
                                         .rounded(px(radius::SM))
                                         .object_fit(ObjectFit::Contain),
                                 )
+                                .children(comment_dot(facts.has_open_comment))
                                 .into_any_element()
                         }
                         None => div()
@@ -794,6 +860,7 @@ impl Render for MaterialBlock {
                             .text_size(px(12.))
                             .text_color(muted)
                             .child(sand::icon(Icon::Image, 20., muted))
+                            .children(comment_dot(facts.has_open_comment))
                             .into_any_element(),
                     };
                     let wrapped_fig = self.wrap_hover_card(&facts, true, fig_box, cx);
@@ -921,6 +988,7 @@ impl Render for MaterialBlock {
                     .cursor_pointer()
                     .on_click(move |_, _, cx| open_ent.update(cx, |b, cx| b.open(cx)))
                     .child(thumb)
+                    .children(comment_dot(facts.has_open_comment))
                     .child(
                         div()
                             .flex_1()

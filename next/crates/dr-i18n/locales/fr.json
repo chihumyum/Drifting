@@ -208,9 +208,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Rouvrir",
-      "resolve": "Résoudre",
-      "toNote": "En commentaire",
-      "toTodo": "En tâche"
+      "resolve": "Résoudre"
     },
     "card": {
       "emptyComment": "Commentaire vide"
@@ -533,9 +531,7 @@
       "drawHint": "Faites glisser sur l’image pour marquer une zone",
       "empty": "Faites glisser sur l’image ou la page pour ajouter le premier commentaire.",
       "listLabel": "Commentaires de cette ressource",
-      "page": "Page {{page}}",
-      "stopDrawing": "Arrêter les commentaires",
-      "whole": "Ressource entière"
+      "stopDrawing": "Arrêter les commentaires"
     },
     "zoomIn": "Zoom avant",
     "zoomOut": "Zoom arrière",
@@ -902,7 +898,6 @@
       "floating": "Non rattachés"
     },
     "newComment": "Nouveau commentaire",
-    "resolved": "Résolus ({{count}})",
     "scopes": {
       "current": "Actuel"
     },
@@ -1542,6 +1537,31 @@
     "thisLevel": "Ce niveau",
     "title": "Titre",
     "unassigned": "Sans rattachement"
+  },
+  "v3Review": {
+    "backToReview": "Retour à la révision",
+    "checklistFold": "Liste {{count}}",
+    "commentButton": "Commenter",
+    "commentFromHeader": "Commentaire · {{where}}",
+    "commentFromSimple": "Commentaire",
+    "drawRegionComment": "Encadrer une zone et commenter",
+    "handToAgent": "Confier à Agent",
+    "jumpToPlace": "Aller à l’emplacement",
+    "noteForAgent": "Note pour Agent…",
+    "openConversation": "Ouvrir la conversation",
+    "originAgent": "Agent",
+    "originManual": "Manuel",
+    "originMarker": "Repères",
+    "originReader": "Lecteur",
+    "originReaderNamed": "Lecteur · {{name}}",
+    "originTask": "Liste",
+    "regionPlace": "Zone",
+    "regionPlacePaged": "Page {{page}}",
+    "statusOpen": "Ouverts",
+    "statusResolved": "Résolus",
+    "unlocated": "Emplacement introuvable",
+    "wholeFile": "Fichier entier",
+    "writeComment": "Écrire un commentaire"
   },
   "v3Settings": {
     "codeCopied": "Copié",

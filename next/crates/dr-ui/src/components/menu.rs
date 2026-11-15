@@ -131,6 +131,7 @@ impl MenuItem {
 
 pub(crate) fn row_icon(icon: RowIcon, id: &ElementId, ink: Hsla) -> AnyElement {
     match icon {
+        RowIcon::Brush(Icon::Thinking) => sand::thinking_still(m::ICON, ink).into_any_element(),
         RowIcon::Brush(icon) => sand::icon(icon, m::ICON, ink).into_any_element(),
         RowIcon::Mark(kind, color) => {
             let mark = KindMark::new(crate::style::child_id(&id.clone(), "mark"), kind)

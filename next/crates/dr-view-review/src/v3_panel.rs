@@ -5,16 +5,26 @@ use std::rc::Rc;
 use dr_i18n::{Locale, Platform};
 use gpui::{AnyElement, App, IntoElement, Window};
 
+use crate::agent_bridge::CompanionFocusRequest;
 use crate::v3::{Snapshot, Target};
 
 pub type Open = Rc<dyn Fn(Target, &mut Window, &mut App)>;
+pub type OpenAgent = Rc<dyn Fn(CompanionFocusRequest, &mut Window, &mut App)>;
 pub type Marks = Rc<dyn Fn(&Target) -> Option<dr_ui::sand::Kind>>;
 
 pub(crate) struct State {
     pub scope: Option<Target>,
     pub snapshot: Snapshot,
     pub open: Open,
+    pub open_agent: Option<OpenAgent>,
     pub marks: Marks,
+}
+
+/// Wires the host callback that switches a pane from Review to Agent for a comment's conversation.
+pub fn set_open_agent(id: &str, open_agent: Option<OpenAgent>, cx: &mut App) {
+    if let Some(view) = crate::ensure_view(id, cx) {
+        view.update(cx, |v, _| v.set_open_agent(open_agent));
+    }
 }
 
 /// Ensures and configures a Hub-managed v3 [`crate::ReviewView`] so hosts that

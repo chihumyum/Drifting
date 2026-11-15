@@ -49,6 +49,8 @@ pub struct EditorFileStrings {
     pub restore: SharedString,
     pub kind_image: SharedString,
     pub kind_pdf: SharedString,
+    pub write_comment: SharedString,
+    pub draw_region_comment: SharedString,
 }
 
 impl Default for EditorFileStrings {
@@ -74,6 +76,8 @@ impl Default for EditorFileStrings {
             restore: "恢复".into(),
             kind_image: "图片".into(),
             kind_pdf: "PDF".into(),
+            write_comment: "写批注".into(),
+            draw_region_comment: "框一块写批注".into(),
         }
     }
 }

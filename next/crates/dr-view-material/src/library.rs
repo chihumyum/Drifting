@@ -223,6 +223,7 @@ impl LibraryPanel {
         let view_mode = ViewMode::from_stored(stored_view.as_ref().and_then(|v| v.as_str()));
         let pending_locate = take_queued_locate(cx);
         let mut subs = Vec::new();
+        subs.push(cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify()));
         if shell.upgrade().is_some() {
             cx.spawn(async move |this, cx| {
                 this.update(cx, |p, cx| {

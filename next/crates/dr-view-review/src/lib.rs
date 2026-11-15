@@ -16,6 +16,7 @@
 //! for the arrows), [`NewComment`] handled by the workspace, the composer
 //! drawn over the stage.
 
+pub mod agent_bridge;
 pub mod composer;
 pub mod model;
 pub mod panel;
@@ -28,7 +29,8 @@ use dr_workspace::{Workspace, WsEvent, events::Subscription};
 use gpui::{App, AppContext, Entity, Global, KeyBinding, SharedString, actions};
 
 pub use composer::{Anchor, CommentComposer, ComposerEvent};
-pub use model::{Filter, Group, Listing, Place};
+pub use dr_editor::decor::ReviewFocus;
+pub use model::{Filter, Group, Listing, OriginFilter, Place, StatusFilter};
 pub use panel::ReviewView;
 
 actions!(
@@ -69,6 +71,7 @@ impl Global for Hub {}
 /// Routes the library's comment changes to the Review tabs. Call once, at
 /// start-up.
 pub fn init(lib: Option<Workspace>, cx: &mut App) {
+    let _ = agent_bridge::ensure_tracker(cx);
     let (tx, mut rx) = futures::channel::mpsc::unbounded::<(String, bool)>();
     let subscription = lib.as_ref().map(|lib| {
         lib.subscribe(move |e| {
@@ -115,6 +118,7 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
 
 /// Lets go of the library before quitting.
 pub fn release(cx: &mut App) {
+    agent_bridge::reset_library_state(cx);
     if cx.has_global::<Hub>() {
         let hub = cx.global_mut::<Hub>();
         hub.subscription = None;
@@ -146,11 +150,19 @@ fn ensure_view(id: &str, cx: &mut App) -> Option<Entity<ReviewView>> {
     let view = match view {
         Some(v) => v,
         None => {
+            let tracker = agent_bridge::ensure_tracker(cx);
             let v = cx.new(|_| ReviewView::new(id.clone(), lib));
             let observed = v.downgrade();
             // Pointing at sand in the prose lights its card.
             cx.observe_global::<dr_editor::decor::ReviewFocus>(move |cx| {
                 if let Some(v) = observed.upgrade() {
+                    v.update(cx, |_, cx| cx.notify());
+                }
+            })
+            .detach();
+            let observed_agent = v.downgrade();
+            cx.observe(&tracker, move |_, cx| {
+                if let Some(v) = observed_agent.upgrade() {
                     v.update(cx, |_, cx| cx.notify());
                 }
             })
