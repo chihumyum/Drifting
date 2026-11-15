@@ -111,6 +111,14 @@
   "positionLink": {
     "copied": "Link de posição copiado"
   },
+  "projectHome": {
+    "projectTemplate": {
+      "fromTemplate": "De “{{name}}”",
+      "saveAs": "Salvar como modelo de projeto",
+      "source": "Origem",
+      "title": "Modelo de projeto"
+    }
+  },
   "projectPicker": {
     "bookTransfer": {
       "legacy": "Este arquivo foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",

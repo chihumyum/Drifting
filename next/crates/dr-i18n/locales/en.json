@@ -233,12 +233,6 @@
     "wordsCount": "{{count}} words"
   },
   "dashboard": {
-    "hero": {
-      "projectName": "Project name"
-    },
-    "sections": {
-      "projectProfile": "Project profile"
-    },
     "today": {
       "streak": "Streak",
       "week": "This week"
@@ -709,6 +703,12 @@
       }
     },
     "kicker": "Project Home",
+    "projectTemplate": {
+      "fromTemplate": "From “{{name}}”",
+      "saveAs": "Save as project template",
+      "source": "Source",
+      "title": "Project template"
+    },
     "settings": {
       "dailyGoal": "Daily goal",
       "proactive": "Proactive suggestions",
@@ -716,9 +716,6 @@
     },
     "today": "Today {{today}} / {{goal}} · {{streak}}-day streak",
     "todayNoGoal": "Today {{today}} · {{streak}}-day streak",
-    "views": {
-      "settings": "Settings"
-    },
     "words": "{{words}} words",
     "wordsOfTarget": "{{words}} / {{target}} words"
   },

@@ -233,12 +233,6 @@
     "wordsCount": "{{count}} 字"
   },
   "dashboard": {
-    "hero": {
-      "projectName": "作品名稱"
-    },
-    "sections": {
-      "projectProfile": "作品簡介"
-    },
     "today": {
       "streak": "連續寫作",
       "week": "本週"
@@ -702,6 +696,12 @@
       }
     },
     "kicker": "作品首頁",
+    "projectTemplate": {
+      "fromTemplate": "來自「{{name}}」",
+      "saveAs": "另存為專案範本",
+      "source": "來源",
+      "title": "專案範本"
+    },
     "settings": {
       "dailyGoal": "每日目標",
       "proactive": "主動建議",
@@ -709,9 +709,6 @@
     },
     "today": "今日 {{today}}／{{goal}} · 連續 {{streak}} 天",
     "todayNoGoal": "今日 {{today}} · 連續 {{streak}} 天",
-    "views": {
-      "settings": "設定"
-    },
     "words": "{{words}} 字",
     "wordsOfTarget": "{{words}}／{{target}} 字"
   },

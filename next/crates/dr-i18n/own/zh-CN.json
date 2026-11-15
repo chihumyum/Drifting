@@ -100,6 +100,14 @@
   "positionLink": {
     "copied": "已复制位置链接"
   },
+  "projectHome": {
+    "projectTemplate": {
+      "fromTemplate": "来自「{{name}}」",
+      "saveAs": "另存为项目模板",
+      "source": "来源",
+      "title": "项目模板"
+    }
+  },
   "projectPicker": {
     "bookTransfer": {
       "legacy": "这个文件是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",

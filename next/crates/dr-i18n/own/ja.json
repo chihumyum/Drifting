@@ -102,6 +102,14 @@
   "positionLink": {
     "copied": "位置リンクをコピーしました"
   },
+  "projectHome": {
+    "projectTemplate": {
+      "fromTemplate": "「{{name}}」から",
+      "saveAs": "プロジェクトテンプレートとして保存",
+      "source": "元のテンプレート",
+      "title": "プロジェクトテンプレート"
+    }
+  },
   "projectPicker": {
     "bookTransfer": {
       "legacy": "このファイルは Drifting 0.1 で書き出されました。旧版で読み込んでから、そのライブラリを新しいバージョンに引き継いでください。",

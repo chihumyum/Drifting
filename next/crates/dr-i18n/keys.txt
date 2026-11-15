@@ -280,7 +280,6 @@ userMenu.settings
 common.untitled
 common.customColor
 common.counting
-projectHome.views.settings
 projectHome.words
 projectHome.wordsOfTarget
 projectHome.today
@@ -289,8 +288,6 @@ projectHome.continue.title
 projectHome.book.title
 projectHome.settings.projectTarget
 projectHome.settings.dailyGoal
-dashboard.hero.projectName
-dashboard.sections.projectProfile
 findPanel.currentPlaceholder
 findPanel.bookPlaceholder
 findPanel.previousTitle
