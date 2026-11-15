@@ -463,7 +463,9 @@ impl Render for EntryHead {
         );
         let probe_entry = id.clone();
         let title_probe = canvas(
-            move |bounds, _, cx| dr_shell::record_entry_title_bounds(probe_entry.clone(), bounds, cx),
+            move |bounds, _, cx| {
+                dr_shell::record_entry_title_bounds(probe_entry.clone(), bounds, cx)
+            },
             |_, _, _, _| {},
         )
         .absolute()

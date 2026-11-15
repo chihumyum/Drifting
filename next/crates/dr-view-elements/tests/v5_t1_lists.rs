@@ -3,12 +3,17 @@
 //! both lives under it and is attached to it once.
 use std::collections::BTreeSet;
 
-use dr_shell::{book::Book, v3::DisplaySurface};
+use dr_shell::{
+    book::Book,
+    pages::PageViewHost,
+    v3::{DisplaySurface, LevelHost, ROOT_LEVEL},
+};
 use dr_view_elements::{
     data::v3::{Drop, DropSlot, drop_attaches, resolve_drop_with},
-    panel::v3::{Display, Row, rows},
+    panel::v3::{Display, LevelDisplay, Row, rows},
 };
 use dr_workspace::{Actor, Workspace};
+use gpui::WeakEntity;
 use serde_json::{Value, json};
 
 fn seed() -> (tempfile::TempDir, Workspace, String) {
@@ -184,4 +189,44 @@ fn an_entry_living_here_and_attached_here_is_listed_once() {
         1
     );
     ws.shutdown().unwrap();
+}
+
+/// The Tab prototype (2026-11-15): 「全部」 opens with the outermost entries
+/// folded; another Tab's list opens unfolded.
+#[test]
+fn all_opens_with_the_outermost_entries_folded() {
+    let (_dir, ws, id) = seed();
+    let book = std::rc::Rc::new(Book::load(&ws, &id).unwrap());
+    let host = |level: &str| LevelHost {
+        page: PageViewHost {
+            workspace: WeakEntity::new_invalid(),
+            library: ws.clone(),
+            book_id: id.clone(),
+            book: book.clone(),
+        },
+        level: level.to_owned(),
+        surface: DisplaySurface::Sidebar,
+    };
+    let v = book.v3().unwrap();
+    let all = LevelDisplay::new(host(ROOT_LEVEL), Display::List);
+    let listed: Vec<String> = all
+        .rows
+        .iter()
+        .map(|row| match row {
+            Row::Entry { id, depth } => {
+                assert_eq!(*depth, 0, "only the outermost entries: {id}");
+                id.clone()
+            }
+            other => panic!("unexpected row {other:?}"),
+        })
+        .collect();
+    assert_eq!(listed, v.roots);
+    let manuscript = of_template(&book, "tpl-manuscript");
+    let tab = LevelDisplay::new(host(&manuscript), Display::List);
+    assert!(
+        tab.rows
+            .iter()
+            .any(|row| matches!(row, Row::Entry { depth, .. } if *depth >= 1)),
+        "a level's own Tab opens unfolded"
+    );
 }

@@ -21,8 +21,9 @@ use std::{
 
 use gpui::{
     App, Bounds, Div, ElementId, Entity, Hsla, IntoElement, ParentElement, Pixels, RenderImage,
-    RenderOnce, SharedString, Styled, Svg, TextAlign, TextRun, Transformation, TransformationMatrix,
-    Window, canvas, div, point, prelude::FluentBuilder, px, radians, size, svg,
+    RenderOnce, SharedString, Styled, Svg, TextAlign, TextRun, Transformation,
+    TransformationMatrix, Window, canvas, div, point, prelude::FluentBuilder, px, radians, size,
+    svg,
 };
 use image::Frame;
 use smallvec::SmallVec;

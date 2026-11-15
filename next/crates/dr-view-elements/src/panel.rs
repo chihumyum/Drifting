@@ -542,11 +542,26 @@ pub mod v3 {
             } else {
                 BTreeMap::new()
             };
+            // 「全部」 (the root's list in the left column) opens with the
+            // outermost entries folded, as the Tab prototype draws it.
+            let folded: BTreeSet<String> = match host.page.book.v3() {
+                Some(v) if host.level == ROOT_LEVEL && host.surface == DisplaySurface::Sidebar => v
+                    .roots
+                    .iter()
+                    .filter(|id| {
+                        v.levels
+                            .get(*id)
+                            .is_some_and(|l| !l.children.is_empty() || !l.members.is_empty())
+                    })
+                    .cloned()
+                    .collect(),
+                _ => BTreeSet::new(),
+            };
             let mut this = Self {
                 host,
                 display,
                 sort,
-                folded: BTreeSet::new(),
+                folded,
                 rows: Rc::default(),
                 updated,
                 focus: None,

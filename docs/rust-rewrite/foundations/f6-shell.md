@@ -1225,7 +1225,7 @@ G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 �
 - **四种挂法里看到的**：根和条目照旧是 `LevelDisplay`（根是 `ROOT_LEVEL`，即空字符串，列最外层的每一样）；视图是各条泳道（记号加名字）和沿刻度排的条目（`BookV3::lane_entries`，挂在两条线上的章两条下面都出现），在一条泳道里拖动改的是刻度（`tabs::drop_in_view` → `timeline_view.place`，落在新邻居中间）；成书是成书序列，行首序号（`manuscript_number`），拖动改起点那里的顺序（起点是文件夹：`tabs::move_beside` 换算 `index` 调 `entry.move`，文件夹在视图里时按 `entry.get` 的 `below.children` 换算；起点是视图或泳道：刻度）。
 - **挂的东西没了**（`tabs::is_gone`）：条目进了最近删除、两个开关都关了、书里没有它；视图删了；项目关了成书。Tab 还在，变暗；点进去左栏只说「「回忆线」不在了」，加一颗「去掉这个 Tab」（`Sidebar::remove_gone`：去掉以后回到第一个 Tab）。东西回来了，Tab 自己亮回来。
 - **停在哪个 Tab** 跟着项目：选 Tab 时写 `tab.select`（记在 `layout:<书>`，不进撤销），打开项目时停在 `BookV3::selected_tab`；没记过或记着的不在了，停在「全部」；选着的 Tab 被删了，回到第一个。调试桥的 `v3Sidebar` 给 `tabs`（每个带 `name`、`gone`、`root`）、`selected`（Tab 的 id）、`entry`（它挂的条目，场景用这个）、`display`、`managing`、`slot`、`structure`（管理时每一行的 `row`、`lit`、`depth`）、`registered`、`templates`。`Sidebar::select(id)` 认 Tab 的 id，也认挂着的条目 id（基准测试和场景用）。
-- 最外层没挂到别的 Tab 的条目在「全部」里，不再单独列在左栏底部。
+- 最外层没挂到别的 Tab 的条目在「全部」里，不再单独列在左栏底部。「全部」打开时最外层那几样是收着的（照原型；`LevelDisplay::new` 对左栏里的根层级预先收起有东西的最外层条目），别的 Tab 打开时照旧展开。
 
 **条目页**（`v3/page.rs`）：
 
