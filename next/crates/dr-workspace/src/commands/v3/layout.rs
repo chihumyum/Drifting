@@ -78,7 +78,6 @@ op! {
             // Only a live entry has a place on a canvas.
             parsed.push((live(&v, raw_id)?.id, (*x, *y)));
         }
-        let stored: BTreeSet<EntryId> = v.entries_raw().into_iter().map(|e| e.id).collect();
         let unchanged = match cx
             .workspace()
             .side_slot(&DocId::Layout(slot.book.clone()), &slot.book, false)?
@@ -98,9 +97,6 @@ op! {
                 for (id, (x, y)) in &parsed {
                     txn.put_position(&k, id, *x, *y)?;
                 }
-                // Collect the coordinates of entries gone from the book for
-                // good (deleted from its tree, not in Recently Deleted).
-                txn.forget_entries(|id| !stored.contains(id))?;
                 Ok(())
             })?;
         }

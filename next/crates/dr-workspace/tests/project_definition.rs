@@ -267,11 +267,26 @@ fn a_book_start_that_cannot_be_read_reads_as_no_book_content() {
     let project = e.out("project.get", json!({"book": b}));
     assert!(!project["book"].is_null(), "the book is still on");
     assert_eq!(project["book"]["word_target"], 5000);
+    assert_eq!(project["book"]["root"], json!({"kind": "unset"}));
     assert_eq!(project["book_root_valid"], false);
     let seq = e.out("book.sequence", json!({"book": b}));
     assert_eq!(seq["has_book"], true);
     assert_eq!(seq["root_valid"], false);
     assert_eq!(seq["entries"], json!([]), "not the whole project");
+    // An unset start is only ever read: nobody can pick it.
+    match e.try_call(
+        "project.update",
+        json!({"book": b, "root": {"kind": "unset"}}),
+    ) {
+        Err(WsError::Violation(v)) => assert_eq!(v.invariant, "BOOK-ROOT-VALID"),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    // The targets can still change while no start is picked.
+    e.call("project.update", json!({"book": b, "word_target": 6000}));
+    let project = e.out("project.get", json!({"book": b}));
+    assert_eq!(project["book"]["root"], json!({"kind": "unset"}));
+    assert_eq!(project["book"]["word_target"], 6000);
+    e.ws().undo(&Actor::User).unwrap().unwrap();
 
     // Undo brings the start back; the author can also pick one again.
     e.ws().undo(&Actor::User).unwrap().unwrap();

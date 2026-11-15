@@ -331,3 +331,70 @@ fn members_coming_back_to_a_lane_in_a_view_are_placed() {
     e.ws().undo(&Actor::User).unwrap().unwrap();
     assert!(k.at(&view, &member).is_none());
 }
+
+/// The same when it is the template that starts taking entries from
+/// elsewhere: the members of its lanes already in a view are placed, in
+/// the same step as the template.
+#[test]
+fn members_coming_back_when_the_template_takes_entries_again_are_placed() {
+    let e = env();
+    let k = Book::new(&e);
+    let ms = k.root("tpl-manuscript");
+    let view = k.view();
+    let accept = |on: bool| {
+        let mut t = e
+            .out("entry_template.list", json!({"book": k.b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == "tpl-group")
+            .unwrap()
+            .clone();
+        t["settings"]["accept"] = json!(on);
+        k.call("entry_template.put", json!({"template": t}));
+    };
+    let folder = k.create(&ms, "tpl-group", "卷");
+    // One that says so itself does not follow the template.
+    let own = k.create(&ms, "tpl-group", "自己定");
+    k.call(
+        "entry.update",
+        json!({"id": own, "overrides": {"accept": true}}),
+    );
+    let resident = k.create(&folder, "tpl-chapter", "住着");
+    let member = k.create(&ms, "tpl-chapter", "挂着");
+    let other = k.create(&ms, "tpl-chapter", "挂在另一个上");
+    accept(true);
+    k.call("membership.add", json!({"host": folder, "member": member}));
+    k.call("membership.add", json!({"host": own, "member": other}));
+    accept(false);
+    k.call(
+        "entry.update",
+        json!({"id": own, "overrides": {"accept": false}}),
+    );
+    for lane in [&folder, &own] {
+        k.call(
+            "timeline_view.add_lane",
+            json!({"view": view, "lane": lane}),
+        );
+    }
+    assert!(k.at(&view, &resident).is_some());
+    assert!(k.at(&view, &member).is_none());
+    assert!(k.at(&view, &other).is_none());
+
+    accept(true);
+    let (ar, am) = (
+        k.at(&view, &resident).unwrap(),
+        k.at(&view, &member).unwrap(),
+    );
+    assert!(am > ar, "{ar} {am}");
+    assert!(
+        k.at(&view, &other).is_none(),
+        "its lane keeps its own setting, off"
+    );
+    // One undo takes the template and the position back.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert!(k.at(&view, &member).is_none());
+    // Saving the template again with nothing changed places nothing.
+    accept(false);
+    assert!(k.at(&view, &member).is_none());
+}

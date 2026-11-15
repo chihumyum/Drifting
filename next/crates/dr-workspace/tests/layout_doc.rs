@@ -1,6 +1,6 @@
 //! The canvas coordinates beside a book (`layout:<book>`, `kernel-v5.md` §8):
-//! only live entries get coordinates, and an entry that is gone for good
-//! leaves none behind.
+//! only live entries get coordinates, and a write never deletes the
+//! coordinates of an entry this device's book does not have.
 mod common;
 use common::*;
 use dr_doc::v3::BorrowedBookV3;
@@ -51,12 +51,12 @@ fn coordinates_are_only_for_live_entries() {
     );
 }
 
-/// DX 13: an entry deleted from the book for good (another device's purge
-/// arriving by sync would do it; no command does yet) has its coordinates
-/// collected at the next layout write: its own in every canvas, and the
-/// canvases of its own scope.
+/// The coordinates and the book are two documents that sync apart: the
+/// coordinates of an entry made on another device can arrive before the
+/// entry does. A layout write on this device leaves them alone (collecting
+/// them belongs to the step that purges entries, `LayoutTxn::forget_entries`).
 #[test]
-fn a_purged_entry_leaves_no_coordinates() {
+fn a_write_keeps_the_coordinates_of_an_entry_the_book_does_not_have() {
     let e = env();
     let b = e.book();
     let ideas = acceptance::novel_root(e.ws(), &b, "tpl-ideas");
@@ -72,7 +72,6 @@ fn a_purged_entry_leaves_no_coordinates() {
     for (scope, mode, id) in [
         (&ideas, "board", &keep),
         (&ideas, "board", &group),
-        (&ideas, "grid", &group),
         (&group, "board", &inside),
     ] {
         e.call(
@@ -80,7 +79,8 @@ fn a_purged_entry_leaves_no_coordinates() {
             json!({"book": b, "scope": scope, "mode": mode, "positions": {id: [5.0, 6.0]}}),
         );
     }
-    let (book, purged): (BookId, EntryId) = (b.parse().unwrap(), group.parse().unwrap());
+    // The book as a device has it before `group` and what is in it arrive.
+    let (book, absent): (BookId, EntryId) = (b.parse().unwrap(), group.parse().unwrap());
     e.ws()
         .library()
         .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
@@ -90,7 +90,7 @@ fn a_purged_entry_leaves_no_coordinates() {
                 .unwrap()
                 .txn()
                 .entries()
-                .purge_subtree(&purged)
+                .purge_subtree(&absent)
                 .unwrap();
         })
         .unwrap();
@@ -99,13 +99,9 @@ fn a_purged_entry_leaves_no_coordinates() {
         json!({"book": b, "scope": ideas, "mode": "board", "positions": {&keep: [7.0, 8.0]}}),
     );
     let all = e.ws().layout_positions(&b).unwrap();
-    for (scope, positions) in &all {
-        assert!(!scope.starts_with(&format!("{group}/")), "{all:?}");
-        for id in [&group, &inside] {
-            assert!(!positions.contains_key(id.as_str()), "{all:?}");
-        }
-    }
     assert_eq!(all[&format!("{ideas}/board")][&keep], (7.0, 8.0));
+    assert_eq!(all[&format!("{ideas}/board")][&group], (5.0, 6.0));
+    assert_eq!(all[&format!("{group}/board")][&inside], (5.0, 6.0));
 }
 
 /// DX 13: dr-store knows the layout document's kind like the other two

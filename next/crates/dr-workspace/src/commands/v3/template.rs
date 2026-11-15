@@ -128,11 +128,41 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
         Some(module) => template.at(["modules", module]),
         None => template,
     };
-    let (_, at) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
+    // A template that starts taking entries from elsewhere brings the
+    // members of its entries back: where such an entry is a lane of a live
+    // view, they get a position there (`VIEW-LANE-MEMBERS-PLACED`). Only the
+    // lanes are looked at, and only those that leave `accept` to the
+    // template.
+    let accept_on = t.settings.accept == Some(true)
+        && before
+            .templates
+            .get(&t.id)
+            .is_none_or(|old| old.settings.accept != Some(true));
+    let mut lanes: Vec<EntryId> = Vec::new();
+    if accept_on {
+        for tv in v.timeline_views_raw().iter().filter(|tv| !tv.is_trashed()) {
+            for lane in &tv.lanes {
+                let follows = before.entries.get(&lane.entry).is_some_and(|e| {
+                    e.template.as_ref() == Some(&t.id)
+                        && e.overrides.as_ref().is_none_or(|o| o.accept.is_none())
+                });
+                if follows && !lanes.contains(&lane.entry) {
+                    lanes.push(lane.entry.clone());
+                }
+            }
+        }
+    }
+    let (placed, at) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
         tx.template(&t.id)?.set_full(&t)?;
-        Ok(())
+        let mut placed = BTreeSet::new();
+        for lane in &lanes {
+            placed.extend(membership::place_unplaced_lane_entries(tx, lane)?);
+        }
+        Ok(placed)
     })?;
-    undo(cx, &slot, &at, vec![key("templates", &id)]);
+    let mut keys = vec![key("templates", &id)];
+    keys.extend(placed.iter().map(|vid| key("timeline_views", vid)));
+    undo(cx, &slot, &at, keys);
     cx.effect(
         EffectAction::Updated,
         "entry_template",

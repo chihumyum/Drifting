@@ -343,6 +343,12 @@ impl<'a> LayoutTxn<'a> {
     /// Drop the coordinates of every entry `gone` names: its own on every
     /// canvas, and every canvas of its own scope (`<entry>/<mode>`). The
     /// scope `root` names no entry. Returns whether anything was removed.
+    ///
+    /// For the step that purges entries from a book, with exactly the
+    /// entries it purged. Never call it with "not in the book as this
+    /// device has it": this document and the book's sync apart, so the
+    /// coordinates of an entry made on another device can arrive before
+    /// the entry does, and would be deleted on both devices.
     pub fn forget_entries(&mut self, gone: impl Fn(&EntryId) -> bool) -> Result<bool> {
         let named = |s: &str| EntryId::parse(s).is_ok_and(|id| gone(&id));
         let root = self.doc.get_map(schema::side::POSITIONS);
@@ -688,6 +694,54 @@ mod tests {
             .0
             .unwrap();
         assert!(a.view().positions("ideas/board").is_empty());
+    }
+
+    /// An entry purged from the book leaves no coordinates: its own on
+    /// every canvas, and the canvases of its own scope. The scope `root` and
+    /// everything else stay.
+    #[test]
+    fn forgetting_entries_drops_their_coordinates_and_their_own_canvases() {
+        let book = BookId::parse("b1").unwrap();
+        let (keep, gone, inside) = (
+            EntryId::parse("e-keep").unwrap(),
+            EntryId::parse("e-gone").unwrap(),
+            EntryId::parse("e-inside").unwrap(),
+        );
+        let mut d = LayoutDoc::create(book, peer(1)).unwrap();
+        d.edit(Origin::User, |t| {
+            t.put_position("e-keep/board", &keep, 1.0, 1.0)?;
+            t.put_position("e-keep/board", &gone, 2.0, 2.0)?;
+            t.put_position("e-gone/board", &inside, 3.0, 3.0)?;
+            t.put_position("e-gone/grid", &keep, 4.0, 4.0)?;
+            t.put_position("root/relation_graph", &gone, 5.0, 5.0)?;
+            t.put_position("root/relation_graph", &keep, 6.0, 6.0)
+        })
+        .0
+        .unwrap();
+        let removed = d
+            .edit(Origin::User, |t| t.forget_entries(|id| id == &gone))
+            .0
+            .unwrap();
+        assert!(removed);
+        let v = d.view();
+        assert_eq!(
+            v.positions("e-keep/board").into_iter().collect::<Vec<_>>(),
+            [(keep.clone(), (1.0, 1.0))]
+        );
+        assert!(v.positions("e-gone/board").is_empty());
+        assert!(v.positions("e-gone/grid").is_empty());
+        assert_eq!(
+            v.positions("root/relation_graph")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            [(keep.clone(), (6.0, 6.0))]
+        );
+        // Nothing left to forget.
+        let again = d
+            .edit(Origin::User, |t| t.forget_entries(|id| id == &gone))
+            .0
+            .unwrap();
+        assert!(!again);
     }
 
     /// Clearing a canvas on one device while another drags a card onto it:
