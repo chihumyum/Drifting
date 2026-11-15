@@ -6,6 +6,8 @@
 - 书库模板文档、从项目提取与展开建书：`next/crates/dr-doc/src/project_template.rs`。
 - 工作区命令与统一 `project.create`：`next/crates/dr-workspace/src/commands/v3/project_template.rs`、`novel_book.rs`。
 
+**2026-11-15 夜里改了两处**（作者在项目模板界面的原型上定的，kernel-v5 第 15 节第 27 条）：成书没有起点了，`project.book` 去掉 `root`；导出署名用账号名、不要主页，`credit` 去掉 `homepage`。格式还没发布，直接改，不留兼容：`formatVersion` 仍是 `1`，结构是封闭的，带这两个键的模板拒收。代码跟着改是任务书 DW 一步；DW 交回前，代码里还是改之前的样子。
+
 ## 1. 总则与封闭结构
 
 项目模板是从项目当前状态提取出来的一份**无历史、无个人与设备标识、封闭结构**的纯数据值。书库里 `project-template:<id>` 的 `payload.record` 里的 `value`、导出的 `.driftingtemplate` 文本文件、社区仓库里的模板文件，以及 `project.create` 接收的完整模板值，都是同一份结构，过同一个校验器。
@@ -56,9 +58,10 @@
 
 | JSON 键 | 类型 | 校验规则 |
 | --- | --- | --- |
-| `author` | `string`（空串省略） | 单行文本，不含控制字符 |
-| `homepage` | `string`（空串省略） | 非空时必须以 `https://` 开头，含合法非空域名，不含空白或控制字符 |
-| `derivedFrom` | `{ name, author? }`（空时省略） | `name` 去首尾空白后非空；从来源为 `file` 或 `community` 的项目另存时，若调用方未显式覆盖则自动填入上游模板名与作者 |
+| `author` | `string`（空串省略） | 单行文本，不含控制字符。导出成文件时取当前账号的名字，没登录就不写（2026-11-15 夜里定，PT2 做） |
+| `derivedFrom` | `{ name, author? }`（空时省略） | `name` 去首尾空白后非空；从来源为 `file` 或 `community` 的项目另存时，若调用方未显式覆盖则自动填入上游模板名与作者；编辑模板的工作区保存时照原来那一份留着，不填成它自己 |
+
+原来还有 `homepage`（只收 `https` 链接），2026-11-15 夜里去掉（作者：「主页，暂时不需要这个东西。以后再说社交。」）。
 
 ## 4. 项目定义（`project`）
 
@@ -67,13 +70,9 @@
 - `agent`（可选 `{ name, description, instructions }`）：整本项目的帮手说明；`name` 不含控制字符，`description`／`instructions` 允许换行与制表符。
 - `book`（可选 `TemplateProjectBook`）：
   - **缺键或 `null`**：项目关闭「成书」（`project.book == None`）。
-  - **存在对象**：项目开启「成书」：
-    - `root`（可选 `TemplateBookRoot`）：缺键或 `null` 表示成书起点未选（展开为 `BookRoot::Unset`）；有值时按 `kind` 分四种：
-      - `{"kind": "root"}`：从最外层开始；
-      - `{"kind": "entry", "entry": "e…"}`：指定条目须在 `entries` 中存在且满足 `has_below`（`level` 或有效 `accept` 为真）；
-      - `{"kind": "view", "view": "v…"}`：指定视图须在 `views` 中存在；
-      - `{"kind": "lane", "view": "v…", "entry": "e…"}`：指定视图须存在，且 `entry` 须是该视图 `lanes` 中的有效泳道；
+  - **存在对象**：项目开启「成书」，成书从根读（[kernel-v5.md](kernel-v5.md) 第 3 节）：
     - `word_target`、`daily_word_target`（可选 `i64`）：存在时须 `>= 1`（`0` 在提取时规范化为缺省 `None`）。
+    - 没有别的键。原来的 `root`（成书起点，`root`／`entry`／`view`／`lane` 四种）2026-11-15 夜里去掉，带着它的模板拒收。
 - `tabs`（`TemplateTab[]`，默认 `[]`）：左栏自定义 Tab，数组先后即显示先后。Tab 没有自己的名字，叫它挂的东西的名字；同一样东西只挂一个 Tab，重复的挂载校验不过（作者 2026-11-15，[kernel-v5.md](kernel-v5.md) 第 5 节；原来有 `name`，`mount` 也可以缺）。另存时目标已缺失的 Tab 不导出。没有挂根的 Tab 时，建书时补上「全部」：
   - `mount`（必填 `TemplateTabMount`）：
     - `{"kind": "root"}`：挂最外层；
@@ -195,10 +194,11 @@
 
 1. **只读固定快照与当前正文头**：先导出 `book:<id>` 当前内存快照做一次一致读取，只读未进最近删除（`deleted_at == None` 且有效祖先均未删除）的模板、关系类型、条目、挂名和视图，源项目与 `project.source` 完全不改。
 2. **骨架与示例的边界**：
-   - 骨架条目为 `entry.has_below(&live_templates)`（即 `level == true` 或有效 `accept == true`）的活条目，默认勾选；被活着的 `project.book.root`、`project.tabs[].mount`、`templates[].settings.home` 或已选条目 `overrides.home` 指向的有效目标强制纳入（`forced_skeleton_entries`），忽略调用方的 `exclude_skeleton`。若源项目里这些指针的目标本已进最近删除或不再满足开关条件，则导出为缺省 `None`；Tab 例外，这样的 Tab 不导出。
+   - 骨架条目为 `entry.has_below(&live_templates)`（即 `level == true` 或有效 `accept == true`）的活条目，默认勾选；被活着的 `project.tabs[].mount`、`templates[].settings.home` 或已选条目 `overrides.home` 指向的有效目标强制纳入（`forced_skeleton_entries`；原来还有 `project.book.root`，2026-11-15 夜里去掉），忽略调用方的 `exclude_skeleton`。若源项目里这些指针的目标本已进最近删除或不再满足开关条件，则导出为缺省 `None`；Tab 例外，这样的 Tab 不导出。
    - 未勾选为示例的骨架条目只保留 `title`、`template`、`level`、`overrides`、`mark`、模块 `color_field` 指定的颜色字段，以及两端都在已选集合内的 `memberships` 与视图 `placements`（保住泳道与线上的骨架结构）。若某骨架条目被取消且它下面仍有被选中的子孙条目，子孙的 `parent` 上提到最近一个保留下来的层级祖先（没有则落顶层）。
    - 勾选进 `sample_entries` 的条目额外带走非图片 `fields`、`kv`、`arrangements` 与当前 `prose`；勾选进 `view_pins` 的视图带走未绑定条目或绑定条目已在模板内的时间钉。
 3. **第一期去文件与引用降级**：跳过 `FieldType::Image` 的默认值与字段值、跳过 `media` 模块文件项、跳过正文里的 `EmbedView::Asset` 文件嵌入段；正文与表格里指向未选条目或指向素材库文件（`EntityKind::Asset`）的行内链接去掉链接标记、保留文字与加粗／斜体等原有样式；指向已删条目模板的引用置空。
+4. **2026-11-15 夜里加（任务书 DW 做，代码还没改）**：另存时调用方可以给一份写给 Agent 的话（`{name, description, instructions}`），给了就用它代替项目的 `project.agent`，项目不变；替换一份（`replace`）时名字和描述可以不给，不给就留着那一份原来的。编辑模板的工作区保存时也走这一条：活着的条目全部当示例带上，时间钉都带，名字和描述取工作区的书名和简介，`credit` 和 `derivedFrom` 照被替换的那一份留着。
 
 ### 展开新建（`materialize_project_template` + `project.create`）
 
