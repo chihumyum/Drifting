@@ -151,7 +151,7 @@
 | `list` | `bullet` / `ordered` / `task` | 都有（格式 5 起） | 列表项，一段一项 |
 | `list_level` | 0 起 | 都有（格式 5 起） | 列表嵌套层级；没有就是 0 |
 | `checked` | bool | 都有（格式 5 起） | 没链接批注的任务是否勾上。**链接了批注（有 `todo`）就不存、读时忽略**：显示批注自己的状态，批注是唯一的真相（v2） |
-| `todo` | 批注 id | 都有（格式 5 起） | 任务项链接的批注 |
+| `todo` | 批注 id | 都有（格式 5 起） | 任务项链接的批注。2026-11-15（数据层第八步）起不再写，0.1 导入也去掉：清单项的勾就是它的状态，它那条 `origin = task` 的批注由投影跟着勾（`TASK-COMMENT-ONE`）；读到带 `todo` 的旧数据时照上一行的规则读 |
 | `code_block` | 语言（可为空串） | 都有（格式 5 起） | 代码块；相邻的代码段画成一块 |
 | `callout` | 种类 | 都有（格式 5 起） | 提示框；相邻同种的段画成一块 |
 
@@ -189,7 +189,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ### 人物链接
 
-- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。格式 5 的通用自动链接和显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 只接受 `kind = entry`（素材目标已在格式 5 退役，0.1 导入时指向图片和 PDF 的链接转为普通文字并记入报告），条目链接指定正文再加独立的 `module`；`block`／`end_block` 仍为独立字段。旧共享 `EntityLink` 与源回放接口仅留作 0.1 导入边界。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
+- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。格式 5 的显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 接受两种目标：`kind = entry`（条目；指定正文再加独立的 `module`，`block`／`end_block` 仍为独立字段）和 `kind = asset`（素材库里的文件，2026-11-15 起；不带 `module`、`block`、`end_block`）。通用自动链接只链条目。链到文件的链接也记进本机索引（`RefKind::Link`，`target_kind = "asset"`），是文件的一处「用在哪」；文件在最近删除里或不在时，链接读作普通文字的样子（`prose.shape` 的 `missing_links`），数据留着，恢复后回来。0.1 导入时指向图片和 PDF 素材的链接导成指向那个文件的链接；素材没有文件的，才转为普通文字并记入报告。旧共享 `EntityLink` 与源回放接口仅留作 0.1 导入边界。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
 - ExpandType `None`：在链接的前后打字不会扩进链接；在链接中间打字算链接的一部分。
 - **重叠**：不同目标用不同的键，所以可以任意重叠，比如「安娜·卡列尼娜」链一个要素、其中「卡列尼娜」链另一个。v2.2 指向同一目标的两段相邻链接会合成一段。v3 查询还要求 kind、module、block、end_block 一致才合并；原始标记各段的未知数据仍分别保留。
 - 断开链接：`unmark(range, entity:<目标 id>)`。
@@ -200,7 +200,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 - 正文里放一个 U+FFFC，单独成段；字符上打 `embed = <嵌入 id>`。
 - 内容放在 `embeds[<嵌入 id>]`（mergeable 映射）：
   - 表格：`kind = "table"`；`cols` 是映射（列 id → `{pos}`），`rows` 是映射（行 id → `{pos, cells}`），`pos` 是分数索引位置键（v2，v1 是数字 `order`），`cells` 是映射（列 id → LoroText，单元格内只有行内标记，换行用 U+2028）。两台设备同时建同一个单元格会合成同一段文本。
-  - 文件嵌入（格式 5 起）：`kind = "asset"`，`asset = <资源 id>`（指向本书 `assets` 素材库清单中的文件；v2.2–格式 4 的 `kind = "material"` 已退役）。若该资源在素材库中被移入最近删除或尚未同步到本地，读取时保留占位并由 `missing_embeds` 标出，恢复后立即回到原位。
+  - 文件嵌入（格式 5 起）：`kind = "asset"`，`asset = <资源 id>`（指向本书 `assets` 素材库清单中的文件；v2.2–格式 4 的 `kind = "material"` 已退役）。若该资源在素材库中被移入最近删除或尚未同步到本地，读取时保留占位并由 `missing_embeds` 标出，恢复后立即回到原位。嵌的图片另有三个可选字符串键（2026-11-15）：`size`（`small`／`medium`／`full`，缺键读作 `medium`）、`align`（`left`／`center`／`right`，缺键读作 `center`）、`caption`（图注，空即删键）；读成 `dr_doc::prose::FileEmbedLook`（`EmbedView::Asset { look }`），写用 `ProseTxn::set_file_embed_look`（工作区 `ProseSession::set_file_embed_look` 只对活着的图片放行）。嵌的 PDF 是一张卡片，没有这三项。
 - 删掉占位字符时不删条目，这样撤销能把嵌入带回来；没有占位指向的条目在读取时忽略，后台清理时再删。
 - 复制一个嵌入要深拷贝成新的嵌入 id。
 
@@ -218,18 +218,27 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
    - `tabs`（id → `{name, pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。
 3. **视图刻度接管顺序**：`timeline_views`（视图）的刻度是泳道在视图内期间唯一的顺序权威。条目挂进泳道或直接住进作为泳道的层级时，自动落在包含该泳道的各活视图刻度末尾（已有最后一格右端 `+ 1.0`，空视图为 `0.0`，见 `timeline_scale_end`）；条目（开着「层级」或「收别处的条目」）第一次加入某视图作泳道时，其直接子条目（手动先后）与挂名成员（按 `memberships.pos`）依次自动落位。在视图内期间不读不写 `memberships.pos` 或文件夹手动先后；当泳道离开它所在的**最后一个**活视图（移出泳道或删除视图）时，将该视图刻度上的先后一次性写回 `memberships.pos` 与直接子条目的手动先后，同一次提交、一步撤销。
 4. **批注与待办合并**：`comments` 去掉 `kind`（批注与待办合一）；`origin` 区分 `manual`、`marker`（正文 `TODO:`）、`task`（正文任务清单项）、`agent`、`reader`；`target_kind` 为 `entry` 或 `asset`：
-   - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处（正文锚点与块快照直接存在批注字段上）：字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`{kind: "kv_row", row}`）、情节规划格（`{kind: "plot_cell", row, col}`）、补丁（`{kind: "patch", patch}`）、媒体项（`{kind: "media", item, region?}`）、正文嵌入（`{kind: "embed", embed, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
-   - 目标直接为素材库文件（`target_kind = "asset"`）时，不带条目和模块，`part` 可为 `{kind: "region", region}`（`region` 为 `{page?, x, y, w, h}`）框选图片或 PDF 页上的一块。
+   - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处（正文锚点与块快照直接存在批注字段上）：字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`{kind: "kv_row", row}`）、情节规划格（`{kind: "plot_cell", row, col}`）、补丁（`{kind: "patch", patch}`）、媒体模块里的文件（`{kind: "media", asset, region?}`，2026-11-15 起按文件指：一个文件在一个媒体模块里只出现一次）、正文嵌入（`{kind: "embed", embed, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
+   - 目标直接为素材库文件（`target_kind = "asset"`）时，不带条目和模块，`part` 可为 `{kind: "region", region}`（`region` 为 `{page?, x, y, w, h}`）框选图片或 PDF 页上的一块；PDF 上的区域必须带 `page`，图片上的不带。文件在最近删除里时，直接挂在它上面的批注读作找不到原处（`target_missing`）。
 5. **媒体模块、正文文件嵌入与内置素材库**：
    - 模板模块种类新增 `media`（条目节点 meta 下 `media:<模块 id>` 存 `{id, asset, caption, pos}`）和纯展示的 `members`（挂在这里的条目，不另存容器）；
    - 正文只有一种格式档，所有正文支持列表、任务、代码块、提示框、高亮、行内代码、表格与文件嵌入（`embeds` 中 `kind = "asset", asset = <资源 id>`）；
    - 退役 `materials`、`material_folders`、`material:<id>` 文档及全部 `material.*`／`material_folder.*` 命令；「写书」项目模板不再建「素材」根层级；
-   - `assets` 即项目内置素材库清单：每条记录含 `kind`、`mime`、`size`、`sha256`、`width`、`height`、`name`、`created_at`、`folder`（导入保留的原素材夹路径）、`deleted_at`。未被引用的文件保留在素材库中，不再自动清理（`ASSET-LIBRARY-KEEPS-UNREFERENCED`）；删除进最近删除（引用处读作占位），彻底清除（`asset.purge`）才删底层字节。关系端点支持 `asset`。
+   - `assets` 即项目内置素材库清单：每条记录含 `kind`、`mime`、`size`、`sha256`、`width`、`height`、`name`、`created_at`、`folder`（所在素材夹的 id，缺键是最外层；2026-11-15 前存的「原素材夹路径」改掉，见第 8 条）、`pos`（在素材夹里的先后）、`deleted_at`、`trashed_with`。未被引用的文件保留在素材库中，不再自动清理（`ASSET-LIBRARY-KEEPS-UNREFERENCED`）；删除进最近删除（引用处读作占位），彻底清除（`asset.purge`）才删底层字节。关系端点支持 `asset`。
 6. **条目记号与画布坐标外移**：条目新增可选 `mark`（砂笔图标名或单个字符，覆盖模板 `mark`），模板 `mark` 同样放开；条目上的 `layout` 字段移除，看板、岛屿、关系图等自由摆放坐标迁入第三篇小文档 `layout:<书 id>`，拖动画布不再改动书目文档版本。
 7. **「层级」与「收别处的条目」拆开**：
    - `Entry.level` 只管下面能不能**住**子条目；`accept`（「收别处的条目」）和 `home`（「新条目住在」）只读条目自己的 `overrides` 与自身模板的 `settings`，不沿树继承，也不要求 `level` 打开；去掉 `lane` 设置（任何开着 `level` 或 `accept` 的活条目都能放进视图当泳道）；其余「下面」的设置（`default_template`、`display`、`auto_link`、`format_shortcuts`）照旧沿祖先继承；
    - **自动链接只看住处**：`is_autolinked` 与 `AutolinkNames` 只检查条目住处所在的有效父链是否解析出 `auto_link = true`，不再看挂名；挂名增删不触发名字冲突检查或正文重扫；
    - **关掉层级开关（`entry.set_level(false)`）**：住在下面的活子孙条目在同一次提交里标记 `deleted_at` 进最近删除，留在原父节点下不搬家，一步撤销全恢复；挂在它上面的记录和它在视图里的泳道身份保持有效。单独恢复（`entry.restore`）时若原父节点已不能住，自动落到往上最近一个开着层级的祖先（没有则落到根）。
+8. **文件、批注两组原型定下的数据改动**（2026-11-15，数据层第八步，`kernel-v5.md` 第 6、7、10–13 节）：
+   - **素材夹**：新根 `asset_folders`（mergeable 映射）：素材夹 id（`AssetFolderId`）→ `{name, parent?, pos, deleted_at?, trashed_with?}`，`parent` 缺键是最外层，同一上一级里按 `pos` 手动排（平局按 id）。素材夹套成一棵树，命令层拒绝挪到自己或自己下面（`ASSET-FOLDER-TREE`）；读取时合并出的环不算进了最近删除。`assets` 记所在素材夹 `folder` 和在里面的先后 `pos`；素材夹或它上面的一层进了最近删除时，里面的文件读作不在（`view.assets()` 不列，`assets_raw()` 照列）。
+   - **素材夹进最近删除**：`asset_folder.trash` 在同一次提交里给它和里面还活着的文件、素材夹写同一个 `deleted_at`，里面的再写 `trashed_with = <这个素材夹>`，一步撤销；`asset_folder.restore` 只带回 `trashed_with` 是同一批的（自己先进了最近删除的留着），上一级还在最近删除时它落到最外层；单独恢复一个跟着进去的文件，落到最外层、去掉 `trashed_with`。`asset_folder.purge` 清除整棵（记录、指向这些文件的关系、存着它们的图片字段、本书的字节），撤销不会把空文件带回来（`ASSET-FOLDER-TRASH`）。
+   - **同样的字节只有一个文件**：`asset.put` 遇到同样的 `sha256`、`size`、`kind` 已有一个文件时给回它的 id（它在最近删除里就恢复），调用方为新 id 存的那份字节删掉（`ASSET-BYTES-UNIQUE`）。
+   - **媒体模块**：同一个文件在同一个媒体模块里只出现一次（`MEDIA-ASSET-ONCE`，命令层）。摆法：模板模块配置 `config.arrangement`（`featured`／`grid`／`list`，缺键读作 `featured`），条目节点 meta 上 `arrangement:<模块 id>` 是条目自己的选择，盖过模板的，删键回到模板的（`Entry::media_arrangement`）。
+   - **去掉优先级**：`comments` 不再有 `priority` 键（写入接口、DTO 和读取都去掉；旧键在数据里照留不读）；0.1 导入不带优先级，回执记 `comment-priority-dropped`。
+   - **清单项都变成批注**：任何条目任何正文模块里的清单项各有一条 `origin = task` 的批注（id 由（种类、文档、块）算出，两台设备同一条）。`comment.project` 从正文本身读每项的字和勾：一行在批注就在，改字跟着改，删掉跟着删（解没解决都删）；对清单来的批注 `comment.update` 解决、重开，写的是正文里那一项的勾（`ProseTxn::set_checked`），批注的 `metadata` 记下带着这个勾的正文版本，另一台设备在拿到那份正文之前不按旧勾改回（`TASK-COMMENT-ONE`）。0.1 导入：任务行上指向待办的 `todoId` 不再写（回执记 `task-todo-link-replaced-by-projection`），行自己的勾留着；状态和勾不一致的清单待办以勾为准（回执记 `task-status-follows-tick`）。
+   - **整个条目、整个模块的批注**：目标是条目、不带 `module` 是整个条目；带 `module`、不带 `part` 和锚点是整个模块。
+   - **导入 0.1 的素材夹**：装图片和 PDF 的素材夹（连同它上面的各层）在素材库里重建成同 id、同名的素材夹，套着的照原样套着，先后照 0.1；文件住进它第一个有素材夹的素材所在的那一个。装笔记的照旧变成「文本素材」下面的层级；两样都有的两边各建一个同名的。
 
 ### 根容器与身份
 
@@ -237,7 +246,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | --- | --- | --- |
 | `meta` | LoroMap | 书名、梗概、创建时间、删除时间等元数据；`v = 5`、`book` |
 | `project` | LoroMap | 项目定义：`source`（`{id, version}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{name, pos, mount}`） |
-| `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`primary`、时间戳；没有 `layout` |
+| `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
 | `memberships` | LoroMap | `<宿主条目 id>\|<成员条目 id>` → `{host, member, pos, created_at}`；宿主只要求活着且 `accept` 为真；宿主不在任何活视图里时按 `pos` 排 |
 | `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；泳道条目须活着且 `level \|\| accept`，在视图内期间刻度 `placements` 是成员与直接子条目的唯一顺序权威 |
@@ -245,8 +254,9 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `plot_grids` | LoroMap | `<条目 id>/<模块 id>` → 行、列、格子和尺寸 |
 | `relation_types` | LoroMap | 关系类型定义，另有 `source_templates`／`target_templates`；端点种类为 `entry`／`asset`／`comment`／`patch` |
 | `relations` | LoroMap | 共用关系表；关联模块按条目投影 |
-| `comments` | LoroMap | 统一批注（无 `kind`）：`origin`、`target_kind`（`entry`／`asset`）、`target`、`module?`、`part?`、作者、正文（LoroText）、状态、优先级、`agent_conversation?`、投影字段与时间戳 |
-| `assets` | LoroMap | 内置素材库文件清单：`kind`、`mime`、`size`、`sha256`、`width?`、`height?`、`name`、`created_at`、`folder?`、`deleted_at?` |
+| `comments` | LoroMap | 统一批注（无 `kind`、无优先级）：`origin`、`target_kind`（`entry`／`asset`）、`target`、`module?`、`part?`、作者、正文（LoroText）、状态、`agent_conversation?`、投影字段与时间戳 |
+| `assets` | LoroMap | 内置素材库文件清单：`kind`、`mime`、`size`、`sha256`、`width?`、`height?`、`name`、`created_at`、`folder?`（素材夹 id）、`pos?`、`deleted_at?`、`trashed_with?` |
+| `asset_folders` | LoroMap | 素材库的素材夹（2026-11-15）：id → `{name, parent?, pos, deleted_at?, trashed_with?}` |
 | `facts`、`memory` | LoroMap | 项目设定与帮手记忆，沿用既有结构 |
 
 没有 `materials`、`material_folders`（格式 5 退役），也没有 `nodes`、`acts`、`storylines`、`elements`、`categories`、`drift_groups`、全书 `time_pins` 这些 v2.2 根。
@@ -417,7 +427,7 @@ v2.1 起，设备自己投出的待办写成种子变更（`BookTxn::project_tod
 
 v3 条目树、模块保留、归属、时间线和全库文档 id 的约束见 [kernel-v3.md 的不变量](kernel-v3.md#不变量)及上方 v3 书目一节；以下保留共用及 v2.2 的摘要。
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，同日数据层第八步加 6 条后 93 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |
