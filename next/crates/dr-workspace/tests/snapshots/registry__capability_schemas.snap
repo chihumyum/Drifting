@@ -2967,7 +2967,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a comment (its relations go with it)."
+    "summary": "Delete a comment (its relations go with it). A checklist item's comment is not deleted here: it goes when its line is deleted in the prose."
   },
   {
     "access": "read",
@@ -3618,7 +3618,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation."
+    "summary": "Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose."
   },
   {
     "access": "write",
