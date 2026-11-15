@@ -59,6 +59,16 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      },
+      "note": "The launch answers once the bridge is up; the book it was asked to open may still be loading (every other scenario waits here too)."
+    },
+    {
       "app": "state.get",
       "expect": {
         "/book/version": 5,
