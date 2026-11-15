@@ -1043,7 +1043,7 @@ pub(crate) fn resolve_v3(
                         resolve_tab_place(&cx.view, place_val)?;
                     }
                 }
-                "tab.remove" | "tab.move" => {
+                "tab.remove" | "tab.move" | "tab.select" => {
                     if let Some(id_val) = obj.get_mut("id") {
                         let tid = resolve_tab_id(&cx.view, id_val)?;
                         *id_val = tid.to_string().into();

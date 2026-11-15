@@ -443,10 +443,10 @@ mod tests {
             .call(
                 &Actor::agent(session, 1, "tab"),
                 "tab.put",
+                // 「全部」 already shows the root; a tab has no name of its own.
                 json!({
                     "book": book,
-                    "name": "参考",
-                    "mount": {"kind": "root"}
+                    "mount": {"kind": "book"}
                 }),
             )
             .unwrap()["output"]["id"]
