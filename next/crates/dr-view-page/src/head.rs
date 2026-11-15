@@ -44,6 +44,8 @@ pub struct PageHead {
     /// What the workspace last said the title and synopsis are.
     stored_title: String,
     stored_synopsis: String,
+    /// Whether it draws the title (not on an entry page: [`crate::Chrome::on_entry_page`]).
+    titled: bool,
     /// The current idea group breadcrumb, from the shell's book snapshot.
     group_path: Option<String>,
     drafts: Option<HeadDrafts>,
@@ -58,12 +60,13 @@ impl PageHead {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::new_with_book(host, page, None, window, cx)
+        Self::new_with_book(host, page, None, true, window, cx)
     }
     pub(crate) fn new_with_book(
         host: PageHost,
         page: &PageInfo,
         book: Option<std::rc::Rc<dr_shell::book::Book>>,
+        titled: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -96,8 +99,8 @@ impl PageHead {
         }
         let group_path = read_group_path(&host, page, cx);
         // A chapter ⁂ just made: its title takes the caret, selected, once
-        // this frame is drawn.
-        if NewTitles::take(&page.doc, cx) {
+        // this frame is drawn (on its own page, the page's head takes it).
+        if titled && NewTitles::take(&page.doc, cx) {
             let field = title.clone();
             window.defer(cx, move |window, cx| {
                 window.focus(&field.focus_handle(cx), cx);
@@ -117,6 +120,7 @@ impl PageHead {
             synopsis,
             stored_title: page.title.clone(),
             stored_synopsis: page.synopsis.clone(),
+            titled,
             group_path,
             _subscriptions: subscriptions,
         }
@@ -125,6 +129,12 @@ impl PageHead {
     /// The title field (tests, and hosts that focus it).
     pub fn title(&self) -> &Entity<TextArea> {
         &self.title
+    }
+
+    /// Whether it draws the title: in the whole book; on an entry's own
+    /// page the page's head is the one title.
+    pub fn shows_title(&self) -> bool {
+        self.titled
     }
 
     pub fn synopsis(&self) -> &Entity<TextArea> {
@@ -526,17 +536,19 @@ impl Render for PageHead {
         let text = inner
             .pt(px(tk::TOP))
             .child(folio)
-            .child(
-                div()
-                    .mb(px(tk::TITLE_GAP))
-                    .font_role(Role::Prose)
-                    .type_px(tk::TITLE_SIZE, tk::TITLE_SIZE * tk::TITLE_LINE)
-                    .text_color(p.ink(1).solid())
-                    .child(self.title.clone())
-                    .when(!page.has_synopsis && self.drafts.is_some(), |d| {
-                        d.child(self.errors_v3(cx))
-                    }),
-            )
+            .when(self.titled, |el| {
+                el.child(
+                    div()
+                        .mb(px(tk::TITLE_GAP))
+                        .font_role(Role::Prose)
+                        .type_px(tk::TITLE_SIZE, tk::TITLE_SIZE * tk::TITLE_LINE)
+                        .text_color(p.ink(1).solid())
+                        .child(self.title.clone())
+                        .when(!page.has_synopsis && self.drafts.is_some(), |d| {
+                            d.child(self.errors_v3(cx))
+                        }),
+                )
+            })
             .when(page.has_synopsis, |el| {
                 el.child(
                     div()

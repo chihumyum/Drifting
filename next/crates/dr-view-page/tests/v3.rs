@@ -276,23 +276,6 @@ fn body_keeps_slash_menu_and_selection_bar(cx: &mut TestAppContext) {
     assert!(assist.read_with(&vcx, |a, _| a.bar().is_some()));
 }
 
-#[gpui::test]
-fn newly_created_body_keeps_title_focus_across_async_load(cx: &mut TestAppContext) {
-    use gpui::Focusable as _;
-    let e = env();
-    let doc = format!("body:{}/mod-prose", e.entry);
-    cx.update(|cx| dr_view_page::focus_new_title(doc.clone(), cx));
-    let (view, mut vcx) = open(cx, &e, "mod-prose");
-    wait(&mut vcx, |cx| {
-        cx.update(|window, cx| {
-            dr_view_page::page_views(&doc, cx)
-                .is_some_and(|(head, _)| head.read(cx).title().focus_handle(cx).is_focused(window))
-        })
-    });
-    let editor = view.read_with(&vcx, |v, _| v.editor().unwrap());
-    assert!(!vcx.update(|window, cx| editor.read(cx).editor().focus_handle(cx).is_focused(window)));
-}
-
 fn head_release_case(cx: &mut TestAppContext, summary: bool, conflict: bool) {
     use gpui::Focusable as _;
     use std::cell::{Cell, RefCell};
@@ -387,57 +370,12 @@ fn head_release_case(cx: &mut TestAppContext, summary: bool, conflict: bool) {
     e.ws.close();
 }
 #[gpui::test]
-fn title_head_flushes_focused_input_before_quit(cx: &mut TestAppContext) {
-    head_release_case(cx, false, false)
-}
-#[gpui::test]
 fn synopsis_head_flushes_focused_input_before_quit(cx: &mut TestAppContext) {
     head_release_case(cx, true, false)
 }
 #[gpui::test]
-fn title_head_conflict_keeps_input_and_blocks_replacement(cx: &mut TestAppContext) {
-    head_release_case(cx, false, true)
-}
-#[gpui::test]
 fn synopsis_head_conflict_keeps_input_and_blocks_replacement(cx: &mut TestAppContext) {
     head_release_case(cx, true, true)
-}
-
-#[gpui::test]
-fn cancelling_after_save_never_rewrites_old_page_facts(cx: &mut TestAppContext) {
-    use gpui::Focusable as _;
-    let e = env();
-    let (body, mut cx) = open(cx, &e, "mod-prose");
-    let doc = format!("body:{}/mod-prose", e.entry);
-    wait(&mut cx, |cx| {
-        cx.update(|_, cx| dr_view_page::page_views(&doc, cx).is_some())
-    });
-    let head = cx.update(|_, cx| dr_view_page::page_views(&doc, cx).unwrap().0);
-    let editor = body.read_with(&cx, |b, _| b.editor().unwrap());
-    let old = editor.read_with(&cx, |e, _| e.page_info().unwrap());
-    let input = head.read_with(&cx, |h, _| h.title().clone());
-    input.update_in(&mut cx, |a, w, cx| {
-        a.focus_handle(cx).focus(w, cx);
-        a.select_all_text(cx);
-        a.replace_text_in_range(None, "acknowledged title", w, cx);
-    });
-    cx.update(|w, cx| w.blur(cx));
-    wait(&mut cx, |_| {
-        call(&e.ws, "entry.get", json!({"book":e.book,"id":e.entry}))["title"]
-            == "acknowledged title"
-    });
-    draw(&mut cx);
-    head.update_in(&mut cx, |h, w, cx| h.set_page(&old, w, cx));
-    input.update_in(&mut cx, |a, w, cx| a.focus_handle(cx).focus(w, cx));
-    let displayed = input.read_with(&cx, |a, _| a.text());
-    cx.simulate_keystrokes("escape");
-    draw(&mut cx);
-    assert_eq!(input.read_with(&cx, |a, _| a.text()), displayed);
-    assert_eq!(
-        call(&e.ws, "entry.get", json!({"book":e.book,"id":e.entry}))["title"],
-        "acknowledged title"
-    );
-    e.ws.close();
 }
 
 #[gpui::test]

@@ -167,10 +167,10 @@ impl BodyModule {
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
                             e.set_chrome(
-                                Some(Rc::new(crate::Chrome::with_book(
-                                    page,
-                                    host.page.book.clone(),
-                                ))),
+                                Some(Rc::new(
+                                    crate::Chrome::with_book(page, host.page.book.clone())
+                                        .on_entry_page(),
+                                )),
                                 cx,
                             );
                         });
@@ -247,13 +247,7 @@ impl Render for BodyModule {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // The shell may focus this wrapper before its asynchronous editor and
         // title exist. Do not queue prose focus over the new title's handoff.
-        if self.title_first
-            && let Some((head, _)) = crate::page_views(
-                &format!("body:{}/{}", self.host.entry, self.host.module.id),
-                cx,
-            )
-            && head.read(cx).title().focus_handle(cx).is_focused(window)
-        {
+        if self.title_first && crate::entry_head::title_focused(&self.host.entry, window, cx) {
             self.title_first = false;
         }
         if !self.title_first

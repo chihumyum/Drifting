@@ -113,13 +113,18 @@ fn actual_body_makers_isolate_tabs_and_drive_find_selection_comment_save(cx: &mu
     let exact = target(&entry, Some("mod-prose"));
     let first = open(&view, cx, &combined);
     let second = open(&view, cx, &exact);
-    assert_ne!(first.entity_id(), second.entity_id());
-    assert_eq!(
-        first.read_with(cx, |e, _| e.doc_id().to_owned()),
-        second.read_with(cx, |e, _| e.doc_id().to_owned())
-    );
+    // One entry, one tab (`kernel-v5.md` T1): the module a target names is
+    // where the page scrolls to, and its editor is the page's own.
+    assert_eq!(first.entity_id(), second.entity_id());
+    view.read_with(cx, |w, _| assert_eq!(w.nav.tabs().len(), 1));
     let module = target(&entry, Some("second"));
     let actual = open(&view, cx, &module);
+    view.read_with(cx, |w, _| assert_eq!(w.nav.tabs().len(), 1));
+    assert_ne!(
+        actual.entity_id(),
+        first.entity_id(),
+        "each module its own editor"
+    );
     actual.update_in(cx, |e, w, cx| {
         let p = e.editor().clone();
         p.update(cx, |p, cx| {
@@ -150,6 +155,7 @@ fn actual_body_makers_isolate_tabs_and_drive_find_selection_comment_save(cx: &mu
             && c.quote.as_deref() == Some("Synthetic")
             && c.body == "Synthetic saved comment"
     }));
+    // Closing the one tab closes the entry's page, every module of it.
     view.update(cx, |w, cx| {
         w.nav.close_active();
         cx.notify();
@@ -157,10 +163,7 @@ fn actual_body_makers_isolate_tabs_and_drive_find_selection_comment_save(cx: &mu
     wait(cx, |cx| {
         view.read_with(cx, |w, _| w.editor_of(&module).is_none())
     });
-    assert_eq!(
-        view.read_with(cx, |w, _| w.editor_of(&exact).unwrap().entity_id()),
-        second.entity_id()
-    );
+    view.read_with(cx, |w, _| assert!(w.editor_of(&exact).is_none()));
 }
 #[gpui::test]
 fn actual_whole_book_registry_tracks_reload_focus_and_new_find(cx: &mut TestAppContext) {
@@ -239,7 +242,9 @@ fn versioned_module_click_reveals_block_range(cx: &mut TestAppContext) {
     let exact = target(&entry, Some("second"));
     wait(cx, |cx| {
         view.read_with(cx, |w, _| {
-            w.nav.current() == Some(&exact) && w.editor_of(&exact).is_some()
+            // One entry is one tab (kernel v5, T1): the link is a place on
+            // the page already open.
+            w.nav.current().is_some_and(|c| c.same_page(&exact)) && w.editor_of(&exact).is_some()
         })
     });
     wait(cx, |cx| {

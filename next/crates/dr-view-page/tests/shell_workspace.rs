@@ -2730,21 +2730,23 @@ fn a_page_holding_a_section_in_view_and_cmd_z_leave_each_other_alone(cx: &mut Te
     assert_eq!(stored(&writer, &doc), before, "⌘Z undid the typing");
     assert_eq!(title(), "改过的名字", "and left the book's command alone");
 
-    // Opened at another module, the keyboard on the page itself: ⌘Z undoes
-    // the rename and the page lets go of the module.
+    // Opened at another module (the same page: one entry is one tab, the
+    // module is where it scrolls), the keyboard on the page itself: ⌘Z
+    // undoes the rename and the page lets go of the module.
     let other = Target::from_key(&format!("entry:{entry}/{module}")).unwrap();
     view.update(cx, |ws, cx| ws.open(other.clone(), Open::KEEP, cx));
-    settle_entry_page(&view, cx, &other);
-    assert_eq!(pinned(cx, &other).as_deref(), Some(module.as_str()));
+    settle_entry_page(&view, cx, &body);
+    view.read_with(cx, |ws, _| assert_eq!(ws.nav.tabs().len(), 1));
+    assert_eq!(pinned(cx, &body).as_deref(), Some(module.as_str()));
     cx.update(|window, cx| {
-        let page = view.read(cx).editors[&other.key()].v3.clone().unwrap();
+        let page = view.read(cx).editors[&body.key()].v3.clone().unwrap();
         let handle = page.read(cx).focus.clone();
         handle.focus(window, cx);
     });
     draw(cx);
     cx.update(|window, cx| assert!(view.read(cx).structure_has_keyboard(window, cx)));
     assert_eq!(
-        pinned(cx, &other).as_deref(),
+        pinned(cx, &body).as_deref(),
         Some(module.as_str()),
         "taking the keyboard is not taking the page"
     );
@@ -2753,7 +2755,7 @@ fn a_page_holding_a_section_in_view_and_cmd_z_leave_each_other_alone(cx: &mut Te
         ws.book.v3().unwrap().entry(&entry).unwrap().title == original
     });
     draw(cx);
-    assert_eq!(pinned(cx, &other), None, "⌘Z let go of the module");
+    assert_eq!(pinned(cx, &body), None, "⌘Z let go of the module");
 }
 
 /// Author 2026-11-13: the book's structure undoes from the window. With the

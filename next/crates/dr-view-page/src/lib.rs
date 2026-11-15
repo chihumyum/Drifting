@@ -27,6 +27,7 @@
 //! has no actions); other pages get nothing.
 
 pub mod end;
+pub mod entry_head;
 pub mod head;
 mod history;
 mod links;
@@ -53,6 +54,7 @@ pub fn init(cx: &mut App) {
     links::init(cx);
     settlement::init(cx);
     history::init(cx);
+    entry_head::register(cx);
     v3::register(cx);
     dr_shell::v3::history::register(cx);
 }
@@ -65,6 +67,9 @@ type Views = (Entity<PageHead>, Entity<PageEnd>);
 pub struct Chrome {
     host: PageHost,
     book: Option<Rc<dr_shell::book::Book>>,
+    /// Whether the head draws the page's title: not on an entry page, whose
+    /// own head is the one title (`kernel-v5.md` §8).
+    titled: bool,
     pages: RefCell<HashMap<String, Views>>,
 }
 
@@ -73,6 +78,7 @@ impl Chrome {
         Chrome {
             host,
             book: None,
+            titled: true,
             pages: RefCell::default(),
         }
     }
@@ -84,8 +90,16 @@ impl Chrome {
         Self {
             host,
             book: Some(book),
+            titled: true,
             pages: RefCell::default(),
         }
+    }
+
+    /// The chrome of a body on an entry page: the page's head is the title,
+    /// so this head draws none (its folio line, synopsis and rule stay).
+    pub fn on_entry_page(mut self) -> Self {
+        self.titled = false;
+        self
     }
 
     /// The head and end views of `page`, and their facts brought up to date.
@@ -100,8 +114,16 @@ impl Chrome {
             Some(views) => views,
             None => {
                 let host = self.host.clone();
+                let titled = self.titled;
                 let head = cx.new(|cx| {
-                    PageHead::new_with_book(host.clone(), page, self.book.clone(), window, cx)
+                    PageHead::new_with_book(
+                        host.clone(),
+                        page,
+                        self.book.clone(),
+                        titled,
+                        window,
+                        cx,
+                    )
                 });
                 let end = cx.new(|_| PageEnd::new(host, page));
                 self.pages
@@ -145,12 +167,17 @@ impl PageChrome for Chrome {
         } else {
             0.0
         };
+        // On an entry page the title is the page's own head's.
+        let title = if self.titled {
+            tk::TITLE_SIZE * tk::TITLE_LINE + tk::TITLE_GAP
+        } else {
+            0.0
+        };
         tk::TOP
             + tk::FOLIO_LINE
             + tk::FOLIO_PAD
             + tk::FOLIO_MARGIN
-            + tk::TITLE_SIZE * tk::TITLE_LINE
-            + tk::TITLE_GAP
+            + title
             + synopsis
             + 1.0
             + tk::RULE_GAP
@@ -215,6 +242,22 @@ impl NewTitles {
     pub fn pending(doc: &str, cx: &App) -> bool {
         cx.try_global::<Self>()
             .is_some_and(|list| list.0.iter().any(|d| d == doc))
+    }
+
+    /// Whether a body of `entry` was just made (and forgets it): the entry
+    /// page's head takes the caret for it.
+    pub fn take_entry(entry: &str, cx: &mut App) -> bool {
+        let prefix = format!("body:{entry}/");
+        let Some(list) = cx.try_global::<NewTitles>() else {
+            return false;
+        };
+        if !list.0.iter().any(|d| d.starts_with(&prefix)) {
+            return false;
+        }
+        cx.global_mut::<NewTitles>()
+            .0
+            .retain(|d| !d.starts_with(&prefix));
+        true
     }
 
     /// Whether `doc` was just made (and forgets it).
