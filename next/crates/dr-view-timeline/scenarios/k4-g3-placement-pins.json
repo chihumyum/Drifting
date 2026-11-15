@@ -98,7 +98,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/bottom/pane": "timeline"
         }
       }
@@ -460,7 +460,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Time ruler",
+        "label": "Scale ruler",
         "role": "Group",
         "count": 1
       },
@@ -504,7 +504,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Rename time pin",
+        "label": "Rename scale pin",
         "role": "MenuItem"
       }
     },
