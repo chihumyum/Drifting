@@ -286,6 +286,8 @@ pub const DOC_KIND_STATS: &str = "stats";
 pub const DOC_KIND_CHECKPOINTS: &str = "checkpoints";
 /// A book's canvas coordinates, beside its book document.
 pub const DOC_KIND_LAYOUT: &str = "layout";
+/// A library-level user project template, belonging to no book.
+pub const DOC_KIND_PROJECT_TEMPLATE: &str = "project-template";
 
 pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_BOOK,
@@ -299,6 +301,7 @@ pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_STATS,
     DOC_KIND_CHECKPOINTS,
     DOC_KIND_LAYOUT,
+    DOC_KIND_PROJECT_TEMPLATE,
 ];
 
 /// Whether `kind` is a known document kind in schema v3 or v2.2.

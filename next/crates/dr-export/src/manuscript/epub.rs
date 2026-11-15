@@ -97,7 +97,14 @@ fn classes(align: Align, indent: u8, first: bool, extra: &str) -> String {
 }
 
 /// `first` carries whether the next paragraph opens a run of prose.
-fn blocks_html(blocks: &[Block], heading_base: u8, first: &mut bool, out: &mut String) {
+fn blocks_html(
+    book: &Book<'_>,
+    blocks: &[Block],
+    heading_base: u8,
+    image_index: &mut usize,
+    first: &mut bool,
+    out: &mut String,
+) {
     for block in blocks {
         match block {
             Block::Heading { level, runs, align } => {
@@ -165,7 +172,14 @@ fn blocks_html(blocks: &[Block], heading_base: u8, first: &mut bool, out: &mut S
             Block::Callout { blocks, .. } => {
                 out.push_str("<aside class=\"callout\">\n");
                 let mut inner_first = true;
-                blocks_html(blocks, heading_base, &mut inner_first, out);
+                blocks_html(
+                    book,
+                    blocks,
+                    heading_base,
+                    image_index,
+                    &mut inner_first,
+                    out,
+                );
                 out.push_str("</aside>\n");
                 *first = true;
             }
@@ -186,8 +200,33 @@ fn blocks_html(blocks: &[Block], heading_base: u8, first: &mut bool, out: &mut S
             Block::Quote { blocks } => {
                 out.push_str("<blockquote>\n");
                 let mut inner_first = true;
-                blocks_html(blocks, heading_base, &mut inner_first, out);
+                blocks_html(
+                    book,
+                    blocks,
+                    heading_base,
+                    image_index,
+                    &mut inner_first,
+                    out,
+                );
                 out.push_str("</blockquote>\n");
+                *first = true;
+            }
+            Block::Image { caption, .. } => {
+                let idx = *image_index;
+                *image_index += 1;
+                if let Some(img) = book.images.get(idx) {
+                    let trimmed = caption.trim();
+                    out.push_str(&format!(
+                        "<figure class=\"prose-image\">\n<img src=\"../images/image-{}.{}\" alt=\"{}\"/>\n",
+                        idx + 1,
+                        img.extension(),
+                        xml(trimmed)
+                    ));
+                    if !trimmed.is_empty() {
+                        out.push_str(&format!("<figcaption>{}</figcaption>\n", xml(trimmed)));
+                    }
+                    out.push_str("</figure>\n");
+                }
                 *first = true;
             }
             Block::Break => {
@@ -225,6 +264,9 @@ fn stylesheet(book: &Book<'_>) -> String {
          aside.callout p { text-indent: 0; }\n\
          table.prose-table { width: 100%; margin: 0.8em 0; border-collapse: collapse; text-indent: 0; }\n\
          table.prose-table td { border: 1px solid rgba(128, 128, 128, 0.3); padding: 0.35em 0.55em; vertical-align: top; text-align: left; text-indent: 0; }\n\
+         figure.prose-image { margin: 1em 0; text-align: center; text-indent: 0; break-inside: avoid; page-break-inside: avoid; }\n\
+         figure.prose-image img { max-width: 100%; height: auto; }\n\
+         figure.prose-image figcaption { margin-top: 0.4em; font-size: 0.9em; text-align: center; text-indent: 0; }\n\
          hr.separator { width: 20%; margin: 1.5em auto; border: none; border-top: 1px solid currentColor; }\n\
          .titlepage { margin-top: 30%; text-align: center; }\n\
          .titlepage .book-title { font-size: 1.8em; margin: 0 0 1.2em; }\n\
@@ -328,6 +370,7 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
 
     let mut nav: Vec<NavEntry> = Vec::new();
     let mut in_act = false;
+    let mut image_index = 0usize;
     for (index, section) in book.sections().iter().enumerate() {
         let id = format!("s{:04}", index + 1);
         let href = format!("text/{id}.xhtml");
@@ -369,7 +412,14 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
                     ));
                 }
                 let mut first = true;
-                blocks_html(blocks, heading_base, &mut first, &mut body);
+                blocks_html(
+                    book,
+                    blocks,
+                    heading_base,
+                    &mut image_index,
+                    &mut first,
+                    &mut body,
+                );
                 body.push_str("</section>\n</body>\n</html>\n");
                 documents.push(Document {
                     id,
@@ -447,6 +497,15 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
             cover.media_type()
         ));
     }
+    for (idx, image) in book.images.iter().enumerate() {
+        opf.push_str(&format!(
+            "<item id=\"img-{}\" href=\"images/image-{}.{}\" media-type=\"{}\"/>\n",
+            idx + 1,
+            idx + 1,
+            image.extension(),
+            image.media_type()
+        ));
+    }
     for document in &documents {
         opf.push_str(&format!(
             "<item id=\"{}\" href=\"{}\" media-type=\"application/xhtml+xml\"/>\n",
@@ -493,6 +552,13 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
         put(
             &format!("OEBPS/images/cover.{}", cover.extension()),
             &cover.bytes,
+            stored,
+        )?;
+    }
+    for (idx, image) in book.images.iter().enumerate() {
+        put(
+            &format!("OEBPS/images/image-{}.{}", idx + 1, image.extension()),
+            &image.bytes,
             stored,
         )?;
     }

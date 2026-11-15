@@ -8,8 +8,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use dr_doc::v3::{BookViewV3, BorrowedBookV3};
 use dr_model::{
     DocId,
-    id::{BodyDocId, BookId, EntryId, EntryTemplateId, KvEntryId, ModuleId, TimelineViewId},
-    shared::KvEntry,
+    id::{
+        AssetFolderId, AssetId, BodyDocId, BookId, EntryId, EntryTemplateId, KvEntryId,
+        MediaItemId, ModuleId, TabId, TimelineViewId,
+    },
+    kind::{CommentStatus, ProjectionKind},
+    shared::{Asset, AssetFolder, KvEntry},
     v3::{
         Entry, EntryTemplate, FieldType, ModuleKind, ModuleSpec, check_membership,
         check_timeline_placement_in_lane, effective_parent_id, resolve_level_settings,
@@ -49,9 +53,13 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
             "relation_type",
             "owner",
             "folder",
+            "item",
         ] {
-            let is_reference =
-                key != "id" || !matches!((domain, verb), (_, "create" | "add" | "put"));
+            let is_reference = match key {
+                "id" => !matches!((domain, verb), (_, "create" | "add")) || name == "tab.put",
+                "item" => name == "module.remove_media",
+                _ => true,
+            };
             if is_reference && let Some(field) = properties.get_mut(key) {
                 let before = field["description"].as_str().unwrap_or("");
                 field["description"] = format!(
@@ -63,7 +71,12 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
             }
         }
     }
-    fn visit(value: &mut Value) {
+    if name == "module.put_media"
+        && let Some(required) = schema["$defs"]["MediaItem"]["required"].as_array_mut()
+    {
+        required.retain(|key| key != "id");
+    }
+    fn visit(value: &mut Value, name: &str) {
         if let Some(properties) = value.get_mut("properties").and_then(Value::as_object_mut) {
             if let Some(doc) = properties.get_mut("doc") {
                 *doc = json!({
@@ -91,6 +104,22 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
                 && properties.contains_key("id")
                 && properties.len() == 2
             {
+                if let Some(kind_prop) = properties.get_mut("kind") {
+                    if matches!(
+                        name,
+                        "prose.link" | "prose.unlink" | "comment.create" | "comment.list"
+                    ) {
+                        kind_prop["enum"] = json!(["entry", "asset"]);
+                        kind_prop["description"] = json!("Canonical `entry` or `asset`.");
+                    } else if kind_prop
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .is_some_and(|d| d.contains("Canonical `entry`"))
+                    {
+                        kind_prop["description"] =
+                            json!("Canonical `entry`, `asset`, `patch` or `comment`.");
+                    }
+                }
                 properties.insert(
                     "name".into(),
                     json!({"type":"string","description":"Exact author name; use instead of id."}),
@@ -109,11 +138,11 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
         }
         if let Some(defs) = value.get_mut("$defs").and_then(Value::as_object_mut) {
             for child in defs.values_mut() {
-                visit(child);
+                visit(child, name);
             }
         }
     }
-    visit(&mut schema);
+    visit(&mut schema, name);
     schema
 }
 
@@ -267,7 +296,7 @@ pub(crate) fn resolve_v3(
                     let target = link
                         .get_mut("target")
                         .ok_or_else(|| invalid("link needs a target"))?;
-                    resolve_entity_ref_v3(&cx, target)?;
+                    resolve_entity_ref_v3(&cx, target, false)?;
                 }
             }
 
@@ -275,7 +304,8 @@ pub(crate) fn resolve_v3(
                 if let Some(value) = obj.get_mut(key)
                     && value.is_object()
                 {
-                    resolve_entity_ref_v3(&cx, value)?;
+                    let include_trashed = key == "target" && name == "comment.list";
+                    resolve_entity_ref_v3(&cx, value, include_trashed)?;
                 }
             }
 
@@ -285,34 +315,85 @@ pub(crate) fn resolve_v3(
                         && ["range", "block_id", "anchor"]
                             .iter()
                             .any(|k| obj.get(*k).is_some_and(|v| !v.is_null()));
+                    let embed_part = obj
+                        .get("part")
+                        .and_then(|p| p.get("kind"))
+                        .and_then(Value::as_str)
+                        == Some("embed");
                     if let Some(target) = obj.get("target").filter(|t| !t.is_null()) {
                         let kind = target["kind"].as_str().unwrap_or_default().to_owned();
                         let id = target["id"].as_str().unwrap_or_default().to_owned();
-                        if kind != "entry" {
-                            return Err(invalid("comment target must be an entry"));
+                        if name == "comment.anchors" && kind != "entry" {
+                            return Err(invalid("comment.anchors target must be an entry"));
                         }
-                        if name == "comment.create"
-                            && !anchored
-                            && obj.get("module").is_none_or(Value::is_null)
-                        {
-                            extra_subjects.insert(format!("{kind}:{id}"));
+                        if !matches!(kind.as_str(), "entry" | "asset") {
+                            return Err(invalid("comment target must be an entry or asset"));
                         }
-                        if let Some(module) = obj.get_mut("module").filter(|m| !m.is_null()) {
-                            let eid = EntryId::parse(&id).map_err(|e| invalid(e.to_string()))?;
-                            let entry = cx
-                                .entry_header(&eid)
-                                .ok_or_else(|| invalid("entry not found"))?;
-                            let mid =
-                                resolve_entry_prose_module(&cx, &entry, module, false, false)?;
-                            *module = mid.to_string().into();
-                            if name == "comment.create" && !anchored {
-                                extra_subjects.insert(format!("module:{eid}:{mid}"));
+                        if kind == "asset" {
+                            if obj.get("module").is_some_and(|m| !m.is_null()) {
+                                return Err(invalid("an asset comment cannot specify a module"));
+                            }
+                            if anchored || embed_part {
+                                return Err(invalid("an anchor requires entry prose"));
+                            }
+                            if name == "comment.create" {
+                                extra_subjects.insert(format!("asset:{id}"));
+                            }
+                        } else {
+                            if name == "comment.create"
+                                && !anchored
+                                && !embed_part
+                                && obj.get("module").is_none_or(Value::is_null)
+                            {
+                                extra_subjects.insert(format!("entry:{id}"));
+                            }
+                            if let Some(module) = obj.get_mut("module").filter(|m| !m.is_null()) {
+                                let eid =
+                                    EntryId::parse(&id).map_err(|e| invalid(e.to_string()))?;
+                                let entry = cx
+                                    .view
+                                    .entry_raw(&eid)
+                                    .ok_or_else(|| invalid("entry not found"))?;
+                                let allow_retained = name != "comment.create";
+                                if name == "comment.anchors" || anchored || embed_part {
+                                    let mid = resolve_entry_prose_module(
+                                        &cx,
+                                        &entry,
+                                        module,
+                                        allow_retained,
+                                        false,
+                                    )?;
+                                    *module = mid.to_string().into();
+                                } else {
+                                    let (mid, mod_spec) = resolve_entry_module(
+                                        &cx,
+                                        &entry,
+                                        module,
+                                        allow_retained,
+                                        false,
+                                    )?;
+                                    *module = mid.to_string().into();
+                                    if name == "comment.create" {
+                                        if let Some(part_obj) =
+                                            obj.get_mut("part").and_then(Value::as_object_mut)
+                                        {
+                                            resolve_comment_part(
+                                                &cx,
+                                                &entry,
+                                                &mid,
+                                                mod_spec.as_ref(),
+                                                part_obj,
+                                            )?;
+                                        }
+                                        extra_subjects.insert(format!("module:{eid}:{mid}"));
+                                    }
+                                }
                             }
                         }
                     } else if obj.get("module").is_some_and(|m| !m.is_null()) {
                         return Err(invalid("a comment module requires an entry target"));
                     }
-                    if anchored {
+                    if anchored || (name == "comment.create" && embed_part) {
                         let target = obj
                             .get("target")
                             .ok_or_else(|| invalid("an anchor needs a target"))?;
@@ -322,9 +403,10 @@ pub(crate) fn resolve_v3(
                         targets.insert(doc);
                     }
                 }
-                "comment.update" | "comment.reanchor" => {
+                "comment.update" | "comment.reanchor" | "comment.trash" | "comment.restore" => {
+                    let include_trashed = matches!(name, "comment.trash" | "comment.restore");
                     if let Some(id) = obj.get_mut("id") {
-                        *id = resolve_comment_id(&cx.view, id)?.into();
+                        *id = resolve_comment_id(&cx.view, id, include_trashed)?.into();
                     }
                     if name == "comment.reanchor" && obj.get("anchor").is_some_and(|a| !a.is_null())
                     {
@@ -342,6 +424,34 @@ pub(crate) fn resolve_v3(
                             old.target_module.as_ref().map(|m| json!(m)).as_ref(),
                         )?;
                         let doc = resolve_document_v3(&cx, &json!(doc), true, false)?;
+                        extra_subjects.insert(format!("prose:{doc}"));
+                        targets.insert(doc);
+                    }
+                    if name == "comment.update"
+                        && let Some(next_status) = obj
+                            .get("status")
+                            .and_then(Value::as_str)
+                            .map(CommentStatus::parse)
+                            .filter(CommentStatus::is_known)
+                        && let Some(old) = cx
+                            .view
+                            .comments()
+                            .into_iter()
+                            .find(|c| Some(c.id.as_str()) == obj["id"].as_str())
+                        && old
+                            .projection
+                            .as_ref()
+                            .is_some_and(|p| p.kind == ProjectionKind::NoteTask)
+                        && next_status != old.status
+                    {
+                        let target = old
+                            .target
+                            .ok_or_else(|| invalid("a checklist comment has no prose"))?;
+                        let doc = comment_source_doc(
+                            &json!({"kind":target.kind.as_str(),"id":target.id}),
+                            old.target_module.as_ref().map(|m| json!(m)).as_ref(),
+                        )?;
+                        let doc = resolve_document_v3(&cx, &json!(doc), true, true)?;
                         extra_subjects.insert(format!("prose:{doc}"));
                         targets.insert(doc);
                     }
@@ -523,7 +633,10 @@ pub(crate) fn resolve_v3(
                 | "module.remove_patch"
                 | "module.put_grid"
                 | "module.put_relation"
-                | "module.remove_relation" => {
+                | "module.remove_relation"
+                | "module.put_media"
+                | "module.remove_media"
+                | "module.set_arrangement" => {
                     let eid = {
                         let entry_val = obj
                             .get_mut("entry")
@@ -571,13 +684,11 @@ pub(crate) fn resolve_v3(
                                 *val = target_entry.to_string().into();
                             }
                             if field_id.1 == FieldType::Image
-                                && let Some(val) = obj.get("value")
-                                && let Some(asset_id) = val.as_str()
-                                && !cx.view.assets().iter().any(|a| a.id.as_str() == asset_id)
+                                && let Some(val) = obj.get_mut("value")
+                                && val.is_string()
                             {
-                                return Err(invalid(format!(
-                                    "asset {asset_id:?} not found in this book"
-                                )));
+                                let aid = resolve_asset_id(&cx.view, val, false)?;
+                                *val = aid.to_string().into();
                             }
                         }
                         "module.put_kv" => {
@@ -631,6 +742,23 @@ pub(crate) fn resolve_v3(
                                     )));
                                 }
                             }
+                        }
+                        "module.put_media" => {
+                            let existing_items = entry.media.get(&mid).cloned().unwrap_or_default();
+                            let item_obj = obj
+                                .get_mut("item")
+                                .and_then(Value::as_object_mut)
+                                .ok_or_else(|| invalid("module.put_media needs an item object"))?;
+                            resolve_media_put_item(&cx.view, item_obj, &existing_items)?;
+                        }
+                        "module.remove_media" => {
+                            let existing_items = entry.media.get(&mid).cloned().unwrap_or_default();
+                            let item_val = obj
+                                .get_mut("item")
+                                .ok_or_else(|| invalid("module.remove_media needs item"))?;
+                            let resolved =
+                                resolve_media_remove_item(&cx.view, item_val, &existing_items)?;
+                            *item_val = resolved.to_string().into();
                         }
                         _ => {}
                     }
@@ -890,6 +1018,167 @@ pub(crate) fn resolve_v3(
                         *pin_val = pid.into();
                     }
                 }
+                "project.update" | "book.sequence" => {
+                    if let Some(root_val) = obj.get_mut("root")
+                        && !root_val.is_null()
+                    {
+                        resolve_book_root(&cx, root_val)?;
+                    }
+                }
+                "tab.put" => {
+                    if let Some(id_val) = obj.get_mut("id")
+                        && !id_val.is_null()
+                    {
+                        let tid = resolve_tab_id(&cx.view, id_val)?;
+                        *id_val = tid.to_string().into();
+                    }
+                    if let Some(mount_val) = obj.get_mut("mount")
+                        && !mount_val.is_null()
+                    {
+                        resolve_tab_mount(&cx, mount_val)?;
+                    }
+                    if let Some(place_val) = obj.get_mut("place")
+                        && !place_val.is_null()
+                    {
+                        resolve_tab_place(&cx.view, place_val)?;
+                    }
+                }
+                "tab.remove" | "tab.move" => {
+                    if let Some(id_val) = obj.get_mut("id") {
+                        let tid = resolve_tab_id(&cx.view, id_val)?;
+                        *id_val = tid.to_string().into();
+                    }
+                    if name == "tab.move"
+                        && let Some(place_val) = obj.get_mut("place")
+                        && !place_val.is_null()
+                    {
+                        resolve_tab_place(&cx.view, place_val)?;
+                    }
+                }
+                "asset.get" | "asset.rename" | "asset.move" | "asset.trash" | "asset.restore" => {
+                    let include_trashed =
+                        matches!(name, "asset.get" | "asset.trash" | "asset.restore");
+                    if let Some(id_val) = obj.get_mut("id") {
+                        let aid = resolve_asset_id(&cx.view, id_val, include_trashed)?;
+                        *id_val = aid.to_string().into();
+                    }
+                    if name == "asset.move"
+                        && let Some(folder_val) = obj.get_mut("folder")
+                        && !folder_val.is_null()
+                    {
+                        let fid = resolve_asset_folder_id(&cx.view, folder_val, false)?;
+                        *folder_val = fid.to_string().into();
+                        extra_subjects.insert(format!("asset_folder:{fid}"));
+                    }
+                }
+                "asset_folder.create" => {
+                    if let Some(parent_val) = obj.get_mut("parent")
+                        && !parent_val.is_null()
+                    {
+                        let pid = resolve_asset_folder_id(&cx.view, parent_val, false)?;
+                        *parent_val = pid.to_string().into();
+                    }
+                }
+                "asset_folder.rename"
+                | "asset_folder.move"
+                | "asset_folder.trash"
+                | "asset_folder.restore" => {
+                    let include_trashed =
+                        matches!(name, "asset_folder.trash" | "asset_folder.restore");
+                    let resolved_fid = if let Some(id_val) = obj.get_mut("id") {
+                        let fid = resolve_asset_folder_id(&cx.view, id_val, include_trashed)?;
+                        *id_val = fid.to_string().into();
+                        Some(fid)
+                    } else {
+                        None
+                    };
+                    if name == "asset_folder.move"
+                        && let Some(parent_val) = obj.get_mut("parent")
+                        && !parent_val.is_null()
+                    {
+                        let pid = resolve_asset_folder_id(&cx.view, parent_val, false)?;
+                        *parent_val = pid.to_string().into();
+                        extra_subjects.insert(format!("asset_folder:{pid}"));
+                    }
+                    if let Some(fid) = resolved_fid {
+                        if name == "asset_folder.trash" {
+                            let (folders, files) = asset_folder_subtree(&cx.view, &fid);
+                            for f in folders.into_iter().filter(|f| !f.is_trashed()) {
+                                extra_subjects.insert(format!("asset_folder:{}", f.id));
+                            }
+                            for a in files.into_iter().filter(|a| !a.is_trashed()) {
+                                extra_subjects.insert(format!("asset:{}", a.id));
+                            }
+                        } else if name == "asset_folder.restore"
+                            && let Some(have) = cx.view.asset_folder_raw(&fid)
+                            && have.is_trashed()
+                        {
+                            let group = have.trashed_with.unwrap_or_else(|| fid.clone());
+                            let (folders, files) = asset_folder_subtree(&cx.view, &fid);
+                            for f in folders
+                                .into_iter()
+                                .filter(|f| f.id == fid || f.trashed_with.as_ref() == Some(&group))
+                            {
+                                extra_subjects.insert(format!("asset_folder:{}", f.id));
+                            }
+                            for a in files.into_iter().filter(|a| {
+                                a.is_trashed() && a.trashed_with.as_ref() == Some(&group)
+                            }) {
+                                extra_subjects.insert(format!("asset:{}", a.id));
+                            }
+                        }
+                    }
+                }
+                "layout.get" | "layout.put" | "layout.clear" => {
+                    if let Some(scope_val) = obj.get_mut("scope") {
+                        let raw = string(scope_val, "scope")?.trim();
+                        if raw != "root" {
+                            if name == "layout.put" {
+                                let eid =
+                                    resolve_entry_id(&cx, scope_val, None, false, EntryRole::Any)?;
+                                *scope_val = eid.to_string().into();
+                            } else if let Ok(eid) =
+                                resolve_entry_id(&cx, scope_val, None, true, EntryRole::Any)
+                            {
+                                *scope_val = eid.to_string().into();
+                            }
+                        } else {
+                            *scope_val = "root".into();
+                        }
+                    }
+                    if name == "layout.put"
+                        && let Some(pos_map) =
+                            obj.get_mut("positions").and_then(Value::as_object_mut)
+                    {
+                        let mut resolved_positions = Map::new();
+                        for (raw_key, pt_val) in std::mem::take(pos_map) {
+                            let eid = resolve_entry_id(
+                                &cx,
+                                &Value::String(raw_key),
+                                None,
+                                false,
+                                EntryRole::Any,
+                            )?;
+                            if resolved_positions.insert(eid.to_string(), pt_val).is_some() {
+                                return Err(invalid(format!(
+                                    "duplicate layout position for entry {eid}"
+                                )));
+                            }
+                        }
+                        *pos_map = resolved_positions;
+                    }
+                    if name == "layout.clear"
+                        && let Some(entries_arr) =
+                            obj.get_mut("entries").and_then(Value::as_array_mut)
+                    {
+                        for item in entries_arr {
+                            if let Ok(eid) = resolve_entry_id(&cx, item, None, true, EntryRole::Any)
+                            {
+                                *item = eid.to_string().into();
+                            }
+                        }
+                    }
+                }
                 "entry_history.restore" => {
                     if let Some(targets_arr) = obj.get_mut("targets").and_then(Value::as_array_mut)
                     {
@@ -902,39 +1191,109 @@ pub(crate) fn resolve_v3(
                             let id_val = item
                                 .get_mut("id")
                                 .ok_or_else(|| invalid("restore target needs id"))?;
-                            let raw = string(id_val, "id")?;
-                            if !looks_like_uuid(raw) {
-                                match collection.as_str() {
-                                    "entries" => {
-                                        if let Ok(eid) = resolve_entry_id(
+                            let raw = string(id_val, "id")?.to_owned();
+                            match collection.as_str() {
+                                "entries" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && EntryId::parse(&raw)
+                                            .ok()
+                                            .is_none_or(|id| !cx.headers().contains_key(&id))
+                                        && let Ok(eid) = resolve_entry_id(
                                             &cx,
                                             id_val,
                                             None,
                                             true,
                                             EntryRole::Any,
-                                        ) {
-                                            *id_val = eid.to_string().into();
-                                        }
+                                        )
+                                    {
+                                        *id_val = eid.to_string().into();
                                     }
-                                    "templates" => {
-                                        if let Ok(tid) = resolve_template_id(&cx, id_val, true) {
-                                            *id_val = tid.to_string().into();
-                                        }
-                                    }
-                                    "timeline_views" => {
-                                        if let Ok(vid) = resolve_timeline_view_id(&cx.view, id_val)
-                                        {
-                                            *id_val = vid.to_string().into();
-                                        }
-                                    }
-                                    "relation_types" => {
-                                        if let Ok(rtid) = resolve_relation_type_id(&cx.view, id_val)
-                                        {
-                                            *id_val = rtid.into();
-                                        }
-                                    }
-                                    _ => {}
                                 }
+                                "templates" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && EntryTemplateId::parse(&raw)
+                                            .ok()
+                                            .is_none_or(|id| !cx.templates().contains_key(&id))
+                                        && let Ok(tid) = resolve_template_id(&cx, id_val, true)
+                                    {
+                                        *id_val = tid.to_string().into();
+                                    }
+                                }
+                                "timeline_views" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && !cx
+                                            .view
+                                            .timeline_views_raw()
+                                            .iter()
+                                            .any(|v| v.id.as_str() == raw)
+                                        && let Ok(vid) = resolve_timeline_view_id(&cx.view, id_val)
+                                    {
+                                        *id_val = vid.to_string().into();
+                                    }
+                                }
+                                "relation_types" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && !cx
+                                            .view
+                                            .relation_types()
+                                            .iter()
+                                            .any(|t| t.id.as_str() == raw)
+                                        && let Ok(rtid) = resolve_relation_type_id(&cx.view, id_val)
+                                    {
+                                        *id_val = rtid.into();
+                                    }
+                                }
+                                "comments" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && !cx.view.comments().iter().any(|c| c.id.as_str() == raw)
+                                        && let Ok(cid) = resolve_comment_id(&cx.view, id_val, true)
+                                    {
+                                        *id_val = cid.into();
+                                    }
+                                }
+                                "assets" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && !cx
+                                            .view
+                                            .assets_raw()
+                                            .iter()
+                                            .any(|a| a.id.as_str() == raw)
+                                        && let Ok(aid) = resolve_asset_id(&cx.view, id_val, true)
+                                    {
+                                        *id_val = aid.to_string().into();
+                                    }
+                                }
+                                "asset_folders" => {
+                                    if !dr_model::id::is_uuid_v7(&raw)
+                                        && !cx
+                                            .view
+                                            .asset_folders_raw()
+                                            .iter()
+                                            .any(|f| f.id.as_str() == raw)
+                                        && let Ok(fid) =
+                                            resolve_asset_folder_id(&cx.view, id_val, true)
+                                    {
+                                        *id_val = fid.to_string().into();
+                                    }
+                                }
+                                "project" => {
+                                    if let Some(tab_raw) = raw.strip_prefix("tabs/")
+                                        && !dr_model::id::is_uuid_v7(tab_raw)
+                                        && !cx
+                                            .view
+                                            .project()
+                                            .tabs
+                                            .iter()
+                                            .any(|t| t.id.as_str() == tab_raw)
+                                        && let Ok(tid) = resolve_tab_id(
+                                            &cx.view,
+                                            &Value::String(tab_raw.to_owned()),
+                                        )
+                                    {
+                                        *id_val = format!("tabs/{tid}").into();
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -1066,7 +1425,7 @@ fn resolve_action(
         "template": binding.target_template,
         "title": title,
     });
-    if binding.home.as_deref() == Some(binding.reference.level.as_str()) {
+    if !binding.adds_membership {
         create_args["parent"] = json!(binding.reference.level);
     } else {
         create_args["host"] = json!(binding.reference.level);
@@ -1111,8 +1470,26 @@ fn read_below(read: &mut BTreeSet<String>, entry: &Value) {
 }
 
 pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Vec<String>> {
+    let output = output.get("output").unwrap_or(output);
     let mut read = BTreeSet::new();
     match name {
+        "project.get" => {
+            if let Some(book) = args["book"].as_str() {
+                read.insert(format!("project:{book}"));
+            }
+            read.insert("tab:*".into());
+            for row in output["tabs"].as_array().into_iter().flatten() {
+                if let Some(id) = row["id"].as_str() {
+                    read.insert(format!("tab:{id}"));
+                }
+            }
+        }
+        "book.sequence" => return Some(Vec::new()),
+        "layout.get" => {
+            if let (Some(scope), Some(mode)) = (args["scope"].as_str(), args["mode"].as_str()) {
+                read.insert(format!("layout:{scope}/{mode}"));
+            }
+        }
         "entry.list" => {
             if let Some(rows) = output.as_array() {
                 for row in rows {
@@ -1231,7 +1608,36 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert("comment:*".into());
             }
         }
-
+        "project.update" => {
+            if let Some(book) = args.get("book").and_then(Value::as_str) {
+                subjects.insert(format!("project:{book}"));
+                if args.get("name").is_some_and(|v| !v.is_null())
+                    || args.get("summary").is_some_and(|v| !v.is_null())
+                {
+                    subjects.insert(format!("book:{book}"));
+                }
+            }
+        }
+        "tab.put" => {
+            if let Some(id) = args.get("id").and_then(Value::as_str) {
+                subjects.insert(format!("tab:{id}"));
+            } else {
+                subjects.insert("tab:*".into());
+            }
+        }
+        "tab.remove" | "tab.move" => {
+            if let Some(id) = args.get("id").and_then(Value::as_str) {
+                subjects.insert(format!("tab:{id}"));
+            }
+        }
+        "layout.put" | "layout.clear" => {
+            if let (Some(scope), Some(mode)) = (
+                args.get("scope").and_then(Value::as_str),
+                args.get("mode").and_then(Value::as_str),
+            ) {
+                subjects.insert(format!("layout:{scope}/{mode}"));
+            }
+        }
         "entry.create" => {
             if let Some(parent) = args.get("parent").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{parent}"));
@@ -1270,7 +1676,12 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert(format!("entry_template:{tpl}"));
             }
         }
-        "module.set_field" | "module.put_kv" | "module.remove_kv" => {
+        "module.set_field"
+        | "module.put_kv"
+        | "module.remove_kv"
+        | "module.put_media"
+        | "module.remove_media"
+        | "module.set_arrangement" => {
             if let (Some(entry), Some(mid)) = (
                 args.get("entry").and_then(Value::as_str),
                 args.get("module").and_then(Value::as_str),
@@ -1341,7 +1752,8 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
             }
         }
         "entry_history.restore" => {
-            if let Some(book) = args.get("book").and_then(Value::as_str) {
+            let book = args.get("book").and_then(Value::as_str);
+            if let Some(book) = book {
                 subjects.insert(format!("entry_history:{book}"));
             }
             if let Some(targets) = args.get("targets").and_then(Value::as_array) {
@@ -1371,6 +1783,31 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                             }
                             "relation_types" => {
                                 subjects.insert(format!("entry_relation_type:{id}"));
+                            }
+                            "comments" => {
+                                subjects.insert(format!("comment:{id}"));
+                            }
+                            "assets" => {
+                                subjects.insert(format!("asset:{id}"));
+                            }
+                            "asset_folders" => {
+                                subjects.insert(format!("asset_folder:{id}"));
+                            }
+                            "relations" => {
+                                subjects.insert(format!("relation:{id}"));
+                            }
+                            "patches" => {
+                                subjects.insert(format!("patch:{id}"));
+                            }
+                            "plot_grids" => {
+                                subjects.insert(format!("plot_grid:{id}"));
+                            }
+                            "project" => {
+                                if let Some(tid) = id.strip_prefix("tabs/") {
+                                    subjects.insert(format!("tab:{tid}"));
+                                } else if let Some(book) = book {
+                                    subjects.insert(format!("project:{book}"));
+                                }
                             }
                             _ => {}
                         }
@@ -1836,6 +2273,8 @@ fn resolve_template_prose_module(
 fn has_retained_module(cx: &ResolveCtx<'_>, entry: &Entry, mid: &ModuleId) -> Result<bool> {
     if entry.fields.contains_key(mid)
         || entry.kv.contains_key(mid)
+        || entry.media.contains_key(mid)
+        || entry.arrangements.contains_key(mid)
         || cx
             .view
             .patches()
@@ -2011,7 +2450,11 @@ fn default_single_prose_module(
     }
 }
 
-fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
+fn resolve_entity_ref_v3(
+    cx: &ResolveCtx<'_>,
+    value: &mut Value,
+    include_trashed: bool,
+) -> Result<()> {
     if value.is_null() {
         return Ok(());
     }
@@ -2030,11 +2473,14 @@ fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
                 let tid = resolve_template_id(cx, &Value::String(tpl_s.into()), false)?;
                 resolve_entry_id_filtered(cx, name_or_id, Some(&tid))?
             } else {
-                resolve_entry_id(cx, name_or_id, parent_hint, false, EntryRole::Any)?
+                resolve_entry_id(cx, name_or_id, parent_hint, include_trashed, EntryRole::Any)?
             };
             ("entry", eid.to_string())
         }
-        "comment" => ("comment", resolve_comment_id(&cx.view, name_or_id)?),
+        "comment" => (
+            "comment",
+            resolve_comment_id(&cx.view, name_or_id, include_trashed)?,
+        ),
         "patch" => {
             let patches = cx.view.patches();
             (
@@ -2042,9 +2488,13 @@ fn resolve_entity_ref_v3(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
                 resolve_patch_id(&patches, string(name_or_id, "patch")?)?,
             )
         }
+        "asset" => (
+            "asset",
+            resolve_asset_id(&cx.view, name_or_id, include_trashed)?.to_string(),
+        ),
         other => {
             return Err(invalid(format!(
-                "unsupported endpoint kind {other:?}; use entry, comment, or patch"
+                "unsupported endpoint kind {other:?}; use entry, comment, patch, or asset"
             )));
         }
     };
@@ -2276,7 +2726,11 @@ fn resolve_timeline_pin_id(
     }
 }
 
-fn resolve_comment_id(view: &BookViewV3<'_>, value: &Value) -> Result<String> {
+fn resolve_comment_id(
+    view: &BookViewV3<'_>,
+    value: &Value,
+    _include_trashed: bool,
+) -> Result<String> {
     let raw = string(value, "comment")?;
     let trimmed = raw.trim();
     let comments = view.comments();
@@ -2295,6 +2749,323 @@ fn resolve_comment_id(view: &BookViewV3<'_>, value: &Value) -> Result<String> {
         ))),
         _ => Err(invalid(format!(
             "comment {trimmed:?} is ambiguous; specify its comment id"
+        ))),
+    }
+}
+
+fn resolve_comment_part(
+    cx: &ResolveCtx<'_>,
+    entry: &Entry,
+    mid: &ModuleId,
+    mod_spec: Option<&ModuleSpec>,
+    part_obj: &mut Map<String, Value>,
+) -> Result<()> {
+    match part_obj.get("kind").and_then(Value::as_str) {
+        Some("field") => {
+            if let (Some(spec), Some(f_val)) = (mod_spec, part_obj.get_mut("field")) {
+                let def = resolve_field_def(spec, string(f_val, "field")?)?;
+                *f_val = def.id.clone().into();
+            }
+        }
+        Some("kv_row") => {
+            if let Some(r_val) = part_obj.get_mut("row") {
+                let existing = entry.kv.get(mid).map(Vec::as_slice).unwrap_or(&[]);
+                let resolved = resolve_kv_row_id(existing, string(r_val, "row")?)?;
+                *r_val = resolved.to_string().into();
+            }
+        }
+        Some("patch") => {
+            if let Some(p_val) = part_obj.get_mut("patch") {
+                let patches = cx.view.patches_of(&entry.id, mid);
+                let resolved = resolve_patch_id(&patches, string(p_val, "patch")?)?;
+                *p_val = resolved.into();
+            }
+        }
+        Some("media") => {
+            if let Some(a_val) = part_obj.get_mut("asset") {
+                let resolved = resolve_asset_id(&cx.view, a_val, false)?;
+                *a_val = resolved.to_string().into();
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn resolve_book_root(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
+    let obj = value
+        .as_object_mut()
+        .ok_or_else(|| invalid("book root must be an object"))?;
+    match obj.get("kind").and_then(Value::as_str) {
+        Some("root") => {}
+        Some("entry") => {
+            let e_val = obj
+                .get_mut("entry")
+                .ok_or_else(|| invalid("entry book root needs entry"))?;
+            let eid = resolve_entry_id(cx, e_val, None, false, EntryRole::Below)?;
+            *e_val = eid.to_string().into();
+        }
+        Some("view") => {
+            let v_val = obj
+                .get_mut("view")
+                .ok_or_else(|| invalid("view book root needs view"))?;
+            let vid = resolve_timeline_view_id(&cx.view, v_val)?;
+            *v_val = vid.to_string().into();
+        }
+        Some("lane") => {
+            let v_val = obj
+                .get_mut("view")
+                .ok_or_else(|| invalid("lane book root needs view"))?;
+            let vid = resolve_timeline_view_id(&cx.view, v_val)?;
+            *v_val = vid.to_string().into();
+            let e_val = obj
+                .get_mut("entry")
+                .ok_or_else(|| invalid("lane book root needs entry"))?;
+            let eid = resolve_entry_id(cx, e_val, None, false, EntryRole::Below)?;
+            *e_val = eid.to_string().into();
+        }
+        other => {
+            return Err(invalid(format!(
+                "invalid book root kind {other:?}; use root, entry, view, or lane"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn resolve_tab_mount(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
+    let obj = value
+        .as_object_mut()
+        .ok_or_else(|| invalid("tab mount must be an object"))?;
+    match obj.get("kind").and_then(Value::as_str) {
+        Some("root" | "book") => {}
+        Some("entry") => {
+            let e_val = obj
+                .get_mut("entry")
+                .ok_or_else(|| invalid("entry tab mount needs entry"))?;
+            let eid = resolve_entry_id(cx, e_val, None, false, EntryRole::Below)?;
+            *e_val = eid.to_string().into();
+        }
+        Some("view") => {
+            let v_val = obj
+                .get_mut("view")
+                .ok_or_else(|| invalid("view tab mount needs view"))?;
+            let vid = resolve_timeline_view_id(&cx.view, v_val)?;
+            *v_val = vid.to_string().into();
+        }
+        other => {
+            return Err(invalid(format!(
+                "invalid tab mount kind {other:?}; use root, entry, view, or book"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn resolve_tab_id(view: &BookViewV3<'_>, value: &Value) -> Result<TabId> {
+    let raw = string(value, "tab")?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(invalid("tab name or id is empty"));
+    }
+    let proj = view.project();
+    if let Some(t) = proj.tabs.iter().find(|t| t.id.as_str() == trimmed) {
+        return Ok(t.id.clone());
+    }
+    // A tab is called by what it shows (`kernel-v5.md` §5): an entry's
+    // title, a view's name, 「全部」 (or `root`) and 「成书」 (or `book`).
+    let key = trimmed.to_lowercase();
+    let entries = view.entries_map();
+    let views = view.timeline_views_raw();
+    let named = |t: &dr_model::v3::ProjectTab| -> bool {
+        match &t.mount {
+            dr_model::v3::TabMount::Root => key == "root" || key == "全部",
+            dr_model::v3::TabMount::Book => key == "book" || key == "成书",
+            dr_model::v3::TabMount::Entry { entry } => entries
+                .get(entry)
+                .is_some_and(|e| e.title.trim().to_lowercase() == key),
+            dr_model::v3::TabMount::View { view: id } => views
+                .iter()
+                .any(|v| &v.id == id && v.name.trim().to_lowercase() == key),
+        }
+    };
+    let matches: Vec<_> = proj.tabs.iter().filter(|t| named(t)).collect();
+    match matches.as_slice() {
+        [t] => Ok(t.id.clone()),
+        [] => Err(invalid(format!(
+            "tab {trimmed:?} was not found in this book"
+        ))),
+        _ => Err(invalid(format!(
+            "tab {trimmed:?} is ambiguous; specify its tab id"
+        ))),
+    }
+}
+
+fn resolve_tab_place(view: &BookViewV3<'_>, value: &mut Value) -> Result<()> {
+    if let Some(obj) = value.as_object_mut() {
+        for key in ["after", "before"] {
+            if let Some(target_val) = obj.get_mut(key) {
+                let tid = resolve_tab_id(view, target_val)?;
+                *target_val = tid.to_string().into();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn resolve_asset_id(
+    view: &BookViewV3<'_>,
+    value: &Value,
+    include_trashed: bool,
+) -> Result<AssetId> {
+    let raw = string(value, "asset")?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(invalid("asset name or id is empty"));
+    }
+    let assets = if include_trashed {
+        view.assets_raw()
+    } else {
+        view.assets()
+    };
+    if let Some(a) = assets.iter().find(|a| a.id.as_str() == trimmed) {
+        return Ok(a.id.clone());
+    }
+    let key = trimmed.to_lowercase();
+    let matches: Vec<_> = assets
+        .iter()
+        .filter(|a| !a.name.trim().is_empty() && a.name.trim().to_lowercase() == key)
+        .collect();
+    match matches.as_slice() {
+        [a] => Ok(a.id.clone()),
+        [] => Err(invalid(format!(
+            "asset {trimmed:?} was not found in this book"
+        ))),
+        _ => Err(invalid(format!(
+            "asset {trimmed:?} is ambiguous; specify its asset id"
+        ))),
+    }
+}
+
+fn resolve_asset_folder_id(
+    view: &BookViewV3<'_>,
+    value: &Value,
+    include_trashed: bool,
+) -> Result<AssetFolderId> {
+    let raw = string(value, "asset folder")?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(invalid("asset folder name or id is empty"));
+    }
+    let folders = if include_trashed {
+        view.asset_folders_raw()
+    } else {
+        view.asset_folders()
+    };
+    if let Some(f) = folders.iter().find(|f| f.id.as_str() == trimmed) {
+        return Ok(f.id.clone());
+    }
+    let key = trimmed.to_lowercase();
+    let matches: Vec<_> = folders
+        .iter()
+        .filter(|f| f.name.trim().to_lowercase() == key)
+        .collect();
+    match matches.as_slice() {
+        [f] => Ok(f.id.clone()),
+        [] => Err(invalid(format!(
+            "asset folder {trimmed:?} was not found in this book"
+        ))),
+        _ => Err(invalid(format!(
+            "asset folder {trimmed:?} is ambiguous; specify its folder id"
+        ))),
+    }
+}
+
+pub(crate) fn asset_folder_subtree(
+    view: &BookViewV3<'_>,
+    root: &AssetFolderId,
+) -> (Vec<AssetFolder>, Vec<Asset>) {
+    let all = view.asset_folders_raw();
+    let mut inside: BTreeSet<AssetFolderId> = BTreeSet::from([root.clone()]);
+    loop {
+        let before = inside.len();
+        for f in &all {
+            if f.parent.as_ref().is_some_and(|p| inside.contains(p)) {
+                inside.insert(f.id.clone());
+            }
+        }
+        if inside.len() == before {
+            break;
+        }
+    }
+    let folders = all.into_iter().filter(|f| inside.contains(&f.id)).collect();
+    let files = view
+        .assets_raw()
+        .into_iter()
+        .filter(|a| a.folder.as_ref().is_some_and(|f| inside.contains(f)))
+        .collect();
+    (folders, files)
+}
+
+fn resolve_media_put_item(
+    view: &BookViewV3<'_>,
+    item_obj: &mut Map<String, Value>,
+    existing: &[dr_model::v3::MediaItem],
+) -> Result<()> {
+    let asset_id = {
+        let asset_val = item_obj
+            .get_mut("asset")
+            .ok_or_else(|| invalid("media item needs asset"))?;
+        let aid = resolve_asset_id(view, asset_val, false)?;
+        *asset_val = aid.to_string().into();
+        aid
+    };
+    if let Some(id_val) = item_obj.get_mut("id")
+        && let Some(raw) = id_val.as_str()
+        && !raw.trim().is_empty()
+    {
+        let trimmed = raw.trim();
+        if existing.iter().any(|m| m.id.as_str() == trimmed) || dr_model::id::is_uuid_v7(trimmed) {
+            return Ok(());
+        }
+        let resolved = resolve_media_remove_item(view, id_val, existing)?;
+        *id_val = resolved.to_string().into();
+        return Ok(());
+    }
+    let id = existing
+        .iter()
+        .find(|m| m.asset == asset_id)
+        .map(|m| m.id.clone())
+        .unwrap_or_else(MediaItemId::new_v7);
+    item_obj.insert("id".into(), id.to_string().into());
+    Ok(())
+}
+
+fn resolve_media_remove_item(
+    view: &BookViewV3<'_>,
+    value: &Value,
+    existing: &[dr_model::v3::MediaItem],
+) -> Result<MediaItemId> {
+    let raw = string(value, "media item")?;
+    let trimmed = raw.trim();
+    if let Some(item) = existing.iter().find(|m| m.id.as_str() == trimmed) {
+        return Ok(item.id.clone());
+    }
+    if let Ok(aid) = resolve_asset_id(view, value, true)
+        && let Some(item) = existing.iter().find(|m| m.asset == aid)
+    {
+        return Ok(item.id.clone());
+    }
+    let key = trimmed.to_lowercase();
+    let caption_matches: Vec<_> = existing
+        .iter()
+        .filter(|m| !m.caption.trim().is_empty() && m.caption.trim().to_lowercase() == key)
+        .collect();
+    match caption_matches.as_slice() {
+        [item] => Ok(item.id.clone()),
+        [] => Err(invalid(format!("media item {trimmed:?} was not found"))),
+        _ => Err(invalid(format!(
+            "media item {trimmed:?} is ambiguous; specify its item id"
         ))),
     }
 }

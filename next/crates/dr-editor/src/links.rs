@@ -34,6 +34,11 @@ pub trait LinkTargets {
     fn snapshot(&self) -> Option<TargetSnapshot> {
         None
     }
+
+    /// Live asset IDs whose `kind` is PDF, so file-link badges pick the right icon.
+    fn pdf_assets(&self) -> HashSet<String> {
+        HashSet::new()
+    }
 }
 
 /// The kind an entity mark's value names (elements when unsaid).
@@ -53,6 +58,7 @@ pub struct DriftingExtension {
     targets: Option<Box<dyn LinkTargets>>,
     alive: RefCell<HashMap<(EntityKind, String), bool>>,
     preloaded: RefCell<Option<Option<TargetSnapshot>>>,
+    pdf_assets: RefCell<Option<HashSet<String>>>,
     markdown: bool,
     /// A material note's rules too (`==highlight==`).
     note: std::cell::Cell<bool>,
@@ -62,6 +68,9 @@ pub struct DriftingExtension {
     /// Whether each TODO of the book is done, for task items linked to one
     /// (the paint layers keep it, crate::decor).
     todos: RefCell<std::collections::HashMap<String, bool>>,
+    /// Painted `"links"` decoration ids that point to live files (`(id, is_pdf)`),
+    /// per chapter, so `Assist` draws their trailing file badge.
+    file_link_badges: RefCell<HashMap<usize, Vec<(gpui::SharedString, bool)>>>,
 }
 
 impl DriftingExtension {
@@ -76,10 +85,12 @@ impl DriftingExtension {
             targets,
             alive: RefCell::default(),
             preloaded: RefCell::new(None),
+            pdf_assets: RefCell::new(None),
             markdown: true,
             note: std::cell::Cell::new(false),
             dry_underline: std::cell::Cell::new(false),
             todos: RefCell::default(),
+            file_link_badges: RefCell::default(),
         }
     }
 
@@ -93,6 +104,36 @@ impl DriftingExtension {
     pub fn invalidate(&self) {
         self.alive.borrow_mut().clear();
         *self.preloaded.borrow_mut() = None;
+        *self.pdf_assets.borrow_mut() = None;
+    }
+
+    pub fn is_pdf_asset(&self, id: &str) -> bool {
+        let Some(targets) = &self.targets else {
+            return false;
+        };
+        if self.pdf_assets.borrow().is_none() {
+            *self.pdf_assets.borrow_mut() = Some(targets.pdf_assets());
+        }
+        self.pdf_assets
+            .borrow()
+            .as_ref()
+            .is_some_and(|set| set.contains(id))
+    }
+
+    pub(crate) fn set_file_link_badges(
+        &self,
+        chapter: usize,
+        badges: Vec<(gpui::SharedString, bool)>,
+    ) {
+        self.file_link_badges.borrow_mut().insert(chapter, badges);
+    }
+
+    pub(crate) fn file_link_badges(&self, chapter: usize) -> Vec<(gpui::SharedString, bool)> {
+        self.file_link_badges
+            .borrow()
+            .get(&chapter)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Whether the paint layers draw the links' underline.
@@ -127,7 +168,7 @@ impl DriftingExtension {
         let alive = match self.preloaded.borrow().as_ref().and_then(Option::as_ref) {
             Some((entries, materials)) => match kind {
                 EntityKind::Entry => entries.contains(id),
-                EntityKind::Material => materials.contains(id),
+                EntityKind::Asset | EntityKind::Material => materials.contains(id),
                 _ => false,
             },
             None => targets.alive(kind, id),
@@ -142,7 +183,13 @@ impl ProseExtension for DriftingExtension {
         let mut linked = None;
         for (key, value) in marks.iter() {
             if let Some(id) = inline::entity_target(key) {
-                let alive = self.is_alive(&link_kind(value), id);
+                let kind = link_kind(value);
+                let alive = self.is_alive(&kind, id);
+                // Format 5 (`v5-tracks.md` §T5): a link to a trashed file reads
+                // like ordinary prose text until the file is restored.
+                if !alive && matches!(kind, EntityKind::Asset | EntityKind::Material) {
+                    continue;
+                }
                 linked = Some(linked.unwrap_or(false) || alive);
             }
         }

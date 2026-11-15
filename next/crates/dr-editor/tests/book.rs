@@ -1069,3 +1069,176 @@ fn reading_position_remembers_title_headings_and_paragraphs(cx: &mut TestAppCont
     assert_eq!(restored.doc, two);
     assert!(restored.at_title);
 }
+
+#[gpui::test]
+fn opens_from_timeline_view_and_lane_roots_with_scale_tie_breaking_and_live_reload(
+    cx: &mut TestAppContext,
+) {
+    use dr_doc::v3::novel::TPL_ACT_TRACK;
+    use dr_model::v3::BookRoot;
+
+    let e = env();
+    let storylines_root = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, TPL_STORYLINES);
+    let view_id = out(
+        &e.ws,
+        &Actor::User,
+        "timeline_view.list",
+        json!({"book": e.book}),
+    )[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_a = out(
+        &e.ws,
+        &Actor::User,
+        "entry.create",
+        json!({"book": e.book, "parent": storylines_root, "template": TPL_STORYLINE, "title": "主线"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        &Actor::User,
+        "timeline_view.add_lane",
+        json!({"book": e.book, "view": view_id, "lane": lane_a}),
+    );
+    let lane_b = out(
+        &e.ws,
+        &Actor::User,
+        "entry.create",
+        json!({"book": e.book, "parent": storylines_root, "template": TPL_STORYLINE, "title": "副线"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        &Actor::User,
+        "timeline_view.add_lane",
+        json!({"book": e.book, "view": view_id, "lane": lane_b}),
+    );
+    let act_lane = out(
+        &e.ws,
+        &Actor::User,
+        "entry.create",
+        json!({"book": e.book, "template": TPL_ACT_TRACK, "title": "幕轨"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        &Actor::User,
+        "timeline_view.add_lane",
+        json!({"book": e.book, "view": view_id, "lane": act_lane, "act_track": true}),
+    );
+
+    let doc_act = chapter(&e, "序幕章", "幕轨正文。");
+    let doc_a = chapter(&e, "主线章", "主线正文。");
+    let doc_b = chapter(&e, "副线章", "副线正文。");
+    let id_act = entry_id_of(&doc_act);
+    let id_a = entry_id_of(&doc_a);
+    let id_b = entry_id_of(&doc_b);
+
+    out(
+        &e.ws,
+        &Actor::User,
+        "membership.add",
+        json!({"book": e.book, "host": act_lane, "member": id_act}),
+    );
+    out(
+        &e.ws,
+        &Actor::User,
+        "membership.add",
+        json!({"book": e.book, "host": lane_a, "member": id_a}),
+    );
+    out(
+        &e.ws,
+        &Actor::User,
+        "membership.add",
+        json!({"book": e.book, "host": lane_b, "member": id_b}),
+    );
+    // `id_a` also belongs to `lane_b` so we verify deduplication across lanes.
+    out(
+        &e.ws,
+        &Actor::User,
+        "membership.add",
+        json!({"book": e.book, "host": lane_b, "member": id_a}),
+    );
+
+    // Place all three at the exact same scale coordinate `10.0`:
+    // Act track precedes normal lanes, and `lane_a` precedes `lane_b`.
+    for eid in [&id_b, &id_a, &id_act] {
+        out(
+            &e.ws,
+            &Actor::User,
+            "timeline_view.place",
+            json!({"book": e.book, "view": view_id, "entry": eid, "at": 10.0}),
+        );
+    }
+
+    // 1. Open from `BookRoot::View`: order is `[id_act, id_a, id_b]` (each once).
+    {
+        let ws = e.ws.clone();
+        let book = e.book.clone();
+        let root = BookRoot::View {
+            view: view_id.parse().unwrap(),
+        };
+        cx.executor().allow_parking();
+        let (view, vcx) = cx.add_window_view(move |window, cx| {
+            BookEditor::open_root(ws, &book, root, EditorSettings::default(), window, cx).unwrap()
+        });
+        vcx.run_until_parked();
+
+        let docs: Vec<String> =
+            view.read_with(vcx, |v, _| v.chapter_docs().map(str::to_owned).collect());
+        assert_eq!(docs, vec![doc_act.clone(), doc_a.clone(), doc_b.clone()]);
+
+        // Dragging `id_b` earlier on the scale (`2.0`) reloads the open view in scale order.
+        out(
+            &e.ws,
+            &Actor::User,
+            "timeline_view.place",
+            json!({"book": e.book, "view": view_id, "entry": id_b, "at": 2.0}),
+        );
+        wait_for(vcx, |vcx| {
+            view.read_with(vcx, |v, _| v.chapter_docs().next() == Some(doc_b.as_str()))
+        });
+        let docs_after: Vec<String> =
+            view.read_with(vcx, |v, _| v.chapter_docs().map(str::to_owned).collect());
+        assert_eq!(
+            docs_after,
+            vec![doc_b.clone(), doc_act.clone(), doc_a.clone()]
+        );
+    }
+
+    // 2. Open from `BookRoot::Lane { view, entry: lane_b }`: only `lane_b`'s entries in scale order.
+    {
+        let ws = e.ws.clone();
+        let book = e.book.clone();
+        let root = BookRoot::Lane {
+            view: view_id.parse().unwrap(),
+            entry: lane_b.parse().unwrap(),
+        };
+        let (view, vcx) = cx.add_window_view(move |window, cx| {
+            BookEditor::open_root(ws, &book, root, EditorSettings::default(), window, cx).unwrap()
+        });
+        vcx.run_until_parked();
+
+        let docs: Vec<String> =
+            view.read_with(vcx, |v, _| v.chapter_docs().map(str::to_owned).collect());
+        assert_eq!(docs, vec![doc_b.clone(), doc_a.clone()]);
+
+        // Removing `lane_b` from `view_id` invalidates `BookRoot::Lane` and clears stale chapters.
+        out(
+            &e.ws,
+            &Actor::User,
+            "timeline_view.remove_lane",
+            json!({"book": e.book, "view": view_id, "lane": lane_b}),
+        );
+        wait_for(vcx, |vcx| {
+            view.read_with(vcx, |v, _| v.sections().is_empty())
+        });
+    }
+}

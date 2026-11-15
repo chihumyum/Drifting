@@ -167,6 +167,10 @@ id_type!(
     ConversationId
 );
 id_type!(
+    /// A library-level user project template (`project-template:<id>`).
+    ProjectTemplateDocId
+);
+id_type!(
     /// An element patch: a passage of a chapter attached to an element.
     PatchId
 );
@@ -489,10 +493,13 @@ pub enum DocKind {
     Checkpoints,
     /// A book's canvas coordinates (`layout:<book>`), apart from its book document.
     Layout,
+    /// A library-level user project template (`project-template:<id>`), owned by no book.
+    #[serde(rename = "project-template")]
+    ProjectTemplate,
 }
 
 impl DocKind {
-    pub const ALL: [DocKind; 12] = [
+    pub const ALL: [DocKind; 13] = [
         DocKind::Book,
         DocKind::Node,
         DocKind::Element,
@@ -505,6 +512,7 @@ impl DocKind {
         DocKind::Stats,
         DocKind::Checkpoints,
         DocKind::Layout,
+        DocKind::ProjectTemplate,
     ];
 
     /// The prefix of the document id (`book`, `node`, …).
@@ -522,13 +530,14 @@ impl DocKind {
             DocKind::Stats => "stats",
             DocKind::Checkpoints => "checkpoints",
             DocKind::Layout => "layout",
+            DocKind::ProjectTemplate => "project-template",
         }
     }
 
     /// Whether the document's text is part of the book: searched, counted,
-    /// exported, mirrored. Book, conversation, stats, checkpoints and layout
-    /// documents have no prose, and a template is not the book's text: it is
-    /// copied into new entries.
+    /// exported, mirrored. Book, conversation, stats, checkpoints, layout and
+    /// project-template documents have no prose, and a template is not the
+    /// book's text: it is copied into new entries.
     pub fn is_book_text(self) -> bool {
         !matches!(
             self,
@@ -538,20 +547,22 @@ impl DocKind {
                 | DocKind::Stats
                 | DocKind::Checkpoints
                 | DocKind::Layout
+                | DocKind::ProjectTemplate
         )
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book, conversation, stats, checkpoints and layout documents. Every prose
-    /// document shares the single `ProseProfile::Prose` (`kernel-v5.md` §6;
-    /// the former note profile is retired).
+    /// book, conversation, stats, checkpoints, layout and project-template
+    /// documents. Every prose document shares the single `ProseProfile::Prose`
+    /// (`kernel-v5.md` §6; the former note profile is retired).
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
             DocKind::Book
             | DocKind::Conversation
             | DocKind::Stats
             | DocKind::Checkpoints
-            | DocKind::Layout => None,
+            | DocKind::Layout
+            | DocKind::ProjectTemplate => None,
             _ => Some(ProseProfile::Prose),
         }
     }
@@ -611,6 +622,8 @@ pub enum DocId {
     Checkpoints(BookId),
     /// A book's canvas coordinates (`<scope>/<mode> -> entry -> [x, y]`), beside its book document.
     Layout(BookId),
+    /// A library-level user project template (`project-template:<id>`), owned by no book.
+    ProjectTemplate(ProjectTemplateDocId),
 }
 
 /// Why a string is not a document id.
@@ -648,6 +661,7 @@ impl DocId {
             DocId::Stats(_) => DocKind::Stats,
             DocId::Checkpoints(_) => DocKind::Checkpoints,
             DocId::Layout(_) => DocKind::Layout,
+            DocId::ProjectTemplate(_) => DocKind::ProjectTemplate,
         }
     }
 
@@ -664,6 +678,7 @@ impl DocId {
             DocId::Template(id) => id.as_str(),
             DocId::Conversation(id) => id.as_str(),
             DocId::Stats(id) | DocId::Checkpoints(id) | DocId::Layout(id) => id.as_str(),
+            DocId::ProjectTemplate(id) => id.as_str(),
         }
     }
 
@@ -700,6 +715,9 @@ impl DocId {
             "stats" => DocId::Stats(BookId::parse(id).map_err(e)?),
             "checkpoints" => DocId::Checkpoints(BookId::parse(id).map_err(e)?),
             "layout" => DocId::Layout(BookId::parse(id).map_err(e)?),
+            "project-template" => {
+                DocId::ProjectTemplate(ProjectTemplateDocId::parse(id).map_err(e)?)
+            }
             "template" => {
                 let t = TemplateId::parse(id).map_err(e)?;
                 if TemplateOwner::of(&t).is_none() && t.entry_module().is_none() {
@@ -763,6 +781,12 @@ impl From<TemplateId> for DocId {
 impl From<ConversationId> for DocId {
     fn from(id: ConversationId) -> Self {
         DocId::Conversation(id)
+    }
+}
+
+impl From<ProjectTemplateDocId> for DocId {
+    fn from(id: ProjectTemplateDocId) -> Self {
+        DocId::ProjectTemplate(id)
     }
 }
 
@@ -883,6 +907,7 @@ mod tests {
                         | DocKind::Stats
                         | DocKind::Checkpoints
                         | DocKind::Layout
+                        | DocKind::ProjectTemplate
                 ))
                 .all(|k| k.is_book_text())
         );
@@ -891,6 +916,12 @@ mod tests {
         assert_eq!(l.profile(), None);
         assert!(!l.kind().is_book_text());
         assert_eq!(l.named_book().map(|b| b.as_str()), Some("b1"));
+        let pt = DocId::parse("project-template:pt1").unwrap();
+        assert_eq!(pt.to_string(), "project-template:pt1");
+        assert_eq!(pt.kind(), DocKind::ProjectTemplate);
+        assert_eq!(pt.profile(), None);
+        assert!(!pt.kind().is_book_text());
+        assert_eq!(pt.named_book(), None);
     }
 
     #[test]

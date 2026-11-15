@@ -173,12 +173,78 @@ fn book_entities(
         }
         entities.insert(key, (serde_json::to_value(&entry)?, targets));
     }
-    for template in view.templates() {
+    for template in view.templates_map().into_values() {
         let key = format!("entry_template:{}", template.id);
         entities.insert(
             key.clone(),
             (serde_json::to_value(&template)?, BTreeSet::from([key])),
         );
+    }
+    let meta = view.meta();
+    entities.insert(
+        format!("book_meta:{book}"),
+        (
+            serde_json::to_value(&meta)?,
+            BTreeSet::from([format!("book:{book}")]),
+        ),
+    );
+    let project = view.project();
+    for tab in &project.tabs {
+        let key = format!("tab:{}", tab.id);
+        entities.insert(
+            key.clone(),
+            (
+                serde_json::to_value(tab)?,
+                BTreeSet::from([key, format!("project:{book}"), format!("book:{book}")]),
+            ),
+        );
+    }
+    let mut project_without_tabs = project;
+    project_without_tabs.tabs.clear();
+    entities.insert(
+        format!("project:{book}"),
+        (
+            serde_json::to_value(&project_without_tabs)?,
+            BTreeSet::from([format!("project:{book}"), format!("book:{book}")]),
+        ),
+    );
+    for asset in view.assets_raw() {
+        let key = format!("asset:{}", asset.id);
+        let mut targets = BTreeSet::from([key.clone()]);
+        if let Some(folder) = &asset.folder {
+            targets.insert(format!("asset_folder:{folder}"));
+        }
+        entities.insert(key, (serde_json::to_value(&asset)?, targets));
+    }
+    for folder in view.asset_folders_raw() {
+        let key = format!("asset_folder:{}", folder.id);
+        let mut targets = BTreeSet::from([key.clone()]);
+        if let Some(parent) = &folder.parent {
+            targets.insert(format!("asset_folder:{parent}"));
+        }
+        entities.insert(key, (serde_json::to_value(&folder)?, targets));
+    }
+    for rt in view.relation_types() {
+        let key = format!("relation_type:{}", rt.id);
+        entities.insert(
+            key.clone(),
+            (serde_json::to_value(&rt)?, BTreeSet::from([key])),
+        );
+    }
+    for fact in view.facts() {
+        let key = format!("fact:{}", fact.id);
+        entities.insert(
+            key.clone(),
+            (serde_json::to_value(&fact)?, BTreeSet::from([key])),
+        );
+    }
+    for mem in view.memory() {
+        let key = format!("memory:{}", mem.id);
+        let mut targets = BTreeSet::from([key.clone()]);
+        if let Some(target) = &mem.target {
+            targets.insert(format!("{}:{}", target.kind.as_str(), target.id));
+        }
+        entities.insert(key, (serde_json::to_value(&mem)?, targets));
     }
     for membership in view.memberships_raw() {
         let key = format!("membership:{}/{}", membership.host, membership.member);
@@ -289,4 +355,148 @@ pub(crate) fn write_proof(
         proof.settlements.push(receipt.id);
     }
     Ok((!proof.targets.is_empty()).then_some(proof))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_proof;
+    use dr_testkit::seed::{self, Preset};
+    use dr_workspace::{Actor, Workspace};
+    use serde_json::json;
+
+    #[test]
+    fn v5_write_proof_covers_project_tabs_assets_folders_memory_and_skips_layouts() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(dir.path(), "m27-v5-write-proof").unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let entry = seeded.books[0].book.view().entries()[0].id.to_string();
+        seeded.write_to(ws.library()).unwrap();
+
+        let asset_id = "01950000-0000-7000-8000-000000000701";
+        ws.call(
+            &Actor::User,
+            "asset.put",
+            json!({
+                "book": book,
+                "id": asset_id,
+                "name": "sketch.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 64,
+                "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "width": 32,
+                "height": 32
+            }),
+        )
+        .unwrap();
+
+        let session = "m27-proof-session";
+        let folder = ws
+            .call(
+                &Actor::agent(session, 1, "folder"),
+                "asset_folder.create",
+                json!({"book": book, "name": "草图"}),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let folder_proof = write_proof(ws.library(), session, 1, "folder")
+            .unwrap()
+            .unwrap();
+        assert!(
+            folder_proof
+                .targets
+                .contains(&format!("asset_folder:{folder}"))
+        );
+
+        ws.call(
+            &Actor::agent(session, 1, "move-asset"),
+            "asset.move",
+            json!({"book": book, "id": asset_id, "folder": folder}),
+        )
+        .unwrap();
+        let asset_proof = write_proof(ws.library(), session, 1, "move-asset")
+            .unwrap()
+            .unwrap();
+        assert!(asset_proof.targets.contains(&format!("asset:{asset_id}")));
+        assert!(
+            asset_proof
+                .targets
+                .contains(&format!("asset_folder:{folder}"))
+        );
+
+        ws.call(
+            &Actor::agent(session, 1, "project"),
+            "project.update",
+            json!({"book": book, "agent": {"instructions": "保持克制"}}),
+        )
+        .unwrap();
+        let project_proof = write_proof(ws.library(), session, 1, "project")
+            .unwrap()
+            .unwrap();
+        assert!(project_proof.targets.contains(&format!("project:{book}")));
+        assert!(project_proof.targets.contains(&format!("book:{book}")));
+
+        let tab_id = ws
+            .call(
+                &Actor::agent(session, 1, "tab"),
+                "tab.put",
+                json!({
+                    "book": book,
+                    "name": "参考",
+                    "mount": {"kind": "root"}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let tab_proof = write_proof(ws.library(), session, 1, "tab")
+            .unwrap()
+            .unwrap();
+        assert!(tab_proof.targets.contains(&format!("tab:{tab_id}")));
+        assert!(tab_proof.targets.contains(&format!("project:{book}")));
+
+        let mem_id = ws
+            .call(
+                &Actor::agent(session, 1, "memory"),
+                "memory.add",
+                json!({
+                    "book": book,
+                    "body": "草图定稿为冷色调",
+                    "target": {"kind": "asset", "id": asset_id}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let mem_proof = write_proof(ws.library(), session, 1, "memory")
+            .unwrap()
+            .unwrap();
+        assert!(mem_proof.targets.contains(&format!("memory:{mem_id}")));
+        assert!(mem_proof.targets.contains(&format!("asset:{asset_id}")));
+
+        ws.call(
+            &Actor::agent(session, 1, "layout"),
+            "layout.put",
+            json!({
+                "book": book,
+                "mode": "board",
+                "scope": "root",
+                "positions": {entry: [12.0, 24.0]}
+            }),
+        )
+        .unwrap();
+        assert!(
+            write_proof(ws.library(), session, 1, "layout")
+                .unwrap()
+                .is_none(),
+            "DocId::Layout writes remain quiet for completion evidence"
+        );
+
+        ws.shutdown().unwrap();
+    }
 }

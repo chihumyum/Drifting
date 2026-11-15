@@ -24,7 +24,7 @@ pub mod location;
 
 use std::collections::VecDeque;
 
-use dr_model::id::{EntryId, EntryTemplateId, MediaItemId, ModuleId};
+use dr_model::id::{EntryId, EntryTemplateId, MediaItemId, ModuleId, TimelineViewId};
 use serde::{Deserialize, Serialize};
 
 /// Something a tab can show.
@@ -39,6 +39,13 @@ pub enum Target {
     Material(MediaItemId),
     /// 整书视图: a level entry and everything under it in one scroll.
     Book(EntryId),
+    /// 整书视图: an entire timeline view along its scale (`BookRoot::View`).
+    BookView(TimelineViewId),
+    /// 整书视图: one swimlane in a timeline view along its scale (`BookRoot::Lane`).
+    BookLane {
+        view: TimelineViewId,
+        entry: EntryId,
+    },
 }
 
 impl Target {
@@ -60,6 +67,14 @@ impl Target {
 
             "material" => Target::Material(id.parse().ok()?),
             "book" => Target::Book(id.parse().ok()?),
+            "book-view" => Target::BookView(id.parse().ok()?),
+            "book-lane" => {
+                let (view, entry) = id.split_once('/')?;
+                Target::BookLane {
+                    view: view.parse().ok()?,
+                    entry: entry.parse().ok()?,
+                }
+            }
             _ => return None,
         })
     }
@@ -75,11 +90,42 @@ impl Target {
 
             Target::Material(id) => format!("material:{id}"),
             Target::Book(id) => format!("book:{id}"),
+            Target::BookView(view) => format!("book-view:{view}"),
+            Target::BookLane { view, entry } => format!("book-lane:{view}/{entry}"),
         }
     }
 
+    /// Whether this target opens a flattened book view (`BookEditor`).
+    pub fn is_book(&self) -> bool {
+        matches!(
+            self,
+            Target::Book(_) | Target::BookView(_) | Target::BookLane { .. }
+        )
+    }
+
+    /// The [`dr_model::v3::BookRoot`] this target flattens, when it is a book view.
+    pub fn book_root(&self) -> Option<dr_model::v3::BookRoot> {
+        match self {
+            Target::Book(entry) => Some(dr_model::v3::BookRoot::Entry {
+                entry: entry.clone(),
+            }),
+            Target::BookView(view) => Some(dr_model::v3::BookRoot::View { view: view.clone() }),
+            Target::BookLane { view, entry } => Some(dr_model::v3::BookRoot::Lane {
+                view: view.clone(),
+                entry: entry.clone(),
+            }),
+            _ => None,
+        }
+    }
+
+    /// Key used to store and restore this book view's reading position.
+    pub fn book_position_key(&self) -> Option<String> {
+        self.book_root()
+            .map(|r| dr_editor::book::book_root_position_key(&r))
+    }
+
     pub fn is_singleton(&self) -> bool {
-        matches!(self, Target::Book(_))
+        self.is_book()
     }
 }
 
@@ -806,6 +852,25 @@ mod tests {
             Target::from_key("book:lvl-1"),
             Some(Target::Book("lvl-1".parse().unwrap()))
         );
+        let bv = Target::BookView("tv-1".parse().unwrap());
+        assert_eq!(bv.key(), "book-view:tv-1");
+        assert_eq!(Target::from_key("book-view:tv-1"), Some(bv.clone()));
+        assert!(bv.is_singleton());
+        assert_eq!(bv.book_position_key().as_deref(), Some("view:tv-1"));
+
+        let bl = Target::BookLane {
+            view: "tv-1".parse().unwrap(),
+            entry: "lane-1".parse().unwrap(),
+        };
+        assert_eq!(bl.key(), "book-lane:tv-1/lane-1");
+        assert_eq!(Target::from_key("book-lane:tv-1/lane-1"), Some(bl.clone()));
+        assert!(Target::from_key("book-lane:tv-1").is_none());
+        assert!(Target::from_key("book-lane:tv-1/").is_none());
+        assert!(Target::from_key("book-lane:/lane-1").is_none());
+        assert!(bl.is_singleton());
+        assert_eq!(bl.book_position_key().as_deref(), Some("lane:tv-1/lane-1"));
+        let json = serde_json::to_string(&bl).unwrap();
+        assert_eq!(serde_json::from_str::<Target>(&json).unwrap(), bl);
     }
 
     #[test]

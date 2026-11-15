@@ -354,3 +354,111 @@ fn writing_days_follow_only_manuscript_modules_and_survive_reopening() {
     assert_eq!(days.days.last().unwrap().words, days.today);
     ws.close();
 }
+
+#[gpui::test]
+fn bookless_project_hides_word_counts_targets_and_evicts_recorder(cx: &mut gpui::TestAppContext) {
+    use dr_view_stats::{
+        load_progress,
+        recorder::{Tracker, WorkspaceSource},
+    };
+    use std::time::{Duration, Instant};
+
+    let (_dir, ws, book) = fixture();
+    let day = dr_model::Day::parse("2026-11-12").unwrap();
+    call(
+        &ws,
+        "project.update",
+        json!({"book": book, "word_target": 50000, "daily_word_target": 1200}),
+    );
+    let before = v3::load_at(&ws, &book, Scope::Book, &day).unwrap();
+    assert!(before.has_book);
+    assert_eq!(before.word_target, Some(50000));
+    assert_eq!(before.daily_word_target, Some(1200));
+    let first_entry = before.manuscript[0].entry.clone().unwrap();
+    let first_doc = before.manuscript[0].id.clone();
+
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_view_stats::init(Some(ws.clone()), cx);
+        dr_view_stats::track_book(&book, cx);
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while cx
+        .update(|cx| dr_view_stats::today_live(&book, cx))
+        .is_none()
+    {
+        assert!(
+            Instant::now() < deadline,
+            "recorder did not start tracking book"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    // Disable `成书` (`has_book: false`).
+    call(
+        &ws,
+        "project.update",
+        json!({"book": book, "has_book": false}),
+    );
+
+    let after_book = v3::load_at(&ws, &book, Scope::Book, &day).unwrap();
+    assert!(!after_book.has_book);
+    assert!(after_book.manuscript.is_empty());
+    assert_eq!(after_book.entries, 0);
+    assert_eq!(after_book.book_words(&Live::default()), None);
+    assert_eq!(after_book.words(&Live::default()), None);
+    assert_eq!(after_book.word_target, None);
+    assert_eq!(after_book.daily_word_target, None);
+    assert_eq!(after_book.days.today, 0);
+    assert!(after_book.days.days.is_empty());
+
+    let after_entry = v3::load_at(
+        &ws,
+        &book,
+        Scope::Entry {
+            id: first_entry,
+            module: Some("mod-prose".into()),
+        },
+        &day,
+    )
+    .unwrap();
+    assert!(!after_entry.has_book);
+    assert_eq!(after_entry.words(&Live::default()), None);
+    assert_eq!(after_entry.book_words(&Live::default()), None);
+    assert_eq!(after_entry.shape, None);
+
+    let progress = load_progress(&ws, &book, &day, Some(500)).unwrap();
+    assert!(!progress.counted);
+    assert_eq!(progress.words, 0);
+    assert_eq!(progress.word_target, None);
+    assert_eq!(progress.book, None);
+    assert_eq!(progress.today, 0);
+    assert_eq!(progress.daily_word_target, None);
+    assert_eq!(progress.daily, None);
+    assert_eq!(progress.week, 0);
+    assert_eq!(progress.streak, 0);
+
+    // Both `Recorder` and `Tracker` stop tracking and refuse to re-track a bookless project.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while cx
+        .update(|cx| dr_view_stats::today_live(&book, cx))
+        .is_some()
+    {
+        assert!(
+            Instant::now() < deadline,
+            "recorder did not evict bookless project"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let mut tracker = Tracker::new(WorkspaceSource {
+        ws: ws.clone(),
+        device: Some("device-bookless-check00000000".into()),
+    });
+    assert!(!tracker.track(&book, &day));
+    tracker.prose(&first_doc, Some(&book), true, &day, Instant::now());
+    tracker.indexed(&first_doc, &day, Instant::now());
+    assert_eq!(tracker.today(&book), None);
+
+    cx.update(dr_view_stats::release);
+    ws.close();
+}

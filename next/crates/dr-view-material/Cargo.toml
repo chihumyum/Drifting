@@ -12,6 +12,7 @@ description = "Materials (M19): the image and PDF viewer (zoom, pan, PDF pages r
 capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:anyhow", "dep:tempfile", "dep:dr-testkit"]
 
 [dependencies]
+chrono.workspace = true
 dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true

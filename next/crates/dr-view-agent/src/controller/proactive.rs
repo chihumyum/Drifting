@@ -68,7 +68,7 @@ fn background<T: Send + 'static>(
 struct CheckinProject {
     name: String,
     titles: Vec<String>,
-    todos: Vec<String>,
+    comments: Vec<String>,
     guidance: Option<dr_agent::context::Contribution>,
 }
 
@@ -102,16 +102,11 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
                 .iter()
                 .map(|entry| entry.title.clone())
                 .collect(),
-            todos: view
+            comments: view
                 .comments()
                 .into_iter()
-                .filter(|c| {
-                    matches!(
-                        c.origin,
-                        dr_model::kind::CommentOrigin::Marker | dr_model::kind::CommentOrigin::Task
-                    ) && c.status.as_str() == "open"
-                })
-                .map(|c| format!("{}: {}", c.id, c.body))
+                .filter(|c| c.status == dr_model::kind::CommentStatus::Open)
+                .map(|c| format!("{} [{}]: {}", c.id, c.origin.as_str(), c.body))
                 .collect(),
             guidance: Some(guidance),
         }))
@@ -264,7 +259,7 @@ impl AgentController {
                     })
                     .collect(),
                 working_memory: (working.approx_tokens <= 20_000).then_some(working.content_md),
-                open_todos: project.todos,
+                open_comments: project.comments,
                 entry_titles: project.titles,
             };
             if !job.allowed() {

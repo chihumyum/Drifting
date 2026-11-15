@@ -96,11 +96,15 @@
     "import": "Importar projeto",
     "importFile": "Importar projeto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "libraryProjects_many": "{{count}} projetos",
+    "libraryProjects_one": "{{count}} projeto",
+    "libraryProjects_other": "{{count}} projetos",
     "library_many": "{{count}} projetos · {{words}} palavras",
     "library_one": "{{count}} projeto · {{words}} palavras",
     "library_other": "{{count}} projetos · {{words}} palavras",
     "nameLabel": "Nome",
     "newProject": "Novo projeto",
+    "recentEntries": "Editados recentemente",
     "summaryPlaceholder": "Descreva o projeto em uma ou duas frases.",
     "title": "Todos os projetos",
     "transfer": {
@@ -204,9 +208,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",
-      "resolve": "Resolver",
-      "toNote": "Para comentário",
-      "toTodo": "Para tarefa"
+      "resolve": "Resolver"
     },
     "card": {
       "emptyComment": "Comentário vazio"
@@ -218,7 +220,6 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Fechar",
-    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Criando…",
     "customColor": "Cor personalizada",
@@ -258,11 +259,6 @@
       "collapsePlotPlanner": "Recolher planejador de enredo",
       "expandPlotPlanner": "Expandir planejador de enredo",
       "more": "Mais ações"
-    },
-    "menu": {
-      "deleteMaterial": "Excluir material",
-      "moveMaterialToFolder": "Mover para pasta…",
-      "openMaterialInSystem": "Abrir no aplicativo padrão"
     },
     "status": {
       "discarded": "Descartado",
@@ -500,7 +496,6 @@
     "format": "Formato",
     "loadFailed": "Não foi possível ler os capítulos. Tente novamente.",
     "loading": "Lendo capítulos…",
-    "manuscript": "Manuscrito",
     "menu": "Exportar manuscrito",
     "removeCover": "Remover",
     "retry": "Tentar novamente",
@@ -526,47 +521,29 @@
     "retry": "Tentar novamente"
   },
   "materialEditor": {
-    "deleteConfirm": "Excluir o material “{{title}}”? Esta ação não pode ser desfeita.",
     "deleteFailed": "Não foi possível excluir o material.",
     "descriptionPlaceholder": "Adicione uma descrição…",
     "embed": {
-      "importFile": "Importar imagem ou PDF…",
-      "importing": "Importando…",
-      "pastedImage": "Imagem colada"
+      "importing": "Importando…"
     },
     "regions": {
       "draw": "Comentar uma região",
       "drawHint": "Arraste sobre a imagem para marcar uma região",
       "empty": "Arraste sobre a imagem ou página para adicionar o primeiro comentário.",
       "listLabel": "Comentários deste material",
-      "page": "Página {{page}}",
-      "stopDrawing": "Parar de comentar",
-      "whole": "Material inteiro"
+      "stopDrawing": "Parar de comentar"
     },
     "zoomIn": "Ampliar",
     "zoomOut": "Reduzir",
     "zoomReset": "Ajustar à visualização"
   },
   "materialFolders": {
-    "deleteConfirm": "Excluir a pasta “{{name}}”? Todo o conteúdo sobe um nível; nenhum material é excluído.",
-    "deleteSelectionConfirm": "Excluir os {{count}} itens selecionados? Os materiais são excluídos; o conteúdo das pastas excluídas sobe um nível.",
-    "empty": "Ainda não há materiais. Use o botão Nova pasta acima para organizá-los.",
     "menu": {
-      "collapseAll": "Recolher tudo dentro",
-      "delete": "Excluir pasta",
-      "deleteSelection": "Excluir {{count}} itens",
-      "expandAll": "Expandir tudo dentro",
-      "move": "Mover para pasta…",
-      "moveSelection": "Mover {{count}} itens para pasta…",
-      "newFolder": "Nova pasta",
-      "newSubfolder": "Nova pasta dentro",
-      "open": "Abrir",
-      "rename": "Renomear"
+      "open": "Abrir"
     },
     "picker": {
       "createAndMove": "Criar e mover",
-      "newPlaceholder": "Nome da nova pasta",
-      "title": "Mover para pasta"
+      "newPlaceholder": "Nome da nova pasta"
     },
     "root": "Todos os materiais",
     "untitled": "Nova pasta"
@@ -578,11 +555,7 @@
     "dialog": {
       "create": "Criar",
       "newTodo": "Nova tarefa",
-      "titlePlaceholder": "Título",
       "todoPlaceholder": "Conteúdo da tarefa…"
-    },
-    "empty": {
-      "noRelated": "Nenhum material vinculado ao item atual."
     },
     "error": {
       "openFile": "Não foi possível abrir o arquivo: {{error}}",
@@ -594,7 +567,6 @@
       "text": "Nota"
     },
     "menu": {
-      "deleteMaterial": "Excluir material",
       "openInSystem": "Abrir no aplicativo do sistema"
     },
     "preview": {
@@ -618,7 +590,6 @@
       "hideKind": "Clique para ocultar este tipo",
       "material": "Material",
       "meta": "{{todos}} tarefas · {{comments}} comentários · {{materials}} materiais",
-      "newMaterialButton": "Novo material",
       "noFilteredMaterials": "Nenhum material corresponde aos filtros.",
       "noMaterials": "Este projeto ainda não tem materiais.",
       "noOrphans": "Todos os materiais estão vinculados a pelo menos uma entidade.",
@@ -636,10 +607,6 @@
     },
     "todo": {
       "empty": "(tarefa vazia)"
-    },
-    "toolbar": {
-      "count": "{{count}} materiais",
-      "newMaterial": "Novo material"
     }
   },
   "mobileWorkspace": {
@@ -783,7 +750,7 @@
       "importFailedTitle": "Não foi possível importar",
       "invalid": "Este arquivo está danificado e não pode ser importado.",
       "legacy": "Este arquivo foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",
-      "older": "Este arquivo foi exportado por uma versão de desenvolvimento anterior do Drifting, em um formato que esta versão não lê mais."
+      "older": "Este arquivo de livro está em um formato anterior que esta versão não lê mais."
     },
     "delete": {
       "deleting": "Excluindo…"
@@ -866,6 +833,7 @@
       "writing": "Escrevendo"
     },
     "trash": {
+      "bodyWithoutBook": "Este projeto ({{entries}}) sai de Todos os projetos. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente.",
       "bodyWithoutChapters": "Este projeto ({{words}} palavras · {{elements}} elementos) sai de Todos os projetos. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente.",
       "confirm": "Mover para excluídos recentemente",
       "deleteNow": "Excluir agora",
@@ -884,8 +852,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Vincular entidade",
-      "remove": "Remover relação"
+      "linkEntity": "Vincular entidade"
     },
     "filters": {
       "all": "Todos"
@@ -896,9 +863,6 @@
       "node": "Capítulo",
       "patch": "Evolução",
       "storyline": "Linha narrativa"
-    },
-    "picker": {
-      "placeholder": "Buscar entidades vinculáveis…"
     },
     "sections": {
       "relations": "Relações"
@@ -934,7 +898,6 @@
       "floating": "Não vinculados"
     },
     "newComment": "Novo comentário",
-    "resolved": "Resolvidos ({{count}})",
     "scopes": {
       "current": "Atual"
     },
@@ -1575,6 +1538,31 @@
     "title": "Título",
     "unassigned": "Sem atribuição"
   },
+  "v3Review": {
+    "backToReview": "Voltar à revisão",
+    "checklistFold": "Lista {{count}}",
+    "commentButton": "Comentar",
+    "commentFromHeader": "Comentário · {{where}}",
+    "commentFromSimple": "Comentário",
+    "drawRegionComment": "Selecionar área e comentar",
+    "handToAgent": "Passar ao Agent",
+    "jumpToPlace": "Ir ao local",
+    "noteForAgent": "Nota para Agent…",
+    "openConversation": "Abrir conversa",
+    "originAgent": "Agent",
+    "originManual": "Manual",
+    "originMarker": "Marcações",
+    "originReader": "Leitor",
+    "originReaderNamed": "Leitor · {{name}}",
+    "originTask": "Lista",
+    "regionPlace": "Área",
+    "regionPlacePaged": "Página {{page}}",
+    "statusOpen": "Abertos",
+    "statusResolved": "Resolvidos",
+    "unlocated": "Local original não encontrado",
+    "wholeFile": "Arquivo inteiro",
+    "writeComment": "Escrever comentário"
+  },
   "v3Settings": {
     "codeCopied": "Copiado",
     "copyCode": "Copiar código",
@@ -1622,29 +1610,87 @@
     "colorValue": "Valor da cor",
     "deleteView": "Excluir visualização",
     "detachEntry": "Desvincular entrada",
+    "laneActions": "Ações da faixa",
     "laneTrack": "Faixa {{name}}",
     "members": "{{count}} membros",
     "moveDown": "Mover para baixo",
     "moveUp": "Mover para cima",
     "newActTrack": "Nova faixa de atos",
     "newEntryInLane": "Nova entrada",
+    "newLane": "Nova faixa",
     "newView": "Nova visualização",
     "placeEntry": "Posicionar entrada",
     "placementActions": "Ações de posicionamento",
     "removeEntry": "Remover da faixa",
     "removeLane": "Remover da visualização",
-    "renamePin": "Renomear marcador de tempo",
+    "renamePin": "Renomear marcador de escala",
     "renameView": "Renomear visualização",
     "resize": "Ajustar comprimento",
-    "ruler": "Régua de tempo",
+    "ruler": "Régua de escala",
     "selectLane": "Selecionar faixa",
     "setActTrack": "Usar como faixa de atos · {{name}}",
+    "setBookRoot": "Definir como início do livro",
     "unsetActTrack": "Voltar para faixa normal · {{name}}",
-    "views": "Visualizações da linha do tempo"
+    "views": "Visualizações"
   },
   "v3Transfer": {
     "filesTitle": "Arquivos",
     "targetTitle": "Destino"
+  },
+  "v5Files": {
+    "addFiles": "Adicionar arquivos",
+    "alignCenter": "Centralizar",
+    "alignHeading": "Alinhamento",
+    "alignLeft": "Esquerda",
+    "alignRight": "Direita",
+    "allFolders": "Tudo",
+    "clearField": "Limpar",
+    "currentSection": "Atual",
+    "empty": "Sem arquivos",
+    "fileCount_one": "{{count}} arquivo",
+    "fileCount_other": "{{count}} arquivos",
+    "findFile": "Buscar arquivo",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} itens",
+    "kindImage": "Imagem",
+    "kindPdf": "PDF",
+    "layoutFeatured": "Destaque",
+    "layoutGrid": "Grade",
+    "layoutList": "Lista",
+    "libraryRoot": "Biblioteca",
+    "locateInLibrary": "Mostrar na biblioteca",
+    "mediaCaptionPlaceholder": "Legenda",
+    "moveToFolder": "Mover para pasta",
+    "moveToTrash": "Mover para Apagados",
+    "newFolder": "Nova pasta",
+    "newSubfolder": "Nova subpasta",
+    "open": "Abrir",
+    "openInSystem": "Abrir no sistema",
+    "otherSection": "Outros",
+    "pageCount_one": "{{count}} página",
+    "pageCount_other": "{{count}} páginas",
+    "pastedImage": "Imagem colada {{stamp}}",
+    "pickFromComputer": "Escolher do computador…",
+    "pickFromLibrary": "Escolher da biblioteca…",
+    "proseCaptionPlaceholder": "Legenda",
+    "purge": "Apagar permanentemente",
+    "removeFromHere": "Remover daqui",
+    "removeFromProse": "Remover do texto",
+    "rename": "Renomear",
+    "resetArrangement": "Restaurar padrão do modelo",
+    "restore": "Restaurar",
+    "sizeFull": "Largura do texto",
+    "sizeHeading": "Tamanho",
+    "sizeMedium": "Médio",
+    "sizeSmall": "Pequeno",
+    "slashImageOrPdf": "Imagem ou PDF…",
+    "topLevel": "Nível superior",
+    "trashSection": "Apagados",
+    "usageCount_one": "{{count}} local",
+    "usageCount_other": "{{count}} locais",
+    "usedIn": "Usado em",
+    "viewList": "Lista",
+    "viewMasonry": "Mosaico"
   },
   "voiceAgent": {
     "error": {

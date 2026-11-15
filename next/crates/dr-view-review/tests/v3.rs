@@ -165,23 +165,27 @@ fn sources_and_current_scope_keep_entry_and_module_identity() {
         }),
     ));
     assert!(all.contains(&f.first) && all.contains(&f.second) && all.contains(&f.missing));
+    let entry_only = Target::Entry {
+        id: f.entry.clone(),
+        module: None,
+    };
     let item = snapshot
         .items
         .iter()
         .find(|i| i.comment.id.as_str() == f.second)
         .unwrap();
-    assert_eq!(item.place, Place::On(second));
+    assert_eq!(item.place, Place::On(entry_only.clone()));
+    assert_eq!(item.target, Some(second));
     assert_eq!(item.module_name.as_deref(), Some("Second body"));
     assert!(!item.retained);
-    assert_eq!(
-        snapshot
-            .items
-            .iter()
-            .find(|i| i.comment.id.as_str() == f.missing)
-            .unwrap()
-            .place,
-        Place::Gone
-    );
+    let missing_item = snapshot
+        .items
+        .iter()
+        .find(|i| i.comment.id.as_str() == f.missing)
+        .unwrap();
+    assert_eq!(missing_item.place, Place::On(entry_only.clone()));
+    assert!(missing_item.target_missing);
+    assert_eq!(missing_item.target, Some(entry_only));
     assert_eq!(
         f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
         before
@@ -258,7 +262,14 @@ fn trash_and_removed_modules_preserve_comments_and_exact_originals() {
         .unwrap();
     assert!(item.retained);
     assert!(
-        matches!(item.place, Place::On(Target::Entry { ref module, .. }) if module.as_deref() == Some("second-body"))
+        matches!(item.place, Place::On(Target::Entry { ref id, ref module }) if id == &f.entry && module.is_none())
+    );
+    assert_eq!(
+        item.target,
+        Some(Target::Entry {
+            id: f.entry.clone(),
+            module: Some("second-body".into()),
+        })
     );
     assert_eq!(
         v3::original(&f.ws, &f.book, &f.second).unwrap(),

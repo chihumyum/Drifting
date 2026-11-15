@@ -2,6 +2,18 @@
 
 > 2026-11-10 切换实施更新：默认新书与单本归档使用 canonical v3；旧分享 Markdown 入口退役，不自造 v3 分享格式。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
+## 内核 v5 T3：单一成书顺序、去掉多处成书选择与正文嵌文件导出（2026-11-15）
+
+配合 [kernel-v5.md 第 3、4、6 节](../kernel-v5.md)：
+
+- **单一成书顺序（`dr-export/src/v3.rs`、`manuscript/mod.rs`）**：一个项目只有一处成书，导出统一读取 `BookStructureV3::book_sequence()`（覆盖 `BookRoot::Entry`、`BookRoot::View`、`BookRoot::Lane` 三种成书起点；成书起点外的章节条目不进成稿）。去掉 `Options.manuscript` 与 `ManuscriptOutline.parts`。
+- **导出对话框与入口（`dr-view-export/src/manuscript.rs`、`dr-shell/src/workspace/corner.rs`）**：去掉对话框里的「选哪一处成书」下拉选择；项目关掉「成书」（`project.book.is_none()`）时，右上角菜单收起「导出成稿」入口，`Workspace::open_export` 与导出对话框双层拦截，不会打开文件保存面板（单项目归档 `.driftingproject` 照常可导出）。
+- **成书正文嵌入文件导出（`convert.rs`、`manuscript/{epub,docx,pdf,text}`）**：
+  - 活的**图片**嵌入块（`AssetKind::Image`）：EPUB（打包图片资源并输出 `<figure><img/>` + `<figcaption>`）、Word（`word/media/` 关系与 `<wp:inline>` 图框 + 图注段落）、PDF（`krilla` 绘制缩放图与图注行）三种格式均导出图片与图注（`look.caption`），忽略应用内展示用的 `look.size` 与 `look.align`。
+  - 活的 **PDF** 嵌入块（`AssetKind::Pdf`）：导出为一行文件名段落（`asset.name`）。
+  - 已进最近删除的资源或位于已删除资源文件夹下的资源不导出。
+- **回归**：`dr-export/tests/v3.rs`（三种成书起点顺序、起点外条目排除、关闭成书返回 `NoChapters`）、`dr-export/tests/export.rs`（图片 + 图注 + PDF 文件名在 EPUB/DOCX/PDF 三格式导出及已删资源过滤）、`dr-view-export/tests/dialog.rs` 与 `dr-shell/tests/m41.rs`。
+
 ## 内核 v5 P2：全格式成稿导出与 Markdown 分享（2026-11-14）
 
 配合正文统一成一种格式档（[kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档)），`dr-export`（含 v3 `read_manuscript`）把条目正文里的列表、任务、代码块、提示框、高亮、行内代码与表格全部纳入成稿模型并写出，所有格式都不丢字：
@@ -392,3 +404,14 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 - 导入一篇文档：文字落进目标层级默认模板里第一篇「计入字数和导出」的正文，没有就落进第一篇正文（`dr_export::import::import_module`）；目标列表只列新条目的模板有正文的层级；失败时只显示翻译过的「错误」，英文原因只进日志。测试 `dr-export/tests/import.rs` 的 `the_text_goes_into_the_first_book_prose_else_the_first_prose`、`dr-view-transfer/tests/documents.rs`。
 - 导入文件对话框和书文件搬运对话框（含「无法导入」）按 Esc 能关（工作中的不关）。测试 `tests/book.rs` 的 `a_refused_file_closes_with_escape`。
 - 场景 `book-transfer.json` 在按《慢钟》的导出箭头前先滚动书架。
+
+## 内核 v5：项目文件格式 5 与新标识改写（T8，2026-11-15，[kernel-v5.md](../kernel-v5.md) §13、§18）
+
+- **格式版本升到 5，只读 5。** `.driftingproject`（导入仍兼容 `.driftingbook` 后缀）的 `FORMAT_VERSION` 升为 `5`：格式 `2`、`3`、`4` 均返回 `BookFileError::Older`，九种语言的 `projectPicker.bookTransfer.older` 更新为「这是以前格式的书文件，这一版已经不再读取。」（去掉「开发版」字样，因为旧格式并不限于开发版）；格式 `1` 照旧报 0.1 导出的书；高于 `5` 报更新版本导出的文件，拒绝时不写任何文档或资源。
+- **变更重写器补齐格式 5 集合与文件／子部件引用（`dr-export/src/book_file/v3.rs`）。**
+  - `plain_identity` 纳入 `asset_folders` 根集合，使素材夹自身的键值容器获得新 id；
+  - 重写 `assets.<id>.{folder,trashed_with}` 与 `asset_folders.<id>.{parent,trashed_with}`，保持套嵌素材夹与最近删除的级联归属；
+  - 修正媒体模块项路径匹配为真实的四段路径 `["entries", <entry>, "media:<module>", <item>]`，重写其中的 `asset` 字段，修复导出再导入后媒体模块文件报缺失的问题；
+  - 重写字段模块里 `image`／`entity_ref` 字段的值（含 `portrait_field`、纯字符串／列表与带 `{"t", "v"}` 标签的 `FieldValue`），以及条目模板 `defs` 中 `image`／`entity_ref` 字段的 `default_value`；在同一笔变更中先写字段值、后设模板时回退读取变更末尾或源书定义，已定义为普通文本的字段则保持字面值不被误改；
+  - 重写批注 `part` 中的 `media.asset`、`patch.patch`、`plot_cell.{row,col}`，以及正文和表格单元格内指向文件的链接（`kind = "asset"`）。
+- **往返摘要与回归测试。** `dr-testkit` 的 `digest_v3`（不改公开签名）补齐 `assetFolders`、已删文件与 `trashedWith`、角色立绘 `portrait` 以及 `entity_links_v3` 文件链接；`dr-export/tests/book_file_v3.rs` 新增 `v5_showcase_archive_roundtrips_asset_folders_media_fields_file_links_and_comments`，在带真实图片／PDF、媒体模块、立绘与自定义图片字段及默认值、正文与表格文件链接、各模块子部件批注、套嵌回收站素材夹的 `showcase` 种子上验证格式 5 导出与两次同库导入往返一致、媒体与图片字段不报缺失、批注不标找不到原处、恢复「废稿」素材夹能把里面的文件与子素材夹一并恢复。

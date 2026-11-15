@@ -461,3 +461,13 @@ v2.2 测试，未合 main、未推送、未改 progress.md。提交本记录后�
 - 模板把「收别处的条目」从关改成开时（`entry_template.put`）同理：跟着模板走（自己没写覆盖）、已经在活视图里当泳道的条目，回来的成员落在末尾，和改模板同一步撤销（监管会话 2026-11-15 补）。
 - 测试：`dr-workspace/tests/view_order.rs` 八条（两台设备两条）。
 - 记下、不改：刻度末尾两台设备同时加条目会得到同一个刻度值，按 id 定先后，结果确定。
+
+### 内核 v5 · T4 视图的刻度当权威（2026-11-15）
+
+按 [kernel-v5.md](../kernel-v5.md) 第 3、4、16 节与 `handoff/v5-tracks.md`（T4）完成视图面板、泳道自页与成书入口改造：
+
+- **横轴刻度文案去「时间」化**（`dr-i18n/own/*.json` 九语 `v3Timeline` + `sync-locales.py`）：横轴刻度代表先后、节奏、主线推进或自定义坐标而非固定「时间」；九种语言的标尺与钉点文案统一改为「刻度标尺 / Scale ruler」「刻度钉 / Scale pin」「重命名刻度钉 / Rename scale pin」「删除刻度钉 / Delete scale pin」（不再把刻度叫「时间」）。
+- **泳道资格与新建／拖入（§16）**（`dr-view-timeline/src/v3/`）：去掉 `lane` 设置判断，所有 `BookStructureV3::has_below` 为真（开着「层级」或「收别处的条目」）的活条目都可加进视图作泳道。泳道菜单新增「新建泳道」（`v3-lane-new-lane`，按数据筛出 `t.level || t.settings.accept == Some(true)` 的未删除模板，单模板直建、多模板展开 `v3-lane-template-*` 子菜单），并支持将已有的层级／收挂名条目从树或卡片直接拖放到泳道栏（`v3-lane-rail`）或空视图投放区（`v3-empty-lanes-drop`）加入视图；弹出菜单自带独立 `ScrollHandle`（`.track_scroll`）保证长列表在浮层内可靠滚动。
+- **泳道内容与泳道内新建**：一条泳道包含直接住处子条目（开着「层级」时）与有效挂名成员（开着「收别处的条目」时），同一条目在同一泳道只算一次；加入或住进泳道的条目立即出现在视图刻度末尾。在泳道内新建条目（`create_entry_in_lane`）按泳道当前开关决定落点：开着「收别处的条目」时传 `host`（挂进泳道），仅开着「层级」时传 `parent`（住进泳道下）。仅开着「层级」的文件夹泳道支持在轨道内拖移其住处子条目调整刻度位置，同时拒绝从别的泳道跨道拖入外来条目。
+- **视图与泳道的「整书视图」及「设为成书起点」**：视图选择器菜单提供「整书视图」（`v3-view-open-book` → `Target::BookView`）与「设为成书起点」（`v3-view-set-book-root` → `project.update` 写入 `BookRoot::View { view }`，当前已是起点时勾选）；每条泳道的 `⋯` 菜单（`v3-lane-actions-<id>`）同样提供「整书视图」（`v3-lane-action-open-book` → `Target::BookLane`）、`设为成书起点`（`v3-lane-action-set-book-root` → `BookRoot::Lane { view, entry }`）、「在此泳道新建条目」与「从视图移出」。
+- **永久回归与场景**：新增 `dr-view-timeline/tests/v5_t4_views.rs`（覆盖文件夹拖作泳道与拖动片段联动树及整书视图、上下调换泳道顺序同步改变视图起点整书视图、无 `accept` 文件夹泳道按 `parent` 新建住处子条目、`BookRoot::View` 与 `BookRoot::Lane` 持久化）、`dr-view-elements/tests/v5_t4_views.rs`、`dr-editor/tests/book.rs` 与 `dr-view-page/tests/mounted.rs`；同步更新 `scenarios/{act-track-v3,k4-g3-views-lanes,k4-g3-placement-pins,k4-g3-hidden-binding}.json` 至 format 5 与新刻度文案。

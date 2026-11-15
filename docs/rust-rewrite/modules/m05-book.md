@@ -137,3 +137,14 @@ cargo run --release -p dr-editor --example book-bench -- --write
 - **按起点记忆阅读位置**：`ReadingPosition` 新增 `at_title` 区分章节／前导层级标题项与正文段落；工作区布局将原单例 `book_position` 升级为 `book_positions: BTreeMap<String, SavedPosition>`（按 `from` 条目 ID 索引），各起点整书视图独立保存与恢复阅读位置。本轮按计划不做按视口分段加载文档。
 
 永久回归见 `dr-editor/tests/book.rs`、`dr-shell/tests/v3.rs`、`dr-shell/tests/v3_editors.rs` 与 `dr-view-page/tests/mounted.rs`。
+
+## 内核 v5 · T4 视图与泳道起点整书视图（2026-11-15）
+
+按 [kernel-v5.md](../kernel-v5.md) 第 3、4、16 节与 `handoff/v5-tracks.md`（T4）支持从整张视图或视图中的一条泳道打开整书视图：
+
+- **统一按 `BookRoot` 铺开成书序列**（`dr-editor/src/v3.rs`、`dr-editor/src/book.rs`）：`BookEditor::prepare(ws, book, from)` / `BookEditor::open(ws, book, from, settings, window, cx)` 直接接收 `BookRoot`（`Entry { entry }`、`View { view }`、`Lane { view, entry }`），委托数据层 `BookStructureV3::sequence(&from, true)` 生成扁平序列，不在编辑器或外壳重复做遍历、去重或刻度排序。
+  - `BookRoot::View { view }`：以整张视图为起点，按视图内各泳道从上到下的顺序，每条泳道内按该视图刻度从左到右铺开各条目及其子树，跨泳道重复出现的条目只铺开第一次。
+  - `BookRoot::Lane { view, entry }`：以指定视图中的一条有效泳道（`has_below == true`）为起点，先放泳道自身（含其 `in_book = true` 正文模块），再按该视图刻度顺序铺开泳道内各条目及其子树。
+- **外壳路由、持久化与失效收起**（`dr-shell`、`dr-view-page/src/whole.rs`）：新增 `Target::BookView(TimelineViewId)`（键 `"book-view:<view>"`）与 `Target::BookLane { view, entry }`（键 `"book-lane:<view>/<entry>"`），与原有 `Target::Book(EntryId)` 并列挂载于 `whole.rs`，支持多标签并存、按各自键在 `book_positions` 中独立记忆阅读位置、同步右栏大纲标题层级。当对应视图被删除、泳道从视图移出，或泳道条目不再满足 `has_below`（同时关掉「层级」与「收别处的条目」或移入回收站）时，`BookEditor::prepare` 返回错误，已打开的整书视图标签自动收起。
+
+永久回归见 `dr-editor/tests/book.rs`（含视图起点按泳道从上到下与刻度从左到右铺开且不重复、`BookRoot::Lane` 按该视图刻度铺开）与 `dr-view-page/tests/mounted.rs`（含挂载外壳打开 `Target::BookView` / `Target::BookLane` 及泳道关掉开关后自动关标签）。

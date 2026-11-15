@@ -160,6 +160,24 @@ impl Projects {
         }
     }
 
+    pub fn data(&self) -> Option<&Rc<ShelfData>> {
+        self.data.as_ref()
+    }
+
+    pub fn art(&self) -> Option<&Rc<ShelfArt>> {
+        self.art.as_ref()
+    }
+
+    pub fn open_card(&self) -> Option<&str> {
+        self.open.as_deref()
+    }
+
+    /// Opens `book`'s card immediately without animation (for tests).
+    pub fn widen_immediately(&mut self, book: &str, cx: &mut Context<Self>) {
+        self.drop = Tween::still(1.0);
+        self.widen_now(book.to_owned(), true, cx);
+    }
+
     fn library(&self, cx: &App) -> Option<dr_workspace::Workspace> {
         if dr_shell::release::is_releasing(cx) {
             return None;
@@ -199,10 +217,13 @@ impl Projects {
         };
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
         self._events = Some(lib.subscribe(move |event| {
-            if matches!(
-                event,
-                WsEvent::Book(_) | WsEvent::Removed(_) | WsEvent::Stats(_)
-            ) {
+            let counts = match event {
+                WsEvent::Book(_) | WsEvent::Stats(_) => true,
+                WsEvent::Checkpoints(_) | WsEvent::Layout(_) => false,
+                WsEvent::Removed(_) | WsEvent::Prose(_) => true,
+                WsEvent::Local(change) => dr_workspace::is_text_index(change),
+            };
+            if counts {
                 let _ = tx.unbounded_send(());
             }
         }));
@@ -713,31 +734,78 @@ fn card(
                 )
             },
         );
-    let lead = div()
-        .flex_none()
-        .w(px(COVER_W))
-        .flex()
-        .flex_col()
-        .gap(px(8.0))
-        .child(cover)
-        .child(
-            div()
-                .h(px(40.0))
-                .font_role(Role::Ui)
-                .type_px(s.secondary, 20.0)
-                .text_color(p.ink(1).solid())
-                .line_clamp(2)
-                .child(dr_ui::text::wrapped(title.clone())),
-        )
-        .child(
-            div()
-                .mt(px(-6.0))
-                .font_role(Role::Index)
-                .type_px(13.0, 16.0)
-                .text_color(p.ink(4).solid())
-                .whitespace_nowrap()
-                .children(book.edited_ms.map(|at| format::ago(at, now, cx))),
-        );
+    let lead = if book.has_book {
+        div()
+            .flex_none()
+            .w(px(COVER_W))
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .child(cover)
+            .child(
+                div()
+                    .h(px(40.0))
+                    .font_role(Role::Ui)
+                    .type_px(s.secondary, 20.0)
+                    .text_color(p.ink(1).solid())
+                    .line_clamp(2)
+                    .child(dr_ui::text::wrapped(title.clone())),
+            )
+            .child(
+                div()
+                    .mt(px(-6.0))
+                    .font_role(Role::Index)
+                    .type_px(13.0, 16.0)
+                    .text_color(p.ink(4).solid())
+                    .whitespace_nowrap()
+                    .children(book.edited_ms.map(|at| format::ago(at, now, cx))),
+            )
+    } else {
+        let locale = Settings::locale(cx);
+        let book_id = book.id.clone();
+        div()
+            .flex_none()
+            .w(px(COVER_W))
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(cover)
+            .child(
+                div()
+                    .mt(px(4.0))
+                    .h(px(20.0))
+                    .font_role(Role::Ui)
+                    .type_px(s.secondary, 20.0)
+                    .text_color(p.ink(1).solid())
+                    .line_clamp(1)
+                    .child(dr_ui::text::wrapped(title.clone())),
+            )
+            .child(
+                div()
+                    .id(ElementId::Name(
+                        format!("projects-entry-count-{}", book.id).into(),
+                    ))
+                    .debug_selector(move || format!("projects-entry-count-{book_id}"))
+                    .font_role(Role::Index)
+                    .type_px(12.0, 15.0)
+                    .text_color(p.ink(3).solid())
+                    .whitespace_nowrap()
+                    .child(tp(
+                        cx,
+                        keys::k4_book::ENTRY_COUNT,
+                        book.entry_count as u64,
+                        &[("count", &grouped(book.entry_count as u64, locale))],
+                    )),
+            )
+            .child(
+                div()
+                    .font_role(Role::Index)
+                    .type_px(12.0, 15.0)
+                    .text_color(p.ink(4).solid())
+                    .whitespace_nowrap()
+                    .children(book.edited_ms.map(|at| format::ago(at, now, cx))),
+            )
+    };
     let more = (open > 0.0).then(|| {
         div()
             .flex_none()
@@ -788,7 +856,8 @@ fn card(
         .into_any_element()
 }
 
-/// A card's figures, as the shelf card has them, and its last 16 weeks.
+/// A card's figures, as the shelf card has them, and its last 16 weeks (or
+/// its entry count and recently modified entries when `成书` is off).
 fn more(
     projects: &Projects,
     book: &ShelfBook,
@@ -798,8 +867,10 @@ fn more(
 ) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
+    let s = theme.scale;
     let locale = Settings::locale(cx);
-    let (status_key, status_ink) = match Status::of(book.edited_ms, format::now_ms()) {
+    let now = format::now_ms();
+    let (status_key, status_ink) = match Status::of(book.edited_ms, now) {
         Status::Writing => (keys::project_picker::status::WRITING, p.ink(2)),
         Status::Draft => (keys::project_picker::status::DRAFT, p.ink(3)),
         Status::Paused => (keys::project_picker::status::PAUSED, p.ink(4)),
@@ -812,6 +883,92 @@ fn more(
             .whitespace_nowrap()
             .child(text)
     };
+    if !book.has_book {
+        let recent_list = (!book.recent_entries.is_empty()).then(|| {
+            let book_id = book.id.clone();
+            let mut rows = div()
+                .id(ElementId::Name(
+                    format!("projects-recent-entries-{}", book.id).into(),
+                ))
+                .debug_selector(move || format!("projects-recent-entries-{book_id}"))
+                .mt(px(2.0))
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .child(index(t(cx, keys::all_projects::RECENT_ENTRIES), p.ink(4)));
+            for item in &book.recent_entries {
+                let entry_title: SharedString = if item.title.trim().is_empty() {
+                    t(cx, keys::k4_book::UNTITLED_ENTRY)
+                } else {
+                    item.title.clone().into()
+                };
+                rows = rows.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_baseline()
+                        .justify_between()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.caption * 1.35)
+                                .text_color(p.ink(2).solid())
+                                .truncate()
+                                .child(entry_title),
+                        )
+                        .when_some(item.edited_ms, |el, at| {
+                            el.child(
+                                div()
+                                    .flex_none()
+                                    .font_role(Role::Index)
+                                    .type_px(11.0, 14.0)
+                                    .text_color(p.ink(4).solid())
+                                    .child(format::ago(at, now, cx)),
+                            )
+                        }),
+                );
+            }
+            rows
+        });
+        return div()
+            .w(px(MORE_W))
+            .pl(px(14.0))
+            .pr(px(4.0))
+            .pt(px(2.0))
+            .flex()
+            .flex_col()
+            .gap(px(7.0))
+            .opacity(((open - 0.3) / 0.7).clamp(0.0, 1.0))
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .justify_between()
+                    .gap(px(8.0))
+                    .child(index(t(cx, status_key), status_ink))
+                    .children(
+                        book.edited_ms
+                            .map(|at| index(format::ago(at, now, cx), p.ink(4))),
+                    ),
+            )
+            .child(
+                div()
+                    .font_role(Role::Prose)
+                    .type_px(19.0, 23.0)
+                    .text_color(p.ink(1).solid())
+                    .child(tp(
+                        cx,
+                        keys::k4_book::ENTRY_COUNT,
+                        book.entry_count as u64,
+                        &[("count", &grouped(book.entry_count as u64, locale))],
+                    )),
+            )
+            .children(recent_list)
+            .into_any_element();
+    }
     let pair = |label: SharedString, value: SharedString| {
         div()
             .flex()
@@ -837,7 +994,12 @@ fn more(
         .and_then(|w| progress(w, book.word_target))
         .map(|value| {
             let target = book.word_target.unwrap_or(0).max(0) as u64;
+            let book_id = book.id.clone();
             div()
+                .id(ElementId::Name(
+                    format!("projects-progress-wrap-{}", book.id).into(),
+                ))
+                .debug_selector(move || format!("projects-progress-wrap-{book_id}"))
                 .flex()
                 .flex_col()
                 .gap(px(5.0))
@@ -877,6 +1039,8 @@ fn more(
             &[]
         ),
     );
+    let words_id = book.id.clone();
+    let heat_id = book.id.clone();
     div()
         .w(px(MORE_W))
         .pl(px(14.0))
@@ -889,6 +1053,10 @@ fn more(
         .child(index(t(cx, status_key), status_ink))
         .child(
             div()
+                .id(ElementId::Name(
+                    format!("projects-words-{}", book.id).into(),
+                ))
+                .debug_selector(move || format!("projects-words-{words_id}"))
                 .flex()
                 .flex_row()
                 .items_baseline()
@@ -910,7 +1078,12 @@ fn more(
                 "—".into()
             },
         ))
-        .child(heat(&recent, art::book_color(&book.id, p), p))
+        .child(
+            div()
+                .id(ElementId::Name(format!("projects-heat-{}", book.id).into()))
+                .debug_selector(move || format!("projects-heat-{heat_id}"))
+                .child(heat(&recent, art::book_color(&book.id, p), p)),
+        )
         .children(progress_row)
         .child(index(counts.into(), p.ink(4)))
         .into_any_element()

@@ -96,10 +96,13 @@
     "import": "Import project",
     "importFile": "Import project (.driftingproject)",
     "importLegacy": "Import Drifting 0.1",
+    "libraryProjects_one": "{{count}} project",
+    "libraryProjects_other": "{{count}} projects",
     "library_one": "{{count}} project · {{words}} words",
     "library_other": "{{count}} projects · {{words}} words",
     "nameLabel": "Name",
     "newProject": "New project",
+    "recentEntries": "Recently edited",
     "summaryPlaceholder": "Describe the project in one or two sentences.",
     "title": "All projects",
     "transfer": {
@@ -203,9 +206,7 @@
   "commentRail": {
     "actions": {
       "reopen": "Reopen",
-      "resolve": "Resolve",
-      "toNote": "To comment",
-      "toTodo": "To TODO"
+      "resolve": "Resolve"
     },
     "card": {
       "emptyComment": "Empty comment"
@@ -217,7 +218,6 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
-    "confirm": "Confirm",
     "counting": "Counting…",
     "creating": "Creating…",
     "customColor": "Custom color",
@@ -257,11 +257,6 @@
       "collapsePlotPlanner": "Collapse plot planner",
       "expandPlotPlanner": "Expand plot planner",
       "more": "More actions"
-    },
-    "menu": {
-      "deleteMaterial": "Delete material",
-      "moveMaterialToFolder": "Move to folder…",
-      "openMaterialInSystem": "Open in default app"
     },
     "status": {
       "discarded": "Discarded",
@@ -497,7 +492,6 @@
     "format": "Format",
     "loadFailed": "Could not read the chapters. Please retry.",
     "loading": "Reading chapters…",
-    "manuscript": "Manuscript",
     "menu": "Export manuscript",
     "removeCover": "Remove",
     "retry": "Retry",
@@ -523,47 +517,29 @@
     "retry": "Retry"
   },
   "materialEditor": {
-    "deleteConfirm": "Delete the material “{{title}}”? This cannot be undone.",
     "deleteFailed": "The material could not be deleted.",
     "descriptionPlaceholder": "Add a description…",
     "embed": {
-      "importFile": "Import an image or PDF…",
-      "importing": "Importing…",
-      "pastedImage": "Pasted image"
+      "importing": "Importing…"
     },
     "regions": {
       "draw": "Comment on a region",
       "drawHint": "Drag over the image to mark a region",
       "empty": "Drag over the image or page to add the first comment.",
       "listLabel": "Comments on this material",
-      "page": "Page {{page}}",
-      "stopDrawing": "Stop commenting",
-      "whole": "Whole material"
+      "stopDrawing": "Stop commenting"
     },
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "zoomReset": "Fit to view"
   },
   "materialFolders": {
-    "deleteConfirm": "Delete the folder “{{name}}”? Everything in it moves up one level; no material is deleted.",
-    "deleteSelectionConfirm": "Delete the {{count}} selected items? Materials are deleted; whatever is in a deleted folder moves up one level.",
-    "empty": "No materials yet. Use the New folder button above to organize them.",
     "menu": {
-      "collapseAll": "Collapse all inside",
-      "delete": "Delete folder",
-      "deleteSelection": "Delete {{count}} items",
-      "expandAll": "Expand all inside",
-      "move": "Move to folder…",
-      "moveSelection": "Move {{count}} items to folder…",
-      "newFolder": "New folder",
-      "newSubfolder": "New folder inside",
-      "open": "Open",
-      "rename": "Rename"
+      "open": "Open"
     },
     "picker": {
       "createAndMove": "Create and move",
-      "newPlaceholder": "New folder name",
-      "title": "Move to folder"
+      "newPlaceholder": "New folder name"
     },
     "root": "All materials",
     "untitled": "New folder"
@@ -575,11 +551,7 @@
     "dialog": {
       "create": "Create",
       "newTodo": "New TODO",
-      "titlePlaceholder": "Title",
       "todoPlaceholder": "Todo content…"
-    },
-    "empty": {
-      "noRelated": "No materials are linked to the current item."
     },
     "error": {
       "openFile": "Could not open file: {{error}}",
@@ -591,7 +563,6 @@
       "text": "Note"
     },
     "menu": {
-      "deleteMaterial": "Delete material",
       "openInSystem": "Open in system app"
     },
     "preview": {
@@ -615,7 +586,6 @@
       "hideKind": "Click to hide this kind",
       "material": "Material",
       "meta": "{{todos}} TODO · {{comments}} comments · {{materials}} materials",
-      "newMaterialButton": "New material",
       "noFilteredMaterials": "No materials match the current filters.",
       "noMaterials": "No materials in this project yet.",
       "noOrphans": "Every material is linked to at least one entity.",
@@ -633,10 +603,6 @@
     },
     "todo": {
       "empty": "(empty TODO)"
-    },
-    "toolbar": {
-      "count": "{{count}} materials",
-      "newMaterial": "New material"
     }
   },
   "mobileWorkspace": {
@@ -779,7 +745,7 @@
       "importFailedTitle": "Could not import",
       "invalid": "This file is damaged and cannot be imported.",
       "legacy": "This file was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
-      "older": "This file was exported by an earlier development build of Drifting, in a format this version no longer reads."
+      "older": "This book file is in an earlier format that this version no longer reads."
     },
     "delete": {
       "deleting": "Deleting…"
@@ -858,6 +824,7 @@
       "writing": "Writing"
     },
     "trash": {
+      "bodyWithoutBook": "This project ({{entries}}) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "bodyWithoutChapters": "This project ({{words}} words · {{elements}} elements) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "confirm": "Move to Recently Deleted",
       "deleteNow": "Delete now",
@@ -875,8 +842,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Link entity",
-      "remove": "Remove relation"
+      "linkEntity": "Link entity"
     },
     "filters": {
       "all": "All"
@@ -887,9 +853,6 @@
       "node": "Chapter",
       "patch": "Patch",
       "storyline": "Storyline"
-    },
-    "picker": {
-      "placeholder": "Search linkable entities…"
     },
     "sections": {
       "relations": "Relations"
@@ -925,7 +888,6 @@
       "floating": "Not attached"
     },
     "newComment": "New comment",
-    "resolved": "Resolved ({{count}})",
     "scopes": {
       "current": "Current"
     },
@@ -1566,6 +1528,31 @@
     "title": "Title",
     "unassigned": "Unassigned"
   },
+  "v3Review": {
+    "backToReview": "Back to Review",
+    "checklistFold": "Checklist {{count}}",
+    "commentButton": "Comment",
+    "commentFromHeader": "Comment · {{where}}",
+    "commentFromSimple": "Comment",
+    "drawRegionComment": "Select region to comment",
+    "handToAgent": "Hand to Agent",
+    "jumpToPlace": "Go to source",
+    "noteForAgent": "Note for Agent…",
+    "openConversation": "Open conversation",
+    "originAgent": "Agent",
+    "originManual": "Manual",
+    "originMarker": "Markers",
+    "originReader": "Reader",
+    "originReaderNamed": "Reader · {{name}}",
+    "originTask": "Checklist",
+    "regionPlace": "Region",
+    "regionPlacePaged": "Page {{page}}",
+    "statusOpen": "Open",
+    "statusResolved": "Resolved",
+    "unlocated": "Original place missing",
+    "wholeFile": "Whole file",
+    "writeComment": "Write comment"
+  },
   "v3Settings": {
     "codeCopied": "Copied",
     "copyCode": "Copy code",
@@ -1613,29 +1600,87 @@
     "colorValue": "Color value",
     "deleteView": "Delete view",
     "detachEntry": "Detach entry",
+    "laneActions": "Lane actions",
     "laneTrack": "Lane {{name}}",
     "members": "{{count}} members",
     "moveDown": "Move down",
     "moveUp": "Move up",
     "newActTrack": "New act track",
     "newEntryInLane": "New entry",
+    "newLane": "New lane",
     "newView": "New view",
     "placeEntry": "Place entry",
     "placementActions": "Placement actions",
     "removeEntry": "Remove from lane",
     "removeLane": "Remove from view",
-    "renamePin": "Rename time pin",
+    "renamePin": "Rename scale pin",
     "renameView": "Rename view",
     "resize": "Adjust length",
-    "ruler": "Time ruler",
+    "ruler": "Scale ruler",
     "selectLane": "Select lane",
     "setActTrack": "Use as act track · {{name}}",
+    "setBookRoot": "Set as book start",
     "unsetActTrack": "Use as regular lane · {{name}}",
-    "views": "Timeline views"
+    "views": "Views"
   },
   "v3Transfer": {
     "filesTitle": "Files",
     "targetTitle": "Target"
+  },
+  "v5Files": {
+    "addFiles": "Add files",
+    "alignCenter": "Center",
+    "alignHeading": "Align",
+    "alignLeft": "Left",
+    "alignRight": "Right",
+    "allFolders": "All",
+    "clearField": "Clear",
+    "currentSection": "Current",
+    "empty": "No files",
+    "fileCount_one": "{{count}} file",
+    "fileCount_other": "{{count}} files",
+    "findFile": "Find file",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} items",
+    "kindImage": "Image",
+    "kindPdf": "PDF",
+    "layoutFeatured": "Featured",
+    "layoutGrid": "Grid",
+    "layoutList": "List",
+    "libraryRoot": "Library",
+    "locateInLibrary": "Show in library",
+    "mediaCaptionPlaceholder": "Caption",
+    "moveToFolder": "Move to folder",
+    "moveToTrash": "Move to Recently Deleted",
+    "newFolder": "New folder",
+    "newSubfolder": "New subfolder",
+    "open": "Open",
+    "openInSystem": "Open in system",
+    "otherSection": "Other",
+    "pageCount_one": "{{count}} page",
+    "pageCount_other": "{{count}} pages",
+    "pastedImage": "Pasted image {{stamp}}",
+    "pickFromComputer": "Choose from computer…",
+    "pickFromLibrary": "Pick from library…",
+    "proseCaptionPlaceholder": "Caption",
+    "purge": "Delete Permanently",
+    "removeFromHere": "Remove from here",
+    "removeFromProse": "Remove from text",
+    "rename": "Rename",
+    "resetArrangement": "Reset to template default",
+    "restore": "Restore",
+    "sizeFull": "Text width",
+    "sizeHeading": "Size",
+    "sizeMedium": "Medium",
+    "sizeSmall": "Small",
+    "slashImageOrPdf": "Image or PDF…",
+    "topLevel": "Top level",
+    "trashSection": "Recently Deleted",
+    "usageCount_one": "{{count}} place",
+    "usageCount_other": "{{count}} places",
+    "usedIn": "Used in",
+    "viewList": "List",
+    "viewMasonry": "Masonry"
   },
   "voiceAgent": {
     "error": {

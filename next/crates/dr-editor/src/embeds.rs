@@ -13,12 +13,13 @@
 //! when it is empty, else a new one after it), so text can always follow.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use dr_doc::prose::{BorrowedProse, EmbedKind, EmbedView};
-use dr_model::id::{AssetId, EmbedId};
+use dr_doc::prose::{BorrowedProse, EmbedKind, EmbedView, FileEmbedLook};
+use dr_model::id::{AssetFolderId, AssetId, EmbedId};
+use dr_model::kind::AssetKind;
 use dr_store::DocHandle;
 use dr_workspace::{ProseSession, Workspace};
 use gpui::{AnyElement, App, AppContext, Entity, IntoElement, WeakEntity, Window};
@@ -27,6 +28,18 @@ use gpui_prose::{EmbedViews, ProseEditor, ProseExtension, ProseStyle};
 use crate::material::MaterialBlock;
 use crate::table::TableView;
 
+/// Cached asset metadata from `book:<id>` so multiple embeds in one prose
+/// document never run per-block `asset.get` queries, and folder-trashed files
+/// match `prose.shape`'s `missing_embeds` (`v5-tracks.md` §T5).
+#[derive(Clone, Debug)]
+pub(crate) struct BookAssetRecord {
+    pub name: String,
+    pub kind: String,
+    pub live: bool,
+    pub self_trashed: bool,
+    pub trashed_folders: Vec<String>,
+}
+
 /// What a note's embeds tell its view.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NoteEvent {
@@ -34,6 +47,17 @@ pub enum NoteEvent {
     Edited,
     /// Open material `id` (an embed's click).
     OpenMaterial(String),
+    /// Open the comment composer on embedded file `embed` (`asset`) at `at`.
+    CommentEmbed {
+        embed: String,
+        asset: String,
+        at: gpui::Point<gpui::Pixels>,
+    },
+    /// Open the asset viewer in region-drawing mode for embedded file `embed` (`asset`).
+    FrameEmbed {
+        embed: String,
+        asset: String,
+    },
     /// The author typed in a cell ([`gpui_prose::AuthorTyped`]).
     Typed,
     OpenLinkV3(dr_model::v3::EntityLinkV3),
@@ -41,6 +65,8 @@ pub enum NoteEvent {
 
 /// How embeds report to the note's view.
 pub(crate) type Notify = Rc<dyn Fn(NoteEvent, &mut App)>;
+
+pub(crate) type BookAssetCache = Rc<RefCell<Option<HashMap<String, BookAssetRecord>>>>;
 
 /// What a note's embeds share with its view.
 pub struct NoteHost {
@@ -70,6 +96,33 @@ impl NoteHost {
         (self.notify)(NoteEvent::OpenMaterial(id.to_owned()), cx);
     }
 
+    pub(crate) fn comment_embed(
+        &self,
+        embed: &str,
+        asset: &str,
+        at: gpui::Point<gpui::Pixels>,
+        cx: &mut App,
+    ) {
+        (self.notify)(
+            NoteEvent::CommentEmbed {
+                embed: embed.to_owned(),
+                asset: asset.to_owned(),
+                at,
+            },
+            cx,
+        );
+    }
+
+    pub(crate) fn frame_embed(&self, embed: &str, asset: &str, cx: &mut App) {
+        (self.notify)(
+            NoteEvent::FrameEmbed {
+                embed: embed.to_owned(),
+                asset: asset.to_owned(),
+            },
+            cx,
+        );
+    }
+
     /// The paragraph and first offset of embed `id` in the body.
     pub(crate) fn embed_line(&self, id: &str, cx: &App) -> Option<(usize, usize)> {
         let body = self.body.upgrade()?;
@@ -77,6 +130,82 @@ impl NoteHost {
         let line = e.embed_line(self.chapter, id)?;
         Some((line, e.embed_at(self.chapter, line)?.1))
     }
+
+    pub(crate) fn read_file_embed_look(&self, embed_id: &str) -> FileEmbedLook {
+        let (Ok(doc_id), Ok(embed)) = (
+            dr_model::DocId::parse(&self.doc_id),
+            EmbedId::parse(embed_id),
+        ) else {
+            return FileEmbedLook::default();
+        };
+        self.handle
+            .read(move |doc| {
+                let prose = BorrowedProse::new(doc, &doc_id).ok()?;
+                match prose.view().embed(&embed)? {
+                    EmbedView::Asset { look, .. } => Some(look),
+                    _ => None,
+                }
+            })
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+    }
+}
+
+pub(crate) fn lookup_asset_record(
+    host: &NoteHost,
+    cache: &BookAssetCache,
+    id: &str,
+) -> Option<BookAssetRecord> {
+    if cache.borrow().is_none() {
+        let map = crate::v3::read(&host.ws, &host.book, |v| {
+            let live_ids: HashSet<String> =
+                v.assets().into_iter().map(|a| a.id.to_string()).collect();
+            let raw_folders: HashMap<AssetFolderId, dr_model::shared::AssetFolder> = v
+                .asset_folders_raw()
+                .into_iter()
+                .map(|f| (f.id.clone(), f))
+                .collect();
+            let mut out = HashMap::new();
+            for a in v.assets_raw() {
+                let live = live_ids.contains(a.id.as_str());
+                let mut trashed_folders = Vec::new();
+                let mut cur = a.folder.clone();
+                let mut visited = HashSet::new();
+                while let Some(fid) = cur {
+                    if !visited.insert(fid.clone()) {
+                        break;
+                    }
+                    if let Some(f) = raw_folders.get(&fid) {
+                        if f.is_trashed() {
+                            trashed_folders.push(f.id.to_string());
+                        }
+                        cur = f.parent.clone();
+                    } else {
+                        break;
+                    }
+                }
+                trashed_folders.reverse();
+                out.insert(
+                    a.id.to_string(),
+                    BookAssetRecord {
+                        name: a.name.clone(),
+                        kind: match a.kind {
+                            AssetKind::Pdf => "pdf".into(),
+                            _ => "image".into(),
+                        },
+                        live,
+                        self_trashed: a.is_trashed(),
+                        trashed_folders,
+                    },
+                );
+            }
+            out
+        })
+        .unwrap_or_default();
+        *cache.borrow_mut() = Some(map);
+    }
+    cache.borrow().as_ref().and_then(|m| m.get(id).cloned())
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -88,6 +217,7 @@ enum Kind {
 /// The views of one note's embeds.
 pub struct NoteEmbeds {
     host: Rc<NoteHost>,
+    book_assets: BookAssetCache,
     kinds: RefCell<HashMap<String, Kind>>,
     tables: RefCell<HashMap<String, Entity<TableView>>>,
     materials: RefCell<HashMap<String, Entity<MaterialBlock>>>,
@@ -97,6 +227,7 @@ impl NoteEmbeds {
     pub(crate) fn new(host: Rc<NoteHost>) -> NoteEmbeds {
         NoteEmbeds {
             host,
+            book_assets: Rc::new(RefCell::new(None)),
             kinds: RefCell::default(),
             tables: RefCell::default(),
             materials: RefCell::default(),
@@ -184,7 +315,8 @@ impl NoteEmbeds {
                 .map(|cells| crate::table::clip::to_tsv(&cells))
                 .unwrap_or_default(),
             Some(Kind::Material(Some(m))) => {
-                crate::material::title_of(&self.host, m.as_str()).unwrap_or_default()
+                crate::material::title_of(&self.host, &self.book_assets, m.as_str())
+                    .unwrap_or_default()
             }
             _ => String::new(),
         }
@@ -204,7 +336,8 @@ impl NoteEmbeds {
         if let Some(b) = self.materials.borrow().get(id) {
             return b.clone();
         }
-        let entity = cx.new(|_| MaterialBlock::new(self.host.clone(), id, material));
+        let entity = cx
+            .new(|_| MaterialBlock::new(self.host.clone(), self.book_assets.clone(), id, material));
         self.materials
             .borrow_mut()
             .insert(id.to_owned(), entity.clone());
@@ -234,10 +367,15 @@ impl NoteEmbeds {
         for table in self.tables() {
             table.update(cx, |t, cx| t.refresh(cx));
         }
+        let blocks: Vec<_> = self.materials.borrow().values().cloned().collect();
+        for block in blocks {
+            block.update(cx, |b, cx| b.refresh_look(cx));
+        }
     }
 
     /// The book changed: materials look their facts up again.
     pub(crate) fn book_changed(&self, cx: &mut App) {
+        *self.book_assets.borrow_mut() = None;
         let blocks: Vec<_> = self.materials.borrow().values().cloned().collect();
         for block in blocks {
             block.update(cx, |b, cx| b.reload(cx));
@@ -399,4 +537,48 @@ pub fn insert_material(
         |_| Ok(()),
         cx,
     )
+}
+
+/// Inserts asset `material` into paragraph gap `line_ix` (`0..=visible_lines`,
+/// where `0` is before the first paragraph and `visible_lines` is after the last).
+pub fn insert_material_before_line(
+    embeds: &NoteEmbeds,
+    line_ix: usize,
+    material: AssetId,
+    cx: &mut App,
+) -> Option<EmbedId> {
+    let host = &embeds.host;
+    let id = EmbedId::new_v7();
+    let embed = id.clone();
+    let kind = EmbedKind::Asset(material);
+    let written = host.session.edit(move |txn| {
+        let paras: Vec<_> = txn.view().paragraphs().collect();
+        let (split, at) = if line_ix < paras.len() {
+            (None, paras[line_ix].range.start)
+        } else if let Some(last) = paras.last() {
+            if last.is_empty() {
+                (None, last.range.start)
+            } else {
+                (Some(last.range.end), last.range.end + 1)
+            }
+        } else {
+            (None, 0)
+        };
+        if let Some(split_at) = split {
+            txn.split(split_at)?;
+        }
+        txn.insert_embed(at, &embed, &kind).map(|_| ())
+    });
+    if let Err(e) = written {
+        log::error!("dr-editor: inserting dropped file embed failed: {e}");
+        return None;
+    }
+    let body = host.body.upgrade()?;
+    let chapter = host.chapter;
+    body.update(cx, |e, cx| {
+        e.refresh_chapter(chapter, cx);
+        e.record_host_items(chapter, 1, true);
+    });
+    host.edited(cx);
+    Some(id)
 }

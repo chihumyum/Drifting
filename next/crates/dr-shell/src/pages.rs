@@ -417,6 +417,8 @@ pub mod anchors {
     pub const NOTIFICATIONS: &str = "notifications";
 }
 
+type LocateAsset = Rc<dyn Fn(&WeakEntity<Workspace>, &str, &mut Window, &mut App)>;
+
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
@@ -432,6 +434,96 @@ struct Pages {
     super_views: Vec<(SuperView, MakeSuperView)>,
     companion: Option<MakeCompanion>,
     library: Option<MakeCompanion>,
+    locate_asset: Option<LocateAsset>,
+    pending_locate_asset: Option<String>,
+}
+
+/// Ephemeral sand-frame highlight triggered when jumping from a file's 「用在」
+/// row to an entry module, prose block, image field, or relation row, or when
+/// revealing a file in `素材库`.
+#[derive(Clone, Debug)]
+pub struct UsageFlash {
+    pub keys: Vec<String>,
+    pub at: std::time::Instant,
+    pub generation: u64,
+}
+
+impl Global for UsageFlash {}
+
+impl UsageFlash {
+    const DURATION_MS: f32 = 1400.0;
+
+    pub fn trigger(keys: impl IntoIterator<Item = impl Into<String>>, cx: &mut App) {
+        let keys: Vec<String> = keys
+            .into_iter()
+            .map(Into::into)
+            .filter(|k| !k.is_empty())
+            .collect();
+        if keys.is_empty() {
+            return;
+        }
+        let generation = cx
+            .try_global::<Self>()
+            .map(|u| u.generation + 1)
+            .unwrap_or(1);
+        cx.set_global(Self {
+            keys,
+            at: std::time::Instant::now(),
+            generation,
+        });
+        cx.refresh_windows();
+    }
+
+    pub fn strength_for(keys: &[impl AsRef<str>], window: &mut Window, cx: &App) -> f32 {
+        let Some(u) = cx.try_global::<Self>() else {
+            return 0.0;
+        };
+        if !keys
+            .iter()
+            .any(|k| u.keys.iter().any(|uk| uk == k.as_ref()))
+        {
+            return 0.0;
+        }
+        let elapsed = u.at.elapsed().as_secs_f32() * 1000.0;
+        if elapsed >= Self::DURATION_MS {
+            return 0.0;
+        }
+        let strength = (1.0 - elapsed / Self::DURATION_MS).clamp(0.0, 1.0);
+        if strength > 0.0 {
+            window.request_animation_frame();
+        }
+        strength
+    }
+}
+
+/// Registers the handler for revealing a file in the right sidebar's 素材库 tab.
+pub fn set_locate_asset(
+    cx: &mut App,
+    locate: impl Fn(&WeakEntity<Workspace>, &str, &mut Window, &mut App) + 'static,
+) {
+    cx.default_global::<Pages>().locate_asset = Some(Rc::new(locate));
+}
+
+/// Reveals the right sidebar's 素材库 tab and scrolls to / highlights `asset`.
+pub fn locate_asset(ws: &WeakEntity<Workspace>, asset: &str, window: &mut Window, cx: &mut App) {
+    cx.default_global::<Pages>().pending_locate_asset = Some(asset.to_owned());
+    if let Some(entity) = ws.upgrade() {
+        entity.update(cx, |ws, cx| ws.reveal_library(window, cx));
+    }
+    if let Some(cb) = cx
+        .try_global::<Pages>()
+        .and_then(|p| p.locate_asset.clone())
+    {
+        cb(ws, asset, window, cx);
+    }
+}
+
+/// Consumes any pending asset locate request when a `LibraryPanel` mounts or refreshes.
+pub fn take_pending_locate_asset(cx: &mut App) -> Option<String> {
+    if !cx.has_global::<Pages>() {
+        return None;
+    }
+    cx.global_mut::<Pages>().pending_locate_asset.take()
 }
 
 impl Global for Pages {}

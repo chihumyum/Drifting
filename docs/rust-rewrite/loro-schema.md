@@ -30,6 +30,7 @@
 | 写作日（书目格式 4 起） | `stats:<书 id>` | 1，建书时就建 |
 | 快照点清单（书目格式 4 起） | `checkpoints:<书 id>` | 1，建书时就建 |
 | 画布坐标（书目格式 5 起） | `layout:<书 id>` | 1，建书时就建 |
+| 我的项目模板（格式 5 起） | `project-template:<模板 id>` | 每份我的模板 1；书库级文档（`book_id` 为空），不属于任何书 |
 
 - 沿用实体的 id 在旧库导入后不变；新建的条目（包括默认根与分类）生成 UUIDv7，新增映射遵循导入方案。文档 id 在整个库中唯一；v3 模板正文必须包含书 id。
 - 格式 5 起正文文档只有一种编辑配置（`ProseProfile::Prose`）：原来仅素材笔记支持的列表、任务、代码块、提示框、高亮、行内代码、表格与文件嵌入对所有条目正文和模板正文初值开放。
@@ -38,7 +39,7 @@
 
 ### 版本号
 
-- 每个文档的 `meta` 映射里有 `v`：书目为 `5`（格式 4 的 `4`、v3 的 `3` 及更早版本原样拒开），书旁边的三篇小文档为 `1`，v2.2 书目以及共用正文／对话仍为 `2`（见「版本」）。v2.1、v2.2 只加了向后兼容的东西；格式 5 不改变正文／对话文档的创世版本。
+- 每个文档的 `meta` 映射里有 `v`：书目为 `5`（格式 4 的 `4`、v3 的 `3` 及更早版本原样拒开），书旁边的三篇小文档与书库级的项目模板文档为 `1`，v2.2 书目以及共用正文／对话仍为 `2`（见「版本」）。v2.1、v2.2 只加了向后兼容的东西；格式 5 不改变正文／对话文档的创世版本。
 - 下文的样式表（每个标记键的 `ExpandType`）也是结构的一部分，规则见下面「样式表」一节。
 
 ### 样式表：只有一个来源
@@ -66,8 +67,8 @@
 - 正文文档的创世内容：`meta.v = 2`、`meta.doc = <文档 id>`，`body` 里一个 `\n`，它的块 ID 是 `0@<创世对等方>`；
 - 书目文档的创世内容：v2.2 为 `meta.v = 2`，v3 为 `meta.v = 3`，格式 4 为 `meta.v = 4`，现在为 `meta.v = 5`；都有 `meta.book = <书 id>` 及各版本内置的锁定关系类型（格式 5 的 `system:generic-association:<书 id>` 允许 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`）；
 - 对话文档的创世内容：`meta.v = 2`、`meta.doc = <文档 id>`，没有别的（v2.2）；
-- 书旁边的三篇文档（`stats:<书>`、`checkpoints:<书>`、`layout:<书>`）的创世内容：`meta.v = 1`、`meta.doc = <文档 id>`，没有别的。
-- 创世版本号：书目为 `5`（格式 4 是 `4`，v3 是 `3`），书旁边的三篇文档为 `1`，v2.2 书目和共用正文／对话仍为 `2`（v0 是 `0`，v1 是 `1`）。
+- 书旁边的三篇文档（`stats:<书>`、`checkpoints:<书>`、`layout:<书>`）与书库级的项目模板文档（`project-template:<模板 id>`）的创世内容：`meta.v = 1`、`meta.doc = <文档 id>`，没有别的。
+- 创世版本号：书目为 `5`（格式 4 是 `4`，v3 是 `3`），书旁边的三篇文档与项目模板文档为 `1`，v2.2 书目和共用正文／对话仍为 `2`（v0 是 `0`，v1 是 `1`）。
 
 **为什么**：任何一台设备都可以独立生成同一份创世变更，字节完全相同。Loro 按操作 ID 去重，所以两台设备同时初始化同一篇空正文，合并后仍然只有一个空段落，不会多出一段；内置关系类型也只会有一个。
 
@@ -212,7 +213,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 1. **创世与版本门禁**：`book:<书>` 创世版本升为 `5`，`meta.v = 5`；内置锁定关系类型 `system:generic-association:<书>` 的允许端点更新为 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`。写作日只在项目开着成书（`project.book` 非空）时记录。
 2. **项目定义根 `project`**：取代散落在 `meta` 里的模板来源与全书目标，集中保存：
-   - `source`：`{id, version}`（内置「写书」模板为 `builtin:novel`，版本 `3`；2026-11-15 DZ 起 `4`：默认 Tab 是「全部」加书稿、构想、要素、故事线，不带名字）；
+   - `source`：`{id, version, origin?, name?, credit?}`（内置「写书」模板为 `builtin:novel` 版本 `3`（2026-11-15 DZ 起 `4`：默认 Tab 是「全部」加书稿、构想、要素、故事线，不带名字）、`origin = "builtin"`；从我的模板、模板文件或社区模板新建时一并记下 `origin`、模板名与可选署名 `credit`）；
    - `agent`（子映射 `{name, description, instructions}`）：整本项目的帮手说明（从原「书稿」条目模板挪入）；
    - `book`（可选子映射，关闭成书时为空）：`root`（成书起点：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, entry}` 四种）、`word_target`、`daily_word_target`。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；成书序列与整书视图共用同一套遍历规则（条目与根先序遍历并带挂名且每条目只收一次；视图与泳道沿刻度排）；
    - `tabs`（id → `{pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。Tab 没有名字，叫它挂的东西的名字（2026-11-15 DZ 起不再写 `name`，旧的 `name` 键读的时候不管）。同一样东西只挂一个 Tab：读取时按 `(pos, id)` 排好，挂载重复的只留第一个（`TAB-MOUNT-ONCE`）。挂根的「全部」用固定的 id `tab-all`（`dr_model::v3::ALL_TAB_ID`）；没存挂根的 Tab 时读取补一个、排在最前，`tab.move` 动它时才写进书里（`TAB-ROOT-ALWAYS`）。
@@ -245,7 +246,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | 根容器 | 类型 | 格式 5 内容 |
 | --- | --- | --- |
 | `meta` | LoroMap | 书名、梗概、创建时间、删除时间等元数据；`v = 5`、`book` |
-| `project` | LoroMap | 项目定义：`source`（`{id, version}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{pos, mount}`；没有名字，「全部」是 `tab-all`） |
+| `project` | LoroMap | 项目定义：`source`（`{id, version, origin?, name?, credit?}`）、`agent`（`{name, description, instructions}`）、`book?`（`root`、`word_target`、`daily_word_target`）、`tabs`（id → `{pos, mount}`；没有名字，「全部」是 `tab-all`） |
 | `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
 | `memberships` | LoroMap | `<宿主条目 id>\|<成员条目 id>` → `{host, member, pos, created_at}`；宿主只要求活着且 `accept` 为真；宿主不在任何活视图里时按 `pos` 排 |
@@ -286,6 +287,21 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 - 创世确定（创世版本 `1`），建书、导入、样书、种子都同时建这三篇，两台设备各建一篇合并后是同一篇。
 - 存快照点和恢复是一个原子事务：书目和条目的各篇正文、加上 `checkpoints:<书>` 一起预留；存点时书目只读，清单写进清单文档。
 - 三篇都不参加书目写入守卫，也不做导入校验（读的一方本来就容错）。
+
+## 项目模板文档（格式 5 起）
+
+「我的模板」每份是一篇书库级文档 `project-template:<模板 id>`（`DocId::ProjectTemplate`），在 SQLite `loro_doc` 表中 `book_id` 为空，不属于任何书，随书库同步（设计见 [project-templates.md](project-templates.md) 第 5 节，模板值逐字段规格见 [project-template-format.md](project-template-format.md)）。
+
+| 根容器 | 类型 | 内容 |
+| --- | --- | --- |
+| `meta` | LoroMap | 创世写 `v = 1`、`doc = "project-template:<模板 id>"`（创世版本 `1`，时间戳 `0`） |
+| `info` | LoroMap | `name`、`description`、`origin`（`"own"` 从自己的项目另存 ／ `"file"` 从模板文件导入）、`revision`（`>= 1`）、`created_at`、`updated_at`（毫秒） |
+| `payload` | LoroMap | 单个键 `value`，存 `drifting.project-template` 版本 `1` 的规范化 UTF-8 JSON 字符串（`to_canonical_json`） |
+
+- **整个换，不逐项合并**：`project_template.save` 校验通过后把整份规范化 JSON 写进 `payload.value` 这一个寄存器并同步更新 `info`；两台设备各自重存同一份模板时按 LWW 收敛到其中一整份，不会出现一半一半的模板。`project_template.update`（改名、改描述）只写 `info`，读取 `ProjectTemplateView::value` 时将 `info.{name, description, revision}` 叠回解析结果并复核校验器。
+- **导入校验**：`project_template::validate_import` 检查 `meta.v == 1`、`meta.doc` 与文档身份一致，且合并后的 `payload.value`（若存在）必须通过统一的封闭校验器 `parse_project_template_json`。
+- **直接清除，不进回收站**：`project_template.remove` 直接调用 `purge_doc`，清除记录随书库同步传到其他设备。
+- **不干扰任何书**：没有编辑配置（`DocKind::profile()` 为空），不是书的正文（`is_book_text() == false`），发 `WsEvent::ProjectTemplate`，不计字数、不进搜索索引、不进成书导出与书文件、不进 Markdown 文件夹、不参加任何书的写入守卫。
 
 ## 书目文档（v2.2）
 

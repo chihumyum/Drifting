@@ -127,6 +127,18 @@ impl Render for View {
         };
         let live = LiveWords::read(cx);
         let data = self.loaded.as_ref();
+        if data.is_some_and(|d| !d.has_book) {
+            return div()
+                .id(ElementId::Name(self.id.clone()))
+                .size_full()
+                .overflow_y_scroll()
+                .px(px(16.0))
+                .pt(px(10.0))
+                .pb(px(24.0))
+                .flex()
+                .flex_col()
+                .gap(px(22.0));
+        }
         let words = |n: Option<u64>| {
             n.map_or_else(
                 || ui.t(keys::workspace_word_tally::COUNTING),

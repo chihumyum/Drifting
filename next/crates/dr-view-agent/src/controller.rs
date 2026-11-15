@@ -249,6 +249,29 @@ impl AgentController {
             .map(|run| run.control.clone())
     }
 
+    pub fn is_conversation_active(&self, conversation: &ConversationId) -> bool {
+        let state = self.inner.state.lock().expect("Agent service");
+        state.starting.contains(conversation)
+            || state
+                .runs
+                .values()
+                .any(|run| &run.conversation == conversation)
+    }
+
+    pub fn active_control_for_conversation(
+        &self,
+        conversation: &ConversationId,
+    ) -> Option<Control> {
+        self.inner
+            .state
+            .lock()
+            .expect("Agent service")
+            .runs
+            .values()
+            .find(|run| &run.conversation == conversation)
+            .map(|run| run.control.clone())
+    }
+
     /// Background initialization with the same opening reservation as chat
     /// starts. Public scopes contain no Workspace once their worker closes.
     pub fn open_external(&self, start: ExternalStart) -> Result<ExternalScope, String> {

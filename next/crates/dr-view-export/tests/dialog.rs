@@ -296,15 +296,15 @@ fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
         .unwrap()
         .to_owned();
 
-    // Default `project.book.root` is `书稿` (one manuscript per project).
+    // Default `project.book.root` is `书稿` (one manuscript per project; no part selector).
     let (initial_dialog, cx_initial) = open(cx, &e, Request::Manuscript { chapter: None });
     wait_for(cx_initial, |cx| {
         initial_dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
-    initial_dialog.read_with(cx_initial, |d, _| {
+    initial_dialog.read_with(cx_initial, |d, cx| {
         let m = d.manuscript().unwrap();
-        assert_eq!(m.manuscripts.len(), 1);
-        assert_eq!(m.part_labels(), ["书稿"]);
+        assert!(m.outline.as_ref().unwrap().has_book);
+        assert!(m.can_export(cx));
         assert_eq!(m.chapters(), e.chapters[..2].to_vec());
     });
 
@@ -317,21 +317,19 @@ fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
             "root": {"kind": "entry", "entry": side_root}
         }),
     );
-    let (dialog, cx) = open(
+    let (dialog, cx_side) = open(
         cx,
         &e,
         Request::Manuscript {
             chapter: Some(epilogue.clone()),
         },
     );
-    wait_for(cx, |cx| {
+    wait_for(cx_side, |cx| {
         dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
     });
-    let (chosen_opts, chosen_labels) = dialog.update(cx, |d, cx| {
+    let (chosen_opts, chosen_labels) = dialog.update(cx_side, |d, cx| {
         let m = d.manuscript_mut().unwrap();
-        assert_eq!(m.manuscripts.len(), 1);
-        assert_eq!(m.part_labels(), ["外集 / 番外"]);
-        assert_eq!(m.manuscript, 0);
+        assert!(m.outline.as_ref().unwrap().has_book);
         assert!(!m.whole_book);
         assert_eq!(m.chapters(), vec![epilogue.clone()]);
         let (opts, labels) = m.options(cx);
@@ -357,19 +355,42 @@ fn export_dialog_follows_single_project_book_root(cx: &mut TestAppContext) {
         other => panic!("unexpected section: {other:?}"),
     }
 
-    cx.run_until_parked();
+    cx_side.run_until_parked();
     let epub = e.dir.path().join("番外.epub");
-    cx.simulate_new_path_selection({
+    cx_side.simulate_new_path_selection({
         let epub = epub.clone();
         move |_| Some(epub)
     });
-    wait_for(cx, |cx| {
+    wait_for(cx_side, |cx| {
         dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
     });
     assert_eq!(
-        dialog.read_with(cx, |d, _| d.manuscript().unwrap().feedback.clone()),
+        dialog.read_with(cx_side, |d, _| d.manuscript().unwrap().feedback.clone()),
         Some(dr_view_export::ManuscriptFeedback::Saved)
     );
     let bytes = std::fs::read(&epub).unwrap();
     assert_eq!(&bytes[..2], b"PK");
+
+    // When `成书` is turned off (`has_book: false`), the export dialog disables export.
+    out(
+        &e.ws,
+        "project.update",
+        json!({"book": e.book, "has_book": false}),
+    );
+    let (bookless_dialog, cx_bookless) = open(cx, &e, Request::Manuscript { chapter: None });
+    wait_for(cx_bookless, |cx| {
+        bookless_dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    bookless_dialog.update(cx_bookless, |d, cx| {
+        let m = d.manuscript_mut().unwrap();
+        assert!(!m.outline.as_ref().unwrap().has_book);
+        assert!(m.chapters().is_empty());
+        assert!(!m.can_export(cx));
+        m.export(cx);
+    });
+    cx_bookless.run_until_parked();
+    assert!(
+        !cx_bookless.did_prompt_for_new_path(),
+        "bookless project must not prompt to export"
+    );
 }

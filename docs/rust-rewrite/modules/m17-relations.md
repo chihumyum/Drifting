@@ -138,3 +138,7 @@ cargo clippy -p dr-view-relations --all-targets --features capture --locked -- -
 | `src/types.rs` | `TypeManager`（类型列表、颜色、编辑器）、`DeleteTypeDialog` |
 | `tests/relations.rs` | GPUI 测试 |
 | `examples/relations-capture.rs` | 截图 |
+
+## 内核 v5 · T5 条目关系里的文件端点显示（2026-11-15）
+
+按 [kernel-v5.md 第 15 节第 17 条](../kernel-v5.md#15-还要定的) 与 [v5-tracks.md 的 T5](../handoff/v5-tracks.md#t5-文件t5-files)，`dr-view-relations` 的 `EntryRelations` 支持显示另一端为活文件（`EntityKind::Asset`）的关系行：展示 `24×24` 缩略图（无缩略图时按图片/PDF 显示图标）、文件名、关系类型与方向，点击打开文件查看器，右侧可删除该条关系；文件或其所在素材夹进入最近删除后自动隐藏，恢复后重现。按任务书约定，界面暂不提供新建「条目 ↔ 文件」关系的入口（选择器只列条目）。永久回归见 `dr-view-relations/tests/v5_files.rs`。

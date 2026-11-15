@@ -180,8 +180,16 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     .expect("create orphan material")
     .material;
 
-    dr_view_material::v3::set_entry_link(&lib, &book_id, &linked_mat, &entry_id, true)
-        .expect("link material to entry");
+    lib.call(
+        &Actor::User,
+        "relation.create",
+        serde_json::json!({
+            "book": book_id,
+            "from": { "kind": "entry", "id": entry_id },
+            "to": { "kind": "asset", "id": linked_mat },
+        }),
+    )
+    .expect("link entry to asset");
 
     cx.update(|cx| {
         let _ = dr_ui::init(cx);
@@ -255,10 +263,12 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     });
     wait(cx, |cx| view.read_with(cx, |v, cx| v.is_ready(cx)));
 
-    // 2. Link the orphan material via toggle_material_entry_link -> leaves orphan list.
+    // 2. Direct single-step trash_material moves the orphan file to Recently Deleted
+    // without a confirmation dialog.
     cx.update(|_, cx| {
         view.update(cx, |v, cx| {
-            v.toggle_material_entry_link(&orphan_mat, &entry_id, true, cx);
+            v.trash_material(orphan_mat.clone(), cx);
+            assert!(!v.has_dialog());
         });
     });
     wait(cx, |cx| {
@@ -591,6 +601,157 @@ fn a_closed_shelf_review_does_not_follow_the_book_and_catches_up_when_shown(
 
     show(cx, None);
     cx.run_until_parked();
+    cx.update(|_, cx| {
+        dr_view_review::release(cx);
+    });
+}
+
+#[gpui::test]
+fn shelf_review_counts_marker_and_checklist_todos_and_updates_on_resolve(cx: &mut TestAppContext) {
+    use serde_json::json;
+
+    cx.executor().allow_parking();
+    let (_dir, lib, book_id, _) = setup_v3_fixture();
+    let baseline = lib
+        .call(&Actor::User, "comment.list", json!({"book": book_id}))
+        .expect("list baseline")["output"]
+        .as_array()
+        .expect("comments array")
+        .clone();
+    let baseline_todos = baseline
+        .iter()
+        .filter(|c| c["status"] == "open" && (c["origin"] == "marker" || c["origin"] == "task"))
+        .count();
+    let baseline_comments = baseline
+        .iter()
+        .filter(|c| c["status"] == "open" && c["origin"] != "marker" && c["origin"] != "task")
+        .count();
+
+    let chapter_id = lib
+        .call(
+            &Actor::User,
+            "entry.create",
+            json!({
+                "book": book_id,
+                "template": "tpl-chapter",
+                "title": "待办计数测试章",
+                "bodies": {"mod-prose": "TODO: 核对灯塔燃料\n检查备件箱"}
+            }),
+        )
+        .expect("create chapter")["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc = format!("body:{chapter_id}/mod-prose");
+    let session = lib.prose_session(&doc).expect("prose session");
+    session
+        .edit(|t| {
+            t.set_block_attrs(
+                13,
+                &dr_model::prose::BlockAttrs {
+                    list: Some(dr_model::kind::ListKind::Task),
+                    ..Default::default()
+                },
+            )
+        })
+        .expect("mark checklist task");
+    let p0 = lib
+        .call(&Actor::User, "prose.read", json!({"doc": doc}))
+        .expect("read prose")["output"]["paragraphs"][0]["block_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    lib.call(
+        &Actor::User,
+        "comment.project",
+        json!({
+            "doc": doc,
+            "markers": [{"block": p0, "task": "核对灯塔燃料"}],
+            "tasks": []
+        }),
+    )
+    .expect("project marker and checklist task");
+
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(Appearance::Light),
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(book_id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_material::init(cx);
+        dr_view_shelf_review::init(cx);
+    });
+
+    let (shell, cx) = cx.add_window_view(Workspace::new);
+    wait(cx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    cx.update(|_, cx| {
+        shell.update(cx, |ws, cx| {
+            ws.super_view = Some(SuperView::ReviewMaterials);
+            cx.notify();
+        });
+    });
+
+    let view: Entity<ShelfReviewView> = cx.update(|window, cx| {
+        let host = shell.read_with(cx, |ws, _| SuperViewHost {
+            workspace: shell.downgrade(),
+            library: ws.library.clone(),
+            book_id: ws.book_id.clone(),
+            book: ws.book.clone(),
+            view: SuperView::ReviewMaterials,
+        });
+        cx.new(|cx| ShelfReviewView::new(&host, window, cx))
+    });
+    wait(cx, |cx| view.read_with(cx, |v, cx| v.is_ready(cx)));
+
+    // Both the marker TODO and the checklist task count in `open_todos`, while
+    // `open_comments` stays at the book's manual/non-TODO count.
+    cx.update(|_, cx| {
+        view.update(cx, |v, cx| {
+            assert_eq!(v.counts(cx).open_todos, baseline_todos + 2);
+            assert_eq!(v.counts(cx).open_comments, baseline_comments);
+        });
+    });
+
+    let task_id = lib
+        .call(
+            &Actor::User,
+            "comment.list",
+            json!({"book": book_id, "origin": "task"}),
+        )
+        .expect("list task comments")["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["body"] == "检查备件箱")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    cx.update(|_, cx| {
+        view.update(cx, |v, cx| {
+            let rv = v.review_view().expect("review view").clone();
+            rv.update(cx, |r, cx| r.set_done(&task_id, true, cx));
+        });
+    });
+    wait(cx, |cx| {
+        cx.update(|_, cx| view.update(cx, |v, cx| v.counts(cx).open_todos == 1))
+    });
+
     cx.update(|_, cx| {
         dr_view_review::release(cx);
     });

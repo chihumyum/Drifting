@@ -20,9 +20,9 @@ struct Selection {
 }
 
 fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selection> {
-    // Comments are book-owned, not part of an entry checkpoint. Their source
-    // prose is read only, and must not create a checkpoint or new body.
-    if call.name.starts_with("comment.") {
+    // Canvas layout coordinates live in `layout:<book>`, outside `book:<id>` and
+    // outside any entry (`LAYOUT-DOC-QUIET`).
+    if call.name.starts_with("layout.") {
         return Ok(Selection {
             entries: Vec::new(),
             children_guard: Vec::new(),
@@ -37,11 +37,6 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
     }
     let named = Named::of(call);
     let mut ids = named.entries;
-    // Most calls name their entries; only a relation, membership or patch
-    // named by its own id, or turning off an entry's level switch (which
-    // moves any direct children to root), has to be looked up in the book.
-    // Loading a copy of the book document costs as much as the book is big,
-    // so no other call loads one.
     if named.lookups.is_empty() {
         return Ok(Selection {
             entries: ids.into_iter().collect(),
@@ -56,10 +51,13 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
         relations,
         memberships,
         children_of,
+        mut comments,
+        mut assets,
+        asset_folders,
     } = named.lookups;
+    let headers = view.entry_headers_with(&BTreeMap::new());
     let mut children_guard = Vec::new();
     if !children_of.is_empty() {
-        let headers = view.entry_headers_with(&BTreeMap::new());
         for id in children_of {
             let Ok(parent_id) = EntryId::parse(&id) else {
                 continue;
@@ -70,14 +68,32 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
             if parent.is_trashed() || !parent.is_level() {
                 continue;
             }
-            let direct: Vec<String> = headers
+            let has_any_child = headers
                 .values()
-                .filter(|c| c.parent.as_ref() == Some(&parent_id))
-                .map(|c| c.id.to_string())
-                .collect();
-            if !direct.is_empty() {
+                .any(|c| c.parent.as_ref() == Some(&parent_id));
+            if has_any_child {
                 children_guard.push(parent_id.to_string());
-                ids.extend(direct);
+            }
+            let mut descendants = BTreeSet::new();
+            let mut frontier = vec![parent_id];
+            while let Some(cur) = frontier.pop() {
+                for c in headers.values() {
+                    if c.parent.as_ref() == Some(&cur)
+                        && !c.is_trashed()
+                        && descendants.insert(c.id.clone())
+                    {
+                        frontier.push(c.id.clone());
+                    }
+                }
+            }
+            ids.extend(descendants.into_iter().map(|eid| eid.to_string()));
+        }
+    }
+    if !asset_folders.is_empty() {
+        for fid_str in asset_folders {
+            if let Ok(fid) = dr_model::id::AssetFolderId::parse(&fid_str) {
+                let (_, files) = crate::resolve::asset_folder_subtree(&view, &fid);
+                assets.extend(files.into_iter().map(|a| a.id.to_string()));
             }
         }
     }
@@ -92,19 +108,63 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
             }
         }
     }
+    let stored_relations = if !relations.is_empty() || !assets.is_empty() {
+        view.relations_raw()
+    } else {
+        Vec::new()
+    };
     if !relations.is_empty() {
-        let stored = view.relations_raw();
         for id in relations {
-            if let Some(r) = stored.iter().find(|r| r.id.as_str() == id) {
+            if let Some(r) = stored_relations.iter().find(|r| r.id.as_str() == id) {
                 for (kind, id) in [(&r.from.kind, &r.from.id), (&r.to.kind, &r.to.id)] {
-                    if *kind == EntityKind::Entry {
-                        ids.insert(id.clone());
-                    } else if *kind == EntityKind::Patch {
-                        patches.push(id.clone());
+                    match *kind {
+                        EntityKind::Entry => {
+                            ids.insert(id.clone());
+                        }
+                        EntityKind::Patch => patches.push(id.clone()),
+                        EntityKind::Comment => comments.push(id.clone()),
+                        EntityKind::Asset => assets.push(id.clone()),
+                        _ => {}
                     }
                 }
             }
         }
+    }
+    if !comments.is_empty() {
+        let stored = view.comments();
+        for id in comments {
+            if let Some(c) = stored.iter().find(|c| c.id.as_str() == id)
+                && let Some(t) = &c.target
+            {
+                match t.kind {
+                    EntityKind::Entry => {
+                        ids.insert(t.id.clone());
+                    }
+                    EntityKind::Patch => patches.push(t.id.clone()),
+                    EntityKind::Asset => assets.push(t.id.clone()),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if !assets.is_empty() {
+        let asset_set: BTreeSet<String> = assets.into_iter().collect();
+        for r in &stored_relations {
+            for (a_end, other) in [(&r.from, &r.to), (&r.to, &r.from)] {
+                if a_end.kind == EntityKind::Asset && asset_set.contains(&a_end.id) {
+                    match other.kind {
+                        EntityKind::Entry => {
+                            ids.insert(other.id.clone());
+                        }
+                        EntityKind::Patch => patches.push(other.id.clone()),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        ids.extend(entries_referencing_assets(
+            ws, &book, &view, &headers, &asset_set,
+        )?);
     }
     if !patches.is_empty() {
         let stored = view.patches();
@@ -118,6 +178,97 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
         entries: ids.into_iter().collect(),
         children_guard,
     })
+}
+
+pub(super) fn entries_referencing_assets(
+    ws: &Workspace,
+    book: &BookId,
+    view: &dr_doc::v3::BookViewV3<'_>,
+    headers: &BTreeMap<EntryId, dr_model::v3::Entry>,
+    asset_set: &BTreeSet<String>,
+) -> Result<BTreeSet<String>> {
+    let mut found = BTreeSet::new();
+    let templates = view.templates_map();
+    let mut image_fields = BTreeSet::new();
+    for tpl in templates.values() {
+        for m in &tpl.modules {
+            if m.kind == dr_model::v3::ModuleKind::Fields {
+                for def in &m.config.defs {
+                    if def.field_type == dr_model::v3::FieldType::Image {
+                        image_fields.insert((m.id.to_string(), def.id.clone()));
+                    }
+                }
+            }
+        }
+    }
+    for e in view.entries_raw() {
+        let media_hit = e
+            .media
+            .values()
+            .flatten()
+            .any(|it| asset_set.contains(it.asset.as_str()));
+        let field_hit = !media_hit
+            && e.fields.iter().any(|(mid, vals)| {
+                vals.iter().any(|(fid, val)| {
+                    val.as_str().is_some_and(|s| asset_set.contains(s))
+                        && image_fields.contains(&(mid.to_string(), fid.clone()))
+                })
+            });
+        if media_hit || field_hit {
+            found.insert(e.id.to_string());
+        }
+    }
+    for r in ws
+        .library()
+        .entry_module_references_in_book(book.as_str())?
+    {
+        if r.count > 0
+            && r.target_kind == "asset"
+            && matches!(
+                r.kind,
+                dr_store::index::RefKind::Embed | dr_store::index::RefKind::Link
+            )
+            && asset_set.contains(&r.target_id)
+            && EntryId::parse(&r.source_entry).is_ok_and(|eid| headers.contains_key(&eid))
+        {
+            found.insert(r.source_entry);
+        }
+    }
+    let stale: BTreeSet<String> = ws.library().stale_index_docs()?.into_iter().collect();
+    if !stale.is_empty() {
+        for info in ws.library().docs(Some(book.as_str()), Some("body"))? {
+            if !stale.contains(&info.doc_id) {
+                continue;
+            }
+            let Ok(DocId::Body(body_id)) = DocId::parse(&info.doc_id) else {
+                continue;
+            };
+            let doc_id = DocId::Body(body_id.clone());
+            if !headers.contains_key(body_id.entry()) || found.contains(body_id.entry().as_str()) {
+                continue;
+            }
+            let copy = ws.library().load_copy(&info.doc_id)?;
+            let Ok(prose) = dr_doc::prose::BorrowedProse::new(&copy, &doc_id) else {
+                continue;
+            };
+            let pv = prose.view();
+            let embed_hit = pv.embed_refs().into_iter().any(|(_, eid)| {
+                matches!(
+                    pv.embed(&eid),
+                    Some(dr_doc::prose::EmbedView::Asset { asset: Some(aid), .. })
+                        if asset_set.contains(aid.as_str())
+                )
+            });
+            let link_hit = !embed_hit
+                && pv.entity_links_v3().into_iter().any(|(_, link)| {
+                    link.kind == EntityKind::Asset && asset_set.contains(&link.target)
+                });
+            if embed_hit || link_hit {
+                found.insert(body_id.entry().to_string());
+            }
+        }
+    }
+    Ok(found)
 }
 
 /// What a call names that its write-before checkpoint covers: entries named
@@ -134,13 +285,19 @@ struct Named {
 struct Lookups {
     /// Patch ids: the patch's entry.
     patches: Vec<String>,
-    /// Relation ids: each endpoint that is an entry, or a patch's entry.
+    /// Relation ids: each endpoint that is an entry, patch, comment or asset.
     relations: Vec<String>,
     /// Membership keys: the host and the member.
     memberships: Vec<String>,
-    /// Entries whose switch is being turned off: any direct children moved to
-    /// root.
+    /// Entries whose switch is being turned off: live descendants moved to
+    /// Recently Deleted.
     children_of: Vec<String>,
+    /// Comment ids: the comment's target entity.
+    comments: Vec<String>,
+    /// Asset ids: entries referencing those assets.
+    assets: Vec<String>,
+    /// Asset folder ids: assets in their subtree, then referencing entries.
+    asset_folders: Vec<String>,
 }
 
 impl Lookups {
@@ -149,6 +306,9 @@ impl Lookups {
             && self.relations.is_empty()
             && self.memberships.is_empty()
             && self.children_of.is_empty()
+            && self.comments.is_empty()
+            && self.assets.is_empty()
+            && self.asset_folders.is_empty()
     }
 }
 
@@ -181,6 +341,43 @@ impl Named {
             && let Some(id) = args["id"].as_str()
         {
             named.lookups.children_of.push(id.to_owned());
+        }
+        if call.name == "comment.create"
+            && let (Some(kind), Some(id)) = (
+                args["target"]["kind"].as_str(),
+                args["target"]["id"].as_str(),
+            )
+        {
+            named.endpoint(EntityKind::from(kind), id);
+        }
+        if matches!(
+            call.name.as_str(),
+            "comment.update" | "comment.reanchor" | "comment.trash" | "comment.restore"
+        ) && let Some(id) = args["id"].as_str()
+        {
+            named.lookups.comments.push(id.to_owned());
+        }
+        if matches!(
+            call.name.as_str(),
+            "asset.rename" | "asset.move" | "asset.trash" | "asset.restore"
+        ) && let Some(id) = args["id"].as_str()
+        {
+            named.lookups.assets.push(id.to_owned());
+        }
+        if matches!(
+            call.name.as_str(),
+            "asset_folder.rename"
+                | "asset_folder.move"
+                | "asset_folder.trash"
+                | "asset_folder.restore"
+        ) && let Some(id) = args["id"].as_str()
+        {
+            named.lookups.asset_folders.push(id.to_owned());
+        }
+        if call.name == "asset_folder.create"
+            && let Some(parent) = args["parent"].as_str()
+        {
+            named.lookups.asset_folders.push(parent.to_owned());
         }
         if matches!(
             call.name.as_str(),
@@ -218,6 +415,9 @@ impl Named {
                         }
                     }
                     Some("relations") => named.lookups.relations.push(id.to_owned()),
+                    Some("comments") => named.lookups.comments.push(id.to_owned()),
+                    Some("assets") => named.lookups.assets.push(id.to_owned()),
+                    Some("asset_folders") => named.lookups.asset_folders.push(id.to_owned()),
                     _ => {}
                 }
             }
@@ -225,13 +425,15 @@ impl Named {
         named
     }
 
-    /// A relation endpoint or a patch: an entry is named, a patch is looked
-    /// up, any other kind has no entry.
     fn endpoint(&mut self, kind: EntityKind, id: &str) {
-        if kind == EntityKind::Entry {
-            self.entries.insert(id.to_owned());
-        } else if kind == EntityKind::Patch {
-            self.lookups.patches.push(id.to_owned());
+        match kind {
+            EntityKind::Entry => {
+                self.entries.insert(id.to_owned());
+            }
+            EntityKind::Patch => self.lookups.patches.push(id.to_owned()),
+            EntityKind::Comment => self.lookups.comments.push(id.to_owned()),
+            EntityKind::Asset => self.lookups.assets.push(id.to_owned()),
+            _ => {}
         }
     }
 }

@@ -248,6 +248,44 @@ impl ProjectWriterV3 {
                 let m = self.map.ensure_mergeable_map("source")?;
                 set(&m, "id", pt.id.as_str())?;
                 set(&m, "version", pt.version)?;
+                set(&m, "origin", pt.origin.as_ref().map(|o| o.as_str()))?;
+                set(&m, "name", pt.name.as_deref().filter(|s| !s.is_empty()))?;
+                match pt.credit.as_ref().filter(|c| !c.is_empty()) {
+                    Some(c) => {
+                        let cm = m.ensure_mergeable_map("credit")?;
+                        set(
+                            &cm,
+                            "author",
+                            (!c.author.is_empty()).then_some(c.author.as_str()),
+                        )?;
+                        set(
+                            &cm,
+                            "homepage",
+                            (!c.homepage.is_empty()).then_some(c.homepage.as_str()),
+                        )?;
+                        match c.derived_from.as_ref().filter(|d| !d.name.is_empty()) {
+                            Some(df) => {
+                                let dm = cm.ensure_mergeable_map("derived_from")?;
+                                set(&dm, "name", df.name.as_str())?;
+                                set(
+                                    &dm,
+                                    "author",
+                                    (!df.author.is_empty()).then_some(df.author.as_str()),
+                                )?;
+                            }
+                            None => {
+                                if cm.get("derived_from").is_some() {
+                                    cm.delete("derived_from")?;
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        if m.get("credit").is_some() {
+                            m.delete("credit")?;
+                        }
+                    }
+                }
             }
             None => {
                 if self.map.get("source").is_some() {

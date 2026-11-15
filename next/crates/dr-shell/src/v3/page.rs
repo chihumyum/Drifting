@@ -48,9 +48,11 @@ pub struct EntryPage {
     /// Raised by a body that scrolled the page for the author (to its caret,
     /// to a position): the page is theirs again.
     author_scrolled: Rc<std::cell::Cell<bool>>,
+    _review_focus: Subscription,
 }
 impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
+        let review_focus = cx.observe_global::<crate::ReviewFocus>(|_, cx| cx.notify());
         Self {
             host,
             target,
@@ -63,6 +65,7 @@ impl EntryPage {
             pending_reveal: true,
             pinned: None,
             author_scrolled: Rc::default(),
+            _review_focus: review_focus,
         }
     }
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
@@ -213,6 +216,61 @@ impl EntryPage {
         let key = format!("module:{}", module.id);
         let theme = Theme::of(window, cx);
         let selector = format!("v3-section-{}", module.id);
+        let entry_id = match &self.target {
+            Target::Entry { id, .. } => Some(id.as_str()),
+            _ => None,
+        };
+        let mod_comments = entry_id
+            .and_then(|eid| {
+                self.host
+                    .book
+                    .v3()
+                    .map(|b| b.module_header_comments(eid, &module.id))
+            })
+            .unwrap_or_default();
+        let mod_ul = crate::comment_underline(
+            SharedString::from(format!("v3-mod-ul-{}", module.id)),
+            mod_comments,
+            self.host.workspace.clone(),
+            cx,
+        );
+        let head_group: SharedString = format!("v3-mod-head-{}", module.id).into();
+        let comment_btn = entry_id.map(|eid| {
+            let ws = self.host.workspace.clone();
+            let eid = eid.to_owned();
+            let mid = module.id.clone();
+            let label = t(cx, keys::v3_review::WRITE_COMMENT);
+            div()
+                .id(SharedString::from(format!("v3-mod-comment-{}", module.id)))
+                .size(px(22.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(4.0))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .aria_label(label)
+                .invisible()
+                .group_hover(head_group.clone(), |st| st.visible())
+                .hover(|st| st.bg(theme.palette.ink(1).alpha(0.05)))
+                .on_click(move |e, window, cx| {
+                    cx.stop_propagation();
+                    if let Some(ws) = ws.upgrade() {
+                        let pos = e.position();
+                        let eid = eid.clone();
+                        let mid = mid.clone();
+                        ws.update(cx, |ws, cx| {
+                            ws.open_module_composer(&eid, &mid, Some(pos), None, window, cx);
+                        });
+                    }
+                })
+                .child(dr_ui::sand::icon(
+                    Icon::CommentPlus,
+                    14.0,
+                    theme.palette.ink(3).solid(),
+                ))
+        });
         div()
             .id(SharedString::from(key.clone()))
             .debug_selector(move || selector.clone())
@@ -222,9 +280,25 @@ impl EntryPage {
             .gap_3()
             .child(
                 div()
-                    .font_role(FontRole::Structure)
-                    .text_color(theme.palette.ink(2).solid())
-                    .child(module.name.clone()),
+                    .group(head_group)
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .child(
+                                div()
+                                    .font_role(FontRole::Structure)
+                                    .text_color(theme.palette.ink(2).solid())
+                                    .child(module.name.clone()),
+                            )
+                            .children(mod_ul),
+                    )
+                    .children(comment_btn),
             )
             .children(self.parts.get(&key).map(|(_, p)| p.view.clone()))
             .into_any_element()
@@ -411,6 +485,23 @@ impl Render for EntryPage {
                                 }),
                         )
                     });
+                    let title_ul = crate::comment_underline(
+                        SharedString::from(format!("v3-entry-title-ul-{id}")),
+                        v3.entry_title_comments(id.as_str()),
+                        self.host.workspace.clone(),
+                        cx,
+                    );
+                    let probe_entry_id = id.to_string();
+                    let title_probe = canvas(
+                        move |bounds, _, cx| {
+                            crate::record_entry_title_bounds(probe_entry_id.clone(), bounds, cx);
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full();
                     content = content.child(
                         div()
                             .debug_selector(|| "v3-entry-head".into())
@@ -430,12 +521,20 @@ impl Render for EntryPage {
                                     .child(kind_mark)
                                     .child(
                                         div()
-                                            .font_role(FontRole::Structure)
-                                            .type_px(
-                                                theme.scale.heading,
-                                                theme.scale.heading + 12.0,
+                                            .relative()
+                                            .flex()
+                                            .flex_col()
+                                            .child(title_probe)
+                                            .child(
+                                                div()
+                                                    .font_role(FontRole::Structure)
+                                                    .type_px(
+                                                        theme.scale.heading,
+                                                        theme.scale.heading + 12.0,
+                                                    )
+                                                    .child(entry.title.clone()),
                                             )
-                                            .child(entry.title.clone()),
+                                            .children(title_ul),
                                     ),
                             )
                             .child(

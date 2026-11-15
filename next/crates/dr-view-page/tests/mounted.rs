@@ -562,3 +562,175 @@ fn whole_book_opens_from_any_level_entry_and_keeps_per_entry_reading_positions(
     assert_eq!(restored_sl.doc, expected_sl.doc);
     assert_eq!(restored_sl.paragraph, expected_sl.paragraph);
 }
+
+#[gpui::test]
+fn whole_book_opens_from_timeline_view_and_lane_targets_and_closes_when_removed(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, book, _entry) = fixture();
+    let initial = dr_shell::book::Book::load(&lib, &book).unwrap();
+    let v = initial.v3().unwrap();
+    let ms_root = v.roots[0].clone();
+    let sl_root = v.roots[1].clone();
+    let view_id = "synthetic-whole-view".to_owned();
+    call(
+        &lib,
+        "timeline_view.put",
+        json!({
+            "book": book,
+            "view": {
+                "id": view_id,
+                "name": "Synthetic whole-book scale view",
+                "lanes": [],
+                "placements": [],
+                "pins": [],
+            }
+        }),
+    );
+
+    let ch_a = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": ms_root, "template": "tpl-chapter", "title": "刻度甲章"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ch_b = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": ms_root, "template": "tpl-chapter", "title": "刻度乙章"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ch_c = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": ms_root, "template": "tpl-chapter", "title": "刻度丙章"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let lane_1 = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": sl_root, "template": "tpl-storyline", "title": "一线", "level": false}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_2 = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": sl_root, "template": "tpl-storyline", "title": "二线", "level": false}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": book, "view": view_id, "lane": lane_1}),
+    );
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": book, "view": view_id, "lane": lane_2}),
+    );
+    call(
+        &lib,
+        "timeline_view.place",
+        json!({"book": book, "view": view_id, "lane": lane_1, "entry": ch_b, "at": 20.0}),
+    );
+    call(
+        &lib,
+        "timeline_view.place",
+        json!({"book": book, "view": view_id, "lane": lane_1, "entry": ch_a, "at": 5.0}),
+    );
+    call(
+        &lib,
+        "timeline_view.place",
+        json!({"book": book, "view": view_id, "lane": lane_2, "entry": ch_c, "at": 10.0}),
+    );
+
+    let (view, cx) = setup(cx, &lib, &book);
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| {
+            w.book.v3().is_some_and(|v| v.entry(&lane_2).is_some())
+        })
+    });
+
+    let tv_target = Target::BookView(view_id.parse().unwrap());
+    let lane_target = Target::BookLane {
+        view: view_id.parse().unwrap(),
+        entry: lane_1.parse().unwrap(),
+    };
+
+    for t in [&tv_target, &lane_target] {
+        view.update(cx, |w, cx| w.open(t.clone(), Open::KEEP, cx));
+        wait(cx, |cx| {
+            view.read_with(cx, |w, _| w.book_editor_of(t).is_some())
+        });
+    }
+
+    let tv_editor = view.read_with(cx, |w, _| w.book_editor_of(&tv_target).unwrap().clone());
+    tv_editor.read_with(cx, |e, _| {
+        let mut entries: Vec<&str> = e.sections().iter().map(|s| s.entry.as_str()).collect();
+        entries.dedup();
+        assert_eq!(entries, vec![ch_a.as_str(), ch_c.as_str(), ch_b.as_str()]);
+    });
+
+    let lane_editor = view.read_with(cx, |w, _| w.book_editor_of(&lane_target).unwrap().clone());
+    lane_editor.read_with(cx, |e, _| {
+        let mut entries: Vec<&str> = e.sections().iter().map(|s| s.entry.as_str()).collect();
+        entries.dedup();
+        assert_eq!(entries, vec![ch_a.as_str(), ch_b.as_str()]);
+    });
+
+    // Moving ch_b before ch_a in the view updates both mounted whole-book editors live.
+    call(
+        &lib,
+        "timeline_view.place",
+        json!({"book": book, "view": view_id, "lane": lane_1, "entry": ch_b, "at": 1.0}),
+    );
+    wait(cx, |cx| {
+        lane_editor.read_with(cx, |e, _| {
+            let mut entries: Vec<&str> = e.sections().iter().map(|s| s.entry.as_str()).collect();
+            entries.dedup();
+            entries == vec![ch_b.as_str(), ch_a.as_str()]
+        })
+    });
+    tv_editor.read_with(cx, |e, _| {
+        let mut entries: Vec<&str> = e.sections().iter().map(|s| s.entry.as_str()).collect();
+        entries.dedup();
+        assert_eq!(entries, vec![ch_b.as_str(), ch_a.as_str(), ch_c.as_str()]);
+    });
+
+    // Removing lane_1 from the view closes the lane whole-book tab while keeping the view tab open.
+    call(
+        &lib,
+        "timeline_view.remove_lane",
+        json!({"book": book, "view": view_id, "lane": lane_1}),
+    );
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| {
+            !w.nav.tabs().iter().any(|t| t.key() == lane_target.key())
+                && w.nav.tabs().iter().any(|t| t.key() == tv_target.key())
+        })
+    });
+
+    // Deleting the view closes the view whole-book tab as well.
+    call(
+        &lib,
+        "timeline_view.delete",
+        json!({"book": book, "id": view_id}),
+    );
+    wait(cx, |cx| {
+        view.read_with(cx, |w, _| {
+            !w.nav.tabs().iter().any(|t| t.key() == tv_target.key())
+        })
+    });
+}

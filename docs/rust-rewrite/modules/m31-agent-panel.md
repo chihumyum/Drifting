@@ -1,5 +1,7 @@
 # M31 帮手面板与改动显现
 
+> 2026-11-15 内核 v5（T7）：系统提示词（`dr-view-agent/src/prompt.rs`）从项目定义读取 `project_agent`、`project_book`（成书根与字数目标）、`project_tabs`，接纳超过 32 个层级时的 `levels_by_depth` 摘要及模板动作的 `adds_membership`（「住进」与「挂到」分离），并对齐格式 5 统一批注与素材链接规则（批注无优先级；解决／重开清单批注会去正文打勾／去勾；改字或删除清单项须直接改或删正文对应行；`prose.link` 支持 `kind = "asset"`）。主动建议（`controller/proactive.rs`）收集全部未解决批注（含来源标记）送入 `open_comments`。「本轮改动」导航（`src/data.rs`）新增 `project`／`tab` 效果回到项目主页（`ChangeLocation::Home`），`asset` 效果打开对应文件目标（同时覆盖未放入媒体模块的素材库文件与已放入条目媒体模块的文件项）。见 [kernel-v5.md](../kernel-v5.md) 第 6、7、9、12 节。
+
 交回状态：`codex/m31-agent-panel`；首次实现 `ef63d4f9`，生命周期与登录修复 `f6840cc7`；第二十三批反馈修复 `21ad1134`；第二十七批关系导航、可见卡片确认及取消边界修复 `925597e4`；已合入 M29 `44357606`；全套检查与真实窗口验收通过；F4 逐字覆盖接口与真模型手测仍待后续。
 
 2026-11-08。实现 M31 任务书（`handoff/m31-agent-panel.md`，已随过程文档清理删除，在 git 历史里），接在
@@ -279,3 +281,8 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
   运行时提问工具、以当前书为界的系统指令。
 - `next/crates/dr-shell/src/release.rs`、`library.rs`、`quit.rs`：统一异步释放边界。
 - `next/crates/dr-view-agent/tests/`、`next/crates/dr-shell/tests/release.rs`：上述契约与集成测试。
+
+## 内核 v5（T6）：风·林·火·山思考动画与批注派发桥（2026-11-15）
+
+- Agent 栏处处（「思考中…」行与展开思考过程标题）随 `dr_ui::sand::thinking` 换用 68 帧「风·林·火·山」砂笔帧条（`icons/thinking.png`，8 fps 顺序循环，「已思考」静止在第 57 帧山），替代原星芒帧条。
+- 新增 `dr-view-agent/src/review_bridge.rs`，向 `dr-view-review::agent_bridge` 登记批注派发桥：支持把批注连同可选补充说明发进新对话或续接 `comment.agent_conversation` 记录的既有对话（读写工具权限、系统提示词不变），实时向审阅栏推送会话运行/完成状态驱动卡片右下角风车动画；从风车或悬停卡打开批注对话时，面板左上角显示返回审阅按钮（`v3Review.backToReview`）。契约测试：`dr-view-agent/tests/comment_handoff.rs`。详见 [M18](m18-review.md)。

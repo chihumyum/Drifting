@@ -245,7 +245,6 @@ fn chapter_prose_becomes_manuscript_blocks() {
         &e.ws,
         &b.id,
         &Options {
-            manuscript: None,
             chapters: None,
             act_titles: true,
             chapter_titles: true,
@@ -367,7 +366,6 @@ fn a_chosen_set_keeps_book_order_and_the_title_switches() {
         &e.ws,
         &b.id,
         &Options {
-            manuscript: None,
             chapters: Some(vec![b.voyage.clone(), b.cut.clone(), b.prologue.clone()]),
             act_titles: false,
             chapter_titles: false,
@@ -475,7 +473,6 @@ fn the_lite_seed_exports_in_every_format() {
         &ws,
         &book,
         &Options {
-            manuscript: None,
             chapters: None,
             act_titles: true,
             chapter_titles: true,
@@ -517,6 +514,7 @@ fn the_lite_seed_exports_in_every_format() {
                     .flat_map(|cell| cell.iter())
                     .map(|r| r.text.chars().count())
                     .sum(),
+                Block::Image { caption, .. } => caption.chars().count(),
                 Block::Break => 0,
             })
             .sum()
@@ -1607,4 +1605,460 @@ fn chapter_with_every_format_exports_to_epub_docx_and_pdf_without_dropping_text(
             "PDF dropped {phrase:?}; extracted text:\n{pdf_text}"
         );
     }
+}
+
+#[test]
+fn embedded_images_captions_and_pdfs_export_across_epub_docx_and_pdf_while_trashed_assets_stay_out()
+{
+    use dr_doc::prose::FileEmbedLook;
+    use dr_model::v3::{EmbedAlign, EmbedSize};
+    use dr_store::asset::{MAX_COPY_BYTES, SourceImport};
+    use image::{ImageFormat, Rgb, RgbImage};
+    use sha2::{Digest, Sha256};
+
+    let e = env();
+    let book_id = id(&out(&e.ws, "project.create", json!({"name": "图文书稿"})));
+    let staging = tempfile::tempdir().unwrap();
+
+    // 1. Live PNG image asset with caption + non-default size/align.
+    let png_bytes = dr_testkit::media::png(320, 180);
+    let png_path = staging.path().join("harbour-beacon.png");
+    std::fs::write(&png_path, &png_bytes).unwrap();
+    let png_sha = format!("{:x}", Sha256::digest(&png_bytes));
+    let png_id = AssetId::new_v7().to_string();
+    e.ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book_id,
+            asset_id: &png_id,
+            source: &png_path,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((320, 180)),
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": book_id,
+            "id": png_id,
+            "name": "灯塔航拍.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": png_bytes.len() as i64,
+            "sha256": png_sha,
+            "width": 320,
+            "height": 180,
+        }),
+    );
+
+    // 2. Live JPEG image asset without caption (plus a JPEG cover to verify DOCX Content_Types deduplication).
+    let mut jpg_img = RgbImage::new(240, 160);
+    for (x, y, px) in jpg_img.enumerate_pixels_mut() {
+        *px = Rgb([(40 + x % 180) as u8, (70 + y % 140) as u8, 130]);
+    }
+    let jpg_path = staging.path().join("dockyard.jpg");
+    jpg_img
+        .save_with_format(&jpg_path, ImageFormat::Jpeg)
+        .unwrap();
+    let jpg_bytes = std::fs::read(&jpg_path).unwrap();
+    let jpg_sha = format!("{:x}", Sha256::digest(&jpg_bytes));
+    let jpg_id = AssetId::new_v7().to_string();
+    e.ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book_id,
+            asset_id: &jpg_id,
+            source: &jpg_path,
+            mime: "image/jpeg",
+            ext: "jpg",
+            dimensions: Some((240, 160)),
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": book_id,
+            "id": jpg_id,
+            "name": "船坞晨雾.jpg",
+            "kind": "image",
+            "mime": "image/jpeg",
+            "size": jpg_bytes.len() as i64,
+            "sha256": jpg_sha,
+            "width": 240,
+            "height": 160,
+        }),
+    );
+    let cover_img = RgbImage::from_pixel(200, 300, Rgb([28, 42, 68]));
+    let cover_path = staging.path().join("cover.jpg");
+    cover_img
+        .save_with_format(&cover_path, ImageFormat::Jpeg)
+        .unwrap();
+    let cover = dr_export::cover_from_path(&cover_path).unwrap();
+
+    // 3. Live PDF asset -> exports as a single filename line.
+    let pdf_src_bytes = dr_testkit::media::sample_pdf();
+    let pdf_path = staging.path().join("tide-chart.pdf");
+    std::fs::write(&pdf_path, &pdf_src_bytes).unwrap();
+    let pdf_sha = format!("{:x}", Sha256::digest(&pdf_src_bytes));
+    let pdf_id = AssetId::new_v7().to_string();
+    e.ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book_id,
+            asset_id: &pdf_id,
+            source: &pdf_path,
+            mime: "application/pdf",
+            ext: "pdf",
+            dimensions: None,
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": book_id,
+            "id": pdf_id,
+            "name": "航海日志附录.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": pdf_src_bytes.len() as i64,
+            "sha256": pdf_sha,
+        }),
+    );
+
+    // 4. Directly trashed image asset -> excluded.
+    let trashed_img_bytes = dr_testkit::media::png(96, 64);
+    let trashed_img_path = staging.path().join("trashed.png");
+    std::fs::write(&trashed_img_path, &trashed_img_bytes).unwrap();
+    let trashed_img_sha = format!("{:x}", Sha256::digest(&trashed_img_bytes));
+    let trashed_img_id = AssetId::new_v7().to_string();
+    e.ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book_id,
+            asset_id: &trashed_img_id,
+            source: &trashed_img_path,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((96, 64)),
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": book_id,
+            "id": trashed_img_id,
+            "name": "已删插图.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": trashed_img_bytes.len() as i64,
+            "sha256": trashed_img_sha,
+            "width": 96,
+            "height": 64,
+        }),
+    );
+    out(
+        &e.ws,
+        "asset.trash",
+        json!({"book": book_id, "id": trashed_img_id}),
+    );
+
+    // 5. PDF asset inside a trashed asset folder -> excluded until folder restored.
+    let folder_id = id(&out(
+        &e.ws,
+        "asset_folder.create",
+        json!({"book": book_id, "name": "封存资料"}),
+    ));
+    let mut alt_pdf_bytes = dr_testkit::media::sample_pdf();
+    alt_pdf_bytes.extend_from_slice(b"\n% folder-scoped\n");
+    let folder_pdf_path = staging.path().join("folder-doc.pdf");
+    std::fs::write(&folder_pdf_path, &alt_pdf_bytes).unwrap();
+    let folder_pdf_sha = format!("{:x}", Sha256::digest(&alt_pdf_bytes));
+    let folder_pdf_id = AssetId::new_v7().to_string();
+    e.ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book_id,
+            asset_id: &folder_pdf_id,
+            source: &folder_pdf_path,
+            mime: "application/pdf",
+            ext: "pdf",
+            dimensions: None,
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": book_id,
+            "id": folder_pdf_id,
+            "name": "封存海图.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": alt_pdf_bytes.len() as i64,
+            "sha256": folder_pdf_sha,
+            "folder": folder_id,
+        }),
+    );
+    out(
+        &e.ws,
+        "asset_folder.trash",
+        json!({"book": book_id, "id": folder_id}),
+    );
+
+    let ch = id(&dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &book_id,
+        "tpl-chapter",
+        "第一章　插图与海图",
+        Some("开篇夜色。\n结尾钟声。"),
+    ));
+    let session = e.ws.prose_session(&format!("body:{ch}/mod-prose")).unwrap();
+    let png_aid = AssetId::parse(&png_id).unwrap();
+    let jpg_aid = AssetId::parse(&jpg_id).unwrap();
+    let pdf_aid = AssetId::parse(&pdf_id).unwrap();
+    let trashed_aid = AssetId::parse(&trashed_img_id).unwrap();
+    let folder_pdf_aid = AssetId::parse(&folder_pdf_id).unwrap();
+    session
+        .edit(move |t| {
+            let at_end = |t: &dr_doc::prose::ProseTxn<'_>| {
+                t.view()
+                    .paragraphs()
+                    .find(|p| p.text().starts_with("结尾钟声"))
+                    .unwrap()
+                    .range
+                    .start
+            };
+            let e1 = EmbedId::new_v7();
+            let pos = at_end(t);
+            t.insert_embed(pos, &e1, &EmbedKind::Asset(png_aid))?;
+            t.set_file_embed_look(
+                &e1,
+                &FileEmbedLook {
+                    size: Some(EmbedSize::Small),
+                    align: Some(EmbedAlign::Left),
+                    caption: "  灯塔雾夜实景\n摄于旧港  ".into(),
+                },
+            )?;
+            let e2 = EmbedId::new_v7();
+            let pos = at_end(t);
+            t.insert_embed(pos, &e2, &EmbedKind::Asset(jpg_aid))?;
+
+            let e3 = EmbedId::new_v7();
+            let pos = at_end(t);
+            t.insert_embed(pos, &e3, &EmbedKind::Asset(pdf_aid))?;
+
+            let e4 = EmbedId::new_v7();
+            let pos = at_end(t);
+            t.insert_embed(pos, &e4, &EmbedKind::Asset(trashed_aid))?;
+            t.set_file_embed_look(
+                &e4,
+                &FileEmbedLook {
+                    size: None,
+                    align: None,
+                    caption: "已删插图图注不应出现".into(),
+                },
+            )?;
+
+            let e5 = EmbedId::new_v7();
+            let pos = at_end(t);
+            t.insert_embed(pos, &e5, &EmbedKind::Asset(folder_pdf_aid))?;
+            Ok(())
+        })
+        .unwrap();
+
+    let manuscript = read_manuscript(
+        &e.ws,
+        &book_id,
+        &Options {
+            chapter_titles: true,
+            author: "合成作者".into(),
+            cover: Some(cover),
+            ..Options::default()
+        },
+        &labels(),
+        "zh-CN",
+        None,
+        now(),
+    )
+    .unwrap();
+
+    let [Section::Chapter { blocks, .. }] = manuscript.sections.as_slice() else {
+        panic!("expected single chapter");
+    };
+    assert_eq!(blocks.len(), 5, "open + 2 live images + 1 live pdf + close");
+    assert!(matches!(
+        &blocks[1],
+        Block::Image {
+            media_type,
+            width: 320,
+            height: 180,
+            caption,
+            ..
+        } if media_type == "image/png" && caption == "灯塔雾夜实景 摄于旧港"
+    ));
+    assert!(matches!(
+        &blocks[2],
+        Block::Image {
+            media_type,
+            width: 240,
+            height: 160,
+            caption,
+            ..
+        } if media_type == "image/jpeg" && caption.is_empty()
+    ));
+    assert_eq!(
+        blocks[3],
+        Block::Paragraph {
+            runs: vec![run("航海日志附录.pdf")],
+            align: Align::Left,
+            indent: 0,
+        }
+    );
+
+    // 1. EPUB: valid XHTML, manifest contains image-1.png and image-2.jpeg, figure+figcaption, no size/align classes, PDF filename present, trashed absent.
+    let epub_bytes = render(&manuscript, Format::Epub).unwrap();
+    let mut epub_zip = zip::ZipArchive::new(Cursor::new(&epub_bytes)).unwrap();
+    let mut epub_names = Vec::new();
+    let mut epub_xhtml = String::new();
+    for idx in 0..epub_zip.len() {
+        let mut file = epub_zip.by_index(idx).unwrap();
+        let name = file.name().unwrap().into_owned();
+        if name.ends_with(".xhtml") || name.ends_with(".xml") || name.ends_with(".ncx") {
+            let mut src = String::new();
+            file.read_to_string(&mut src).unwrap();
+            roxmltree::Document::parse_with_options(
+                &src,
+                roxmltree::ParsingOptions {
+                    allow_dtd: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap_or_else(|err| panic!("{name}: {err}"));
+            if name.ends_with(".xhtml") {
+                epub_xhtml.push_str(&src);
+            }
+        }
+        epub_names.push(name);
+    }
+    assert!(epub_names.iter().any(|n| n == "OEBPS/images/image-1.png"));
+    assert!(epub_names.iter().any(|n| n == "OEBPS/images/image-2.jpeg"));
+    assert!(epub_xhtml.contains("<figure class=\"prose-image\">"));
+    assert!(
+        epub_xhtml.contains("<img src=\"../images/image-1.png\" alt=\"灯塔雾夜实景 摄于旧港\"/>")
+    );
+    assert!(epub_xhtml.contains("<figcaption>灯塔雾夜实景 摄于旧港</figcaption>"));
+    assert!(epub_xhtml.contains("<img src=\"../images/image-2.jpeg\" alt=\"\"/>"));
+    assert!(epub_xhtml.contains("航海日志附录.pdf"));
+    assert!(!epub_xhtml.contains("已删插图图注不应出现"));
+    assert!(!epub_xhtml.contains("封存海图.pdf"));
+
+    // 2. DOCX: valid XML across all parts, deduplicated Content_Types defaults, media files embedded, caption and PDF filename in document text.
+    let docx_bytes = render(&manuscript, Format::Docx).unwrap();
+    let mut docx_zip = zip::ZipArchive::new(Cursor::new(&docx_bytes)).unwrap();
+    let mut docx_names = Vec::new();
+    let mut docx_text = String::new();
+    let mut docx_doc_src = String::new();
+    for idx in 0..docx_zip.len() {
+        let mut file = docx_zip.by_index(idx).unwrap();
+        let name = file.name().unwrap().into_owned();
+        if name.ends_with(".xml") || name.ends_with(".rels") {
+            let mut src = String::new();
+            file.read_to_string(&mut src).unwrap();
+            let parsed =
+                roxmltree::Document::parse(&src).unwrap_or_else(|err| panic!("{name}: {err}"));
+            if name == "[Content_Types].xml" {
+                let jpeg_defaults = parsed
+                    .descendants()
+                    .filter(|n| {
+                        n.has_tag_name("Default") && n.attribute("Extension") == Some("jpeg")
+                    })
+                    .count();
+                let png_defaults = parsed
+                    .descendants()
+                    .filter(|n| {
+                        n.has_tag_name("Default") && n.attribute("Extension") == Some("png")
+                    })
+                    .count();
+                assert_eq!(jpeg_defaults, 1, "deduplicated jpeg Default");
+                assert_eq!(png_defaults, 1, "deduplicated png Default");
+            }
+            if name == "word/document.xml" {
+                docx_text = parsed
+                    .descendants()
+                    .filter(|n| n.is_text())
+                    .filter_map(|n| n.text())
+                    .collect();
+                docx_doc_src = src;
+            }
+        }
+        docx_names.push(name);
+    }
+    assert!(docx_names.iter().any(|n| n == "word/media/image1.png"));
+    assert!(docx_names.iter().any(|n| n == "word/media/image2.jpeg"));
+    assert!(docx_doc_src.contains("r:embed=\"rIdImg1\""));
+    assert!(docx_doc_src.contains("r:embed=\"rIdImg2\""));
+    assert!(docx_doc_src.contains("<w:pStyle w:val=\"ImageCaption\"/>"));
+    assert!(docx_text.contains("灯塔雾夜实景 摄于旧港"));
+    assert!(docx_text.contains("航海日志附录.pdf"));
+    assert!(!docx_text.contains("已删插图图注不应出现"));
+    assert!(!docx_text.contains("封存海图.pdf"));
+
+    // 3. PDF: valid PDF with image XObjects, shaped caption text and PDF filename line.
+    if dr_export::pdf_fonts(&manuscript).is_ok() || cfg!(target_os = "macos") {
+        let pdf_bytes = render(&manuscript, Format::Pdf).unwrap();
+        assert!(pdf_bytes.starts_with(b"%PDF-"));
+        let pdf_raw = String::from_utf8_lossy(&pdf_bytes);
+        let image_xobjects = pdf_raw
+            .match_indices("/Subtype")
+            .filter(|(idx, _)| {
+                pdf_raw[idx + "/Subtype".len()..]
+                    .trim_start()
+                    .starts_with("/Image")
+            })
+            .count();
+        assert_eq!(image_xobjects, 3, "cover + 2 live inline images");
+        let pdf_text = extract_pdf_text(&pdf_bytes);
+        assert!(
+            pdf_text.contains("灯塔雾夜实景 摄于旧港"),
+            "PDF missing image caption; extracted:\n{pdf_text}"
+        );
+        assert!(
+            pdf_text.contains("航海日志附录.pdf"),
+            "PDF missing embedded PDF filename; extracted:\n{pdf_text}"
+        );
+        assert!(!pdf_text.contains("已删插图图注不应出现"));
+        assert!(!pdf_text.contains("封存海图.pdf"));
+    }
+
+    // Restoring the trashed asset folder brings `封存海图.pdf` back into export.
+    out(
+        &e.ws,
+        "asset_folder.restore",
+        json!({"book": book_id, "id": folder_id}),
+    );
+    let restored = read_manuscript(
+        &e.ws,
+        &book_id,
+        &Options {
+            chapter_titles: true,
+            ..Options::default()
+        },
+        &labels(),
+        "zh-CN",
+        None,
+        now(),
+    )
+    .unwrap();
+    let [Section::Chapter { blocks, .. }] = restored.sections.as_slice() else {
+        panic!("expected single chapter");
+    };
+    assert!(blocks.iter().any(|b| matches!(
+        b,
+        Block::Paragraph { runs, .. } if runs.iter().any(|r| r.text == "封存海图.pdf")
+    )));
 }

@@ -1,5 +1,10 @@
 # M03 章节页：章首与章末
 
+## 内核 v5 T3：章号对齐成书起点，关了成书时隐藏章号（2026-11-15）
+
+- 页眉（`dr-view-page/src/head.rs`、`v3.rs`）的章号与通览位置统一走 `BookStructureV3::book_sequence()`（随 `BookRoot::{Entry, View, Lane}` 切换，和整书字数、成稿导出严格一致；回归见 `dr-view-page/tests/v3.rs`）。
+- 项目关掉「成书」（`project.book.is_none()`）时，页眉隐藏「第 N 章」与页眉字数，章末（`end.rs`）收起 ⁂ 的「标为完成 / 新建下一章」动作。
+
 2026-11-08，F5 这一路做（分支 `claude/f5-ui-254e54`，从 main `1652a95e`；第二轮从 main `60d510a6` 加上 F4e 第四批：幕扉页的序号和章数字数、构想页的章首）。代码在新 crate `next/crates/dr-view-page`，它实现 `dr-editor` 的 `PageChrome`（F4e 留的章首、章末位置，见 [f4e-editor.md](../foundations/f4e-editor.md)）。输入框、⁂ 菜单的 cell、页面上的字号间距都来自 dr-ui（F5，见 [f5-ui.md](../foundations/f5-ui.md)）。外壳只加了挂接点，逐条列在下面。M03 里工具栏的 ⋯ 菜单是 F6 做的，不在这里。
 
 ## 旧模块收尾：构想页的分组路径（2026-11-08）
@@ -103,4 +108,12 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 - **`PageKind` 收为两种**：在成书序列（`BookStructureV3::manuscript`）里拿到编号 `ordinal` 的主成书正文为 `PageKind::Chapter`（页眉写「第 N 章」）；其余主成书正文一律为 `PageKind::Other`（页眉写条目当前模板名，无模板时写「条目」）。标题为空时的占位文案统一拼模板名（「无标题<模板名>」，无模板时写「无标题条目」）。
 - **颜色与路径**：`PageInfo::color` 与外壳 `BookV3::appearance` 一致，优先取条目自身颜色角色字段值，其次模板色，最后取开关开着的有效泳道颜色；条目有自身颜色且不带有效泳道线标时，页眉前沿展示该颜色记号。非成书条目的分组路径沿当前开着「层级」开关的上层住处链拼接。
 - **角色驱动的梗概与章末动作**：模板声明了摘要角色字段（`summary_field`）时才渲染梗概框并参与退出排空；模板声明了状态角色字段（`status_field`）时 ⁂ 才提供「标为完成／改回草稿」，成书条目始终保留「新建下一章」（沿用当前条目的模板 id，不硬编码内置章节模板）。`in_book = false` 的说明正文与同一条目的第二篇起的正文不挂接章首章末（`page.chrome = false`）。
+
+## 内核 v5 · T5 条目页媒体模块（2026-11-15）
+
+按 [kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档) 与 [v5-tracks.md 的 T5](../handoff/v5-tracks.md#t5-文件t5-files)，在 `next/crates/dr-view-page/src/media.rs` 实现条目页媒体模块（`ModuleKind::Media`）：
+
+- **三种摆法与单条目覆盖**：「大图」（`featured`：主舞台大图或 PDF 首页、下方行内说明、底部缩略图切换条与末尾 `+`）、「网格」（`grid`：三列卡片、下方行内说明）、「列表」（`list`：缩略图、文件名、行内说明、右侧种类与页数）。默认读模板摆法；指针移入模块时标题行右侧露出摆法切换与 `+`，切换摆法写 `module.set_arrangement` 仅覆盖当前条目（可一键「恢复模板默认」清回 `None`），不改模板本身。
+- **说明、悬停卡与拖放调序**：每项的 `caption` 支持行内编辑（走 `media.set` 落盘，空说明仅在指针悬停该项时露出「说明」占位）。每项挂 `248px` 悬停卡（打开、在素材库里找到、从这里拿走；批注行留给 T6）。左上角拖动手柄支持模块内拖动调序（`media.reorder`），接收从右栏素材库拖入的 `dr_ui::AssetDrag` 或系统外部文件拖入；`+` 打开 `340px` 挑文件小窗（搜索、素材夹筛选、三列缩略图、「从电脑选…」），已在当前媒体模块里的文件灰显禁选，确保同一文件在同一媒体模块只出现一次。
+- **缺失占位与「用在」砂框**：文件本身或其所在素材夹进入最近删除（或文件被永久清除）时，该项渲染为虚线占位（图标、删除线文件名、可恢复时的「恢复」按钮与「从这里拿走」；祖夹被删时点击「恢复」一并恢复祖夹与文件）。从素材库或查看器点「用在」跳到媒体项时，滚入视口并绘制 `SandFrame` 砂框动画。永久回归见 `dr-view-page/tests/v5_media.rs`。
 

@@ -124,16 +124,7 @@ pub fn prepare_body(
     crate::SessionSource::open_verified_v3(ws, doc)
 }
 
-/// Flattens `from` and everything below it for the book view
-/// (`kernel-v4.md` §7): `from`'s own book prose first, then depth-first in
-/// manuscript and membership order, keeping entries that carry no book prose
-/// so the view renders their headings and hierarchy.
-pub fn flatten_book(
-    view: &BookViewV3<'_>,
-    from: &dr_model::id::EntryId,
-) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
-    let structure = view.structure_snapshot();
-    let flat = structure.flatten(from, dr_doc::v3::Flatten { in_book_only: true })?;
+fn sections_from_flat(flat: Vec<dr_doc::v3::FlatEntry<'_>>) -> Vec<crate::book::BookSection> {
     let mut out = Vec::new();
     for e in flat {
         let entry = e.entry.id.to_string();
@@ -156,7 +147,37 @@ pub fn flatten_book(
             }
         }
     }
-    Ok(out)
+    out
+}
+
+/// Flattens a [`dr_model::v3::BookRoot`] (`Root`, `Entry`, `View`, or `Lane`)
+/// via the unified [`dr_doc::v3::BookStructureV3::sequence`] reader
+/// (`kernel-v5.md` §3, §16), keeping entries without `in_book` prose so the
+/// view renders their headings and hierarchy.
+pub fn flatten_book_root(
+    view: &BookViewV3<'_>,
+    root: &dr_model::v3::BookRoot,
+) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::InvalidBookRoot> {
+    let structure = view.structure_snapshot();
+    let flat = structure.sequence(root, true)?;
+    Ok(sections_from_flat(flat))
+}
+
+/// Flattens `from` and everything below it for the book view
+/// (`kernel-v4.md` §7): `from`'s own book prose first, then depth-first in
+/// manuscript and membership order, keeping entries that carry no book prose
+/// so the view renders their headings and hierarchy.
+pub fn flatten_book(
+    view: &BookViewV3<'_>,
+    from: &dr_model::id::EntryId,
+) -> Result<Vec<crate::book::BookSection>, dr_doc::v3::NotALevel> {
+    flatten_book_root(
+        view,
+        &dr_model::v3::BookRoot::Entry {
+            entry: from.clone(),
+        },
+    )
+    .map_err(|_| dr_doc::v3::NotALevel(from.clone()))
 }
 
 /// Level entry configured as the project's book start (`project.book.root`), when applicable.
@@ -328,10 +349,14 @@ pub struct LinkTargets {
 }
 impl crate::links::LinkTargets for LinkTargets {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        if !matches!(kind, dr_model::kind::EntityKind::Entry) {
-            return false;
-        }
-        let target = dr_model::shared::EntityRef::new(kind.clone(), id);
+        let normalized = match kind {
+            dr_model::kind::EntityKind::Entry => dr_model::kind::EntityKind::Entry,
+            dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material => {
+                dr_model::kind::EntityKind::Asset
+            }
+            _ => return false,
+        };
+        let target = dr_model::shared::EntityRef::new(normalized, id);
         read(&self.workspace, &self.book, move |v| {
             v.entity_exists(&target)
         })
@@ -346,8 +371,20 @@ impl crate::links::LinkTargets for LinkTargets {
                 .filter(|e| !e.is_trashed())
                 .map(|e| e.id.to_string())
                 .collect();
-            (entries, std::collections::HashSet::new())
+            let assets = v.assets().into_iter().map(|a| a.id.to_string()).collect();
+            (entries, assets)
         })
         .ok()
+    }
+
+    fn pdf_assets(&self) -> std::collections::HashSet<String> {
+        read(&self.workspace, &self.book, |v| {
+            v.assets()
+                .into_iter()
+                .filter(|a| a.kind == dr_model::kind::AssetKind::Pdf)
+                .map(|a| a.id.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
     }
 }

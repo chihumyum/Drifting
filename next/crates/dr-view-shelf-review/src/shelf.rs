@@ -10,7 +10,7 @@ use dr_shell::{nav::Target, strings::tf, t};
 use dr_ui::{
     Theme,
     components::{
-        Button, CardAction, CardBody, Chip, EmptyState, HoverCard, IconButton, Menu, MenuItem,
+        Button, CardAction, CardBody, Chip, EmptyState, HoverCard, IconButton, MenuItem,
         menu::{MenuWidth, RowIcon, float_shadow, slab_edge},
         overlay::{self, Layer, Place},
     },
@@ -114,15 +114,6 @@ impl ShelfReviewView {
                 .filter(|p| !p.is_empty())
                 .unwrap_or_else(|| card::kind_label(&mat.kind, cx).to_string());
 
-            let links = if let Some(view) = view_weak.upgrade() {
-                view.update(cx, |this, cx| {
-                    this.ensure_entry_links(&mat.id, cx);
-                    this.entry_links_cache.get(&mat.id).cloned()
-                })
-            } else {
-                None
-            };
-
             let mut primary_rows = Vec::new();
             let open_id = mat.id.clone();
             let open_view = view_weak.clone();
@@ -166,51 +157,6 @@ impl ShelfReviewView {
             .summary(folder_summary)
             .section(primary_rows);
 
-            if let Some(choices) = links.filter(|c| !c.is_empty()) {
-                let mut link_rows = Vec::new();
-                for choice in choices.into_iter().take(10) {
-                    let mat_id = mat.id.clone();
-                    let entry_id = choice.id.clone();
-                    let next_linked = !choice.linked;
-                    let link_view = view_weak.clone();
-                    let label: SharedString = if choice.title.trim().is_empty() {
-                        t(cx, keys::material_folders::UNTITLED)
-                    } else {
-                        choice.title.into()
-                    };
-                    let icon = if choice.linked {
-                        Icon::Check
-                    } else {
-                        Icon::Plus
-                    };
-                    link_rows.push(
-                        CardAction::new(
-                            SharedString::from(format!(
-                                "{id_prefix}-link-{}-{}",
-                                mat.id, choice.id
-                            )),
-                            icon,
-                            label,
-                        )
-                        .current(choice.linked)
-                        .on_click(move |_, _, cx| {
-                            if let Some(v) = link_view.upgrade() {
-                                v.update(cx, |this, cx| {
-                                    this.toggle_material_entry_link(
-                                        &mat_id,
-                                        &entry_id,
-                                        next_linked,
-                                        cx,
-                                    );
-                                });
-                            }
-                        })
-                        .into_any_element(),
-                    );
-                }
-                body = body.section(link_rows);
-            }
-
             if !folders.is_empty() {
                 let sel = Selection::material(&mat.id);
                 let move_choices = tree.choices(&sel, mat.folder.as_deref(), &root_label);
@@ -246,19 +192,18 @@ impl ShelfReviewView {
             }
 
             let del_id = mat.id.clone();
-            let del_title = mat.title.clone();
             let del_view = view_weak.clone();
             body = body.section(vec![
                 CardAction::new(
                     SharedString::from(format!("{id_prefix}-act-del-{}", mat.id)),
                     Icon::Trash,
-                    t(cx, keys::material_folders::menu::DELETE),
+                    t(cx, keys::v5_files::MOVE_TO_TRASH),
                 )
                 .danger()
                 .on_click(move |_, _, cx| {
                     if let Some(v) = del_view.upgrade() {
                         v.update(cx, |this, cx| {
-                            this.open_delete_material_dialog(del_id.clone(), del_title.clone(), cx);
+                            this.trash_material(del_id.clone(), cx);
                         });
                     }
                 })
@@ -268,6 +213,27 @@ impl ShelfReviewView {
             body.into_any_element()
         })
         .into_any_element()
+    }
+
+    pub(crate) fn prompt_import_files(&mut self, cx: &mut Context<Self>) {
+        if crate::is_frozen(cx) || self.lib.is_none() {
+            return;
+        }
+        self.entry_menu_open = false;
+        let rx = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: true,
+            prompt: None,
+        });
+        cx.spawn(async move |view, cx| {
+            if let Ok(Ok(Some(paths))) = rx.await {
+                view.update(cx, |v, cx| v.import_external_files(paths, cx))
+                    .ok();
+            }
+        })
+        .detach();
+        cx.notify();
     }
 
     pub(crate) fn render_material_shelf(
@@ -283,7 +249,6 @@ impl ShelfReviewView {
         let visible = self.materials_snapshot(cx).visible;
 
         let entry_bounds = overlay::use_bounds("shelf-entry-filter-bounds", window, cx);
-        let add_bounds = overlay::use_bounds("shelf-add-material-bounds", window, cx);
 
         // Kind filter chips in fixed order.
         let mut chips_row = div().flex().flex_row().items_center().gap(px(6.0));
@@ -363,27 +328,18 @@ impl ShelfReviewView {
             );
         }
 
-        // `+` New material button.
+        // `+` Add files button (opens system file picker directly in v5).
         let add_ent = entity.clone();
-        let add_trigger = div()
-            .relative()
-            .child(overlay::probe(add_bounds.clone()))
-            .child(
-                Button::new(
-                    "shelf-new-material-trigger",
-                    t(cx, keys::memo_material::super_::NEW_MATERIAL_BUTTON),
-                )
-                .small()
-                .icon(Icon::Plus)
-                .disabled(crate::is_frozen(cx) || self.lib.is_none())
-                .on_click(move |_, _, cx| {
-                    add_ent.update(cx, |this, cx| {
-                        this.add_menu_open = !this.add_menu_open;
-                        this.entry_menu_open = false;
-                        cx.notify();
-                    });
-                }),
-            );
+        let add_trigger = Button::new(
+            "shelf-new-material-trigger",
+            t(cx, keys::v5_files::ADD_FILES),
+        )
+        .small()
+        .icon(Icon::Plus)
+        .disabled(crate::is_frozen(cx) || self.lib.is_none())
+        .on_click(move |_, _, cx| {
+            add_ent.update(cx, |this, cx| this.prompt_import_files(cx));
+        });
 
         let header = div()
             .flex_none()
@@ -440,13 +396,10 @@ impl ShelfReviewView {
                     )
                     .mark(sand::Kind::Material)
                     .action(
-                        Button::new(
-                            "shelf-empty-create-note",
-                            t(cx, keys::memo_material::super_::NEW_MATERIAL_BUTTON),
-                        )
-                        .on_click(move |_, window, cx| {
-                            empty_ent.update(cx, |this, cx| this.open_new_note_dialog(window, cx));
-                        }),
+                        Button::new("shelf-empty-create-note", t(cx, keys::v5_files::ADD_FILES))
+                            .on_click(move |_, _, cx| {
+                                empty_ent.update(cx, |this, cx| this.prompt_import_files(cx));
+                            }),
                     ),
                 )
                 .into_any_element()
@@ -634,11 +587,6 @@ impl ShelfReviewView {
         {
             root = root.child(self.render_entry_filter_popover(rect, window, cx));
         }
-        if self.add_menu_open
-            && let Some(rect) = *add_bounds.read(cx)
-        {
-            root = root.child(self.render_add_material_menu(rect, window, cx));
-        }
 
         root.into_any_element()
     }
@@ -745,72 +693,6 @@ impl ShelfReviewView {
             Place::below(anchor, 4.0),
             Layer::Popover,
             glass::surface(Ground::flat(p.desk), panel),
-        )
-        .into_any_element()
-    }
-
-    fn render_add_material_menu(
-        &self,
-        anchor: gpui::Bounds<gpui::Pixels>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let entity = cx.entity();
-        let close_ent = entity.clone();
-        let note_ent = entity.clone();
-        let import_ent = entity.clone();
-
-        let menu = Menu::new("shelf-add-material-menu")
-            .item(
-                MenuItem::new(
-                    "shelf-add-note",
-                    Icon::FileText,
-                    t(cx, keys::memo_material::kind::TEXT),
-                )
-                .on_click(move |_, window, cx| {
-                    note_ent.update(cx, |this, cx| this.open_new_note_dialog(window, cx));
-                }),
-            )
-            .item(
-                MenuItem::new(
-                    "shelf-add-import-file",
-                    Icon::Image,
-                    t(cx, keys::material_editor::embed::IMPORT_FILE),
-                )
-                .on_click(move |_, _, cx| {
-                    let rx = cx.prompt_for_paths(PathPromptOptions {
-                        files: true,
-                        directories: false,
-                        multiple: true,
-                        prompt: None,
-                    });
-                    import_ent.update(cx, |this, cx| {
-                        this.add_menu_open = false;
-                        cx.spawn(async move |view, cx| {
-                            if let Ok(Ok(Some(paths))) = rx.await {
-                                view.update(cx, |v, cx| v.import_external_files(paths, cx))
-                                    .ok();
-                            }
-                        })
-                        .detach();
-                        cx.notify();
-                    });
-                }),
-            );
-
-        overlay::float(
-            Place::Rect {
-                rect: anchor,
-                align: overlay::Align::End,
-                gap: 4.0,
-            },
-            Layer::Popover,
-            div().child(menu).on_mouse_down_out(move |_, _, cx| {
-                close_ent.update(cx, |this, cx| {
-                    this.add_menu_open = false;
-                    cx.notify();
-                });
-            }),
         )
         .into_any_element()
     }

@@ -12,18 +12,17 @@ use dr_editor::ChapterEditor;
 use dr_editor::decor::ReviewFocus;
 use dr_i18n::{I18n, Locale, Platform, keys};
 use dr_ui::Theme;
-use dr_ui::components::{Button, Segmented};
+use dr_ui::components::Button;
 use dr_ui::fonts::Role;
 use dr_ui::input::{FieldEvent, TextArea};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
 use dr_workspace::commands::comment::CommentCreateIn;
-use dr_workspace::dto::{AnchorBytes, Region, Target};
+use dr_workspace::dto::{AnchorBytes, CommentPartDto, Region, Target};
 use dr_workspace::{Actor, Workspace};
 use gpui::{
-    AppContext, Bounds, Context, ElementId, Entity, EntityInputHandler, EventEmitter, Focusable,
-    IntoElement, ParentElement, Pixels, Point, Render, Styled, Subscription, Window, div, point,
-    px,
+    AppContext, Bounds, Context, Entity, EntityInputHandler, EventEmitter, Focusable, IntoElement,
+    ParentElement, Pixels, Point, Render, Styled, Subscription, Window, div, point, px,
 };
 use gpui_prose::ProseEditor;
 
@@ -36,12 +35,18 @@ pub enum ComposerEvent {
 }
 
 /// What the new comment is on, beyond its target.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Anchor {
     /// Characters `[start, end)` of the target's prose.
     Range(usize, usize),
     /// A rectangle on an image or a PDF page.
     Region(Region),
+    /// Whole target (whole entry when `module == None`, whole module when
+    /// `module == Some(_)`, or whole standalone asset when `target.kind == "asset"`).
+    Target,
+    /// A structured or file sub-part of a module (`Field`, `KvRow`, `PlotCell`,
+    /// `Patch`, `Media`, `Embed`, or `Region`).
+    Part(CommentPartDto),
 }
 
 pub struct CommentComposer {
@@ -55,7 +60,6 @@ pub struct CommentComposer {
     /// Captured while opening a v3 composer, before another writer can move
     /// the selected characters. A capture failure never falls back to offsets.
     source_anchor: Option<Result<AnchorBytes, String>>,
-    todo: bool,
     field: Entity<TextArea>,
     at: Point<Pixels>,
     i18n: I18n,
@@ -222,6 +226,127 @@ impl CommentComposer {
         )
     }
 
+    /// A composer for the whole entry (`target = entry, module = None, part = None`).
+    pub fn for_entry(
+        ws: Workspace,
+        book: String,
+        entry: String,
+        at: Point<Pixels>,
+        locale: Locale,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CommentComposer {
+        Self::with_anchor(
+            ws,
+            book,
+            Target {
+                kind: "entry".into(),
+                id: entry,
+            },
+            None,
+            None,
+            Anchor::Target,
+            at,
+            locale,
+            window,
+            cx,
+        )
+    }
+
+    /// A composer for a whole module on an entry (`target = entry, module = Some(module), part = None`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_module(
+        ws: Workspace,
+        book: String,
+        entry: String,
+        module: String,
+        at: Point<Pixels>,
+        locale: Locale,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CommentComposer {
+        Self::with_anchor(
+            ws,
+            book,
+            Target {
+                kind: "entry".into(),
+                id: entry,
+            },
+            Some(module),
+            None,
+            Anchor::Target,
+            at,
+            locale,
+            window,
+            cx,
+        )
+    }
+
+    /// A composer for a sub-part inside an entry's module (`Field`, `KvRow`,
+    /// `PlotCell`, `Patch`, `Media`, or `Embed`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_part(
+        ws: Workspace,
+        book: String,
+        entry: String,
+        module: String,
+        part: CommentPartDto,
+        at: Point<Pixels>,
+        locale: Locale,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CommentComposer {
+        Self::with_anchor(
+            ws,
+            book,
+            Target {
+                kind: "entry".into(),
+                id: entry,
+            },
+            Some(module),
+            None,
+            Anchor::Part(part),
+            at,
+            locale,
+            window,
+            cx,
+        )
+    }
+
+    /// A composer directly on an asset file (`target = asset`, optionally on a
+    /// framed `region`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_asset(
+        ws: Workspace,
+        book: String,
+        asset: String,
+        region: Option<Region>,
+        at: Point<Pixels>,
+        locale: Locale,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CommentComposer {
+        let anchor = match region {
+            Some(r) => Anchor::Region(r),
+            None => Anchor::Target,
+        };
+        Self::with_anchor(
+            ws,
+            book,
+            Target {
+                kind: "asset".into(),
+                id: asset.clone(),
+            },
+            None,
+            Some(asset),
+            anchor,
+            at,
+            locale,
+            window,
+            cx,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn with_anchor(
         ws: Workspace,
@@ -248,9 +373,9 @@ impl CommentComposer {
         window.focus(&handle, cx);
         let source_doc = format!("{}:{}", target.kind, target.id);
         let v3_prose = target.kind == "body";
-        let source_anchor = match anchor {
+        let source_anchor = match &anchor {
             Anchor::Range(start, end) if v3_prose => {
-                Some(capture_anchor(&ws, &source_doc, start, end))
+                Some(capture_anchor(&ws, &source_doc, *start, *end))
             }
             _ => None,
         };
@@ -273,7 +398,6 @@ impl CommentComposer {
             asset,
             anchor,
             source_anchor,
-            todo: false,
             field,
             at,
             i18n,
@@ -290,20 +414,14 @@ impl CommentComposer {
 
     /// What the new comment will be on.
     pub fn anchor(&self) -> Anchor {
-        self.anchor
-    }
-
-    pub fn set_todo(&mut self, todo: bool, cx: &mut Context<Self>) {
-        self.todo = todo;
-        cx.notify();
+        self.anchor.clone()
     }
 
     pub fn set_text(&mut self, text: &str, cx: &mut Context<Self>) {
         self.field.update(cx, |f, cx| f.set_text(text, cx));
     }
 
-    /// Writes the comment (on the selected characters, or the rectangle)
-    /// and closes.
+    /// Writes the comment and closes.
     pub fn save(&mut self, cx: &mut Context<Self>) {
         if self.saving {
             return;
@@ -318,25 +436,26 @@ impl CommentComposer {
         self.field
             .update(cx, |field, cx| field.set_disabled(true, cx));
         let body = self.field.read(cx).text();
-        let (range, part) = match self.anchor {
-            Anchor::Range(start, end) => (Some((start, end)), None),
+        let (range, part) = match &self.anchor {
+            Anchor::Range(start, end) => (Some((*start, *end)), None),
             // Straight on a file of the asset library: a region of it.
-            Anchor::Region(region) if self.target.kind == "asset" => (
-                None,
-                Some(dr_workspace::dto::CommentPartDto::Region { region }),
-            ),
+            Anchor::Region(region) if self.target.kind == "asset" => {
+                (None, Some(CommentPartDto::Region { region: *region }))
+            }
             Anchor::Region(r) => (
                 None,
-                Some(dr_workspace::dto::CommentPartDto::Media {
+                Some(CommentPartDto::Media {
                     asset: self.asset.clone().unwrap_or_else(|| self.target.id.clone()),
-                    region: Some(r),
+                    region: Some(*r),
                 }),
             ),
+            Anchor::Target => (None, None),
+            Anchor::Part(part) => (None, Some(part.clone())),
         };
         let input = CommentCreateIn {
             book: self.book.clone(),
-            // Written in the composer: by hand, whatever the toggle says
-            // (marker and checklist comments are only projected from prose).
+            // Written in the composer: by hand (marker and checklist comments
+            // are only projected from prose).
             origin: Some("manual".into()),
             target: Some(dr_workspace::commands::v3::comment::Target {
                 kind: self.target.kind.clone(),
@@ -403,11 +522,7 @@ impl Render for CommentComposer {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let entity = cx.entity();
-        let kinds = [
-            self.i18n.t(keys::review_panel::filters::COMMENT).to_owned(),
-            self.i18n.t(keys::review_panel::filters::TODO).to_owned(),
-        ];
-        let (pick, cancel, save) = (entity.clone(), entity.clone(), entity.clone());
+        let (cancel, save) = (entity.clone(), entity);
         div()
             .w(px(WIDTH))
             .p(px(12.0))
@@ -419,15 +534,6 @@ impl Render for CommentComposer {
             .border_1()
             .border_color(p.hairline())
             .shadow_md()
-            .child(
-                Segmented::new(
-                    ElementId::Name("comment-composer-kind".into()),
-                    kinds,
-                    usize::from(self.todo),
-                )
-                .disabled(self.saving)
-                .on_change(move |ix, _, cx| pick.update(cx, |c, cx| c.set_todo(ix == 1, cx))),
-            )
             .children(self.error.as_ref().map(|_| {
                 div()
                     .text_color(p.danger.solid())
@@ -626,6 +732,208 @@ mod v3_tests {
             composer.read_with(cx, |c, cx| c.field.read(cx).text()),
             body
         );
+        ws.close();
+    }
+
+    #[gpui::test]
+    fn composer_saves_entry_module_part_and_asset_targets(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(dir.path(), "v3-composer-targets").unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        seed.write_to(ws.library()).unwrap();
+
+        let entries = ws
+            .call(
+                &Actor::User,
+                "entry.list",
+                json!({"book": book, "all": true}),
+            )
+            .unwrap()["output"]
+            .clone();
+        let templates = ws
+            .call(&Actor::User, "entry_template.list", json!({"book": book}))
+            .unwrap()["output"]
+            .clone();
+        let (tpl_id, mod_id, field_id) = templates
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|t| {
+                let fm = t["modules"].as_array()?.iter().find(|m| {
+                    m["kind"] == "fields"
+                        && m["config"]["defs"]
+                            .as_array()
+                            .is_some_and(|d| !d.is_empty())
+                })?;
+                Some((
+                    t["id"].as_str()?.to_owned(),
+                    fm["id"].as_str()?.to_owned(),
+                    fm["config"]["defs"][0]["id"].as_str()?.to_owned(),
+                ))
+            })
+            .expect("template with fields module");
+        let entry_id = entries
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["template"] == tpl_id)
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .unwrap_or_else(|| {
+                ws.call(
+                    &Actor::User,
+                    "entry.create",
+                    json!({"book": book, "template": tpl_id, "title": "林晚"}),
+                )
+                .unwrap()["output"]["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            });
+
+        ws.call(
+            &Actor::User,
+            "asset.put",
+            json!({
+                "book": book,
+                "id": "asset-map",
+                "name": "城门草图.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 64,
+                "sha256": "b".repeat(64),
+                "width": 120,
+                "height": 90
+            }),
+        )
+        .unwrap();
+
+        // 1. Whole entry
+        let (frame, cx) = cx.add_window_view(|window, cx| {
+            Frame(cx.new(|cx| {
+                CommentComposer::for_entry(
+                    ws.clone(),
+                    book.clone(),
+                    entry_id.clone(),
+                    point(px(0.0), px(0.0)),
+                    Locale::ZhCn,
+                    window,
+                    cx,
+                )
+            }))
+        });
+        let c1 = frame.read_with(cx, |f, _| f.0.clone());
+        c1.update(cx, |c, cx| {
+            c.set_text("整条设定再核对", cx);
+            c.save(cx);
+        });
+        wait(cx, |cx| c1.read_with(cx, |c, _| !c.saving));
+        assert!(c1.read_with(cx, |c, _| c.error.is_none()));
+
+        // 2. Whole module
+        let c2 = cx.update(|window, cx| {
+            cx.new(|cx| {
+                CommentComposer::for_module(
+                    ws.clone(),
+                    book.clone(),
+                    entry_id.clone(),
+                    mod_id.clone(),
+                    point(px(0.0), px(0.0)),
+                    Locale::ZhCn,
+                    window,
+                    cx,
+                )
+            })
+        });
+        c2.update(cx, |c, cx| {
+            c.set_text("整块属性补全", cx);
+            c.save(cx);
+        });
+        wait(cx, |cx| c2.read_with(cx, |c, _| !c.saving));
+        assert!(c2.read_with(cx, |c, _| c.error.is_none()));
+
+        // 3. Structured sub-part (Field)
+        let c3 = cx.update(|window, cx| {
+            cx.new(|cx| {
+                CommentComposer::for_part(
+                    ws.clone(),
+                    book.clone(),
+                    entry_id.clone(),
+                    mod_id.clone(),
+                    CommentPartDto::Field {
+                        field: field_id.clone(),
+                    },
+                    point(px(0.0), px(0.0)),
+                    Locale::ZhCn,
+                    window,
+                    cx,
+                )
+            })
+        });
+        c3.update(cx, |c, cx| {
+            c.set_text("字段值改一下", cx);
+            c.save(cx);
+        });
+        wait(cx, |cx| c3.read_with(cx, |c, _| !c.saving));
+        assert!(c3.read_with(cx, |c, _| c.error.is_none()));
+
+        // 4. Standalone asset
+        let c4 = cx.update(|window, cx| {
+            cx.new(|cx| {
+                CommentComposer::for_asset(
+                    ws.clone(),
+                    book.clone(),
+                    "asset-map".into(),
+                    None,
+                    point(px(0.0), px(0.0)),
+                    Locale::ZhCn,
+                    window,
+                    cx,
+                )
+            })
+        });
+        c4.update(cx, |c, cx| {
+            c.set_text("城门高度要标尺寸", cx);
+            c.save(cx);
+        });
+        wait(cx, |cx| c4.read_with(cx, |c, _| !c.saving));
+        assert!(c4.read_with(cx, |c, _| c.error.is_none()));
+
+        let all = ws
+            .call(&Actor::User, "comment.list", json!({"book": book}))
+            .unwrap()["output"]
+            .clone();
+        let arr = all.as_array().unwrap();
+        assert!(arr.iter().any(|c| {
+            c["body"] == "整条设定再核对"
+                && c["target"]["kind"] == "entry"
+                && c["target"]["id"] == entry_id
+                && c["module"].is_null()
+                && c["part"].is_null()
+        }));
+        assert!(arr.iter().any(|c| {
+            c["body"] == "整块属性补全"
+                && c["target"]["id"] == entry_id
+                && c["module"] == mod_id
+                && c["part"].is_null()
+        }));
+        assert!(arr.iter().any(|c| {
+            c["body"] == "字段值改一下"
+                && c["module"] == mod_id
+                && c["part"]["kind"] == "field"
+                && c["part"]["field"] == field_id
+        }));
+        assert!(arr.iter().any(|c| {
+            c["body"] == "城门高度要标尺寸"
+                && c["target"]["kind"] == "asset"
+                && c["target"]["id"] == "asset-map"
+                && c["part"].is_null()
+        }));
         ws.close();
     }
 }

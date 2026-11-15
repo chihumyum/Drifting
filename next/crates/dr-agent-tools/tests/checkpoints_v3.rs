@@ -1,6 +1,6 @@
 //! Complete pre-write checkpoints through the real facade and v3 testkit seed.
 use dr_agent_tools::{AgentTools, CallRequest, Error};
-use dr_doc::v3::novel::{MOD_PROSE, TPL_CHAPTER};
+use dr_doc::v3::novel::{MOD_FIELDS, MOD_PROSE, TPL_CHAPTER};
 use dr_model::id::BookId;
 use dr_store::Library;
 use dr_testkit::seed::{self, Preset};
@@ -449,8 +449,9 @@ fn set_level_off_checkpoints_entry_and_direct_children_and_leaves_no_checkpoint_
         assert!(points_of(id).is_empty(), "unexpected checkpoint for {id}");
     }
 
-    // Fresh read with `below` succeeds, checkpoints container + all direct
-    // children (live and trashed), excludes grandchildren, and restores cleanly.
+    // Fresh read with `below` succeeds, checkpoints container + all live
+    // descendants that `entry.set_level(false)` moves to trash, skips already
+    // trashed children, and restores cleanly.
     f.call(3, "entry.get", json!({"id":container})).unwrap();
     let out = f
         .call(3, "entry.set_level", json!({"id":container,"level":false}))
@@ -458,9 +459,9 @@ fn set_level_off_checkpoints_entry_and_direct_children_and_leaves_no_checkpoint_
     assert_eq!(out["level"], false);
     assert_eq!(points_of(&container).len(), 1);
     assert_eq!(points_of(&live_child).len(), 1);
-    assert_eq!(points_of(&trashed_child).len(), 1);
+    assert!(points_of(&trashed_child).is_empty());
     assert_eq!(points_of(&extra_child).len(), 1);
-    assert!(points_of(&grandchild).is_empty());
+    assert_eq!(points_of(&grandchild).len(), 1);
 
     let child_point = points_of(&live_child)[0]["id"].clone();
     f.author("entry.set_level", json!({"id":container,"level":true}));
@@ -472,10 +473,9 @@ fn set_level_off_checkpoints_entry_and_direct_children_and_leaves_no_checkpoint_
         "entry_snapshot.restore",
         json!({"entry":live_child,"point":child_point,"expected":preview["expected"]}),
     );
-    assert_eq!(
-        f.author("entry.get", json!({"id":live_child}))["parent"],
-        json!(container)
-    );
+    let restored_child = f.author("entry.get", json!({"id":live_child}));
+    assert!(restored_child["deleted_at"].is_null());
+    assert_eq!(restored_child["parent"], json!(container));
 
     // Side documents (`stats:<book>`, `checkpoints:<book>`) are never exposed
     // as document selectors to agent tools, even when `prose_only` is false.
@@ -492,4 +492,285 @@ fn set_level_off_checkpoints_entry_and_direct_children_and_leaves_no_checkpoint_
             Err(Error::Invalid(_))
         ));
     }
+}
+
+#[test]
+fn v5_media_arrangement_field_comment_asset_folder_project_layout_and_asset_link_guards() {
+    let f = Fixture::new();
+    let points_of = |id: &str| {
+        f.author("entry_snapshot.list", json!({"entry": id}))
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+
+    // Add a media module and seed a synthetic asset in the asset library.
+    f.author(
+        "entry_template.put_module",
+        json!({
+            "template": TPL_CHAPTER,
+            "module": {"id": "mod-gallery", "kind": "media", "name": "图集"}
+        }),
+    );
+    let asset_id = "01950000-0000-7000-8000-000000000501";
+    f.author(
+        "asset.put",
+        json!({
+            "id": asset_id,
+            "name": "map.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": 128,
+            "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "width": 64,
+            "height": 64
+        }),
+    );
+
+    // 1. Media + arrangement require reading the module and asset, and leave pre-write checkpoints.
+    assert!(matches!(
+        f.call(
+            1,
+            "module.put_media",
+            json!({"entry": f.entry, "module": "mod-gallery", "item": {"asset": "map.png"}})
+        ),
+        Err(Error::ReadRequired(_))
+    ));
+    assert!(matches!(
+        f.call(
+            1,
+            "module.set_arrangement",
+            json!({"entry": f.entry, "module": "mod-gallery", "arrangement": "grid"})
+        ),
+        Err(Error::ReadRequired(_))
+    ));
+    assert!(points_of(&f.entry).is_empty());
+
+    f.call(
+        1,
+        "module.read",
+        json!({"entry": f.entry, "module": "mod-gallery"}),
+    )
+    .unwrap();
+    f.call(1, "asset.list", json!({})).unwrap();
+    let media_done = f
+        .call(
+            1,
+            "module.put_media",
+            json!({"entry": f.entry, "module": "mod-gallery", "item": {"asset": "map.png", "caption": "初稿地图"}}),
+        )
+        .unwrap();
+    assert_eq!(media_done["id"], f.entry);
+    assert_eq!(points_of(&f.entry).len(), 1);
+
+    // Turn 2: `module.set_arrangement` requires reading the module again and leaves a turn-2 checkpoint.
+    f.call(
+        2,
+        "module.read",
+        json!({"entry": f.entry, "module": "mod-gallery"}),
+    )
+    .unwrap();
+    f.call(
+        2,
+        "module.set_arrangement",
+        json!({"entry": f.entry, "module": "mod-gallery", "arrangement": "featured"}),
+    )
+    .unwrap();
+    assert_eq!(points_of(&f.entry).len(), 2);
+
+    // 2. Turn 3: commenting on a module `field` requires reading that module and checkpoints the entry.
+    let field_id = f.author(
+        "module.read",
+        json!({"entry": f.entry, "module": MOD_FIELDS}),
+    )["module"]["definition"]["config"]["defs"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(matches!(
+        f.call(
+            3,
+            "comment.create",
+            json!({
+                "target": {"kind": "entry", "id": f.entry},
+                "module": MOD_FIELDS,
+                "part": {"kind": "field", "field": field_id},
+                "body": "核对字段值"
+            })
+        ),
+        Err(Error::ReadRequired(_))
+    ));
+    f.call(
+        3,
+        "module.read",
+        json!({"entry": f.entry, "module": MOD_FIELDS}),
+    )
+    .unwrap();
+    let field_comment = f
+        .call(
+            3,
+            "comment.create",
+            json!({
+                "target": {"kind": "entry", "id": f.entry},
+                "module": MOD_FIELDS,
+                "part": {"kind": "field", "field": field_id},
+                "body": "核对字段值"
+            }),
+        )
+        .unwrap();
+    let stored_field_comment = f
+        .author("comment.list", json!({}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == field_comment["id"])
+        .unwrap()
+        .clone();
+    assert_eq!(stored_field_comment["part"]["kind"], "field");
+    assert_eq!(points_of(&f.entry).len(), 3);
+
+    // 3. Turn 4 & 5: moving an asset into a folder and trashing that folder each checkpoint `f.entry`
+    // because `f.entry` references `map.png` in `mod-gallery`.
+    assert!(matches!(
+        f.call(4, "asset_folder.create", json!({"name": "地图集"})),
+        Err(Error::ReadRequired(_))
+    ));
+    f.call(4, "asset_folder.list", json!({"trashed": true}))
+        .unwrap();
+    let folder = f
+        .call(4, "asset_folder.create", json!({"name": "地图集"}))
+        .unwrap();
+    let folder_id = folder["id"].as_str().unwrap().to_owned();
+
+    assert!(matches!(
+        f.call(
+            4,
+            "asset.move",
+            json!({"id": "map.png", "folder": "地图集"})
+        ),
+        Err(Error::ReadRequired(_))
+    ));
+    f.call(4, "asset.get", json!({"id": "map.png"})).unwrap();
+    f.call(4, "asset_folder.list", json!({})).unwrap();
+    f.call(
+        4,
+        "asset.move",
+        json!({"id": "map.png", "folder": "地图集"}),
+    )
+    .unwrap();
+    assert_eq!(points_of(&f.entry).len(), 4);
+
+    // Turn 5: trashing the folder trashes `map.png` inside it and checkpoints `f.entry`.
+    assert!(matches!(
+        f.call(5, "asset_folder.trash", json!({"id": "地图集"})),
+        Err(Error::ReadRequired(_))
+    ));
+    f.call(5, "asset_folder.list", json!({"trashed": true}))
+        .unwrap();
+    f.call(5, "asset.list", json!({"trashed": true})).unwrap();
+    f.call(5, "asset_folder.trash", json!({"id": "地图集"}))
+        .unwrap();
+    assert_eq!(points_of(&f.entry).len(), 5);
+
+    // Restore folder so `map.png` is live again for prose.link.
+    f.call(6, "asset_folder.list", json!({"trashed": true}))
+        .unwrap();
+    f.call(6, "asset.list", json!({"trashed": true})).unwrap();
+    f.call(6, "asset_folder.restore", json!({"id": folder_id}))
+        .unwrap();
+    assert_eq!(points_of(&f.entry).len(), 6);
+
+    // 4. Turn 7: `prose.link` and `prose.unlink` with `kind = "asset"` guard full prose + asset and checkpoint.
+    let doc = format!("body:{}/{MOD_PROSE}", f.entry);
+    let copy = f.ws.library().load_copy(&doc).unwrap();
+    let parsed_doc: dr_model::DocId = doc.parse().unwrap();
+    let anchor = dr_doc::prose::BorrowedProse::new(&copy, &parsed_doc)
+        .unwrap()
+        .view()
+        .anchor(0..2)
+        .unwrap()
+        .encode();
+    let anchor_b64 = dr_workspace::dto::AnchorBytes::from(&anchor);
+    f.call(7, "prose.read", json!({"doc": doc, "limit": 100}))
+        .unwrap();
+    f.call(7, "asset.get", json!({"id": "map.png"})).unwrap();
+    f.call(
+        7,
+        "prose.link",
+        json!({
+            "links": [{
+                "doc": doc,
+                "target": {"kind": "asset", "id": "map.png"},
+                "anchors": [anchor_b64]
+            }]
+        }),
+    )
+    .unwrap();
+    assert_eq!(points_of(&f.entry).len(), 7);
+    let shape = f.call(7, "prose.shape", json!({"doc": doc})).unwrap();
+    assert!(
+        shape["file_links"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == asset_id)
+    );
+
+    // 5. Turn 8: `project.update` and `tab.put` require `project.get`, and `layout.*` requires `layout.get`
+    // while leaving `book:<book>` and entry snapshots untouched (`LAYOUT-DOC-QUIET`).
+    assert!(matches!(
+        f.call(8, "project.update", json!({"word_target": 5000})),
+        Err(Error::ReadRequired(_))
+    ));
+    assert!(matches!(
+        f.call(
+            8,
+            "tab.put",
+            json!({"name": "全书", "mount": {"kind": "book"}})
+        ),
+        Err(Error::ReadRequired(_))
+    ));
+    f.call(8, "project.get", json!({})).unwrap();
+    f.call(8, "project.update", json!({"word_target": 5000}))
+        .unwrap();
+    f.call(8, "project.get", json!({})).unwrap();
+    f.call(
+        8,
+        "tab.put",
+        json!({"name": "全书", "mount": {"kind": "book"}}),
+    )
+    .unwrap();
+
+    let book_before_layout = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let snaps_before_layout = points_of(&f.entry).len();
+    assert!(matches!(
+        f.call(
+            8,
+            "layout.put",
+            json!({"scope": "root", "mode": "canvas", "positions": {&f.entry: [12.0, 34.0]}})
+        ),
+        Err(Error::ReadRequired(_))
+    ));
+    f.call(8, "layout.get", json!({"scope": "root", "mode": "canvas"}))
+        .unwrap();
+    f.call(8, "entry.get", json!({"id": f.entry})).unwrap();
+    f.call(
+        8,
+        "layout.put",
+        json!({"scope": "root", "mode": "canvas", "positions": {&f.entry: [12.0, 34.0]}}),
+    )
+    .unwrap();
+    f.call(8, "layout.get", json!({"scope": "root", "mode": "canvas"}))
+        .unwrap();
+    f.call(
+        8,
+        "layout.clear",
+        json!({"scope": "root", "mode": "canvas"}),
+    )
+    .unwrap();
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        book_before_layout,
+        "layout writes must never touch book:<id>"
+    );
+    assert_eq!(points_of(&f.entry).len(), snaps_before_layout);
 }

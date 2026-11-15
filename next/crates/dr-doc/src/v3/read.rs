@@ -572,9 +572,35 @@ impl<'a> BookViewV3<'a> {
             if id.is_empty() {
                 None
             } else {
+                let origin = pt
+                    .opt_string("origin")
+                    .map(|s| ProjectTemplateOrigin::parse(&s));
+                let name = pt.opt_string("name").filter(|s| !s.is_empty());
+                let credit = pt.sub("credit").and_then(|cf| {
+                    let derived_from = cf.sub("derived_from").and_then(|df| {
+                        let name = df.string("name");
+                        if name.is_empty() {
+                            None
+                        } else {
+                            Some(ProjectTemplateDerivedFrom {
+                                name,
+                                author: df.string("author"),
+                            })
+                        }
+                    });
+                    let c = ProjectTemplateCredit {
+                        author: cf.string("author"),
+                        homepage: cf.string("homepage"),
+                        derived_from,
+                    };
+                    (!c.is_empty()).then_some(c)
+                });
                 Some(ProjectTemplateRef {
                     id,
                     version: pt.i64("version").unwrap_or(1),
+                    origin,
+                    name,
+                    credit,
                 })
             }
         });
@@ -2252,7 +2278,8 @@ impl<'a> BookViewV3<'a> {
             | DocId::Node(_)
             | DocId::Element(_)
             | DocId::Storyline(_)
-            | DocId::Category(_) => false,
+            | DocId::Category(_)
+            | DocId::ProjectTemplate(_) => false,
         }
     }
 

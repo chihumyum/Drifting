@@ -644,10 +644,11 @@ fn right_header(
             // Read from the navigation model: what the stats follow.
             let key = match ws.nav.current() {
                 None => k::NONE,
-                Some(Target::Book(_)) => keys::v3_shell::BOOK_VIEW,
+                Some(t) if t.is_book() => keys::v3_shell::BOOK_VIEW,
 
                 Some(Target::Material(_)) => k::MATERIAL,
                 Some(Target::Entry { .. } | Target::Template(_)) => keys::v3_shell::ENTRIES,
+                Some(_) => keys::v3_shell::BOOK_VIEW,
             };
             row.child(meta(t(cx, key), &theme)).into_any_element()
         }
@@ -1123,7 +1124,8 @@ fn heading_row(
 fn v3_stats_scope(target: Option<&Target>) -> Option<dr_view_stats::v3::Scope> {
     use dr_view_stats::v3::Scope;
     match target {
-        None | Some(Target::Book(_)) => Some(Scope::Book),
+        None => Some(Scope::Book),
+        Some(t) if t.is_book() => Some(Scope::Book),
         Some(Target::Entry { id, module }) => Some(Scope::Entry {
             id: id.to_string(),
             module: module.as_ref().map(ToString::to_string),
@@ -1150,7 +1152,8 @@ fn v3_stats_target(scope: dr_view_stats::v3::Scope) -> Option<Target> {
 fn v3_review_scope(target: Option<&Target>) -> Option<Option<dr_view_review::v3::Target>> {
     use dr_view_review::v3::Target as ReviewTarget;
     Some(match target {
-        None | Some(Target::Book(_)) => None,
+        None => None,
+        Some(t) if t.is_book() => None,
         Some(Target::Entry { id, module }) => Some(ReviewTarget::Entry {
             id: id.to_string(),
             module: module.as_ref().map(ToString::to_string),
@@ -1232,6 +1235,24 @@ fn v3_review_open(
                 if owner.matches(ws) && ws.book.exists(&target) {
                     ws.super_view = None;
                     ws.open(target, Open::KEEP, cx);
+                }
+            })
+            .ok();
+    }))
+}
+
+fn v3_review_open_agent(
+    ws: &Workspace,
+    pane: PaneId,
+    cx: &mut Context<Workspace>,
+) -> Option<dr_view_review::v3_panel::OpenAgent> {
+    let owner = V3PanelOwner::of(ws)?;
+    let shell = cx.weak_entity();
+    Some(Rc::new(move |req, window, cx| {
+        shell
+            .update(cx, |ws, cx| {
+                if owner.matches(ws) {
+                    ws.open_companion_for_comment(pane, req, window, cx);
                 }
             })
             .ok();
@@ -1349,25 +1370,29 @@ fn right_body(
             let Some(open) = v3_review_open(ws, cx) else {
                 return div().into_any_element();
             };
+            let open_agent = v3_review_open_agent(ws, pane, cx);
             let book = ws.book.clone();
             let marks = Rc::new(move |target: &dr_view_review::v3::Target| {
                 v3_review_target(target.clone()).map(|t| book.mark(&t).0)
             });
+            let review_id = format!("review-{}", pane_slug(pane));
+            let panel = dr_view_review::v3_panel::panel(
+                &review_id,
+                &ws.book_id,
+                scope,
+                locale,
+                platform,
+                open,
+                marks,
+                cx,
+            );
+            dr_view_review::v3_panel::set_open_agent(&review_id, open_agent, cx);
             div()
                 .id(SharedString::from(format!("v3-review-{}", pane_slug(pane))))
                 .size_full()
                 .role(gpui::Role::Group)
                 .aria_label(t(cx, keys::right_sidebar::tabs::REVIEW))
-                .child(dr_view_review::v3_panel::panel(
-                    &format!("review-{}", pane_slug(pane)),
-                    &ws.book_id,
-                    scope,
-                    locale,
-                    platform,
-                    open,
-                    marks,
-                    cx,
-                ))
+                .child(panel)
                 .into_any_element()
         }
     }
@@ -1854,7 +1879,7 @@ mod v3_panel_tests {
             .unwrap()
             .id
             .clone();
-        let mat_info = &v.materials[0];
+        let mat_info = v.media_items.values().next().unwrap();
         let material = mat_info.id.clone();
         let mat_entry = mat_info.entry.clone().unwrap();
         let mat_mod = mat_info.module.clone().unwrap();
