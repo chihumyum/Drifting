@@ -6,7 +6,9 @@
 - 书库模板文档、从项目提取与展开建书：`next/crates/dr-doc/src/project_template.rs`。
 - 工作区命令与统一 `project.create`：`next/crates/dr-workspace/src/commands/v3/project_template.rs`、`novel_book.rs`。
 
-**2026-11-15 夜里改了三处**（作者在项目模板界面的原型上定的和追问的答复，kernel-v5 第 15 节第 27、28 条）：成书没有起点了，`project.book` 去掉 `root`；导出署名用账号名、不要主页，`credit` 去掉 `homepage`；「改自」整个去掉，`credit` 去掉 `derivedFrom`，只剩 `author`。格式还没发布，直接改，不留兼容：`formatVersion` 仍是 `1`，结构是封闭的，带这几个键的模板拒收。代码在任务书 DW 一步里跟着改了（`dr-model/tests/project_template.rs` 的 `a_book_start_a_homepage_or_derived_from_is_refused`）。
+**2026-11-15 夜里改了两处**（作者在项目模板界面的原型上定的，kernel-v5 第 15 节第 27 条）：成书没有起点了，`project.book` 去掉 `root`；导出署名用账号名、不要主页，`credit` 去掉 `homepage`。格式还没发布，直接改，不留兼容：`formatVersion` 仍是 `1`，结构是封闭的，带这两个键的模板拒收。代码在任务书 DW 一步里跟着改了（`dr-model/tests/project_template.rs` 的 `a_book_start_a_homepage_or_derived_from_is_refused`）。
+
+**同一夜补问又改了两处**（kernel-v5 第 15 节第 28 条）：「改自」整个去掉，`credit` 只剩 `author`，取导出的人的账号显示名；编辑模板的工作区随改随存，没有保存和放弃（第 11 节）。照样直接改、不留兼容，带 `derivedFrom` 的模板拒收。代码在任务书 DW 里一起改了（监管会话 2026-11-16 把它从 PT2 挪进 DW）。
 
 ## 1. 总则与封闭结构
 
@@ -58,9 +60,9 @@
 
 | JSON 键 | 类型 | 校验规则 |
 | --- | --- | --- |
-| `author` | `string`（空串省略） | 单行文本，不含控制字符。导出成文件时取导出的人的账号显示名（导入的别人的模板也一样），没设名字或没登录就不写（2026-11-15 夜里定，PT2 做）。另存时只用调用方给的，不从项目的来源自动填 |
+| `author` | `string`（空串省略） | 单行文本，不含控制字符。导出成文件时取导出的人的账号显示名：导出别人做的模板也一样，不提原作者；账号没设名字或没登录就不写，不用邮箱 @ 前面那段（2026-11-15 夜里定，PT2 做）。另存时只用调用方给的，不从项目的来源自动填 |
 
-原来还有 `homepage`（只收 `https` 链接）和 `derivedFrom`（「改自」：上游模板名与作者，另存时从来源为 `file`、`community` 的项目自动填），2026-11-15 夜里都去掉了（作者：「主页，暂时不需要这个东西。以后再说社交。」；「改自」整个去掉见 kernel-v5 第 15 节第 28 条）。项目定义里 `project.source.credit` 也只剩 `author`，书里旧的 `homepage`、`derived_from` 读的时候不管。
+`credit` 只有这一个键。原来还有 `homepage`（只收 `https` 链接），2026-11-15 夜里去掉（作者：「主页，暂时不需要这个东西。以后再说社交。」）；还有 `derivedFrom`（`{ name, author? }`，从来源为 `file` 或 `community` 的项目另存时自动填入上游模板名与作者），同一夜作者在补问里选了「改自」整个去掉。项目定义里 `project.source.credit` 也只剩 `author`，书里旧的 `homepage`、`derived_from` 读的时候不管。
 
 ## 4. 项目定义（`project`）
 
@@ -76,7 +78,7 @@
   - `mount`（必填 `TemplateTabMount`）：
     - `{"kind": "root"}`：挂最外层；
     - `{"kind": "entry", "entry": "e…"}`：目标条目须存在且满足 `has_below`；
-    - `{"kind": "view", "view": "v…"}`：目标视图须存在；
+    - `{"kind": "view", "view": "v…"}`：目标视图须存在。作者 2026-11-16 定了左栏的 Tab 不能挂视图（[kernel-v5.md](kernel-v5.md) 第 15 节第 15 条），这一种在任务书 T9 去掉，去掉之前代码里还收；
     - `{"kind": "book"}`：挂成书序列，仅当 `project.book` 存在（开启成书）时合法。
 
 ## 5. 条目模板（`templates[]`）
