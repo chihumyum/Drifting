@@ -195,18 +195,11 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             book_id: ws.book_id.clone(),
             book: ws.book.clone(),
         };
-        let remembered = ws
-            .book_memory(crate::v3::sidebar::MEMORY_KEY)
-            .and_then(|v| v.as_str())
-            .map(str::to_owned);
-        let ready = ws.book_memory_ready();
         let panel = ws
             .v3_sidebar
-            .get_or_insert_with(|| cx.new(|_| crate::v3::sidebar::Sidebar::new(host.clone())))
+            .get_or_insert_with(|| cx.new(|cx| crate::v3::sidebar::Sidebar::new(host.clone(), cx)))
             .clone();
-        panel.update(cx, |panel, cx| {
-            panel.sync(host, width, remembered, ready, cx)
-        });
+        panel.update(cx, |panel, cx| panel.sync(host, cx));
         div()
             .size_full()
             .flex()

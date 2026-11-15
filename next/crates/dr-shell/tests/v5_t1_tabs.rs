@@ -12,11 +12,7 @@ use dr_shell::{
     },
     nav::{Open, Target},
     pages::PageViewHost,
-    v3::{
-        self, Rendered,
-        sidebar::Sidebar,
-        tabs::{self, Gone},
-    },
+    v3::{self, Rendered, sidebar::Sidebar, tabs},
 };
 use dr_ui::sand;
 use dr_workspace::{
@@ -146,116 +142,215 @@ fn host(
     }
 }
 
-fn tabs_of(ws: &Shell) -> Vec<(String, String, TabMount)> {
+fn tabs_of(ws: &Shell) -> Vec<(String, TabMount)> {
     ws.book
         .v3()
         .unwrap()
         .project
         .tabs
         .iter()
-        .map(|t| (t.id.clone(), t.name.clone(), t.mount.clone()))
+        .map(|t| (t.id.clone(), t.mount.clone()))
         .collect()
 }
 
+/// The Tabs' names as the column shows them.
+fn names(sidebar: &Entity<Sidebar>, cx: &mut VisualTestContext) -> Vec<String> {
+    sidebar.read_with(cx, |s, cx| {
+        s.state(cx)["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_owned())
+            .collect()
+    })
+}
+
+fn tab_on(ws: &Shell, mount: &TabMount) -> Option<String> {
+    tabs_of(ws)
+        .into_iter()
+        .find(|(_, m)| m == mount)
+        .map(|(id, _)| id)
+}
+
+/// A level under `root`: the first entry living there that holds entries.
+fn level_under(v: &BookV3, root: &str) -> String {
+    v.levels[root]
+        .children
+        .iter()
+        .find(|id| v.has_below(id))
+        .unwrap()
+        .clone()
+}
+
 #[gpui::test]
-fn tabs_are_renamed_doubled_reordered_removed_and_undone_without_touching_entries(
-    cx: &mut TestAppContext,
-) {
+fn managing_adds_reorders_and_removes_tabs_named_after_their_mounts(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
     let (view, cx) = open(cx, &lib, &id);
     wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
     let sidebar = sidebar(&view, cx);
-    let (manuscript, first) = view.read_with(cx, |ws, _| {
-        let v = ws.book.v3().unwrap();
-        (root_of(v, "tpl-manuscript"), tabs_of(ws))
-    });
-    let names: Vec<&str> = first.iter().map(|(_, n, _)| n.as_str()).collect();
-    assert_eq!(&names[..4], ["书稿", "构想", "要素", "故事线"]);
-    let (manuscript_tab, _, mount) = first[0].clone();
+    // A new writing project: 「全部」 and the four outermost levels, on
+    // 「全部」.
     assert_eq!(
-        mount,
-        TabMount::Entry {
-            entry: manuscript.clone()
-        }
+        names(&sidebar, cx),
+        ["全部", "书稿", "构想", "要素", "故事线"]
+    );
+    let root_tab = view.read_with(cx, |ws, _| tab_on(ws, &TabMount::Root).unwrap());
+    sidebar.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.state(cx)["selected"],
+            json!(root_tab),
+            "opens on 「全部」"
+        );
+    });
+    let (manuscript, elements, category, chapter) = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        let manuscript = root_of(v, "tpl-manuscript");
+        let elements = root_of(v, "tpl-elements");
+        let category = level_under(v, &elements);
+        let chapter = v
+            .entries
+            .iter()
+            .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+            .unwrap()
+            .id
+            .clone();
+        (manuscript, elements, category, chapter)
+    });
+
+    // A Tab is called by what it shows: renaming the entry renames it.
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": id, "id": manuscript, "title": "正文"}),
+    );
+    wait(&view, cx, "the renamed entry", |ws, _| {
+        ws.book.v3().unwrap().entry(&manuscript).unwrap().title == "正文"
+    });
+    pump(cx);
+    assert_eq!(names(&sidebar, cx)[1], "正文");
+
+    // Managing: what a Tab already shows and leaves are faint; a level no
+    // Tab shows is lit.
+    cx.update(|window, cx| sidebar.update(cx, |s, cx| s.set_managing(true, window, cx)));
+    pump(cx);
+    sidebar.read_with(cx, |s, cx| {
+        let state = s.state(cx);
+        assert_eq!(state["managing"], json!(true));
+        let rows = state["structure"]["rows"].as_array().unwrap().clone();
+        let lit = |row: &str| rows.iter().find(|r| r["row"] == row).unwrap()["lit"].clone();
+        assert_eq!(lit("root"), json!(false));
+        assert_eq!(lit(&manuscript), json!(false));
+        assert_eq!(lit(&elements), json!(false));
+        assert_eq!(lit(&category), json!(true));
+        assert_eq!(lit(&chapter), json!(false), "a leaf is never a Tab");
+    });
+
+    // Dropped into the row: a Tab where the slot opened.
+    let mount = TabMount::Entry {
+        entry: category.clone(),
+    };
+    sidebar.update(cx, |s, cx| s.add_at(mount.clone(), 1, cx));
+    wait(&view, cx, "the added Tab", |ws, _| {
+        tab_on(ws, &mount).is_some()
+    });
+    let added = view.read_with(cx, |ws, _| tab_on(ws, &mount).unwrap());
+    view.read_with(cx, |ws, _| assert_eq!(tabs_of(ws)[1].0, added));
+    // It is lit no more, and the same thing never gets a second Tab.
+    pump(cx);
+    sidebar.read_with(cx, |s, cx| {
+        let rows = s.state(cx)["structure"]["rows"].as_array().unwrap().clone();
+        let row = rows.iter().find(|r| r["row"] == json!(category)).unwrap();
+        assert_eq!(row["lit"], json!(false));
+    });
+    assert!(
+        lib.call(&Actor::User, "tab.put", json!({"book": id, "mount": mount}),)
+            .is_err(),
+        "one Tab per thing"
     );
 
-    // Renaming a Tab renames the Tab only.
-    sidebar.update(cx, |s, cx| s.rename(&manuscript_tab, "正文", cx));
-    wait(&view, cx, "the renamed Tab", |ws, _| {
-        tabs_of(ws)[0].1 == "正文"
+    // 「全部」 drags like any Tab and has no remove.
+    sidebar.update(cx, |s, cx| s.move_to(&root_tab, 3, cx));
+    wait(&view, cx, "「全部」 moved", |ws, _| {
+        tabs_of(ws)[2].0 == root_tab
     });
-    view.read_with(cx, |ws, _| {
-        assert_eq!(
-            ws.book.v3().unwrap().entry(&manuscript).unwrap().title,
-            "书稿"
-        );
-    });
-
-    // A second Tab on the same level: named after it, selected once it is
-    // there, both show it.
-    sidebar.update(cx, |s, cx| {
-        s.mount(
-            None,
-            TabMount::Entry {
-                entry: manuscript.clone(),
-            },
-            cx,
-        )
-    });
-    wait(&view, cx, "the second Tab", |ws, _| {
-        tabs_of(ws).len() == first.len() + 1
-    });
-    let second = view.read_with(cx, |ws, _| tabs_of(ws).last().unwrap().clone());
-    assert_eq!(second.1, "书稿");
-    assert_eq!(second.2, first[0].2);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while sidebar.read_with(cx, |s, _| {
-        s.state()["selected"] != json!(second.0) || s.state()["registered"] != json!(true)
-    }) {
-        pump(cx);
-        assert!(
-            Instant::now() < deadline,
-            "the new Tab is selected and shown: {}",
-            sidebar.read_with(cx, |s, _| s.state())
-        );
-        std::thread::sleep(Duration::from_millis(2));
-    }
-
-    // Reordered to the front, then removed: the level stays.
-    sidebar.update(cx, |s, cx| s.reorder(&second.0, &manuscript_tab, false, cx));
-    wait(&view, cx, "the reorder", |ws, _| {
-        tabs_of(ws)[0].0 == second.0
-    });
-    sidebar.update(cx, |s, cx| s.remove(&second.0, cx));
-    wait(&view, cx, "the removal", |ws, _| {
-        tabs_of(ws).iter().all(|t| t.0 != second.0)
-    });
-    view.read_with(cx, |ws, _| {
-        assert!(ws.book.v3().unwrap().entry(&manuscript).is_some());
-        assert_eq!(tabs_of(ws)[0].0, manuscript_tab);
-    });
-    // The selected Tab was removed: the first one is selected.
+    sidebar.update(cx, |s, cx| s.remove(&root_tab, cx));
     pump(cx);
-    sidebar.read_with(cx, |s, _| {
-        assert_eq!(s.state()["selected"], json!(manuscript_tab))
-    });
+    assert!(
+        lib.call(
+            &Actor::User,
+            "tab.remove",
+            json!({"book": id, "id": root_tab})
+        )
+        .is_err()
+    );
+    view.read_with(cx, |ws, _| assert!(tab_on(ws, &TabMount::Root).is_some()));
 
-    // ⌘Z puts the removed Tab back, where it was.
+    // The badge removes a Tab, not what it shows; ⌘Z puts it back.
+    sidebar.update(cx, |s, cx| s.remove(&added, cx));
+    wait(&view, cx, "the removal", |ws, _| {
+        tab_on(ws, &mount).is_none()
+    });
+    view.read_with(cx, |ws, _| {
+        assert!(ws.book.v3().unwrap().entry(&category).is_some())
+    });
     cx.update(|window, cx| {
         let focus = view.read(cx).focus_handle().clone();
         focus.focus(window, cx);
     });
     cx.dispatch_action(Undo);
-    wait(&view, cx, "the undo", |ws, _| {
-        tabs_of(ws).iter().any(|t| t.0 == second.0)
-    });
-    view.read_with(cx, |ws, _| assert_eq!(tabs_of(ws)[0].0, second.0));
+    wait(&view, cx, "the undo", |ws, _| tab_on(ws, &mount).is_some());
+
+    // Esc ends managing.
+    cx.update(|window, cx| sidebar.update(cx, |s, cx| s.set_managing(true, window, cx)));
+    pump(cx);
+    cx.simulate_keystrokes("escape");
+    pump(cx);
+    sidebar.read_with(cx, |s, _| assert!(!s.is_managing()));
 }
 
 #[gpui::test]
-fn a_tab_whose_mount_is_gone_stays_and_says_why_and_an_untabbed_level_still_opens(
-    cx: &mut TestAppContext,
-) {
+fn the_selected_tab_goes_with_the_project(cx: &mut TestAppContext) {
+    let (_dir, lib, id) = seed();
+    // Left on 「构想」 (on another device, say).
+    let ideas_tab = {
+        let book = Book::load(&lib, &id).unwrap();
+        let v = book.v3().unwrap();
+        let ideas = root_of(v, "tpl-ideas");
+        v.project
+            .tabs
+            .iter()
+            .find(|t| {
+                t.mount
+                    == TabMount::Entry {
+                        entry: ideas.clone(),
+                    }
+            })
+            .unwrap()
+            .id
+            .clone()
+    };
+    call(&lib, "tab.select", json!({"book": id, "id": ideas_tab}));
+    let (view, cx) = open(cx, &lib, &id);
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let sidebar = sidebar(&view, cx);
+    pump(cx);
+    sidebar.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.state(cx)["selected"],
+            json!(ideas_tab),
+            "opens where it was left"
+        )
+    });
+    // Choosing another Tab is remembered in the project.
+    let book_tab = view.read_with(cx, |ws, _| tabs_of(ws)[1].0.clone());
+    sidebar.update(cx, |s, cx| s.choose(&book_tab, cx));
+    wait(&view, cx, "the remembered Tab", |ws, _| {
+        ws.book.v3().unwrap().selected_tab.as_deref() == Some(book_tab.as_str())
+    });
+}
+
+#[gpui::test]
+fn a_tab_whose_mount_is_gone_fades_comes_back_and_can_be_removed(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
     let (view, cx) = open(cx, &lib, &id);
     wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
@@ -269,11 +364,10 @@ fn a_tab_whose_mount_is_gone_stays_and_says_why_and_an_untabbed_level_still_open
         )
     });
 
-    // A Tab on the book: empty once the project's book is off, back once
-    // it is on again (its start kept).
-    sidebar.update(cx, |s, cx| s.mount(None, TabMount::Book, cx));
+    // A Tab on the book: faint once the project's book is off.
+    sidebar.update(cx, |s, cx| s.add_at(TabMount::Book, usize::MAX, cx));
     wait(&view, cx, "the book Tab", |ws, _| {
-        tabs_of(ws).iter().any(|t| t.2 == TabMount::Book)
+        tab_on(ws, &TabMount::Book).is_some()
     });
     call(
         &lib,
@@ -283,86 +377,72 @@ fn a_tab_whose_mount_is_gone_stays_and_says_why_and_an_untabbed_level_still_open
     wait(&view, cx, "the book off", |ws, _| {
         ws.book.v3().unwrap().project.book.is_none()
     });
-    view.read_with(cx, |ws, cx| {
-        let v = ws.book.v3().unwrap();
-        assert_eq!(tabs::gone(v, &TabMount::Book), Some(Gone::BookOff));
-        let tab = v
-            .project
-            .tabs
-            .iter()
-            .find(|t| t.mount == TabMount::Book)
-            .unwrap();
-        assert_eq!(
-            Gone::BookOff.text(tab, cx).as_ref(),
-            "项目关了成书",
-            "the empty Tab says why"
-        );
-    });
     pump(cx);
-    sidebar.read_with(cx, |s, _| {
-        let tabs = s.state()["tabs"].as_array().unwrap().clone();
+    sidebar.read_with(cx, |s, cx| {
+        let tabs = s.state(cx)["tabs"].as_array().unwrap().clone();
         let book = tabs.iter().find(|t| t["mount"]["kind"] == "book").unwrap();
         assert_eq!(book["gone"], json!(true), "the Tab stays, faded");
-    });
-    let manuscript = view.read_with(cx, |ws, _| root_of(ws.book.v3().unwrap(), "tpl-manuscript"));
-    call(
-        &lib,
-        "project.update",
-        json!({"book": id, "has_book": true, "root": {"kind": "entry", "entry": manuscript}}),
-    );
-    wait(&view, cx, "the book on", |ws, _| {
-        let v = ws.book.v3().unwrap();
-        v.project.book.is_some() && tabs::gone(v, &TabMount::Book).is_none()
+        assert_eq!(book["name"], json!("成书"));
     });
 
-    // The storylines' level in Recently Deleted: its Tab stays and says so.
+    // The storylines' level in Recently Deleted: faint, called as before;
+    // restored, it is lit again.
+    let mount = TabMount::Entry {
+        entry: storylines.clone(),
+    };
     call(&lib, "entry.trash", json!({"book": id, "id": storylines}));
     wait(&view, cx, "the trash", |ws, _| {
         ws.book.v3().unwrap().entry(&storylines).is_none()
     });
     view.read_with(cx, |ws, cx| {
         let v = ws.book.v3().unwrap();
-        let mount = TabMount::Entry {
-            entry: storylines.clone(),
-        };
-        let gone = tabs::gone(v, &mount).unwrap();
-        assert_eq!(gone, Gone::Trashed("故事线".into()));
-        let tab = v.project.tabs.iter().find(|t| t.mount == mount).unwrap();
-        assert_eq!(gone.text(tab, cx).as_ref(), "「故事线」进了最近删除");
+        assert!(tabs::is_gone(v, &mount));
+        assert_eq!(tabs::mount_name(v, &mount, cx).as_ref(), "故事线");
     });
-    // A deleted view.
+    call(&lib, "entry.restore", json!({"book": id, "id": storylines}));
+    wait(&view, cx, "the restore", |ws, _| {
+        !tabs::is_gone(ws.book.v3().unwrap(), &mount)
+    });
+
+    // A deleted view; its Tab's 「去掉这个 Tab」 removes it and goes back to
+    // the first Tab.
+    let view_mount = TabMount::View {
+        view: view_id.clone(),
+    };
+    sidebar.update(cx, |s, cx| s.add_at(view_mount.clone(), usize::MAX, cx));
+    wait(&view, cx, "the view Tab", |ws, _| {
+        tab_on(ws, &view_mount).is_some()
+    });
     call(
         &lib,
         "timeline_view.delete",
         json!({"book": id, "id": view_id}),
     );
     wait(&view, cx, "the view deleted", |ws, _| {
-        ws.book.v3().unwrap().timeline_view(&view_id).is_none()
+        tabs::is_gone(ws.book.v3().unwrap(), &view_mount)
     });
-    view.read_with(cx, |ws, _| {
-        let v = ws.book.v3().unwrap();
-        assert!(matches!(
-            tabs::gone(
-                v,
-                &TabMount::View {
-                    view: view_id.clone()
-                }
-            ),
-            Some(Gone::ViewDeleted(_)) | Some(Gone::Missing)
-        ));
+    let view_tab = view.read_with(cx, |ws, _| tab_on(ws, &view_mount).unwrap());
+    sidebar.update(cx, |s, cx| {
+        s.choose(&view_tab, cx);
+        s.remove_gone(&view_tab, cx);
+    });
+    wait(&view, cx, "the gone Tab removed", |ws, _| {
+        tab_on(ws, &view_mount).is_none()
+    });
+    let first = view.read_with(cx, |ws, _| tabs_of(ws)[0].0.clone());
+    sidebar.read_with(cx, |s, cx| {
+        assert_eq!(s.state(cx)["selected"], json!(first))
     });
 
     // The ideas' Tab removed: the level is mounted nowhere, and still opens.
     let ideas_tab = view.read_with(cx, |ws, _| {
-        tabs_of(ws)
-            .into_iter()
-            .find(|t| {
-                t.2 == TabMount::Entry {
-                    entry: ideas.clone(),
-                }
-            })
-            .unwrap()
-            .0
+        tab_on(
+            ws,
+            &TabMount::Entry {
+                entry: ideas.clone(),
+            },
+        )
+        .unwrap()
     });
     sidebar.update(cx, |s, cx| s.remove(&ideas_tab, cx));
     wait(&view, cx, "the removal", |ws, _| {

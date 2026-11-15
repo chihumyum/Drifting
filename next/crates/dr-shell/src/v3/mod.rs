@@ -14,6 +14,7 @@ mod drag;
 mod editor;
 pub mod history;
 pub mod level_switch;
+pub mod manage;
 pub mod mark;
 pub mod page;
 pub mod sidebar;

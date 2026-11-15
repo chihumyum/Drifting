@@ -9,7 +9,7 @@ use crate::{
     book::v3::BookV3,
     nav::Open,
     pages::PageViewHost,
-    strings::{t, tf},
+    strings::t,
     v3::level_switch::{host_still_valid, toast_save_failed},
 };
 use dr_i18n::keys;
@@ -22,62 +22,29 @@ use dr_ui::{
 };
 use dr_workspace::{
     Actor, RecordKey, WritePreconditions, WsError,
-    commands::v3::types::{BookRoot, ProjectTab, TabMount, TimelineView},
+    commands::v3::types::{BookRoot, TabMount, TimelineView},
 };
 use gpui::{prelude::*, *};
 use serde_json::{Value, json};
 
-/// Why a Tab shows nothing: what it is mounted on is not there now. The
-/// Tab stays, with its name; its content says why and offers another mount.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Gone {
-    /// The entry is in Recently Deleted.
-    Trashed(String),
-    /// The entry holds nothing any more: its two switches are off.
-    Closed(String),
-    /// The view was deleted.
-    ViewDeleted(String),
-    /// The project's book was turned off.
-    BookOff,
-    /// It is not in the book at all.
-    Missing,
-}
-
-impl Gone {
-    pub fn text(&self, tab: &ProjectTab, cx: &App) -> SharedString {
-        match self {
-            Gone::Trashed(name) => tf(cx, keys::v3_tabs::GONE_TRASHED, &[("name", name)]),
-            Gone::Closed(name) => tf(cx, keys::v3_tabs::GONE_CLOSED, &[("name", name)]),
-            Gone::ViewDeleted(name) => tf(cx, keys::v3_tabs::GONE_VIEW_DELETED, &[("name", name)]),
-            Gone::BookOff => t(cx, keys::v3_tabs::GONE_BOOK_OFF),
-            Gone::Missing => tf(cx, keys::v3_tabs::GONE_MISSING, &[("name", &tab.name)]),
-        }
-    }
-}
-
-/// What is wrong with `mount` now, if anything.
-pub fn gone(v: &BookV3, mount: &TabMount) -> Option<Gone> {
+/// Whether what `mount` is mounted on is not there now: the entry is in
+/// Recently Deleted, has both its switches off or is not in the book; the
+/// view was deleted; the book was turned off. The Tab stays, faded, and its
+/// content says so (`kernel-v5.md` §5). 「全部」 is always there.
+pub fn is_gone(v: &BookV3, mount: &TabMount) -> bool {
     match mount {
-        TabMount::Root => None,
-        TabMount::Entry { entry } => match v.entry(entry) {
-            Some(_) if v.has_below(entry) => None,
-            Some(e) => Some(Gone::Closed(e.title.clone())),
-            None => Some(match v.trashed_titles.get(entry) {
-                Some(name) => Gone::Trashed(name.clone()),
-                None => Gone::Missing,
-            }),
-        },
-        TabMount::View { view } => match v.timeline_views.iter().find(|tv| &tv.id == view) {
-            Some(tv) if tv.deleted_at.is_none() => None,
-            Some(tv) => Some(Gone::ViewDeleted(tv.name.clone())),
-            None => Some(Gone::Missing),
-        },
-        TabMount::Book => v.project.book.is_none().then_some(Gone::BookOff),
+        TabMount::Root => false,
+        TabMount::Entry { entry } => !(v.entry(entry).is_some() && v.has_below(entry)),
+        TabMount::View { view } => !v
+            .timeline_views
+            .iter()
+            .any(|tv| &tv.id == view && tv.deleted_at.is_none()),
+        TabMount::Book => v.project.book.is_none(),
     }
 }
 
-/// The name of what `mount` is mounted on: what the 「⋯」 list says in
-/// grey after a Tab's name, and what a new Tab is called.
+/// The name of what `mount` is mounted on: what its Tab is called. An
+/// entry gone from the book altogether reads as 「条目」, a view as 「视图」.
 pub fn mount_name(v: &BookV3, mount: &TabMount, cx: &App) -> SharedString {
     match mount {
         TabMount::Root => t(cx, keys::v3_shell::OUTERMOST),
@@ -85,15 +52,14 @@ pub fn mount_name(v: &BookV3, mount: &TabMount, cx: &App) -> SharedString {
             .entry(entry)
             .map(|e| e.title.clone())
             .or_else(|| v.trashed_titles.get(entry).cloned())
-            .unwrap_or_default()
-            .into(),
+            .map(SharedString::from)
+            .unwrap_or_else(|| t(cx, keys::v3_tabs::ENTRIES)),
         TabMount::View { view } => v
             .timeline_views
             .iter()
             .find(|tv| &tv.id == view)
-            .map(|tv| tv.name.clone())
-            .unwrap_or_default()
-            .into(),
+            .map(|tv| SharedString::from(tv.name.clone()))
+            .unwrap_or_else(|| t(cx, keys::v3_tabs::VIEWS)),
         TabMount::Book => t(cx, keys::v3_tabs::BOOK),
     }
 }

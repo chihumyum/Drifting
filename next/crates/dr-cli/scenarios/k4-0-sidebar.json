@@ -95,15 +95,16 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3Sidebar/tabs/0/mount/entry": "${roots.0.id}",
-        "/v3Sidebar/tabs/1/mount/entry": "${roots.1.id}",
-        "/v3Sidebar/tabs/2/mount/entry": "${roots.2.id}",
-        "/v3Sidebar/tabs/3/mount/entry": "${roots.3.id}",
-        "/v3Sidebar/entry": "${roots.0.id}",
+        "/v3Sidebar/tabs/0/root": true,
+        "/v3Sidebar/tabs/1/mount/entry": "${roots.0.id}",
+        "/v3Sidebar/tabs/2/mount/entry": "${roots.1.id}",
+        "/v3Sidebar/tabs/3/mount/entry": "${roots.2.id}",
+        "/v3Sidebar/tabs/4/mount/entry": "${roots.3.id}",
+        "/v3Sidebar/entry": null,
         "/v3Sidebar/display": "list",
         "/v3Sidebar/registered": true
       },
-      "note": "K4-0.6：项目定义里的 Tab 逐个成为标签（kernel-v5 §5），选中的 Tab 挂着的层级由 G2 注册的显示画出"
+      "note": "K4-0.6：项目定义里的 Tab 逐个成为标签，第一个是常驻的「全部」，新项目打开停在它上面（kernel-v5 §5）；选中的 Tab 由 G2 注册的显示画出"
     },
     {
       "app": "ui.press",

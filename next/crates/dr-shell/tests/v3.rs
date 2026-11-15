@@ -647,7 +647,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
             .iter()
             .all(|(_, _, surface)| *surface == DisplaySurface::Sidebar)
     );
-    // The Tab selected last (its id) stays on this device.
+    // The Tab selected last goes with the project (`tab.select`).
     let last_tab = view.read_with(cx, |ws, _| {
         ws.book
             .v3()
@@ -665,10 +665,18 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
             .id
             .clone()
     });
-    assert_eq!(
-        view.read_with(cx, |ws, _| ws.book_memory(v3::sidebar::MEMORY_KEY).cloned()),
-        Some(json!(last_tab))
-    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, _| ws.book.v3().unwrap().selected_tab.clone())
+        != Some(last_tab.clone())
+    {
+        assert!(
+            Instant::now() < deadline,
+            "the selected Tab is remembered in the project"
+        );
+        cx.run_until_parked();
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        std::thread::sleep(Duration::from_millis(2));
+    }
     let count = made.borrow().len();
     call(
         &lib,
@@ -685,7 +693,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(2));
     }
-    assert_eq!(panel.read_with(cx, |s, _| s.state())["display"], "grid");
+    assert_eq!(panel.read_with(cx, |s, cx| s.state(cx))["display"], "grid");
     assert!(refreshed.get() > 0);
     let invoked = Rc::new(Cell::new(0));
     cx.update(|window, cx| {
@@ -778,7 +786,7 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
     loop {
         cx.run_until_parked();
         cx.update(|w, cx| w.draw(cx).clear(cx));
-        let state = panel.read_with(cx, |s, _| s.state());
+        let state = panel.read_with(cx, |s, cx| s.state(cx));
         let gone = state["tabs"]
             .as_array()
             .unwrap()
