@@ -21,7 +21,8 @@ use std::{
 
 use gpui::{
     App, Bounds, ElementId, Entity, Hsla, IntoElement, ParentElement, Pixels, RenderImage,
-    RenderOnce, Styled, Svg, TransformationMatrix, Window, canvas, div, point, px, size, svg,
+    RenderOnce, SharedString, Styled, Svg, TextAlign, TextRun, TransformationMatrix, Window,
+    canvas, div, point, px, size, svg,
 };
 use image::Frame;
 use smallvec::SmallVec;
@@ -102,6 +103,38 @@ pub enum Kind {
     Material,
     /// The whole book: a blunt star in the accent.
     All,
+    /// One character the author picked (`kernel-v5.md` §8): any single
+    /// grapheme, emoji included, drawn as text in the mark's slot.
+    Glyph(Glyph),
+}
+
+/// A character drawn as a mark. Interned, so a [`Kind`] stays `Copy`: an
+/// author picks few of them, and each is kept for the life of the process.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Glyph(u32);
+
+static GLYPHS: std::sync::Mutex<Vec<SharedString>> = std::sync::Mutex::new(Vec::new());
+
+impl Glyph {
+    /// The glyph for `text` (one grapheme; the caller checks).
+    pub fn new(text: &str) -> Glyph {
+        let mut glyphs = GLYPHS.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(i) = glyphs.iter().position(|g| g.as_ref() == text) {
+            return Glyph(i as u32);
+        }
+        glyphs.push(SharedString::from(text.to_owned()));
+        Glyph((glyphs.len() - 1) as u32)
+    }
+
+    /// The character it draws.
+    pub fn text(self) -> SharedString {
+        GLYPHS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(self.0 as usize)
+            .cloned()
+            .unwrap_or_default()
+    }
 }
 
 impl Kind {
@@ -132,6 +165,9 @@ impl Kind {
             (Kind::Material, true) => M::MarkSlipHollow,
             (Kind::All, false) => M::MarkStar,
             (Kind::All, true) => M::MarkStarHollow,
+            // Drawn as text ([`paint_kind_mark`]); never asked for a mask.
+            (Kind::Glyph(_), false) => M::MarkSquare,
+            (Kind::Glyph(_), true) => M::MarkSquareHollow,
         }
     }
 
@@ -145,7 +181,7 @@ impl Kind {
             Kind::Category => (1.0, 1.0, 12.0, 12.0),
             Kind::Drift { .. } => (0.0, 1.5, 14.0, 11.0),
             Kind::Material => (4.0, 0.0, 6.0, 14.0),
-            Kind::All => (0.0, 0.0, 14.0, 14.0),
+            Kind::All | Kind::Glyph(_) => (0.0, 0.0, 14.0, 14.0),
         }
     }
 }
@@ -325,7 +361,7 @@ pub fn paint_kind_mark(
     look: MarkLook,
     palette: &Palette,
     window: &mut Window,
-    cx: &App,
+    cx: &mut App,
 ) {
     if look.level <= 0.003 {
         return;
@@ -340,6 +376,10 @@ pub fn paint_kind_mark(
         (_, Some(c)) => sand_color(palette, c),
         (_, None) => sand_color(palette, palette.ink(3)),
     };
+    if let Kind::Glyph(glyph) = look.kind {
+        paint_glyph(bounds, scale, glyph, &look, palette, window, cx);
+        return;
+    }
     let mask = look.kind.mask(look.hollow);
     let (l, t, w, h) = look.kind.placement();
     let k = scale;
@@ -359,6 +399,52 @@ pub fn paint_kind_mark(
         cx,
     );
 }
+
+/// The character of a [`Kind::Glyph`] centred in its slot, in the mark's
+/// ink (the entry's colour when it has one); a preview tab's hollow mark is
+/// fainter.
+fn paint_glyph(
+    bounds: Bounds<Pixels>,
+    scale: f32,
+    glyph: Glyph,
+    look: &MarkLook,
+    palette: &Palette,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let text = glyph.text();
+    if text.is_empty() {
+        return;
+    }
+    let tint = match look.color {
+        Some(c) => sand_color(palette, c),
+        None => palette.ink(2),
+    };
+    let alpha = look.level * if look.hollow { 0.55 } else { 1.0 };
+    let font_size = px(GLYPH_SIZE * scale * look.stretch.1);
+    let run = TextRun {
+        len: text.len(),
+        font: crate::fonts::Role::Ui.font(crate::fonts::weight::REGULAR),
+        color: tint.alpha(alpha),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let line = window
+        .text_system()
+        .shape_line(text, font_size, &[run], None);
+    let slot = MARK_SLOT * scale;
+    let line_height = font_size * 1.2;
+    let origin = bounds.origin
+        + point(
+            (px(slot) - line.width()) / 2.0,
+            (px(slot) - line_height) / 2.0,
+        );
+    let _ = line.paint(origin, line_height, TextAlign::Left, None, window, cx);
+}
+
+/// The size a [`Kind::Glyph`]'s character is drawn at in the 14px slot.
+pub const GLYPH_SIZE: f32 = 12.0;
 
 /// A sand mask laid in `bounds` in `color` at `alpha`, during paint.
 pub fn paint_mask(
@@ -800,5 +886,23 @@ mod frame_tests {
         let mut plain = FrameState::new(true, 0.0, None);
         plain.select(false, 0.0, true);
         assert!(near(plain.fade.value(now()), 0.0));
+    }
+}
+
+#[cfg(test)]
+mod glyph_tests {
+    use super::*;
+
+    #[test]
+    fn a_glyph_is_interned_and_keeps_its_character() {
+        let a = Glyph::new("岬");
+        let b = Glyph::new("🌊");
+        assert_ne!(a, b);
+        assert_eq!(Glyph::new("岬"), a, "the same character is the same glyph");
+        assert_eq!(a.text().as_ref(), "岬");
+        assert_eq!(b.text().as_ref(), "🌊");
+        // A glyph mark is its own kind, and two marks of one character match.
+        assert_eq!(Kind::Glyph(a), Kind::Glyph(Glyph::new("岬")));
+        assert_ne!(Kind::Glyph(a), Kind::Element);
     }
 }

@@ -274,6 +274,7 @@ pub struct Segmented {
     report_selected: bool,
     font: Role,
     text_size: Option<f32>,
+    faint: Vec<usize>,
 }
 
 impl Segmented {
@@ -292,11 +293,20 @@ impl Segmented {
             report_selected: false,
             font: Role::Ui,
             text_size: None,
+            faint: Vec::new(),
         }
     }
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    /// Draws the options at these indices faded (still selectable): what
+    /// they stand for is not there now (a left-column Tab whose mount is
+    /// gone).
+    pub fn faint(mut self, options: impl IntoIterator<Item = usize>) -> Self {
+        self.faint = options.into_iter().collect();
         self
     }
 
@@ -453,6 +463,7 @@ impl RenderOnce for Segmented {
             let ink = match (disabled, on) {
                 (true, true) => p.ink(3),
                 (true, false) => p.ink(5),
+                _ if self.faint.contains(&i) => p.ink(4),
                 (false, true) => p.ink(1),
                 (false, false) => p.ink(3),
             };
