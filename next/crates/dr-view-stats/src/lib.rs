@@ -197,6 +197,19 @@ pub fn load_progress(
     mine_live: Option<i64>,
 ) -> dr_workspace::Result<Progress> {
     let counts = v3::load_at(ws, book, v3::Scope::Book, today)?;
+    if !counts.has_book {
+        return Ok(Progress {
+            words: 0,
+            counted: false,
+            word_target: None,
+            book: None,
+            today: 0,
+            daily_word_target: None,
+            daily: None,
+            week: 0,
+            streak: 0,
+        });
+    }
     let metrics = counts.book_words(&Live::default());
     let words = metrics.map_or(0, |m| m.words);
     let days = ws

@@ -139,9 +139,10 @@ pub fn corner(
         );
     }
     // Every prose page has a ⋯ menu (its snapshot history at least); the
-    // whole book's holds its share and export (M41).
+    // whole book's holds its export when `成书` is enabled (M41).
+    let has_book = w.book.v3().is_none_or(|v| v.project.book.is_some());
     let doc_page = target.and_then(crate::book::doc_of).is_some();
-    if doc_page || matches!(target, Some(Target::Book(_))) {
+    if doc_page || (has_book && matches!(target, Some(Target::Book(_)))) {
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -234,7 +235,9 @@ pub fn corner(
             };
             Some(more_menu(ws, target, &host, bounds, &theme, cx))
         }
-        (false, Some(Target::Book(_)), true, Some(bounds)) => Some(book_menu(ws, bounds, cx)),
+        (false, Some(Target::Book(_)), true, Some(bounds)) if has_book => {
+            Some(book_menu(ws, bounds, cx))
+        }
         _ => None,
     };
 
@@ -336,11 +339,24 @@ fn more_menu(
     cx: &mut App,
 ) -> AnyElement {
     let mut menu = Menu::new("corner-more-menu");
-    for (i, section) in super::page_actions::page_actions(ws, host, target, cx)
-        .into_iter()
-        .enumerate()
-    {
-        if i > 0 {
+    let chapter_export = match (target, host.book.v3()) {
+        (Target::Entry { id, .. }, Some(v))
+            if v.project.book.is_some() && v.manuscript.iter().any(|b| b.entry == id.as_str()) =>
+        {
+            Some(id.as_str())
+        }
+        _ => None,
+    };
+    let mut has_rows = false;
+    if let Some(chapter) = chapter_export {
+        menu = export_items(menu, ws, Some(chapter), cx);
+        has_rows = true;
+    }
+    for section in super::page_actions::page_actions(ws, host, target, cx) {
+        if section.items.is_empty() {
+            continue;
+        }
+        if has_rows {
             menu = menu.separator(theme);
         }
         if let Some(title) = section.title {
@@ -349,6 +365,7 @@ fn more_menu(
         for item in section.items {
             menu = menu.item(menu_item(ws, item));
         }
+        has_rows = true;
     }
     let dismiss = ws.clone();
     overlay::float(
@@ -381,6 +398,11 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if matches!(request, dr_view_export::Request::Manuscript { .. })
+            && self.book.v3().is_some_and(|v| v.project.book.is_none())
+        {
+            return;
+        }
         let strings = crate::Strings::get(cx);
         let (locale, platform) = (strings.locale(), strings.platform());
         let (lib, book) = (self.library.clone(), self.book_id.clone());
