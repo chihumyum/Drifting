@@ -48,6 +48,8 @@ use crate::settings::EditorSettings;
 use crate::source::SessionSource;
 use crate::todo::{self, TodoMarker};
 
+mod files;
+
 /// What the whole-book view tells its host.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BookEditorEvent {
@@ -324,6 +326,11 @@ pub struct BookEditor {
     pub(crate) decor: crate::decor::Decor,
     /// Immersive writing: typewriter scrolling forced on (M26).
     immersive: bool,
+    /// The paragraph gap a dragged file would land in (`files.rs`).
+    drop_gap: Option<crate::prose_files::DropGap>,
+    /// The window the view is in (a drop moves the caret after an import
+    /// finished in the background).
+    window: gpui::AnyWindowHandle,
     _editor_events: Subscription,
     _ws_events: dr_workspace::Subscription,
 }
@@ -445,10 +452,15 @@ impl BookEditor {
             .collect();
         let docs: Vec<String> = chapters.iter().map(|c| c.doc.clone()).collect();
         let note_shortcuts = crate::v3::book_note_shortcuts(&ws, book, &docs);
+        let ext = extension.clone();
         let assist = cx.new(|cx| {
             let mut a =
                 crate::assist::Assist::new(ws.clone(), book, editor.clone(), docs, window, cx);
             a.set_auto_links(settings.auto_entity_links);
+            // The small file mark after a link to a file, as in a chapter editor.
+            a.set_extension(ext);
+            // Each chapter's slash menu as its chapter editor has it.
+            a.set_chapter_notes(note_shortcuts.clone());
             a
         });
         let assist_events = cx.subscribe_in(
@@ -490,7 +502,9 @@ impl BookEditor {
                 crate::assist::AssistEvent::InsertTable { chapter } => {
                     this.insert_table(*chapter, window, cx);
                 }
-                crate::assist::AssistEvent::InsertMaterial { .. } => {}
+                crate::assist::AssistEvent::InsertMaterial { chapter, material } => {
+                    this.insert_material(*chapter, material, window, cx);
+                }
             },
         );
         let decor = crate::decor::Decor::for_book(
@@ -514,6 +528,8 @@ impl BookEditor {
             base_style,
             settings,
             immersive: false,
+            drop_gap: None,
+            window: window.window_handle(),
             extension,
             editor,
             embeds,
@@ -678,6 +694,14 @@ impl BookEditor {
         }
     }
 
+    /// Which chapters follow their level's format shortcuts: typing them
+    /// (with the caret there) and each chapter's slash menu.
+    fn set_note_shortcuts(&mut self, notes: Vec<bool>, cx: &mut Context<Self>) {
+        self.assist
+            .update(cx, |a, _| a.set_chapter_notes(notes.clone()));
+        self.note_shortcuts = notes;
+    }
+
     fn sync_chapter_shortcuts(&self, cx: &mut Context<Self>) {
         let chapter = self.editor.read(cx).selection().chapter;
         let shortcuts = self.note_shortcuts.get(chapter).copied().unwrap_or(false);
@@ -754,7 +778,8 @@ impl BookEditor {
             self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             self.follow_book(window, cx);
             let docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
-            self.note_shortcuts = crate::v3::book_note_shortcuts(&self.ws, &self.book, &docs);
+            let notes = crate::v3::book_note_shortcuts(&self.ws, &self.book, &docs);
+            self.set_note_shortcuts(notes, cx);
             self.sync_chapter_shortcuts(cx);
             if self.pages.has_chrome() {
                 self.refresh_pages(cx);
@@ -853,7 +878,7 @@ impl BookEditor {
         self.embeds = embeds;
         self._editor_events = events;
         let shortcut_docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
-        self.note_shortcuts = crate::v3::book_note_shortcuts(&self.ws, &self.book, &shortcut_docs);
+        self.drop_gap = None;
         self.todos.clear();
         self.tasks.clear();
         self.pages.set_style(style, &self.editor, cx);
@@ -868,6 +893,8 @@ impl BookEditor {
         );
         self.assist
             .update(cx, |a, cx| a.attach(editor, docs, window, cx));
+        let notes = crate::v3::book_note_shortcuts(&self.ws, &self.book, &shortcut_docs);
+        self.set_note_shortcuts(notes, cx);
         let docs = self.chapters.iter().map(|c| c.doc.clone()).collect();
         self.decor
             .rebind_book(&self.ws, &self.book, docs, &self.editor, window, cx);
@@ -1415,13 +1442,59 @@ enum Notice {
 }
 
 impl Render for BookEditor {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        use gpui::{DragMoveEvent, ExternalPaths};
+        use gpui_prose::input::actions::{Copy, Cut, Paste};
+        if !cx.has_active_drag() && self.drop_gap.is_some() {
+            self.drop_gap = None;
+        }
         let style = self.settings.style_for(&self.base_style, self.immersive);
         let empty_sections = self.chapters.is_empty() && !self.sections.is_empty();
+        let dropline = self
+            .drop_gap
+            .filter(|_| cx.has_active_drag())
+            .map(|gap| crate::prose_files::dropline(gap, window, cx));
         div()
+            .id("dr-editor-book-drop-zone")
             .size_full()
             .relative()
             .bg(style.background)
+            // Files in, as in a chapter editor (`files.rs`): library files and
+            // the computer's dropped between paragraphs, ⌘V of a table, an
+            // image or files, a selection holding embeds copied or cut.
+            .on_drag_move::<dr_ui::AssetDrag>(cx.listener(
+                |this, e: &DragMoveEvent<dr_ui::AssetDrag>, _, cx| {
+                    if e.drag(cx).book == this.book {
+                        this.update_drop_gap(e.event.position, e.bounds, cx);
+                    }
+                },
+            ))
+            .on_drag_move::<ExternalPaths>(cx.listener(
+                |this, e: &DragMoveEvent<ExternalPaths>, _, cx| {
+                    this.update_drop_gap(e.event.position, e.bounds, cx);
+                },
+            ))
+            .on_drop(cx.listener(|this, drag: &dr_ui::AssetDrag, _, cx| {
+                this.drop_asset_drag(drag, None, cx);
+            }))
+            .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
+                this.drop_external_paths(paths.paths().to_vec(), None, cx);
+            }))
+            .capture_action(cx.listener(|this, _: &Copy, window, cx| {
+                if crate::prose_files::copy(this, false, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &Cut, window, cx| {
+                if crate::prose_files::copy(this, true, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &Paste, window, cx| {
+                if crate::prose_files::paste(this, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
             // ⌘Z / ⌘⇧Z undo in the caret's chapter, before gpui-prose's own
             // handler (which undoes the latest step in any chapter).
             .capture_action(cx.listener(|this, _: &Undo, window, cx| {
@@ -1475,5 +1548,6 @@ impl Render for BookEditor {
                         .children(headings),
                 )
             })
+            .children(dropline)
     }
 }
