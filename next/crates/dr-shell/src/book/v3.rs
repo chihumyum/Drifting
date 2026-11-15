@@ -69,9 +69,6 @@ pub struct BookV3 {
     /// The titles of the entries in Recently Deleted: what a Tab mounted on
     /// one of them says (`kernel-v5.md` §5).
     pub trashed_titles: BTreeMap<String, String>,
-    /// The Tab the project was left on, on any device (`tab.select`,
-    /// `layout:<书>`; `kernel-v5.md` §5).
-    pub selected_tab: Option<String>,
     pub materials: Vec<MaterialInfo>,
     pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]

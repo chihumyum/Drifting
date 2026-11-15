@@ -105,6 +105,7 @@ impl Sidebar {
         {
             // Where the project was left (on any device); else 「全部」.
             self.selected = v
+                .project
                 .selected_tab
                 .clone()
                 .filter(|id| tabs.contains(id))
@@ -164,7 +165,11 @@ impl Sidebar {
         }
         self.selected = Some(id.into());
         self.restored = true;
-        let stored = self.host.book.v3().and_then(|v| v.selected_tab.clone());
+        let stored = self
+            .host
+            .book
+            .v3()
+            .and_then(|v| v.project.selected_tab.clone());
         if stored.as_deref() != Some(id) {
             tabs::write(&self.host, "tab.select", json!({ "id": id }), |_, _| {}, cx);
         }

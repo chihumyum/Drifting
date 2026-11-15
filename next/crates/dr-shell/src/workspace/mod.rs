@@ -891,6 +891,7 @@ impl Workspace {
     pub fn on_library_events(&mut self, events: Vec<WsEvent>, cx: &mut Context<Self>) {
         let mut reload_book = false;
         let mut reload_layouts = false;
+        let mut reload_tab = false;
         let mut book_purged = false;
         let mut gone = Vec::new();
         let mut journal = Vec::new();
@@ -904,7 +905,10 @@ impl Workspace {
                 // `Checkpoints`) and change none of them: nothing is read
                 // again for those.
                 WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
-                WsEvent::Layout(l) if l.book.as_str() == self.book_id => reload_layouts = true,
+                WsEvent::Layout(l) if l.book.as_str() == self.book_id => {
+                    reload_layouts = true;
+                    reload_tab |= l.tab;
+                }
                 WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
                     for entity in r.entities {
                         if entity.target == dr_workspace::NavTarget::Book && entity.purged {
@@ -963,14 +967,27 @@ impl Workspace {
             let book_id = self.book_id.clone();
             cx.spawn(async move |this, cx| {
                 let id_for_read = book_id.clone();
+                // The Tab the project is on is in the same document: read
+                // again when the change may have chosen another.
                 let loaded = cx
                     .background_executor()
-                    .spawn(async move { lib.layout_positions(&id_for_read) })
+                    .spawn(async move {
+                        let raw = lib.layout_positions(&id_for_read)?;
+                        let tab = match reload_tab {
+                            true => Some(lib.stored_tab(&id_for_read)?),
+                            false => None,
+                        };
+                        Ok::<_, dr_workspace::WsError>((raw, tab))
+                    })
                     .await;
-                if let Ok(raw) = loaded {
+                if let Ok((raw, tab)) = loaded {
                     let _ = this.update(cx, |ws, cx| {
                         if ws.book_id == book_id && ws.book.id == book_id {
-                            ws.book = Rc::new(ws.book.with_layouts(raw));
+                            let mut book = ws.book.with_layouts(raw);
+                            if let Some(stored) = tab {
+                                book = book.with_selected_tab(stored);
+                            }
+                            ws.book = Rc::new(book);
                             cx.notify();
                         }
                     });

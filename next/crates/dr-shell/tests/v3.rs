@@ -666,8 +666,9 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
             .clone()
     });
     let deadline = Instant::now() + Duration::from_secs(10);
-    while view.read_with(cx, |ws, _| ws.book.v3().unwrap().selected_tab.clone())
-        != Some(last_tab.clone())
+    while view.read_with(cx, |ws, _| {
+        ws.book.v3().unwrap().project.selected_tab.clone()
+    }) != Some(last_tab.clone())
     {
         assert!(
             Instant::now() < deadline,

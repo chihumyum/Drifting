@@ -85,6 +85,15 @@ impl Book {
         }
         out
     }
+    /// The same book on the Tab the project is on now (`tab.select` here or
+    /// on another device; `kernel-v5.md` §5).
+    pub fn with_selected_tab(&self, stored: Option<String>) -> Self {
+        let mut out = self.clone();
+        if let Snapshot::V3(v3) = &mut out.snapshot {
+            v3.project = std::mem::take(&mut v3.project).with_selected_tab(stored);
+        }
+        out
+    }
     pub fn load_any(lib: &Library, preferred: Option<&str>) -> Result<Option<Book>, WsError> {
         if let Some(id) = preferred {
             match Book::load(lib, id) {

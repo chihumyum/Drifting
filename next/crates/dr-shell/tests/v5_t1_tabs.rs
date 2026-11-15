@@ -188,10 +188,10 @@ fn managing_adds_reorders_and_removes_tabs_named_after_their_mounts(cx: &mut Tes
     let (view, cx) = open(cx, &lib, &id);
     wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
     let sidebar = sidebar(&view, cx);
-    // A new writing project: 「全部」 and the four outermost levels, on
-    // 「全部」.
+    // A writing project: 「全部」 and the four outermost levels first (the
+    // seed adds 0.1's text materials after them), on 「全部」.
     assert_eq!(
-        names(&sidebar, cx),
+        names(&sidebar, cx)[..5],
         ["全部", "书稿", "构想", "要素", "故事线"]
     );
     let root_tab = view.read_with(cx, |ws, _| tab_on(ws, &TabMount::Root).unwrap());
@@ -300,8 +300,13 @@ fn managing_adds_reorders_and_removes_tabs_named_after_their_mounts(cx: &mut Tes
     cx.dispatch_action(Undo);
     wait(&view, cx, "the undo", |ws, _| tab_on(ws, &mount).is_some());
 
-    // Esc ends managing.
-    cx.update(|window, cx| sidebar.update(cx, |s, cx| s.set_managing(true, window, cx)));
+    // Managing again (the column takes the keyboard): Esc ends it.
+    cx.update(|window, cx| {
+        sidebar.update(cx, |s, cx| {
+            s.set_managing(false, window, cx);
+            s.set_managing(true, window, cx);
+        })
+    });
     pump(cx);
     cx.simulate_keystrokes("escape");
     pump(cx);
@@ -345,7 +350,7 @@ fn the_selected_tab_goes_with_the_project(cx: &mut TestAppContext) {
     let book_tab = view.read_with(cx, |ws, _| tabs_of(ws)[1].0.clone());
     sidebar.update(cx, |s, cx| s.choose(&book_tab, cx));
     wait(&view, cx, "the remembered Tab", |ws, _| {
-        ws.book.v3().unwrap().selected_tab.as_deref() == Some(book_tab.as_str())
+        ws.book.v3().unwrap().project.selected_tab.as_deref() == Some(book_tab.as_str())
     });
 }
 
