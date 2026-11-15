@@ -449,8 +449,11 @@ impl Sidebar {
         let ids: Vec<String> = tabs.iter().map(|t| t.id.clone()).collect();
         let weak = cx.entity().downgrade();
         let manage = cx.entity().downgrade();
+        let bounds = overlay::use_bounds("v3-tab-row-bounds", window, cx);
         div()
             .id("v3-tab-row")
+            .relative()
+            .child(overlay::probe(bounds))
             .flex_shrink_0()
             .px_2()
             .flex()
@@ -971,9 +974,16 @@ impl Render for Sidebar {
                 Popup::Mount { tab, at } => (at, self.mount_picker(tab, window, cx)),
                 Popup::More(at) => (at, self.more_list(window, cx)),
             };
+            // The Tab row's lists open under the row, so a long one has the
+            // window's height to show in; 「更多」's under the pointer.
+            let row = *overlay::use_bounds("v3-tab-row-bounds", window, cx).read(cx);
+            let place = match (&self.popup, row) {
+                (Some(Popup::Manage(_) | Popup::Mount { .. }), Some(row)) => Place::below(row, 4.0),
+                _ => Place::Point(at),
+            };
             let weak = cx.entity().downgrade();
             content = content.child(overlay::float(
-                Place::Point(at),
+                place,
                 Layer::Popover,
                 div()
                     .occlude()
