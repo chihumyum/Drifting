@@ -169,8 +169,8 @@ fn the_page_shows_its_facts_and_follows_them(cx: &mut TestAppContext) {
     });
     draw(cx);
     let page = view.read_with(cx, |v, _| v.page_info()).unwrap();
+    // A page of the book; the App numbers no chapter.
     assert_eq!(page.kind, PageKind::Chapter);
-    assert_eq!(page.number, Some(2));
     assert_eq!(page.title, "雨夜");
     assert_eq!(page.status, "draft");
     assert_eq!(
@@ -348,11 +348,16 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
     });
     draw(cx);
     draw(cx);
-    let numbers: Vec<Option<u32>> = recorder.heads.borrow().iter().map(|p| p.number).collect();
-
+    let titles: Vec<String> = recorder
+        .heads
+        .borrow()
+        .iter()
+        .filter(|p| p.kind == PageKind::Chapter)
+        .map(|p| p.title.clone())
+        .collect();
     assert!(
-        numbers.contains(&Some(1)) && numbers.contains(&Some(2)),
-        "{numbers:?}"
+        titles.iter().any(|t| t == "一") && titles.iter().any(|t| t == "二"),
+        "{titles:?}"
     );
     assert_eq!(
         view.read_with(cx, |v, _| v.page_info(&two)).unwrap().title,
@@ -364,8 +369,8 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
         view.read_with(cx, |v, _| v.page_info(&new)).is_some()
     });
     assert_eq!(
-        view.read_with(cx, |v, _| v.page_info(&new)).unwrap().number,
-        Some(2)
+        view.read_with(cx, |v, _| v.page_info(&new)).unwrap().kind,
+        PageKind::Chapter
     );
     assert!(view.update_in(cx, |v, window, cx| v.focus_body(&new, window, cx)));
     let sel = view.read_with(cx, |v, cx| v.editor().read(cx).selection());

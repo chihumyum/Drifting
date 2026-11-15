@@ -655,7 +655,19 @@ fn v5_structure_projects_book_and_tabs_and_bounds_heavy_seed_size() {
         .project_book
         .as_ref()
         .expect("novel project starts with a book");
-    assert!(initial_book.root_valid);
+    // DW: the book reads from the root; the structure names no start.
+    let raw = serde_json::to_value(&initial).unwrap();
+    assert!(
+        raw["project_book"].get("root").is_none(),
+        "{}",
+        raw["project_book"]
+    );
+    assert!(
+        raw["project_book"].get("root_valid").is_none(),
+        "{}",
+        raw["project_book"]
+    );
+    assert!(raw.get("manuscript_roots").is_none());
     assert_eq!(initial_book.word_target, Some(3000));
     assert!(!initial.project_tabs.is_empty());
     assert!(initial.project_tabs.iter().all(|t| t.mount_valid));

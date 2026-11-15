@@ -223,15 +223,20 @@ pub(crate) struct Inner {
     auto_links: std::sync::atomic::AtomicBool,
     active_book: Mutex<Option<BookId>>,
     sync_controller: Mutex<Option<Arc<dyn SyncController>>>,
+    /// Saves template working copies over their templates after each write
+    /// (`WORKING-COPY-LOCAL`).
+    pub(crate) saver: Arc<crate::working_copy::Saver>,
 }
 
 /// Listen to the library's events (the caches and the bus follow them),
 /// holding the workspace weakly.
 fn subscribe(inner: &Arc<Inner>) {
+    inner.saver.resume();
     let weak: Weak<Inner> = Arc::downgrade(inner);
     let sub = inner.lib.subscribe(move |e| {
         if let Some(inner) = weak.upgrade() {
             inner.on_store_event(e);
+            inner.saver.on_event(&weak, &inner.lib, e);
         }
     });
     *lock(&inner.subscription) = Some(sub);
@@ -295,6 +300,7 @@ impl Workspace {
             auto_links: std::sync::atomic::AtomicBool::new(true),
             active_book: Mutex::new(None),
             sync_controller: Mutex::new(None),
+            saver: Arc::default(),
         });
         subscribe(&inner);
         Ok(Self { inner })
@@ -352,6 +358,11 @@ impl Workspace {
     /// Close every open document and wait for their holders (the library
     /// stays open; close it with `Library::close`).
     pub fn close(&self) {
+        // A working copy's last writes go over its template first.
+        if let Err(e) = self.flush_working_copies() {
+            log::warn!("saving working copies before closing: {e}");
+        }
+        self.inner.saver.stop();
         self.close_slots();
         lock(&self.inner.subscription).take();
         lock(&self.inner.sync_controller).take();
@@ -402,6 +413,9 @@ impl Workspace {
     pub fn before_quit(&self) -> QuitReport {
         let started = std::time::Instant::now();
         let mut report = QuitReport::default();
+        if let Err(e) = self.flush_working_copies() {
+            log::warn!("saving working copies before quitting: {e}");
+        }
         let handles: Vec<DocHandle> = {
             let books = lock(&self.inner.books);
             let prose = lock(&self.inner.prose);
@@ -744,6 +758,46 @@ impl Workspace {
         let cx = Cx::new(self, actor, spec);
         let out = (spec.call)(&cx, input);
         self.finish(cx, out, journal)
+    }
+
+    /// The saved project template `book` is the working copy of (编辑模板的
+    /// 工作区, `WORKING-COPY-LOCAL`), when it is one and still stored.
+    pub fn working_copy_template(&self, book: &str) -> Result<Option<String>> {
+        Ok(self.working_copy_note(book)?.map(|n| n.template))
+    }
+
+    /// Whether `book` is a template's working copy (still stored).
+    pub fn is_working_copy(&self, book: &str) -> Result<bool> {
+        Ok(self.inner.lib.local_book(book)?.is_some())
+    }
+
+    /// Every book that is a template's working copy (still stored).
+    pub fn working_copy_books(&self) -> Result<std::collections::BTreeSet<String>> {
+        Ok(self
+            .inner
+            .lib
+            .local_books()?
+            .into_iter()
+            .map(|b| b.book_id)
+            .collect())
+    }
+
+    pub(crate) fn working_copy_note(
+        &self,
+        book: &str,
+    ) -> Result<Option<crate::working_copy::CopyNote>> {
+        Ok(self
+            .inner
+            .lib
+            .local_book(book)?
+            .map(|b| crate::working_copy::CopyNote::parse(&b.note)))
+    }
+
+    /// Save, now, every working copy with writes not yet saved over its
+    /// template (they save themselves a moment after each write;
+    /// [`Self::close`] and [`Self::before_quit`] call this).
+    pub fn flush_working_copies(&self) -> Result<()> {
+        self.inner.saver.flush(self)
     }
 
     /// Attach (or clear) the runtime sync controller backing `sync.status` and `sync.now`.
@@ -1572,7 +1626,13 @@ impl Workspace {
         if self.inner.lib.doc_info(&id)?.is_none() {
             return Ok(None);
         }
-        let raw_doc = self.inner.lib.load_copy(&id)?;
+        let raw_doc = match self.inner.lib.load_copy(&id) {
+            Ok(raw_doc) => raw_doc,
+            // Registered with nothing stored yet (a prose module `project.create`
+            // made empty and nobody wrote): there is nothing to read.
+            Err(StoreError::NotFound(_)) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
         let borrowed = dr_doc::prose::BorrowedProse::new(&raw_doc, doc)?;
         Ok(Some(f(&borrowed.view())?))
     }

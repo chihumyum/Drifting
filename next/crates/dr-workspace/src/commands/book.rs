@@ -113,11 +113,13 @@ impl JsonSchema for BookCreateIn {
 
 op! {
     BookList = "book.list", Read, Shared,
-    "List the library's books (trashed ones when asked).",
+    "List the library's books (trashed ones when asked); a template's working copy is not one of them.",
     fn(cx, input: ListBooksIn) -> Vec<BookInfo> {
         let mut out = Vec::new();
+        let copies = cx.workspace().working_copy_books()?;
         for d in cx.workspace().library().docs(None, Some("book"))? {
             let Some(id) = d.doc_id.strip_prefix("book:") else { continue };
+            if copies.contains(id) { continue; }
             let raw = cx.workspace().library().load_copy(&d.doc_id)?;
             if !dr_doc::v3::is_book_doc(&raw) { continue; }
             let slot = cx.workspace().book_slot(&super::pid("book", id)?)?;
@@ -216,17 +218,13 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
                 .all(|id| entries.get(id).is_some_and(|a| !a.is_trashed()))
     };
     // The book sequence (`project.book`): when `成书` is enabled, the book's
-    // words are its book prose and its chapters are the entries it numbers;
-    // when `成书` is off (`project.book` is `None`), word counts are absent.
+    // words are its book prose and its chapters the entries carrying book
+    // prose (nothing is numbered, so no entry under another is left out of
+    // the count); when `成书` is off (`project.book` is `None`), word counts
+    // are absent.
     let project = structure.project();
     let sequence = structure.book_sequence();
-    let numbered: std::collections::BTreeSet<_> = sequence
-        .iter()
-        .filter(|e| e.ordinal.is_some())
-        .map(|e| e.entry.id.clone())
-        .collect();
-    // Every entry carrying book prose, numbered or not (one under an entry
-    // with book prose of its own has no number since 2026-11-13).
+    // Every entry carrying book prose.
     let with_prose: std::collections::BTreeSet<_> = sequence
         .iter()
         .filter(|e| !e.prose.is_empty())
@@ -275,7 +273,7 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
             .find(|f| f.key.trim() == "副标题")
             .map(|f| f.value.trim().to_owned())
             .filter(|v| !v.is_empty()),
-        chapters: numbered.len() as u32,
+        chapters: with_prose.len() as u32,
         storylines: {
             let lane_ids =
                 dr_model::v3::active_lane_ids(&v.timeline_views_raw(), entries, templates);
@@ -302,13 +300,16 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
 
 op! {
     BookShelf = "book.shelf", Read, Shared,
-    "Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.",
+    "Everything the bookshelf shows, in one read: every book (not a template's working copy) with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.",
     fn(cx, input: ListBooksIn) -> Vec<ShelfBook> {
         let now = now().0;
         let mut live = Vec::new();
         let mut trashed = Vec::new();
+        let copies = cx.workspace().working_copy_books()?;
         for d in cx.workspace().library().docs(None, Some("book"))? {
             let Some(id) = d.doc_id.strip_prefix("book:") else { continue };
+            // A template's working copy is not a project (`WORKING-COPY-LOCAL`).
+            if copies.contains(id) { continue; }
             let id: BookId = super::pid("book", id)?;
             match shelf_book(cx, &id, now) {
                 Ok(b) if b.info.trashed => { if input.trashed { trashed.push(b) } }

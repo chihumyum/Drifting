@@ -35,7 +35,8 @@ pub struct BookStructureV3 {
 }
 
 /// One entry in a sequence walk ([`BookStructureV3::sequence`],
-/// [`BookStructureV3::book_sequence`], [`BookStructureV3::flatten`]).
+/// [`BookStructureV3::book_sequence`], [`BookStructureV3::flatten`]). The App
+/// numbers nothing: an author who wants chapter numbers writes them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FlatEntry<'a> {
     pub entry: &'a Entry,
@@ -46,12 +47,6 @@ pub struct FlatEntry<'a> {
     /// template). Only the template's prose modules: prose kept from an
     /// earlier template is not part of the sequence.
     pub prose: Vec<FlatProse>,
-    /// Set when `in_book_only` is true (`sequence(..., true)` /
-    /// [`BookStructureV3::book_sequence`]): entries with book prose are numbered
-    /// from 1 across the sequence, except those living (at any depth) under an
-    /// entry inside the sequence that has book prose of its own
-    /// (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
-    pub ordinal: Option<u32>,
 }
 
 /// One prose module of a [`FlatEntry`].
@@ -87,17 +82,18 @@ impl std::fmt::Display for NotALevel {
 
 impl std::error::Error for NotALevel {}
 
-/// [`BookStructureV3::sequence`] requires a valid [`BookRoot`] (`BOOK-ROOT-VALID`).
+/// [`BookStructureV3::sequence`] starts where a flatten can start
+/// ([`is_valid_flatten_from`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InvalidBookRoot(pub BookRoot);
+pub struct InvalidFlattenFrom(pub FlattenFrom);
 
-impl std::fmt::Display for InvalidBookRoot {
+impl std::fmt::Display for InvalidFlattenFrom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "invalid sequence root {:?}", self.0)
+        write!(f, "cannot flatten from {:?}", self.0)
     }
 }
 
-impl std::error::Error for InvalidBookRoot {}
+impl std::error::Error for InvalidFlattenFrom {}
 
 impl BookStructureV3 {
     pub(super) fn from_doc(book: BookId, doc: &loro::LoroDoc) -> Self {
@@ -317,27 +313,15 @@ impl BookStructureV3 {
     }
 
     /// Reference [`TimelineView`] whose scale governs `host`'s own page order
-    /// (`kernel-v5.md` §4): if `project.book.root` names a live view (`View` or
-    /// `Lane`) whose effective lanes contain `host`, that view wins; otherwise
-    /// the first live view in `(pos, id)` order whose effective lanes contain
-    /// `host`. Returns `None` when `host` is not in any live view.
+    /// (`kernel-v5.md` §4 「视图：刻度」): the first live view in `(pos, id)`
+    /// order whose effective lanes contain `host`. Returns `None` when `host`
+    /// is not in any live view.
     pub fn lane_reference_view(&self, host: &EntryId) -> Option<&TimelineView> {
         let in_view = |tv: &TimelineView| {
             effective_timeline_lanes(&tv.lanes, &self.entries, &self.templates)
                 .iter()
                 .any(|l| &l.entry == host)
         };
-        if let Some(book) = &self.project.book {
-            let root_view = match &book.root {
-                BookRoot::View { view } | BookRoot::Lane { view, .. } => {
-                    self.timeline_views.get(view)
-                }
-                BookRoot::Root | BookRoot::Entry { .. } | BookRoot::Unset => None,
-            };
-            if let Some(tv) = root_view.filter(|tv| in_view(tv)) {
-                return Some(tv);
-            }
-        }
         self.ordered_views
             .iter()
             .map(|id| &self.timeline_views[id])
@@ -497,9 +481,9 @@ impl BookStructureV3 {
         self.settings.get(id)
     }
 
-    /// Whether `root` currently satisfies `BOOK-ROOT-VALID`.
-    pub fn is_valid_book_root(&self, root: &BookRoot) -> bool {
-        check_book_root(root, &self.entries, &self.templates, &self.timeline_views).is_ok()
+    /// Whether a flatten can start at `from` now ([`is_valid_flatten_from`]).
+    pub fn is_valid_flatten_from(&self, from: &FlattenFrom) -> bool {
+        is_valid_flatten_from(from, &self.entries, &self.templates, &self.timeline_views)
     }
 
     /// Whether `mount` currently satisfies `TAB-MOUNT-VALID`.
@@ -545,7 +529,6 @@ impl BookStructureV3 {
             entry,
             depth,
             prose: self.prose_of(entry, in_book_only),
-            ordinal: None,
         });
         if entry.is_level() {
             for next in self.children.get(&Some(id.clone())).into_iter().flatten() {
@@ -598,7 +581,6 @@ impl BookStructureV3 {
                     entry,
                     depth: 0,
                     prose: self.prose_of(entry, in_book_only),
-                    ordinal: None,
                 }
             })
             .collect()
@@ -616,12 +598,12 @@ impl BookStructureV3 {
                 entry,
                 depth: 0,
                 prose: self.prose_of(entry, in_book_only),
-                ordinal: None,
             })
             .collect()
     }
 
-    /// Unified sequence reader across all four [`BookRoot`] kinds (`kernel-v5.md` §3):
+    /// Unified sequence reader across all four [`FlattenFrom`] kinds
+    /// (`kernel-v5.md` §3 「怎么读」):
     /// - `Root` and `Entry`: preorder walk (own prose, then residents in folder
     ///   order, then valid members), visiting each entry at most once.
     /// - `View`: all valid members of all effective swimlanes in `view`, ordered
@@ -631,14 +613,14 @@ impl BookStructureV3 {
     ///   last, ties broken by entry id).
     pub fn sequence(
         &self,
-        root: &BookRoot,
+        from: &FlattenFrom,
         in_book_only: bool,
-    ) -> Result<Vec<FlatEntry<'_>>, InvalidBookRoot> {
-        if !self.is_valid_book_root(root) {
-            return Err(InvalidBookRoot(root.clone()));
+    ) -> Result<Vec<FlatEntry<'_>>, InvalidFlattenFrom> {
+        if !self.is_valid_flatten_from(from) {
+            return Err(InvalidFlattenFrom(from.clone()));
         }
-        let mut entries = match root {
-            BookRoot::Root => {
+        Ok(match from {
+            FlattenFrom::Root => {
                 let mut seen = BTreeSet::new();
                 let mut out = Vec::new();
                 for top in self.children.get(&None).into_iter().flatten() {
@@ -646,49 +628,26 @@ impl BookStructureV3 {
                 }
                 out
             }
-            BookRoot::Entry { entry } => {
+            FlattenFrom::Entry { entry } => {
                 let mut seen = BTreeSet::new();
                 let mut out = Vec::new();
                 self.walk(entry, 0, in_book_only, &mut seen, &mut out);
                 out
             }
-            BookRoot::View { view } => self.view_sequence(&self.timeline_views[view], in_book_only),
-            BookRoot::Lane { view, entry } => {
+            FlattenFrom::View { view } => {
+                self.view_sequence(&self.timeline_views[view], in_book_only)
+            }
+            FlattenFrom::Lane { view, entry } => {
                 self.lane_in_view_sequence(&self.timeline_views[view], entry, in_book_only)
             }
-            // Never valid: refused above.
-            BookRoot::Unset => Vec::new(),
-        };
-        if in_book_only {
-            // Entries with book prose are numbered from 1 across the sequence,
-            // except what lives under an entry with book prose of its own
-            // (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`). For `BookRoot::Entry`, the
-            // starting level itself (`depth == 0`) may carry a preface without
-            // stopping the chapters under it from being numbered.
-            let start_is_entry = matches!(root, BookRoot::Entry { .. });
-            let mut ordinal = 0u32;
-            let mut inside: Option<u32> = None;
-            for e in &mut entries {
-                if inside.is_some_and(|depth| e.depth <= depth) {
-                    inside = None;
-                }
-                if inside.is_none() && !e.prose.is_empty() {
-                    ordinal += 1;
-                    e.ordinal = Some(ordinal);
-                    if !(start_is_entry && e.depth == 0) {
-                        inside = Some(e.depth);
-                    }
-                }
-            }
-        }
-        Ok(entries)
+        })
     }
 
-    /// Flatten what lies below `from` (`BookRoot::Entry`): delegates to the
-    /// unified [`Self::sequence`] reader.
+    /// Flatten what lies below `from` ([`FlattenFrom::Entry`]): delegates to
+    /// the unified [`Self::sequence`] reader.
     pub fn flatten(&self, from: &EntryId, how: Flatten) -> Result<Vec<FlatEntry<'_>>, NotALevel> {
         self.sequence(
-            &BookRoot::Entry {
+            &FlattenFrom::Entry {
                 entry: from.clone(),
             },
             how.in_book_only,
@@ -696,19 +655,19 @@ impl BookStructureV3 {
         .map_err(|_| NotALevel(from.clone()))
     }
 
-    /// The project's book sequence (`成书序列`, `kernel-v5.md` §3): reads from
-    /// `project.book.root` with `in_book_only = true` and numbers entries with
-    /// book prose from 1 (`ordinal`). Returns empty when the project has no
-    /// book (`project.book == None`) or when `project.book.root` is invalid.
+    /// The project's book sequence (`成书序列`, `kernel-v5.md` §3): the whole
+    /// project read from the root ([`FlattenFrom::Root`]) with
+    /// `in_book_only = true`. The book has no start; a `project.book.root`
+    /// an older book stores is not read. Empty when the project has no book
+    /// (`project.book == None`).
     pub fn book_sequence(&self) -> Vec<FlatEntry<'_>> {
-        let Some(book) = &self.project.book else {
+        if self.project.book.is_none() {
             return Vec::new();
-        };
-        self.sequence(&book.root, true).unwrap_or_default()
+        }
+        self.sequence(&FlattenFrom::Root, true).unwrap_or_default()
     }
 
-    /// The entries of [`Self::book_sequence`] that carry book prose, in order,
-    /// numbered or not (`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`).
+    /// The entries of [`Self::book_sequence`] that carry book prose, in order.
     pub fn book_entries(&self) -> Vec<Entry> {
         self.book_sequence()
             .into_iter()
@@ -723,14 +682,6 @@ impl BookStructureV3 {
             .into_iter()
             .flat_map(|e| e.prose.into_iter().map(|p| p.doc))
             .collect()
-    }
-
-    /// The 1-based number of `id` in [`Self::book_sequence`], if it has one.
-    pub fn ordinal(&self, id: &EntryId) -> Option<u32> {
-        self.book_sequence()
-            .into_iter()
-            .find(|e| &e.entry.id == id)
-            .and_then(|e| e.ordinal)
     }
 }
 

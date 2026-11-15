@@ -359,7 +359,6 @@
     "ruler": "Règle d’échelle",
     "selectLane": "Choisir une piste",
     "setActTrack": "Utiliser comme piste d’actes · {{name}}",
-    "setBookRoot": "Définir comme début du livre",
     "unsetActTrack": "Revenir à une piste normale · {{name}}",
     "views": "Vues"
   },

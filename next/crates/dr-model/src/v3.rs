@@ -1494,7 +1494,7 @@ v3_open_enum!(
     }
 );
 
-pub use crate::project_template::{ProjectTemplateCredit, ProjectTemplateDerivedFrom};
+pub use crate::project_template::ProjectTemplateCredit;
 
 /// Which project template initialized the book (`project.source`,
 /// `project-templates.md` §8).
@@ -1522,10 +1522,14 @@ pub struct BookMetaV3 {
     pub created_at: Option<Timestamp>,
 }
 
-/// Starting point of the project's book sequence (`project.book.root`, `kernel-v5.md` §3 & §10).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Where a flatten starts (整书视图的出发点, `kernel-v5.md` §3 「怎么读」 and
+/// §16 「摊平、成书、整书视图」): the root, an entry with its level switch or
+/// 「收别处的条目」 on, a view (its lanes along its scale), or one lane of a
+/// view. It has nothing to do with the book, which always reads from the
+/// root ([`FlattenFrom::Root`]); it is not stored in the book.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum BookRoot {
+pub enum FlattenFrom {
     Root,
     Entry {
         entry: EntryId,
@@ -1537,20 +1541,14 @@ pub enum BookRoot {
         view: TimelineViewId,
         entry: EntryId,
     },
-    /// What a reader makes of a stored book start it cannot read (missing,
-    /// or not one of the kinds above), for instance after history restored
-    /// the start of a version when the book was off: it names nothing, so
-    /// the book reads as having no content until the author picks a start
-    /// again (`kernel-v5.md` §3: never replaced by another start). Never a
-    /// valid start; writing it removes the stored start.
-    Unset,
 }
 
-/// Book configuration inside `project.book` (`kernel-v5.md` §3 & §10).
-/// Absence of `project.book` means the project has no book.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// The book inside `project.book` (`kernel-v5.md` §3 & §10): the switch is
+/// the record being there, and two word targets. The book has no start: it
+/// reads the whole project from the root. A `root` an older book still
+/// stores is not read.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectBook {
-    pub root: BookRoot,
     #[serde(default)]
     pub word_target_set: Option<i64>,
     #[serde(default)]
@@ -1711,8 +1709,8 @@ impl ProjectTemplate {
     /// The same template with a fresh id for every seed entry, view, tab
     /// (but 「全部」, which takes [`ALL_TAB_ID`]) and time pin, and every
     /// reference to one of them rewritten: residence,
-    /// `home`, entity-reference fields, lanes, placements, pins, the book
-    /// start and tab mounts. A project is created from this copy, so two
+    /// `home`, entity-reference fields, lanes, placements, pins and tab
+    /// mounts. A project is created from this copy, so two
     /// projects made from one template never share a `body:<entry>/<module>`
     /// document (`V3-DOCID-LIBRARY-UNIQUE`). Template ids stay: they are keys
     /// inside one book.
@@ -1751,18 +1749,6 @@ impl ProjectTemplate {
         };
 
         let mut out = self.clone();
-        if let Some(book) = &mut out.project.book {
-            book.root = match &book.root {
-                BookRoot::Root => BookRoot::Root,
-                BookRoot::Entry { entry: e } => BookRoot::Entry { entry: entry(e) },
-                BookRoot::View { view: v } => BookRoot::View { view: view(v) },
-                BookRoot::Lane { view: v, entry: e } => BookRoot::Lane {
-                    view: view(v),
-                    entry: entry(e),
-                },
-                BookRoot::Unset => BookRoot::Unset,
-            };
-        }
         for tab in &mut out.project.tabs {
             // 「全部」 keeps its fixed id in every project (`TAB-ROOT-ALWAYS`).
             tab.id = if tab.mount == TabMount::Root {
@@ -2716,68 +2702,28 @@ pub fn is_entry_live(entry_id: &EntryId, entries: &BTreeMap<EntryId, Entry>) -> 
         .any(|a| entries.get(a).is_some_and(Entry::is_trashed))
 }
 
-/// Invariant `BOOK-ROOT-VALID` (`kernel-v5.md` §11 & §16): a book root must be
-/// the root, a live entry with `level == true` or `accept == true`, a
-/// non-deleted view, or an effective swimlane in that view.
-pub fn check_book_root(
-    root: &BookRoot,
+/// Whether a flatten can start at `from` (`kernel-v5.md` §16 「摊平、成书、
+/// 整书视图」): the root; a live entry with its level switch or 「收别处的条目」
+/// on; a view that is not deleted; or an effective lane of such a view.
+pub fn is_valid_flatten_from(
+    from: &FlattenFrom,
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
     views: &BTreeMap<TimelineViewId, TimelineView>,
-) -> Result<(), Violation> {
-    match root {
-        BookRoot::Root => Ok(()),
-        BookRoot::Unset => fail("BOOK-ROOT-VALID", "the book start is missing"),
-        BookRoot::Entry { entry } => {
-            if !is_entry_live(entry, entries) {
-                return fail(
-                    "BOOK-ROOT-VALID",
-                    format!("book root entry {entry} is not live"),
-                );
-            }
-            if !entries[entry].has_below(templates) {
-                return fail(
-                    "BOOK-ROOT-VALID",
-                    format!(
-                        "book root entry {entry} has neither its level switch nor accept enabled"
-                    ),
-                );
-            }
-            Ok(())
+) -> bool {
+    let live_view = |view: &TimelineViewId| views.get(view).filter(|v| v.deleted_at.is_none());
+    match from {
+        FlattenFrom::Root => true,
+        FlattenFrom::Entry { entry } => {
+            is_entry_live(entry, entries) && entries[entry].has_below(templates)
         }
-        BookRoot::View { view } => {
-            if views.get(view).is_none_or(|v| v.deleted_at.is_some()) {
-                return fail(
-                    "BOOK-ROOT-VALID",
-                    format!("book root view {view} does not exist"),
-                );
-            }
-            Ok(())
-        }
-        BookRoot::Lane { view, entry } => {
-            let Some(v) = views.get(view).filter(|v| v.deleted_at.is_none()) else {
-                return fail(
-                    "BOOK-ROOT-VALID",
-                    format!("book root view {view} does not exist"),
-                );
-            };
-            if !is_entry_live(entry, entries) {
-                return fail(
-                    "BOOK-ROOT-VALID",
-                    format!("book root swimlane {entry} is not live"),
-                );
-            }
-            let in_view = effective_timeline_lanes(&v.lanes, entries, templates)
-                .iter()
-                .any(|l| &l.entry == entry);
-            if !in_view {
-                return fail(
-                    "BOOK-ROOT-VALID",
-                    format!("entry {entry} is not an effective swimlane in view {view}"),
-                );
-            }
-            Ok(())
-        }
+        FlattenFrom::View { view } => live_view(view).is_some(),
+        FlattenFrom::Lane { view, entry } => live_view(view).is_some_and(|v| {
+            is_entry_live(entry, entries)
+                && effective_timeline_lanes(&v.lanes, entries, templates)
+                    .iter()
+                    .any(|l| &l.entry == entry)
+        }),
     }
 }
 
@@ -4224,7 +4170,7 @@ mod tests {
     }
 
     #[test]
-    fn v5_book_root_and_tab_mount_validate_all_four_kinds() {
+    fn v5_flatten_starts_and_tab_mounts_validate_all_four_kinds() {
         let mut tpl_lane = template("tpl-lane", "故事线");
         tpl_lane.level = false;
         tpl_lane.linkable = false;
@@ -4280,71 +4226,34 @@ mod tests {
             },
         )]);
 
-        assert!(check_book_root(&BookRoot::Root, &entries, &templates, &views).is_ok());
-        assert!(
-            check_book_root(
-                &BookRoot::Entry { entry: eid("ms") },
-                &entries,
-                &templates,
-                &views
-            )
-            .is_ok()
-        );
-        // Non-level `accept` entry (`lane-a`) is valid as `BookRoot::Entry`!
-        assert!(
-            check_book_root(
-                &BookRoot::Entry {
-                    entry: eid("lane-a")
-                },
-                &entries,
-                &templates,
-                &views
-            )
-            .is_ok()
-        );
-        assert!(
-            check_book_root(
-                &BookRoot::View {
-                    view: view_id.clone()
-                },
-                &entries,
-                &templates,
-                &views
-            )
-            .is_ok()
-        );
-        assert!(
-            check_book_root(
-                &BookRoot::Lane {
-                    view: view_id.clone(),
-                    entry: eid("lane-a")
-                },
-                &entries,
-                &templates,
-                &views
-            )
-            .is_ok()
-        );
-
+        let valid = |from: &FlattenFrom| is_valid_flatten_from(from, &entries, &templates, &views);
+        assert!(valid(&FlattenFrom::Root));
+        assert!(valid(&FlattenFrom::Entry { entry: eid("ms") }));
+        // A non-level `accept` entry (`lane-a`) can be flattened from.
+        assert!(valid(&FlattenFrom::Entry {
+            entry: eid("lane-a")
+        }));
+        assert!(valid(&FlattenFrom::View {
+            view: view_id.clone()
+        }));
+        assert!(valid(&FlattenFrom::Lane {
+            view: view_id.clone(),
+            entry: eid("lane-a")
+        }));
         for bad in [
-            BookRoot::Entry { entry: eid("leaf") },
-            BookRoot::Entry {
+            FlattenFrom::Entry { entry: eid("leaf") },
+            FlattenFrom::Entry {
                 entry: eid("nested-under-trash"),
             },
-            BookRoot::View {
+            FlattenFrom::View {
                 view: TimelineViewId::parse("v-gone").unwrap(),
             },
-            BookRoot::Lane {
+            FlattenFrom::Lane {
                 view: view_id.clone(),
                 entry: eid("lane-out"),
             },
         ] {
-            assert_eq!(
-                check_book_root(&bad, &entries, &templates, &views)
-                    .unwrap_err()
-                    .invariant,
-                "BOOK-ROOT-VALID"
-            );
+            assert!(!valid(&bad), "{bad:?}");
         }
 
         assert!(check_tab_mount(&TabMount::Root, false, &entries, &templates, &views).is_ok());

@@ -39,9 +39,9 @@ pub enum Target {
     Material(MediaItemId),
     /// 整书视图: a level entry and everything under it in one scroll.
     Book(EntryId),
-    /// 整书视图: an entire timeline view along its scale (`BookRoot::View`).
+    /// 整书视图: an entire timeline view along its scale (`FlattenFrom::View`).
     BookView(TimelineViewId),
-    /// 整书视图: one swimlane in a timeline view along its scale (`BookRoot::Lane`).
+    /// 整书视图: one swimlane in a timeline view along its scale (`FlattenFrom::Lane`).
     BookLane {
         view: TimelineViewId,
         entry: EntryId,
@@ -103,14 +103,15 @@ impl Target {
         )
     }
 
-    /// The [`dr_model::v3::BookRoot`] this target flattens, when it is a book view.
-    pub fn book_root(&self) -> Option<dr_model::v3::BookRoot> {
+    /// Where this target's whole-book view starts ([`dr_model::v3::FlattenFrom`]),
+    /// when it is one.
+    pub fn flatten_from(&self) -> Option<dr_model::v3::FlattenFrom> {
         match self {
-            Target::Book(entry) => Some(dr_model::v3::BookRoot::Entry {
+            Target::Book(entry) => Some(dr_model::v3::FlattenFrom::Entry {
                 entry: entry.clone(),
             }),
-            Target::BookView(view) => Some(dr_model::v3::BookRoot::View { view: view.clone() }),
-            Target::BookLane { view, entry } => Some(dr_model::v3::BookRoot::Lane {
+            Target::BookView(view) => Some(dr_model::v3::FlattenFrom::View { view: view.clone() }),
+            Target::BookLane { view, entry } => Some(dr_model::v3::FlattenFrom::Lane {
                 view: view.clone(),
                 entry: entry.clone(),
             }),
@@ -120,8 +121,8 @@ impl Target {
 
     /// Key used to store and restore this book view's reading position.
     pub fn book_position_key(&self) -> Option<String> {
-        self.book_root()
-            .map(|r| dr_editor::book::book_root_position_key(&r))
+        self.flatten_from()
+            .map(|r| dr_editor::book::flatten_position_key(&r))
     }
 
     pub fn is_singleton(&self) -> bool {

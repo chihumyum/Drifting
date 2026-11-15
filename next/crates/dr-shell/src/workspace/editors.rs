@@ -363,7 +363,7 @@ impl Workspace {
             return;
         }
         let doc = book::doc_of(target);
-        let book_root = target.book_root();
+        let flatten_from = target.flatten_from();
         let key = target.key();
         let prepared = key.clone();
         let (one, book_id) = (doc.clone(), self.book_id.clone());
@@ -372,7 +372,7 @@ impl Workspace {
             let sessions = cx
                 .background_executor()
                 .spawn(async move {
-                    match (one, book_root) {
+                    match (one, flatten_from) {
                         // One document: its editor's own session, for
                         // `ChapterEditor::with_session`.
                         (Some(doc), _) => {
@@ -641,8 +641,8 @@ impl Workspace {
             })
             .map(|(k, _)| k.clone())
             .unwrap_or_else(|| match editor.read(cx).root() {
-                dr_model::v3::BookRoot::View { view } => format!("book-view:{view}"),
-                dr_model::v3::BookRoot::Lane { view, entry } => {
+                dr_model::v3::FlattenFrom::View { view } => format!("book-view:{view}"),
+                dr_model::v3::FlattenFrom::Lane { view, entry } => {
                     format!("book-lane:{view}/{entry}")
                 }
                 _ => format!("book:{}", editor.read(cx).from_entry()),

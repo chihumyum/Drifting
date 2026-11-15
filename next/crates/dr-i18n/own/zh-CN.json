@@ -347,7 +347,6 @@
     "ruler": "刻度标尺",
     "selectLane": "选择泳道",
     "setActTrack": "设为幕轨道 · {{name}}",
-    "setBookRoot": "设为成书起点",
     "unsetActTrack": "取消幕轨道 · {{name}}",
     "views": "视图"
   },

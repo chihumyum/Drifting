@@ -44,9 +44,9 @@ impl Workspace {
                             e.read(cx).book_id() == self.book_id
                                 && e.read(cx).doc_id() == format!("material:{id}")
                         }
-                        (t, PageView::Book(e)) if t.book_root().is_some() => {
+                        (t, PageView::Book(e)) if t.flatten_from().is_some() => {
                             e.read(cx).book_id() == self.book_id
-                                && Some(e.read(cx).root()) == t.book_root().as_ref()
+                                && Some(e.read(cx).root()) == t.flatten_from().as_ref()
                         }
                         _ => false,
                     };
