@@ -14,7 +14,10 @@ use dr_ui::{
     Theme,
     components::{Button, Dialog},
     fonts::Role,
-    input::field::{FieldEvent, TextField},
+    input::{
+        TextArea,
+        field::{FieldEvent, TextField},
+    },
     sand::KindMark,
     style::DrStyled,
 };
@@ -188,8 +191,8 @@ pub fn create(
 }
 
 pub struct Home {
-    ws: WeakEntity<Workspace>,
-    lib: Option<Library>,
+    pub(crate) ws: WeakEntity<Workspace>,
+    pub(crate) lib: Option<Library>,
     source: Option<Rc<Book>>,
     pub loaded: Option<Loaded>,
     recent: Vec<RecentPage>,
@@ -197,6 +200,7 @@ pub struct Home {
     generation: u64,
     stale: bool,
     error: bool,
+    pub(crate) inline: crate::project_template::InlineState,
     _events: Option<dr_workspace::Subscription>,
     _live: Vec<Subscription>,
 }
@@ -207,8 +211,67 @@ impl Home {
         self.generation
     }
 
-    pub fn new(ws: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+    /// Whether an inline `project.update` write is currently in flight.
+    pub fn is_saving(&self) -> bool {
+        self.inline.pending_saves > 0
+    }
+
+    /// Current `成书` (`project.book`) state synced or optimistically flipped on Home.
+    pub fn has_book(&self) -> bool {
+        self.inline.stored_has_book
+    }
+
+    pub fn title_input(&self) -> &Entity<TextArea> {
+        &self.inline.title
+    }
+
+    pub fn synopsis_input(&self) -> &Entity<TextArea> {
+        &self.inline.synopsis
+    }
+
+    pub fn word_target_input(&self) -> &Entity<TextField> {
+        &self.inline.word_target
+    }
+
+    pub fn daily_word_target_input(&self) -> &Entity<TextField> {
+        &self.inline.daily_word_target
+    }
+
+    pub fn agent_name_input(&self) -> &Entity<TextField> {
+        &self.inline.agent_name
+    }
+
+    pub fn agent_description_input(&self) -> &Entity<TextField> {
+        &self.inline.agent_description
+    }
+
+    pub fn agent_instructions_input(&self) -> &Entity<TextArea> {
+        &self.inline.agent_instructions
+    }
+
+    pub fn new(ws: WeakEntity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
+        let (inline, mut live) = crate::project_template::InlineState::new(window, cx);
+        live.push(cx.observe_global::<dr_view_stats::WritingDaysChanged>(|_, cx| cx.notify()));
+        live.push(cx.observe_global::<LiveWords>(|_, cx| cx.notify()));
+        cx.defer_in(window, |h, window, cx| {
+            if let Some(ws) = h.ws.upgrade() {
+                let book = ws.read(cx).book.clone();
+                h.sync_book(&book, window, cx);
+                h._live
+                    .push(cx.observe_in(&ws, window, |h, ws, window, cx| {
+                        let book = ws.read(cx).book.clone();
+                        let changed = h.source.as_ref().is_none_or(|s| !Rc::ptr_eq(s, &book))
+                            || book
+                                .v3()
+                                .is_some_and(|v| h.inline.synced_revision() != v.revision);
+                        if changed {
+                            h.sync_book(&book, window, cx);
+                            cx.notify();
+                        }
+                    }));
+            }
+        });
         let mut this = Self {
             ws,
             lib,
@@ -219,11 +282,9 @@ impl Home {
             generation: 0,
             stale: false,
             error: false,
+            inline,
             _events: None,
-            _live: vec![
-                cx.observe_global::<dr_view_stats::WritingDaysChanged>(|_, cx| cx.notify()),
-                cx.observe_global::<LiveWords>(|_, cx| cx.notify()),
-            ],
+            _live: live,
         };
         if let Some(lib) = &this.lib {
             let (tx, mut rx) = futures::channel::mpsc::unbounded();
@@ -334,58 +395,57 @@ impl Home {
         dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.clone().into());
         Some(dialog)
     }
-
-    pub fn ask_settings(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<Entity<crate::v3_settings::SettingsDialog>> {
-        let lib = self.lib.clone()?;
-        let ws = self.ws.upgrade()?;
-        let data = self.loaded.as_ref()?.clone();
-        let source_book = self.source.as_ref()?.id.clone();
-        let book = ws.read(cx).book_id.clone();
-        if book != source_book {
-            return None;
-        }
-        let dialog =
-            cx.new(|cx| crate::v3_settings::SettingsDialog::new(lib, book, &data, window, cx));
-        dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.clone().into());
-        Some(dialog)
-    }
 }
 
 impl Render for Home {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let book = self
             .ws
             .upgrade()
             .map(|ws| ws.read(cx).book.clone())
             .unwrap_or_default();
+        self.sync_book(&book, window, cx);
         if book.v3().is_some()
             && (self.source.as_ref().is_none_or(|s| !Rc::ptr_eq(s, &book))
                 || (self.stale && self.task.is_none()))
         {
             self.reload(book.clone(), cx);
         }
+        let p = Theme::of(window, cx).palette;
         let locale = Settings::locale(cx);
-        let has_book = self
-            .loaded
-            .as_ref()
-            .map(|d| d.has_book)
-            .or_else(|| book.v3().map(|v| v.project.book.is_some()))
-            .unwrap_or(true);
+        let synced_this_book = !book.id.is_empty() && self.inline.synced_book_id == book.id;
+        let has_book = if synced_this_book {
+            self.inline.stored_has_book
+        } else {
+            self.loaded
+                .as_ref()
+                .map(|d| d.has_book)
+                .or_else(|| book.v3().map(|v| v.project.book.is_some()))
+                .unwrap_or(true)
+        };
+        let effective_word_target = if synced_this_book {
+            (self.inline.stored_word_target > 0).then_some(self.inline.stored_word_target)
+        } else {
+            self.loaded
+                .as_ref()
+                .and_then(|s| s.word_target)
+                .filter(|n| *n > 0)
+        };
+        let effective_daily_target = if synced_this_book {
+            (self.inline.stored_daily_word_target > 0)
+                .then_some(self.inline.stored_daily_word_target)
+        } else {
+            self.loaded
+                .as_ref()
+                .and_then(|s| s.daily_word_target)
+                .filter(|n| *n > 0)
+        };
         let words = self
             .loaded
             .as_ref()
             .and_then(|s| s.book_words(LiveWords::read(cx)))
             .map(|m| {
-                if let Some(target) = self
-                    .loaded
-                    .as_ref()
-                    .and_then(|s| s.word_target)
-                    .filter(|n| *n > 0)
-                {
+                if let Some(target) = effective_word_target {
                     return dr_shell::strings::tf(
                         cx,
                         keys::project_home::WORDS_OF_TARGET,
@@ -402,6 +462,8 @@ impl Render for Home {
                 )
             })
             .unwrap_or_else(|| t(cx, keys::common::COUNTING));
+        let untitled = t(cx, keys::common::UNTITLED);
+        let synopsis_placeholder = t(cx, keys::chapter_editor::SYNOPSIS_PLACEHOLDER);
         let mut column = div()
             .w_full()
             .pt(px(64.0))
@@ -413,19 +475,45 @@ impl Render for Home {
             .child(
                 div()
                     .font_role(Role::Index)
+                    .type_px(13.0, 18.0)
+                    .text_color(p.ink(4).solid())
                     .child(t(cx, keys::project_home::KICKER)),
             )
             .child(
                 div()
+                    .id("v3-home-title-input")
+                    .debug_selector(|| "v3-home-title-input".into())
+                    .role(gpui::Role::TextInput)
+                    .aria_label(untitled)
                     .font_role(Role::Prose)
                     .type_px(34.0, 44.0)
-                    .child(book.name.clone()),
+                    .text_color(p.ink(1).solid())
+                    .child(self.inline.title.clone()),
+            )
+            .child(
+                div()
+                    .id("v3-home-synopsis-input")
+                    .debug_selector(|| "v3-home-synopsis-input".into())
+                    .role(gpui::Role::TextInput)
+                    .aria_label(synopsis_placeholder)
+                    .max_w(px(640.0))
+                    .font_role(Role::Ui)
+                    .type_px(16.0, 26.0)
+                    .text_color(p.ink(2).solid())
+                    .child(self.inline.synopsis.clone()),
             );
         if !self.error && has_book {
-            column = column.child(words);
+            column = column.child(
+                div()
+                    .id("v3-home-words")
+                    .debug_selector(|| "v3-home-words".into())
+                    .role(gpui::Role::Label)
+                    .aria_label(words.clone())
+                    .child(words),
+            );
         }
         if self.error {
-            let home = cx.entity();
+            let home = cx.weak_entity();
             column = column.child(
                 Button::new("v3-home-retry", t(cx, keys::manuscript_export::RETRY)).on_click(
                     move |_, _, cx| {
@@ -433,12 +521,13 @@ impl Render for Home {
                             h.stale = true;
                             cx.notify();
                         })
+                        .ok();
                     },
                 ),
             );
         }
         if let Some(loaded) = &self.loaded {
-            if loaded.has_book {
+            if has_book {
                 let today = dr_view_stats::model::today_words(
                     &loaded.days,
                     dr_view_stats::today_live(&book.id, cx),
@@ -448,7 +537,7 @@ impl Render for Home {
                 } else {
                     0
                 };
-                let today_text = if let Some(goal) = loaded.daily_word_target.filter(|n| *n > 0) {
+                let today_text = if let Some(goal) = effective_daily_target {
                     dr_shell::strings::tf(
                         cx,
                         keys::project_home::TODAY,
@@ -474,24 +563,15 @@ impl Render for Home {
                         ],
                     )
                 };
-                column = column.child(today_text);
+                column = column.child(
+                    div()
+                        .id("v3-home-today")
+                        .debug_selector(|| "v3-home-today".into())
+                        .role(gpui::Role::Label)
+                        .aria_label(today_text.clone())
+                        .child(today_text),
+                );
             }
-            let home = cx.entity();
-            let settings_book = book.id.clone();
-            column = column.child(
-                Button::new(
-                    "v3-home-settings",
-                    t(cx, keys::project_home::views::SETTINGS),
-                )
-                .text()
-                .on_click(move |_, window, cx| {
-                    home.update(cx, |h, cx| {
-                        if h.source.as_ref().is_some_and(|b| b.id == settings_book) {
-                            let _ = h.ask_settings(window, cx);
-                        }
-                    });
-                }),
-            );
             let mut pages = self.recent.clone();
             if pages.is_empty() {
                 let first = loaded
@@ -570,7 +650,7 @@ impl Render for Home {
         let mut creations = div().flex().flex_wrap().gap(px(12.0));
         let all = actions(&book);
         for action in all.clone() {
-            let home = cx.entity();
+            let home = cx.weak_entity();
             creations = creations.child(
                 Button::new(
                     ElementId::Name(
@@ -581,7 +661,8 @@ impl Render for Home {
                 .on_click(move |_, window, cx| {
                     home.update(cx, |h, cx| {
                         h.ask_create(action.clone(), window, cx);
-                    });
+                    })
+                    .ok();
                 }),
             );
         }
@@ -627,6 +708,7 @@ impl Render for Home {
                 );
             }
         }
+        column = column.child(self.render_project_template_block(&book, has_book, window, cx));
         div()
             .id("project-home-v3")
             .size_full()
