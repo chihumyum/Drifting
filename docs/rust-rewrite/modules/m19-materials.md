@@ -5,7 +5,8 @@
 大白话：素材库能分素材夹了（数据层这边：建、改名、挪、调先后、放进最近删除时连带里面的、恢复、清除），文件能换素材夹、调先后；同样的字节第二次放进来不新增；媒体模块里同一个文件只能放一次，条目能给自己的媒体模块换摆法；正文里嵌的图记得大小、对齐和图注，PDF 没有这三项；正文能链到素材库里的文件，文件删了链接读作普通文字的样子。界面还没接（T5）。
 
 - 命令：`asset_folder.{create, rename, move, trash, restore, purge, list}`、`asset.move`、`asset.put { folder? }`、`asset.get { usages? }`、`module.set_arrangement`；读取：`asset.list` 每项带 `folder`、`pos`，`usages` 多 `link`、`field` 两种；`prose.shape` 多 `file_links`、`missing_links`。接口细节见 [kernel-v5.md 第 18 节](../kernel-v5.md#18-数据层交回留给各路的缺口)，存法见 [loro-schema.md 的 v4 → v5 第 8 条](../loro-schema.md#v4--v5)。
-- 这一节在本模块里只改了能编译的最小处：查看器上画的区域批注改成按文件写（`CommentPartDto::Media { asset, region }`），`regions::listed` 按文件 id 列。
+- 这一节在本模块里只改了能编译的最小处：查看器上画的区域批注改成按文件写（`CommentPartDto::Media { asset, region }`）。
+- 审查以后补的（2026-11-15）：拖进素材库的文件不再建条目，外壳把没放进任何媒体模块的文件列成独立的素材（没有 `entry`、`module`）。这种文件的页面上，框一块写的批注直接挂在文件上（目标 `{kind: "asset"}`，`CommentPartDto::Region`），改名走 `asset.rename`，没有说明这一项。`regions::listed(items, id, place)`：媒体项的页面只列这个条目、这个模块上指着这个文件的批注，加上直接挂在文件上的；只在素材库里的文件的页面只列直接挂在文件上的。测试：`page_v3_tests.rs` 的 `a_file_only_in_the_library_takes_a_region_comment_and_a_new_name`、`a_media_page_lists_its_own_entrys_comments_and_the_files`。旧面板菜单里的「关系」对这种文件也能写出指向文件的关系，T5 重做面板时不留这个入口（任务书 T5）。
 - 测试在 `dr-workspace/tests/commands.rs`：`asset_folders_nest_rename_move_and_keep_their_order_across_reopen`、`trashing_a_folder_takes_its_files_and_folders_and_comes_back_both_ways`、`purging_a_folder_deletes_the_bytes_of_its_files`、`a_prose_link_to_a_file_is_a_usage_and_reads_as_text_while_the_file_is_trashed`、`the_same_bytes_put_again_give_back_the_file_already_there`、`an_entrys_own_media_arrangement_overrides_the_templates_and_falls_back`、`a_file_goes_into_a_media_module_once`、`an_embedded_images_size_alignment_and_caption_persist_and_a_pdf_has_none`、`a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored`。
 
 ## K4 G4 v3 关联读取接口交回
