@@ -75,8 +75,9 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
     assert_eq!(pruned.pins.len(), pin_count);
     view.placements.clear();
     assert!(model::lanes(b, &view).iter().all(|l| l.clips.is_empty()));
-    // Storylines have `level == false` by default (`V3-LEAF-NO-CHILDREN`); enabling `level`
-    // places direct residents onto the view's scale as lane clips.
+    // Storylines have `level == false` by default (`V3-LEAF-NO-CHILDREN`); with `level` on an
+    // entry can live under one, but a lane holds only what is hung on it (DV, 2026-11-16):
+    // the resident gets no clip and no place on the scale.
     let lane = &view.lanes[0].entry;
     assert!(
         lib.call(
@@ -98,10 +99,18 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
     );
     let next = Book::load(&lib, &id).unwrap();
     let next_v = next.v3().unwrap();
+    let rendered = model::lanes(next_v, &next_v.timeline_views[0]);
+    assert!(rendered.iter().any(|l| l.id == *lane));
     assert!(
-        model::lanes(next_v, &next_v.timeline_views[0])
+        rendered
             .iter()
-            .any(|l| l.id == *lane && l.clips.iter().any(|p| p.entry == resident["id"]))
+            .all(|l| l.clips.iter().all(|p| p.entry != resident["id"]))
+    );
+    assert!(
+        next_v.timeline_views[0]
+            .placements
+            .iter()
+            .all(|p| p.entry != resident["id"])
     );
     lib.shutdown().unwrap();
 }
@@ -1744,7 +1753,8 @@ fn act_track_creation_picks_lane_templates_by_data_without_fixed_template_ids(
 
     // Register custom non-`tpl-*` templates:
     // - `custom-card` & `custom-off-switch`: both `level: false` and `accept` unset/false -> NOT eligible
-    // - `custom-arc-alpha` (`level: true, accept: true`) & `custom-arc-beta` (`level: true`) -> eligible!
+    // - `custom-folder` (`level: true`, `accept` unset): only a level -> NOT eligible (DV, 2026-11-16)
+    // - `custom-arc-alpha` (`level: true, accept: true`) & `custom-arc-beta` (`accept: true`) -> eligible!
     for tpl in [
         json!({
             "id": "custom-card",
@@ -1768,11 +1778,18 @@ fn act_track_creation_picks_lane_templates_by_data_without_fixed_template_ids(
             "settings": { "accept": true, "default_template": "custom-card" }
         }),
         json!({
-            "id": "custom-arc-beta",
-            "name": "Synthetic Arc Beta",
+            "id": "custom-folder",
+            "name": "Synthetic folder",
             "level": true,
             "linkable": false,
             "settings": {}
+        }),
+        json!({
+            "id": "custom-arc-beta",
+            "name": "Synthetic Arc Beta",
+            "level": false,
+            "linkable": false,
+            "settings": { "accept": true }
         }),
     ] {
         call(
@@ -1808,6 +1825,7 @@ fn act_track_creation_picks_lane_templates_by_data_without_fixed_template_ids(
         cx.debug_bounds("v3-act-template-custom-off-switch")
             .is_none()
     );
+    assert!(cx.debug_bounds("v3-act-template-custom-folder").is_none());
     assert!(cx.debug_bounds("v3-act-template-custom-arc-beta").is_some());
     let alpha_item = cx
         .debug_bounds("v3-act-template-custom-arc-alpha")

@@ -1996,6 +1996,12 @@ fn v5_turning_off_a_level_asks_only_about_what_lives_below(cx: &mut gpui::TestAp
     // entries with nothing under it; a group with entries living under it
     // at two depths; a group that holds nothing.
     let bare_line = create(&storylines, "tpl-idea-group", "空目录轨");
+    // A lane takes entries from elsewhere (DV, 2026-11-16).
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": id, "id": bare_line, "overrides": {"accept": true}}),
+    );
     add_lane(&bare_line);
     let hosts = create(&storylines, "tpl-idea-group", "挂名组");
     call(
@@ -2101,17 +2107,22 @@ fn v5_turning_off_a_level_asks_only_about_what_lives_below(cx: &mut gpui::TestAp
     };
 
     // A lane with nothing living under it: turned off at once, no dialog.
-    // With neither switch on it is no lane for now; its lane record stays,
-    // and turning it on, which asks nothing either, brings the lane back.
+    // A lane is one because it takes entries from elsewhere, so turning its
+    // level off leaves it a lane (DV, 2026-11-16); its lane record stays,
+    // and turning the level on, which asks nothing either, changes nothing.
     let lanes_before = view.read_with(cx, |ws, _| lanes(ws));
     assert!(lanes_before.contains(&bare_line));
     toggle(cx, &bare_line);
-    wait(cx, "the folder lane off", &|ws, _| {
-        !ws.book.v3().unwrap().levels.contains_key(&bare_line)
+    wait(cx, "the folder lane's level off", &|ws, _| {
+        ws.book
+            .v3()
+            .unwrap()
+            .entry(&bare_line)
+            .is_some_and(|e| !e.level)
     });
     view.read_with(cx, |ws, _| {
         assert!(ws.dialog.is_none(), "a lane is never asked about");
-        assert!(!lanes(ws).contains(&bare_line));
+        assert!(lanes(ws).contains(&bare_line));
     });
     let raw = lib.observe(&format!("book:{id}")).unwrap().value;
     assert!(
@@ -2121,8 +2132,12 @@ fn v5_turning_off_a_level_asks_only_about_what_lives_below(cx: &mut gpui::TestAp
         "the lane record is kept"
     );
     toggle(cx, &bare_line);
-    wait(cx, "the folder lane on", &|ws, _| {
-        ws.book.v3().unwrap().levels.contains_key(&bare_line)
+    wait(cx, "the folder lane's level on", &|ws, _| {
+        ws.book
+            .v3()
+            .unwrap()
+            .entry(&bare_line)
+            .is_some_and(|e| e.level)
     });
     view.read_with(cx, |ws, _| {
         assert!(ws.dialog.is_none(), "turning it on asks nothing");

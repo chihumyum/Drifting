@@ -156,8 +156,12 @@ fn drag_reorder(ws: &Workspace, book_id: &str, entry: &str, onto: &str, slot: Dr
         .is_some()
 }
 
+/// A lane holds what is hung on it (DV, `kernel-v5.md` §16 「泳道」): on the
+/// page of an entry with both switches that is a lane, what is hung on it
+/// follows the first view's scale and keeps it after leaving the last view;
+/// what lives under it keeps its manual order throughout.
 #[test]
-fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_order_on_removal() {
+fn lane_page_orders_members_by_the_scale_and_keeps_residents_in_manual_order() {
     let (_dir, ws, book) = seed();
     let initial = Book::load(&ws, &book).unwrap();
     let manuscript = root_by_template(&initial, "tpl-manuscript");
@@ -236,30 +240,42 @@ fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_o
         json!({"book": book, "view": "view-b", "lane": lane}),
     );
 
-    // Order in View A: Residents [r_b, r_c, r_a], Members [m_y, m_z, m_x].
-    for (entry, at) in [
-        (&r_b, 1.0),
-        (&r_c, 2.0),
-        (&r_a, 3.0),
-        (&m_y, 4.0),
-        (&m_z, 5.0),
-        (&m_x, 6.0),
-    ] {
+    // Residents are on no lane: no place on either scale, and none can be
+    // given them without hanging them.
+    for v in call(&ws, "timeline_view.list", json!({"book": book}))
+        .as_array()
+        .unwrap()
+    {
+        for r in [&r_a, &r_b, &r_c] {
+            assert!(
+                v["placements"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|p| p["entry"] != *r)
+            );
+        }
+    }
+    assert!(
+        ws.call(
+            &Actor::User,
+            "timeline_view.place",
+            json!({"book": book, "view": "view-a", "entry": r_b, "at": 1.0}),
+        )
+        .is_err()
+    );
+    let manual = vec![r_c.clone(), r_a.clone(), r_b.clone()];
+
+    // Order in View A: Members [m_y, m_z, m_x].
+    for (entry, at) in [(&m_y, 4.0), (&m_z, 5.0), (&m_x, 6.0)] {
         call(
             &ws,
             "timeline_view.place",
             json!({"book": book, "view": "view-a", "entry": entry, "at": at}),
         );
     }
-    // Independent order in View B: Residents [r_a, r_c, r_b], Members [m_x, m_z, m_y].
-    for (entry, at) in [
-        (&r_a, 10.0),
-        (&r_c, 20.0),
-        (&r_b, 30.0),
-        (&m_x, 40.0),
-        (&m_z, 50.0),
-        (&m_y, 60.0),
-    ] {
+    // Independent order in View B: Members [m_x, m_z, m_y].
+    for (entry, at) in [(&m_x, 40.0), (&m_z, 50.0), (&m_y, 60.0)] {
         call(
             &ws,
             "timeline_view.place",
@@ -291,8 +307,8 @@ fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_o
         );
         assert_eq!(
             resident_ids(&rows),
-            vec![r_b.clone(), r_c.clone(), r_a.clone()],
-            "residents must follow View A scale regardless of {display:?}/{sort:?}"
+            manual,
+            "residents keep their manual order in a lane, whatever {display:?}/{sort:?}"
         );
         assert_eq!(
             member_ids(&rows),
@@ -331,10 +347,7 @@ fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_o
         &BTreeSet::new(),
         2,
     );
-    assert_eq!(
-        resident_ids(&rows_b),
-        vec![r_a.clone(), r_c.clone(), r_b.clone()]
-    );
+    assert_eq!(resident_ids(&rows_b), manual);
     assert_eq!(
         member_ids(&rows_b),
         vec![m_x.clone(), m_z.clone(), m_y.clone()]
@@ -364,10 +377,7 @@ fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_o
         &BTreeSet::new(),
         2,
     );
-    assert_eq!(
-        resident_ids(&rows_after_removal),
-        vec![r_a.clone(), r_c.clone(), r_b.clone()]
-    );
+    assert_eq!(resident_ids(&rows_after_removal), manual);
     assert_eq!(
         member_ids(&rows_after_removal),
         vec![m_x.clone(), m_z.clone(), m_y.clone()]
@@ -388,13 +398,17 @@ fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_o
         &BTreeSet::new(),
         2,
     );
-    assert_eq!(resident_ids(&rows_readded), vec![r_a, r_c, r_b]);
+    assert_eq!(resident_ids(&rows_readded), manual);
     assert_eq!(member_ids(&rows_readded), vec![m_x, m_z, m_y]);
     ws.shutdown().unwrap();
 }
 
+/// A folder that is only a level does not go into a view; one with both
+/// switches does, and dragging inside it in the left column or on its page
+/// changes its manual order (counting a trashed sibling stored first), writes
+/// nothing on the scale, and a stale drop still conflicts (DV, 2026-11-16).
 #[test]
-fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards_concurrency() {
+fn a_folder_in_a_view_reorders_by_hand_and_writes_nothing_on_the_scale() {
     let (_dir, ws, book) = seed();
     let initial = Book::load(&ws, &book).unwrap();
     let manuscript = root_by_template(&initial, "tpl-manuscript");
@@ -423,35 +437,57 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
         "entry.trash",
         json!({"book": book, "id": trashed_first}),
     );
-
     call(
         &ws,
         "timeline_view.put",
         json!({"book": book, "view": {"id": "folder-view", "name": "Folder View"}}),
+    );
+    match ws.call(
+        &Actor::User,
+        "timeline_view.add_lane",
+        json!({"book": book, "view": "folder-view", "lane": folder}),
+    ) {
+        Err(WsError::Violation(v)) => assert_eq!(v.invariant, "V3-TIMELINE-LANE-ENABLED"),
+        other => panic!("a folder that is only a level is no lane: {other:?}"),
+    }
+    call(
+        &ws,
+        "entry.update",
+        json!({"book": book, "id": folder, "overrides": {"accept": true}}),
     );
     call(
         &ws,
         "timeline_view.add_lane",
         json!({"book": book, "view": "folder-view", "lane": folder}),
     );
-
-    // Adding the folder to a view places live chapters onto the scale in manual order.
+    let placements = |ws: &Workspace| {
+        call(ws, "timeline_view.list", json!({"book": book}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "folder-view")
+            .unwrap()["placements"]
+            .clone()
+    };
+    assert_eq!(placements(&ws), json!([]), "nothing is hung on it");
     let s0 = Book::load(&ws, &book).unwrap();
+    assert!(s0.v3().unwrap().is_lane(&folder));
     assert_eq!(
         s0.v3().unwrap().levels[&folder].children,
         vec![ch_1.clone(), ch_2.clone(), ch_3.clone()]
     );
+
+    // Dropping an entry before its successor is a no-op, with a trashed
+    // sibling first in raw storage.
+    let rev_before_noop = s0.v3().unwrap().revision.clone();
+    assert!(!drag_reorder(&ws, &book, &ch_1, &ch_2, DropSlot::Before));
     assert_eq!(
-        book_in(s0.v3().unwrap(), &folder),
-        vec![ch_1.clone(), ch_2.clone(), ch_3.clone()]
+        Book::load(&ws, &book).unwrap().v3().unwrap().revision,
+        rev_before_noop
     );
 
-    // Dragging on the view updates the sidebar/page list and manuscript sequence.
-    call(
-        &ws,
-        "timeline_view.place",
-        json!({"book": book, "view": "folder-view", "entry": ch_3, "at": -5.0}),
-    );
+    // Dragging inside the folder changes the manual order, and the book.
+    assert!(drag_reorder(&ws, &book, &ch_3, &ch_1, DropSlot::Before));
     let s1 = Book::load(&ws, &book).unwrap();
     assert_eq!(
         s1.v3().unwrap().levels[&folder].children,
@@ -461,60 +497,35 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
         book_in(s1.v3().unwrap(), &folder),
         vec![ch_3.clone(), ch_1.clone(), ch_2.clone()]
     );
+    assert_eq!(placements(&ws), json!([]));
 
-    // Dropping an entry Before its current successor in the scale order is a no-op
-    // even when a trashed sibling precedes them in raw LoroTree storage.
-    let rev_before_noop = s1.v3().unwrap().revision.clone();
-    assert!(!drag_reorder(&ws, &book, &ch_3, &ch_1, DropSlot::Before));
-    assert_eq!(
-        Book::load(&ws, &book).unwrap().v3().unwrap().revision,
-        rev_before_noop
-    );
-
-    // Dragging inside the folder (sidebar / folder page) writes back to the view's scale!
-    assert!(drag_reorder(&ws, &book, &ch_2, &ch_3, DropSlot::Before));
-    let s2 = Book::load(&ws, &book).unwrap();
-    assert_eq!(
-        s2.v3().unwrap().levels[&folder].children,
-        vec![ch_2.clone(), ch_3.clone(), ch_1.clone()]
-    );
-    assert_eq!(
-        book_in(s2.v3().unwrap(), &folder),
-        vec![ch_2.clone(), ch_3.clone(), ch_1.clone()]
-    );
-
-    // Concurrent scale edit on `folder-view` conflicts with a stale DropMutation.
+    // A drop planned before another device reordered the folder conflicts.
     let stale_snap = Book::load(&ws, &book).unwrap();
     let stale_target =
-        resolve_drop(&stale_snap, &ch_1, &ch_2, DropSlot::Before, true, false).unwrap();
-    let stale_drop = prepare_resolved_drop(&stale_snap, &ch_1, stale_target).unwrap();
+        resolve_drop(&stale_snap, &ch_2, &ch_3, DropSlot::Before, true, false).unwrap();
+    let stale_drop = prepare_resolved_drop(&stale_snap, &ch_2, stale_target).unwrap();
     call(
         &ws,
-        "timeline_view.place",
-        json!({"book": book, "view": "folder-view", "entry": ch_3, "at": -20.0}),
+        "entry.move",
+        json!({"book": book, "id": ch_1, "parent": folder, "index": 0}),
     );
     let err = stale_drop.commit_if_changed(&ws).unwrap_err();
     assert!(
         matches!(err, WsError::Conflict(_)),
-        "expected conflict when view scale changed concurrently, got {err:?}"
+        "expected a conflict when the folder changed concurrently, got {err:?}"
     );
 
-    // Removing the folder from the view preserves the scale order `[ch_3, ch_2, ch_1]`.
-    let order_in_view = Book::load(&ws, &book).unwrap().v3().unwrap().levels[&folder]
+    // Taking the folder out of the view changes no order.
+    let before_out = Book::load(&ws, &book).unwrap().v3().unwrap().levels[&folder]
         .children
         .clone();
-    assert_eq!(
-        order_in_view,
-        vec![ch_3.clone(), ch_2.clone(), ch_1.clone()]
-    );
     call(
         &ws,
         "timeline_view.remove_lane",
         json!({"book": book, "view": "folder-view", "lane": folder}),
     );
     let s3 = Book::load(&ws, &book).unwrap();
-    assert_eq!(s3.v3().unwrap().levels[&folder].children, order_in_view);
-    assert_eq!(book_in(s3.v3().unwrap(), &folder), order_in_view);
+    assert_eq!(s3.v3().unwrap().levels[&folder].children, before_out);
     ws.shutdown().unwrap();
 }
 
@@ -547,6 +558,12 @@ fn lane_level_display_hides_sort_controls_and_keeps_reorder_enabled(cx: &mut Tes
         "tpl-group",
         "View Governed Folder",
         Some(true),
+    );
+    // A lane takes entries from elsewhere (DV, 2026-11-16).
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": book, "id": folder, "overrides": {"accept": true}}),
     );
     let _c1 = create_entry(&lib, &book, Some(&folder), "tpl-chapter", "Zeta", None);
     let _c2 = create_entry(&lib, &book, Some(&folder), "tpl-chapter", "Alpha", None);

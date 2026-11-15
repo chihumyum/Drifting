@@ -389,9 +389,10 @@ impl BookV3 {
         self.entry(id)
             .is_some_and(|e| e.level || self.accepts_members(id))
     }
-    /// The live view whose scale orders what lives under and is attached
-    /// to `id` while it is a lane (`kernel-v5.md` §4 「视图：刻度」): the first
-    /// live view it is a lane in.
+    /// The live view whose scale orders what is hung on `id` while it is a
+    /// lane (`kernel-v5.md` §4 「视图：刻度」): the first live view it is a lane
+    /// in. What lives under it keeps its manual order (DV, 2026-11-16); only
+    /// an entry that takes entries from elsewhere is a lane.
     pub fn ordering_view(&self, id: &str) -> Option<&types::TimelineView> {
         self.timeline_views
             .iter()
@@ -404,18 +405,17 @@ impl BookV3 {
             .find(|v| v.id == id && v.deleted_at.is_none())
     }
     /// The entries of `lane` in `view` along the view's scale (`kernel-v5.md`
-    /// §16 「泳道」): those living under it while it is a level, then those
-    /// attached to it while it accepts them, each once; unplaced ones last,
-    /// ties by id.
+    /// §16 「泳道」): those hung on it while it takes entries from elsewhere,
+    /// each once; unplaced ones last, ties by id. What only lives under it is
+    /// not on the lane (DV, 2026-11-16).
     pub fn lane_entries(&self, view: &types::TimelineView, lane: &str) -> Vec<String> {
         let Some(level) = self.levels.get(lane) else {
             return Vec::new();
         };
         let mut seen = BTreeSet::new();
         let mut ids: Vec<String> = level
-            .children
+            .members
             .iter()
-            .chain(&level.members)
             .filter(|id| seen.insert(id.as_str()))
             .cloned()
             .collect();

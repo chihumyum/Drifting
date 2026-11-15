@@ -1,9 +1,8 @@
 //! What a left-column Tab is mounted on (`kernel-v5.md` §5): its name,
-//! whether it is still there and why not, the Tab writes, and the two lists
-//! the shell draws itself: a view's lanes with their entries along its
-//! scale, and the book sequence. Dragging in them changes the order where
-//! it lives: the scale for a view, the start's order for the book (manual
-//! order under a folder, the scale under a view).
+//! whether it is still there and why not, the Tab writes, and the list the
+//! shell draws itself: the book sequence. Dragging in it changes the manual
+//! order of the layer it is dropped in. A Tab cannot mount a view (DV,
+//! 2026-11-16): one a book stored from before reads as gone.
 use super::{EntryDrag, entry_target};
 use crate::{
     book::v3::BookV3,
@@ -17,34 +16,30 @@ use dr_ui::{
     Theme,
     components::{DraggedPill, Pill, SandCell, overlay},
     fonts::Role,
-    sand::{self, KindMark},
     style::DrStyled,
 };
-use dr_workspace::{
-    Actor, RecordKey, WritePreconditions, WsError,
-    commands::v3::types::{TabMount, TimelineView},
-};
+use dr_workspace::{Actor, WsError, commands::v3::types::TabMount};
 use gpui::{prelude::*, *};
 use serde_json::{Value, json};
 
 /// Whether what `mount` is mounted on is not there now: the entry is in
 /// Recently Deleted, has both its switches off or is not in the book; the
-/// view was deleted; the book was turned off. The Tab stays, faded, and its
-/// content says so (`kernel-v5.md` §5). 「全部」 is always there.
+/// book was turned off; a Tab on a view, always (a Tab cannot mount a view,
+/// DV 2026-11-16: one a book stored from before reads as gone even while the
+/// view is there). The Tab stays, faded, and its content says so
+/// (`kernel-v5.md` §5). 「全部」 is always there.
 pub fn is_gone(v: &BookV3, mount: &TabMount) -> bool {
     match mount {
         TabMount::Root => false,
         TabMount::Entry { entry } => !(v.entry(entry).is_some() && v.has_below(entry)),
-        TabMount::View { view } => !v
-            .timeline_views
-            .iter()
-            .any(|tv| &tv.id == view && tv.deleted_at.is_none()),
+        TabMount::View { .. } => true,
         TabMount::Book => v.project.book.is_none(),
     }
 }
 
 /// The name of what `mount` is mounted on: what its Tab is called. An
-/// entry gone from the book altogether reads as 「条目」, a view as 「视图」.
+/// entry gone from the book altogether reads as 「条目」; an old Tab on a view
+/// is called by the view's name, or 「视图」 once the view is gone too.
 pub fn mount_name(v: &BookV3, mount: &TabMount, cx: &App) -> SharedString {
     match mount {
         TabMount::Root => t(cx, keys::v3_shell::OUTERMOST),
@@ -215,82 +210,10 @@ fn entry_row(
         .into_any_element()
 }
 
-/// Where `moving` goes on `view`'s scale to sit before or after `onto` in
-/// `order` (the list as shown, along the scale).
-fn scale_at(view: &TimelineView, order: &[String], moving: &str, onto: &str, after: bool) -> f64 {
-    let at = |id: &str| view.placements.iter().find(|p| p.entry == id).map(|p| p.at);
-    let rest: Vec<&String> = order.iter().filter(|id| *id != moving).collect();
-    let end = view
-        .placements
-        .iter()
-        .map(|p| p.at)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let end = if end.is_finite() { end + 1.0 } else { 0.0 };
-    let Some(ix) = rest.iter().position(|id| *id == onto) else {
-        return end;
-    };
-    let here = at(onto).unwrap_or(end);
-    let next = if after {
-        rest.get(ix + 1).and_then(|id| at(id))
-    } else {
-        ix.checked_sub(1).and_then(|i| at(rest[i]))
-    };
-    match next {
-        Some(next) if (next - here).abs() > f64::EPSILON => (here + next) / 2.0,
-        _ if after => here + 1.0,
-        _ => here - 1.0,
-    }
-}
-
-/// Puts `moving` on `view`'s scale before or after `onto` in `order`.
-fn place_on_scale(
-    host: &PageViewHost,
-    view: &str,
-    order: &[String],
-    moving: &str,
-    onto: &str,
-    after: bool,
-    cx: &mut App,
-) {
-    let Some(v) = host.book.v3() else {
-        return;
-    };
-    let Some(tv) = v.timeline_view(view) else {
-        return;
-    };
-    let at = scale_at(tv, order, moving, onto, after);
-    let span = tv
-        .placements
-        .iter()
-        .find(|p| p.entry == moving)
-        .and_then(|p| p.span);
-    let input = json!({
-        "book": host.book_id, "view": view, "entry": moving, "at": at, "span": span,
-    });
-    let mut guard = WritePreconditions {
-        require_all: false,
-        ..v.guard_for(&input)
-    };
-    guard
-        .records
-        .extend(v.shown_precondition(&RecordKey::timeline_view(view)));
-    let lib = host.library.clone();
-    let job = cx
-        .background_executor()
-        .spawn(async move { lib.call_guarded(&Actor::User, "timeline_view.place", input, guard) });
-    let host = host.clone();
-    cx.spawn(async move |cx| {
-        if let Err(error) = job.await {
-            log::warn!("placing on the scale failed: {error}");
-            cx.update(|cx| toast_save_failed(&host, cx));
-        }
-    })
-    .detach();
-}
-
 /// Moves `moving` to live beside `onto` (before or after it), in `onto`'s
-/// folder: the folder's manual order, or its scale while it is in a view
-/// (`entry.move` reads `index` against what it shows then).
+/// folder's manual order (`entry.move` reads `index` among the folder's
+/// stored children; a folder in a view keeps its manual order, DV
+/// 2026-11-16).
 pub fn move_beside(
     lib: &dr_workspace::Workspace,
     book: &str,
@@ -313,32 +236,11 @@ pub fn move_beside(
         .ok_or_else(|| WsError::Invalid("the drop target is gone".into()))?
         .parent
         .clone();
-    let views: Vec<TimelineView> = serde_json::from_value(
-        lib.call(&Actor::User, "timeline_view.list", json!({ "book": book }))?["output"].clone(),
-    )
-    .map_err(|e| WsError::Internal(e.to_string()))?;
-    let in_view = parent.as_deref().is_some_and(|p| {
-        views
-            .iter()
-            .any(|tv| tv.deleted_at.is_none() && tv.lanes.iter().any(|l| l.entry == p))
-    });
-    let siblings: Vec<String> = match parent.as_deref() {
-        Some(p) if in_view => lib.call(
-            &Actor::User,
-            "entry.get",
-            json!({ "book": book, "id": p }),
-        )?["output"]["below"]["children"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|c| c["id"].as_str().map(str::to_owned))
-            .collect(),
-        _ => list
-            .iter()
-            .filter(|e| e.parent == parent)
-            .map(|e| e.id.clone())
-            .collect(),
-    };
+    let siblings: Vec<String> = list
+        .iter()
+        .filter(|e| e.parent == parent)
+        .map(|e| e.id.clone())
+        .collect();
     let index = siblings
         .iter()
         .filter(|id| *id != moving)
@@ -353,35 +255,9 @@ pub fn move_beside(
     Ok(())
 }
 
-/// Drops `moving` before or after `onto` in `lane`'s list in a Tab mounted
-/// on the view `view`: a new place on the view's scale. Only within the
-/// lane: the entry is on no other lane of the list it was dropped in.
-pub fn drop_in_view(
-    host: &PageViewHost,
-    view: &str,
-    lane: &str,
-    moving: &str,
-    onto: &str,
-    after: bool,
-    cx: &mut App,
-) {
-    let Some(v) = host.book.v3() else {
-        return;
-    };
-    let Some(tv) = v.timeline_view(view) else {
-        return;
-    };
-    let order = v.lane_entries(tv, lane);
-    if !order.iter().any(|id| id == moving) || !order.iter().any(|id| id == onto) {
-        return;
-    }
-    place_on_scale(host, view, &order, moving, onto, after, cx);
-}
-
 /// Drops `moving` before or after `onto` in a Tab mounted on the book: the
 /// book reads from the root, so this is a drop in 「全部」: `moving` goes to
-/// live beside `onto`, in the order of `onto`'s layer (its scale while that
-/// layer is in a view).
+/// live beside `onto`, in the manual order of `onto`'s layer.
 pub fn drop_in_book(host: &PageViewHost, moving: &str, onto: &str, after: bool, cx: &mut App) {
     if host.book.v3().is_none() {
         return;
@@ -412,80 +288,6 @@ fn scroll_list(id: &str) -> Stateful<Div> {
         .gap(px(2.0))
 }
 
-/// A Tab mounted on a view: each lane (its mark and name), and under it the
-/// lane's entries along the view's scale, an entry on two lanes under both.
-/// Dragging an entry within a lane changes its place on the scale.
-pub fn view_list(host: &PageViewHost, view: &str, window: &mut Window, cx: &mut App) -> AnyElement {
-    let Some(v) = host.book.v3() else {
-        return div().into_any_element();
-    };
-    let Some(tv) = v.timeline_view(view) else {
-        return div().into_any_element();
-    };
-    let theme = Theme::of(window, cx);
-    let mut list = scroll_list(&format!("v3-tab-view-{view}"));
-    for lane in &tv.lanes {
-        let Some(entry) = v.entry(&lane.entry) else {
-            continue;
-        };
-        let (mark, color) = entry_target(&lane.entry)
-            .map(|t| host.book.mark(&t))
-            .unwrap_or((sand::Kind::Element, None));
-        let open = entry_target(&lane.entry);
-        let weak = host.workspace.clone();
-        list = list.child(
-            div()
-                .id(SharedString::from(format!("v3-tab-lane-{}", lane.entry)))
-                .role(gpui::Role::Button)
-                .aria_label(entry.title.clone())
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .px_2()
-                .pt_2()
-                .pb_1()
-                .cursor_pointer()
-                .font_role(Role::Structure)
-                .type_px(theme.scale.caption, theme.scale.line_caption)
-                .text_color(theme.palette.muted().solid())
-                .child(
-                    KindMark::new(
-                        SharedString::from(format!("v3-tab-lane-mark-{}", lane.entry)),
-                        mark,
-                    )
-                    .when_some(color, |m, c| m.color(c)),
-                )
-                .child(entry.title.clone())
-                .on_click(move |_, _, cx| {
-                    if let (Some(ws), Some(target)) = (weak.upgrade(), open.clone()) {
-                        ws.update(cx, |ws, cx| ws.open(target, Open::PREVIEW, cx));
-                    }
-                }),
-        );
-        let order = v.lane_entries(tv, &lane.entry);
-        for id in &order {
-            let host_ = host.clone();
-            let view_ = view.to_owned();
-            let lane_ = lane.entry.clone();
-            let onto = id.clone();
-            list = list.child(entry_row(
-                host,
-                &format!("view-{}", lane.entry),
-                id,
-                1,
-                None,
-                move |drag, after, _, cx| {
-                    drop_in_view(&host_, &view_, &lane_, &drag.entry, &onto, after, cx);
-                },
-                window,
-                cx,
-            ));
-        }
-    }
-    list.into_any_element()
-}
-
 /// A Tab mounted on the book: the book sequence, one entry a row (the App
 /// numbers nothing). Dragging is a drop in 「全部」 ([`drop_in_book`]).
 pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyElement {
@@ -509,43 +311,4 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
         ));
     }
     list.into_any_element()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::scale_at;
-    use dr_workspace::commands::v3::types::{TimelinePlacement, TimelineView};
-
-    fn view(ats: &[(&str, f64)]) -> TimelineView {
-        TimelineView {
-            id: "v".into(),
-            name: "v".into(),
-            pos: None,
-            lanes: vec![],
-            placements: ats
-                .iter()
-                .map(|(e, at)| TimelinePlacement {
-                    entry: (*e).into(),
-                    at: *at,
-                    span: None,
-                })
-                .collect(),
-            pins: vec![],
-            deleted_at: None,
-        }
-    }
-
-    #[test]
-    fn a_dropped_entry_lands_between_its_new_neighbours_on_the_scale() {
-        let tv = view(&[("a", 1.0), ("b", 2.0), ("c", 3.0)]);
-        let order: Vec<String> = ["a", "b", "c"].map(String::from).to_vec();
-        // c before b: between a and b.
-        assert_eq!(scale_at(&tv, &order, "c", "b", false), 1.5);
-        // a after c: past the end.
-        assert_eq!(scale_at(&tv, &order, "a", "c", true), 4.0);
-        // c before a: before the start.
-        assert_eq!(scale_at(&tv, &order, "c", "a", false), 0.0);
-        // a after b: between b and c.
-        assert_eq!(scale_at(&tv, &order, "a", "b", true), 2.5);
-    }
 }
