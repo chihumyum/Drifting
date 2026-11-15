@@ -77,10 +77,7 @@ fn located_comments(cx: &Cx<'_>, slot: &BookSlot) -> Vec<Comment> {
     slot.reader_v3
         .view()
         .comments_with_embeds(None, &mut |entry, module| {
-            Some(file_embeds_in_prose(
-                cx,
-                &DocId::Body(BodyDocId::new(entry.clone(), module.clone())),
-            ))
+            cx.ws.prose_file_embeds(entry, module)
         })
 }
 
@@ -144,18 +141,6 @@ fn embed_file(cx: &Cx<'_>, doc: &DocId, embed: &EmbedId) -> Option<AssetId> {
         Some(EmbedView::Asset { asset, .. }) => asset,
         _ => None,
     }
-}
-
-fn file_embeds_in_prose(cx: &Cx<'_>, doc: &DocId) -> HashSet<EmbedId> {
-    let Ok(ps) = cx.prose(doc) else {
-        return HashSet::new();
-    };
-    let view = cx.prose_view(&ps);
-    view.embed_refs()
-        .into_iter()
-        .map(|(_, eid)| eid)
-        .filter(|eid| matches!(view.embed(eid), Some(EmbedView::Asset { .. })))
-        .collect()
 }
 
 /// A comment target (`entry` or `asset`). Old structural kinds and `material` are not accepted.

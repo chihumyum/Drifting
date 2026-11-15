@@ -33,10 +33,11 @@ use crate::prose::Trigger;
 use crate::schema::{self, BOOK_GENESIS_VERSION, BOOK_SCHEMA_VERSION, book_v3};
 
 pub use novel::{
-    NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries, TPL_ACT_TRACK,
-    act_track_template, apply_novel_project_template, apply_novel_project_template_with,
-    apply_project_template, find_novel_roots, novel_project_template, novel_project_template_with,
-    novel_project_templates,
+    NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_NAME, NOVEL_PROJECT_TEMPLATE_VERSION,
+    NovelRootEntries, TPL_ACT_TRACK, act_track_template, apply_novel_project_template,
+    apply_novel_project_template_with, apply_project_template, find_novel_roots,
+    novel_project_template, novel_project_template_source, novel_project_template_value,
+    novel_project_template_with, novel_project_templates,
 };
 pub use raw::raw_document_state;
 pub use read::{BookGraphV3, BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};

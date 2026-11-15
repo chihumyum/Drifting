@@ -132,7 +132,11 @@ impl EntryHead {
             .placeholder(placeholder)
             .with_text(stored.clone())
         });
-        let subscriptions = vec![cx.subscribe_in(&title, window, Self::on_title)];
+        let subscriptions = vec![
+            cx.subscribe_in(&title, window, Self::on_title),
+            // The title's comment underline lights with the Review cards.
+            cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify()),
+        ];
         let me = cx.entity().downgrade();
         cx.default_global::<Heads>()
             .0
@@ -447,6 +451,25 @@ impl Render for EntryHead {
             overlay::float(place, Layer::Popover, picker)
         });
         let size = theme.scale.heading;
+        // Comments on the title (T6): a sand underline under it, and where it
+        // is, for the composer opened from a menu or a hover card.
+        let title_ul = dr_shell::comment_underline(
+            SharedString::from(format!("v3-entry-title-ul-{id}")),
+            book.v3()
+                .map(|v| v.entry_title_comments(&id))
+                .unwrap_or_default(),
+            self.host.page.workspace.clone(),
+            cx,
+        );
+        let probe_entry = id.clone();
+        let title_probe = canvas(
+            move |bounds, _, cx| dr_shell::record_entry_title_bounds(probe_entry.clone(), bounds, cx),
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full();
         div()
             .id(SharedString::from(format!("v3-entry-head-{id}")))
             .flex()
@@ -486,12 +509,15 @@ impl Render for EntryHead {
                     )
                     .child(
                         div()
+                            .relative()
                             .flex_1()
                             .min_w_0()
                             .font_role(Role::Structure)
                             .type_px(size, size + 12.0)
                             .text_color(theme.palette.ink(1).solid())
-                            .child(self.title.clone()),
+                            .child(title_probe)
+                            .child(self.title.clone())
+                            .children(title_ul),
                     ),
             )
             .children(template.map(|name| {

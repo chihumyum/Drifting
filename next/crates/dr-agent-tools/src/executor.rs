@@ -698,11 +698,27 @@ impl AgentTools {
             })
             .or_else(|| call.targets.first().cloned())
             .ok_or_else(|| Error::Invalid("write has no guarded target".into()))?;
-        let is_v3 = is_v3_book(
-            ws,
-            &BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?,
-        )?;
+        let book_id = BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?;
+        let is_v3 = is_v3_book(ws, &book_id)?;
         let book_doc = format!("book:{}", key.book);
+        let task_block = if is_v3
+            && call.name == "comment.update"
+            && call.targets.iter().any(|d| !d.starts_with("book:"))
+            && let Some(cid) = call.arguments["id"].as_str()
+        {
+            let cid = cid.to_owned();
+            let bid = book_id.clone();
+            ws.read_book_v3(&key.book, move |doc, _| {
+                let b = dr_doc::v3::BorrowedBookV3::new(doc, &bid)?;
+                Ok(b.view()
+                    .comments()
+                    .into_iter()
+                    .find(|c| c.id.as_str() == cid)
+                    .and_then(|c| c.projection.map(|p| p.block.to_string())))
+            })?
+        } else {
+            None
+        };
         // What this write has to have read: the subjects of the call, each as
         // the read that covers it. Those reads are forgotten once it ran.
         let mut used: Vec<String> = Vec::new();
@@ -850,11 +866,27 @@ impl AgentTools {
                         .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
                     let whole = ["range", "anchor"]
                         .iter()
-                        .any(|k| call.arguments.get(*k).is_some_and(|v| !v.is_null()));
+                        .any(|k| call.arguments.get(*k).is_some_and(|v| !v.is_null()))
+                        || call.arguments["part"]["kind"].as_str() == Some("embed");
                     let block = call.arguments["block_id"].as_str();
                     if (whole && !read.full_prose)
                         || block.is_some_and(|b| !read.blocks.contains_key(b))
                     {
+                        return Err(Error::ReadRequired(format!("source prose in {doc}")));
+                    }
+                }
+            }
+            if is_v3 && call.name == "comment.update" {
+                for doc in call.targets.iter().filter(|d| !d.starts_with("book:")) {
+                    let read = turn
+                        .reads
+                        .get(doc)
+                        .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
+                    let covered = read.full_prose
+                        || task_block
+                            .as_deref()
+                            .is_some_and(|b| read.blocks.contains_key(b));
+                    if !covered {
                         return Err(Error::ReadRequired(format!("source prose in {doc}")));
                     }
                 }
@@ -866,12 +898,25 @@ impl AgentTools {
             }
         };
         let mut captured = Vec::new();
-        let result = self
-            .checkpoint_before_write(ws, actor, key, &call, &mut guards, &mut captured)
-            .and_then(|()| {
-                after_checkpoint();
-                Ok(ws.call_guarded(actor, &call.name, call.arguments.clone(), guards)?)
-            });
+        let skip_checkpoint = is_v3
+            && matches!(call.name.as_str(), "comment.create" | "comment.reanchor")
+            && !comment_input_valid_for_checkpoint(ws, &call, &guards)?;
+        let mut result = if skip_checkpoint {
+            after_checkpoint();
+            ws.call_guarded(actor, &call.name, call.arguments.clone(), guards)
+                .map_err(Error::from)
+        } else {
+            self.checkpoint_before_write(ws, actor, key, &call, &mut guards, &mut captured)
+                .and_then(|()| {
+                    after_checkpoint();
+                    Ok(ws.call_guarded(actor, &call.name, call.arguments.clone(), guards)?)
+                })
+        };
+        let mut projected_subjects = Vec::new();
+        if is_v3 && let Ok(ref mut value) = result {
+            projected_subjects =
+                project_prose_comments_after_write(ws, actor, &key.book, &call, value)?;
+        }
         // A later observation could contain unseen concurrent author changes;
         // never refresh an observation implicitly after a write. What this
         // write was made from has to be read again; what the turn read of
@@ -882,7 +927,7 @@ impl AgentTools {
         for target in call.targets.iter().filter(|doc| **doc != book_doc) {
             turn.reads.remove(target);
         }
-        for subject in call.subjects.iter().chain(&used) {
+        for subject in call.subjects.iter().chain(&used).chain(&projected_subjects) {
             turn.book.forget(subject);
             // The list a written record belongs to was read with it in it.
             if let Some((domain, id)) = subject.split_once(':')
@@ -999,6 +1044,7 @@ fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<Stri
         ("entry_relation_type.put", "entry_relation_type:*") => {
             call.arguments["definition"]["id"].as_str()
         }
+        ("tab.put", "tab:*") => call.arguments["id"].as_str(),
         _ => None,
     };
     if let Some(id) = named
@@ -1030,6 +1076,7 @@ fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<Stri
         "timeline_view:",
         "entry_relation_type:",
         "membership:",
+        "tab:",
     ] {
         if let Some(id) = subject.strip_prefix(prefix)
             && id != "*"
@@ -1037,7 +1084,323 @@ fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<Stri
             return has(format!("{prefix}*"));
         }
     }
+    if call.name == "entry_history.restore" {
+        for prefix in ["fact:", "relation:", "comment:"] {
+            if let Some(id) = subject.strip_prefix(prefix)
+                && !matches!(id, "*" | "all")
+            {
+                return has(format!("{prefix}*"));
+            }
+        }
+        for prefix in ["asset:", "asset_folder:", "memory:"] {
+            if let Some(id) = subject.strip_prefix(prefix)
+                && !matches!(id, "*" | "all")
+            {
+                return has(format!("{prefix}all"));
+            }
+        }
+        if let Some(rest) = subject.strip_prefix("plot_grid:")
+            && let Some((entry, module)) = rest.split_once('/')
+        {
+            return has(format!("module:{entry}:{module}"));
+        }
+    }
     None
+}
+
+fn decode_valid_anchor(
+    bytes: &dr_workspace::dto::AnchorBytes,
+    vv: &loro::VersionVector,
+) -> Option<dr_doc::anchor::Anchor> {
+    let raw = bytes.bytes()?;
+    let anchor = dr_doc::anchor::Anchor::decode(&raw)?;
+    let body = loro::ContainerID::new_root(dr_doc::schema::prose::BODY, loro::ContainerType::Text);
+    for c in [&anchor.start, &anchor.end] {
+        if c.container != body {
+            return None;
+        }
+        if let Some(id) = c.id
+            && !vv.includes_id(id)
+        {
+            return None;
+        }
+    }
+    Some(anchor)
+}
+
+fn comment_input_valid_for_checkpoint(
+    ws: &Workspace,
+    call: &ResolvedCall,
+    guards: &WritePreconditions,
+) -> Result<bool> {
+    // If a guarded document is already stale, let checkpoint_before_write run
+    // so its reservation fails with the canonical stale-observation conflict.
+    for (doc, expected) in &guards.versions {
+        if ws.version(doc)? != *expected {
+            return Ok(true);
+        }
+    }
+    match call.name.as_str() {
+        "comment.create" => {
+            if let Some(o) = call.arguments["origin"].as_str() {
+                let parsed = dr_model::kind::CommentOrigin::parse(o);
+                if !parsed.is_known()
+                    || matches!(
+                        parsed,
+                        dr_model::kind::CommentOrigin::Marker | dr_model::kind::CommentOrigin::Task
+                    )
+                {
+                    return Ok(false);
+                }
+            }
+            let has_range = call.arguments.get("range").is_some_and(|v| !v.is_null());
+            let has_anchor = call.arguments.get("anchor").is_some_and(|v| !v.is_null());
+            let has_part = call.arguments.get("part").is_some_and(|v| !v.is_null());
+            if (has_range && has_anchor) || (has_part && (has_range || has_anchor)) {
+                return Ok(false);
+            }
+            for doc in call.targets.iter().filter(|d| !d.starts_with("book:")) {
+                if ws.library().doc_info(doc)?.is_none() {
+                    return Ok(false);
+                }
+                let Ok(doc_id) = dr_model::DocId::parse(doc) else {
+                    return Ok(false);
+                };
+                let copy = ws.library().load_copy(doc)?;
+                let Ok(prose) = dr_doc::prose::BorrowedProse::new(&copy, &doc_id) else {
+                    return Ok(false);
+                };
+                let view = prose.view();
+                if let Some(b) = call.arguments["block_id"].as_str()
+                    && !view
+                        .blocks()
+                        .iter()
+                        .any(|blk| blk.id.as_ref().map(|x| x.as_str()) == Some(b))
+                {
+                    return Ok(false);
+                }
+                if has_range {
+                    let Some(arr) = call.arguments["range"].as_array() else {
+                        return Ok(false);
+                    };
+                    let (Some(s), Some(e)) = (
+                        arr.first().and_then(Value::as_u64),
+                        arr.get(1).and_then(Value::as_u64),
+                    ) else {
+                        return Ok(false);
+                    };
+                    let (s, e) = (s as usize, e as usize);
+                    if s >= e || e > view.len().saturating_sub(1) || view.anchor(s..e).is_none() {
+                        return Ok(false);
+                    }
+                }
+                if has_anchor {
+                    let Ok(bytes) = serde_json::from_value::<dr_workspace::dto::AnchorBytes>(
+                        call.arguments["anchor"].clone(),
+                    ) else {
+                        return Ok(false);
+                    };
+                    let Some(a) = decode_valid_anchor(&bytes, &copy.oplog_vv()) else {
+                        return Ok(false);
+                    };
+                    if view.resolve(&a).is_none() {
+                        return Ok(false);
+                    }
+                }
+                if call.arguments["part"]["kind"].as_str() == Some("embed") {
+                    let Some(eid_str) = call.arguments["part"]["embed"].as_str() else {
+                        return Ok(false);
+                    };
+                    let Ok(eid) = dr_model::id::EmbedId::parse(eid_str) else {
+                        return Ok(false);
+                    };
+                    if !view.embed_refs().into_iter().any(|(_, e)| e == eid)
+                        || !matches!(
+                            view.embed(&eid),
+                            Some(dr_doc::prose::EmbedView::Asset { asset: Some(_), .. })
+                        )
+                    {
+                        return Ok(false);
+                    }
+                }
+            }
+            Ok(true)
+        }
+        "comment.reanchor" => {
+            if call.arguments.get("anchor").is_none() {
+                return Ok(false);
+            }
+            if call.arguments.get("anchor").is_some_and(|v| !v.is_null()) {
+                let prose_docs: Vec<&String> = call
+                    .targets
+                    .iter()
+                    .filter(|d| !d.starts_with("book:"))
+                    .collect();
+                if prose_docs.is_empty() {
+                    return Ok(false);
+                }
+                for doc in prose_docs {
+                    if ws.library().doc_info(doc)?.is_none() {
+                        return Ok(false);
+                    }
+                    let copy = ws.library().load_copy(doc)?;
+                    let Ok(bytes) = serde_json::from_value::<dr_workspace::dto::AnchorBytes>(
+                        call.arguments["anchor"].clone(),
+                    ) else {
+                        return Ok(false);
+                    };
+                    if decode_valid_anchor(&bytes, &copy.oplog_vv()).is_none() {
+                        return Ok(false);
+                    }
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(true),
+    }
+}
+
+fn parse_todo_marker(text: &str) -> Option<String> {
+    let lead = text.chars().take_while(|c| c.is_whitespace()).count();
+    let rest: String = text.chars().skip(lead).collect();
+    let word =
+        if rest.len() >= 4 && rest.is_char_boundary(4) && rest[..4].eq_ignore_ascii_case("todo") {
+            4
+        } else if rest.starts_with("待办") {
+            2
+        } else {
+            return None;
+        };
+    let after: Vec<char> = rest.chars().skip(word).collect();
+    let sep = after
+        .iter()
+        .take_while(|c| c.is_whitespace() || **c == ':' || **c == '：')
+        .count();
+    if sep == 0 {
+        return None;
+    }
+    let task: String = after[sep..].iter().collect();
+    Some(task.trim().to_owned())
+}
+
+fn project_prose_comments_after_write(
+    ws: &Workspace,
+    actor: &Actor,
+    book: &str,
+    call: &ResolvedCall,
+    value: &mut Value,
+) -> Result<Vec<String>> {
+    let docs: Vec<String> = match call.name.as_str() {
+        "prose.replace" | "prose.restore" => call.arguments["doc"]
+            .as_str()
+            .map(str::to_owned)
+            .into_iter()
+            .collect(),
+        "module.replace_prose" | "module.set_prose"
+            if call.arguments["template"] != Value::Bool(true) =>
+        {
+            resolve::prose_doc_from_module_args(&call.arguments)
+                .into_iter()
+                .collect()
+        }
+        "entry.create" => {
+            if let Some(eid) = value["output"]["id"].as_str() {
+                ws.library()
+                    .docs(Some(book), None)?
+                    .into_iter()
+                    .filter(|info| {
+                        matches!(
+                            dr_model::DocId::parse(&info.doc_id),
+                            Ok(dr_model::DocId::Body(b)) if b.entry().as_str() == eid
+                        )
+                    })
+                    .map(|info| info.doc_id)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        }
+        _ => return Ok(Vec::new()),
+    };
+    if docs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let book_id = BookId::parse(book).map_err(|e| Error::Invalid(e.to_string()))?;
+    let mut forgotten = Vec::new();
+    for doc_str in docs {
+        let Ok(dr_model::DocId::Body(body_id)) = dr_model::DocId::parse(&doc_str) else {
+            continue;
+        };
+        let doc_id = dr_model::DocId::Body(body_id.clone());
+        if ws.library().doc_info(&doc_str)?.is_none() {
+            continue;
+        }
+        let copy = ws.library().load_copy(&doc_str)?;
+        let Ok(prose) = dr_doc::prose::BorrowedProse::new(&copy, &doc_id) else {
+            continue;
+        };
+        let view = prose.view();
+        let mut markers: Vec<(String, String)> = Vec::new();
+        let mut has_tasks = false;
+        for p in view.paragraphs() {
+            let Some(block) = p.id.as_ref().map(ToString::to_string) else {
+                continue;
+            };
+            if p.attrs.list == Some(dr_model::kind::ListKind::Task) {
+                has_tasks = true;
+            }
+            if let Some(task) = parse_todo_marker(&p.text())
+                && !markers.iter().any(|(b, _)| b == &block)
+            {
+                markers.push((block, task));
+            }
+        }
+        if markers.is_empty() && !has_tasks {
+            let entry_str = body_id.entry().to_string();
+            let mod_id = body_id.module().clone();
+            let bid = book_id.clone();
+            let has_existing = ws.read_book_v3(book, move |bdoc, _| {
+                let b = dr_doc::v3::BorrowedBookV3::new(bdoc, &bid)?;
+                Ok(b.view().comments().into_iter().any(|c| {
+                    c.projection.is_some()
+                        && c.target.as_ref().is_some_and(|t| {
+                            t.kind == dr_model::kind::EntityKind::Entry && t.id == entry_str
+                        })
+                        && c.target_module.as_ref() == Some(&mod_id)
+                }))
+            })?;
+            if !has_existing {
+                continue;
+            }
+        }
+        let markers_json: Vec<Value> = markers
+            .into_iter()
+            .map(|(block, task)| json!({"block": block, "task": task}))
+            .collect();
+        let proj = ws.call(
+            actor,
+            "comment.project",
+            json!({
+                "doc": doc_str,
+                "markers": markers_json,
+                "tasks": [],
+            }),
+        )?;
+        if let Some(proj_effects) = proj["effects"].as_array()
+            && !proj_effects.is_empty()
+        {
+            for effect in proj_effects {
+                if let (Some(domain), Some(id)) = (effect["domain"].as_str(), effect["id"].as_str())
+                {
+                    forgotten.push(format!("{domain}:{id}"));
+                }
+            }
+            if let Some(effects) = value.get_mut("effects").and_then(Value::as_array_mut) {
+                effects.extend(proj_effects.iter().cloned());
+            }
+        }
+    }
+    Ok(forgotten)
 }
 
 impl ToolExecutor for AgentTools {

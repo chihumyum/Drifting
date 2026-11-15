@@ -220,29 +220,32 @@ impl Workspace {
 pub fn exit(ws: &Workspace, window: &mut Window, cx: &mut App) -> AnyElement {
     let theme = Theme::of(window, cx);
     let (p, s) = (theme.palette, theme.scale);
-    let (written, share) = ws.immersed_words(cx);
-    let words = if written >= 0 {
-        format!("+{written}")
-    } else {
-        format!("−{}", -written)
-    };
-    let readout = div()
-        .flex()
-        .flex_col()
-        .items_end()
-        .gap(px(3.0))
-        .child(
-            div()
-                .font_role(Role::Index)
-                .type_px(s.caption, s.line_caption)
-                .text_color(p.muted().solid())
-                .child(words),
-        )
-        .children(share.map(|share| {
-            div()
-                .w(px(56.0))
-                .child(sand::Readout::new("immersive-today", share).color(p.ink(2)))
-        }));
+    let has_book = ws.book.v3().is_none_or(|v| v.project.book.is_some());
+    let readout = has_book.then(|| {
+        let (written, share) = ws.immersed_words(cx);
+        let words = if written >= 0 {
+            format!("+{written}")
+        } else {
+            format!("−{}", -written)
+        };
+        div()
+            .flex()
+            .flex_col()
+            .items_end()
+            .gap(px(3.0))
+            .child(
+                div()
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
+                    .child(words),
+            )
+            .children(share.map(|share| {
+                div()
+                    .w(px(56.0))
+                    .child(sand::Readout::new("immersive-today", share).color(p.ink(2)))
+            }))
+    });
     div()
         .id("immersive-leave-zone")
         .group("immersive-leave")
@@ -262,7 +265,7 @@ pub fn exit(ws: &Workspace, window: &mut Window, cx: &mut App) -> AnyElement {
                 .gap(px(10.0))
                 .opacity(0.0)
                 .group_hover("immersive-leave", |st| st.opacity(1.0))
-                .child(readout)
+                .children(readout)
                 .child(
                     IconButton::new("immersive-leave", dr_ui::sand::Icon::Incense)
                         .floating()

@@ -25,6 +25,7 @@ pub struct BodyModule {
 
 pub fn register(cx: &mut App) {
     crate::whole::register(cx);
+    crate::media::register(cx);
     dr_shell::v3::add_module_view(cx, "prose", |host, window, cx| {
         let page = host.page.clone();
         let view = cx.new(|cx| BodyModule::new(host, window, cx));
@@ -178,7 +179,25 @@ impl BodyModule {
                             editor.update(cx, |e, cx| e.set_page_scroll(Some(page), cx));
                         }
                         let assist = editor.read(cx).assist().clone();
-                        view._links = Some(bind_links(&assist, &host.page, window, cx));
+                        let links = bind_links(&assist, &host.page, window, cx);
+                        let page_ws = host.page.workspace.clone();
+                        let mat_sub = cx.subscribe(
+                            &editor,
+                            move |_, _, e: &dr_editor::MaterialOpened, cx| {
+                                if let Ok(id) = dr_model::id::MediaItemId::parse(&e.material) {
+                                    page_ws
+                                        .update(cx, |ws, cx| {
+                                            ws.open(
+                                                dr_shell::nav::Target::Material(id),
+                                                dr_shell::nav::Open::PREVIEW,
+                                                cx,
+                                            );
+                                        })
+                                        .ok();
+                                }
+                            },
+                        );
+                        view._links = Some(gpui::Subscription::join(links, mat_sub));
                         view.editor = Some(editor);
                         view.reveal_now(window, cx);
                         let workspace = view.host.page.workspace.clone();
@@ -205,7 +224,12 @@ impl BodyModule {
         {
             self.host.module = module.clone();
         }
-        self.host.page.book = book;
+        self.host.page.book = book.clone();
+        let doc = format!("body:{}/{}", self.host.entry, self.host.module.id);
+        if let Some((head, end)) = crate::page_views(&doc, cx) {
+            head.update(cx, |h, cx| h.set_book(book.clone(), cx));
+            end.update(cx, |e, cx| e.set_book(book, cx));
+        }
         // ChapterEditor receives prose and catalogue events itself. Replacing it
         // here would destroy its selection and its author-only undo history.
         cx.notify();
@@ -310,7 +334,7 @@ pub(crate) fn bind_links<T: 'static>(
                 };
                 dr_shell::nav::Target::Entry { id, module }
             }
-            dr_model::kind::EntityKind::Material => {
+            dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material => {
                 let Ok(id) = dr_model::id::MediaItemId::parse(&target.id) else {
                     return;
                 };

@@ -96,10 +96,13 @@
     "import": "匯入專案",
     "importFile": "匯入專案（.driftingproject）",
     "importLegacy": "匯入 Drifting 0.1",
+    "libraryProjects_one": "{{count}} 個專案",
+    "libraryProjects_other": "{{count}} 個專案",
     "library_one": "{{count}} 個專案 · {{words}} 字",
     "library_other": "{{count}} 個專案 · {{words}} 字",
     "nameLabel": "名稱",
     "newProject": "新專案",
+    "recentEntries": "最近修改",
     "summaryPlaceholder": "用一兩句話說明這個專案是什麼。",
     "title": "全部專案",
     "transfer": {
@@ -203,9 +206,7 @@
   "commentRail": {
     "actions": {
       "reopen": "重新開啟",
-      "resolve": "標為已解決",
-      "toNote": "轉為註解",
-      "toTodo": "轉為待辦"
+      "resolve": "標為已解決"
     },
     "card": {
       "emptyComment": "空白註解"
@@ -217,7 +218,6 @@
   "common": {
     "cancel": "取消",
     "close": "關閉",
-    "confirm": "確認",
     "counting": "計算中…",
     "creating": "正在建立…",
     "customColor": "自訂顏色",
@@ -257,11 +257,6 @@
       "collapsePlotPlanner": "收合情節規劃器",
       "expandPlotPlanner": "展開情節規劃器",
       "more": "更多操作"
-    },
-    "menu": {
-      "deleteMaterial": "刪除素材",
-      "moveMaterialToFolder": "移至素材夾…",
-      "openMaterialInSystem": "以預設應用程式開啟"
     },
     "status": {
       "discarded": "已棄用",
@@ -490,7 +485,6 @@
     "format": "格式",
     "loadFailed": "無法讀取章節，請重試。",
     "loading": "正在讀取章節…",
-    "manuscript": "成書",
     "menu": "匯出書稿",
     "removeCover": "移除",
     "retry": "重試",
@@ -516,47 +510,29 @@
     "retry": "重試"
   },
   "materialEditor": {
-    "deleteConfirm": "刪除素材「{{title}}」？此操作無法復原。",
     "deleteFailed": "無法刪除素材。",
     "descriptionPlaceholder": "新增說明…",
     "embed": {
-      "importFile": "匯入圖片或 PDF…",
-      "importing": "匯入中…",
-      "pastedImage": "貼上的圖片"
+      "importing": "匯入中…"
     },
     "regions": {
       "draw": "註解區域",
       "drawHint": "在圖片上拖曳以標記區域",
       "empty": "在圖片或頁面上拖曳，即可新增第一則註解。",
       "listLabel": "此素材的註解",
-      "page": "第 {{page}} 頁",
-      "stopDrawing": "停止註解",
-      "whole": "整份素材"
+      "stopDrawing": "停止註解"
     },
     "zoomIn": "放大",
     "zoomOut": "縮小",
     "zoomReset": "符合檢視範圍"
   },
   "materialFolders": {
-    "deleteConfirm": "刪除素材夾「{{name}}」？其中所有項目將移至上一層，不會刪除任何素材。",
-    "deleteSelectionConfirm": "刪除選取的 {{count}} 個項目？素材將被刪除；被刪除素材夾中的內容會移至上一層。",
-    "empty": "尚無素材。可使用上方「新增素材夾」按鈕整理素材。",
     "menu": {
-      "collapseAll": "收合其中所有項目",
-      "delete": "刪除素材夾",
-      "deleteSelection": "刪除 {{count}} 個項目",
-      "expandAll": "展開其中所有項目",
-      "move": "移至素材夾…",
-      "moveSelection": "將 {{count}} 個項目移至素材夾…",
-      "newFolder": "新增素材夾",
-      "newSubfolder": "在內建立素材夾",
-      "open": "開啟",
-      "rename": "重新命名"
+      "open": "開啟"
     },
     "picker": {
       "createAndMove": "建立並移動",
-      "newPlaceholder": "新素材夾名稱",
-      "title": "移至素材夾"
+      "newPlaceholder": "新素材夾名稱"
     },
     "root": "所有素材",
     "untitled": "新素材夾"
@@ -568,11 +544,7 @@
     "dialog": {
       "create": "建立",
       "newTodo": "新增待辦",
-      "titlePlaceholder": "標題",
       "todoPlaceholder": "待辦內容…"
-    },
-    "empty": {
-      "noRelated": "目前項目未連結任何素材。"
     },
     "error": {
       "openFile": "無法開啟檔案：{{error}}",
@@ -584,7 +556,6 @@
       "text": "筆記"
     },
     "menu": {
-      "deleteMaterial": "刪除素材",
       "openInSystem": "用系統應用程式開啟"
     },
     "preview": {
@@ -608,7 +579,6 @@
       "hideKind": "點一下隱藏此種類",
       "material": "素材",
       "meta": "{{todos}} 項待辦 · {{comments}} 則註解 · {{materials}} 份素材",
-      "newMaterialButton": "新增素材",
       "noFilteredMaterials": "沒有符合目前篩選條件的素材。",
       "noMaterials": "此作品尚無素材。",
       "noOrphans": "所有素材都已連結至少一個實體。",
@@ -626,10 +596,6 @@
     },
     "todo": {
       "empty": "（空白待辦）"
-    },
-    "toolbar": {
-      "count": "{{count}} 份素材",
-      "newMaterial": "新增素材"
     }
   },
   "mobileWorkspace": {
@@ -772,7 +738,7 @@
       "importFailedTitle": "無法匯入",
       "invalid": "此檔案已損壞，無法匯入。",
       "legacy": "這個檔案是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
-      "older": "這個檔案是 Drifting 以前的開發版匯出的，這一版已經不讀那種格式。"
+      "older": "這是以前格式的書檔案，這一版已經不再讀取。"
     },
     "delete": {
       "deleting": "正在刪除…"
@@ -851,6 +817,7 @@
       "writing": "寫作中"
     },
     "trash": {
+      "bodyWithoutBook": "此專案（{{entries}}）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "bodyWithoutChapters": "此專案（{{words}} 字 · {{elements}} 個要素）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "confirm": "移至最近刪除",
       "deleteNow": "立即刪除",
@@ -868,8 +835,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "連結實體",
-      "remove": "移除關係"
+      "linkEntity": "連結實體"
     },
     "filters": {
       "all": "全部"
@@ -880,9 +846,6 @@
       "node": "章節",
       "patch": "演化記錄",
       "storyline": "故事線"
-    },
-    "picker": {
-      "placeholder": "搜尋可連結的實體…"
     },
     "sections": {
       "relations": "關係"
@@ -918,7 +881,6 @@
       "floating": "未附加"
     },
     "newComment": "新增註解",
-    "resolved": "已解決（{{count}}）",
     "scopes": {
       "current": "目前"
     },
@@ -1555,6 +1517,31 @@
     "thisLevel": "本層",
     "title": "標題"
   },
+  "v3Review": {
+    "backToReview": "回審閱",
+    "checklistFold": "清單 {{count}}",
+    "commentButton": "批註",
+    "commentFromHeader": "批註 · {{where}}",
+    "commentFromSimple": "批註",
+    "drawRegionComment": "框一塊寫批註",
+    "handToAgent": "交給 Agent",
+    "jumpToPlace": "去那一處",
+    "noteForAgent": "寫給 Agent…",
+    "openConversation": "打開對話",
+    "originAgent": "Agent",
+    "originManual": "手寫",
+    "originMarker": "標記",
+    "originReader": "讀者",
+    "originReaderNamed": "讀者 · {{name}}",
+    "originTask": "清單",
+    "regionPlace": "框選",
+    "regionPlacePaged": "第 {{page}} 頁",
+    "statusOpen": "未解決",
+    "statusResolved": "已解決",
+    "unlocated": "找不到原處",
+    "wholeFile": "整個檔案",
+    "writeComment": "寫批註"
+  },
   "v3Settings": {
     "codeCopied": "已複製",
     "copyCode": "複製代碼",
@@ -1618,29 +1605,83 @@
     "colorValue": "顏色值",
     "deleteView": "刪除視圖",
     "detachEntry": "解除條目",
+    "laneActions": "泳道操作",
     "laneTrack": "泳道 {{name}}",
     "members": "{{count}} 個成員",
     "moveDown": "下移",
     "moveUp": "上移",
     "newActTrack": "新增幕軌道",
     "newEntryInLane": "新增條目",
+    "newLane": "新增泳道",
     "newView": "新增視圖",
     "placeEntry": "放入條目",
     "placementActions": "擺放操作",
     "removeEntry": "移出泳道",
     "removeLane": "移出視圖",
-    "renamePin": "重新命名時間釘",
+    "renamePin": "重新命名標尺釘",
     "renameView": "重新命名視圖",
     "resize": "調整長度",
-    "ruler": "時間標尺",
+    "ruler": "刻度標尺",
     "selectLane": "選擇泳道",
     "setActTrack": "設為幕軌道 · {{name}}",
+    "setBookRoot": "設為成書起點",
     "unsetActTrack": "取消幕軌道 · {{name}}",
-    "views": "時間線視圖"
+    "views": "視圖"
   },
   "v3Transfer": {
     "filesTitle": "檔案",
     "targetTitle": "目標"
+  },
+  "v5Files": {
+    "addFiles": "放檔案進來",
+    "alignCenter": "置中",
+    "alignHeading": "對齊",
+    "alignLeft": "靠左",
+    "alignRight": "靠右",
+    "allFolders": "全部",
+    "clearField": "清除",
+    "currentSection": "當前",
+    "empty": "無檔案",
+    "fileCount_other": "{{count}} 個檔案",
+    "findFile": "找檔案",
+    "itemCount_other": "{{count}} 個",
+    "kindImage": "圖片",
+    "kindPdf": "PDF",
+    "layoutFeatured": "大圖",
+    "layoutGrid": "網格",
+    "layoutList": "列表",
+    "libraryRoot": "素材庫",
+    "locateInLibrary": "在素材庫裡找到",
+    "mediaCaptionPlaceholder": "說明",
+    "moveToFolder": "移到素材夾",
+    "moveToTrash": "放進最近刪除",
+    "newFolder": "新增素材夾",
+    "newSubfolder": "在裡面新增素材夾",
+    "open": "打開",
+    "openInSystem": "在系統裡打開",
+    "otherSection": "其他",
+    "pageCount_other": "{{count}} 頁",
+    "pastedImage": "貼上的圖片 {{stamp}}",
+    "pickFromComputer": "從電腦選…",
+    "pickFromLibrary": "從素材庫挑…",
+    "proseCaptionPlaceholder": "圖注",
+    "purge": "永久刪除",
+    "removeFromHere": "從這裡拿走",
+    "removeFromProse": "從正文拿走",
+    "rename": "改名",
+    "resetArrangement": "恢復模板預設",
+    "restore": "恢復",
+    "sizeFull": "正文寬",
+    "sizeHeading": "大小",
+    "sizeMedium": "中",
+    "sizeSmall": "小",
+    "slashImageOrPdf": "圖片或 PDF…",
+    "topLevel": "最外層",
+    "trashSection": "最近刪除",
+    "usageCount_other": "{{count}} 處",
+    "usedIn": "用在",
+    "viewList": "列表",
+    "viewMasonry": "瀑布流"
   },
   "voiceAgent": {
     "error": {

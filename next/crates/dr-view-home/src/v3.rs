@@ -369,6 +369,12 @@ impl Render for Home {
             self.reload(book.clone(), cx);
         }
         let locale = Settings::locale(cx);
+        let has_book = self
+            .loaded
+            .as_ref()
+            .map(|d| d.has_book)
+            .or_else(|| book.v3().map(|v| v.project.book.is_some()))
+            .unwrap_or(true);
         let words = self
             .loaded
             .as_ref()
@@ -415,7 +421,7 @@ impl Render for Home {
                     .type_px(34.0, 44.0)
                     .child(book.name.clone()),
             );
-        if !self.error {
+        if !self.error && has_book {
             column = column.child(words);
         }
         if self.error {
@@ -432,42 +438,44 @@ impl Render for Home {
             );
         }
         if let Some(loaded) = &self.loaded {
-            let today = dr_view_stats::model::today_words(
-                &loaded.days,
-                dr_view_stats::today_live(&book.id, cx),
-            );
-            let streak = if today > 0 {
-                loaded.days.streak_before + 1
-            } else {
-                0
-            };
-            let today_text = if let Some(goal) = loaded.daily_word_target.filter(|n| *n > 0) {
-                dr_shell::strings::tf(
-                    cx,
-                    keys::project_home::TODAY,
-                    &[
-                        (
-                            "today",
-                            &dr_i18n::number::grouped(today.max(0) as u64, locale),
-                        ),
-                        ("goal", &dr_i18n::number::grouped(goal as u64, locale)),
-                        ("streak", &streak),
-                    ],
-                )
-            } else {
-                dr_shell::strings::tf(
-                    cx,
-                    keys::project_home::TODAY_NO_GOAL,
-                    &[
-                        (
-                            "today",
-                            &dr_i18n::number::grouped(today.max(0) as u64, locale),
-                        ),
-                        ("streak", &streak),
-                    ],
-                )
-            };
-            column = column.child(today_text);
+            if loaded.has_book {
+                let today = dr_view_stats::model::today_words(
+                    &loaded.days,
+                    dr_view_stats::today_live(&book.id, cx),
+                );
+                let streak = if today > 0 {
+                    loaded.days.streak_before + 1
+                } else {
+                    0
+                };
+                let today_text = if let Some(goal) = loaded.daily_word_target.filter(|n| *n > 0) {
+                    dr_shell::strings::tf(
+                        cx,
+                        keys::project_home::TODAY,
+                        &[
+                            (
+                                "today",
+                                &dr_i18n::number::grouped(today.max(0) as u64, locale),
+                            ),
+                            ("goal", &dr_i18n::number::grouped(goal as u64, locale)),
+                            ("streak", &streak),
+                        ],
+                    )
+                } else {
+                    dr_shell::strings::tf(
+                        cx,
+                        keys::project_home::TODAY_NO_GOAL,
+                        &[
+                            (
+                                "today",
+                                &dr_i18n::number::grouped(today.max(0) as u64, locale),
+                            ),
+                            ("streak", &streak),
+                        ],
+                    )
+                };
+                column = column.child(today_text);
+            }
             let home = cx.entity();
             let settings_book = book.id.clone();
             column = column.child(
@@ -501,6 +509,32 @@ impl Render for Home {
                                 .map(str::parse)
                                 .transpose()
                                 .expect("validated module id"),
+                        },
+                        title: entry.title.clone(),
+                    });
+                } else if let Some(entry) = book.v3().and_then(|v| {
+                    v.entries
+                        .iter()
+                        .filter(|e| {
+                            v.is_content(&e.id) && {
+                                let mut cur = e.parent.as_deref();
+                                let mut seen = std::collections::BTreeSet::new();
+                                loop {
+                                    let Some(pid) = cur else { break true };
+                                    if !seen.insert(pid) {
+                                        break false;
+                                    }
+                                    let Some(p) = v.entry(pid) else { break false };
+                                    cur = p.parent.as_deref();
+                                }
+                            }
+                        })
+                        .max_by_key(|e| e.updated_at.or(e.created_at))
+                }) {
+                    pages.push(RecentPage {
+                        target: Target::Entry {
+                            id: entry.id.parse().expect("validated entry id"),
+                            module: None,
                         },
                         title: entry.title.clone(),
                     });

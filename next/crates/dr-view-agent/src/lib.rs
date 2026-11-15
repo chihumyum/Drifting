@@ -11,6 +11,7 @@ pub mod onboarding;
 pub mod panel;
 pub mod project_memory;
 mod prompt;
+mod review_bridge;
 pub mod settings;
 pub mod speech;
 pub mod state;
@@ -31,6 +32,7 @@ pub struct AgentViews {
     pub connections: Entity<Connections>,
     pub hub: Entity<AgentHub>,
     panels: Vec<WeakEntity<AgentPanel>>,
+    _review_bridge: Entity<review_bridge::BridgeWatcher>,
 }
 impl Global for AgentViews {}
 
@@ -99,10 +101,12 @@ pub fn init_with_service(
     }
     let connections = cx.new(|cx| Connections::with_service(service, cx));
     let hub = cx.new(|_| AgentHub::new(driver, tools));
+    let bridge = review_bridge::install(&hub, &connections, cx);
     cx.set_global(AgentViews {
         connections: connections.clone(),
         hub: hub.clone(),
         panels: Vec::new(),
+        _review_bridge: bridge,
     });
     let weak = connections.downgrade();
     dr_shell::release::before_release(cx, move |cx| {
@@ -128,10 +132,16 @@ pub fn init_with_service(
         let views = cx.global::<AgentViews>();
         let (hub, connections) = (views.hub.clone(), views.connections.clone());
         let body = cx.new(|cx| AgentPanel::new(ws, hub, connections, window, cx));
-        let head = cx.new(|_| PanelHead::new(body.clone()));
+        let head = cx.new(|cx| PanelHead::new_observed(body.clone(), cx));
         let views = cx.global_mut::<AgentViews>();
         views.panels.retain(|panel| panel.upgrade().is_some());
-        views.panels.push(body.downgrade());
+        if !views
+            .panels
+            .iter()
+            .any(|p| p.entity_id() == body.entity_id())
+        {
+            views.panels.push(body.downgrade());
+        }
         dr_shell::pages::LeftPanel {
             head: head.into(),
             body: body.into(),

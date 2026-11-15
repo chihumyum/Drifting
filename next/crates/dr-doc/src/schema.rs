@@ -21,6 +21,10 @@ pub const BOOK_SCHEMA_VERSION: i64 = 5;
 /// `checkpoints:<book>`).
 pub const SIDE_SCHEMA_VERSION: i64 = 1;
 
+/// `meta.v` of library-level user project template documents
+/// (`project-template:<id>`, `docs/rust-rewrite/project-templates.md` §5).
+pub const PROJECT_TEMPLATE_SCHEMA_VERSION: i64 = 1;
+
 /// Version of the genesis content; part of the genesis peer's hash.
 pub const GENESIS_VERSION: u32 = 2;
 
@@ -30,6 +34,9 @@ pub const BOOK_GENESIS_VERSION: u32 = 5;
 
 /// Version of the genesis content of the documents beside a book.
 pub const SIDE_GENESIS_VERSION: u32 = 1;
+
+/// Version of the genesis content of library-level user project template documents.
+pub const PROJECT_TEMPLATE_GENESIS_VERSION: u32 = 1;
 
 /// Keys every document's `meta` map has.
 pub mod meta {
@@ -51,6 +58,15 @@ pub mod prose {
 pub mod conversation {
     pub const META: &str = "meta";
     pub const ENTRIES: &str = "entries";
+}
+
+/// Root containers and keys of a library-level project template document
+/// (`project-template:<id>`).
+pub mod project_template {
+    pub const META: &str = "meta";
+    pub const INFO: &str = "info";
+    pub const PAYLOAD: &str = "payload";
+    pub const VALUE: &str = "value";
 }
 
 /// Root containers of the book document.

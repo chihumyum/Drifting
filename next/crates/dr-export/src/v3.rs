@@ -1,15 +1,25 @@
-//! Manuscript conversion: the manuscript sequence
-//! (`BookStructureV3::manuscript`), each entry with book prose once, its own
+//! Manuscript conversion: the single book sequence
+//! (`BookStructureV3::book_sequence`), each entry with book prose once, its own
 //! book prose in template order before what lives under it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
-use dr_doc::{prose::BorrowedProse, v3::BorrowedBookV3};
-use dr_model::{DocId, id::BookId};
-use dr_store::OpenDoc;
+use dr_doc::{
+    prose::{BorrowedProse, FileEmbedLook},
+    v3::BorrowedBookV3,
+};
+use dr_model::{
+    DocId,
+    id::{AssetId, BookId, CommentId},
+    kind::AssetKind,
+    shared::Asset,
+};
+use dr_store::{OpenDoc, asset::Variant};
 use dr_workspace::Workspace;
 
+use crate::manuscript::{Align, Block, Cover, Run};
 use crate::{ExportError, Labels, Manuscript, Options, Result, Section};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,53 +27,28 @@ pub struct Entry {
     pub id: String,
     pub title: String,
     pub mark: Option<String>,
-    /// Current prose modules only. Retained content remains in the book file.
+    /// Current book-prose modules only (`in_book = true`). Retained content stays in the book file.
     pub prose: Vec<DocId>,
-}
-
-/// One outermost manuscript level (`ManuscriptPart`) and the entries with book
-/// prose inside it, in manuscript order.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Part {
-    pub id: String,
-    pub title: String,
-    /// Ancestor titles from the top of the tree down to this manuscript root.
-    pub path: Vec<String>,
-    pub mark: Option<String>,
-    pub color: Option<String>,
-    pub entries: Vec<Entry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Outline {
     pub book: String,
     pub title: String,
-    pub parts: Vec<Part>,
+    pub has_book: bool,
     pub entries: Vec<Entry>,
 }
 
 impl Outline {
-    /// Share the existing picker layout without assigning acts to v3 levels.
+    /// Share the picker layout without assigning built-in acts to v3 levels.
     pub fn picker(&self) -> crate::Outline {
-        self.picker_for(None)
-    }
-
-    /// Picker layout scoped to `manuscript` (`Part::id`), or across every
-    /// manuscript part when `None`.
-    pub fn picker_for(&self, manuscript: Option<&str>) -> crate::Outline {
-        let entries: &[Entry] = match manuscript {
-            Some(id) => self
-                .parts
-                .iter()
-                .find(|p| p.id == id)
-                .map_or(&[], |p| p.entries.as_slice()),
-            None => &self.entries,
-        };
         crate::Outline {
             book: self.book.clone(),
             title: self.title.clone(),
+            has_book: self.has_book,
             acts: Vec::new(),
-            chapters: entries
+            chapters: self
+                .entries
                 .iter()
                 .map(|entry| crate::ChapterEntry {
                     id: entry.id.clone(),
@@ -76,47 +61,11 @@ impl Outline {
     }
 }
 
-fn path_of(structure: &dr_doc::v3::BookStructureV3, id: &dr_model::id::EntryId) -> Vec<String> {
-    let mut chain = Vec::new();
-    let mut seen = HashSet::new();
-    let mut cur = Some(id);
-    while let Some(entry_id) = cur {
-        if !seen.insert(entry_id.clone()) {
-            break;
-        }
-        let Some(entry) = structure.entry(entry_id) else {
-            break;
-        };
-        chain.push(entry.title.clone());
-        cur = structure.effective_parent(entry_id);
-    }
-    chain.reverse();
-    chain
-}
-
-fn color_of(
-    entry: &dr_model::v3::Entry,
-    template: Option<&dr_model::v3::EntryTemplate>,
-) -> Option<String> {
-    let template = template?;
-    template
-        .modules
-        .iter()
-        .find_map(|m| {
-            let field = m.config.color_field.as_ref()?;
-            match entry.fields.get(&m.id)?.get(field)? {
-                dr_model::v3::FieldValue::Text(s) if !s.is_empty() => Some(s.clone()),
-                _ => None,
-            }
-        })
-        .or_else(|| template.color.clone())
-}
-
 fn invalid(e: impl ToString) -> ExportError {
     ExportError::Invalid(e.to_string())
 }
 
-/// Version dispatch for hosts which also serve v2.2 books.
+/// Version dispatch for hosts which also check book format.
 pub fn is_book(ws: &Workspace, book: &str) -> Result<bool> {
     ws.library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
@@ -144,8 +93,9 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
             }
             // The book sequence (`BookStructureV3::book_sequence`): every entry
             // with book prose in sequence order; entries without book prose do
-            // not appear.
+            // not appear, and when `project.book` is disabled the sequence is empty.
             let structure = view.structure_snapshot();
+            let has_book = structure.project().book.is_some();
             let templates = structure.templates_map();
             let entries: Vec<Entry> = structure
                 .book_sequence()
@@ -154,85 +104,30 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
                 .map(|e| Entry {
                     id: e.entry.id.to_string(),
                     title: e.entry.title.clone(),
-                    mark: e
-                        .entry
-                        .effective_template(templates)
-                        .and_then(|t| t.mark.clone()),
+                    mark: e.entry.mark.clone().or_else(|| {
+                        e.entry
+                            .effective_template(templates)
+                            .and_then(|t| t.mark.clone())
+                    }),
                     prose: e.prose.iter().map(|p| p.doc.clone()).collect(),
                 })
                 .collect();
-            let parts: Vec<Part> = match structure.project().book.as_ref().map(|b| &b.root) {
-                Some(r) if structure.is_valid_book_root(r) => match r {
-                    dr_model::v3::BookRoot::Entry { entry } => structure
-                        .entry(entry)
-                        .map(|root| {
-                            let root_tpl = root.effective_template(templates);
-                            vec![Part {
-                                id: root.id.to_string(),
-                                title: root.title.clone(),
-                                path: path_of(&structure, &root.id),
-                                mark: root_tpl.and_then(|t| t.mark.clone()),
-                                color: color_of(root, root_tpl),
-                                entries: entries.clone(),
-                            }]
-                        })
-                        .unwrap_or_default(),
-                    dr_model::v3::BookRoot::Root => vec![Part {
-                        id: "root".into(),
-                        title: meta.name.clone(),
-                        path: vec![meta.name.clone()],
-                        mark: None,
-                        color: None,
-                        entries: entries.clone(),
-                    }],
-                    dr_model::v3::BookRoot::View { view } => {
-                        let title = structure
-                            .timeline_views_map()
-                            .get(view)
-                            .map(|v| v.name.clone())
-                            .unwrap_or_else(|| meta.name.clone());
-                        vec![Part {
-                            id: view.to_string(),
-                            title: title.clone(),
-                            path: vec![title],
-                            mark: None,
-                            color: None,
-                            entries: entries.clone(),
-                        }]
-                    }
-                    // Never a valid start.
-                    dr_model::v3::BookRoot::Unset => Vec::new(),
-                    dr_model::v3::BookRoot::Lane { entry, .. } => structure
-                        .entry(entry)
-                        .map(|lane| {
-                            let lane_tpl = lane.effective_template(templates);
-                            vec![Part {
-                                id: lane.id.to_string(),
-                                title: lane.title.clone(),
-                                path: path_of(&structure, &lane.id),
-                                mark: lane_tpl.and_then(|t| t.mark.clone()),
-                                color: color_of(lane, lane_tpl),
-                                entries: entries.clone(),
-                            }]
-                        })
-                        .unwrap_or_default(),
-                },
-                _ => Vec::new(),
-            };
             Ok(Outline {
                 book: id.to_string(),
                 title: meta.name,
-                parts,
+                has_book,
                 entries,
             })
         })
         .map_err(invalid)?
 }
 
-/// Uses the existing manuscript options and writers. `manuscript` selects one
-/// outermost manuscript part when a book has multiple; `chapters` selects
-/// entry ids; `act_titles` has no v3 meaning and adds no invented hierarchy.
-/// Module content is concatenated without inserting module headings or copy.
+/// Reads the manuscript from `BookStructureV3::book_sequence()`. `chapters`
+/// selects entry ids; `act_titles` has no v3 meaning and adds no invented
+/// hierarchy. Module content is concatenated without inserting module headings
+/// or copy. Live image embeds export image + caption (without app-side size or
+/// alignment), live PDF embeds export a single filename line, and trashed
+/// assets stay out.
 #[allow(clippy::too_many_arguments)]
 pub fn read_manuscript(
     ws: &Workspace,
@@ -244,18 +139,11 @@ pub fn read_manuscript(
     now: SystemTime,
 ) -> Result<Manuscript> {
     let outline = outline(ws, book)?;
-    let source_entries: &[Entry] = match options.manuscript.as_deref() {
-        Some(part_id) => {
-            let part = outline
-                .parts
-                .iter()
-                .find(|p| p.id == part_id)
-                .ok_or_else(|| ExportError::NotFound(format!("manuscript {part_id}")))?;
-            &part.entries
-        }
-        None => &outline.entries,
-    };
-    let entries: Vec<_> = source_entries
+    if !outline.has_book {
+        return Err(ExportError::NoChapters);
+    }
+    let entries: Vec<_> = outline
+        .entries
         .iter()
         .filter(|e| {
             options
@@ -268,24 +156,30 @@ pub fn read_manuscript(
         return Err(ExportError::NoChapters);
     }
     let book_id = BookId::parse(book).map_err(invalid)?;
-    let done_todos: std::sync::Arc<HashSet<dr_model::id::CommentId>> = std::sync::Arc::new(
-        ws.library()
-            .open_doc(&format!("book:{book}"), OpenDoc::Existing)
-            .map_err(invalid)?
-            .read(move |doc| {
-                let borrowed = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
-                Ok::<_, ExportError>(
-                    borrowed
-                        .view()
-                        .comments()
-                        .into_iter()
-                        .filter(|c| c.is_done())
-                        .map(|c| c.id)
-                        .collect(),
-                )
-            })
-            .map_err(invalid)??,
-    );
+    let (done_todos, live_assets): (Arc<HashSet<CommentId>>, Arc<HashMap<AssetId, Asset>>) = ws
+        .library()
+        .open_doc(&format!("book:{book}"), OpenDoc::Existing)
+        .map_err(invalid)?
+        .read(move |doc| {
+            let borrowed = BorrowedBookV3::new(doc, &book_id).map_err(invalid)?;
+            let view = borrowed.view();
+            let done = view
+                .comments()
+                .into_iter()
+                .filter(|c| c.is_done())
+                .map(|c| c.id)
+                .collect();
+            let assets = view
+                .assets()
+                .into_iter()
+                .map(|a| (a.id.clone(), a))
+                .collect();
+            Ok::<_, ExportError>((Arc::new(done), Arc::new(assets)))
+        })
+        .map_err(invalid)??;
+
+    let image_cache: Arc<Mutex<HashMap<AssetId, Option<Cover>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
     let stored: HashSet<_> = ws
         .library()
         .docs(Some(book), None)
@@ -302,16 +196,75 @@ pub fn read_manuscript(
                 continue;
             }
             let doc = doc.clone();
-            let done_todos = std::sync::Arc::clone(&done_todos);
+            let done_todos = Arc::clone(&done_todos);
+            let live_assets = Arc::clone(&live_assets);
+            let image_cache = Arc::clone(&image_cache);
+            let lib = ws.library().clone();
+            let book_key = book.to_owned();
             let part = ws
                 .library()
                 .open_doc(&id, OpenDoc::Existing)
                 .map_err(invalid)?
                 .read(move |loro| {
                     let prose = BorrowedProse::new(loro, &doc).map_err(invalid)?;
-                    Ok::<_, ExportError>(crate::convert::blocks_with_todos(
+                    let resolve_asset = |asset_id: &AssetId,
+                                         look: &FileEmbedLook|
+                     -> Option<Block> {
+                        let asset = live_assets.get(asset_id)?;
+                        match asset.kind {
+                            AssetKind::Pdf => {
+                                let name = crate::convert::one_line(&asset.name);
+                                let line = if name.is_empty() {
+                                    asset_id.to_string()
+                                } else {
+                                    name
+                                };
+                                Some(Block::Paragraph {
+                                    runs: vec![Run {
+                                        text: line,
+                                        ..Run::default()
+                                    }],
+                                    align: Align::Left,
+                                    indent: 0,
+                                })
+                            }
+                            AssetKind::Image => {
+                                let cached = image_cache
+                                    .lock()
+                                    .ok()
+                                    .and_then(|guard| guard.get(asset_id).cloned());
+                                let cover = match cached {
+                                    Some(found) => found,
+                                    None => {
+                                        let loaded = lib
+                                            .asset(asset_id.as_str(), Variant::Source)
+                                            .ok()
+                                            .flatten()
+                                            .filter(|rec| rec.book_id == book_key)
+                                            .and_then(|rec| {
+                                                crate::cover::inline_image_from_path(&rec.path).ok()
+                                            });
+                                        if let Ok(mut guard) = image_cache.lock() {
+                                            guard.insert(asset_id.clone(), loaded.clone());
+                                        }
+                                        loaded
+                                    }
+                                }?;
+                                Some(Block::Image {
+                                    media_type: cover.media_type,
+                                    data: cover.data,
+                                    width: cover.width,
+                                    height: cover.height,
+                                    caption: crate::convert::one_line(&look.caption),
+                                })
+                            }
+                            _ => None,
+                        }
+                    };
+                    Ok::<_, ExportError>(crate::convert::blocks_with_context(
                         &prose.view(),
                         Some(&done_todos),
+                        Some(&resolve_asset),
                     ))
                 })
                 .map_err(invalid)??;

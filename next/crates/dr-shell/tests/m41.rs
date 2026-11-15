@@ -114,3 +114,39 @@ fn the_export_dialogs_open_over_the_workspace_and_close(cx: &mut TestAppContext)
     cx.run_until_parked();
     assert!(view.read_with(cx, |ws, _| ws.dialog.is_none()));
 }
+
+#[gpui::test]
+fn bookless_project_blocks_manuscript_export_dialog(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let books = lib
+        .call(
+            &dr_workspace::Actor::User,
+            "book.list",
+            serde_json::json!({}),
+        )
+        .unwrap()["output"]
+        .clone();
+    let book_id = books[0]["id"].as_str().unwrap().to_owned();
+    lib.call(
+        &dr_workspace::Actor::User,
+        "project.update",
+        serde_json::json!({"book": book_id, "has_book": false}),
+    )
+    .unwrap();
+
+    let (view, cx) = setup(cx, lib);
+    wait_for(&view, cx, |ws, _| {
+        ws.book.v3().is_some_and(|v| v.project.book.is_none())
+    });
+
+    view.update_in(cx, |ws, window, cx| {
+        let root_id = ws.book.v3().unwrap().roots[0].clone();
+        ws.open(Target::Book(root_id.parse().unwrap()), Open::KEEP, cx);
+        ws.open_export(Request::Manuscript { chapter: None }, window, cx);
+    });
+    cx.run_until_parked();
+    assert!(
+        view.read_with(cx, |ws, _| ws.dialog.is_none() && !ws.covered()),
+        "manuscript export dialog must not open when project.book is disabled"
+    );
+}

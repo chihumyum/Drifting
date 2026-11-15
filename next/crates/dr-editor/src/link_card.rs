@@ -16,13 +16,33 @@
 //! A target in the trash or gone has no card (and a click on its link does
 //! nothing). Timing and placement are the assist's ([`crate::assist`]).
 
-use dr_model::kind::EntityKind;
+use std::path::PathBuf;
+
+use dr_model::kind::{AssetKind, EntityKind};
+use dr_store::asset::Variant;
 use dr_text::autolink::LinkTarget;
 use dr_ui::components::hover_card::CardBody;
-use dr_ui::sand;
-use dr_ui::tokens::Rgb;
+use dr_ui::components::menu::{float_shadow, slab_edge};
+use dr_ui::fonts::{Role, weight};
+use dr_ui::glass::{self, Ground};
+use dr_ui::sand::{self, Icon};
+use dr_ui::style::DrStyled as _;
+use dr_ui::theme::Theme;
+use dr_ui::tokens::{Rgb, radius};
 use dr_workspace::Workspace;
-use gpui::{AnyElement, IntoElement, ParentElement, SharedString, Styled, div};
+use gpui::{
+    AnyElement, App, IntoElement, ObjectFit, ParentElement, SharedString, Styled, StyledImage as _,
+    Window, div, img, px,
+};
+
+/// File-link preview metadata for the 248px `.pcard` (`v5-tracks.md` §T5).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssetCardMeta {
+    pub is_pdf: bool,
+    pub picture: Option<PathBuf>,
+    pub dimensions: Option<(i64, i64)>,
+    pub pages: Option<usize>,
+}
 
 /// What a link's card shows.
 #[derive(Clone, Debug, PartialEq)]
@@ -42,6 +62,8 @@ pub struct CardFacts {
     pub summary: String,
     /// An element's facts, key and value.
     pub facts: Vec<(String, String)>,
+    /// Present when `target` is a live asset-library file.
+    pub asset: Option<AssetCardMeta>,
 }
 
 /// The card of `target` in `book`, or `None` when it is in the trash, gone,
@@ -95,8 +117,153 @@ pub fn card_element(facts: &CardFacts) -> AnyElement {
     body.into_any_element()
 }
 
+/// Draws a link hover card in `window`: a 248px `.pcard` preview card for live
+/// file links (`v5-tracks.md` §T5), or [`card_element`] for entry links.
+pub fn card_element_in(facts: &CardFacts, window: &Window, cx: &App) -> AnyElement {
+    let Some(asset) = &facts.asset else {
+        return card_element(facts);
+    };
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let strings = crate::file_host::strings(cx);
+    let mut meta_parts = vec![if asset.is_pdf {
+        strings.kind_pdf.to_string()
+    } else {
+        strings.kind_image.to_string()
+    }];
+    if asset.is_pdf {
+        if let Some(pages) = asset.pages {
+            meta_parts.push(crate::file_host::format_page_count(pages, cx));
+        }
+    } else if let Some((w, h)) = asset.dimensions {
+        meta_parts.push(format!("{w} × {h}"));
+    }
+    let thumb = match &asset.picture {
+        Some(path) => img(path.clone())
+            .size_full()
+            .object_fit(ObjectFit::Cover)
+            .into_any_element(),
+        None => div()
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(sand::icon(
+                if asset.is_pdf {
+                    Icon::FileText
+                } else {
+                    Icon::Image
+                },
+                28.,
+                p.ink(3).solid(),
+            ))
+            .into_any_element(),
+    };
+    glass::surface(
+        Ground::flat(p.desk),
+        div()
+            .w(px(248.))
+            .relative()
+            .rounded(px(radius::SHEET))
+            .shadow(float_shadow(p))
+            .p(px(10.))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(slab_edge(p, radius::SHEET))
+            .child(
+                div()
+                    .w_full()
+                    .h(px(156.))
+                    .rounded(px(6.))
+                    .overflow_hidden()
+                    .bg(p.ink(4).alpha(0.08))
+                    .child(thumb),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .px(px(2.))
+                    .child(
+                        div()
+                            .font_role(Role::Ui)
+                            .type_px(12.5, 17.)
+                            .weight(weight::MEDIUM)
+                            .text_color(p.ink(1).solid())
+                            .truncate()
+                            .child(facts.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .font_role(Role::Index)
+                            .type_px(11., 15.)
+                            .text_color(p.ink(3).solid())
+                            .truncate()
+                            .child(meta_parts.join(" · ")),
+                    ),
+            ),
+    )
+    .into_any_element()
+}
+
 fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<CardFacts> {
     let target = target.clone();
+    if matches!(target.kind, EntityKind::Asset | EntityKind::Material) {
+        let asset_id = target.id.clone();
+        let asset = crate::v3::read(ws, book, move |v| {
+            v.assets().into_iter().find(|a| a.id.as_str() == asset_id)
+        })
+        .ok()
+        .flatten()?;
+        let is_pdf = asset.kind == AssetKind::Pdf;
+        let path_of = |variant: Variant| {
+            let rec = ws.library().asset(asset.id.as_str(), variant).ok()??;
+            rec.path.exists().then_some(rec.path)
+        };
+        let picture = if is_pdf {
+            path_of(Variant::Thumbnail)
+        } else {
+            path_of(Variant::Display)
+                .or_else(|| path_of(Variant::Thumbnail))
+                .or_else(|| path_of(Variant::Source))
+        };
+        let dimensions = match (asset.width, asset.height) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => Some((w, h)),
+            _ => None,
+        };
+        let pages = is_pdf
+            .then(|| crate::file_host::pdf_pages_cached(ws, asset.id.as_str()))
+            .flatten();
+        let mut tags = vec![if is_pdf {
+            "PDF".into()
+        } else {
+            "图片".into()
+        }];
+        if let Some(n) = pages {
+            tags.push(format!("{n} 页"));
+        } else if let Some((w, h)) = dimensions {
+            tags.push(format!("{w} × {h}"));
+        }
+        return Some(CardFacts {
+            target,
+            title: asset.name,
+            mark: sand::Kind::Material,
+            color: None,
+            count: None,
+            tags,
+            aka: None,
+            summary: String::new(),
+            facts: Vec::new(),
+            asset: Some(AssetCardMeta {
+                is_pdf,
+                picture,
+                dimensions,
+                pages,
+            }),
+        });
+    }
     crate::v3::read(ws, book, move |v| {
         let mut card = CardFacts {
             target: target.clone(),
@@ -108,6 +275,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
             aka: None,
             summary: String::new(),
             facts: Vec::new(),
+            asset: None,
         };
         match target.kind {
             EntityKind::Entry => {

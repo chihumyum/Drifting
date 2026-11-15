@@ -1,5 +1,10 @@
 # M20 统计面板
 
+## 内核 v5 T3：关了成书时不展示字数与目标（2026-11-15）
+
+- v3 统计面板（`dr-view-stats/src/v3.rs`、`v3_panel.rs`）统一消费 `BookStructureV3::book_sequence()`。
+- 当项目关掉「成书」（`project.book.is_none()`）时，统计面板不展示字数、段落/对白比节奏、写作进度（全书目标）与最近七天写作日（回归见 `dr-view-stats/tests/v3.rs`）。
+
 2026-11-08，第一个里程碑。计划见 [modules.md 的 M20](../modules.md)。旧版是 `features/stats/*`（`EntityStatsContent`、`AllChaptersStats`、`MaterialStats`、`StatsPrimitives`）。新版在 M07 的「统计」标签里往下加，不另起面板：界面在 `next/crates/dr-view-stats/`（`detail.rs` 读数据，`sections.rs` 画），F3 加了三条只读查询，规则在 `dr-text` 的 `shape`。热力图是 M25，不在这里。
 
 ## 做了什么（大白话）

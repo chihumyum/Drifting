@@ -2346,6 +2346,7 @@ name = "dr-view-material"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "color_quant",
  "dr-doc",
  "dr-i18n",
@@ -2373,6 +2374,7 @@ name = "dr-view-page"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "dr-doc",
  "dr-editor",
  "dr-i18n",
  "dr-model",
@@ -2383,6 +2385,7 @@ dependencies = [
  "dr-ui",
  "dr-view-export",
  "dr-view-history",
+ "dr-view-material",
  "dr-view-search",
  "dr-view-stats",
  "dr-workspace",

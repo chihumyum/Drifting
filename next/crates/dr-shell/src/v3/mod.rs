@@ -20,6 +20,7 @@ pub mod page;
 pub mod sidebar;
 pub mod tabs;
 
+pub use crate::workspace::review::register_entry_comment_card;
 pub use drag::EntryDrag;
 pub use editor::{register_editor, register_editor_status};
 pub(crate) use editor::{registered_editor, registered_editor_status};

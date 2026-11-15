@@ -57,9 +57,28 @@ fn material(e: &Env, _kind: &str, title: &str, bytes: Vec<u8>, _size: (u32, u32)
     let asset = dr_view_material::import::import_bytes(&e.ws, &e.book, None, bytes, title)
         .unwrap()
         .material;
-    dr_view_material::import::place_in_media_entry(&e.ws, &e.book, &asset, title)
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({"book": e.book, "template": {"id": "test-media-template", "name": "媒体",
+            "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]}}),
+    );
+    let entry = out(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "template": "test-media-template", "title": title}),
+    )["id"]
+        .as_str()
         .unwrap()
-        .2
+        .to_owned();
+    let item = dr_model::id::new_uuid_v7();
+    out(
+        &e.ws,
+        "module.put_media",
+        json!({"book": e.book, "entry": entry, "module": "mod-media",
+            "item": {"id": item, "asset": asset, "caption": ""}}),
+    );
+    item
 }
 
 fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> String {
@@ -68,11 +87,7 @@ fn region_comment(e: &Env, on: &str, page: Option<u32>, y: f64, body: &str) -> S
         region["page"] = json!(page);
     }
     let snapshot = Book::load(&e.ws, &e.book).unwrap();
-    let item = snapshot
-        .material_items()
-        .iter()
-        .find(|m| m.id == on)
-        .unwrap();
+    let item = snapshot.material_info(on).unwrap();
     out(
         &e.ws,
         "comment.create",
@@ -139,9 +154,7 @@ fn open(cx: &mut TestAppContext, e: &Env, id: &str) -> (Entity<MediaPage>, Visua
     });
     let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
     let kind = book
-        .material_items()
-        .iter()
-        .find(|m| m.id == id)
+        .material_info(id)
         .and_then(|m| MediaKind::parse(&m.kind))
         .unwrap();
     let host = PageViewHost {
@@ -443,11 +456,7 @@ fn the_column_reads_in_page_order_and_a_choice_turns_to_its_page(cx: &mut TestAp
     let late = region_comment(&e, &id, Some(3), 0.1, "三页的礁石");
     let early = region_comment(&e, &id, Some(1), 0.6, "一页的海岸");
     let snapshot = Book::load(&e.ws, &e.book).unwrap();
-    let item = snapshot
-        .material_items()
-        .iter()
-        .find(|m| m.id == id)
-        .unwrap();
+    let item = snapshot.material_info(&id).unwrap();
     out(
         &e.ws,
         "comment.create",
@@ -502,9 +511,7 @@ fn a_material_without_its_file_says_so(cx: &mut TestAppContext) {
     // The bytes go; the material stays.
     let asset = Book::load(&e.ws, &e.book)
         .unwrap()
-        .material_items()
-        .iter()
-        .find(|m| m.id == id)
+        .material_info(&id)
         .unwrap()
         .asset
         .clone()

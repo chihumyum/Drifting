@@ -122,7 +122,10 @@ impl Book {
     }
     pub fn entry(&self, target: &Target) -> Option<&Entry> {
         let key = match target {
-            Target::Entry { id, .. } | Target::Book(id) => format!("entry:{id}"),
+            Target::Entry { id, .. } | Target::Book(id) | Target::BookLane { entry: id, .. } => {
+                format!("entry:{id}")
+            }
+            Target::BookView(view) => format!("timeline-view:{view}"),
             _ => target.key(),
         };
         self.index.get(&key)
@@ -139,6 +142,13 @@ impl Book {
     pub fn material_items(&self) -> &[MaterialInfo] {
         self.v3().map_or(&[], |b| b.materials.as_slice())
     }
+    pub fn material_info(&self, id: &str) -> Option<&MaterialInfo> {
+        let b = self.v3()?;
+        b.materials
+            .iter()
+            .find(|m| m.id == id)
+            .or_else(|| b.media_items.get(id))
+    }
     pub fn material_folders(&self) -> &[GroupInfo] {
         self.v3().map_or(&[], |b| b.material_folders.as_slice())
     }
@@ -146,7 +156,7 @@ impl Book {
         self.v3().is_some_and(|b| b.exists(target))
     }
     pub fn mark(&self, target: &Target) -> (sand::Kind, Option<Rgb>) {
-        if matches!(target, Target::Book(_)) {
+        if target.is_book() {
             return (sand::Kind::All, self.entry(target).and_then(|e| e.color));
         }
         self.entry(target)
@@ -154,7 +164,7 @@ impl Book {
             .unwrap_or_else(|| {
                 (
                     match target {
-                        Target::Book(_) => sand::Kind::All,
+                        t if t.is_book() => sand::Kind::All,
                         Target::Material(_) => sand::Kind::Material,
                         _ => sand::Kind::Element,
                     },
@@ -216,10 +226,11 @@ impl PageText {
 }
 pub fn nav_target(t: &Target) -> NavTarget {
     match t {
-        Target::Book(id) => NavTarget::Entry {
+        Target::Book(id) | Target::BookLane { entry: id, .. } => NavTarget::Entry {
             id: id.clone(),
             module: None,
         },
+        Target::BookView(_) => NavTarget::Book,
         Target::Entry { id, module } => NavTarget::Entry {
             id: id.clone(),
             module: module.clone(),

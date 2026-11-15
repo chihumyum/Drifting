@@ -21,9 +21,34 @@ use crate::v3::read::BookViewV3;
 use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
+pub const NOVEL_PROJECT_TEMPLATE_NAME: &str = "写书";
 /// `4`: the tabs are 「全部」, 书稿, 构想, 要素, 故事线 and carry no names
 /// (2026-11-15); `3`: format 5, no 「素材」 root.
 pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 4;
+
+/// Provenance recorded in `project.source` when creating a project from the
+/// built-in writing project template (`project-templates.md` §8).
+pub fn novel_project_template_source() -> ProjectTemplateRef {
+    ProjectTemplateRef {
+        id: NOVEL_PROJECT_TEMPLATE_ID.into(),
+        version: NOVEL_PROJECT_TEMPLATE_VERSION,
+        origin: Some(ProjectTemplateOrigin::Builtin),
+        name: Some(NOVEL_PROJECT_TEMPLATE_NAME.into()),
+        credit: None,
+    }
+}
+
+/// Canonical [`dr_model::project_template::ProjectTemplateValue`] of the
+/// built-in writing project template (`project-templates.md` §8 & §15).
+pub fn novel_project_template_value() -> dr_model::project_template::ProjectTemplateValue {
+    crate::project_template::from_seed_template(
+        &novel_project_template(),
+        NOVEL_PROJECT_TEMPLATE_NAME,
+        "以成书为目标的小说或长篇写作项目。",
+        NOVEL_PROJECT_TEMPLATE_VERSION,
+    )
+    .expect("built-in novel project template must pass the canonical project template validator")
+}
 
 // ---- Stable built-in template IDs ----------------------------------------
 
@@ -325,7 +350,7 @@ pub fn novel_project_agent() -> TemplateAgentConfig {
     TemplateAgentConfig {
         name: "写书".into(),
         description: "以成书为目标的小说或长篇写作项目。".into(),
-        instructions: "这是一个写书项目。默认结构是书稿 / 章 / H1 / H2 / H3；成书序列从项目设定的成书起点读取（默认起点是「书稿」文件夹），幕不内置，作者添加的层级由作者命名。H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有成书正文、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复开放批注或重提已定事项；帮手或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
+        instructions: "这是一个写书项目。默认结构是书稿 / 章 / H1 / H2 / H3；成书序列从项目设定的成书起点读取（默认起点是「书稿」文件夹），幕不内置，作者添加的层级由作者命名。H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有成书正文、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复未解决的批注（含正文标记与清单项）或重开已解决的批注、重提已定事项；Agent 或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
     }
 }
 
@@ -916,6 +941,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
         source: Some(ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
+            ..ProjectTemplateRef::default()
         }),
         agent: Some(novel_project_agent()),
         book: Some(ProjectBook {

@@ -31,22 +31,22 @@ mod v3_tests;
 use dr_doc::v3::CollectionV3 as Collection;
 use dr_i18n::keys;
 use dr_shell::book::Book;
-use dr_shell::pages::PageViewHost;
+use dr_shell::nav::{Open, Target as NavTarget};
+use dr_shell::pages::{PageViewHost, UsageFlash};
 use dr_shell::strings::{Strings, tf};
 use dr_shell::{Workspace, t};
 use dr_ui::Theme;
-use dr_ui::components::{Button, IconButton};
+use dr_ui::components::IconButton;
 use dr_ui::fonts::{Role, weight};
 use dr_ui::glass::{self, Kind as GlassKind, Mode, Spec, Tone};
 use dr_ui::input::{FieldEvent, TextArea};
-use dr_ui::sand::{Icon, SandFrame, SandMask};
+use dr_ui::sand::{self, Icon, KindMark, SandFrame, SandMask};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::color::Rgb;
 use dr_ui::tokens::{Story, glass as g, radius};
 use dr_view_review::{CommentComposer, ComposerEvent};
 use dr_workspace::commands::asset::{AssetRename, AssetRenameIn};
 use dr_workspace::commands::comment::{CommentUpdate, CommentUpdateIn};
-use dr_workspace::commands::v3::entry::{EntryUpdate, UpdateIn as EntryUpdateIn};
 use dr_workspace::commands::v3::module::{In as ModuleIn, MediaPut, MediaPutIn};
 use dr_workspace::commands::v3::types;
 use dr_workspace::dto::Target;
@@ -60,6 +60,7 @@ use gpui::{
     prelude::FluentBuilder, px,
 };
 
+use crate::library_data::{self, ResolvedUsage};
 use crate::media::{self, PdfDoc, Picture, Trouble};
 use crate::regions::{self, Listed, UnitRect};
 use crate::viewport::{self, Frame, STEP, Viewport, WHEEL_ZOOM};
@@ -124,6 +125,7 @@ pub struct MediaPage {
     stage: Option<Bounds<Pixels>>,
     gesture: Option<Gesture>,
     drawing: bool,
+    frame_scope: Option<dr_shell::FrameScope>,
     selected: Option<String>,
     /// The comment whose rectangle or card the pointer is on.
     pointed: Option<String>,
@@ -146,6 +148,8 @@ pub struct MediaPage {
     description_error: Option<String>,
     /// The asset the picture was read from.
     asset: Option<String>,
+    usages: Vec<ResolvedUsage>,
+    usages_task: Option<Task<()>>,
     loading: Option<Task<()>>,
     rendering: Option<(usize, f32, Task<()>)>,
     reloading: Option<Task<()>>,
@@ -219,6 +223,7 @@ impl MediaPage {
             stage: None,
             gesture: None,
             drawing: false,
+            frame_scope: None,
             selected: None,
             pointed: None,
             comments: Vec::new(),
@@ -235,6 +240,8 @@ impl MediaPage {
             title_error: None,
             description_error: None,
             asset: None,
+            usages: Vec::new(),
+            usages_task: None,
             loading: None,
             rendering: None,
             reloading: None,
@@ -243,9 +250,21 @@ impl MediaPage {
         };
         page.subscribe(window, cx);
         page.sync_fields(window, cx);
+        page.consume_frame_intent(cx);
         page.load(cx);
         page.reload_comments(cx);
         page
+    }
+
+    fn consume_frame_intent(&mut self, cx: &mut Context<Self>) {
+        let asset_key = self
+            .info()
+            .and_then(|m| m.asset.clone())
+            .unwrap_or_else(|| self.id.clone());
+        if let Some(scope) = dr_shell::take_frame_intent(&asset_key, cx) {
+            self.frame_scope = Some(scope);
+            self.drawing = true;
+        }
     }
 
     /// The material's id.
@@ -257,8 +276,13 @@ impl MediaPage {
         self.kind
     }
 
+    /// Places in the book using this file (`用在` chips in the viewer header).
+    pub fn usages(&self) -> &[ResolvedUsage] {
+        &self.usages
+    }
+
     fn info(&self) -> Option<&dr_shell::book::MaterialInfo> {
-        self.book.material_items().iter().find(|m| m.id == self.id)
+        self.book.material_info(&self.id)
     }
 
     fn subscribe(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -313,29 +337,40 @@ impl MediaPage {
                         if page.info().and_then(|m| m.asset.clone()) != page.asset {
                             page.load(cx);
                         }
+                        page.reload_usages(cx);
                         cx.notify();
                     }
                 }));
         }
-        // Comments change on F3's bus.
-        let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
+        // Comments and usages change on F3's bus.
+        let (tx, mut rx) = futures::channel::mpsc::unbounded::<bool>();
         let book = self.book_id.clone();
-        self._library = Some(self.lib.subscribe(move |e| {
-            if let WsEvent::Book(b) = e
-                && b.book.as_str() == book
-                && b.changes
+        self._library = Some(self.lib.subscribe(move |e| match e {
+            WsEvent::Book(b) if b.book.as_str() == book => {
+                let comments = b
+                    .changes
                     .iter()
-                    .any(|c| c.collection == Collection::Comments)
-            {
-                let _ = tx.unbounded_send(());
+                    .any(|c| c.collection == Collection::Comments);
+                let _ = tx.unbounded_send(comments);
             }
+            WsEvent::Prose(p) if p.book.as_ref().is_some_and(|b| b.as_str() == book.as_str()) => {
+                let _ = tx.unbounded_send(false);
+            }
+            _ => {}
         }));
         cx.spawn(async move |this, cx| {
             use futures::StreamExt as _;
-            while rx.next().await.is_some() {
-                while rx.try_recv().is_ok() {}
+            while let Some(mut comments) = rx.next().await {
+                while let Ok(more) = rx.try_recv() {
+                    comments |= more;
+                }
                 if this
-                    .update(cx, |page, cx| page.reload_comments(cx))
+                    .update(cx, |page, cx| {
+                        page.reload_usages(cx);
+                        if comments {
+                            page.reload_comments(cx);
+                        }
+                    })
                     .is_err()
                 {
                     break;
@@ -417,31 +452,15 @@ impl MediaPage {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    match (title_to_save, &place) {
-                        (Some(t), Some((entry, _))) => {
-                            lib.run::<EntryUpdate>(
-                                &Actor::User,
-                                EntryUpdateIn {
-                                    book: book.clone(),
-                                    id: entry.clone(),
-                                    title: Some(t),
-                                    mark: None,
-                                    template: None,
-                                    overrides: None,
-                                },
-                            )?;
-                        }
-                        (Some(t), None) => {
-                            lib.run::<AssetRename>(
-                                &Actor::User,
-                                AssetRenameIn {
-                                    book: book.clone(),
-                                    id: asset.clone(),
-                                    name: t,
-                                },
-                            )?;
-                        }
-                        (None, _) => {}
+                    if let Some(t) = title_to_save {
+                        lib.run::<AssetRename>(
+                            &Actor::User,
+                            AssetRenameIn {
+                                book: book.clone(),
+                                id: asset.clone(),
+                                name: t,
+                            },
+                        )?;
                     }
                     if let (Some(c), Some((entry, module))) = (desc_to_save, place) {
                         lib.run::<MediaPut>(
@@ -538,14 +557,17 @@ impl MediaPage {
         self.asset = self.info().and_then(|m| m.asset.clone());
         let Some(asset) = self.asset.clone() else {
             self.media = Media::Trouble(Trouble::Missing);
+            self.reload_usages(cx);
             return;
         };
         self.media = Media::Loading;
         self.rendering = None;
-        let (lib, kind) = (self.lib.clone(), self.kind);
+        let (lib, book, kind) = (self.lib.clone(), self.book_id.clone(), self.kind);
+        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
+        let untitled_label = t(cx, keys::common::UNTITLED).to_string();
         let task = cx.background_executor().spawn(async move {
             let store = lib.library();
-            match kind {
+            let media = match kind {
                 MediaKind::Image => media::read_image(store, &asset)
                     .and_then(|bytes| media::decode_image(&bytes))
                     .map(Media::Image),
@@ -558,12 +580,25 @@ impl MediaPage {
                             shown: None,
                         })
                 }
-            }
+            };
+            let usages = library_data::load_asset_usages(
+                &lib,
+                &book,
+                &asset,
+                &relations_label,
+                &untitled_label,
+            );
+            (media, usages)
         });
         self.loading = Some(cx.spawn(async move |this, cx| {
-            let media = task.await;
+            let (media, usages) = task.await;
             this.update(cx, |page, cx| {
+                if page.usages.is_empty() != usages.is_empty() || page.usages.len() != usages.len()
+                {
+                    page.stage = None;
+                }
                 page.media = media.unwrap_or_else(Media::Trouble);
+                page.usages = usages;
                 page.viewport = Viewport::FIT;
                 page.loading = None;
                 cx.notify();
@@ -574,9 +609,14 @@ impl MediaPage {
 
     /// Whether the picture is there to draw on.
     pub fn ready(&self) -> bool {
+        if self.stage.is_none() || self.usages_task.is_some() || self.rendering.is_some() {
+            return false;
+        }
         match &self.media {
             Media::Image(_) => true,
-            Media::Pdf { shown, page, .. } => shown.as_ref().is_some_and(|s| s.0 == *page),
+            Media::Pdf { shown, page, .. } => shown
+                .as_ref()
+                .is_some_and(|(p, s, _)| *p == *page && *s > 0.0),
             _ => false,
         }
     }
@@ -775,8 +815,11 @@ impl MediaPage {
         {
             return;
         }
-        // A new page renders at once; a new zoom after the gesture rests.
-        let wait = if shown.as_ref().is_some_and(|(p, _, _)| *p == page) {
+        // A new page or resized stage renders at once; a new zoom after the gesture rests.
+        let wait = if shown
+            .as_ref()
+            .is_some_and(|(p, s, _)| *p == page && *s > 0.0)
+        {
             Duration::from_millis(120)
         } else {
             Duration::ZERO
@@ -814,8 +857,11 @@ impl MediaPage {
     pub fn set_drawing(&mut self, on: bool, cx: &mut Context<Self>) {
         if self.drawing != on {
             self.drawing = on;
-            if !on && matches!(self.gesture, Some(Gesture::Draw { .. })) {
-                self.gesture = None;
+            if !on {
+                self.frame_scope = None;
+                if matches!(self.gesture, Some(Gesture::Draw { .. })) {
+                    self.gesture = None;
+                }
             }
             cx.notify();
         }
@@ -937,16 +983,76 @@ impl MediaPage {
         };
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
         let at = point(at.x + px(8.0), at.y + px(8.0));
-        let view = cx.new(|cx| {
-            CommentComposer::for_region(
-                lib, book, target, module_id, asset, region, at, locale, window, cx,
-            )
+        let scope = self.frame_scope.clone();
+        let region_for_composer = region;
+        let view = cx.new(|cx| match scope {
+            Some(dr_shell::FrameScope::Embed {
+                entry,
+                module,
+                embed,
+                ..
+            }) => CommentComposer::for_part(
+                lib,
+                book,
+                entry,
+                module,
+                dr_workspace::dto::CommentPartDto::Embed {
+                    embed,
+                    region: Some(region_for_composer),
+                },
+                at,
+                locale,
+                window,
+                cx,
+            ),
+            Some(dr_shell::FrameScope::Media {
+                entry,
+                module,
+                asset,
+            }) => CommentComposer::for_region(
+                lib,
+                book,
+                Target {
+                    kind: "entry".into(),
+                    id: entry,
+                },
+                Some(module),
+                asset,
+                region_for_composer,
+                at,
+                locale,
+                window,
+                cx,
+            ),
+            Some(dr_shell::FrameScope::Asset { asset }) => CommentComposer::for_asset(
+                lib,
+                book,
+                asset,
+                Some(region_for_composer),
+                at,
+                locale,
+                window,
+                cx,
+            ),
+            None => CommentComposer::for_region(
+                lib,
+                book,
+                target,
+                module_id,
+                asset,
+                region_for_composer,
+                at,
+                locale,
+                window,
+                cx,
+            ),
         });
         let sub = cx.subscribe_in(&view, window, |page, _, e: &ComposerEvent, window, cx| {
             match e {
                 ComposerEvent::Saved(id) => {
                     page.selected = Some(id.clone());
                     page.drawing = false;
+                    page.frame_scope = None;
                 }
                 ComposerEvent::Done => {
                     page.composer = None;
@@ -1030,6 +1136,42 @@ impl MediaPage {
 
     // Comments.
 
+    fn reload_usages(&mut self, cx: &mut Context<Self>) {
+        let asset = self
+            .info()
+            .and_then(|m| m.asset.clone())
+            .unwrap_or_else(|| self.id.clone());
+        let (lib, book) = (self.lib.clone(), self.book_id.clone());
+        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
+        let untitled_label = t(cx, keys::common::UNTITLED).to_string();
+        let task = cx.background_executor().spawn(async move {
+            library_data::load_asset_usages(&lib, &book, &asset, &relations_label, &untitled_label)
+        });
+        self.usages_task = Some(cx.spawn(async move |this, cx| {
+            let usages = task.await;
+            this.update(cx, |page, cx| {
+                page.usages = usages;
+                page.usages_task = None;
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    pub fn jump_to_usage(&mut self, usage: &ResolvedUsage, cx: &mut Context<Self>) {
+        let Ok(id) = usage.entry_id.parse() else {
+            return;
+        };
+        let module = usage.module_id.as_deref().and_then(|m| m.parse().ok());
+        UsageFlash::trigger(usage.flash_keys.clone(), cx);
+        if let Some(ws) = self.workspace.upgrade() {
+            ws.update(cx, |ws, cx| {
+                ws.super_view = None;
+                ws.open(NavTarget::Entry { id, module }, Open::KEEP, cx);
+            });
+        }
+    }
+
     fn reload_comments(&mut self, cx: &mut Context<Self>) {
         let id = self
             .info()
@@ -1043,8 +1185,12 @@ impl MediaPage {
             dr_view_review::v3::load(&lib, &book)
                 .map(|snapshot| {
                     let cards: Vec<_> = snapshot.items.iter().map(|i| i.card()).collect();
-                    let place = place.as_ref().map(|(e, m)| (e.as_str(), m.as_str()));
-                    regions::listed(&cards, &id, place)
+                    if let Some((e, m)) = &place {
+                        regions::listed(&cards, &id, Some((e.as_str(), m.as_str())))
+                    } else {
+                        let embed_assets = matching_embed_assets(&lib, &cards, &id);
+                        regions::listed_for_asset_library(&cards, &id, &embed_assets)
+                    }
                 })
                 .unwrap_or_default()
         });
@@ -1081,10 +1227,100 @@ impl MediaPage {
     fn head(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
+        let has_description = self
+            .info()
+            .is_some_and(|m| m.entry.is_some() && m.module.is_some());
+        let this = cx.entity();
+        let usages_row = (!self.usages.is_empty()).then(|| {
+            let mut row = div()
+                .id("material-page-usages")
+                .pt(px(4.0))
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .font_role(Role::Index)
+                        .type_px(s.caption, s.line_caption)
+                        .text_color(p.ink(4).solid())
+                        .child(t(cx, keys::v5_files::USED_IN)),
+                );
+            for (i, u) in self.usages.iter().cloned().enumerate() {
+                let jump = this.clone();
+                let (mark_kind, mark_color) = u
+                    .entry_id
+                    .parse()
+                    .ok()
+                    .map(|eid| {
+                        self.book.mark(&NavTarget::Entry {
+                            id: eid,
+                            module: None,
+                        })
+                    })
+                    .unwrap_or_else(|| {
+                        let k = if u.is_chapter {
+                            sand::Kind::Chapter(dr_shell::book::seal_of(&u.entry_id))
+                        } else {
+                            sand::Kind::Element
+                        };
+                        (
+                            k,
+                            u.entry_color.as_deref().and_then(dr_shell::book::color_of),
+                        )
+                    });
+                let mark = match mark_color {
+                    Some(c) => KindMark::new(("material-usage-mark", i), mark_kind).color(c),
+                    None => KindMark::new(("material-usage-mark", i), mark_kind),
+                };
+                let module_name = u.module_name.clone();
+                let entry_title = u.entry_title.clone();
+                row = row.child(
+                    div()
+                        .id(("material-page-usage", i))
+                        .h(px(24.0))
+                        .px(px(8.0))
+                        .rounded(px(999.0))
+                        .border_1()
+                        .border_color(p.hairline())
+                        .bg(p.page.alpha(0.65))
+                        .hover(move |st| st.bg(p.page.solid()).border_color(p.ink(3).alpha(0.35)))
+                        .cursor_pointer()
+                        .role(gpui::Role::Button)
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(5.0))
+                        .child(mark)
+                        .child(
+                            div()
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(entry_title),
+                        )
+                        .when(!module_name.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption - 0.5, s.line_caption)
+                                    .text_color(p.ink(4).solid())
+                                    .child(format!("· {module_name}")),
+                            )
+                        })
+                        .on_click(move |_, _, cx| {
+                            let u = u.clone();
+                            jump.update(cx, |p, cx| p.jump_to_usage(&u, cx));
+                        }),
+                );
+            }
+            row
+        });
         div()
             .flex_none()
             .px(px(28.0))
-            .pt(px(20.0))
+            .pt(px(dr_shell::workspace::TITLEBAR_HEIGHT + 12.0))
             .pb(px(6.0))
             .flex()
             .flex_col()
@@ -1097,14 +1333,17 @@ impl MediaPage {
                     .text_color(p.ink(1).solid())
                     .child(self.title.clone()),
             )
-            .child(
-                div()
-                    .max_w(px(560.0))
-                    .font_role(Role::Prose)
-                    .type_px(s.secondary, s.line_body)
-                    .text_color(p.ink(2).solid())
-                    .child(self.description.clone()),
-            )
+            .when(has_description, |d| {
+                d.child(
+                    div()
+                        .max_w(px(560.0))
+                        .font_role(Role::Prose)
+                        .type_px(s.secondary, s.line_body)
+                        .text_color(p.ink(2).solid())
+                        .child(self.description.clone()),
+                )
+            })
+            .children(usages_row)
             .children(
                 (self.title_error.is_some() || self.description_error.is_some()).then(|| {
                     div()
@@ -1303,8 +1542,19 @@ impl MediaPage {
         let probe = canvas(
             move |bounds, _, cx| {
                 measure.update(cx, |page, cx| {
+                    let resized = page.stage.is_some_and(|old| old.size != bounds.size);
                     if page.stage != Some(bounds) {
                         page.stage = Some(bounds);
+                        if resized {
+                            page.rendering = None;
+                            if let Media::Pdf {
+                                shown: Some((_, scale, _)),
+                                ..
+                            } = &mut page.media
+                            {
+                                *scale = 0.0;
+                            }
+                        }
                         cx.notify();
                     }
                 });
@@ -1509,11 +1759,198 @@ impl MediaPage {
                     .text_color(p.ink(4).solid())
                     .child(t(cx, keys::material_editor::regions::EMPTY)),
             );
+            return list;
         }
+        let is_asset_library = self.info().and_then(|m| m.entry.as_ref()).is_none();
+        if !is_asset_library {
+            for l in &self.comments {
+                list = list.child(self.card(l, window, cx));
+            }
+            return list;
+        }
+        let mut direct_items = Vec::new();
+        let mut entry_groups: Vec<(String, Vec<&Listed>)> = Vec::new();
         for l in &self.comments {
-            list = list.child(self.card(l, window, cx));
+            match l.asset_place() {
+                regions::AssetPlace::Direct => direct_items.push(l),
+                regions::AssetPlace::Media { entry, .. }
+                | regions::AssetPlace::Embed { entry, .. } => {
+                    if let Some((_, bucket)) = entry_groups.iter_mut().find(|(e, _)| e == &entry) {
+                        bucket.push(l);
+                    } else {
+                        entry_groups.push((entry, vec![l]));
+                    }
+                }
+            }
+        }
+        if !direct_items.is_empty() {
+            list = list.child(self.file_header(window, cx));
+            for l in direct_items {
+                list = list.child(self.card(l, window, cx));
+            }
+        }
+        for (entry, bucket) in entry_groups {
+            list = list.child(self.entry_header(&entry, window, cx));
+            for l in bucket {
+                list = list.child(self.card(l, window, cx));
+            }
         }
         list
+    }
+
+    fn file_title(&self, cx: &App) -> String {
+        self.info()
+            .map(|m| m.title.trim().to_owned())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| t(cx, keys::common::UNTITLED).to_string())
+    }
+
+    fn file_header(&self, window: &Window, cx: &App) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        let icon = match self.kind {
+            MediaKind::Pdf => Icon::FileText,
+            MediaKind::Image => Icon::Image,
+        };
+        div()
+            .px(px(4.0))
+            .pt(px(2.0))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(6.0))
+            .child(dr_ui::sand::icon(icon, 13.0, p.ink(3).solid()))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .text_ellipsis()
+                    .font_role(Role::Structure)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(2).solid())
+                    .child(self.file_title(cx)),
+            )
+            .into_any_element()
+    }
+
+    fn entry_header(&self, entry: &str, window: &Window, cx: &App) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        let nav_target = dr_shell::nav::Target::from_key(&format!("entry:{entry}"));
+        let (mark, color) = nav_target
+            .as_ref()
+            .map(|t| self.book.mark(t))
+            .unwrap_or((dr_ui::sand::Kind::Element, None));
+        let mut kind_mark = dr_ui::sand::KindMark::new(
+            ElementId::Name(format!("material-place-mark-{entry}").into()),
+            mark,
+        );
+        if let Some(c) = color {
+            kind_mark = kind_mark.color(c);
+        }
+        let entry_title = self
+            .book
+            .v3()
+            .and_then(|b| b.entry(entry))
+            .map(|e| e.title.clone())
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| t(cx, keys::common::UNTITLED).to_string());
+        div()
+            .px(px(4.0))
+            .pt(px(4.0))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(6.0))
+            .child(kind_mark)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .text_ellipsis()
+                    .font_role(Role::Structure)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(2).solid())
+                    .child(entry_title),
+            )
+            .into_any_element()
+    }
+
+    /// Formats the sub-place label shown on comment card `l` (`整个文件`, `第 2 页`,
+    /// or `模块 · 文件名`).
+    pub fn comment_where(&self, l: &Listed, cx: &App) -> SharedString {
+        let region_label = match l.page() {
+            Some(page) => {
+                Some(tf(cx, keys::v3_review::REGION_PLACE_PAGED, &[("page", &page)]).to_string())
+            }
+            None if l.region().is_some() => Some(t(cx, keys::v3_review::REGION_PLACE).to_string()),
+            None => None,
+        };
+        match l.asset_place() {
+            regions::AssetPlace::Direct => match region_label {
+                Some(r) => r.into(),
+                None => t(cx, keys::v3_review::WHOLE_FILE),
+            },
+            regions::AssetPlace::Media { entry, module }
+            | regions::AssetPlace::Embed { entry, module, .. } => {
+                let mod_name = self
+                    .book
+                    .v3()
+                    .and_then(|b| b.template_of(&entry))
+                    .and_then(|tpl| tpl.modules.iter().find(|m| m.id == module))
+                    .map(|m| m.name.trim().to_owned())
+                    .filter(|s| !s.is_empty());
+                let file_name = self
+                    .info()
+                    .map(|m| m.title.trim().to_owned())
+                    .filter(|s| !s.is_empty());
+                let mut parts = Vec::new();
+                if let Some(m) = mod_name {
+                    parts.push(m);
+                }
+                if let Some(f) = file_name {
+                    parts.push(f);
+                }
+                if let Some(r) = region_label {
+                    parts.push(r);
+                }
+                parts.join(" · ").into()
+            }
+        }
+    }
+
+    /// Navigation target when jumping from comment `l`'s `→` arrow (`None` for
+    /// comments directly on this standalone file).
+    pub fn jump_target(&self, l: &Listed) -> Option<dr_shell::nav::Target> {
+        match l.asset_place() {
+            regions::AssetPlace::Direct => None,
+            regions::AssetPlace::Media { entry, module }
+            | regions::AssetPlace::Embed { entry, module, .. } => {
+                dr_shell::nav::Target::from_key(&format!("entry:{entry}/{module}"))
+            }
+        }
+    }
+
+    /// Navigates to comment `id`'s entry/module place and triggers its sand
+    /// highlight, leaving the Review sidebar untouched (`v5-tracks.md:457`).
+    pub fn jump_comment(
+        &mut self,
+        id: &str,
+        cx: &mut Context<Self>,
+    ) -> Option<dr_shell::nav::Target> {
+        let l = self.comments.iter().find(|c| c.item.id == id)?;
+        let target = self.jump_target(l)?;
+        dr_view_review::ReviewFocus::jump(id, cx);
+        if let Some(ws) = self.workspace.upgrade() {
+            let nav_target = target.clone();
+            ws.update(cx, |ws, cx| {
+                ws.super_view = None;
+                ws.open(nav_target, dr_shell::nav::Open::KEEP, cx);
+            });
+        }
+        Some(target)
     }
 
     fn card(&self, l: &Listed, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -1526,19 +1963,28 @@ impl MediaPage {
         let color = kind_color(&theme, todo);
         let lit = self.selected.as_deref() == Some(id.as_str())
             || self.pointed.as_deref() == Some(id.as_str());
-        let place: SharedString = match l.page() {
-            Some(page) => tf(cx, keys::material_editor::regions::PAGE, &[("page", &page)]),
-            None if l.region().is_none() => t(cx, keys::material_editor::regions::WHOLE),
-            None => SharedString::default(),
-        };
-        let word = if todo {
-            t(cx, keys::review_panel::filters::TODO)
-        } else {
-            t(cx, keys::review_panel::filters::COMMENT)
+        let place = self.comment_where(l, cx);
+        let origin_word: Option<SharedString> = match l.item.origin.as_str() {
+            "marker" => Some(t(cx, keys::v3_review::ORIGIN_MARKER)),
+            "task" => Some(t(cx, keys::v3_review::ORIGIN_TASK)),
+            "agent" => Some(t(cx, keys::v3_review::ORIGIN_AGENT)),
+            "reader" => match l
+                .item
+                .author_name
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+            {
+                Some(name) => {
+                    Some(format!("{} · {name}", t(cx, keys::v3_review::ORIGIN_READER)).into())
+                }
+                None => Some(t(cx, keys::v3_review::ORIGIN_READER)),
+            },
+            _ => None,
         };
         let this = cx.entity();
-        let (toggle, choose, hover) = (this.clone(), this.clone(), this);
-        let (c1, c2, c3) = (id.clone(), id.clone(), id.clone());
+        let (toggle, choose, hover, jump_this) = (this.clone(), this.clone(), this.clone(), this);
+        let (c1, c2, c3, c_jump) = (id.clone(), id.clone(), id.clone(), id.clone());
         let status = if done {
             keys::comment_rail::actions::REOPEN
         } else {
@@ -1549,35 +1995,96 @@ impl MediaPage {
         } else {
             l.item.body.clone().into()
         };
+        let jump_btn = self.jump_target(l).map(|_| {
+            let label = t(cx, keys::v3_review::JUMP_TO_PLACE);
+            div()
+                .id(eid("jump"))
+                .size(px(20.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(3.0))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .aria_label(label)
+                .hover(|st| st.bg(p.ink(1).alpha(0.05)))
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    let _ = jump_this.update(cx, |pg, cx| pg.jump_comment(&c_jump, cx));
+                })
+                .child(dr_ui::sand::icon(
+                    Icon::ArrowForward,
+                    12.0,
+                    p.ink(3).solid(),
+                ))
+        });
+        let ring_group: SharedString = format!("media-ring-{}", id).into();
+        let status_label = t(cx, status);
+        let ring = glass::glass_box(
+            eid("status"),
+            GlassKind::Surface,
+            Mode::default(),
+            done,
+            Spec::new(Tone::Clear, 10.0),
+            window,
+            cx,
+        )
+        .group(ring_group.clone())
+        .size(px(20.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_full()
+        .cursor_pointer()
+        .role(gpui::Role::Button)
+        .aria_label(status_label)
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            toggle.update(cx, |p, cx| p.set_done(&c1, !done, cx));
+        })
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .when(!done, |d| {
+                    d.opacity(0.0).group_hover(ring_group, |st| st.opacity(1.0))
+                })
+                .child(dr_ui::sand::icon(
+                    Icon::Check,
+                    11.0,
+                    if done { p.ink(1) } else { p.ink(3) }.solid(),
+                )),
+        );
         let head = div()
             .flex()
             .flex_row()
             .items_center()
             .gap(px(6.0))
-            .child(seal(l.number, color, done, p.page))
-            .child(
+            .children(
+                l.region()
+                    .is_some()
+                    .then(|| seal(l.number, color, done, p.page)),
+            )
+            .children(origin_word.map(|w| {
                 div()
                     .font_role(Role::Index)
                     .type_px(s.caption, s.line_caption)
-                    .text_color(p.ink(4).solid())
-                    .child(place),
-            )
+                    .text_color(p.ink(3).solid())
+                    .child(w)
+            }))
             .child(div().flex_1())
-            .child(
-                div()
-                    .font_role(Role::Index)
-                    .type_px(s.caption, s.line_caption)
-                    .text_color(color.solid())
-                    .child(word),
-            )
-            .child(
-                Button::new(eid("status"), t(cx, status))
-                    .text()
-                    .small()
-                    .on_click(move |_, _, cx| {
-                        toggle.update(cx, |p, cx| p.set_done(&c1, !done, cx))
-                    }),
-            );
+            .children(jump_btn)
+            .child(ring);
+        let where_row = (!place.is_empty()).then(|| {
+            div()
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.ink(3).solid())
+                .child(place)
+        });
         div()
             .id(eid("wrap"))
             .w_full()
@@ -1605,6 +2112,7 @@ impl MediaPage {
                 .gap(px(4.0))
                 .when(done, |d| d.opacity(0.55))
                 .child(head)
+                .children(where_row)
                 .child(
                     div()
                         .font_role(Role::Ui)
@@ -1652,8 +2160,62 @@ fn seal(number: usize, color: Rgb, faded: bool, paper: Rgb) -> impl IntoElement 
         )
 }
 
+fn matching_embed_assets(
+    lib: &Library,
+    cards: &[dr_workspace::dto::CommentInfo],
+    want_asset: &str,
+) -> std::collections::HashSet<(String, String, String)> {
+    let mut pairs = std::collections::HashSet::new();
+    for c in cards {
+        if let (Some(t), Some(module), Some(dr_workspace::dto::CommentPartDto::Embed { .. })) =
+            (&c.target, &c.module, &c.part)
+            && t.kind == "entry"
+        {
+            pairs.insert((t.id.clone(), module.clone()));
+        }
+    }
+    let mut out = std::collections::HashSet::new();
+    for (entry, module) in pairs {
+        let Ok(eid) = dr_model::id::EntryId::parse(&entry) else {
+            continue;
+        };
+        let Ok(mid) = dr_model::id::ModuleId::parse(&module) else {
+            continue;
+        };
+        let doc_id = dr_model::DocId::Body(dr_model::id::BodyDocId::new(eid, mid));
+        let name = doc_id.to_string();
+        if lib.library().doc_info(&name).ok().flatten().is_none() {
+            continue;
+        }
+        let Ok(handle) = lib.library().open_doc(&name, dr_store::OpenDoc::Existing) else {
+            continue;
+        };
+        let want = want_asset.to_owned();
+        if let Ok(found) = handle.read(move |doc| {
+            let mut hits = Vec::new();
+            if let Ok(prose) = dr_doc::prose::BorrowedProse::new(doc, &doc_id) {
+                let pv = prose.view();
+                for (_, em_id) in pv.embed_refs() {
+                    if let Some(dr_doc::prose::EmbedView::Asset {
+                        asset: Some(aid), ..
+                    }) = pv.embed(&em_id)
+                        && aid.as_str() == want
+                    {
+                        hits.push((entry.clone(), module.clone(), em_id.to_string()));
+                    }
+                }
+            }
+            hits
+        }) {
+            out.extend(found);
+        }
+    }
+    out
+}
+
 impl Render for MediaPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.consume_frame_intent(cx);
         self.keep_rendered(window, cx);
         let column = !self.comments.is_empty() || self.drawing;
         let composer = self.composer.as_ref().map(|(view, at, _)| {

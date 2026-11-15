@@ -15,8 +15,8 @@ use dr_model::{
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
         BookRoot, Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
-        ProjectTemplateRef, effective_ancestors, effective_parent_id, resolve_level_settings,
-        resolve_level_settings_with_sources,
+        ProjectTemplateRef, TabMount, effective_ancestors, effective_parent_id,
+        resolve_level_settings, resolve_level_settings_with_sources,
     },
 };
 use dr_store::Library;
@@ -30,8 +30,15 @@ use crate::{
     catalog::{ActionDiagnostic, ActionPathSegment, ActionRef, Catalog},
 };
 
-pub const STRUCTURE_REVISION_PREFIX: &str = "k6-structure-v4";
+pub const STRUCTURE_REVISION_PREFIX: &str = "k6-structure-v5";
 pub const STRUCTURE_CONTEXT_SOURCE: &str = "BOOK_STRUCTURE.json (this book's templates, levels, actions, and author-configured guidance; project guidance, not a substitute for reading source prose or write authorization)";
+
+const MAX_LISTED_ROOTS: usize = 32;
+const MAX_LISTED_LEVELS: usize = 32;
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FocusRequest {
@@ -137,9 +144,41 @@ pub struct LevelSummary {
     pub title: String,
     pub path: Vec<ActionPathSegment>,
     pub template: Option<String>,
+    pub level: bool,
+    pub accept: bool,
     pub lane: bool,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub children_by_template: BTreeMap<String, usize>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub members_by_template: BTreeMap<String, usize>,
     pub effective_settings: EffectiveLevelSettingsSummary,
     pub actions: Vec<LevelActionSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectBookSummary {
+    pub root: BookRoot,
+    pub root_valid: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub word_target: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_word_target: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectTabSummary {
+    #[serde(rename = "ref")]
+    pub id: String,
+    pub name: String,
+    pub mount: TabMount,
+    pub mount_valid: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DepthLevelCounts {
+    pub depth: usize,
+    pub total: usize,
+    pub by_template: BTreeMap<String, usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,9 +245,25 @@ pub struct StructureContext {
     /// keeps it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_agent: Option<TemplateAgentSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_book: Option<ProjectBookSummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub project_tabs: Vec<ProjectTabSummary>,
+    #[serde(default)]
+    pub entry_count: usize,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub entries_by_template: BTreeMap<String, usize>,
     pub roots: Vec<RootSummary>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub roots_omitted: usize,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub omitted_roots_by_template: BTreeMap<String, usize>,
     pub templates: Vec<TemplateSummary>,
     pub levels: Vec<LevelSummary>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub levels_omitted: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub levels_by_depth: Vec<DepthLevelCounts>,
     pub manuscript_roots: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus: Option<FocusContext>,
@@ -311,14 +366,30 @@ impl StructureContext {
             diagnostics.push(action_diagnostic_to_structure(diag));
         }
 
+        let structure_snap = view.structure_snapshot();
+        let proj = structure_snap.project().clone();
+
         let live_entries: Vec<&Entry> = ordered_ids
             .iter()
             .filter_map(|id| entries_map.get(id))
             .filter(|e| !e.is_trashed())
             .collect();
 
-        // 1. Roots: top-level live entries in manuscript order.
-        let roots: Vec<RootSummary> = live_entries
+        let template_key = |entry: &Entry| -> String {
+            entry
+                .effective_template(&templates_map)
+                .map(|t| t.id.to_string())
+                .unwrap_or_else(|| "<untemplated>".to_string())
+        };
+
+        let entry_count = live_entries.len();
+        let mut entries_by_template: BTreeMap<String, usize> = BTreeMap::new();
+        for e in &live_entries {
+            *entries_by_template.entry(template_key(e)).or_insert(0) += 1;
+        }
+
+        // 1. Roots: top-level live entries in manuscript order (bounded at MAX_LISTED_ROOTS).
+        let all_roots: Vec<RootSummary> = live_entries
             .iter()
             .filter(|e| effective_parent_id(e, &entries_map).is_none())
             .map(|e| {
@@ -397,16 +468,74 @@ impl StructureContext {
             .map(|template| summarize_template(template, catalog))
             .collect();
 
-        // 5. Build LevelSummary list for all live levels / member hosts in manuscript tree order.
+        // 5. Build LevelSummary list + bounded summaries for large books.
         let raw_views = view.timeline_views_raw();
         let active_lanes = dr_model::v3::active_lane_ids(&raw_views, &entries_map, &templates_map);
-        let levels: Vec<LevelSummary> = live_entries
+
+        let mut priority_entries: BTreeSet<EntryId> = BTreeSet::new();
+        let mut mark_priority = |id: &EntryId| {
+            priority_entries.insert(id.clone());
+            for anc in effective_ancestors(&entries_map, id) {
+                priority_entries.insert(anc);
+            }
+        };
+        if let Some(book_cfg) = &proj.book {
+            match &book_cfg.root {
+                BookRoot::Entry { entry } | BookRoot::Lane { entry, .. } => mark_priority(entry),
+                BookRoot::Root | BookRoot::View { .. } | BookRoot::Unset => {}
+            }
+        }
+        for tab in &proj.tabs {
+            if let TabMount::Entry { entry } = &tab.mount {
+                mark_priority(entry);
+            }
+        }
+        for lane_id in &active_lanes {
+            mark_priority(lane_id);
+        }
+        if let Some(f) = &focus_ctx {
+            if let Some(raw_id) = &f.entry
+                && let Ok(eid) = EntryId::parse(raw_id)
+            {
+                mark_priority(&eid);
+            }
+            for host_raw in &f.memberships {
+                if let Ok(hid) = EntryId::parse(host_raw) {
+                    mark_priority(&hid);
+                }
+            }
+        }
+
+        let mut children_counts: BTreeMap<EntryId, BTreeMap<String, usize>> = BTreeMap::new();
+        for e in &live_entries {
+            if let Some(parent_id) = effective_parent_id(e, &entries_map) {
+                *children_counts
+                    .entry(parent_id)
+                    .or_default()
+                    .entry(template_key(e))
+                    .or_insert(0) += 1;
+            }
+        }
+
+        let mut members_counts: BTreeMap<EntryId, BTreeMap<String, usize>> = BTreeMap::new();
+        for m in structure_snap.memberships() {
+            if let Some(member_entry) = entries_map.get(&m.member).filter(|e| !e.is_trashed()) {
+                *members_counts
+                    .entry(m.host.clone())
+                    .or_default()
+                    .entry(template_key(member_entry))
+                    .or_insert(0) += 1;
+            }
+        }
+
+        let all_levels: Vec<LevelSummary> = live_entries
             .iter()
             .filter(|e| e.has_below(&templates_map))
             .map(|e| {
                 let path = level_path(&e.id, &entries_map);
                 let effective_settings =
                     resolve_settings_with_sources(&e.id, &entries_map, &templates_map);
+                let accept = effective_settings.values.accept;
                 let actions = catalog
                     .entries()
                     .iter()
@@ -417,8 +546,8 @@ impl StructureContext {
                             name: b.display_name.clone(),
                             description: b.description.clone(),
                             target_template: Some(b.target_template.clone()),
-                            home_id: b.home.clone().unwrap_or_else(|| e.id.to_string()),
-                            adds_membership: b.home.as_deref() != Some(e.id.as_str()),
+                            home_id: b.home.clone().unwrap_or_default(),
+                            adds_membership: b.adds_membership,
                             revision: entry.revision.clone(),
                         })
                     })
@@ -430,20 +559,138 @@ impl StructureContext {
                     template: e
                         .effective_template(&templates_map)
                         .map(|t| t.id.to_string()),
+                    level: e.level,
+                    accept,
                     lane: active_lanes.contains(&e.id),
+                    children_by_template: if e.level {
+                        children_counts.remove(&e.id).unwrap_or_default()
+                    } else {
+                        BTreeMap::new()
+                    },
+                    members_by_template: if accept {
+                        members_counts.remove(&e.id).unwrap_or_default()
+                    } else {
+                        BTreeMap::new()
+                    },
                     effective_settings,
                     actions,
                 }
             })
             .collect();
 
-        let proj = view.project();
-        let manuscript_roots: Vec<String> = match proj.book.as_ref().map(|b| &b.root) {
-            Some(BookRoot::Entry { entry })
-                if entries_map
-                    .get(entry)
-                    .is_some_and(|e| !e.is_trashed() && e.has_below(&templates_map)) =>
-            {
+        let mut depth_map: BTreeMap<usize, BTreeMap<String, usize>> = BTreeMap::new();
+        for lvl in &all_levels {
+            let depth = lvl.path.len().saturating_sub(1);
+            let tpl_key = lvl
+                .template
+                .clone()
+                .unwrap_or_else(|| "<untemplated>".to_string());
+            *depth_map
+                .entry(depth)
+                .or_default()
+                .entry(tpl_key)
+                .or_insert(0) += 1;
+        }
+        let levels_by_depth: Vec<DepthLevelCounts> = depth_map
+            .into_iter()
+            .map(|(depth, by_template)| {
+                let total = by_template.values().copied().sum();
+                DepthLevelCounts {
+                    depth,
+                    total,
+                    by_template,
+                }
+            })
+            .collect();
+
+        let (roots, roots_omitted, omitted_roots_by_template) =
+            if all_roots.len() <= MAX_LISTED_ROOTS {
+                (all_roots, 0, BTreeMap::new())
+            } else {
+                let mut ranked: Vec<usize> = (0..all_roots.len()).collect();
+                ranked.sort_by_key(|&idx| {
+                    let is_priority = EntryId::parse(&all_roots[idx].id)
+                        .ok()
+                        .is_some_and(|id| priority_entries.contains(&id));
+                    (!is_priority, idx)
+                });
+                let kept: BTreeSet<usize> = ranked.into_iter().take(MAX_LISTED_ROOTS).collect();
+                let mut kept_roots = Vec::with_capacity(MAX_LISTED_ROOTS);
+                let mut omitted_by_tpl = BTreeMap::new();
+                let mut omitted = 0usize;
+                for (idx, root) in all_roots.into_iter().enumerate() {
+                    if kept.contains(&idx) {
+                        kept_roots.push(root);
+                    } else {
+                        omitted += 1;
+                        let key = root.template.unwrap_or_else(|| "<untemplated>".to_string());
+                        *omitted_by_tpl.entry(key).or_insert(0) += 1;
+                    }
+                }
+                (kept_roots, omitted, omitted_by_tpl)
+            };
+
+        let (levels, levels_omitted) = if all_levels.len() <= MAX_LISTED_LEVELS {
+            (all_levels, 0)
+        } else {
+            let mut ranked: Vec<usize> = (0..all_levels.len()).collect();
+            ranked.sort_by_key(|&idx| {
+                let lvl = &all_levels[idx];
+                let is_priority = EntryId::parse(&lvl.id)
+                    .ok()
+                    .is_some_and(|id| priority_entries.contains(&id));
+                let depth = lvl.path.len().saturating_sub(1);
+                (!is_priority, depth, idx)
+            });
+            let kept: BTreeSet<usize> = ranked.into_iter().take(MAX_LISTED_LEVELS).collect();
+            let total = all_levels.len();
+            let kept_levels: Vec<LevelSummary> = all_levels
+                .into_iter()
+                .enumerate()
+                .filter_map(|(idx, lvl)| kept.contains(&idx).then_some(lvl))
+                .collect();
+            let omitted = total.saturating_sub(kept_levels.len());
+            (kept_levels, omitted)
+        };
+
+        let project_book = proj.book.as_ref().map(|b| ProjectBookSummary {
+            root: b.root.clone(),
+            root_valid: structure_snap.is_valid_book_root(&b.root),
+            word_target: b.word_target(),
+            daily_word_target: b.daily_word_target(),
+        });
+
+        let project_tabs: Vec<ProjectTabSummary> = proj
+            .tabs
+            .iter()
+            .map(|tab| ProjectTabSummary {
+                id: tab.id.to_string(),
+                // A tab is called by what it shows (`kernel-v5.md` §5).
+                name: match &tab.mount {
+                    TabMount::Root => "全部".to_owned(),
+                    TabMount::Book => "成书".to_owned(),
+                    TabMount::Entry { entry } => structure_snap
+                        .entry(entry)
+                        .map(|e| e.title.clone())
+                        .unwrap_or_default(),
+                    TabMount::View { view } => structure_snap
+                        .timeline_views_map()
+                        .get(view)
+                        .map(|v| v.name.clone())
+                        .unwrap_or_default(),
+                },
+                mount: tab.mount.clone(),
+                mount_valid: structure_snap.is_valid_tab_mount(&tab.mount),
+            })
+            .collect();
+
+        let manuscript_roots: Vec<String> = match proj
+            .book
+            .as_ref()
+            .filter(|b| structure_snap.is_valid_book_root(&b.root))
+            .map(|b| &b.root)
+        {
+            Some(BookRoot::Entry { entry } | BookRoot::Lane { entry, .. }) => {
                 vec![entry.to_string()]
             }
             _ => Vec::new(),
@@ -460,10 +707,19 @@ impl StructureContext {
             "book": view.book_id(),
             "book_version": book_version,
             "catalog_revision": &catalog_revision,
+            "project_template_source": &proj.source,
             "project_agent": &project_agent,
+            "project_book": &project_book,
+            "project_tabs": &project_tabs,
+            "entry_count": entry_count,
+            "entries_by_template": &entries_by_template,
             "roots": &roots,
+            "roots_omitted": roots_omitted,
+            "omitted_roots_by_template": &omitted_roots_by_template,
             "templates": &templates,
             "levels": &levels,
+            "levels_omitted": levels_omitted,
+            "levels_by_depth": &levels_by_depth,
             "manuscript_roots": &manuscript_roots,
         });
         let digest_bytes =
@@ -478,9 +734,17 @@ impl StructureContext {
             catalog_revision,
             project_template_source: proj.source,
             project_agent,
+            project_book,
+            project_tabs,
+            entry_count,
+            entries_by_template,
             roots,
+            roots_omitted,
+            omitted_roots_by_template,
             templates,
             levels,
+            levels_omitted,
+            levels_by_depth,
             manuscript_roots,
             focus: focus_ctx,
             diagnostics,
@@ -572,7 +836,11 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
         ),
         ModuleKind::Media => (
             vec!["module.read", "module.list"],
-            vec!["module.put_media", "module.remove_media"],
+            vec![
+                "module.put_media",
+                "module.remove_media",
+                "module.set_arrangement",
+            ],
         ),
         // What lives below: read through the entry; moved with entry.move / membership.*.
         ModuleKind::Children | ModuleKind::Members => {
@@ -788,6 +1056,12 @@ fn collect_focus_modules(
         push_id(id.clone());
     }
     for id in entry.kv.keys() {
+        push_id(id.clone());
+    }
+    for id in entry.media.keys() {
+        push_id(id.clone());
+    }
+    for id in entry.arrangements.keys() {
         push_id(id.clone());
     }
     for p in view.patches() {

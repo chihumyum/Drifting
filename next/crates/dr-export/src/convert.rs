@@ -25,14 +25,16 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use dr_doc::prose::{EmbedView, Paragraph, ProseView, Run as ProseRun};
-use dr_model::id::CommentId;
+use dr_doc::prose::{EmbedView, FileEmbedLook, Paragraph, ProseView, Run as ProseRun};
+use dr_model::id::{AssetId, CommentId};
 use dr_model::kind::ListKind as ProseListKind;
 use dr_model::prose::{Align as ProseAlign, LINE_BREAK, OBJECT_CHAR};
 use dr_workspace::Workspace;
 
 use crate::Result;
 use crate::manuscript::{Align, Block, Cover, ListItem, ListKind, Manuscript, Run};
+
+pub(crate) type AssetResolver<'a> = dyn Fn(&AssetId, &FileEmbedLook) -> Option<Block> + 'a;
 
 /// An act as the chapter picker lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,6 +67,8 @@ pub struct Outline {
     pub book: String,
     /// The book's name: the default manuscript title.
     pub title: String,
+    /// Whether the project has manuscript assembly (`成书`) enabled.
+    pub has_book: bool,
     pub acts: Vec<ActEntry>,
     pub chapters: Vec<ChapterEntry>,
 }
@@ -96,9 +100,6 @@ pub fn default_chapters(outline: &Outline) -> Vec<String> {
 /// What the author chose in the dialog.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Options {
-    /// Root entry ID (`v3::Part::id`) of the manuscript part to export when a
-    /// book has more than one; `None` takes every manuscript part in order.
-    pub manuscript: Option<String>,
     /// `None` exports the whole book ([`default_chapters`]).
     pub chapters: Option<Vec<String>>,
     /// Act titles get pages (sections) of their own. Without acts this has
@@ -194,15 +195,23 @@ pub fn read_manuscript(
 
 /// A chapter's prose as manuscript blocks.
 pub fn blocks(view: &ProseView<'_>) -> Vec<Block> {
-    blocks_with_todos(view, None)
+    blocks_with_context(view, None, None)
 }
 
-pub(crate) fn blocks_with_todos(
+pub(crate) fn blocks_with_context(
     view: &ProseView<'_>,
     done_todos: Option<&HashSet<CommentId>>,
+    assets: Option<&AssetResolver<'_>>,
 ) -> Vec<Block> {
     let paragraphs: Vec<Paragraph> = view.paragraphs().collect();
-    trim_blank(convert_slice(view, &paragraphs, done_todos, false, false))
+    trim_blank(convert_slice(
+        view,
+        &paragraphs,
+        done_todos,
+        assets,
+        false,
+        false,
+    ))
 }
 
 fn export_list_kind(kind: &ProseListKind) -> ListKind {
@@ -217,6 +226,7 @@ fn convert_slice(
     view: &ProseView<'_>,
     paragraphs: &[Paragraph],
     done_todos: Option<&HashSet<CommentId>>,
+    assets: Option<&AssetResolver<'_>>,
     ignore_quote: bool,
     ignore_callout: bool,
 ) -> Vec<Block> {
@@ -237,6 +247,7 @@ fn convert_slice(
                 view,
                 &paragraphs[start..i],
                 done_todos,
+                assets,
                 true,
                 ignore_callout,
             ));
@@ -262,6 +273,7 @@ fn convert_slice(
                 view,
                 &paragraphs[start..i],
                 done_todos,
+                assets,
                 ignore_quote,
                 true,
             ));
@@ -324,7 +336,7 @@ fn convert_slice(
             });
             continue;
         }
-        paragraph_blocks(view, p, &mut out);
+        paragraph_blocks(view, p, assets, &mut out);
         i += 1;
     }
     out
@@ -343,44 +355,61 @@ fn plain_code_text(p: &Paragraph) -> String {
     text
 }
 
-fn paragraph_blocks(view: &ProseView<'_>, p: &Paragraph, out: &mut Vec<Block>) {
+fn paragraph_blocks(
+    view: &ProseView<'_>,
+    p: &Paragraph,
+    assets: Option<&AssetResolver<'_>>,
+    out: &mut Vec<Block>,
+) {
     if let Some(id) = p.embed() {
-        if let Some(EmbedView::Table {
-            cols, rows, cells, ..
-        }) = view.embed(id)
-            && !rows.is_empty()
-            && !cols.is_empty()
-        {
-            let grid = rows
-                .iter()
-                .map(|row| {
-                    cols.iter()
-                        .map(|col| {
-                            if let Some(cell_runs) = view.table_cell(id, &row.id, &col.id) {
-                                runs_from_prose(&cell_runs)
-                            } else if let Some(text) = cells.get(&(row.id.clone(), col.id.clone()))
-                            {
-                                let clean: String = text
-                                    .chars()
-                                    .filter(|&c| c != OBJECT_CHAR)
-                                    .map(|c| if c == LINE_BREAK { '\n' } else { c })
-                                    .collect();
-                                if clean.is_empty() {
-                                    Vec::new()
+        match view.embed(id) {
+            Some(EmbedView::Table {
+                cols, rows, cells, ..
+            }) if !rows.is_empty() && !cols.is_empty() => {
+                let grid = rows
+                    .iter()
+                    .map(|row| {
+                        cols.iter()
+                            .map(|col| {
+                                if let Some(cell_runs) = view.table_cell(id, &row.id, &col.id) {
+                                    runs_from_prose(&cell_runs)
+                                } else if let Some(text) =
+                                    cells.get(&(row.id.clone(), col.id.clone()))
+                                {
+                                    let clean: String = text
+                                        .chars()
+                                        .filter(|&c| c != OBJECT_CHAR)
+                                        .map(|c| if c == LINE_BREAK { '\n' } else { c })
+                                        .collect();
+                                    if clean.is_empty() {
+                                        Vec::new()
+                                    } else {
+                                        vec![Run {
+                                            text: clean,
+                                            ..Run::default()
+                                        }]
+                                    }
                                 } else {
-                                    vec![Run {
-                                        text: clean,
-                                        ..Run::default()
-                                    }]
+                                    Vec::new()
                                 }
-                            } else {
-                                Vec::new()
-                            }
-                        })
-                        .collect()
-                })
-                .collect();
-            out.push(Block::Table { rows: grid });
+                            })
+                            .collect()
+                    })
+                    .collect();
+                out.push(Block::Table { rows: grid });
+            }
+            Some(EmbedView::Asset {
+                asset: Some(asset_id),
+                look,
+                ..
+            }) => {
+                if let Some(resolve) = assets
+                    && let Some(block) = resolve(&asset_id, &look)
+                {
+                    out.push(block);
+                }
+            }
+            _ => {}
         }
         return;
     }

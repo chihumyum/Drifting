@@ -23,6 +23,7 @@
 pub mod anim;
 pub mod assets;
 pub mod components;
+pub mod drag;
 pub mod fonts;
 pub mod glass;
 pub mod input;
@@ -34,6 +35,7 @@ pub mod tokens;
 pub mod transitions;
 
 pub use assets::Assets;
+pub use drag::AssetDrag;
 pub use theme::{Appearance, Theme, ThemeSettings};
 
 use gpui::App;

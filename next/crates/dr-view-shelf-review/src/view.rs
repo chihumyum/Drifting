@@ -3,7 +3,7 @@
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::PathBuf,
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
@@ -350,13 +350,10 @@ pub struct ShelfReviewView {
     pub(crate) entry_menu_open: bool,
     pub(crate) entry_search: Option<Entity<TextField>>,
     _entry_search_sub: Option<Subscription>,
-    pub(crate) add_menu_open: bool,
     pub(crate) dialog: Option<ActiveDialog>,
 
     pub(crate) linked_materials: HashSet<String>,
     pub(crate) entry_related_materials: Option<HashSet<String>>,
-    pub(crate) entry_links_cache: HashMap<String, Vec<dr_view_material::v3::EntryLink>>,
-    entry_links_loading: HashSet<String>,
     relations_loaded: bool,
     /// The stage's view this is, and whether the book changed while the
     /// stage was not showing it (redone when it is shown again).
@@ -435,12 +432,9 @@ impl ShelfReviewView {
             entry_menu_open: false,
             entry_search: None,
             _entry_search_sub: None,
-            add_menu_open: false,
             dialog: None,
             linked_materials: HashSet::new(),
             entry_related_materials: None,
-            entry_links_cache: HashMap::new(),
-            entry_links_loading: HashSet::new(),
             relations_loaded: false,
             shown_as: host.view,
             links_stale: false,
@@ -549,7 +543,6 @@ impl ShelfReviewView {
 
     pub(crate) fn toggle_entry_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.entry_menu_open = !self.entry_menu_open;
-        self.add_menu_open = false;
         if self.entry_menu_open && self.entry_search.is_none() {
             let placeholder = t(cx, keys::memo_material::super_::SEARCH_PLACEHOLDER);
             let field = cx.new(|cx| {
@@ -823,12 +816,9 @@ impl ShelfReviewView {
             self.selected_entry = None;
             self.entry_related_materials = None;
             self.mat_state_rev += 1;
-            self.entry_links_cache.clear();
-            self.entry_links_loading.clear();
             self.relations_loaded = false;
             self.dialog = None;
             self.entry_menu_open = false;
-            self.add_menu_open = false;
             self.bind_library_events(cx);
             self.bind_review(cx);
             self.reload_relations(cx);
@@ -844,13 +834,9 @@ impl ShelfReviewView {
             self.mat_state_rev += 1;
             self.bind_review(cx);
             if rev_changed || stale {
-                self.entry_links_cache.clear();
-                self.entry_links_loading.clear();
                 self.reload_relations(cx);
             }
         } else if stale {
-            self.entry_links_cache.clear();
-            self.entry_links_loading.clear();
             self.reload_relations(cx);
         }
 
@@ -945,8 +931,6 @@ impl ShelfReviewView {
                             this.links_stale = true;
                             return;
                         }
-                        this.entry_links_cache.clear();
-                        this.entry_links_loading.clear();
                         this.reload_relations(cx);
                     })
                     .is_err()
@@ -1000,41 +984,6 @@ impl ShelfReviewView {
             })
             .ok();
         }));
-    }
-
-    pub(crate) fn ensure_entry_links(&mut self, material_id: &str, cx: &mut Context<Self>) {
-        if crate::is_frozen(cx)
-            || self.entry_links_cache.contains_key(material_id)
-            || !self.entry_links_loading.insert(material_id.to_owned())
-        {
-            return;
-        }
-        let Some(lib) = self.lib.clone() else {
-            self.entry_links_loading.remove(material_id);
-            return;
-        };
-        let book = self.book_id.clone();
-        let mat_id = material_id.to_owned();
-        let mat_for_task = mat_id.clone();
-        let expected_book = book.clone();
-        cx.spawn(async move |view, cx| {
-            let res = cx
-                .background_executor()
-                .spawn(async move { dr_view_material::v3::entry_links(&lib, &book, &mat_for_task) })
-                .await;
-            view.update(cx, |this, cx| {
-                this.entry_links_loading.remove(&mat_id);
-                if this.book_id != expected_book {
-                    return;
-                }
-                if let Ok(links) = res {
-                    this.entry_links_cache.insert(mat_id, links);
-                    cx.notify();
-                }
-            })
-            .ok();
-        })
-        .detach();
     }
 
     fn spawn_tracked_write<T, F>(
@@ -1129,79 +1078,17 @@ impl ShelfReviewView {
         );
     }
 
-    pub(crate) fn create_text_material(&mut self, _title: String, cx: &mut Context<Self>) {
-        self.spawn_tracked_write(
-            move |_lib| Err::<String, String>("text materials are retired in format 5".into()),
-            |this, res, cx| match res {
-                Ok(_id) => {
-                    this.dialog = None;
-                    this.reload_relations(cx);
-                }
-                Err(err) => {
-                    if let Some(ActiveDialog::NewNote { busy, error, .. }) = &mut this.dialog {
-                        *busy = false;
-                        *error = Some(err.into());
-                    }
-                }
-            },
-            cx,
-        );
-    }
-
-    pub(crate) fn confirm_delete_material(&mut self, id: String, cx: &mut Context<Self>) {
-        if let Some(ActiveDialog::DeleteMaterial { busy, error, .. }) = &mut self.dialog {
-            if *busy {
-                return;
-            }
-            *busy = true;
-            *error = None;
+    pub fn trash_material(&mut self, id: String, cx: &mut Context<Self>) {
+        if crate::is_frozen(cx) || self.lib.is_none() {
+            return;
         }
         let book = self.book_id.clone();
         let sel = Selection::material(&id);
-        let removed_id = id;
         self.spawn_tracked_write(
             move |lib| dr_view_material::folders::delete(&lib, &book, &sel),
-            move |this, res, cx| match res {
-                Ok(()) => {
-                    this.dialog = None;
-                    this.entry_links_cache.remove(&removed_id);
-                    this.reload_relations(cx);
-                }
-                Err(err) => {
-                    if let Some(ActiveDialog::DeleteMaterial { busy, error, .. }) = &mut this.dialog
-                    {
-                        *busy = false;
-                        *error = Some(err.into());
-                    }
-                }
-            },
-            cx,
-        );
-    }
-
-    pub fn toggle_material_entry_link(
-        &mut self,
-        material_id: &str,
-        entry_id: &str,
-        linked: bool,
-        cx: &mut Context<Self>,
-    ) {
-        let book = self.book_id.clone();
-        let mat = material_id.to_owned();
-        let mat_done = mat.clone();
-        let entry = entry_id.to_owned();
-        self.spawn_tracked_write(
-            move |lib| {
-                dr_view_material::v3::set_entry_link(&lib, &book, &mat, &entry, linked)
-                    .map_err(|e| e.to_string())
-            },
             move |this, res, cx| {
                 if res.is_ok() {
-                    this.entry_links_cache.remove(&mat_done);
                     this.reload_relations(cx);
-                    if let Some(rv) = &this.review {
-                        rv.update(cx, |r, cx| r.reload_now(cx));
-                    }
                 }
             },
             cx,
@@ -1317,7 +1204,6 @@ impl ShelfReviewView {
     ) {
         self.dialog = None;
         self.entry_menu_open = false;
-        self.add_menu_open = false;
         let own: Vec<_> = self
             .in_flight_writes
             .iter()

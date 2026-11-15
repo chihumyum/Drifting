@@ -88,6 +88,7 @@ fn sample_text(manuscript: &Manuscript, out: &mut String) {
                         }
                     }
                 }
+                Block::Image { caption, .. } => out.push_str(caption),
                 Block::Break => {}
             }
         }

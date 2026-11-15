@@ -10,6 +10,38 @@ fn call(ws: &Library, name: &str, input: Value) -> Value {
     ws.call(&Actor::User, name, input).unwrap()["output"].clone()
 }
 
+fn place_in_media_entry(
+    lib: &Library,
+    book: &str,
+    asset: &str,
+    title: &str,
+) -> Result<(String, String, String), String> {
+    let call = |name: &str, input: Value| {
+        lib.call(&Actor::User, name, input)
+            .map(|v| v["output"].clone())
+            .map_err(|e| format!("{name}: {e}"))
+    };
+    call(
+        "entry_template.put",
+        json!({"book": book, "template": {"id": "test-media-template", "name": "媒体",
+            "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]}}),
+    )?;
+    let entry = call(
+        "entry.create",
+        json!({"book": book, "template": "test-media-template", "title": title}),
+    )?["id"]
+        .as_str()
+        .ok_or("entry.create gave no id")?
+        .to_owned();
+    let item = dr_model::id::new_uuid_v7();
+    call(
+        "module.put_media",
+        json!({"book": book, "entry": entry, "module": "mod-media",
+            "item": {"id": item, "asset": asset, "caption": ""}}),
+    )?;
+    Ok((entry, "mod-media".to_owned(), item))
+}
+
 fn wait(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -64,7 +96,7 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     // test shows it as an item of an entry's media module.
     let host_asset = imported.material.clone();
     let (host_entry, host_module, id) =
-        crate::import::place_in_media_entry(&ws, &book_id, &host_asset, &sample_title).unwrap();
+        place_in_media_entry(&ws, &book_id, &host_asset, &sample_title).unwrap();
     cx.update(|cx| {
         dr_shell::init(
             ShellInfo {
@@ -113,8 +145,9 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     });
     wait(cx, |cx| page.read_with(cx, |p, _| !p.saving_title));
     assert!(page.read_with(cx, |p, _| p.title_error.is_none()));
-    let rows = Book::load(&ws, &book_id).unwrap().material_items().to_vec();
-    let row = rows.iter().find(|m| m.id == id).unwrap();
+    let loaded = Book::load(&ws, &book_id).unwrap();
+    let rows = loaded.material_items().to_vec();
+    let row = loaded.material_info(&id).unwrap();
     assert_eq!(row.title, draft);
     assert_eq!(row.description, sample_title);
     for original in &hidden {
@@ -201,8 +234,8 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     assert_eq!(comments[0]["part"]["asset"], host_asset);
     assert!((comments[0]["part"]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
     assert_eq!(comments[0]["body"], sample_title);
-    let rows = Book::load(&ws, &book_id).unwrap().material_items().to_vec();
-    let row = rows.iter().find(|m| m.id == id).unwrap();
+    let loaded = Book::load(&ws, &book_id).unwrap();
+    let row = loaded.material_info(&id).unwrap();
     assert_eq!(row.title, draft);
     assert_eq!(row.description, failed);
     ws.close();
@@ -386,10 +419,8 @@ fn a_media_page_lists_its_own_entrys_comments_and_the_files(cx: &mut TestAppCont
         crate::import::import_bytes(&ws, &book_id, None, dr_testkit::media::png(22, 18), "钟楼")
             .unwrap()
             .material;
-    let (entry_a, module_a, item_a) =
-        crate::import::place_in_media_entry(&ws, &book_id, &file, "甲").unwrap();
-    let (entry_b, module_b, item_b) =
-        crate::import::place_in_media_entry(&ws, &book_id, &file, "乙").unwrap();
+    let (entry_a, module_a, item_a) = place_in_media_entry(&ws, &book_id, &file, "甲").unwrap();
+    let (entry_b, module_b, item_b) = place_in_media_entry(&ws, &book_id, &file, "乙").unwrap();
     let region = json!({"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2});
     for (entry, module, body) in [(&entry_a, &module_a, "甲的"), (&entry_b, &module_b, "乙的")]
     {
@@ -426,5 +457,36 @@ fn a_media_page_lists_its_own_entrys_comments_and_the_files(cx: &mut TestAppCont
             page.read_with(vcx, |p, _| p.comments().iter().map(|l| l.number).collect());
         assert_eq!(numbers, [1, 2]);
     }
+    ws.close();
+}
+
+#[gpui::test]
+fn media_page_lists_live_usages_and_updates_when_places_change(cx: &mut TestAppContext) {
+    let (_dir, ws, book_id) = tiny(cx);
+    let file =
+        crate::import::import_bytes(&ws, &book_id, None, dr_testkit::media::png(20, 14), "城墙")
+            .unwrap()
+            .material;
+    let (entry_a, _, _) = place_in_media_entry(&ws, &book_id, &file, "第四章").unwrap();
+    let (page, mut vcx) = open_page(cx, &ws, &book_id, &file);
+    let vcx = &mut vcx;
+    wait(vcx, |cx| page.read_with(cx, |p, _| p.usages().len() == 1));
+    assert_eq!(
+        page.read_with(vcx, |p, _| p.usages()[0].entry_id.clone()),
+        entry_a
+    );
+    assert_eq!(
+        page.read_with(vcx, |p, _| p.usages()[0].entry_title.clone()),
+        "第四章"
+    );
+    let (entry_b, _, _) = place_in_media_entry(&ws, &book_id, &file, "东岸").unwrap();
+    wait(vcx, |cx| page.read_with(cx, |p, _| p.usages().len() == 2));
+    let mut ids: Vec<String> = page.read_with(vcx, |p, _| {
+        p.usages().iter().map(|u| u.entry_id.clone()).collect()
+    });
+    ids.sort();
+    let mut want = vec![entry_a, entry_b];
+    want.sort();
+    assert_eq!(ids, want);
     ws.close();
 }

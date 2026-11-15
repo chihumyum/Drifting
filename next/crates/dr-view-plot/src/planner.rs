@@ -217,6 +217,10 @@ pub struct PlotPlanner {
     /// The window the planner is drawn in (reads that finish later sync
     /// its fields there).
     window: AnyWindowHandle,
+    workspace: Option<gpui::WeakEntity<dr_shell::Workspace>>,
+    shell_book: Option<std::rc::Rc<dr_shell::book::Book>>,
+    selected_cell: Option<(String, String)>,
+    _review_focus: Subscription,
     _events: Option<dr_workspace::events::Subscription>,
     _receiver: Option<Task<()>>,
 }
@@ -237,6 +241,84 @@ impl PlotPlanner {
         Self::new_at(host, module, window, cx)
     }
 
+    pub fn set_shell(
+        &mut self,
+        workspace: gpui::WeakEntity<dr_shell::Workspace>,
+        book: std::rc::Rc<dr_shell::book::Book>,
+        cx: &mut Context<Self>,
+    ) {
+        self.workspace = Some(workspace);
+        self.shell_book = Some(book);
+        cx.notify();
+    }
+
+    pub fn refresh_book(
+        &mut self,
+        book: std::rc::Rc<dr_shell::book::Book>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(e) = book.v3().and_then(|b| b.entry(&self.host.node)) {
+            self.host.title = e.title.clone();
+        }
+        self.shell_book = Some(book);
+        cx.notify();
+    }
+
+    pub fn select_cell(&mut self, row: &str, col: &str, cx: &mut Context<Self>) {
+        self.selected_cell = Some((row.to_owned(), col.to_owned()));
+        cx.notify();
+    }
+
+    fn resolved_selected_cell(&self, window: &Window, cx: &App) -> Option<(String, String)> {
+        let focused = self.fields.iter().find_map(|(f, a)| match f {
+            Field::Cell(r, c) if a.focus_handle(cx).is_focused(window) => {
+                Some((r.clone(), c.clone()))
+            }
+            _ => None,
+        });
+        let (raw_r, raw_c) = focused.or_else(|| self.selected_cell.clone())?;
+        let r = self.aliases.get(&raw_r).cloned().unwrap_or(raw_r);
+        let c = self.aliases.get(&raw_c).cloned().unwrap_or(raw_c);
+        if PlotRowId::parse(&r).is_err() || PlotColId::parse(&c).is_err() {
+            return None;
+        }
+        if !self.grid.rows.iter().any(|l| l.id == r) || !self.grid.cols.iter().any(|l| l.id == c) {
+            return None;
+        }
+        Some((r, c))
+    }
+
+    pub fn comment_selected_cell(
+        &mut self,
+        at: Option<Point<Pixels>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((row, col)) = self.resolved_selected_cell(window, cx) else {
+            return;
+        };
+        let Some(ws) = self.workspace.as_ref().and_then(|w| w.upgrade()) else {
+            return;
+        };
+        let ret = self
+            .fields
+            .get(&Field::Cell(row.clone(), col.clone()))
+            .map(|a| a.focus_handle(cx));
+        let entry = self.host.node.clone();
+        let module = self.module.clone();
+        ws.update(cx, |ws, cx| {
+            ws.open_part_composer(
+                &entry,
+                &module,
+                dr_workspace::dto::CommentPartDto::PlotCell { row, col },
+                at,
+                ret,
+                window,
+                cx,
+            );
+        });
+    }
+
     fn new_at(
         host: PlannerHost,
         module: String,
@@ -244,6 +326,7 @@ impl PlotPlanner {
         cx: &mut Context<Self>,
     ) -> PlotPlanner {
         settlement::register(&host.library, window.window_handle(), cx);
+        let review_focus = cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify());
 
         let body = cx.new(|_| None);
         let mut planner = PlotPlanner {
@@ -278,6 +361,10 @@ impl PlotPlanner {
             reveal: None,
             aliases: BTreeMap::new(),
             window: window.window_handle(),
+            workspace: None,
+            shell_book: None,
+            selected_cell: None,
+            _review_focus: review_focus,
             _events: None,
             _receiver: None,
         };
@@ -1276,12 +1363,24 @@ impl Render for PlotPlanner {
                 self.scroll.set_offset(at);
             }
         }
+        if let Some((r, c)) = self.fields.iter().find_map(|(f, a)| match f {
+            Field::Cell(r, c) if a.focus_handle(cx).is_focused(window) => {
+                Some((r.clone(), c.clone()))
+            }
+            _ => None,
+        }) {
+            self.selected_cell = Some((r, c));
+        }
         let menu = self.menu_float(window, cx);
         let dragging = self.drag.is_some();
         div()
             .id("plot-planner")
             .key_context("PlotPlanner")
             .track_focus(&self.focus)
+            .on_action(cx.listener(|p, _: &dr_shell::NewComment, window, cx| {
+                cx.stop_propagation();
+                p.comment_selected_cell(None, window, cx);
+            }))
             .relative()
             .size_full()
             .flex()
@@ -1360,6 +1459,16 @@ impl PlotPlanner {
                             .child(title),
                     )
                     .child(div().flex_none().child(t(cx, k::TITLE))),
+            )
+            .child(
+                Button::new("plot-comment", t(cx, keys::v3_review::COMMENT_BUTTON))
+                    .text()
+                    .small()
+                    .icon(Icon::CommentPlus)
+                    .disabled(self.resolved_selected_cell(window, cx).is_none())
+                    .on_click(cx.listener(|p, e: &gpui::ClickEvent, window, cx| {
+                        p.comment_selected_cell(Some(e.position()), window, cx)
+                    })),
             )
             .child(
                 Button::new("plot-add-row", t(cx, k::ADD_ROW_SHORT))
@@ -1644,6 +1753,32 @@ impl PlotPlanner {
                 })
                 .child(t(cx, k::EMPTY_CELL))
         });
+        let cell_ul = self
+            .workspace
+            .as_ref()
+            .zip(self.shell_book.as_ref())
+            .and_then(|(ws, book)| {
+                let ids = book
+                    .v3()
+                    .map(|b| b.plot_cell_comments(&self.host.node, &self.module, &row.id, &col.id))
+                    .unwrap_or_default();
+                dr_shell::comment_underline(
+                    SharedString::from(format!("plot-cell-ul-{}-{}", row.id, col.id)),
+                    ids,
+                    ws.clone(),
+                    cx,
+                )
+            })
+            .map(|ul| {
+                div()
+                    .absolute()
+                    .left(px(9.0))
+                    .right(px(9.0))
+                    .bottom(px(2.0))
+                    .child(ul)
+            });
+        let select_r = row.id.clone();
+        let select_c = col.id.clone();
         div()
             .w(px(size.w))
             .h(px(size.h))
@@ -1685,14 +1820,20 @@ impl PlotPlanner {
                         },
                     ))
                     .when_some(to_focus, |el, handle| {
-                        el.on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                            if !handle.is_focused(window) {
-                                window.focus(&handle, cx);
-                            }
-                        })
+                        el.on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |p, _, window, cx| {
+                                p.selected_cell = Some((select_r.clone(), select_c.clone()));
+                                if !handle.is_focused(window) {
+                                    window.focus(&handle, cx);
+                                }
+                                cx.notify();
+                            }),
+                        )
                     })
                     .children(placeholder)
-                    .children(area),
+                    .children(area)
+                    .children(cell_ul),
             )
             .into_any_element()
     }

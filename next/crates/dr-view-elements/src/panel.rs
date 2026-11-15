@@ -557,9 +557,16 @@ pub mod v3 {
             this.rebuild();
             this
         }
+        pub fn is_lane(&self) -> bool {
+            self.host
+                .page
+                .book
+                .v3()
+                .is_some_and(|v| v.is_lane(&self.host.level))
+        }
         pub fn can_reorder(&self) -> bool {
             matches!(self.display, Display::List | Display::Grid)
-                && self.sort == SortOrder::Manual
+                && (self.is_lane() || self.sort == SortOrder::Manual)
                 && self.host.surface != DisplaySurface::Members
         }
         fn sync_workspace_memory(&mut self, ws: &dr_shell::Workspace) -> bool {
@@ -1222,20 +1229,14 @@ pub mod v3 {
             }
             if matches!(self.display, Display::List | Display::Grid)
                 && self.host.surface != DisplaySurface::Members
-                && !self
-                    .host
-                    .page
-                    .book
-                    .v3()
-                    .is_some_and(|v| v.is_lane(&self.host.level))
+                && !self.is_lane()
             {
                 let weak = cx.entity().downgrade();
+                let sort_sel = format!("g2-sort-scroll-{}", self.host.level);
                 root = root.child(
                     div()
-                        .id(SharedString::from(format!(
-                            "g2-sort-scroll-{}",
-                            self.host.level
-                        )))
+                        .id(SharedString::from(sort_sel.clone()))
+                        .debug_selector(move || sort_sel.clone())
                         .overflow_x_scroll()
                         .flex_shrink_0()
                         .child(

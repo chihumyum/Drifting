@@ -390,53 +390,95 @@ fn material_asset_map(rows: &BookRows) -> HashMap<&str, dr_model::id::AssetId> {
             out.insert(m.id.as_str(), aid);
         }
     }
+    for (merged_id, kept_id) in &rows.asset_aliases {
+        if !out.contains_key(merged_id.as_str())
+            && let Ok(aid) = AssetId::parse(kept_id)
+        {
+            out.insert(merged_id.as_str(), aid);
+        }
+    }
     out
 }
 
-/// What the import report lists of the 0.1 materials (`kernel-v5.md` §13):
-/// the descriptions and provenance the book has no place for, and what did
-/// not come over (empty folders, image or PDF materials without their file,
-/// unknown kinds, a second material on the same file).
+/// What the import report lists of the 0.1 materials (`kernel-v5.md` §13, §15 #19):
+/// counts of descriptions and provenances converted into resolved comments, and
+/// what did not come over (empty folders, folders whose materials all failed to
+/// come over, image or PDF materials without their file, unknown kinds, a
+/// second material on the same file).
 pub(crate) fn material_report(
     rows: &BookRows,
     material_assets: &HashMap<&str, dr_model::id::AssetId>,
-) -> (Vec<receipt::MaterialText>, Vec<receipt::MaterialDropped>) {
-    use receipt::{MaterialDropped, MaterialText};
-    let mut texts = Vec::new();
+) -> (usize, usize, Vec<receipt::MaterialDropped>) {
+    use receipt::MaterialDropped;
+    let mut descriptions_to_comments = 0usize;
+    let mut provenances_to_comments = 0usize;
     let mut dropped = Vec::new();
-    for m in rows.materials.iter().filter(|m| !m.id.is_empty()) {
-        let description = m
-            .notes_json
-            .as_deref()
-            .map(|n| crate::book::plain_text(n).0)
-            .unwrap_or_default();
-        let provenance = (m.kind == "text")
-            .then(|| m.provenance_json.clone())
-            .flatten()
-            .filter(|p| !p.trim().is_empty() && p.trim() != "null");
-        if !description.is_empty() || provenance.is_some() {
-            texts.push(MaterialText {
-                material_id: m.id.clone(),
-                material_title: m.title.clone(),
-                kind: m.kind.clone(),
-                description,
-                provenance,
-            });
-        }
-    }
-    // Folders that hold something that came over (directly or below).
+    let element_names: HashMap<&str, &str> = rows
+        .elements
+        .iter()
+        .map(|e| (e.id.as_str(), e.name.as_str()))
+        .collect();
+    // Folders that hold something that came over (directly or below), vs
+    // folders that held materials none of which came over.
     let parents: HashMap<&str, Option<&str>> = rows
         .folders
         .iter()
         .map(|f| (f.id.as_str(), f.parent.as_deref()))
         .collect();
+    let mut has_any_material: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut used: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut kept_title: HashMap<String, &str> = HashMap::new();
     for m in rows.materials.iter().filter(|m| !m.id.is_empty()) {
+        {
+            let mut cur = m.folder.as_deref();
+            let mut guard = 0;
+            while let Some(f) = cur
+                && guard <= parents.len()
+            {
+                if !has_any_material.insert(f) {
+                    break;
+                }
+                cur = parents.get(f).copied().flatten();
+                guard += 1;
+            }
+        }
+        let description = m
+            .notes_json
+            .as_deref()
+            .filter(|n| !n.trim().is_empty())
+            .map(|n| crate::book::plain_text(n).0)
+            .unwrap_or_default();
+        let non_empty_desc = (!description.trim().is_empty()).then_some(description);
+        let has_valid_id = dr_model::import_v1::MaterialId::parse(&m.id).is_ok();
+        let has_provenance = m
+            .provenance_json
+            .as_deref()
+            .and_then(|p| {
+                crate::book::format_material_provenance(p, &|eid| element_names.get(eid).copied())
+            })
+            .is_some();
         let came_over = match m.kind.as_str() {
-            "text" => true,
+            "text" => {
+                if has_valid_id {
+                    if non_empty_desc.is_some() {
+                        descriptions_to_comments += 1;
+                    }
+                    if has_provenance {
+                        provenances_to_comments += 1;
+                    }
+                }
+                true
+            }
             "image" | "pdf" => {
                 if let Some(asset) = material_assets.get(m.id.as_str()) {
+                    if has_valid_id {
+                        if non_empty_desc.is_some() {
+                            descriptions_to_comments += 1;
+                        }
+                        if has_provenance {
+                            provenances_to_comments += 1;
+                        }
+                    }
                     match kept_title.get(asset.as_str()) {
                         Some(first) => dropped.push(MaterialDropped::SameFile {
                             material_id: m.id.clone(),
@@ -461,10 +503,21 @@ pub(crate) fn material_report(
                         })
                         .map(|r| r.id.clone())
                         .collect();
+                    let comments = rows
+                        .comments
+                        .iter()
+                        .filter(|c| {
+                            matches!(c.target_kind.as_deref(), Some("library_item" | "material"))
+                                && c.target_id.as_deref() == Some(m.id.as_str())
+                        })
+                        .map(|c| c.id.clone())
+                        .collect();
                     dropped.push(MaterialDropped::WithoutFile {
                         material_id: m.id.clone(),
                         material_title: m.title.clone(),
+                        description: non_empty_desc,
                         relations,
+                        comments,
                     });
                     false
                 }
@@ -495,13 +548,20 @@ pub(crate) fn material_report(
     }
     for f in &rows.folders {
         if !used.contains(f.id.as_str()) {
-            dropped.push(MaterialDropped::EmptyFolder {
-                folder_id: f.id.clone(),
-                name: f.name.clone(),
-            });
+            if has_any_material.contains(f.id.as_str()) {
+                dropped.push(MaterialDropped::UnimportedFolder {
+                    folder_id: f.id.clone(),
+                    name: f.name.clone(),
+                });
+            } else {
+                dropped.push(MaterialDropped::EmptyFolder {
+                    folder_id: f.id.clone(),
+                    name: f.name.clone(),
+                });
+            }
         }
     }
-    (texts, dropped)
+    (descriptions_to_comments, provenances_to_comments, dropped)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -986,6 +1046,8 @@ fn write_library(
                 history: hist,
             });
         }
+        let bodies_by_doc: HashMap<DocId, &Body<'_>> =
+            bodies.iter().map(|b| (b.doc_id.clone(), b)).collect();
         let mut spans: HashMap<String, BlockSpan> = HashMap::new();
         for b in &bodies {
             for id in b.blocks.ranges.keys() {
@@ -999,20 +1061,31 @@ fn write_library(
         // Projected TODOs get deterministic ids.
         let mut projected: HashMap<String, (CommentId, ProjectionKind, DocId, BlockId)> =
             HashMap::new();
-        // The tick of every 0.1 checklist item, by the ids of the item and of
-        // its paragraph: a checklist comment's status follows it (the tick
-        // wins where the TODO's status disagrees, `kernel-v5.md` §13).
-        let mut ticks: HashMap<String, bool> = HashMap::new();
+        // The tick of every 0.1 checklist item, keyed per document by the ids
+        // of the item and of its paragraph: a checklist comment's status
+        // follows its own document's tick (`kernel-v5.md` §13).
+        let mut ticks: HashMap<(DocId, String), bool> = HashMap::new();
         for b in &bodies {
-            for l in &b.lines.lines {
+            for (line_idx, l) in b.lines.lines.iter().enumerate() {
                 for c in l.path.iter().filter(|c| c.kind == "taskItem") {
                     let checked = c.attrs.get("checked").and_then(Value::as_bool) == Some(true);
-                    for id in [c.attrs.get("id"), l.attrs.get("id")]
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str)
+                    let line_block = b
+                        .blocks
+                        .line_ids
+                        .get(line_idx)
+                        .and_then(|o| o.as_ref())
+                        .map(BlockId::as_str);
+                    for id in [
+                        c.attrs.get("id").and_then(Value::as_str),
+                        l.attrs.get("id").and_then(Value::as_str),
+                        line_block,
+                    ]
+                    .into_iter()
+                    .flatten()
                     {
-                        ticks.entry(id.to_owned()).or_insert(checked);
+                        ticks
+                            .entry((b.doc_id.clone(), id.to_owned()))
+                            .or_insert(checked);
                     }
                 }
             }
@@ -1047,8 +1120,14 @@ fn write_library(
                 .get("blockId")
                 .and_then(Value::as_str)
                 .or(c.target_block_id.as_deref());
+            let doc_span = |b_str: &str| {
+                bodies_by_doc
+                    .get(&doc)
+                    .and_then(|body| body.blocks.span(b_str))
+                    .or_else(|| span(b_str))
+            };
             let Some(block) = old_block.and_then(|b| {
-                span(b)
+                doc_span(b)
                     .and_then(|s| s.first)
                     .or_else(|| BlockId::parse(b).ok())
             }) else {
@@ -1056,9 +1135,15 @@ fn write_library(
                 continue;
             };
             if kind == ProjectionKind::NoteTask
-                && let Some(tick) = old_block.and_then(|b| ticks.get(b))
+                && let Some(tick) = old_block
+                    .and_then(|b| ticks.get(&(doc.clone(), b.to_owned())).copied())
+                    .or_else(|| {
+                        ticks
+                            .get(&(doc.clone(), block.as_str().to_owned()))
+                            .copied()
+                    })
             {
-                task_ticks.insert(c.id.clone(), *tick);
+                task_ticks.insert(c.id.clone(), tick);
             }
             let new = CommentId::for_projection(&kind, &doc, &block);
             projected.insert(c.id.clone(), (new, kind, doc, block));
@@ -1066,7 +1151,11 @@ fn write_library(
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
         let material_assets = material_asset_map(&rows);
-        (rec.material_texts, rec.materials_dropped) = material_report(&rows, &material_assets);
+        (
+            rec.material_descriptions_to_comments,
+            rec.material_provenances_to_comments,
+            rec.materials_dropped,
+        ) = material_report(&rows, &material_assets);
         rec.material_assets = material_assets
             .iter()
             .map(|(k, v)| ((*k).to_string(), v.to_string()))
@@ -1084,6 +1173,9 @@ fn write_library(
         let mut anchors_made: HashMap<String, Anchor> = HashMap::new();
         let mut points: Vec<Point> = Vec::new();
         let mut import_points: Vec<(String, Frontiers)> = Vec::new();
+        let mut unlinked_tasks: Vec<book::UnlinkedTask> = Vec::new();
+        let mut seen_unlinked_tasks: std::collections::HashSet<(DocId, BlockId)> =
+            std::collections::HashSet::new();
         let n_bodies = bodies.len() as u64;
         let mut stopped = false;
         for (body_no, b) in bodies.iter().enumerate() {
@@ -1261,6 +1353,35 @@ fn write_library(
                 t.repair_block_ids()
             });
             let repaired = repaired?;
+            if let Ok(v2_doc) = DocId::parse(&b.owner.new_doc_id()) {
+                for p in doc.view().paragraphs() {
+                    if p.attrs.list != Some(dr_model::kind::ListKind::Task) {
+                        continue;
+                    }
+                    let Some(final_block) = p.id.clone() else {
+                        continue;
+                    };
+                    let mut linked_to_old_todo = false;
+                    for (old_cid, (_, kind, d, bl)) in &projected {
+                        if *kind == ProjectionKind::NoteTask && d == &b.doc_id && bl == &final_block
+                        {
+                            linked_to_old_todo = true;
+                            task_ticks.entry(old_cid.clone()).or_insert(p.attrs.checked);
+                        }
+                    }
+                    if !linked_to_old_todo
+                        && seen_unlinked_tasks.insert((b.doc_id.clone(), final_block.clone()))
+                    {
+                        unlinked_tasks.push(book::UnlinkedTask {
+                            v2_doc: v2_doc.clone(),
+                            block: final_block,
+                            text: p.text().trim().to_string(),
+                            checked: p.attrs.checked,
+                            updated_at: b.owner.updated_at.clone(),
+                        });
+                    }
+                }
+            }
             import_points.push((id_s.clone(), doc.frontiers()));
             let bytes = doc.export_updates_since(&VersionVector::default())?;
             timing.prose_ms += ms(t0);
@@ -1379,6 +1500,31 @@ fn write_library(
         } else {
             dr_doc::v3::BookDocV3::create(book_id.clone(), import_peer(&book_doc_s))?
         };
+        rec.projected_todos = projected.len() + unlinked_tasks.len();
+        for c in &rows.comments {
+            if let Some(&tick) = task_ticks.get(&c.id) {
+                let status = dr_model::import_v1::legacy::comment_status(&c.status);
+                let want = if tick {
+                    dr_model::kind::CommentStatus::Resolved
+                } else {
+                    dr_model::kind::CommentStatus::Open
+                };
+                if want != status {
+                    let old_doc_id = c
+                        .target_kind
+                        .as_deref()
+                        .zip(c.target_id.as_deref())
+                        .and_then(|(tk, tid)| old_doc_of_target(tk, tid))
+                        .unwrap_or_default();
+                    rec.task_status_changes.push(receipt::TaskStatusChange {
+                        comment_id: c.id.clone(),
+                        old_doc_id,
+                        body: book::plain_text(&c.body_json).0,
+                        checked: tick,
+                    });
+                }
+            }
+        }
         let catalog_projected = crate::v3::catalog_projections(options, &projected, &rows);
         let inputs = book::Inputs {
             book: &book_id,
@@ -1387,8 +1533,10 @@ fn write_library(
             settings: Some(settings),
             projected: &catalog_projected,
             task_ticks: &task_ticks,
+            unlinked_tasks: &unlinked_tasks,
             anchors: &anchors_made,
             span: &span,
+            import_ts: secs(started_ms),
         };
         // Each entity with history starts as its earliest row has it.
         let mut state: BTreeMap<Owner, Fields> = BTreeMap::new();

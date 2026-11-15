@@ -144,7 +144,7 @@ impl Timeline {
             // meanwhile is not replaced.
             let stored = write::observe_pin(&lib, &book, &view, &pin.id)?;
             if !stored.value.is_null() {
-                return Err(WsError::Conflict("time pin already exists".into()));
+                return Err(WsError::Conflict("scale pin already exists".into()));
             }
             write::replace(
                 &lib,
@@ -212,7 +212,7 @@ impl Timeline {
                 .find(|v| v.id == view && v.deleted_at.is_none())
                 .and_then(|v| v.pins.into_iter().find(|p| p.id == id))
                 .ok_or_else(|| WsError::NotFound {
-                    what: "time pin",
+                    what: "scale pin",
                     id: id.clone(),
                 })?;
             write::complete_pin(Some(&stored.value).filter(|pin| !pin.is_null()), &pin)?;
@@ -254,6 +254,27 @@ impl Timeline {
             ),
         )
     }
+    pub(super) fn dropped_lane(&mut self, drag: &EntryDrag, cx: &mut Context<Self>) {
+        let Some(page) = self.page_host() else {
+            return;
+        };
+        if !drag.matches(&page) || !drag.is_current(cx) {
+            return;
+        }
+        let Some(book) = drag.page().book.v3() else {
+            return;
+        };
+        let Some(view) = self.view() else {
+            return;
+        };
+        if !book.has_below(&drag.entry) || view.lanes.iter().any(|l| l.entry == drag.entry) {
+            return;
+        }
+        if let Some(mut shown) = self.view_scope() {
+            shown.guard = book.guard();
+            self.edit_view_at(shown, write::ViewEdit::AddLane(drag.entry.clone()), cx);
+        }
+    }
     pub(super) fn dropped_entry(
         &mut self,
         drag: &EntryDrag,
@@ -264,8 +285,18 @@ impl Timeline {
         let Some(page) = self.page_host() else {
             return;
         };
-        if !drag.matches(&page) || !drag.is_current(cx) {
+        if !drag.matches(&page) || !drag.is_current(cx) || drag.entry == lane {
             return;
+        }
+        if let Some(book) = drag.page().book.v3() {
+            let can_place = book.accepts_members(&lane)
+                || (book.entry(&lane).is_some_and(|le| le.level)
+                    && book
+                        .entry(&drag.entry)
+                        .is_some_and(|ce| ce.parent.as_deref() == Some(lane.as_str())));
+            if !can_place {
+                return;
+            }
         }
         if let Some(at) = self.order_at(window.mouse_position().x - px(drag.grab())) {
             let span = drag

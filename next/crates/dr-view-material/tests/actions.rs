@@ -150,19 +150,20 @@ fn page_menu_exposes_open_original_history_and_keeps_delete_last(cx: &mut TestAp
 }
 
 #[gpui::test]
-fn delete_cancel_keeps_material_and_confirmation_closes_its_tab(cx: &mut TestAppContext) {
+fn delete_moves_material_to_trash_without_confirmation_and_closes_its_tab(cx: &mut TestAppContext) {
     let (_dir, lib, book, media) = library();
     let (ws, cx) = setup(cx, lib.clone());
     let target = Target::Material(media.parse().unwrap());
     ws.update(cx, |w, cx| w.open(target.clone(), Open::KEEP, cx));
-    run(&ws, &media, "material-delete", cx);
-    cx.simulate_keystrokes("escape");
-    closed(&ws, cx);
-    assert!(has_material(&lib, &book, &media));
-    let dialog = run(&ws, &media, "material-delete", cx);
-    cx.update(|w, cx| dialog.update(cx, |d, cx| d.confirm_delete(w, cx)));
-    closed(&ws, cx);
-    assert!(!has_material(&lib, &book, &media));
+    let action = menu(&ws, &media, cx)
+        .into_iter()
+        .flat_map(|s| s.items)
+        .find(|i| i.id == "material-delete")
+        .unwrap()
+        .run;
+    cx.update(|w, cx| action(w, cx));
+    assert!(ws.read_with(cx, |w, _| w.dialog.is_none()));
+    wait(cx, |_| !has_material(&lib, &book, &media));
     wait(cx, |cx| {
         ws.read_with(cx, |w, _| !w.nav.is_selected(&target))
     });

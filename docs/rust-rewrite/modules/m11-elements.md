@@ -544,3 +544,10 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 - **看板的位置**：拖动写在这个层级的范围（`layout.put` 的 `scope` 是层级 id），读的时候以前用的是另一个字符串，拖完重开就回到默认位置；现在读写同一个范围。
 
 **删掉和改了期望的测试**（`tests/v3_levels.rs`）：`grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves`、`grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane` 删了（按故事线分组和「未归属」整段去掉），换成 `the_manuscript_list_is_only_its_tree`、`a_storyline_opens_to_its_chapters_and_a_chapter_on_two_shows_under_both`；`residence_tree_is_ordered_foldable_and_separate_from_membership` 改写成 `a_level_lists_its_tree_and_what_is_attached_after_what_lives_under_it`；`board_page_separates_members_without_changing_the_navigation_canvas` 改写成 `board_blocks_list_residents_and_attached_apart_and_a_tab_shows_both`。新增 `tests/v5_t1_lists.rs`（⌥ 拖动、既住又挂只列一次）。
+
+## 内核 v5 · T5 图片字段占位与清除（2026-11-15）
+
+`dr-view-elements` 的类型化字段视图（`TypedFields`）对 `FieldType::Image` 接入内置素材库活集合判定：
+
+- 字段值为活文件时显示缩略图、文件名，并提供挑文件更换与「清除」；
+- 文件（或其所在素材夹）进入最近删除，或因「撤销把条目放进最近删除」带回了已永久清除的文件 id 时，字段渲染为虚线占位：还在最近删除里的文件显示删除线原文件名、「恢复」（含被删祖夹恢复）与「清除」；已永久清除的文件仍保留「清除」按钮（把字段值写回 `null`），避免残留清不掉的断引用。回归见 `dr-view-elements/tests/v5_image_field.rs`。

@@ -338,8 +338,10 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             settings: Some(settings),
             projected: &HashMap::new(),
             task_ticks: &HashMap::new(),
+            unlinked_tasks: &[],
             anchors: &HashMap::new(),
             span: &|_| None,
+            import_ts: crate::time::parse_iso_ms(&project.updated_at).unwrap_or(0) / 1000,
         };
         let (r, _) = catalog.edit(Origin::Import, |t| book::write(t, &inputs, &mut notes));
         r?;

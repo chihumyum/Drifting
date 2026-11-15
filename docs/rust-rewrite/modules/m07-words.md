@@ -1,5 +1,10 @@
 # M07 字数与写作日
 
+## 内核 v5 T3：单一成书顺序与无成书项目收起字数/目标/写作日（2026-11-15）
+
+- 整书字数与记录器（`Recorder`）统一走 `BookStructureV3::book_sequence()`（随成书起点 `Entry` / `View` / `Lane` 切换，与章号和成稿导出一致）。
+- 项目关掉「成书」（`project.book.is_none()`）时：`dr_view_stats::v3::load` 与 `load_progress` 不再给出整书或单页字数、全书目标、每日目标与写作日；`Recorder` 跳过并清理无成书项目的基线和当日在内存中的计数，退出沉浸模式也不弹出今日字数提示。
+
 2026-11-08，第一个里程碑。计划见 [modules.md 的 M07](../modules.md)。界面和写作日记录器在 `next/crates/dr-view-stats/`，查询和写入是 F3 的三条新命令（`next/crates/dr-workspace/src/commands/stats.rs`），外壳里挂了两处（初始化、统计标签）。字数规则是 `prose-metrics`，实时字数是 `dr_text::LiveCount`（[dr-text-index.md](../foundations/dr-text-index.md)）。热力图是 M25；统计面板的其余内容（提及、分幕节奏、素材）是 M20，在同一个标签里往下加，见 [m20-stats.md](m20-stats.md)。
 
 ## 做了什么（大白话）

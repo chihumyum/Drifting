@@ -62,6 +62,7 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
         Some(ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
+            ..ProjectTemplateRef::default()
         })
     );
     assert_eq!(proj.agent, Some(novel_project_agent()));

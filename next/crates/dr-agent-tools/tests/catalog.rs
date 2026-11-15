@@ -446,8 +446,29 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "prose.shape",
         "prose.link",
         "prose.unlink",
-        "entry_history.version",
-        "entry_history.restore",
+        "project.get",
+        "project.update",
+        "tab.put",
+        "tab.remove",
+        "tab.move",
+        "book.sequence",
+        "module.put_media",
+        "module.remove_media",
+        "module.set_arrangement",
+        "asset.list",
+        "asset.rename",
+        "asset.move",
+        "asset.trash",
+        "asset.restore",
+        "asset_folder.list",
+        "asset_folder.create",
+        "asset_folder.rename",
+        "asset_folder.move",
+        "asset_folder.trash",
+        "asset_folder.restore",
+        "layout.get",
+        "layout.put",
+        "layout.clear",
     ] {
         let descriptor = catalog.descriptor(v3_cmd).expect(v3_cmd);
         assert!(
@@ -461,7 +482,6 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "module.prose_document",
         "history.restore_entities",
         "relation_type.list",
-        "project.create",
         "book.list",
         "chapter.list",
         "chapter.create",
@@ -481,10 +501,11 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "material.list",
         "material.create",
         "material_folder.list",
-        "module.put_media",
-        "module.remove_media",
-        "asset.list",
-        "book.sequence",
+        "todo.project",
+        "asset.purge",
+        "asset_folder.purge",
+        "comment.delete",
+        "comment.project",
     ] {
         assert!(
             catalog.descriptor(excluded).is_none(),
@@ -960,5 +981,204 @@ fn v4_catalog_excludes_retired_level_queries_binds_actions_by_entry_switch_and_r
             .actions()
             .iter()
             .all(|a| a.reference.level != on_entry)
+    );
+}
+
+#[test]
+fn v5_catalog_exposes_media_project_tabs_assets_layout_and_binds_home_by_accept() {
+    use dr_agent_tools::{AgentTools, CallRequest};
+
+    let f = V3Fixture::new();
+    let tools = AgentTools::new();
+    let catalog = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+
+    // 1. No retired material/todo names or asset/folder purge; comment.update has no priority.
+    for entry in catalog.entries() {
+        assert!(
+            !entry.name.starts_with("material.")
+                && !entry.name.starts_with("material_folder.")
+                && !entry.name.starts_with("todo.")
+                && !entry.name.starts_with("note_tasks."),
+            "retired domain leaked into catalog: {}",
+            entry.name
+        );
+    }
+    for (excluded, _) in catalog.exclusions() {
+        assert!(
+            !excluded.starts_with("material.")
+                && !excluded.starts_with("material_folder.")
+                && !excluded.starts_with("todo."),
+            "retired registry op present: {excluded}"
+        );
+    }
+    assert!(catalog.descriptor("asset.purge").is_none());
+    assert!(catalog.descriptor("asset_folder.purge").is_none());
+    assert!(catalog.descriptor("comment.delete").is_none());
+    assert!(catalog.descriptor("comment.project").is_none());
+
+    let comment_update = catalog.descriptor("comment.update").unwrap();
+    assert!(
+        comment_update.input_schema["properties"]
+            .get("priority")
+            .is_none(),
+        "comment.update must not expose priority in v5"
+    );
+    for link_tool in ["prose.link", "prose.unlink"] {
+        let schema_str = catalog
+            .descriptor(link_tool)
+            .unwrap()
+            .input_schema
+            .to_string();
+        assert!(
+            schema_str.contains("\"asset\""),
+            "{link_tool} schema must allow kind = \"asset\""
+        );
+    }
+
+    // 2. Action binding: `home` follows `accept` (`kernel-v5.md` §16).
+    let home_target = f.out(
+        "entry.create",
+        json!({"book": f.book, "title": "归宿目录", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    f.out(
+        "entry_template.put",
+        json!({
+            "book": f.book,
+            "template": {
+                "id": "tpl-v5-host",
+                "name": "收纳夹",
+                "level": true,
+                "linkable": false,
+                "modules": [],
+                "settings": {
+                    "accept": false,
+                    "home": home_target,
+                    "default_template": "tpl-chapter"
+                },
+                "verbs": [{
+                    "id": "verb-make",
+                    "name": "新建条目",
+                    "description": "新建一条目",
+                    "target_template": "tpl-chapter",
+                    "pos": "a0"
+                }]
+            }
+        }),
+    );
+    let folder = f.out(
+        "entry.create",
+        json!({"book": f.book, "title": "未收外部的层级", "template": "tpl-v5-host", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // When `accept == false`, `home` is ignored: the action creates a resident child (`parent`), not a member (`host`).
+    let cat_no_accept = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    let binding_no_accept = (*cat_no_accept
+        .actions()
+        .iter()
+        .find(|a| a.reference.level == folder && a.reference.verb == "verb-make")
+        .unwrap())
+    .clone();
+    assert!(!binding_no_accept.adds_membership);
+    assert_eq!(binding_no_accept.home.as_deref(), Some(folder.as_str()));
+
+    let actor1 = Actor::agent("v5-accept-off", 1, "act");
+    tools
+        .invoke(
+            &f.ws,
+            &f.book,
+            &actor1,
+            CallRequest {
+                name: "entry.get".into(),
+                arguments: json!({"id": folder}),
+                revision: None,
+                edited_text: None,
+            },
+        )
+        .unwrap();
+    let made_resident = tools
+        .invoke(
+            &f.ws,
+            &f.book,
+            &actor1,
+            CallRequest::for_action(
+                &binding_no_accept.reference,
+                json!({"title": "直接子条目"}),
+                None,
+            ),
+        )
+        .unwrap()["output"]
+        .clone();
+    assert_eq!(made_resident["parent"], json!(folder));
+    assert!(
+        !f.out("membership.list", json!({"book": f.book}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == folder)
+    );
+
+    // Turning `accept` on activates `home`: action revision changes, `adds_membership == true`,
+    // and invoking the action places the entry under `home_target` while attaching it to `folder`.
+    f.out(
+        "entry.update",
+        json!({"book": f.book, "id": folder, "overrides": {"accept": true}}),
+    );
+    let cat_accept = tools.catalog_for_book(&f.ws, &f.book).unwrap();
+    let binding_accept = (*cat_accept
+        .actions()
+        .iter()
+        .find(|a| a.reference.level == folder && a.reference.verb == "verb-make")
+        .unwrap())
+    .clone();
+    assert!(binding_accept.adds_membership);
+    assert_eq!(binding_accept.home.as_deref(), Some(home_target.as_str()));
+    assert_ne!(
+        cat_accept.descriptor(&binding_accept.id).unwrap().revision,
+        cat_no_accept
+            .descriptor(&binding_no_accept.id)
+            .unwrap()
+            .revision
+    );
+
+    let actor2 = Actor::agent("v5-accept-on", 1, "act");
+    tools
+        .invoke(
+            &f.ws,
+            &f.book,
+            &actor2,
+            CallRequest {
+                name: "entry.list".into(),
+                arguments: json!({"all": true}),
+                revision: None,
+                edited_text: None,
+            },
+        )
+        .unwrap();
+    let made_member = tools
+        .invoke(
+            &f.ws,
+            &f.book,
+            &actor2,
+            CallRequest::for_action(
+                &binding_accept.reference,
+                json!({"title": "外挂成员条目"}),
+                None,
+            ),
+        )
+        .unwrap()["output"]
+        .clone();
+    assert_eq!(made_member["parent"], json!(home_target));
+    assert!(
+        f.out("membership.list", json!({"book": f.book}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == folder && m["member"] == made_member["id"])
     );
 }

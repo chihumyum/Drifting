@@ -3,6 +3,7 @@ source: crates/dr-agent-tools/tests/catalog.rs
 expression: table
 ---
 asset.get [read] Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
+asset.list [read] List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted.
 asset.move [write] Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.rename [write] Rename a live asset in the built-in asset library.
 asset.restore [write] Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted).
@@ -14,13 +15,14 @@ asset_folder.rename [write] Rename a folder of the asset library.
 asset_folder.restore [write] Bring a folder of the asset library back from Recently Deleted with what went there with it (to the top when its parent is still in Recently Deleted).
 asset_folder.trash [write] Move a folder of the asset library to Recently Deleted with everything in it (its files and folders), in one step: places using those files read as placeholders.
 book.get [read] Read book metadata and project word targets; aggregate counts use the statistics adapter.
+book.sequence [read] Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start).
 book.update [write] Update selected book metadata fields without replacing other book data.
 book.writing_days [read] A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 comment.anchors [read] The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
-comment.create [write] Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating. Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.
+comment.create [write] Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating. Targets an entry, any module of an entry, a module sub-part (field, kv_row, plot_cell, patch, media, embed), a prose block or passage, an asset-library file (with optional region), or floating. Read the target or module first; read exact source prose before anchoring (a block needs that paragraph; ranges, anchor bytes, and embeds need the full document).
 comment.list [read] List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo). Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.
-comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose.
+comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose. Comments have no priority. Resolving or reopening a checklist comment (origin = "task") ticks or clears the item in its source prose; read both the comment and that prose document first.
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -44,6 +46,9 @@ fact.put [write] Add a project fact or change one (key, value, position).
 fact.remove [write] Remove a project fact.
 history.points [read] List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
 history.preview [read] Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
+layout.clear [write] Clear entry coordinates (or the whole `<scope>/<mode>` view) in `layout:<book>` (not undoable; leaves the book document untouched).
+layout.get [read] Read the free-canvas coordinates stored for a `<scope>/<mode>` view in `layout:<book>`.
+layout.put [write] Set entry coordinates in a `<scope>/<mode>` view of `layout:<book>` (not undoable; leaves the book document untouched).
 membership.add [write] Add or order a membership without moving its residence.
 membership.list [read] List valid memberships in a book.
 membership.primary [write] Choose an existing membership as primary, or clear the primary membership.
@@ -56,26 +61,35 @@ memory.update [write] Change a Project Memory entry's text, kind or status.
 module.list [read] List an entry's current and retained modules and their registered prose documents.
 module.put_grid [write] Replace the rows, columns, cells and size of one plot module.
 module.put_kv [write] Add or update an ordered key/value row in a module.
+module.put_media [write] Add or update an ordered file item in an entry's media module.
 module.put_patch [write] Create or edit the text of a patch module record, preserving its source reference.
 module.put_relation [write] Associate an entry with a live endpoint through its relations module.
 module.read [read] Read a current or retained module and its structured content; a children module reads what lies below the entry.
 module.read_prose [read] Read an entry's or a template's prose module with block IDs and version.
 module.remove_kv [write] Remove a key/value row from a module.
+module.remove_media [write] Remove a file item from an entry's media module.
 module.remove_patch [write] Remove one patch record without deleting relations or other entries.
 module.remove_relation [write] Remove one relation projected in an entry's relations module.
 module.replace_prose [write] Replace an exact passage in an entry's prose module, addressed by block ID.
+module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
 module.set_prose [write] Write paragraphs of an entry's or a template's prose module.
-prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
+project.get [read] Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.
+project.update [write] Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.
+prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 prose.read [read] Read paragraphs of a prose document (text, block id, heading level).
 prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore [write] Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape [read] Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).
-prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
+prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 recent.list [read] List this device's live pages, retaining each entry's selected module.
 relation.create [write] Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
 relation.delete [write] Delete one canonical relation without deleting either endpoint.
 relation.list [read] List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
+tab.move [write] Change a left-sidebar tab's position (「全部」 included).
+tab.put [write] Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab.
+tab.remove [write] Remove a left-sidebar tab (not what it mounts); 「全部」 stays.
+tab.select [write] Remember the left-sidebar tab the project is on, for every device (kept in `layout:<book>`; not undoable; leaves the book document untouched).
 timeline_view.delete [write] Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit.
 timeline_view.list [read] List timeline views with their effective lanes, placements and time pins.
 timeline_view.place [write] Place or move an entry in a timeline, optionally joining a lane in the same commit.
@@ -85,91 +99,104 @@ timeline_view.remove [write] Remove an entry from a timeline lane and prune posi
 timeline_view.remove_pin [write] Remove a time pin from a timeline view.
 
 Schema and facade revisions:
-asset.get shared 79ab5e9a5647a97ec18cc8faf20a38d44c4050255da039cb1113b52201c8fcd8
-asset.move book 9747cfcd70efa2e07d6b0b88f5eb80eaf8e77b731820a94dedad0a70d947d56e
-asset.rename book 0d99dea52617c118145d8da7716b5dfe05eeb866c85a4a9d39fb463801ec673a
-asset.restore book f417a0d8d504924c302690b81ee89a3d430ae340af7fc6b4d5ba4706a3daea72
-asset.trash book a354ecaf7cb70406b0fcff636b5222d82d64f66a3a453183f2c08e07163ca060
-asset_folder.create book 75a58bf409b8580ee3c096aa5c8aa01f80a27b1fb09585d998b442a599831d58
-asset_folder.list shared 032dfb612280f19c4931eb6aeff6762fa7cc30374747002573c893ca2220fe64
-asset_folder.move book 80a55fe7352683cbef84bc5f62e7869391c94ed86ded143785501b75627f16c9
-asset_folder.rename book 20aad52af61c2620aa126d5903a98917f97fe97fa7066ed83b09e597ef4f8d57
-asset_folder.restore book ccd699719f139201deffcecf2e1e83c11eb2891a7a9e31939955be8c335788bd
-asset_folder.trash book 903af847fb190ea5032fb114c708c1901cbaf73b9dde0367259fdd070b4d53e5
-book.get shared 7aa7dad72cc42adaea132950a7e50ab758a08978ac83e2b7da205924c46f55d1
-book.update book 9a90277657c4441ee61bc8c4cb8ccda16ae8bd0eea2307ce5466e07125dd16e6
-book.writing_days shared 7456fa20c292ff01ba5948cbf25cf60c4419d0c70a0beccb8ccacac14a6c9c6d
-comment.anchors shared 6037013e3822f940bf6e909320a500a43e849931fa263b3f288d524f512b3296
-comment.create book 168f9a5cda769b7c1a8eb8e202d902f8e80e7c5489fabb0b1ce72759b0e7c119
-comment.list shared 25674570b1c65455880c21a29890f662eb1c3ccd4c80972f7cba826bf9a65512
-comment.reanchor book c5c6f8bce23e7fcc0847ad7bd037eefd0fdd8126929be3cef96cae3cc2cb4163
-comment.update book 7e2bbcfc1056042113d24e2b6d4fd404d6ddf4ad4a65033e32e2882e3cf91992
-entry.create book 7a8d42c91ad7f0b6e13ebe4170beaa322e1ed51dca7594e3d891775ab8ce681d
-entry.get shared 5fa15156628ac4d9cfad9da5fa61c1b6914878cf0fe53e81972694ef97f97094
-entry.list shared d399a45cf1a6fef24d722f2d0fdfc2f0bb9802fa5aa9152ffc2aed3d89d6671d
-entry.move book e05c9572c836ea0a9b74f1068d159c2ff9fde00c7e5247f8cf4f4849f8b44da1
-entry.restore book 98c91cc19a5727423eb8835270f0a4d4dc6beaf4fd4805b8c8b12f7a9fcf25af
-entry.set_level book b084bce61144fb93115c67c47b66de9bf4664136a8e22540c81d168d6b7bc570
-entry.trash book 75846ecda0176e96269ba2281dc5f8b04c8376076a6f060b85851df92aa18d17
-entry.update book a60103e4b347f411ac94a74a7c9c4feaf82601e8e44a9d8f6ec50b00ec2cc32c
-entry_history.restore book c9507bba5727bee3c1b6dd38316bc09c5b06dcd84b6ab7b5ead5adb6cfd0cbfb
-entry_history.version shared e589c0a1a82e11d5257deca222107426f1bc70799a503124af8e92f6ba8d87e2
-entry_relation_type.delete book 941419186bf7719b675024dd57143835d12d870011b5727551d421c3e1904734
-entry_relation_type.list shared 2d9cb0c84e84e002ac76d85276dec733527391548b77b23ccf2a632b22c5abc1
-entry_relation_type.put book 620bd6fc8a188d829a0d6910b5aaa0565d085aa52d4cb1665defec56a563be74
-entry_template.delete book a34c42bb2335233e6a11ec1d2da0b28ab10a5c7fbd5a596d6092ae655bfa5d82
-entry_template.list shared febbf3447482cbd4ba16315511ecc3f876931b23941bdb264ed9e054d90da045
-entry_template.put book baef2a58fbe7718757d38cf6673000426a13b3a739cc34d69aa038cb0d347cef
-entry_template.put_module book ff104188b8bd3de9dbc53f78f544d180ed4e4d5a1c4a04904cdda2f6dead83e5
-entry_template.remove_module book 2c0a93b4410b1becab502c42ed3dfae63959483cef10215fc9df0f396c9fcf04
-fact.list shared aaad77f6d6ef8658fc346a42b712c4dc6b207432c4c9933badffb11a28237904
-fact.put book bd497225b6141d8401dfb419d7fac4d6271fec8850d1d4f1b4ff7c424f5dc96b
-fact.remove book 9e658b4da933807f426fa72955f9b12488475f7fbbded3a757b574cce469210c
-history.points shared bf7fbb478aa2b0c4192ba4a0d8ca02c812a6b8ccd507c3a21c570a58d49cbeeb
-history.preview shared f8fe9fb995ef568d74068721ea1aa9b7241331285d795985f4f309d2a04faddd
-membership.add book 7993fbeb388583b97a52bb05ca08cb2e02112165dd777df83dfff0e6f9d380d6
-membership.list shared cda946b6c802a15edf2d8168a7455d6f15271953e9dc64877187a88b2359b639
-membership.primary book a37bf7e039c207089492847727213375ffc13c5390953a879bcdbefb6702c3b8
-membership.remove book e01acf8f6d1157ee4fff2dd30a575088e09146d665d695bd2e4338086267276f
-memory.add book 4bbbb10403585df82f2d939517bc70955c7e4a7b36e0eb997a123ae27b0809fb
-memory.list shared c6786cddd95725d3f271a57cec91ddfa79cefaa986eee616ffb5efd3bd8237d3
-memory.remove book c41c6bf10a777f7bebd08f7f31133f642b93fd939ac4eca5bf67e62e6ca8b396
-memory.restore book 8d9d2e52fdc3a28a6548f45145ebdc6357b39adb5fd00c922aa5fb4dca3bef96
-memory.update book 52be2d020fc5da4965b6519b2965b16e75936cd951305c7a3bb5eb505273f032
-module.list shared ed0908291c4f9db59420aac36eef61b56a43ee74a8e945322f324ec6527cde18
-module.put_grid book 4fdb0b2ce4542d367554c530475049d76a5cd59689d0902bd79bd5ba5dd2bb4e
-module.put_kv book 7340170b3fec2382306f19ab03fe141e13149f581e891307f8d91ffdbd8c4197
-module.put_patch book 84cb1e99042c9a21e153a09774598e0edc7ae22c2e4296a387cf8bb433c99d80
-module.put_relation book 71749a75394e1a0d39cf3a97e4163d5aeaa947c9bdc99f3667a8469a7a4fbc7c
-module.read shared 930012823c173b646608bf8451d1e1aeb834b6ed52c970b607fdba7c3c39a7e9
-module.read_prose shared a6518479d09fa8637ab28ca288066c314193cc61d1415c93df3e343271ff3e8d
-module.remove_kv book c6d1352977661fa9e411c6e1268c716cf6297000184efb96d85e24220dd42460
-module.remove_patch book ffeafb086b827f15ec82f7429eb791d304bb3cabb310981c29ad09ba7e02ae7f
-module.remove_relation book ad0a0133f4008380d509da3afa73769520249691be6c664bfe623f2997e414ac
-module.replace_prose book e581a5caa6580bda940fa72441653e04e5f39221b347e198d3b82f6727e348de
-module.set_field book b54533bb4286e0188bf353fc7237116bf1cb4a53e89f414997cf37409f7f80df
-module.set_prose book 777d32d1c4f404cf9263135f6c19b8b28058adb74cdb925ae230aadb09e524da
-prose.link book 6c03a9a67d332f49af1ec3c40f90a71d79bec4589b1a471ca0690e6a1f1f5824
-prose.read shared 1f00cfcf0d0b223435c53a2520fd5d3cd8a9ca87303b1b3d3fee400916de486d
-prose.replace book 0a4a1a7d57351546552a8c9a1fb1e19cd3bd3d8fe974dfb820810729a5b77e9e
-prose.restore book 934bad1bf84f97302d2d488c41c7dd2ad571923c8aee94c06cebdedf9d4e75be
-prose.shape shared 739c311cb68e52e7869885390aa8950476a43b6e30f962408880c48c2458c63e
-prose.unlink book 3457b6a41761025177ffb71174c995f5191c7781664c29377dfc5c879a6a2292
-recent.list shared 16d9f49bf144526e2694761d2b79c2969bb2662e828d97878ef857ad58f65e33
-relation.create book 58b8d33e8f2e30658a54f582007d9a33c7598d2ac405196c288d4f9760aacc48
-relation.delete book 38e9aeb387fbdc4765e551185d7adf6db563ad874787e3175879ded13e5dd9f2
-relation.list shared 85bf594247813bf28d250bdeda8e75c367a3b3a1b42563f6dbd02f86ce33d01d
-timeline_view.delete book 241c9d9428f7fd503f1903c1b72e121d9d88d70a16fc7d10fd67f6709fcd42bf
-timeline_view.list shared 5d80340a9dcd06dfaba8459dd7eec8d9efa14a875d71ea1c097e3be504d1d573
-timeline_view.place book 5232e93553459479256a2094963227d886765d8ca21cac90d1d04be92253def6
-timeline_view.put book bd6f37b6f3baf358cd68b0ec50c884657f08dc6d0dc617b0af12240d67b0a4ee
-timeline_view.put_pin book 2b9ed8adb1c67743683fd508fa0efac1c17ecb16176e9ec14c2f84ccac8a6790
-timeline_view.remove book 41edb28b3ff5a9d0c140d58fe3faef3b42991323caa8a81263b6258bfdc27a9c
-timeline_view.remove_pin book cc25490f33a9fef480568b9e42108e475e2c36ef1ff60b31b7987f686341e837
+asset.get shared 5636ea62e2ad2089054b7016ff1c7e69b1e2a503678f1114179363c1a7431436
+asset.list shared a387fc83c161791490f184501d81a9f1b1c3d6d0e1e6127af3f124fcf05c927c
+asset.move book 917ce4fd0e2aa2b57e0a99a423c3a98747ad3519c17d8a0c9e83924e48651c2f
+asset.rename book ea3ee0da64dbeb8bfb529ec2aeda15731ba5b4f4956f14a0cabb19814f6131a6
+asset.restore book b21a02b4edde7a744e324b912a97bd5a640caec6db07766001eaed72a7dc3c06
+asset.trash book 24b5c3517f5ab9fb1c0fcf95f5de6b26d8439c11f4b7510594228cdec68d4312
+asset_folder.create book 97c439a029dc9b712412a57a8389e15cfe4e82fcb113eb2ed3a7fa4e112e8740
+asset_folder.list shared 0103b0b7885ba5463f85367f107f980e081c08a15a4e57af1666c2ce81a74a0a
+asset_folder.move book a6687d6d97011648d102c3843e5a7055052028bc049791bf3883b9854f5b316a
+asset_folder.rename book 1c92033f8dcf73f2b5fcceab6a17f167ce57c6f5e48d538311681d11fb5da9a1
+asset_folder.restore book 87d66f0d66fe1660dad31c88bb3fb09eab501576f4c6d0d345be9e76b68f179f
+asset_folder.trash book 2c53c7dfed9e6d458560de675938a1948e72f24a886b64677dfcbf5dee797f59
+book.get shared 3405b89fc23a4ce7c0d8663d8c6e9c8a1179e5e57f1b018c3a76b9aab9c425de
+book.sequence shared cec248df260da57e83a0484083c88079e41d6b895e99a7880aa3b85199a8fd95
+book.update book c9b8c91de4f1331368b187db91a606e226dbf69490048290efecfd7a54f5448f
+book.writing_days shared 1666501ae181dc1e83a34e6f26a03fc9a21240aa81f61d2827cb860bc719b4fd
+comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074df16492
+comment.create book aa339605fe6da60a590d0e5a7bd86f62f5994fa964f3ef42cc296e242a3eb6bf
+comment.list shared ae0fdef4558836127a6a4a8401805cd5b942625642e4c1dd0360a79cec1c9a5d
+comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
+comment.update book 9aadab8b09dce93e060be53e648f7fe54af33b21761e96c6b997ef07da38598c
+entry.create book e3ee31980a40aa629bf50e242f7ad13e80fdacc38dfbd7c1d1103bc986f8025a
+entry.get shared bc1d45c49c5ad12ecb21e6c534dc2eeb7ade3f39303bd0b9553eb6b133030a0d
+entry.list shared 47d92c9006f514ec9460d4699ba092f31cc46225012ccc92db0470a78d270b80
+entry.move book 58379416e12ecc6dacc5f1b77339c6c013a82eb904d0750f571e7ec3536ad384
+entry.restore book f1d264ca48c651e7b29eb82bd4937e30411cf35a2b9d10f5f1cd21dc63fa38e3
+entry.set_level book e642a1caeba7f5395ffa5c12f9f9366485c7e8380f9b65501909bcccaf07c706
+entry.trash book 6db569ddb41f851f424706d3a94d226c120a8335ea214b3d91497a68b3f978c5
+entry.update book fd719d8c8b0299db4068d986160e8ea6b24df78a56c4dddd113c03a3b91818ff
+entry_history.restore book 8e30901c5b77baf10f20cfa9715e3ef7066da666821f695a864b83631103552a
+entry_history.version shared 7e44de6e649ef11baa8301ba3abbd27e362c92ca4fef8614f52c224f86601061
+entry_relation_type.delete book aebb7c65e3151a21e9ca7f339c60d584f9163b8e04ad7bb71062ac0031d09eee
+entry_relation_type.list shared bc8010cba9548919e2ea344fa4beae5007baf06e83f81ec3f7bf400cf7aeef7d
+entry_relation_type.put book 883826995b316a9a6c0db20ae6461e98127fb1bfc97e94db4426c6b20df6abef
+entry_template.delete book 84979ba761e4dcac504742e5350b90603446d8c85cef2e43034dce7003f44153
+entry_template.list shared 6e0a41b7e01c12df1a5f9c8cd4e41f61c6344ae306f8f51d2e7d990551a4fa1f
+entry_template.put book 82f4fcfe521f51f271d7ee6b1934b8b5ce265b2dccc3e332acf2846d79e8d2ac
+entry_template.put_module book 8ef3caf0ad031e286d6709d905dd43cea7e6f3d23ebb9234d3702c312efcd839
+entry_template.remove_module book ba84522d8e119ee7846ee863bfe37bafb47f72127777a8d4bbb25012a010e259
+fact.list shared e2d49a51c2919cc6efe73de9f4b40c6be5d99c7181eeda8275eda7a84757b5b3
+fact.put book 1d3a75b204a8c2d66a720c95795ae194b6ca602d630943b3ebc836266cb1d275
+fact.remove book c409f36dd05bbd47f587982ac07bb3fddd83444a72a64788656f20f9270b573d
+history.points shared 4b9dc6d19330ffe072343c3cdab30be0e29988ed7607887dbd54713175c2c21e
+history.preview shared f5f38d9382059ab9aef51eceea854c9ad3c3f408171881604937523337e38dcd
+layout.clear book f6775ddd946d8c0f4a1b34db93b4a8546ac3d68fc7161abf8c861b938776a7ab
+layout.get shared 6831c493a4da4c581189faa79b7a4bbee66c02cb0ee7e84413b103c7464cc514
+layout.put book fb45a5159f6b258f6f142de63367f7b2e99430138347ad15f83b78a9a3611cff
+membership.add book 539d5aa23f8ae808773deb6bdd5928e56cf83bc7cb89cd9c27cadf44b4913c1d
+membership.list shared bacac8a2ad623fa69ac95dddf9dc1070f488800a89671acfc96c893c43199707
+membership.primary book 4aafd64a127be2ecc869332be6f03448587763742c1b8a91647cad7755a7bee4
+membership.remove book 447ba341928292c3bed8d723a2a135d963850cea3bbcd8d66a326d2d7d8df5bb
+memory.add book 96660d42bfaeec661f24bb3317a70563934bbbde51e0edb1a9c730059b296b2d
+memory.list shared 8ae87febf1de7b1108727e7a712a020424323515f87bb05b9af2bd7569dc474d
+memory.remove book a8de0c4df5da6f8709d7ec997add33ebfe1dbb97a23b203a9dd0d90a0c7b2c87
+memory.restore book 9dcef1985d30bb672ccfb047040e76d82ca9d3f9c7483967874f62300818fd08
+memory.update book 06f4c47b3698d4adbc01adaedce93701094eea63f4c0c0aa172237736d319e31
+module.list shared e6ed92badf732f7db0b9f6fd0fbfbb9de794705de89e0002fd064eac9bbbf6fd
+module.put_grid book 4e9cbeeab33d91bab93970f252ce9168d0da366de76dc11460440a024aa32bf9
+module.put_kv book f6df6208b79bf751fff2ad001bf3b72e49a94e7c48f1825183932db82fca6eed
+module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc76330d
+module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
+module.put_relation book 6c58d5ad0245c9628ead52a2417d4128f8d00931ee1d96a3c78f8c1eac838b27
+module.read shared e332c220d374d16b14387ad0f9ba9b7f8a3dd95ed9cc1b4531fce04df3680265
+module.read_prose shared 250ce3bcbbe6bcf0da07ea3314af6a22e735a57c52338dc6b0a4d86f41ce770f
+module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
+module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
+module.remove_patch book b2496984384d9ab6e800d68bc25cd1c4bc80f17bb8df7bc60d529665e8393757
+module.remove_relation book f6feacd2cf1fff9c7b1a6d23dee8b55725ade5a91165fa00dbf536f48c985564
+module.replace_prose book 361c1bd302fe4686ec8f8436f775f745cc53d462662430b50e2a831a4c2c4dd3
+module.set_arrangement book c8baf155d081545d2e0ec82afb21683e91b57eefaa9b93a548da03a68d0175cc
+module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845989258
+module.set_prose book 64ae28c4a64983a8c7c747c5f878afa354f8b96b5fb33b3bb395ca08aa8f551c
+project.get shared 6cf53f13ecc5a55b0a2f78072624b7c3b165f2a1fc4c6945d3ae304b9b435320
+project.update book 60ae8e1ce3c04396a76576e6eb7fa73d6e2dfef42de7952fa58f05decdb296af
+prose.link book 5e611d1d29d83cfbdb6617bc5ab4a556e8033b72ddc377c108d8d69b8c10ab7a
+prose.read shared 3dd0218c218770d03d38c33a2b264717b3464caaad18d0e3648c46b09524ac9d
+prose.replace book b0591c896fc08245ca4e332124d791755507388cceb727caae65f527fbfe068f
+prose.restore book 74a6b009a098de0e87f1c44b27f65c1a1c111286e8aba3e56ab7cbe39b62efd1
+prose.shape shared 05387f9196c7c9346e7d57241e24f4648686980238fcd7030d508724784b9b74
+prose.unlink book f6279992b5d4c74a1d5a89ac679f0ec95de1051fff95660d497b6ff7a94d15de
+recent.list shared bc76196f15de079012bdd643cac937fc642bb0303bc43e622f34d7d7ac85cdee
+relation.create book 64fb9ce696969f3ee3aa08594088bf2334e05e841c204bab4bb69c3dd414ea47
+relation.delete book 299194e7cd97ba2f752b279ee5aee42c8e9432dd861cece7e9a7abf01a00b0ff
+relation.list shared 869f55fb4ca4702d9c1d1d0b7a6d7fe1e59da3ba334e9bcf11ed685e953b91e0
+tab.move book b6cd2dba62c3e344b71bbc75972b479cb4bbbb1aa19cc70a0dcb699011f003d6
+tab.put book b50ce20409d7f308f2fdc47cbe57772ce73e398855d18409104cdfd95efd533a
+tab.remove book 90d9b01d82dbef8c8ad02786dfbd2c7f049cb4f32b8ee2fd44c1944ed6430fdb
+tab.select book c933d5b670c7ee7c993e72556e0e9c651943aeb204603a04d05cb906672dbd01
+timeline_view.delete book 2ab28f4527029ad44d26013c95865afe86efe2e3b71f63ffa78737633815073e
+timeline_view.list shared d0667c9b4a558b04b32134208486cc51afe858f6af6b329eb3d0ae2f2e13ad99
+timeline_view.place book f30b36fa0c3148798c05b13eb4f0018ffc1b8fd21c2b707a0f45c5886cf7d2a2
+timeline_view.put book 5db5065da7964ad62483966207785699594931cf9f18c380c4c89cddd940a5d4
+timeline_view.put_pin book 119101034ed5c312105086e6f6f29eae7bc66848f8d0a5a32c6c9ec441e8a2cc
+timeline_view.remove book 3f4bd9722c0357dde8b16cc87079f5b1070812d11434661261d3755cbac1f707
+timeline_view.remove_pin book 052b2d3b2b7d381df822fca46514637b9982fad3bfd76fc33bb904b6b7a4d7c2
 
 
 Excluded registry operations:
-asset.list: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 asset.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 asset.put: storage, editor, or derived-state maintenance
 asset_folder.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
@@ -177,7 +204,6 @@ book.list: no current-book input boundary
 book.purge: library-wide lifecycle operation
 book.purge_expired: library-wide lifecycle operation
 book.restore: book lifecycle belongs to the library
-book.sequence: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 book.shelf: no current-book input boundary
 book.trash: book lifecycle belongs to the library
 comment.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
@@ -189,24 +215,17 @@ entry_snapshot.list: entry snapshots need facade coverage and guarded whole-entr
 entry_snapshot.preview: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.restore: entry snapshots need facade coverage and guarded whole-entry restore wiring
 history.restore_point: history restore labels require an atomic guarded owner hook
-layout.clear: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-layout.get: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-layout.put: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 membership.restore: scoped membership undo is internal until K6 provides a guarded facade
 module.edit_kv: field edits belong to a view that showed the field; use the record commands
 module.edit_patch: field edits belong to a view that showed the field; use the record commands
 module.prose_document: storage, editor, or derived-state maintenance
-module.put_media: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-module.remove_media: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-module.set_arrangement: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 project.create: library-wide lifecycle operation
-project.get: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-project.update: project, tab, media, layout, and book sequence commands need T7 facade read coverage
+project_template.get: no current-book input boundary
+project_template.list: no current-book input boundary
+project_template.remove: library-wide lifecycle operation
+project_template.save: library-wide lifecycle operation
+project_template.update: library-wide lifecycle operation
 recent.touch: storage, editor, or derived-state maintenance
-tab.move: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-tab.put: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-tab.remove: project, tab, media, layout, and book sequence commands need T7 facade read coverage
-tab.select: project, tab, media, layout, and book sequence commands need T7 facade read coverage
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.move_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.remove_lane: local timeline edits need exact lane, placement, and pin read coverage

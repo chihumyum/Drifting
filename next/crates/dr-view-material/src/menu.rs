@@ -1,6 +1,6 @@
-//! Material page actions from the 0.1 `MaterialEditorView`: open the
-//! original file, pick (or create) a folder, and confirm deletion. The
-//! shell supplies the ⋯ menu and closes deleted pages through its watch.
+//! File viewer (`MediaPage`) `⋯` menu actions: open the original file in the
+//! system, move to an asset folder, or move directly to Recently Deleted
+//! without a confirmation dialog (`v5-tracks.md` lines 399, 413, 414).
 
 use std::{path::PathBuf, rc::Rc};
 
@@ -32,13 +32,13 @@ pub(crate) fn register(cx: &mut App) {
     dr_shell::pages::add_page_menu(cx, sections);
 }
 
-/// The material's own section. Notes have no external-file action.
+/// The file viewer's own `⋯` menu section.
 pub fn sections(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<PageMenuSection> {
     let Target::Material(id) = target else {
         return Vec::new();
     };
     let id = id.to_string();
-    let Some(material) = host.book.material_items().iter().find(|m| m.id == id) else {
+    let Some(material) = host.book.material_info(&id) else {
         return Vec::new();
     };
     if host.library.is_none() {
@@ -58,25 +58,11 @@ pub fn sections(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<PageMenuS
         }
     };
     let mut items = Vec::new();
-    if host.book.v3().is_some() {
-        let host = host.clone();
-        let id = id.clone();
-        items.push(PageMenuItem {
-            id: "material-entry-links".into(),
-            icon: RowIcon::Brush(Icon::Plus),
-            label: t(cx, keys::references_panel::sections::RELATIONS),
-            checked: false,
-            danger: false,
-            run: Rc::new(move |window, cx| {
-                crate::associations::show(host.clone(), id.clone(), window, cx)
-            }),
-        });
-    }
     if matches!(material.kind.as_str(), "image" | "pdf") {
         items.push(item(
             "material-open-original",
-            Icon::ArrowOut,
-            t(cx, keys::editor_top_bar::menu::OPEN_MATERIAL_IN_SYSTEM),
+            Icon::GateOut,
+            t(cx, keys::v5_files::OPEN_IN_SYSTEM),
             false,
             Action::Open,
         ));
@@ -84,14 +70,14 @@ pub fn sections(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<PageMenuS
     items.push(item(
         "material-move",
         Icon::Folder,
-        t(cx, keys::editor_top_bar::menu::MOVE_MATERIAL_TO_FOLDER),
+        t(cx, keys::v5_files::MOVE_TO_FOLDER),
         false,
         Action::Move,
     ));
     items.push(item(
         "material-delete",
         Icon::Trash,
-        t(cx, keys::editor_top_bar::menu::DELETE_MATERIAL),
+        t(cx, keys::v5_files::MOVE_TO_TRASH),
         true,
         Action::Delete,
     ));
@@ -106,11 +92,9 @@ pub fn source_path(
 ) -> Result<PathBuf, String> {
     let loaded = dr_shell::book::Book::load(lib, book).map_err(|e| e.to_string())?;
     let asset = loaded
-        .material_items()
-        .iter()
-        .find(|m| m.id == material)
+        .material_info(material)
         .and_then(|m| m.asset.as_deref())
-        .ok_or("missing asset metadata")?;
+        .unwrap_or(material);
     let record = lib
         .library()
         .asset(asset, dr_store::asset::Variant::Source)
@@ -131,27 +115,63 @@ enum Action {
 }
 
 fn show(mut action: Action, host: PageMenuHost, id: String, window: &mut Window, cx: &mut App) {
-    if matches!(action, Action::Open) {
-        let Some(lib) = &host.library else { return };
-        match source_path(lib, &host.book_id, &id) {
-            Ok(path) => {
-                cx.open_with_system(&path);
-                return;
-            }
-            Err(error) => {
-                action = Action::Alert(tf(
-                    cx,
-                    keys::memo_material::error::OPEN_FILE,
-                    &[("error", &error)],
-                ))
+    match action {
+        Action::Open => {
+            let Some(lib) = &host.library else { return };
+            match source_path(lib, &host.book_id, &id) {
+                Ok(path) => {
+                    cx.open_with_system(&path);
+                    return;
+                }
+                Err(error) => {
+                    action = Action::Alert(tf(
+                        cx,
+                        keys::memo_material::error::OPEN_FILE,
+                        &[("error", &error)],
+                    ))
+                }
             }
         }
+        Action::Delete => {
+            let Some(lib) = host.library.clone() else {
+                return;
+            };
+            let book = host.book_id.clone();
+            let handle = window.window_handle();
+            let host_for_err = host.clone();
+            let id_for_err = id.clone();
+            let task = cx
+                .background_executor()
+                .spawn(async move { folders::delete(&lib, &book, &Selection::material(&id)) });
+            cx.spawn(async move |cx| {
+                if let Err(error) = task.await {
+                    log::warn!("material delete failed: {error}");
+                    let _ = cx.update_window(handle, |_, window, cx| {
+                        let msg = t(cx, keys::material_editor::DELETE_FAILED);
+                        let dialog = cx.new(|cx| {
+                            MaterialDialog::new(
+                                Action::Alert(msg),
+                                host_for_err,
+                                id_for_err,
+                                window,
+                                cx,
+                            )
+                        });
+                        dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.into());
+                    });
+                }
+            })
+            .detach();
+            return;
+        }
+        Action::Move | Action::Alert(_) => {}
     }
     let dialog = cx.new(|cx| MaterialDialog::new(action, host, id, window, cx));
     dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.into());
 }
 
-/// One window's material dialog; writes finish before it can be closed.
+/// One window's material dialog (folder move or error alert); writes finish
+/// before it can be closed.
 pub struct MaterialDialog {
     action: Action,
     host: PageMenuHost,
@@ -236,11 +256,7 @@ impl MaterialDialog {
                     Ok(()) => d.close(cx),
                     Err(error) => {
                         log::warn!("material page action failed: {error}");
-                        d.error = Some(if matches!(d.action, Action::Delete) {
-                            t(cx, keys::material_editor::DELETE_FAILED)
-                        } else {
-                            error.into()
-                        });
+                        d.error = Some(error.into());
                         cx.notify();
                     }
                 }
@@ -280,17 +296,6 @@ impl MaterialDialog {
             cx,
         );
     }
-
-    pub fn confirm_delete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !matches!(self.action, Action::Delete) {
-            return;
-        }
-        self.write(
-            |lib, book, id| folders::delete(lib, book, &Selection::material(id)),
-            window,
-            cx,
-        );
-    }
 }
 
 impl Render for MaterialDialog {
@@ -310,19 +315,22 @@ impl Render for MaterialDialog {
             .upgrade()
             .map(|w| w.read(cx).book.clone())
             .unwrap_or_else(|| self.host.book.clone());
+        let asset_id = book
+            .material_info(&self.material)
+            .and_then(|m| m.asset.as_deref())
+            .unwrap_or(&self.material);
         let mut dialog = match &self.action {
             Action::Move => {
                 let current = book
-                    .material_items()
-                    .iter()
-                    .find(|m| m.id == self.material)
+                    .material_info(asset_id)
                     .and_then(|m| m.folder.as_deref());
-                let choices = Tree::new(book.material_folders(), book.material_items(), None)
-                    .choices(
-                        &Selection::material(&self.material),
-                        current,
-                        &t(cx, keys::material_folders::ROOT),
-                    );
+                let choices =
+                    Tree::new_ordered(book.material_folders(), book.material_items(), None)
+                        .choices(
+                            &Selection::material(asset_id),
+                            current,
+                            &t(cx, keys::v5_files::TOP_LEVEL),
+                        );
                 let p = Theme::of(window, cx).palette;
                 let mut list = div()
                     .id("material-folder-choices")
@@ -364,58 +372,26 @@ impl Render for MaterialDialog {
                     );
                 }
                 let submit = entity.clone();
-                Dialog::new(
-                    "material-move",
-                    t(cx, keys::material_folders::picker::TITLE),
-                )
-                .width(380.)
-                .body(list)
-                .body(self.field.clone())
-                .action(
-                    Button::new("material-move-cancel", t(cx, keys::common::CANCEL))
-                        .disabled(self.busy)
-                        .on_click(cancel),
-                )
-                .action(
-                    Button::new(
-                        "material-create-move",
-                        t(cx, keys::material_folders::picker::CREATE_AND_MOVE),
-                    )
-                    .primary()
-                    .busy(self.busy)
-                    .disabled(self.busy || self.field.read(cx).text().trim().is_empty())
-                    .on_click(move |_, w, cx| submit.update(cx, |d, cx| d.create_and_move(w, cx))),
-                )
-            }
-            Action::Delete => {
-                let title = book
-                    .material_items()
-                    .iter()
-                    .find(|m| m.id == self.material)
-                    .map(|m| m.title.clone())
-                    .filter(|t| !t.trim().is_empty())
-                    .unwrap_or_else(|| t(cx, keys::common::UNTITLED).to_string());
-                let question = tf(
-                    cx,
-                    keys::material_editor::DELETE_CONFIRM,
-                    &[("title", &title)],
-                );
-                let confirm = entity.clone();
-                Dialog::new("material-delete", t(cx, keys::common::CONFIRM))
-                    .body(div().child(question))
+                Dialog::new("material-move", t(cx, keys::v5_files::MOVE_TO_FOLDER))
+                    .width(380.)
+                    .body(list)
+                    .body(self.field.clone())
                     .action(
-                        Button::new("material-delete-cancel", t(cx, keys::common::CANCEL))
+                        Button::new("material-move-cancel", t(cx, keys::common::CANCEL))
                             .disabled(self.busy)
                             .on_click(cancel),
                     )
                     .action(
-                        Button::new("material-delete-confirm", t(cx, keys::common::CONFIRM))
-                            .danger()
-                            .busy(self.busy)
-                            .disabled(self.busy)
-                            .on_click(move |_, w, cx| {
-                                confirm.update(cx, |d, cx| d.confirm_delete(w, cx))
-                            }),
+                        Button::new(
+                            "material-create-move",
+                            t(cx, keys::material_folders::picker::CREATE_AND_MOVE),
+                        )
+                        .primary()
+                        .busy(self.busy)
+                        .disabled(self.busy || self.field.read(cx).text().trim().is_empty())
+                        .on_click(move |_, w, cx| {
+                            submit.update(cx, |d, cx| d.create_and_move(w, cx))
+                        }),
                     )
             }
             Action::Alert(message) => Dialog::new("material-alert", "Drifting")
@@ -424,7 +400,9 @@ impl Render for MaterialDialog {
                     Button::new("material-alert-close", t(cx, keys::common::CLOSE))
                         .on_click(cancel),
                 ),
-            Action::Open => unreachable!("open resolves before showing a dialog"),
+            Action::Open | Action::Delete => {
+                unreachable!("open and delete resolve before showing a dialog")
+            }
         };
         if let Some(error) = &self.error {
             dialog = dialog.body(

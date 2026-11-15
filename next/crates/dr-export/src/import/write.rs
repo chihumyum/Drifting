@@ -217,6 +217,7 @@ fn lines(blocks: &[Block], quote: bool, callout: Option<&str>, out: &mut Vec<Lin
                 }
             }
             Block::Quote { blocks } => lines(blocks, true, callout, out),
+            Block::Image { .. } => {}
             Block::Break => out.push(Line {
                 text: String::new(),
                 attrs: BlockAttrs {

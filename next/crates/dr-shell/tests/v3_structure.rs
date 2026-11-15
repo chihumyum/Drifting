@@ -464,34 +464,48 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
         }
         assert_eq!(json!(shell.memberships), json!(structure.memberships()));
         assert_eq!(json!(shell.timeline_views), json!(view.timeline_views()));
-        let mut expected_media_ids: Vec<String> = structure
-            .entries()
-            .filter(|e| !e.is_trashed())
-            .flat_map(|e| e.media.values().flatten().map(|m| m.id.to_string()))
-            .collect();
-        // Library files no media module holds are materials of their own.
-        let placed: std::collections::BTreeSet<String> = structure
-            .entries()
-            .filter(|e| !e.is_trashed())
-            .flat_map(|e| e.media.values().flatten().map(|m| m.asset.to_string()))
-            .collect();
-        let mut unplaced: Vec<String> = view
-            .assets()
+        let mut expected_assets = view.assets();
+        expected_assets.sort_by(|a, b| {
+            dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id))
+        });
+        let expected_asset_ids: Vec<String> = expected_assets
             .into_iter()
             .map(|a| a.id.to_string())
-            .filter(|a| !placed.contains(a))
             .collect();
-        unplaced.sort();
-        expected_media_ids.extend(unplaced);
         assert_eq!(
             shell
                 .materials
                 .iter()
                 .map(|m| m.id.clone())
                 .collect::<Vec<_>>(),
+            expected_asset_ids
+        );
+        let expected_folder_ids: Vec<String> = view
+            .asset_folders()
+            .into_iter()
+            .map(|f| f.id.to_string())
+            .collect();
+        assert_eq!(
+            shell
+                .material_folders
+                .iter()
+                .map(|f| f.id.clone())
+                .collect::<Vec<_>>(),
+            expected_folder_ids
+        );
+        let expected_media_ids: std::collections::BTreeSet<String> = structure
+            .entries()
+            .filter(|e| !e.is_trashed())
+            .flat_map(|e| e.media.values().flatten().map(|m| m.id.to_string()))
+            .collect();
+        assert_eq!(
+            shell
+                .media_items
+                .keys()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>(),
             expected_media_ids
         );
-        assert!(shell.material_folders.is_empty());
     }
     ws.shutdown().unwrap();
 }

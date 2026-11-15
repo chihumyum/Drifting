@@ -54,10 +54,7 @@ impl Timeline {
                         theme.palette.ink(3).solid(),
                     ))
                     .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::Views,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::Views, e.position()));
                         cx.notify();
                     })),
             );
@@ -73,10 +70,7 @@ impl Timeline {
                 PanelIconButton::new("v3-place-entry", Icon::FileText)
                     .label(t(cx, keys::v3_timeline::PLACE_ENTRY))
                     .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::PickLane,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::PickLane, e.position()));
                         cx.notify();
                     })),
             )
@@ -87,10 +81,7 @@ impl Timeline {
                     PanelIconButton::new("v3-timeline-lanes", Icon::Layers)
                         .label(t(cx, keys::v3_timeline::ADD_LANE))
                         .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Lanes,
-                                at: e.position(),
-                            });
+                            this.popup = Some(Popup::new(MenuOf::Lanes, e.position()));
                             cx.notify();
                         })),
                 ),
@@ -121,7 +112,35 @@ impl Timeline {
                         .on_click(cx.listener(move |this, _, _, cx| this.select(id.clone(), cx))),
                     );
                 }
+                let is_view_book_root = self.view().is_some_and(|selected| {
+                    book.project.book.as_ref().is_some_and(|b| {
+                        matches!(
+                            &b.root,
+                            dr_workspace::commands::v3::types::BookRoot::View { view }
+                                if view == &selected.id
+                        )
+                    })
+                });
                 menu = menu
+                    .child(
+                        MenuItem::new(
+                            "v3-view-open-book",
+                            Icon::OpenBook,
+                            t(cx, keys::v3_shell::BOOK_VIEW),
+                        )
+                        .disabled(self.view().is_none())
+                        .on_click(cx.listener(|this, _, _, cx| this.open_book_view(cx))),
+                    )
+                    .child(
+                        MenuItem::new(
+                            "v3-view-set-book-root",
+                            Icon::Books,
+                            t(cx, keys::v3_timeline::SET_BOOK_ROOT),
+                        )
+                        .checked(is_view_book_root)
+                        .disabled(self.view().is_none())
+                        .on_click(cx.listener(|this, _, _, cx| this.set_view_as_book_root(cx))),
+                    )
                     .child(
                         MenuItem::new(
                             "v3-view-rename",
@@ -160,10 +179,8 @@ impl Timeline {
                         )
                         .on_click(cx.listener(
                             move |this, e: &ClickEvent, _, cx| {
-                                this.popup = Some(Popup {
-                                    of: MenuOf::Entries(id.clone()),
-                                    at: e.position(),
-                                });
+                                this.popup =
+                                    Some(Popup::new(MenuOf::Entries(id.clone()), e.position()));
                                 cx.notify();
                             },
                         )),
@@ -284,10 +301,8 @@ impl Timeline {
                     )
                     .on_click(cx.listener(
                         move |this, e: &ClickEvent, _, cx| {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Bind(pin_id.clone()),
-                                at: e.position(),
-                            });
+                            this.popup =
+                                Some(Popup::new(MenuOf::Bind(pin_id.clone()), e.position()));
                             cx.notify();
                         },
                     )),
@@ -352,6 +367,21 @@ impl Timeline {
                         ),
                 );
             }
+            MenuOf::LaneTemplates => {
+                for tpl in model::lane_templates(book) {
+                    let id = tpl.id.clone();
+                    menu = menu.child(
+                        MenuItem::new(
+                            SharedString::from(format!("v3-lane-template-{id}")),
+                            Icon::Branch,
+                            tpl.name.clone(),
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.create_lane(id.clone(), false, cx)
+                        })),
+                    );
+                }
+            }
             MenuOf::ActTrackTemplates => {
                 for tpl in model::lane_templates(book) {
                     let id = tpl.id.clone();
@@ -368,8 +398,82 @@ impl Timeline {
                         );
                 }
             }
+            MenuOf::LaneActions(lane_id) => {
+                let target_lane = lane_id.clone();
+                let accepts = book.accepts_members(lane_id);
+                let is_lane_book_root = self.view().is_some_and(|selected| {
+                    book.project.book.as_ref().is_some_and(|b| {
+                        matches!(
+                            &b.root,
+                            dr_workspace::commands::v3::types::BookRoot::Lane { view, entry }
+                                if view == &selected.id && entry == lane_id
+                        )
+                    })
+                });
+                menu = menu
+                    .child(
+                        MenuItem::new(
+                            "v3-lane-action-new-entry",
+                            Icon::Plus,
+                            t(cx, keys::v3_timeline::NEW_ENTRY_IN_LANE),
+                        )
+                        .on_click(cx.listener(
+                            move |this, e: &ClickEvent, _, cx| {
+                                if accepts {
+                                    this.popup = Some(Popup::new(
+                                        MenuOf::Entries(target_lane.clone()),
+                                        e.position(),
+                                    ));
+                                    cx.notify();
+                                } else {
+                                    this.create_entry_in_lane(target_lane.clone(), cx);
+                                }
+                            },
+                        )),
+                    )
+                    .child({
+                        let target_lane = lane_id.clone();
+                        MenuItem::new(
+                            "v3-lane-open-book",
+                            Icon::OpenBook,
+                            t(cx, keys::v3_shell::BOOK_VIEW),
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.open_lane_book_view(target_lane.clone(), cx)
+                        }))
+                    })
+                    .child({
+                        let target_lane = lane_id.clone();
+                        MenuItem::new(
+                            "v3-lane-set-book-root",
+                            Icon::Books,
+                            t(cx, keys::v3_timeline::SET_BOOK_ROOT),
+                        )
+                        .checked(is_lane_book_root)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.set_lane_as_book_root(target_lane.clone(), cx)
+                        }))
+                    });
+            }
             MenuOf::Lanes => {
                 let templates = model::lane_templates(book);
+                let mut new_lane = MenuItem::new(
+                    "v3-lane-new-lane",
+                    Icon::Plus,
+                    t(cx, keys::v3_timeline::NEW_LANE),
+                )
+                .disabled(templates.is_empty());
+                if templates.len() == 1 {
+                    let tpl = templates[0].id.clone();
+                    new_lane = new_lane.on_click(cx.listener(move |this, _, _, cx| {
+                        this.create_lane(tpl.clone(), false, cx);
+                    }));
+                } else if templates.len() > 1 {
+                    new_lane = new_lane.on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
+                        this.popup = Some(Popup::new(MenuOf::LaneTemplates, e.position()));
+                        cx.notify();
+                    }));
+                }
                 let mut new_act = MenuItem::new(
                     "v3-lane-new-act-track",
                     Icon::Plus,
@@ -383,14 +487,11 @@ impl Timeline {
                     }));
                 } else if templates.len() > 1 {
                     new_act = new_act.on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup {
-                            of: MenuOf::ActTrackTemplates,
-                            at: e.position(),
-                        });
+                        this.popup = Some(Popup::new(MenuOf::ActTrackTemplates, e.position()));
                         cx.notify();
                     }));
                 }
-                menu = menu.child(new_act);
+                menu = menu.child(new_lane).child(new_act);
                 let shown = self.view_scope();
                 for e in &book.entries {
                     if e.deleted_at.is_some() || !book.has_below(&e.id) {
@@ -461,9 +562,12 @@ impl Timeline {
         let label = t(
             cx,
             match &popup.of {
+                MenuOf::Views => keys::v3_timeline::VIEWS,
                 MenuOf::Bind(_) => keys::v3_timeline::BIND_ENTRY,
                 MenuOf::PickLane => keys::v3_timeline::SELECT_LANE,
+                MenuOf::LaneTemplates => keys::v3_timeline::NEW_LANE,
                 MenuOf::ActTrackTemplates => keys::v3_timeline::NEW_ACT_TRACK,
+                MenuOf::LaneActions(_) => keys::v3_timeline::LANE_ACTIONS,
                 _ => keys::v3_timeline::PLACE_ENTRY,
             },
         );
@@ -472,6 +576,7 @@ impl Timeline {
             .role(gpui::Role::Group)
             .aria_label(label)
             .max_h(px(360.))
+            .track_scroll(&popup.scroll)
             .overflow_y_scroll()
             .child(menu);
         Some(
@@ -490,12 +595,29 @@ impl Timeline {
     }
 
     fn rails(&self, lanes: &[model::Lane], cx: &mut Context<Self>) -> AnyElement {
+        let page = self.page_host();
+        let existing_lanes: std::collections::BTreeSet<String> = self
+            .view()
+            .map(|v| v.lanes.iter().map(|l| l.entry.clone()).collect())
+            .unwrap_or_default();
         let mut rail = div()
+            .id("v3-lane-rail")
+            .debug_selector(|| "v3-lane-rail".into())
             .w(px(model::RAIL))
             .flex_none()
             .h_full()
             .flex()
             .flex_col()
+            .can_drop(move |value, _, _| {
+                value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                    page.as_ref().is_some_and(|page| {
+                        drag.matches(page)
+                            && !existing_lanes.contains(&drag.entry)
+                            && page.book.v3().is_some_and(|b| b.has_below(&drag.entry))
+                    })
+                })
+            })
+            .on_drop::<EntryDrag>(cx.listener(|this, drag, _, cx| this.dropped_lane(drag, cx)))
             .child(div().h(px(model::RULER)).flex_none());
         for (i, lane) in lanes.iter().enumerate() {
             let id = lane.id.clone();
@@ -544,10 +666,8 @@ impl Timeline {
                     .label(t(cx, keys::v3_timeline::NEW_ENTRY_IN_LANE))
                     .on_click(cx.listener(
                         move |this, e: &ClickEvent, _, cx| {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Entries(id.clone()),
-                                at: e.position(),
-                            });
+                            this.popup =
+                                Some(Popup::new(MenuOf::Entries(id.clone()), e.position()));
                             cx.notify();
                         },
                     )),
@@ -595,6 +715,24 @@ impl Timeline {
                     })),
                 );
             }
+            let id = lane.id.clone();
+            let actions_id = format!("v3-lane-actions-{id}");
+            actions = actions.child(
+                div()
+                    .debug_selector({
+                        let actions_id = actions_id.clone();
+                        move || actions_id.clone()
+                    })
+                    .child(
+                        PanelIconButton::new(SharedString::from(actions_id), Icon::More)
+                            .label(t(cx, keys::v3_timeline::LANE_ACTIONS))
+                            .on_click(cx.listener(move |this, e: &ClickEvent, _, cx| {
+                                this.popup =
+                                    Some(Popup::new(MenuOf::LaneActions(id.clone()), e.position()));
+                                cx.notify();
+                            })),
+                    ),
+            );
             let id = lane.id.clone();
             let shown = self.view_scope();
             actions = actions.child(
@@ -711,10 +849,7 @@ impl Timeline {
                         if e.click_count() > 1 {
                             this.rename_pin(id.clone(), w, cx);
                         } else {
-                            this.popup = Some(Popup {
-                                of: MenuOf::Pin(id.clone()),
-                                at: e.position(),
-                            });
+                            this.popup = Some(Popup::new(MenuOf::Pin(id.clone()), e.position()));
                             cx.notify();
                         }
                     }))
@@ -727,6 +862,30 @@ impl Timeline {
             );
         }
         let mut content = div().w(px(width)).h_full().flex().flex_col().child(ruler);
+        if lanes.is_empty() {
+            let page = self.page_host();
+            let existing_lanes: std::collections::BTreeSet<String> =
+                view.lanes.iter().map(|l| l.entry.clone()).collect();
+            content = content.child(
+                div()
+                    .id("v3-empty-lanes-drop")
+                    .debug_selector(|| "v3-empty-lanes-drop".into())
+                    .flex_1()
+                    .min_h(px(model::ROW))
+                    .can_drop(move |value, _, _| {
+                        value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                            page.as_ref().is_some_and(|page| {
+                                drag.matches(page)
+                                    && !existing_lanes.contains(&drag.entry)
+                                    && page.book.v3().is_some_and(|b| b.has_below(&drag.entry))
+                            })
+                        })
+                    })
+                    .on_drop::<EntryDrag>(
+                        cx.listener(|this, drag, _, cx| this.dropped_lane(drag, cx)),
+                    ),
+            );
+        }
         for lane in lanes {
             let color = lane
                 .color
@@ -747,6 +906,7 @@ impl Timeline {
                 .border_b_1()
                 .border_color(palette.desk.solid());
             let lane_id = lane.id.clone();
+            let can_drop_lane = lane.id.clone();
             let page = self.page_host();
             row = row
                 .role(gpui::Role::Group)
@@ -756,9 +916,19 @@ impl Timeline {
                     &[("name", &lane.title)],
                 ))
                 .can_drop(move |value, _, _| {
-                    value
-                        .downcast_ref::<EntryDrag>()
-                        .is_some_and(|drag| page.as_ref().is_some_and(|page| drag.matches(page)))
+                    value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                        page.as_ref().is_some_and(|page| {
+                            drag.matches(page)
+                                && drag.entry != can_drop_lane
+                                && page.book.v3().is_some_and(|b| {
+                                    b.accepts_members(&can_drop_lane)
+                                        || (b.entry(&can_drop_lane).is_some_and(|le| le.level)
+                                            && b.entry(&drag.entry).is_some_and(|ce| {
+                                                ce.parent.as_deref() == Some(can_drop_lane.as_str())
+                                            }))
+                                })
+                        })
+                    })
                 })
                 .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
                     this.dropped_entry(drag, lane_id.clone(), w, cx)
@@ -820,6 +990,12 @@ impl Timeline {
                 };
                 let entry = id.clone();
                 let lane_id = lane.id.clone();
+                let can_remove_from_lane = self.book.v3().is_some_and(|b| {
+                    b.accepts_members(&lane.id)
+                        && b.memberships
+                            .iter()
+                            .any(|m| m.host == lane.id && m.member == id)
+                });
                 let more = PanelIconButton::new(
                     SharedString::from(format!("v3-clip-menu-{}-{id}", lane.id)),
                     Icon::More,
@@ -827,16 +1003,17 @@ impl Timeline {
                 .label(t(cx, keys::v3_timeline::PLACEMENT_ACTIONS))
                 .on_click(cx.listener(move |this, e: &ClickEvent, _, cx| {
                     cx.stop_propagation();
-                    this.popup = Some(Popup {
-                        of: MenuOf::Clip {
+                    this.popup = Some(Popup::new(
+                        MenuOf::Clip {
                             entry: entry.clone(),
                             lane: lane_id.clone(),
                         },
-                        at: e.position(),
-                    });
+                        e.position(),
+                    ));
                     cx.notify();
                 }));
                 let drop_lane = lane.id.clone();
+                let can_drop_clip_lane = lane.id.clone();
                 let page = self.page_host();
                 let clip_selector = format!("v3-clip-{}-{id}", lane.id);
                 let clip_body = glass::glass_box(
@@ -876,9 +1053,20 @@ impl Timeline {
                     this.open(&id, e, cx);
                 }))
                 .can_drop(move |value, _, _| {
-                    value
-                        .downcast_ref::<EntryDrag>()
-                        .is_some_and(|drag| page.as_ref().is_some_and(|page| drag.matches(page)))
+                    value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                        page.as_ref().is_some_and(|page| {
+                            drag.matches(page)
+                                && drag.entry != can_drop_clip_lane
+                                && page.book.v3().is_some_and(|b| {
+                                    b.accepts_members(&can_drop_clip_lane)
+                                        || (b.entry(&can_drop_clip_lane).is_some_and(|le| le.level)
+                                            && b.entry(&drag.entry).is_some_and(|ce| {
+                                                ce.parent.as_deref()
+                                                    == Some(can_drop_clip_lane.as_str())
+                                            }))
+                                })
+                        })
+                    })
                 })
                 .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
                     this.dropped_entry(drag, drop_lane.clone(), w, cx)
@@ -924,7 +1112,7 @@ impl Timeline {
                     .role(gpui::Role::Group)
                     .aria_label(title)
                     .child(clip_body);
-                if w > 32. {
+                if w > 32. && can_remove_from_lane {
                     slab = slab.child(
                         div()
                             .absolute()

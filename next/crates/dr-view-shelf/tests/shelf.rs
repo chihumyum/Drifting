@@ -758,6 +758,287 @@ fn switching_language_from_shelf_account_menu_updates_locale_and_repaints(cx: &m
     );
 }
 
+#[gpui::test]
+fn bookless_project_hides_words_and_heatmap_and_shows_recent_entries_on_shelf_and_dropdown(
+    cx: &mut TestAppContext,
+) {
+    use dr_workspace::commands::v3::{
+        entry::{CreateIn, EntryCreate},
+        project::{ProjectUpdate, ProjectUpdateIn},
+    };
+
+    let (_dir, library) = library();
+    let lib = library.clone();
+    lib.library().rebuild_stale_indexes().unwrap();
+
+    let listed = lib
+        .run::<dr_workspace::commands::book::BookList>(&Actor::User, Default::default())
+        .unwrap()
+        .output;
+    let slow = listed.iter().find(|b| b.name == "慢钟").unwrap().id.clone();
+    let aq = listed.iter().find(|b| b.id != slow).unwrap().id.clone();
+
+    for target in [&slow, &aq] {
+        lib.run::<ProjectUpdate>(
+            &Actor::User,
+            ProjectUpdateIn {
+                book: target.clone(),
+                word_target: Some(Some(50_000)),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    lib.run::<ProjectUpdate>(
+        &Actor::User,
+        ProjectUpdateIn {
+            book: aq.clone(),
+            has_book: Some(false),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let created = lib
+        .run::<EntryCreate>(
+            &Actor::User,
+            CreateIn {
+                book: aq.clone(),
+                title: "未庄补记".into(),
+                parent: None,
+                host: None,
+                mark: None,
+                template: None,
+                level: Some(false),
+                bodies: Default::default(),
+            },
+        )
+        .unwrap()
+        .output;
+
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    for (target, words) in [(&slow, 400), (&aq, 999)] {
+        lib.run::<WritingDayRecord>(
+            &Actor::User,
+            WritingDayIn {
+                book: target.clone(),
+                device: "device-0123456789abcdef01234567".into(),
+                day: today.clone(),
+                words,
+            },
+        )
+        .unwrap();
+    }
+
+    let (view, cx) = setup(cx, library);
+    cx.update(|window, _| window.activate_window());
+    let shelf = shelf_of(&view, cx);
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        shelf.read_with(cx, |s, _| {
+            s.data.as_ref().is_some_and(|d| {
+                d.books
+                    .iter()
+                    .find(|b| b.id == slow)
+                    .and_then(|b| b.words)
+                    .is_some()
+            }) && s.art.as_ref().is_some_and(|a| a.books.len() == 2)
+        })
+    });
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+
+    let data = shelf.read_with(cx, |s, _| s.data.clone().unwrap());
+    let slow_book = data.books.iter().find(|b| b.id == slow).unwrap();
+    let aq_book = data.books.iter().find(|b| b.id == aq).unwrap();
+    assert!(slow_book.has_book);
+    assert!(slow_book.words.unwrap() > 0);
+    assert_eq!(slow_book.word_target, Some(50_000));
+    assert!(!aq_book.has_book);
+    assert_eq!(aq_book.words, None);
+    assert_eq!(aq_book.word_target, None);
+    assert!(aq_book.entry_count > 0);
+    assert!(aq_book.edited_ms.is_some());
+    assert_eq!(
+        aq_book.recent_entries.first().map(|e| e.id.as_str()),
+        Some(created.id.as_str())
+    );
+    assert_eq!(
+        aq_book.recent_entries.first().map(|e| e.title.as_str()),
+        Some("未庄补记")
+    );
+    // Total shelf word count excludes bookless projects.
+    assert_eq!(data.words(), slow_book.words);
+
+    // WritingYear excludes bookless projects' writing-day cells.
+    let art_now = shelf.read_with(cx, |s, _| s.art.clone().unwrap());
+    assert!(art_now.year.by_book.contains_key(&slow));
+    assert!(!art_now.year.by_book.contains_key(&aq));
+    assert_eq!(art_now.year.total.last().copied(), Some(400));
+
+    let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+
+    // On Shelf: the book project shows words, sand strip and target progress;
+    // the bookless project hides all three and shows entry count instead.
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-words-{slow}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-strip-wrap-{slow}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-progress-wrap-{slow}")))
+            .is_some()
+    );
+    assert!(cx.debug_bounds(leak(format!("shelf-words-{aq}"))).is_none());
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-strip-wrap-{aq}")))
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-progress-wrap-{aq}")))
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-entry-count-{aq}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-recent-entries-{aq}")))
+            .is_none()
+    );
+
+    // Hovering the bookless card reveals its recently modified entries without
+    // hiding or focusing the heatmap (which stays on the remaining book project).
+    let aq_card = cx
+        .debug_bounds(leak(format!("shelf-card-{aq}")))
+        .expect("bookless card is drawn on shelf");
+    cx.simulate_mouse_move(aq_card.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.pointed.clone()),
+        Some(aq.clone())
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("shelf-recent-entries-{aq}")))
+            .is_some()
+    );
+    assert!(cx.debug_bounds("heat-cells").is_some());
+
+    // Trash dialog on a bookless project uses the bookless prompt cleanly.
+    cx.update(|window, cx| {
+        shelf.update(cx, |s, cx| s.ask_trash(aq_book.clone(), window, cx));
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.dialog()),
+        Some(ShelfDialog::Trash(aq.clone()))
+    );
+    cx.simulate_keystrokes("escape");
+    assert_eq!(shelf.read_with(cx, |s, _| s.dialog()), None);
+
+    // Open `慢钟` and drop the top `Projects` row: check closed and expanded cards.
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.open(&slow, window, cx)));
+    wait_for(cx, |cx| view.read_with(cx, |ws, _| ws.book.id == slow));
+    cx.dispatch_action(dr_shell::actions::ToggleProjects);
+    let projects = view
+        .read_with(cx, |ws, _| ws.projects.clone())
+        .expect("projects row is mounted")
+        .downcast::<dr_view_shelf::projects::Projects>()
+        .expect("projects view");
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        projects.read_with(cx, |p, _| {
+            p.data().is_some_and(|d| d.books.len() == 2)
+                && p.art().is_some_and(|a| a.books.len() == 2)
+        })
+    });
+    cx.update(|window, cx| {
+        projects.update(cx, |p, cx| p.widen_immediately(&slow, cx));
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    assert!(
+        cx.debug_bounds(leak(format!("projects-words-{slow}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-heat-{slow}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-progress-wrap-{slow}")))
+            .is_some()
+    );
+
+    // Hover/expand the bookless card in `Projects`: entry count + recent entries,
+    // no words, no 16-week heat grid, no word-target progress.
+    let aq_drop_card = cx
+        .debug_bounds(leak(format!("projects-card-{aq}")))
+        .expect("bookless card is drawn in projects row");
+    cx.simulate_mouse_move(aq_drop_card.center(), None, Modifiers::none());
+    cx.update(|window, cx| {
+        projects.update(cx, |p, cx| p.widen_immediately(&aq, cx));
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    assert_eq!(
+        projects.read_with(cx, |p, _| p.open_card().map(str::to_owned)),
+        Some(aq.clone())
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-entry-count-{aq}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-recent-entries-{aq}")))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-words-{aq}")))
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-heat-{aq}")))
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(leak(format!("projects-progress-wrap-{aq}")))
+            .is_none()
+    );
+
+    // When every project in the library has `成书` off, Shelf hides both total
+    // words and the library-wide heatmap altogether.
+    cx.update(|window, cx| view.update(cx, |ws, cx| ws.show_shelf(window, cx)));
+    lib.run::<ProjectUpdate>(
+        &Actor::User,
+        ProjectUpdateIn {
+            book: slow.clone(),
+            has_book: Some(false),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    shelf_until(&shelf, cx, |d| d.books.iter().all(|b| !b.has_book));
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.data.as_ref().unwrap().words()),
+        None
+    );
+    assert!(cx.debug_bounds("heat-cells").is_none());
+}
+
 /// The sea under the whole window, the workspace over it (what the shell's
 /// backdrop will do, M24).
 struct OnSeaRoot {

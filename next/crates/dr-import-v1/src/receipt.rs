@@ -106,21 +106,19 @@ pub struct UnlinkedAssetLink {
     pub text: String,
 }
 
-/// Words on a 0.1 material that the book has no place for (`kernel-v5.md`
-/// §15 第 19 条: a file has no description of its own, a note has one
-/// prose): listed for the author, the original kept in `import_original`.
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
+/// A 0.1 `note-task` TODO whose status disagreed with its checklist item's
+/// tick, so the imported comment followed the tick (`kernel-v5.md` §13).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MaterialText {
-    pub material_id: String,
-    pub material_title: String,
-    /// `text`, `image` or `pdf`.
-    pub kind: String,
-    /// The material's description, as plain text (empty when none).
-    pub description: String,
-    /// A text material's provenance, as 0.1 stored it (JSON), if any.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provenance: Option<String>,
+pub struct TaskStatusChange {
+    pub comment_id: String,
+    pub old_doc_id: String,
+    pub body: String,
+    pub checked: bool,
 }
 
 /// Something of the 0.1 materials that has no counterpart in the new book.
@@ -129,12 +127,20 @@ pub struct MaterialText {
 pub enum MaterialDropped {
     /// A material folder that held nothing (no material, no folder with one).
     EmptyFolder { folder_id: String, name: String },
+    /// A material folder whose materials (directly or below) all failed to
+    /// come over (for example, missing files or unknown kinds).
+    UnimportedFolder { folder_id: String, name: String },
     /// An image or PDF material whose file is not in the 0.1 library: its
-    /// title, and the relations that pointed at it.
+    /// title, its description (if any, since there is no file to attach a
+    /// comment to), and the relations and comments that pointed at it.
     WithoutFile {
         material_id: String,
         material_title: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
         relations: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        comments: Vec<String>,
     },
     /// A material of a kind this version does not know.
     UnknownKind {
@@ -180,15 +186,19 @@ pub struct BookRecord {
     /// chapter template) written into their template documents.
     pub templates: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub task_status_changes: Vec<TaskStatusChange>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unlinked_asset_links: Vec<UnlinkedAssetLink>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub material_assets: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub non_text_materials: BTreeMap<String, String>,
-    /// Descriptions and provenance the book has no place for, material by
-    /// material (where they go is the author's to decide).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub material_texts: Vec<MaterialText>,
+    /// 0.1 material descriptions and provenances converted into resolved
+    /// manual comments (`kernel-v5.md` §15 #19).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub material_descriptions_to_comments: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub material_provenances_to_comments: usize,
     /// What of the 0.1 materials did not come over, one line each.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub materials_dropped: Vec<MaterialDropped>,
@@ -516,8 +526,37 @@ fn explain(key: &str) -> Option<&'static str> {
         "entity-link-to-asset-kept-as-text" => {
             "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方"
         }
+        "task-todo-link-replaced-by-projection" => {
+            "清单项不再单独链接旧版待办，保留自身的勾选并对应为清单批注"
+        }
+        "task-status-follows-tick" => {
+            "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准，逐条列在下方"
+        }
         _ => return None,
     })
+}
+
+fn inline_md(s: &str) -> String {
+    let trimmed = s.trim_matches(|c| c == '\r' || c == '\n');
+    let mut out = String::with_capacity(trimmed.len());
+    let mut chars = trimmed.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\r' {
+            if chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            out.push_str(" ↵ ");
+        } else if c == '\n' {
+            out.push_str(" ↵ ");
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn inline_code(s: &str) -> String {
+    inline_md(s).replace('`', "'")
 }
 
 fn freshness_zh(f: Freshness) -> &'static str {
@@ -572,7 +611,7 @@ pub fn summary_zh(r: &Receipt) -> String {
     }
     s.push('\n');
     for b in &r.books {
-        s.push_str(&format!("## {}\n\n", b.name));
+        s.push_str(&format!("## {}\n\n", inline_md(&b.name)));
         if b.status != "imported" {
             let why = match b.status.as_str() {
                 "cancelled" => "导入取消了，这本书还没开始",
@@ -589,7 +628,7 @@ pub fn summary_zh(r: &Receipt) -> String {
         }
         let n = |t: &str| b.rows.get(t).copied().unwrap_or(0);
         s.push_str(&format!(
-            "导入了 {} 个章节和构想、{} 个要素、{} 个分类、{} 条故事线、{} 条关系、{} 条批注和待办、{} 个补丁、{} 个素材；{} 篇正文，{} 个历史点，{} 个资源文件。\n\n",
+            "旧库里有 {} 个章节和构想、{} 个要素、{} 个分类、{} 条故事线、{} 条关系、{} 条批注和待办、{} 个补丁、{} 个素材；共导入 {} 篇正文、{} 个历史点、{} 个资源文件。\n\n",
             n("book_node"),
             n("element"),
             n("element_category"),
@@ -602,6 +641,9 @@ pub fn summary_zh(r: &Receipt) -> String {
             b.history_points,
             b.assets_copied
         ));
+        s.push_str(
+            "旧版笔记归入「文本素材」层级下的条目，图片和 PDF 进素材库里同名的素材夹，正文中指向图片和 PDF 的链接转为指向文件的链接；故事线转为关着「层级」、开着「收别处的条目」的条目；待办转为批注（不带优先级），正文清单项均同步为清单批注。\n\n",
+        );
         if b.templates > 0 {
             s.push_str(&format!(
                 "{} 份旧版正文模板写成了条目模板的初始正文，新建条目照它开头。\n\n",
@@ -636,59 +678,103 @@ pub fn summary_zh(r: &Receipt) -> String {
             }
             s.push('\n');
         }
+        if !b.task_status_changes.is_empty() {
+            s.push_str("按清单项勾选调整了状态的待办明细：\n\n");
+            for item in &b.task_status_changes {
+                let (tick_str, status_str) = if item.checked {
+                    ("已勾选", "已解决")
+                } else {
+                    ("未勾选", "未解决")
+                };
+                s.push_str(&format!(
+                    "- `{}` 中「{}」（`{}`）：清单项{}，状态已按勾选设为{}\n",
+                    inline_code(&item.old_doc_id),
+                    inline_md(&item.body),
+                    inline_code(&item.comment_id),
+                    tick_str,
+                    status_str
+                ));
+            }
+            s.push('\n');
+        }
         if !b.unlinked_asset_links.is_empty() {
             s.push_str("已转为普通文字的图片 / PDF 素材链接明细（素材没有文件）：\n\n");
             for item in &b.unlinked_asset_links {
                 s.push_str(&format!(
                     "- `{}` 中「{}」→ 原素材「{}」（`{}`）\n",
-                    item.old_doc_id, item.text, item.material_title, item.material_id
+                    inline_code(&item.old_doc_id),
+                    inline_md(&item.text),
+                    inline_md(&item.material_title),
+                    inline_code(&item.material_id)
                 ));
             }
             s.push('\n');
         }
-        if !b.material_texts.is_empty() {
-            s.push_str(
-                "旧版素材上的说明和出处，书里暂时没有地方放（文件没有自己的说明，笔记只有一篇正文），原文记在回执里：\n\n",
-            );
-            for t in &b.material_texts {
-                s.push_str(&format!(
-                    "- 「{}」（`{}`）",
-                    t.material_title, t.material_id
-                ));
-                if !t.description.is_empty() {
-                    s.push_str(&format!("：说明「{}」", t.description));
-                }
-                if let Some(p) = &t.provenance {
-                    s.push_str(&format!("；出处 `{p}`"));
-                }
-                s.push('\n');
-            }
-            s.push('\n');
+        if b.material_descriptions_to_comments + b.material_provenances_to_comments > 0 {
+            s.push_str(&format!(
+                "旧版素材上的 {} 条说明、{} 条出处已转为已解决的批注（原始记录留在回执里）。\n\n",
+                b.material_descriptions_to_comments, b.material_provenances_to_comments
+            ));
         }
-        if !b.materials_dropped.is_empty() {
+        let not_imported: Vec<&MaterialDropped> = b
+            .materials_dropped
+            .iter()
+            .filter(|d| !matches!(d, MaterialDropped::SameFile { .. }))
+            .collect();
+        if !not_imported.is_empty() {
             s.push_str("旧版素材里没有带过来的：\n\n");
-            for d in &b.materials_dropped {
+            for d in not_imported {
                 let line = match d {
-                    MaterialDropped::EmptyFolder { folder_id, name } => {
-                        format!("空的素材夹「{name}」（`{folder_id}`）")
-                    }
+                    MaterialDropped::EmptyFolder { folder_id, name } => format!(
+                        "空的素材夹「{}」（`{}`）",
+                        inline_md(name),
+                        inline_code(folder_id)
+                    ),
+                    MaterialDropped::UnimportedFolder { folder_id, name } => format!(
+                        "里面的素材都没有带过来的素材夹「{}」（`{}`）",
+                        inline_md(name),
+                        inline_code(folder_id)
+                    ),
                     MaterialDropped::WithoutFile {
                         material_id,
                         material_title,
+                        description,
                         relations,
+                        comments,
                     } => {
-                        let mut l =
-                            format!("没有文件的素材「{material_title}」（`{material_id}`）");
+                        let mut l = format!(
+                            "没有文件的素材「{}」（`{}`）",
+                            inline_md(material_title),
+                            inline_code(material_id)
+                        );
+                        if let Some(desc) = description {
+                            l.push_str(&format!("，说明「{}」", inline_md(desc)));
+                        }
+                        let mut attached = Vec::new();
                         if !relations.is_empty() {
-                            l.push_str(&format!(
-                                "，连同指向它的 {} 条关系（{}）",
+                            attached.push(format!(
+                                "{} 条关系（{}）",
                                 relations.len(),
                                 relations
                                     .iter()
-                                    .map(|r| format!("`{r}`"))
+                                    .map(|r| format!("`{}`", inline_code(r)))
                                     .collect::<Vec<_>>()
                                     .join("、")
                             ));
+                        }
+                        if !comments.is_empty() {
+                            attached.push(format!(
+                                "{} 条批注（{}）",
+                                comments.len(),
+                                comments
+                                    .iter()
+                                    .map(|c| format!("`{}`", inline_code(c)))
+                                    .collect::<Vec<_>>()
+                                    .join("、")
+                            ));
+                        }
+                        if !attached.is_empty() {
+                            l.push_str(&format!("，连同指向它的 {}", attached.join("、")));
                         }
                         l
                     }
@@ -697,18 +783,39 @@ pub fn summary_zh(r: &Receipt) -> String {
                         material_title,
                         material_kind,
                     } => format!(
-                        "不认识种类（`{material_kind}`）的素材「{material_title}」（`{material_id}`）"
+                        "不认识种类（`{}`）的素材「{}」（`{}`）",
+                        inline_code(material_kind),
+                        inline_md(material_title),
+                        inline_code(material_id)
                     ),
-                    MaterialDropped::SameFile {
-                        material_id,
-                        material_title,
-                        kept_title,
-                        ..
-                    } => format!(
-                        "和「{kept_title}」是同一个文件的素材「{material_title}」（`{material_id}`）：素材库里只有一份，用了前者的名字"
-                    ),
+                    MaterialDropped::SameFile { .. } => unreachable!(),
                 };
                 s.push_str(&format!("- {line}\n"));
+            }
+            s.push('\n');
+        }
+        let same_files: Vec<&MaterialDropped> = b
+            .materials_dropped
+            .iter()
+            .filter(|d| matches!(d, MaterialDropped::SameFile { .. }))
+            .collect();
+        if !same_files.is_empty() {
+            s.push_str("合并为同一个文件的旧版素材：\n\n");
+            for d in same_files {
+                if let MaterialDropped::SameFile {
+                    material_id,
+                    material_title,
+                    kept_title,
+                    ..
+                } = d
+                {
+                    s.push_str(&format!(
+                        "- 和「{}」是同一个文件的素材「{}」（`{}`）：素材库里只有一份，用了前者的名字\n",
+                        inline_md(kept_title),
+                        inline_md(material_title),
+                        inline_code(material_id)
+                    ));
+                }
             }
             s.push('\n');
         }

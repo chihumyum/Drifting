@@ -81,6 +81,22 @@ pub struct Listed {
     pub item: CommentInfo,
 }
 
+/// Where on an asset a listed comment originated (for grouping the 3 places in
+/// the asset library viewer, `kernel-v5.md` §15 #9).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AssetPlace {
+    Direct,
+    Media {
+        entry: String,
+        module: String,
+    },
+    Embed {
+        entry: String,
+        module: String,
+        embed: String,
+    },
+}
+
 impl Listed {
     pub fn region(&self) -> Option<&Region> {
         self.item.region()
@@ -98,6 +114,81 @@ impl Listed {
     pub fn resolved(&self) -> bool {
         self.item.status == "resolved"
     }
+
+    pub fn asset_place(&self) -> AssetPlace {
+        match (&self.item.target, &self.item.module, &self.item.part) {
+            (Some(t), Some(module), Some(dr_workspace::dto::CommentPartDto::Media { .. }))
+                if t.kind == "entry" =>
+            {
+                AssetPlace::Media {
+                    entry: t.id.clone(),
+                    module: module.clone(),
+                }
+            }
+            (
+                Some(t),
+                Some(module),
+                Some(dr_workspace::dto::CommentPartDto::Embed { embed, .. }),
+            ) if t.kind == "entry" => AssetPlace::Embed {
+                entry: t.id.clone(),
+                module: module.clone(),
+                embed: embed.clone(),
+            },
+            _ => AssetPlace::Direct,
+        }
+    }
+}
+
+/// All comments on asset `id` across all three places (`Asset`, `Media`
+/// modules, and prose `Embed`s whose `(entry, module, embed)` is in
+/// `embed_assets`), numbered in reading order for the asset-library viewer.
+pub fn listed_for_asset_library(
+    items: &[CommentInfo],
+    id: &str,
+    embed_assets: &std::collections::HashSet<(String, String, String)>,
+) -> Vec<Listed> {
+    let mut mine: Vec<&CommentInfo> = items
+        .iter()
+        .filter(|c| {
+            let direct = c
+                .target
+                .as_ref()
+                .is_some_and(|t| t.kind == "asset" && t.id == id);
+            let on_media = !c.unlocated
+                && matches!(
+                    &c.part,
+                    Some(dr_workspace::dto::CommentPartDto::Media { asset, .. }) if asset == id
+                );
+            let on_embed = !c.unlocated
+                && match (&c.target, &c.module, &c.part) {
+                    (
+                        Some(t),
+                        Some(module),
+                        Some(dr_workspace::dto::CommentPartDto::Embed { embed, .. }),
+                    ) if t.kind == "entry" => {
+                        embed_assets.contains(&(t.id.clone(), module.clone(), embed.clone()))
+                    }
+                    _ => false,
+                };
+            direct || on_media || on_embed
+        })
+        .collect();
+    let order = |c: &CommentInfo| match c.region() {
+        Some(r) => f64::from(r.page.unwrap_or(1)) * 10.0 + r.y,
+        None => f64::INFINITY,
+    };
+    mine.sort_by(|a, b| {
+        order(a)
+            .total_cmp(&order(b))
+            .then(a.created_at.cmp(&b.created_at))
+    });
+    mine.into_iter()
+        .enumerate()
+        .map(|(i, c)| Listed {
+            number: i + 1,
+            item: c.clone(),
+        })
+        .collect()
 }
 
 /// The comments a page of file `id` (an asset id) lists among `items`, in
@@ -293,5 +384,62 @@ mod tests {
             "paged"
         );
         assert!(hit(&listed, Some(2), (0.45, 0.45)).is_none());
+    }
+
+    #[test]
+    fn asset_library_viewer_lists_all_three_places_in_reading_order() {
+        let mut direct = comment("direct", "asset-1", region(None, 0.1, 0.4, 0.2, 0.2), 1);
+        direct.target = Some(Target {
+            kind: "asset".into(),
+            id: "asset-1".into(),
+        });
+        direct.module = None;
+        direct.part = direct
+            .region()
+            .cloned()
+            .map(|r| dr_workspace::dto::CommentPartDto::Region { region: r });
+
+        let media = comment("media", "asset-1", region(None, 0.1, 0.1, 0.2, 0.2), 2);
+
+        let mut embed = comment("embed", "asset-1", None, 3);
+        embed.target = Some(Target {
+            kind: "entry".into(),
+            id: "entry-2".into(),
+        });
+        embed.module = Some("mod-prose".into());
+        embed.part = Some(dr_workspace::dto::CommentPartDto::Embed {
+            embed: "em-1".into(),
+            region: region(None, 0.1, 0.25, 0.2, 0.2),
+        });
+
+        let mut unlocated_embed = embed.clone();
+        unlocated_embed.id = "gone".into();
+        unlocated_embed.unlocated = true;
+
+        let mut embed_assets = std::collections::HashSet::new();
+        embed_assets.insert(("entry-2".into(), "mod-prose".into(), "em-1".into()));
+
+        let all = listed_for_asset_library(
+            &[direct, media, embed, unlocated_embed],
+            "asset-1",
+            &embed_assets,
+        );
+        let ids: Vec<&str> = all.iter().map(|l| l.item.id.as_str()).collect();
+        assert_eq!(ids, ["media", "embed", "direct"]);
+        assert_eq!(
+            all.iter().map(Listed::asset_place).collect::<Vec<_>>(),
+            vec![
+                AssetPlace::Media {
+                    entry: "entry-1".into(),
+                    module: "mod-media".into(),
+                },
+                AssetPlace::Embed {
+                    entry: "entry-2".into(),
+                    module: "mod-prose".into(),
+                    embed: "em-1".into(),
+                },
+                AssetPlace::Direct,
+            ]
+        );
     }
 }

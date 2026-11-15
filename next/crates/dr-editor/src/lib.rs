@@ -26,6 +26,7 @@ pub mod convert;
 pub mod decor;
 pub mod embeds;
 pub mod entity_links;
+pub mod file_host;
 pub mod highlight;
 pub mod link_card;
 pub mod links;
@@ -51,8 +52,8 @@ pub use settings::EditorSettings;
 pub use source::SessionSource;
 pub use todo::TodoMarker;
 pub use view::{
-    ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, MaterialOpened,
-    PositionLinkCopied, WritingTyped,
+    ChapterEditor, ChapterEditorEvent, CommentRequested, EmbedCommentRequested,
+    EmbedFrameRequested, EntityLinkOpened, MaterialOpened, PositionLinkCopied, WritingTyped,
 };
 
 // The public playback switch lives on each host's `editor()` entity.

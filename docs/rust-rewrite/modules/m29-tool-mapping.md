@@ -1,5 +1,7 @@
 # M29 工具面对照
 
+> 2026-11-15 内核 v5（T7）：下表保留首次迁移时与 0.1 清单的逐项对照记录。当前格式 5 注册表共 **125** 项，开放 **94** 项基础工具、排除 **31** 项（快照见 `next/crates/dr-agent-tools/tests/snapshots/catalog__directory.snap`），开着书时另加该书层级绑定的模板动作 `action:<book>/<level>/<template>/<verb>`。表中旧 `chapter.*`／`element.*`／`category.*`／`idea.*`／`storyline.*`／`act.*` 已在统一条目模型中收敛为 `entry.*`、`entry_template.*`、`module.*`、`membership.*`、`timeline.*`；格式 5 进一步退役 `material.*`、`material_folder.*` 与 `todo.*`（文本素材并入普通条目，图片与 PDF 归素材库 `asset.*`／`asset_folder.*`，待办并入无优先级的统一 `comment.*`），新增开放 `project.get`／`project.update`、`tab.put`／`tab.remove`／`tab.move`、`book.sequence`、`module.put_media`／`module.remove_media`／`module.set_arrangement`、`layout.get`／`layout.put`／`layout.clear`，并将 `prose.link`／`prose.unlink` 目标扩至 `entry` 与 `asset`。`asset.purge`、`asset_folder.purge`、`comment.delete`、`comment.project` 继续排除。
+
 这份表以旧版生成清单的 **97 个内置工具**逐项核对（其中作者域段落列出 88 个）。旧工具名称只用于迁移核对，不是新版的第二份工具目录，也不会恢复旧虚拟路径。新版可用入口由 `dr_workspace::registry` 自动生成；实际可发现的目录及作用域排除项由 `dr-agent-tools/tests/catalog.rs` 的 insta 快照验证。
 
 模型只收到 `tool_search` 和 `call_tool`。检索返回注册名称、说明、输入输出 Schema、读写类别、并发类别与内容修订号；作者名称在执行前解析为当前书籍内的身份。元数据观察按具体对象记录，正文观察保留页和块覆盖，版本变化会使旧观察失效。

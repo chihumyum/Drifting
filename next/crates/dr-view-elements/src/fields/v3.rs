@@ -1,25 +1,37 @@
 //! Typed fields shared by leaf and level modules. Drafts survive refreshes.
+use dr_i18n::keys;
+use dr_model::id::AssetFolderId;
 use dr_shell::{
     book::Book,
+    pages::UsageFlash,
     t,
     v3::{ModuleHost, Rendered},
 };
 use dr_ui::{
     Theme,
-    components::{Select, select::Choice},
+    components::{Button, Select, select::Choice},
     fonts::Role,
     input::{FieldEvent, TextArea},
-    sand::Icon,
+    sand::{self, Icon, SandFrame},
     style::DrStyled,
+    tokens::radius,
 };
 use dr_view_page::settlement::{self, Drafts, Drain};
-use dr_workspace::commands::v3::{
-    module::In,
-    types::{FieldDef, FieldValue},
+use dr_workspace::{
+    Actor,
+    commands::{
+        EntityIn,
+        asset::{AssetFolderRestore, AssetRestore},
+        v3::{
+            module::In,
+            types::{FieldDef, FieldValue},
+        },
+    },
+    events::WsEvent,
 };
 use gpui::{prelude::*, *};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     rc::Rc,
 };
 
@@ -97,6 +109,13 @@ struct Input {
     _event: Subscription,
 }
 
+#[derive(Clone, Debug)]
+struct TrashedImageMeta {
+    name: String,
+    trashed_folders: Vec<String>,
+    self_trashed: bool,
+}
+
 pub struct TypedFields {
     host: ModuleHost,
     inputs: BTreeMap<String, Input>,
@@ -106,12 +125,37 @@ pub struct TypedFields {
     stale_revisions: BTreeSet<String>,
     errors: BTreeMap<String, dr_i18n::Key>,
     images: Vec<(String, String)>,
+    raw_images: BTreeMap<String, TrashedImageMeta>,
+    images_loaded: bool,
     images_reading: bool,
     images_stale: bool,
+    _bus: Option<dr_workspace::events::Subscription>,
+    _bus_task: Option<Task<()>>,
+    _review_focus: Subscription,
 }
 impl TypedFields {
     pub fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
         settlement::register(&host.page.library, window.window_handle(), cx);
+        let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
+        let watched_book = host.page.book_id.clone();
+        let bus = host.page.library.subscribe(move |ev| {
+            if let WsEvent::Book(b) = ev
+                && b.book.as_str() == watched_book
+            {
+                let _ = tx.unbounded_send(());
+            }
+        });
+        let bus_task = cx.spawn(async move |this, cx| {
+            use futures::StreamExt as _;
+            while rx.next().await.is_some() {
+                while rx.try_recv().is_ok() {}
+                if this.update(cx, |v, cx| v.reload_images(cx)).is_err() {
+                    break;
+                }
+            }
+        });
+
+        let review_focus = cx.observe_global::<dr_shell::ReviewFocus>(|_, cx| cx.notify());
         let mut this = Self {
             host,
             inputs: BTreeMap::new(),
@@ -121,8 +165,13 @@ impl TypedFields {
             stale_revisions: BTreeSet::new(),
             errors: BTreeMap::new(),
             images: Vec::new(),
+            raw_images: BTreeMap::new(),
+            images_loaded: false,
             images_reading: false,
             images_stale: false,
+            _bus: Some(bus),
+            _bus_task: Some(bus_task),
+            _review_focus: review_focus,
         };
         this.sync(window, cx);
         this.reload_images(cx);
@@ -143,19 +192,65 @@ impl TypedFields {
         );
         let read = cx.background_spawn(async move {
             dr_editor::v3::read(&lib, &book, |v| {
-                v.assets()
+                let mut live = v.assets();
+                live.sort_by(|a, b| {
+                    dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id))
+                });
+                let live_ids: HashSet<String> = live.iter().map(|a| a.id.to_string()).collect();
+                let images = live
                     .into_iter()
                     .filter(|a| a.kind == dr_model::kind::AssetKind::Image)
                     .map(|a| (a.id.to_string(), a.name))
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                let raw_folders: HashMap<AssetFolderId, dr_model::shared::AssetFolder> = v
+                    .asset_folders_raw()
+                    .into_iter()
+                    .map(|f| (f.id.clone(), f))
+                    .collect();
+                let mut raw_images = BTreeMap::new();
+                for a in v.assets_raw() {
+                    if a.kind != dr_model::kind::AssetKind::Image
+                        || live_ids.contains(a.id.as_str())
+                    {
+                        continue;
+                    }
+                    let mut trashed_folders = Vec::new();
+                    let mut cur = a.folder.clone();
+                    let mut visited = HashSet::new();
+                    while let Some(fid) = cur {
+                        if !visited.insert(fid.clone()) {
+                            break;
+                        }
+                        if let Some(f) = raw_folders.get(&fid) {
+                            if f.is_trashed() {
+                                trashed_folders.push(f.id.to_string());
+                            }
+                            cur = f.parent.clone();
+                        } else {
+                            break;
+                        }
+                    }
+                    trashed_folders.reverse();
+                    raw_images.insert(
+                        a.id.to_string(),
+                        TrashedImageMeta {
+                            name: a.name.clone(),
+                            trashed_folders,
+                            self_trashed: a.is_trashed(),
+                        },
+                    );
+                }
+                (images, raw_images)
             })
         });
         cx.spawn(async move |this, cx| {
             let result = read.await;
             this.update(cx, |v, cx| {
                 v.images_reading = false;
-                if let Ok(images) = result {
+                if let Ok((images, raw_images)) = result {
                     v.images = images;
+                    v.raw_images = raw_images;
+                    v.images_loaded = true;
                 }
                 if std::mem::take(&mut v.images_stale) {
                     v.reload_images(cx);
@@ -165,6 +260,79 @@ impl TypedFields {
             .ok();
         })
         .detach();
+    }
+
+    fn current_field_value(&self, id: &str) -> FieldValue {
+        self.desired
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| self.stored(id))
+    }
+
+    pub fn image_is_gone(&self, id: &str) -> bool {
+        if !self.images_loaded {
+            return false;
+        }
+        let retained = text(&self.current_field_value(id));
+        !retained.is_empty() && !self.images.iter().any(|(aid, _)| aid == &retained)
+    }
+
+    pub fn image_can_restore(&self, id: &str) -> bool {
+        if !self.image_is_gone(id) {
+            return false;
+        }
+        let retained = text(&self.current_field_value(id));
+        self.raw_images.contains_key(&retained)
+    }
+
+    pub fn restore_image_field(&mut self, id: &str, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
+        let retained = text(&self.current_field_value(id));
+        let Some(meta) = self.raw_images.get(&retained).cloned() else {
+            return;
+        };
+        let lib = self.host.page.library.clone();
+        let book = self.host.page.book_id.clone();
+        let job = cx.background_spawn(async move {
+            for fid in meta.trashed_folders {
+                lib.run::<AssetFolderRestore>(
+                    &Actor::User,
+                    EntityIn {
+                        book: book.clone(),
+                        id: fid,
+                    },
+                )?;
+            }
+            if meta.self_trashed {
+                lib.run::<AssetRestore>(
+                    &Actor::User,
+                    EntityIn {
+                        book: book.clone(),
+                        id: retained,
+                    },
+                )?;
+            }
+            Book::load(&lib, &book)
+        });
+        cx.spawn(async move |this, cx| {
+            let result = job.await;
+            this.update(cx, |v, cx| {
+                if let Ok(book) = result {
+                    v.host.page.book = Rc::new(book);
+                }
+                v.reload_images(cx);
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    pub fn clear_image_field(&mut self, id: &str, cx: &mut Context<Self>) {
+        let base = self.current_field_value(id);
+        self.set_from(id, FieldValue::Null, base, false, cx);
     }
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
         if let Some(incoming) = book.v3() {
@@ -543,6 +711,149 @@ impl Render for TypedFields {
                     );
                 }
                 row.into_any_element()
+            } else if def.field_type == "image" {
+                let retained = text(&value);
+                let is_gone = self.images_loaded
+                    && !retained.is_empty()
+                    && !self.images.iter().any(|(aid, _)| aid == &retained);
+                if is_gone {
+                    let meta = self.raw_images.get(&retained).cloned();
+                    let label = meta
+                        .as_ref()
+                        .map(|m| m.name.clone())
+                        .unwrap_or_else(|| retained.clone());
+                    let can_restore = meta.is_some();
+                    let restore_id = id.clone();
+                    let clear_id = id.clone();
+                    div()
+                        .id(SharedString::from(format!(
+                            "v3-image-gone-{}-{id}",
+                            self.host.module.id
+                        )))
+                        .px(px(12.0))
+                        .py(px(8.0))
+                        .rounded(px(radius::SM))
+                        .border_1()
+                        .border_dashed()
+                        .border_color(p.ink(3).alpha(0.30))
+                        .bg(p.ink(1).alpha(0.02))
+                        .flex()
+                        .flex_row()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(px(10.0))
+                        .child(sand::icon(Icon::Image, 14.0, p.ink(3).solid()))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .font_role(Role::Ui)
+                                .text_color(p.ink(3).solid())
+                                .line_through()
+                                .truncate()
+                                .child(label),
+                        )
+                        .children(can_restore.then(|| {
+                            Button::new(
+                                SharedString::from(format!(
+                                    "v3-restore-image-{}-{}",
+                                    self.host.module.id, restore_id
+                                )),
+                                t(cx, keys::v5_files::RESTORE),
+                            )
+                            .small()
+                            .on_click(cx.listener(
+                                move |v, _, _, cx| {
+                                    v.restore_image_field(&restore_id, cx);
+                                },
+                            ))
+                        }))
+                        .child(
+                            Button::new(
+                                SharedString::from(format!(
+                                    "v3-clear-image-{}-{}",
+                                    self.host.module.id, clear_id
+                                )),
+                                t(cx, keys::v5_files::CLEAR_FIELD),
+                            )
+                            .small()
+                            .on_click(cx.listener(
+                                move |v, _, _, cx| {
+                                    v.clear_image_field(&clear_id, cx);
+                                },
+                            )),
+                        )
+                        .into_any_element()
+                } else {
+                    let mut choices = self.choices(&def, cx);
+                    if !retained.is_empty() && !choices.iter().any(|(aid, _)| aid == &retained) {
+                        choices.push((retained.clone(), retained.clone().into()));
+                    }
+                    let selected = choices
+                        .iter()
+                        .position(|(aid, _)| *aid == retained)
+                        .unwrap_or(0);
+                    let value_before = value.clone();
+                    let select_id = id.clone();
+                    let clear_id = id.clone();
+                    div()
+                        .flex()
+                        .flex_row()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            Select::new(
+                                SharedString::from(format!(
+                                    "v3-select-{}-{select_id}",
+                                    self.host.module.id
+                                )),
+                                choices
+                                    .iter()
+                                    .map(|(_, title)| {
+                                        Choice::new(Icon::ChevronRight, title.clone())
+                                    })
+                                    .collect(),
+                                selected,
+                            )
+                            .max_menu_height(280.0)
+                            .on_change(move |index, _, cx| {
+                                if let Some((choice, _)) = choices.get(index) {
+                                    let value = if choice.is_empty() {
+                                        FieldValue::Null
+                                    } else {
+                                        FieldValue::Text(choice.clone())
+                                    };
+                                    weak.update(cx, |v, cx| {
+                                        v.set_from(
+                                            &select_id,
+                                            value,
+                                            value_before.clone(),
+                                            false,
+                                            cx,
+                                        )
+                                    })
+                                    .ok();
+                                }
+                            }),
+                        )
+                        .children((!retained.is_empty()).then(|| {
+                            Button::new(
+                                SharedString::from(format!(
+                                    "v3-clear-image-{}-{}",
+                                    self.host.module.id, clear_id
+                                )),
+                                t(cx, keys::v5_files::CLEAR_FIELD),
+                            )
+                            .small()
+                            .on_click(cx.listener(
+                                move |v, _, _, cx| {
+                                    v.clear_image_field(&clear_id, cx);
+                                },
+                            ))
+                        }))
+                        .into_any_element()
+                }
             } else {
                 let mut choices = self.choices(&def, cx);
                 let retained = text(&value);
@@ -578,14 +889,114 @@ impl Render for TypedFields {
                 })
                 .into_any_element()
             };
+            let fkey = format!(
+                "field:{}:{}:{}",
+                self.host.entry, self.host.module.id, def.id
+            );
+            let lit = UsageFlash::strength_for(&[fkey.as_str(), def.id.as_str()], window, cx) > 0.0;
+            let row_group =
+                SharedString::from(format!("v3-field-row-{}-{}", self.host.module.id, def.id));
+            let row_focused = self
+                .inputs
+                .get(&def.id)
+                .is_some_and(|i| i.area.focus_handle(cx).is_focused(window));
+            let return_focus = self.inputs.get(&def.id).map(|i| i.area.focus_handle(cx));
+            let field_comments = self
+                .host
+                .page
+                .book
+                .v3()
+                .map(|b| b.field_comments(&self.host.entry, &self.host.module.id, &def.id))
+                .unwrap_or_default();
+            let field_ul = dr_shell::comment_underline(
+                SharedString::from(format!("v3-field-ul-{}-{}", self.host.module.id, def.id)),
+                field_comments,
+                self.host.page.workspace.clone(),
+                cx,
+            );
+            let ws_action = self.host.page.workspace.clone();
+            let entry_action = self.host.entry.clone();
+            let mod_action = self.host.module.id.clone();
+            let field_action = def.id.clone();
+            let focus_action = return_focus.clone();
+            let ws_click = self.host.page.workspace.clone();
+            let entry_click = self.host.entry.clone();
+            let mod_click = self.host.module.id.clone();
+            let field_click = def.id.clone();
+            let focus_click = return_focus;
+            let comment_label = t(cx, dr_i18n::keys::v3_review::WRITE_COMMENT);
+            let comment_btn = div()
+                .id(SharedString::from(format!(
+                    "v3-field-comment-{}-{}",
+                    self.host.module.id, def.id
+                )))
+                .size(px(20.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(3.0))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .aria_label(comment_label)
+                .map(|el| {
+                    if row_focused {
+                        el
+                    } else {
+                        el.invisible()
+                            .group_hover(row_group.clone(), |st| st.visible())
+                    }
+                })
+                .hover(|st| st.bg(p.ink(1).alpha(0.05)))
+                .on_click(move |e, window, cx| {
+                    cx.stop_propagation();
+                    if let Some(ws) = ws_click.upgrade() {
+                        let pos = e.position();
+                        let entry = entry_click.clone();
+                        let module = mod_click.clone();
+                        let field = field_click.clone();
+                        let ret = focus_click.clone();
+                        ws.update(cx, |ws, cx| {
+                            ws.open_part_composer(
+                                &entry,
+                                &module,
+                                dr_workspace::dto::CommentPartDto::Field { field },
+                                Some(pos),
+                                ret,
+                                window,
+                                cx,
+                            );
+                        });
+                    }
+                })
+                .child(dr_ui::sand::icon(Icon::CommentPlus, 12.0, p.ink(4).solid()));
             list = list.child(
                 div()
-                    .id(SharedString::from(format!(
-                        "v3-field-row-{}-{}",
-                        self.host.module.id, def.id
-                    )))
+                    .id(row_group.clone())
+                    .group(row_group)
+                    .relative()
                     .role(gpui::Role::Group)
                     .aria_label(def.name.clone())
+                    .on_action(move |_: &dr_shell::NewComment, window, cx| {
+                        cx.stop_propagation();
+                        if let Some(ws) = ws_action.upgrade() {
+                            let entry = entry_action.clone();
+                            let module = mod_action.clone();
+                            let field = field_action.clone();
+                            let ret = focus_action.clone();
+                            ws.update(cx, |ws, cx| {
+                                ws.open_part_composer(
+                                    &entry,
+                                    &module,
+                                    dr_workspace::dto::CommentPartDto::Field { field },
+                                    None,
+                                    ret,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    })
                     .flex()
                     .flex_row()
                     .gap_4()
@@ -602,6 +1013,7 @@ impl Render for TypedFields {
                             .flex_1()
                             .min_w_0()
                             .child(field)
+                            .children(field_ul)
                             .children(self.errors.get(&def.id).map(|k| div().child(t(cx, *k))))
                             .children(
                                 (self.errors.get(&def.id)
@@ -615,6 +1027,16 @@ impl Render for TypedFields {
                                     .on_click(cx.listener(move |v, _, _, cx| v.retry(&id, cx)))
                                 }),
                             ),
+                    )
+                    .child(comment_btn)
+                    .child(
+                        SandFrame::new(
+                            ElementId::Name(
+                                format!("v3-field-sf-{}-{}", self.host.module.id, def.id).into(),
+                            ),
+                            lit,
+                        )
+                        .color(p.accent),
                     ),
             );
         }

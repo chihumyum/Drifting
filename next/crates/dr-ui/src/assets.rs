@@ -136,7 +136,7 @@ impl Assets {
                 let icon = crate::sand::Icon::from_name(name)?;
                 let png = icon.png();
                 let (w, h) = png_size(png);
-                // Icons are square, except the six-frame thinking strip.
+                // Icons are square, except the 68-frame thinking strip.
                 Some(embed_svg(png, 96.0 * (w as f32 / h as f32), 96.0))
             }
             "sand" => {
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn png_sizes_read_from_the_header() {
         assert_eq!(png_size(Icon::Close.png()), (96, 96));
-        assert_eq!(png_size(Icon::Thinking.png()).0, 96 * 6);
+        assert_eq!(png_size(Icon::Thinking.png()).0, 96 * 68);
         assert_eq!(png_size(GLASS_TILE_PNG), (320, 320));
     }
 }

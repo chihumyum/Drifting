@@ -95,6 +95,8 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
                     "entries" | "entry" => ("entry", effect.id),
                     "entry_templates" | "entry_template" => ("entry_template", effect.id),
                     "timeline_views" | "timeline_view" => ("timeline_view", effect.id),
+                    "assets" | "asset" => ("asset", effect.id),
+                    "project" | "projects" | "tab" | "tabs" => ("book", book.to_owned()),
                     "plot_grids" | "plot_grid" => (
                         "entry",
                         effect.id.split('/').next().unwrap_or(&effect.id).to_owned(),
@@ -114,6 +116,7 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
                     | "category"
                     | "storyline"
                     | "material"
+                    | "asset"
                     | "comment"
                     | "relation"
                     | "entry"
@@ -167,6 +170,20 @@ pub fn resolve_change(
                 .unwrap_or_else(|| format!("entry:{id}")),
             "entry_template" | "template" => format!("template:{id}"),
             "material" => format!("material:{id}"),
+            "asset" => {
+                let direct = format!("material:{id}");
+                if Target::from_key(&direct).is_some_and(|t| snapshot.exists(&t)) {
+                    direct
+                } else if let Some(placed) = snapshot
+                    .material_items()
+                    .iter()
+                    .find(|m| m.asset.as_deref() == Some(id))
+                {
+                    format!("material:{}", placed.id)
+                } else {
+                    direct
+                }
+            }
             _ => return None,
         };
         let target = Target::from_key(&key)?;
@@ -454,5 +471,159 @@ mod tests {
             web_url("http://example.invalid/").as_deref(),
             Some("http://example.invalid/")
         );
+    }
+
+    #[test]
+    fn v5_project_tab_and_asset_settlements_resolve_to_home_and_material_targets() {
+        use dr_doc::v3::novel::TPL_CHAPTER;
+        let directory = tempfile::tempdir().unwrap();
+        let workspace = Workspace::open_dir(directory.path(), "m31-v5-change-targets").unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let entry = seeded.books[0]
+            .book
+            .view()
+            .entries()
+            .into_iter()
+            .find(|e| {
+                e.template
+                    .as_ref()
+                    .is_some_and(|t| t.as_str() == TPL_CHAPTER)
+            })
+            .unwrap()
+            .id
+            .to_string();
+        seeded.write_to(workspace.library()).unwrap();
+
+        let unplaced_asset = "01950000-0000-7000-8000-000000000801";
+        let placed_asset = "01950000-0000-7000-8000-000000000802";
+        for (id, name, sha256) in [
+            (
+                unplaced_asset,
+                "loose.png",
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde1",
+            ),
+            (
+                placed_asset,
+                "placed.png",
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde2",
+            ),
+        ] {
+            workspace
+                .call(
+                    &Actor::User,
+                    "asset.put",
+                    json!({
+                        "book": book,
+                        "id": id,
+                        "name": name,
+                        "kind": "image",
+                        "mime": "image/png",
+                        "size": 64,
+                        "sha256": sha256,
+                        "width": 32,
+                        "height": 32
+                    }),
+                )
+                .unwrap();
+        }
+        workspace
+            .call(
+                &Actor::User,
+                "entry_template.put_module",
+                json!({
+                    "book": book,
+                    "template": TPL_CHAPTER,
+                    "module": {"id": "mod-gallery", "kind": "media", "name": "图集"}
+                }),
+            )
+            .unwrap();
+        let placed_item = "01950000-0000-7000-8000-000000000811";
+        workspace
+            .call(
+                &Actor::User,
+                "module.put_media",
+                json!({
+                    "book": book,
+                    "entry": entry,
+                    "module": "mod-gallery",
+                    "item": {"id": placed_item, "asset": placed_asset, "caption": "插图"}
+                }),
+            )
+            .unwrap();
+
+        let receipt = |id| SettlementRef {
+            id,
+            document: format!("book:{book}"),
+            seq: id,
+        };
+        let make_tool = |id: &str, settled, kind: &str, target: &str| ToolActivity {
+            id: id.into(),
+            call: None,
+            started: true,
+            result: Some(ToolResult {
+                call: id.into(),
+                status: ToolStatus::Success,
+                output: json!({"effects":[{"action":"updated","kind":kind,"id":target}]}),
+                settlements: vec![receipt(settled)],
+            }),
+        };
+        let mut run = ChatState::new("m31-v5-session").snapshot();
+        run.changes = vec![
+            ChangedReceipt {
+                turn: 1,
+                receipt: receipt(1),
+            },
+            ChangedReceipt {
+                turn: 2,
+                receipt: receipt(2),
+            },
+            ChangedReceipt {
+                turn: 3,
+                receipt: receipt(3),
+            },
+            ChangedReceipt {
+                turn: 4,
+                receipt: receipt(4),
+            },
+        ];
+        run.tools = vec![
+            make_tool("project-call", 1, "project", &book),
+            make_tool("tab-call", 2, "tab", "tab-files"),
+            make_tool("unplaced-asset", 3, "asset", unplaced_asset),
+            make_tool("placed-asset", 4, "assets", placed_asset),
+        ];
+
+        for turn in [1, 2] {
+            let targets = change_targets(&run, turn);
+            assert_eq!(targets.len(), 1);
+            assert_eq!(targets[0].key(), format!("book:{book}"));
+            assert!(matches!(
+                resolve_change(&workspace, &book, &targets[0], false).unwrap(),
+                ChangeLocation::Home
+            ));
+        }
+
+        let unplaced_targets = change_targets(&run, 3);
+        assert_eq!(unplaced_targets.len(), 1);
+        assert_eq!(unplaced_targets[0].key(), format!("asset:{unplaced_asset}"));
+        match resolve_change(&workspace, &book, &unplaced_targets[0], false).unwrap() {
+            ChangeLocation::Page(target) => {
+                assert_eq!(target.key(), format!("material:{unplaced_asset}"))
+            }
+            _ => panic!("expected unplaced asset to resolve to Material page target"),
+        }
+
+        let placed_targets = change_targets(&run, 4);
+        assert_eq!(placed_targets.len(), 1);
+        assert_eq!(placed_targets[0].key(), format!("asset:{placed_asset}"));
+        match resolve_change(&workspace, &book, &placed_targets[0], false).unwrap() {
+            ChangeLocation::Page(target) => {
+                assert_eq!(target.key(), format!("material:{placed_item}"))
+            }
+            _ => panic!("expected placed asset to resolve to its Material item target"),
+        }
+
+        workspace.shutdown().unwrap();
     }
 }

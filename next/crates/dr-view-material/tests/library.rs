@@ -170,6 +170,9 @@ fn a_copied_image_pastes_as_a_material(cx: &mut TestAppContext) {
     let e = env();
     let (panel, mut cx) = open(cx, &e);
     let cx = &mut cx;
+    let existing = file(&e, "existing.png", dr_testkit::media::png(30, 30));
+    panel.update(cx, |p, cx| p.import_paths(vec![existing], None, cx));
+    wait_for(cx, |cx| !panel.read_with(cx, |p, _| p.importing()));
     cx.update(|_, cx| {
         cx.write_to_clipboard(ClipboardItem::new_image(&Image::from_bytes(
             ImageFormat::Png,
@@ -178,12 +181,23 @@ fn a_copied_image_pastes_as_a_material(cx: &mut TestAppContext) {
     });
     panel.update(cx, |p, cx| p.paste(cx));
     wait_for(cx, |cx| {
-        !panel.read_with(cx, |p, _| p.importing()) && !materials(&e).is_empty()
+        !panel.read_with(cx, |p, _| p.importing()) && materials(&e).len() == 2
     });
     let made = materials(&e);
-    assert_eq!(made.len(), 1);
-    assert_eq!(made[0].title, "粘贴的图片");
+    assert_eq!(made.len(), 2);
+    // Placed at the very top of the library with timestamped default name and inline rename active.
+    assert!(
+        made[0].title.starts_with("粘贴的图片 "),
+        "unexpected pasted title: {}",
+        made[0].title
+    );
     assert_eq!(made[0].kind, "image");
+    reload(&e, &panel, cx);
+    wait_for(cx, |cx| panel.read_with(cx, |p, _| p.renaming().is_some()));
+    assert_eq!(
+        panel.read_with(cx, |p, _| p.renaming().map(str::to_owned)),
+        Some(dr_view_material::folders::material_key(&made[0].id))
+    );
 }
 
 #[gpui::test]
@@ -214,4 +228,148 @@ fn a_selection_selects_all_clears_and_is_deleted(cx: &mut TestAppContext) {
     };
     panel.update(cx, |p, cx| p.delete(sel, cx));
     wait_for(cx, |_| materials(&e).is_empty());
+}
+
+#[gpui::test]
+fn view_mode_persists_current_dedupes_keeping_zero_count_folders_and_trash_restores(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_material::library::ViewMode;
+    let e = env();
+    let (panel, mut vcx) = open(cx, &e);
+    assert_eq!(panel.read_with(&vcx, |p, _| p.view_mode()), ViewMode::List);
+    panel.update(&mut vcx, |p, cx| p.set_view_mode(ViewMode::Masonry, cx));
+    assert_eq!(
+        panel.read_with(&vcx, |p, _| p.view_mode()),
+        ViewMode::Masonry
+    );
+
+    // Reopening a fresh LibraryPanel in the same Settings session restores Masonry.
+    let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
+    let lib = e.ws.clone();
+    let window2 = cx.add_window(move |window, cx| {
+        LibraryPanel::new(WeakEntity::new_invalid(), Some(lib), book, window, cx)
+    });
+    let panel2 = window2.root(cx).unwrap();
+    let mut vcx2 = VisualTestContext::from_window(window2.into(), cx);
+    draw(&mut vcx2);
+    assert_eq!(
+        panel2.read_with(&vcx2, |p, _| p.view_mode()),
+        ViewMode::Masonry
+    );
+    panel2.update(&mut vcx2, |p, cx| p.set_view_mode(ViewMode::List, cx));
+
+    // Create a folder whose sole file is used in an entry: `当前` pins the file,
+    // `其他` deduplicates the file while keeping the folder row at count 0.
+    let folder = dr_view_material::folders::create_folder(&e.ws, &e.book, "海图集", None).unwrap();
+    let used_file = dr_view_material::import::import_bytes(
+        &e.ws,
+        &e.book,
+        Some(&folder),
+        dr_testkit::media::png(40, 30),
+        "东岸海图",
+    )
+    .unwrap()
+    .material;
+    let other_file = dr_view_material::import::import_bytes(
+        &e.ws,
+        &e.book,
+        None,
+        dr_testkit::media::png(48, 36),
+        "码头草图",
+    )
+    .unwrap()
+    .material;
+    out(
+        &e.ws,
+        "entry_template.put",
+        json!({"book": e.book, "template": {"id": "test-media-tpl", "name": "设定",
+            "modules": [{"id": "mod-media", "kind": "media", "name": "媒体"}]}}),
+    );
+    let entry = out(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "template": "test-media-tpl", "title": "东岸"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "module.put_media",
+        json!({"book": e.book, "entry": entry, "module": "mod-media",
+            "item": {"id": dr_model::id::new_uuid_v7(), "asset": used_file, "caption": ""}}),
+    );
+    reload(&e, &panel2, &mut vcx2);
+    wait_for(&mut vcx2, |cx| {
+        panel2.read_with(cx, |p, cx| p.current_for_entry(&entry, cx).len() == 1)
+    });
+    let current = panel2.read_with(&vcx2, |p, cx| p.current_for_entry(&entry, cx));
+    assert_eq!(current[0].asset_id, used_file);
+    assert_eq!(current[0].module_name, "媒体");
+    let other_rows = panel2.read_with(&vcx2, |p, _| p.other_entries_for(&current));
+    let folder_row = other_rows
+        .iter()
+        .find_map(|r| match r {
+            Entry::Folder { id, count, .. } if id == &folder => Some(*count),
+            _ => None,
+        })
+        .expect("empty-after-dedupe folder stays in 其他");
+    assert_eq!(folder_row, 0);
+    assert!(
+        !other_rows
+            .iter()
+            .any(|r| matches!(r, Entry::Material { id, .. } if id == &used_file)),
+        "pinned file is deduplicated from 其他"
+    );
+    assert!(
+        other_rows
+            .iter()
+            .any(|r| matches!(r, Entry::Material { id, .. } if id == &other_file))
+    );
+
+    // Move `other_file` to Recently Deleted, verify it appears in trashed_assets,
+    // restore it, then trash and permanently purge it.
+    panel2.update(&mut vcx2, |p, cx| {
+        p.delete(
+            Selection {
+                materials: vec![other_file.clone()],
+                folders: Vec::new(),
+            },
+            cx,
+        )
+    });
+    wait_for(&mut vcx2, |cx| {
+        panel2.read_with(cx, |p, _| {
+            p.trashed_assets().iter().any(|a| a.id == other_file)
+        })
+    });
+    panel2.update(&mut vcx2, |p, cx| {
+        p.restore_trashed_asset(other_file.clone(), cx)
+    });
+    wait_for(&mut vcx2, |cx| {
+        panel2.read_with(cx, |p, _| {
+            p.trashed_assets().is_empty() && materials(&e).iter().any(|m| m.id == other_file)
+        })
+    });
+    panel2.update(&mut vcx2, |p, cx| {
+        p.delete(
+            Selection {
+                materials: vec![other_file.clone()],
+                folders: Vec::new(),
+            },
+            cx,
+        )
+    });
+    wait_for(&mut vcx2, |cx| {
+        panel2.read_with(cx, |p, _| {
+            p.trashed_assets().iter().any(|a| a.id == other_file)
+        })
+    });
+    panel2.update(&mut vcx2, |p, cx| {
+        p.purge_trashed_asset(other_file.clone(), cx)
+    });
+    wait_for(&mut vcx2, |cx| {
+        panel2.read_with(cx, |p, _| p.trashed_assets().is_empty())
+    });
 }

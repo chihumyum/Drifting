@@ -363,10 +363,7 @@ impl Workspace {
             return;
         }
         let doc = book::doc_of(target);
-        let from_entry = match target {
-            Target::Book(from) => Some(from.to_string()),
-            _ => None,
-        };
+        let book_root = target.book_root();
         let key = target.key();
         let prepared = key.clone();
         let (one, book_id) = (doc.clone(), self.book_id.clone());
@@ -375,7 +372,7 @@ impl Workspace {
             let sessions = cx
                 .background_executor()
                 .spawn(async move {
-                    match (one, from_entry) {
+                    match (one, book_root) {
                         // One document: its editor's own session, for
                         // `ChapterEditor::with_session`.
                         (Some(doc), _) => {
@@ -393,10 +390,10 @@ impl Workspace {
                             }
                             dr_editor::SessionSource::open(&lib, &doc).map(Prepared::Doc)
                         }
-                        // Flattened book view from `from`, for
+                        // Flattened book view from `root`, for
                         // `BookEditor::with_prepared`.
-                        (None, Some(from)) => {
-                            BookEditor::prepare(&lib, &book_id, &from).map(Prepared::Book)
+                        (None, Some(root)) => {
+                            BookEditor::prepare_root(&lib, &book_id, root).map(Prepared::Book)
                         }
                         (None, None) => Err(dr_workspace::WsError::Invalid(
                             "page target has neither document nor level root".into(),
@@ -437,10 +434,9 @@ impl Workspace {
         let settings = self.editor_settings.clone();
         let base = self.editor_base.clone();
         let title = self.page_title(key, cx);
-        let position = match Target::from_key(key) {
-            Some(Target::Book(from)) => self.book_positions.get(from.as_str()).cloned(),
-            _ => None,
-        };
+        let position = Target::from_key(key)
+            .and_then(|t| t.book_position_key())
+            .and_then(|k| self.book_positions.get(&k).cloned());
         // The tab may have closed meanwhile.
         let Some(page) = self.editors.get_mut(key) else {
             return;
@@ -635,7 +631,22 @@ impl Workspace {
         event: &BookEditorEvent,
         cx: &mut Context<Self>,
     ) {
-        let key = format!("book:{}", editor.read(cx).from_entry());
+        let key = self
+            .editors
+            .iter()
+            .find(|(_, p)| {
+                p.views()
+                    .iter()
+                    .any(|v| matches!(v, PageView::Book(b) if b.entity_id() == editor.entity_id()))
+            })
+            .map(|(k, _)| k.clone())
+            .unwrap_or_else(|| match editor.read(cx).root() {
+                dr_model::v3::BookRoot::View { view } => format!("book-view:{view}"),
+                dr_model::v3::BookRoot::Lane { view, entry } => {
+                    format!("book-lane:{view}/{entry}")
+                }
+                _ => format!("book:{}", editor.read(cx).from_entry()),
+            });
         match event {
             BookEditorEvent::Edited { doc } => {
                 self.unchecked.insert(doc.clone());
@@ -1181,7 +1192,7 @@ pub fn link_target(
     use dr_model::kind::EntityKind;
     let target = match kind {
         EntityKind::Entry => Target::from_key(&format!("entry:{id}"))?,
-        EntityKind::Material => Target::from_key(&format!("material:{id}"))?,
+        EntityKind::Material | EntityKind::Asset => Target::from_key(&format!("material:{id}"))?,
         _ => return None,
     };
     book.exists(&target).then_some(target)

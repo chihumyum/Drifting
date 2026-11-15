@@ -131,7 +131,7 @@ fn require_coverage(raw: Option<&Value>, expected: &Value) -> Result<(), WsError
     }
 }
 
-/// The stored state of one time pin (`null`: not stored), observed before
+/// The stored state of one scale pin (`null`: not stored), observed before
 /// anything is read to build its replacement.
 pub(super) fn observe_pin(
     lib: &Library,
@@ -327,21 +327,81 @@ impl Timeline {
             self.edit_view(id, ViewEdit::SetActTrack(lane, act_track), cx);
         }
     }
+    pub fn set_view_as_book_root(&mut self, cx: &mut Context<Self>) {
+        let Some(view) = self.view().map(|v| v.id.clone()) else {
+            return;
+        };
+        self.set_book_root(
+            dr_workspace::commands::v3::types::BookRoot::View { view },
+            cx,
+        );
+    }
+    pub fn set_lane_as_book_root(&mut self, entry: String, cx: &mut Context<Self>) {
+        let Some(view) = self.view().map(|v| v.id.clone()) else {
+            return;
+        };
+        self.set_book_root(
+            dr_workspace::commands::v3::types::BookRoot::Lane { view, entry },
+            cx,
+        );
+    }
+    fn set_book_root(
+        &mut self,
+        root: dr_workspace::commands::v3::types::BookRoot,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(mut guard) = self
+            .book
+            .v3()
+            .map(|b| b.guard_for(&serde_json::to_value(&root).unwrap_or_default()))
+        else {
+            return;
+        };
+        self.popup = None;
+        self.write(cx, move |lib, book| {
+            let observed = lib.observe_records(
+                &format!("book:{book}"),
+                &[RecordKey::record("project", "book")],
+            )?;
+            guard.records.extend(observed.into_iter().map(Into::into));
+            lib.call_guarded(
+                &Actor::User,
+                "project.update",
+                serde_json::json!({
+                    "book": book,
+                    "has_book": true,
+                    "root": root,
+                }),
+                guard,
+            )?;
+            Ok(())
+        });
+    }
     pub fn create_act_track(&mut self, template: String, cx: &mut Context<Self>) {
+        self.create_lane(template, true, cx);
+    }
+    pub fn create_lane(&mut self, template: String, act_track: bool, cx: &mut Context<Self>) {
         let Some(view_id) = self.view().map(|v| v.id.clone()) else {
             return;
         };
         let Some(book_snap) = self.book.v3() else {
             return;
         };
-        if !book_snap
+        let Some(tpl) = book_snap
             .template(&template)
-            .is_some_and(|t| t.level || t.settings.accept == Some(true))
-        {
+            .filter(|t| t.level || t.settings.accept == Some(true))
+        else {
             return;
-        }
+        };
         let guard = book_snap.guard_for(&serde_json::json!({ "template": &template }));
-        let base_name = t(cx, keys::v3_timeline::ACT_LEVEL_NAME).to_string();
+        let (base_name, fallback) = if act_track {
+            (
+                t(cx, keys::v3_timeline::ACT_LEVEL_NAME).to_string(),
+                "幕".to_owned(),
+            )
+        } else {
+            (tpl.name.clone(), tpl.name.clone())
+        };
         self.popup = None;
         self.write(cx, move |lib, book| {
             let entries_out = lib.call(
@@ -359,7 +419,7 @@ impl Timeline {
                 .collect();
             let title = dr_workspace::naming::unique_name(
                 &base_name,
-                "幕",
+                &fallback,
                 root_titles.iter().map(String::as_str),
             );
             let created = lib.call_guarded(
@@ -377,30 +437,43 @@ impl Timeline {
                 .as_str()
                 .ok_or_else(|| WsError::Internal("entry.create returned no id".into()))?
                 .to_owned();
-            let views = lib
-                .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
-                .output;
-            let place = views
-                .iter()
-                .find(|v| v.id == view_id && v.deleted_at.is_none())
-                .map(|v| {
-                    if let Some(last_act) = v.lanes.iter().rfind(|l| l.act_track == Some(true)) {
-                        dr_workspace::naming::Place::After(last_act.entry.clone())
-                    } else {
-                        dr_workspace::naming::Place::First
-                    }
-                });
-            lib.call(
-                &Actor::User,
-                "timeline_view.add_lane",
-                serde_json::json!({
-                    "book": book,
-                    "view": view_id,
-                    "lane": lane_id,
-                    "place": place,
-                    "act_track": true,
-                }),
-            )?;
+            if act_track {
+                let views = lib
+                    .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
+                    .output;
+                let place = views
+                    .iter()
+                    .find(|v| v.id == view_id && v.deleted_at.is_none())
+                    .map(|v| {
+                        if let Some(last_act) = v.lanes.iter().rfind(|l| l.act_track == Some(true))
+                        {
+                            dr_workspace::naming::Place::After(last_act.entry.clone())
+                        } else {
+                            dr_workspace::naming::Place::First
+                        }
+                    });
+                lib.call(
+                    &Actor::User,
+                    "timeline_view.add_lane",
+                    serde_json::json!({
+                        "book": book,
+                        "view": view_id,
+                        "lane": lane_id,
+                        "place": place,
+                        "act_track": true,
+                    }),
+                )?;
+            } else {
+                lib.call(
+                    &Actor::User,
+                    "timeline_view.add_lane",
+                    serde_json::json!({
+                        "book": book,
+                        "view": view_id,
+                        "lane": lane_id,
+                    }),
+                )?;
+            }
             Ok(())
         });
     }
@@ -408,43 +481,54 @@ impl Timeline {
         let Some(view_id) = self.view().map(|v| v.id.clone()) else {
             return;
         };
-        let is_accept_lane = self.book.v3().is_some_and(|b| b.accepts_members(&lane));
         let untitled = t(cx, keys::common::UNTITLED).to_string();
         self.popup = None;
         self.write(cx, move |lib, book| {
-            let entries_before = lib.call(
+            let lane_entry = lib.call(
                 &Actor::User,
-                "entry.list",
-                serde_json::json!({"book": book}),
+                "entry.get",
+                serde_json::json!({"book": book, "id": lane}),
             )?["output"]
                 .clone();
-            let memberships_before = lib.call(
-                &Actor::User,
-                "membership.list",
-                serde_json::json!({"book": book}),
-            )?["output"]
-                .clone();
+            if !lane_entry["deleted_at"].is_null() {
+                return Err(WsError::NotFound {
+                    what: "entry",
+                    id: lane,
+                });
+            }
+            let is_level = lane_entry["level"].as_bool() == Some(true);
+            let is_accept = lane_entry["below"]["settings"]["accept"].as_bool() == Some(true);
+            if !is_level && !is_accept {
+                return Err(WsError::Invalid("lane cannot hold entries".into()));
+            }
             let mut lane_members = std::collections::HashSet::<String>::new();
-            for e in entries_before.as_array().into_iter().flatten() {
-                if e["deleted_at"].is_null()
-                    && e["parent"].as_str() == Some(lane.as_str())
-                    && let Some(id) = e["id"].as_str()
+            if is_level {
+                for c in lane_entry["below"]["children"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
                 {
-                    lane_members.insert(id.to_owned());
+                    if let Some(id) = c["id"].as_str() {
+                        lane_members.insert(id.to_owned());
+                    }
                 }
             }
-            for m in memberships_before.as_array().into_iter().flatten() {
-                if m["host"].as_str() == Some(lane.as_str())
-                    && let Some(id) = m["member"].as_str()
+            if is_accept {
+                for m in lane_entry["below"]["members"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
                 {
-                    lane_members.insert(id.to_owned());
+                    if let Some(id) = m["id"].as_str() {
+                        lane_members.insert(id.to_owned());
+                    }
                 }
             }
             let mut create_input = serde_json::json!({
                 "book": book,
                 "title": untitled,
             });
-            if is_accept_lane {
+            if is_accept {
                 create_input["host"] = serde_json::json!(&lane);
             } else {
                 create_input["parent"] = serde_json::json!(&lane);
@@ -457,19 +541,20 @@ impl Timeline {
             let views = lib
                 .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
                 .output;
-            let (at, span) = views
+            if let Some(v) = views
                 .iter()
                 .find(|v| v.id == view_id && v.deleted_at.is_none())
-                .map(|v| {
-                    let is_act = v
-                        .lanes
-                        .iter()
-                        .find(|l| l.entry == lane)
-                        .is_some_and(|l| l.act_track == Some(true));
+            {
+                let is_act = v
+                    .lanes
+                    .iter()
+                    .find(|l| l.entry == lane)
+                    .is_some_and(|l| l.act_track == Some(true));
+                if is_act {
                     let lane_end = v
                         .placements
                         .iter()
-                        .filter(|p| lane_members.contains(&p.entry))
+                        .filter(|p| p.entry != entry_id && lane_members.contains(&p.entry))
                         .map(|p| p.at + p.span.unwrap_or(model::DEFAULT_SPAN))
                         .reduce(f64::max);
                     let at = match lane_end {
@@ -477,25 +562,25 @@ impl Timeline {
                         None => v
                             .placements
                             .iter()
+                            .filter(|p| p.entry != entry_id)
                             .map(|p| p.at)
                             .reduce(f64::min)
                             .unwrap_or(0.0),
                     };
-                    (at, is_act.then_some(model::DEFAULT_SPAN))
-                })
-                .unwrap_or((0.0, None));
-            lib.call(
-                &Actor::User,
-                "timeline_view.place",
-                serde_json::json!({
-                    "book": book,
-                    "view": view_id,
-                    "entry": entry_id,
-                    "lane": lane,
-                    "at": at,
-                    "span": span,
-                }),
-            )?;
+                    lib.call(
+                        &Actor::User,
+                        "timeline_view.place",
+                        serde_json::json!({
+                            "book": book,
+                            "view": view_id,
+                            "entry": entry_id,
+                            "lane": lane,
+                            "at": at,
+                            "span": model::DEFAULT_SPAN,
+                        }),
+                    )?;
+                }
+            }
             Ok(())
         });
     }

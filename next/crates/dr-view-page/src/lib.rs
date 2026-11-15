@@ -31,6 +31,7 @@ pub mod entry_head;
 pub mod head;
 mod history;
 mod links;
+pub mod media;
 pub mod settlement;
 pub mod v3;
 pub mod whole;
@@ -57,6 +58,7 @@ pub fn init(cx: &mut App) {
     entry_head::register(cx);
     v3::register(cx);
     dr_shell::v3::history::register(cx);
+    dr_shell::v3::register_entry_comment_card(cx);
 }
 
 /// A page's head and end.
@@ -125,7 +127,7 @@ impl Chrome {
                         cx,
                     )
                 });
-                let end = cx.new(|_| PageEnd::new(host, page));
+                let end = cx.new(|_| PageEnd::new_with_book(host, page, self.book.clone()));
                 self.pages
                     .borrow_mut()
                     .insert(page.doc.clone(), (head.clone(), end.clone()));

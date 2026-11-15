@@ -69,3 +69,5 @@
 轨道 3 全量复核补充：原生 onboarding 保留生成 Key 的类型适配，契约逐项核对集中模板的键名，防止与唯一翻译来源漂移；移除未呈现的暂停状态／记忆说明所对应的冗余翻译登记，没有修改翻译正文。
 
 统一条目（内核 v4，T3，2026-11-13）补充：`dr-agent/src/evidence.rs` 的 `capture_settlements` 在核对步骤写入目标时显式跳过 `checkpoints:<book>`、`stats:<book>` 等非书目／非正文侧文档回执，避免写前自动 `entry_snapshot` 打点产生的侧文档回执在长任务证明阶段触发 `WrongKind`，同时保持对 `book:<id>` 与正文文档目标的严格核对。`dr-view-agent` 主动建议的 `checkin_project` 同步改走 `Workspace::read_book_v3` 活文档读取，避免大书历史重放。
+
+内核 v5（T7，2026-11-15）补充：`dr-agent/src/evidence.rs` 的 `book_entities` 补齐 `templates`、`meta`、`project`、`tabs`、`assets`、`asset_folders`、`relation_types`、`facts`、`memory`，使 `book:<id>` 上所有格式 5 命令回执均产出精确的 `WriteProof` 目标，同时 `DocId::Layout(_)` 侧文档写入继续静默跳过（`LAYOUT-DOC-QUIET`）。`dr-agent/src/proactive/delta.rs` 定下格式 5 的 `DeltaMode` 规则：文本素材已并入普通条目正文（`DocId::Body`），产品代码不按内置模板 id 特判，所有未删除条目的正文在 `AllProse` 与 `LocalAuthorBodies` 下均参与，两种模式仅按修改来源区分（`AllProse` 含本机作者、Agent 与远端同步；`LocalAuthorBodies` 仅含本机作者）。主动建议 check-in 上下文（`CheckinContext::open_comments`）与系统提示词同步改为统一批注模型（收集全部未解决批注并附来源 `origin`，不再保留旧待办措辞，项目说明从 `project.agent` 读取）。

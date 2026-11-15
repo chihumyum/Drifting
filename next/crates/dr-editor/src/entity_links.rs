@@ -53,6 +53,8 @@ pub enum NameGroup {
     /// Idea titles (构想).
     Idea,
     Entry,
+    /// Asset-library files (`kernel-v5.md` §6, `@` picker only; never auto-linked).
+    Asset,
     Other,
 }
 
@@ -64,6 +66,7 @@ impl NameGroup {
             NameGroup::Chapter => "章节",
             NameGroup::Idea => "构想",
             NameGroup::Entry => "", // The v3 host supplies its localized heading.
+            NameGroup::Asset => "", // Separated by a hairline below entries.
             NameGroup::Other => "其他",
         }
     }

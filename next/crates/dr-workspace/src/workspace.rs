@@ -88,6 +88,14 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
                 value: e.to_string(),
             })?;
         }
+        if let Ok(DocId::ProjectTemplate(pt_id)) = DocId::parse(id) {
+            dr_doc::project_template::validate_import(&pt_id, doc, bytes).map_err(|e| {
+                StoreError::Invalid {
+                    what: "project-template import",
+                    value: e.to_string(),
+                }
+            })?;
+        }
         Ok(())
     }));
     o
@@ -854,6 +862,7 @@ impl Workspace {
                 }
                 false
             }
+            DocId::Conversation(_) | DocId::ProjectTemplate(_) => false,
             other => {
                 let removed = {
                     let mut prose = lock(&self.inner.prose);
@@ -893,6 +902,7 @@ impl Workspace {
                     let _ = repair_book(&slot);
                 }
             }
+            DocId::Conversation(_) | DocId::ProjectTemplate(_) => {}
             other => {
                 let slot = lock(&self.inner.prose)
                     .map
@@ -1170,7 +1180,12 @@ impl Workspace {
             validate_book_header(book, &bytes)?;
         }
         if let Some((kind, book)) = kind_book {
-            self.inner.lib.register(doc_id, kind, Some(book))?;
+            let book_opt = if matches!(doc, DocId::ProjectTemplate(_)) || book.is_empty() {
+                None
+            } else {
+                Some(book)
+            };
+            self.inner.lib.register(doc_id, kind, book_opt)?;
         }
         // dr-store's own import path: it records what the server has for a
         // sync import, persists, and announces the change (the caches follow
@@ -1202,6 +1217,22 @@ impl Workspace {
                     },
                 )?;
                 handle.import(bytes, origin)?;
+            }
+            DocId::ProjectTemplate(id) => {
+                let genesis = dr_doc::project_template::genesis(id);
+                let handle = self.inner.lib.open_doc(
+                    doc_id,
+                    OpenDoc::CreateIfMissing {
+                        kind: "project-template",
+                        book_id: None,
+                        genesis: &move |d| {
+                            d.import(&genesis).expect("project-template genesis");
+                        },
+                    },
+                )?;
+                let res = handle.import(bytes, origin);
+                handle.close();
+                res?;
             }
             _ => {
                 let slot = self.prose_slot(&doc)?;
@@ -1514,6 +1545,36 @@ impl Workspace {
                 .filter(|e| matches!(view.embed(e), Some(dr_doc::prose::EmbedView::Asset { .. })))
                 .collect(),
         )
+    }
+
+    /// Read-only inspection of a prose document (`body:...` or `template:...`)
+    /// without opening a new `ProseSlot`, running block-id repair, or mutating
+    /// any document. Uses an already-open `ProseSlot` if warm, otherwise loads
+    /// a read-only copy from `Library` (`Ok(None)` if not stored).
+    pub(crate) fn read_prose_readonly<R: Send + 'static>(
+        &self,
+        doc: &DocId,
+        f: impl FnOnce(&dr_doc::prose::ProseView<'_>) -> Result<R> + Send + 'static,
+    ) -> Result<Option<R>> {
+        let open_handle = lock(&self.inner.prose)
+            .map
+            .get(doc)
+            .map(|(_, s)| s.handle.clone());
+        if let Some(handle) = open_handle {
+            let doc_cloned = doc.clone();
+            let res = handle.read(move |raw_doc| {
+                let borrowed = dr_doc::prose::BorrowedProse::new(raw_doc, &doc_cloned)?;
+                f(&borrowed.view())
+            })??;
+            return Ok(Some(res));
+        }
+        let id = doc.to_string();
+        if self.inner.lib.doc_info(&id)?.is_none() {
+            return Ok(None);
+        }
+        let raw_doc = self.inner.lib.load_copy(&id)?;
+        let borrowed = dr_doc::prose::BorrowedProse::new(&raw_doc, doc)?;
+        Ok(Some(f(&borrowed.view())?))
     }
 
     /// Read a canonical v3 book document and its committed frontier version
@@ -1860,9 +1921,8 @@ impl Inner {
                                 || !side_keys(&ev.changes, dr_doc::schema::side::TAB).is_empty(),
                         }),
                     ),
-                    // Conversation observers subscribe to their journal or
-                    // store document events; they are never prose events.
-                    DocId::Conversation(_) => {}
+                    // Conversation and project-template documents are never prose events.
+                    DocId::Conversation(_) | DocId::ProjectTemplate(_) => {}
                     _ => {
                         let (ranges, embeds) = prose_ranges(&ev.changes);
                         let slot = lock(&self.prose).map.get(&doc).map(|(_, s)| s.clone());

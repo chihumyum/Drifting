@@ -96,10 +96,13 @@
     "import": "프로젝트 가져오기",
     "importFile": "프로젝트 가져오기 (.driftingproject)",
     "importLegacy": "Drifting 0.1 가져오기",
+    "libraryProjects_one": "프로젝트 {{count}}개",
+    "libraryProjects_other": "프로젝트 {{count}}개",
     "library_one": "프로젝트 {{count}}개 · {{words}}단어",
     "library_other": "프로젝트 {{count}}개 · {{words}}단어",
     "nameLabel": "이름",
     "newProject": "새 프로젝트",
+    "recentEntries": "최근 수정",
     "summaryPlaceholder": "프로젝트를 한두 문장으로 설명하세요.",
     "title": "모든 프로젝트",
     "transfer": {
@@ -203,9 +206,7 @@
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",
-      "resolve": "해결 처리",
-      "toNote": "댓글로 전환",
-      "toTodo": "할 일로 전환"
+      "resolve": "해결 처리"
     },
     "card": {
       "emptyComment": "빈 댓글"
@@ -217,7 +218,6 @@
   "common": {
     "cancel": "취소",
     "close": "닫기",
-    "confirm": "확인",
     "counting": "계산 중…",
     "creating": "만드는 중…",
     "customColor": "사용자 지정 색",
@@ -257,11 +257,6 @@
       "collapsePlotPlanner": "플롯 계획기 접기",
       "expandPlotPlanner": "플롯 계획기 펼치기",
       "more": "추가 작업"
-    },
-    "menu": {
-      "deleteMaterial": "자료 삭제",
-      "moveMaterialToFolder": "폴더로 이동…",
-      "openMaterialInSystem": "기본 앱으로 열기"
     },
     "status": {
       "discarded": "폐기됨",
@@ -490,7 +485,6 @@
     "format": "형식",
     "loadFailed": "장을 읽을 수 없습니다. 다시 시도해 주세요.",
     "loading": "장 읽는 중…",
-    "manuscript": "원고",
     "menu": "원고 내보내기",
     "removeCover": "제거",
     "retry": "다시 시도",
@@ -516,47 +510,29 @@
     "retry": "다시 시도"
   },
   "materialEditor": {
-    "deleteConfirm": "자료 “{{title}}”을(를) 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
     "deleteFailed": "자료를 삭제하지 못했습니다.",
     "descriptionPlaceholder": "설명 추가…",
     "embed": {
-      "importFile": "이미지 또는 PDF 가져오기…",
-      "importing": "가져오는 중…",
-      "pastedImage": "붙여넣은 이미지"
+      "importing": "가져오는 중…"
     },
     "regions": {
       "draw": "영역에 댓글 달기",
       "drawHint": "이미지 위를 드래그하여 영역 표시",
       "empty": "이미지나 페이지 위를 드래그하여 첫 댓글을 추가하세요.",
       "listLabel": "이 자료의 댓글",
-      "page": "{{page}}페이지",
-      "stopDrawing": "댓글 달기 종료",
-      "whole": "자료 전체"
+      "stopDrawing": "댓글 달기 종료"
     },
     "zoomIn": "확대",
     "zoomOut": "축소",
     "zoomReset": "화면에 맞추기"
   },
   "materialFolders": {
-    "deleteConfirm": "폴더 “{{name}}”을(를) 삭제할까요? 안의 모든 항목은 한 단계 위로 이동하며 자료는 삭제되지 않습니다.",
-    "deleteSelectionConfirm": "선택한 항목 {{count}}개를 삭제할까요? 자료는 삭제되며, 삭제된 폴더 안의 항목은 한 단계 위로 이동합니다.",
-    "empty": "아직 자료가 없습니다. 위의 새 폴더 버튼으로 자료를 정리하세요.",
     "menu": {
-      "collapseAll": "내부 항목 모두 접기",
-      "delete": "폴더 삭제",
-      "deleteSelection": "항목 {{count}}개 삭제",
-      "expandAll": "내부 항목 모두 펼치기",
-      "move": "폴더로 이동…",
-      "moveSelection": "항목 {{count}}개를 폴더로 이동…",
-      "newFolder": "새 폴더",
-      "newSubfolder": "내부에 새 폴더 만들기",
-      "open": "열기",
-      "rename": "이름 바꾸기"
+      "open": "열기"
     },
     "picker": {
       "createAndMove": "만들고 이동",
-      "newPlaceholder": "새 폴더 이름",
-      "title": "폴더로 이동"
+      "newPlaceholder": "새 폴더 이름"
     },
     "root": "모든 자료",
     "untitled": "새 폴더"
@@ -568,11 +544,7 @@
     "dialog": {
       "create": "만들기",
       "newTodo": "새 할 일",
-      "titlePlaceholder": "제목",
       "todoPlaceholder": "할 일 내용…"
-    },
-    "empty": {
-      "noRelated": "현재 항목에 연결된 자료가 없습니다."
     },
     "error": {
       "openFile": "파일을 열 수 없음: {{error}}",
@@ -584,7 +556,6 @@
       "text": "메모"
     },
     "menu": {
-      "deleteMaterial": "자료 삭제",
       "openInSystem": "시스템 앱으로 열기"
     },
     "preview": {
@@ -608,7 +579,6 @@
       "hideKind": "눌러서 이 종류 숨기기",
       "material": "자료",
       "meta": "할 일 {{todos}}개 · 댓글 {{comments}}개 · 자료 {{materials}}개",
-      "newMaterialButton": "새 자료",
       "noFilteredMaterials": "현재 필터에 맞는 자료가 없습니다.",
       "noMaterials": "이 작품에는 아직 자료가 없습니다.",
       "noOrphans": "모든 자료가 하나 이상의 개체에 연결되어 있습니다.",
@@ -626,10 +596,6 @@
     },
     "todo": {
       "empty": "(빈 할 일)"
-    },
-    "toolbar": {
-      "count": "자료 {{count}}개",
-      "newMaterial": "새 자료"
     }
   },
   "mobileWorkspace": {
@@ -772,7 +738,7 @@
       "importFailedTitle": "가져올 수 없음",
       "invalid": "파일이 손상되어 가져올 수 없습니다.",
       "legacy": "이 파일은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요.",
-      "older": "이 파일은 이전 개발 버전의 Drifting에서 내보낸 것으로, 이 버전에서는 더 이상 읽지 않는 형식입니다."
+      "older": "이전 형식의 책 파일이므로 이 버전에서는 더 이상 읽지 않습니다."
     },
     "delete": {
       "deleting": "삭제 중…"
@@ -851,6 +817,7 @@
       "writing": "집필 중"
     },
     "trash": {
+      "bodyWithoutBook": "프로젝트({{entries}})를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "bodyWithoutChapters": "프로젝트({{words}}자 · 요소 {{elements}}개)를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "confirm": "최근 삭제 항목으로 이동",
       "deleteNow": "지금 삭제",
@@ -868,8 +835,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "엔터티 연결",
-      "remove": "관계 제거"
+      "linkEntity": "엔터티 연결"
     },
     "filters": {
       "all": "전체"
@@ -880,9 +846,6 @@
       "node": "장",
       "patch": "변화 기록",
       "storyline": "스토리라인"
-    },
-    "picker": {
-      "placeholder": "연결 가능한 엔터티 검색…"
     },
     "sections": {
       "relations": "관계"
@@ -918,7 +881,6 @@
       "floating": "연결되지 않음"
     },
     "newComment": "새 댓글",
-    "resolved": "해결됨({{count}}개)",
     "scopes": {
       "current": "현재"
     },
@@ -1555,6 +1517,31 @@
     "thisLevel": "이 계층",
     "title": "제목"
   },
+  "v3Review": {
+    "backToReview": "검토로 돌아가기",
+    "checklistFold": "체크리스트 {{count}}",
+    "commentButton": "메모",
+    "commentFromHeader": "메모 · {{where}}",
+    "commentFromSimple": "메모",
+    "drawRegionComment": "영역을 지정해 메모",
+    "handToAgent": "Agent에게 넘기기",
+    "jumpToPlace": "해당 위치로 이동",
+    "noteForAgent": "Agent에게 남길 말…",
+    "openConversation": "대화 열기",
+    "originAgent": "Agent",
+    "originManual": "직접 작성",
+    "originMarker": "표식",
+    "originReader": "독자",
+    "originReaderNamed": "독자 · {{name}}",
+    "originTask": "체크리스트",
+    "regionPlace": "영역",
+    "regionPlacePaged": "{{page}}쪽",
+    "statusOpen": "미해결",
+    "statusResolved": "해결됨",
+    "unlocated": "원래 위치를 찾을 수 없음",
+    "wholeFile": "파일 전체",
+    "writeComment": "메모 작성"
+  },
   "v3Settings": {
     "codeCopied": "복사됨",
     "copyCode": "코드 복사",
@@ -1618,29 +1605,83 @@
     "colorValue": "색상 값",
     "deleteView": "보기 삭제",
     "detachEntry": "항목 연결 해제",
+    "laneActions": "레인 작업",
     "laneTrack": "레인 {{name}}",
     "members": "구성원 {{count}}개",
     "moveDown": "아래로 이동",
     "moveUp": "위로 이동",
     "newActTrack": "막 트랙 만들기",
     "newEntryInLane": "새 항목",
+    "newLane": "새 레인",
     "newView": "새 보기",
     "placeEntry": "항목 배치",
     "placementActions": "배치 작업",
     "removeEntry": "레인에서 제거",
     "removeLane": "보기에서 제거",
-    "renamePin": "시간 핀 이름 변경",
+    "renamePin": "눈금 핀 이름 변경",
     "renameView": "보기 이름 변경",
     "resize": "길이 조절",
-    "ruler": "시간 눈금",
+    "ruler": "눈금자",
     "selectLane": "레인 선택",
     "setActTrack": "막 트랙으로 사용 · {{name}}",
+    "setBookRoot": "책 시작점으로 설정",
     "unsetActTrack": "일반 레인으로 전환 · {{name}}",
-    "views": "타임라인 보기"
+    "views": "보기"
   },
   "v3Transfer": {
     "filesTitle": "파일",
     "targetTitle": "대상"
+  },
+  "v5Files": {
+    "addFiles": "파일 추가",
+    "alignCenter": "가운데",
+    "alignHeading": "정렬",
+    "alignLeft": "왼쪽",
+    "alignRight": "오른쪽",
+    "allFolders": "전체",
+    "clearField": "지우기",
+    "currentSection": "현재",
+    "empty": "파일 없음",
+    "fileCount_other": "파일 {{count}}개",
+    "findFile": "파일 찾기",
+    "itemCount_other": "{{count}}개",
+    "kindImage": "이미지",
+    "kindPdf": "PDF",
+    "layoutFeatured": "크게 보기",
+    "layoutGrid": "격자",
+    "layoutList": "목록",
+    "libraryRoot": "자료실",
+    "locateInLibrary": "자료실에서 찾기",
+    "mediaCaptionPlaceholder": "설명",
+    "moveToFolder": "폴더로 이동",
+    "moveToTrash": "최근 삭제된 항목으로 이동",
+    "newFolder": "새 폴더",
+    "newSubfolder": "하위 폴더 만들기",
+    "open": "열기",
+    "openInSystem": "시스템에서 열기",
+    "otherSection": "기타",
+    "pageCount_other": "{{count}}쪽",
+    "pastedImage": "붙여넣은 이미지 {{stamp}}",
+    "pickFromComputer": "컴퓨터에서 선택…",
+    "pickFromLibrary": "자료실에서 고르기…",
+    "proseCaptionPlaceholder": "캡션",
+    "purge": "영구 삭제",
+    "removeFromHere": "여기서 빼기",
+    "removeFromProse": "본문에서 빼기",
+    "rename": "이름 바꾸기",
+    "resetArrangement": "템플릿 기본값으로 복원",
+    "restore": "복원",
+    "sizeFull": "본문 너비",
+    "sizeHeading": "크기",
+    "sizeMedium": "중간",
+    "sizeSmall": "작게",
+    "slashImageOrPdf": "이미지 또는 PDF…",
+    "topLevel": "최상위",
+    "trashSection": "최근 삭제된 항목",
+    "usageCount_other": "{{count}}곳",
+    "usedIn": "사용처",
+    "viewList": "목록",
+    "viewMasonry": "폭포형"
   },
   "voiceAgent": {
     "error": {

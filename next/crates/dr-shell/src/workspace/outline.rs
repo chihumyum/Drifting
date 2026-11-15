@@ -482,7 +482,7 @@ fn v3_outline_editor(
             .find(|editor| page_focus.contains(&editor.prose(cx).focus_handle(cx), window))
     };
     match target {
-        Target::Book(_) => get(None),
+        t if t.is_book() => get(None),
         Target::Entry { id, module } => {
             let mut modules = Vec::new();
             if let Some(template) = v.template_of(id.as_str()) {
@@ -532,7 +532,7 @@ pub fn rail(
     }
     let target = target?;
     let editor =
-        if w.book.v3().is_some() && matches!(target, Target::Entry { .. } | Target::Book(_)) {
+        if w.book.v3().is_some() && (matches!(target, Target::Entry { .. }) || target.is_book()) {
             v3_outline_editor(w, ws.entity_id(), target, window, cx)?
         } else {
             w.page_view(target)?.clone()

@@ -12740,6 +12740,62 @@ expression: json
           ],
           "type": "object"
         },
+        "ProjectCreateTemplate": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "template_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "template_id"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Canonical drifting.project-template v1 object.",
+              "properties": {
+                "format": {
+                  "const": "drifting.project-template",
+                  "type": "string"
+                },
+                "formatVersion": {
+                  "const": 1,
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "format",
+                "formatVersion",
+                "name"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "$ref": "#/$defs/ProjectTemplateRef"
+                },
+                "value": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ProjectTemplate"
+            }
+          ]
+        },
         "ProjectDefinitionInput": {
           "properties": {
             "agent": {
@@ -12909,10 +12965,68 @@ expression: json
           },
           "type": "object"
         },
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
         "ProjectTemplateRef": {
           "properties": {
+            "credit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateCredit"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "id": {
               "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "origin": {
+              "description": "`builtin`, `own`, `file`, or `community`.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "version": {
               "format": "int64",
@@ -13179,6 +13293,17 @@ expression: json
         "name": {
           "type": "string"
         },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplateRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional provenance recorded in `project.source` when `template` is a canonical template value."
+        },
         "summary": {
           "default": "",
           "type": "string"
@@ -13186,13 +13311,20 @@ expression: json
         "template": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ProjectTemplate"
+              "$ref": "#/$defs/ProjectCreateTemplate"
             },
             {
               "type": "null"
             }
           ],
           "description": "Optional project template; omitted uses the built-in writing template."
+        },
+        "template_id": {
+          "description": "Optional saved library template ID (`project-template:<id>`) to create from.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -13405,10 +13537,68 @@ expression: json
           ],
           "type": "object"
         },
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
         "ProjectTemplateRef": {
           "properties": {
+            "credit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateCredit"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "id": {
               "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "origin": {
+              "description": "`builtin`, `own`, `file`, or `community`.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "version": {
               "format": "int64",
@@ -13770,6 +13960,685 @@ expression: json
       "type": "object"
     },
     "summary": "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ProjectTemplateIdIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "project_template.get",
+    "output": {
+      "$defs": {
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "ProjectTemplateSummary": {
+          "description": "Summary card of a saved project template in `project-template:<id>`.",
+          "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "credit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateCredit"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "entry_count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "has_book": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "origin": {
+              "description": "`\"own\"` (saved from a project on this library) or `\"file\"` (imported from `.driftingtemplate`).",
+              "type": "string"
+            },
+            "revision": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "template_count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "description",
+            "origin",
+            "revision",
+            "locale",
+            "has_book",
+            "template_count",
+            "entry_count"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "Full saved project template record returned by `project_template.get`.",
+      "properties": {
+        "summary": {
+          "$ref": "#/$defs/ProjectTemplateSummary"
+        },
+        "value": true
+      },
+      "required": [
+        "summary",
+        "value"
+      ],
+      "title": "ProjectTemplateDetail",
+      "type": "object"
+    },
+    "summary": "Read a saved project template and its validated value."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "title": "ProjectTemplateListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "project_template.list",
+    "output": {
+      "$defs": {
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "ProjectTemplateSummary": {
+          "description": "Summary card of a saved project template in `project-template:<id>`.",
+          "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "credit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateCredit"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "entry_count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "has_book": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "origin": {
+              "description": "`\"own\"` (saved from a project on this library) or `\"file\"` (imported from `.driftingtemplate`).",
+              "type": "string"
+            },
+            "revision": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "template_count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "description",
+            "origin",
+            "revision",
+            "locale",
+            "has_book",
+            "template_count",
+            "entry_count"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ProjectTemplateSummary"
+      },
+      "title": "Array_of_ProjectTemplateSummary",
+      "type": "array"
+    },
+    "summary": "List saved project templates in this library."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ProjectTemplateIdIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project_template.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Permanently delete a saved project template from this library."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "$defs": {
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplateCredit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional author attribution (`credit`). When saving from an imported/community\nproject without an explicit `derivedFrom`, `derivedFrom` is filled from `project.source`."
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "exclude_skeleton": {
+          "default": [],
+          "description": "Unlocked skeleton entries (`level` or `accept` on) to exclude from the template.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "locale": {
+          "description": "Optional BCP-47 locale tag (defaults to `\"zh-CN\"`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "replace": {
+          "description": "Optional existing `project-template:<id>` to replace (`revision` increments by 1).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sample_entries": {
+          "default": [],
+          "description": "Live entries whose content (`fields`, `kv`, `arrangements`, `prose`, `memberships`, `placements`) is carried as sample content.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "view_pins": {
+          "default": [],
+          "description": "Live timeline views whose time pins are carried.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "name"
+      ],
+      "title": "ProjectTemplateSaveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project_template.save",
+    "output": {
+      "$defs": {
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "Summary card of a saved project template in `project-template:<id>`.",
+      "properties": {
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplateCredit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "entry_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "has_book": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`\"own\"` (saved from a project on this library) or `\"file\"` (imported from `.driftingtemplate`).",
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "template_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "origin",
+        "revision",
+        "locale",
+        "has_book",
+        "template_count",
+        "entry_count"
+      ],
+      "title": "ProjectTemplateSummary",
+      "type": "object"
+    },
+    "summary": "Save a project's structure and selected sample items as a project template."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ProjectTemplateUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project_template.update",
+    "output": {
+      "$defs": {
+        "ProjectTemplateCredit": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "derivedFrom": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProjectTemplateDerivedFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "homepage": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectTemplateDerivedFrom": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "Summary card of a saved project template in `project-template:<id>`.",
+      "properties": {
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectTemplateCredit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "entry_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "has_book": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`\"own\"` (saved from a project on this library) or `\"file\"` (imported from `.driftingtemplate`).",
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "template_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "origin",
+        "revision",
+        "locale",
+        "has_book",
+        "template_count",
+        "entry_count"
+      ],
+      "title": "ProjectTemplateSummary",
+      "type": "object"
+    },
+    "summary": "Rename a saved project template or update its description."
   },
   {
     "access": "write",

@@ -14,7 +14,7 @@ use dr_workspace::{
 };
 use gpui::{
     AppContext as _, Context, Entity, Focusable, IntoElement, ParentElement, Render, Styled,
-    Subscription, Window, div, px,
+    Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,7 +26,12 @@ struct Values {
 }
 
 impl Values {
-    fn update(&self, book: &str, baseline: &Self) -> Result<Option<ProjectUpdateIn>, WsError> {
+    fn update(
+        &self,
+        book: &str,
+        baseline: &Self,
+        has_book: bool,
+    ) -> Result<Option<ProjectUpdateIn>, WsError> {
         let target = |s: &str| -> Result<i64, WsError> {
             if s.trim().is_empty() {
                 return Ok(0);
@@ -42,10 +47,10 @@ impl Values {
         }
         let name = (self.name != baseline.name).then(|| self.name.trim().to_owned());
         let summary = (self.summary != baseline.summary).then(|| self.summary.clone());
-        let word_target = (self.goal != baseline.goal)
+        let word_target = (has_book && self.goal != baseline.goal)
             .then(|| target(&self.goal).map(Some))
             .transpose()?;
-        let daily_word_target = (self.daily != baseline.daily)
+        let daily_word_target = (has_book && self.daily != baseline.daily)
             .then(|| target(&self.daily).map(Some))
             .transpose()?;
         let changed = name.is_some()
@@ -66,6 +71,7 @@ impl Values {
 pub struct SettingsDialog {
     lib: Workspace,
     book: String,
+    pub has_book: bool,
     baseline: Values,
     pub name: Entity<TextField>,
     pub summary: Entity<TextArea>,
@@ -121,6 +127,7 @@ impl SettingsDialog {
         Self {
             lib,
             book,
+            has_book: data.has_book,
             baseline: values,
             name,
             summary,
@@ -154,7 +161,7 @@ impl SettingsDialog {
             goal: self.goal.read(cx).text().to_owned(),
             daily: self.daily.read(cx).text().to_owned(),
         };
-        let update = match values.update(&self.book, &self.baseline) {
+        let update = match values.update(&self.book, &self.baseline, self.has_book) {
             Ok(Some(update)) => update,
             Ok(None) => {
                 self.close(cx);
@@ -208,10 +215,12 @@ impl Render for SettingsDialog {
                 .gap(px(10.0))
                 .child(t(cx, keys::dashboard::hero::PROJECT_NAME))
                 .child(self.name.clone())
-                .child(t(cx, keys::project_home::settings::PROJECT_TARGET))
-                .child(self.goal.clone())
-                .child(t(cx, keys::project_home::settings::DAILY_GOAL))
-                .child(self.daily.clone())
+                .when(self.has_book, |d| {
+                    d.child(t(cx, keys::project_home::settings::PROJECT_TARGET))
+                        .child(self.goal.clone())
+                        .child(t(cx, keys::project_home::settings::DAILY_GOAL))
+                        .child(self.daily.clone())
+                })
                 .child(t(cx, keys::dashboard::sections::PROJECT_PROFILE))
                 .child(self.summary.clone())
                 .children(self.error.then(|| {
@@ -424,29 +433,58 @@ mod tests {
             (original.title.clone(), original.word_target)
         );
 
+        // A dialog opened while `has_book` was on still fails atomically if
+        // `has_book` is turned off before saving.
+        let stale_loaded = v3::load(&ws, &book, Scope::Book).unwrap();
+        let (stale_frame, vcx) =
+            cx.add_window_view(|window, cx| {
+                Frame(cx.new(|cx| {
+                    SettingsDialog::new(ws.clone(), book.clone(), &stale_loaded, window, cx)
+                }))
+            });
+        let stale_dialog = stale_frame.read_with(vcx, |f, _| f.0.clone());
         ws.call(
             &Actor::User,
             "project.update",
             json!({"book": book, "has_book": false}),
         )
         .unwrap();
-        let loaded = v3::load(&ws, &book, Scope::Book).unwrap();
-        let (frame, vcx) = cx.add_window_view(|window, cx| {
-            Frame(cx.new(|cx| SettingsDialog::new(ws.clone(), book.clone(), &loaded, window, cx)))
-        });
-        let dialog = frame.read_with(vcx, |f, _| f.0.clone());
-        dialog.update(vcx, |d, cx| {
+        stale_dialog.update(vcx, |d, cx| {
             d.name.update(cx, |f, cx| f.set_text("不该存下", cx));
             d.goal.update(cx, |f, cx| f.set_text("10", cx));
             d.save(cx);
         });
-        wait(vcx, |cx| dialog.read_with(cx, |d, _| !d.busy));
-        assert!(dialog.read_with(vcx, |d, _| d.error));
+        wait(vcx, |cx| stale_dialog.read_with(cx, |d, _| !d.busy));
+        assert!(stale_dialog.read_with(vcx, |d, _| d.error));
         assert_eq!(
             v3::load(&ws, &book, Scope::Book).unwrap().title,
             original.title,
             "half a save is no save"
         );
+
+        // A fresh dialog opened on a bookless project hides the two target
+        // fields and saves name and summary cleanly without sending targets.
+        let loaded = v3::load(&ws, &book, Scope::Book).unwrap();
+        assert!(!loaded.has_book);
+        let (frame, vcx) = cx.add_window_view(|window, cx| {
+            Frame(cx.new(|cx| SettingsDialog::new(ws.clone(), book.clone(), &loaded, window, cx)))
+        });
+        let dialog = frame.read_with(vcx, |f, _| f.0.clone());
+        assert!(!dialog.read_with(vcx, |d, _| d.has_book));
+        dialog.update(vcx, |d, cx| {
+            d.name.update(cx, |f, cx| f.set_text("无成书项目", cx));
+            d.summary.update(cx, |f, cx| f.set_text("资料与卡片", cx));
+            d.goal.update(cx, |f, cx| f.set_text("9999", cx));
+            d.daily.update(cx, |f, cx| f.set_text("500", cx));
+            d.save(cx);
+        });
+        wait(vcx, |cx| dialog.read_with(cx, |d, _| !d.busy));
+        assert!(!dialog.read_with(vcx, |d, _| d.error));
+        let after_bookless = v3::load(&ws, &book, Scope::Book).unwrap();
+        assert_eq!(after_bookless.title, "无成书项目");
+        assert_eq!(after_bookless.summary, "资料与卡片");
+        assert_eq!(after_bookless.word_target, None);
+        assert_eq!(after_bookless.daily_word_target, None);
         ws.close();
     }
 }

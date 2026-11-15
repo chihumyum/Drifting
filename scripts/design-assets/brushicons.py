@@ -90,11 +90,13 @@ bridges.png                 筝柱: three strings, a bridge set on each at a dif
 lift.png                    上提: one heavy stroke pulled up, a 「人」 head on it (send to the Agent)
 lift-bent.png               汇流上提: the same head, its shaft bent in from the lower left like a
                             stream running in to join the current (add to the Agent's running task)
-thinking.png                星芒: six frames side by side, a pressed dot throwing out four,
-                            six, then eight rays that swell blunt at their tips (the way a
-                            terminal spinner goes · ✢ ✳ ✶ ✻ ✽); CSS plays them back and
-                            forth while the Agent thinks. The author picked it over 梅开,
-                            涟漪 and 六出 (2026-11-06); the 砂聚成点 it replaced is in git
+pinwheel / pinwheel-solid   风车: four curled sails round a pin, hollow while the Agent works on a
+                            comment and pressed solid once it finishes
+thinking.png                风·林·火·山: 68 frames side by side (10 hold + 7 transition each),
+                            a tornado breaking into leaves and jungle, catching into a flame,
+                            spreading into mountain ranges and rolling back into the tornado,
+                            stepped at 8 fps while the Agent thinks and resting on 山 (frame 57)
+                            when finished. Replaces 星芒 (2026-11-15), kept in ALTERNATES
 
 The selection bar's text formats, drawn as letters and marks (fine grain):
 
@@ -1124,7 +1126,7 @@ def _lift_head(a, rng):
     brush(a, curve([(48, 12), (36, 24), (20, 40)], 10), H * 0.95, rng, load0=1.0, dry=0.3, taper=(0.0, 0.35))
     brush(a, curve([(48, 12), (60, 24), (76, 40)], 10), H * 0.95, rng, load0=1.0, dry=0.3, taper=(0.0, 0.35))
 
-def thinking(rng):
+def thinking_star(rng):
     """星芒: a pressed dot that throws out rays, four, six, eight, then the
     eight swell blunt and heavy at their tips (· ✢ ✳ ✶ ✻ ✽). Six frames,
     laid side by side and played back and forth."""
@@ -1149,6 +1151,274 @@ def thinking(rng):
                 disc(a, 48 + np.cos(ang) * (r1 - 3), 48 + np.sin(ang) * (r1 - 3), thick * 1.05, rng, wob=0.12)
         disc(a, 48, 48, dot, rng, wob=0.08)
         frames.append(a)
+    return frames
+
+
+def _rot_pts(pts, deg, c=(48.0, 48.0)):
+    t = np.deg2rad(deg); cs, sn = np.cos(t), np.sin(t)
+    return [(c[0] + (x - c[0]) * cs - (y - c[1]) * sn, c[1] + (x - c[0]) * sn + (y - c[1]) * cs) for x, y in pts]
+
+
+_PW_LEAD = [(48, 48), (37, 35), (21, 22), (5, 12)]
+_PW_TRAIL = [(5, 12), (7, 28), (14, 41), (26, 51), (39, 56), (46, 53), (48, 48)]
+_PW_FOLD = [(48, 48), (35, 41), (18, 29), (5, 12)]
+
+
+def _sail_parts(q, c=(48, 48)):
+    return tuple(_rot_pts(curve(p, 12), 90 * q, c) for p in (_PW_LEAD, _PW_TRAIL, _PW_FOLD))
+
+
+def pinwheel(rng):
+    """风车, hollow: each sail drawn round, a lighter fold down its middle, a ring for the pin."""
+    a = new()
+    for q in range(4):
+        lead, trail, fold = _sail_parts(q)
+        brush(a, lead + trail[1:], T * 0.68, rng, load0=1.0, dry=0.2, taper=(0.03, 0.05))
+        brush(a, fold, T * 0.42, rng, load0=0.75, dry=0.5, taper=(0.3, 0.5))
+    hole = new(); disc(hole, 48, 48, 6.5, rng, wob=0.04); erase(a, hole)
+    brush(a, arc(48, 48, 4.6, 4.6, 0, 360, 40), T * 0.55, rng, load0=1.0, dry=0.0, taper=(0, 0))
+    return a
+
+
+def pinwheel_solid(rng):
+    """风车, solid: each sail pressed full on its front, the scoop behind the fold lighter, the pin cut white."""
+    a = new()
+    for q in range(4):
+        lead, trail, fold = _sail_parts(q)
+        fill_poly(a, fold + trail[::-1][1:], rng, load=0.72, rough=0.6)
+        fill_poly(a, lead + fold[::-1][1:], rng, load=rng.uniform(0.95, 1.0), rough=0.7)
+    hole = new(); disc(hole, 48, 48, 6.0, rng, wob=0.04); erase(a, hole)
+    disc(a, 48, 48, 2.6, rng, wob=0.04)
+    return a
+
+
+def thinking(_rng):
+    """风·林·火·山: 68 frames side by side (10 hold + 7 transition each),
+    stepped forward at 8 fps while the Agent thinks; frame 56 (57th, 山) is still."""
+    w_glyph = G
+    layers = [(16, 36), (30, 28), (44, 20), (57, 13), (69, 7)]
+
+    def sm01(t):
+        t = min(1.0, max(0.0, t)); return t * t * (3 - 2 * t)
+
+    def tornado_paths(phase, shrink=1.0):
+        out, tail = [], None
+        for i, (y, w) in enumerate(layers):
+            w *= shrink
+            cx = 48 + 7 * np.sin(1.2 * i + phase)
+            s = 0.8 * np.sin(1.7 * phase + 0.9 * i)
+            th = np.linspace(np.pi + 0.45 + s, -0.35 + s, 26)
+            out.append(([(cx + w * np.cos(t), y + w * 0.3 * np.sin(t)) for t in th], w_glyph * (1.5 - 0.12 * i)))
+            tail = (cx, y + 3)
+        tip = (48 + 5 * np.sin(phase + 6.0), 90)
+        out.append((curve([tail, ((tail[0] + tip[0]) / 2 + 3 * np.sin(phase), 80), tip], 10), w_glyph * 1.0))
+        return out
+
+    def stroke(a, r_gen, pts, r, i, load=1.0):
+        brush(a, pts, r, r_gen, load0=load, dry=0.45 if i < 5 else 0.5, taper=(0.12, 0.35) if i < 5 else (0.05, 0.7))
+
+    def tornado(r_gen, phase, skip=(), load=1.0):
+        a = new()
+        for i, (pts, r) in enumerate(tornado_paths(phase)):
+            if i not in skip:
+                stroke(a, r_gen, pts, r, i, load)
+        return a
+
+    def leaf(a, r_gen, x, y, ang, k=1.0):
+        d = np.deg2rad(ang)
+        p0 = (x - 5 * k * np.cos(d), y - 5 * k * np.sin(d))
+        p1 = (x + 5 * k * np.cos(d), y + 5 * k * np.sin(d))
+        brush(a, curve([p0, ((p0[0] + p1[0]) / 2 + 1.5 * np.sin(d), (p0[1] + p1[1]) / 2 - 1.5 * np.cos(d)), p1], 8),
+              w_glyph * 0.95 * k, r_gen, load0=1.0, dry=0.1, taper=(0.5, 0.5))
+
+    rt = np.random.default_rng(4242)
+    jungle = [dict(x=(-1 if i % 2 else 1) * rt.uniform(0.45, 2.1), h=rt.uniform(0.7, 1.4),
+                   w=rt.uniform(0.22, 0.42), ph=rt.random()) for i in range(18)]
+    hor, z0, z1 = 34.0, 0.75, 4.8
+
+    def jungle_at(t):
+        out = []
+        for tr in jungle:
+            z = z0 + ((tr["ph"] + t / 40) % 1) * (z1 - z0)
+            h_tr = 66 * tr["h"] / z
+            ld = sm01((z - z0) / 0.45) * sm01((z1 - z) / 0.6) * min(1.0, max(0.42, 1.2 - 0.17 * z))
+            out.append(dict(z=z, x=48 + tr["x"] * 40 / z, base=hor + 48 / z, H=h_tr, w=tr["w"], load=ld))
+        return [o for o in sorted(out, key=lambda o: -o["z"]) if o["load"] > 0.02 and -30 < o["x"] < 126]
+
+    def fir(a, r_gen, o, load=None):
+        x, base, h_tr, half = o["x"], o["base"], o["H"], o["w"] * o["H"]
+        ld = o["load"] if load is None else load
+        fill_poly(a, [(x, base - h_tr), (x - half, base - 0.2 * h_tr), (x + half, base - 0.2 * h_tr)], r_gen, load=ld, rough=0.9)
+        brush(a, line((x, base - 0.22 * h_tr), (x, base), 8), max(1.6, w_glyph * 1.2 * h_tr / 60), r_gen, load0=ld, dry=0.2, taper=(0.02, 0.1))
+
+    def forest(r_gen, t):
+        a = new()
+        for o in jungle_at(t):
+            fir(a, r_gen, o)
+        return a
+
+    def crown(o):
+        return o["x"], o["base"] - 0.55 * o["H"]
+
+    def flame_parts(f):
+        sway = 5 * np.sin(f * 1.9) + 2 * np.sin(f * 3.7)
+        lick = 4 * np.sin(f * 2.6 + 1)
+        outer = [(48, 90), (24, 80), (17, 58), (27, 36), (34 + lick * 0.4, 46 - lick), (42 + sway * 0.3, 24),
+                 (52 + sway, 5 + abs(lick) * 0.5), (58 + sway * 0.5, 28), (68, 20 - lick * 0.5), (79, 46), (75, 76), (48, 90)]
+        heart = [(48, 82), (36, 74), (36, 60), (45 + sway * 0.2, 44 - lick * 0.4), (52, 56), (60, 52), (62, 70), (48, 82)]
+        return outer, heart
+
+    def flame_at(r_gen, f, cx=48.0, cy=48.0, s=1.0, sx=1.0, sy=1.0, load=1.0):
+        a = new()
+        outer, heart = flame_parts(f)
+        tf = lambda p: (cx + (p[0] - 48) * s * sx, cy + (p[1] - 48) * s * sy)
+        fill_poly(a, curve([tf(p) for p in outer], 8), r_gen, rough=0.9, load=load)
+        if s > 0.3:
+            h_m = new(); fill_poly(h_m, curve([tf(p) for p in heart], 8), r_gen, rough=0.5); erase(a, h_m * 0.95)
+        return a
+
+    range_spec = [(32, 0.6, 0.35, 9), (52, 0.85, 0.6, 12), (74, 1.15, 0.92, 15)]
+
+    def range_lines(f, spread=1.0):
+        out = []
+        for idx, (y0, k, load, band) in enumerate(range_spec):
+            ph = f * 0.42 * k + idx * 1.7
+            xs = np.linspace(-6, 102, 44)
+            amp = 20 * k * (1.7 + (1 - 1.7) * spread)
+            hs = np.array([amp * (0.62 * (1 - abs(np.sin(0.045 * x / k + ph))) ** 1.5
+                                  + 0.38 * (1 - abs(np.sin(0.12 * x / k + 2.1 * ph + idx))) ** 1.8) for x in xs])
+            y = 42 + (y0 - 42) * spread
+            sq = 0.42 + 0.58 * spread
+            sky = [(48 + (x - 48) * sq, y - h_v) for x, h_v in zip(xs, hs)]
+            under = [(x, yy + band * (0.55 + 0.45 * (h_v / (amp + 1e-6)))) for (x, yy), h_v in zip(sky, hs)]
+            out.append(dict(sky=sky, under=under, k=k, load=load))
+        return out
+
+    def ranges(r_gen, f, spread=1.0, fill=1.0, lines=None):
+        a = new()
+        for r in (lines or range_lines(f, spread)):
+            if fill > 0.02:
+                fill_poly(a, r["sky"] + r["under"][::-1], r_gen, load=r["load"] * fill, rough=0.8)
+            brush(a, r["sky"], w_glyph * (0.55 + 0.4 * r["k"]), r_gen, load0=min(1.0, r["load"] + 0.15), dry=0.3, taper=(0.05, 0.05))
+        return a
+
+    def blend(*pairs):
+        out = new()
+        for m, w in pairs:
+            if w > 0:
+                np.maximum(out, m * w, out=out)
+        return out
+
+    def resample_n(pts, n):
+        p = np.asarray(pts, float)
+        d = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))])
+        u = np.linspace(0, d[-1], n)
+        return np.stack([np.interp(u, d, p[:, 0]), np.interp(u, d, p[:, 1])], 1)
+
+    hold, step, ph_spin = 10, 7, 0.62
+    frames = []
+    seed = [9500]
+
+    def add(m):
+        seed[0] += 1
+        frames.append(np.clip(m, 0, 1))
+
+    def R():
+        return np.random.default_rng(seed[0] * 7 + 3)
+
+    for k in range(hold):
+        add(tornado(R(), k * ph_spin))
+
+    rl = np.random.default_rng(77)
+    paths = tornado_paths(hold * ph_spin)
+    starts = np.array([pts[j] for pts, _ in paths[:5] for j in np.linspace(2, 23, 6).astype(int)])
+    first = jungle_at(0)
+    cr = [crown(o) + (o["H"],) for o in first if o["H"] > 12]
+    targets = np.array([(cx + rl.uniform(-0.25, 0.25) * h_v, cy + rl.uniform(-0.3, 0.3) * h_v)
+                        for cx, cy, h_v in (cr[i % len(cr)] for i in range(len(starts)))])
+    out_dir = starts - np.array([48, 50])
+    out_dir /= np.maximum(1e-6, np.hypot(*out_dir.T))[:, None]
+    burst = starts + out_dir * rl.uniform(10, 22, (len(starts), 1)) + np.array([0, -8])
+    spin = rl.uniform(0, 180, len(starts))
+    for k in range(step):
+        s = (k + 1) / step
+        lv = new()
+        for i in range(len(starts)):
+            if s < 0.45:
+                p = starts[i] + (burst[i] - starts[i]) * sm01(s / 0.45)
+            else:
+                u = sm01((s - 0.45) / 0.55)
+                p = burst[i] + (targets[i] - burst[i]) * u + np.array([4 * np.sin(9 * s + i), 0]) * np.sin(np.pi * u)
+            leaf(lv, R(), p[0], p[1], spin[i] + 220 * s, k=0.85)
+        add(blend((tornado(R(), (hold + k) * ph_spin), 1 - sm01(s / 0.4)),
+                  (lv, 1 - 0.75 * sm01((s - 0.72) / 0.28)),
+                  (forest(R(), 0), sm01((s - 0.55) / 0.45))))
+
+    for k in range(hold):
+        add(forest(R(), k + 1))
+
+    for k in range(step):
+        s = (k + 1) / step
+        t = hold + 1 + k
+        a = new()
+        if s <= 4 / 7:
+            q = sm01(s / (4 / 7))
+            trees = new()
+            for o in jungle_at(t):
+                fir(trees, R(), o)
+                cx, cy = crown(o)
+                np.maximum(a, flame_at(R(), k, cx, cy, s=o["H"] / 85 * 0.95, load=o["load"]), out=a)
+            add(blend((trees, 1 - q), (a, q)))
+        else:
+            q = sm01((s - 4 / 7) / (3 / 7))
+            for o in jungle_at(t):
+                cx, cy = crown(o)
+                sc = o["H"] / 85 * 0.95
+                np.maximum(a, flame_at(R(), k, cx + (48 - cx) * q, cy + (48 - cy) * q,
+                                       s=sc + (1 - sc) * q, load=o["load"] + (1 - o["load"]) * q), out=a)
+            _, heart = flame_parts(k)
+            hs = 0.35 + 0.65 * q
+            h_m = new()
+            fill_poly(h_m, curve([(48 + (x - 48) * hs, 48 + (y - 48) * hs + 30 * (1 - hs)) for x, y in heart], 8), R(), rough=0.5)
+            erase(a, h_m * 0.95 * sm01((q - 0.2) / 0.8))
+            add(a)
+
+    for k in range(hold):
+        add(flame_at(R(), 7 + k))
+
+    for k in range(step):
+        s = (k + 1) / step
+        add(blend((flame_at(R(), 17 + k, sx=1 + 0.4 * s, sy=1 - 0.3 * s), 1 - sm01(s / 0.55)),
+                  (ranges(R(), k - (step - 1), spread=sm01(s), fill=sm01((s - 0.35) / 0.65)), sm01(s / 0.3))))
+
+    for k in range(hold):
+        add(ranges(R(), k + 1))
+
+    mp = {0: 0, 1: 2, 2: 4}
+    for k in range(step):
+        s = (k + 1) / step
+        e = sm01(s)
+        ph = (k - step) * ph_spin
+        tp = tornado_paths(ph)
+        lines = range_lines(hold + 1 + k)
+        a = new()
+        for idx, r in enumerate(lines):
+            src = resample_n(r["sky"], 26)
+            dst = np.asarray(tp[mp[idx]][0])
+            u = np.linspace(-1, 1, 26)[:, None]
+            lift_pts = np.concatenate([np.zeros((26, 1)), -14 * u ** 2], 1) * np.sin(np.pi * e)
+            pts = src + (dst - src) * e + lift_pts
+            rad = w_glyph * (0.55 + 0.4 * r["k"]) * (1 - e) + tp[mp[idx]][1] * e
+            stroke(a, R(), [tuple(p) for p in pts], rad, mp[idx])
+        fills = new()
+        for r in lines:
+            fill_poly(fills, r["sky"] + r["under"][::-1], R(), load=r["load"], rough=0.8)
+        rest = new()
+        for i, (pts, rad) in enumerate(tp):
+            if i not in mp.values():
+                stroke(rest, R(), pts, rad, i)
+        add(blend((a, 1), (fills, 1 - sm01(s / 0.6)), (rest, sm01((s - 0.3) / 0.7))))
+
     return frames
 
 # ── Text formats ──
@@ -1469,14 +1739,16 @@ OBJECTS = {
     "insert-row": (insert_row, 8192), "list-bullet": (list_bullet, 8201), "list-ordered": (list_ordered, 8211),
     "table": (table, 8222), "code": (code, 8230), "highlight": (highlight, 8240),
     "brush-writing": (brush_writing, 8081), "alpha-down": (alpha_down, 8091), "lanes-stagger": (lanes_stagger, 8102),
+    "pinwheel": (pinwheel, 9201), "pinwheel-solid": (pinwheel_solid, 9202),
     "bridges": (bridges, 9202),
 }
 # Drawn beside the shipped folding fan and incense and not written out: to
 # ship one instead, put it in OBJECTS under the shipped icon's name.
 ALTERNATES = {"folding-fan-line": (folding_fan_line, 3012), "lantern": (lantern, 3013),
-              "oil-lamp": (oil_lamp, 9111), "eyes-shut": (eyes_shut, 9121)}
+              "oil-lamp": (oil_lamp, 9111), "eyes-shut": (eyes_shut, 9121),
+              "thinking-star": (thinking_star, 6101)}
 # Frames drawn with one rng, each finished with fine grain, then laid side by side.
-STRIPS = {"thinking": (thinking, 6101)}
+STRIPS = {"thinking": (thinking, 9500)}
 masks = {}
 for name, (draw, seed) in ICONS.items():
     rng = np.random.default_rng(seed)
