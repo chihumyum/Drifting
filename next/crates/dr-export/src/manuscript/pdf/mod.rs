@@ -133,6 +133,7 @@ enum Flow {
 struct Anchor {
     title: String,
     act: bool,
+    depth: Option<u8>,
     toc_para: Option<usize>,
     page: usize,
     y: f32,
@@ -530,6 +531,7 @@ impl Builder<'_> {
                     self.anchors.push(Anchor {
                         title: title.clone(),
                         act: true,
+                        depth: None,
                         toc_para,
                         page: 0,
                         y: 0.0,
@@ -543,46 +545,99 @@ impl Builder<'_> {
                 Section::Chapter {
                     title,
                     show_title,
+                    depth,
                     blocks,
                 } => {
                     let toc_para = with_toc.then(|| {
-                        let para = self.plain_para(
-                            title,
-                            TextStyle::plain(toc_size),
-                            Align::Left,
-                            toc_size * 1.6,
-                        );
-                        if has_acts {
-                            self.paras[para].left = 2.0 * toc_size;
+                        let style = match depth {
+                            Some(0) => TextStyle::bold(toc_size),
+                            _ => TextStyle::plain(toc_size),
+                        };
+                        let para = self.plain_para(title, style, Align::Left, toc_size * 1.6);
+                        match depth {
+                            Some(d) => {
+                                self.paras[para].left = f32::from((*d).min(6)) * 1.5 * toc_size;
+                            }
+                            None if has_acts => {
+                                self.paras[para].left = 2.0 * toc_size;
+                            }
+                            None => {}
                         }
                         para
                     });
                     self.anchors.push(Anchor {
                         title: title.clone(),
                         act: false,
+                        depth: *depth,
                         toc_para,
                         page: 0,
                         y: 0.0,
                     });
-                    self.flow.push(Flow::NewPage);
+                    match depth {
+                        Some(d) if *d > 0 => {
+                            self.flow.push(Flow::Space(1.6 * self.metrics.leading));
+                        }
+                        _ => self.flow.push(Flow::NewPage),
+                    }
                     self.flow.push(Flow::Chapter {
                         anchor: self.anchors.len() - 1,
                     });
                     if *show_title {
-                        let size = if self.cjk { 16.0 } else { 18.0 };
-                        let para = self.plain_para(
-                            title,
-                            TextStyle::bold(size),
-                            Align::Center,
-                            size * 1.5,
-                        );
-                        self.flow.push(Flow::Space(3.0 * self.metrics.leading));
-                        self.flow.push(Flow::Para {
-                            para,
-                            keep: 2,
-                            space_after: 2.0 * self.metrics.leading,
-                        });
-                        self.flow.push(Flow::Space(2.0 * self.metrics.leading));
+                        match depth {
+                            Some(d) => {
+                                let (size, before_mul, after_mul, align) = match d {
+                                    0 => (
+                                        if self.cjk { 20.0 } else { 22.0 },
+                                        2.5,
+                                        1.6,
+                                        Align::Center,
+                                    ),
+                                    1 => {
+                                        (if self.cjk { 17.0 } else { 19.0 }, 1.6, 1.0, Align::Left)
+                                    }
+                                    2 => {
+                                        (if self.cjk { 15.0 } else { 16.5 }, 1.3, 0.8, Align::Left)
+                                    }
+                                    3 => {
+                                        (if self.cjk { 13.5 } else { 15.0 }, 1.1, 0.6, Align::Left)
+                                    }
+                                    _ => {
+                                        (if self.cjk { 12.8 } else { 13.5 }, 0.9, 0.5, Align::Left)
+                                    }
+                                };
+                                let para = self.plain_para(
+                                    title,
+                                    TextStyle::bold(size),
+                                    align,
+                                    size * 1.5,
+                                );
+                                self.flow
+                                    .push(Flow::Space(before_mul * self.metrics.leading));
+                                self.flow.push(Flow::Para {
+                                    para,
+                                    keep: 2,
+                                    space_after: after_mul * self.metrics.leading,
+                                });
+                                self.flow
+                                    .push(Flow::Space(after_mul * self.metrics.leading));
+                            }
+                            None => {
+                                let size = if self.cjk { 16.0 } else { 18.0 };
+                                let para = self.plain_para(
+                                    title,
+                                    TextStyle::bold(size),
+                                    Align::Center,
+                                    size * 1.5,
+                                );
+                                self.flow.push(Flow::Space(3.0 * self.metrics.leading));
+                                self.flow.push(Flow::Para {
+                                    para,
+                                    keep: 2,
+                                    space_after: 2.0 * self.metrics.leading,
+                                });
+                                self.flow.push(Flow::Space(2.0 * self.metrics.leading));
+                            }
+                        }
                     }
                     let mut first = true;
                     self.blocks(blocks, 0.0, None, &mut first);
@@ -1432,24 +1487,51 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
     }
 
     let mut outline = Outline::new();
-    let mut act_node: Option<OutlineNode> = None;
-    for anchor in &anchors {
-        let destination =
-            XyzDestination::new(front_count + anchor.page, Point::from_xy(0.0, anchor.y));
-        let node = OutlineNode::new(anchor.title.clone(), destination);
-        if anchor.act {
-            if let Some(previous) = act_node.take() {
-                outline.push_child(previous);
-            }
-            act_node = Some(node);
-        } else if let Some(act) = act_node.as_mut() {
-            act.push_child(node);
-        } else {
-            outline.push_child(node);
+    if book.has_tree_depths() {
+        let fold_stack =
+            |stack: &mut Vec<(u8, OutlineNode)>, min_depth: Option<u8>, outline: &mut Outline| {
+                while stack
+                    .last()
+                    .is_some_and(|(d, _)| min_depth.is_none_or(|m| *d >= m))
+                {
+                    let (_, node) = stack.pop().expect("checked non-empty");
+                    if let Some((_, parent)) = stack.last_mut() {
+                        parent.push_child(node);
+                    } else {
+                        outline.push_child(node);
+                    }
+                }
+            };
+        let mut stack: Vec<(u8, OutlineNode)> = Vec::new();
+        for anchor in &anchors {
+            let destination =
+                XyzDestination::new(front_count + anchor.page, Point::from_xy(0.0, anchor.y));
+            let node = OutlineNode::new(anchor.title.clone(), destination);
+            let d = anchor.depth.unwrap_or(0);
+            fold_stack(&mut stack, Some(d), &mut outline);
+            stack.push((d, node));
         }
-    }
-    if let Some(previous) = act_node.take() {
-        outline.push_child(previous);
+        fold_stack(&mut stack, None, &mut outline);
+    } else {
+        let mut act_node: Option<OutlineNode> = None;
+        for anchor in &anchors {
+            let destination =
+                XyzDestination::new(front_count + anchor.page, Point::from_xy(0.0, anchor.y));
+            let node = OutlineNode::new(anchor.title.clone(), destination);
+            if anchor.act {
+                if let Some(previous) = act_node.take() {
+                    outline.push_child(previous);
+                }
+                act_node = Some(node);
+            } else if let Some(act) = act_node.as_mut() {
+                act.push_child(node);
+            } else {
+                outline.push_child(node);
+            }
+        }
+        if let Some(previous) = act_node.take() {
+            outline.push_child(previous);
+        }
     }
     document.set_outline(outline);
 

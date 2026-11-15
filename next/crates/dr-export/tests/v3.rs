@@ -170,17 +170,7 @@ fn manuscript_excludes_nonresident_and_trashed_content_and_refuses_old_books() {
     let hidden = v3::outline(&ws, &book).unwrap();
     assert!(hidden.entries.len() < before.entries.len());
     assert!(!hidden.entries.iter().any(|e| &e.id == entry));
-    call(&ws, "entry.restore", json!({"book":book,"id":root}));
-    assert_eq!(v3::outline(&ws, &book).unwrap(), before);
-    let all = call(&ws, "entry.list", json!({"book":book,"all":true}));
-    let nonresident: Vec<_> = all
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|e| e["id"].as_str())
-        .filter(|id| !before.entries.iter().any(|e| e.id == *id))
-        .map(str::to_owned)
-        .collect();
+    assert!(!hidden.tree_ids().iter().any(|id| id == root || id == entry));
     let labels = Labels {
         untitled_chapter: "Untitled".into(),
         untitled_act: "Unused".into(),
@@ -190,7 +180,7 @@ fn manuscript_excludes_nonresident_and_trashed_content_and_refuses_old_books() {
             &ws,
             &book,
             &Options {
-                chapters: Some(nonresident),
+                chapters: Some(vec![root.to_owned(), entry.clone()]),
                 ..Options::default()
             },
             &labels,
@@ -200,6 +190,39 @@ fn manuscript_excludes_nonresident_and_trashed_content_and_refuses_old_books() {
         ),
         Err(dr_export::ExportError::NoChapters)
     ));
+    call(&ws, "entry.restore", json!({"book":book,"id":root}));
+    assert_eq!(v3::outline(&ws, &book).unwrap(), before);
+    let all = call(&ws, "entry.list", json!({"book":book,"all":true}));
+    let non_book: Vec<_> = all
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["id"].as_str())
+        .filter(|id| !before.entries.iter().any(|e| e.id == *id))
+        .map(str::to_owned)
+        .collect();
+    assert!(!non_book.is_empty());
+    // Book-prose mode (`chapters: None`) excludes non-book entries, while
+    // manual tree selection (`chapters: Some(...)`) exports them.
+    let book_only = read(&ws, &book, None);
+    let non_book_titles: std::collections::HashSet<String> = all
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| {
+            e["id"]
+                .as_str()
+                .is_some_and(|id| non_book.iter().any(|nb| nb == id))
+        })
+        .filter_map(|e| e["title"].as_str().map(str::to_owned))
+        .collect();
+    for section in &book_only.sections {
+        if let Section::Chapter { title, .. } = section {
+            assert!(!non_book_titles.contains(title));
+        }
+    }
+    let picked_non_book = read(&ws, &book, Some(non_book));
+    assert!(!picked_non_book.sections.is_empty());
     let old_id = dr_testkit::seed::acceptance::empty_source(ws.library());
     assert!(!v3::is_book(&ws, &old_id).unwrap());
     assert!(v3::outline(&ws, &old_id).is_err());
@@ -581,7 +604,8 @@ fn export_reads_the_book_from_the_root_and_is_empty_when_the_book_is_off() {
         ["正篇第一章", "乙线早章", "甲线中章", "甲线后章", "番外一"]
     );
 
-    // Disabling `成书` yields `has_book == false`, an empty outline, and refuses manuscript export.
+    // Disabling `成书` yields `has_book == false`, an empty book-prose outline,
+    // and refuses `chapters: None`, while manual tree selection exports the whole tree.
     call(
         &ws,
         "project.update",
@@ -590,6 +614,7 @@ fn export_reads_the_book_from_the_root_and_is_empty_when_the_book_is_off() {
     let disabled = v3::outline(&ws, &book).unwrap();
     assert!(!disabled.has_book);
     assert!(disabled.entries.is_empty());
+    assert!(!disabled.tree.is_empty());
     assert!(matches!(
         v3::read_manuscript(
             &ws,
@@ -602,5 +627,455 @@ fn export_reads_the_book_from_the_root_and_is_empty_when_the_book_is_off() {
         ),
         Err(dr_export::ExportError::NoChapters)
     ));
+    let tree_export = read(&ws, &book, Some(disabled.tree_ids()));
+    assert_eq!(tree_export.sections.len(), disabled.tree_ids().len());
+    ws.close();
+}
+
+#[test]
+fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats() {
+    use dr_model::id::AssetId;
+    use dr_store::asset::{MAX_COPY_BYTES, SourceImport};
+    use sha2::{Digest, Sha256};
+    use std::io::Read as _;
+
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+    let ws = Workspace::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
+    let book = call(&ws, "project.create", json!({"name": "全内容树导出"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "project.update",
+        json!({"book": book, "has_book": false}),
+    );
+
+    // Rich custom entry template carrying every data-bearing module kind:
+    // non-in_book Prose, Fields (text, number, toggle, aliases, entity_ref, image),
+    // KeyValue, Media, Patches, PlotGrid, Relations, plus structural Children/Members.
+    let png_bytes = dr_testkit::media::png(18, 12);
+    let png_path = dir.path().join("portrait.png");
+    std::fs::write(&png_path, &png_bytes).unwrap();
+    let png_sha = format!("{:x}", Sha256::digest(&png_bytes));
+    let live_img = AssetId::new_v7().to_string();
+    ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book,
+            asset_id: &live_img,
+            source: &png_path,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((18, 12)),
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    call(
+        &ws,
+        "asset.put",
+        json!({
+            "book": book,
+            "id": live_img,
+            "name": "人物立绘.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": png_bytes.len() as i64,
+            "sha256": png_sha,
+            "width": 18,
+            "height": 12,
+        }),
+    );
+
+    let pdf_bytes = dr_testkit::media::sample_pdf();
+    let pdf_path = dir.path().join("dossier.pdf");
+    std::fs::write(&pdf_path, &pdf_bytes).unwrap();
+    let pdf_sha = format!("{:x}", Sha256::digest(&pdf_bytes));
+    let live_pdf = AssetId::new_v7().to_string();
+    ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book,
+            asset_id: &live_pdf,
+            source: &pdf_path,
+            mime: "application/pdf",
+            ext: "pdf",
+            dimensions: None,
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    call(
+        &ws,
+        "asset.put",
+        json!({
+            "book": book,
+            "id": live_pdf,
+            "name": "卷宗档案.pdf",
+            "kind": "pdf",
+            "mime": "application/pdf",
+            "size": pdf_bytes.len() as i64,
+            "sha256": pdf_sha,
+        }),
+    );
+
+    let trashed_bytes = dr_testkit::media::png(8, 8);
+    let trashed_png_path = dir.path().join("trashed.png");
+    std::fs::write(&trashed_png_path, &trashed_bytes).unwrap();
+    let trashed_sha = format!("{:x}", Sha256::digest(&trashed_bytes));
+    let trashed_img = AssetId::new_v7().to_string();
+    ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book,
+            asset_id: &trashed_img,
+            source: &trashed_png_path,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((8, 8)),
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    call(
+        &ws,
+        "asset.put",
+        json!({
+            "book": book,
+            "id": trashed_img,
+            "name": "废弃草图.png",
+            "kind": "image",
+            "mime": "image/png",
+            "size": trashed_bytes.len() as i64,
+            "sha256": trashed_sha,
+            "width": 8,
+            "height": 8,
+        }),
+    );
+
+    let tpl_rich = call(
+        &ws,
+        "entry_template.put",
+        json!({
+            "book": book,
+            "template": {
+                "id": "tpl-archive-card",
+                "name": "档案卡",
+                "level": true,
+                "modules": [
+                    {
+                        "id": "mod-notes",
+                        "kind": "prose",
+                        "name": "非成书备注",
+                        "config": {"in_book": false}
+                    },
+                    {
+                        "id": "mod-fields",
+                        "kind": "fields",
+                        "name": "属性",
+                        "config": {
+                            "defs": [
+                                {"id": "role", "name": "身份", "field_type": "text"},
+                                {"id": "age", "name": "年龄", "field_type": "number"},
+                                {"id": "alive", "name": "在场", "field_type": "toggle"},
+                                {"id": "aliases", "name": "别称", "field_type": "aliases"},
+                                {"id": "mentor", "name": "师承", "field_type": "entity_ref"},
+                                {"id": "avatar", "name": "肖像", "field_type": "image"},
+                                {"id": "discarded", "name": "旧图", "field_type": "image"}
+                            ]
+                        }
+                    },
+                    {"id": "mod-kv", "kind": "kv", "name": "补充键值"},
+                    {"id": "mod-media", "kind": "media", "name": "附件"},
+                    {"id": "mod-patches", "kind": "patches", "name": "摘录补丁"},
+                    {"id": "mod-grid", "kind": "plot_grid", "name": "阶段规划"},
+                    {"id": "mod-rels", "kind": "relations", "name": "关联"},
+                    {"id": "mod-kids", "kind": "children", "name": "下面的条目"},
+                    {"id": "mod-members", "kind": "members", "name": "挂在这里的条目"}
+                ]
+            }
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let root_group = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": null,
+            "level": true,
+            "title": "人物卷宗"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mentor = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": root_group,
+            "title": "老守塔人"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let card = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": root_group,
+            "template": tpl_rich,
+            "level": true,
+            "title": "林晚",
+            "bodies": {"mod-notes": "备注正文：只在自己勾时导出。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for (field, value) in [
+        ("role", json!("校对员")),
+        ("age", json!(29)),
+        ("alive", json!(true)),
+        ("aliases", json!(["阿晚", "小晚"])),
+        ("mentor", json!(mentor.clone())),
+        ("avatar", json!(live_img.clone())),
+        ("discarded", json!(trashed_img.clone())),
+    ] {
+        call(
+            &ws,
+            "module.set_field",
+            json!({
+                "book": book,
+                "entry": card,
+                "module": "mod-fields",
+                "field": field,
+                "value": value
+            }),
+        );
+    }
+    let sub_note = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": card,
+            "template": "tpl-note",
+            "title": "旧伤来历",
+            "bodies": {"mod-prose": "小时候在灯室被碎玻璃划伤。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // Populate KV, Media (live PDF + trashed image), Patch, PlotGrid, and Relation.
+    call(
+        &ws,
+        "module.put_kv",
+        json!({
+            "book": book,
+            "entry": card,
+            "module": "mod-kv",
+            "row": {"id": "kv-1", "key": "惯用手", "value": "左手"}
+        }),
+    );
+    call(
+        &ws,
+        "module.put_media",
+        json!({
+            "book": book,
+            "entry": card,
+            "module": "mod-media",
+            "item": {"id": "m-1", "asset": live_pdf, "caption": "北岬调令"}
+        }),
+    );
+    call(
+        &ws,
+        "module.put_media",
+        json!({
+            "book": book,
+            "entry": card,
+            "module": "mod-media",
+            "item": {"id": "m-2", "asset": trashed_img, "caption": "废弃草图说明"}
+        }),
+    );
+    call(&ws, "asset.trash", json!({"book": book, "id": trashed_img}));
+    call(
+        &ws,
+        "module.put_grid",
+        json!({
+            "book": book,
+            "entry": card,
+            "module": "mod-grid",
+            "grid": {
+                "cell_w": 180,
+                "cell_h": 120,
+                "rows": [{"id": "r1", "pos": "a0", "label": "雾夜"}],
+                "columns": [{"id": "c1", "pos": "a0", "label": "行动"}],
+                "cells": [{"row": "r1", "column": "c1", "text": "登塔守灯"}]
+            }
+        }),
+    );
+    call(
+        &ws,
+        "module.put_patch",
+        json!({
+            "book": book,
+            "entry": card,
+            "module": "mod-patches",
+            "title": "手腕旧伤",
+            "body": "与十年前台风夜有关。"
+        }),
+    );
+    let rel_types = call(&ws, "entry_relation_type.list", json!({"book": book}));
+    let rel_type = rel_types.as_array().unwrap()[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "module.put_relation",
+        json!({
+            "book": book,
+            "entry": card,
+            "module": "mod-rels",
+            "other": {"kind": "entry", "id": mentor},
+            "relation_type": rel_type
+        }),
+    );
+
+    let outline = v3::outline(&ws, &book).unwrap();
+    assert!(!outline.has_book);
+    let picked = vec![root_group.clone(), card.clone(), sub_note.clone()];
+    let manuscript = read(&ws, &book, Some(picked));
+    let summary: Vec<(&str, Option<u8>, bool)> = manuscript
+        .sections
+        .iter()
+        .map(|s| match s {
+            Section::Chapter {
+                title,
+                depth,
+                show_title,
+                ..
+            } => (title.as_str(), *depth, *show_title),
+            Section::Act { .. } => unreachable!(),
+        })
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            ("人物卷宗", Some(0), true),
+            ("林晚", Some(1), true),
+            ("旧伤来历", Some(2), true),
+        ]
+    );
+
+    let Section::Chapter { blocks, .. } = &manuscript.sections[1] else {
+        unreachable!()
+    };
+    let rendered_json = serde_json::to_string(blocks).unwrap();
+    for expected in [
+        "备注正文：只在自己勾时导出。",
+        "校对员",
+        "29",
+        "阿晚, 小晚",
+        "老守塔人",
+        "肖像",
+        "惯用手",
+        "左手",
+        "卷宗档案.pdf — 北岬调令",
+        "手腕旧伤",
+        "与十年前台风夜有关。",
+        "雾夜",
+        "行动",
+        "登塔守灯",
+    ] {
+        assert!(
+            rendered_json.contains(expected),
+            "missing `{expected}` in exported blocks: {rendered_json}"
+        );
+    }
+    assert!(!rendered_json.contains("废弃草图"));
+    assert!(!rendered_json.contains("旧图"));
+
+    // Verify EPUB, DOCX, and PDF all render the hierarchical tree manuscript cleanly.
+    let epub = dr_export::render(&manuscript, dr_export::Format::Epub).unwrap();
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&epub)).unwrap();
+    let mut nav_xhtml = String::new();
+    archive
+        .by_name("OEBPS/nav.xhtml")
+        .unwrap()
+        .read_to_string(&mut nav_xhtml)
+        .unwrap();
+    assert!(nav_xhtml.contains("人物卷宗"));
+    assert!(nav_xhtml.contains("<ol>\n<li><a href=\"text/s0002.xhtml\">林晚</a>"));
+    let mut s1 = String::new();
+    archive
+        .by_name("OEBPS/text/s0001.xhtml")
+        .unwrap()
+        .read_to_string(&mut s1)
+        .unwrap();
+    let mut s2 = String::new();
+    archive
+        .by_name("OEBPS/text/s0002.xhtml")
+        .unwrap()
+        .read_to_string(&mut s2)
+        .unwrap();
+    let mut s3 = String::new();
+    archive
+        .by_name("OEBPS/text/s0003.xhtml")
+        .unwrap()
+        .read_to_string(&mut s3)
+        .unwrap();
+    assert!(s1.contains("<h1 class=\"chapter-title depth-0\">人物卷宗</h1>"));
+    assert!(s2.contains("<h2 class=\"chapter-title depth-1\">林晚</h2>"));
+    assert!(s3.contains("<h3 class=\"chapter-title depth-2\">旧伤来历</h3>"));
+
+    let docx = dr_export::render(&manuscript, dr_export::Format::Docx).unwrap();
+    let mut docx_zip = zip::ZipArchive::new(std::io::Cursor::new(&docx)).unwrap();
+    let mut doc_xml = String::new();
+    docx_zip
+        .by_name("word/document.xml")
+        .unwrap()
+        .read_to_string(&mut doc_xml)
+        .unwrap();
+    assert!(doc_xml.contains("Heading1"));
+    assert!(doc_xml.contains("Heading2"));
+    assert!(doc_xml.contains("Heading3"));
+
+    let pdf = dr_export::render(&manuscript, dr_export::Format::Pdf).unwrap();
+    assert!(pdf.starts_with(b"%PDF-"));
+
+    // Turning off `chapter_titles` (`条目标题`) suppresses titles in the body while keeping sections.
+    let untitled_body = v3::read_manuscript(
+        &ws,
+        &book,
+        &Options {
+            chapters: Some(vec![card]),
+            chapter_titles: false,
+            ..Options::default()
+        },
+        &Labels {
+            untitled_chapter: "Untitled".into(),
+            untitled_act: "Unused".into(),
+        },
+        "zh-CN",
+        None,
+        UNIX_EPOCH,
+    )
+    .unwrap();
+    assert!(matches!(
+        &untitled_body.sections[0],
+        Section::Chapter {
+            show_title: false,
+            depth: Some(1),
+            ..
+        }
+    ));
+
     ws.close();
 }

@@ -98,6 +98,11 @@ pub enum Section {
         title: String,
         /// False keeps the title in navigation only.
         show_title: bool,
+        /// Residence-tree depth (`0` = root, `1` = child of root, …) when
+        /// exporting manually ticked tree entries; `None` in flat book-sequence
+        /// mode (`只导成书正文`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        depth: Option<u8>,
         blocks: Vec<Block>,
     },
 }
@@ -264,6 +269,13 @@ impl Book<'_> {
             .sections
             .iter()
             .any(|section| matches!(section, Section::Act { .. }))
+    }
+
+    pub(crate) fn has_tree_depths(&self) -> bool {
+        self.source
+            .sections
+            .iter()
+            .any(|section| matches!(section, Section::Chapter { depth: Some(_), .. }))
     }
 }
 

@@ -100,12 +100,15 @@ pub fn default_chapters(outline: &Outline) -> Vec<String> {
 /// What the author chose in the dialog.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Options {
-    /// `None` exports the whole book ([`default_chapters`]).
+    /// `None` exports `BookStructureV3::book_sequence()` (`只导成书正文`:
+    /// `in_book` prose modules only, flat sequence). `Some(ids)` exports the
+    /// ticked entries of the residence tree (`自己勾`: all content of each
+    /// ticked entry in residence-tree order, preserving tree hierarchy).
     pub chapters: Option<Vec<String>>,
-    /// Act titles get pages (sections) of their own. Without acts this has
-    /// no effect.
+    /// Legacy 0.1 act-title switch; unused in v5 books.
     pub act_titles: bool,
-    /// Chapter titles are shown (they stay in the navigation either way).
+    /// Entry titles (`条目标题`) are shown in the body (they stay in navigation
+    /// either way).
     pub chapter_titles: bool,
     /// Empty: the book's name.
     pub title: String,
