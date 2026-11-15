@@ -98,6 +98,8 @@ crate::assets::masks! {
     OpenBook => "open-book",
     OvFolding => "ov-folding",
     OvIceberg => "ov-iceberg",
+    Pinwheel => "pinwheel",
+    PinwheelSolid => "pinwheel-solid",
     PlanGo => "plan-go",
     Plus => "plus",
     Ri => "ri",
