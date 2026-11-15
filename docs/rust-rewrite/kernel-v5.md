@@ -15,7 +15,7 @@
 1. **项目有一份自己的定义。** 它从项目模板抄来，之后可以自己改：有哪些项目开关、写给帮手的项目说明、左栏有哪些 Tab。
 2. **「成书」是项目的开关，不再挂在某个文件夹上。** 开着的项目选一个起点，成书就是从起点读出来的正文。「书稿」不再是 App 认识的东西，它只是写书模板里一个普通的文件夹。
 3. **顺序只有两种来源。** 文件夹里是手动排的先后；视图里是刻度，泳道跟着视图的刻度走。文件夹被拖进视图当泳道以后，它下面的先后也由刻度接管。按修改时间、创建时间、名字排只是换个看法。
-4. **左栏的 Tab 由用户自己定。** 把层级挂上去，自己起名。
+4. **左栏的 Tab 由用户自己定。** 把层级、视图或成书挂上去，Tab 叫它挂的东西的名字；挂根的「全部」一直都在。
 5. **文本素材并进条目，图片和 PDF 住在素材库里。** 文本素材就是条目。图片和 PDF 是「文件」，住在右栏的「素材库」里：它是 App 自带的，不受模板影响，和「帮手」那一栏一样（作者 2026-11-14 定，第 6 节「素材库」）。素材库能分素材夹。文件还可以放进条目的媒体模块、嵌在正文里，或者让正文链到它。
 6. **待办并进批注。** 只有批注一种，没有优先级；它可以挂在任何模块的某一处，也可以挂在整个条目或整个模块上；正文里的清单项都自动变成批注；每张批注卡都能「交给帮手」，入口在卡片的悬停卡里。
 7. **两个小项。** 条目可以有自己的记号；画布上拖出来的位置不再存在书里。
@@ -24,7 +24,7 @@
 
 **作者会看到的不同：**
 
-- 左栏不再是「书稿 / 构想 / 要素 / 故事线」这四个写死的 Tab，而是项目里记着的一组 Tab，可以加、删、改名、换挂的层级。
+- 左栏不再是「书稿 / 构想 / 要素 / 故事线」这四个写死的 Tab，而是项目里记着的一组 Tab，可以加、删、调先后；Tab 叫它挂的东西的名字，「全部」一直在（第 5 节）。
 - 项目主页多出「项目模板」：成书开没开、成书从哪开始、给帮手的项目说明。
 - 没开成书的项目里，看不到导出成书、全书字数和目标、章节编号、正文上的「进成书」开关。
 - 在同一个文件夹里可以拖着调先后。
@@ -53,7 +53,7 @@
 | 来源 | 从哪个项目模板建的，只记不用（沿用 v4「模板更新与项目无关」） |
 | 写给帮手的项目说明 | 名字、描述、指示，形状和条目模板的帮手说明一样；帮手的结构说明从这里读，不再从某个条目模板读 |
 | 项目开关 | 这一版只有「成书」。它带着成书的起点、全书字数目标和每日目标（第 3 节） |
-| 左栏的 Tab | 一组有先后的 Tab，每个有名字和挂的东西（第 5 节） |
+| 左栏的 Tab | 一组有先后的 Tab，每个只记挂的东西（第 5 节） |
 
 **项目模板** = 一份项目定义 + 一组条目模板 + 起始的条目 + 起始的视图。新建项目时整份抄进项目，之后两边各走各的。内置的只有「写书」这一个，就是现在的小说模板换个形状。用户把自己的项目另存成模板、模板放在哪，这一版不做（第 15 节）。
 
@@ -137,21 +137,24 @@
 ## 5. 左栏的 Tab
 
 - 现状：左栏的 Tab 就是最外层那几个开着层级的条目，条目叫什么 Tab 就叫什么。
-- 改成：项目定义里记着一组 Tab。每个 Tab 有自己的名字，先后可以调。它可以挂四种东西：
+- 改成：项目定义里记着一组有先后的 Tab，每个 Tab 只记它挂着什么。它可以挂四种东西：
 
 | 挂的是 | Tab 里看到的 | 在里面拖着调先后 |
 | --- | --- | --- |
-| 根 | 最外层的条目 | 改最外层的手动先后 |
+| 根（「全部」） | 最外层的每一样，展开是下面的东西 | 改最外层的手动先后 |
 | 一个开着层级或「收别处的条目」的条目 | 它下面的条目，照它的「显示」设置（列表、网格、看板、岛屿）；列表里有什么见第 16 节「层级的列表」 | 改这个文件夹的手动先后；它在视图里时改的是刻度 |
 | 一个视图 | 它的各条泳道和泳道里的条目，沿刻度排 | 改刻度上的位置 |
 | 成书序列（项目开着成书时才能挂） | 成书的那一串，按成书的先后 | 改起点那里的顺序：起点是文件夹就是手动先后，是视图就是刻度 |
 
+- **Tab 没有自己的名字**，叫它挂的东西的名字：挂条目就是条目的标题，挂视图就是视图的名字，挂成书就是「成书」，挂根就是「全部」。条目改了名，Tab 跟着变。同一样东西只能挂一个 Tab。（作者 2026-11-15 在第二版原型上定，第 15 节第 26 条；原来是 Tab 自己起名、一样东西能挂几个。）
+- **「全部」一直都在。** 挂根的那个 Tab 删不掉，能和别的 Tab 一起调先后。项目里缺了它时，读取时补上一个，排在最前。新建的写书项目第一次打开停在它上面。没挂到别的 Tab 的最外层条目，就在「全部」里。
+- **管理 Tab**（界面形状在任务书 T1 一节）：Tab 行末一颗管理按钮，按下以后 Tab 原地抖、右上角出删除角标，Tab 在行里拖着调先后；左栏下面换成项目的结构，从下面拖进 Tab 行就是加一个。删掉 Tab 不删它挂的东西，⌘Z 撤回。没有改名，也没有「换挂的东西」：要换就删掉，再拖一个进来。
 - 0.1 的章节 Tab 能在「按故事线」和「全书顺序」之间切。这里不用切：挂着放章那个文件夹的 Tab 只列这棵树（第 16 节「层级的列表」，作者 2026-11-15）。想按故事线看章，去挂着故事线的那个 Tab，每条故事线展开就是挂在它上面的章；想只按刻度、或只按成书的先后看，另挂一个视图 Tab 或成书序列 Tab。
-- 条目住在哪是一回事，Tab 上挂什么、叫什么是另一回事。一个层级可以不挂在任何 Tab 上，也可以挂在几个 Tab 上。
-- 没挂到任何 Tab 的层级不会丢：结构视图里都能看到，层级表有一列标出每一层挂在哪个 Tab。
-- 挂的东西不在了（层级进了回收站或关了开关、视图删了、项目关了成书）：这个 Tab 显示为空并提示，不自动删。
-- 当前停在哪个 Tab、栏宽留在本机。
+- 条目住在哪是一回事，Tab 上挂什么是另一回事。一个层级可以不挂在任何 Tab 上；没挂的照样在「全部」里，结构视图里也都能看到，层级表有一列标出每一层挂在哪个 Tab。
+- 挂的东西不在了（进了最近删除、两个开关都关了、视图删了、项目关了成书）：Tab 还在，变暗；点进去，左栏只说「「回忆线」不在了」，加一颗「去掉这个 Tab」。东西回来了，Tab 自己亮回来。不自动删。
+- 当前停在哪个 Tab 跟着项目，各台设备一样（作者 2026-11-15），记在 `layout:<书>`，不进撤销。栏宽留在本机。
 - 右栏的四个 Tab 这一版不动。
+
 
 ## 6. 素材并进条目
 
@@ -273,7 +276,7 @@
 | 根容器 | 变化 |
 | --- | --- |
 | `meta` | `v = 5`；`word_target`、`daily_word_target` 挪进 `project.book`；`project_template` 挪成 `project.source` |
-| **`project`**（新，映射） | `source = {id, version}`；`agent = {name, description, instructions}`；`book`（没有这个键 = 没有成书）`= {root, word_target, daily_word_target}`；`tabs`：Tab id → `{name, pos, mount}` |
+| **`project`**（新，映射） | `source = {id, version}`；`agent = {name, description, instructions}`；`book`（没有这个键 = 没有成书）`= {root, word_target, daily_word_target}`；`tabs`：Tab id → `{pos, mount}`（没有名字；挂根的「全部」用固定的 id，2026-11-15 改，第 5 节） |
 | `entries` | 节点 meta 加 `mark`；去掉 `layout`；加 `media:<模块>`（媒体模块里的文件：id → `{asset, caption, pos}`，同一个 `asset` 在一个模块里只出现一次），条目还可以给自己的媒体模块记一个摆法，没记就用模板的（键名由数据层定，**不要叫 `layout`**：那是已经去掉的画布坐标，挪进了 `layout:<书>`）；`overrides` 去掉 `is_manuscript`、`lane`，`accept` 和 `home` 留着、读法变了（第 16 节） |
 | `templates` | `mark` 的取值放开；`settings` 去掉 `is_manuscript`、`lane`；模块种类加 `media`（定义里带默认摆法：大图、网格、列表）、`members`（「挂在这里的条目」，不存数据，第 16 节） |
 | `memberships` | 形状不变。`pos` 只对不在任何视图里的宿主有意义（第 4 节）；宿主不再要求开着层级（第 16 节） |
@@ -287,7 +290,7 @@
 
 `project.book.root` 的四种取值：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, entry}`。`tabs` 的 `mount`：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}`。
 
-书旁边的小文档多一篇 `layout:<书>`：`<范围>/<摆法>` → 条目 id → 坐标。它和 `stats:<书>`、`checkpoints:<书>` 一样不是正文，不计字数、不搜索、不导出，不参加书目的写入守卫。
+书旁边的小文档多一篇 `layout:<书>`：`<范围>/<摆法>` → 条目 id → 坐标；另记一项 `tab`，停在哪个 Tab（2026-11-15 加，第 5 节）。它和 `stats:<书>`、`checkpoints:<书>` 一样不是正文，不计字数、不搜索、不导出，不参加书目的写入守卫。
 
 正文文档：`material:<id>` 这种退役；嵌入里 `kind = "material"` 换成 `kind = "asset"`、直接记文件；嵌的图片多记大小（小、中、正文宽）、对齐（靠左、居中、靠右）和图注，嵌的 PDF 不带这三项；链接的目标种类多一种：素材库里的文件；格式档只剩一种。索引里嵌入引用的目标种类跟着换成文件，链到文件的链接也记进索引。
 
@@ -304,6 +307,7 @@
 | 文件夹在视图里时，它下面的先后读刻度 | **加**（2026-11-14）。读取：以成书起点那个视图为准，否则它所在的第一个视图；手动先后留着不读 |
 | 素材库里的文件不因为没人引用而被清掉 | **加**（2026-11-14）。只有从素材库删掉、又从最近删除清掉的文件才删字节 |
 | Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目、一个没删的视图，或成书序列（项目开着成书时） | **加**。命令层预防；读取时不满足就显示为空 |
+| 同一样东西只挂一个 Tab；挂根的 Tab 一直有一个 | **加**（2026-11-15）。命令层预防：挂第二次、删挂根的 Tab 都被拒；读取时重复的只留排在前面的，缺了挂根的就补上一个 |
 | 批注的「哪一处」属于它说的那个模块 | **加**。命令层预防；读取时找不到就标成找不到原处 |
 | 链接、嵌入、媒体模块、关系、批注指向的文件都在，没进最近删除 | **加**（2026-11-15 补全）。读取时不在：链接读作普通文字的样子，嵌入和媒体模块显示占位，关系读作不在，直接挂在它上面的批注标成找不到原处；数据留着，恢复后回来 |
 | 同一个文件在同一个媒体模块里只出现一次 | **加**（2026-11-15）。命令层预防 |
@@ -328,7 +332,7 @@
 | --- | --- |
 | `project.create` | 收一个项目模板；照它建项目定义、条目模板、起始条目、起始视图和三篇小文档 |
 | `project.get`、`project.update` | 读、改项目定义：帮手说明、成书的开关与起点、字数目标 |
-| `tab.put`、`tab.remove`、`tab.move` | 新。左栏的 Tab |
+| `tab.put`、`tab.remove`、`tab.move`、`tab.select` | 新。左栏的 Tab。`tab.put` 只新建、不带名字，一样东西挂第二次被拒；`tab.remove` 不删挂根的那个；`tab.select` 记停在哪个 Tab（`layout:<书>`，不进撤销；2026-11-15 改） |
 | `entry.update` | 多一个 `mark`；`overrides` 没有 `is_manuscript`；不再收 `layout` |
 | `entry.move` | 界面开始传 `index`。目的地是一个在视图里的文件夹时，条目落到刻度上对应的位置，不改手动先后 |
 | `entry.create` | 分开两种：住进一个条目（`parent`），或者挂到一个条目上（`host`）。后一种的住处照第 16 节「新建」 |
@@ -418,8 +422,9 @@
 20. **新建的故事线不自动放进视图。**（作者 2026-11-15：「乙。以后弱化颜色的存在。」）保持现状：章的颜色取自它主归属的那条泳道，故事线不在视图里时挂在它上面的章没有颜色，要把故事线拖进视图才有。作者同时给了方向：颜色以后要弱化。后面各路不要再往界面上加靠颜色区分的东西，现有的颜色先不动。
 21. **拖到一个既开着层级、又收别处条目的条目上：搬进去住；按住 ⌥ 拖是挂上去。**（作者 2026-11-15：「甲」。）原来照 v4 是挂上去。写书模板里碰到的是「分类」：把一个要素从「人物」拖到「地点」是搬家，按住 ⌥ 拖才是两边都在。只开着其中一个开关的条目照旧：只开层级的是搬进去，只收别处条目的是挂上去。界面归 T1。
 22. **清单项自动变成的批注，不能直接改它的字、不能直接删它。**（作者 2026-11-15：「甲」。）它是正文里那一行的影子。`comment.update` 给它别的字、`comment.delete` 删它，命令层拒绝，并说明去改、去删正文里那一行；解决、重开、记 Agent 对话照旧。数据层已做（`dr-workspace/tests/editor.rs` 的 `a_checklist_comment_takes_no_other_words_and_is_not_deleted`）。
-23. **外壳那一组原型里的五处，选了三处。**（作者 2026-11-15，「输入」第 35 条。）左栏 Tab 怎么管：乙，那一行末尾一个「⋯」，点开是全部 Tab 的清单，在清单里拖着调先后、就地改名、看每个挂着什么、去掉、加。Tab 多到一行放不下：乙，放得下的留着，其余收进「更多」。条目页上「层级」「收别处的条目」两个开关：乙，每个开关就是它管的那一块（「下面的条目」「挂在这里的条目」）的块头，开关关着时那一块收成只剩块头。第四处（放章的列表里挂在故事线上的章怎么列）后来整段去掉了，见第 24 条；第五处见「还没定」第 25 条。外壳、条目页、放章的列表这三块作者随后说了迁（「输入」第 38 条），形状在任务书 T1 一节；项目主页那一块没迁。原型的选记号卡里画了一排颜色，照作者同一天说的弱化颜色不做，条目的砂笔记号照模板的颜色画（监管会话定）。
+23. **外壳那一组原型里的五处，选了三处。**（作者 2026-11-15，「输入」第 35 条。）左栏 Tab 怎么管：乙，那一行末尾一个「⋯」，点开是全部 Tab 的清单，在清单里拖着调先后、就地改名、看每个挂着什么、去掉、加。Tab 多到一行放不下：乙，放得下的留着，其余收进「更多」。条目页上「层级」「收别处的条目」两个开关：乙，每个开关就是它管的那一块（「下面的条目」「挂在这里的条目」）的块头，开关关着时那一块收成只剩块头。第四处（放章的列表里挂在故事线上的章怎么列）后来整段去掉了，见第 24 条；第五处见「还没定」第 25 条。外壳、条目页、放章的列表这三块作者随后说了迁（「输入」第 38 条），形状在任务书 T1 一节；项目主页那一块没迁。左栏 Tab 的两处（「⋯」清单、「更多」）当天下午被第 26 条推翻。原型的选记号卡里画了一排颜色，照作者同一天说的弱化颜色不做，条目的砂笔记号照模板的颜色画（监管会话定）。
 24. **左栏的列表只留树。**（作者 2026-11-15：「去掉，只留树」。）挂着放章那个文件夹的 Tab 里，原来打算在树的后面再列各条故事线和线上的章，外壳原型给这一段画了两种样子。作者问这一段为什么需要；它不是必须的，去掉以后 Tab 就是文件夹树，想按故事线看章去故事线的 Tab 或底栏视图。见第 16 节「层级的列表」。
+26. **左栏 Tab 重新定了原型。**（作者 2026-11-15 看过 T1 第一次交回：「侧栏Tab交互重新开个Session定原型。我没拍板你怎么直接就定了？」新原型 <https://claude.ai/artifact/AXH7nMZDRHrunKP9n448rZ>，六轮的原话在「输入」第 39 条。）推翻了第 23 条里 Tab 的两处和任务书替作者补的写法。Tab 行末是管理按钮（砂笔记号「筝柱」），放不下就横着滚；Tab 不能改名，叫挂的东西的名字，一样东西只挂一个 Tab；管理时 Tab 原地抖、删除角标不抖，点角标直接删（⌘Z 撤回），在行里拖着排，左栏下面换成项目的结构，只能从下面拖进来加，一行放不下就折成几行，再点一下管理按钮、按 Esc 或点稿纸结束；没有「换挂的东西」；挂根的「全部」一直在、删不掉、能拖，新写书项目先停在它；挂的东西没了 Tab 变暗，点进去只说「不在了」和「去掉这个 Tab」；停在哪个 Tab 跟着项目同步；没挂到 Tab 的最外层条目不单独列（它们在「全部」里）；写书模板默认 Tab 是「全部」加书稿、构想、要素、故事线；Tab 里面显示什么、拖动改什么照第 5 节的表（作者「暂时都OK」）。作者随后说了迁（「输入」第 40 条）。第 5 节、任务书 T1 一节照这个改过；要动数据的几处是 DZ 一路（`dz-tabs`）。
 
 **还没定：**
 
@@ -616,7 +621,8 @@
 
 - 文件只存一份，放在媒体模块里或嵌在正文里；素材和素材夹这套平行结构整个去掉；素材栏只是索引。（2026-11-14 作者改了后半句：文件住在 App 自带的素材库里，素材栏就是素材库，见第 6 节「素材库」。素材库能分素材夹，是作者同一天在文件原型里另选的；去掉的那套是条目树外面装文本素材的平行结构，不是一回事。）
 - 正文只有一种格式档。
-- 项目定义存在书目文档里；Tab 记在项目定义里跟着同步，停在哪个 Tab 和栏宽留在本机。
+- 项目定义存在书目文档里；Tab 记在项目定义里跟着同步，栏宽留在本机。停在哪个 Tab 原来也留在本机，作者 2026-11-15 改成跟着项目同步（第 15 节第 26 条）。
+- **左栏 Tab 的数据**（2026-11-15 监管会话定，作者定的是界面上的样子）：「全部」用一个固定的 Tab id；项目里没有挂根的 Tab 时，读取时补上一个、排在最前，第一次调先后时才写进书里，两台设备写进去的是同一个键；两台设备同时挂上同一样东西，读取时只留排在前面的那个；停在哪个 Tab 记在 `layout:<书>`，和画布坐标一样不进撤销、不参加写入守卫。
 - 画布坐标存进跟着同步的小文档，按视图存。
 - 选泳道当成书起点时，选的是「某个视图里的这条泳道」。
 - 同一刻度上撞了按泳道从上到下；挂进泳道自动落在末尾；泳道页按视图的刻度排。
@@ -714,6 +720,7 @@
 
 - **归属自己的顺序没有整个删掉。** 作者说让视图里的轨道顺序作为泳道唯一的顺序。泳道照做了；但一个收别处条目、不在任何视图里的文件夹（要素的分类）仍然要给挂名进来的条目排先后，所以归属上的 `pos` 留着给它用。
 - **「挂根层级都可以」**这里读作 Tab 可以挂根，也可以挂最外层的层级。
+- **Tab 不再自己起名。** 「输入」第 7 条说「用户自己命名侧栏 tab 叫什么」；作者 2026-11-15 在第二版原型上改成不能改名、只跟随挂的东西本身的名字（第 15 节第 26 条）。
 - **写书模板的默认起点**没有照「兼容 0.1 就用底栏视图」直接定成视图，因为那样会让没挂故事线的章不进书。作者后来同意默认用文件夹（第 15 节第 1 条）。
 - **成书和整书视图合成一个读法**是这页加的，输入里没有这一句；它来自作者说的「选一个层级作为成书的 root，然后自动从树上拿正文」。
 - **没有照「几个层级都删了才删条目」做**（第 16 节）。作者说的是「如果 entry 有多个层级归属，直到多个层级都删了，才把 entry 删」。拆开以后一个条目只住在一处，挂名不算层级归属，所以没有计数：住的那一层关了或删了，它就进最近删除。监管会话把这一点当面说过，作者同意。
@@ -780,6 +787,8 @@
 36. 监管会话补了第 4 条的背景（说明和出处各是什么、为什么没地方放、三种去处各长什么样），并把第 9 条换了说法重讲（列表下半段是各条故事线和线上的章，两种画法）。作者：「1. 变批注吧。 2. 为什么第九条需要下半段？下半段是什么？我之前不是定的Tab里面根据层级像文件夹树一样排开吗？你这里的故事线是专属于泳道的挂名的，还是层级？」
 37. 监管会话答：故事线是挂名的那种（层级关着、收别处的条目），和在不在底栏无关；「像文件夹树一样排开」就是列表的上半段；下半段是设计稿从第 14 条那段话推出来的，不是必须的，建议去掉，想按故事线看章去故事线的 Tab 或底栏视图。作者：「去掉，只留树」。
 38. 监管会话：外壳这一路在原型里的选择都齐了，只差说迁。作者：「迁」。
+39. 作者看了 T1 第一次交回：「侧栏Tab交互重新开个Session定原型。我没拍板你怎么直接就定了？」原型会话出了第二版 Tab 原型（<https://claude.ai/artifact/AXH7nMZDRHrunKP9n448rZ>），每处甲乙并排，作者选了六轮。第一轮（作者选过的两处，加替他定的十六处）：「1. tab 行末有管理按钮。不用三个点重新出砂笔记号 2. 放不下，依然滚动，并且用管理按钮。不是更多。 3. 不允许改名的话有问题吗？只跟随本身的名字？ 4. 管理菜单的逻辑重新处理一下。我设想的是，开始管理之后，整个Panel展示当前项目的层级之类的。高亮可选的candidate。Tab row 都开始像Edit iOS homescreen一样开始原地抖动，或者MacOS safari custimize toolbar，item右上有删除Badge，点击删除，允许Tab来回拖拽重排。需要新增，直接把下方Panel的candidate拖进去。 5. 挂的东西没了，就暗淡，点进去，Panel提示，然后确认后，Tab消失。 6. 其他的Tab Panel 内部的东西，暂时都OK。」第二轮：「管理Tab时，item抖动但右上关闭Badge不跟着抖。」「所有Tab都删除时，给一个默认挂着根层级，看项目所有内容。这样如何？另外，根层级是不是可以常驻？这样就没有所有Tab都删掉的情况了。」「Tab 能不能改名：甲 / 管理按钮的记号：甲 / 管理时 Tab 行的样子：甲 / 怎么结束管理：乙 / 管理时下面列什么：甲 / 已经在 Tab 上的，下面怎么显示：甲 / 管理时放不下：乙 / 只能拖进来吗：甲 / 挂的东西没了，点进去说什么：乙 / 最后一个 Tab：甲 / 没挂到 Tab 的最外层条目：甲 / 停在哪个 Tab 记在哪：乙 / 写书模板默认有哪些 Tab：甲」（甲乙依次是：不能改名；筝柱；原地抖；按钮按下、再点一下结束；整棵树、挂不了的淡着；淡、拖不动；折成几行摊开；只能拖；只说「不在了」；能删光，后来被根 Tab 常驻改掉；不列；跟着项目同步；书稿、构想、要素、故事线。）第三轮：「根层级要不要常驻：甲 / 常驻的根 Tab 长什么样：乙 / 常驻的根 Tab 放在哪：乙 / 新建写书项目先停在哪：乙」「根层级也单独出个砂笔记号」（依次是：常驻、删不掉；只放一个记号；能拖、只是删不掉；停在根 Tab。）第四轮，看了树、盆景、「本」三个记号：「都不好。参考我的APP icon形状。出几个」第五轮，看了照 App 图标的冰山描的五个记号：「算了。改为「项目」两个字吧。」「或者「全部」」第六轮，「全部」和「项目」并排：「全部」
+40. 监管会话把定下来的列给作者，说了先改文档、再改 Tab 的数据、最后 T1 重做 Tab 这个先后。作者：「迁」。
 
 2026-11-13，会话「Rust 迁移和 Entity v4 审查」转来一份外部架构审查的核对结论。和这页重叠的几处（素材并成条目、成书设置的继承、画布坐标存在书里、故事线页的批注入口）已经对过，结论并在上面各节里。
 
@@ -792,7 +801,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 **`dr_model`（领域类型与不变量）**
 
 - 版本与文档种类：`dr_doc::schema::BOOK_SCHEMA_VERSION = 5`（创世版本 `5`，`BOOK-FORMAT-5-ONLY`；本节和下表别处写的 `BOOK_FORMAT_VERSION` 指的就是它，代码里没有那个名字，DX 2026-11-15 核对）；`DocId::Layout(BookId)`（`layout:<书 id>`，创世版本 `1`）；`DocId::Material` 与 `DocKind::Material` 退役；`ProseProfile` 只保留单一格式档 `ProseProfile::Prose`；正文嵌入为 `ProseEmbed::Asset { asset: AssetId }`（`kind = "asset"`）；正文链接 `v3::EntityLinkV3` 指向 `EntryId`（`kind = entry`），第八步起也可以指向素材库里的文件（`kind = asset`、`target = <AssetId>`，不带 `module`／`block`／`end_block`）。
-- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种，另有只在读取时出现的 `Unset`（存着的起点缺了或读不出来：读作没有成书内容、永远无效，写它就是去掉存着的起点；DX 2026-11-15 加）；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种。
+- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种，另有只在读取时出现的 `Unset`（存着的起点缺了或读不出来：读作没有成书内容、永远无效，写它就是去掉存着的起点；DX 2026-11-15 加）；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种（2026-11-15 DZ：`ProjectTab` 去掉 `name`，「全部」用固定的 id，见任务书 DZ 一节）。
 - 拆开的两个开关与设置（`dr_model::v3`）：
   - `Entry { level: bool, mark: Option<String>, media: BTreeMap<ModuleId, Vec<MediaItem>>, … }`（没有 `layout`）；`is_valid_mark(s)` 校验砂笔图标名或单个字符；
   - `LevelSettings` 与 `LevelSettingsOverride` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts` 共 6 项（`LEVEL_SETTING_KEYS` = 6，去掉 `is_manuscript` 和 `lane`）；
@@ -814,7 +823,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 **`dr-workspace`（命令、DTO 与事件）**
 
-- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { name?, summary?, agent?, has_book?, root?, word_target?, daily_word_target? }`（`name`、`summary` 是 DX 2026-11-15 加的，让项目主页的设定一步存完）、`book.sequence`；`tab.put`（新建或改名／改挂载）、`tab.move`、`tab.remove`。
+- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { name?, summary?, agent?, has_book?, root?, word_target?, daily_word_target? }`（`name`、`summary` 是 DX 2026-11-15 加的，让项目主页的设定一步存完）、`book.sequence`；`tab.put`（新建或改名／改挂载；2026-11-15 DZ 起只新建、不带名字）、`tab.move`、`tab.remove`、`tab.select`（DZ 加）。
 - 条目、归属与视图：`entry.create` 区分 `parent`（住进）与 `host`（挂到，按第 16 节落住处并挂名），支持 `mark`；`entry.update` 支持 `mark`；`entry.set_level` 关层级时输出 `trashed` 列表且一步撤销恢复；`entry.move` 带 `index` 移入视图中的文件夹时同步落到对应刻度位置；`entry.get` 与 `entry.list { below: true }` 在 `level` 开时给 `below.children`、在 `accept` 开时给 `below.members`；`membership.add/remove/primary` 与 `timeline_view.add_lane/remove_lane/move_lane/delete` 自动维护入视图末尾落位与出最后一个活视图时的 `pos`／手动先后写回。
 - 媒体模块、正文嵌入与素材库：`module.put_media`（新增、改说明或调先后；同一个文件第二次放进同一个媒体模块拒绝，`WsError::Violation`）、`module.remove_media`；`ProseTxn::insert_embed(ProseEmbed::Asset { asset })`（`prose.shape` 返回 `missing_embeds`，第八步加 `file_links`、`missing_links`）；`asset.put`（第八步：可带 `folder`，落在那个素材夹最后；同样的字节给回已有那个文件的 id，在最近删除里就恢复）、`asset.rename`、`asset.trash`、`asset.restore`（素材夹在最近删除里时落到最外层）、`asset.purge`、`asset.get { usages? }`（`usages: false` 只读记录，默认 `true`）、`asset.list`（每项带实时 `usages`：`Media`、`Embed`、`Link`、`Field`、`Relation`，以及 `folder`、`pos`）；`material.*` 与 `material_folder.*` 全部退役并由 `xtask check` 的 `cutover` 门禁拦截。
 - 第八步的素材夹与摆法：`asset_folder.create { name, parent? }`、`asset_folder.rename`、`asset_folder.move { parent, index? }`、`asset_folder.trash`、`asset_folder.restore`、`asset_folder.purge`、`asset_folder.list { trashed? }`（`AssetFolderInfo { id, name, parent, pos, deleted_at }`）；`asset.move { folder, index? }`；`module.set_arrangement { book, entry, module, arrangement }`（`null` 回到模板的），`module.read` 对媒体模块给 `arrangement` 和 `own_arrangement`，条目 DTO 带 `arrangements`、`missing_files`；`ProseSession::set_file_embed_look(embed, &FileEmbedLook)`（只对活着的图片放行，PDF 和未知取值拒绝）。
@@ -824,12 +833,12 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 | 在哪 | 现在的最小改动 | 轨道要做成什么 | 用的接口 |
 | --- | --- | --- | --- |
-| `dr-shell/src/book/v3.rs` | `BookV3` 快照加了 `project`、`layouts`（从 `layout:<书>` 解析）、`accepts_members(id)`、`has_below(id)`、`is_lane(id)`（查是否在任一活视图的 `lanes` 中）、`is_book_root_entry(id)`；`appearance(id)` 优先读 `entry.mark` 再退回模板 `mark`；`levels` 覆盖所有 `has_below` 的活条目；`materials` 临时从条目媒体模块投影以兼容未迁完的旧调用方（第八步的修补以后，没放进任何媒体模块的素材库文件也列成一个独立的素材，它没有 `entry` 和 `module`，素材页对它的批注直接挂在文件上、改名走 `asset.rename`） | 左栏从 `project.tabs` 驱动（根、层级、视图、成书序列四种挂载及增删改名调序与失效空态）；左栏树支持展开只开 `accept` 的条目看挂名成员；清理过渡期的 `materials` 投影 | `project.get`、`tab.*`、`BookV3::{project, has_below, accepts_members}` |
+| `dr-shell/src/book/v3.rs` | `BookV3` 快照加了 `project`、`layouts`（从 `layout:<书>` 解析）、`accepts_members(id)`、`has_below(id)`、`is_lane(id)`（查是否在任一活视图的 `lanes` 中）、`is_book_root_entry(id)`；`appearance(id)` 优先读 `entry.mark` 再退回模板 `mark`；`levels` 覆盖所有 `has_below` 的活条目；`materials` 临时从条目媒体模块投影以兼容未迁完的旧调用方（第八步的修补以后，没放进任何媒体模块的素材库文件也列成一个独立的素材，它没有 `entry` 和 `module`，素材页对它的批注直接挂在文件上、改名走 `asset.rename`） | 左栏从 `project.tabs` 驱动（根、层级、视图、成书序列四种挂载；管理时加、删、调先后，「全部」常驻，挂的东西没了时变暗；2026-11-15 照第二版原型改，第 15 节第 26 条）；左栏树支持展开只开 `accept` 的条目看挂名成员；清理过渡期的 `materials` 投影 | `project.get`、`tab.*`、`BookV3::{project, has_below, accepts_members}` |
 | `dr-shell/src/workspace/mod.rs`、`sidebar.rs`、`links.rs`、`recent.rs`、`nav/mod.rs` | 订阅 `WsEvent::Layout` 刷新画布坐标；退役 `material:` 文档地址与路由；侧栏／最近访问适配 `has_below` 与去 `lane`（单字 `mark` 目前仍走砂笔图标回退占位） | 同一个条目（带不带模块）只开一个标签页；故事线／泳道页里的说明正文按 `(entry, module)` 收编进外壳（查找、字数、批注）；页头收成一处「可点选砂笔／单字记号 + 可编辑标题」（区分砂笔名与单字直接画文字） | `entry.update { title, mark }`、`is_valid_mark` |
 | `dr-shell/src/v3/level_switch.rs` | 适配 `entry.set_level` 返回 `trashed` 以及去 `lane` 后的状态读取 | 关层级确认框统一收成一种（「下面的 N 个条目会放进最近删除。」，N 数下面全部活条目），删掉 v4 为挂名／泳道拆分的旧分支和文案键 | `entry.set_level` |
 | `dr-view-page/src/v3.rs` | 编译适配：识别 `ModuleKind::Media` 与 `ModuleKind::Members` 分支占位、去 `lane` 设置字段 | 页头合并可编辑标题与记号选择器；「层级」和「收别处的条目」两个开关并排（「新条目住在」跟后者，层级关着时隐藏「自动链接」）；条目页分块渲染「下面的条目」（调 `parent`）和「挂在这里的条目」（调 `host`，既住又挂只列一次） | `entry.set_level`、`entry.update`、`entry.create { parent / host }`、`ModuleKind::Members` |
 | `dr-view-templates/src/view.rs`、`view/levels.rs`、`preview.rs` | 模块选择器补 `media`/`members` 编译分支；去掉 `settings.lane` 读写 | 模板记号放开砂笔库与单字；「收别处的条目」从「下面」设置挪出与默认「层级」开关并排，去掉泳道开关 | `entry_template.put`、`ModuleKind::{Media, Members}` |
-| `dr-view-elements/src/panel.rs`、`category.rs`、`dialogs.rs`、`data.rs`、`fields/v3.rs` | 去掉 `lane` 设置；看板／岛屿坐标改读写 `layout.put`／`BookV3::layout_position`；字段定义读取适配 `FieldId` | 层级列表改成「先画树，再按树顺序把树外挂着树内条目的宿主各列一组」，去掉「全书顺序／按故事线」切换与「未归属」组；核对在视图内的文件夹拖动传 `index` 落到刻度 | `entry.move { index }`、`BookV3::has_below` |
+| `dr-view-elements/src/panel.rs`、`category.rs`、`dialogs.rs`、`data.rs`、`fields/v3.rs` | 去掉 `lane` 设置；看板／岛屿坐标改读写 `layout.put`／`BookV3::layout_position`；字段定义读取适配 `FieldId` | 层级列表只留树（2026-11-15 改，第 16 节「层级的列表」），去掉「全书顺序／按故事线」切换与「未归属」组；核对在视图内的文件夹拖动传 `index` 落到刻度 | `entry.move { index }`、`BookV3::has_below` |
 | `dr-cli/scenarios/k4-*.json`、`k5-level.json` | 最小更新退役的 `lane`／`is_manuscript` 字段名以过门禁 | 按新左栏 Tab、双开关与模板编辑器更新真窗口场景 | — |
 
 ### T2 项目主页里的项目模板（`t2-project`）
