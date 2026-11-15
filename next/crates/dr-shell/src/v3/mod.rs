@@ -14,8 +14,10 @@ mod drag;
 mod editor;
 pub mod history;
 pub mod level_switch;
+pub mod mark;
 pub mod page;
 pub mod sidebar;
+pub mod tabs;
 
 pub use drag::EntryDrag;
 pub use editor::{register_editor, register_editor_status};
@@ -30,8 +32,20 @@ pub struct ModuleHost {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DisplaySurface {
+    /// An entry page's 「下面的条目」: the entries living under it.
     Page,
+    /// An entry page's 「挂在这里的条目」: the entries attached to it that
+    /// do not also live under it (`kernel-v5.md` §16 「条目页」).
+    Members,
+    /// A left-column Tab: the tree, the level itself first.
     Sidebar,
+}
+
+/// The entry an entry page's head or one of its head parts is drawn for.
+#[derive(Clone)]
+pub struct EntryHost {
+    pub page: PageViewHost,
+    pub entry: String,
 }
 
 #[derive(Clone)]
@@ -97,11 +111,15 @@ type ActionMaker =
     Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> Option<crate::pages::RunRow>>;
 type CardMaker = Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate::pages::CardRows>;
 type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
+type HeadMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Rendered>;
+type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rendered>>;
 #[derive(Default)]
 struct Registry {
     modules: BTreeMap<String, ModuleMaker>,
     displays: BTreeMap<String, DisplayMaker>,
     settings: Option<DisplayMaker>,
+    head: Option<HeadMaker>,
+    head_parts: Vec<HeadPartMaker>,
     actions: BTreeMap<card::EntryAction, ActionMaker>,
     cards: Vec<CardMaker>,
     template_creator: Option<TemplateCreator>,
@@ -144,6 +162,40 @@ pub fn add_level_settings(
     cx.default_global::<Registry>().settings = Some(Rc::new(make));
 }
 
+/// An entry page's head: its mark and its title, both editable, and the name
+/// of its template under them (`kernel-v5.md` §8; the shell's own head draws
+/// them read-only until one is registered). One maker for every entry; the
+/// page keeps the instance and calls its `on_refresh` on each snapshot.
+pub fn add_entry_head(
+    cx: &mut App,
+    make: impl Fn(EntryHost, &mut Window, &mut App) -> Rendered + 'static,
+) {
+    cx.default_global::<Registry>().head = Some(Rc::new(make));
+}
+
+pub fn entry_head(host: EntryHost, window: &mut Window, cx: &mut App) -> Option<Rendered> {
+    let make = cx.try_global::<Registry>()?.head.clone()?;
+    Some(make(host, window, cx))
+}
+
+/// Something drawn under an entry page's head for the entries it applies to
+/// (a lane's colour). Asked while the page has none from it; the view it
+/// gives draws nothing once it no longer applies.
+pub fn add_entry_head_part(
+    cx: &mut App,
+    make: impl Fn(EntryHost, &mut Window, &mut App) -> Option<Rendered> + 'static,
+) {
+    cx.default_global::<Registry>()
+        .head_parts
+        .push(Rc::new(make));
+}
+
+pub(crate) fn entry_head_parts(cx: &App) -> Vec<HeadPartMaker> {
+    cx.try_global::<Registry>()
+        .map(|r| r.head_parts.clone())
+        .unwrap_or_default()
+}
+
 pub fn level_settings(host: LevelHost, window: &mut Window, cx: &mut App) -> Option<Rendered> {
     let make = cx.try_global::<Registry>()?.settings.clone()?;
     Some(make(host, window, cx))
@@ -167,9 +219,24 @@ pub fn level_display(host: LevelHost, window: &mut Window, cx: &mut App) -> Opti
         .settings
         .display
         .clone();
-    let make = cx.try_global::<Registry>()?.displays.get(&kind)?.clone();
+    level_display_as(host, &kind, window, cx)
+}
+
+/// The display registered as `kind`, for `host` (the outermost entries,
+/// which are no level of their own, are a list: [`ROOT_LEVEL`]).
+pub fn level_display_as(
+    host: LevelHost,
+    kind: &str,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rendered> {
+    let make = cx.try_global::<Registry>()?.displays.get(kind)?.clone();
     Some(make(host, window, cx))
 }
+
+/// The [`LevelHost::level`] of the outermost entries (a Tab mounted on the
+/// root, `kernel-v5.md` §5): they live under no entry.
+pub const ROOT_LEVEL: &str = "";
 pub fn entry_target(id: &str) -> Option<Target> {
     Some(Target::Entry {
         id: id.parse().ok()?,

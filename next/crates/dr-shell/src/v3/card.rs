@@ -15,9 +15,15 @@ use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EntryAction {
+    /// A new entry living under the entry (or beside it, when nothing can
+    /// live under it).
     New,
     ChangeTemplate,
     BelongTo,
+    /// A new entry attached to the entry (`entry.create` with `host`): the
+    /// 「新建」 of an entry page's 「挂在这里的条目」 (`kernel-v5.md` §16
+    /// 「新建」). Not on the card.
+    NewAttached,
 }
 
 pub struct Row {

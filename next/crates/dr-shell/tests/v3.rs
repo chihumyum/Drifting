@@ -380,8 +380,10 @@ fn v3_targets_roundtrip_tabs_history_splits_and_location() {
         );
         nav.open(target, Open::KEEP);
     }
+    // One entry, one tab (kernel v5, T1): its modules are places on its page.
+    assert_eq!(nav.tabs().len(), 2);
     nav.back();
-    assert_eq!(nav.current().unwrap().key(), "entry:one/prose-b");
+    assert_eq!(nav.current().unwrap().key(), "entry:one");
     nav.forward();
     assert_eq!(nav.current().unwrap().key(), "template:tpl-leaf");
     let target = Target::from_key("entry:one/prose-a").unwrap();
@@ -502,9 +504,16 @@ fn renderers_mount_in_template_order_refresh_and_receive_reveal(cx: &mut gpui::T
                 .iter()
                 .map(|s| s.kind.as_str())
                 .collect::<Vec<_>>(),
-            vec!["fields", "prose", "plot_grid"]
+            // The template's modules, then the two blocks (kernel v5 §16).
+            vec!["fields", "prose", "plot_grid", "children", "members"]
         );
-        assert!(page.sections.iter().all(|s| s.registered));
+        // Every module mounted; the chapter's two switches are off, so the
+        // blocks are their heads alone.
+        assert!(
+            page.sections
+                .iter()
+                .all(|s| s.registered == !matches!(s.kind.as_str(), "children" | "members"))
+        );
     });
     assert_eq!(reveals.get(), 1);
     cx.update(|window, cx| {
@@ -638,9 +647,27 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
             .iter()
             .all(|(_, _, surface)| *surface == DisplaySurface::Sidebar)
     );
+    // The Tab selected last (its id) stays on this device.
+    let last_tab = view.read_with(cx, |ws, _| {
+        ws.book
+            .v3()
+            .unwrap()
+            .project
+            .tabs
+            .iter()
+            .find(|t| {
+                t.mount
+                    == dr_workspace::commands::v3::types::TabMount::Entry {
+                        entry: roots[4].clone(),
+                    }
+            })
+            .unwrap()
+            .id
+            .clone()
+    });
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book_memory(v3::sidebar::MEMORY_KEY).cloned()),
-        Some(json!(roots[4]))
+        Some(json!(last_tab))
     );
     let count = made.borrow().len();
     call(
@@ -744,12 +771,21 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
         );
         assert_eq!(invoked.get(), 4);
     });
+    // Its level in Recently Deleted: the Tab stays selected and says why
+    // (kernel v5 §5), it is not dropped for the first one.
     call(&lib, "entry.trash", json!({"book":book_id,"id":roots[4]}));
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.run_until_parked();
         cx.update(|w, cx| w.draw(cx).clear(cx));
-        if panel.read_with(cx, |s, _| s.state())["selected"] == roots[0] {
+        let state = panel.read_with(cx, |s, _| s.state());
+        let gone = state["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["id"] == json!(last_tab) && t["gone"] == json!(true));
+        if gone {
+            assert_eq!(state["selected"], json!(last_tab));
             break;
         }
         assert!(Instant::now() < deadline);
@@ -1153,12 +1189,11 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
             .as_ref()
             .unwrap()
             .read(cx);
-        assert!(
-            !page
-                .sections
-                .iter()
-                .any(|s| s.id == "display" || s.id == "settings")
-        );
+        // Switch off: the block is its head alone, nothing listed, no
+        // settings (kernel v5 §16 「条目页」).
+        assert!(!page.sections.iter().any(|s| s.id == "settings"));
+        let below = page.sections.iter().find(|s| s.id == "display").unwrap();
+        assert!(!below.registered && below.display.is_none());
     });
 
     let host = make_host(cx);
@@ -1176,7 +1211,12 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
             .unwrap()
             .read(cx);
         let ids: Vec<_> = page.sections.iter().map(|s| s.id.as_str()).collect();
-        assert_eq!(ids[ids.len() - 2..], ["display", "settings"]);
+        assert_eq!(ids[ids.len() - 3..], ["display", "members", "settings"]);
+        assert!(
+            page.sections
+                .iter()
+                .any(|s| s.id == "display" && s.registered)
+        );
     });
 
     let host = make_host(cx);
@@ -1193,12 +1233,11 @@ fn v4_level_switch_toggle_confirmation_conflict_and_undo(cx: &mut gpui::TestAppC
             .as_ref()
             .unwrap()
             .read(cx);
-        assert!(
-            !page
-                .sections
-                .iter()
-                .any(|s| s.id == "display" || s.id == "settings")
-        );
+        // Switch off: the block is its head alone, nothing listed, no
+        // settings (kernel v5 §16 「条目页」).
+        assert!(!page.sections.iter().any(|s| s.id == "settings"));
+        let below = page.sections.iter().find(|s| s.id == "display").unwrap();
+        assert!(!below.registered && below.display.is_none());
     });
 
     // 2. Root organizing entry with N > 0 children (one itself a level with a grandchild),
@@ -1560,15 +1599,21 @@ fn v4_children_module_placement_and_mod_description_ordinary_prose(cx: &mut gpui
             .collect();
         let settings_label =
             dr_shell::strings::t(cx, dr_i18n::keys::v3_shell::SETTINGS).to_string();
+        let attached_label =
+            dr_shell::strings::t(cx, dr_i18n::keys::v3_shell::ATTACHED_ENTRIES).to_string();
+        // The `children` module places 「下面的条目」; 「挂在这里的条目」 has
+        // no module and follows the modules (kernel v5 §16).
         assert_eq!(
             summary,
             vec![
                 ("mod-lead", "prose", "引言"),
-                ("mod-kids", "list", "下属条目"),
+                ("mod-kids", "children", "下属条目"),
                 ("mod-meta", "fields", "属性"),
+                ("members", "members", attached_label.as_str()),
                 ("settings", "settings", settings_label.as_str()),
             ]
         );
+        assert_eq!(page.sections[1].display.as_deref(), Some("list"));
     });
 
     call(
@@ -1580,7 +1625,9 @@ fn v4_children_module_placement_and_mod_description_ordinary_prose(cx: &mut gpui
     view.read_with(cx, |ws, cx| {
         let page = ws.editors[&hub_target.key()].v3.as_ref().unwrap().read(cx);
         let ids: Vec<_> = page.sections.iter().map(|s| s.id.as_str()).collect();
-        assert_eq!(ids, vec!["mod-lead", "mod-meta"]);
+        // The blocks stay as their heads; nothing listed, no settings.
+        assert_eq!(ids, vec!["mod-lead", "mod-kids", "mod-meta", "members"]);
+        assert!(!page.sections[1].registered);
     });
 
     // Former organizing levels render `mod-description` (`说明`) as ordinary prose, with no synthetic `about`.
@@ -2079,6 +2126,7 @@ fn v5_turning_off_a_level_asks_only_about_what_lives_below(cx: &mut gpui::TestAp
     let dialog = ask(cx, &group);
     dialog.read_with(cx, |d, cx| {
         assert_eq!(d.below_count(), 3);
+        assert_eq!(d.title_text(cx).as_ref(), "关掉「收纳」的层级？");
         assert_eq!(d.body_text(cx).as_ref(), "下面的 3 个条目会放进最近删除。");
         assert!(!d.has_conflict());
     });

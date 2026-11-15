@@ -18,7 +18,7 @@ use std::collections::{BTreeSet, HashMap};
 use crate::{
     actions::Dismiss,
     pages::PageViewHost,
-    strings::{t, tp},
+    strings::{t, tf, tp},
     workspace::toast::offer_undo_after,
 };
 use dr_doc::v3::BorrowedBookV3;
@@ -193,7 +193,7 @@ fn turn_off(
     })
 }
 
-fn host_still_valid(host: &PageViewHost, cx: &App) -> bool {
+pub(crate) fn host_still_valid(host: &PageViewHost, cx: &App) -> bool {
     let Some(ws) = host.workspace.upgrade() else {
         return true;
     };
@@ -205,7 +205,7 @@ fn host_still_valid(host: &PageViewHost, cx: &App) -> bool {
             .is_some_and(|lib| std::ptr::eq(lib.library(), host.library.library()))
 }
 
-fn toast_save_failed(host: &PageViewHost, cx: &mut App) {
+pub(crate) fn toast_save_failed(host: &PageViewHost, cx: &mut App) {
     let Some(ws) = host.workspace.upgrade() else {
         return;
     };
@@ -371,6 +371,22 @@ impl TurnOffLevelDialog {
         self.info.body_text(cx)
     }
 
+    /// The dialog's title: 「关掉「人物」的层级？」.
+    pub fn title_text(&self, cx: &App) -> SharedString {
+        let name = self
+            .host
+            .book
+            .v3()
+            .and_then(|v| v.entry(&self.entry_id))
+            .map(|e| e.title.clone())
+            .unwrap_or_default();
+        tf(
+            cx,
+            keys::v3_shell::TURN_OFF_LEVEL_QUESTION,
+            &[("name", &name)],
+        )
+    }
+
     /// What it said changed before the author confirmed, and it shows the
     /// new numbers (no words of its own about that).
     pub fn has_conflict(&self) -> bool {
@@ -467,39 +483,36 @@ impl Render for TurnOffLevelDialog {
         let weak = cx.entity().downgrade();
         let cancel_weak = weak.clone();
         let confirm_weak = weak.clone();
-        let dialog = Dialog::new(
-            "v3-turn-off-level-dialog",
-            t(cx, keys::v3_shell::TURN_OFF_LEVEL_TITLE),
-        )
-        .width(440.0)
-        .body(body)
-        .action(
-            Button::new("v3-turn-off-level-cancel", t(cx, keys::common::CANCEL))
-                .text()
-                .disabled(self.busy)
-                .on_click(move |_, _, cx| {
-                    let _ = cancel_weak.update(cx, |this, cx| this.cancel(cx));
-                }),
-        )
-        .action(
-            Button::new(
-                "v3-turn-off-level-confirm",
-                t(cx, keys::v3_shell::TURN_OFF_LEVEL_CONFIRM),
+        let dialog = Dialog::new("v3-turn-off-level-dialog", self.title_text(cx))
+            .width(440.0)
+            .body(body)
+            .action(
+                Button::new("v3-turn-off-level-cancel", t(cx, keys::common::CANCEL))
+                    .text()
+                    .disabled(self.busy)
+                    .on_click(move |_, _, cx| {
+                        let _ = cancel_weak.update(cx, |this, cx| this.cancel(cx));
+                    }),
             )
-            .primary()
-            .busy(self.busy)
-            .disabled(self.busy)
-            .on_click(move |_, window, cx| {
-                let _ = confirm_weak.update(cx, |this, cx| this.confirm(window, cx));
-            }),
-        )
-        .on_close(move |_, cx| {
-            let _ = weak.update(cx, |this, cx| {
-                if !this.busy {
-                    this.cancel(cx);
-                }
+            .action(
+                Button::new(
+                    "v3-turn-off-level-confirm",
+                    t(cx, keys::v3_shell::TURN_OFF_LEVEL_CONFIRM),
+                )
+                .danger()
+                .busy(self.busy)
+                .disabled(self.busy)
+                .on_click(move |_, window, cx| {
+                    let _ = confirm_weak.update(cx, |this, cx| this.confirm(window, cx));
+                }),
+            )
+            .on_close(move |_, cx| {
+                let _ = weak.update(cx, |this, cx| {
+                    if !this.busy {
+                        this.cancel(cx);
+                    }
+                });
             });
-        });
 
         div()
             .track_focus(&self.focus)

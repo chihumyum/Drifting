@@ -204,7 +204,9 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             .v3_sidebar
             .get_or_insert_with(|| cx.new(|_| crate::v3::sidebar::Sidebar::new(host.clone())))
             .clone();
-        panel.update(cx, |panel, cx| panel.sync(host, remembered, ready, cx));
+        panel.update(cx, |panel, cx| {
+            panel.sync(host, width, remembered, ready, cx)
+        });
         div()
             .size_full()
             .flex()
@@ -1779,6 +1781,9 @@ mod v3_panel_tests {
             let expected = v3_stats_scope(target.as_ref()).unwrap();
             shell.update_in(cx, |ws, window, cx| {
                 if let Some(target) = target {
+                    // One entry is one tab (kernel v5, T1): each target on a
+                    // tab of its own, so the panel follows exactly it.
+                    ws.nav.close_active();
                     ws.open(target, Open::KEEP, cx);
                 }
                 drop(right_body(RightTab::Stats, ws, PaneId::Primary, window, cx));
@@ -1952,6 +1957,9 @@ mod v3_panel_tests {
             ),
         ] {
             shell.update_in(cx, |ws, window, cx| {
+                // One entry is one tab (kernel v5, T1): each target on a
+                // tab of its own, so the panel follows exactly it.
+                ws.nav.close_active();
                 ws.open(target, Open::KEEP, cx);
                 drop(right_body(
                     RightTab::Review,

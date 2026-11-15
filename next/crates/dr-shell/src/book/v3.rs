@@ -66,6 +66,9 @@ pub struct BookV3 {
     pub memberships: Vec<types::Membership>,
     pub timeline_views: Vec<types::TimelineView>,
     pub layouts: BookLayouts,
+    /// The titles of the entries in Recently Deleted: what a Tab mounted on
+    /// one of them says (`kernel-v5.md` §5).
+    pub trashed_titles: BTreeMap<String, String>,
     pub materials: Vec<MaterialInfo>,
     pub material_folders: Vec<GroupInfo>,
     #[serde(skip)]
@@ -242,6 +245,75 @@ impl BookV3 {
         self.entry(id)
             .is_some_and(|e| e.level || self.accepts_members(id))
     }
+    /// The live view whose scale orders what lives under and is attached
+    /// to `id` while it is a lane (`kernel-v5.md` §4 「视图：刻度」): the
+    /// book's start view when `id` is a lane in it, else the first live
+    /// view it is a lane in.
+    pub fn ordering_view(&self, id: &str) -> Option<&types::TimelineView> {
+        let has = |v: &&types::TimelineView| {
+            v.deleted_at.is_none() && v.lanes.iter().any(|l| l.entry == id)
+        };
+        let start = match self.project.book.as_ref().map(|b| &b.root) {
+            Some(types::BookRoot::View { view } | types::BookRoot::Lane { view, .. }) => {
+                Some(view.as_str())
+            }
+            _ => None,
+        };
+        self.timeline_views
+            .iter()
+            .filter(has)
+            .find(|v| Some(v.id.as_str()) == start)
+            .or_else(|| self.timeline_views.iter().find(has))
+    }
+    /// A live timeline view.
+    pub fn timeline_view(&self, id: &str) -> Option<&types::TimelineView> {
+        self.timeline_views
+            .iter()
+            .find(|v| v.id == id && v.deleted_at.is_none())
+    }
+    /// The entries of `lane` in `view` along the view's scale (`kernel-v5.md`
+    /// §16 「泳道」): those living under it while it is a level, then those
+    /// attached to it while it accepts them, each once; unplaced ones last,
+    /// ties by id.
+    pub fn lane_entries(&self, view: &types::TimelineView, lane: &str) -> Vec<String> {
+        let Some(level) = self.levels.get(lane) else {
+            return Vec::new();
+        };
+        let mut seen = BTreeSet::new();
+        let mut ids: Vec<String> = level
+            .children
+            .iter()
+            .chain(&level.members)
+            .filter(|id| seen.insert(id.as_str()))
+            .cloned()
+            .collect();
+        let at: BTreeMap<&str, f64> = view
+            .placements
+            .iter()
+            .map(|p| (p.entry.as_str(), p.at))
+            .collect();
+        ids.sort_by(|a, b| {
+            match (at.get(a.as_str()), at.get(b.as_str())) {
+                (Some(x), Some(y)) => x.total_cmp(y),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            }
+            .then_with(|| a.cmp(b))
+        });
+        ids
+    }
+    /// The entries of the book sequence in order (`project.book`), each
+    /// once: what a Tab mounted on the book lists.
+    pub fn book_entries(&self) -> Vec<String> {
+        let mut seen = BTreeSet::new();
+        self.manuscript
+            .iter()
+            .filter(|b| seen.insert(b.entry.as_str()))
+            .map(|b| b.entry.clone())
+            .collect()
+    }
+
     /// Whether `id` is currently an active swimlane in at least one live
     /// timeline view.
     pub fn is_lane(&self, id: &str) -> bool {
@@ -258,6 +330,27 @@ pub struct Appearance {
     pub sand: sand::Kind,
 }
 
+/// The sand marks an author can pick (`kernel-v5.md` §8), one name for each
+/// of the seven kinds: what the mark pickers list, in this order.
+pub const SAND_MARKS: [&str; 7] = [
+    "file-text",
+    "square",
+    "compass",
+    "folder",
+    "lightbulb",
+    "git-branch",
+    "book",
+];
+
+/// Whether `name` names a sand mark (one of [`SAND_MARKS`] or a name the
+/// built-in templates also use for one of them).
+pub fn is_sand_mark(name: &str) -> bool {
+    SAND_MARKS.contains(&name) || matches!(name, "sparkles" | "tag" | "route")
+}
+
+/// How `name` is drawn for `id`: a sand mark by name, otherwise the single
+/// character the author picked (`dr_model::v3::is_valid_mark`); anything
+/// else (a name this build does not know) is the square seal.
 pub fn mark(name: Option<&str>, id: &str) -> sand::Kind {
     match name {
         Some("book") => sand::Kind::All,
@@ -266,8 +359,20 @@ pub fn mark(name: Option<&str>, id: &str) -> sand::Kind {
         Some("folder" | "tag") => sand::Kind::Category,
         Some("compass" | "route") => sand::Kind::Storyline,
         Some("git-branch") => sand::Kind::DriftGroup,
+        Some(text) if is_glyph_mark(text) => sand::Kind::Glyph(sand::Glyph::new(text)),
         _ => sand::Kind::Element,
     }
+}
+
+/// Whether `mark` is drawn as its own character: a valid mark that is one
+/// grapheme and not a sand mark's name.
+pub fn is_glyph_mark(mark: &str) -> bool {
+    // A valid mark is a name (lowercase ASCII, digits and `-`) or one
+    // grapheme; a one-letter name is that letter.
+    let name = mark
+        .bytes()
+        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    !is_sand_mark(mark) && dr_model::v3::is_valid_mark(mark) && (!name || mark.len() == 1)
 }
 
 pub(crate) fn parse_layout_positions(raw: dr_workspace::LayoutPositions) -> BookLayouts {
@@ -303,6 +408,11 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .entries()
             .filter(|e| !e.is_trashed())
             .map(Into::into)
+            .collect();
+        let trashed_titles: BTreeMap<String, String> = structure
+            .entries()
+            .filter(|e| e.is_trashed())
+            .map(|e| (e.id.to_string(), e.title.clone()))
             .collect();
         let templates: Vec<types::EntryTemplate> = templates_map.values().map(Into::into).collect();
         let roots: Vec<String> = structure
@@ -506,6 +616,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 memberships,
                 colors,
                 timeline_views,
+                trashed_titles,
                 materials,
                 material_folders,
                 ..Default::default()
