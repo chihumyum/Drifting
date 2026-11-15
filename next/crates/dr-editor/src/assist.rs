@@ -464,6 +464,9 @@ pub struct Assist {
     /// The document is a material note: the note's slash entries, the
     /// bar's 高亮.
     note: bool,
+    /// A whole-book view's chapters, each as [`Self::note`] is for a
+    /// chapter editor's document ([`Self::set_chapter_notes`]).
+    chapter_notes: Vec<bool>,
     /// The v3 page host supplies localized format names; legacy hosts keep their labels.
     block_labels: Option<[SharedString; 6]>,
     entry_label: Option<SharedString>,
@@ -524,6 +527,7 @@ impl Assist {
             bar_task: None,
             writing: false,
             note: false,
+            chapter_notes: Vec::new(),
             block_labels: None,
             entry_label: None,
             _editor_events: events,
@@ -632,6 +636,23 @@ impl Assist {
 
     pub fn is_note(&self) -> bool {
         self.note
+    }
+
+    /// A whole-book view: whether each chapter (in the editor's order)
+    /// follows its level's format shortcuts, so a chapter's slash menu is
+    /// the one [`Self::set_note`] gives the same document in a chapter
+    /// editor. A chapter past the list goes by [`Self::set_note`].
+    pub fn set_chapter_notes(&mut self, notes: Vec<bool>) {
+        self.chapter_notes = notes;
+    }
+
+    /// Whether chapter `chapter` is a note ([`Self::set_note`],
+    /// [`Self::set_chapter_notes`]).
+    fn note_in(&self, chapter: usize) -> bool {
+        self.chapter_notes
+            .get(chapter)
+            .copied()
+            .unwrap_or(self.note)
     }
 
     pub fn set_block_labels(&mut self, labels: [SharedString; 6]) {
@@ -970,7 +991,7 @@ impl Assist {
     fn rows(&mut self, kind: MenuKind, chapter: usize, query: &str) -> Vec<MenuRow> {
         match kind {
             MenuKind::Slash => {
-                let mut rows: Vec<MenuRow> = if self.note {
+                let mut rows: Vec<MenuRow> = if self.note_in(chapter) {
                     // A material note: the formats, the rule and all insert-group
                     // entries (including 插入素材…), then 人物链接 / 批注.
                     BlockChoice::ALL
@@ -1350,7 +1371,11 @@ impl Assist {
         window.focus(&search_focus, cx);
     }
 
-    fn pick_material_from_computer(
+    /// The file picker's 「从电脑选…」: the system's file window, then each
+    /// chosen file goes into the library (the same bytes give back the file
+    /// already there) and is embedded in chapter `chapter`
+    /// ([`AssistEvent::InsertMaterial`], one per file).
+    pub fn pick_material_from_computer(
         &mut self,
         chapter: usize,
         window: &mut Window,
@@ -2406,11 +2431,18 @@ impl Render for Assist {
                     {
                         let left = last_box.right() - origin.x + px(1.5);
                         let top = last_box.center().y - origin.y - px(5.5);
-                        root = root.child(div().absolute().left(left).top(top).child(sand::icon(
-                            if is_pdf { Icon::FileText } else { Icon::Image },
-                            11.,
-                            link_color,
-                        )));
+                        root = root.child(
+                            div()
+                                .debug_selector(|| "dr-editor-file-link-badge".into())
+                                .absolute()
+                                .left(left)
+                                .top(top)
+                                .child(sand::icon(
+                                    if is_pdf { Icon::FileText } else { Icon::Image },
+                                    11.,
+                                    link_color,
+                                )),
+                        );
                     }
                 }
             }

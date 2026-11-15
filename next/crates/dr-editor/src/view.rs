@@ -91,8 +91,8 @@ pub struct ChapterEditor {
     pub(crate) decor: crate::decor::Decor,
     /// A material note's tables and materials (`None` elsewhere).
     embeds: Option<Rc<NoteEmbeds>>,
-    /// Nearest paragraph gap `(line_ix, local_y, local_left, width)` during file drag-over.
-    drop_gap: Option<(usize, gpui::Pixels, gpui::Pixels, gpui::Pixels)>,
+    /// The paragraph gap a dragged file would land in.
+    drop_gap: Option<crate::prose_files::DropGap>,
     /// Immersive writing: typewriter scrolling forced on (M26).
     immersive: bool,
     /// The page a body is part of ([`Self::set_page_scroll`]).
@@ -825,198 +825,16 @@ impl ChapterEditor {
         });
     }
 
-    /// Copy or cut in a note's text over a selection holding embeds: a
-    /// table alone goes as a table (tab-separated, its cells in the
-    /// metadata); otherwise each embed as text (a table's rows, a
-    /// material's title). Returns whether it handled the key.
+    /// Copy or cut over a selection holding embeds ([`crate::prose_files::copy`]).
+    /// Returns whether it handled the key.
     fn note_copy(&mut self, cut: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let Some(embeds) = self.embeds.clone() else {
-            return false;
-        };
-        let e = self.editor.read(cx);
-        if !gpui::Focusable::focus_handle(e, cx).is_focused(window) {
-            return false;
-        }
-        let sel = e.selection();
-        if sel.is_empty() || sel.spans_chapters() {
-            return false;
-        }
-        let range = sel.range();
-        let doc = &e.book().chapters[0].doc;
-        let (first, _) = doc.locate(range.start);
-        let (last, _) = doc.locate(range.end);
-        let mut parts: Vec<(Option<String>, String)> = Vec::new();
-        for line in first..=last.min(doc.visible_lines().saturating_sub(1)) {
-            let start = doc.line_start(line);
-            let l = doc.line(line);
-            let from = range.start.max(start) - start;
-            let to = range.end.min(start + l.chars).saturating_sub(start);
-            match l.embed() {
-                Some(id) if range.start <= start && range.end > start => {
-                    parts.push((Some(id.to_owned()), String::new()))
-                }
-                _ => parts.push((
-                    None,
-                    l.text
-                        .chars()
-                        .skip(from)
-                        .take(to.saturating_sub(from))
-                        .collect(),
-                )),
-            }
-        }
-        if !parts.iter().any(|(id, _)| id.is_some()) {
-            return false;
-        }
-        let item = match parts.as_slice() {
-            [(Some(id), _)] => embeds
-                .table_grid(id)
-                .map(|(cells, marks)| crate::table::clip::table_item(&cells, &marks))
-                .unwrap_or_else(|| Ok(gpui::ClipboardItem::new_string(embeds.embed_text(id)))),
-            _ => Ok(gpui::ClipboardItem::new_string(
-                parts
-                    .iter()
-                    .map(|(id, text)| match id {
-                        Some(id) => embeds.embed_text(id),
-                        None => text.clone(),
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            )),
-        };
-        let item = match item {
-            Ok(item) => item,
-            Err(e) => {
-                crate::links::clipboard_refused(cx, e);
-                return true;
-            }
-        };
-        cx.write_to_clipboard(item);
-        if cut {
-            self.editor
-                .update(cx, |e, cx| e.press_backspace(window, cx));
-        }
-        true
+        crate::prose_files::copy(self, cut, window, cx)
     }
 
-    /// Paste in a note's text: a copied table, or a tab-separated grid of
-    /// at least 2 × 2, becomes a table at the caret. Returns whether it
-    /// handled the key.
+    /// Paste a table, an image or image and PDF files
+    /// ([`crate::prose_files::paste`]). Returns whether it handled the key.
     fn note_paste(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let Some(embeds) = self.embeds.clone() else {
-            return false;
-        };
-        if !gpui::Focusable::focus_handle(self.editor.read(cx), cx).is_focused(window) {
-            return false;
-        }
-        let Some(item) = cx.read_from_clipboard() else {
-            return false;
-        };
-        let cells = crate::table::clip::table_from_clipboard(&item).or_else(|| {
-            item.text()
-                .and_then(|t| crate::table::clip::parse_grid(&t))
-                .filter(|g| crate::table::clip::is_table(g))
-        });
-        if let Some(cells) = cells {
-            let marks = match crate::table::clip::marks_from_clipboard(&item) {
-                Ok(m) => m,
-                Err(e) => {
-                    crate::links::clipboard_refused(cx, e);
-                    return true;
-                }
-            };
-            if !self.editor.read(cx).selection().is_empty() {
-                self.editor
-                    .update(cx, |e, cx| e.press_backspace(window, cx));
-            }
-            let offset = self.editor.read(cx).selection().head;
-            crate::embeds::insert_table(&embeds, offset, cells, marks, window, cx);
-            return true;
-        }
-        // Format 5 (`v5-tracks.md` §T5): pasting an image or image/PDF file paths
-        // imports into the asset library (new pasted images at index 0; identical
-        // bytes reuse the existing asset) and embeds at the caret.
-        for entry in item.entries() {
-            match entry {
-                gpui::ClipboardEntry::Image(image) => {
-                    let bytes = image.bytes().to_vec();
-                    let title = crate::file_host::pasted_image_title(cx);
-                    if !self.editor.read(cx).selection().is_empty() {
-                        self.editor
-                            .update(cx, |e, cx| e.press_backspace(window, cx));
-                    }
-                    let offset = self.editor.read(cx).selection().head;
-                    let ws = self.ws.clone();
-                    let book = self.book.clone();
-                    let host_fn = crate::file_host::import_bytes_fn(cx);
-                    cx.spawn(async move |this, cx| {
-                        let res = cx
-                            .background_spawn(async move {
-                                crate::file_host::import_pasted_bytes_blocking(
-                                    host_fn.as_ref(),
-                                    &ws,
-                                    &book,
-                                    bytes,
-                                    &title,
-                                )
-                            })
-                            .await;
-                        if let Ok(file) = res {
-                            this.update(cx, |this, cx| {
-                                if let (Some(em), Ok(aid)) =
-                                    (this.embeds.clone(), dr_model::id::AssetId::parse(&file.id))
-                                    && let Some(eid) =
-                                        crate::embeds::insert_material(&em, offset, aid, cx)
-                                {
-                                    crate::file_host::trigger_flash(
-                                        [
-                                            format!("embed_id:{eid}"),
-                                            format!("library-asset:{}", file.id),
-                                            file.id,
-                                        ],
-                                        cx,
-                                    );
-                                }
-                            })
-                            .ok();
-                        }
-                    })
-                    .detach();
-                    return true;
-                }
-                gpui::ClipboardEntry::ExternalPaths(paths) => {
-                    let paths = paths.paths().to_vec();
-                    let has_supported = paths.iter().any(|p| {
-                        p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
-                            matches!(
-                                e.to_ascii_lowercase().as_str(),
-                                "png"
-                                    | "jpg"
-                                    | "jpeg"
-                                    | "gif"
-                                    | "webp"
-                                    | "bmp"
-                                    | "tif"
-                                    | "tiff"
-                                    | "pdf"
-                            )
-                        })
-                    });
-                    if !has_supported {
-                        continue;
-                    }
-                    if !self.editor.read(cx).selection().is_empty() {
-                        self.editor
-                            .update(cx, |e, cx| e.press_backspace(window, cx));
-                    }
-                    let offset = self.editor.read(cx).selection().head;
-                    self.import_and_embed_paths(paths, None, Some(offset), cx);
-                    return true;
-                }
-                _ => {}
-            }
-        }
-        false
+        crate::prose_files::paste(self, window, cx)
     }
 
     fn update_drop_gap(
@@ -1025,59 +843,26 @@ impl ChapterEditor {
         container: gpui::Bounds<gpui::Pixels>,
         cx: &mut Context<Self>,
     ) {
-        use gpui::px;
-        if !container.contains(&mouse) {
-            if self.drop_gap.take().is_some() {
-                cx.notify();
-            }
-            return;
-        }
-        let mut best: Option<(usize, gpui::Pixels, gpui::Pixels, gpui::Pixels, f32)> = None;
-        {
+        let next = {
             let e = self.editor.read(cx);
-            let doc = &e.book().chapters[0].doc;
-            let wrap = e.style().max_width;
-            for ix in 0..doc.visible_lines() {
-                let start = doc.line_start(ix);
-                let end = start + doc.line(ix).chars;
-                let line_box = e
-                    .range_bounds(0, start..end)
-                    .map(|b| (b.top(), b.bottom(), b.left(), wrap))
-                    .or_else(|| {
-                        let embed_id = doc.line(ix).embed()?;
-                        let b = self
-                            .embeds
-                            .as_ref()?
-                            .material_block(embed_id)?
-                            .read(cx)
-                            .last_bounds()?;
-                        Some((b.top(), b.bottom(), b.left(), b.size.width))
-                    });
-                if let Some((top, bottom, left, width)) = line_box {
-                    for (gap_ix, gap_y) in [(ix, top), (ix + 1, bottom)] {
-                        let dist = (f32::from(mouse.y) - f32::from(gap_y)).abs();
-                        if best.as_ref().is_none_or(|b| dist < b.4) {
-                            best = Some((gap_ix, gap_y, left, width, dist));
-                        }
-                    }
-                }
-            }
-        }
-        let next = match best {
-            Some((ix, y, left, width, _)) => {
-                Some((ix, y - container.origin.y, left - container.origin.x, width))
-            }
-            None => Some((
-                0,
-                px(20.),
-                px(24.),
-                (container.size.width - px(48.)).max(px(80.)),
-            )),
+            let lines = (0..e.book().chapters[0].doc.visible_lines()).map(|ix| (0, ix));
+            let embeds = self.embeds.clone();
+            crate::prose_files::drop_gap(e, lines, move |_| embeds.clone(), 0, mouse, container, cx)
         };
         if self.drop_gap != next {
             self.drop_gap = next;
             cx.notify();
         }
+    }
+
+    /// The gap a drop lands in: `line_ix`, else the drop line's, else the
+    /// paragraph after the caret's.
+    fn drop_line(&mut self, line_ix: Option<usize>, cx: &App) -> usize {
+        line_ix
+            .or_else(|| self.drop_gap.take().map(|g| g.line))
+            .unwrap_or_else(|| {
+                crate::prose_files::after_caret(self.editor.read(cx)).map_or(0, |(_, line)| line)
+            })
     }
 
     /// Drops library assets (or folders) into paragraph gap `line_ix` (`None`: current drop gap or caret).
@@ -1087,69 +872,8 @@ impl ChapterEditor {
         line_ix: Option<usize>,
         cx: &mut Context<Self>,
     ) {
-        let gap = line_ix.or_else(|| self.drop_gap.take().map(|g| g.0));
-        if drag.book != self.book {
-            return;
-        }
-        if drag.folders.is_empty() {
-            self.embed_assets_at_gap(drag.assets.clone(), gap, cx);
-            return;
-        }
-        let ws = self.ws.clone();
-        let book = self.book.clone();
-        let direct = drag.assets.clone();
-        let folders = drag.folders.clone();
-        cx.spawn(async move |this, cx| {
-            let expanded = cx
-                .background_spawn(async move {
-                    crate::v3::read(&ws, &book, move |v| {
-                        let all_folders: Vec<_> = v.asset_folders();
-                        let mut subtree = std::collections::HashSet::new();
-                        fn collect(
-                            all: &[dr_model::shared::AssetFolder],
-                            root: &str,
-                            out: &mut std::collections::HashSet<String>,
-                        ) {
-                            if !out.insert(root.to_owned()) {
-                                return;
-                            }
-                            for f in all {
-                                if f.parent.as_ref().is_some_and(|p| p.as_str() == root) {
-                                    collect(all, f.id.as_str(), out);
-                                }
-                            }
-                        }
-                        for fid in &folders {
-                            collect(&all_folders, fid, &mut subtree);
-                        }
-                        let mut assets = direct;
-                        let mut in_folders: Vec<_> = v
-                            .assets()
-                            .into_iter()
-                            .filter(|a| {
-                                a.folder
-                                    .as_ref()
-                                    .is_some_and(|f| subtree.contains(f.as_str()))
-                            })
-                            .collect();
-                        in_folders.sort_by(|a, b| {
-                            dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id))
-                        });
-                        for a in in_folders {
-                            let s = a.id.to_string();
-                            if !assets.contains(&s) {
-                                assets.push(s);
-                            }
-                        }
-                        assets
-                    })
-                    .unwrap_or_default()
-                })
-                .await;
-            this.update(cx, |this, cx| this.embed_assets_at_gap(expanded, gap, cx))
-                .ok();
-        })
-        .detach();
+        let gap = self.drop_line(line_ix, cx);
+        crate::prose_files::drop_library(self, drag, 0, gap, cx);
     }
 
     /// Imports external file paths into the library and embeds them at `gap` (or `caret`).
@@ -1159,99 +883,41 @@ impl ChapterEditor {
         line_ix: Option<usize>,
         cx: &mut Context<Self>,
     ) {
-        let gap = line_ix.or_else(|| self.drop_gap.take().map(|g| g.0));
-        self.import_and_embed_paths(paths, gap, None, cx);
-    }
-
-    fn embed_assets_at_gap(
-        &mut self,
-        asset_ids: Vec<String>,
-        gap: Option<usize>,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(embeds) = self.embeds.clone() else {
-            return;
+        let place = match line_ix.or_else(|| self.drop_gap.take().map(|g| g.line)) {
+            Some(line) => crate::prose_files::Place::Gap(line),
+            None => crate::prose_files::Place::Caret(self.editor.read(cx).selection().head),
         };
-        let mut cur_gap = gap.unwrap_or_else(|| {
-            let e = self.editor.read(cx);
-            let sel = e.selection();
-            let doc = &e.book().chapters[0].doc;
-            doc.line_of(sel.head) + 1
-        });
-        let mut flash_keys = Vec::new();
-        for id in asset_ids {
-            if let Ok(aid) = dr_model::id::AssetId::parse(&id)
-                && let Some(eid) =
-                    crate::embeds::insert_material_before_line(&embeds, cur_gap, aid, cx)
-            {
-                cur_gap += 1;
-                flash_keys.push(format!("embed_id:{eid}"));
-            }
-        }
-        crate::file_host::trigger_flash(flash_keys, cx);
-        cx.notify();
+        crate::prose_files::import_files(self, 0, paths, place, cx);
+    }
+}
+
+impl crate::prose_files::FileView for ChapterEditor {
+    fn file_ws(&self) -> &Workspace {
+        &self.ws
     }
 
-    fn import_and_embed_paths(
-        &mut self,
-        paths: Vec<std::path::PathBuf>,
-        gap: Option<usize>,
-        caret_offset: Option<usize>,
-        cx: &mut Context<Self>,
-    ) {
-        if paths.is_empty() {
-            return;
+    fn file_book(&self) -> &str {
+        &self.book
+    }
+
+    fn file_prose(&self) -> &Entity<ProseEditor> {
+        &self.editor
+    }
+
+    fn chapter_embeds(&self, chapter: usize) -> Option<Rc<NoteEmbeds>> {
+        if chapter == 0 {
+            self.embeds.clone()
+        } else {
+            None
         }
-        let ws = self.ws.clone();
-        let book = self.book.clone();
-        let host_fn = crate::file_host::import_paths_fn(cx);
-        cx.spawn(async move |this, cx| {
-            let imported = cx
-                .background_spawn(async move {
-                    crate::file_host::import_paths_blocking(host_fn.as_ref(), &ws, &book, &paths)
-                })
-                .await;
-            if imported.is_empty() {
-                return;
-            }
-            this.update(cx, |this, cx| {
-                let Some(embeds) = this.embeds.clone() else {
-                    return;
-                };
-                let mut flash_keys = Vec::new();
-                if let Some(mut cur_gap) = gap {
-                    for file in imported {
-                        if let Ok(aid) = dr_model::id::AssetId::parse(&file.id)
-                            && let Some(eid) = crate::embeds::insert_material_before_line(
-                                &embeds, cur_gap, aid, cx,
-                            )
-                        {
-                            cur_gap += 1;
-                            flash_keys.push(format!("embed_id:{eid}"));
-                            flash_keys.push(format!("library-asset:{}", file.id));
-                            flash_keys.push(file.id);
-                        }
-                    }
-                } else {
-                    let base =
-                        caret_offset.unwrap_or_else(|| this.editor.read(cx).selection().head);
-                    for file in imported {
-                        if let Ok(aid) = dr_model::id::AssetId::parse(&file.id)
-                            && let Some(eid) =
-                                crate::embeds::insert_material(&embeds, base, aid, cx)
-                        {
-                            flash_keys.push(format!("embed_id:{eid}"));
-                            flash_keys.push(format!("library-asset:{}", file.id));
-                            flash_keys.push(file.id);
-                        }
-                    }
-                }
-                crate::file_host::trigger_flash(flash_keys, cx);
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+    }
+
+    fn doc_embeds(&self, doc: &str) -> Option<Rc<NoteEmbeds>> {
+        if doc == self.doc_id {
+            self.embeds.clone()
+        } else {
+            None
+        }
     }
 }
 
@@ -1280,24 +946,13 @@ impl Render for ChapterEditor {
         // A material note or v3 body with embeds: tables on the clipboard, file drops/paste, and the highlight key.
         use gpui::{
             DragMoveEvent, ExternalPaths, InteractiveElement as _, ParentElement as _, Styled as _,
-            prelude::FluentBuilder as _, px,
+            prelude::FluentBuilder as _,
         };
         use gpui_prose::input::actions::{Copy, Cut, Paste};
-        let accent = dr_ui::theme::Theme::of(window, cx).palette.accent.solid();
         let dropline = self
             .drop_gap
             .filter(|_| cx.has_active_drag())
-            .map(|(_, y, left, width)| {
-                gpui::div()
-                    .id("dr-editor-dropline")
-                    .absolute()
-                    .left(left)
-                    .top(y - px(1.))
-                    .w(width)
-                    .h(px(2.))
-                    .rounded_full()
-                    .bg(accent)
-            });
+            .map(|gap| crate::prose_files::dropline(gap, window, cx));
         gpui::div()
             .id("dr-editor-chapter-drop-zone")
             .relative()
