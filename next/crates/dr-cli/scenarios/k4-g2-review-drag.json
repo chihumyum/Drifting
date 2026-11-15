@@ -696,7 +696,7 @@
         "label": "New",
         "role": "MenuItem"
       },
-      "pending": "The storyline's hover card offers 「新建」, but its dialog submits entry.create with parent = the storyline, which has 「层级」 off: every 「创建」 is refused (V3-LEAF-NO-CHILDREN, found 2026-11-16 by sc-scenarios-v5; dr-view-elements dialogs::v3 create should send host for an entry that only takes attached entries). The same dialog is driven below from the storyline page's 「挂在这里的条目」 block."
+      "pending": "待协调：The storyline's hover card offers 「新建」, but its dialog submits entry.create with parent = the storyline, which has 「层级」 off: every 「创建」 is refused (V3-LEAF-NO-CHILDREN, found 2026-11-16 by sc-scenarios-v5; dr-view-elements dialogs::v3 create should send host for an entry that only takes attached entries). The same dialog is driven below from the storyline page's 「挂在这里的条目」 block."
     },
     {
       "app": "nav.open",

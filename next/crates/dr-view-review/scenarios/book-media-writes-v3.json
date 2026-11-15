@@ -221,7 +221,7 @@
       "params": {
         "text": "${seed_comments.0.body}"
       },
-      "pending": "The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
     },
     {
       "app": "ui.press",
@@ -229,7 +229,7 @@
         "role": "Button",
         "label": "Save"
       },
-      "pending": "The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
     },
     {
       "call": "comment.list",
@@ -247,7 +247,7 @@
         "/0/target/id": "${assets.0.id}",
         "/1": null
       },
-      "pending": "The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
     },
     {
       "app": "app.info",

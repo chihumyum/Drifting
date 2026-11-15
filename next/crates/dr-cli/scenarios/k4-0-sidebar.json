@@ -471,7 +471,7 @@
         "dx": -600,
         "dy": 0
       },
-      "pending": "The Tab row should scroll sideways when it does not fit (Tab prototype, T1), but neither a sideways nor an upright wheel moves it in the real window (2026-11-16): a Tab past the column's edge cannot be reached. Product issue reported by sc-scenarios-v5; once fixed, add the Tab last and scroll here."
+      "pending": "待协调：The Tab row should scroll sideways when it does not fit (Tab prototype, T1), but neither a sideways nor an upright wheel moves it in the real window (2026-11-16): a Tab past the column's edge cannot be reached. Product issue reported by sc-scenarios-v5; once fixed, add the Tab last and scroll here."
     },
     {
       "app": "ui.find",
