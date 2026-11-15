@@ -1,5 +1,19 @@
 # M02 作品主页（基础）
 
+## 内核 v5 T2：作品主页就地编辑与「项目模板」块（2026-11-16）
+
+- **标题与梗概就地编辑，去掉「设定」对话框**：
+  - 作品主页顶部标题（`#v3-home-title-input`）与下面一段梗概（`#v3-home-synopsis-input`）改为照条目页标题/梗概点了就改、回车或失焦即存、空标题退回原名；删掉 `dr-view-home/src/v3_settings.rs`、打开它的「设定」按钮及不再使用的三个多语言键（`projectHome.views.settings`、`dashboard.hero.projectName`、`dashboard.sections.projectProfile`）。
+- **页面底部「项目模板」块**（`dr-view-home/src/project_template.rs`，九语键 `projectHome.projectTemplate.{title,saveAs,source,fromTemplate}`）：
+  - **来源**：`project.source.name` 非空时画「来自「模板名」」，`credit.author` 非空时带单个导出者署名（名章图标 + 名字），不画「改自」；没有 `source.name` 的旧测试种子不画这一行，避免露出内部模板 id。
+  - **成书与两个字数目标**：成书开关（`#v3-home-has-book-toggle`）关着时，主页顶上的整书字数与今日字数两行、以及块里的「全书目标」「每日目标」两行都不出现；本会话内记住关掉前的自定义目标，再打开成书时在同一次 `project.update` 里带回。
+  - **写给 Agent**：名字、说明、注意事项三栏（`#v3-home-agent-{name,description,instructions}-input`），改完走 `project.update` 更新 `project.agent`，Agent 结构上下文（`StructureContext::for_book`）随之更新。
+  - **逐处一步撤销**：标题、梗概、成书开关、全书目标、每日目标、写给 Agent 各处改完各是一次 `project.update`、一步撤销；旧 DX「设定框一次存完」随设定框一起退役。
+- **给 PT3 留的登记口**：
+  - `dr_view_home::{SaveProjectTemplateHost, set_save_project_template, clear_save_project_template, has_save_project_template}`：没人登记时「项目模板」块头不画「另存为项目模板」按钮；PT3 登记后显示按钮（砂笔 `MovableType` 图标），按下把当前工作区、库句柄与项目快照交给登记回调。
+  - `dr_view_home::focus_project_title(book_id, cx)`：供 PT3 新建「未命名」项目打开作品主页时聚焦并全选标题输入框，直接打字即起名。
+- **回归测试与真实窗口场景**：新增 `dr-view-home/tests/v5_t2_project_home.rs`（6 项），更新 `dr-view-home/tests/words_parity.rs` 改走就地目标框；`dr-view-home/scenarios/book-v3.json` 与 `book-history-v3.json` 切到 `/book/version: 5` 并覆盖新作品主页控件与就地改名一步撤销。
+
 ## 内核 v5 DW：成书没有起点、不编号（2026-11-15 夜里）
 
 - `project.get` 没有 `book_root_valid`，`book` 里没有 `root`；`project.update` 不收 `root`（旧调用方传了也忽略），`has_book: true` 从关到开不用别的参数。下面 DX 那几条里「成书起点读不出来」「改成书起点的守卫键 `project/book/root`」「改成书起点一步撤销」都随起点去掉了；条目历史不再认 `book/root`。
