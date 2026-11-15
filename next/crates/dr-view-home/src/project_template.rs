@@ -390,6 +390,15 @@ impl Home {
         .detach();
     }
 
+    fn leave_field(&self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ws) = self.ws.upgrade() {
+            let focus = ws.read(cx).focus_handle().clone();
+            window.focus(&focus, cx);
+        } else {
+            window.blur(cx);
+        }
+    }
+
     pub(crate) fn on_title_event(
         &mut self,
         _: &Entity<TextArea>,
@@ -400,12 +409,12 @@ impl Home {
         match event {
             FieldEvent::Submitted(_) => {
                 self.store_title(cx);
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Cancelled => {
                 let stored = self.inline.stored_title.clone();
                 self.inline.title.update(cx, |f, cx| f.set_text(stored, cx));
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Blurred => self.store_title(cx),
             FieldEvent::Changed(_) => {}
@@ -422,14 +431,14 @@ impl Home {
         match event {
             FieldEvent::Submitted(_) => {
                 self.store_synopsis(cx);
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Cancelled => {
                 let stored = self.inline.stored_synopsis.clone();
                 self.inline
                     .synopsis
                     .update(cx, |f, cx| f.set_text(stored, cx));
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Blurred => self.store_synopsis(cx),
             FieldEvent::Changed(_) => {}
@@ -446,14 +455,14 @@ impl Home {
         match event {
             FieldEvent::Submitted(_) => {
                 self.store_word_target(cx);
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Cancelled => {
                 let stored = self.inline.stored_word_target.to_string();
                 self.inline
                     .word_target
                     .update(cx, |f, cx| f.set_text(stored, cx));
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Blurred => self.store_word_target(cx),
             FieldEvent::Changed(_) => {}
@@ -470,14 +479,14 @@ impl Home {
         match event {
             FieldEvent::Submitted(_) => {
                 self.store_daily_word_target(cx);
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Cancelled => {
                 let stored = self.inline.stored_daily_word_target.to_string();
                 self.inline
                     .daily_word_target
                     .update(cx, |f, cx| f.set_text(stored, cx));
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Blurred => self.store_daily_word_target(cx),
             FieldEvent::Changed(_) => {}
@@ -494,7 +503,7 @@ impl Home {
         match event {
             FieldEvent::Submitted(_) => {
                 self.store_agent(cx);
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Cancelled => {
                 let cfg = self.inline.stored_agent.as_ref();
@@ -516,7 +525,7 @@ impl Home {
                             .update(cx, |f, cx| f.set_text(s, cx));
                     }
                 }
-                window.blur(cx);
+                self.leave_field(window, cx);
             }
             FieldEvent::Blurred => self.store_agent(cx),
             FieldEvent::Changed(_) => {}

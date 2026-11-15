@@ -97,7 +97,7 @@
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "新建章节",
+        "label": "新建章节 · 书稿",
         "nth": 0
       }
     },
@@ -273,6 +273,28 @@
     },
     {
       "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": true,
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Open “${books.0.name}”",
+        "timeout_ms": 10000
+      }
     },
     {
       "app": "panel.answer",
