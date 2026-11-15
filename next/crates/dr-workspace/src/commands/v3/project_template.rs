@@ -1033,6 +1033,11 @@ op! {
     ProjectTemplateImport = "project_template.import", Write, Library,
     "Validate and import a .driftingtemplate file as a new saved project template in this library.",
     fn(cx, input: ProjectTemplateImportIn) -> ProjectTemplateSummary {
+        if matches!(cx.actor(), Actor::Agent { .. }) {
+            return Err(WsError::invalid(
+                "project_template.import is not callable by the Agent",
+            ));
+        }
         let value = read_template_file_checked(std::path::Path::new(&input.path))?;
         let summary = store_project_template_value(
             cx.workspace(),
@@ -1076,6 +1081,11 @@ op! {
     ProjectTemplateExport = "project_template.export", Read, Shared,
     "Export a saved project template to a deterministic .driftingtemplate file.",
     fn(cx, input: ProjectTemplateExportIn) -> ProjectTemplateExportOut {
+        if matches!(cx.actor(), Actor::Agent { .. }) {
+            return Err(WsError::invalid(
+                "project_template.export is not callable by the Agent",
+            ));
+        }
         let (pt_id, value) =
             prepare_export_template(cx.workspace(), &input.id, input.author.as_deref())?;
         let json = to_canonical_json(&value).map_err(|e| WsError::invalid(e.to_string()))?;

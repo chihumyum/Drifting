@@ -1872,3 +1872,107 @@ fn two_devices_sync_saved_template_lww_replace_and_purge() {
     let c2 = to_canonical_json(&dr_doc::v3::novel_project_template_value()).unwrap();
     assert_eq!(c1, c2);
 }
+
+#[test]
+fn project_template_export_and_import_commands_round_trip_and_reject_invalid_files() {
+    let e = env();
+    let dir = tempfile::tempdir().unwrap();
+    let b = e.book();
+    let saved = e.out(
+        "project_template.save",
+        json!({"book": b, "name": "导出导入模板", "description": "工作区命令核验"}),
+    );
+    let tpl_id = saved["id"].as_str().unwrap().to_owned();
+
+    // Export with explicit author twice -> byte-identical, library copy unchanged.
+    let p1 = dir.path().join("a.driftingtemplate");
+    let p2 = dir.path().join("b.driftingtemplate");
+    let p_anon = dir.path().join("anon.driftingtemplate");
+    e.out(
+        "project_template.export",
+        json!({"id": tpl_id, "path": p1, "author": "南枝"}),
+    );
+    e.out(
+        "project_template.export",
+        json!({"id": tpl_id, "path": p2, "author": "南枝"}),
+    );
+    e.out(
+        "project_template.export",
+        json!({"id": tpl_id, "path": p_anon}),
+    );
+
+    // Agent actor is refused on both commands even when template/file exists.
+    let agent = Actor::Agent {
+        session: "s1".into(),
+        turn: 1,
+        call: "c1".into(),
+    };
+    assert!(
+        e.ws()
+            .call(
+                &agent,
+                "project_template.export",
+                json!({"id": tpl_id, "path": dir.path().join("no.driftingtemplate")}),
+            )
+            .is_err()
+    );
+    assert!(!dir.path().join("no.driftingtemplate").exists());
+    assert!(
+        e.ws()
+            .call(&agent, "project_template.import", json!({"path": p1}))
+            .is_err()
+    );
+    assert_eq!(std::fs::read(&p1).unwrap(), std::fs::read(&p2).unwrap());
+    let v1: Value = serde_json::from_slice(&std::fs::read(&p1).unwrap()).unwrap();
+    assert_eq!(v1["credit"], json!({"author": "南枝"}));
+    let v_anon: Value = serde_json::from_slice(&std::fs::read(&p_anon).unwrap()).unwrap();
+    assert!(v_anon.get("credit").is_none());
+    assert!(
+        e.out("project_template.get", json!({"id": tpl_id}))["value"]
+            .get("credit")
+            .is_none()
+    );
+
+    // Import twice -> two new templates with `origin = "file"`, zero new books.
+    let books_before = e.out("book.list", json!({}));
+    let imp_a = e.out("project_template.import", json!({"path": p1}));
+    let imp_b = e.out("project_template.import", json!({"path": p1}));
+    assert_eq!(imp_a["origin"], "file");
+    assert_eq!(imp_b["origin"], "file");
+    assert_ne!(imp_a["id"], imp_b["id"]);
+    assert_ne!(imp_a["id"], tpl_id);
+    assert_eq!(e.out("book.list", json!({})), books_before);
+
+    // Re-exporting someone else's template replaces attribution with exporter's name.
+    let p_re = dir.path().join("re.driftingtemplate");
+    e.out(
+        "project_template.export",
+        json!({"id": imp_a["id"], "path": p_re, "author": "林岬"}),
+    );
+    let re_text = std::fs::read_to_string(&p_re).unwrap();
+    assert!(!re_text.contains("南枝"));
+    assert_eq!(
+        serde_json::from_str::<Value>(&re_text).unwrap()["credit"],
+        json!({"author": "林岬"})
+    );
+
+    // Invalid file (`derivedFrom`) is rejected without writing anything.
+    let docs_before = e.ws().library().docs(None, None).unwrap().len();
+    let mut bad = v1;
+    bad["credit"] = json!({"author": "南枝", "derivedFrom": {"name": "旧"}});
+    let p_bad = dir.path().join("bad.driftingtemplate");
+    std::fs::write(&p_bad, serde_json::to_vec(&bad).unwrap()).unwrap();
+    assert!(
+        e.ws()
+            .call(
+                &Actor::User,
+                "project_template.import",
+                json!({"path": p_bad})
+            )
+            .is_err()
+    );
+    assert_eq!(
+        e.ws().library().docs(None, None).unwrap().len(),
+        docs_before
+    );
+}
