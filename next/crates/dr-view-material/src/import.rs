@@ -249,7 +249,8 @@ fn record(
 /// The media entry tests and acceptance fixtures put a library file in:
 /// a template with one media module (made once), an entry of it titled
 /// `title`, and an item holding `asset`. Returns `(entry, module, item)`.
-/// (The import itself puts files into the asset library only.)
+/// (The import itself puts files into the asset library only. The template
+/// id is not a `tpl-` one: product code never names built-in template ids.)
 #[doc(hidden)]
 pub fn place_in_media_entry(
     lib: &Library,
@@ -264,12 +265,12 @@ pub fn place_in_media_entry(
     };
     call(
         "entry_template.put",
-        serde_json::json!({"book": book, "template": {"id": "tpl-test-media", "name": "媒体",
+        serde_json::json!({"book": book, "template": {"id": "test-media-template", "name": "媒体",
             "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]}}),
     )?;
     let entry = call(
         "entry.create",
-        serde_json::json!({"book": book, "template": "tpl-test-media", "title": title}),
+        serde_json::json!({"book": book, "template": "test-media-template", "title": title}),
     )?["id"]
         .as_str()
         .ok_or("entry.create gave no id")?
