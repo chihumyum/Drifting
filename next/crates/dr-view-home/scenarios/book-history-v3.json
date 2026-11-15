@@ -1,5 +1,5 @@
 {
-  "about": "G4 v3-lite 快照随书搬运：保留原主页/Word/单本书33步，增加两正文检查点、修改、格式3导回、预览/有守卫恢复、新书正文显示及原书隔离。隔离窗口放副屏，不做截图或heavy。",
+  "about": "v5-lite 快照随书搬运：验证格式5作品主页「项目模板」块、按模板动作新建、Word导出、单本书导出导入，增加两正文检查点、修改、格式5导回、预览/有守卫恢复、新书正文显示及原书隔离。隔离窗口放副屏，不做截图或heavy。",
   "steps": [
     {
       "seed": "lite"
@@ -54,7 +54,7 @@
       "params": {
         "until": "ready",
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000
@@ -64,6 +64,33 @@
       "app": "action.dispatch",
       "params": {
         "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "home",
+          "/book/version": 5,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "CheckBox",
+        "label": "Manuscript",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Book target",
+        "timeout_ms": 10000
       }
     },
     {
