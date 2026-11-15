@@ -22,8 +22,9 @@ use serde_json::json;
 use crate::media::{self, PdfDoc, Picture};
 use crate::page::MediaKind;
 
-/// The longest side a thumbnail is decoded at (a 2× tile of 64 px).
-pub const SIDE: u32 = 128;
+/// The longest side a thumbnail is decoded at (matches `import::THUMB_SIDE`
+/// so two-column masonry tiles stay crisp on 2× Retina displays).
+pub const SIDE: u32 = 256;
 /// How many characters of a note's beginning are kept.
 pub const WORDS: usize = 80;
 
@@ -37,6 +38,7 @@ enum Slot<T> {
 struct Previews {
     lib: Option<Library>,
     thumbs: HashMap<String, Slot<Picture>>,
+    pages: HashMap<String, Slot<usize>>,
     words: HashMap<String, Slot<String>>,
     _sub: Option<dr_workspace::events::Subscription>,
 }
@@ -218,6 +220,60 @@ fn read_words(lib: &Library, material: &str) -> Option<String> {
         }
     }
     Some(clip(&words, WORDS))
+}
+
+/// `asset`'s PDF page count, read once off the main thread and cached.
+pub fn pdf_pages(asset: &str, cx: &mut App) -> Option<usize> {
+    let p = previews(cx);
+    match p.pages.get(asset) {
+        Some(Slot::Ready(count)) => return Some(*count),
+        Some(_) => return None,
+        None => {}
+    }
+    let lib = p.lib.clone()?;
+    p.pages.insert(asset.to_owned(), Slot::Loading);
+    let id = asset.to_owned();
+    let task = cx.background_executor().spawn(async move {
+        let bytes = media::read_pdf(lib.library(), &id).ok()?;
+        let doc = PdfDoc::open(bytes).ok()?;
+        Some(doc.pages.len())
+    });
+    let asset = asset.to_owned();
+    cx.spawn(async move |cx| {
+        let made = task.await;
+        cx.update(|cx| {
+            if cx.has_global::<Previews>() {
+                let p = cx.global_mut::<Previews>();
+                p.pages.insert(
+                    asset,
+                    match made {
+                        Some(n) => Slot::Ready(n),
+                        None => Slot::Missing,
+                    },
+                );
+            }
+            cx.refresh_windows();
+        });
+    })
+    .detach();
+    None
+}
+
+/// Human-readable file size (`680 KB`, `2.4 MB`).
+pub fn format_bytes(size: i64) -> String {
+    let bytes = size.max(0) as f64;
+    if bytes < 1024.0 {
+        format!("{} B", size.max(0))
+    } else if bytes < 1024.0 * 1024.0 {
+        let kb = bytes / 1024.0;
+        if kb >= 10.0 {
+            format!("{:.0} KB", kb)
+        } else {
+            format!("{:.1} KB", kb)
+        }
+    } else {
+        format!("{:.1} MB", bytes / (1024.0 * 1024.0))
+    }
 }
 
 /// At most `n` characters, whitespace runs as one space.

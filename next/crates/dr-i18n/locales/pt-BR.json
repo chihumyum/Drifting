@@ -218,7 +218,6 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Fechar",
-    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Criando…",
     "customColor": "Cor personalizada",
@@ -258,11 +257,6 @@
       "collapsePlotPlanner": "Recolher planejador de enredo",
       "expandPlotPlanner": "Expandir planejador de enredo",
       "more": "Mais ações"
-    },
-    "menu": {
-      "deleteMaterial": "Excluir material",
-      "moveMaterialToFolder": "Mover para pasta…",
-      "openMaterialInSystem": "Abrir no aplicativo padrão"
     },
     "status": {
       "discarded": "Descartado",
@@ -526,13 +520,10 @@
     "retry": "Tentar novamente"
   },
   "materialEditor": {
-    "deleteConfirm": "Excluir o material “{{title}}”? Esta ação não pode ser desfeita.",
     "deleteFailed": "Não foi possível excluir o material.",
     "descriptionPlaceholder": "Adicione uma descrição…",
     "embed": {
-      "importFile": "Importar imagem ou PDF…",
-      "importing": "Importando…",
-      "pastedImage": "Imagem colada"
+      "importing": "Importando…"
     },
     "regions": {
       "draw": "Comentar uma região",
@@ -548,25 +539,12 @@
     "zoomReset": "Ajustar à visualização"
   },
   "materialFolders": {
-    "deleteConfirm": "Excluir a pasta “{{name}}”? Todo o conteúdo sobe um nível; nenhum material é excluído.",
-    "deleteSelectionConfirm": "Excluir os {{count}} itens selecionados? Os materiais são excluídos; o conteúdo das pastas excluídas sobe um nível.",
-    "empty": "Ainda não há materiais. Use o botão Nova pasta acima para organizá-los.",
     "menu": {
-      "collapseAll": "Recolher tudo dentro",
-      "delete": "Excluir pasta",
-      "deleteSelection": "Excluir {{count}} itens",
-      "expandAll": "Expandir tudo dentro",
-      "move": "Mover para pasta…",
-      "moveSelection": "Mover {{count}} itens para pasta…",
-      "newFolder": "Nova pasta",
-      "newSubfolder": "Nova pasta dentro",
-      "open": "Abrir",
-      "rename": "Renomear"
+      "open": "Abrir"
     },
     "picker": {
       "createAndMove": "Criar e mover",
-      "newPlaceholder": "Nome da nova pasta",
-      "title": "Mover para pasta"
+      "newPlaceholder": "Nome da nova pasta"
     },
     "root": "Todos os materiais",
     "untitled": "Nova pasta"
@@ -578,11 +556,7 @@
     "dialog": {
       "create": "Criar",
       "newTodo": "Nova tarefa",
-      "titlePlaceholder": "Título",
       "todoPlaceholder": "Conteúdo da tarefa…"
-    },
-    "empty": {
-      "noRelated": "Nenhum material vinculado ao item atual."
     },
     "error": {
       "openFile": "Não foi possível abrir o arquivo: {{error}}",
@@ -594,7 +568,6 @@
       "text": "Nota"
     },
     "menu": {
-      "deleteMaterial": "Excluir material",
       "openInSystem": "Abrir no aplicativo do sistema"
     },
     "preview": {
@@ -618,7 +591,6 @@
       "hideKind": "Clique para ocultar este tipo",
       "material": "Material",
       "meta": "{{todos}} tarefas · {{comments}} comentários · {{materials}} materiais",
-      "newMaterialButton": "Novo material",
       "noFilteredMaterials": "Nenhum material corresponde aos filtros.",
       "noMaterials": "Este projeto ainda não tem materiais.",
       "noOrphans": "Todos os materiais estão vinculados a pelo menos uma entidade.",
@@ -636,10 +608,6 @@
     },
     "todo": {
       "empty": "(tarefa vazia)"
-    },
-    "toolbar": {
-      "count": "{{count}} materiais",
-      "newMaterial": "Novo material"
     }
   },
   "mobileWorkspace": {
@@ -884,8 +852,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Vincular entidade",
-      "remove": "Remover relação"
+      "linkEntity": "Vincular entidade"
     },
     "filters": {
       "all": "Todos"
@@ -896,9 +863,6 @@
       "node": "Capítulo",
       "patch": "Evolução",
       "storyline": "Linha narrativa"
-    },
-    "picker": {
-      "placeholder": "Buscar entidades vinculáveis…"
     },
     "sections": {
       "relations": "Relações"

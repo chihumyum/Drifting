@@ -46,7 +46,9 @@ fn id(v: &Value) -> String {
     v["id"].as_str().unwrap_or_default().to_owned()
 }
 
-/// A material of `kind` whose source is `bytes`.
+/// A material of `kind` whose source is `bytes`. When `description` is
+/// non-empty, places the imported file into a synthetic media-module entry so
+/// the viewer renders both its `用在` chip and its per-module caption.
 fn material(
     ws: &dr_workspace::Workspace,
     book: &str,
@@ -59,26 +61,43 @@ fn material(
     let imported = dr_view_material::import::import_bytes(ws, book, None, bytes, title)
         .map_err(|e| anyhow!(e))?;
     if !description.is_empty() {
-        let snapshot = dr_shell::book::Book::load(ws, book)?;
-        let item = snapshot
-            .material_items()
-            .iter()
-            .find(|m| m.id == imported.material)
-            .ok_or_else(|| anyhow!("missing imported material"))?;
+        out(
+            ws,
+            "entry_template.put",
+            json!({
+                "book": book,
+                "template": {
+                    "id": "capture-media-template",
+                    "name": "附图",
+                    "modules": [{"id": "mod-media", "kind": "media", "name": "媒体"}]
+                }
+            }),
+        )?;
+        let entry = id(&out(
+            ws,
+            "entry.create",
+            json!({
+                "book": book,
+                "template": "capture-media-template",
+                "title": title,
+            }),
+        )?);
+        let item_id = dr_model::id::new_uuid_v7();
         out(
             ws,
             "module.put_media",
             json!({
                 "book": book,
-                "owner": item.entry.as_ref().unwrap(),
-                "module": item.module.as_ref().unwrap(),
+                "entry": entry,
+                "module": "mod-media",
                 "item": {
-                    "id": imported.material,
-                    "asset": item.asset.as_ref().unwrap(),
+                    "id": item_id,
+                    "asset": imported.material,
                     "caption": description,
                 }
             }),
         )?;
+        return Ok(item_id);
     }
     Ok(imported.material)
 }
@@ -94,22 +113,30 @@ fn region(
     let origin = if kind == "todo" { "marker" } else { "manual" };
     let snapshot = dr_shell::book::Book::load(ws, book)?;
     let item = snapshot
-        .material_items()
-        .iter()
-        .find(|m| m.id == on)
+        .material_info(on)
         .ok_or_else(|| anyhow!("missing material"))?;
-    Ok(id(&out(
-        ws,
-        "comment.create",
+    let payload = if let (Some(entry), Some(module), Some(asset)) =
+        (&item.entry, &item.module, &item.asset)
+    {
         json!({
             "book": book,
             "origin": origin,
-            "target": {"kind": "entry", "id": item.entry.as_ref().unwrap()},
-            "module": item.module.as_ref().unwrap(),
-            "part": {"kind": "media", "item": on, "region": region},
+            "target": {"kind": "entry", "id": entry},
+            "module": module,
+            "part": {"kind": "media", "asset": asset, "region": region},
             "body": body,
-        }),
-    )?))
+        })
+    } else {
+        let asset = item.asset.as_deref().unwrap_or(on);
+        json!({
+            "book": book,
+            "origin": origin,
+            "target": {"kind": "asset", "id": asset},
+            "part": {"kind": "region", "region": region},
+            "body": body,
+        })
+    };
+    Ok(id(&out(ws, "comment.create", payload)?))
 }
 
 impl Headless {
@@ -397,10 +424,14 @@ fn run(modules: PathBuf) -> Result<()> {
         json!({"x": 0.54, "y": 0.53, "w": 0.42, "h": 0.32}),
         "确认旧城一共几个街区。",
     )?;
+    let image_asset = dr_shell::book::Book::load(&lib, &book)?
+        .material_info(&image)
+        .and_then(|m| m.asset.clone())
+        .unwrap_or_else(|| image.clone());
     out(
         &lib,
         "comment.create",
-        json!({"book": book, "target": {"kind": "material", "id": image},
+        json!({"book": book, "target": {"kind": "asset", "id": image_asset},
                "body": "整张图的比例尺还没定。"}),
     )?;
     region(

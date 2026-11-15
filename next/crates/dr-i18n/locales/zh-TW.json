@@ -217,7 +217,6 @@
   "common": {
     "cancel": "取消",
     "close": "關閉",
-    "confirm": "確認",
     "counting": "計算中…",
     "creating": "正在建立…",
     "customColor": "自訂顏色",
@@ -257,11 +256,6 @@
       "collapsePlotPlanner": "收合情節規劃器",
       "expandPlotPlanner": "展開情節規劃器",
       "more": "更多操作"
-    },
-    "menu": {
-      "deleteMaterial": "刪除素材",
-      "moveMaterialToFolder": "移至素材夾…",
-      "openMaterialInSystem": "以預設應用程式開啟"
     },
     "status": {
       "discarded": "已棄用",
@@ -516,13 +510,10 @@
     "retry": "重試"
   },
   "materialEditor": {
-    "deleteConfirm": "刪除素材「{{title}}」？此操作無法復原。",
     "deleteFailed": "無法刪除素材。",
     "descriptionPlaceholder": "新增說明…",
     "embed": {
-      "importFile": "匯入圖片或 PDF…",
-      "importing": "匯入中…",
-      "pastedImage": "貼上的圖片"
+      "importing": "匯入中…"
     },
     "regions": {
       "draw": "註解區域",
@@ -538,25 +529,12 @@
     "zoomReset": "符合檢視範圍"
   },
   "materialFolders": {
-    "deleteConfirm": "刪除素材夾「{{name}}」？其中所有項目將移至上一層，不會刪除任何素材。",
-    "deleteSelectionConfirm": "刪除選取的 {{count}} 個項目？素材將被刪除；被刪除素材夾中的內容會移至上一層。",
-    "empty": "尚無素材。可使用上方「新增素材夾」按鈕整理素材。",
     "menu": {
-      "collapseAll": "收合其中所有項目",
-      "delete": "刪除素材夾",
-      "deleteSelection": "刪除 {{count}} 個項目",
-      "expandAll": "展開其中所有項目",
-      "move": "移至素材夾…",
-      "moveSelection": "將 {{count}} 個項目移至素材夾…",
-      "newFolder": "新增素材夾",
-      "newSubfolder": "在內建立素材夾",
-      "open": "開啟",
-      "rename": "重新命名"
+      "open": "開啟"
     },
     "picker": {
       "createAndMove": "建立並移動",
-      "newPlaceholder": "新素材夾名稱",
-      "title": "移至素材夾"
+      "newPlaceholder": "新素材夾名稱"
     },
     "root": "所有素材",
     "untitled": "新素材夾"
@@ -568,11 +546,7 @@
     "dialog": {
       "create": "建立",
       "newTodo": "新增待辦",
-      "titlePlaceholder": "標題",
       "todoPlaceholder": "待辦內容…"
-    },
-    "empty": {
-      "noRelated": "目前項目未連結任何素材。"
     },
     "error": {
       "openFile": "無法開啟檔案：{{error}}",
@@ -584,7 +558,6 @@
       "text": "筆記"
     },
     "menu": {
-      "deleteMaterial": "刪除素材",
       "openInSystem": "用系統應用程式開啟"
     },
     "preview": {
@@ -608,7 +581,6 @@
       "hideKind": "點一下隱藏此種類",
       "material": "素材",
       "meta": "{{todos}} 項待辦 · {{comments}} 則註解 · {{materials}} 份素材",
-      "newMaterialButton": "新增素材",
       "noFilteredMaterials": "沒有符合目前篩選條件的素材。",
       "noMaterials": "此作品尚無素材。",
       "noOrphans": "所有素材都已連結至少一個實體。",
@@ -626,10 +598,6 @@
     },
     "todo": {
       "empty": "（空白待辦）"
-    },
-    "toolbar": {
-      "count": "{{count}} 份素材",
-      "newMaterial": "新增素材"
     }
   },
   "mobileWorkspace": {
@@ -868,8 +836,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "連結實體",
-      "remove": "移除關係"
+      "linkEntity": "連結實體"
     },
     "filters": {
       "all": "全部"
@@ -880,9 +847,6 @@
       "node": "章節",
       "patch": "演化記錄",
       "storyline": "故事線"
-    },
-    "picker": {
-      "placeholder": "搜尋可連結的實體…"
     },
     "sections": {
       "relations": "關係"

@@ -217,7 +217,6 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
-    "confirm": "Confirm",
     "counting": "Counting…",
     "creating": "Creating…",
     "customColor": "Custom color",
@@ -257,11 +256,6 @@
       "collapsePlotPlanner": "Collapse plot planner",
       "expandPlotPlanner": "Expand plot planner",
       "more": "More actions"
-    },
-    "menu": {
-      "deleteMaterial": "Delete material",
-      "moveMaterialToFolder": "Move to folder…",
-      "openMaterialInSystem": "Open in default app"
     },
     "status": {
       "discarded": "Discarded",
@@ -523,13 +517,10 @@
     "retry": "Retry"
   },
   "materialEditor": {
-    "deleteConfirm": "Delete the material “{{title}}”? This cannot be undone.",
     "deleteFailed": "The material could not be deleted.",
     "descriptionPlaceholder": "Add a description…",
     "embed": {
-      "importFile": "Import an image or PDF…",
-      "importing": "Importing…",
-      "pastedImage": "Pasted image"
+      "importing": "Importing…"
     },
     "regions": {
       "draw": "Comment on a region",
@@ -545,25 +536,12 @@
     "zoomReset": "Fit to view"
   },
   "materialFolders": {
-    "deleteConfirm": "Delete the folder “{{name}}”? Everything in it moves up one level; no material is deleted.",
-    "deleteSelectionConfirm": "Delete the {{count}} selected items? Materials are deleted; whatever is in a deleted folder moves up one level.",
-    "empty": "No materials yet. Use the New folder button above to organize them.",
     "menu": {
-      "collapseAll": "Collapse all inside",
-      "delete": "Delete folder",
-      "deleteSelection": "Delete {{count}} items",
-      "expandAll": "Expand all inside",
-      "move": "Move to folder…",
-      "moveSelection": "Move {{count}} items to folder…",
-      "newFolder": "New folder",
-      "newSubfolder": "New folder inside",
-      "open": "Open",
-      "rename": "Rename"
+      "open": "Open"
     },
     "picker": {
       "createAndMove": "Create and move",
-      "newPlaceholder": "New folder name",
-      "title": "Move to folder"
+      "newPlaceholder": "New folder name"
     },
     "root": "All materials",
     "untitled": "New folder"
@@ -575,11 +553,7 @@
     "dialog": {
       "create": "Create",
       "newTodo": "New TODO",
-      "titlePlaceholder": "Title",
       "todoPlaceholder": "Todo content…"
-    },
-    "empty": {
-      "noRelated": "No materials are linked to the current item."
     },
     "error": {
       "openFile": "Could not open file: {{error}}",
@@ -591,7 +565,6 @@
       "text": "Note"
     },
     "menu": {
-      "deleteMaterial": "Delete material",
       "openInSystem": "Open in system app"
     },
     "preview": {
@@ -615,7 +588,6 @@
       "hideKind": "Click to hide this kind",
       "material": "Material",
       "meta": "{{todos}} TODO · {{comments}} comments · {{materials}} materials",
-      "newMaterialButton": "New material",
       "noFilteredMaterials": "No materials match the current filters.",
       "noMaterials": "No materials in this project yet.",
       "noOrphans": "Every material is linked to at least one entity.",
@@ -633,10 +605,6 @@
     },
     "todo": {
       "empty": "(empty TODO)"
-    },
-    "toolbar": {
-      "count": "{{count}} materials",
-      "newMaterial": "New material"
     }
   },
   "mobileWorkspace": {
@@ -875,8 +843,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Link entity",
-      "remove": "Remove relation"
+      "linkEntity": "Link entity"
     },
     "filters": {
       "all": "All"
@@ -887,9 +854,6 @@
       "node": "Chapter",
       "patch": "Patch",
       "storyline": "Storyline"
-    },
-    "picker": {
-      "placeholder": "Search linkable entities…"
     },
     "sections": {
       "relations": "Relations"

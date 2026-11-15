@@ -218,7 +218,6 @@
   "common": {
     "cancel": "Annuler",
     "close": "Fermer",
-    "confirm": "Confirmer",
     "counting": "Comptage…",
     "creating": "Création…",
     "customColor": "Couleur personnalisée",
@@ -258,11 +257,6 @@
       "collapsePlotPlanner": "Réduire le planificateur d’intrigue",
       "expandPlotPlanner": "Développer le planificateur d’intrigue",
       "more": "Autres actions"
-    },
-    "menu": {
-      "deleteMaterial": "Supprimer la ressource",
-      "moveMaterialToFolder": "Déplacer vers un dossier…",
-      "openMaterialInSystem": "Ouvrir dans l’application par défaut"
     },
     "status": {
       "discarded": "Écarté",
@@ -526,13 +520,10 @@
     "retry": "Réessayer"
   },
   "materialEditor": {
-    "deleteConfirm": "Supprimer la ressource « {{title}} » ? Cette action est irréversible.",
     "deleteFailed": "Impossible de supprimer la ressource.",
     "descriptionPlaceholder": "Ajouter une description…",
     "embed": {
-      "importFile": "Importer une image ou un PDF…",
-      "importing": "Importation…",
-      "pastedImage": "Image collée"
+      "importing": "Importation…"
     },
     "regions": {
       "draw": "Commenter une zone",
@@ -548,25 +539,12 @@
     "zoomReset": "Ajuster à la vue"
   },
   "materialFolders": {
-    "deleteConfirm": "Supprimer le dossier « {{name}} » ? Son contenu sera déplacé d’un niveau vers le haut ; aucune ressource ne sera supprimée.",
-    "deleteSelectionConfirm": "Supprimer les {{count}} éléments sélectionnés ? Les ressources seront supprimées ; le contenu des dossiers supprimés remontera d’un niveau.",
-    "empty": "Aucune ressource pour le moment. Utilisez le bouton Nouveau dossier ci-dessus pour les organiser.",
     "menu": {
-      "collapseAll": "Tout réduire à l’intérieur",
-      "delete": "Supprimer le dossier",
-      "deleteSelection": "Supprimer {{count}} éléments",
-      "expandAll": "Tout développer à l’intérieur",
-      "move": "Déplacer vers un dossier…",
-      "moveSelection": "Déplacer {{count}} éléments vers un dossier…",
-      "newFolder": "Nouveau dossier",
-      "newSubfolder": "Créer un sous-dossier",
-      "open": "Ouvrir",
-      "rename": "Renommer"
+      "open": "Ouvrir"
     },
     "picker": {
       "createAndMove": "Créer et déplacer",
-      "newPlaceholder": "Nom du nouveau dossier",
-      "title": "Déplacer vers un dossier"
+      "newPlaceholder": "Nom du nouveau dossier"
     },
     "root": "Toutes les ressources",
     "untitled": "Nouveau dossier"
@@ -578,11 +556,7 @@
     "dialog": {
       "create": "Créer",
       "newTodo": "Nouvelle tâche",
-      "titlePlaceholder": "Titre",
       "todoPlaceholder": "Contenu de la tâche…"
-    },
-    "empty": {
-      "noRelated": "Aucune ressource liée à l’élément actuel."
     },
     "error": {
       "openFile": "Impossible d’ouvrir le fichier : {{error}}",
@@ -594,7 +568,6 @@
       "text": "Note"
     },
     "menu": {
-      "deleteMaterial": "Supprimer la ressource",
       "openInSystem": "Ouvrir dans l’application système"
     },
     "preview": {
@@ -618,7 +591,6 @@
       "hideKind": "Cliquez pour masquer ce type",
       "material": "Ressource",
       "meta": "{{todos}} tâches · {{comments}} commentaires · {{materials}} ressources",
-      "newMaterialButton": "Nouvelle ressource",
       "noFilteredMaterials": "Aucune ressource ne correspond aux filtres.",
       "noMaterials": "Ce projet n’a pas encore de ressources.",
       "noOrphans": "Chaque ressource est liée à au moins une entité.",
@@ -636,10 +608,6 @@
     },
     "todo": {
       "empty": "(tâche vide)"
-    },
-    "toolbar": {
-      "count": "{{count}} ressources",
-      "newMaterial": "Nouvelle ressource"
     }
   },
   "mobileWorkspace": {
@@ -884,8 +852,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "Lier une entité",
-      "remove": "Retirer la relation"
+      "linkEntity": "Lier une entité"
     },
     "filters": {
       "all": "Tout"
@@ -896,9 +863,6 @@
       "node": "Chapitre",
       "patch": "Évolution",
       "storyline": "Intrigue"
-    },
-    "picker": {
-      "placeholder": "Rechercher des entités à lier…"
     },
     "sections": {
       "relations": "Relations"

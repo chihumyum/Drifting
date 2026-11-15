@@ -217,7 +217,6 @@
   "common": {
     "cancel": "취소",
     "close": "닫기",
-    "confirm": "확인",
     "counting": "계산 중…",
     "creating": "만드는 중…",
     "customColor": "사용자 지정 색",
@@ -257,11 +256,6 @@
       "collapsePlotPlanner": "플롯 계획기 접기",
       "expandPlotPlanner": "플롯 계획기 펼치기",
       "more": "추가 작업"
-    },
-    "menu": {
-      "deleteMaterial": "자료 삭제",
-      "moveMaterialToFolder": "폴더로 이동…",
-      "openMaterialInSystem": "기본 앱으로 열기"
     },
     "status": {
       "discarded": "폐기됨",
@@ -516,13 +510,10 @@
     "retry": "다시 시도"
   },
   "materialEditor": {
-    "deleteConfirm": "자료 “{{title}}”을(를) 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
     "deleteFailed": "자료를 삭제하지 못했습니다.",
     "descriptionPlaceholder": "설명 추가…",
     "embed": {
-      "importFile": "이미지 또는 PDF 가져오기…",
-      "importing": "가져오는 중…",
-      "pastedImage": "붙여넣은 이미지"
+      "importing": "가져오는 중…"
     },
     "regions": {
       "draw": "영역에 댓글 달기",
@@ -538,25 +529,12 @@
     "zoomReset": "화면에 맞추기"
   },
   "materialFolders": {
-    "deleteConfirm": "폴더 “{{name}}”을(를) 삭제할까요? 안의 모든 항목은 한 단계 위로 이동하며 자료는 삭제되지 않습니다.",
-    "deleteSelectionConfirm": "선택한 항목 {{count}}개를 삭제할까요? 자료는 삭제되며, 삭제된 폴더 안의 항목은 한 단계 위로 이동합니다.",
-    "empty": "아직 자료가 없습니다. 위의 새 폴더 버튼으로 자료를 정리하세요.",
     "menu": {
-      "collapseAll": "내부 항목 모두 접기",
-      "delete": "폴더 삭제",
-      "deleteSelection": "항목 {{count}}개 삭제",
-      "expandAll": "내부 항목 모두 펼치기",
-      "move": "폴더로 이동…",
-      "moveSelection": "항목 {{count}}개를 폴더로 이동…",
-      "newFolder": "새 폴더",
-      "newSubfolder": "내부에 새 폴더 만들기",
-      "open": "열기",
-      "rename": "이름 바꾸기"
+      "open": "열기"
     },
     "picker": {
       "createAndMove": "만들고 이동",
-      "newPlaceholder": "새 폴더 이름",
-      "title": "폴더로 이동"
+      "newPlaceholder": "새 폴더 이름"
     },
     "root": "모든 자료",
     "untitled": "새 폴더"
@@ -568,11 +546,7 @@
     "dialog": {
       "create": "만들기",
       "newTodo": "새 할 일",
-      "titlePlaceholder": "제목",
       "todoPlaceholder": "할 일 내용…"
-    },
-    "empty": {
-      "noRelated": "현재 항목에 연결된 자료가 없습니다."
     },
     "error": {
       "openFile": "파일을 열 수 없음: {{error}}",
@@ -584,7 +558,6 @@
       "text": "메모"
     },
     "menu": {
-      "deleteMaterial": "자료 삭제",
       "openInSystem": "시스템 앱으로 열기"
     },
     "preview": {
@@ -608,7 +581,6 @@
       "hideKind": "눌러서 이 종류 숨기기",
       "material": "자료",
       "meta": "할 일 {{todos}}개 · 댓글 {{comments}}개 · 자료 {{materials}}개",
-      "newMaterialButton": "새 자료",
       "noFilteredMaterials": "현재 필터에 맞는 자료가 없습니다.",
       "noMaterials": "이 작품에는 아직 자료가 없습니다.",
       "noOrphans": "모든 자료가 하나 이상의 개체에 연결되어 있습니다.",
@@ -626,10 +598,6 @@
     },
     "todo": {
       "empty": "(빈 할 일)"
-    },
-    "toolbar": {
-      "count": "자료 {{count}}개",
-      "newMaterial": "새 자료"
     }
   },
   "mobileWorkspace": {
@@ -868,8 +836,7 @@
   },
   "referencesPanel": {
     "actions": {
-      "linkEntity": "엔터티 연결",
-      "remove": "관계 제거"
+      "linkEntity": "엔터티 연결"
     },
     "filters": {
       "all": "전체"
@@ -880,9 +847,6 @@
       "node": "장",
       "patch": "변화 기록",
       "storyline": "스토리라인"
-    },
-    "picker": {
-      "placeholder": "연결 가능한 엔터티 검색…"
     },
     "sections": {
       "relations": "관계"

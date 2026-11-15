@@ -130,6 +130,13 @@ impl Book {
     pub fn material_items(&self) -> &[MaterialInfo] {
         self.v3().map_or(&[], |b| b.materials.as_slice())
     }
+    pub fn material_info(&self, id: &str) -> Option<&MaterialInfo> {
+        let b = self.v3()?;
+        b.materials
+            .iter()
+            .find(|m| m.id == id)
+            .or_else(|| b.media_items.get(id))
+    }
     pub fn material_folders(&self) -> &[GroupInfo] {
         self.v3().map_or(&[], |b| b.material_folders.as_slice())
     }

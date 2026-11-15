@@ -82,7 +82,7 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
     let handle = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?;
-    let (meta, project, entries, templates, sequence) = handle.read(move |doc| {
+    let (meta, project, entries, assets, templates, sequence) = handle.read(move |doc| {
         if !dr_doc::v3::is_book_doc(doc) {
             return Err(invalid("statistics require a book of the current format"));
         }
@@ -110,6 +110,7 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
             v.meta(),
             v.project(),
             v.entries(),
+            v.assets(),
             v.templates_map(),
             sequence,
         ))
@@ -197,15 +198,18 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
             (entry.title.clone(), docs)
         }
         Scope::Material(id) => {
-            let title = entries
+            let title = assets
                 .iter()
-                .filter(|e| live(e))
-                .find_map(|e| {
-                    e.media
-                        .values()
-                        .flatten()
-                        .find(|m| m.id.as_str() == id)
-                        .map(|_| e.title.clone())
+                .find(|a| a.id.as_str() == id)
+                .map(|a| a.name.clone())
+                .or_else(|| {
+                    entries.iter().filter(|e| live(e)).find_map(|e| {
+                        e.media
+                            .values()
+                            .flatten()
+                            .find(|m| m.id.as_str() == id)
+                            .map(|_| e.title.clone())
+                    })
                 })
                 .ok_or_else(|| WsError::NotFound {
                     what: "material",

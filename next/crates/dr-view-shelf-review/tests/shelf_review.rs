@@ -180,8 +180,16 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     .expect("create orphan material")
     .material;
 
-    dr_view_material::v3::set_entry_link(&lib, &book_id, &linked_mat, &entry_id, true)
-        .expect("link material to entry");
+    lib.call(
+        &Actor::User,
+        "relation.create",
+        serde_json::json!({
+            "book": book_id,
+            "from": { "kind": "entry", "id": entry_id },
+            "to": { "kind": "asset", "id": linked_mat },
+        }),
+    )
+    .expect("link entry to asset");
 
     cx.update(|cx| {
         let _ = dr_ui::init(cx);
@@ -255,10 +263,12 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     });
     wait(cx, |cx| view.read_with(cx, |v, cx| v.is_ready(cx)));
 
-    // 2. Link the orphan material via toggle_material_entry_link -> leaves orphan list.
+    // 2. Direct single-step trash_material moves the orphan file to Recently Deleted
+    // without a confirmation dialog.
     cx.update(|_, cx| {
         view.update(cx, |v, cx| {
-            v.toggle_material_entry_link(&orphan_mat, &entry_id, true, cx);
+            v.trash_material(orphan_mat.clone(), cx);
+            assert!(!v.has_dialog());
         });
     });
     wait(cx, |cx| {

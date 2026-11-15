@@ -91,6 +91,22 @@ pub struct Imported {
     /// The file's asset id (the library's material id for it).
     pub material: String,
     pub title: String,
+    /// True when the bytes matched an existing file in the book and `asset.put`
+    /// returned that file's id instead of creating a new record.
+    pub reused: bool,
+}
+
+/// Default name for a pasted image: `<prefix> MM-DD HH.mm` in local time.
+pub fn pasted_image_title(prefix: &str) -> String {
+    use chrono::{Datelike as _, Local, Timelike as _};
+    let now = Local::now();
+    format!(
+        "{prefix} {:02}-{:02} {:02}.{:02}",
+        now.month(),
+        now.day(),
+        now.hour(),
+        now.minute(),
+    )
 }
 
 /// What an import of several files came to.
@@ -214,7 +230,6 @@ fn record(
     }
     // Only into the asset library (`kernel-v5.md` §6 素材库): no template,
     // no entry. Media modules and prose embeds use the file from there.
-    let _ = folder;
     let put = lib
         .run::<AssetPut>(
             &Actor::User,
@@ -236,52 +251,16 @@ fn record(
                     .flatten()
                     .filter(|&h| h > 0)
                     .map(i64::from),
-                folder: None,
+                folder: folder.map(str::to_owned),
             },
         )
         .map_err(|e| e.to_string())?;
+    let reused = put.output.id != asset;
     Ok(Imported {
         material: put.output.id,
         title: title.to_owned(),
+        reused,
     })
-}
-
-/// The media entry tests and acceptance fixtures put a library file in:
-/// a template with one media module (made once), an entry of it titled
-/// `title`, and an item holding `asset`. Returns `(entry, module, item)`.
-/// (The import itself puts files into the asset library only. The template
-/// id is not a `tpl-` one: product code never names built-in template ids.)
-#[doc(hidden)]
-pub fn place_in_media_entry(
-    lib: &Library,
-    book: &str,
-    asset: &str,
-    title: &str,
-) -> Result<(String, String, String), String> {
-    let call = |name: &str, input: serde_json::Value| {
-        lib.call(&Actor::User, name, input)
-            .map(|v| v["output"].clone())
-            .map_err(|e| format!("{name}: {e}"))
-    };
-    call(
-        "entry_template.put",
-        serde_json::json!({"book": book, "template": {"id": "test-media-template", "name": "媒体",
-            "modules": [{"id": "mod-media", "kind": "media", "name": "附件"}]}}),
-    )?;
-    let entry = call(
-        "entry.create",
-        serde_json::json!({"book": book, "template": "test-media-template", "title": title}),
-    )?["id"]
-        .as_str()
-        .ok_or("entry.create gave no id")?
-        .to_owned();
-    let item = dr_model::id::new_uuid_v7();
-    call(
-        "module.put_media",
-        serde_json::json!({"book": book, "entry": entry, "module": "mod-media",
-            "item": {"id": item, "asset": asset, "caption": ""}}),
-    )?;
-    Ok((entry, "mod-media".to_owned(), item))
 }
 
 /// One file into a material in `folder`.

@@ -31,7 +31,8 @@ mod v3_tests;
 use dr_doc::v3::CollectionV3 as Collection;
 use dr_i18n::keys;
 use dr_shell::book::Book;
-use dr_shell::pages::PageViewHost;
+use dr_shell::nav::{Open, Target as NavTarget};
+use dr_shell::pages::{PageViewHost, UsageFlash};
 use dr_shell::strings::{Strings, tf};
 use dr_shell::{Workspace, t};
 use dr_ui::Theme;
@@ -39,14 +40,13 @@ use dr_ui::components::{Button, IconButton};
 use dr_ui::fonts::{Role, weight};
 use dr_ui::glass::{self, Kind as GlassKind, Mode, Spec, Tone};
 use dr_ui::input::{FieldEvent, TextArea};
-use dr_ui::sand::{Icon, SandFrame, SandMask};
+use dr_ui::sand::{self, Icon, KindMark, SandFrame, SandMask};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::color::Rgb;
 use dr_ui::tokens::{Story, glass as g, radius};
 use dr_view_review::{CommentComposer, ComposerEvent};
 use dr_workspace::commands::asset::{AssetRename, AssetRenameIn};
 use dr_workspace::commands::comment::{CommentUpdate, CommentUpdateIn};
-use dr_workspace::commands::v3::entry::{EntryUpdate, UpdateIn as EntryUpdateIn};
 use dr_workspace::commands::v3::module::{In as ModuleIn, MediaPut, MediaPutIn};
 use dr_workspace::commands::v3::types;
 use dr_workspace::dto::Target;
@@ -60,6 +60,7 @@ use gpui::{
     prelude::FluentBuilder, px,
 };
 
+use crate::library_data::{self, ResolvedUsage};
 use crate::media::{self, PdfDoc, Picture, Trouble};
 use crate::regions::{self, Listed, UnitRect};
 use crate::viewport::{self, Frame, STEP, Viewport, WHEEL_ZOOM};
@@ -146,6 +147,8 @@ pub struct MediaPage {
     description_error: Option<String>,
     /// The asset the picture was read from.
     asset: Option<String>,
+    usages: Vec<ResolvedUsage>,
+    usages_task: Option<Task<()>>,
     loading: Option<Task<()>>,
     rendering: Option<(usize, f32, Task<()>)>,
     reloading: Option<Task<()>>,
@@ -235,6 +238,8 @@ impl MediaPage {
             title_error: None,
             description_error: None,
             asset: None,
+            usages: Vec::new(),
+            usages_task: None,
             loading: None,
             rendering: None,
             reloading: None,
@@ -257,8 +262,13 @@ impl MediaPage {
         self.kind
     }
 
+    /// Places in the book using this file (`用在` chips in the viewer header).
+    pub fn usages(&self) -> &[ResolvedUsage] {
+        &self.usages
+    }
+
     fn info(&self) -> Option<&dr_shell::book::MaterialInfo> {
-        self.book.material_items().iter().find(|m| m.id == self.id)
+        self.book.material_info(&self.id)
     }
 
     fn subscribe(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -313,29 +323,40 @@ impl MediaPage {
                         if page.info().and_then(|m| m.asset.clone()) != page.asset {
                             page.load(cx);
                         }
+                        page.reload_usages(cx);
                         cx.notify();
                     }
                 }));
         }
-        // Comments change on F3's bus.
-        let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
+        // Comments and usages change on F3's bus.
+        let (tx, mut rx) = futures::channel::mpsc::unbounded::<bool>();
         let book = self.book_id.clone();
-        self._library = Some(self.lib.subscribe(move |e| {
-            if let WsEvent::Book(b) = e
-                && b.book.as_str() == book
-                && b.changes
+        self._library = Some(self.lib.subscribe(move |e| match e {
+            WsEvent::Book(b) if b.book.as_str() == book => {
+                let comments = b
+                    .changes
                     .iter()
-                    .any(|c| c.collection == Collection::Comments)
-            {
-                let _ = tx.unbounded_send(());
+                    .any(|c| c.collection == Collection::Comments);
+                let _ = tx.unbounded_send(comments);
             }
+            WsEvent::Prose(p) if p.book.as_ref().is_some_and(|b| b.as_str() == book.as_str()) => {
+                let _ = tx.unbounded_send(false);
+            }
+            _ => {}
         }));
         cx.spawn(async move |this, cx| {
             use futures::StreamExt as _;
-            while rx.next().await.is_some() {
-                while rx.try_recv().is_ok() {}
+            while let Some(mut comments) = rx.next().await {
+                while let Ok(more) = rx.try_recv() {
+                    comments |= more;
+                }
                 if this
-                    .update(cx, |page, cx| page.reload_comments(cx))
+                    .update(cx, |page, cx| {
+                        page.reload_usages(cx);
+                        if comments {
+                            page.reload_comments(cx);
+                        }
+                    })
                     .is_err()
                 {
                     break;
@@ -417,31 +438,15 @@ impl MediaPage {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    match (title_to_save, &place) {
-                        (Some(t), Some((entry, _))) => {
-                            lib.run::<EntryUpdate>(
-                                &Actor::User,
-                                EntryUpdateIn {
-                                    book: book.clone(),
-                                    id: entry.clone(),
-                                    title: Some(t),
-                                    mark: None,
-                                    template: None,
-                                    overrides: None,
-                                },
-                            )?;
-                        }
-                        (Some(t), None) => {
-                            lib.run::<AssetRename>(
-                                &Actor::User,
-                                AssetRenameIn {
-                                    book: book.clone(),
-                                    id: asset.clone(),
-                                    name: t,
-                                },
-                            )?;
-                        }
-                        (None, _) => {}
+                    if let Some(t) = title_to_save {
+                        lib.run::<AssetRename>(
+                            &Actor::User,
+                            AssetRenameIn {
+                                book: book.clone(),
+                                id: asset.clone(),
+                                name: t,
+                            },
+                        )?;
                     }
                     if let (Some(c), Some((entry, module))) = (desc_to_save, place) {
                         lib.run::<MediaPut>(
@@ -538,14 +543,17 @@ impl MediaPage {
         self.asset = self.info().and_then(|m| m.asset.clone());
         let Some(asset) = self.asset.clone() else {
             self.media = Media::Trouble(Trouble::Missing);
+            self.reload_usages(cx);
             return;
         };
         self.media = Media::Loading;
         self.rendering = None;
-        let (lib, kind) = (self.lib.clone(), self.kind);
+        let (lib, book, kind) = (self.lib.clone(), self.book_id.clone(), self.kind);
+        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
+        let untitled_label = t(cx, keys::common::UNTITLED).to_string();
         let task = cx.background_executor().spawn(async move {
             let store = lib.library();
-            match kind {
+            let media = match kind {
                 MediaKind::Image => media::read_image(store, &asset)
                     .and_then(|bytes| media::decode_image(&bytes))
                     .map(Media::Image),
@@ -558,12 +566,25 @@ impl MediaPage {
                             shown: None,
                         })
                 }
-            }
+            };
+            let usages = library_data::load_asset_usages(
+                &lib,
+                &book,
+                &asset,
+                &relations_label,
+                &untitled_label,
+            );
+            (media, usages)
         });
         self.loading = Some(cx.spawn(async move |this, cx| {
-            let media = task.await;
+            let (media, usages) = task.await;
             this.update(cx, |page, cx| {
+                if page.usages.is_empty() != usages.is_empty() || page.usages.len() != usages.len()
+                {
+                    page.stage = None;
+                }
                 page.media = media.unwrap_or_else(Media::Trouble);
+                page.usages = usages;
                 page.viewport = Viewport::FIT;
                 page.loading = None;
                 cx.notify();
@@ -574,9 +595,14 @@ impl MediaPage {
 
     /// Whether the picture is there to draw on.
     pub fn ready(&self) -> bool {
+        if self.stage.is_none() || self.usages_task.is_some() || self.rendering.is_some() {
+            return false;
+        }
         match &self.media {
             Media::Image(_) => true,
-            Media::Pdf { shown, page, .. } => shown.as_ref().is_some_and(|s| s.0 == *page),
+            Media::Pdf { shown, page, .. } => shown
+                .as_ref()
+                .is_some_and(|(p, s, _)| *p == *page && *s > 0.0),
             _ => false,
         }
     }
@@ -775,8 +801,11 @@ impl MediaPage {
         {
             return;
         }
-        // A new page renders at once; a new zoom after the gesture rests.
-        let wait = if shown.as_ref().is_some_and(|(p, _, _)| *p == page) {
+        // A new page or resized stage renders at once; a new zoom after the gesture rests.
+        let wait = if shown
+            .as_ref()
+            .is_some_and(|(p, s, _)| *p == page && *s > 0.0)
+        {
             Duration::from_millis(120)
         } else {
             Duration::ZERO
@@ -1030,6 +1059,42 @@ impl MediaPage {
 
     // Comments.
 
+    fn reload_usages(&mut self, cx: &mut Context<Self>) {
+        let asset = self
+            .info()
+            .and_then(|m| m.asset.clone())
+            .unwrap_or_else(|| self.id.clone());
+        let (lib, book) = (self.lib.clone(), self.book_id.clone());
+        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
+        let untitled_label = t(cx, keys::common::UNTITLED).to_string();
+        let task = cx.background_executor().spawn(async move {
+            library_data::load_asset_usages(&lib, &book, &asset, &relations_label, &untitled_label)
+        });
+        self.usages_task = Some(cx.spawn(async move |this, cx| {
+            let usages = task.await;
+            this.update(cx, |page, cx| {
+                page.usages = usages;
+                page.usages_task = None;
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    pub fn jump_to_usage(&mut self, usage: &ResolvedUsage, cx: &mut Context<Self>) {
+        let Ok(id) = usage.entry_id.parse() else {
+            return;
+        };
+        let module = usage.module_id.as_deref().and_then(|m| m.parse().ok());
+        UsageFlash::trigger(usage.flash_keys.clone(), cx);
+        if let Some(ws) = self.workspace.upgrade() {
+            ws.update(cx, |ws, cx| {
+                ws.super_view = None;
+                ws.open(NavTarget::Entry { id, module }, Open::KEEP, cx);
+            });
+        }
+    }
+
     fn reload_comments(&mut self, cx: &mut Context<Self>) {
         let id = self
             .info()
@@ -1081,6 +1146,96 @@ impl MediaPage {
     fn head(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
+        let has_description = self
+            .info()
+            .is_some_and(|m| m.entry.is_some() && m.module.is_some());
+        let this = cx.entity();
+        let usages_row = (!self.usages.is_empty()).then(|| {
+            let mut row = div()
+                .id("material-page-usages")
+                .pt(px(4.0))
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .font_role(Role::Index)
+                        .type_px(s.caption, s.line_caption)
+                        .text_color(p.ink(4).solid())
+                        .child(t(cx, keys::v5_files::USED_IN)),
+                );
+            for (i, u) in self.usages.iter().cloned().enumerate() {
+                let jump = this.clone();
+                let (mark_kind, mark_color) = u
+                    .entry_id
+                    .parse()
+                    .ok()
+                    .map(|eid| {
+                        self.book.mark(&NavTarget::Entry {
+                            id: eid,
+                            module: None,
+                        })
+                    })
+                    .unwrap_or_else(|| {
+                        let k = if u.is_chapter {
+                            sand::Kind::Chapter(dr_shell::book::seal_of(&u.entry_id))
+                        } else {
+                            sand::Kind::Element
+                        };
+                        (
+                            k,
+                            u.entry_color.as_deref().and_then(dr_shell::book::color_of),
+                        )
+                    });
+                let mark = match mark_color {
+                    Some(c) => KindMark::new(("material-usage-mark", i), mark_kind).color(c),
+                    None => KindMark::new(("material-usage-mark", i), mark_kind),
+                };
+                let module_name = u.module_name.clone();
+                let entry_title = u.entry_title.clone();
+                row = row.child(
+                    div()
+                        .id(("material-page-usage", i))
+                        .h(px(24.0))
+                        .px(px(8.0))
+                        .rounded(px(999.0))
+                        .border_1()
+                        .border_color(p.hairline())
+                        .bg(p.page.alpha(0.65))
+                        .hover(move |st| st.bg(p.page.solid()).border_color(p.ink(3).alpha(0.35)))
+                        .cursor_pointer()
+                        .role(gpui::Role::Button)
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(5.0))
+                        .child(mark)
+                        .child(
+                            div()
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(entry_title),
+                        )
+                        .when(!module_name.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption - 0.5, s.line_caption)
+                                    .text_color(p.ink(4).solid())
+                                    .child(format!("· {module_name}")),
+                            )
+                        })
+                        .on_click(move |_, _, cx| {
+                            let u = u.clone();
+                            jump.update(cx, |p, cx| p.jump_to_usage(&u, cx));
+                        }),
+                );
+            }
+            row
+        });
         div()
             .flex_none()
             .px(px(28.0))
@@ -1097,14 +1252,17 @@ impl MediaPage {
                     .text_color(p.ink(1).solid())
                     .child(self.title.clone()),
             )
-            .child(
-                div()
-                    .max_w(px(560.0))
-                    .font_role(Role::Prose)
-                    .type_px(s.secondary, s.line_body)
-                    .text_color(p.ink(2).solid())
-                    .child(self.description.clone()),
-            )
+            .when(has_description, |d| {
+                d.child(
+                    div()
+                        .max_w(px(560.0))
+                        .font_role(Role::Prose)
+                        .type_px(s.secondary, s.line_body)
+                        .text_color(p.ink(2).solid())
+                        .child(self.description.clone()),
+                )
+            })
+            .children(usages_row)
             .children(
                 (self.title_error.is_some() || self.description_error.is_some()).then(|| {
                     div()
@@ -1303,8 +1461,19 @@ impl MediaPage {
         let probe = canvas(
             move |bounds, _, cx| {
                 measure.update(cx, |page, cx| {
+                    let resized = page.stage.is_some_and(|old| old.size != bounds.size);
                     if page.stage != Some(bounds) {
                         page.stage = Some(bounds);
+                        if resized {
+                            page.rendering = None;
+                            if let Media::Pdf {
+                                shown: Some((_, scale, _)),
+                                ..
+                            } = &mut page.media
+                            {
+                                *scale = 0.0;
+                            }
+                        }
                         cx.notify();
                     }
                 });

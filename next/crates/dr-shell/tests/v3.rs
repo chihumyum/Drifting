@@ -161,27 +161,33 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
     let (_dir, ws, id) = seed();
     let before = ws.observe(&format!("book:{id}")).unwrap();
     let b = Book::load(&ws, &id).unwrap();
-    let material = b
-        .v3()
-        .unwrap()
-        .materials
-        .first()
-        .expect("shared seed material");
-    let target = Target::Material(material.id.parse().unwrap());
-    assert!(b.exists(&target));
-    assert_eq!(b.title(&target), Some(material.title.as_str()));
-    assert_eq!(b.mark(&target), (dr_ui::sand::Kind::Material, None));
+    let v = b.v3().unwrap();
+    let file = v.materials.first().expect("shared seed asset").clone();
+    let file_target = Target::Material(file.id.parse().unwrap());
+    assert!(b.exists(&file_target));
+    assert_eq!(b.title(&file_target), Some(file.title.as_str()));
+    assert_eq!(b.mark(&file_target), (dr_ui::sand::Kind::Material, None));
+
+    let media = v
+        .media_items
+        .values()
+        .next()
+        .expect("shared seed media item")
+        .clone();
+    let media_target = Target::Material(media.id.parse().unwrap());
+    assert!(b.exists(&media_target));
+    assert_eq!(b.title(&media_target), Some(media.title.as_str()));
+    assert_eq!(b.mark(&media_target), (dr_ui::sand::Kind::Material, None));
     assert!(!b.exists(&Target::Material("missing-material".parse().unwrap())));
     assert_eq!(
         before.version,
         ws.observe(&format!("book:{id}")).unwrap().version
     );
 
-    // Model a remote metadata removal while its asset still exists. The
-    // shell must not infer a navigable material merely from stored asset bytes.
+    // Removing the host entry closes the media-item target while the file itself stays live.
     let book_id = id.parse().unwrap();
-    let entry_id = material.entry.clone().expect("host entry");
-    let asset_id = material.asset.clone().expect("media asset");
+    let entry_id = media.entry.clone().expect("host entry");
+    let media_asset_id = media.asset.clone().expect("media asset");
     ws.library()
         .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)
         .unwrap()
@@ -194,13 +200,27 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
                 .unwrap();
         })
         .unwrap();
-    let after = Book::load(&ws, &id).unwrap();
-    assert!(!after.exists(&target));
-    assert_eq!(after.title(&target), None);
-    assert_ne!(b.v3().unwrap().revision, after.v3().unwrap().revision);
+    let after_entry = Book::load(&ws, &id).unwrap();
+    assert!(!after_entry.exists(&media_target));
+    assert_eq!(after_entry.title(&media_target), None);
+    assert!(after_entry.exists(&Target::Material(media_asset_id.parse().unwrap())));
+
+    // Trashing the file record in book:<id> closes the file target even while
+    // SQLite asset bytes still exist on disk.
+    let file_asset_id = file.asset.clone().expect("file asset");
+    ws.call(
+        &dr_workspace::Actor::User,
+        "asset.trash",
+        serde_json::json!({ "book": id, "id": file.id }),
+    )
+    .unwrap();
+    let after_file = Book::load(&ws, &id).unwrap();
+    assert!(!after_file.exists(&file_target));
+    assert_eq!(after_file.title(&file_target), None);
+    assert_ne!(b.v3().unwrap().revision, after_file.v3().unwrap().revision);
     assert!(
         ws.library()
-            .asset(&asset_id, dr_store::asset::Variant::Source)
+            .asset(&file_asset_id, dr_store::asset::Variant::Source)
             .unwrap()
             .is_some()
     );

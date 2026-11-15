@@ -2346,6 +2346,7 @@ name = "dr-view-material"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "color_quant",
  "dr-doc",
  "dr-i18n",
