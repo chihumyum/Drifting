@@ -120,6 +120,14 @@ enum Flow {
         left: f32,
         right: f32,
     },
+    Image {
+        index: usize,
+        w: f32,
+        h: f32,
+        left: f32,
+        right: f32,
+        caption: Option<usize>,
+    },
 }
 
 struct Anchor {
@@ -162,6 +170,13 @@ enum Op {
         w: f32,
         h: f32,
     },
+    Image {
+        index: usize,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+    },
 }
 
 #[derive(Default)]
@@ -178,6 +193,7 @@ struct Builder<'a> {
     paras: Vec<Para>,
     flow: Vec<Flow>,
     anchors: Vec<Anchor>,
+    image_index: usize,
 }
 
 impl Builder<'_> {
@@ -432,6 +448,45 @@ impl Builder<'_> {
                     let mut inner = true;
                     self.blocks(blocks, quote + 2.0 * em, shade, &mut inner);
                     self.flow.push(Flow::Space(0.4 * leading));
+                    *first = true;
+                }
+                Block::Image { caption, .. } => {
+                    let index = self.image_index;
+                    self.image_index += 1;
+                    if let Some(img) = self.book.images.get(index) {
+                        let avail_w = (self.metrics.width - 2.0 * quote).max(36.0);
+                        let max_h = ((self.metrics.bottom - TOP) * 0.72).max(72.0);
+                        let nat_w = img.width.max(1) as f32 * 0.75;
+                        let nat_h = img.height.max(1) as f32 * 0.75;
+                        let scale = 1.0_f32.min(avail_w / nat_w).min(max_h / nat_h);
+                        let w = (nat_w * scale).max(1.0);
+                        let h = (nat_h * scale).max(1.0);
+                        let trimmed = caption.trim();
+                        let caption_para = (!trimmed.is_empty()).then(|| {
+                            let cap_size = (self.metrics.body - 1.0).max(8.5);
+                            let cap_leading = cap_size * if self.cjk { 1.6 } else { 1.4 };
+                            let p = self.plain_para(
+                                trimmed,
+                                TextStyle::plain(cap_size),
+                                Align::Center,
+                                cap_leading,
+                            );
+                            self.paras[p].left = quote;
+                            self.paras[p].right = quote;
+                            self.paras[p].shade = shade;
+                            p
+                        });
+                        self.flow.push(Flow::Space(0.5 * leading));
+                        self.flow.push(Flow::Image {
+                            index,
+                            w,
+                            h,
+                            left: quote,
+                            right: quote,
+                            caption: caption_para,
+                        });
+                        self.flow.push(Flow::Space(0.5 * leading));
+                    }
                     *first = true;
                 }
                 Block::Break => {
@@ -905,6 +960,7 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
         paras: Vec::new(),
         flow: Vec::new(),
         anchors: Vec::new(),
+        image_index: 0,
     };
     let with_toc = book
         .sections()
@@ -1021,6 +1077,39 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
             }
             Flow::Table { cells, left, right } => {
                 pager.table(&shaped, &paras, cells, *left, *right);
+            }
+            Flow::Image {
+                index,
+                w,
+                h,
+                left,
+                right,
+                caption,
+            } => {
+                let cap_gap = 0.3 * metrics.leading;
+                let cap_keep = caption.map_or(0.0, |cp| {
+                    let p = &paras[cp];
+                    let avail = (metrics.width - p.left - p.right).max(12.0);
+                    let lines = break_lines(&shaped[cp], avail, avail);
+                    cap_gap + (lines.len().min(2) as f32) * p.line_height
+                });
+                if !pager.page_is_empty() && pager.y + *h + cap_keep > metrics.bottom + 0.01 {
+                    pager.new_page();
+                }
+                let avail_w = (metrics.width - *left - *right).max(*w);
+                let x = metrics.left + *left + (avail_w - *w) / 2.0;
+                pager.page.ops.push(Op::Image {
+                    index: *index,
+                    x,
+                    y: pager.y,
+                    w: *w,
+                    h: *h,
+                });
+                pager.y += *h;
+                if let Some(cp) = caption {
+                    pager.space(cap_gap);
+                    pager.paragraph(&shaped[*cp], &paras[*cp], 0.0);
+                }
             }
         }
     }
@@ -1316,6 +1405,22 @@ pub(crate) fn write(book: &Book<'_>, database: &Database) -> Result<Vec<u8>, Str
                     }
                     .map_err(|error| format!("cover image: {error}"))?;
                     let size = Size::from_wh(w, h).ok_or("invalid cover size")?;
+                    surface.push_transform(&Transform::from_translate(x, y));
+                    surface.draw_image(image, size);
+                    surface.pop();
+                }
+                Op::Image { index, x, y, w, h } => {
+                    let Some(img) = book.images.get(index) else {
+                        continue;
+                    };
+                    let data = img.bytes.clone().into();
+                    let image = if img.png {
+                        Image::from_png(data, true)
+                    } else {
+                        Image::from_jpeg(data, true)
+                    }
+                    .map_err(|error| format!("inline image: {error}"))?;
+                    let size = Size::from_wh(w, h).ok_or("invalid inline image size")?;
                     surface.push_transform(&Transform::from_translate(x, y));
                     surface.draw_image(image, size);
                     surface.pop();

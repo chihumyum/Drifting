@@ -8,9 +8,13 @@ use std::path::Path;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::PngEncoder;
 use image::imageops::FilterType;
 use image::metadata::Orientation;
-use image::{DynamicImage, GenericImageView, ImageDecoder, ImageReader, Limits};
+use image::{
+    DynamicImage, ExtendedColorType, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
+    ImageReader, Limits,
+};
 
 use crate::manuscript::Cover;
 
@@ -18,6 +22,7 @@ use crate::manuscript::Cover;
 pub const COVER_SOURCE_LIMIT: u64 = 64 * 1024 * 1024;
 /// The cover's long edge is at most this many pixels.
 pub const COVER_LONG_EDGE: u32 = 2560;
+const INLINE_BYTES_LIMIT: usize = 12 * 1024 * 1024;
 const COVER_QUALITY: u8 = 90;
 const MAX_DIMENSION: u32 = 16_384;
 const MAX_ALLOC: u64 = 256 * 1024 * 1024;
@@ -25,8 +30,7 @@ const MAX_ALLOC: u64 = 256 * 1024 * 1024;
 /// The file extensions the picker offers (0.1's list).
 pub const COVER_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff"];
 
-/// Reads `path` as a cover. Errors are short English sentences.
-pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
+fn decode_upright_bounded(path: &Path) -> Result<(DynamicImage, Option<ImageFormat>), String> {
     let metadata = fs::metadata(path).map_err(|_| "could not inspect image file".to_string())?;
     if !metadata.is_file() {
         return Err("path is not a file".into());
@@ -45,6 +49,7 @@ pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
     let mut reader = ImageReader::new(BufReader::new(file))
         .with_guessed_format()
         .map_err(|_| "could not identify image format".to_string())?;
+    let format = reader.format();
     let mut limits = Limits::default();
     limits.max_image_width = Some(MAX_DIMENSION);
     limits.max_image_height = Some(MAX_DIMENSION);
@@ -61,8 +66,12 @@ pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
     if (width, height) != image.dimensions() {
         image = image.resize_exact(width, height, FilterType::Lanczos3);
     }
-    // JPEG has no alpha: a transparent cover is laid on white.
-    let rgb = if image.color().has_alpha() {
+    Ok((image, format))
+}
+
+fn flatten_on_white(image: &DynamicImage) -> DynamicImage {
+    let (width, height) = image.dimensions();
+    if image.color().has_alpha() {
         let rgba = image.to_rgba8();
         let mut rgb = image::RgbImage::new(width, height);
         for (x, y, p) in rgba.enumerate_pixels() {
@@ -73,11 +82,69 @@ pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
         DynamicImage::ImageRgb8(rgb)
     } else {
         DynamicImage::ImageRgb8(image.to_rgb8())
-    };
+    }
+}
+
+/// Reads `path` as a cover. Errors are short English sentences.
+pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
+    let (image, _) = decode_upright_bounded(path)?;
+    let (width, height) = image.dimensions();
+    // JPEG has no alpha: a transparent cover is laid on white.
+    let rgb = flatten_on_white(&image);
     let mut bytes = Vec::new();
     JpegEncoder::new_with_quality(&mut bytes, COVER_QUALITY)
         .encode_image(&rgb)
         .map_err(|_| "could not encode the cover".to_string())?;
+    Ok(Cover {
+        media_type: "image/jpeg".into(),
+        data: BASE64_STANDARD.encode(bytes),
+        width,
+        height,
+    })
+}
+
+/// Reads `path` as an inline prose image (PNG for alpha or lossless sources
+/// within 12 MiB; JPEG otherwise).
+pub(crate) fn inline_image_from_path(path: &Path) -> Result<Cover, String> {
+    let (image, format) = decode_upright_bounded(path)?;
+    let (width, height) = image.dimensions();
+    let prefer_png = image.color().has_alpha() || format != Some(ImageFormat::Jpeg);
+    if prefer_png {
+        let mut png_bytes = Vec::new();
+        let encoded = if image.color().has_alpha() {
+            let rgba = image.to_rgba8();
+            PngEncoder::new(&mut png_bytes).write_image(
+                rgba.as_raw(),
+                width,
+                height,
+                ExtendedColorType::Rgba8,
+            )
+        } else {
+            let rgb = image.to_rgb8();
+            PngEncoder::new(&mut png_bytes).write_image(
+                rgb.as_raw(),
+                width,
+                height,
+                ExtendedColorType::Rgb8,
+            )
+        };
+        if encoded.is_ok() && !png_bytes.is_empty() && png_bytes.len() <= INLINE_BYTES_LIMIT {
+            return Ok(Cover {
+                media_type: "image/png".into(),
+                data: BASE64_STANDARD.encode(png_bytes),
+                width,
+                height,
+            });
+        }
+    }
+    let rgb = flatten_on_white(&image);
+    let mut bytes = Vec::new();
+    JpegEncoder::new_with_quality(&mut bytes, COVER_QUALITY)
+        .encode_image(&rgb)
+        .map_err(|_| "could not encode inline image".to_string())?;
+    if bytes.is_empty() || bytes.len() > INLINE_BYTES_LIMIT {
+        return Err("inline image exceeds the 12 MiB limit".into());
+    }
     Ok(Cover {
         media_type: "image/jpeg".into(),
         data: BASE64_STANDARD.encode(bytes),

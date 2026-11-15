@@ -174,6 +174,16 @@ pub enum Block {
     Quote {
         blocks: Vec<Block>,
     },
+    /// An inline image embedded in prose, with an optional caption.
+    #[serde(rename_all = "camelCase")]
+    Image {
+        media_type: String,
+        data: String,
+        width: u32,
+        height: u32,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        caption: String,
+    },
     /// A horizontal rule in the editor: a separator.
     Break,
 }
@@ -232,6 +242,8 @@ pub(crate) struct Book<'a> {
     pub language: Language,
     pub modified: text::Timestamp,
     pub cover: Option<CoverImage>,
+    /// Inline prose images in depth-first block order.
+    pub images: Vec<CoverImage>,
 }
 
 impl Book<'_> {
@@ -255,32 +267,32 @@ impl Book<'_> {
     }
 }
 
-fn decode_cover(cover: &Cover) -> Result<CoverImage, String> {
-    let png = match cover.media_type.as_str() {
+fn decode_image(media_type: &str, data: &str, role: &str) -> Result<CoverImage, String> {
+    let png = match media_type {
         "image/png" => true,
         "image/jpeg" => false,
-        _ => return Err("cover must be a PNG or JPEG image".into()),
+        _ => return Err(format!("{role} must be a PNG or JPEG image")),
     };
     let bytes = BASE64_STANDARD
-        .decode(cover.data.as_bytes())
-        .map_err(|_| "cover image is not valid base64".to_string())?;
+        .decode(data.as_bytes())
+        .map_err(|_| format!("{role} image is not valid base64"))?;
     if bytes.is_empty() || bytes.len() > COVER_BYTES_LIMIT {
-        return Err("cover image exceeds the 12 MiB limit".into());
+        return Err(format!("{role} image exceeds the 12 MiB limit"));
     }
-    let format = image::guess_format(&bytes).map_err(|_| "unrecognized cover image")?;
+    let format = image::guess_format(&bytes).map_err(|_| format!("unrecognized {role} image"))?;
     let expected = if png {
         image::ImageFormat::Png
     } else {
         image::ImageFormat::Jpeg
     };
     if format != expected {
-        return Err("cover image does not match its media type".into());
+        return Err(format!("{role} image does not match its media type"));
     }
     let (width, height) = image::ImageReader::with_format(std::io::Cursor::new(&bytes), format)
         .into_dimensions()
-        .map_err(|_| "cover image could not be read")?;
+        .map_err(|_| format!("{role} image could not be read"))?;
     if width == 0 || height == 0 || width > 16_384 || height > 16_384 {
-        return Err("cover image dimensions are out of range".into());
+        return Err(format!("{role} image dimensions are out of range"));
     }
     Ok(CoverImage {
         bytes,
@@ -288,6 +300,10 @@ fn decode_cover(cover: &Cover) -> Result<CoverImage, String> {
         width,
         height,
     })
+}
+
+fn decode_cover(cover: &Cover) -> Result<CoverImage, String> {
+    decode_image(&cover.media_type, &cover.data, "cover")
 }
 
 fn validate_runs(runs: &[Run]) -> Result<(), String> {
@@ -301,7 +317,11 @@ fn validate_runs(runs: &[Run]) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_blocks(blocks: &[Block], depth: usize) -> Result<(), String> {
+fn validate_blocks(
+    blocks: &[Block],
+    depth: usize,
+    images: &mut Vec<CoverImage>,
+) -> Result<(), String> {
     if depth > 8 {
         return Err("quotes are nested too deeply".into());
     }
@@ -331,7 +351,7 @@ fn validate_blocks(blocks: &[Block], depth: usize) -> Result<(), String> {
                 }
             }
             Block::CodeBlock { .. } => {}
-            Block::Callout { blocks, .. } => validate_blocks(blocks, depth + 1)?,
+            Block::Callout { blocks, .. } => validate_blocks(blocks, depth + 1, images)?,
             Block::Table { rows } => {
                 if rows.is_empty()
                     || rows[0].is_empty()
@@ -345,7 +365,18 @@ fn validate_blocks(blocks: &[Block], depth: usize) -> Result<(), String> {
                     }
                 }
             }
-            Block::Quote { blocks } => validate_blocks(blocks, depth + 1)?,
+            Block::Quote { blocks } => validate_blocks(blocks, depth + 1, images)?,
+            Block::Image {
+                media_type,
+                data,
+                caption,
+                ..
+            } => {
+                if caption.chars().count() > 2_000 {
+                    return Err("image caption is too long".into());
+                }
+                images.push(decode_image(media_type, data, "inline")?);
+            }
             Block::Break => {}
         }
     }
@@ -371,6 +402,7 @@ pub(crate) fn prepare(manuscript: &Manuscript) -> Result<Book<'_>, String> {
     if chapters == 0 {
         return Err("choose at least one chapter".into());
     }
+    let mut images = Vec::new();
     for section in &manuscript.sections {
         match section {
             Section::Act { title } if title.trim().is_empty() => {
@@ -380,7 +412,7 @@ pub(crate) fn prepare(manuscript: &Manuscript) -> Result<Book<'_>, String> {
                 if title.trim().is_empty() {
                     return Err("chapter titles cannot be empty".into());
                 }
-                validate_blocks(blocks, 0)?;
+                validate_blocks(blocks, 0, &mut images)?;
             }
             Section::Act { .. } => {}
         }
@@ -393,6 +425,7 @@ pub(crate) fn prepare(manuscript: &Manuscript) -> Result<Book<'_>, String> {
         language: text::detect_language(manuscript),
         modified,
         cover,
+        images,
     })
 }
 

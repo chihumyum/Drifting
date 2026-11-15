@@ -497,7 +497,6 @@
     "format": "Format",
     "loadFailed": "Could not read the chapters. Please retry.",
     "loading": "Reading chapters…",
-    "manuscript": "Manuscript",
     "menu": "Export manuscript",
     "removeCover": "Remove",
     "retry": "Retry",

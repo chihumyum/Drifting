@@ -200,7 +200,8 @@ struct Body<'a> {
     /// The next paragraph starts a new page (a new act or chapter).
     pending_break: bool,
     heading_offset: u8,
-    _book: &'a Book<'a>,
+    image_index: usize,
+    book: &'a Book<'a>,
 }
 
 impl Body<'_> {
@@ -343,6 +344,47 @@ impl Body<'_> {
                     self.blocks(blocks, Some("Quote"), &mut inner);
                     *first = true;
                 }
+                Block::Image { caption, .. } => {
+                    let idx = self.image_index;
+                    self.image_index += 1;
+                    if let Some(img) = self.book.images.get(idx) {
+                        let max_w = u64::from(PAGE_W - 2 * MARGIN_LR) * EMU_PER_TWIP;
+                        let max_h = u64::from(PAGE_H - 2 * MARGIN_TB - 1_400) * EMU_PER_TWIP;
+                        let nat_w = u64::from(img.width.max(1)) * 9_525;
+                        let nat_h = u64::from(img.height.max(1)) * 9_525;
+                        let (cx, cy) = if nat_w <= max_w && nat_h <= max_h {
+                            (nat_w, nat_h)
+                        } else if nat_w * max_h >= nat_h * max_w {
+                            (max_w, (nat_h * max_w / nat_w).max(1))
+                        } else {
+                            ((nat_w * max_h / nat_h).max(1), max_h)
+                        };
+                        let trimmed = caption.trim();
+                        let has_caption = !trimmed.is_empty();
+                        let break_xml = if std::mem::take(&mut self.pending_break) {
+                            "<w:pageBreakBefore/>"
+                        } else {
+                            ""
+                        };
+                        let keep_xml = if has_caption { "<w:keepNext/>" } else { "" };
+                        let after = if has_caption { 60 } else { 160 };
+                        let drawing_id = idx + 2;
+                        let file_num = idx + 1;
+                        let ext = img.extension();
+                        let descr = xml(trimmed);
+                        self.out.push_str(&format!(
+                            "<w:p><w:pPr>{break_xml}{keep_xml}<w:spacing w:before=\"160\" w:after=\"{after}\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:docPr id=\"{drawing_id}\" name=\"Picture {file_num}\" descr=\"{descr}\"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect=\"1\"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic><pic:nvPicPr><pic:cNvPr id=\"{drawing_id}\" name=\"image{file_num}.{ext}\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rIdImg{file_num}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>\n"
+                        ));
+                        if has_caption {
+                            let runs = [Run {
+                                text: trimmed.to_owned(),
+                                ..Run::default()
+                            }];
+                            self.paragraph(Some("ImageCaption"), Align::Center, 0, false, &runs);
+                        }
+                    }
+                    *first = true;
+                }
                 Block::Break => {
                     let separator = [Run {
                         text: "*\u{2003}\u{2003}*\u{2003}\u{2003}*".into(),
@@ -397,7 +439,8 @@ fn document_xml(book: &Book<'_>) -> (String, Relationships) {
         cjk,
         pending_break: false,
         heading_offset: if has_acts { 2 } else { 1 },
-        _book: book,
+        image_index: 0,
+        book,
     };
     // Front matter: cover, title and author, closed by its own section so the
     // page numbers in the body footer start at 1.
@@ -521,7 +564,7 @@ fn styles_xml(book: &Book<'_>) -> String {
         ));
     }
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:styles xmlns:w=\"{W_NS}\">\n<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"{latin}\" w:hAnsi=\"{latin}\" w:eastAsia=\"{east}\" w:cs=\"{latin}\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/><w:lang w:val=\"{latin_lang}\" w:eastAsia=\"{east_lang}\" w:bidi=\"ar-SA\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"0\" w:line=\"{line}\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>\n<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:widowControl/>{first_line}<w:jc w:val=\"both\"/></w:pPr></w:style>\n<w:style w:type=\"character\" w:default=\"1\" w:styleId=\"DefaultParagraphFont\"><w:name w:val=\"Default Paragraph Font\"/><w:uiPriority w:val=\"1\"/><w:semiHidden/><w:unhideWhenUsed/></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Title\"><w:name w:val=\"Title\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Subtitle\"/><w:uiPriority w:val=\"10\"/><w:qFormat/><w:pPr><w:spacing w:before=\"3600\" w:after=\"600\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:b/><w:bCs/><w:sz w:val=\"52\"/><w:szCs w:val=\"52\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Subtitle\"><w:name w:val=\"Subtitle\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"11\"/><w:qFormat/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"30\"/><w:szCs w:val=\"30\"/></w:rPr></w:style>\n{headings}<w:style w:type=\"paragraph\" w:styleId=\"Quote\"><w:name w:val=\"Quote\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"29\"/><w:qFormat/><w:pPr><w:spacing w:before=\"120\" w:after=\"120\"/><w:ind w:left=\"720\" w:right=\"720\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Callout\"><w:name w:val=\"Callout\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F5F5F4\"/><w:spacing w:before=\"80\" w:after=\"80\"/><w:ind w:left=\"480\" w:right=\"480\" w:firstLineChars=\"0\" w:firstLine=\"0\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"CodeBlock\"><w:name w:val=\"Code Block\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F5F5F4\"/><w:spacing w:before=\"60\" w:after=\"60\" w:line=\"300\" w:lineRule=\"auto\"/><w:ind w:left=\"360\" w:right=\"360\" w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"left\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Courier New\" w:hAnsi=\"Courier New\"/><w:sz w:val=\"21\"/><w:szCs w:val=\"21\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Separator\"><w:name w:val=\"Separator\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before=\"240\" w:after=\"240\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Footer\"><w:name w:val=\"footer\"/><w:basedOn w:val=\"Normal\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"18\"/><w:szCs w:val=\"18\"/></w:rPr></w:style>\n<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:basedOn w:val=\"DefaultParagraphFont\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>\n</w:styles>\n",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:styles xmlns:w=\"{W_NS}\">\n<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"{latin}\" w:hAnsi=\"{latin}\" w:eastAsia=\"{east}\" w:cs=\"{latin}\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/><w:lang w:val=\"{latin_lang}\" w:eastAsia=\"{east_lang}\" w:bidi=\"ar-SA\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"0\" w:line=\"{line}\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>\n<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:widowControl/>{first_line}<w:jc w:val=\"both\"/></w:pPr></w:style>\n<w:style w:type=\"character\" w:default=\"1\" w:styleId=\"DefaultParagraphFont\"><w:name w:val=\"Default Paragraph Font\"/><w:uiPriority w:val=\"1\"/><w:semiHidden/><w:unhideWhenUsed/></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Title\"><w:name w:val=\"Title\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Subtitle\"/><w:uiPriority w:val=\"10\"/><w:qFormat/><w:pPr><w:spacing w:before=\"3600\" w:after=\"600\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:b/><w:bCs/><w:sz w:val=\"52\"/><w:szCs w:val=\"52\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Subtitle\"><w:name w:val=\"Subtitle\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"11\"/><w:qFormat/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"30\"/><w:szCs w:val=\"30\"/></w:rPr></w:style>\n{headings}<w:style w:type=\"paragraph\" w:styleId=\"Quote\"><w:name w:val=\"Quote\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:uiPriority w:val=\"29\"/><w:qFormat/><w:pPr><w:spacing w:before=\"120\" w:after=\"120\"/><w:ind w:left=\"720\" w:right=\"720\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Callout\"><w:name w:val=\"Callout\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F5F5F4\"/><w:spacing w:before=\"80\" w:after=\"80\"/><w:ind w:left=\"480\" w:right=\"480\" w:firstLineChars=\"0\" w:firstLine=\"0\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"CodeBlock\"><w:name w:val=\"Code Block\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F5F5F4\"/><w:spacing w:before=\"60\" w:after=\"60\" w:line=\"300\" w:lineRule=\"auto\"/><w:ind w:left=\"360\" w:right=\"360\" w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"left\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Courier New\" w:hAnsi=\"Courier New\"/><w:sz w:val=\"21\"/><w:szCs w:val=\"21\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"Separator\"><w:name w:val=\"Separator\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before=\"240\" w:after=\"240\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr></w:style>\n<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"ImageCaption\"><w:name w:val=\"Image Caption\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:spacing w:before=\"40\" w:after=\"160\"/><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/><w:color w:val=\"57534E\"/></w:rPr></w:style>\n<w:style w:type=\"paragraph\" w:styleId=\"Footer\"><w:name w:val=\"footer\"/><w:basedOn w:val=\"Normal\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:pPr><w:ind w:firstLineChars=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"18\"/><w:szCs w:val=\"18\"/></w:rPr></w:style>\n<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:basedOn w:val=\"DefaultParagraphFont\"/><w:uiPriority w:val=\"99\"/><w:unhideWhenUsed/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>\n</w:styles>\n",
         latin = fonts.latin,
         east = fonts.east_asia,
         east_lang = fonts.east_asia_lang,
@@ -551,6 +594,14 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
             cover.extension()
         ));
     }
+    for (idx, img) in book.images.iter().enumerate() {
+        document_rels.push_str(&format!(
+            "<Relationship Id=\"rIdImg{}\" Type=\"{DOC_REL}/image\" Target=\"media/image{}.{}\"/>\n",
+            idx + 1,
+            idx + 1,
+            img.extension()
+        ));
+    }
     for (id, target) in &rels.hyperlinks {
         document_rels.push_str(&format!(
             "<Relationship Id=\"{id}\" Type=\"{DOC_REL}/hyperlink\" Target=\"{}\" TargetMode=\"External\"/>\n",
@@ -562,12 +613,20 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
     let mut content_types = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n<Default Extension=\"xml\" ContentType=\"application/xml\"/>\n",
     );
-    if let Some(cover) = &book.cover {
-        content_types.push_str(&format!(
-            "<Default Extension=\"{}\" ContentType=\"{}\"/>\n",
-            cover.extension(),
-            cover.media_type()
-        ));
+    let mut has_png = false;
+    let mut has_jpeg = false;
+    for img in book.cover.iter().chain(book.images.iter()) {
+        if img.png {
+            has_png = true;
+        } else {
+            has_jpeg = true;
+        }
+    }
+    if has_png {
+        content_types.push_str("<Default Extension=\"png\" ContentType=\"image/png\"/>\n");
+    }
+    if has_jpeg {
+        content_types.push_str("<Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>\n");
     }
     content_types.push_str("<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>\n<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>\n<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>\n<Override PartName=\"/word/footer1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>\n<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>\n<Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>\n</Types>\n");
 
@@ -622,6 +681,13 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
         put(
             &format!("word/media/cover.{}", cover.extension()),
             &cover.bytes,
+            stored,
+        )?;
+    }
+    for (idx, img) in book.images.iter().enumerate() {
+        put(
+            &format!("word/media/image{}.{}", idx + 1, img.extension()),
+            &img.bytes,
             stored,
         )?;
     }
