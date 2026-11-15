@@ -4,6 +4,8 @@
 
 2026-11-08。实现 M28 任务书（`handoff/m28-model-providers.md`，已随过程文档清理删除，在 git 历史里），接在 [M27](m27-agent-runtime.md) 的进程内驱动接口上。没有新增运行时类型，也不经过旧版 Tauri。
 
+> 2026-11-16（LM 本地模型）：多了第五条路线 `Provider::Local`，接本机或局域网里 OpenAI 兼容的模型服务（Ollama、LM Studio、llama.cpp 这类）。界面按作者定稿（原型第 3 版）由 M31 画，见本页末「本地模型」一节；自定义 API Key（接网上的服务）作者定了不做。
+
 ## 做了什么（大白话）
 
 - DeepSeek、Anthropic、OpenAI API Key 和 ChatGPT 订阅四条路线共用一个 HTTP 客户端、一个 SSE 解析器；OpenAI 和 ChatGPT 共用 Responses 协议适配器。
@@ -73,3 +75,40 @@
 - `next/crates/dr-agent/src/config.rs`、`protocol.rs`、`runtime.rs`：配置冻结、搜索事件、回放与错误投影。
 - 行为标准：旧版 `runtime/drivers/`、`agent-provider-contract.ts`、`byok_models.rs`、`codex_models.rs`、`codex_oauth.rs` 和 [provider extension protocol](../../agent-runtime/provider-extension-protocol.md)。
 - Responses 的增量、完成事件和终止输出形状也核对了 [OpenAI 官方流事件文档](https://developers.openai.com/api/reference/resources/responses/streaming-events)。
+
+## 本地模型（LM，2026-11-16）
+
+作者 2026-11-16 定稿、说「做」：Agent 能用本机或局域网里部署的模型。网上的地址（自定义 API Key）不做。
+
+**大白话。** 作者在连接格里粘贴一个地址（比如 `http://localhost:11434`），App 去问这台服务有哪些模型，认出是哪种软件，把能用的模型放进模型菜单。发消息时走同一个 HTTP 客户端和 SSE 解析器，只是请求发到那台服务、用通用的 Chat Completions。
+
+**能填什么地址。** 只收本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`），`http` 或 `https` 都行；带用户名密码、查询串或 `#` 的不收。没写 `http://` 的当 `http://`；末尾的 `/` 和 `/v1` 去掉。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`），手改设置文件也放不宽。四家原来的端点检查（HTTPS 或本机）不变。
+
+**问模型清单（`local::discover`）。** 先 `GET {base}/v1/models`：连不上 → `Unreachable`；401／403 → `Unauthorized`；别的回答但不是清单（404、不是 JSON、空清单、滤完一个不剩）→ `NoList`，界面改问模型名。认软件看各自独有的接口：`/v1/models` 的行里 `owned_by` 是 `llamacpp` 是 llama.cpp；`GET /api/version` 回 `{"version":…}` 是 Ollama；`GET /api/v0/models` 的行带 `type`（`llm`／`vlm`／`embeddings`）是 LM Studio。认不出就没有名字。
+- 上下文：Ollama 读 `POST /api/show` 的 `model_info["<架构>.context_length"]`，LM Studio 读 `max_context_length`，llama.cpp 读 `/props` 的 `default_generation_settings.n_ctx`（它实际开的大小），别的服务读行上的 `max_model_len`／`context_length`。前两种是模型上限、不是运行时实际开的大小，所以设置里能手改（M31）。
+- 嵌入模型不进清单：Ollama 看 `capabilities` 里只有 `embedding`，LM Studio 看 `type == "embeddings"`，别的服务看名字里有没有 `embed`。
+- 服务确知不支持工具的不进清单：只有 Ollama 的 `capabilities` 是数组且没有 `tools` 时算确知。LM Studio、llama.cpp 不报，就都留着。
+- `/api/show` 最多问 64 个模型；清单最多 500 行；每个探测 5 秒、清单 10 秒超时。
+- `local::check`：「测试连接」只看有没有回应：除 401／403 以外的任何回答都算「可用」。
+
+**请求和响应（`chat.rs`）。** 形状同 DeepSeek 的 Chat Completions，但不带 DeepSeek 专有的 `thinking`、`reasoning_effort`，不发联网搜索，`tool_choice` 不写（默认 auto）；输出上限只在 `RunConfig.max_output_tokens` 明确给出时才发 `max_tokens`。以前的思考内容不发回去。响应宽松一些，但截断仍然失败：
+- 思考：`reasoning_content` 或 `reasoning` 字段，或者正文开头（还没出现可见文字之前）的 `<think>…</think>`，都变成 `ThinkingDelta`，跨任意分块边界拆对；可见文字之后的 `<think>` 只是字。
+- 工具调用：缺 `index` 时有 `id` 按 `id` 认，没有就接上一个；缺 `id` 时补成稳定的 `call_<序号>`；`arguments` 是对象也收、空串当 `{}`。较旧的服务用 `stop` 结束工具调用，也收。
+- 用量可以没有（记 0）；`[DONE]` 前没有 `finish_reason`、`length` 截断、参数不是 JSON 对象、断流，都照旧失败、不发布事件。
+- 不产生 `Replay`：本地模型没有要原样回放的签名或加密内容，历史一律按通用投影发送。
+
+**Key。** 钥匙串里一个服务一条，`byok.local.<服务 id>`；服务 id 是 App 自己生成的不透明 id，不是地址。没存 Key 就不带 `Authorization`（不像三家那样按 401 失败）。`Credentials::local_candidate` 只在内存里试。
+
+**路线和配置。** `ModelRoute.local: Option<LocalRoute { server, base_url }>`，只有 `Provider::Local` 带它（`RunConfig::validate` 检查两边对得上）；旧的路线读出来照旧，序列化时不多写字段。地址和模型一起冻结进这次运行，运行中改设置只影响下一次。`catalog` 对 `Local` 没有内置清单（`bundled_models` 为空），本地的清单由 M31 存在本机。
+
+**测试。** 全部对着本机假服务（`tests/local.rs`），不连真实服务：
+- `ollama_is_recognized_and_only_tool_models_are_offered`：认出 Ollama，gemma3（没有 tools）和嵌入模型不进清单，上下文读对，不带 Key 时没有 `Authorization`。
+- `lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints`、`an_unknown_server_keeps_its_address_name_and_row_context`。
+- `no_list_wrong_key_and_nothing_listening_are_told_apart`：`NoList`／`Unauthorized`／`Unreachable` 三种分清，`check` 对没有清单的服务也算可用。
+- `a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields`：走那台服务的 `/v1/chat/completions`，不落到四家的端点；`<think>` 成思考；存了 Key 才带 Bearer；工具调用照收。
+- `a_route_off_this_network_or_without_a_server_is_refused_before_any_request`：网上地址、缺服务的路线在请求前拒绝；没人监听时按网络错误失败。
+- 单元测试：`local.rs` 的地址规则（本机、局域网、网上、坏地址各一组），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
+
+**待协调。**
+1. 上下文按 32768 兜底（M27 `context.rs`）时，系统指令加工具目录按「一字节一单位」估算可能已经占掉大半，问不到上下文的本地模型可能一发就「太长」。不改 M27 的估算，作者可以在设置里手填上下文；真实用量要作者用真 Ollama 看。
+2. 真实 Ollama、LM Studio、llama.cpp 由作者自己验；自动测试只用合成的假服务。

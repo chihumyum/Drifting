@@ -1,5 +1,7 @@
 # M31 帮手面板与改动显现
 
+> 2026-11-16（LM 本地模型）：「连接模型」和设置「模型与 API」在四格下面隔一道细线多了「本地模型」的格子（`src/local.rs`、`src/local_view.rs`），按作者定稿（原型第 3 版）画；接入层见 [M28](m28-model-providers.md) 末「本地模型」一节。详见本页末「本地模型」一节。
+
 > 2026-11-15 内核 v5（T7）：系统提示词（`dr-view-agent/src/prompt.rs`）从项目定义读取 `project_agent`、`project_book`（成书根与字数目标）、`project_tabs`，接纳超过 32 个层级时的 `levels_by_depth` 摘要及模板动作的 `adds_membership`（「住进」与「挂到」分离），并对齐格式 5 统一批注与素材链接规则（批注无优先级；解决／重开清单批注会去正文打勾／去勾；改字或删除清单项须直接改或删正文对应行；`prose.link` 支持 `kind = "asset"`）。主动建议（`controller/proactive.rs`）收集全部未解决批注（含来源标记）送入 `open_comments`。「本轮改动」导航（`src/data.rs`）新增 `project`／`tab` 效果回到项目主页（`ChangeLocation::Home`），`asset` 效果打开对应文件目标（同时覆盖未放入媒体模块的素材库文件与已放入条目媒体模块的文件项）。见 [kernel-v5.md](../kernel-v5.md) 第 6、7、9、12 节。
 
 交回状态：`codex/m31-agent-panel`；首次实现 `ef63d4f9`，生命周期与登录修复 `f6840cc7`；第二十三批反馈修复 `21ad1134`；第二十七批关系导航、可见卡片确认及取消边界修复 `925597e4`；已合入 M29 `44357606`；全套检查与真实窗口验收通过；F4 逐字覆盖接口与真模型手测仍待后续。
@@ -286,3 +288,40 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
 
 - Agent 栏处处（「思考中…」行与展开思考过程标题）随 `dr_ui::sand::thinking` 换用 68 帧「风·林·火·山」砂笔帧条（`icons/thinking.png`，8 fps 顺序循环，「已思考」静止在第 57 帧山），替代原星芒帧条。
 - 新增 `dr-view-agent/src/review_bridge.rs`，向 `dr-view-review::agent_bridge` 登记批注派发桥：支持把批注连同可选补充说明发进新对话或续接 `comment.agent_conversation` 记录的既有对话（读写工具权限、系统提示词不变），实时向审阅栏推送会话运行/完成状态驱动卡片右下角风车动画；从风车或悬停卡打开批注对话时，面板左上角显示返回审阅按钮（`v3Review.backToReview`）。契约测试：`dr-view-agent/tests/comment_handoff.rs`。详见 [M18](m18-review.md)。
+
+## 本地模型（LM，2026-11-16）
+
+作者 2026-11-16 两轮选完、说「做」。定稿笔记在监管会话的共享笔记 `local-models-final.md`，原型第 3 版「定稿」。四格（`PROVIDERS`）一点没动，本地的另外画。
+
+**作者会看到的。**
+- Agent 面板没有能用的模型时：「连接模型」下面照旧四格，接着一道细线，再下面是「本地模型」。还没连过时是一格空心的「本地模型」，右边「未连接」；点开在下面展开地址框（等宽字，淡字 `http://localhost:11434`）、「连接」「取消」「加 Key」。点「加 Key」才出密钥框（淡字「粘贴密钥...」）。框里 Enter 就是连接，Esc 收起。
+- 点「连接」以后：网上的地址 →「只能填本机或局域网地址」；没回应 →「连不上这个地址」；要 Key 却没填对 →「密钥无效」；问不到模型清单 → 换成「模型名」框加「添加」（和「取消」），添一个就算连上。连上以后照现有做法选中它的第一个模型，面板切到对话。
+- 连上以后每个服务一格：名字是认出来的软件名（Ollama、LM Studio、llama.cpp），认不出就用地址；名字重了，后连的那台用地址。右边是等宽的「主机:端口」。
+- 输入框上面的模型菜单每行「<格子名> · <模型>」，比如「Ollama · qwen3:14b」。嵌入模型、服务确知不支持工具的模型不进菜单，设置里也不列。选中本地模型时推理强度那一栏不出。
+- 设置「模型与 API」：四行下面隔一道细线，每个服务一块：格子；「改地址」「加 Key」（填过就是「编辑密钥」）「测试连接」「断开」；测试结果「可用」或「连不上这个地址」（Key 被拒是「密钥无效」）。模型清单列名「上下文」，每行一个数字框：淡字是问到的值，问不到是 32768；填了以它为准。手填的模型行尾有 ×，这个服务的清单是手填的，最后一行是「模型名」框加「添加」。最后一行「＋ 本地模型」再加一个。
+- 本地服务没开的时候没有特别的状态：格子照旧算连着，模型照旧在菜单里；发消息时对话里出现现成的请求失败。
+
+**定下的事。**
+- **清单只存在这台设备上。** 服务清单在设置文件的设备记忆 `agent.local_servers`（地址、名字、有没有 Key、是不是手填、每个模型问到的上下文和作者填的上下文），选中的是哪台在 `agent.local_server`。账户范围的偏好只多了一个取值：`agent.provider = "local"`，`agent.model` 照旧是模型名。作者说过本地服务清单在偏好同步（M37）之前别跟账号走；换电脑时跟过去的如果是本地模型，那台电脑上没有这台服务，就当没连上，回到连接格。
+- **Key 只进钥匙串**，`byok.local.<服务 id>`；设置里只记有没有。新服务和「改地址」不打开密钥框就不动 Key；「编辑密钥」打开的框是空的，留空点连接就是去掉 Key（作者选甲），但要先确认这台服务不用 Key 也能问到清单，被拒就照旧显示「密钥无效」、Key 留着。
+- **连接只问清单，不发对话。** 四家连接时发一句「Return exactly OK.」试 Key；本地服务第一次加载大模型常要很久，所以本地只问 `/v1/models`（认软件、读上下文和工具能力），「测试连接」也只看有没有回应。
+- **选中本地模型时推理强度不出，原来的档位留着。** 本地运行一律不带推理强度（冻结的配置里是 off）；`agent.thinking` 不被改写，切回三家时还是作者原来选的档位。
+- **模型菜单打开时顺带重问清单**，和四家一样最多五分钟一次；问不到就留着原来的清单（「没开的时候」选甲）。重问保留作者填的上下文。手填的服务不重问。
+- 设置「Agent」里的服务商下拉也列出本地服务（按格子名），模型下拉列这台服务的模型；推理强度那一行在选中本地模型时是空的、点不动（原型没画这一页，见下面「原型没画的」）。
+
+**接口。** `Connections` 多了 `local_servers`、`local_server`、`selected_local`、`put_local`、`select_local`、`disconnect_local`、`test_local`、`add_local_model`、`remove_local_model`、`set_local_context`、`load_local_catalogs`；`ConnectionService` 多了 `probe_local`、`apply_local_key`、`check_local`、`relist_local`、`forget_local_key`（`src/local.rs`）。`ConnectionView::new_companion` 是面板用的（四格加本地），`ConnectionView::new` 只有四格。`LocalConnectionView::new(connections, settings, …)` 画本地那几格；设置登记在 `models.local`（`dr-shell` 注册表加了这一行，`agent.provider` 的取值加了 `local`）。
+
+**测试。** `tests/local_models.rs`（GPUI 加本机假服务）：
+- `connecting_selects_the_first_tool_model_and_freezes_its_server`：连上选中第一个能用工具的模型；不支持工具的、嵌入模型不进；冻结的配置带服务地址、推理 off、不发搜索、上下文是问到的；清单进设备记忆、账户偏好只有 `local` 和模型名；菜单行「Ollama · qwen3:14b」；不出推理强度；第二台 Ollama 用地址作名字；下次启动读回同样的清单和选择。
+- `the_form_reports_not_local_unreachable_and_a_refused_key`：三种错误；Key 通过后才存；「编辑密钥」清空但服务要 Key 时 Key 留着；「改地址」不开密钥框时 Key 留着。
+- `emptying_the_key_removes_it_when_the_server_needs_none`、`without_a_model_list_the_form_asks_for_a_model_name`（手填、再添、× 掉最后一个就断开）、`settings_context_test_and_disconnect`（填的上下文优先、清空回到问到的；测试连接「可用」和关掉服务后的「连不上」；服务没开照旧算连着；断开删 Key）、`choosing_a_cloud_model_keeps_its_reasoning_level`、`the_service_probes_keys_and_refuses_the_internet_before_asking`、`the_account_keeps_local_as_a_provider_and_nothing_else`。
+- `src/local.rs` 单元测试：存的清单里过不了地址规则的条目丢掉、名字规则、重问保留上下文、上下文框只收 1 到 1 亿的数字、`KeyChange` 的调试输出不带 Key。
+
+**原型没画、按最保守的做法先做的（等作者看）。**
+1. 面板里已经连上服务、但当前选的模型不可用时（比如三家的 Key 删了）也会出「连接模型」：本地服务那几格点了就选中这台（和四格的已连接格一样），面板里没有「＋ 本地模型」（原型面板只在一台都没有时画了「本地模型」那一格）。
+2. 「改地址」不打开密钥框时，已存的 Key 留着（原型里重连会丢 Key，像是原型的简化）。
+3. 「测试连接」被拒时显示现成的「密钥无效」，原型只画了「可用」「连不上这个地址」两种。
+4. 服务答了清单、但滤完一个能用的都没有（比如只拉了 gemma3），按「问不到模型清单」处理，改问模型名。
+5. 设置「Agent」那一页的服务商、模型下拉列出本地服务和它的模型；推理强度那一行在选中本地模型时是空的、点不动。
+6. 「＋ 本地模型」画成加号记号加「本地模型」四个字，和原型一样；没有另加「＋ 本地模型」这条文案。地址框的淡字 `http://localhost:11434` 是写在代码里的常量，九种语言一样。
+7. 上下文框只收数字，空着就是没填；填 0 或超过 1 亿当没填。
