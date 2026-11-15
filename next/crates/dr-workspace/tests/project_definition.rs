@@ -1,16 +1,16 @@
 //! The project definition (`kernel-v5.md` §2, §3, §5): projects made from
-//! one template, the guards and undo of project writes, the book start that
-//! cannot be read, and two devices editing the definition at once.
+//! one template, the guards and undo of project writes, and two devices
+//! editing the definition at once. The book has no start (DW).
 mod common;
 use common::*;
 use dr_workspace::{Actor, RecordKey, WritePreconditions, WsError};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
-/// A small synthetic project template: a folder with a card under it, the
-/// folder as the book start, a tab and a view's lane. The tab still carries
-/// a `name`, as templates saved before tabs lost their names do: it is read
-/// and ignored.
+/// A small synthetic project template: a folder with a card under it, a
+/// tab and a view's lane. Its book still names a start and its tab a
+/// `name`, as seeds written before the book lost its start and tabs their
+/// names do: both are read and ignored.
 fn cards_template() -> Value {
     json!({
         "project": {
@@ -128,18 +128,16 @@ fn two_projects_from_one_template_share_no_entry_or_document() {
     assert_eq!(docs_a.len(), 2, "{docs_a:?}");
     assert!(docs_a.is_disjoint(&docs_b), "{docs_a:?} {docs_b:?}");
 
-    // References follow the fresh ids: the book start, the tab, the lane.
+    // References follow the fresh ids: the tab, the lane. The old start is
+    // not kept.
     for book in [&a, &b] {
         let folder = entry_titled(&e, book, "全部卡片");
         let card = entry_titled(&e, book, "第一张");
         let got = e.out("entry.get", json!({"book": book, "id": card}));
         assert_eq!(got["parent"], folder);
         let project = e.out("project.get", json!({"book": book}));
-        assert_eq!(
-            project["book"]["root"],
-            json!({"kind": "entry", "entry": folder})
-        );
-        assert_eq!(project["book_root_valid"], true);
+        assert!(project["book"].is_object(), "{project}");
+        assert!(project["book"].get("root").is_none(), "{project}");
         // 「全部」 is added first (the template has no root tab), with its
         // fixed id; the template's tab follows, with a fresh id and no name.
         assert_eq!(project["tabs"].as_array().unwrap().len(), 2);
@@ -170,14 +168,12 @@ fn two_projects_from_one_template_share_no_entry_or_document() {
 }
 
 /// DX 4: a guarded writer that read the book settings (`project/book`) may
-/// change the book start and the word targets, by command and by history;
-/// one holding a read from before someone else's change is refused.
+/// change the word targets, by command and by history; one holding a read
+/// from before someone else's change is refused.
 #[test]
 fn a_writer_that_read_the_book_settings_may_change_them_and_a_stale_one_may_not() {
     let e = env();
     let b = e.book();
-    let ideas = acceptance::novel_root(e.ws(), &b, "tpl-ideas");
-    let ms = acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
     let doc = format!("book:{b}");
     let agent = Actor::agent("dx-guard", 1, "project.update");
     let read = || {
@@ -192,35 +188,26 @@ fn a_writer_that_read_the_book_settings_may_change_them_and_a_stale_one_may_not(
         .call_guarded(
             &agent,
             "project.update",
-            json!({"book": b, "root": {"kind": "entry", "entry": ideas}}),
-            read(),
-        )
-        .unwrap();
-    e.ws()
-        .call_guarded(
-            &agent,
-            "project.update",
             json!({"book": b, "word_target": 1234, "daily_word_target": 56}),
             read(),
         )
         .unwrap();
     let project = e.out("project.get", json!({"book": b}));
-    assert_eq!(project["book"]["root"]["entry"], ideas);
     assert_eq!(project["book"]["word_target"], 1234);
     assert_eq!(project["book"]["daily_word_target"], 56);
 
-    // Restoring the start from history, guarded by the same read.
+    // Restoring a target from history, guarded by the same read.
     e.ws()
         .call_guarded(
             &agent,
             "entry_history.restore",
-            json!({"book": b, "at": at, "targets": [{"collection": "project", "id": "book/root"}]}),
+            json!({"book": b, "at": at, "targets": [{"collection": "project", "id": "book/word_target"}]}),
             read(),
         )
         .unwrap();
-    assert_eq!(
-        e.out("project.get", json!({"book": b}))["book"]["root"]["entry"],
-        ms
+    assert_ne!(
+        e.out("project.get", json!({"book": b}))["book"]["word_target"],
+        1234
     );
 
     // A read taken before the author's change is stale.
@@ -240,67 +227,24 @@ fn a_writer_that_read_the_book_settings_may_change_them_and_a_stale_one_may_not(
     assert_eq!(project["book"]["daily_word_target"], 56);
 }
 
-/// DX 5: a book start that cannot be read (restored from history to a
-/// version when the book was off, so only the targets are left) reads as
-/// no book content, not as the whole project; nothing picks one for the
-/// author.
+/// DW: the book has no start, so history has none to bring back: the key an
+/// older book stored its start under is no history target.
 #[test]
-fn a_book_start_that_cannot_be_read_reads_as_no_book_content() {
+fn an_old_book_start_is_no_history_target() {
     let e = env();
     let b = e.book();
-    let ms = acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
-    let ideas = acceptance::novel_root(e.ws(), &b, "tpl-ideas");
-    e.out(
-        "entry.create",
-        json!({"book": b, "parent": ms, "template": "tpl-chapter", "title": "第一章", "bodies": {"mod-prose": "正文。"}}),
-    );
-    e.out(
-        "entry.create",
-        json!({"book": b, "parent": ideas, "template": "tpl-idea", "title": "一个构想", "bodies": {"mod-prose": "构想。"}}),
-    );
-    e.call("project.update", json!({"book": b, "has_book": false}));
-    let off = e.out("entry_history.version", json!({"book": b}))["version"].clone();
-    e.call(
-        "project.update",
-        json!({"book": b, "has_book": true, "root": {"kind": "entry", "entry": ms}, "word_target": 5000}),
-    );
-    let on = e.out("book.sequence", json!({"book": b}));
-    assert_eq!(on["root_valid"], true);
-    assert_eq!(on["entries"].as_array().unwrap().len(), 2);
-
-    e.call(
-        "entry_history.restore",
-        json!({"book": b, "at": off, "targets": [{"collection": "project", "id": "book/root"}]}),
-    );
-    let project = e.out("project.get", json!({"book": b}));
-    assert!(!project["book"].is_null(), "the book is still on");
-    assert_eq!(project["book"]["word_target"], 5000);
-    assert_eq!(project["book"]["root"], json!({"kind": "unset"}));
-    assert_eq!(project["book_root_valid"], false);
-    let seq = e.out("book.sequence", json!({"book": b}));
-    assert_eq!(seq["has_book"], true);
-    assert_eq!(seq["root_valid"], false);
-    assert_eq!(seq["entries"], json!([]), "not the whole project");
-    // An unset start is only ever read: nobody can pick it.
+    let at = e.out("entry_history.version", json!({"book": b}))["version"].clone();
+    e.call("project.update", json!({"book": b, "word_target": 5000}));
     match e.try_call(
-        "project.update",
-        json!({"book": b, "root": {"kind": "unset"}}),
+        "entry_history.restore",
+        json!({"book": b, "at": at, "targets": [{"collection": "project", "id": "book/root"}]}),
     ) {
-        Err(WsError::Violation(v)) => assert_eq!(v.invariant, "BOOK-ROOT-VALID"),
+        Err(WsError::Invalid(m)) => assert!(m.contains("project history key"), "{m}"),
         other => panic!("expected a refusal, got {other:?}"),
     }
-    // The targets can still change while no start is picked.
-    e.call("project.update", json!({"book": b, "word_target": 6000}));
-    let project = e.out("project.get", json!({"book": b}));
-    assert_eq!(project["book"]["root"], json!({"kind": "unset"}));
-    assert_eq!(project["book"]["word_target"], 6000);
-    e.ws().undo(&Actor::User).unwrap().unwrap();
-
-    // Undo brings the start back; the author can also pick one again.
-    e.ws().undo(&Actor::User).unwrap().unwrap();
     assert_eq!(
-        e.out("book.sequence", json!({"book": b}))["root_valid"],
-        true
+        e.out("project.get", json!({"book": b}))["book"]["word_target"],
+        5000
     );
 }
 
@@ -411,11 +355,11 @@ fn a_thing_is_mounted_on_one_tab_and_all_stays() {
     assert_eq!(tabs(&e, &b), before);
 }
 
-/// DX 7: creating, moving and removing a tab, and changing the book start,
-/// are each one undo step. (Tabs have no names since DZ: there is no
-/// renaming.)
+/// DX 7: creating, moving and removing a tab are each one undo step. (Tabs
+/// have no names since DZ: there is no renaming; the book has no start
+/// since DW.)
 #[test]
-fn every_tab_write_and_the_book_start_undo_in_one_step() {
+fn every_tab_write_undoes_in_one_step() {
     let e = env();
     let b = e.book();
     let undo = || e.ws().undo(&Actor::User).unwrap().unwrap();
@@ -439,18 +383,6 @@ fn every_tab_write_and_the_book_start_undo_in_one_step() {
     assert_eq!(tabs(&e, &b).len(), 4);
     undo();
     assert_eq!(tabs(&e, &b), before, "removing");
-
-    let root = e.out("project.get", json!({"book": b}))["book"]["root"].clone();
-    e.call(
-        "project.update",
-        json!({"book": b, "root": {"kind": "root"}}),
-    );
-    undo();
-    assert_eq!(
-        e.out("project.get", json!({"book": b}))["book"]["root"],
-        root,
-        "the book start"
-    );
 }
 
 /// Every stored document of `from` imported into `to`, the book first.

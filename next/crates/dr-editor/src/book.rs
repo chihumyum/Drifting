@@ -27,7 +27,7 @@ use std::rc::Rc;
 
 use dr_model::id::EntryId;
 use dr_model::shared::EncodedAnchor;
-use dr_model::v3::BookRoot;
+use dr_model::v3::FlattenFrom;
 use dr_workspace::{Workspace, WsError, WsEvent};
 use futures::StreamExt;
 use futures::channel::mpsc;
@@ -153,21 +153,22 @@ fn partition(sections: &[BookSection]) -> (Vec<Listed>, BookHeadings) {
     )
 }
 
-/// Stable reading-position key for a [`BookRoot`].
-pub fn book_root_position_key(root: &BookRoot) -> String {
+/// Stable reading-position key for where a whole-book view starts (the
+/// keys the reading positions are stored under; unchanged since they were
+/// keyed by the book start).
+pub fn flatten_position_key(root: &FlattenFrom) -> String {
     match root {
-        BookRoot::Root => "root".to_owned(),
-        BookRoot::Entry { entry } => entry.to_string(),
-        BookRoot::View { view } => format!("view:{view}"),
-        BookRoot::Lane { view, entry } => format!("lane:{view}/{entry}"),
-        BookRoot::Unset => String::new(),
+        FlattenFrom::Root => "root".to_owned(),
+        FlattenFrom::Entry { entry } => entry.to_string(),
+        FlattenFrom::View { view } => format!("view:{view}"),
+        FlattenFrom::Lane { view, entry } => format!("lane:{view}/{entry}"),
     }
 }
 
 /// Flattens `root` in reading order (`kernel-v5.md` §3, §16).
-fn list(ws: &Workspace, book: &str, root: &BookRoot) -> Result<Vec<BookSection>, WsError> {
+fn list(ws: &Workspace, book: &str, root: &FlattenFrom) -> Result<Vec<BookSection>, WsError> {
     let root = root.clone();
-    let res = crate::v3::read(ws, book, move |v| crate::v3::flatten_book_root(&v, &root))?;
+    let res = crate::v3::read(ws, book, move |v| crate::v3::flatten_from(&v, &root))?;
     res.map_err(|e| WsError::Invalid(e.to_string()))
 }
 
@@ -227,7 +228,7 @@ fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDo
 /// on the main thread with [`BookEditor::with_prepared`], which cannot fail.
 pub struct PreparedBook {
     book: String,
-    root: BookRoot,
+    root: FlattenFrom,
     from_key: String,
     sections: Vec<BookSection>,
     listed: Vec<Listed>,
@@ -241,8 +242,8 @@ impl PreparedBook {
         &self.book
     }
 
-    /// The starting [`BookRoot`].
-    pub fn root(&self) -> &BookRoot {
+    /// The starting [`FlattenFrom`].
+    pub fn root(&self) -> &FlattenFrom {
         &self.root
     }
 
@@ -298,7 +299,7 @@ impl gpui_prose::EmbedViews for BookEmbeds {
 pub struct BookEditor {
     ws: Workspace,
     book: String,
-    root: BookRoot,
+    root: FlattenFrom,
     from_key: String,
     sections: Vec<BookSection>,
     headings: BookHeadings,
@@ -358,7 +359,7 @@ impl BookEditor {
     pub fn open_root(
         ws: Workspace,
         book: &str,
-        root: BookRoot,
+        root: FlattenFrom,
         settings: EditorSettings,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -373,7 +374,7 @@ impl BookEditor {
     /// read, or when `from` is not a live entry with its switch on.
     pub fn prepare(ws: &Workspace, book: &str, from: &str) -> Result<PreparedBook, WsError> {
         let entry = EntryId::parse(from).map_err(|e| WsError::Invalid(e.to_string()))?;
-        Self::prepare_root(ws, book, BookRoot::Entry { entry })
+        Self::prepare_root(ws, book, FlattenFrom::Entry { entry })
     }
 
     /// The slow half of opening `root` (`Entry`, `View`, `Lane`, or `Root`) in
@@ -381,7 +382,7 @@ impl BookEditor {
     pub fn prepare_root(
         ws: &Workspace,
         book: &str,
-        root: BookRoot,
+        root: FlattenFrom,
     ) -> Result<PreparedBook, WsError> {
         let sections = list(ws, book, &root)?;
         let (listed, headings) = partition(&sections);
@@ -398,7 +399,7 @@ impl BookEditor {
                 Err(e) => log::warn!("dr-editor: comment anchors of {book}: {e}"),
             }
         }
-        let from_key = book_root_position_key(&root);
+        let from_key = flatten_position_key(&root);
         Ok(PreparedBook {
             book: book.to_owned(),
             root,
@@ -1067,8 +1068,8 @@ impl BookEditor {
 
     // ----- navigation ---------------------------------------------------------
 
-    /// The starting [`BookRoot`].
-    pub fn root(&self) -> &BookRoot {
+    /// The starting [`FlattenFrom`].
+    pub fn root(&self) -> &FlattenFrom {
         &self.root
     }
 

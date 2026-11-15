@@ -89,21 +89,13 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
         assert_eq!(v.meta().name, name);
         let tpl_ms =
             dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_MANUSCRIPT).unwrap();
-        let ms = v
-            .root_entry_by_template(&tpl_ms)
-            .expect("manuscript root entry");
-        assert_eq!(
-            v.project().book.as_ref().map(|b| &b.root),
-            Some(&dr_model::v3::BookRoot::Entry {
-                entry: ms.id.clone(),
-            })
+        assert!(
+            v.root_entry_by_template(&tpl_ms).is_some(),
+            "manuscript root entry"
         );
-        let numbered = v
-            .structure_snapshot()
-            .book_sequence()
-            .into_iter()
-            .filter(|e| e.ordinal.is_some())
-            .count();
+        // The book reads from the root: no start is written.
+        assert!(v.project().book.is_some());
+        let numbered = outermost_with_prose(v.structure_snapshot().book_sequence()).len();
         assert_eq!(numbered, chapters, "{name}");
         let tpl_char =
             dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_CHARACTER).unwrap();
@@ -156,4 +148,23 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
             assert!(docs.insert(prose.doc_id().to_string()));
         }
     }
+}
+
+/// The outermost entries of the book sequence that carry book prose (the
+/// chapters; one living under an entry with book prose of its own is part of
+/// it). The App numbers nothing.
+fn outermost_with_prose<'a>(seq: Vec<dr_doc::v3::FlatEntry<'a>>) -> Vec<dr_doc::v3::FlatEntry<'a>> {
+    let mut inside: Option<u32> = None;
+    seq.into_iter()
+        .filter(|e| {
+            if inside.is_some_and(|d| e.depth <= d) {
+                inside = None;
+            }
+            let outer = inside.is_none() && !e.prose.is_empty();
+            if outer {
+                inside = Some(e.depth);
+            }
+            outer
+        })
+        .collect()
 }

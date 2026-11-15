@@ -360,7 +360,6 @@
     "ruler": "Scale ruler",
     "selectLane": "Select lane",
     "setActTrack": "Use as act track · {{name}}",
-    "setBookRoot": "Set as book start",
     "unsetActTrack": "Use as regular lane · {{name}}",
     "views": "Views"
   },

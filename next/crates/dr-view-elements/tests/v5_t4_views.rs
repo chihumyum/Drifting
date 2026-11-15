@@ -131,8 +131,18 @@ fn both_blocks(
     rows
 }
 
-fn manuscript_entries(v: &dr_shell::book::v3::BookV3) -> Vec<String> {
-    v.manuscript.iter().map(|m| m.entry.clone()).collect()
+/// The book's entries living directly in `folder`, in book order (the book
+/// reads from the root, DW).
+fn book_in(v: &dr_shell::book::v3::BookV3, folder: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for m in &v.manuscript {
+        if v.entry(&m.entry).and_then(|e| e.parent.as_deref()) == Some(folder)
+            && !out.contains(&m.entry)
+        {
+            out.push(m.entry.clone());
+        }
+    }
+    out
 }
 
 fn drag_reorder(ws: &Workspace, book_id: &str, entry: &str, onto: &str, slot: DropSlot) -> bool {
@@ -291,12 +301,25 @@ fn lane_page_orders_residents_and_members_by_authoritative_scale_and_preserves_o
         );
     }
 
-    // Setting `project.book.root` to `view-b` makes `lane`'s own page follow
-    // `view-b`'s scale, while `view-a` retains its own placements untouched.
+    // Putting `view-b` before `view-a` makes `lane`'s own page follow
+    // `view-b`'s scale (the first view it is in), while `view-a` retains its
+    // own placements untouched.
+    let mut tv_b = call(&ws, "timeline_view.list", json!({"book": book}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "view-b")
+        .unwrap()
+        .clone();
+    tv_b["pos"] = json!(
+        dr_model::pos::PosKey::between(None, Some(&p0))
+            .unwrap()
+            .to_string()
+    );
     call(
         &ws,
-        "project.update",
-        json!({"book": book, "root": {"kind": "view", "view": "view-b"}}),
+        "timeline_view.put",
+        json!({"book": book, "view": tv_b}),
     );
     let snap_b = Book::load(&ws, &book).unwrap();
     let rows_b = both_blocks(
@@ -403,11 +426,6 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
 
     call(
         &ws,
-        "project.update",
-        json!({"book": book, "root": {"kind": "entry", "entry": folder}}),
-    );
-    call(
-        &ws,
         "timeline_view.put",
         json!({"book": book, "view": {"id": "folder-view", "name": "Folder View"}}),
     );
@@ -424,7 +442,7 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
         vec![ch_1.clone(), ch_2.clone(), ch_3.clone()]
     );
     assert_eq!(
-        manuscript_entries(s0.v3().unwrap()),
+        book_in(s0.v3().unwrap(), &folder),
         vec![ch_1.clone(), ch_2.clone(), ch_3.clone()]
     );
 
@@ -440,7 +458,7 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
         vec![ch_3.clone(), ch_1.clone(), ch_2.clone()]
     );
     assert_eq!(
-        manuscript_entries(s1.v3().unwrap()),
+        book_in(s1.v3().unwrap(), &folder),
         vec![ch_3.clone(), ch_1.clone(), ch_2.clone()]
     );
 
@@ -461,7 +479,7 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
         vec![ch_2.clone(), ch_3.clone(), ch_1.clone()]
     );
     assert_eq!(
-        manuscript_entries(s2.v3().unwrap()),
+        book_in(s2.v3().unwrap(), &folder),
         vec![ch_2.clone(), ch_3.clone(), ch_1.clone()]
     );
 
@@ -496,7 +514,7 @@ fn folder_in_view_drag_reorder_updates_scale_handles_trashed_siblings_and_guards
     );
     let s3 = Book::load(&ws, &book).unwrap();
     assert_eq!(s3.v3().unwrap().levels[&folder].children, order_in_view);
-    assert_eq!(manuscript_entries(s3.v3().unwrap()), order_in_view);
+    assert_eq!(book_in(s3.v3().unwrap(), &folder), order_in_view);
     ws.shutdown().unwrap();
 }
 

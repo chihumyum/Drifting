@@ -510,7 +510,7 @@ fn main() {
         let ms_level = v3
             .levels
             .keys()
-            .find(|id| v3.is_book_root_entry(id))
+            .find(|id| v3.entry(id).and_then(|e| e.template.as_deref()) == Some("tpl-manuscript"))
             .or_else(|| v3.roots.first())
             .expect("book root level")
             .clone();

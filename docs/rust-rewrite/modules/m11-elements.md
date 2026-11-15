@@ -1,5 +1,7 @@
 # M11 要素与分类
 
+> 2026-11-15 夜里（内核 v5 DW）：`BookV3::manuscript_number` 去掉了（App 不给条目编号），下面说的「按编号排」只是当时的记录。
+
 2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`。第一个里程碑在 main `1652a95e` 之后（已合进 main `60d510a6`）；第二个里程碑（对话框、⋯ 菜单的几行、左栏要素面板）在 `60d510a6` 之后（已合进 main `77a957d3`）；第三轮在 `77a957d3` 之后：⋯ 几行经外壳的 `pages::add_page_menu` 登记，左栏面板经 F6 第七轮的 `pages::add_left_panel` 挂进外壳（F6 的提交 `3be7018a` 合进了这个分支）。计划见 [modules.md 的 M11](../modules.md)。代码在 `next/crates/dr-view-elements/`；外壳里只加了一个挂接点（见「外壳里改了什么」）。旧版是 `ElementEditorView.tsx`、`CategoryEditorView.tsx`、`KvEditor.tsx`，产品规则见 components.md 的「实体编辑器」。
 
 ## 一句话

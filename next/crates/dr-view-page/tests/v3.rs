@@ -182,7 +182,6 @@ fn chrome_reads_and_writes_v3_roles(cx: &mut TestAppContext) {
     });
     let page = editor.read_with(&vcx, |v, _| v.page_info().unwrap());
     assert_eq!(page.kind, dr_editor::page::PageKind::Chapter);
-    assert!(page.number.is_some());
     assert!(page.storyline.is_some());
     assert!(dr_editor::page::set_synopsis(&e.ws, &e.book, &doc, "G1").unwrap());
     dr_editor::page::set_finished(&e.ws, &e.book, &doc, true).unwrap();
@@ -489,84 +488,6 @@ fn body_module_expands_flat_beyond_720px_without_inner_clamp(cx: &mut TestAppCon
     e.ws.close();
 }
 
-/// Author 2026-11-13: an entry with book prose of its own numbers what lives
-/// under it too. 第一章 with its switch on and three entries with book prose
-/// under it: 第二章 is still 「第 2 章」, the three show their template's name
-/// like any entry without a number.
-#[gpui::test]
-fn entries_under_a_chapter_with_book_prose_have_no_number_and_the_next_chapter_keeps_its_own(
-    cx: &mut TestAppContext,
-) {
-    use dr_editor::page::PageKind;
-
-    let mut e = env();
-    let initial = Book::load(&e.ws, &e.book).unwrap();
-    let v0 = initial.v3().unwrap();
-    let numbered = |n: u32| {
-        v0.entries
-            .iter()
-            .find(|x| v0.manuscript_number(&x.id) == Some(n))
-            .unwrap()
-            .id
-            .clone()
-    };
-    let (first, second) = (numbered(1), numbered(2));
-    let chapter_name = v0.template_of(&first).unwrap().name.clone();
-    call(
-        &e.ws,
-        "entry.set_level",
-        json!({"book": e.book, "id": first, "level": true}),
-    );
-    let below: Vec<String> = ["一", "二", "三"]
-        .into_iter()
-        .map(|title| {
-            call(
-                &e.ws,
-                "entry.create",
-                json!({"book": e.book, "parent": first, "template": "tpl-chapter", "title": title}),
-            )["id"]
-                .as_str()
-                .unwrap()
-                .to_owned()
-        })
-        .collect();
-    let after = Book::load(&e.ws, &e.book).unwrap();
-    let v = after.v3().unwrap();
-    assert_eq!(v.manuscript_number(&first), Some(1));
-    assert_eq!(v.manuscript_number(&second), Some(2));
-    for id in &below {
-        assert_eq!(v.manuscript_number(id), None);
-        // Still in the manuscript sequence, in place, right after 第一章.
-        assert!(v.manuscript.iter().any(|b| &b.entry == id));
-    }
-    let place = |id: &str| v.manuscript.iter().position(|b| b.entry == id).unwrap();
-    assert!(place(&first) < place(&below[0]));
-    assert!(place(&below[2]) < place(&second));
-
-    let page = |e: &Env, cx: &mut TestAppContext| {
-        let (view, mut vcx) = open(cx, e, "mod-prose");
-        let editor = view.read_with(&vcx, |v, _| v.editor().unwrap());
-        wait(&mut vcx, |cx| {
-            editor.read_with(cx, |v, _| v.page_info().is_some())
-        });
-        editor.read_with(&vcx, |v, _| v.page_info().unwrap())
-    };
-    e.entry = second.clone();
-    let info = page(&e, cx);
-    assert_eq!((info.kind, info.number), (PageKind::Chapter, Some(2)));
-    e.entry = first.clone();
-    let info = page(&e, cx);
-    assert_eq!((info.kind, info.number), (PageKind::Chapter, Some(1)));
-    for id in &below {
-        e.entry = id.clone();
-        let info = page(&e, cx);
-        assert_eq!((info.kind, info.number), (PageKind::Other, None));
-        assert!(info.chrome);
-        assert_eq!(info.template_name, chapter_name);
-    }
-    e.ws.close();
-}
-
 #[gpui::test]
 fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContext) {
     use dr_editor::page::PageKind;
@@ -652,7 +573,6 @@ fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContex
         .read_with(&vcx1, |v, _| v.page_info().unwrap());
     assert_eq!(info.kind, PageKind::Chapter);
     assert!(info.chrome);
-    assert!(info.number.is_some());
     assert_eq!(info.template_name, "幕间");
     assert!(!info.has_synopsis);
     assert!(!info.has_status);
@@ -718,9 +638,8 @@ fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContex
     });
     let note_ed = note_view.read_with(&vcx4, |v, _| v.editor().unwrap());
     let note_info = note_ed.read_with(&vcx4, |v, _| v.page_info().unwrap());
-    assert_eq!(note_info.kind, PageKind::Other);
+    assert_eq!(note_info.kind, PageKind::Chapter);
     assert!(note_info.chrome);
-    assert_eq!(note_info.number, None);
     assert_eq!(note_info.template_name, "幕间");
     assert!(note_info.storyline.is_some());
     assert_eq!(note_info.color.as_deref(), Some("#2a6f97"));
@@ -789,8 +708,11 @@ fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContex
     e.ws.close();
 }
 
+/// DW: the book reads from the root, so a chapter living under 构想 is a
+/// page of the book like any (the App numbers none); with the book off it
+/// is an entry's page, its folio its template's name, ⁂ without actions.
 #[gpui::test]
-fn chapter_numbering_follows_book_root_and_hides_when_book_disabled(cx: &mut TestAppContext) {
+fn a_chapter_anywhere_is_a_book_page_and_none_is_with_the_book_off(cx: &mut TestAppContext) {
     use dr_editor::page::PageKind;
 
     let mut e = env();
@@ -803,15 +725,6 @@ fn chapter_numbering_follows_book_root_and_hides_when_book_disabled(cx: &mut Tes
         .unwrap()
         .id
         .clone();
-    let lane_host = v0
-        .entries
-        .iter()
-        .find(|x| v0.is_lane(&x.id))
-        .unwrap()
-        .id
-        .clone();
-
-    // An entry using `tpl-chapter` outside `project.book.root` gets no chapter number.
     let outside_ch = call(
         &e.ws,
         "entry.create",
@@ -819,8 +732,8 @@ fn chapter_numbering_follows_book_root_and_hides_when_book_disabled(cx: &mut Tes
             "book": e.book,
             "parent": ideas_root,
             "template": "tpl-chapter",
-            "title": "稿外章节",
-            "bodies": {"mod-prose": "用了章节模板但不在成书起点里。"}
+            "title": "构想里的章",
+            "bodies": {"mod-prose": "用了章节模板，住在构想下。"}
         }),
     )["id"]
         .as_str()
@@ -833,63 +746,17 @@ fn chapter_numbering_follows_book_root_and_hides_when_book_disabled(cx: &mut Tes
     wait(&mut outside_vcx, |cx| {
         cx.update(|_, cx| dr_view_page::page_views(&outside_doc, cx).is_some())
     });
-    let outside_info = outside_view
-        .read_with(&outside_vcx, |v, _| v.editor().unwrap())
-        .read_with(&outside_vcx, |v, _| v.page_info().unwrap());
-    assert_eq!(
-        (outside_info.kind, outside_info.number),
-        (PageKind::Other, None)
-    );
-
-    // Switch `project.book.root` to `BookRoot::Lane` containing `[outside_ch]`: now `outside_ch` becomes chapter 1!
-    call(
-        &e.ws,
-        "membership.add",
-        json!({"book": e.book, "host": lane_host, "member": outside_ch}),
-    );
-    let lane_view_id = dr_model::id::TimelineViewId::new_v7().to_string();
-    call(
-        &e.ws,
-        "timeline_view.put",
-        json!({
-            "book": e.book,
-            "view": {
-                "id": lane_view_id,
-                "name": "泳道检视",
-                "lanes": [{"entry": lane_host, "pos": "a0"}],
-                "placements": [{"entry": outside_ch, "at": 10.0}],
-                "pins": []
-            }
-        }),
-    );
-    call(
-        &e.ws,
-        "project.update",
-        json!({
-            "book": e.book,
-            "root": {"kind": "lane", "entry": lane_host, "view": lane_view_id}
-        }),
-    );
-    let lane_ed = outside_view.read_with(&outside_vcx, |v, _| v.editor().unwrap());
-    wait(&mut outside_vcx, |cx| {
-        lane_ed.read_with(cx, |v, _| {
-            v.page_info()
-                .is_some_and(|p| p.kind == PageKind::Chapter && p.number.is_some())
-        })
-    });
+    let ed = outside_view.read_with(&outside_vcx, |v, _| v.editor().unwrap());
+    let info = ed.read_with(&outside_vcx, |v, _| v.page_info().unwrap());
+    assert_eq!(info.kind, PageKind::Chapter);
     let (head, end) =
         outside_vcx.update(|_, cx| dr_view_page::page_views(&outside_doc, cx).unwrap());
-    let numbered_label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
-    assert!(
-        numbered_label.contains(&lane_ed.read_with(&outside_vcx, |v, _| {
-            v.page_info().unwrap().number.unwrap().to_string()
-        }),),
-        "expected numbered chapter folio label, got {numbered_label}"
-    );
+    let label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
+    assert_eq!(label, info.template_name, "no number in the folio");
     assert!(outside_vcx.update(|_, cx| head.read(cx).has_book(cx)));
     assert!(outside_vcx.update(|_, cx| end.read(cx).has_book(cx)));
 
-    // Turn `成书` off (`has_book: false`): `BodyModule::refresh` drops chapter numbering and `⁂` actions immediately.
+    // Turn `成书` off (`has_book: false`): no ⁂ actions.
     call(
         &e.ws,
         "project.update",
@@ -902,23 +769,21 @@ fn chapter_numbering_follows_book_root_and_hides_when_book_disabled(cx: &mut Tes
     assert!(!outside_vcx.update(|_, cx| head.read(cx).has_book(cx)));
     assert!(!outside_vcx.update(|_, cx| end.read(cx).has_book(cx)));
     let bookless_label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
-    assert_eq!(bookless_label, outside_info.template_name);
+    assert_eq!(bookless_label, info.template_name);
     end.update_in(&mut outside_vcx, |end, window, cx| {
         end.open_actions(window, cx)
     });
     assert!(!end.read_with(&outside_vcx, |end, _| end.is_open()));
-
     wait(&mut outside_vcx, |cx| {
-        lane_ed.read_with(cx, |v, _| {
-            v.page_info()
-                .is_some_and(|p| p.kind == PageKind::Other && p.number.is_none())
+        ed.read_with(cx, |v, _| {
+            v.page_info().is_some_and(|p| p.kind == PageKind::Other)
         })
     });
     e.ws.close();
 }
 
 #[gpui::test]
-fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut TestAppContext) {
+fn stats_pages_and_export_dialog_agree_on_the_book_read_from_the_root(cx: &mut TestAppContext) {
     use dr_editor::page::PageKind;
     use dr_view_export::{ExportDialog, Request};
     use dr_view_stats::{
@@ -930,13 +795,6 @@ fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut Te
     cx.executor().allow_parking();
     let initial = Book::load(&e.ws, &e.book).unwrap();
     let v0 = initial.v3().unwrap();
-    let ms_root = v0
-        .entries
-        .iter()
-        .find(|x| x.template.as_deref() == Some("tpl-manuscript"))
-        .unwrap()
-        .id
-        .clone();
     let ideas_root = v0
         .entries
         .iter()
@@ -954,8 +812,8 @@ fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut Te
             "book": e.book,
             "parent": ideas_root,
             "template": "tpl-chapter",
-            "title": "稿外章节",
-            "bodies": {"mod-prose": "用了章节模板但不在成书起点里。"}
+            "title": "构想里的章",
+            "bodies": {"mod-prose": "用了章节模板，住在构想下，也在成书里。"}
         }),
     )["id"]
         .as_str()
@@ -969,7 +827,7 @@ fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut Te
             "parent": ideas_root,
             "template": "tpl-idea",
             "title": "海图手记",
-            "bodies": {"mod-prose": "入列后按成书起点顺序编号和导出。"}
+            "bodies": {"mod-prose": "构想的正文不进成书。"}
         }),
     )["id"]
         .as_str()
@@ -1045,8 +903,8 @@ fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut Te
     );
     e.ws.library().rebuild_stale_indexes().unwrap();
 
-    // Open live editors for `[ch1, ch2, note, outside_ch]` so each `book_root` switch also
-    // proves live `ChapterEditor` re-numbering.
+    // Open live editors for `[ch1, ch2, note, outside_ch]` so each change
+    // also proves live `ChapterEditor` pages follow.
     let mut editors = std::collections::BTreeMap::new();
     for id in [&ch1, &ch2, &note, &outside_ch] {
         let mut sub = Env {
@@ -1064,85 +922,59 @@ fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut Te
         editors.insert(id.clone(), (view, vcx));
     }
 
-    let mut check_root =
-        |cx: &mut TestAppContext, root: Value, expected_prefix: Option<&[&str]>| {
-            call(
-                &e.ws,
-                "project.update",
-                json!({"book": e.book, "root": root}),
-            );
-
-            let stats = stats_v3::load(&e.ws, &e.book, Scope::Book).unwrap();
-            let stats_ids: Vec<String> = stats
-                .manuscript
-                .iter()
-                .map(|d| d.entry.clone().unwrap())
-                .collect();
-            assert!(!stats_ids.contains(&outside_ch));
-            assert!(stats.book_words(&Live::default()).unwrap().words > 0);
-            if let Some(expected) = expected_prefix {
-                let expected_vec: Vec<String> = expected.iter().map(|s| (*s).to_owned()).collect();
-                assert_eq!(stats_ids, expected_vec);
-            }
-
-            let snap = Book::load(&e.ws, &e.book).unwrap();
-            for (idx, id) in stats_ids.iter().enumerate() {
-                let expected_num = (idx + 1) as u32;
-                assert_eq!(snap.v3().unwrap().manuscript_number(id), Some(expected_num));
-                if let Some((view, vcx)) = editors.get_mut(id) {
-                    let ed = view.read_with(vcx, |v, _| v.editor().unwrap());
-                    wait(vcx, |cx| {
-                        ed.read_with(cx, |v, _| {
-                            v.page_info().is_some_and(|p| {
-                                p.kind == PageKind::Chapter && p.number == Some(expected_num)
-                            })
-                        })
-                    });
-                }
-            }
-            assert_eq!(snap.v3().unwrap().manuscript_number(&outside_ch), None);
-            {
-                let (view, vcx) = editors.get_mut(&outside_ch).unwrap();
-                let ed = view.read_with(vcx, |v, _| v.editor().unwrap());
-                wait(vcx, |cx| {
-                    ed.read_with(cx, |v, _| {
-                        v.page_info()
-                            .is_some_and(|p| p.kind == PageKind::Other && p.number.is_none())
-                    })
-                });
-            }
-
-            let (dialog, vcx) = cx.add_window_view(|window, cx| {
-                ExportDialog::new(
-                    Some(e.ws.clone()),
-                    e.book.clone(),
-                    Request::Manuscript { chapter: None },
-                    dr_i18n::Locale::ZhCn,
-                    dr_i18n::Platform::Mac,
-                    window,
-                    cx,
-                )
-            });
+    let mut check = |cx: &mut TestAppContext| -> Vec<String> {
+        let stats = stats_v3::load(&e.ws, &e.book, Scope::Book).unwrap();
+        let stats_ids: Vec<String> = stats
+            .manuscript
+            .iter()
+            .map(|d| d.entry.clone().unwrap())
+            .collect();
+        assert!(stats_ids.contains(&outside_ch));
+        assert!(!stats_ids.contains(&note));
+        assert!(stats.book_words(&Live::default()).unwrap().words > 0);
+        for (id, (view, vcx)) in editors.iter_mut() {
+            let want = if stats_ids.contains(id) {
+                PageKind::Chapter
+            } else {
+                PageKind::Other
+            };
+            let ed = view.read_with(vcx, |v, _| v.editor().unwrap());
             wait(vcx, |cx| {
-                dialog.read_with(cx, |d, _| {
-                    d.manuscript().is_some_and(|m| m.outline.is_some())
-                })
+                ed.read_with(cx, |v, _| v.page_info().is_some_and(|p| p.kind == want))
             });
-            let export_ids = dialog.read_with(vcx, |d, _| d.manuscript().unwrap().chapters());
-            assert_eq!(export_ids, stats_ids);
-        };
+        }
 
-    check_root(cx, json!({"kind": "entry", "entry": ms_root}), None);
-    check_root(
-        cx,
-        json!({"kind": "view", "view": view_id}),
-        Some(&[ch2.as_str(), note.as_str(), ch1.as_str()]),
-    );
-    check_root(
-        cx,
-        json!({"kind": "lane", "entry": lane_a, "view": view_id}),
-        Some(&[note.as_str(), ch1.as_str()]),
-    );
+        let (dialog, vcx) = cx.add_window_view(|window, cx| {
+            ExportDialog::new(
+                Some(e.ws.clone()),
+                e.book.clone(),
+                Request::Manuscript { chapter: None },
+                dr_i18n::Locale::ZhCn,
+                dr_i18n::Platform::Mac,
+                window,
+                cx,
+            )
+        });
+        wait(vcx, |cx| {
+            dialog.read_with(cx, |d, _| {
+                d.manuscript().is_some_and(|m| m.outline.is_some())
+            })
+        });
+        let export_ids = dialog.read_with(vcx, |d, _| d.manuscript().unwrap().chapters());
+        assert_eq!(export_ids, stats_ids);
+        stats_ids
+    };
 
+    // From the root: 书稿's chapters, then the chapter under 构想.
+    let book = check(cx);
+    assert_eq!(book.last(), Some(&outside_ch));
+    // 构想 before 书稿: its chapter first.
+    call(
+        &e.ws,
+        "entry.move",
+        json!({"book": e.book, "id": ideas_root, "parent": null, "index": 0}),
+    );
+    let book = check(cx);
+    assert_eq!(book.first(), Some(&outside_ch));
     e.ws.close();
 }

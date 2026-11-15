@@ -156,7 +156,7 @@ impl SyncEngine {
     ) -> Result<(usize, usize, usize), SyncError> {
         let mut changed_docs: BTreeSet<String> =
             library.docs_with_local_changes()?.into_iter().collect();
-        for info in library.docs(None, None)? {
+        for info in library.syncable_docs()? {
             if !self.state.registered_docs.contains(&info.doc_id)
                 && library.remote_vv(&info.doc_id)?.is_empty()
             {
@@ -408,7 +408,7 @@ impl SyncEngine {
         access_token: &str,
         report: &mut SyncCycleReport,
     ) -> Result<(), SyncError> {
-        let all_docs = library.docs(None, None)?;
+        let all_docs = library.syncable_docs()?;
         let doc_map: BTreeMap<String, DocInfo> = all_docs
             .iter()
             .cloned()

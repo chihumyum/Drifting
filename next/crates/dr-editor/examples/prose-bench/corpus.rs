@@ -78,10 +78,10 @@ impl Corpus {
         drop(seeded);
         let ws = Workspace::open_dir(dir.path(), VERSION).expect("workspace");
         let chapters: Vec<_> = dr_editor::v3::read(&ws, &book, |view| {
-            let root = dr_editor::v3::manuscript_roots(&view)
-                .into_iter()
-                .next()
-                .expect("manuscript root");
+            let root = view
+                .root_entry_by_template(&dr_doc::v3::novel::TPL_MANUSCRIPT.parse().unwrap())
+                .expect("manuscript root")
+                .id;
             dr_editor::v3::flatten_book(&view, &root).expect("flatten manuscript")
         })
         .expect("manuscript order")

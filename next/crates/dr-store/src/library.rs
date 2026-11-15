@@ -1617,14 +1617,18 @@ impl Library {
     }
 
     /// Documents with changes that exist only on this device: their stored
-    /// version is not covered by what the sync service has.
+    /// version is not covered by what the sync service has. A book kept on
+    /// this device ([`Library::keep_local`]) is left out.
     pub fn docs_with_local_changes(&self) -> Result<Vec<String>> {
         let rows: Vec<(String, Vec<u8>, Option<Vec<u8>>)> = self
             .inner
             .reader()
             .prepare_cached(
                 "SELECT h.doc_id, h.vv, s.remote_vv FROM loro_head h
-                 LEFT JOIN sync_doc s ON s.doc_id = h.doc_id ORDER BY h.doc_id",
+                 LEFT JOIN sync_doc s ON s.doc_id = h.doc_id
+                 WHERE h.doc_id NOT IN (SELECT doc_id FROM loro_doc
+                   WHERE book_id IN (SELECT book_id FROM local_book))
+                 ORDER BY h.doc_id",
             )?
             .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
             .collect::<rusqlite::Result<_>>()?;
@@ -1649,8 +1653,12 @@ impl Library {
     /// document (not from rows: compaction may have folded them into the
     /// snapshot). Makes everything durable on disk first, and raises the
     /// device watermark, because these bytes are about to leave the device.
-    /// `None` when there is nothing to upload.
+    /// `None` when there is nothing to upload, or the document belongs to a
+    /// book kept on this device.
     pub fn export_for_upload(&self, doc_id: &str) -> Result<Option<UploadBatch>> {
+        if self.is_local_doc(doc_id)? {
+            return Ok(None);
+        }
         self.sync_to_disk()?;
         let remote = self.remote_vv(doc_id)?;
         let export = move |doc: &LoroDoc| -> Result<Option<(Vec<u8>, VersionVector)>> {

@@ -1,5 +1,7 @@
 # M36 Hosted 同步 v2
 
+> 2026-11-15 夜里（内核 v5 DW）：引擎登记文档改用 `Library::syncable_docs()`（不列只在这台设备上的书，即编辑模板的工作区）；有本机改动的文档、清除记录、文件字节的单子也由书库替它去掉这种书。回归 `dr-sync/tests/working_copy.rs`。另：DW 时查到，`project.create` 只登记、没写内容的正文文档（模板里没有初值的「说明」之类）会让 `sync_once` 在登记那一步 `load_copy` 报 `NotFound` 失败；DW 没改它，写在交回报告里。
+
 > 2026-11-13 内核 v4：书目格式 4；每本书多两篇小文档 `stats:<书>`（写作日）、`checkpoints:<书>`（快照点清单），登记在书名下，和别的文档一样按不透明的 id 传。协议和服务端不用改（[kernel-v4.md](../kernel-v4.md) 第 10 节「同步」）。
 
 > 2026-11-10 切换实施更新：保留任务 6 的 v3 同步契约；新增闭库后真实 SyncEngine 长活 fake-server helper，生产 App 自动调度仍未实现。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。

@@ -1018,13 +1018,6 @@ pub(crate) fn resolve_v3(
                         *pin_val = pid.into();
                     }
                 }
-                "project.update" | "book.sequence" => {
-                    if let Some(root_val) = obj.get_mut("root")
-                        && !root_val.is_null()
-                    {
-                        resolve_book_root(&cx, root_val)?;
-                    }
-                }
                 "tab.put" => {
                     if let Some(id_val) = obj.get_mut("id")
                         && !id_val.is_null()
@@ -2788,47 +2781,6 @@ fn resolve_comment_part(
             }
         }
         _ => {}
-    }
-    Ok(())
-}
-
-fn resolve_book_root(cx: &ResolveCtx<'_>, value: &mut Value) -> Result<()> {
-    let obj = value
-        .as_object_mut()
-        .ok_or_else(|| invalid("book root must be an object"))?;
-    match obj.get("kind").and_then(Value::as_str) {
-        Some("root") => {}
-        Some("entry") => {
-            let e_val = obj
-                .get_mut("entry")
-                .ok_or_else(|| invalid("entry book root needs entry"))?;
-            let eid = resolve_entry_id(cx, e_val, None, false, EntryRole::Below)?;
-            *e_val = eid.to_string().into();
-        }
-        Some("view") => {
-            let v_val = obj
-                .get_mut("view")
-                .ok_or_else(|| invalid("view book root needs view"))?;
-            let vid = resolve_timeline_view_id(&cx.view, v_val)?;
-            *v_val = vid.to_string().into();
-        }
-        Some("lane") => {
-            let v_val = obj
-                .get_mut("view")
-                .ok_or_else(|| invalid("lane book root needs view"))?;
-            let vid = resolve_timeline_view_id(&cx.view, v_val)?;
-            *v_val = vid.to_string().into();
-            let e_val = obj
-                .get_mut("entry")
-                .ok_or_else(|| invalid("lane book root needs entry"))?;
-            let eid = resolve_entry_id(cx, e_val, None, false, EntryRole::Below)?;
-            *e_val = eid.to_string().into();
-        }
-        other => {
-            return Err(invalid(format!(
-                "invalid book root kind {other:?}; use root, entry, view, or lane"
-            )));
-        }
     }
     Ok(())
 }

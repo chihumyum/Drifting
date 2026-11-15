@@ -34,6 +34,8 @@
 //! - What the sync service has is tracked per document (`remote_vv`), so
 //!   uploads export from the document, independent of compaction.
 //! - Asset files ([`asset`]) follow the 0.1 product's import protocol.
+//! - A book can be kept on this device ([`local_book`]): sync never lists
+//!   its documents, asset bytes or purge records.
 //!
 //! Documents are plain `loro::LoroDoc`s addressed by string ids; the document
 //! structure (dr-doc) plugs in through [`LibraryOptions::configure_doc`], the
@@ -52,6 +54,7 @@ mod holder;
 pub mod identity;
 pub mod index;
 mod library;
+pub mod local_book;
 pub mod local_state;
 pub mod machine;
 pub mod migrate;
@@ -70,6 +73,7 @@ pub use library::{
     Library, LibraryOptions, LibraryPaths, LoadStats, LocalTx, OpenDoc, Settlement, StoredUpdate,
     UploadBatch, ValidateImport,
 };
+pub use local_book::LocalBook;
 pub use migrate::{Durability, MIGRATIONS, Migration, MigrationStage, OpenReport};
 pub use origin::{AGENT_PREFIX, COMMAND_ORIGIN, Origin};
 

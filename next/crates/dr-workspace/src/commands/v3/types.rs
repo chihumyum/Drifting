@@ -714,52 +714,18 @@ impl From<&dr_model::v3::TimelineView> for TimelineView {
 
 // ---- project definition & book sequence (`kernel-v5.md` §2, §3, §5 & §10) ----
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ProjectTemplateDerivedFrom {
-    pub name: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub author: String,
-}
-
-impl From<&dr_model::project_template::ProjectTemplateDerivedFrom> for ProjectTemplateDerivedFrom {
-    fn from(v: &dr_model::project_template::ProjectTemplateDerivedFrom) -> Self {
-        Self {
-            name: v.name.clone(),
-            author: v.author.clone(),
-        }
-    }
-}
-
-impl From<&ProjectTemplateDerivedFrom> for dr_model::project_template::ProjectTemplateDerivedFrom {
-    fn from(v: &ProjectTemplateDerivedFrom) -> Self {
-        Self {
-            name: v.name.clone(),
-            author: v.author.clone(),
-        }
-    }
-}
-
+/// A template's credit: its author's name only (no homepage, no 「改自」;
+/// an old caller's extra keys are ignored).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectTemplateCredit {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub author: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub homepage: String,
-    #[serde(
-        rename = "derivedFrom",
-        alias = "derived_from",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub derived_from: Option<ProjectTemplateDerivedFrom>,
 }
 
 impl From<&dr_model::project_template::ProjectTemplateCredit> for ProjectTemplateCredit {
     fn from(v: &dr_model::project_template::ProjectTemplateCredit) -> Self {
         Self {
             author: v.author.clone(),
-            homepage: v.homepage.clone(),
-            derived_from: v.derived_from.as_ref().map(Into::into),
         }
     }
 }
@@ -768,8 +734,6 @@ impl From<&ProjectTemplateCredit> for dr_model::project_template::ProjectTemplat
     fn from(v: &ProjectTemplateCredit) -> Self {
         Self {
             author: v.author.clone(),
-            homepage: v.homepage.clone(),
-            derived_from: v.derived_from.as_ref().map(Into::into),
         }
     }
 }
@@ -821,18 +785,6 @@ impl ProjectTemplateRef {
             None => None,
             Some(c) => {
                 let mc: dr_model::project_template::ProjectTemplateCredit = (&c).into();
-                if !mc.homepage.is_empty() && !mc.homepage.starts_with("https://") {
-                    return Err(WsError::invalid(
-                        "credit.homepage must start with \"https://\"",
-                    ));
-                }
-                if let Some(df) = &mc.derived_from
-                    && df.name.trim().is_empty()
-                {
-                    return Err(WsError::invalid(
-                        "credit.derivedFrom.name must not be empty",
-                    ));
-                }
                 (!mc.is_empty()).then_some(mc)
             }
         };
@@ -846,47 +798,11 @@ impl ProjectTemplateRef {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum BookRoot {
-    Root,
-    Entry {
-        entry: String,
-    },
-    View {
-        view: String,
-    },
-    Lane {
-        view: String,
-        entry: String,
-    },
-    /// The stored start is missing or cannot be read: the book has no
-    /// content until a start is picked again. Never accepted as a start.
-    Unset,
-}
-
-impl From<&dr_model::v3::BookRoot> for BookRoot {
-    fn from(v: &dr_model::v3::BookRoot) -> Self {
-        match v {
-            dr_model::v3::BookRoot::Root => Self::Root,
-            dr_model::v3::BookRoot::Entry { entry } => Self::Entry {
-                entry: entry.to_string(),
-            },
-            dr_model::v3::BookRoot::View { view } => Self::View {
-                view: view.to_string(),
-            },
-            dr_model::v3::BookRoot::Lane { view, entry } => Self::Lane {
-                view: view.to_string(),
-                entry: entry.to_string(),
-            },
-            dr_model::v3::BookRoot::Unset => Self::Unset,
-        }
-    }
-}
-
+/// The book (`project.book`): on when present, with its two word targets.
+/// It has no start: the book reads the whole project from the root. An old
+/// `root` in an input is ignored.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectBook {
-    pub root: BookRoot,
     /// Effective whole-book word target (`None` when turned off).
     #[serde(default)]
     pub word_target: Option<i64>,
@@ -904,7 +820,6 @@ pub struct ProjectBook {
 impl From<&dr_model::v3::ProjectBook> for ProjectBook {
     fn from(v: &dr_model::v3::ProjectBook) -> Self {
         Self {
-            root: (&v.root).into(),
             word_target: v.word_target(),
             daily_word_target: v.daily_word_target(),
             word_target_set: v.word_target_set,
@@ -959,9 +874,6 @@ pub struct Project {
     pub agent: Option<TemplateAgentConfig>,
     #[serde(default)]
     pub book: Option<ProjectBook>,
-    /// Whether `book.root` currently points to a valid start (`true` when `book` is `None`).
-    #[serde(default = "default_true")]
-    pub book_root_valid: bool,
     /// The tabs in order: one per mount, 「全部」 (mounted at the root,
     /// id `tab-all` unless the book stores another root tab) always among them.
     #[serde(default)]
@@ -970,6 +882,11 @@ pub struct Project {
     /// `None` when none was chosen or the chosen tab is gone.
     #[serde(default)]
     pub selected_tab: Option<String>,
+    /// The saved project template (`project-template:<id>`) this project is
+    /// the working copy of (编辑模板的工作区), when it is one
+    /// ([`Self::with_editing_template`]).
+    #[serde(default)]
+    pub editing_template: Option<String>,
 }
 
 impl Project {
@@ -981,10 +898,6 @@ impl Project {
             source: p.source.as_ref().map(Into::into),
             agent: p.agent.as_ref().map(Into::into),
             book: p.book.as_ref().map(Into::into),
-            book_root_valid: p
-                .book
-                .as_ref()
-                .is_none_or(|b| s.is_valid_book_root(&b.root)),
             tabs: p
                 .tabs
                 .iter()
@@ -996,7 +909,15 @@ impl Project {
                 })
                 .collect(),
             selected_tab: None,
+            editing_template: None,
         }
+    }
+
+    /// With the template this project is the working copy of
+    /// ([`crate::Workspace::working_copy_template`]).
+    pub fn with_editing_template(mut self, template: Option<String>) -> Self {
+        self.editing_template = template;
+        self
     }
 
     /// With the tab `layout:<book>` remembers ([`crate::Workspace::stored_tab`])
@@ -1226,12 +1147,12 @@ impl From<&dr_doc::v3::FlatProse> for SequenceProse {
     }
 }
 
+/// One entry of the book sequence. The App numbers nothing: an author who
+/// wants chapter numbers writes them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SequenceEntry {
     pub entry: Entry,
     pub depth: u32,
-    /// 1-based chapter ordinal when `prose` has at least one `in_book` prose module; `None` otherwise.
-    pub ordinal: Option<u32>,
     pub prose: Vec<SequenceProse>,
 }
 
@@ -1240,7 +1161,6 @@ impl From<&dr_doc::v3::FlatEntry<'_>> for SequenceEntry {
         Self {
             entry: v.entry.into(),
             depth: v.depth,
-            ordinal: v.ordinal,
             prose: v.prose.iter().map(Into::into).collect(),
         }
     }
@@ -1249,7 +1169,7 @@ impl From<&dr_doc::v3::FlatEntry<'_>> for SequenceEntry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct BookSequenceOut {
     pub has_book: bool,
-    pub root: Option<BookRoot>,
-    pub root_valid: bool,
+    /// The whole project read from the root, book prose only (empty when
+    /// the project has no book).
     pub entries: Vec<SequenceEntry>,
 }

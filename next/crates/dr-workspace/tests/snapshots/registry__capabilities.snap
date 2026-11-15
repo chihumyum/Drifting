@@ -18,12 +18,12 @@ asset_folder.rename          command  book     Rename a folder of the asset libr
 asset_folder.restore         command  book     Bring a folder of the asset library back from Recently Deleted with what went there with it (to the top when its parent is still in Recently Deleted).
 asset_folder.trash           command  book     Move a folder of the asset library to Recently Deleted with everything in it (its files and folders), in one step: places using those files read as placeholders.
 book.get                     query    shared   Read book metadata and project word targets; aggregate counts use the statistics adapter.
-book.list                    query    shared   List the library's books (trashed ones when asked).
+book.list                    query    shared   List the library's books (trashed ones when asked); a template's working copy is not one of them.
 book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.
 book.purge_expired           command  library  Delete for good every book whose 30 days in Recently Deleted are over (the shelf runs it a while after it opens, so a restore made on another device can arrive first). Cannot be undone.
 book.restore                 command  book     Bring a book back from the trash.
-book.sequence                query    shared   Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start).
-book.shelf                   query    shared   Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.
+book.sequence                query    shared   Read the ordered book sequence: the whole project from the root, book prose only (empty when the project has no book).
+book.shelf                   query    shared   Everything the bookshelf shows, in one read: every book (not a template's working copy) with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.
 book.trash                   command  book     Move a book to the trash (restorable; storage deletes it for good later).
 book.update                  command  book     Update selected book metadata fields without replacing other book data.
 book.writing_days            query    shared   A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
@@ -97,13 +97,15 @@ module.set_arrangement       command  book     Choose how this entry lays out th
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
 module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module.
 project.create               command  library  Create a project from a project template (defaults to the built-in writing template).
-project.get                  query    shared   Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.
-project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.
+project.get                  query    shared   Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.
+project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, and word targets; with the project's name and profile, all in one undoable write.
+project_template.edit        command  library  Edit a saved project template in its working copy: a project made from it the way project.create makes one, kept on this device and out of the project lists, recording no writing days; every change made in it saves itself over the template. A working copy left from before is used again when it is in step with the template.
 project_template.get         query    shared   Read a saved project template and its validated value.
 project_template.list        query    shared   List saved project templates in this library.
 project_template.remove      command  library  Permanently delete a saved project template from this library.
-project_template.save        command  library  Save a project's structure and selected sample items as a project template.
+project_template.save        command  library  Save a project's structure and selected sample items as a project template, or a template's working copy over that template.
 project_template.update      command  library  Rename a saved project template or update its description.
+project_template.working_copies query    shared   List the templates' working copies still on this device, oldest first.
 prose.link                   command  book     Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).

@@ -215,8 +215,9 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 2. **项目定义根 `project`**：取代散落在 `meta` 里的模板来源与全书目标，集中保存：
    - `source`：`{id, version, origin?, name?, credit?}`（内置「写书」模板为 `builtin:novel` 版本 `3`（2026-11-15 DZ 起 `4`：默认 Tab 是「全部」加书稿、构想、要素、故事线，不带名字）、`origin = "builtin"`；从我的模板、模板文件或社区模板新建时一并记下 `origin`、模板名与可选署名 `credit`）；
    - `agent`（子映射 `{name, description, instructions}`）：整本项目的帮手说明（从原「书稿」条目模板挪入）；
-   - `book`（可选子映射，关闭成书时为空）：`root`（成书起点：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "lane", view, entry}` 四种）、`word_target`、`daily_word_target`。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；成书序列与整书视图共用同一套遍历规则（条目与根先序遍历并带挂名且每条目只收一次；视图与泳道沿刻度排）；
+   - `book`（可选子映射，在就是开着成书）：`word_target`、`daily_word_target`。成书没有起点（2026-11-15 夜里，任务书 DW）：成书序列总是从根读，先序走整棵树（住着的看「层级」、手动先后，这一层在视图里时按它所在的第一个视图的刻度；挂着的看「收别处的条目」），每条目只收一次，只收「进成书」的正文；App 不给条目编号。原来这里还有 `root`（四种起点），去掉了；更早的书里存着的 `root` 读的时候不管、也不改写。整书视图与成书序列共用同一套遍历规则，从哪打开（根、条目、视图、视图里的一条泳道）是 `dr_model::v3::FlattenFrom`，不存进书里。去掉层级设置里的 `is_manuscript` 和「成书不嵌套」检查；
    - `tabs`（id → `{pos, mount}`）：左栏自定义 Tab，`mount` 取 `{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}` 四种。Tab 没有名字，叫它挂的东西的名字（2026-11-15 DZ 起不再写 `name`，旧的 `name` 键读的时候不管）。同一样东西只挂一个 Tab：读取时按 `(pos, id)` 排好，挂载重复的只留第一个（`TAB-MOUNT-ONCE`）。挂根的「全部」用固定的 id `tab-all`（`dr_model::v3::ALL_TAB_ID`）；没存挂根的 Tab 时读取补一个、排在最前，`tab.move` 动它时才写进书里（`TAB-ROOT-ALWAYS`）。
+   - **编辑模板的工作区（临时项目）不在书目文档里标记**（DW）：它是一本普通的书（`book:<书>` 加正文和三篇小文档），由书库的本机表 `local_book`（`dr-store` 迁移 `0008`）记下「这本书只在这台设备上」：`book_id`、`note`（工作区存的 JSON：`{template, revision, digest}`，它在编辑哪一份模板、上次和模板一致时的修订号和内容摘要）、`created_ms`。标记在写第一篇文档之前打上；同步读的几张单子都不列它（有本机改动的文档、可以登记的文档、导出的更新、清除记录、要上传的文件字节），一行留着不删（像清除记录一样），所以它的文档清除以后，清除记录也不上传。项目列表（`book.list`、`book.shelf`）不列它，`writing_day.record` 跳过它。放在书目文档里不行：书目文档在 `project.create` 里最后写，正文先写；同步得在打开文档之前就知道。
 3. **视图刻度接管顺序**：`timeline_views`（视图）的刻度是泳道在视图内期间唯一的顺序权威。条目挂进泳道或直接住进作为泳道的层级时，自动落在包含该泳道的各活视图刻度末尾（已有最后一格右端 `+ 1.0`，空视图为 `0.0`，见 `timeline_scale_end`）；条目（开着「层级」或「收别处的条目」）第一次加入某视图作泳道时，其直接子条目（手动先后）与挂名成员（按 `memberships.pos`）依次自动落位。在视图内期间不读不写 `memberships.pos` 或文件夹手动先后；当泳道离开它所在的**最后一个**活视图（移出泳道或删除视图）时，将该视图刻度上的先后一次性写回 `memberships.pos` 与直接子条目的手动先后，同一次提交、一步撤销。
 4. **批注与待办合并**：`comments` 去掉 `kind`（批注与待办合一）；`origin` 区分 `manual`、`marker`（正文 `TODO:`）、`task`（正文任务清单项）、`agent`、`reader`；`target_kind` 为 `entry` 或 `asset`：
    - 目标为条目时可带任意种类的 `module`，再由结构化 `part` 定位模块内子处（正文锚点与块快照直接存在批注字段上）：字段（`{kind: "field", field: <FieldId>}`，存稳定字段 id，字段改名不丢锚）、键值行（`{kind: "kv_row", row}`）、情节规划格（`{kind: "plot_cell", row, col}`）、补丁（`{kind: "patch", patch}`）、媒体模块里的文件（`{kind: "media", asset, region?}`，2026-11-15 起按文件指：一个文件在一个媒体模块里只出现一次）、正文嵌入（`{kind: "embed", embed, region?}`）；原处删掉后批注保留，读取标出 `target_missing = true`；
@@ -443,7 +444,7 @@ v2.1 起，设备自己投出的待办写成种子变更（`BookTxn::project_tod
 
 v3 条目树、模块保留、归属、时间线和全库文档 id 的约束见 [kernel-v3.md 的不变量](kernel-v3.md#不变量)及上方 v3 书目一节；以下保留共用及 v2.2 的摘要。
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，同日数据层第八步加 6 条后 93 条，DZ 加 `TAB-MOUNT-ONCE`、`TAB-ROOT-ALWAYS` 后 95 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；活动契约的完整清单（切换后 76 条，2026-11-13 书目格式 4 后 83+3 条，2026-11-15 书目格式 5 后 87 条，同日数据层第八步加 6 条后 93 条，DZ 加 `TAB-MOUNT-ONCE`、`TAB-ROOT-ALWAYS` 后 95 条，DW 删 `BOOK-ROOT-VALID`、`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`、加 `WORKING-COPY-LOCAL` 后 94 条，见 [kernel-v5.md 第 11 节](kernel-v5.md#11-契约)）在 `dr_model::invariant`，每条点名的测试由测试当场核对存在。切换时退役的固定域规则列在 [v3-cutover.md](v3-cutover.md)；审计旧客户端时记下的旧出处和不搬的旧规则在该文件的 git 历史里：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |

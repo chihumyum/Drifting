@@ -360,7 +360,6 @@
     "ruler": "Skalenlineal",
     "selectLane": "Spur auswählen",
     "setActTrack": "Als Aktspur verwenden · {{name}}",
-    "setBookRoot": "Als Buchbeginn festlegen",
     "unsetActTrack": "Als normale Spur verwenden · {{name}}",
     "views": "Ansichten"
   },

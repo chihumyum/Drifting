@@ -147,47 +147,6 @@ pub(crate) fn write_level_settings_override(
     Ok(())
 }
 
-/// Store `root` as `book.root` (an unset start removes the stored one).
-fn put_book_root(book: &LoroMap, root: &BookRoot) -> Result<()> {
-    match encode_book_root(root) {
-        Some(value) => {
-            book.insert("root", value)?;
-        }
-        None => {
-            if book.get("root").is_some() {
-                book.delete("root")?;
-            }
-        }
-    }
-    Ok(())
-}
-
-/// The stored form of a book start; `None` for [`BookRoot::Unset`], which is
-/// never stored.
-pub(crate) fn encode_book_root(root: &BookRoot) -> Option<LoroValue> {
-    let mut m = std::collections::HashMap::<String, LoroValue>::new();
-    match root {
-        BookRoot::Unset => return None,
-        BookRoot::Root => {
-            m.insert("kind".into(), "root".into());
-        }
-        BookRoot::Entry { entry } => {
-            m.insert("kind".into(), "entry".into());
-            m.insert("entry".into(), entry.as_str().into());
-        }
-        BookRoot::View { view } => {
-            m.insert("kind".into(), "view".into());
-            m.insert("view".into(), view.as_str().into());
-        }
-        BookRoot::Lane { view, entry } => {
-            m.insert("kind".into(), "lane".into());
-            m.insert("view".into(), view.as_str().into());
-            m.insert("entry".into(), entry.as_str().into());
-        }
-    }
-    Some(LoroValue::from(m))
-}
-
 pub(crate) fn encode_tab_mount(mount: &TabMount) -> LoroValue {
     let mut m = std::collections::HashMap::<String, LoroValue>::new();
     match mount {
@@ -258,27 +217,6 @@ impl ProjectWriterV3 {
                             "author",
                             (!c.author.is_empty()).then_some(c.author.as_str()),
                         )?;
-                        set(
-                            &cm,
-                            "homepage",
-                            (!c.homepage.is_empty()).then_some(c.homepage.as_str()),
-                        )?;
-                        match c.derived_from.as_ref().filter(|d| !d.name.is_empty()) {
-                            Some(df) => {
-                                let dm = cm.ensure_mergeable_map("derived_from")?;
-                                set(&dm, "name", df.name.as_str())?;
-                                set(
-                                    &dm,
-                                    "author",
-                                    (!df.author.is_empty()).then_some(df.author.as_str()),
-                                )?;
-                            }
-                            None => {
-                                if cm.get("derived_from").is_some() {
-                                    cm.delete("derived_from")?;
-                                }
-                            }
-                        }
                     }
                     None => {
                         if m.get("credit").is_some() {
@@ -321,7 +259,6 @@ impl ProjectWriterV3 {
         match book {
             Some(b) => {
                 let m = self.map.ensure_mergeable_map("book")?;
-                put_book_root(&m, &b.root)?;
                 set(&m, "word_target", b.word_target_set)?;
                 set(&m, "daily_word_target", b.daily_word_target_set)?;
             }
@@ -331,12 +268,6 @@ impl ProjectWriterV3 {
                 }
             }
         }
-        Ok(self)
-    }
-
-    pub fn book_root(&self, root: &BookRoot) -> Result<&Self> {
-        let m = self.map.ensure_mergeable_map("book")?;
-        put_book_root(&m, root)?;
         Ok(self)
     }
 

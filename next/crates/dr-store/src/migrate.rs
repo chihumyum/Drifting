@@ -273,6 +273,10 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "0007_agent_runtime",
         sql: include_str!("../migrations/0007_agent_runtime.sql"),
     },
+    Migration {
+        name: "0008_local_book",
+        sql: include_str!("../migrations/0008_local_book.sql"),
+    },
 ];
 
 // Which migrations are published (and so frozen) is tracked in one place:

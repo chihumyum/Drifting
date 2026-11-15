@@ -1,5 +1,7 @@
 # K6：通用帮手工具与书的结构说明（方案）
 
+> 2026-11-15 夜里（内核 v5 DW）：结构说明的 `project_book` 只剩两个目标，没有 `root`、`root_valid`；`manuscript_roots` 去掉；`resolve_v3.rs` 不再解析 `project.update`、`book.sequence` 的 `root`；`book.sequence` 不带序号。工具目录和 MCP 的快照重新生成了。`project_template.edit`、`project_template.working_copies` 是书库一级、不带当前书，不在目录里。
+
 > 2026-11-13 统一条目（内核 v4）更新：条目统一为单一种类并由自身「层级」开关（`level: bool`）控制下方可否驻留子条目；`level.get`／`level.list` 已从目录与调用入口退场，`entry.get` 与 `entry.list { below: true }` 直接携带 `below`，`entry.set_level(false)` 写前打点覆盖本体与直接子条目，目录／结构投影／解析全部改走内存活文档按需读取与结构指纹缓存。详见 [kernel-v4.md](../kernel-v4.md)、[v3-cutover.md](../v3-cutover.md) 与文末章节。下文历史交回记录保留其原语境。
 
 2026-11-09，轨道 3。按当时的夜间队列（`handoff/overnight.md`，已随过程文档清理删除，在 git 历史里）第二段交回；**本段只写方案，不实现、不登记工具、不修改目录快照或 F1／F3 结构。** 数据语义以作者定稿的 [kernel-v3.md](../kernel-v3.md) 为准，实施排在 K2 通用命令之后。

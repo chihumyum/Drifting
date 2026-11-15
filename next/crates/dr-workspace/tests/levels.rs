@@ -299,7 +299,8 @@ fn host_accepts_members_and_serves_as_lane_without_level_switch() {
         vec![ch_id.clone()]
     );
 
-    // A `level == false, accept == true` entry works as swimlane, book root, and Tab mount.
+    // A `level == false, accept == true` entry works as swimlane and Tab mount
+    // (the book has no start, DW).
     let view = e.out("timeline_view.list", json!({"book":b}))[0]["id"]
         .as_str()
         .unwrap()
@@ -307,14 +308,6 @@ fn host_accepts_members_and_serves_as_lane_without_level_switch() {
     e.call(
         "timeline_view.add_lane",
         json!({"book":b,"view":view,"lane":lane}),
-    );
-    e.call(
-        "project.update",
-        json!({"book":b,"root":{"kind":"entry","entry":lane}}),
-    );
-    assert_eq!(
-        e.out("project.get", json!({"book":b}))["book_root_valid"],
-        true
     );
     let tab = e.out(
         "tab.put",
@@ -461,11 +454,12 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
         json!({"book":b,"view":view,"lane":lane}),
     );
 
-    // Default novel project: book root is 书稿, 「全部」 and 4 default tabs, all valid.
+    // Default novel project: the book (no start, DW), 「全部」 and 4 default
+    // tabs, all valid.
     let proj = e.out("project.get", json!({"book":b}));
     assert_eq!(proj["source"]["id"], "builtin:novel");
-    assert_eq!(proj["book"]["root"], json!({"kind":"entry","entry":ms}));
-    assert_eq!(proj["book_root_valid"], true);
+    assert!(proj["book"].is_object());
+    assert!(proj["book"].get("root").is_none(), "{proj}");
     assert_eq!(proj["tabs"].as_array().unwrap().len(), 5);
     assert!(
         proj["tabs"]
@@ -515,39 +509,24 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
         "TAB-MOUNT-VALID",
     );
 
-    // Invalid book roots are refused on write; all four valid kinds work.
-    refused(
-        &e,
-        "project.update",
-        json!({"book":b,"root":{"kind":"entry","entry":chapter}}),
-        "BOOK-ROOT-VALID",
-    );
-    refused(
-        &e,
-        "project.update",
-        json!({"book":b,"root":{"kind":"lane","view":view,"entry":ms}}),
-        "BOOK-ROOT-VALID",
-    );
-    for valid_root in [
-        json!({"kind":"root"}),
-        json!({"kind":"view","view":view}),
-        json!({"kind":"lane","view":view,"entry":lane}),
-        json!({"kind":"entry","entry":ms}),
-    ] {
-        e.call("project.update", json!({"book":b,"root":valid_root}));
-        let seq = e.out("book.sequence", json!({"book":b}));
-        assert_eq!(seq["has_book"], true);
-        assert_eq!(seq["root_valid"], true);
-    }
+    // The book reads from the root: 书稿, then its chapter, the only book
+    // prose; nothing is numbered.
     let seq = e.out("book.sequence", json!({"book":b}));
-    assert_eq!(seq["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(seq["has_book"], true);
     assert_eq!(seq["entries"][0]["entry"]["id"], ms);
-    assert!(seq["entries"][0]["ordinal"].is_null());
     assert_eq!(seq["entries"][1]["entry"]["id"], chapter);
-    assert_eq!(seq["entries"][1]["ordinal"], 1);
+    let with_prose: Vec<&Value> = seq["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| !row["prose"].as_array().unwrap().is_empty())
+        .collect();
+    assert_eq!(with_prose.len(), 1);
+    assert_eq!(with_prose[0]["entry"]["id"], chapter);
+    assert!(with_prose[0].get("ordinal").is_none());
 
-    // Trashing an entry mounted on a tab and used as book root keeps both stored,
-    // marks them invalid on read, reads book.sequence as empty, and blocks no unrelated write.
+    // Trashing an entry mounted on a tab keeps the tab stored, marks it
+    // invalid on read, leaves the book alone, and blocks no unrelated write.
     let appendix = e.out(
         "entry.create",
         json!({"book":b,"title":"附录","template":"tpl-group"}),
@@ -562,13 +541,8 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
         .as_str()
         .unwrap()
         .to_owned();
-    e.call(
-        "project.update",
-        json!({"book":b,"root":{"kind":"entry","entry":appendix}}),
-    );
     e.call("entry.trash", json!({"book":b,"id":appendix}));
     let proj_trashed = e.out("project.get", json!({"book":b}));
-    assert_eq!(proj_trashed["book_root_valid"], false);
     assert_eq!(
         proj_trashed["tabs"]
             .as_array()
@@ -578,9 +552,14 @@ fn project_tabs_mount_four_targets_and_keep_invalid_mounts() {
             .unwrap()["mount_valid"],
         false
     );
-    let empty_seq = e.out("book.sequence", json!({"book":b}));
-    assert_eq!(empty_seq["root_valid"], false);
-    assert_eq!(empty_seq["entries"], json!([]));
+    let seq_after = e.out("book.sequence", json!({"book":b}));
+    assert!(
+        seq_after["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["entry"]["id"] == chapter)
+    );
     // Unrelated writes and moving the invalid-mounted tab succeed.
     e.call(
         "entry.update",

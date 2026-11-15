@@ -54,6 +54,17 @@ impl Env {
         self.ws = Some(open_at(self.dir.path(), self.faults.clone()));
     }
 
+    /// Close the workspace and its library, to write the library directly.
+    pub fn close_for_raw(&mut self) {
+        let ws = self.ws.take().expect("open");
+        ws.shutdown().expect("shut down");
+    }
+
+    /// Open the library again after [`Self::close_for_raw`].
+    pub fn open_again(&mut self) {
+        self.ws = Some(open_at(self.dir.path(), self.faults.clone()));
+    }
+
     pub fn ws(&self) -> &Workspace {
         self.ws.as_ref().expect("open")
     }
