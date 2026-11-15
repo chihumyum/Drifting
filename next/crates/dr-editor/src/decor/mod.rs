@@ -1030,8 +1030,25 @@ impl Layers {
         )
     }
 
-    /// The caret moved (or the editor got focus): a TODO typed in the
-    /// paragraph it left is written now.
+    /// Whether paragraph `block` of `chapter` is a checklist item, as the
+    /// editor holds the text.
+    fn is_task(&self, chapter: usize, block: &str, cx: &App) -> bool {
+        let Some(editor) = self.editor.upgrade() else {
+            return false;
+        };
+        let e = editor.read(cx);
+        let Some(c) = e.book().chapters.get(chapter) else {
+            return false;
+        };
+        let doc = &c.doc;
+        todo::task_items(doc.lines()[..doc.visible_lines()].iter())
+            .iter()
+            .any(|t| t.block.as_deref() == Some(block))
+    }
+
+    /// The caret moved (or the editor got focus): a TODO or a checklist
+    /// item typed in the paragraph it left is written now (while the caret
+    /// is in it, the projection leaves its words alone).
     fn on_selection(&mut self, cx: &mut Context<Layers>) {
         let editing = self.caret_block(cx);
         if editing == self.editing {
@@ -1045,6 +1062,7 @@ impl Layers {
         if markers
             .iter()
             .any(|m| m.block.as_deref() == Some(block.as_str()))
+            || self.is_task(chapter, &block, cx)
         {
             let still = editing.filter(|(c, _)| *c == chapter).map(|(_, b)| b);
             self.send_projection(chapter, &markers, still, cx);
