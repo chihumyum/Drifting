@@ -242,11 +242,17 @@ fn v3_structure_validation_happens_before_writes() {
     );
     assert_eq!(at, version(&e, &b));
     let group = create(&e, &b, &ms, "Group", "tpl-group");
+    // `group` takes entries from elsewhere by its own override (`tpl-group`
+    // does not, kernel-v5 §16), so with its level off it remains a valid
+    // book root until `accept` is turned off too.
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":group,"overrides":{"accept":true}}),
+    );
     e.call(
         "entry.set_level",
         json!({"book":b,"id":group,"level":false}),
     );
-    // `tpl-group` declares `accept: true`, so `group` remains a valid book root until `accept` is turned off too.
     e.call(
         "project.update",
         json!({"book":b,"root":{"kind":"entry","entry":group}}),
@@ -591,6 +597,47 @@ fn v3_content_modules_roundtrip_and_restore_independently() {
         "Writable after restore"
     );
 }
+/// DX 14: a write that touches no name moves the cached name table on to
+/// the book's version, and the next write that does touch one replaces it
+/// at once: the table moved on is never read as newer than it is.
+#[test]
+fn an_unrelated_write_moves_the_name_table_on_and_a_rename_replaces_it() {
+    let e = env();
+    let b = project(&e);
+    let people = entries(&e, &b)
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["template"] == "tpl-category" && x["title"] == "人物")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let person = create(&e, &b, &people, "林一", "tpl-character");
+    let names = |e: &Env| -> Vec<String> {
+        e.ws()
+            .book_link_names(&b)
+            .unwrap()
+            .iter()
+            .map(|n| n.name.clone())
+            .collect()
+    };
+    let (at, cached, _) = e.ws().book_link_cache(&b).unwrap();
+    assert_eq!(at, version(&e, &b));
+    assert!(names(&e).contains(&"林一".to_owned()));
+    // A mark touches no name: the same table, now at the book's version.
+    e.call("entry.update", json!({"book":b,"id":person,"mark":"星"}));
+    let (moved_at, moved, _) = e.ws().book_link_cache(&b).unwrap();
+    assert!(std::sync::Arc::ptr_eq(&cached, &moved));
+    assert_eq!(moved_at, version(&e, &b));
+    assert_ne!(moved_at, at);
+    // A rename does: the next read has the new name and not the old one.
+    e.call("entry.update", json!({"book":b,"id":person,"title":"林二"}));
+    let now = names(&e);
+    assert!(now.contains(&"林二".to_owned()) && !now.contains(&"林一".to_owned()));
+    assert_eq!(e.ws().book_link_cache(&b).unwrap().0, version(&e, &b));
+}
+
 #[test]
 fn v3_autolinks_use_residence_only_and_ignore_membership_changes() {
     let e = env();

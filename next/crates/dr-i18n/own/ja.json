@@ -278,11 +278,8 @@
     "showOutline": "目次を表示",
     "templates": "テンプレート",
     "trash": "最近削除した項目に移動",
-    "turnOffLevelBody_other": "下の {{count}} 件の項目は、それぞれの下にあるものと一緒に最上位へ移ります。ここに所属する項目とタイムラインのレーンは一時的に隠れ、再びオンにすると戻ります。",
+    "turnOffLevelBody_other": "下の {{count}} 件の項目は最近削除した項目に移動します。",
     "turnOffLevelConfirm": "オフにする",
-    "turnOffLevelLaneBody": "タイムラインのレーンは一時的に隠れ、再びオンにすると戻ります。",
-    "turnOffLevelMembersBody_other": "ここに所属する {{count}} 件の項目は一時的に隠れ、再びオンにすると戻ります。",
-    "turnOffLevelMembersLaneBody_other": "ここに所属する {{count}} 件の項目とタイムラインのレーンは一時的に隠れ、再びオンにすると戻ります。",
     "turnOffLevelTitle": "階層をオフにする",
     "untitledEntry": "無題の項目",
     "untitledNamed": "無題の{{name}}"

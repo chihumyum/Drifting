@@ -147,12 +147,14 @@ fn book_metadata_requires_read_and_old_frontier_never_overwrites_author_update()
         f.call("book.update", json!({"name":"stale"})),
         Err(Error::Conflict(_))
     ));
+    // Read again, the Agent's next write never overwrites the author's
+    // profile it did not name.
     f.call("book.get", json!({})).unwrap();
-    f.call("book.update", json!({"summary":"agent edit"}))
+    f.call("book.update", json!({"name":"Synthetic book, read again"}))
         .unwrap();
     let book = f.call("book.get", json!({})).unwrap();
-    assert_eq!(book["name"], "Synthetic book");
-    assert_eq!(book["summary"], "agent edit");
+    assert_eq!(book["name"], "Synthetic book, read again");
+    assert_eq!(book["summary"], "author edit");
     assert_eq!(book["word_target"], initial["word_target"]);
 }
 

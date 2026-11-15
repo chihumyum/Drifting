@@ -120,23 +120,19 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
     let level = &changed.v3().unwrap().levels[&group];
     assert_eq!(
         json!(level.settings),
+        // `accept` does not come down from 书稿: 分组 takes no entries
+        // from elsewhere unless it says so itself (kernel-v5 §16).
         json!({
             "default_template":"tpl-chapter","display":"board",
-            "auto_link":true,"accept":true,"home":null,
+            "auto_link":true,"accept":false,"home":null,
             "format_shortcuts":"plain"
         })
     );
     for (key, source) in &level.sources {
         match key.as_str() {
-            "accept" => {
-                // `accept` reads only the entry and its template, never inheriting.
-                assert_eq!(
-                    json!(source),
-                    json!({"kind":"template","entry":group,"template":"tpl-group"})
-                );
-            }
-            "home" => {
-                // `home` reads only the entry and its template, never inheriting.
+            "accept" | "home" => {
+                // `accept` and `home` read only the entry and its template,
+                // never inheriting; neither the group nor its template sets them.
                 assert_eq!(json!(source), json!({"kind":"default"}));
             }
             _ => {
@@ -168,10 +164,7 @@ fn level_values_and_all_sources_refresh_together_and_survive_reopen() {
             json!({"kind":"override","entry":group})
         );
     }
-    assert_eq!(
-        json!(level.sources["accept"]),
-        json!({"kind":"template","entry":group,"template":"tpl-group"})
-    );
+    assert_eq!(json!(level.sources["accept"]), json!({"kind":"default"}));
     // Omitting those nullable keys restores inheritance, rather than clearing it.
     call(
         &ws,

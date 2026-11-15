@@ -327,13 +327,49 @@ impl<'a> LayoutTxn<'a> {
         Ok(())
     }
 
-    /// Remove every stored position under `<scope>/<mode>`.
+    /// Remove every stored position under `<scope>/<mode>`, one entry at a
+    /// time: the canvas itself stays, so a card another device drags onto
+    /// it meanwhile survives the merge.
     pub fn clear_scope(&mut self, scope_mode: &str) -> Result<()> {
         let root = self.doc.get_map(schema::side::POSITIONS);
-        if root.get(scope_mode).is_some() {
-            root.delete(scope_mode)?;
+        if let Some(ValueOrContainer::Container(loro::Container::Map(sub))) = root.get(scope_mode) {
+            for key in sub.keys().map(|k| k.to_string()).collect::<Vec<_>>() {
+                sub.delete(&key)?;
+            }
         }
         Ok(())
+    }
+
+    /// Drop the coordinates of every entry `gone` names: its own on every
+    /// canvas, and every canvas of its own scope (`<entry>/<mode>`). The
+    /// scope `root` names no entry. Returns whether anything was removed.
+    ///
+    /// For the step that purges entries from a book, with exactly the
+    /// entries it purged. Never call it with "not in the book as this
+    /// device has it": this document and the book's sync apart, so the
+    /// coordinates of an entry made on another device can arrive before
+    /// the entry does, and would be deleted on both devices.
+    pub fn forget_entries(&mut self, gone: impl Fn(&EntryId) -> bool) -> Result<bool> {
+        let named = |s: &str| EntryId::parse(s).is_ok_and(|id| gone(&id));
+        let root = self.doc.get_map(schema::side::POSITIONS);
+        let mut removed = false;
+        for scope_mode in root.keys().map(|k| k.to_string()).collect::<Vec<_>>() {
+            let Some(ValueOrContainer::Container(loro::Container::Map(sub))) =
+                root.get(&scope_mode)
+            else {
+                continue;
+            };
+            let whole = scope_mode
+                .split_once('/')
+                .is_some_and(|(scope, _)| scope != "root" && named(scope));
+            for key in sub.keys().map(|k| k.to_string()).collect::<Vec<_>>() {
+                if whole || named(&key) {
+                    sub.delete(&key)?;
+                    removed = true;
+                }
+            }
+        }
+        Ok(removed)
     }
 }
 
@@ -658,5 +694,101 @@ mod tests {
             .0
             .unwrap();
         assert!(a.view().positions("ideas/board").is_empty());
+    }
+
+    /// An entry purged from the book leaves no coordinates: its own on
+    /// every canvas, and the canvases of its own scope. The scope `root` and
+    /// everything else stay.
+    #[test]
+    fn forgetting_entries_drops_their_coordinates_and_their_own_canvases() {
+        let book = BookId::parse("b1").unwrap();
+        let (keep, gone, inside) = (
+            EntryId::parse("e-keep").unwrap(),
+            EntryId::parse("e-gone").unwrap(),
+            EntryId::parse("e-inside").unwrap(),
+        );
+        let mut d = LayoutDoc::create(book, peer(1)).unwrap();
+        d.edit(Origin::User, |t| {
+            t.put_position("e-keep/board", &keep, 1.0, 1.0)?;
+            t.put_position("e-keep/board", &gone, 2.0, 2.0)?;
+            t.put_position("e-gone/board", &inside, 3.0, 3.0)?;
+            t.put_position("e-gone/grid", &keep, 4.0, 4.0)?;
+            t.put_position("root/relation_graph", &gone, 5.0, 5.0)?;
+            t.put_position("root/relation_graph", &keep, 6.0, 6.0)
+        })
+        .0
+        .unwrap();
+        let removed = d
+            .edit(Origin::User, |t| t.forget_entries(|id| id == &gone))
+            .0
+            .unwrap();
+        assert!(removed);
+        let v = d.view();
+        assert_eq!(
+            v.positions("e-keep/board").into_iter().collect::<Vec<_>>(),
+            [(keep.clone(), (1.0, 1.0))]
+        );
+        assert!(v.positions("e-gone/board").is_empty());
+        assert!(v.positions("e-gone/grid").is_empty());
+        assert_eq!(
+            v.positions("root/relation_graph")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            [(keep.clone(), (6.0, 6.0))]
+        );
+        // Nothing left to forget.
+        let again = d
+            .edit(Origin::User, |t| t.forget_entries(|id| id == &gone))
+            .0
+            .unwrap();
+        assert!(!again);
+    }
+
+    /// Clearing a canvas on one device while another drags a card onto it:
+    /// the drag survives the merge, the cleared cards stay cleared.
+    #[test]
+    fn clearing_a_canvas_keeps_another_devices_concurrent_drag() {
+        let book = BookId::parse("b1").unwrap();
+        let (e1, e2, e3) = (
+            EntryId::parse("e-1").unwrap(),
+            EntryId::parse("e-2").unwrap(),
+            EntryId::parse("e-3").unwrap(),
+        );
+        let mut a = LayoutDoc::create(book.clone(), peer(1)).unwrap();
+        let mut b = LayoutDoc::create(book, peer(2)).unwrap();
+        a.edit(Origin::User, |t| {
+            t.put_position("ideas/board", &e1, 1.0, 1.0)?;
+            t.put_position("ideas/board", &e2, 2.0, 2.0)?;
+            t.put_position("ideas/grid", &e1, 9.0, 9.0)
+        })
+        .0
+        .unwrap();
+        b.import(&a.export_updates_since(&b.version()).unwrap(), Origin::Sync)
+            .unwrap();
+        // Offline: A clears the board, B drags a third card onto it.
+        a.edit(Origin::User, |t| t.clear_scope("ideas/board"))
+            .0
+            .unwrap();
+        b.edit(Origin::User, |t| {
+            t.put_position("ideas/board", &e3, 3.0, 3.0)
+        })
+        .0
+        .unwrap();
+        let to_b = a.export_updates_since(&b.version()).unwrap();
+        let to_a = b.export_updates_since(&a.version()).unwrap();
+        b.import(&to_b, Origin::Sync).unwrap();
+        a.import(&to_a, Origin::Sync).unwrap();
+        for d in [&a, &b] {
+            let board = d.view().positions("ideas/board");
+            assert_eq!(
+                board.into_iter().collect::<Vec<_>>(),
+                [(e3.clone(), (3.0, 3.0))]
+            );
+            assert_eq!(
+                d.view().positions("ideas/grid").get(&e1),
+                Some(&(9.0, 9.0)),
+                "another canvas is untouched"
+            );
+        }
     }
 }

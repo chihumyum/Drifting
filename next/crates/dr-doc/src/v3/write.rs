@@ -147,9 +147,27 @@ pub(crate) fn write_level_settings_override(
     Ok(())
 }
 
-pub(crate) fn encode_book_root(root: &BookRoot) -> LoroValue {
+/// Store `root` as `book.root` (an unset start removes the stored one).
+fn put_book_root(book: &LoroMap, root: &BookRoot) -> Result<()> {
+    match encode_book_root(root) {
+        Some(value) => {
+            book.insert("root", value)?;
+        }
+        None => {
+            if book.get("root").is_some() {
+                book.delete("root")?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The stored form of a book start; `None` for [`BookRoot::Unset`], which is
+/// never stored.
+pub(crate) fn encode_book_root(root: &BookRoot) -> Option<LoroValue> {
     let mut m = std::collections::HashMap::<String, LoroValue>::new();
     match root {
+        BookRoot::Unset => return None,
         BookRoot::Root => {
             m.insert("kind".into(), "root".into());
         }
@@ -167,7 +185,7 @@ pub(crate) fn encode_book_root(root: &BookRoot) -> LoroValue {
             m.insert("entry".into(), entry.as_str().into());
         }
     }
-    LoroValue::from(m)
+    Some(LoroValue::from(m))
 }
 
 pub(crate) fn encode_tab_mount(mount: &TabMount) -> LoroValue {
@@ -265,7 +283,7 @@ impl ProjectWriterV3 {
         match book {
             Some(b) => {
                 let m = self.map.ensure_mergeable_map("book")?;
-                m.insert("root", encode_book_root(&b.root))?;
+                put_book_root(&m, &b.root)?;
                 set(&m, "word_target", b.word_target_set)?;
                 set(&m, "daily_word_target", b.daily_word_target_set)?;
             }
@@ -280,7 +298,7 @@ impl ProjectWriterV3 {
 
     pub fn book_root(&self, root: &BookRoot) -> Result<&Self> {
         let m = self.map.ensure_mergeable_map("book")?;
-        m.insert("root", encode_book_root(root))?;
+        put_book_root(&m, root)?;
         Ok(self)
     }
 

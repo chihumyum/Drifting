@@ -292,7 +292,7 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
     });
     call(cx, "ui.wait", json!({"text": "灯塔亮了。"})).unwrap();
     call_until(cx, "state.get", json!({}), |state| {
-        state["book"]["version"] == 3
+        state["book"]["version"] == dr_doc::schema::BOOK_SCHEMA_VERSION
     });
 
     // ⌘[ goes back through the keymap, from inside the editor too.

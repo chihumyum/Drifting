@@ -98,7 +98,7 @@ module.set_field             command  book     Set or clear a typed field value 
 module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module.
 project.create               command  library  Create a project from a project template (defaults to the built-in writing template).
 project.get                  query    shared   Read the project definition: template source, Agent instructions, book switch/start/word targets, and left-sidebar tabs.
-project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets.
+project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.
 prose.link                   command  book     Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).

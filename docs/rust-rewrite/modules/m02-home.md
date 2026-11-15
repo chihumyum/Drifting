@@ -163,3 +163,19 @@ v3 读取和记录器。切换统一正确性验收由整合者安排，heavy �
 ## 内核 v4 收尾（2026-11-13）
 
 作品主页的新建按钮来自模板声明的动作；同名的动作多于一个时（几处成书、每条故事线各有「新建章节」），按钮上带上声明它的层级的标题（「新建章节 · 书稿」），只有一个时照旧（`v3::action_label`，测试 `tests/v3.rs` 的 `same_named_actions_carry_the_titles_of_their_levels`）。
+
+## 内核 v5：设定一次存完（2026-11-15，DX 修补）
+
+**大白话。** 主页的设定框以前存一次要调两条命令（书名和简介走 `book.update`，两个目标走 `project.update`），撤销要按两次；第二条失败时第一条已经存下，只存了一半。现在一次 `project.update`：它多收 `name`、`summary`（和 `book.update` 一样的写法），和目标、帮手说明在同一次提交里写，一步撤销，失败就什么都没存。
+
+- 接口：`ProjectUpdateIn` 加 `name`、`summary`（不传就不改）。撤销登记两条：书目字段走 `book.update` 的反向，项目定义走 `entry_history.restore`，同属这一步。
+- 测试：`dr-view-home/src/v3_settings.rs` 的 `settings_save_in_one_step_or_not_at_all`（一次撤销回到原书名和原目标；没开成书的项目改目标被拒时书名也不存）、`dr-workspace/tests/project_definition.rs` 的 `name_profile_and_targets_are_one_write`。
+- 待协调：设定框里目标那两格在没开成书的项目里还在（T3 收），现在改了只会被拒、报「保存失败」。
+
+同一轮在项目定义的数据层（`dr-workspace/src/commands/v3/project.rs`、`novel_book.rs`、`history.rs`，`dr-doc` 的读取）修了几处，项目主页的「项目模板」（T2）在这上面接：
+
+- **用同一个项目模板建几个项目，各有各的条目。** `project.create` 收到自定义模板时，种子条目、视图、Tab、时间钉都换新 id，引用一起改（住处、`home`、条目引用字段、泳道、刻度位置、成书起点、Tab 挂的东西），和内置模板一样（`ProjectTemplate::with_fresh_ids`）。以前两本书共用同一篇 `body:<条目>/<模块>`，清除一本会带走另一本的字。
+- **改成书起点、全书目标、每日目标的写入守卫认对了键**：登记的是 `project/book/root` 这样的路径（`rec(Project, "book").at(["root"])`，和 Tab 一样），读过 `project/book` 的写入者能改，拿着过期读取的被拒；从条目历史恢复这几项同理。
+- **成书起点读不出来时读作没有成书内容**，不当成「整个项目」：项目定义里多一种起点 `BookRoot::Unset`（DTO 里是 `{"kind": "unset"}`），只在读的时候出现（比如用条目历史把起点恢复到成书还关着的那个版本，只剩目标），永远不是有效起点，写它就是去掉存着的起点。`book.sequence` 读作空、`book_root_valid` 为假，项目主页照「起点不在了」提示重新选（界面归 T2）；这时两个目标照样能改。
+- Tab 的新建、改名、调序、删除和改成书起点各自一步撤销；两台设备同时改项目定义和 Tab，合并后两边的改动都在（补的测试，代码没改）。
+- 测试：`dr-workspace/tests/project_definition.rs`。

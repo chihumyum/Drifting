@@ -380,6 +380,11 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
         .find(|t| t.id.as_str() == dr_doc::v3::novel::TPL_MANUSCRIPT)
         .unwrap();
     let initial = f.context();
+    // The Agent's context carries the project's guidance, copied once.
+    assert_eq!(
+        initial.project_agent.as_ref().unwrap().instructions,
+        *guidance
+    );
     assert_eq!(
         initial
             .templates
@@ -410,6 +415,7 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
         cleared.project_template_source.as_ref().unwrap().id,
         "builtin:novel"
     );
+    assert!(cleared.project_agent.is_none());
     assert!(
         cleared
             .templates
@@ -437,6 +443,35 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
         cleared
     );
     reopened.close();
+}
+
+/// The structure names the book format the book is in, and the project's
+/// guidance follows `project.update` (its revision too).
+#[test]
+fn structure_names_the_book_format_and_follows_the_project_guidance() {
+    let f = Fixture::new();
+    let before = f.context();
+    assert_eq!(before.schema_version, dr_doc::schema::BOOK_SCHEMA_VERSION);
+    let parsed: Value = serde_json::from_str(&before.to_contribution().unwrap().text).unwrap();
+    assert_eq!(parsed["schema_version"], 5);
+    assert_eq!(
+        parsed["project_agent"]["instructions"],
+        dr_doc::v3::novel::novel_project_agent().instructions
+    );
+    f.out(
+        "project.update",
+        json!({"book": f.book, "agent": {"name": "合成项目", "description": "合成说明", "instructions": "先读目录。"}}),
+    );
+    let after = f.context();
+    assert_eq!(
+        after.project_agent,
+        Some(dr_agent_tools::structure::TemplateAgentSummary {
+            name: "合成项目".into(),
+            description: "合成说明".into(),
+            instructions: "先读目录。".into(),
+        })
+    );
+    assert_ne!(after.structure_revision, before.structure_revision);
 }
 
 #[test]

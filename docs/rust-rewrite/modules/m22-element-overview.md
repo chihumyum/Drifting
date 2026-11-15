@@ -53,3 +53,13 @@
 
 群岛和关系两种视图按条目的模板认「出卡片还是当分组」，不按「层级」开关（`kernel-v4.md` 第 2 节）：模板 `linkable` 开着（装内容的，没有模板的也算）的条目总是一张卡片；开着开关的内容条目（比如给阿Q下面挂了条目）照旧出卡片，住在它下面的条目在同一座岛里成一组，组名是它的名字。只有整理用的模板（分类、分组等）当岛屿或组。判断在外壳的 `BookV3::is_content`。永久测试 `tests/isles.rs`。关系类型的名字经 `dr_view_relations::type_name` 显示：内置的通用关联用界面语言（0.1 的 `relationTypes.genericAssociation.name`），不再显示英文原名。
 
+
+## 内核 v5：画布坐标那篇小文档（2026-11-15，DX 修补）
+
+看板、网格、关系图的坐标在 `layout:<书>` 里（`kernel-v5.md` 第 8 节）。数据层这几处修了，界面不变：
+
+- 清空一块画布（`layout.clear` 不带条目）逐个删坐标，不再删掉整块画布的键：另一台设备同时拖上去的卡片，合并后还在（`dr-doc/src/side.rs` 的 `clearing_a_canvas_keeps_another_devices_concurrent_drag`）。
+- `layout.put` 只收活着的条目，在最近删除里的、书里没有的都拒绝，什么都不写。
+- 写坐标时不回收别的条目的坐标（监管会话 2026-11-15 改）：坐标和书是两篇文档、分开同步，别的设备新建的条目，坐标可能比条目先到，按「书里找不到」去删会误删。回收用的 `LayoutTxn::forget_entries`（条目自己在各块画布上的坐标、以它为范围的画布 `<条目>/<摆法>`；范围 `root` 不是条目）留给清除条目的那一步调用，现在没有命令清除单个条目。
+- `dr-store` 的 `KNOWN_DOC_KINDS` 加上 `layout`。
+- 测试：`dr-workspace/tests/layout_doc.rs` 三条（其中 `a_write_keeps_the_coordinates_of_an_entry_the_book_does_not_have`）、`dr-doc/src/side.rs` 的 `forgetting_entries_drops_their_coordinates_and_their_own_canvases`。

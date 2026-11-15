@@ -733,9 +733,19 @@ impl From<&dr_model::v3::ProjectTemplateRef> for ProjectTemplateRef {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BookRoot {
     Root,
-    Entry { entry: String },
-    View { view: String },
-    Lane { view: String, entry: String },
+    Entry {
+        entry: String,
+    },
+    View {
+        view: String,
+    },
+    Lane {
+        view: String,
+        entry: String,
+    },
+    /// The stored start is missing or cannot be read: the book has no
+    /// content until a start is picked again. Never accepted as a start.
+    Unset,
 }
 
 impl From<&dr_model::v3::BookRoot> for BookRoot {
@@ -752,6 +762,7 @@ impl From<&dr_model::v3::BookRoot> for BookRoot {
                 view: view.to_string(),
                 entry: entry.to_string(),
             },
+            dr_model::v3::BookRoot::Unset => Self::Unset,
         }
     }
 }

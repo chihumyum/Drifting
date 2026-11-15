@@ -264,10 +264,12 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
     let book = s.book.clone();
     let restored = Replaces::records(input.targets.iter().filter_map(|target| {
         let c = CollectionV3::from_root(&target.collection)?;
+        // A project key names a value inside a record (`book/root`,
+        // `tabs/<id>`): guard it as that path, the way the writes do.
         if c == CollectionV3::Project
-            && let Some(tab_id) = target.id.strip_prefix("tabs/")
+            && let Some((record, inside)) = target.id.split_once('/')
         {
-            return Some(rec(c, "tabs").at([tab_id]));
+            return Some(rec(c, record).at([inside]));
         }
         Some(rec(c, &target.id))
     }));

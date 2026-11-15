@@ -422,6 +422,7 @@
 17. **条目页的「关系」模块怎么显示一个文件、在哪里建一条指向文件的关系。** 数据上关系的端点可以是文件（第 6、10 节），文件原型里只画了显示（缩略图、名字、关系类型），作者没谈。
 19. **0.1 素材上的说明和出处，导入后放哪。** 0.1 里每个素材有一段说明，文本素材还有出处。格式 5 里文件没有自己的说明（第 6 节），笔记模板也只有一篇正文，所以导入后这些文字在书里没有去处。数据层预审时发现它们只留在导入回执里。现在先逐条列进导入报告，不悄悄消失；最终放哪（比如变成文件上的一条批注、并进笔记正文的开头、只留在报告里）没问过作者。
 20. **在左栏新建的故事线不在视图里，挂在它上面的章没有故事线颜色。** 第 16 节把「是不是泳道」改成了「在不在视图里」，章的颜色取自它主归属的那条泳道。写书模板的默认视图一开始是空的，所以新项目里在左栏建一条故事线、把章挂上去，章没有颜色，要把故事线拖进视图才有。要不要在新建故事线时自动把它放进默认视图，没问过作者。
+21. **拖到一个既开着层级、又收别处条目的条目上，算搬进去住还是挂上去。** 现在照 v4 是挂上去。写书模板里只有「分类」两样都开着，再就是作者自己把两样都打开的条目；「分组」已经改成默认不收（见「替作者定的」），所以把章拖到分卷上是搬进去。把一个要素从一个分类拖到另一个分类上，现在是挂上去而不是搬家，这一点没问过作者。
 
 ## 16. 层级与挂名拆开
 
@@ -675,6 +676,13 @@
 - **导入 0.1 建「文本素材」这个层级时，同时给它一个左栏 Tab。** 第 13 节写的是左栏照写书模板的默认 Tab，那样作者导入后找不到自己的笔记。
 - **0.1 素材上的说明和出处先列进导入报告**，去处等作者定（第 15 节「还没定」第 19 条）。
 
+2026-11-15 监管会话审结构修补（DX）时定的：
+
+- **项目主页的设定用一条命令存。** `project.update` 多收书名和简介，和目标、帮手说明同一次写入、一步撤销；第 12 节原来没写这两个参数。另一种做法是单独加一条命令，没采用。
+- **内置写书模板的版本号不动。** 这一轮改了它的内容（分组默认不收、构想和要素的正文仍进成书），格式 5 还没发过版，没有哪本书记着旧的那一版。
+- **画布坐标不在写坐标时顺手回收。** 修补那一路做成了「每次写坐标时删掉书里找不到的条目的坐标」。坐标和书分开同步，坐标可能先到，那样会误删别的设备刚建的条目的坐标。改成只在清除条目的那一步回收；现在没有清除单个条目的命令，所以现在不回收。
+- **模板把「收别处的条目」从关改成开时，回来的成员补上刻度位置。** 修补那一路只做了条目自己改的情形。读的一侧本来就容忍没位置的成员（排在最后），这里是补齐。
+
 ## 和输入不一样的地方
 
 - **归属自己的顺序没有整个删掉。** 作者说让视图里的轨道顺序作为泳道唯一的顺序。泳道照做了；但一个收别处条目、不在任何视图里的文件夹（要素的分类）仍然要给挂名进来的条目排先后，所以归属上的 `pos` 留着给它用。
@@ -749,8 +757,8 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 **`dr_model`（领域类型与不变量）**
 
-- 版本与文档种类：`v3::BOOK_FORMAT_VERSION = 5`（创世版本 `5`，`BOOK-FORMAT-5-ONLY`）；`DocId::Layout(BookId)`（`layout:<书 id>`，创世版本 `1`）；`DocId::Material` 与 `DocKind::Material` 退役；`ProseProfile` 只保留单一格式档 `ProseProfile::Prose`；正文嵌入为 `ProseEmbed::Asset { asset: AssetId }`（`kind = "asset"`）；正文链接 `v3::EntityLinkV3` 指向 `EntryId`（`kind = entry`），第八步起也可以指向素材库里的文件（`kind = asset`、`target = <AssetId>`，不带 `module`／`block`／`end_block`）。
-- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种。
+- 版本与文档种类：`dr_doc::schema::BOOK_SCHEMA_VERSION = 5`（创世版本 `5`，`BOOK-FORMAT-5-ONLY`；本节和下表别处写的 `BOOK_FORMAT_VERSION` 指的就是它，代码里没有那个名字，DX 2026-11-15 核对）；`DocId::Layout(BookId)`（`layout:<书 id>`，创世版本 `1`）；`DocId::Material` 与 `DocKind::Material` 退役；`ProseProfile` 只保留单一格式档 `ProseProfile::Prose`；正文嵌入为 `ProseEmbed::Asset { asset: AssetId }`（`kind = "asset"`）；正文链接 `v3::EntityLinkV3` 指向 `EntryId`（`kind = entry`），第八步起也可以指向素材库里的文件（`kind = asset`、`target = <AssetId>`，不带 `module`／`block`／`end_block`）。
+- 项目定义与左栏 Tab（`dr_model::v3`）：`ProjectDefinition { source: Option<ProjectTemplateRef>, agent: Option<TemplateAgentConfig>, book: Option<ProjectBook>, tabs: Vec<ProjectTab> }`；`ProjectBook { root: BookRoot, word_target_set: Option<i64>, daily_word_target_set: Option<i64> }`（`book` 为 `Some` 即开着成书）；`BookRoot` 取 `Root`、`Entry { entry }`、`View { view }`、`Lane { view, entry }` 四种，另有只在读取时出现的 `Unset`（存着的起点缺了或读不出来：读作没有成书内容、永远无效，写它就是去掉存着的起点；DX 2026-11-15 加）；`TabMount` 取 `Root`、`Entry { entry }`、`View { view }`、`Book` 四种。
 - 拆开的两个开关与设置（`dr_model::v3`）：
   - `Entry { level: bool, mark: Option<String>, media: BTreeMap<ModuleId, Vec<MediaItem>>, … }`（没有 `layout`）；`is_valid_mark(s)` 校验砂笔图标名或单个字符；
   - `LevelSettings` 与 `LevelSettingsOverride` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts` 共 6 项（`LEVEL_SETTING_KEYS` = 6，去掉 `is_manuscript` 和 `lane`）；
@@ -772,7 +780,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 **`dr-workspace`（命令、DTO 与事件）**
 
-- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { agent?, has_book?, root?, word_target?, daily_word_target? }`、`book.sequence`；`tab.put`（新建或改名／改挂载）、`tab.move`、`tab.remove`。
+- 项目与左栏 Tab：`project.create { name, summary?, template? }`、`project.get`（含 `book_root_valid` 与 `tabs`）、`project.update { name?, summary?, agent?, has_book?, root?, word_target?, daily_word_target? }`（`name`、`summary` 是 DX 2026-11-15 加的，让项目主页的设定一步存完）、`book.sequence`；`tab.put`（新建或改名／改挂载）、`tab.move`、`tab.remove`。
 - 条目、归属与视图：`entry.create` 区分 `parent`（住进）与 `host`（挂到，按第 16 节落住处并挂名），支持 `mark`；`entry.update` 支持 `mark`；`entry.set_level` 关层级时输出 `trashed` 列表且一步撤销恢复；`entry.move` 带 `index` 移入视图中的文件夹时同步落到对应刻度位置；`entry.get` 与 `entry.list { below: true }` 在 `level` 开时给 `below.children`、在 `accept` 开时给 `below.members`；`membership.add/remove/primary` 与 `timeline_view.add_lane/remove_lane/move_lane/delete` 自动维护入视图末尾落位与出最后一个活视图时的 `pos`／手动先后写回。
 - 媒体模块、正文嵌入与素材库：`module.put_media`（新增、改说明或调先后；同一个文件第二次放进同一个媒体模块拒绝，`WsError::Violation`）、`module.remove_media`；`ProseTxn::insert_embed(ProseEmbed::Asset { asset })`（`prose.shape` 返回 `missing_embeds`，第八步加 `file_links`、`missing_links`）；`asset.put`（第八步：可带 `folder`，落在那个素材夹最后；同样的字节给回已有那个文件的 id，在最近删除里就恢复）、`asset.rename`、`asset.trash`、`asset.restore`（素材夹在最近删除里时落到最外层）、`asset.purge`、`asset.get { usages? }`（`usages: false` 只读记录，默认 `true`）、`asset.list`（每项带实时 `usages`：`Media`、`Embed`、`Link`、`Field`、`Relation`，以及 `folder`、`pos`）；`material.*` 与 `material_folder.*` 全部退役并由 `xtask check` 的 `cutover` 门禁拦截。
 - 第八步的素材夹与摆法：`asset_folder.create { name, parent? }`、`asset_folder.rename`、`asset_folder.move { parent, index? }`、`asset_folder.trash`、`asset_folder.restore`、`asset_folder.purge`、`asset_folder.list { trashed? }`（`AssetFolderInfo { id, name, parent, pos, deleted_at }`）；`asset.move { folder, index? }`；`module.set_arrangement { book, entry, module, arrangement }`（`null` 回到模板的），`module.read` 对媒体模块给 `arrangement` 和 `own_arrangement`，条目 DTO 带 `arrangements`、`missing_files`；`ProseSession::set_file_embed_look(embed, &FileEmbedLook)`（只对活着的图片放行，PDF 和未知取值拒绝）。

@@ -39,6 +39,82 @@ impl LaneExitWriteback {
     }
 }
 
+/// The live entries stored directly under `parent`, in stored order.
+pub(super) fn live_child_ids(v: &BookViewV3<'_>, parent: &EntryId) -> Vec<EntryId> {
+    let mut seen = BTreeSet::new();
+    v.entries_raw()
+        .into_iter()
+        .filter(|e| e.parent.as_ref() == Some(parent) && !e.is_trashed())
+        .filter(|e| seen.insert(e.id.clone()))
+        .map(|e| e.id)
+        .collect()
+}
+
+/// Positions in `seq` of one longest strictly increasing run (not
+/// necessarily contiguous).
+fn longest_increasing(seq: &[usize]) -> Vec<bool> {
+    // `tails[k]`: index in `seq` of the smallest tail of a run of length k + 1.
+    let mut tails: Vec<usize> = Vec::new();
+    let mut prev: Vec<Option<usize>> = vec![None; seq.len()];
+    for (i, &x) in seq.iter().enumerate() {
+        let k = tails.partition_point(|&t| seq[t] < x);
+        prev[i] = k.checked_sub(1).map(|j| tails[j]);
+        if k == tails.len() {
+            tails.push(i);
+        } else {
+            tails[k] = i;
+        }
+    }
+    let mut keep = vec![false; seq.len()];
+    let mut cur = tails.last().copied();
+    while let Some(i) = cur {
+        keep[i] = true;
+        cur = prev[i];
+    }
+    keep
+}
+
+/// Puts the entries of `order` that are stored directly under `parent` right
+/// now in that order among themselves (`VIEW-FOLDER-ORDER-FROM-SCALE`).
+/// Nothing stored anywhere else is moved in, and of the rest only the
+/// entries out of order move: one longest run already in order stays where
+/// it is, so a concurrent move of one of them on another device is not
+/// written over. Reads the document as it is inside the write.
+pub(super) fn reorder_stored_children(
+    tx: &mut dr_doc::v3::BookTxnV3<'_>,
+    parent: &EntryId,
+    order: &[EntryId],
+) -> Result<()> {
+    let current = tx.view().direct_child_ids(Some(parent));
+    let mut index = std::collections::HashMap::new();
+    for (i, id) in current.iter().enumerate() {
+        index.entry(id).or_insert(i);
+    }
+    let mut seen = BTreeSet::new();
+    let want: Vec<&EntryId> = order
+        .iter()
+        .filter(|id| index.contains_key(id) && seen.insert(*id))
+        .collect();
+    if want.len() < 2 {
+        return Ok(());
+    }
+    let seq: Vec<usize> = want.iter().map(|id| index[id]).collect();
+    let keep = longest_increasing(&seq);
+    let first_kept = keep.iter().position(|k| *k).expect("a run is never empty");
+    let entries = tx.entries();
+    for (i, id) in want.iter().enumerate() {
+        if keep[i] {
+            continue;
+        }
+        if i == 0 {
+            entries.move_before(id, want[first_kept])?;
+        } else {
+            entries.move_after(id, want[i - 1])?;
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn plan_lane_exit_writeback(
     v: &BookViewV3<'_>,
     snapshot: &dr_doc::v3::BookStructureV3,
@@ -60,19 +136,17 @@ pub(super) fn plan_lane_exit_writeback(
         Vec::new()
     };
     let child_order = if lane_entry.is_level() {
-        let ordered_residents: Vec<EntryId> = snapshot
+        // Only what is stored directly in the folder: an entry that reads as
+        // living here because a merge left it under an entry whose level is
+        // off stays where it is stored.
+        let stored = live_child_ids(v, lane);
+        let desired: Vec<EntryId> = snapshot
             .residents_along_view(tv, lane)
             .into_iter()
             .map(|e| e.id.clone())
+            .filter(|id| stored.contains(id))
             .collect();
-        let current_children = v.direct_child_ids(Some(lane));
-        let mut desired = ordered_residents;
-        for cid in &current_children {
-            if !desired.contains(cid) {
-                desired.push(cid.clone());
-            }
-        }
-        (desired != current_children).then_some(desired)
+        (desired != stored).then_some(desired)
     } else {
         None
     };
@@ -228,7 +302,7 @@ op! {
                     )?;
                 }
                 if let Some(children) = &wb.child_order {
-                    tx.entries().reorder_children(Some(lane_id), children)?;
+                    reorder_stored_children(tx, lane_id, children)?;
                 }
             }
             Ok(())
@@ -289,7 +363,7 @@ op! {
                     )?;
                 }
                 if let Some(children) = &wb.child_order {
-                    t.entries().reorder_children(Some(lane_id), children)?;
+                    reorder_stored_children(t, lane_id, children)?;
                 }
             }
             Ok(())

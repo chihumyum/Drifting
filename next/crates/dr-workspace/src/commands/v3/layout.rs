@@ -69,12 +69,14 @@ op! {
         if input.positions.is_empty() {
             return Err(WsError::invalid("positions must not be empty"));
         }
+        let v = slot.reader_v3.view();
         let mut parsed: Vec<(EntryId, (f64, f64))> = Vec::with_capacity(input.positions.len());
         for (raw_id, (x, y)) in &input.positions {
             if !x.is_finite() || !y.is_finite() {
                 return Err(WsError::invalid("layout coordinates must be finite"));
             }
-            parsed.push((pid("entry", raw_id)?, (*x, *y)));
+            // Only a live entry has a place on a canvas.
+            parsed.push((live(&v, raw_id)?.id, (*x, *y)));
         }
         let unchanged = match cx
             .workspace()

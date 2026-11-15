@@ -332,7 +332,7 @@ impl BookStructureV3 {
                 BookRoot::View { view } | BookRoot::Lane { view, .. } => {
                     self.timeline_views.get(view)
                 }
-                BookRoot::Root | BookRoot::Entry { .. } => None,
+                BookRoot::Root | BookRoot::Entry { .. } | BookRoot::Unset => None,
             };
             if let Some(tv) = root_view.filter(|tv| in_view(tv)) {
                 return Some(tv);
@@ -656,6 +656,8 @@ impl BookStructureV3 {
             BookRoot::Lane { view, entry } => {
                 self.lane_in_view_sequence(&self.timeline_views[view], entry, in_book_only)
             }
+            // Never valid: refused above.
+            BookRoot::Unset => Vec::new(),
         };
         if in_book_only {
             // Entries with book prose are numbered from 1 across the sequence,

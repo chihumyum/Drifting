@@ -1479,6 +1479,19 @@ expression: json
                 "entry"
               ],
               "type": "object"
+            },
+            {
+              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
+              "properties": {
+                "kind": {
+                  "const": "unset",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
             }
           ]
         }
@@ -1617,6 +1630,19 @@ expression: json
                 "kind",
                 "view",
                 "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
+              "properties": {
+                "kind": {
+                  "const": "unset",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
               ],
               "type": "object"
             }
@@ -12241,6 +12267,19 @@ expression: json
                 "entry"
               ],
               "type": "object"
+            },
+            {
+              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
+              "properties": {
+                "kind": {
+                  "const": "unset",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -13272,6 +13311,19 @@ expression: json
                 "entry"
               ],
               "type": "object"
+            },
+            {
+              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
+              "properties": {
+                "kind": {
+                  "const": "unset",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -13591,6 +13643,19 @@ expression: json
                 "entry"
               ],
               "type": "object"
+            },
+            {
+              "description": "The stored start is missing or cannot be read: the book has no\ncontent until a start is picked again. Never accepted as a start.",
+              "properties": {
+                "kind": {
+                  "const": "unset",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -13645,6 +13710,13 @@ expression: json
             "null"
           ]
         },
+        "name": {
+          "description": "The project's name (as `book.update` sets it); omit to keep.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "root": {
           "anyOf": [
             {
@@ -13655,6 +13727,13 @@ expression: json
             }
           ],
           "description": "Book sequence start (`成书起点`). Required when turning `has_book` from off to on."
+        },
+        "summary": {
+          "description": "The project's profile (as `book.update` sets it); omit to keep.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "word_target": {
           "description": "Whole-book word target: omit to keep, `0` to turn off, `null` to restore default.",
@@ -13686,7 +13765,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets."
+    "summary": "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write."
   },
   {
     "access": "write",

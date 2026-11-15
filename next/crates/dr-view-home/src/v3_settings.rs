@@ -1,4 +1,5 @@
-//! Home settings send only fields the author changed since opening the form.
+//! Home settings send only fields the author changed since opening the form,
+//! as one `project.update`: one undo step, saved whole or not at all.
 use dr_i18n::keys;
 use dr_shell::t;
 use dr_ui::{
@@ -9,7 +10,6 @@ use dr_ui::{
 use dr_view_stats::v3::Loaded;
 use dr_workspace::{
     Actor, Workspace, WsError,
-    commands::book::{BookUpdate, BookUpdateIn},
     commands::v3::project::{ProjectUpdate, ProjectUpdateIn},
 };
 use gpui::{
@@ -26,11 +26,7 @@ struct Values {
 }
 
 impl Values {
-    fn update(
-        &self,
-        book: &str,
-        baseline: &Self,
-    ) -> Result<(Option<BookUpdateIn>, Option<ProjectUpdateIn>), WsError> {
+    fn update(&self, book: &str, baseline: &Self) -> Result<Option<ProjectUpdateIn>, WsError> {
         let target = |s: &str| -> Result<i64, WsError> {
             if s.trim().is_empty() {
                 return Ok(0);
@@ -52,19 +48,18 @@ impl Values {
         let daily_word_target = (self.daily != baseline.daily)
             .then(|| target(&self.daily).map(Some))
             .transpose()?;
-        let book_up = (name.is_some() || summary.is_some()).then(|| BookUpdateIn {
+        let changed = name.is_some()
+            || summary.is_some()
+            || word_target.is_some()
+            || daily_word_target.is_some();
+        Ok(changed.then(|| ProjectUpdateIn {
             book: book.into(),
             name,
             summary,
-        });
-        let proj_up =
-            (word_target.is_some() || daily_word_target.is_some()).then(|| ProjectUpdateIn {
-                book: book.into(),
-                word_target,
-                daily_word_target,
-                ..Default::default()
-            });
-        Ok((book_up, proj_up))
+            word_target,
+            daily_word_target,
+            ..Default::default()
+        }))
     }
 }
 
@@ -159,18 +154,18 @@ impl SettingsDialog {
             goal: self.goal.read(cx).text().to_owned(),
             daily: self.daily.read(cx).text().to_owned(),
         };
-        let (book_up, proj_up) = match values.update(&self.book, &self.baseline) {
-            Ok(pair) => pair,
+        let update = match values.update(&self.book, &self.baseline) {
+            Ok(Some(update)) => update,
+            Ok(None) => {
+                self.close(cx);
+                return;
+            }
             Err(_) => {
                 self.error = true;
                 cx.notify();
                 return;
             }
         };
-        if book_up.is_none() && proj_up.is_none() {
-            self.close(cx);
-            return;
-        }
         self.busy = true;
         self.error = false;
         self.disable(true, cx);
@@ -178,15 +173,7 @@ impl SettingsDialog {
         cx.spawn(async move |this, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move {
-                    if let Some(input) = book_up {
-                        lib.run::<BookUpdate>(&Actor::User, input)?;
-                    }
-                    if let Some(input) = proj_up {
-                        lib.run::<ProjectUpdate>(&Actor::User, input)?;
-                    }
-                    Ok::<(), WsError>(())
-                })
+                .spawn(async move { lib.run::<ProjectUpdate>(&Actor::User, update).map(drop) })
                 .await;
             this.update(cx, |d, cx| {
                 d.busy = false;
@@ -377,6 +364,88 @@ mod tests {
         assert_eq!(
             v3::load(&ws, &book, Scope::Book).unwrap().summary,
             original.title
+        );
+        ws.close();
+    }
+
+    /// DX 8: a save is one command. One undo takes the name and the target
+    /// back together; when the target is refused (a project without a
+    /// book has none), the name is not saved either.
+    #[gpui::test]
+    fn settings_save_in_one_step_or_not_at_all(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let lib =
+            dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        seed.write_to(&lib).unwrap();
+        let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
+        cx.update(|cx| {
+            dr_shell::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: Some(Appearance::Light),
+                },
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            )
+        });
+        let original = v3::load(&ws, &book, Scope::Book).unwrap();
+        let loaded = v3::load(&ws, &book, Scope::Book).unwrap();
+        let (frame, vcx) = cx.add_window_view(|window, cx| {
+            Frame(cx.new(|cx| SettingsDialog::new(ws.clone(), book.clone(), &loaded, window, cx)))
+        });
+        let dialog = frame.read_with(vcx, |f, _| f.0.clone());
+        dialog.update(vcx, |d, cx| {
+            d.name.update(cx, |f, cx| f.set_text("合成新名", cx));
+            d.goal.update(cx, |f, cx| f.set_text("4321", cx));
+            d.save(cx);
+        });
+        wait(vcx, |cx| dialog.read_with(cx, |d, _| !d.busy));
+        assert!(!dialog.read_with(vcx, |d, _| d.error));
+        let saved = v3::load(&ws, &book, Scope::Book).unwrap();
+        assert_eq!(
+            (saved.title.as_str(), saved.word_target),
+            ("合成新名", Some(4321))
+        );
+        ws.undo(&Actor::User).unwrap().unwrap();
+        let undone = v3::load(&ws, &book, Scope::Book).unwrap();
+        assert_eq!(
+            (undone.title, undone.word_target),
+            (original.title.clone(), original.word_target)
+        );
+
+        ws.call(
+            &Actor::User,
+            "project.update",
+            json!({"book": book, "has_book": false}),
+        )
+        .unwrap();
+        let loaded = v3::load(&ws, &book, Scope::Book).unwrap();
+        let (frame, vcx) = cx.add_window_view(|window, cx| {
+            Frame(cx.new(|cx| SettingsDialog::new(ws.clone(), book.clone(), &loaded, window, cx)))
+        });
+        let dialog = frame.read_with(vcx, |f, _| f.0.clone());
+        dialog.update(vcx, |d, cx| {
+            d.name.update(cx, |f, cx| f.set_text("不该存下", cx));
+            d.goal.update(cx, |f, cx| f.set_text("10", cx));
+            d.save(cx);
+        });
+        wait(vcx, |cx| dialog.read_with(cx, |d, _| !d.busy));
+        assert!(dialog.read_with(vcx, |d, _| d.error));
+        assert_eq!(
+            v3::load(&ws, &book, Scope::Book).unwrap().title,
+            original.title,
+            "half a save is no save"
         );
         ws.close();
     }
