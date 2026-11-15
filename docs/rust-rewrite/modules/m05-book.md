@@ -150,3 +150,34 @@ cargo run --release -p dr-editor --example book-bench -- --write
 - **外壳路由、持久化与失效收起**（`dr-shell`、`dr-view-page/src/whole.rs`）：新增 `Target::BookView(TimelineViewId)`（键 `"book-view:<view>"`）与 `Target::BookLane { view, entry }`（键 `"book-lane:<view>/<entry>"`），与原有 `Target::Book(EntryId)` 并列挂载于 `whole.rs`，支持多标签并存、按各自键在 `book_positions` 中独立记忆阅读位置、同步右栏大纲标题层级。当对应视图被删除、泳道从视图移出，或泳道条目不再满足 `has_below`（同时关掉「层级」与「收别处的条目」或移入回收站）时，`BookEditor::prepare` 返回错误，已打开的整书视图标签自动收起。
 
 永久回归见 `dr-editor/tests/book.rs`（含视图起点按泳道从上到下与刻度从左到右铺开且不重复、`BookRoot::Lane` 按该视图刻度铺开）与 `dr-view-page/tests/mounted.rs`（含挂载外壳打开 `Target::BookView` / `Target::BookLane` 及泳道关掉开关后自动关标签）。
+
+## 内核 v5 · T5b 整书视图里放文件（2026-11-16）
+
+大白话：整书视图和单章编辑器在「往正文里放文件」这件事上一样了（作者：「通览全书和单独章节的Editor功能应该是等价的。」）。之前整书视图的斜杠菜单列着「图片或 PDF…」，挑完文件什么也不发生；「从电脑选…」只把文件导进素材库；拖文件、⌘V 贴图、表格按表格复制剪切都没有。现在：
+
+- **斜杠菜单的「图片或 PDF…」**：挑一个文件，嵌在打开菜单的那一章、光标处；「从电脑选…」的文件进素材库（同样的字节给回已有的那一个），再嵌进同一章。光标已经离开那一章时（选文件窗口开着的时候点到别处），嵌在那一章末尾。
+- **从素材库或系统拖进来**：落点线跟着指针，在屏幕上看得见的段落之间找最近的缝；两章交界处离哪一章的段落近就落在哪一章。素材夹拖进来带上里面的文件。松手以后光标移到放进来的文件后面那一段。
+- **⌘V**：剪贴板里的图、图片或 PDF 文件嵌在光标那一章；复制来的表格、两行两列以上的制表符文字变成表格。选中一张表格复制、剪切，照单章按表格放上剪贴板。
+- **撤销**：每一次放文件都是那一章自己的一步，⌘Z 一步回去。整书视图的 ⌘Z 撤的是光标所在那一章（本页第 3 条），所以拖放以后光标跟到落点那一章，否则会去撤光标原来那一章的字。单章编辑器里拖放不动光标，这是两边唯一的差别。
+- **斜杠菜单的行**：开着「格式快捷输入」的层级下面，单章的斜杠菜单不列「待办」「位置链接」，整书视图之前照列。现在整书视图每一章的斜杠菜单和这一章在单章编辑器里的一样（`Assist::set_chapter_notes`）。
+- **链到文件的小记号**（核对时顺手查出来的）：正文链到素材库里的文件时，链好的字后面有一个小文件记号。这个记号是选区浮条那一层（`Assist`）拿到编辑器的扩展以后画的，单章给了、整书没给，所以整书视图里看不到。现在给了。
+
+做法：单章的这几样原来都写在 `view.rs` 里、只认第 0 章。挪进 `dr-editor/src/prose_files.rs`，改成对「某一章」做（用那一章自己的 `NoteEmbeds`，写进那一章的文档）；后台导入完成后按文档重新找这一章，整书视图中途重建也不会放错。单章（`view.rs`）和整书（`book/files.rs`）都调它，不写两份。整书视图的落点只看列表里画出来的那些项（`ListState::bounds_for_item`），不扫全书的段落。
+
+新的公开接口：`BookEditor::{insert_material(章, 文件), drop_asset_drag(拖的东西, (章, 缝)?), drop_external_paths(路径, (章, 缝)?), note_embeds(文档)}`、`Assist::{set_chapter_notes, pick_material_from_computer}`（后者原来是私有的，测试要调）。小文件记号带了一个调试选择器 `dr-editor-file-link-badge`（只在调试构建的测试里记下，测试靠它看记号画没画）。
+
+核对整书和单章还有没有别的不等价（2026-11-16）：批注画层、浮条、复制时带上链接、高亮和行内代码的快捷键、撤销、查找、字数两边本来就是同一套代码；外壳那一层 `dr-shell/src/workspace/mounted.rs` 给两边接的是同一组事件（点开嵌入的文件、给嵌入写批注、框一块写批注、打字进沉浸）。拼写检查两边都没有；字段、键值表、媒体模块在整书视图里不显示是设计如此。除了上面几条，没有查出别的差距。
+
+回归在 `dr-editor/tests/v5_files.rs`：
+
+- `whole_book_slash_embeds_an_image_and_a_pdf_in_the_caret_chapter_undone_in_one_step`：斜杠插图进第二章、插 PDF 进第一章，另一章不动，素材库不多一格，各自一步撤销；「从电脑选…」的文件进素材库并嵌进菜单那一章。
+- `whole_book_drops_library_files_and_folders_into_the_dropped_chapter`：素材库的文件拖进第二章两段之间，光标跟过去，一步撤销；素材夹拖进第一章带上里面的文件。
+- `whole_book_file_dropped_at_a_chapter_boundary_lands_in_the_chapter_under_the_pointer`：真走一遍系统拖放事件，指针在第一章末段下面落在第一章末尾、在第二章首段上面落在第二章开头；同样的字节再拖一次不多一格。
+- `whole_book_paste_puts_an_image_in_the_caret_chapter_and_reuses_the_same_bytes`：⌘V 贴图进光标那一章、叫「粘贴的图片 …」，一步撤销，文件留在素材库；同样的字节贴进另一章不多一格。
+- `whole_book_copies_cuts_and_pastes_tables_as_a_chapter_editor_does`：制表符文字贴成表格；选中表格复制是表格、贴进另一章还是那张表；剪切拿走表格、放上剪贴板。
+- `whole_book_slash_menu_matches_each_chapters_own_editor`：一章在开着格式快捷输入的卷里、一章不在，两章的斜杠菜单各自和单章编辑器里的一样。
+- `whole_book_draws_the_file_mark_after_a_link_to_a_file`：在整书视图里用 `@` 链到一个文件，链接画在那一章，字后面画出小文件记号。
+
+反证：把整书视图里接住插入、⌘V、复制剪切、系统拖放、按章的斜杠菜单和扩展这几处临时拿掉，上面除了拖素材库那一条（它直接调新接口）都会失败；放回去全过。
+
+单章原有的放文件测试（`v5_files.rs`、`note.rs` 的表格和粘贴）照旧过，期望没动。
