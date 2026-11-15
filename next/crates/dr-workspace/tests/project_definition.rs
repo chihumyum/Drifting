@@ -8,7 +8,9 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 /// A small synthetic project template: a folder with a card under it, the
-/// folder as the book start, a tab and a view's lane.
+/// folder as the book start, a tab and a view's lane. The tab still carries
+/// a `name`, as templates saved before tabs lost their names do: it is read
+/// and ignored.
 fn cards_template() -> Value {
     json!({
         "project": {
@@ -138,8 +140,14 @@ fn two_projects_from_one_template_share_no_entry_or_document() {
             json!({"kind": "entry", "entry": folder})
         );
         assert_eq!(project["book_root_valid"], true);
-        assert_eq!(project["tabs"][0]["mount"]["entry"], folder);
-        assert_ne!(project["tabs"][0]["id"], "seed-tab");
+        // 「全部」 is added first (the template has no root tab), with its
+        // fixed id; the template's tab follows, with a fresh id and no name.
+        assert_eq!(project["tabs"].as_array().unwrap().len(), 2);
+        assert_eq!(project["tabs"][0]["id"], "tab-all");
+        assert_eq!(project["tabs"][0]["mount"], json!({"kind": "root"}));
+        assert_eq!(project["tabs"][1]["mount"]["entry"], folder);
+        assert_ne!(project["tabs"][1]["id"], "seed-tab");
+        assert!(project["tabs"][1].get("name").is_none(), "{project}");
         let views = e.out("timeline_view.list", json!({"book": book}));
         assert_ne!(views[0]["id"], "seed-view");
         assert_eq!(views[0]["lanes"][0]["entry"], folder);
@@ -296,59 +304,139 @@ fn a_book_start_that_cannot_be_read_reads_as_no_book_content() {
     );
 }
 
-fn tabs(e: &Env, b: &str) -> Vec<(String, String)> {
+/// The tabs `project.get` shows: id and mount, in order.
+fn tabs(e: &Env, b: &str) -> Vec<(String, Value)> {
     e.out("project.get", json!({"book": b}))["tabs"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|t| {
-            (
-                t["id"].as_str().unwrap().to_owned(),
-                t["name"].as_str().unwrap().to_owned(),
-            )
-        })
+        .map(|t| (t["id"].as_str().unwrap().to_owned(), t["mount"].clone()))
         .collect()
 }
 
-/// DX 7: creating, renaming, moving and removing a tab, and changing the
-/// book start, are each one undo step.
+fn refused(e: &Env, name: &str, input: Value, invariant: &str) -> String {
+    match e.try_call(name, input.clone()) {
+        Err(WsError::Violation(v)) => {
+            assert_eq!(v.invariant, invariant, "{name} {input}");
+            v.detail
+        }
+        other => panic!("{name} {input}: expected {invariant}, got {other:?}"),
+    }
+}
+
+fn root_entry(e: &Env, b: &str, title: &str) -> String {
+    entry_titled(e, b, title)
+}
+
+/// DZ: a new writing project's tabs are 「全部」 (the root, under its fixed
+/// id), 书稿, 构想, 要素, 故事线, in that order; none has a name, and no tab is
+/// chosen yet.
+#[test]
+fn a_new_writing_project_has_all_first_then_four_tabs() {
+    let e = env();
+    let b = e.book();
+    let project = e.out("project.get", json!({"book": b}));
+    let mounts: Vec<Value> = tabs(&e, &b).into_iter().map(|(_, m)| m).collect();
+    let entry = |title: &str| json!({"kind": "entry", "entry": root_entry(&e, &b, title)});
+    assert_eq!(
+        mounts,
+        [
+            json!({"kind": "root"}),
+            entry("书稿"),
+            entry("构想"),
+            entry("要素"),
+            entry("故事线"),
+        ]
+    );
+    assert_eq!(project["tabs"][0]["id"], "tab-all");
+    for t in project["tabs"].as_array().unwrap() {
+        assert!(t.get("name").is_none(), "{t}");
+        assert_eq!(t["mount_valid"], true, "{t}");
+    }
+    assert!(project["selected_tab"].is_null());
+}
+
+/// DZ: one thing is mounted on one tab. Mounting an entry that has a tab
+/// again is refused, naming that tab; so is mounting the root, which
+/// 「全部」 has. 「全部」 cannot be removed; another tab can, in one undo step.
+#[test]
+fn a_thing_is_mounted_on_one_tab_and_all_stays() {
+    let e = env();
+    let b = e.book();
+    let undo = || e.ws().undo(&Actor::User).unwrap().unwrap();
+    let before = tabs(&e, &b);
+    let ms = root_entry(&e, &b, "书稿");
+    let detail = refused(
+        &e,
+        "tab.put",
+        json!({"book": b, "mount": {"kind": "entry", "entry": ms}}),
+        "TAB-MOUNT-ONCE",
+    );
+    assert!(detail.contains(&before[1].0), "{detail}");
+    let detail = refused(
+        &e,
+        "tab.put",
+        json!({"book": b, "mount": {"kind": "root"}}),
+        "TAB-MOUNT-ONCE",
+    );
+    assert!(detail.contains("tab-all"), "{detail}");
+    refused(
+        &e,
+        "tab.remove",
+        json!({"book": b, "id": "tab-all"}),
+        "TAB-ROOT-ALWAYS",
+    );
+    assert_eq!(tabs(&e, &b), before);
+
+    // A new tab is new: `tab.put` takes no id and no name, and gives back
+    // only the new id.
+    let made = e.out(
+        "tab.put",
+        json!({"book": b, "mount": {"kind": "book"}, "place": "first"}),
+    );
+    assert_eq!(made.as_object().unwrap().len(), 1, "{made}");
+    let made = made["id"].as_str().unwrap().to_owned();
+    assert_eq!(tabs(&e, &b)[0].0, made);
+    refused(
+        &e,
+        "tab.put",
+        json!({"book": b, "mount": {"kind": "book"}}),
+        "TAB-MOUNT-ONCE",
+    );
+    e.call("tab.remove", json!({"book": b, "id": made}));
+    assert_eq!(tabs(&e, &b), before);
+    undo();
+    assert_eq!(tabs(&e, &b)[0].0, made);
+    undo();
+    assert_eq!(tabs(&e, &b), before);
+}
+
+/// DX 7: creating, moving and removing a tab, and changing the book start,
+/// are each one undo step. (Tabs have no names since DZ: there is no
+/// renaming.)
 #[test]
 fn every_tab_write_and_the_book_start_undo_in_one_step() {
     let e = env();
     let b = e.book();
     let undo = || e.ws().undo(&Actor::User).unwrap().unwrap();
     let before = tabs(&e, &b);
-    assert_eq!(before.len(), 4);
+    assert_eq!(before.len(), 5);
 
-    let made = e.out(
-        "tab.put",
-        json!({"book": b, "name": "全项目", "mount": {"kind": "root"}}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    assert_eq!(tabs(&e, &b).len(), 5);
+    e.call("tab.put", json!({"book": b, "mount": {"kind": "book"}}));
+    assert_eq!(tabs(&e, &b).len(), 6);
     undo();
     assert_eq!(tabs(&e, &b), before, "creating");
 
     e.call(
-        "tab.put",
-        json!({"book": b, "id": before[0].0, "name": "正文"}),
-    );
-    assert_eq!(tabs(&e, &b)[0].1, "正文");
-    undo();
-    assert_eq!(tabs(&e, &b), before, "renaming");
-
-    e.call(
         "tab.move",
-        json!({"book": b, "id": before[0].0, "place": "last"}),
+        json!({"book": b, "id": before[1].0, "place": "last"}),
     );
-    assert_eq!(tabs(&e, &b)[3].0, before[0].0);
+    assert_eq!(tabs(&e, &b)[4].0, before[1].0);
     undo();
     assert_eq!(tabs(&e, &b), before, "moving");
 
-    e.call("tab.remove", json!({"book": b, "id": before[1].0}));
-    assert_eq!(tabs(&e, &b).len(), 3);
+    e.call("tab.remove", json!({"book": b, "id": before[2].0}));
+    assert_eq!(tabs(&e, &b).len(), 4);
     undo();
     assert_eq!(tabs(&e, &b), before, "removing");
 
@@ -363,7 +451,6 @@ fn every_tab_write_and_the_book_start_undo_in_one_step() {
         root,
         "the book start"
     );
-    let _ = made;
 }
 
 /// Every stored document of `from` imported into `to`, the book first.
@@ -401,19 +488,15 @@ fn two_devices_editing_the_definition_and_the_tabs_keep_both_sides() {
     let b = a.book();
     sync(&a, &z);
     let first = tabs(&a, &b);
-    let (t0, t1) = (first[0].0.clone(), first[1].0.clone());
-    // A: a word target, then renames the first tab and adds one.
+    let (t0, t1) = (first[1].0.clone(), first[2].0.clone());
+    // A: a word target, then adds a tab.
     a.call("project.update", json!({"book": b, "word_target": 1000}));
-    a.call("tab.put", json!({"book": b, "id": t0, "name": "正文"}));
-    let added = a.out(
-        "tab.put",
-        json!({"book": b, "name": "全项目", "mount": {"kind": "root"}}),
-    )["id"]
+    let added = a.out("tab.put", json!({"book": b, "mount": {"kind": "book"}}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    // Z, at the same time: moves that first tab last, removes another,
-    // writes new guidance and a daily target.
+    // Z, at the same time: moves the first tab after 「全部」 last, removes
+    // another, writes new guidance and a daily target.
     z.call("tab.move", json!({"book": b, "id": t0, "place": "last"}));
     z.call("tab.remove", json!({"book": b, "id": t1}));
     z.call(
@@ -433,8 +516,6 @@ fn two_devices_editing_the_definition_and_the_tabs_keep_both_sides() {
             now.iter().any(|(id, _)| id == &added),
             "added on A: {now:?}"
         );
-        let renamed = now.iter().position(|(id, _)| id == &t0).unwrap();
-        assert_eq!(now[renamed].1, "正文", "renamed on A: {now:?}");
         let last_before_added = now.iter().rfind(|(id, _)| id != &added).unwrap();
         assert_eq!(last_before_added.0, t0, "moved last on Z: {now:?}");
     }
@@ -481,4 +562,236 @@ fn name_profile_and_targets_are_one_write() {
         .is_err()
     );
     assert_eq!(book(&e)["name"], before["name"], "nothing was saved");
+}
+
+/// One commit written straight on the holder of `book:<b>`, as another
+/// device's sync would bring it (a book from before DZ, say).
+fn raw_book_write(e: &Env, b: &str, f: impl FnOnce(&loro::LoroDoc) + Send + 'static) {
+    e.ws()
+        .library()
+        .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Sync, f)
+        .unwrap();
+}
+
+/// The tab records stored in the book, sorted (「全部」 only when stored).
+fn stored_tabs(e: &Env, b: &str) -> Vec<(String, Value)> {
+    let book = dr_model::id::BookId::parse(b).unwrap();
+    e.ws()
+        .read_book_v3(b, move |doc, _| {
+            Ok(dr_doc::v3::BorrowedBookV3::new(doc, &book)
+                .unwrap()
+                .view()
+                .stored_tabs()
+                .into_iter()
+                .map(|t| (t.id.to_string(), serde_json::to_value(&t.mount).unwrap()))
+                .collect())
+        })
+        .unwrap()
+}
+
+/// A book from before DZ: no tab stored at the root.
+fn without_all(e: &Env, b: &str) {
+    let book = dr_model::id::BookId::parse(b).unwrap();
+    raw_book_write(e, b, move |d| {
+        dr_doc::v3::BorrowedBookV3::new(d, &book)
+            .unwrap()
+            .txn()
+            .project()
+            .remove_tab(&dr_model::v3::all_tab_id())
+            .unwrap();
+    });
+}
+
+/// DZ: a book with no tab at the root reads 「全部」 first, under its fixed
+/// id, without storing it; `tab.move` stores it. Two devices that each move
+/// it write one record, and both read one 「全部」 in the same place.
+#[test]
+fn a_book_without_all_reads_it_first_and_stores_it_once_moved() {
+    let (a, z) = (env(), env());
+    let b = a.book();
+    without_all(&a, &b);
+    let shown = tabs(&a, &b);
+    assert_eq!(shown.len(), 5);
+    assert_eq!(shown[0], ("tab-all".to_owned(), json!({"kind": "root"})));
+    assert_eq!(stored_tabs(&a, &b), shown[1..].to_vec(), "only read in");
+    sync(&a, &z);
+    assert_eq!(tabs(&z, &b), shown, "every device reads the same 「全部」");
+
+    // Moving it stores it; undo takes it back to being read in.
+    a.call(
+        "tab.move",
+        json!({"book": b, "id": "tab-all", "place": "last"}),
+    );
+    assert_eq!(tabs(&a, &b)[4].0, "tab-all");
+    assert_eq!(stored_tabs(&a, &b).len(), 5);
+    a.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(tabs(&a, &b), shown);
+    assert_eq!(stored_tabs(&a, &b).len(), 4);
+
+    // Both devices move it at once: one record, one 「全部」.
+    a.call(
+        "tab.move",
+        json!({"book": b, "id": "tab-all", "place": "last"}),
+    );
+    z.call(
+        "tab.move",
+        json!({"book": b, "id": "tab-all", "place": {"after": shown[1].0}}),
+    );
+    sync(&a, &z);
+    sync(&z, &a);
+    let (on_a, on_z) = (tabs(&a, &b), tabs(&z, &b));
+    assert_eq!(on_a, on_z);
+    assert_eq!(on_a.len(), 5);
+    assert_eq!(
+        on_a.iter().filter(|(_, m)| m["kind"] == "root").count(),
+        1,
+        "{on_a:?}"
+    );
+    let stored = stored_tabs(&a, &b);
+    assert_eq!(
+        stored.iter().filter(|(id, _)| id == "tab-all").count(),
+        1,
+        "{stored:?}"
+    );
+    assert_eq!(stored.len(), 5);
+}
+
+/// DZ: two devices mount the same entry at once; after they merge, both read
+/// one tab for it, the first by `(pos, id)`. Removing it removes the other
+/// device's record too, so nothing takes its place; one undo brings both
+/// back.
+#[test]
+fn two_devices_mounting_one_entry_read_one_tab() {
+    let (a, z) = (env(), env());
+    let b = a.book();
+    let ms = root_entry(&a, &b, "书稿");
+    let folder = a.out(
+        "entry.create",
+        json!({"book": b, "parent": ms, "title": "卷一", "template": "tpl-group"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    sync(&a, &z);
+    let mount = json!({"kind": "entry", "entry": folder});
+    let on_a = a.out("tab.put", json!({"book": b, "mount": mount}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let on_z = z.out("tab.put", json!({"book": b, "mount": mount}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    sync(&a, &z);
+    sync(&z, &a);
+    let merged = tabs(&a, &b);
+    assert_eq!(merged, tabs(&z, &b));
+    let with = |list: &[(String, Value)]| -> Vec<String> {
+        list.iter()
+            .filter(|(_, m)| *m == mount)
+            .map(|(id, _)| id.clone())
+            .collect()
+    };
+    let kept = with(&merged);
+    assert_eq!(kept.len(), 1, "{merged:?}");
+    assert!(kept[0] == on_a || kept[0] == on_z);
+    assert_eq!(with(&stored_tabs(&a, &b)).len(), 2, "both records stay");
+    // A third device's write is refused like any repeat.
+    refused(
+        &a,
+        "tab.put",
+        json!({"book": b, "mount": mount}),
+        "TAB-MOUNT-ONCE",
+    );
+
+    a.call("tab.remove", json!({"book": b, "id": kept[0]}));
+    assert!(with(&tabs(&a, &b)).is_empty(), "nothing takes its place");
+    assert!(with(&stored_tabs(&a, &b)).is_empty());
+    a.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(with(&tabs(&a, &b)), kept);
+    assert_eq!(with(&stored_tabs(&a, &b)).len(), 2);
+}
+
+/// DZ: a tab stored with an old `name` reads as usual, without it, and
+/// moving it keeps working.
+#[test]
+fn a_tab_stored_with_an_old_name_reads_as_usual() {
+    let e = env();
+    let b = e.book();
+    let before = tabs(&e, &b);
+    let first = before[1].0.clone();
+    let id = first.clone();
+    raw_book_write(&e, &b, move |d| {
+        let tabs = d.get_map("project").ensure_mergeable_map("tabs").unwrap();
+        tabs.ensure_mergeable_map(&id)
+            .unwrap()
+            .insert("name", "旧的名字")
+            .unwrap();
+    });
+    let project = e.out("project.get", json!({"book": b}));
+    assert_eq!(tabs(&e, &b), before);
+    assert!(project["tabs"][1].get("name").is_none(), "{project}");
+    e.call("tab.move", json!({"book": b, "id": first, "place": "last"}));
+    assert_eq!(tabs(&e, &b)[4].0, first);
+}
+
+/// DZ: the tab the project is on. `tab.select` takes a live tab (「全部」
+/// read in included) and refuses one that is not there; `project.get` gives
+/// it as `selected_tab`; a removed tab reads as none, and comes back with
+/// the tab.
+#[test]
+fn the_selected_tab_is_a_live_tab_and_a_gone_one_reads_as_none() {
+    let e = env();
+    let b = e.book();
+    let selected = || e.out("project.get", json!({"book": b}))["selected_tab"].clone();
+    assert!(selected().is_null());
+    match e.try_call("tab.select", json!({"book": b, "id": "tab-missing"})) {
+        Err(err) => assert_eq!(err.code(), "not_found", "{err}"),
+        other => panic!("{other:?}"),
+    }
+    let ideas = tabs(&e, &b)[2].0.clone();
+    e.call("tab.select", json!({"book": b, "id": ideas}));
+    assert_eq!(selected(), json!(ideas));
+    e.call("tab.remove", json!({"book": b, "id": ideas}));
+    assert!(selected().is_null(), "a removed tab reads as none");
+    match e.try_call("tab.select", json!({"book": b, "id": ideas})) {
+        Err(err) => assert_eq!(err.code(), "not_found", "{err}"),
+        other => panic!("{other:?}"),
+    }
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(selected(), json!(ideas), "the tab came back");
+
+    // 「全部」 read in, not stored, can be chosen.
+    without_all(&e, &b);
+    e.call("tab.select", json!({"book": b, "id": "tab-all"}));
+    assert_eq!(selected(), json!("tab-all"));
+    assert!(stored_tabs(&e, &b).iter().all(|(id, _)| id != "tab-all"));
+}
+
+/// DZ: the tab the project is on follows the project: chosen on one device,
+/// it is the one on the other; chosen on both at once, both agree after
+/// they merge.
+#[test]
+fn two_devices_merged_are_on_the_same_tab() {
+    let (a, z) = (env(), env());
+    let b = a.book();
+    sync(&a, &z);
+    let shown = tabs(&a, &b);
+    a.call("tab.select", json!({"book": b, "id": shown[3].0}));
+    sync(&a, &z);
+    let selected = |dev: &Env| dev.out("project.get", json!({"book": b}))["selected_tab"].clone();
+    assert_eq!(selected(&z), json!(shown[3].0));
+
+    a.call("tab.select", json!({"book": b, "id": shown[1].0}));
+    z.call("tab.select", json!({"book": b, "id": shown[4].0}));
+    sync(&a, &z);
+    sync(&z, &a);
+    let on_a = selected(&a);
+    assert_eq!(on_a, selected(&z));
+    assert!(
+        on_a == json!(shown[1].0) || on_a == json!(shown[4].0),
+        "{on_a}"
+    );
 }

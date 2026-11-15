@@ -12847,6 +12847,7 @@ expression: json
           "type": "object"
         },
         "ProjectTab": {
+          "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, a view's name, 「成书」, 「全部」 for the root).\nAn old `name` in a template's tab is ignored.",
           "properties": {
             "id": {
               "type": "string"
@@ -12859,9 +12860,6 @@ expression: json
               "description": "Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).",
               "type": "boolean"
             },
-            "name": {
-              "type": "string"
-            },
             "pos": {
               "default": null,
               "type": [
@@ -12872,7 +12870,6 @@ expression: json
           },
           "required": [
             "id",
-            "name",
             "mount"
           ],
           "type": "object"
@@ -13379,6 +13376,7 @@ expression: json
           "type": "object"
         },
         "ProjectTab": {
+          "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, a view's name, 「成书」, 「全部」 for the root).\nAn old `name` in a template's tab is ignored.",
           "properties": {
             "id": {
               "type": "string"
@@ -13391,9 +13389,6 @@ expression: json
               "description": "Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).",
               "type": "boolean"
             },
-            "name": {
-              "type": "string"
-            },
             "pos": {
               "default": null,
               "type": [
@@ -13404,7 +13399,6 @@ expression: json
           },
           "required": [
             "id",
-            "name",
             "pos",
             "mount",
             "mount_valid"
@@ -13541,6 +13535,14 @@ expression: json
           "description": "Whether `book.root` currently points to a valid start (`true` when `book` is `None`).",
           "type": "boolean"
         },
+        "selected_tab": {
+          "default": null,
+          "description": "The tab the project is on (`tab.select`, kept in `layout:<book>`);\n`None` when none was chosen or the chosen tab is gone.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "source": {
           "anyOf": [
             {
@@ -13554,6 +13556,7 @@ expression: json
         },
         "tabs": {
           "default": [],
+          "description": "The tabs in order: one per mount, 「全部」 (mounted at the root,\nid `tab-all` unless the book stores another root tab) always among them.",
           "items": {
             "$ref": "#/$defs/ProjectTab"
           },
@@ -13565,12 +13568,13 @@ expression: json
         "agent",
         "book",
         "book_root_valid",
-        "tabs"
+        "tabs",
+        "selected_tab"
       ],
       "title": "Project",
       "type": "object"
     },
-    "summary": "Read the project definition: template source, Agent instructions, book switch/start/word targets, and left-sidebar tabs."
+    "summary": "Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on."
   },
   {
     "access": "write",
@@ -14709,7 +14713,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change a left-sidebar tab's position."
+    "summary": "Change a left-sidebar tab's position (「全部」 included)."
   },
   {
     "access": "write",
@@ -14823,30 +14827,9 @@ expression: json
         "book": {
           "type": "string"
         },
-        "id": {
-          "description": "Existing tab id to update; omitted to create a new tab.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "mount": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TabMount"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Target mounted on this tab (required on create; omit on update to keep)."
-        },
-        "name": {
-          "description": "Tab display name (required on create; omit on update to keep).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/TabMount",
+          "description": "What the new tab mounts: an entry with its level switch or\n「收别处的条目」 on, a view, or the book sequence (the root is\nalways mounted, on 「全部」). A tab is called what it mounts."
         },
         "place": {
           "anyOf": [
@@ -14857,11 +14840,12 @@ expression: json
               "type": "null"
             }
           ],
-          "description": "Where the tab goes (a new tab goes last by default)."
+          "description": "Where the tab goes (last by default)."
         }
       },
       "required": [
-        "book"
+        "book",
+        "mount"
       ],
       "title": "TabPutIn",
       "type": "object"
@@ -14869,23 +14853,19 @@ expression: json
     "kind": "command",
     "name": "tab.put",
     "output": {
-      "description": "The entity a command created or renamed, with its final name.",
+      "description": "The entity a command changed.",
       "properties": {
         "id": {
-          "type": "string"
-        },
-        "name": {
           "type": "string"
         }
       },
       "required": [
-        "id",
-        "name"
+        "id"
       ],
-      "title": "Named",
+      "title": "Done",
       "type": "object"
     },
-    "summary": "Create or edit a left-sidebar tab (root, level entry, view or book sequence)."
+    "summary": "Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab."
   },
   {
     "access": "write",
@@ -14923,7 +14903,45 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove a left-sidebar tab."
+    "summary": "Remove a left-sidebar tab (not what it mounts); 「全部」 stays."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "tab.select",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remember the left-sidebar tab the project is on, for every device (kept in `layout:<book>`; not undoable; leaves the book document untouched)."
   },
   {
     "access": "write",

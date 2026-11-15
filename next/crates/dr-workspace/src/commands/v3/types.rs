@@ -820,10 +820,12 @@ impl From<&dr_model::v3::TabMount> for TabMount {
     }
 }
 
+/// A left-sidebar tab. It has no name of its own: it is called what it
+/// mounts (an entry's title, a view's name, 「成书」, 「全部」 for the root).
+/// An old `name` in a template's tab is ignored.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectTab {
     pub id: String,
-    pub name: String,
     #[serde(default)]
     pub pos: Option<String>,
     pub mount: TabMount,
@@ -843,8 +845,50 @@ pub struct Project {
     /// Whether `book.root` currently points to a valid start (`true` when `book` is `None`).
     #[serde(default = "default_true")]
     pub book_root_valid: bool,
+    /// The tabs in order: one per mount, 「全部」 (mounted at the root,
+    /// id `tab-all` unless the book stores another root tab) always among them.
     #[serde(default)]
     pub tabs: Vec<ProjectTab>,
+    /// The tab the project is on (`tab.select`, kept in `layout:<book>`);
+    /// `None` when none was chosen or the chosen tab is gone.
+    #[serde(default)]
+    pub selected_tab: Option<String>,
+}
+
+impl Project {
+    /// The project definition of a book as `project.get` gives it, without
+    /// the selected tab ([`Self::with_selected_tab`]).
+    pub fn of(s: &dr_doc::v3::BookStructureV3) -> Self {
+        let p = s.project();
+        Self {
+            source: p.source.as_ref().map(Into::into),
+            agent: p.agent.as_ref().map(Into::into),
+            book: p.book.as_ref().map(Into::into),
+            book_root_valid: p
+                .book
+                .as_ref()
+                .is_none_or(|b| s.is_valid_book_root(&b.root)),
+            tabs: p
+                .tabs
+                .iter()
+                .map(|t| ProjectTab {
+                    id: t.id.to_string(),
+                    pos: t.pos.as_ref().map(|k| k.as_str().to_owned()),
+                    mount: (&t.mount).into(),
+                    mount_valid: s.is_valid_tab_mount(&t.mount),
+                })
+                .collect(),
+            selected_tab: None,
+        }
+    }
+
+    /// With the tab `layout:<book>` remembers ([`crate::Workspace::stored_tab`])
+    /// as the selected one, when it is one of [`Self::tabs`]; a tab that is
+    /// gone reads as none.
+    pub fn with_selected_tab(mut self, stored: Option<String>) -> Self {
+        self.selected_tab = stored.filter(|id| self.tabs.iter().any(|t| &t.id == id));
+        self
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

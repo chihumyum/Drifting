@@ -401,21 +401,21 @@ fn a_handed_off_library_imports_completely() {
                 && e.title == "文本素材"
         })
         .unwrap();
-    // The level has a left-bar tab of its own, after the template's four
-    // (DY fix 16): the author finds the notes after the import.
-    let tabs = {
-        let mut t = v.project().tabs;
-        dr_model::v3::sort_project_tabs(&mut t);
-        t
-    };
-    assert_eq!(tabs.len(), 5);
-    assert_eq!(tabs[4].name, "文本素材");
+    // The level has a left-bar tab of its own, after the template's five
+    // (「全部」 and four; DY fix 16): the author finds the notes after the
+    // import. The tab has no name: it is called what it mounts (DZ).
+    let tabs = v.project().tabs;
+    assert_eq!(tabs.len(), 6);
+    assert_eq!(tabs[0].mount, dr_model::v3::TabMount::Root);
+    assert_eq!(tabs[0].id.as_str(), dr_model::v3::ALL_TAB_ID);
+    assert_eq!(tabs[5].id.as_str(), dr_samples::v3::TEXT_MATERIALS_TAB);
     assert_eq!(
-        tabs[4].mount,
+        tabs[5].mount,
         dr_model::v3::TabMount::Entry {
             entry: text_materials_root.id.clone()
         }
     );
+    assert_eq!(v.stored_tabs(), tabs, "every tab is stored");
     let folder = v.entry(&EntryId::parse(FOLDER).unwrap()).unwrap();
     assert_eq!(folder.parent.as_ref(), Some(&text_materials_root.id));
     let note = v.entry(&EntryId::parse(NOTE).unwrap()).unwrap();

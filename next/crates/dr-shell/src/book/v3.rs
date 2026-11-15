@@ -367,28 +367,8 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             })
             .collect();
 
+        let project = types::Project::of(&structure);
         // The book sequence (`project.book`): entries with book prose, in sequence order.
-        let p = structure.project();
-        let project = types::Project {
-            source: p.source.as_ref().map(Into::into),
-            agent: p.agent.as_ref().map(Into::into),
-            book: p.book.as_ref().map(Into::into),
-            book_root_valid: p
-                .book
-                .as_ref()
-                .is_none_or(|b| structure.is_valid_book_root(&b.root)),
-            tabs: p
-                .tabs
-                .iter()
-                .map(|t| types::ProjectTab {
-                    id: t.id.to_string(),
-                    name: t.name.clone(),
-                    pos: t.pos.as_ref().map(|k| k.as_str().to_owned()),
-                    mount: (&t.mount).into(),
-                    mount_valid: structure.is_valid_tab_mount(&t.mount),
-                })
-                .collect(),
-        };
         let mut manuscript = Vec::new();
         let mut ordinals = BTreeMap::new();
         for e in structure.book_sequence() {
@@ -514,6 +494,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
     })?;
 
     v3.layouts = parse_layout_positions(lib.layout_positions(id)?);
+    v3.project = std::mem::take(&mut v3.project).with_selected_tab(lib.stored_tab(id)?);
     v3.entry_index = v3
         .entries
         .iter()

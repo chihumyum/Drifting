@@ -946,7 +946,6 @@ pub fn sync_catalog(
                 .cloned();
             txn.project().put_tab(&ProjectTab {
                 id,
-                name: "文本素材".into(),
                 pos: Some(last.map_or_else(PosKey::first, |p| p.after())),
                 mount: TabMount::Entry {
                     entry: text_root.clone(),

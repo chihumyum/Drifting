@@ -314,10 +314,11 @@ impl ProjectWriterV3 {
         Ok(self)
     }
 
+    /// Write one tab record (`pos`, `mount`). A tab has no name; an old
+    /// `name` key already stored is left as it is and never read.
     pub fn put_tab(&self, tab: &ProjectTab) -> Result<&Self> {
         let tabs = self.map.ensure_mergeable_map("tabs")?;
         let t = tabs.ensure_mergeable_map(tab.id.as_str())?;
-        set(&t, "name", tab.name.as_str())?;
         set(&t, "pos", tab.pos.as_ref())?;
         t.insert("mount", encode_tab_mount(&tab.mount))?;
         Ok(self)

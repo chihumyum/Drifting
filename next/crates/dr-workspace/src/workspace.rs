@@ -598,6 +598,21 @@ impl Workspace {
             .collect())
     }
 
+    /// The left-sidebar tab `layout:<book>` remembers the project is on, as
+    /// stored (`None` when none was chosen or `layout:<book>` has not been
+    /// written yet). It may name a tab that is gone; `project.get` reads that
+    /// as none ([`crate::commands::v3::types::Project::with_selected_tab`]).
+    pub fn stored_tab(&self, book: &str) -> Result<Option<String>> {
+        let b = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let Some(side) = self.side_slot(&DocId::Layout(b.clone()), &b, false)? else {
+            return Ok(None);
+        };
+        let tab = side.handle.read(move |doc| -> Result<_> {
+            Ok(dr_doc::side::BorrowedLayout::new(doc, &b)?.view().tab())
+        })??;
+        Ok(tab.map(|t| t.to_string()))
+    }
+
     /// Whether `book` is a canonical v3 book. A book this workspace has open
     /// is one; otherwise its stored document is looked at without opening
     /// it, so a book in an older format is left untouched.
@@ -1841,6 +1856,8 @@ impl Inner {
                             seq: ev.seq,
                             origin: ev.origin.clone(),
                             scopes: layout_scopes(&ev.changes, dr_doc::schema::side::POSITIONS),
+                            tab: ev.changes.is_empty()
+                                || !side_keys(&ev.changes, dr_doc::schema::side::TAB).is_empty(),
                         }),
                     ),
                     // Conversation observers subscribe to their journal or

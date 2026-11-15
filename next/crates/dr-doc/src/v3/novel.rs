@@ -2,7 +2,9 @@
 //!
 //! Built-in template IDs and module IDs are stable constants. Every entry ID,
 //! view ID and tab ID is generated fresh per book so `body:<entry_id>/*`
-//! document IDs are unique across books in a library (`V3-DOCID-LIBRARY-UNIQUE`).
+//! document IDs are unique across books in a library (`V3-DOCID-LIBRARY-UNIQUE`);
+//! only 「全部」, the tab mounted at the root, has the same fixed id in every
+//! book ([`ALL_TAB_ID`]).
 //!
 //! The project template (`项目定义 + 条目模板 + 起始条目 + 起始视图`) is copied
 //! into a new book and goes its own way there: a later change here never
@@ -19,7 +21,9 @@ use crate::v3::read::BookViewV3;
 use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
-pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 3;
+/// `4`: the tabs are 「全部」, 书稿, 构想, 要素, 故事线 and carry no names
+/// (2026-11-15); `3`: format 5, no 「素材」 root.
+pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 4;
 
 // ---- Stable built-in template IDs ----------------------------------------
 
@@ -869,41 +873,45 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             tpl.settings.home = Some(Some(ids.manuscript.clone()));
         }
     }
-    let tab_pos = pos_chain(4);
-    let tabs = vec![
-        ProjectTab {
-            id: ids.tab_manuscript.clone(),
-            name: "书稿".into(),
-            pos: Some(tab_pos[0].clone()),
-            mount: TabMount::Entry {
+    // 「全部」 first, then 书稿, 构想, 要素, 故事线 (`kernel-v5.md` §5 & §15
+    // item 26). A tab is called what it mounts.
+    let tab_pos = pos_chain(5);
+    let mounted = [
+        (all_tab_id(), TabMount::Root),
+        (
+            ids.tab_manuscript.clone(),
+            TabMount::Entry {
                 entry: ids.manuscript.clone(),
             },
-        },
-        ProjectTab {
-            id: ids.tab_ideas.clone(),
-            name: "构想".into(),
-            pos: Some(tab_pos[1].clone()),
-            mount: TabMount::Entry {
+        ),
+        (
+            ids.tab_ideas.clone(),
+            TabMount::Entry {
                 entry: ids.ideas.clone(),
             },
-        },
-        ProjectTab {
-            id: ids.tab_elements.clone(),
-            name: "要素".into(),
-            pos: Some(tab_pos[2].clone()),
-            mount: TabMount::Entry {
+        ),
+        (
+            ids.tab_elements.clone(),
+            TabMount::Entry {
                 entry: ids.elements.clone(),
             },
-        },
-        ProjectTab {
-            id: ids.tab_storylines.clone(),
-            name: "故事线".into(),
-            pos: Some(tab_pos[3].clone()),
-            mount: TabMount::Entry {
+        ),
+        (
+            ids.tab_storylines.clone(),
+            TabMount::Entry {
                 entry: ids.storylines.clone(),
             },
-        },
+        ),
     ];
+    let tabs = mounted
+        .into_iter()
+        .zip(tab_pos)
+        .map(|((id, mount), pos)| ProjectTab {
+            id,
+            pos: Some(pos),
+            mount,
+        })
+        .collect();
     let project = ProjectDefinition {
         source: Some(ProjectTemplateRef {
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
@@ -1008,9 +1016,15 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
 }
 
 /// Apply any [`ProjectTemplate`] (`project` definition, `templates`, initial
-/// `entries` and initial `views`) into `txn`.
+/// `entries` and initial `views`) into `txn`. The definition's tabs are
+/// written as a project shows them ([`shown_project_tabs`]), so 「全部」 is
+/// stored even when the template has no root tab.
 pub fn apply_project_template(txn: &mut BookTxnV3<'_>, pt: &ProjectTemplate) -> Result<()> {
-    txn.project().set_full(&pt.project)?;
+    // Every project has 「全部」: a template without a root tab gets it first
+    // (`TAB-ROOT-ALWAYS`).
+    let mut project = pt.project.clone();
+    project.tabs = shown_project_tabs(project.tabs);
+    txn.project().set_full(&project)?;
     for tpl in &pt.templates {
         txn.template(&tpl.id)?.set_full(tpl)?;
     }

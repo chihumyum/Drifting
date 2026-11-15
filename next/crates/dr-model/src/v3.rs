@@ -1566,18 +1566,67 @@ pub enum TabMount {
 }
 
 /// One left-sidebar tab in `project.tabs` (`kernel-v5.md` §5 & §10).
+///
+/// A tab has no name of its own: it is called what it mounts (an entry's
+/// title, a view's name, 「成书」, or 「全部」 for the root). A stored or
+/// template tab that still carries an old `name` key reads as if it had none.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectTab {
     pub id: TabId,
-    pub name: String,
     #[serde(default)]
     pub pos: Option<PosKey>,
     pub mount: TabMount,
 }
 
+/// The fixed id of 「全部」, the tab mounted at the root (`TAB-ROOT-ALWAYS`,
+/// `kernel-v5.md` §5 & §10). A project that stores no root tab reads one
+/// with this id, so two devices that each move it write the same key.
+pub const ALL_TAB_ID: &str = "tab-all";
+
+/// [`ALL_TAB_ID`] as a [`TabId`].
+pub fn all_tab_id() -> TabId {
+    TabId::parse(ALL_TAB_ID).expect("the fixed tab id is valid")
+}
+
 /// Sort project tabs deterministically by `(pos, id)`.
 pub fn sort_project_tabs(tabs: &mut [ProjectTab]) {
     tabs.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
+}
+
+/// The tabs as a project shows them (`TAB-MOUNT-ONCE`, `TAB-ROOT-ALWAYS`):
+/// sorted by `(pos, id)`; a tab whose mount an earlier tab already has is
+/// left out (two devices mounted the same thing at once); and, when no tab
+/// is mounted at the root, 「全部」 is added first with [`ALL_TAB_ID`] and a
+/// position before every other tab's, computed from the tabs alone so every
+/// device reads the same one. A stored tab that has the fixed id but is not
+/// mounted at the root is left out too: the id belongs to 「全部」. Nothing
+/// is written; what is left out stays stored.
+pub fn shown_project_tabs(mut tabs: Vec<ProjectTab>) -> Vec<ProjectTab> {
+    sort_project_tabs(&mut tabs);
+    let all = all_tab_id();
+    let mut seen: Vec<TabMount> = Vec::with_capacity(tabs.len());
+    tabs.retain(|t| {
+        if (t.id == all && t.mount != TabMount::Root) || seen.contains(&t.mount) {
+            return false;
+        }
+        seen.push(t.mount.clone());
+        true
+    });
+    if !seen.contains(&TabMount::Root) {
+        let pos = match tabs.first().and_then(|t| t.pos.as_ref()) {
+            Some(first) => PosKey::between(None, Some(first)).unwrap_or_else(|_| first.clone()),
+            None => PosKey::first(),
+        };
+        tabs.insert(
+            0,
+            ProjectTab {
+                id: all,
+                pos: Some(pos),
+                mount: TabMount::Root,
+            },
+        );
+    }
+    tabs
 }
 
 /// Project-level definition in the `project` root container (`kernel-v5.md` §2 & §10).
@@ -1638,8 +1687,9 @@ pub struct ProjectTemplate {
 }
 
 impl ProjectTemplate {
-    /// The same template with a fresh id for every seed entry, view, tab and
-    /// time pin, and every reference to one of them rewritten: residence,
+    /// The same template with a fresh id for every seed entry, view, tab
+    /// (but 「全部」, which takes [`ALL_TAB_ID`]) and time pin, and every
+    /// reference to one of them rewritten: residence,
     /// `home`, entity-reference fields, lanes, placements, pins, the book
     /// start and tab mounts. A project is created from this copy, so two
     /// projects made from one template never share a `body:<entry>/<module>`
@@ -1693,7 +1743,12 @@ impl ProjectTemplate {
             };
         }
         for tab in &mut out.project.tabs {
-            tab.id = TabId::new_v7();
+            // 「全部」 keeps its fixed id in every project (`TAB-ROOT-ALWAYS`).
+            tab.id = if tab.mount == TabMount::Root {
+                all_tab_id()
+            } else {
+                TabId::new_v7()
+            };
             tab.mount = match &tab.mount {
                 TabMount::Entry { entry: e } => TabMount::Entry { entry: entry(e) },
                 TabMount::View { view: v } => TabMount::View { view: view(v) },
@@ -2753,6 +2808,41 @@ pub fn check_tab_mount(
             Ok(())
         }
     }
+}
+
+fn tab_mount_text(mount: &TabMount) -> String {
+    match mount {
+        TabMount::Root => "the root".into(),
+        TabMount::Entry { entry } => format!("entry {entry}"),
+        TabMount::View { view } => format!("view {view}"),
+        TabMount::Book => "the book sequence".into(),
+    }
+}
+
+/// Invariant `TAB-MOUNT-ONCE` (`kernel-v5.md` §5 & §11): one thing is mounted
+/// on one tab. `tabs` are the tabs as shown ([`shown_project_tabs`], so
+/// 「全部」 is among them); mounting `mount` again is refused, naming the tab
+/// that has it.
+pub fn check_tab_mount_once(tabs: &[ProjectTab], mount: &TabMount) -> Result<(), Violation> {
+    match tabs.iter().find(|t| &t.mount == mount) {
+        Some(t) => fail(
+            "TAB-MOUNT-ONCE",
+            format!("{} is already on tab {}", tab_mount_text(mount), t.id),
+        ),
+        None => Ok(()),
+    }
+}
+
+/// Invariant `TAB-ROOT-ALWAYS` (`kernel-v5.md` §5 & §11): 「全部」, the tab
+/// mounted at the root, cannot be removed.
+pub fn check_tab_removable(tab: &ProjectTab) -> Result<(), Violation> {
+    if tab.mount == TabMount::Root {
+        return fail(
+            "TAB-ROOT-ALWAYS",
+            format!("tab {} is 「全部」 (mounted at the root) and stays", tab.id),
+        );
+    }
+    Ok(())
 }
 
 /// What the structural invariants look at in one read of a book: its entries
@@ -4291,6 +4381,113 @@ mod tests {
             .invariant,
             "TAB-MOUNT-VALID"
         );
+    }
+
+    fn tab(id: &str, pos: Option<&str>, mount: TabMount) -> ProjectTab {
+        ProjectTab {
+            id: TabId::parse(id).unwrap(),
+            pos: pos.map(|p| PosKey::parse(p).unwrap()),
+            mount,
+        }
+    }
+
+    #[test]
+    fn shown_tabs_keep_the_first_of_each_mount_and_always_have_all_first() {
+        let folder = || TabMount::Entry { entry: eid("ms") };
+        // Two devices mounted the same folder: the first by `(pos, id)` stays.
+        let shown = shown_project_tabs(vec![
+            tab("t-b", Some("a1"), folder()),
+            tab("t-a", Some("a1"), folder()),
+            tab("t-view", Some("a0"), TabMount::Book),
+        ]);
+        let ids: Vec<&str> = shown.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, [ALL_TAB_ID, "t-view", "t-a"]);
+        // 「全部」 is added before the first, at a position every device
+        // computes the same from the same tabs.
+        assert_eq!(shown[0].mount, TabMount::Root);
+        assert!(shown[0].pos.as_ref().unwrap() < shown[1].pos.as_ref().unwrap());
+        assert_eq!(
+            shown,
+            shown_project_tabs(vec![
+                tab("t-view", Some("a0"), TabMount::Book),
+                tab("t-a", Some("a1"), folder()),
+                tab("t-b", Some("a1"), folder()),
+            ])
+        );
+        // No tabs at all: 「全部」 alone.
+        assert_eq!(
+            shown_project_tabs(Vec::new()),
+            vec![tab(ALL_TAB_ID, Some("a0"), TabMount::Root)]
+        );
+        // Tabs without a position sort last, so 「全部」 still comes first.
+        let shown = shown_project_tabs(vec![tab("t-a", None, folder())]);
+        assert_eq!(shown[0].id.as_str(), ALL_TAB_ID);
+        // A root tab with another id is 「全部」: none is added. A second root
+        // tab is left out like any repeat.
+        let shown = shown_project_tabs(vec![
+            tab("t-a", Some("a0"), folder()),
+            tab("t-root", Some("a1"), TabMount::Root),
+            tab(ALL_TAB_ID, Some("a2"), TabMount::Root),
+        ]);
+        let ids: Vec<&str> = shown.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["t-a", "t-root"]);
+        // The fixed id on something other than the root is not shown.
+        let shown = shown_project_tabs(vec![tab(ALL_TAB_ID, Some("a0"), folder())]);
+        assert_eq!(shown, vec![tab(ALL_TAB_ID, Some("a0"), TabMount::Root)]);
+    }
+
+    #[test]
+    fn a_mount_goes_on_one_tab_and_the_root_tab_stays() {
+        let shown = shown_project_tabs(vec![tab(
+            "t-a",
+            Some("a1"),
+            TabMount::Entry { entry: eid("ms") },
+        )]);
+        let refused =
+            check_tab_mount_once(&shown, &TabMount::Entry { entry: eid("ms") }).unwrap_err();
+        assert_eq!(refused.invariant, "TAB-MOUNT-ONCE");
+        assert!(refused.detail.contains("t-a"), "{}", refused.detail);
+        let refused = check_tab_mount_once(&shown, &TabMount::Root).unwrap_err();
+        assert_eq!(refused.invariant, "TAB-MOUNT-ONCE");
+        assert!(refused.detail.contains(ALL_TAB_ID), "{}", refused.detail);
+        assert!(check_tab_mount_once(&shown, &TabMount::Book).is_ok());
+        assert_eq!(
+            check_tab_removable(&shown[0]).unwrap_err().invariant,
+            "TAB-ROOT-ALWAYS"
+        );
+        assert!(check_tab_removable(&shown[1]).is_ok());
+    }
+
+    #[test]
+    fn a_tab_with_an_old_name_reads_without_one() {
+        let old = serde_json::json!({"id": "t-a", "name": "旧名字", "pos": "a0", "mount": {"kind": "root"}});
+        let read: ProjectTab = serde_json::from_value(old).unwrap();
+        assert_eq!(read, tab("t-a", Some("a0"), TabMount::Root));
+        let written = serde_json::to_value(&read).unwrap();
+        assert!(written.get("name").is_none(), "{written}");
+        // A template's tabs too: `ProjectTemplate` reads them the same way.
+        let pt: ProjectTemplate = serde_json::from_value(serde_json::json!({
+            "project": {"tabs": [{"id": "t-a", "name": "旧名字", "mount": {"kind": "book"}}]}
+        }))
+        .unwrap();
+        assert_eq!(pt.project.tabs, vec![tab("t-a", None, TabMount::Book)]);
+    }
+
+    #[test]
+    fn fresh_template_ids_keep_the_fixed_id_of_all() {
+        let pt = ProjectTemplate {
+            project: ProjectDefinition {
+                tabs: vec![
+                    tab("seed-root", Some("a0"), TabMount::Root),
+                    tab("seed-book", Some("a1"), TabMount::Book),
+                ],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let fresh = pt.with_fresh_ids();
+        assert_eq!(fresh.project.tabs[0].id.as_str(), ALL_TAB_ID);
+        assert!(crate::id::is_uuid_v7(fresh.project.tabs[1].id.as_str()));
     }
 
     #[test]

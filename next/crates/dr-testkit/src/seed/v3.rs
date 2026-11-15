@@ -553,7 +553,6 @@ fn init_text_materials_root(txn: &mut BookTxnV3<'_>, id: &EntryId) -> Result<()>
             .cloned();
         txn.project().put_tab(&ProjectTab {
             id: tab,
-            name: "文本素材".into(),
             pos: Some(last.map_or_else(PosKey::first, |p| p.after())),
             mount: TabMount::Entry { entry: id.clone() },
         })?;

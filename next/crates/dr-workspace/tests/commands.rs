@@ -576,7 +576,7 @@ fn every_registered_entry_is_exercised_here() {
     // (here, in editor.rs for what the editor calls, in shelf.rs for the
     // shelf, recent pages and time pins, in points.rs for snapshot history,
     // in workshop.rs for plot grids, patches and templates, in levels.rs for
-    // the switch).
+    // the switch, in project_definition.rs for the project and its tabs).
     let srcs = [
         include_str!("commands.rs"),
         include_str!("project_shared.rs"),
@@ -593,6 +593,7 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("v3_home.rs"),
         include_str!("v3_membership.rs"),
         include_str!("v3_timeline_edits.rs"),
+        include_str!("project_definition.rs"),
         include_str!("../../dr-agent-tools/tests/checkpoints_v3.rs"),
     ];
     let missing: Vec<&str> = registry()

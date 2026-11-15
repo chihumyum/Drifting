@@ -84,15 +84,18 @@ pub struct CheckpointsChanged {
 }
 
 /// A persisted change to a book's `layout:<book>` document: free-canvas
-/// coordinates updated or cleared.
+/// coordinates updated or cleared, or another left-sidebar tab chosen.
 #[derive(Clone, Debug)]
 pub struct LayoutChanged {
     pub book: BookId,
     pub seq: i64,
     pub origin: Origin,
-    /// The `"<scope>/<mode>"` keys the change touched; empty when it could not
-    /// be narrowed.
+    /// The `"<scope>/<mode>"` keys the change touched; empty when it touched
+    /// no canvas or could not be narrowed.
     pub scopes: Vec<String>,
+    /// Whether the change may have chosen another tab (`tab.select` here or
+    /// on another device); also `true` when it could not be narrowed.
+    pub tab: bool,
 }
 
 /// The keys of root map `root` that a persisted change to one of the
