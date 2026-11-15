@@ -113,11 +113,13 @@ impl JsonSchema for BookCreateIn {
 
 op! {
     BookList = "book.list", Read, Shared,
-    "List the library's books (trashed ones when asked).",
+    "List the library's books (trashed ones when asked); a template's working copy is not one of them.",
     fn(cx, input: ListBooksIn) -> Vec<BookInfo> {
         let mut out = Vec::new();
+        let copies = cx.workspace().working_copy_books()?;
         for d in cx.workspace().library().docs(None, Some("book"))? {
             let Some(id) = d.doc_id.strip_prefix("book:") else { continue };
+            if copies.contains(id) { continue; }
             let raw = cx.workspace().library().load_copy(&d.doc_id)?;
             if !dr_doc::v3::is_book_doc(&raw) { continue; }
             let slot = cx.workspace().book_slot(&super::pid("book", id)?)?;
@@ -298,13 +300,16 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
 
 op! {
     BookShelf = "book.shelf", Read, Shared,
-    "Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.",
+    "Everything the bookshelf shows, in one read: every book (not a template's working copy) with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.",
     fn(cx, input: ListBooksIn) -> Vec<ShelfBook> {
         let now = now().0;
         let mut live = Vec::new();
         let mut trashed = Vec::new();
+        let copies = cx.workspace().working_copy_books()?;
         for d in cx.workspace().library().docs(None, Some("book"))? {
             let Some(id) = d.doc_id.strip_prefix("book:") else { continue };
+            // A template's working copy is not a project (`WORKING-COPY-LOCAL`).
+            if copies.contains(id) { continue; }
             let id: BookId = super::pid("book", id)?;
             match shelf_book(cx, &id, now) {
                 Ok(b) if b.info.trashed => { if input.trashed { trashed.push(b) } }

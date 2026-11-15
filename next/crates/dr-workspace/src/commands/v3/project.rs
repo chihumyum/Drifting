@@ -277,12 +277,15 @@ fn mount_name(v: &dr_doc::v3::BookViewV3<'_>, mount: &m::TabMount) -> Option<Str
 
 op! {
     ProjectGet = "project.get", Read, Shared,
-    "Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.",
+    "Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.",
     fn(cx, input: BookIn) -> types::Project {
         let slot = cx.book_v3(&input.book)?;
         let s = slot.reader_v3.view().structure_snapshot();
         let stored = cx.workspace().stored_tab(slot.book.as_str())?;
-        Ok(types::Project::of(&s).with_selected_tab(stored))
+        let editing = cx.workspace().working_copy_template(slot.book.as_str())?;
+        Ok(types::Project::of(&s)
+            .with_selected_tab(stored)
+            .with_editing_template(editing))
     }
 }
 

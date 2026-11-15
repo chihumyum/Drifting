@@ -158,7 +158,7 @@ fn migration_protects_the_old_library_and_keeps_documents() {
     let old_head = lib.head("node:one").unwrap();
     lib.close().unwrap();
     let lib = open(dir.path());
-    assert_eq!(lib.open_report().migrations_applied, 1);
+    assert_eq!(lib.open_report().migrations_applied, MIGRATIONS.len() - 7);
     assert!(lib.open_report().safety_snapshot.as_ref().unwrap().exists());
     assert_eq!(lib.head("node:one").unwrap(), old_head);
     lib.agent_create_session("session-1", "conversation:one", "book-1")

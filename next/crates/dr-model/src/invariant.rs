@@ -966,6 +966,18 @@ pub const INVARIANTS: &[Invariant] = &[
         ["folder_in_view_reads_and_moves_by_scale_without_touching_manual_order"]
     ),
     inv!(
+        "WORKING-COPY-LOCAL",
+        "编辑模板的工作区是一个只在这台设备上的临时项目：不进项目列表（全部项目、项目卡片、切项目的下拉、启动时打开的上次的项目），不记写作日；它的文档、文件字节和清除记录都不同步；它的每一次写入都照另存提取、覆盖它在编辑的那一份模板，模板自己的来历照原来的",
+        [Command, Read],
+        "dr_store::Library::keep_local 在写第一篇文档之前给书打标记，同步的几张单子（docs_with_local_changes、export_for_upload、syncable_docs、purged_docs、assets_pending_upload）都不列它；book.list、book.shelf 不列它，writing_day.record 跳过它；工作区的保存器听书库事件，把写入合并以后调 project_template.save 的同一条提取覆盖模板",
+        [
+            "a_working_copy_is_made_like_a_project_and_kept_out_of_the_lists",
+            "a_working_copy_records_no_writing_day",
+            "every_write_in_a_working_copy_lands_in_its_template",
+            "a_working_copy_uploads_no_document_asset_or_purge"
+        ]
+    ),
+    inv!(
         "COMMENT-PART-IN-MODULE",
         "批注的「哪一处」（part）属于它说的那个模块（字段记 id 不记名字），或直接框在素材库文件上",
         [Command, Read],
@@ -1039,7 +1051,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 93;
+pub const ACTIVE_CONTRACTS: usize = 94;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a

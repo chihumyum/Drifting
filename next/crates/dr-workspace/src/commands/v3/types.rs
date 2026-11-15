@@ -882,6 +882,11 @@ pub struct Project {
     /// `None` when none was chosen or the chosen tab is gone.
     #[serde(default)]
     pub selected_tab: Option<String>,
+    /// The saved project template (`project-template:<id>`) this project is
+    /// the working copy of (编辑模板的工作区), when it is one
+    /// ([`Self::with_editing_template`]).
+    #[serde(default)]
+    pub editing_template: Option<String>,
 }
 
 impl Project {
@@ -904,7 +909,15 @@ impl Project {
                 })
                 .collect(),
             selected_tab: None,
+            editing_template: None,
         }
+    }
+
+    /// With the template this project is the working copy of
+    /// ([`crate::Workspace::working_copy_template`]).
+    pub fn with_editing_template(mut self, template: Option<String>) -> Self {
+        self.editing_template = template;
+        self
     }
 
     /// With the tab `layout:<book>` remembers ([`crate::Workspace::stored_tab`])

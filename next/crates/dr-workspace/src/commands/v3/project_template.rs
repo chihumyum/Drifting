@@ -1,5 +1,7 @@
 //! Library-level saved project templates (`project-template:<id>`):
-//! `project_template.{list, get, save, update, remove}` (`project-templates.md` §5, §7, §13).
+//! `project_template.{list, get, save, update, remove}` (`project-templates.md` §5, §7, §13),
+//! and the working copy a template is edited in: `project_template.edit`,
+//! `project_template.working_copies` (§12, `WORKING-COPY-LOCAL`).
 
 use super::*;
 use crate::{Actor, Workspace};
@@ -7,9 +9,10 @@ use dr_doc::project_template::{
     BorrowedProjectTemplate, ExtractSelection, ExtractTemplateMeta, ProjectTemplateInfo,
     extract_project_template, extract_prose_paragraphs,
 };
-use dr_doc::v3::BorrowedBookV3;
+use dr_doc::v3::{BookViewV3, BorrowedBookV3};
 use dr_model::project_template::{
-    ProjectTemplateValue, StoredTemplateOrigin, validate_project_template_value,
+    ProjectTemplateValue, StoredTemplateOrigin, TemplateAgent, to_canonical_json,
+    validate_project_template_value,
 };
 use dr_store::OpenDoc;
 
@@ -18,7 +21,9 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ProjectTemplateGet>()
         .add::<ProjectTemplateSave>()
         .add::<ProjectTemplateUpdate>()
-        .add::<ProjectTemplateRemove>();
+        .add::<ProjectTemplateRemove>()
+        .add::<ProjectTemplateEdit>()
+        .add::<ProjectTemplateWorkingCopies>();
 }
 
 fn check_description(desc: &str) -> Result<()> {
@@ -259,9 +264,15 @@ op! {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectTemplateSaveIn {
     pub book: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: String,
+    /// The template's name. Needed for a new template; replacing one
+    /// (`replace`) without it keeps the name that one has. A working copy
+    /// saves under its book's name when it is left out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Left out when replacing: the replaced template keeps its own; a
+    /// working copy takes its book's profile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Optional BCP-47 locale tag (defaults to `"zh-CN"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
@@ -269,6 +280,15 @@ pub struct ProjectTemplateSaveIn {
     /// filled in from `project.source`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credit: Option<types::ProjectTemplateCredit>,
+    /// The words for the Agent the template carries (`project.agent`):
+    /// left out, the project's own; `null`, none; given, these (the
+    /// project keeps its own either way).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
+    pub agent: Option<Option<types::TemplateAgentConfig>>,
     /// Unlocked skeleton entries (`level` or `accept` on) to exclude from the template.
     #[serde(default)]
     pub exclude_skeleton: Vec<String>,
@@ -283,19 +303,245 @@ pub struct ProjectTemplateSaveIn {
     pub replace: Option<String>,
 }
 
+/// The digest of a template's content: everything but its revision and
+/// the app version that wrote it.
+pub fn content_digest(value: &ProjectTemplateValue) -> String {
+    let mut v = value.clone();
+    v.revision = 1;
+    v.made_with = String::new();
+    match to_canonical_json(&v) {
+        Ok(json) => dr_store::digest::sha256_hex(json.as_bytes()),
+        Err(_) => String::new(),
+    }
+}
+
+fn agent_words(given: &Option<types::TemplateAgentConfig>) -> Result<Option<TemplateAgent>> {
+    let Some(cfg) = given else {
+        return Ok(None);
+    };
+    let cfg: m::TemplateAgentConfig = convert(cfg)?;
+    Ok(
+        (!(cfg.name.is_empty() && cfg.description.is_empty() && cfg.instructions.is_empty()))
+            .then(|| TemplateAgent::from(&cfg)),
+    )
+}
+
+/// Extract a template from a fixed snapshot of `book`: `plan` reads the
+/// snapshot and says what to take. Never writes `book:<id>` or
+/// `project.source`.
+fn extract_book(
+    ws: &Workspace,
+    book: &str,
+    plan: impl FnOnce(&BookViewV3<'_>) -> Result<(ExtractTemplateMeta, ExtractSelection)>,
+) -> Result<ProjectTemplateValue> {
+    let book_id: BookId = pid("book", book)?;
+    // Capture a fixed read-only snapshot of `book:<id>` without holding the
+    // book's holder thread while reading prose documents, and without ever
+    // mutating `book:<id>` or `project.source`.
+    let snap_bytes = ws.read_book_v3(book, |raw_doc, _ver| {
+        raw_doc
+            .export(loro::ExportMode::Snapshot)
+            .map_err(|e| WsError::Internal(e.to_string()))
+    })?;
+    let fixed_book_doc = loro::LoroDoc::new();
+    dr_doc::schema::configure(&fixed_book_doc);
+    fixed_book_doc
+        .import(&snap_bytes)
+        .map_err(|e| WsError::Internal(e.to_string()))?;
+    let borrowed_book = BorrowedBookV3::new(&fixed_book_doc, &book_id)?;
+    let book_view = borrowed_book.view();
+    if book_view.meta().deleted_at.is_some() {
+        return Err(WsError::not_found("book", book));
+    }
+    let (meta, selection) = plan(&book_view)?;
+
+    let mut read_err: Option<WsError> = None;
+    let extracted = extract_project_template(
+        &book_view,
+        &meta,
+        &selection,
+        |doc_id, entry_refs, tpls, live_ents| {
+            let refs_c = entry_refs.clone();
+            let tpls_c = tpls.clone();
+            let ents_c = live_ents.clone();
+            match ws.read_prose_readonly(doc_id, move |pview| {
+                extract_prose_paragraphs(pview, &refs_c, &tpls_c, &ents_c)
+                    .map_err(|e| WsError::invalid(e.to_string()))
+            }) {
+                Ok(opt) => Ok(opt),
+                Err(e) => {
+                    let msg = e.to_string();
+                    read_err = Some(e);
+                    Err(dr_model::project_template::ProjectTemplateError::Invalid(
+                        msg,
+                    ))
+                }
+            }
+        },
+    );
+    match extracted {
+        Ok(v) => Ok(v),
+        Err(e) => Err(read_err.unwrap_or_else(|| WsError::invalid(e.to_string()))),
+    }
+}
+
+/// Everything a working copy holds, as a template over the one it edits
+/// (`project-templates.md` §12): every live entry with its content, every
+/// view's time pins; the name and description are the copy's book name and
+/// profile (or `name` / `description` when given); the Agent's words its
+/// project's; the locale, origin and credit (its author) the template's
+/// own.
+fn extract_working_copy(
+    ws: &Workspace,
+    book: &str,
+    current: &ProjectTemplateValue,
+    name: Option<String>,
+    description: Option<String>,
+) -> Result<ProjectTemplateValue> {
+    let made_with = ws.library().options().app_version.clone();
+    let mut value = extract_book(ws, book, |view| {
+        let entries = view.entries_map();
+        let meta = view.meta();
+        let selection = ExtractSelection {
+            exclude_skeleton: BTreeSet::new(),
+            sample_entries: entries
+                .keys()
+                .filter(|id| m::is_entry_live(id, &entries))
+                .cloned()
+                .collect(),
+            view_pins: view
+                .timeline_views_raw()
+                .into_iter()
+                .filter(|v| v.deleted_at.is_none())
+                .map(|v| v.id)
+                .collect(),
+        };
+        let meta = ExtractTemplateMeta {
+            name: name.unwrap_or(meta.name).trim().to_owned(),
+            description: description.unwrap_or(meta.summary),
+            locale: current.locale.clone(),
+            made_with,
+            revision: current.revision,
+            credit: None,
+        };
+        Ok((meta, selection))
+    })?;
+    // Its own credit, as it was.
+    value.credit = current.credit.clone();
+    Ok(value)
+}
+
+/// Save the working copy `book` over the template it edits, when what it
+/// holds differs from the template (`WORKING-COPY-LOCAL`). `None` when
+/// `book` is no working copy or its template is gone; otherwise the
+/// template as it is now.
+pub fn save_working_copy(
+    ws: &Workspace,
+    actor: &Actor,
+    book: &str,
+    words: Option<(
+        Option<String>,
+        Option<String>,
+        Option<Option<TemplateAgent>>,
+    )>,
+) -> Result<Option<ProjectTemplateSummary>> {
+    let Some(note) = ws.working_copy_note(book)? else {
+        return Ok(None);
+    };
+    let pt_id: ProjectTemplateDocId = pid("project_template", &note.template)?;
+    let (info, current) = match load_saved_template(ws, &pt_id) {
+        Ok(found) => found,
+        Err(WsError::NotFound { .. }) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let (name, description, agent) = words.unwrap_or_default();
+    let mut value = extract_working_copy(ws, book, &current, name, description)?;
+    if let Some(agent) = agent {
+        value.project.agent = agent;
+    }
+    let digest = content_digest(&value);
+    let summary = if digest == content_digest(&current) {
+        summary_from_info_and_value(&pt_id, &info, &current)
+    } else {
+        store_project_template_value(ws, actor, info.origin, &value, Some(&pt_id))?
+    };
+    let synced = crate::working_copy::CopyNote {
+        template: note.template.clone(),
+        revision: summary.revision,
+        digest,
+    };
+    if synced != note {
+        ws.library().set_local_note(book, &synced.to_json())?;
+    }
+    Ok(Some(summary))
+}
+
 op! {
     ProjectTemplateSave = "project_template.save", Write, Library,
-    "Save a project's structure and selected sample items as a project template.",
+    "Save a project's structure and selected sample items as a project template, or a template's working copy over that template.",
     fn(cx, input: ProjectTemplateSaveIn) -> ProjectTemplateSummary {
-        name_ok(&input.name)?;
-        check_description(&input.description)?;
-        let trimmed_name = input.name.trim().to_owned();
-        let book_id: BookId = pid("book", &input.book)?;
+        let ws = cx.workspace();
+        let agent = input.agent.as_ref().map(agent_words).transpose()?;
+        if let Some(note) = ws.working_copy_note(&input.book)? {
+            // A working copy saves everything it holds over its own template,
+            // with that template's history (`project-templates.md` §12).
+            if input.replace.as_deref().is_some_and(|r| r != note.template) {
+                return Err(WsError::invalid(
+                    "a working copy saves over the template it edits",
+                ));
+            }
+            if !input.exclude_skeleton.is_empty()
+                || !input.sample_entries.is_empty()
+                || !input.view_pins.is_empty()
+                || input.credit.is_some()
+            {
+                return Err(WsError::invalid(
+                    "a working copy saves everything it holds, with its template's own credit",
+                ));
+            }
+            if let Some(n) = &input.name {
+                name_ok(n)?;
+            }
+            if let Some(d) = &input.description {
+                check_description(d)?;
+            }
+            let summary = save_working_copy(
+                ws,
+                cx.actor(),
+                &input.book,
+                Some((input.name, input.description, agent)),
+            )?
+            .ok_or_else(|| WsError::not_found("project_template", &note.template))?;
+            cx.irreversible();
+            cx.effect(EffectAction::Updated, "project_template", &summary.id, Some(&summary.name));
+            return Ok(summary);
+        }
+
+        let _: BookId = pid("book", &input.book)?;
         let replace_id = input
             .replace
             .as_deref()
             .map(|r| pid("project_template", r))
             .transpose()?;
+        // Replacing without a name or a description keeps the replaced
+        // template's (`project-templates.md` §7: 覆盖时留着原来的名字和描述).
+        let replaced = match &replace_id {
+            Some(id) => Some(load_saved_template(ws, id)?.1),
+            None => None,
+        };
+        let name = match (&input.name, &replaced) {
+            (Some(n), _) => n.clone(),
+            (None, Some(old)) => old.name.clone(),
+            (None, None) => return Err(WsError::invalid("a new template needs a name")),
+        };
+        name_ok(&name)?;
+        let description = match (&input.description, &replaced) {
+            (Some(d), _) => d.clone(),
+            (None, Some(old)) => old.description.clone(),
+            (None, None) => String::new(),
+        };
+        check_description(&description)?;
+        let trimmed_name = name.trim().to_owned();
 
         let mut exclude_skeleton: BTreeSet<EntryId> = BTreeSet::new();
         for raw in &input.exclude_skeleton {
@@ -310,61 +556,6 @@ op! {
             view_pins.insert(pid("timeline_view", raw)?);
         }
 
-        // Capture a fixed read-only snapshot of `book:<id>` without holding the
-        // book's holder thread while reading prose documents, and without ever
-        // mutating `book:<id>` or `project.source`.
-        let ws = cx.workspace();
-        let snap_bytes = ws.read_book_v3(&input.book, |raw_doc, _ver| {
-            raw_doc
-                .export(loro::ExportMode::Snapshot)
-                .map_err(|e| WsError::Internal(e.to_string()))
-        })?;
-        let fixed_book_doc = loro::LoroDoc::new();
-        dr_doc::schema::configure(&fixed_book_doc);
-        fixed_book_doc
-            .import(&snap_bytes)
-            .map_err(|e| WsError::Internal(e.to_string()))?;
-        let borrowed_book = BorrowedBookV3::new(&fixed_book_doc, &book_id)?;
-        let book_view = borrowed_book.view();
-        if book_view.meta().deleted_at.is_some() {
-            return Err(WsError::not_found("book", &input.book));
-        }
-
-        let entries_map = book_view.entries_map();
-        let live_templates: BTreeMap<EntryTemplateId, m::EntryTemplate> = book_view
-            .templates()
-            .into_iter()
-            .filter(|t| !t.is_trashed())
-            .map(|t| (t.id.clone(), t))
-            .collect();
-        for eid in exclude_skeleton.iter().chain(sample_entries.iter()) {
-            if !m::is_entry_live(eid, &entries_map) {
-                return Err(WsError::not_found("entry", eid.as_str()));
-            }
-        }
-        for eid in &exclude_skeleton {
-            if !entries_map[eid].has_below(&live_templates) {
-                return Err(WsError::invalid(format!(
-                    "exclude_skeleton entry {eid} is not a skeleton entry"
-                )));
-            }
-        }
-        let live_views: BTreeSet<TimelineViewId> = book_view
-            .timeline_views_raw()
-            .into_iter()
-            .filter(|v| v.deleted_at.is_none())
-            .map(|v| v.id)
-            .collect();
-        for vid in &view_pins {
-            if !live_views.contains(vid) {
-                return Err(WsError::not_found("timeline_view", vid.as_str()));
-            }
-        }
-
-        let credit: Option<dr_model::project_template::ProjectTemplateCredit> =
-            input.credit.as_ref().map(Into::into);
-        let credit = credit.filter(|c| !c.is_empty());
-
         let locale = input
             .locale
             .as_deref()
@@ -373,54 +564,62 @@ op! {
             .unwrap_or("zh-CN")
             .to_owned();
         let made_with = ws.library().options().app_version.clone();
-
-        let meta = ExtractTemplateMeta {
-            name: trimmed_name,
-            description: input.description,
-            locale,
-            made_with,
-            revision: 1,
-            credit,
-        };
-        let selection = ExtractSelection {
-            exclude_skeleton,
-            sample_entries,
-            view_pins,
-        };
-
-        let mut read_err: Option<WsError> = None;
-        let extracted = extract_project_template(
-            &book_view,
-            &meta,
-            &selection,
-            |doc_id, entry_refs, tpls, live_ents| {
-                let refs_c = entry_refs.clone();
-                let tpls_c = tpls.clone();
-                let ents_c = live_ents.clone();
-                match ws.read_prose_readonly(doc_id, move |pview| {
-                    extract_prose_paragraphs(pview, &refs_c, &tpls_c, &ents_c)
-                        .map_err(|e| WsError::invalid(e.to_string()))
-                }) {
-                    Ok(opt) => Ok(opt),
-                    Err(e) => {
-                        let msg = e.to_string();
-                        read_err = Some(e);
-                        Err(dr_model::project_template::ProjectTemplateError::Invalid(
-                            msg,
-                        ))
-                    }
+        let input_credit = input.credit.clone();
+        let mut value = extract_book(ws, &input.book, move |book_view| {
+            let entries_map = book_view.entries_map();
+            let live_templates: BTreeMap<EntryTemplateId, m::EntryTemplate> = book_view
+                .templates()
+                .into_iter()
+                .filter(|t| !t.is_trashed())
+                .map(|t| (t.id.clone(), t))
+                .collect();
+            for eid in exclude_skeleton.iter().chain(sample_entries.iter()) {
+                if !m::is_entry_live(eid, &entries_map) {
+                    return Err(WsError::not_found("entry", eid.as_str()));
                 }
-            },
-        );
-        let value = match extracted {
-            Ok(v) => v,
-            Err(e) => {
-                if let Some(we) = read_err {
-                    return Err(we);
-                }
-                return Err(WsError::invalid(e.to_string()));
             }
-        };
+            for eid in &exclude_skeleton {
+                if !entries_map[eid].has_below(&live_templates) {
+                    return Err(WsError::invalid(format!(
+                        "exclude_skeleton entry {eid} is not a skeleton entry"
+                    )));
+                }
+            }
+            let live_views: BTreeSet<TimelineViewId> = book_view
+                .timeline_views_raw()
+                .into_iter()
+                .filter(|v| v.deleted_at.is_none())
+                .map(|v| v.id)
+                .collect();
+            for vid in &view_pins {
+                if !live_views.contains(vid) {
+                    return Err(WsError::not_found("timeline_view", vid.as_str()));
+                }
+            }
+
+            let credit: Option<dr_model::project_template::ProjectTemplateCredit> =
+                input_credit.as_ref().map(Into::into);
+            let credit = credit.filter(|c| !c.is_empty());
+            Ok((
+                ExtractTemplateMeta {
+                    name: trimmed_name,
+                    description,
+                    locale,
+                    made_with,
+                    revision: 1,
+                    credit,
+                },
+                ExtractSelection {
+                    exclude_skeleton,
+                    sample_entries,
+                    view_pins,
+                },
+            ))
+        })?;
+        // Words for the Agent given here go into the template only.
+        if let Some(agent) = agent {
+            value.project.agent = agent;
+        }
 
         let action = if replace_id.is_some() {
             EffectAction::Updated
@@ -545,5 +744,159 @@ op! {
         Ok(Done {
             id: pt_id.to_string(),
         })
+    }
+}
+
+/// A template's working copy (`project_template.edit`,
+/// `project_template.working_copies`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct WorkingCopy {
+    /// The working copy's book: open it like any project.
+    pub book: String,
+    /// The saved template it edits.
+    pub template: String,
+    /// Its name (the template's, as edited there); `None` when its book
+    /// document is not there (a copy cut short while it was being made).
+    pub name: Option<String>,
+    /// When it was made (Unix milliseconds).
+    pub created_at: i64,
+}
+
+fn working_copy_of(ws: &Workspace, book: &dr_store::LocalBook) -> WorkingCopy {
+    let note = crate::working_copy::CopyNote::parse(&book.note);
+    let name = BookId::parse(&book.book_id)
+        .ok()
+        .and_then(|id| ws.book_slot(&id).ok())
+        .map(|slot| slot.reader_v3.view().meta().name);
+    WorkingCopy {
+        book: book.book_id.clone(),
+        template: note.template,
+        name,
+        created_at: book.created_ms,
+    }
+}
+
+/// What to do with a working copy of `template` left from before
+/// (`project_template.edit`): bring it up to date and use it again, or
+/// clear it. Never throws away a change the template does not have.
+enum Left {
+    Use,
+    Clear,
+    Keep,
+}
+
+fn left_behind(
+    ws: &Workspace,
+    actor: &Actor,
+    copy: &dr_store::LocalBook,
+    revision: i64,
+    current: &ProjectTemplateValue,
+) -> Result<Left> {
+    let note = crate::working_copy::CopyNote::parse(&copy.note);
+    let book_doc = DocId::Book(pid("book", &copy.book_id)?).to_string();
+    if ws.library().doc_info(&book_doc)?.is_none() {
+        // Cut short while it was being made: it holds nothing of its own.
+        return Ok(Left::Clear);
+    }
+    let held = content_digest(&extract_working_copy(
+        ws,
+        &copy.book_id,
+        current,
+        None,
+        None,
+    )?);
+    if held == content_digest(current) || note.revision == revision {
+        // In step with the template, or the template has not moved since
+        // the copy last saved: its last writes (if the App stopped before
+        // they were saved) go over the template now.
+        save_working_copy(ws, actor, &copy.book_id, None)?;
+        return Ok(Left::Use);
+    }
+    if held == note.digest {
+        // The template moved on elsewhere (another device, another save)
+        // and the copy holds nothing it does not: a fresh one is made.
+        return Ok(Left::Clear);
+    }
+    // Both moved: the copy stays (listed by `project_template.working_copies`)
+    // and a fresh one is made.
+    Ok(Left::Keep)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateEditIn {
+    /// The saved template to edit.
+    pub id: String,
+}
+
+op! {
+    ProjectTemplateEdit = "project_template.edit", Write, Library,
+    "Edit a saved project template in its working copy: a project made from it the way project.create makes one, kept on this device and out of the project lists, recording no writing days; every change made in it saves itself over the template. A working copy left from before is used again when it is in step with the template.",
+    fn(cx, input: ProjectTemplateEditIn) -> WorkingCopy {
+        let pt_id: ProjectTemplateDocId = pid("project_template", &input.id)?;
+        let ws = cx.workspace();
+        let (info, value) = load_saved_template(ws, &pt_id)?;
+        let template = pt_id.to_string();
+        for copy in ws.library().local_books()? {
+            if crate::working_copy::CopyNote::parse(&copy.note).template != template {
+                continue;
+            }
+            match left_behind(ws, cx.actor(), &copy, info.revision, &value)? {
+                Left::Use => {
+                    ws.inner.saver.add(ws.library(), &copy.book_id);
+                    cx.irreversible();
+                    return Ok(working_copy_of(ws, &copy));
+                }
+                Left::Clear => {
+                    let id: BookId = pid("book", &copy.book_id)?;
+                    let gate = ws.book_gate(&id);
+                    let _lease = gate.enter();
+                    match ws.purge_book(&id) {
+                        Ok(_) => ws.inner.saver.remove(&copy.book_id),
+                        // Open somewhere: it stays, listed, and a fresh one is made.
+                        Err(WsError::Conflict(_)) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+                Left::Keep => {}
+            }
+        }
+        let (info, value) = load_saved_template(ws, &pt_id)?;
+        let note = crate::working_copy::CopyNote {
+            template: template.clone(),
+            revision: info.revision,
+            digest: content_digest(&value),
+        };
+        let book = super::novel_book::create_book(
+            cx,
+            value.name.trim(),
+            value.description.clone(),
+            Some(types::ProjectCreateTemplate::Library { template_id: template.clone() }),
+            Some(&note.to_json()),
+        )?;
+        ws.inner.saver.add(ws.library(), book.as_str());
+        cx.irreversible();
+        cx.effect(EffectAction::Created, "book", book.as_str(), Some(value.name.trim()));
+        let made = ws
+            .library()
+            .local_book(book.as_str())?
+            .ok_or_else(|| WsError::Internal("the working copy is missing".into()))?;
+        Ok(working_copy_of(ws, &made))
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectTemplateWorkingCopiesIn {}
+
+op! {
+    ProjectTemplateWorkingCopies = "project_template.working_copies", Read, Shared,
+    "List the templates' working copies still on this device, oldest first.",
+    fn(cx, _input: ProjectTemplateWorkingCopiesIn) -> Vec<WorkingCopy> {
+        let ws = cx.workspace();
+        Ok(ws
+            .library()
+            .local_books()?
+            .iter()
+            .map(|b| working_copy_of(ws, b))
+            .collect())
     }
 }

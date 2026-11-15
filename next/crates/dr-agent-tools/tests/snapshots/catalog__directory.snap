@@ -15,7 +15,7 @@ asset_folder.rename [write] Rename a folder of the asset library.
 asset_folder.restore [write] Bring a folder of the asset library back from Recently Deleted with what went there with it (to the top when its parent is still in Recently Deleted).
 asset_folder.trash [write] Move a folder of the asset library to Recently Deleted with everything in it (its files and folders), in one step: places using those files read as placeholders.
 book.get [read] Read book metadata and project word targets; aggregate counts use the statistics adapter.
-book.sequence [read] Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start).
+book.sequence [read] Read the ordered book sequence: the whole project from the root, book prose only (empty when the project has no book).
 book.update [write] Update selected book metadata fields without replacing other book data.
 book.writing_days [read] A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 comment.anchors [read] The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
@@ -74,8 +74,8 @@ module.replace_prose [write] Replace an exact passage in an entry's prose module
 module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
 module.set_prose [write] Write paragraphs of an entry's or a template's prose module.
-project.get [read] Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.
-project.update [write] Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.
+project.get [read] Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.
+project.update [write] Update the project definition: Agent instructions, whether the project has a book, and word targets; with the project's name and profile, all in one undoable write.
 prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 prose.read [read] Read paragraphs of a prose document (text, block id, heading level).
 prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
@@ -112,7 +112,7 @@ asset_folder.rename book 1c92033f8dcf73f2b5fcceab6a17f167ce57c6f5e48d538311681d1
 asset_folder.restore book 87d66f0d66fe1660dad31c88bb3fb09eab501576f4c6d0d345be9e76b68f179f
 asset_folder.trash book 2c53c7dfed9e6d458560de675938a1948e72f24a886b64677dfcbf5dee797f59
 book.get shared 3405b89fc23a4ce7c0d8663d8c6e9c8a1179e5e57f1b018c3a76b9aab9c425de
-book.sequence shared cec248df260da57e83a0484083c88079e41d6b895e99a7880aa3b85199a8fd95
+book.sequence shared 19572bb6617d510495c3863a23b86554479e94046344ff0adf5c0590c8919282
 book.update book c9b8c91de4f1331368b187db91a606e226dbf69490048290efecfd7a54f5448f
 book.writing_days shared 1666501ae181dc1e83a34e6f26a03fc9a21240aa81f61d2827cb860bc719b4fd
 comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074df16492
@@ -171,8 +171,8 @@ module.replace_prose book 361c1bd302fe4686ec8f8436f775f745cc53d462662430b50e2a83
 module.set_arrangement book c8baf155d081545d2e0ec82afb21683e91b57eefaa9b93a548da03a68d0175cc
 module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845989258
 module.set_prose book 64ae28c4a64983a8c7c747c5f878afa354f8b96b5fb33b3bb395ca08aa8f551c
-project.get shared 6cf53f13ecc5a55b0a2f78072624b7c3b165f2a1fc4c6945d3ae304b9b435320
-project.update book 60ae8e1ce3c04396a76576e6eb7fa73d6e2dfef42de7952fa58f05decdb296af
+project.get shared 1f03bd8d13f3c558527e06df384ee368711e7ab882b0bd951354e6c1dd01cf88
+project.update book d4f01e518616ece6d14245d4a738c4706da5b44ec0338a3862c4c4d034f45f54
 prose.link book 5e611d1d29d83cfbdb6617bc5ab4a556e8033b72ddc377c108d8d69b8c10ab7a
 prose.read shared 3dd0218c218770d03d38c33a2b264717b3464caaad18d0e3648c46b09524ac9d
 prose.replace book b0591c896fc08245ca4e332124d791755507388cceb727caae65f527fbfe068f
@@ -220,11 +220,13 @@ module.edit_kv: field edits belong to a view that showed the field; use the reco
 module.edit_patch: field edits belong to a view that showed the field; use the record commands
 module.prose_document: storage, editor, or derived-state maintenance
 project.create: library-wide lifecycle operation
+project_template.edit: library-wide lifecycle operation
 project_template.get: no current-book input boundary
 project_template.list: no current-book input boundary
 project_template.remove: library-wide lifecycle operation
 project_template.save: library-wide lifecycle operation
 project_template.update: library-wide lifecycle operation
+project_template.working_copies: no current-book input boundary
 recent.touch: storage, editor, or derived-state maintenance
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.move_lane: local timeline edits need exact lane, placement, and pin read coverage
