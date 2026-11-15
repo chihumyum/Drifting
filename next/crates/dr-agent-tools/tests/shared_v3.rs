@@ -784,6 +784,15 @@ fn v5_checklist_resolve_reopen_syncs_prose_with_checkpoint_and_agent_prose_write
     assert_eq!(snapshots(), 2);
     let shape_after_reopen = call_turn(2, "prose.shape", json!({"doc": doc})).unwrap();
     assert_eq!(shape_after_reopen["done"], 0);
+    assert!(
+        call_turn(
+            2,
+            "comment.update",
+            json!({"id": task_cid, "body": "试图直接改清单批注文字"})
+        )
+        .is_err(),
+        "changing a checklist item's words through comment.update must be refused"
+    );
 
     // 3. Turn 3: Agent prose writes (`prose.replace` + `entry.create`) automatically project
     // both `TODO:` / `待办：` markers and updated checklist text into `comments`.

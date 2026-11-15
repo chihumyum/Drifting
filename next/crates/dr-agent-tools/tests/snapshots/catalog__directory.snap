@@ -22,7 +22,7 @@ comment.anchors [read] The stored anchors of the comments on one entity's prose,
 comment.create [write] Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating. Targets an entry, any module of an entry, a module sub-part (field, kv_row, plot_cell, patch, media, embed), a prose block or passage, an asset-library file (with optional region), or floating. Read the target or module first; read exact source prose before anchoring (a block needs that paragraph; ranges, anchor bytes, and embeds need the full document).
 comment.list [read] List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo). Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.
-comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. Comments have no priority. Resolving or reopening a checklist comment (origin = "task") ticks or clears the item in its source prose; read both the comment and that prose document first.
+comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose. Comments have no priority. Resolving or reopening a checklist comment (origin = "task") ticks or clears the item in its source prose; read both the comment and that prose document first.
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -118,7 +118,7 @@ comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074
 comment.create book aa339605fe6da60a590d0e5a7bd86f62f5994fa964f3ef42cc296e242a3eb6bf
 comment.list shared ae0fdef4558836127a6a4a8401805cd5b942625642e4c1dd0360a79cec1c9a5d
 comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
-comment.update book a716ce1f8ef820cc26a3def4560b9322c3c07dfa8127b092d6fb750581613a28
+comment.update book 9aadab8b09dce93e060be53e648f7fe54af33b21761e96c6b997ef07da38598c
 entry.create book e3ee31980a40aa629bf50e242f7ad13e80fdacc38dfbd7c1d1103bc986f8025a
 entry.get shared bc1d45c49c5ad12ecb21e6c534dc2eeb7ade3f39303bd0b9553eb6b133030a0d
 entry.list shared 47d92c9006f514ec9460d4699ba092f31cc46225012ccc92db0470a78d270b80
