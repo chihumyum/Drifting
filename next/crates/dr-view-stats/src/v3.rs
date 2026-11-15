@@ -34,6 +34,7 @@ pub struct Document {
 #[derive(Clone, Debug)]
 pub struct Loaded {
     pub scope: Scope,
+    pub has_book: bool,
     pub title: String,
     pub summary: String,
     pub documents: Vec<Document>,
@@ -49,9 +50,15 @@ pub struct Loaded {
 
 impl Loaded {
     pub fn words(&self, live: &Live) -> Option<TextMetrics> {
+        if !self.has_book {
+            return None;
+        }
         total(&self.documents, live)
     }
     pub fn book_words(&self, live: &Live) -> Option<TextMetrics> {
+        if !self.has_book {
+            return None;
+        }
         total(&self.manuscript, live)
     }
 }
@@ -214,7 +221,9 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
             (title, Vec::new())
         }
     };
-    let shape = if documents.len() == 1
+    let has_book = project.book.is_some();
+    let shape = if has_book
+        && documents.len() == 1
         && !matches!(scope, Scope::Book)
         && stored.contains(&documents[0].id)
     {
@@ -229,26 +238,40 @@ pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<
     } else {
         None
     };
+    let days = if has_book {
+        ws.run::<WritingDays>(
+            &Actor::User,
+            WritingDaysIn {
+                book: book.into(),
+                today: today.to_string(),
+                days: Some(7),
+                device: ws.writing_device(),
+            },
+        )?
+        .output
+    } else {
+        WritingDaysOut {
+            days: Vec::new(),
+            today: 0,
+            mine_today: 0,
+            week: 0,
+            active_days: 0,
+            streak: 0,
+            streak_before: 0,
+            daily_word_target: None,
+        }
+    };
     Ok(Loaded {
         scope,
+        has_book,
         title,
         summary: meta.summary.clone(),
         documents,
         manuscript,
         entries: sequence.len(),
-        word_target: project.word_target(),
-        daily_word_target: project.daily_word_target(),
+        word_target: has_book.then(|| project.word_target()).flatten(),
+        daily_word_target: has_book.then(|| project.daily_word_target()).flatten(),
         shape,
-        days: ws
-            .run::<WritingDays>(
-                &Actor::User,
-                WritingDaysIn {
-                    book: book.into(),
-                    today: today.to_string(),
-                    days: Some(7),
-                    device: ws.writing_device(),
-                },
-            )?
-            .output,
+        days,
     })
 }

@@ -135,6 +135,41 @@ fn the_year_is_read_from_the_writing_days() {
     assert_eq!(year.recent(&book, 3), [0, 300, 500]);
 }
 
+#[test]
+fn bookless_project_skips_cover_manuscript_and_writing_year_cells() {
+    let (_dir, ws, book) = book();
+    let notes = id(&out(&ws, "project.create", json!({"name": "资料库"})));
+    out(
+        &ws,
+        "entry.create",
+        json!({"book": notes, "template": "tpl-chapter", "title": "旧码头考证", "bodies": {"mod-prose": "旧码头建于民国初年。"}}),
+    );
+    for (target, words) in [(&book, 420), (&notes, 999)] {
+        out(
+            &ws,
+            "writing_day.record",
+            json!({"book": target, "device": DEVICE, "day": "2026-11-08", "words": words}),
+        );
+    }
+    out(
+        &ws,
+        "project.update",
+        json!({"book": notes, "has_book": false}),
+    );
+
+    let req = cover_request(&ws, &notes, "资料库");
+    assert_eq!(req.chapters, 0);
+    assert!(req.words.is_empty());
+    assert!(req.storylines.is_empty());
+
+    let ids = vec![book.clone(), notes.clone()];
+    let year = WritingYear::load(&ws, &ids, "2026-11-08");
+    assert!(year.by_book.contains_key(&book));
+    assert!(!year.by_book.contains_key(&notes));
+    assert_eq!(year.recent(&notes, 3), [0, 0, 0]);
+    assert_eq!(year.total.iter().sum::<u64>(), 420);
+}
+
 fn info() -> ShellInfo {
     ShellInfo {
         app_name: "Drifting Next",

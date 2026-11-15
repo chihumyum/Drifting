@@ -276,6 +276,7 @@ fn plain(block: &Block) -> String {
             })
             .collect::<Vec<_>>()
             .join(" "),
+        Block::Image { caption, .. } => caption.replace('\n', " "),
         Block::Break => String::new(),
     }
 }

@@ -46,6 +46,7 @@ pub struct PageHead {
     stored_synopsis: String,
     /// The current idea group breadcrumb, from the shell's book snapshot.
     group_path: Option<String>,
+    has_book_cached: bool,
     drafts: Option<HeadDrafts>,
     book: Option<std::rc::Rc<dr_shell::book::Book>>,
     _subscriptions: Vec<Subscription>,
@@ -68,7 +69,8 @@ impl PageHead {
         cx: &mut Context<Self>,
     ) -> Self {
         let id = |what: &str| ElementId::Name(format!("page-{what}-{}", page.doc).into());
-        let untitled = title_placeholder_of(page, cx);
+        let has_book_cached = read_has_book(&host, book.as_deref(), cx);
+        let untitled = title_placeholder_of(page, has_book_cached, cx);
         let title = cx.new(|cx| {
             TextArea::new(id("title"), window, cx)
                 .submit_on_enter()
@@ -89,12 +91,14 @@ impl PageHead {
         ];
         if let Some(workspace) = host.workspace.upgrade() {
             subscriptions.push(cx.observe(&workspace, |head, _, cx| {
-                if head.refresh_group_path(cx) {
+                let group_changed = head.refresh_group_path(cx);
+                let book_changed = head.refresh_has_book(cx);
+                if group_changed || book_changed {
                     cx.notify();
                 }
             }));
         }
-        let group_path = read_group_path(&host, page, cx);
+        let group_path = read_group_path(&host, book.as_deref(), page, has_book_cached, cx);
         // A chapter ⁂ just made: its title takes the caret, selected, once
         // this frame is drawn.
         if NewTitles::take(&page.doc, cx) {
@@ -118,6 +122,7 @@ impl PageHead {
             stored_title: page.title.clone(),
             stored_synopsis: page.synopsis.clone(),
             group_path,
+            has_book_cached,
             _subscriptions: subscriptions,
         }
     }
@@ -136,18 +141,45 @@ impl PageHead {
         self.group_path.as_deref()
     }
 
+    /// Whether `成书` (`project.book`) is enabled on this project.
+    pub fn has_book(&self, cx: &gpui::App) -> bool {
+        read_has_book(&self.host, self.book.as_deref(), cx)
+    }
+
+    /// Updates the standalone book snapshot (safe even while `Workspace` is being updated).
+    pub fn set_book(&mut self, book: std::rc::Rc<dr_shell::book::Book>, cx: &mut Context<Self>) {
+        let has_book = book.v3().is_none_or(|v| v.project.book.is_some());
+        let path = group_path_from_book(&book, &self.page, has_book);
+        self.book = Some(book);
+        let book_changed = std::mem::replace(&mut self.has_book_cached, has_book) != has_book;
+        let group_changed = std::mem::replace(&mut self.group_path, path) != self.group_path;
+        if book_changed || group_changed {
+            cx.notify();
+        }
+    }
+
     /// The folio label shown at the start of the folio line.
     pub fn folio_label(&self, cx: &gpui::App) -> SharedString {
-        folio_label_of(&self.page, cx)
+        folio_label_of(&self.page, self.has_book(cx), cx)
     }
 
     /// The placeholder shown when the title field is empty.
     pub fn title_placeholder(&self, cx: &gpui::App) -> SharedString {
-        title_placeholder_of(&self.page, cx)
+        title_placeholder_of(&self.page, self.has_book(cx), cx)
+    }
+
+    fn refresh_has_book(&mut self, cx: &gpui::App) -> bool {
+        let has_book = self.has_book(cx);
+        if self.has_book_cached == has_book {
+            return false;
+        }
+        self.has_book_cached = has_book;
+        true
     }
 
     fn refresh_group_path(&mut self, cx: &gpui::App) -> bool {
-        let path = read_group_path(&self.host, &self.page, cx);
+        let has_book = self.has_book(cx);
+        let path = read_group_path(&self.host, self.book.as_deref(), &self.page, has_book, cx);
         if self.group_path == path {
             return false;
         }
@@ -291,21 +323,36 @@ impl PageHead {
     }
 }
 
-fn title_placeholder_of(page: &PageInfo, cx: &gpui::App) -> SharedString {
+fn read_has_book(host: &PageHost, fallback: Option<&dr_shell::book::Book>, cx: &gpui::App) -> bool {
+    host.workspace
+        .upgrade()
+        .and_then(|ws| ws.read(cx).book.v3().map(|b| b.project.book.is_some()))
+        .or_else(|| fallback.and_then(|b| b.v3().map(|v| v.project.book.is_some())))
+        .unwrap_or(true)
+}
+
+fn title_placeholder_of(page: &PageInfo, has_book: bool, cx: &gpui::App) -> SharedString {
     if !page.template_name.is_empty() {
         tf(
             cx,
             keys::v3_shell::UNTITLED_NAMED,
             &[("name", &page.template_name)],
         )
-    } else if page.kind == PageKind::Chapter {
+    } else if has_book && page.kind == PageKind::Chapter {
         t(cx, keys::chapter_editor::UNTITLED_CHAPTER)
     } else {
         t(cx, keys::v3_shell::UNTITLED_ENTRY)
     }
 }
 
-fn folio_label_of(page: &PageInfo, cx: &gpui::App) -> SharedString {
+fn folio_label_of(page: &PageInfo, has_book: bool, cx: &gpui::App) -> SharedString {
+    if !has_book {
+        return if !page.template_name.is_empty() {
+            SharedString::from(page.template_name.clone())
+        } else {
+            t(cx, keys::v3_shell::ENTRY_UNTEMPLATED)
+        };
+    }
     match (page.kind, page.number) {
         (PageKind::Chapter, Some(n)) => {
             tf(cx, keys::node_editor::folio::CHAPTER_NUMBER, &[("n", &n)])
@@ -323,13 +370,28 @@ fn folio_label_of(page: &PageInfo, cx: &gpui::App) -> SharedString {
 
 /// Follow active enclosing levels above a non-manuscript entry, stopping at
 /// the top-level root or any cycle, and show the surviving chain top-down.
-fn read_group_path(host: &PageHost, page: &PageInfo, cx: &gpui::App) -> Option<String> {
-    if page.kind != PageKind::Other {
+fn read_group_path(
+    host: &PageHost,
+    fallback: Option<&dr_shell::book::Book>,
+    page: &PageInfo,
+    has_book: bool,
+    cx: &gpui::App,
+) -> Option<String> {
+    let snapshot = host.workspace.upgrade().map(|ws| ws.read(cx).book.clone());
+    let book = snapshot.as_deref().or(fallback)?;
+    group_path_from_book(book, page, has_book)
+}
+
+fn group_path_from_book(
+    book: &dr_shell::book::Book,
+    page: &PageInfo,
+    has_book: bool,
+) -> Option<String> {
+    if has_book && page.kind != PageKind::Other {
         return None;
     }
     let (id, _) = dr_editor::v3::body(&page.doc)?;
-    let workspace = host.workspace.upgrade()?;
-    let book = workspace.read(cx).book.v3()?;
+    let book = book.v3()?;
     let mut parent = book.entry(&id)?.parent.as_deref();
     let mut seen = std::collections::HashSet::new();
     let mut chain = Vec::new();
@@ -420,8 +482,9 @@ impl Render for PageHead {
         let p = theme.palette;
         let body = editor_settings(cx).font_size;
         let page = &self.page;
+        let has_book = self.has_book(cx);
         // The folio line: 「第 N 章」 or the template name, the storyline's dash and name, the words.
-        let number = folio_label_of(page, cx);
+        let number = folio_label_of(page, has_book, cx);
         let entry_mark = page
             .color
             .as_deref()
@@ -520,7 +583,9 @@ impl Render for PageHead {
                     ),
                 )
             })
-            .child(div().flex().flex_row().child(dot()).child(words));
+            .when(has_book, |el| {
+                el.child(div().flex().flex_row().child(dot()).child(words))
+            });
         let synopsis_size = body - tk::SYNOPSIS_LESS;
         let (outer, inner) = column(cx);
         let text = inner

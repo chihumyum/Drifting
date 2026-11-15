@@ -96,10 +96,13 @@
     "import": "프로젝트 가져오기",
     "importFile": "프로젝트 가져오기 (.driftingproject)",
     "importLegacy": "Drifting 0.1 가져오기",
+    "libraryProjects_one": "프로젝트 {{count}}개",
+    "libraryProjects_other": "프로젝트 {{count}}개",
     "library_one": "프로젝트 {{count}}개 · {{words}}단어",
     "library_other": "프로젝트 {{count}}개 · {{words}}단어",
     "nameLabel": "이름",
     "newProject": "새 프로젝트",
+    "recentEntries": "최근 수정",
     "summaryPlaceholder": "프로젝트를 한두 문장으로 설명하세요.",
     "title": "모든 프로젝트",
     "transfer": {
@@ -490,7 +493,6 @@
     "format": "형식",
     "loadFailed": "장을 읽을 수 없습니다. 다시 시도해 주세요.",
     "loading": "장 읽는 중…",
-    "manuscript": "원고",
     "menu": "원고 내보내기",
     "removeCover": "제거",
     "retry": "다시 시도",
@@ -851,6 +853,7 @@
       "writing": "집필 중"
     },
     "trash": {
+      "bodyWithoutBook": "프로젝트({{entries}})를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "bodyWithoutChapters": "프로젝트({{words}}자 · 요소 {{elements}}개)를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "confirm": "최근 삭제 항목으로 이동",
       "deleteNow": "지금 삭제",

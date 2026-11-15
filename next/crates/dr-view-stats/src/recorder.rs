@@ -41,6 +41,10 @@ pub const PERSIST_DELAY: Duration = Duration::from_secs(60);
 /// What the recorder reads and writes; [`WorkspaceSource`] in the app, a
 /// fake in tests.
 pub trait Source: Send + 'static {
+    /// Whether `成书` (`project.book`) is enabled on `book`.
+    fn has_book(&self, _book: &str) -> bool {
+        true
+    }
     /// The book's live chapters (prose document ids) with their indexed
     /// words; `None` when the book cannot be read now.
     fn chapters(&self, book: &str) -> Option<Vec<(String, u64)>>;
@@ -120,6 +124,15 @@ impl<S: Source> Tracker<S> {
 
     /// Start following `book` (the open one, or one this device writes).
     pub fn track(&mut self, book: &str, today: &Day) -> bool {
+        if !self.source.has_book(book) {
+            self.unreadable.remove(book);
+            if let Some(t) = self.books.remove(book) {
+                for doc in t.chapters.keys() {
+                    self.owner.remove(doc);
+                }
+            }
+            return false;
+        }
         if self.books.contains_key(book) {
             return true;
         }
@@ -196,6 +209,15 @@ impl<S: Source> Tracker<S> {
 
     /// A book's chapters may have come or gone: read the set again.
     pub fn chapters_changed(&mut self, book: &str, today: &Day, now: Instant) {
+        if !self.source.has_book(book) {
+            self.unreadable.remove(book);
+            if let Some(t) = self.books.remove(book) {
+                for doc in t.chapters.keys() {
+                    self.owner.remove(doc);
+                }
+            }
+            return;
+        }
         if self.unreadable.contains(book) {
             self.track(book, today);
             return;
@@ -315,9 +337,35 @@ pub struct WorkspaceSource {
 }
 
 impl Source for WorkspaceSource {
+    fn has_book(&self, book: &str) -> bool {
+        let Ok(id) = dr_model::id::BookId::parse(book) else {
+            return false;
+        };
+        let Ok(handle) = self
+            .ws
+            .library()
+            .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
+        else {
+            return false;
+        };
+        handle
+            .read(move |doc| {
+                if !dr_doc::v3::is_book_doc(doc) {
+                    return false;
+                }
+                dr_doc::v3::BorrowedBookV3::new(doc, &id)
+                    .map(|b| b.view().project().book.is_some())
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false)
+    }
+
     fn chapters(&self, book: &str) -> Option<Vec<(String, u64)>> {
-        crate::v3::load(&self.ws, book, crate::v3::Scope::Book)
-            .ok()?
+        let loaded = crate::v3::load(&self.ws, book, crate::v3::Scope::Book).ok()?;
+        if !loaded.has_book {
+            return None;
+        }
+        loaded
             .manuscript
             .into_iter()
             .map(|d| Some((d.id, d.metrics?.words)))
@@ -439,6 +487,13 @@ impl Recorder {
                     let mut moved = Vec::new();
                     {
                         let mut today = shared.lock().unwrap_or_else(|e| e.into_inner());
+                        today.retain(|book, _| {
+                            let keep = t.books.contains_key(book);
+                            if !keep {
+                                moved.push(book.clone());
+                            }
+                            keep
+                        });
                         for (book, tally) in &t.books {
                             let w = tally.words();
                             if today.insert(book.clone(), w) != Some(w) {

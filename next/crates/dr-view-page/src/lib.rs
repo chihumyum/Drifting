@@ -103,7 +103,7 @@ impl Chrome {
                 let head = cx.new(|cx| {
                     PageHead::new_with_book(host.clone(), page, self.book.clone(), window, cx)
                 });
-                let end = cx.new(|_| PageEnd::new(host, page));
+                let end = cx.new(|_| PageEnd::new_with_book(host, page, self.book.clone()));
                 self.pages
                     .borrow_mut()
                     .insert(page.doc.clone(), (head.clone(), end.clone()));

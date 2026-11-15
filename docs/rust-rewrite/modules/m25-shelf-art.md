@@ -1,5 +1,9 @@
 # M25 书架的画：封面、写作热力图、近 30 天砂条
 
+## 内核 v5 T3：无成书项目不计热力图格子（2026-11-15）
+
+- `cover_request` 与 `WritingYear::load` 对关掉「成书」（`project.book.is_none()`）的项目不再统计章节字数，也不把该项目的历史 `writing_days` 计入年度热力图格子或单书近 30 天（回归见 `dr-view-shelf-art/tests/shelf_art.rs`）。
+
 2026-11-08，F5 这一路做（分支 `claude/f5-ui-254e54`，从 main `60d510a6`）。计划见 [modules.md 的 M25](../modules.md)。代码在新 crate `next/crates/dr-view-shelf-art`，书架本身（M01，`dr-view-shelf`）把这些画放进书卡和书架的根上；这一轮只出组件，没有动 M01 的文件，接法写在下面，也写进了共享笔记。
 
 ## 大白话

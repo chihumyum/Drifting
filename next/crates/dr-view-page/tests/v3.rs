@@ -850,3 +850,361 @@ fn custom_template_folio_chrome_color_and_secondary_prose(cx: &mut TestAppContex
     });
     e.ws.close();
 }
+
+#[gpui::test]
+fn chapter_numbering_follows_book_root_and_hides_when_book_disabled(cx: &mut TestAppContext) {
+    use dr_editor::page::PageKind;
+
+    let mut e = env();
+    let initial = Book::load(&e.ws, &e.book).unwrap();
+    let v0 = initial.v3().unwrap();
+    let ideas_root = v0
+        .entries
+        .iter()
+        .find(|x| x.template.as_deref() == Some("tpl-ideas"))
+        .unwrap()
+        .id
+        .clone();
+    let lane_host = v0
+        .entries
+        .iter()
+        .find(|x| v0.is_lane(&x.id))
+        .unwrap()
+        .id
+        .clone();
+
+    // An entry using `tpl-chapter` outside `project.book.root` gets no chapter number.
+    let outside_ch = call(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": ideas_root,
+            "template": "tpl-chapter",
+            "title": "稿外章节",
+            "bodies": {"mod-prose": "用了章节模板但不在成书起点里。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    e.entry = outside_ch.clone();
+    let (outside_view, mut outside_vcx) = open(cx, &e, "mod-prose");
+    let outside_doc = format!("body:{outside_ch}/mod-prose");
+    wait(&mut outside_vcx, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&outside_doc, cx).is_some())
+    });
+    let outside_info = outside_view
+        .read_with(&outside_vcx, |v, _| v.editor().unwrap())
+        .read_with(&outside_vcx, |v, _| v.page_info().unwrap());
+    assert_eq!(
+        (outside_info.kind, outside_info.number),
+        (PageKind::Other, None)
+    );
+
+    // Switch `project.book.root` to `BookRoot::Lane` containing `[outside_ch]`: now `outside_ch` becomes chapter 1!
+    call(
+        &e.ws,
+        "membership.add",
+        json!({"book": e.book, "host": lane_host, "member": outside_ch}),
+    );
+    let lane_view_id = dr_model::id::TimelineViewId::new_v7().to_string();
+    call(
+        &e.ws,
+        "timeline_view.put",
+        json!({
+            "book": e.book,
+            "view": {
+                "id": lane_view_id,
+                "name": "泳道检视",
+                "lanes": [{"entry": lane_host, "pos": "a0"}],
+                "placements": [{"entry": outside_ch, "at": 10.0}],
+                "pins": []
+            }
+        }),
+    );
+    call(
+        &e.ws,
+        "project.update",
+        json!({
+            "book": e.book,
+            "root": {"kind": "lane", "entry": lane_host, "view": lane_view_id}
+        }),
+    );
+    let lane_ed = outside_view.read_with(&outside_vcx, |v, _| v.editor().unwrap());
+    wait(&mut outside_vcx, |cx| {
+        lane_ed.read_with(cx, |v, _| {
+            v.page_info()
+                .is_some_and(|p| p.kind == PageKind::Chapter && p.number.is_some())
+        })
+    });
+    let (head, end) =
+        outside_vcx.update(|_, cx| dr_view_page::page_views(&outside_doc, cx).unwrap());
+    let numbered_label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
+    assert!(
+        numbered_label.contains(&lane_ed.read_with(&outside_vcx, |v, _| {
+            v.page_info().unwrap().number.unwrap().to_string()
+        }),),
+        "expected numbered chapter folio label, got {numbered_label}"
+    );
+    assert!(outside_vcx.update(|_, cx| head.read(cx).has_book(cx)));
+    assert!(outside_vcx.update(|_, cx| end.read(cx).has_book(cx)));
+
+    // Turn `成书` off (`has_book: false`): `BodyModule::refresh` drops chapter numbering and `⁂` actions immediately.
+    call(
+        &e.ws,
+        "project.update",
+        json!({"book": e.book, "has_book": false}),
+    );
+    let bookless_snap = Rc::new(Book::load(&e.ws, &e.book).unwrap());
+    outside_view.update(&mut outside_vcx, |v, cx| v.refresh(bookless_snap, cx));
+    draw(&mut outside_vcx);
+
+    assert!(!outside_vcx.update(|_, cx| head.read(cx).has_book(cx)));
+    assert!(!outside_vcx.update(|_, cx| end.read(cx).has_book(cx)));
+    let bookless_label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
+    assert_eq!(bookless_label, outside_info.template_name);
+    end.update_in(&mut outside_vcx, |end, window, cx| {
+        end.open_actions(window, cx)
+    });
+    assert!(!end.read_with(&outside_vcx, |end, _| end.is_open()));
+
+    wait(&mut outside_vcx, |cx| {
+        lane_ed.read_with(cx, |v, _| {
+            v.page_info()
+                .is_some_and(|p| p.kind == PageKind::Other && p.number.is_none())
+        })
+    });
+    e.ws.close();
+}
+
+#[gpui::test]
+fn stats_chapter_numbering_and_export_dialog_agree_across_book_roots(cx: &mut TestAppContext) {
+    use dr_editor::page::PageKind;
+    use dr_view_export::{ExportDialog, Request};
+    use dr_view_stats::{
+        model::Live,
+        v3::{self as stats_v3, Scope},
+    };
+
+    let e = env();
+    cx.executor().allow_parking();
+    let initial = Book::load(&e.ws, &e.book).unwrap();
+    let v0 = initial.v3().unwrap();
+    let ms_root = v0
+        .entries
+        .iter()
+        .find(|x| x.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+    let ideas_root = v0
+        .entries
+        .iter()
+        .find(|x| x.template.as_deref() == Some("tpl-ideas"))
+        .unwrap()
+        .id
+        .clone();
+    let ch1 = v0.manuscript[0].entry.clone();
+    let ch2 = v0.manuscript[1].entry.clone();
+
+    let outside_ch = call(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": ideas_root,
+            "template": "tpl-chapter",
+            "title": "稿外章节",
+            "bodies": {"mod-prose": "用了章节模板但不在成书起点里。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let note = call(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": ideas_root,
+            "template": "tpl-idea",
+            "title": "海图手记",
+            "bodies": {"mod-prose": "入列后按成书起点顺序编号和导出。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let storylines_root = v0
+        .entries
+        .iter()
+        .find(|x| x.template.as_deref() == Some("tpl-storylines"))
+        .unwrap()
+        .id
+        .clone();
+    let lane_a = call(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": storylines_root,
+            "template": "tpl-storyline",
+            "title": "自定泳道甲"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_b = call(
+        &e.ws,
+        "entry.create",
+        json!({
+            "book": e.book,
+            "parent": storylines_root,
+            "template": "tpl-storyline",
+            "title": "自定泳道乙"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for id in [&note, &ch1] {
+        call(
+            &e.ws,
+            "membership.add",
+            json!({"book": e.book, "host": lane_a, "member": id}),
+        );
+    }
+    call(
+        &e.ws,
+        "membership.add",
+        json!({"book": e.book, "host": lane_b, "member": ch2}),
+    );
+    let view_id = dr_model::id::TimelineViewId::new_v7().to_string();
+    call(
+        &e.ws,
+        "timeline_view.put",
+        json!({
+            "book": e.book,
+            "view": {
+                "id": view_id,
+                "name": "自定视图",
+                "lanes": [
+                    {"entry": lane_a, "pos": "a0"},
+                    {"entry": lane_b, "pos": "a1"}
+                ],
+                "placements": [
+                    {"entry": ch2, "at": 10.0},
+                    {"entry": note, "at": 20.0},
+                    {"entry": ch1, "at": 30.0}
+                ],
+                "pins": []
+            }
+        }),
+    );
+    e.ws.library().rebuild_stale_indexes().unwrap();
+
+    // Open live editors for `[ch1, ch2, note, outside_ch]` so each `book_root` switch also
+    // proves live `ChapterEditor` re-numbering.
+    let mut editors = std::collections::BTreeMap::new();
+    for id in [&ch1, &ch2, &note, &outside_ch] {
+        let mut sub = Env {
+            _dir: tempfile::tempdir().unwrap(),
+            ws: e.ws.clone(),
+            book: e.book.clone(),
+            entry: id.clone(),
+        };
+        let (view, mut vcx) = open(cx, &sub, "mod-prose");
+        let doc = format!("body:{id}/mod-prose");
+        wait(&mut vcx, |cx| {
+            cx.update(|_, cx| dr_view_page::page_views(&doc, cx).is_some())
+        });
+        sub.entry.clear();
+        editors.insert(id.clone(), (view, vcx));
+    }
+
+    let mut check_root =
+        |cx: &mut TestAppContext, root: Value, expected_prefix: Option<&[&str]>| {
+            call(
+                &e.ws,
+                "project.update",
+                json!({"book": e.book, "root": root}),
+            );
+
+            let stats = stats_v3::load(&e.ws, &e.book, Scope::Book).unwrap();
+            let stats_ids: Vec<String> = stats
+                .manuscript
+                .iter()
+                .map(|d| d.entry.clone().unwrap())
+                .collect();
+            assert!(!stats_ids.contains(&outside_ch));
+            assert!(stats.book_words(&Live::default()).unwrap().words > 0);
+            if let Some(expected) = expected_prefix {
+                let expected_vec: Vec<String> = expected.iter().map(|s| (*s).to_owned()).collect();
+                assert_eq!(stats_ids, expected_vec);
+            }
+
+            let snap = Book::load(&e.ws, &e.book).unwrap();
+            for (idx, id) in stats_ids.iter().enumerate() {
+                let expected_num = (idx + 1) as u32;
+                assert_eq!(snap.v3().unwrap().manuscript_number(id), Some(expected_num));
+                if let Some((view, vcx)) = editors.get_mut(id) {
+                    let ed = view.read_with(vcx, |v, _| v.editor().unwrap());
+                    wait(vcx, |cx| {
+                        ed.read_with(cx, |v, _| {
+                            v.page_info().is_some_and(|p| {
+                                p.kind == PageKind::Chapter && p.number == Some(expected_num)
+                            })
+                        })
+                    });
+                }
+            }
+            assert_eq!(snap.v3().unwrap().manuscript_number(&outside_ch), None);
+            {
+                let (view, vcx) = editors.get_mut(&outside_ch).unwrap();
+                let ed = view.read_with(vcx, |v, _| v.editor().unwrap());
+                wait(vcx, |cx| {
+                    ed.read_with(cx, |v, _| {
+                        v.page_info()
+                            .is_some_and(|p| p.kind == PageKind::Other && p.number.is_none())
+                    })
+                });
+            }
+
+            let (dialog, vcx) = cx.add_window_view(|window, cx| {
+                ExportDialog::new(
+                    Some(e.ws.clone()),
+                    e.book.clone(),
+                    Request::Manuscript { chapter: None },
+                    dr_i18n::Locale::ZhCn,
+                    dr_i18n::Platform::Mac,
+                    window,
+                    cx,
+                )
+            });
+            wait(vcx, |cx| {
+                dialog.read_with(cx, |d, _| {
+                    d.manuscript().is_some_and(|m| m.outline.is_some())
+                })
+            });
+            let export_ids = dialog.read_with(vcx, |d, _| d.manuscript().unwrap().chapters());
+            assert_eq!(export_ids, stats_ids);
+        };
+
+    check_root(cx, json!({"kind": "entry", "entry": ms_root}), None);
+    check_root(
+        cx,
+        json!({"kind": "view", "view": view_id}),
+        Some(&[ch2.as_str(), note.as_str(), ch1.as_str()]),
+    );
+    check_root(
+        cx,
+        json!({"kind": "lane", "entry": lane_a, "view": view_id}),
+        Some(&[note.as_str(), ch1.as_str()]),
+    );
+
+    e.ws.close();
+}

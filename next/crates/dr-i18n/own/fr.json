@@ -4,11 +4,15 @@
     "import": "Importer un projet",
     "importFile": "Importer un projet (.driftingproject)",
     "importLegacy": "Importer Drifting 0.1",
+    "libraryProjects_many": "{{count}} projets",
+    "libraryProjects_one": "{{count}} projet",
+    "libraryProjects_other": "{{count}} projets",
     "library_many": "{{count}} projets · {{words}} mots",
     "library_one": "{{count}} projet · {{words}} mots",
     "library_other": "{{count}} projets · {{words}} mots",
     "nameLabel": "Nom",
     "newProject": "Nouveau projet",
+    "recentEntries": "Modifiés récemment",
     "summaryPlaceholder": "Décrivez le projet en une ou deux phrases.",
     "title": "Tous les projets",
     "transfer": {
@@ -104,9 +108,6 @@
     "title": "Titre",
     "unset": "Non défini"
   },
-  "manuscriptExport": {
-    "manuscript": "Manuscrit"
-  },
   "positionLink": {
     "copied": "Lien de position copié"
   },
@@ -116,6 +117,7 @@
       "older": "Ce fichier de livre utilise un format antérieur que cette version ne lit plus."
     },
     "trash": {
+      "bodyWithoutBook": "Ce projet ({{entries}}) quitte Tous les projets. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
       "bodyWithoutChapters": "Ce projet ({{words}} mots · {{elements}} éléments) quitte Tous les projets. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement."
     }
   },

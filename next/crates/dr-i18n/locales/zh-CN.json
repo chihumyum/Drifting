@@ -97,8 +97,10 @@
     "importFile": "导入项目（.driftingproject）",
     "importLegacy": "导入 Drifting 0.1",
     "library": "{{count}} 个项目 · {{words}}字",
+    "libraryProjects": "{{count}} 个项目",
     "nameLabel": "名字",
     "newProject": "新建项目",
+    "recentEntries": "最近修改",
     "summaryPlaceholder": "一两句话说明这个项目是什么。",
     "title": "全部项目",
     "transfer": {
@@ -488,7 +490,6 @@
     "format": "格式",
     "loadFailed": "未能读取章节，请重试。",
     "loading": "正在读取章节…",
-    "manuscript": "成书",
     "menu": "导出成稿",
     "removeCover": "移除",
     "retry": "重试",
@@ -845,6 +846,7 @@
       "writing": "在写"
     },
     "trash": {
+      "bodyWithoutBook": "这个项目（{{entries}}）会从全部项目里移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "bodyWithoutChapters": "这个项目（{{words}} 字 · {{elements}} 个要素）会从全部项目里移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "confirm": "移到最近删除",
       "deleteNow": "立即删除",

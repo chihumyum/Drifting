@@ -353,6 +353,7 @@ fn flatten(blocks: &[Block], quote: bool, out: &mut Vec<Para>) {
                     }
                 }
             }
+            Block::Image { .. } => {}
             Block::Break => out.push(Para {
                 kind: Kind::Rule { quote },
                 chars: Vec::new(),

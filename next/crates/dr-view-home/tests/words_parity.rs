@@ -467,3 +467,200 @@ fn home_settings_save_word_targets_across_home_stats_and_shelf(cx: &mut TestAppC
 
     lib.close();
 }
+
+#[test]
+fn word_count_chapter_numbering_and_export_agree_across_entry_view_and_lane_book_roots() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = dr_store::Library::open(dir.path(), library_options("0.2.0-dev")).unwrap();
+    let ws = Library::open(store, WorkspaceOptions::default()).unwrap();
+
+    let book = call(&ws, "project.create", json!({"name": "三处同源"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ms_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript");
+    let ideas_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-ideas");
+
+    let ch1 = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": ms_root,
+            "template": "tpl-chapter",
+            "title": "甲章",
+            "bodies": {"mod-prose": "春潮带雨晚来急。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ch2 = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": ms_root,
+            "template": "tpl-chapter",
+            "title": "乙章",
+            "bodies": {"mod-prose": "野渡无人舟自横，远岸灯火明灭。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let outside = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": ideas_root,
+            "template": "tpl-chapter",
+            "title": "外章",
+            "bodies": {"mod-prose": "这篇虽然用了章节模板，但住在构想下。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let note = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": ideas_root,
+            "template": "tpl-idea",
+            "title": "海图札记",
+            "bodies": {"mod-prose": "北风三日，船队改走内湾。"}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // Timeline view with two lanes (`lane_a` holding `[note, ch1]`, `lane_b` holding `[ch2]`).
+    let storylines_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-storylines");
+    let lane_a = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": storylines_root,
+            "template": "tpl-storyline",
+            "title": "暗潮线"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_b = call(
+        &ws,
+        "entry.create",
+        json!({
+            "book": book,
+            "parent": storylines_root,
+            "template": "tpl-storyline",
+            "title": "远岸线"
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for id in [&note, &ch1] {
+        call(
+            &ws,
+            "membership.add",
+            json!({"book": book, "host": lane_a, "member": id}),
+        );
+    }
+    call(
+        &ws,
+        "membership.add",
+        json!({"book": book, "host": lane_b, "member": ch2}),
+    );
+    let view_id = dr_model::id::TimelineViewId::new_v7().to_string();
+    call(
+        &ws,
+        "timeline_view.put",
+        json!({
+            "book": book,
+            "view": {
+                "id": view_id,
+                "name": "精选视图",
+                "lanes": [
+                    {"entry": lane_a, "pos": "a0"},
+                    {"entry": lane_b, "pos": "a1"}
+                ],
+                "placements": [
+                    {"entry": ch2, "at": 10.0},
+                    {"entry": note, "at": 20.0},
+                    {"entry": ch1, "at": 30.0}
+                ],
+                "pins": []
+            }
+        }),
+    );
+
+    ws.library().rebuild_stale_indexes().unwrap();
+    let day = Day::parse("2026-11-15").unwrap();
+
+    let assert_all_consumers_agree = |expected_ids: &[&str]| {
+        let expected_words: u64 = expected_ids
+            .iter()
+            .map(|id| doc_words(&ws, id, "mod-prose"))
+            .sum();
+
+        // 1. Whole-book stats, shelf word count, and generative cover request
+        let stats = stats_v3::load_at(&ws, &book, Scope::Book, &day).unwrap();
+        let stats_ids: Vec<&str> = stats
+            .manuscript
+            .iter()
+            .map(|d| d.entry.as_deref().unwrap())
+            .collect();
+        assert_eq!(stats_ids, expected_ids);
+        assert!(!stats_ids.contains(&outside.as_str()));
+        assert_eq!(
+            stats.book_words(&Live::default()).unwrap().words,
+            expected_words
+        );
+        let shelf = ShelfData::load(&ws).unwrap();
+        let shelf_book = shelf.books.iter().find(|b| b.id == book).unwrap();
+        assert_eq!(shelf_book.chapters as usize, expected_ids.len());
+        assert_eq!(shelf_book.words, Some(expected_words));
+        let cover = cover_request(&ws, &book, "三处同源");
+        assert_eq!(cover.chapters, expected_ids.len());
+        assert_eq!(cover.words.iter().sum::<u64>(), expected_words);
+
+        // 2. Shell book sequence & chapter numbering (`BookV3::manuscript_number`)
+        let shell_book = dr_shell::book::Book::load(&ws, &book).unwrap();
+        let v3 = shell_book.v3().unwrap();
+        let ms_ids: Vec<&str> = v3.manuscript.iter().map(|b| b.entry.as_str()).collect();
+        assert_eq!(ms_ids, expected_ids);
+        for (idx, id) in expected_ids.iter().enumerate() {
+            let ordinal = (idx + 1) as u32;
+            assert_eq!(v3.manuscript_number(id), Some(ordinal));
+        }
+        assert_eq!(v3.manuscript_number(&outside), None);
+    };
+
+    // Case 1: BookRoot::Entry (`ms_root` -> `[ch1, ch2]`)
+    assert_all_consumers_agree(&[ch1.as_str(), ch2.as_str()]);
+
+    // Case 2: BookRoot::View (`view_id` -> `[ch2, note, ch1]`)
+    call(
+        &ws,
+        "project.update",
+        json!({"book": book, "root": {"kind": "view", "view": view_id}}),
+    );
+    assert_all_consumers_agree(&[ch2.as_str(), note.as_str(), ch1.as_str()]);
+
+    // Case 3: BookRoot::Lane (`lane_a` in `view_id` -> `[note, ch1]`)
+    call(
+        &ws,
+        "project.update",
+        json!({"book": book, "root": {"kind": "lane", "entry": lane_a, "view": view_id}}),
+    );
+    assert_all_consumers_agree(&[note.as_str(), ch1.as_str()]);
+
+    ws.close();
+}

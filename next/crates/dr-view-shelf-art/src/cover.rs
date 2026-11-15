@@ -86,6 +86,9 @@ pub fn cover_request(ws: &Workspace, book: &str, title: &str) -> CoverRequest {
     let Some(v) = snapshot.v3() else {
         return empty();
     };
+    if v.project.book.is_none() {
+        return empty();
+    }
     // The manuscript sequence: each entry with book prose, in order, and the
     // words of that prose.
     let mut chapters: Vec<&dr_workspace::commands::v3::types::Entry> = Vec::new();

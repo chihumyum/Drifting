@@ -47,6 +47,7 @@ pub enum EndAction {
 pub struct PageEnd {
     host: PageHost,
     page: PageInfo,
+    book: Option<std::rc::Rc<dr_shell::book::Book>>,
     open: bool,
     /// 0 is ⁂, 1 its actions.
     shown: Tween,
@@ -57,9 +58,18 @@ pub struct PageEnd {
 
 impl PageEnd {
     pub fn new(host: PageHost, page: &PageInfo) -> Self {
+        Self::new_with_book(host, page, None)
+    }
+
+    pub(crate) fn new_with_book(
+        host: PageHost,
+        page: &PageInfo,
+        book: Option<std::rc::Rc<dr_shell::book::Book>>,
+    ) -> Self {
         PageEnd {
             host,
             page: page.clone(),
+            book,
             open: false,
             shown: Tween::still(0.0),
             hover_opened: None,
@@ -69,6 +79,30 @@ impl PageEnd {
 
     pub fn set_page(&mut self, page: &PageInfo) {
         self.page = page.clone();
+    }
+
+    pub fn set_book(&mut self, book: std::rc::Rc<dr_shell::book::Book>, cx: &mut Context<Self>) {
+        let has_book = book.v3().is_none_or(|v| v.project.book.is_some());
+        self.book = Some(book);
+        if !has_book && self.open {
+            self.open = false;
+            self.arm = None;
+            self.shown = Tween::still(0.0);
+        }
+        cx.notify();
+    }
+
+    pub fn has_book(&self, cx: &App) -> bool {
+        self.host
+            .workspace
+            .upgrade()
+            .and_then(|ws| ws.read(cx).book.v3().map(|b| b.project.book.is_some()))
+            .or_else(|| {
+                self.book
+                    .as_ref()
+                    .and_then(|b| b.v3().map(|v| v.project.book.is_some()))
+            })
+            .unwrap_or(true)
     }
 
     /// The facts it shows.
@@ -84,7 +118,7 @@ impl PageEnd {
     /// Turns ⁂ into its actions as a click on it does (the keyboard's way
     /// in, when the shell gives one).
     pub fn open_actions(&mut self, window: &Window, cx: &mut Context<Self>) {
-        if self.page.kind == PageKind::Chapter {
+        if self.has_book(cx) && self.page.kind == PageKind::Chapter {
             self.show(false, window, cx);
         }
     }
@@ -153,7 +187,7 @@ impl PageEnd {
 
     /// Does `action` (and folds the actions back), as choosing it does.
     pub fn choose(&mut self, action: EndAction, window: &Window, cx: &mut Context<Self>) {
-        if self.page.kind != PageKind::Chapter {
+        if !self.has_book(cx) || self.page.kind != PageKind::Chapter {
             return;
         }
         if action == EndAction::Finish && !self.page.has_status {
@@ -271,7 +305,7 @@ impl Render for PageEnd {
         let now = anim::now();
         let k = self.shown.value(now).clamp(0.0, 1.0);
         anim::keep_going(!self.shown.settled(now), window);
-        let chapter = self.page.kind == PageKind::Chapter;
+        let chapter = self.has_book(cx) && self.page.kind == PageKind::Chapter;
         let finished = self.page.finished();
         let ink = if finished { p.accent } else { p.ink(4) };
         let doc = self.page.doc.clone();
