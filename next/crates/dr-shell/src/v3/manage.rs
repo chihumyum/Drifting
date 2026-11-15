@@ -52,8 +52,7 @@ impl Structure {
         }
     }
 
-    /// Takes the latest book; redraws only when it changed (the column
-    /// above redraws every frame while its Tabs jiggle).
+    /// Takes the latest book; redraws when it changed.
     pub fn sync(&mut self, host: PageViewHost, cx: &mut Context<Self>) {
         let changed = !Rc::ptr_eq(&self.host.book, &host.book) || self.host.book_id != host.book_id;
         if self.host.book_id != host.book_id {
@@ -241,6 +240,9 @@ impl Structure {
         let owner = self.owner;
         div()
             .id(SharedString::from(format!("v3-structure-row-{id}")))
+            // A row is read out by its name, like the rows of a level's list.
+            .role(gpui::Role::Group)
+            .aria_label(name.clone())
             .pl(px(depth.min(8) as f32 * INDENT))
             .child(cell.lead(lead).selected(lit))
             .when(!lit, |el| el.opacity(0.45))

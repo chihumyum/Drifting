@@ -811,13 +811,11 @@ impl Render for Sidebar {
             }));
         if self.managing.is_some() {
             let row = self.managed_row(window, cx);
-            let structure = self
-                .structure
-                .clone()
-                .cached(StyleRefinement::default().size_full());
+            // Not a cached view: a reused one leaves its rows out of the
+            // accessibility tree.
             return content
                 .child(row)
-                .child(div().flex_1().min_h_0().child(structure))
+                .child(div().flex_1().min_h_0().child(self.structure.clone()))
                 .into_any_element();
         }
         content = content.child(self.tab_row(cx));
