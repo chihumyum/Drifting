@@ -524,14 +524,14 @@ mod tests {
 
     #[test]
     fn inline_think_tags_become_thinking_across_any_chunk_boundary() {
-        let whole = "\n<think>\nweigh the scene\n</think>\n\nThe tide came in.";
+        let whole = "\n<think>\nweigh the chapter\n</think>\n\nThe tide came in.";
         for size in 1..=whole.len() {
             let bytes: Vec<char> = whole.chars().collect();
             let chunks: Vec<String> = bytes.chunks(size).map(|c| c.iter().collect()).collect();
             let chunks: Vec<&str> = chunks.iter().map(String::as_str).collect();
             let (text, thinking) = run(&chunks);
             assert_eq!(text, "The tide came in.", "chunk size {size}");
-            assert_eq!(thinking, "\nweigh the scene\n", "chunk size {size}");
+            assert_eq!(thinking, "\nweigh the chapter\n", "chunk size {size}");
         }
         // A tag after visible text is just text; an unfinished tag stays text.
         assert_eq!(
