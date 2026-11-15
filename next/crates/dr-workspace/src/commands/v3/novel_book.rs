@@ -133,7 +133,6 @@ fn resolve_template_and_source(
 }
 
 fn open_and_write_prose(
-    lib: &Library,
     written: &mut Written<'_>,
     book: &BookId,
     doc: &DocId,
@@ -142,6 +141,7 @@ fn open_and_write_prose(
     paragraphs: Option<&[dr_model::project_template::TemplateParagraph]>,
     entry_map: &BTreeMap<String, EntryId>,
 ) -> Result<()> {
+    let lib = written.lib;
     let doc_str = doc.to_string();
     let Some(paras) = paragraphs.filter(|p| has_authored_paragraphs(p)) else {
         lib.register(&doc_str, doc.kind().prefix(), Some(book.as_str()))?;
@@ -208,7 +208,6 @@ op! {
             if has_authored_paragraphs(paras) {
                 let tdoc = template_doc(&id, tpl_id, mod_id)?;
                 open_and_write_prose(
-                    lib,
                     &mut written,
                     &id,
                     &tdoc,
@@ -229,7 +228,6 @@ op! {
                 for module in tpl.prose_modules() {
                     let bdoc = body_id(&entry.id, &module.id);
                     open_and_write_prose(
-                        lib,
                         &mut written,
                         &id,
                         &bdoc,

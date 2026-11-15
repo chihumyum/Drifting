@@ -629,10 +629,12 @@ fn styles_for_template_run(r: &TemplateRun) -> Vec<InlineStyle> {
     out
 }
 
+type MaterializedRuns = (Vec<Run>, Vec<(Range<usize>, EntityLinkV3)>);
+
 fn to_prose_runs_and_links(
     runs: &[TemplateRun],
     entry_map: &BTreeMap<String, EntryId>,
-) -> Result<(Vec<Run>, Vec<(Range<usize>, EntityLinkV3)>)> {
+) -> Result<MaterializedRuns> {
     let mut prose_runs = Vec::with_capacity(runs.len());
     let mut links = Vec::new();
     let mut at = 0usize;

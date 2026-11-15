@@ -1862,8 +1862,8 @@ fn two_devices_sync_saved_template_lww_replace_and_purge() {
     sync_templates(&dev_a, &dev_b);
     assert_eq!(dev_a.out("project_template.list", json!({})), json!([]));
     assert_eq!(dev_b.out("project_template.list", json!({})), json!([]));
-    assert_eq!(
-        dev_b
+    assert!(
+        !dev_b
             .ws()
             .import_remote(
                 &tpl_doc_id,
@@ -1872,7 +1872,6 @@ fn two_devices_sync_saved_template_lww_replace_and_purge() {
                 &Actor::Sync
             )
             .unwrap(),
-        false,
         "purged project-template must not resurrect from stale sync bytes"
     );
 
