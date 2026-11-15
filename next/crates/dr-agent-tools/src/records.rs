@@ -37,7 +37,7 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
         }])
     };
     match domain {
-        "prose" | "history" => Backing::Outside,
+        "prose" | "history" | "layout" => Backing::Outside,
         "entry_history" => Backing::Document,
         // The set of entries is read as the order of the top level; each
         // listed entry is its own subject, with its own record.
@@ -56,6 +56,8 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
             let mut keys = vec![
                 RecordKey::entry(entry).at(["fields", module]),
                 RecordKey::entry(entry).at([format!("kv:{module}")]),
+                RecordKey::entry(entry).at([format!("media:{module}")]),
+                RecordKey::entry(entry).at([format!("arrangement:{module}")]),
                 RecordKey::plot_grid(entry, module),
             ];
             let rows = |field: &str, collection: &str| {
@@ -71,6 +73,16 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
             keys.extend(rows("relations", "relations"));
             Backing::Records(keys)
         }
+        "project" => Backing::Records(vec![
+            RecordKey::record("project", "source"),
+            RecordKey::record("project", "agent"),
+            RecordKey::record("project", "book"),
+        ]),
+        "tab" => Backing::Records(vec![if any {
+            RecordKey::record("project", "tabs")
+        } else {
+            RecordKey::record("project", "tabs").at([id])
+        }]),
         "entry_template" => collection("templates"),
         "timeline_view" => collection("timeline_views"),
         "entry_relation_type" => collection("relation_types"),
@@ -80,7 +92,10 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
         "memory" => collection("memory"),
         "comment" => collection("comments"),
         "relation" => collection("relations"),
+        "patch" => collection("patches"),
+        "plot_grid" => collection("plot_grids"),
         "asset" => collection("assets"),
+        "asset_folder" => collection("asset_folders"),
         _ => Backing::Document,
     }
 }
@@ -113,6 +128,28 @@ pub(super) fn also_read(name: &str, output: &Value) -> Vec<String> {
             .flatten()
             .flat_map(|row| rows(&row["below"]["members"], row["id"].as_str()))
             .collect(),
+        "module.read" => {
+            let mut extra: Vec<String> = output["patches"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|row| Some(format!("patch:{}", row["id"].as_str()?)))
+                .chain(
+                    output["relations"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|row| Some(format!("relation:{}", row["id"].as_str()?))),
+                )
+                .collect();
+            if let (Some(entry), Some(module)) =
+                (output["entry"].as_str(), output["module"].as_str())
+                && output.get("grid").is_some_and(|g| !g.is_null())
+            {
+                extra.push(format!("plot_grid:{entry}/{module}"));
+            }
+            extra
+        }
         _ => Vec::new(),
     }
 }

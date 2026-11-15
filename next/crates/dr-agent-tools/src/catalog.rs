@@ -18,8 +18,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 /// Change this when facade handler semantics change without a schema change.
-/// Versioned facade revision for universal kernel v3 books and template verbs.
-pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r4";
+/// Versioned facade revision for universal kernel v5 books and template verbs.
+pub const FACADE_REVISION_V3: &str = "k6-author-facade-v5-r1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -135,6 +135,7 @@ pub struct ActionBinding {
     pub target_template: String,
     pub target_template_name: String,
     pub home: Option<String>,
+    pub adds_membership: bool,
     pub command: String,
 }
 
@@ -326,12 +327,24 @@ impl Catalog {
                 )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.create" {
                 format!(
-                    "{} Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.",
+                    "{} Targets an entry, any module of an entry, a module sub-part (field, kv_row, plot_cell, patch, media, embed), a prose block or passage, an asset-library file (with optional region), or floating. Read the target or module first; read exact source prose before anchoring (a block needs that paragraph; ranges, anchor bytes, and embeds need the full document).",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3 && spec.name == "comment.update" {
+                format!(
+                    "{} Comments have no priority. Resolving or reopening a checklist comment (origin = \"task\") ticks or clears the item in its source prose; read both the comment and that prose document first.",
                     spec.summary
                 )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.reanchor" {
                 format!(
                     "{} Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3
+                && matches!(spec.name, "prose.link" | "prose.unlink")
+            {
+                format!(
+                    "{} Link targets may be entries or asset-library files (kind = \"asset\"). Read the full prose document first.",
                     spec.summary
                 )
             } else {
@@ -925,7 +938,9 @@ fn build_v3_actions(
                 });
                 continue;
             };
-            let residence = if !level.is_level() || level.own_home(templates_map).is_some() {
+            let residence = if !level.is_level()
+                || (effective.accept && level.own_home(templates_map).is_some())
+            {
                 dr_model::v3::resolve_host_residence(&level.id, entries_map, templates_map)
             } else {
                 Some(level.id.clone())
@@ -943,7 +958,8 @@ fn build_v3_actions(
                 });
                 continue;
             }
-            if residence.as_ref() != Some(&level.id) && !effective.accept {
+            let adds_membership = residence.as_ref() != Some(&level.id);
+            if adds_membership && !effective.accept {
                 diagnostics.push(ActionDiagnostic {
                     code: "invalid_membership_binding".into(),
                     level: Some(level.id.to_string()),
@@ -1010,6 +1026,7 @@ fn build_v3_actions(
                     })).collect::<Vec<_>>(),
                 },
                 "home": residence.as_ref().map(ToString::to_string),
+                "adds_membership": adds_membership,
                 "level_effective_settings": settings_digest_value(&effective),
                 "home_effective_settings": home_settings.as_ref().map(settings_digest_value),
                 "input": action_input_schema,
@@ -1024,6 +1041,7 @@ fn build_v3_actions(
                 target_template: target_id.to_string(),
                 target_template_name: target_tpl.name.clone(),
                 home: residence.as_ref().map(ToString::to_string),
+                adds_membership,
                 command: "entry.create".into(),
             };
             actions.push(Entry {
@@ -1113,26 +1131,6 @@ fn decode_verb_segment(encoded: &str) -> Option<String> {
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     // Public F3 additions must not bypass the facade's read coverage and
     // restore protocol merely by acquiring a book-scoped input schema.
-    if matches!(
-        spec.name,
-        "project.get"
-            | "project.update"
-            | "tab.put"
-            | "tab.remove"
-            | "tab.move"
-            | "book.sequence"
-            | "module.put_media"
-            | "module.remove_media"
-            | "module.set_arrangement"
-            | "asset.list"
-            | "layout.get"
-            | "layout.put"
-            | "layout.clear"
-    ) {
-        return Some(
-            "project, tab, media, layout, and book sequence commands need T7 facade read coverage",
-        );
-    }
     if spec.name.starts_with("entry_snapshot.") {
         return Some("entry snapshots need facade coverage and guarded whole-entry restore wiring");
     }

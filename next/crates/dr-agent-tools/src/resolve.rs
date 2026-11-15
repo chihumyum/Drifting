@@ -6,7 +6,9 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 #[path = "resolve_v3.rs"]
 mod v3;
-pub(crate) use v3::{action_input_schema_v3, facade_schema_v3, prose_doc_from_module_args};
+pub(crate) use v3::{
+    action_input_schema_v3, asset_folder_subtree, facade_schema_v3, prose_doc_from_module_args,
+};
 #[derive(Clone, Debug)]
 pub struct ResolvedCall {
     pub name: String,
@@ -64,12 +66,18 @@ pub fn coverage(name: &str, args: &Value, output: &Value) -> Vec<String> {
             });
             if unfiltered {
                 read.insert(format!("{domain}:*"));
-                if args["trashed"] == true
+                if (args["trashed"] == true
                     && registry().get(name).is_some_and(|spec| {
                         spec.input_schema().as_value()["properties"]
                             .get("trashed")
                             .is_some()
-                    })
+                    }))
+                    || (args["removed"] == true
+                        && registry().get(name).is_some_and(|spec| {
+                            spec.input_schema().as_value()["properties"]
+                                .get("removed")
+                                .is_some()
+                        }))
                 {
                     read.insert(format!("{domain}:all"));
                 }

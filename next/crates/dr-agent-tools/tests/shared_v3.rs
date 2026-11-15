@@ -428,12 +428,13 @@ fn guarded_entry_range_anchor_bytes_and_reanchor_use_the_exact_source_module() {
             .unwrap()["quote"],
         expected
     );
-    assert!(
+    assert_eq!(
         f.out("entry_snapshot.list", json!({"entry":f.entry}))
             .as_array()
             .unwrap()
-            .is_empty(),
-        "comment source reads must not create checkpoints"
+            .len(),
+        1,
+        "comment writes on an entry record one pre-write checkpoint per turn"
     );
 }
 
@@ -652,5 +653,195 @@ fn reanchor_rejects_a_source_changed_after_its_read_without_a_receipt() {
             .unwrap()
             .len(),
         settlements
+    );
+}
+
+#[test]
+fn v5_checklist_resolve_reopen_syncs_prose_with_checkpoint_and_agent_prose_writes_project_comments()
+{
+    let f = Fixture::new();
+    let doc = format!("body:{}/{}", f.entry, MOD_PROSE);
+    let call_turn = |turn: u32, name: &str, args: Value| -> dr_agent_tools::Result<Value> {
+        f.tools
+            .invoke(
+                &f.ws,
+                &f.book,
+                &Actor::agent("v5-checklist-proj", turn, name),
+                CallRequest {
+                    name: name.into(),
+                    arguments: args,
+                    revision: None,
+                    edited_text: None,
+                },
+            )
+            .map(|v| v["output"].clone())
+    };
+    let snapshots = || {
+        f.out("entry_snapshot.list", json!({"entry": f.entry}))
+            .as_array()
+            .unwrap()
+            .len()
+    };
+
+    // 1. Seed a checklist item (`ListKind::Task`) on paragraph 0 and project its `origin = "task"` comment.
+    let task_block = {
+        let session = f.ws.prose_session(&doc).unwrap();
+        session
+            .edit(|t| {
+                t.insert_paragraphs(0, "核对城门巡夜时间\n")?;
+                t.set_block_attrs(
+                    0,
+                    &dr_model::prose::BlockAttrs {
+                        list: Some(dr_model::kind::ListKind::Task),
+                        ..Default::default()
+                    },
+                )
+            })
+            .unwrap();
+        session
+            .reader()
+            .view()
+            .paragraphs()
+            .next()
+            .unwrap()
+            .id
+            .unwrap()
+            .to_string()
+    };
+    let projected =
+        f.ws.call(
+            &Actor::User,
+            "comment.project",
+            json!({
+                "doc": doc,
+                "markers": [],
+                "tasks": [{"block": task_block, "task": "核对城门巡夜时间", "checked": false}]
+            }),
+        )
+        .unwrap()["output"]
+            .clone();
+    let task_cid = projected["created"][0].as_str().unwrap().to_owned();
+
+    // 2. Resolving a checklist comment requires reading BOTH the comment AND the source prose paragraph.
+    call_turn(1, "comment.list", json!({})).unwrap();
+    assert!(
+        matches!(
+            call_turn(
+                1,
+                "comment.update",
+                json!({"id": task_cid, "status": "resolved"})
+            ),
+            Err(Error::ReadRequired(_))
+        ),
+        "resolving a checklist comment without reading its prose paragraph must require a read"
+    );
+    assert_eq!(snapshots(), 0);
+
+    // Reading the first paragraph covers `task_block`: resolving ticks the prose item and records a checkpoint.
+    call_turn(1, "prose.read", json!({"doc": doc, "limit": 1})).unwrap();
+    let resolved = call_turn(
+        1,
+        "comment.update",
+        json!({"id": task_cid, "status": "resolved"}),
+    )
+    .unwrap();
+    assert_eq!(resolved["id"], task_cid);
+    assert_eq!(
+        call_turn(1, "comment.list", json!({}))
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == task_cid)
+            .unwrap()["status"],
+        "resolved"
+    );
+    assert_eq!(snapshots(), 1);
+    let shape_after_resolve = call_turn(1, "prose.shape", json!({"doc": doc})).unwrap();
+    assert_eq!(shape_after_resolve["tasks"], 1);
+    assert_eq!(shape_after_resolve["done"], 1);
+
+    // Turn 2: reopening the checklist comment clears the tick in prose and records a turn-2 checkpoint.
+    call_turn(2, "comment.list", json!({})).unwrap();
+    call_turn(2, "prose.read", json!({"doc": doc, "limit": 1})).unwrap();
+    let reopened = call_turn(
+        2,
+        "comment.update",
+        json!({"id": task_cid, "status": "open"}),
+    )
+    .unwrap();
+    assert_eq!(reopened["id"], task_cid);
+    assert_eq!(
+        call_turn(2, "comment.list", json!({}))
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == task_cid)
+            .unwrap()["status"],
+        "open"
+    );
+    assert_eq!(snapshots(), 2);
+    let shape_after_reopen = call_turn(2, "prose.shape", json!({"doc": doc})).unwrap();
+    assert_eq!(shape_after_reopen["done"], 0);
+
+    // 3. Turn 3: Agent prose writes (`prose.replace` + `entry.create`) automatically project
+    // both `TODO:` / `待办：` markers and updated checklist text into `comments`.
+    let read_full = call_turn(3, "prose.read", json!({"doc": doc, "limit": 100})).unwrap();
+    let p0 = &read_full["paragraphs"][0];
+    let p1 = &read_full["paragraphs"][1];
+    call_turn(
+        3,
+        "prose.replace",
+        json!({
+            "doc": doc,
+            "block_id": p0["block_id"],
+            "find": "核对城门巡夜时间",
+            "replace": "核对城门换岗时间"
+        }),
+    )
+    .unwrap();
+    call_turn(3, "prose.read", json!({"doc": doc, "limit": 100})).unwrap();
+    call_turn(
+        3,
+        "prose.replace",
+        json!({
+            "doc": doc,
+            "block_id": p1["block_id"],
+            "find": p1["text"],
+            "replace": "TODO: 补写钟楼回声"
+        }),
+    )
+    .unwrap();
+
+    call_turn(3, "entry.list", json!({"all": true})).unwrap();
+    let new_entry = call_turn(
+        3,
+        "entry.create",
+        json!({
+            "template": TPL_CHAPTER,
+            "title": "新章投影测试",
+            "bodies": {MOD_PROSE: "待办：核对驿站里程"}
+        }),
+    )
+    .unwrap();
+
+    let all_comments = call_turn(3, "comment.list", json!({})).unwrap();
+    let rows = all_comments.as_array().unwrap();
+    let updated_task = rows.iter().find(|c| c["id"] == task_cid).unwrap();
+    assert_eq!(updated_task["origin"], "task");
+    assert_eq!(updated_task["body"], "核对城门换岗时间");
+    assert!(
+        rows.iter()
+            .any(|c| c["origin"] == "marker" && c["body"] == "补写钟楼回声"),
+        "expected marker comment from prose.replace, got: {rows:?}"
+    );
+    assert!(
+        rows.iter().any(|c| {
+            c["origin"] == "marker"
+                && c["body"] == "核对驿站里程"
+                && c["target"]["id"] == new_entry["id"]
+        }),
+        "expected marker comment from entry.create, got: {rows:?}"
     );
 }
