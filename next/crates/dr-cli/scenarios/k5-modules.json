@@ -49,7 +49,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -154,9 +154,10 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "MenuItem",
+        "role": "Button",
         "label": "Square seal"
-      }
+      },
+      "note": "The mark picker is a card (T1): a grid of sand marks, one character, the template's mark; each sand mark is a button."
     },
     {
       "app": "ui.press",
@@ -357,10 +358,11 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
-      }
+      },
+      "note": "Scroll over the template editor's content column (x 891): x 562 is just left of it now and the wheel goes nowhere."
     },
     {
       "app": "ui.press",
@@ -378,7 +380,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -399,7 +401,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -420,7 +422,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -441,7 +443,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -462,7 +464,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -483,7 +485,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -504,7 +506,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -525,7 +527,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -546,7 +548,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -567,7 +569,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -588,7 +590,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -609,7 +611,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -630,7 +632,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 10000
       }
@@ -645,7 +647,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": -750
       }
@@ -673,7 +675,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": -20000
       }
@@ -720,7 +722,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": 20000
       }
@@ -735,7 +737,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": -900
       }
@@ -764,7 +766,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 562,
+        "x": 891,
         "y": 480,
         "dy": -20000
       }
@@ -920,7 +922,7 @@
       "params": {
         "state": {
           "/book/id": "${books.0.id}",
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
