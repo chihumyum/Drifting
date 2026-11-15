@@ -1,8 +1,24 @@
 # M10 旧库导入
 
-> 2026-11-13 统一条目（内核 v4）更新：0.1 导入目标已切到书格式 4（`reimport-v4-`、内核续传标记 `4:<sha256>`），原四类分组／轨道条目带层级开关（`level = true`），章／构想／要素及合成幕条目不带层级开关（`level = false`），层级说明进入「说明」模块（`in_book = false`），写作日写入独立 `stats:<book>`，`checkpoints:<book>` 仅写创世提交，九语导入对话框与中文摘要文案均已去掉旧模板二分与旧格式号。规范见 [统一条目（内核 v4）](../kernel-v4.md) 与 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
+> 2026-11-15 项目也是模板（内核 v5）更新：0.1 导入目标已切到书格式 5（`reimport-v5-`、内核续传标记 `5:<sha256>`），未完成的 `reimport-v3-`／`reimport-v4-` 目录保留并拒绝续传；笔记进入最外层「文本素材」层级，图片和 PDF 进入素材库同名素材夹（含同字节合并后保留的第二个空素材夹），正文指向图片／PDF 的链接与嵌入全部保留并跟随合并后的文件 id，所有正文里的清单项按 `(文档, 块)` 投出「清单」批注，批注不带优先级，故事线关闭层级开关并开启「收别处的条目」，`summary.md` 已同步为格式 5 映射与核对口径。规范见 [项目也是模板（内核 v5）](../kernel-v5.md) §13、§18 与 [统一条目（内核 v4）](../kernel-v4.md)。下文历史交回记录保留其原语境。
 
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
+
+## 内核 v5：0.1 导入收尾、素材夹与清单投影（T8，2026-11-15）
+
+### 做了什么（大白话）
+
+1. **续传前缀升到 `reimport-v5-`。** `dr-view-import/src/reimport.rs` 的新库目录前缀与待续传指针改为 `reimport-v5-` / `reimport-v5-pending.json`，与 `dr-import-v1` 的 `5:<sha256>` 续传标记对齐；磁盘上已有的 `reimport-v3-` 与 `reimport-v4-` 未导完目录、清单、指针原封保留且拒绝续传。
+2. **所有正文里的清单项都投出批注，且勾选按文档隔离。** 0.1 里未链待办的清单行（如关闭了「清单项变待办」的笔记里的任务行）在导入时同样按 `CommentId::for_projection(NoteTask, doc, block)` 投出 `CommentOrigin::Task` 批注（打勾为已解决、未打勾为未解决）；`ticks` 查找表改为按 `(DocId, block_id)` 建键并在目标文档内优先解析旧块 id，跨文档复制的相同块 id 互不串勾。
+3. **同字节素材合并后保住第二个素材夹与全部引用。** 两个旧图片／PDF 素材字节相同且分在两个素材夹时，`dr_samples::v3::file_folders` 会把两个原素材夹（连同各自上级）都在素材库里重建，后一个保留为空素材夹；`legacy::BookRows::asset_aliases` 记录被合并掉的 `project_asset.id`，使批注、关系、正文文件链接与正文 `materialEmbed` 嵌入全部改指留下的那个文件 id，新库里只存一份文件字节。
+4. **出处全种类提取，缺文件素材附带批注计数。** `provenance_json` 不再只读文本素材，生成的图片和换下的立绘上的模型／提示词出处照实进入回执与 `summary.md`；没有文件的图片／PDF 素材在 `MaterialDropped::WithoutFile` 中同时统计挂在它上面的直接批注，只装缺文件素材的素材夹单列为 `UnimportedFolder`（「里面的素材因缺少文件未能导入，这个素材夹没有重建」），不再误报成空素材夹。
+5. **中文摘要（`summary.md`）对齐格式 5。** 首行改为「旧库里有 …；共导入 …」，新增格式 5 映射说明段（笔记进入「文本素材」层级、图片和 PDF 进入素材库同名素材夹、指向图片和 PDF 的正文链接保留为文件链接、待办和清单项变成批注且不带优先级、故事线关闭层级开关并开启「收别处的条目」），补齐 `task-todo-link-replaced-by-projection` 与 `task-status-follows-tick` 的中文说明及逐条待办状态变更明细，将 `SameFile` 独立到「合并为同一个文件的旧版素材」小节，并清理内联字段中的换行符以免打断 Markdown 列表。
+
+### 测试与代码位置
+
+- `dr-import-v1/tests/v3_import.rs`：更新 `compare` 与完整夹具断言（未链待办的打勾清单行 `tp2` 投出已解决批注、图片出处 `v: 1` 进入回执）；新增永久回归测试 `note_order_in_folder_and_cross_doc_checklist_ticks_stay_independent`（同素材夹两篇笔记先后与 id／插入顺序相反时顺序保住、跨文档同块 id 的勾选互不干扰、状态与勾不一致的待办写入 `summary.md` 明细）与 `merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_report_cleanly`（同字节双素材跨素材夹合并、引用与嵌入全改指、缺文件图片批注计数与 `UnimportedFolder` 措辞、源库字节与 `mtime` 不变）。
+- `dr-view-import/tests/import.rs`：验证 `reimport-v5-` 中断续传成功，同时同目录下的 `reimport-v3-` 与 `reimport-v4-` 未完成产物及 0.1 源库完全不变且拒绝续传。
+- 代码：`next/crates/dr-samples/src/v3/catalog.rs`、`next/crates/dr-import-v1/src/{legacy.rs,book.rs,v3.rs,run.rs,receipt.rs,prose/plan.rs}`、`next/crates/dr-view-import/src/{reimport.rs,view.rs}`。
 
 ## 数据层第八步：素材夹、指向文件的链接、清单待办（DY，2026-11-15）
 

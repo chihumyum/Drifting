@@ -392,3 +392,14 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 - 导入一篇文档：文字落进目标层级默认模板里第一篇「计入字数和导出」的正文，没有就落进第一篇正文（`dr_export::import::import_module`）；目标列表只列新条目的模板有正文的层级；失败时只显示翻译过的「错误」，英文原因只进日志。测试 `dr-export/tests/import.rs` 的 `the_text_goes_into_the_first_book_prose_else_the_first_prose`、`dr-view-transfer/tests/documents.rs`。
 - 导入文件对话框和书文件搬运对话框（含「无法导入」）按 Esc 能关（工作中的不关）。测试 `tests/book.rs` 的 `a_refused_file_closes_with_escape`。
 - 场景 `book-transfer.json` 在按《慢钟》的导出箭头前先滚动书架。
+
+## 内核 v5：项目文件格式 5 与新标识改写（T8，2026-11-15，[kernel-v5.md](../kernel-v5.md) §13、§18）
+
+- **格式版本升到 5，只读 5。** `.driftingproject`（导入仍兼容 `.driftingbook` 后缀）的 `FORMAT_VERSION` 升为 `5`：格式 `2`、`3`、`4` 均返回 `BookFileError::Older`，九种语言的 `projectPicker.bookTransfer.older` 更新为「这是以前格式的书文件，这一版已经不再读取。」（去掉「开发版」字样，因为旧格式并不限于开发版）；格式 `1` 照旧报 0.1 导出的书；高于 `5` 报更新版本导出的文件，拒绝时不写任何文档或资源。
+- **变更重写器补齐格式 5 集合与文件／子部件引用（`dr-export/src/book_file/v3.rs`）。**
+  - `plain_identity` 纳入 `asset_folders` 根集合，使素材夹自身的键值容器获得新 id；
+  - 重写 `assets.<id>.{folder,trashed_with}` 与 `asset_folders.<id>.{parent,trashed_with}`，保持套嵌素材夹与最近删除的级联归属；
+  - 修正媒体模块项路径匹配为真实的四段路径 `["entries", <entry>, "media:<module>", <item>]`，重写其中的 `asset` 字段，修复导出再导入后媒体模块文件报缺失的问题；
+  - 重写字段模块里 `image`／`entity_ref` 字段的值（含 `portrait_field`、纯字符串／列表与带 `{"t", "v"}` 标签的 `FieldValue`），以及条目模板 `defs` 中 `image`／`entity_ref` 字段的 `default_value`；在同一笔变更中先写字段值、后设模板时回退读取变更末尾或源书定义，已定义为普通文本的字段则保持字面值不被误改；
+  - 重写批注 `part` 中的 `media.asset`、`patch.patch`、`plot_cell.{row,col}`，以及正文和表格单元格内指向文件的链接（`kind = "asset"`）。
+- **往返摘要与回归测试。** `dr-testkit` 的 `digest_v3`（不改公开签名）补齐 `assetFolders`、已删文件与 `trashedWith`、角色立绘 `portrait` 以及 `entity_links_v3` 文件链接；`dr-export/tests/book_file_v3.rs` 新增 `v5_showcase_archive_roundtrips_asset_folders_media_fields_file_links_and_comments`，在带真实图片／PDF、媒体模块、立绘与自定义图片字段及默认值、正文与表格文件链接、各模块子部件批注、套嵌回收站素材夹的 `showcase` 种子上验证格式 5 导出与两次同库导入往返一致、媒体与图片字段不报缺失、批注不标找不到原处、恢复「废稿」素材夹能把里面的文件与子素材夹一并恢复。
