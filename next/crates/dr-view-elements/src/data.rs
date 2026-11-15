@@ -202,6 +202,39 @@ pub mod v3 {
             blank,
         })
     }
+    /// What a new entry attached to `origin` can be (`entry.create` with
+    /// `host`, `kernel-v5.md` §16 「新建」): it lives where `origin`'s
+    /// 「新条目住在」 says, under `origin` when that is unset or can no
+    /// longer hold entries and `origin` is a level, else at the root.
+    pub fn creation_attached(book: &Book, origin: &str) -> Option<Creation> {
+        let v = book.v3()?;
+        v.entry(origin)?;
+        let graph = Graph::of(book)?;
+        let id = origin.parse().ok()?;
+        if !graph.entries.get(&id)?.accepts_members(&graph.templates) {
+            return None;
+        }
+        let home = model::resolve_host_residence(&id, &graph.entries, &graph.templates);
+        let allows = model::check_parent_is_level(home.as_ref(), &graph.entries).is_ok();
+        let templates: Vec<String> = v
+            .templates
+            .iter()
+            .filter(|t| allows && t.deleted_at.is_none())
+            .map(|t| t.id.clone())
+            .collect();
+        let desired = model::resolve_level_settings(Some(&id), &graph.entries, &graph.templates)
+            .default_template
+            .map(|t| t.to_string());
+        let blank = desired.is_none() && allows;
+        let default = desired.filter(|id| templates.contains(id));
+        Some(Creation {
+            context: Some(origin.to_owned()),
+            home: home.map(|id| id.to_string()),
+            templates,
+            default,
+            blank,
+        })
+    }
     pub fn switch_templates(book: &Book, entry: &str) -> Vec<String> {
         let Some(v) = book.v3() else { return vec![] };
         let Some(graph) = Graph::of(book) else {
@@ -504,6 +537,36 @@ pub mod v3 {
         can_reorder: bool,
         is_member: bool,
     ) -> Option<Drop> {
+        resolve_drop_with(book, entry, onto, slot, can_reorder, is_member, false)
+    }
+
+    /// Whether dropping onto `onto` attaches the entry rather than moving it
+    /// in (`kernel-v5.md` §16 「挂名」): an entry that only accepts entries
+    /// from elsewhere attaches; one that is only a level takes it in; one
+    /// that is both takes it in, and attaches it while ⌥ is held (`attach`).
+    pub fn drop_attaches(book: &Book, onto: &str, attach: bool) -> Option<bool> {
+        let v = book.v3()?;
+        let level = v.entry(onto)?.level;
+        let accepts = v.accepts_members(onto);
+        match (level, accepts) {
+            (true, true) => Some(attach),
+            (false, true) => Some(true),
+            (true, false) => Some(false),
+            (false, false) => None,
+        }
+    }
+
+    /// [`resolve_drop`], with ⌥ held (`attach`) or not.
+    #[allow(clippy::too_many_arguments)]
+    pub fn resolve_drop_with(
+        book: &Book,
+        entry: &str,
+        onto: &str,
+        slot: DropSlot,
+        can_reorder: bool,
+        is_member: bool,
+        attach: bool,
+    ) -> Option<Drop> {
         if entry == onto {
             return None;
         }
@@ -518,8 +581,8 @@ pub mod v3 {
         }
         match slot {
             DropSlot::Into => {
-                if let Some(level) = v.levels.get(onto) {
-                    if level.settings.accept {
+                if v.levels.contains_key(onto) {
+                    if drop_attaches(book, onto, attach)? {
                         model::check_membership(&target, &id, &graph.entries, &graph.templates)
                             .ok()?;
                         return Some(Drop::Membership { host: onto.into() });
@@ -565,6 +628,17 @@ pub mod v3 {
     }
 
     pub fn drop_target(book: &Book, entry: &str, onto: &str, after: bool) -> Option<Drop> {
+        drop_target_with(book, entry, onto, after, false)
+    }
+
+    /// [`drop_target`], with ⌥ held (`attach`) or not.
+    pub fn drop_target_with(
+        book: &Book,
+        entry: &str,
+        onto: &str,
+        after: bool,
+        attach: bool,
+    ) -> Option<Drop> {
         if entry == onto {
             return None;
         }
@@ -574,7 +648,7 @@ pub mod v3 {
         let target = onto.parse().ok()?;
         v.entry(entry)?;
         let target_entry = graph.entries.get(&target)?;
-        if target_entry.accepts_members(&graph.templates) {
+        if drop_attaches(book, onto, attach) == Some(true) {
             model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
             Some(Drop::Membership { host: onto.into() })
         } else if target_entry.is_level() {
@@ -647,7 +721,17 @@ pub mod v3 {
         onto: &str,
         after: bool,
     ) -> Result<DropMutation, WsError> {
-        let target = drop_target(book, entry, onto, after)
+        prepare_drop_with(book, entry, onto, after, false)
+    }
+    /// [`prepare_drop`], with ⌥ held (`attach`) or not.
+    pub fn prepare_drop_with(
+        book: &Book,
+        entry: &str,
+        onto: &str,
+        after: bool,
+        attach: bool,
+    ) -> Result<DropMutation, WsError> {
+        let target = drop_target_with(book, entry, onto, after, attach)
             .ok_or_else(|| WsError::Invalid("entry cannot be placed here".into()))?;
         prepare_resolved_drop(book, entry, target)
     }

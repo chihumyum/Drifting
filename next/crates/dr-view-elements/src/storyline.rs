@@ -1,9 +1,9 @@
-//! Lane colour chrome for v3 levels.
+//! A lane's colour on its entry page (`kernel-v5.md` §16 「泳道」): the
+//! colour a view draws it in, under the page's head.
 use std::rc::Rc;
 
 use dr_i18n::keys;
 use dr_shell::book::{Book, color_of};
-use dr_shell::nav::Target;
 use dr_shell::t;
 use dr_ui::{
     Theme,
@@ -22,16 +22,12 @@ pub fn init_v3(cx: &mut App) {
 }
 mod v3_lane {
     use super::*;
-    use dr_shell::{
-        pages::{ModulePage, PageViewHost},
-        v3::page::EntryPage,
-    };
+    use dr_shell::{pages::PageViewHost, v3::Rendered};
     use dr_ui::{
         components::color::{hex, parse_hex},
         input::field::TextField,
     };
     use futures::StreamExt as _;
-    use gpui::FocusHandle;
     type WriteJob = Box<dyn FnOnce() + Send>;
 
     fn slot(book: &Book, id: &str) -> Option<(String, String)> {
@@ -61,11 +57,12 @@ mod v3_lane {
             _ => String::new(),
         }
     }
-    struct LanePage {
+    /// A lane's colour, under its page's head: what the view draws it in.
+    /// The page itself is the shell's entry page, its bodies the shell's
+    /// like any entry's (find, live counts, comments).
+    struct LaneColor {
         host: PageViewHost,
         id: String,
-        page: Entity<EntryPage>,
-        focus: FocusHandle,
         color: Entity<TextField>,
         dirty: bool,
         pending: Option<String>,
@@ -73,74 +70,47 @@ mod v3_lane {
         writer: futures::channel::mpsc::UnboundedSender<WriteJob>,
     }
     pub(super) fn init(cx: &mut App) {
-        dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
-            let Target::Entry { id, module: None } = target else {
-                return None;
-            };
-            slot(&host.book, id.as_str())?;
-            let view = cx.new(|cx| LanePage::new(host, id.to_string(), target.clone(), window, cx));
-            let focus = view.read(cx).focus.clone();
-            Some(ModulePage {
-                view: view.into(),
-                focus,
-            })
+        dr_shell::v3::add_entry_head_part(cx, |host, window, cx| {
+            slot(&host.page.book, &host.entry)?;
+            let view = cx.new(|cx| LaneColor::new(host.page, host.entry, window, cx));
+            let weak = view.downgrade();
+            Some(Rendered::new(view).on_refresh(move |book, cx| {
+                let _ = weak.update(cx, |this, cx| this.refresh(book, cx));
+            }))
         });
     }
-    impl LanePage {
+    impl LaneColor {
         fn new(
             host: PageViewHost,
             id: String,
-            target: Target,
             window: &mut Window,
             cx: &mut Context<Self>,
         ) -> Self {
-            let page = cx.new(|cx| EntryPage::new(host.clone(), target, cx));
             let color = cx.new(|cx| {
                 TextField::new("v3-lane-color-value", window, cx)
                     .small()
                     .with_text(stored(&host.book, &id))
             });
-            let focus = cx.focus_handle();
-            let mut subs = vec![cx.on_focus(&focus, window, |this, w, cx| {
-                this.page.read(cx).preferred_focus().focus(w, cx)
-            })];
-            subs.push(cx.subscribe_in(
-                &color,
-                window,
-                |this, field, event, window, cx| match event {
-                    FieldEvent::Changed(_) => {
-                        this.dirty = field.focus_handle(cx).is_focused(window)
-                    }
-                    FieldEvent::Submitted(_) | FieldEvent::Blurred => {
-                        let text = field.read(cx).text();
-                        this.commit(&text, cx);
-                    }
-                    FieldEvent::Cancelled => {
-                        this.color.update(cx, |f, cx| {
-                            f.set_text(stored(&this.host.book, &this.id), cx)
-                        });
-                        this.dirty = false;
-                    }
-                },
-            ));
-            if let Some(ws) = host.workspace.upgrade() {
-                subs.push(cx.observe_in(&ws, window, |this, ws, w, cx| {
-                    let book = ws.read(cx).book.clone();
-                    if Rc::ptr_eq(&book, &this.host.book) {
-                        return;
-                    }
-                    this.host.book = book.clone();
-                    this.page.update(cx, |page, cx| page.refresh(book, cx));
-                    let text = stored(&this.host.book, &this.id);
-                    if this.pending.as_deref() == Some(&text) {
-                        this.pending = None;
-                    }
-                    if !this.dirty && !this.color.focus_handle(cx).is_focused(w) {
-                        this.color.update(cx, |f, cx| f.set_text(text, cx));
-                    }
-                    cx.notify();
-                }));
-            }
+            let subs =
+                vec![cx.subscribe_in(
+                    &color,
+                    window,
+                    |this, field, event, window, cx| match event {
+                        FieldEvent::Changed(_) => {
+                            this.dirty = field.focus_handle(cx).is_focused(window)
+                        }
+                        FieldEvent::Submitted(_) | FieldEvent::Blurred => {
+                            let text = field.read(cx).text();
+                            this.commit(&text, cx);
+                        }
+                        FieldEvent::Cancelled => {
+                            this.color.update(cx, |f, cx| {
+                                f.set_text(stored(&this.host.book, &this.id), cx)
+                            });
+                            this.dirty = false;
+                        }
+                    },
+                )];
             let (writer, mut jobs) = futures::channel::mpsc::unbounded::<WriteJob>();
             cx.background_executor()
                 .spawn(async move {
@@ -152,14 +122,26 @@ mod v3_lane {
             Self {
                 host,
                 id,
-                page,
-                focus,
                 color,
                 dirty: false,
                 pending: None,
                 _subs: subs,
                 writer,
             }
+        }
+        fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+            if Rc::ptr_eq(&book, &self.host.book) {
+                return;
+            }
+            self.host.book = book;
+            let text = stored(&self.host.book, &self.id);
+            if self.pending.as_deref() == Some(&text) {
+                self.pending = None;
+            }
+            if !self.dirty {
+                self.color.update(cx, |f, cx| f.set_text(text, cx));
+            }
+            cx.notify();
         }
         fn commit(&mut self, text: &str, cx: &mut Context<Self>) {
             let Some(color) = parse_hex(text) else {
@@ -217,60 +199,56 @@ mod v3_lane {
             .detach();
         }
     }
-    impl Render for LanePage {
+    impl Render for LaneColor {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let p = Theme::of(window, cx).palette;
             let entity = cx.entity();
-            let mut root = div().size_full().flex().flex_col();
-            if slot(&self.host.book, &self.id).is_some() {
-                let color = self
-                    .pending
-                    .as_deref()
-                    .and_then(parse_hex)
-                    .or_else(|| {
-                        self.host
-                            .book
-                            .v3()
-                            .and_then(|b| b.appearance(&self.id))
-                            .and_then(|a| a.color.as_deref().and_then(color_of))
-                    })
-                    .unwrap_or(p.accent);
-                root = root.child(
-                    div()
-                        .flex_none()
-                        .px_4()
-                        .py_2()
-                        .flex()
-                        .items_center()
-                        .gap_3()
-                        .child(t(cx, keys::storyline_editor::labels::COLOR))
-                        .child(
-                            ColorSwatch::new("v3-lane-color", color)
-                                .mark(sand::Kind::Storyline)
-                                .label(t(cx, keys::common::CUSTOM_COLOR))
-                                .on_pick(move |color, _, cx| {
-                                    entity.update(cx, |this, cx| {
-                                        let text = hex(color);
-                                        this.color.update(cx, |f, cx| f.set_text(text.clone(), cx));
-                                        this.commit(&text, cx);
-                                    });
-                                }),
-                        )
-                        .child(
-                            div()
-                                .id("v3-lane-color-editor")
-                                .role(gpui::Role::Button)
-                                .aria_label(t(cx, keys::v3_timeline::COLOR_VALUE))
-                                .w(px(110.))
-                                .child(self.color.clone())
-                                .on_click(cx.listener(|this, _, w, cx| {
-                                    this.color.update(cx, |f, cx| f.select_all_text(cx));
-                                    this.color.focus_handle(cx).focus(w, cx);
-                                })),
-                        ),
-                )
+            if slot(&self.host.book, &self.id).is_none() {
+                return div().into_any_element();
             }
-            root.child(div().flex_1().min_h_0().child(self.page.clone()))
+            let color = self
+                .pending
+                .as_deref()
+                .and_then(parse_hex)
+                .or_else(|| {
+                    self.host
+                        .book
+                        .v3()
+                        .and_then(|b| b.appearance(&self.id))
+                        .and_then(|a| a.color.as_deref().and_then(color_of))
+                })
+                .unwrap_or(p.accent);
+            div()
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap_3()
+                .child(t(cx, keys::storyline_editor::labels::COLOR))
+                .child(
+                    ColorSwatch::new("v3-lane-color", color)
+                        .mark(sand::Kind::Storyline)
+                        .label(t(cx, keys::common::CUSTOM_COLOR))
+                        .on_pick(move |color, _, cx| {
+                            entity.update(cx, |this, cx| {
+                                let text = hex(color);
+                                this.color.update(cx, |f, cx| f.set_text(text.clone(), cx));
+                                this.commit(&text, cx);
+                            });
+                        }),
+                )
+                .child(
+                    div()
+                        .id("v3-lane-color-editor")
+                        .role(gpui::Role::Button)
+                        .aria_label(t(cx, keys::v3_timeline::COLOR_VALUE))
+                        .w(px(110.))
+                        .child(self.color.clone())
+                        .on_click(cx.listener(|this, _, w, cx| {
+                            this.color.update(cx, |f, cx| f.select_all_text(cx));
+                            this.color.focus_handle(cx).focus(w, cx);
+                        })),
+                )
+                .into_any_element()
         }
     }
 }

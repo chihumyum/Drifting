@@ -7,7 +7,7 @@ pub mod v3 {
 
     pub use crate::data::v3::{DropSlot, SortOrder, UpdatedMap};
     use crate::data::v3::{
-        compare_entries, drop_slot_at, prepare_resolved_drop, resolve_drop, sort_memory_key,
+        compare_entries, drop_slot_at, prepare_resolved_drop, resolve_drop_with, sort_memory_key,
         updated_timestamps,
     };
     use dr_i18n::keys;
@@ -15,7 +15,7 @@ pub mod v3 {
         book::Book,
         nav::Open,
         strings::t,
-        v3::{DisplaySurface, EntryDrag, LevelHost, Rendered, entry_target},
+        v3::{DisplaySurface, EntryDrag, LevelHost, ROOT_LEVEL, Rendered, entry_target},
     };
     use dr_ui::{
         Theme,
@@ -34,20 +34,37 @@ pub mod v3 {
         Islands,
     }
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub enum Section {
-        Residents,
-        Members,
-        Unassigned,
-    }
-
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum Row {
-        Section(Section),
-        Entry { id: String, depth: usize },
-        Member { id: String },
-        Tiles { ids: Vec<String>, depth: usize },
-        Island { id: String, members: Vec<String> },
+        /// An entry living where the row's parent is.
+        Entry {
+            id: String,
+            depth: usize,
+        },
+        /// An entry attached to the row's parent: listed after what lives
+        /// there, never reordered by dragging.
+        Member {
+            id: String,
+            depth: usize,
+        },
+        Tiles {
+            ids: Vec<String>,
+            depth: usize,
+        },
+        Island {
+            id: String,
+            members: Vec<String>,
+        },
+    }
+
+    /// What lives under `level` and what is attached to it (the outermost
+    /// entries for [`ROOT_LEVEL`], which nothing is attached to).
+    fn below(v: &dr_shell::book::v3::BookV3, level: &str) -> Option<(Vec<String>, Vec<String>)> {
+        if level == ROOT_LEVEL {
+            return Some((v.roots.clone(), Vec::new()));
+        }
+        let l = v.levels.get(level)?;
+        Some((l.children.clone(), l.members.clone()))
     }
 
     fn ordered_ids(
@@ -64,13 +81,17 @@ pub mod v3 {
         out
     }
 
-    /// Flatten only the effective residence tree. Accepted entries are a
-    /// separate section and never silently become children in the tree.
+    /// The list of a level (`kernel-v5.md` §16 「层级的列表」): only its
+    /// tree. What lives under it, in its order; an entry that holds entries
+    /// opens to what lives under it, then what is attached to it. A Tab
+    /// (`Sidebar`) lists what is attached to the level itself after what
+    /// lives under it; an entry page lists them in its two blocks (`Page`,
+    /// `Members`).
     pub fn rows(
         book: &Book,
         level: &str,
         display: Display,
-        grouped: bool,
+        surface: DisplaySurface,
         folded: &BTreeSet<String>,
         columns: usize,
     ) -> Vec<Row> {
@@ -78,7 +99,7 @@ pub mod v3 {
             book,
             level,
             display,
-            grouped,
+            surface,
             SortOrder::Manual,
             &BTreeMap::new(),
             folded,
@@ -91,7 +112,7 @@ pub mod v3 {
         book: &Book,
         level: &str,
         display: Display,
-        grouped: bool,
+        surface: DisplaySurface,
         sort: SortOrder,
         updated: &UpdatedMap,
         folded: &BTreeSet<String>,
@@ -100,185 +121,155 @@ pub mod v3 {
         let Some(v) = book.v3() else {
             return Vec::new();
         };
-        let Some(root) = v.levels.get(level) else {
+        let Some((children, members)) = below(v, level) else {
             return Vec::new();
         };
         let mut out = Vec::new();
-        let active_sort = if matches!(display, Display::List | Display::Grid) && !grouped {
+        // A lane's order is its view's scale (`kernel-v5.md` §4).
+        let root_is_lane = v.is_lane(level);
+        let active_sort = if matches!(display, Display::List | Display::Grid) && !root_is_lane {
             sort
         } else {
             SortOrder::Manual
         };
-        if grouped && display == Display::List {
-            // The entries carrying book prose under this level, in the
-            // manuscript sequence's order, whatever their switch; numbered
-            // or not (an entry under one with book prose of its own has no
-            // number since 2026-11-13, and is still listed).
-            let mut place = std::collections::BTreeMap::new();
-            for (i, body) in v.manuscript.iter().enumerate() {
-                place.entry(body.entry.as_str()).or_insert(i);
+        let sort_of = |id: &str| {
+            if v.is_lane(id) {
+                SortOrder::Manual
+            } else {
+                active_sort
             }
-            let mut numbered = Vec::new();
-            let mut pending: Vec<_> = root.children.iter().rev().cloned().collect();
-            let mut seen = BTreeSet::new();
-            while let Some(id) = pending.pop() {
-                if !seen.insert(id.clone()) {
-                    continue;
-                }
-                if let Some(n) = place.get(id.as_str()) {
-                    numbered.push((*n, id.clone()));
-                }
-                if let Some(l) = v.levels.get(&id) {
-                    pending.extend(l.children.iter().rev().cloned());
-                }
-            }
-            numbered.sort();
-            let numbered: Vec<String> = numbered.into_iter().map(|(_, id)| id).collect();
-            let mut used = BTreeSet::new();
-            for lane in v.entries.iter().filter(|e| v.is_lane(&e.id)) {
-                let members: Vec<_> = numbered
-                    .iter()
-                    .filter(|id| {
-                        let accepted: BTreeSet<_> = v
-                            .memberships
-                            .iter()
-                            .filter(|m| m.member == **id)
-                            .map(|m| m.host.as_str())
-                            .collect();
-                        let primary = v
-                            .entry(id)
-                            .and_then(|e| e.primary.as_deref())
-                            .filter(|p| accepted.contains(p))
-                            .or_else(|| accepted.first().copied());
-                        primary == Some(lane.id.as_str())
-                    })
-                    .cloned()
-                    .collect();
-                if !members.is_empty() {
-                    out.push(Row::Entry {
-                        id: lane.id.clone(),
-                        depth: 0,
-                    });
-                    used.extend(members.iter().cloned());
-                    if !folded.contains(&lane.id) {
-                        out.extend(members.into_iter().map(|id| Row::Entry { id, depth: 1 }));
-                    }
-                }
-            }
-            let loose: Vec<_> = numbered
-                .into_iter()
-                .filter(|id| !used.contains(id))
-                .collect();
-            if !loose.is_empty() {
-                out.push(Row::Section(Section::Unassigned));
-                out.extend(loose.into_iter().map(|id| Row::Entry { id, depth: 0 }));
-            }
-        } else {
-            out.push(Row::Section(Section::Residents));
-            let mut pending: Vec<_> = ordered_ids(v, &root.children, active_sort, updated)
+        };
+        if surface == DisplaySurface::Members {
+            out.extend(
+                ordered_ids(v, &members, active_sort, updated)
+                    .into_iter()
+                    .map(|id| Row::Member { id, depth: 0 }),
+            );
+            return out;
+        }
+        // (id, depth, attached, the entries above it), last first. An
+        // attached entry shows under each entry it is attached to, as well
+        // as where it lives; only an entry above itself is cut.
+        type Path = Rc<Vec<String>>;
+        let top: Path = Rc::new(vec![level.to_owned()]);
+        let mut pending: Vec<(String, usize, bool, Path)> = Vec::new();
+        if surface == DisplaySurface::Sidebar {
+            pending.extend(
+                ordered_ids(v, &members, active_sort, updated)
+                    .into_iter()
+                    .rev()
+                    .map(|id| (id, 0, true, top.clone())),
+            );
+        }
+        pending.extend(
+            ordered_ids(v, &children, active_sort, updated)
                 .into_iter()
                 .rev()
-                .map(|id| (id, 0))
-                .collect();
-            let mut seen = BTreeSet::new();
-            while let Some((id, depth)) = pending.pop() {
-                if !seen.insert(id.clone()) {
-                    continue;
-                }
-                let Some(child) = v.levels.get(&id) else {
-                    if display == Display::List {
-                        out.push(Row::Entry { id, depth });
-                    } else if let Some(Row::Tiles {
-                        ids,
-                        depth: row_depth,
-                    }) = out.last_mut()
-                        && *row_depth == depth
-                        && ids.len() < columns.max(1)
-                    {
-                        ids.push(id);
+                .map(|id| (id, 0, false, top.clone())),
+        );
+        while let Some((id, depth, attached, path)) = pending.pop() {
+            if path.contains(&id) {
+                continue;
+            }
+            let Some(child) = v.levels.get(&id) else {
+                if display == Display::List || attached {
+                    out.push(if attached {
+                        Row::Member { id, depth }
                     } else {
-                        out.push(Row::Tiles {
-                            ids: vec![id],
-                            depth,
-                        });
-                    }
-                    continue;
-                };
-                if display == Display::Islands {
-                    let mut members = Vec::new();
-                    let mut todo: Vec<_> = child
-                        .children
-                        .iter()
-                        .chain(&child.members)
-                        .rev()
-                        .cloned()
-                        .collect();
-                    let mut visited = BTreeSet::from([id.clone()]);
-                    if !folded.contains(&id) {
-                        while let Some(member) = todo.pop() {
-                            if !visited.insert(member.clone()) {
-                                continue;
-                            }
-                            if let Some(l) = v.levels.get(&member) {
-                                todo.extend(l.children.iter().chain(&l.members).rev().cloned());
-                            }
-                            members.push(member);
-                        }
-                    }
-                    out.push(Row::Island { id, members });
+                        Row::Entry { id, depth }
+                    });
+                } else if let Some(Row::Tiles {
+                    ids,
+                    depth: row_depth,
+                }) = out.last_mut()
+                    && *row_depth == depth
+                    && ids.len() < columns.max(1)
+                {
+                    ids.push(id);
                 } else {
-                    out.push(Row::Entry {
-                        id: id.clone(),
+                    out.push(Row::Tiles {
+                        ids: vec![id],
                         depth,
                     });
-                    if !folded.contains(&id) {
-                        pending.extend(
-                            ordered_ids(v, &child.children, active_sort, updated)
-                                .into_iter()
-                                .rev()
-                                .map(|id| (id, depth + 1)),
-                        );
+                }
+                continue;
+            };
+            if display == Display::Islands && !attached {
+                let mut members = Vec::new();
+                let mut todo: Vec<_> = child
+                    .children
+                    .iter()
+                    .chain(&child.members)
+                    .rev()
+                    .cloned()
+                    .collect();
+                let mut visited = BTreeSet::from([id.clone()]);
+                if !folded.contains(&id) {
+                    while let Some(member) = todo.pop() {
+                        if !visited.insert(member.clone()) {
+                            continue;
+                        }
+                        if let Some(l) = v.levels.get(&member) {
+                            todo.extend(l.children.iter().chain(&l.members).rev().cloned());
+                        }
+                        members.push(member);
                     }
                 }
+                out.push(Row::Island { id, members });
+                continue;
             }
-        }
-        if !root.members.is_empty() {
-            out.push(Row::Section(Section::Members));
-            for id in ordered_ids(v, &root.members, active_sort, updated) {
-                out.push(Row::Member { id });
+            out.push(if attached {
+                Row::Member {
+                    id: id.clone(),
+                    depth,
+                }
+            } else {
+                Row::Entry {
+                    id: id.clone(),
+                    depth,
+                }
+            });
+            if !folded.contains(&id) {
+                let sort = sort_of(&id);
+                let mut below: Vec<String> = path.as_ref().clone();
+                below.push(id.clone());
+                let below: Path = Rc::new(below);
+                // Last first: what is attached comes after what lives here.
+                pending.extend(
+                    ordered_ids(v, &child.members, sort, updated)
+                        .into_iter()
+                        .rev()
+                        .map(|m| (m, depth + 1, true, below.clone())),
+                );
+                pending.extend(
+                    ordered_ids(v, &child.children, sort, updated)
+                        .into_iter()
+                        .rev()
+                        .map(|c| (c, depth + 1, false, below.clone())),
+                );
             }
         }
         out
     }
 
-    /// The page distinguishes residence from membership even when the same
-    /// entry has both records. The sidebar remains one compact navigation canvas.
-    pub fn board_sections(
-        book: &Book,
-        level: &str,
-        surface: DisplaySurface,
-    ) -> Vec<(Option<Section>, Vec<String>)> {
-        let Some(level) = book.v3().and_then(|v| v.levels.get(level)) else {
+    /// The entries a board shows: what lives under the level on an entry
+    /// page's first block, what is attached to it on its second, both on a
+    /// Tab's one canvas.
+    pub fn board_ids(book: &Book, level: &str, surface: DisplaySurface) -> Vec<String> {
+        let Some((children, members)) = book.v3().and_then(|v| below(v, level)) else {
             return vec![];
         };
-        if surface == DisplaySurface::Page {
-            let mut sections = vec![(Some(Section::Residents), level.children.clone())];
-            if !level.members.is_empty() {
-                sections.push((Some(Section::Members), level.members.clone()));
+        match surface {
+            DisplaySurface::Page => children,
+            DisplaySurface::Members => members,
+            DisplaySurface::Sidebar => {
+                let mut seen = BTreeSet::new();
+                children
+                    .into_iter()
+                    .chain(members)
+                    .filter(|id| seen.insert(id.clone()))
+                    .collect()
             }
-            sections
-        } else {
-            let mut seen = BTreeSet::new();
-            vec![(
-                None,
-                level
-                    .children
-                    .iter()
-                    .chain(&level.members)
-                    .filter(|id| seen.insert(*id))
-                    .cloned()
-                    .collect(),
-            )]
         }
     }
 
@@ -326,6 +317,7 @@ pub mod v3 {
         })
         .detach();
     }
+    #[allow(clippy::too_many_arguments)]
     fn drop_on_resolved(
         page: &dr_shell::pages::PageViewHost,
         drag: &EntryDrag,
@@ -333,18 +325,20 @@ pub mod v3 {
         slot: DropSlot,
         can_reorder: bool,
         is_member: bool,
+        attach: bool,
         cx: &mut App,
     ) {
         if !drag.matches(page) || !drag.is_current(cx) {
             return;
         }
-        let Some(target) = resolve_drop(
+        let Some(target) = resolve_drop_with(
             &drag.page().book,
             &drag.entry,
             onto,
             slot,
             can_reorder,
             is_member,
+            attach,
         ) else {
             return;
         };
@@ -361,12 +355,14 @@ pub mod v3 {
         drag: &EntryDrag,
         onto: &str,
         after: bool,
+        attach: bool,
         cx: &mut App,
     ) {
         if !drag.matches(page) || !drag.is_current(cx) {
             return;
         }
-        if let Ok(edit) = crate::data::v3::prepare_drop(&drag.page().book, &drag.entry, onto, after)
+        if let Ok(edit) =
+            crate::data::v3::prepare_drop_with(&drag.page().book, &drag.entry, onto, after, attach)
         {
             admit_drag(
                 drag.page(),
@@ -403,14 +399,13 @@ pub mod v3 {
                 admit_drag(drag.page(), move |lib| edit.commit(&lib), cx);
             }
         } else {
-            drop_on_entry(page, drag, level, true, cx);
+            drop_on_entry(page, drag, level, true, window.modifiers().alt, cx);
         }
     }
 
     pub struct LevelDisplay {
         pub host: LevelHost,
         pub display: Display,
-        pub grouped: bool,
         pub sort: SortOrder,
         pub folded: BTreeSet<String>,
         pub rows: Rc<Vec<Row>>,
@@ -550,7 +545,6 @@ pub mod v3 {
             let mut this = Self {
                 host,
                 display,
-                grouped: false,
                 sort,
                 folded: BTreeSet::new(),
                 rows: Rc::default(),
@@ -566,7 +560,7 @@ pub mod v3 {
         pub fn can_reorder(&self) -> bool {
             matches!(self.display, Display::List | Display::Grid)
                 && self.sort == SortOrder::Manual
-                && !(self.grouped && self.display == Display::List)
+                && self.host.surface != DisplaySurface::Members
         }
         fn sync_workspace_memory(&mut self, ws: &dr_shell::Workspace) -> bool {
             if ws.book_id != self.host.page.book_id {
@@ -637,7 +631,7 @@ pub mod v3 {
                 &self.host.page.book,
                 &self.host.level,
                 self.display,
-                self.grouped,
+                self.host.surface,
                 self.sort,
                 &self.updated,
                 &self.folded,
@@ -699,15 +693,6 @@ pub mod v3 {
             cx: &mut App,
         ) -> AnyElement {
             self.entry_at(id, depth, tile, scope, false, None, window, cx)
-        }
-        fn entry_member(
-            &self,
-            id: &str,
-            scope: &str,
-            window: &mut Window,
-            cx: &mut App,
-        ) -> AnyElement {
-            self.entry_at(id, 0, false, scope, true, None, window, cx)
         }
         #[allow(clippy::too_many_arguments)]
         fn entry_at(
@@ -796,12 +781,32 @@ pub mod v3 {
                     )
                     .into_any_element()
             } else {
+                let theme = Theme::of(window, cx);
                 SandCell::new(cell_id, entry.title.clone())
                     .mark(mark)
                     .color_opt(color)
                     .selected(selected)
                     .font(if is_level { Role::Structure } else { Role::Ui })
                     .on_click(on_click)
+                    // Where an attached entry lives, on the entry page's
+                    // 「挂在这里的条目」.
+                    .when(
+                        is_member && self.host.surface == DisplaySurface::Members,
+                        |cell| {
+                            cell.child(
+                                div()
+                                    .flex_none()
+                                    .font_role(Role::Ui)
+                                    .type_px(theme.scale.caption, theme.scale.line_caption)
+                                    .text_color(theme.palette.muted().solid())
+                                    .child(dr_shell::v3::page::lives_in(
+                                        &self.host.page.book,
+                                        id,
+                                        cx,
+                                    )),
+                            )
+                        },
+                    )
                     .into_any_element()
             };
             let cell = if let Some(ws) = card_ws {
@@ -902,13 +907,14 @@ pub mod v3 {
                                 return false;
                             }
                             let slot = slot_for(&can_bounds, window, cx);
-                            resolve_drop(
+                            resolve_drop_with(
                                 &drag.page().book,
                                 &drag.entry,
                                 &can_onto,
                                 slot,
                                 row_can_reorder,
                                 is_member,
+                                window.modifiers().alt,
                             )
                             .is_some()
                         })
@@ -928,22 +934,22 @@ pub mod v3 {
                             focus.focus(window, cx);
                         }
                         let slot = slot_for(&drop_bounds, window, cx);
-                        drop_on_resolved(&page, drag, &onto, slot, row_can_reorder, is_member, cx);
+                        let attach = window.modifiers().alt;
+                        drop_on_resolved(
+                            &page,
+                            drag,
+                            &onto,
+                            slot,
+                            row_can_reorder,
+                            is_member,
+                            attach,
+                            cx,
+                        );
                     })
                 })
                 .child(overlay::probe(bounds))
                 .child(cell)
                 .into_any_element()
-        }
-        fn heading(&self, section: Section, cx: &App) -> SharedString {
-            t(
-                cx,
-                match section {
-                    Section::Residents => keys::v3_levels::RESIDENTS,
-                    Section::Members => keys::v3_levels::MEMBERS,
-                    Section::Unassigned => keys::v3_levels::UNASSIGNED,
-                },
-            )
         }
         fn row(
             &self,
@@ -955,21 +961,8 @@ pub mod v3 {
         ) -> AnyElement {
             let theme = Theme::of(window, cx);
             match row {
-                Row::Section(section) => div()
-                    .id(SharedString::from(format!(
-                        "g2-section-{}-{section:?}",
-                        self.host.level
-                    )))
-                    .h(px(32.0))
-                    .pt_2()
-                    .font_role(Role::Structure)
-                    .text_color(theme.palette.muted().solid())
-                    .role(gpui::Role::Heading)
-                    .aria_label(self.heading(*section, cx))
-                    .child(self.heading(*section, cx))
-                    .into_any_element(),
-                Row::Member { id } => self.entry_member(id, scope, window, cx),
-                Row::Entry { id, depth } => {
+                Row::Entry { id, depth } | Row::Member { id, depth } => {
+                    let attached = matches!(row, Row::Member { .. });
                     let mut row = div().flex().items_center().min_w_0().w_full();
                     if self
                         .host
@@ -1023,10 +1016,9 @@ pub mod v3 {
                         );
                     }
                     row.child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(self.entry_scoped(id, *depth, false, scope, window, cx)),
+                        div().flex_1().min_w_0().child(
+                            self.entry_at(id, *depth, false, scope, attached, None, window, cx),
+                        ),
                     )
                     .into_any_element()
                 }
@@ -1078,34 +1070,13 @@ pub mod v3 {
             }
         }
         fn board(&self, window: &mut Window, cx: &mut App) -> AnyElement {
-            let mut content = div().flex().flex_col().gap_3();
-            for (section, ids) in
-                board_sections(&self.host.page.book, &self.host.level, self.host.surface)
-            {
-                if let Some(section) = section {
-                    let label = t(
-                        cx,
-                        match section {
-                            Section::Residents => keys::v3_levels::RESIDENTS,
-                            Section::Members => keys::v3_levels::MEMBERS,
-                            Section::Unassigned => keys::v3_levels::UNASSIGNED,
-                        },
-                    );
-                    content = content.child(
-                        div()
-                            .id(SharedString::from(format!("g2-board-section-{section:?}")))
-                            .role(gpui::Role::Heading)
-                            .aria_label(label.clone())
-                            .child(label),
-                    );
-                }
-                content = content.child(self.board_canvas(
-                    &ids,
-                    &format!("board-{section:?}"),
-                    window,
-                    cx,
-                ));
-            }
+            let ids = board_ids(&self.host.page.book, &self.host.level, self.host.surface);
+            let content = div().flex().flex_col().gap_3().child(self.board_canvas(
+                &ids,
+                &format!("board-{:?}", self.host.surface),
+                window,
+                cx,
+            ));
             let scroll = self.scroll.clone();
             let page = self.host.page.clone();
             let can_page = page.clone();
@@ -1165,7 +1136,9 @@ pub mod v3 {
                 .iter()
                 .enumerate()
                 .map(|(index, id)| {
-                    v.layout_position(scope, "board", id)
+                    // Where a drop wrote it (`prepare_board`): the level's
+                    // own scope, whichever block or Tab shows the board.
+                    v.layout_position(&self.host.level, "board", id)
                         .unwrap_or(((index % 3) as f64 * 192.0, (index / 3) as f64 * 76.0))
                 })
                 .collect();
@@ -1212,7 +1185,12 @@ pub mod v3 {
             let focus = self.focus.get_or_insert_with(|| cx.focus_handle()).clone();
             let mut root = div()
                 .id(SharedString::from(format!(
-                    "g2-display-{}",
+                    "{}-{}",
+                    if self.host.surface == DisplaySurface::Members {
+                        "g2-members"
+                    } else {
+                        "g2-display"
+                    },
                     self.host.level
                 )))
                 .track_focus(&focus)
@@ -1223,43 +1201,33 @@ pub mod v3 {
                 .when(self.host.surface == DisplaySurface::Sidebar, |el| {
                     el.h_full()
                 })
-                .when(self.host.surface == DisplaySurface::Page, |el| {
+                .when(self.host.surface != DisplaySurface::Sidebar, |el| {
                     el.h(px(440.0))
                 });
-            if self.host.surface == DisplaySurface::Sidebar {
-                // The selected root is itself an entry: open its level page
-                // and use exactly the same common card as its descendants.
-                root = root.child(self.entry(&self.host.level, 0, false, window, cx));
-            }
-            if self.display == Display::List
-                && self
+            if self.host.surface == DisplaySurface::Sidebar && self.host.level != ROOT_LEVEL {
+                // In a view, the list's order is the view's scale: its name
+                // above the list (`kernel-v5.md` §16 「层级的列表」).
+                if let Some(view) = self
                     .host
                     .page
                     .book
                     .v3()
-                    .is_some_and(|v| v.is_book_root_entry(&self.host.level))
-            {
-                let weak = cx.entity().downgrade();
-                root = root.child(
-                    Segmented::new(
-                        "g2-list-order",
-                        [
-                            t(cx, keys::v3_levels::MANUSCRIPT_ORDER),
-                            t(cx, keys::v3_levels::BY_STORYLINE),
-                        ],
-                        usize::from(self.grouped),
-                    )
-                    .on_change(move |index, _, cx| {
-                        let _ = weak.update(cx, |this, cx| {
-                            this.grouped = index == 1;
-                            this.rebuild();
-                            cx.notify();
-                        });
-                    }),
-                );
+                    .and_then(|v| v.ordering_view(&self.host.level))
+                {
+                    root = root.child(dr_shell::v3::page::view_tag(view.name.clone(), window, cx));
+                }
+                // The selected root is itself an entry: open its level page
+                // and use exactly the same common card as its descendants.
+                root = root.child(self.entry(&self.host.level, 0, false, window, cx));
             }
             if matches!(self.display, Display::List | Display::Grid)
-                && !(self.grouped && self.display == Display::List)
+                && self.host.surface != DisplaySurface::Members
+                && !self
+                    .host
+                    .page
+                    .book
+                    .v3()
+                    .is_some_and(|v| v.is_lane(&self.host.level))
             {
                 let weak = cx.entity().downgrade();
                 root = root.child(

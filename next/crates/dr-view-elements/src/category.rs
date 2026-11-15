@@ -35,7 +35,6 @@ pub mod v3 {
                 "auto_link" => keys::v3_levels::AUTO_LINK,
                 "accept" => keys::v3_levels::ACCEPT,
                 "home" => keys::v3_levels::HOME,
-                "lane" => keys::v3_levels::LANE,
                 _ => keys::v3_levels::FORMAT_SHORTCUTS,
             },
         )
@@ -139,14 +138,9 @@ pub mod v3 {
                 return div().into_any_element();
             };
             let mut settings = div().flex().flex_col().gap_3();
-            for key in [
-                "default_template",
-                "display",
-                "auto_link",
-                "accept",
-                "home",
-                "format_shortcuts",
-            ] {
+            // 「自动链接」, 「收别处的条目」 and 「新条目住在」 are on the
+            // page's two blocks (`kernel-v5.md` §16 「条目页」).
+            for key in ["default_template", "display", "format_shortcuts"] {
                 let label = label(key, cx);
                 let host = self.host.page.clone();
                 let id = self.host.level.clone();
@@ -163,7 +157,6 @@ pub mod v3 {
                             SharedString::from(format!("g2-setting-{key}")),
                             value(&book, &self.host.level, key, cx),
                         )
-                        .disabled(key == "home" && !level.settings.accept)
                         .on_click(move |_, window, cx| {
                             crate::dialogs::v3::open_setting(
                                 host.clone(),

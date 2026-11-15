@@ -48,6 +48,23 @@ pub mod v3 {
                 }) as RunRow)
             });
         }
+        dr_shell::v3::add_entry_action(cx, EntryAction::NewAttached, |target, host, _| {
+            let Target::Entry { id, .. } = target else {
+                return None;
+            };
+            crate::data::v3::creation_attached(&host.book, id.as_str())
+                .filter(|c| c.blank || !c.templates.is_empty())?;
+            let page = PageViewHost {
+                workspace: host.workspace.clone(),
+                library: host.library.clone()?,
+                book_id: host.book_id.clone(),
+                book: host.book.clone(),
+            };
+            let id = id.to_string();
+            Some(Rc::new(move |window: &mut gpui::Window, cx: &mut App| {
+                crate::dialogs::v3::open_attached(page.clone(), id.clone(), window, cx)
+            }) as RunRow)
+        });
         dr_shell::v3::add_entry_card_rows(cx, |target, host, cx| {
             let Target::Entry { id, .. } = target else {
                 return Default::default();

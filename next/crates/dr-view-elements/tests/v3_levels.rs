@@ -2,7 +2,8 @@
 use std::collections::BTreeSet;
 
 use dr_shell::book::Book;
-use dr_view_elements::panel::v3::{Display, Row, Section, rows};
+use dr_shell::v3::DisplaySurface;
+use dr_view_elements::panel::v3::{Display, Row, rows};
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
 
@@ -27,28 +28,34 @@ fn call(ws: &Workspace, name: &str, input: Value) -> Value {
 fn ids(rows: &[Row]) -> Vec<&str> {
     rows.iter()
         .flat_map(|r| match r {
-            Row::Entry { id, .. } | Row::Member { id } => vec![id.as_str()],
+            Row::Entry { id, .. } | Row::Member { id, .. } => vec![id.as_str()],
             Row::Tiles { ids, .. } => ids.iter().map(String::as_str).collect(),
             Row::Island { id, members } => std::iter::once(id.as_str())
                 .chain(members.iter().map(String::as_str))
                 .collect(),
-            Row::Section(_) => Vec::new(),
         })
         .collect()
 }
+fn of_template(v: &dr_shell::book::v3::BookV3, template: &str) -> String {
+    v.entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some(template))
+        .unwrap()
+        .id
+        .clone()
+}
 
+/// `kernel-v5.md` §16 「层级的列表」: a level's list is its tree. What
+/// lives under it, in its order; an entry that holds entries opens to what
+/// lives under it, then what is attached to it. A Tab lists what is
+/// attached to the level itself after what lives under it; the entry page
+/// lists the two in its two blocks. Attaching moves nothing.
 #[test]
-fn residence_tree_is_ordered_foldable_and_separate_from_membership() {
+fn a_level_lists_its_tree_and_what_is_attached_after_what_lives_under_it() {
     let (_dir, ws, book) = seed();
     let initial = Book::load(&ws, &book).unwrap();
     let v = initial.v3().unwrap();
-    let manuscript = v
-        .entries
-        .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
-        .unwrap()
-        .id
-        .clone();
+    let manuscript = of_template(v, "tpl-manuscript");
     let group = call(
         &ws,
         "entry.create",
@@ -61,13 +68,7 @@ fn residence_tree_is_ordered_foldable_and_separate_from_membership() {
         json!({"book":book,"parent":group,"template":"tpl-chapter","title":"Synthetic leaf"}),
     );
     let child = child["id"].as_str().unwrap();
-    let foreign = v
-        .entries
-        .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
-        .unwrap()
-        .id
-        .clone();
+    let foreign = of_template(v, "tpl-chapter");
     call(
         &ws,
         "entry.update",
@@ -79,205 +80,163 @@ fn residence_tree_is_ordered_foldable_and_separate_from_membership() {
         json!({"book":book,"host":group,"member":foreign}),
     );
     let snapshot = Book::load(&ws, &book).unwrap();
-    let shown = rows(&snapshot, group, Display::List, false, &BTreeSet::new(), 2);
+    let list = |surface| {
+        rows(
+            &snapshot,
+            group,
+            Display::List,
+            surface,
+            &BTreeSet::new(),
+            2,
+        )
+    };
+    let entry = |id: &str, depth| Row::Entry {
+        id: id.into(),
+        depth,
+    };
+    let member = |id: &str, depth| Row::Member {
+        id: id.into(),
+        depth,
+    };
+    // The entry page's two blocks.
+    assert_eq!(list(DisplaySurface::Page), vec![entry(child, 0)]);
+    assert_eq!(list(DisplaySurface::Members), vec![member(&foreign, 0)]);
+    // A Tab: what lives here, then what is attached here.
     assert_eq!(
-        shown,
-        vec![
-            Row::Section(Section::Residents),
-            Row::Entry {
-                id: child.into(),
-                depth: 0
-            },
-            Row::Section(Section::Members),
-            Row::Member {
-                id: foreign.clone()
-            }
-        ]
+        list(DisplaySurface::Sidebar),
+        vec![entry(child, 0), member(&foreign, 0)]
     );
     assert_eq!(
         snapshot.v3().unwrap().entry(&foreign).unwrap().parent,
         v.entry(&foreign).unwrap().parent
     );
+    // In the manuscript's tree the group opens to its child, then to the
+    // chapter attached to it, which also shows where it lives.
     let open = rows(
         &snapshot,
         &manuscript,
         Display::List,
-        false,
+        DisplaySurface::Page,
         &BTreeSet::new(),
         2,
+    );
+    let at = open.iter().position(|r| *r == entry(group, 0)).unwrap();
+    assert_eq!(open[at + 1..at + 3], [entry(child, 1), member(&foreign, 1)]);
+    assert!(
+        open.iter()
+            .any(|r| matches!(r, Row::Entry { id, .. } if *id == foreign)),
+        "it also shows where it lives"
     );
     let closed = rows(
         &snapshot,
         &manuscript,
         Display::List,
-        false,
+        DisplaySurface::Page,
         &BTreeSet::from([group.into()]),
         2,
     );
-    assert!(ids(&open).contains(&child));
     assert!(!ids(&closed).contains(&child));
-    assert_eq!(ids(&open).last().copied(), Some(child));
+    assert!(!closed.contains(&member(&foreign, 1)));
     ws.shutdown().unwrap();
 }
 
+/// 「放章的列表里只有树」 (作者 2026-11-15): no 「全书顺序 / 按故事线」,
+/// no 「未归属」, nothing after the tree. Its rows at the top are what
+/// lives in the manuscript, in its order; no storyline is listed in it.
 #[test]
-fn grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves() {
+fn the_manuscript_list_is_only_its_tree() {
     let (_dir, ws, book) = seed();
     let snapshot = Book::load(&ws, &book).unwrap();
     let v = snapshot.v3().unwrap();
-    let manuscript = v
-        .entries
-        .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
-        .unwrap();
-    let loose = call(
-        &ws,
-        "entry.create",
-        json!({"book":book,"parent":manuscript.id,"title":"Synthetic unassigned"}),
+    let manuscript = of_template(v, "tpl-manuscript");
+    assert!(
+        v.memberships.iter().any(|m| v.is_lane(&m.host)),
+        "the seed has chapters on storylines"
     );
-    let host = call(
-        &ws,
-        "entry.create",
-        json!({"book":book,"parent":manuscript.id,"template":"tpl-group","title":"Synthetic non-lane membership"}),
-    );
-    let member = v
-        .entries
-        .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
-        .unwrap();
-    call(
-        &ws,
-        "entry.update",
-        json!({"book":book,"id":host["id"],"overrides":{"accept":true}}),
-    );
-    call(
-        &ws,
-        "membership.add",
-        json!({"book":book,"host":host["id"],"member":member.id}),
-    );
-    call(
-        &ws,
-        "membership.primary",
-        json!({"book":book,"host":host["id"],"member":member.id}),
-    );
-    let snapshot = Book::load(&ws, &book).unwrap();
-    let shown = rows(
-        &snapshot,
-        &manuscript.id,
-        Display::List,
-        true,
-        &BTreeSet::new(),
-        2,
-    );
-    let all = ids(&shown);
-    assert_eq!(all.iter().collect::<BTreeSet<_>>().len(), all.len());
-    for child in v
-        .entries
-        .iter()
-        .filter(|e| e.template.as_deref() == Some("tpl-chapter"))
-    {
-        assert!(all.contains(&child.id.as_str()));
+    for surface in [DisplaySurface::Page, DisplaySurface::Sidebar] {
+        let shown = rows(
+            &snapshot,
+            &manuscript,
+            Display::List,
+            surface,
+            &BTreeSet::new(),
+            2,
+        );
+        let top: Vec<&str> = shown
+            .iter()
+            .filter_map(|r| match r {
+                Row::Entry { id, depth: 0 } => Some(id.as_str()),
+                _ => None,
+            })
+            .collect();
+        let children: Vec<&str> = v.levels[&manuscript]
+            .children
+            .iter()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(top, children);
+        let lanes: Vec<&str> = ids(&shown).into_iter().filter(|id| v.is_lane(id)).collect();
+        assert!(
+            lanes.is_empty(),
+            "no storyline in the manuscript's list: {lanes:?}"
+        );
+        // Nothing is attached to the manuscript: nothing follows its tree.
+        assert!(shown.iter().all(|r| matches!(r, Row::Entry { .. })));
     }
-    let unassigned = shown
-        .iter()
-        .position(|row| *row == Row::Section(Section::Unassigned))
-        .unwrap();
-    assert!(
-        shown
-            .iter()
-            .position(|row| matches!(row,Row::Entry{id,..} if *id==member.id))
-            .unwrap()
-            > unassigned
-    );
-    assert_eq!(all.last().copied(), loose["id"].as_str());
     ws.shutdown().unwrap();
 }
 
+/// The storylines' Tab (`kernel-v5.md` §16): each storyline opens to the
+/// chapters attached to it; a chapter on two storylines shows under both.
 #[test]
-fn grouped_list_keeps_numbered_entries_whose_switch_is_on_under_their_lane() {
+fn a_storyline_opens_to_its_chapters_and_a_chapter_on_two_shows_under_both() {
     let (_dir, ws, book) = seed();
     let snapshot = Book::load(&ws, &book).unwrap();
     let v = snapshot.v3().unwrap();
-    let manuscript = v
-        .entries
-        .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
-        .unwrap()
-        .id
-        .clone();
-    let (lane, chapter) = v
-        .memberships
-        .iter()
-        .find(|m| {
-            v.is_lane(&m.host)
-                && v.entry(&m.member)
-                    .is_some_and(|e| e.template.as_deref() == Some("tpl-chapter"))
-        })
-        .map(|m| (m.host.clone(), m.member.clone()))
-        .expect("a chapter on a storyline");
-    call(
-        &ws,
-        "membership.primary",
-        json!({"book":book,"host":lane,"member":chapter}),
-    );
-    call(
-        &ws,
-        "entry.set_level",
-        json!({"book":book,"id":chapter,"level":true}),
-    );
-    let below = call(
-        &ws,
-        "entry.create",
-        json!({"book":book,"parent":chapter,"template":"tpl-chapter","title":"Synthetic below"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    // An organising level in the manuscript carries no book prose: it is
-    // not numbered, so it is not listed.
-    let group = call(
-        &ws,
-        "entry.create",
-        json!({"book":book,"parent":manuscript,"template":"tpl-group","title":"Synthetic volume"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    let list = of_template(v, "tpl-storylines");
+    let lines: Vec<String> = v.levels[&list].children.clone();
+    assert!(lines.len() >= 2, "the seed has two storylines");
+    let chapter = of_template(v, "tpl-chapter");
+    for line in &lines[..2] {
+        if !v.levels[line].members.contains(&chapter) {
+            call(
+                &ws,
+                "membership.add",
+                json!({"book":book,"host":line,"member":chapter}),
+            );
+        }
+    }
     let snapshot = Book::load(&ws, &book).unwrap();
     let v = snapshot.v3().unwrap();
-    assert!(v.levels.contains_key(&chapter));
     let shown = rows(
         &snapshot,
-        &manuscript,
+        &list,
         Display::List,
-        true,
+        DisplaySurface::Sidebar,
         &BTreeSet::new(),
         2,
     );
-    let all = ids(&shown);
-    let at = |id: &str| all.iter().position(|x| *x == id);
-    assert!(at(&lane).unwrap() < at(&chapter).unwrap());
-    let unassigned = shown
-        .iter()
-        .position(|row| *row == Row::Section(Section::Unassigned))
-        .unwrap();
-    assert!(
-        shown
+    for line in &lines {
+        let at = shown
             .iter()
-            .position(|row| matches!(row, Row::Entry { id, depth: 1 } if *id == chapter))
-            .unwrap()
-            < unassigned
-    );
-    assert!(at(&below).is_some());
-    assert!(at(&group).is_none());
-    // Every entry carrying book prose is listed once, numbered or not: the
-    // one under the chapter (which has book prose) has no number.
-    assert_eq!(v.manuscript_number(&below), None);
-    assert!(v.manuscript_number(&chapter).is_some());
-    let numbered: BTreeSet<&str> = v.manuscript.iter().map(|b| b.entry.as_str()).collect();
-    let listed: BTreeSet<&str> = all.iter().copied().filter(|id| !v.is_lane(id)).collect();
-    assert_eq!(listed, numbered);
-    assert_eq!(all.iter().collect::<BTreeSet<_>>().len(), all.len());
+            .position(|r| matches!(r, Row::Entry { id, depth: 0 } if id == line))
+            .unwrap();
+        let under: Vec<&str> = shown[at + 1..]
+            .iter()
+            .take_while(|r| !matches!(r, Row::Entry { depth: 0, .. }))
+            .filter_map(|r| match r {
+                Row::Member { id, depth: 1 } => Some(id.as_str()),
+                _ => None,
+            })
+            .collect();
+        let members: Vec<&str> = v.levels[line].members.iter().map(String::as_str).collect();
+        assert_eq!(under, members, "{line} opens to what is attached to it");
+    }
+    let times = shown
+        .iter()
+        .filter(|r| matches!(r, Row::Member { id, .. } if *id == chapter))
+        .count();
+    assert_eq!(times, 2, "a chapter on two storylines shows under both");
     ws.shutdown().unwrap();
 }
 
@@ -295,7 +254,7 @@ fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
         &initial,
         &elements.id,
         Display::Grid,
-        false,
+        DisplaySurface::Page,
         &BTreeSet::new(),
         2,
     );
@@ -303,7 +262,7 @@ fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
         &initial,
         &elements.id,
         Display::Islands,
-        false,
+        DisplaySurface::Page,
         &BTreeSet::new(),
         2,
     );
@@ -346,7 +305,7 @@ fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
             &other,
             &elements.id,
             Display::List,
-            false,
+            DisplaySurface::Page,
             &BTreeSet::new(),
             2
         )
@@ -536,9 +495,8 @@ fn stale_or_invalid_setting_edits_do_not_replace_newer_settings() {
 }
 
 #[test]
-fn board_page_separates_members_without_changing_the_navigation_canvas() {
-    use dr_shell::v3::DisplaySurface;
-    use dr_view_elements::panel::v3::board_sections;
+fn board_blocks_list_residents_and_attached_apart_and_a_tab_shows_both() {
+    use dr_view_elements::panel::v3::board_ids;
     let (_dir, ws, book) = seed();
     let initial = Book::load(&ws, &book).unwrap();
     let v = initial.v3().unwrap();
@@ -569,17 +527,24 @@ fn board_page_separates_members_without_changing_the_navigation_canvas() {
     );
     let snapshot = Book::load(&ws, &book).unwrap();
     let v = snapshot.v3().unwrap();
+    // The entry page's two blocks: what lives here, what is attached here.
     assert_eq!(
-        board_sections(&snapshot, &root, DisplaySurface::Page),
-        vec![
-            (Some(Section::Residents), v.levels[&root].children.clone()),
-            (Some(Section::Members), vec![member.clone()])
-        ]
+        board_ids(&snapshot, &root, DisplaySurface::Page),
+        v.levels[&root].children
     );
-    let navigation = board_sections(&snapshot, &root, DisplaySurface::Sidebar);
-    assert_eq!(navigation.len(), 1);
-    assert!(navigation[0].0.is_none());
-    assert!(navigation[0].1.contains(&member));
+    assert_eq!(
+        board_ids(&snapshot, &root, DisplaySurface::Members),
+        vec![member.clone()]
+    );
+    // A Tab's one canvas: both.
+    let navigation = board_ids(&snapshot, &root, DisplaySurface::Sidebar);
+    assert!(navigation.contains(&member));
+    assert!(
+        v.levels[&root]
+            .children
+            .iter()
+            .all(|c| navigation.contains(c))
+    );
     assert_eq!(v.entry(&member).unwrap().parent, old_parent);
     ws.shutdown().unwrap();
 }

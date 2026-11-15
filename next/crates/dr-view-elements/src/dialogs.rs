@@ -344,6 +344,9 @@ pub mod v3 {
         shown: std::rc::Rc<dr_shell::book::Book>,
         origin: String,
         mode: EntryMode,
+        /// A new entry is attached to `origin` (`host`) rather than living
+        /// under it (`parent`).
+        attach: bool,
         focus: FocusHandle,
         name: Entity<dr_ui::input::TextField>,
         template: Option<String>,
@@ -360,13 +363,28 @@ pub mod v3 {
         window: &mut Window,
         cx: &mut App,
     ) {
+        open_picker(host, origin, mode, false, window, cx);
+    }
+    /// 「新建」 in an entry page's 「挂在这里的条目」: the new entry is
+    /// attached to `origin`.
+    pub fn open_attached(host: PageViewHost, origin: String, window: &mut Window, cx: &mut App) {
+        open_picker(host, origin, EntryMode::New, true, window, cx);
+    }
+    fn open_picker(
+        host: PageViewHost,
+        origin: String,
+        mode: EntryMode,
+        attach: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
         let Some(host) = crate::data::v3::fresh(&host, cx) else {
             return;
         };
         if !host.book.v3().is_some_and(|v| v.entry(&origin).is_some()) {
             return;
         }
-        let view = cx.new(|cx| EntryPicker::new(host, origin, mode, window, cx));
+        let view = cx.new(|cx| EntryPicker::new(host, origin, mode, attach, window, cx));
         let focus = if matches!(mode, EntryMode::New) {
             gpui::Focusable::focus_handle(view.read(cx).name.read(cx), cx)
         } else {
@@ -380,6 +398,7 @@ pub mod v3 {
             host: PageViewHost,
             origin: String,
             mode: EntryMode,
+            attach: bool,
             window: &mut Window,
             cx: &mut Context<Self>,
         ) -> Self {
@@ -396,7 +415,12 @@ pub mod v3 {
                 }
                 _ => cx.notify(),
             });
-            let template = crate::data::v3::creation(&host.book, &origin).and_then(|c| c.default);
+            let template = if attach {
+                crate::data::v3::creation_attached(&host.book, &origin)
+            } else {
+                crate::data::v3::creation(&host.book, &origin)
+            }
+            .and_then(|c| c.default);
             cx.spawn(async move |this, cx| {
                 let _ = this.update(cx, |this, cx| this.follow(cx));
             })
@@ -407,6 +431,7 @@ pub mod v3 {
                 shown,
                 origin,
                 mode,
+                attach,
                 focus: cx.focus_handle(),
                 name,
                 template,
@@ -474,7 +499,7 @@ pub mod v3 {
                 cx.notify();
                 return;
             };
-            let Some(context) = crate::data::v3::creation(&host.book, &self.origin) else {
+            let Some(context) = self.creation(&host.book) else {
                 return;
             };
             let title = self.name.read(cx).text().trim().to_owned();
@@ -488,8 +513,19 @@ pub mod v3 {
             if title.is_empty() {
                 return;
             }
-            let input = json!({"book":host.book_id,"parent":context.context,"template":template,"title":title});
+            let input = if self.attach {
+                json!({"book":host.book_id,"host":self.origin,"template":template,"title":title})
+            } else {
+                json!({"book":host.book_id,"parent":context.context,"template":template,"title":title})
+            };
             self.submit(host, "entry.create", input, true, true, window, cx);
+        }
+        fn creation(&self, book: &dr_shell::book::Book) -> Option<crate::data::v3::Creation> {
+            if self.attach {
+                crate::data::v3::creation_attached(book, &self.origin)
+            } else {
+                crate::data::v3::creation(book, &self.origin)
+            }
         }
         fn change_template(
             &mut self,
@@ -672,7 +708,8 @@ pub mod v3 {
                 .flex()
                 .flex_col();
             let templates = match self.mode {
-                EntryMode::New => crate::data::v3::creation(&book, &self.origin)
+                EntryMode::New => self
+                    .creation(&book)
                     .map(|c| c.templates)
                     .unwrap_or_default(),
                 EntryMode::Template => crate::data::v3::switch_templates(&book, &self.origin),
@@ -680,7 +717,8 @@ pub mod v3 {
             };
             if matches!(self.mode, EntryMode::New) {
                 body = body.child(self.name.clone());
-                if let Some(home) = crate::data::v3::creation(&book, &self.origin)
+                if let Some(home) = self
+                    .creation(&book)
                     .and_then(|c| c.home)
                     .and_then(|id| v.entry(&id))
                 {
@@ -821,8 +859,7 @@ pub mod v3 {
                     );
                 }
             }
-            if matches!(self.mode, EntryMode::New)
-                && crate::data::v3::creation(&book, &self.origin).is_some_and(|c| c.blank)
+            if matches!(self.mode, EntryMode::New) && self.creation(&book).is_some_and(|c| c.blank)
             {
                 let weak = weak.clone();
                 list = list.child(
@@ -903,10 +940,7 @@ pub mod v3 {
                             self.busy
                                 || self.name.read(cx).text().trim().is_empty()
                                 || !self.template.as_ref().map_or_else(
-                                    || {
-                                        crate::data::v3::creation(&book, &self.origin)
-                                            .is_some_and(|c| c.blank)
-                                    },
+                                    || self.creation(&book).is_some_and(|c| c.blank),
                                     |id| templates.contains(id),
                                 ),
                         )
