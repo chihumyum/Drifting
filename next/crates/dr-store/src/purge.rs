@@ -146,12 +146,16 @@ impl Library {
     }
 
     /// Documents purged on this device, oldest first; with `book_id`, only
-    /// that book's.
+    /// that book's. The documents of a book kept on this device
+    /// ([`Library::keep_local`]) are left out: sync reads this list, and
+    /// they never left the device.
     pub fn purged_docs(&self, book_id: Option<&str>) -> Result<Vec<PurgedDoc>> {
         let conn = self.reader();
         let mut stmt = conn.prepare_cached(
             "SELECT doc_id, kind, book_id, purged_ms FROM purged_doc
-             WHERE ?1 IS NULL OR book_id = ?1 ORDER BY purged_ms, doc_id",
+             WHERE (?1 IS NULL OR book_id = ?1)
+               AND (book_id IS NULL OR book_id NOT IN (SELECT book_id FROM local_book))
+             ORDER BY purged_ms, doc_id",
         )?;
         let rows = stmt
             .query_map(params![book_id], purged_doc)?

@@ -384,7 +384,8 @@ fn the_chapter_page_head_is_read_and_its_title_reached(cx: &mut TestAppContext) 
     // The head is drawn with the editor's first frame.
     let page = call_until(cx, "page.text", json!({}), |p| !p["head"].is_null());
     assert_eq!(page["head"]["title"], first["title"]);
-    assert_eq!(page["head"]["number"], json!(1));
+    // The App numbers no chapter (DW): the head carries no number.
+    assert!(page["head"].get("number").is_none(), "{}", page["head"]);
     assert_eq!(page["head"]["focus"], Value::Null);
 
     // Into the title, everything selected; typing replaces it; Enter hands

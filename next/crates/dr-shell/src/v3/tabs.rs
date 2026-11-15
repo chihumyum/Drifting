@@ -22,7 +22,7 @@ use dr_ui::{
 };
 use dr_workspace::{
     Actor, RecordKey, WritePreconditions, WsError,
-    commands::v3::types::{BookRoot, TabMount, TimelineView},
+    commands::v3::types::{TabMount, TimelineView},
 };
 use gpui::{prelude::*, *};
 use serde_json::{Value, json};
@@ -379,35 +379,27 @@ pub fn drop_in_view(
 }
 
 /// Drops `moving` before or after `onto` in a Tab mounted on the book: the
-/// order at the book's start (the folders' manual order, or the scale when
-/// it starts at a view or a lane).
+/// book reads from the root, so this is a drop in 「全部」: `moving` goes to
+/// live beside `onto`, in the order of `onto`'s layer (its scale while that
+/// layer is in a view).
 pub fn drop_in_book(host: &PageViewHost, moving: &str, onto: &str, after: bool, cx: &mut App) {
-    let Some(v) = host.book.v3() else {
+    if host.book.v3().is_none() {
         return;
-    };
-    match v.project.book.as_ref().map(|b| &b.root) {
-        Some(BookRoot::View { view } | BookRoot::Lane { view, .. }) => {
-            let order = v.book_entries();
-            place_on_scale(host, view, &order, moving, onto, after, cx);
-        }
-        Some(BookRoot::Root | BookRoot::Entry { .. }) => {
-            let lib = host.library.clone();
-            let book = host.book_id.clone();
-            let (moving, onto) = (moving.to_owned(), onto.to_owned());
-            let job = cx
-                .background_executor()
-                .spawn(async move { move_beside(&lib, &book, &moving, &onto, after) });
-            let host = host.clone();
-            cx.spawn(async move |cx| {
-                if let Err(error) = job.await {
-                    log::warn!("reordering the book failed: {error}");
-                    cx.update(|cx| toast_save_failed(&host, cx));
-                }
-            })
-            .detach();
-        }
-        _ => {}
     }
+    let lib = host.library.clone();
+    let book = host.book_id.clone();
+    let (moving, onto) = (moving.to_owned(), onto.to_owned());
+    let job = cx
+        .background_executor()
+        .spawn(async move { move_beside(&lib, &book, &moving, &onto, after) });
+    let host = host.clone();
+    cx.spawn(async move |cx| {
+        if let Err(error) = job.await {
+            log::warn!("reordering the book failed: {error}");
+            cx.update(|cx| toast_save_failed(&host, cx));
+        }
+    })
+    .detach();
 }
 
 fn scroll_list(id: &str) -> Stateful<Div> {
@@ -494,9 +486,8 @@ pub fn view_list(host: &PageViewHost, view: &str, window: &mut Window, cx: &mut 
     list.into_any_element()
 }
 
-/// A Tab mounted on the book: the book sequence, one entry a row, its
-/// number first. Dragging changes the order at the book's start: the
-/// folders' manual order, or the scale when it starts at a view.
+/// A Tab mounted on the book: the book sequence, one entry a row (the App
+/// numbers nothing). Dragging is a drop in 「全部」 ([`drop_in_book`]).
 pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyElement {
     let Some(v) = host.book.v3() else {
         return div().into_any_element();
@@ -504,9 +495,6 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
     let order = v.book_entries();
     let mut list = scroll_list("v3-tab-book");
     for id in &order {
-        let number = v
-            .manuscript_number(id)
-            .map(|n| SharedString::from(n.to_string()));
         let host_ = host.clone();
         let onto = id.clone();
         list = list.child(entry_row(
@@ -514,7 +502,7 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
             "book",
             id,
             0,
-            Some(number.unwrap_or_default()),
+            None,
             move |drag, after, _, cx| drop_in_book(&host_, &drag.entry, &onto, after, cx),
             window,
             cx,

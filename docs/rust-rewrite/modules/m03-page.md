@@ -1,5 +1,10 @@
 # M03 章节页：章首与章末
 
+## 内核 v5 DW：不编号，页头不看进不进成书（2026-11-15 夜里）
+
+- App 不再给任何条目编号（作者：「所有正文APP都不编号。作者自己有需求自己编。」）：`PageInfo` 没有 `number`，页眉第一项一律是模板名（`folio_label`），键 `nodeEditor.folio.chapter`、`nodeEditor.folio.chapterNumber` 删了。下面 T3 那一节说的章号随之不再显示。
+- 页头（`chrome`）不再跟着「第一篇进成书的正文」：给内容条目（模板 `linkable`、有字段模块）的第一篇正文（`dr_editor::v3::carries_page_head`）；构想、要素的正文不进成书以后照旧有页头，故事线、文件夹的「说明」和笔记照旧没有。`PageKind::Chapter` 是成书里的条目带页头的那一篇（成书从根读，构想下面的章也是）。
+
 ## 内核 v5 T3：章号对齐成书起点，关了成书时隐藏章号（2026-11-15）
 
 - 页眉（`dr-view-page/src/head.rs`、`v3.rs`）的章号与通览位置统一走 `BookStructureV3::book_sequence()`（随 `BookRoot::{Entry, View, Lane}` 切换，和整书字数、成稿导出严格一致；回归见 `dr-view-page/tests/v3.rs`）。

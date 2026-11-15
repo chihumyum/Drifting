@@ -243,8 +243,9 @@ fn v3_structure_validation_happens_before_writes() {
     assert_eq!(at, version(&e, &b));
     let group = create(&e, &b, &ms, "Group", "tpl-group");
     // `group` takes entries from elsewhere by its own override (`tpl-group`
-    // does not, kernel-v5 §16), so with its level off it remains a valid
-    // book root until `accept` is turned off too.
+    // does not, kernel-v5 §16), so with its level off it can still be
+    // mounted on a tab until `accept` is turned off too. (It was the book
+    // start in this test until the book lost its start, DW.)
     e.call(
         "entry.update",
         json!({"book":b,"id":group,"overrides":{"accept":true}}),
@@ -253,18 +254,22 @@ fn v3_structure_validation_happens_before_writes() {
         "entry.set_level",
         json!({"book":b,"id":group,"level":false}),
     );
-    e.call(
-        "project.update",
-        json!({"book":b,"root":{"kind":"entry","entry":group}}),
-    );
+    let tab = e.out(
+        "tab.put",
+        json!({"book":b,"mount":{"kind":"entry","entry":group}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call("tab.remove", json!({"book":b,"id":tab}));
     e.call(
         "entry.update",
         json!({"book":b,"id":group,"overrides":{"accept":false}}),
     );
     assert!(
         e.try_call(
-            "project.update",
-            json!({"book":b,"root":{"kind":"entry","entry":group}})
+            "tab.put",
+            json!({"book":b,"mount":{"kind":"entry","entry":group}})
         )
         .is_err()
     );

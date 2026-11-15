@@ -554,7 +554,7 @@ impl Workspace {
                 if has_shelf && named.is_none() {
                     preferred
                         .clone()
-                        .filter(|id| crate::book::canonical(lib, id))
+                        .filter(|id| crate::book::canonical(lib, id) && !is_working_copy(lib, id))
                 } else {
                     first_choice(lib, preferred.as_deref())
                 }
@@ -821,7 +821,15 @@ impl Workspace {
                     }
                     self.sync_active_book();
                     self.retitle_editors(cx);
-                    Settings::update(cx, |file| file.set_last_book(&id));
+                    // A template's working copy is never the project the
+                    // App opens on next (`WORKING-COPY-LOCAL`).
+                    let copy = self
+                        .library
+                        .as_ref()
+                        .is_some_and(|lib| is_working_copy(lib, &id));
+                    if !copy {
+                        Settings::update(cx, |file| file.set_last_book(&id));
+                    }
                     if !gone.is_empty() {
                         self.changed(cx);
                         crate::sync::notify_holder_released(cx);
@@ -2048,14 +2056,22 @@ pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
     }
 }
 
+/// Whether `book` is a template's working copy (it is opened only by
+/// editing its template, never as the project to start on).
+fn is_working_copy(lib: &Library, book: &str) -> bool {
+    lib.is_working_copy(book).unwrap_or(false)
+}
+
 /// The book to try first without reading any: the one asked for or opened
 /// last, if the library has it, else the first the library lists (an id
 /// only; whether it is in the trash shows once it is read).
 fn first_choice(lib: &Library, preferred: Option<&str>) -> Option<String> {
+    let copies = lib.working_copy_books().unwrap_or_default();
     let ids: Vec<String> = match lib.library().docs(None, Some("book")) {
         Ok(docs) => docs
             .into_iter()
             .filter_map(|d| d.doc_id.strip_prefix("book:").map(str::to_owned))
+            .filter(|id| !copies.contains(id))
             .collect(),
         Err(error) => {
             log::warn!("the library's books could not be listed: {error}");

@@ -1,5 +1,7 @@
 # M05 通览全书
 
+> 2026-11-15 夜里（内核 v5 DW）：整书视图的出发点是 `dr_model::v3::FlattenFrom`（`Root`、`Entry`、`View`、`Lane`），替掉下面说的 `BookRoot`；成书本身没有起点、一律从根读。`dr_editor::v3::flatten_from`（原 `flatten_book_root`）给出每个条目进成书的正文和带页头的那一篇（构想、要素的正文不进成书以后照旧在整书视图里），`book::flatten_position_key`（原 `book_root_position_key`）给的阅读位置键不变。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「DW 交回」。
+
 2026-11-08，第一个里程碑。计划见 [modules.md 的 M05](../modules.md#阶段-2写作闭环)，编辑器本身见 [f4-editor.md](../foundations/f4-editor.md)。代码在 `next/crates/dr-editor/src/book.rs`（`BookEditor`，AGPL）；`gpui-prose` 只动了排版层 `src/layout/book.rs` 和 `src/editor.rs` 里新加的两个方法（见「对 `gpui-prose` 的改动」）。测量证据在 [acceptance/m05-m1-book-bench.json](../acceptance/m05-m1-book-bench.json)（F8 的格式）。
 
 ## 做了什么（大白话）

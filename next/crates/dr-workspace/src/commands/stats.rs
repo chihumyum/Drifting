@@ -212,8 +212,11 @@ op! {
             return Err(WsError::invalid("words cannot be negative"));
         }
         let key = dr_model::shared::WritingDay::key(&device, &day);
-        if slot.reader_v3.view().project().book.is_none() {
-            // Writing days are recorded only when `成书` is enabled on the project.
+        if slot.reader_v3.view().project().book.is_none()
+            || cx.workspace().is_working_copy(slot.book.as_str())?
+        {
+            // Writing days are recorded only when `成书` is enabled on the
+            // project, and never in a template's working copy.
             cx.irreversible();
             return Ok(Done { id: key });
         }

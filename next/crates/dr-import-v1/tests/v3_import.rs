@@ -199,17 +199,11 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         dr_doc::schema::BOOK_SCHEMA_VERSION
     );
     let proj = view.project();
+    // The book reads from the root: no start is written.
+    assert!(proj.book.is_some());
     assert_eq!(
-        proj.book.as_ref().map(|b| &b.root),
-        Some(&dr_model::v3::BookRoot::Entry {
-            entry: entry_id(view, &manifest::Entry::Manuscript),
-        })
-    );
-    assert_eq!(
-        view.structure_snapshot()
-            .book_sequence()
+        outermost_with_prose(view.structure_snapshot().book_sequence())
             .into_iter()
-            .filter(|e| e.ordinal.is_some())
             .map(|e| e.entry.clone())
             .collect::<Vec<_>>()
             .iter()
@@ -4449,4 +4443,23 @@ fn material_descriptions_and_provenance_become_resolved_manual_comments_hidden_f
         );
     }
     lib.close().unwrap();
+}
+
+/// The outermost entries of the book sequence that carry book prose (the
+/// chapters; one living under an entry with book prose of its own is part of
+/// it). The App numbers nothing.
+fn outermost_with_prose<'a>(seq: Vec<dr_doc::v3::FlatEntry<'a>>) -> Vec<dr_doc::v3::FlatEntry<'a>> {
+    let mut inside: Option<u32> = None;
+    seq.into_iter()
+        .filter(|e| {
+            if inside.is_some_and(|d| e.depth <= d) {
+                inside = None;
+            }
+            let outer = inside.is_none() && !e.prose.is_empty();
+            if outer {
+                inside = Some(e.depth);
+            }
+            outer
+        })
+        .collect()
 }

@@ -1,5 +1,7 @@
 # F2 dr-store：存储基座
 
+> 2026-11-15 夜里（内核 v5 DW）：迁移 `0008_local_book` 加一张本机表 `local_book`，记「只在这台设备上的书」（编辑模板的工作区）：`Library::keep_local` 在写第一篇文档之前打标记，`local_book`、`local_books`（只列还有文档的）、`set_local_note`、`is_local_doc`；同步读的单子 `docs_with_local_changes`、`export_for_upload`、`purged_docs`、`assets_pending_upload` 和新的 `syncable_docs` 都不列它，标记一行留着不删（像清除记录），所以清除记录也不上传。回归 `dr-store/tests/local_book.rs`。
+
 2026-11-07 起。代码在 `next/crates/dr-store/`，计划见 [foundation.md 的 F2](../foundation.md#f2-dr-store)，Loro 文档结构见 [loro-schema.md](../loro-schema.md)。
 
 ## 大白话

@@ -13,25 +13,25 @@ use dr_model::kind::{EntityKind, RelationOrientation};
 use dr_model::pos::PosKey;
 use dr_model::project_template::{
     PROJECT_TEMPLATE_FORMAT, PROJECT_TEMPLATE_FORMAT_VERSION, ProjectTemplateCredit,
-    ProjectTemplateDerivedFrom, ProjectTemplateError, ProjectTemplateValue, StoredTemplateOrigin,
-    TemplateBlockAttrs, TemplateBookRoot, TemplateDisplayMode, TemplateEntityLink, TemplateEntry,
-    TemplateEntryTemplate, TemplateFieldDef, TemplateFieldType, TemplateFormatShortcuts,
-    TemplateKvRow, TemplateLevelSettings, TemplateMediaArrangement, TemplateMembership,
-    TemplateModuleConfig, TemplateModuleKind, TemplateModuleSpec, TemplateParagraph,
-    TemplateProject, TemplateProjectBook, TemplateRelationEndpointKind,
-    TemplateRelationOrientation, TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount,
-    TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin,
-    TemplateViewPlacement, parse_project_template_json, rewrite_entity_ref_value,
-    to_canonical_json, validate_project_template_value,
+    ProjectTemplateError, ProjectTemplateValue, StoredTemplateOrigin, TemplateBlockAttrs,
+    TemplateDisplayMode, TemplateEntityLink, TemplateEntry, TemplateEntryTemplate,
+    TemplateFieldDef, TemplateFieldType, TemplateFormatShortcuts, TemplateKvRow,
+    TemplateLevelSettings, TemplateMediaArrangement, TemplateMembership, TemplateModuleConfig,
+    TemplateModuleKind, TemplateModuleSpec, TemplateParagraph, TemplateProject,
+    TemplateProjectBook, TemplateRelationEndpointKind, TemplateRelationOrientation,
+    TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount, TemplateTable,
+    TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin, TemplateViewPlacement,
+    parse_project_template_json, rewrite_entity_ref_value, to_canonical_json,
+    validate_project_template_value,
 };
 use dr_model::prose::{InlineMarks, InlineStyle};
 use dr_model::shared::KvEntry;
 use dr_model::v3::{
-    BookRoot, EntityLinkV3, Entry, EntryTemplate, FieldType, FieldValue, LevelSettingsOverride,
+    EntityLinkV3, Entry, EntryTemplate, FieldType, FieldValue, LevelSettingsOverride,
     MediaArrangement, Membership, ModuleKind, ProjectBook, ProjectDefinition, ProjectTab,
-    ProjectTemplate, ProjectTemplateOrigin, ProjectTemplateRef, TabMount, TimelineLane,
-    TimelinePin, TimelinePlacement, TimelineView, check_timeline_placement_in_lane,
-    effective_timeline_lanes, effective_timeline_placements, is_entry_live, sort_timeline_pins,
+    ProjectTemplate, ProjectTemplateRef, TabMount, TimelineLane, TimelinePin, TimelinePlacement,
+    TimelineView, check_timeline_placement_in_lane, effective_timeline_lanes,
+    effective_timeline_placements, is_entry_live, sort_timeline_pins,
 };
 use dr_model::{DocId, Origin, Timestamp};
 use loro::{
@@ -877,8 +877,8 @@ impl Default for ExtractTemplateMeta {
 
 /// Author selection for `project_template.save` (`project-templates.md` §2 & §7):
 /// - Skeleton entries (`has_below`) are included by default; `exclude_skeleton`
-///   deselects any unlocked skeleton entry (forced targets of `book.root`,
-///   `tabs[].mount` and `home` cannot be deselected).
+///   deselects any unlocked skeleton entry (forced targets of `tabs[].mount`
+///   and `home` cannot be deselected).
 /// - `sample_entries` selects entries whose content (`fields`, `kv`, `arrangements`,
 ///   `prose`, `memberships`, `placements`) is carried as sample content.
 /// - `view_pins` selects views whose time pins are carried.
@@ -890,8 +890,8 @@ pub struct ExtractSelection {
 }
 
 /// Compute the live entries in `book_view` that are forced-included as skeleton
-/// targets (`project.book.root`, `project.tabs[].mount`, live `templates[].settings.home`,
-/// and included entries' `overrides.home`), returning `entry_id -> reason`.
+/// targets (`project.tabs[].mount`, live `templates[].settings.home`, and
+/// included entries' `overrides.home`), returning `entry_id -> reason`.
 pub fn forced_skeleton_entries(book_view: &BookViewV3<'_>) -> BTreeMap<EntryId, &'static str> {
     let templates = book_view.templates_map();
     let live_templates: BTreeMap<EntryTemplateId, EntryTemplate> = templates
@@ -899,37 +899,9 @@ pub fn forced_skeleton_entries(book_view: &BookViewV3<'_>) -> BTreeMap<EntryId, 
         .filter(|(_, t)| !t.is_trashed())
         .collect();
     let entries_map = book_view.entries_map();
-    let views_map: BTreeMap<TimelineViewId, TimelineView> = book_view
-        .timeline_views_raw()
-        .into_iter()
-        .map(|tv| (tv.id.clone(), tv))
-        .collect();
     let proj = book_view.project();
 
     let mut forced: BTreeMap<EntryId, &'static str> = BTreeMap::new();
-    if let Some(book) = &proj.book {
-        match &book.root {
-            BookRoot::Entry { entry }
-                if is_entry_live(entry, &entries_map)
-                    && entries_map[entry].has_below(&live_templates) =>
-            {
-                forced.insert(entry.clone(), "project.book.root");
-            }
-            BookRoot::Lane { view, entry }
-                if views_map.get(view).is_some_and(|v| {
-                    v.deleted_at.is_none()
-                        && is_entry_live(entry, &entries_map)
-                        && effective_timeline_lanes(&v.lanes, &entries_map, &live_templates)
-                            .iter()
-                            .any(|l| &l.entry == entry)
-                }) =>
-            {
-                forced.insert(entry.clone(), "project.book.root");
-            }
-            _ => {}
-        }
-    }
-
     for tab in &proj.tabs {
         if let TabMount::Entry { entry } = &tab.mount
             && is_entry_live(entry, &entries_map)
@@ -986,12 +958,8 @@ where
         .map(|e| (e.id.clone(), e.clone()))
         .collect();
     let live_views: Vec<TimelineView> = book_view.timeline_views();
-    let live_views_map: BTreeMap<TimelineViewId, TimelineView> = live_views
-        .iter()
-        .map(|v| (v.id.clone(), v.clone()))
-        .collect();
 
-    // Check forced skeleton entries (`book.root`, `tabs[].mount`, `templates[].settings.home`).
+    // Check forced skeleton entries (`tabs[].mount`, `templates[].settings.home`).
     let mut forced = forced_skeleton_entries(book_view);
     for (eid, why) in &forced {
         if selection.exclude_skeleton.contains(eid) {
@@ -1145,73 +1113,15 @@ where
 
     let proj = book_view.project();
 
-    // Credit: carry explicit `meta.credit`, or derive `derivedFrom` when saving from
-    // an imported/community template whose author/name was recorded on `project.source`.
-    let credit = match &meta.credit {
-        Some(c) if !c.is_empty() => Some(c.clone()),
-        _ => proj.source.as_ref().and_then(|src| {
-            let from_external = matches!(
-                src.origin,
-                Some(ProjectTemplateOrigin::File | ProjectTemplateOrigin::Community)
-            );
-            let src_name = src.name.as_deref().unwrap_or("").trim();
-            if from_external && !src_name.is_empty() {
-                let author = src
-                    .credit
-                    .as_ref()
-                    .map(|c| c.author.clone())
-                    .unwrap_or_default();
-                Some(ProjectTemplateCredit {
-                    author: String::new(),
-                    homepage: String::new(),
-                    derived_from: Some(ProjectTemplateDerivedFrom {
-                        name: src_name.to_owned(),
-                        author,
-                    }),
-                })
-            } else {
-                None
-            }
-        }),
-    };
+    // Credit: only what the caller gives (the author's name); nothing is
+    // derived from `project.source` (no 「改自」 since 2026-11-15 night).
+    let credit = meta.credit.clone().filter(|c| !c.is_empty());
 
     // 1. Extract `project` (`agent`, `book`, `tabs`).
     let has_book = proj.book.is_some();
-    let tpl_book = proj.book.as_ref().map(|b| {
-        let root = match &b.root {
-            BookRoot::Root => Some(TemplateBookRoot::Root),
-            BookRoot::Unset => None,
-            BookRoot::Entry { entry } => entry_refs
-                .get(entry)
-                .filter(|_| {
-                    live_entries_map
-                        .get(entry)
-                        .is_some_and(|e| e.has_below(&live_templates))
-                })
-                .map(|sym| TemplateBookRoot::Entry { entry: sym.clone() }),
-            BookRoot::View { view } => view_refs
-                .get(view)
-                .map(|sym| TemplateBookRoot::View { view: sym.clone() }),
-            BookRoot::Lane { view, entry } => {
-                let valid_lane = live_views_map.get(view).is_some_and(|v| {
-                    effective_timeline_lanes(&v.lanes, &live_entries_map, &live_templates)
-                        .iter()
-                        .any(|l| &l.entry == entry)
-                });
-                match (view_refs.get(view), entry_refs.get(entry)) {
-                    (Some(vsym), Some(esym)) if valid_lane => Some(TemplateBookRoot::Lane {
-                        view: vsym.clone(),
-                        entry: esym.clone(),
-                    }),
-                    _ => None,
-                }
-            }
-        };
-        TemplateProjectBook {
-            root,
-            word_target: b.word_target_set,
-            daily_word_target: b.daily_word_target_set,
-        }
+    let tpl_book = proj.book.as_ref().map(|b| TemplateProjectBook {
+        word_target: b.word_target_set,
+        daily_word_target: b.daily_word_target_set,
     });
 
     let mut tpl_tabs = Vec::with_capacity(proj.tabs.len());
@@ -1892,46 +1802,10 @@ pub fn from_seed_template(
         view_refs.insert(v.id.clone(), format!("v{}", idx + 1));
     }
 
-    let book = match &pt.project.book {
-        None => None,
-        Some(b) => {
-            let root = match &b.root {
-                BookRoot::Root => Some(TemplateBookRoot::Root),
-                BookRoot::Unset => None,
-                BookRoot::Entry { entry } => Some(TemplateBookRoot::Entry {
-                    entry: entry_refs.get(entry).cloned().ok_or_else(|| {
-                        ProjectTemplateError::Invalid(format!(
-                            "book root entry {entry} missing from seed entries"
-                        ))
-                    })?,
-                }),
-                BookRoot::View { view } => Some(TemplateBookRoot::View {
-                    view: view_refs.get(view).cloned().ok_or_else(|| {
-                        ProjectTemplateError::Invalid(format!(
-                            "book root view {view} missing from seed views"
-                        ))
-                    })?,
-                }),
-                BookRoot::Lane { view, entry } => Some(TemplateBookRoot::Lane {
-                    view: view_refs.get(view).cloned().ok_or_else(|| {
-                        ProjectTemplateError::Invalid(format!(
-                            "book root view {view} missing from seed views"
-                        ))
-                    })?,
-                    entry: entry_refs.get(entry).cloned().ok_or_else(|| {
-                        ProjectTemplateError::Invalid(format!(
-                            "book root lane {entry} missing from seed entries"
-                        ))
-                    })?,
-                }),
-            };
-            Some(TemplateProjectBook {
-                root,
-                word_target: b.word_target_set,
-                daily_word_target: b.daily_word_target_set,
-            })
-        }
-    };
+    let book = pt.project.book.as_ref().map(|b| TemplateProjectBook {
+        word_target: b.word_target_set,
+        daily_word_target: b.daily_word_target_set,
+    });
 
     let mut tabs = Vec::with_capacity(pt.project.tabs.len());
     for tab in &pt.project.tabs {
@@ -2245,26 +2119,9 @@ pub fn materialize_project_template(
     push_preorder(None, &val.entries, &children_by_parent, &mut preorder);
 
     // Project definition.
-    let book = val.project.book.as_ref().map(|b| {
-        let root = match &b.root {
-            None => BookRoot::Unset,
-            Some(TemplateBookRoot::Root) => BookRoot::Root,
-            Some(TemplateBookRoot::Entry { entry }) => BookRoot::Entry {
-                entry: entry_map[entry].clone(),
-            },
-            Some(TemplateBookRoot::View { view }) => BookRoot::View {
-                view: view_map[view].clone(),
-            },
-            Some(TemplateBookRoot::Lane { view, entry }) => BookRoot::Lane {
-                view: view_map[view].clone(),
-                entry: entry_map[entry].clone(),
-            },
-        };
-        ProjectBook {
-            root,
-            word_target_set: b.word_target,
-            daily_word_target_set: b.daily_word_target,
-        }
+    let book = val.project.book.as_ref().map(|b| ProjectBook {
+        word_target_set: b.word_target,
+        daily_word_target_set: b.daily_word_target,
     });
 
     let mut tabs = Vec::with_capacity(val.project.tabs.len());

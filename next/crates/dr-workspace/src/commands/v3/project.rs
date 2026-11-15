@@ -212,15 +212,13 @@ pub(super) fn validate_project_template(
             return Err(WsError::invalid("duplicate view id in project template"));
         }
     }
-    if let Some(book) = &pt.project.book {
-        if [book.word_target_set, book.daily_word_target_set]
+    if let Some(book) = &pt.project.book
+        && [book.word_target_set, book.daily_word_target_set]
             .into_iter()
             .flatten()
             .any(|n| n < 0)
-        {
-            return Err(WsError::invalid("a word target cannot be negative"));
-        }
-        m::check_book_root(&book.root, &entries, &templates, &views)?;
+    {
+        return Err(WsError::invalid("a word target cannot be negative"));
     }
     let has_book = pt.project.book.is_some();
     let mut tab_ids = BTreeSet::new();
@@ -278,12 +276,15 @@ fn mount_name(v: &dr_doc::v3::BookViewV3<'_>, mount: &m::TabMount) -> Option<Str
 
 op! {
     ProjectGet = "project.get", Read, Shared,
-    "Read the project definition: template source, Agent instructions, book switch/start/word targets, the left-sidebar tabs (「全部」 always among them) and the tab the project is on.",
+    "Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.",
     fn(cx, input: BookIn) -> types::Project {
         let slot = cx.book_v3(&input.book)?;
         let s = slot.reader_v3.view().structure_snapshot();
         let stored = cx.workspace().stored_tab(slot.book.as_str())?;
-        Ok(types::Project::of(&s).with_selected_tab(stored))
+        let editing = cx.workspace().working_copy_template(slot.book.as_str())?;
+        Ok(types::Project::of(&s)
+            .with_selected_tab(stored)
+            .with_editing_template(editing))
     }
 }
 
@@ -304,11 +305,10 @@ pub struct ProjectUpdateIn {
     )]
     pub agent: Option<Option<types::TemplateAgentConfig>>,
     /// Turn the book (`成书`) on (`Some(true)`) or off (`Some(false)`). Omit to keep.
+    /// The book has no start: it reads the whole project from the root (an
+    /// old caller's `root` is ignored).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_book: Option<bool>,
-    /// Book sequence start (`成书起点`). Required when turning `has_book` from off to on.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub root: Option<types::BookRoot>,
     /// Whole-book word target: omit to keep, `0` to turn off, `null` to restore default.
     #[serde(
         default,
@@ -327,7 +327,7 @@ pub struct ProjectUpdateIn {
 
 op! {
     ProjectUpdate = "project.update", Write, Book,
-    "Update the project definition: Agent instructions, whether the project has a book, the book start, and word targets; with the project's name and profile, all in one undoable write.",
+    "Update the project definition: Agent instructions, whether the project has a book, and word targets; with the project's name and profile, all in one undoable write.",
     fn(cx, input: ProjectUpdateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         if let Some(n) = &input.name {
@@ -343,13 +343,6 @@ op! {
         }
         let v = slot.reader_v3.view();
         let proj = v.project();
-        let entries = v.entries_map();
-        let templates = v.templates_map();
-        let views: BTreeMap<TimelineViewId, m::TimelineView> = v
-            .timeline_views_raw()
-            .into_iter()
-            .map(|tv| (tv.id.clone(), tv))
-            .collect();
 
         let next_agent: Option<m::TemplateAgentConfig> = match &input.agent {
             None => proj.agent.clone(),
@@ -359,54 +352,28 @@ op! {
 
         let next_book: Option<m::ProjectBook> = match input.has_book {
             Some(false) => {
-                if input.root.is_some()
-                    || input.word_target.is_some()
-                    || input.daily_word_target.is_some()
-                {
+                if input.word_target.is_some() || input.daily_word_target.is_some() {
                     return Err(WsError::invalid(
-                        "cannot set book root or word targets while turning the book off",
+                        "cannot set word targets while turning the book off",
                     ));
                 }
                 None
             }
             Some(true) | None => match &proj.book {
-                Some(cur) => {
-                    let root = match &input.root {
-                        Some(r) => {
-                            let r: m::BookRoot = convert(r)?;
-                            m::check_book_root(&r, &entries, &templates, &views)?;
-                            r
-                        }
-                        None => cur.root.clone(),
-                    };
-                    Some(m::ProjectBook {
-                        root,
-                        word_target_set: input.word_target.unwrap_or(cur.word_target_set),
-                        daily_word_target_set: input
-                            .daily_word_target
-                            .unwrap_or(cur.daily_word_target_set),
-                    })
+                Some(cur) => Some(m::ProjectBook {
+                    word_target_set: input.word_target.unwrap_or(cur.word_target_set),
+                    daily_word_target_set: input
+                        .daily_word_target
+                        .unwrap_or(cur.daily_word_target_set),
+                }),
+                None if input.has_book == Some(true) => Some(m::ProjectBook {
+                    word_target_set: input.word_target.flatten(),
+                    daily_word_target_set: input.daily_word_target.flatten(),
+                }),
+                None if input.word_target.is_some() || input.daily_word_target.is_some() => {
+                    return Err(WsError::invalid("project has no book enabled"));
                 }
-                None => {
-                    if input.has_book == Some(true) || input.root.is_some() {
-                        let Some(r) = &input.root else {
-                            return Err(WsError::invalid(
-                                "enabling the book requires a book root",
-                            ));
-                        };
-                        let r: m::BookRoot = convert(r)?;
-                        m::check_book_root(&r, &entries, &templates, &views)?;
-                        Some(m::ProjectBook {
-                            root: r,
-                            word_target_set: input.word_target.flatten(),
-                            daily_word_target_set: input.daily_word_target.flatten(),
-                        })
-                    } else if input.word_target.is_some() || input.daily_word_target.is_some() {
-                        return Err(WsError::invalid("project has no book enabled"));
-                    } else {
-                        None
-                    }
-                }
+                None => None,
             },
         };
 
@@ -444,17 +411,12 @@ op! {
         }
         let book_sub_changes = match (&proj.book, &next_book) {
             (Some(cur), Some(next)) if book_changed => Some((
-                cur.root != next.root,
                 cur.word_target_set != next.word_target_set,
                 cur.daily_word_target_set != next.daily_word_target_set,
             )),
             _ => None,
         };
-        if let Some((root_ch, wt_ch, dwt_ch)) = book_sub_changes {
-            if root_ch {
-                replaced.push(rec(CollectionV3::Project, "book").at(["root"]));
-                undo_keys.push(key("project", "book/root"));
-            }
+        if let Some((wt_ch, dwt_ch)) = book_sub_changes {
             if wt_ch {
                 replaced.push(rec(CollectionV3::Project, "book").at(["word_target"]));
                 undo_keys.push(key("project", "book/word_target"));
@@ -480,12 +442,7 @@ op! {
             if agent_changed {
                 w.agent(next_agent.as_ref())?;
             }
-            if let (Some((root_ch, wt_ch, dwt_ch)), Some(next)) =
-                (book_sub_changes, next_book.as_ref())
-            {
-                if root_ch {
-                    w.book_root(&next.root)?;
-                }
+            if let (Some((wt_ch, dwt_ch)), Some(next)) = (book_sub_changes, next_book.as_ref()) {
                 if wt_ch {
                     w.book_word_target(next.word_target_set)?;
                 }
@@ -672,46 +629,20 @@ op! {
     }
 }
 
-fn default_true() -> bool {
-    true
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct BookSequenceIn {
     pub book: String,
-    /// Optional start override (e.g. for whole-book view or previewing a start).
-    /// When omitted, reads from `project.book.root` (empty when `project.book` is off).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub root: Option<types::BookRoot>,
-    /// When `true` (default), include only prose modules with `in_book == true` and number entries.
-    /// Set `false` for whole-book view (`整书视图`) to include all prose modules along the walk.
-    #[serde(default = "default_true")]
-    pub in_book_only: bool,
 }
 
 op! {
     BookSequence = "book.sequence", Read, Shared,
-    "Read the ordered book sequence and 1-based chapter ordinals from the project's book start (or an explicit start).",
+    "Read the ordered book sequence: the whole project from the root, book prose only (empty when the project has no book).",
     fn(cx, input: BookSequenceIn) -> types::BookSequenceOut {
         let slot = cx.book_v3(&input.book)?;
         let s = slot.reader_v3.view().structure_snapshot();
-        let has_book = s.project().book.is_some();
-        let chosen: Option<m::BookRoot> = match &input.root {
-            Some(r) => Some(convert(r)?),
-            None => s.project().book.as_ref().map(|b| b.root.clone()),
-        };
-        let (root_valid, seq) = match &chosen {
-            Some(r) => (
-                s.is_valid_book_root(r),
-                s.sequence(r, input.in_book_only).unwrap_or_default(),
-            ),
-            None => (true, Vec::new()),
-        };
         Ok(types::BookSequenceOut {
-            has_book,
-            root: chosen.as_ref().map(Into::into),
-            root_valid,
-            entries: seq.iter().map(Into::into).collect(),
+            has_book: s.project().book.is_some(),
+            entries: s.book_sequence().iter().map(Into::into).collect(),
         })
     }
 }

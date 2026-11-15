@@ -14,7 +14,7 @@ use dr_model::{
     DocId,
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
-        BookRoot, Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
+        Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
         ProjectTemplateRef, TabMount, effective_ancestors, effective_parent_id,
         resolve_level_settings, resolve_level_settings_with_sources,
     },
@@ -155,10 +155,10 @@ pub struct LevelSummary {
     pub actions: Vec<LevelActionSummary>,
 }
 
+/// The project's book: it reads the whole project from the root, book
+/// prose only; nothing is numbered.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectBookSummary {
-    pub root: BookRoot,
-    pub root_valid: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub word_target: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -264,7 +264,6 @@ pub struct StructureContext {
     pub levels_omitted: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub levels_by_depth: Vec<DepthLevelCounts>,
-    pub manuscript_roots: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus: Option<FocusContext>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -479,12 +478,6 @@ impl StructureContext {
                 priority_entries.insert(anc);
             }
         };
-        if let Some(book_cfg) = &proj.book {
-            match &book_cfg.root {
-                BookRoot::Entry { entry } | BookRoot::Lane { entry, .. } => mark_priority(entry),
-                BookRoot::Root | BookRoot::View { .. } | BookRoot::Unset => {}
-            }
-        }
         for tab in &proj.tabs {
             if let TabMount::Entry { entry } = &tab.mount {
                 mark_priority(entry);
@@ -654,8 +647,6 @@ impl StructureContext {
         };
 
         let project_book = proj.book.as_ref().map(|b| ProjectBookSummary {
-            root: b.root.clone(),
-            root_valid: structure_snap.is_valid_book_root(&b.root),
             word_target: b.word_target(),
             daily_word_target: b.daily_word_target(),
         });
@@ -684,18 +675,6 @@ impl StructureContext {
             })
             .collect();
 
-        let manuscript_roots: Vec<String> = match proj
-            .book
-            .as_ref()
-            .filter(|b| structure_snap.is_valid_book_root(&b.root))
-            .map(|b| &b.root)
-        {
-            Some(BookRoot::Entry { entry } | BookRoot::Lane { entry, .. }) => {
-                vec![entry.to_string()]
-            }
-            _ => Vec::new(),
-        };
-
         let project_agent = proj.agent.as_ref().map(|a| TemplateAgentSummary {
             name: a.name.clone(),
             description: a.description.clone(),
@@ -720,7 +699,6 @@ impl StructureContext {
             "levels": &levels,
             "levels_omitted": levels_omitted,
             "levels_by_depth": &levels_by_depth,
-            "manuscript_roots": &manuscript_roots,
         });
         let digest_bytes =
             serde_json::to_vec(&digest_payload).map_err(|e| Error::Invalid(e.to_string()))?;
@@ -745,7 +723,6 @@ impl StructureContext {
             levels,
             levels_omitted,
             levels_by_depth,
-            manuscript_roots,
             focus: focus_ctx,
             diagnostics,
         })

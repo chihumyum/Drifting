@@ -1,5 +1,11 @@
 # M02 作品主页（基础）
 
+## 内核 v5 DW：成书没有起点、不编号（2026-11-15 夜里）
+
+- `project.get` 没有 `book_root_valid`，`book` 里没有 `root`；`project.update` 不收 `root`（旧调用方传了也忽略），`has_book: true` 从关到开不用别的参数。下面 DX 那几条里「成书起点读不出来」「改成书起点的守卫键 `project/book/root`」「改成书起点一步撤销」都随起点去掉了；条目历史不再认 `book/root`。
+- `project.get` 多一项 `editing_template`：这本书是哪份模板的工作区（编辑模板的工作区，任务书 PT3 的界面）。工作区不进书架、项目下拉和启动时打开的上次的项目。
+- 作品主页不出任何章号（作者：App 不给条目编号）。接口见 [kernel-v5.md](../kernel-v5.md) 第 18 节「DW 交回」。
+
 ## 内核 v5 T3：统一成书顺序与无成书项目主页（2026-11-15）
 
 - **整书字数与目标对齐单一成书顺序**：主页（`dr-view-home/src/v3.rs`）的整书字数、目标进度与今日/连续写作读数统一消费 `BookStructureV3::book_sequence()`（与成稿导出和章号一致，回归见 `dr-view-home/tests/words_parity.rs`）。

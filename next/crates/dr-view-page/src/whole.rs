@@ -1,15 +1,15 @@
 //! V3 flattened book view (`Target::Book` / `Target::BookView` /
-//! `Target::BookLane`): every `in_book` body module in the unified
-//! [`dr_model::v3::BookRoot`] sequence (`kernel-v5.md` §3, §16).
+//! `Target::BookLane`): every `in_book` body module in the unified sequence
+//! from a [`dr_model::v3::FlattenFrom`] (`kernel-v5.md` §3, §16).
 use dr_editor::BookEditor;
-use dr_model::{id::EntryId, v3::BookRoot};
+use dr_model::{id::EntryId, v3::FlattenFrom};
 use dr_shell::pages::{ModulePage, PageEditorRef, PageHost, PageViewHost};
 use gpui::{prelude::*, *};
 use std::rc::Rc;
 
 pub struct WholeBook {
     host: PageViewHost,
-    root: BookRoot,
+    root: FlattenFrom,
     focus: FocusHandle,
     editor: Option<Entity<BookEditor>>,
     loading: Option<Task<()>>,
@@ -20,7 +20,7 @@ pub struct WholeBook {
 
 pub fn register(cx: &mut App) {
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
-        let root = target.book_root()?;
+        let root = target.flatten_from()?;
         if host.book.v3().is_none() || !host.book.exists(target) {
             return None;
         }
@@ -52,12 +52,12 @@ impl WholeBook {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::new_root(host, BookRoot::Entry { entry: from }, window, cx)
+        Self::new_root(host, FlattenFrom::Entry { entry: from }, window, cx)
     }
 
     pub fn new_root(
         host: PageViewHost,
-        root: BookRoot,
+        root: FlattenFrom,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {

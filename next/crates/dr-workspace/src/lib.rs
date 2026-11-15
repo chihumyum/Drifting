@@ -45,6 +45,7 @@ pub mod naming;
 pub mod nav;
 pub mod registry;
 pub mod sync;
+pub mod working_copy;
 mod workspace;
 
 pub use actor::Actor;

@@ -327,56 +327,6 @@ impl Timeline {
             self.edit_view(id, ViewEdit::SetActTrack(lane, act_track), cx);
         }
     }
-    pub fn set_view_as_book_root(&mut self, cx: &mut Context<Self>) {
-        let Some(view) = self.view().map(|v| v.id.clone()) else {
-            return;
-        };
-        self.set_book_root(
-            dr_workspace::commands::v3::types::BookRoot::View { view },
-            cx,
-        );
-    }
-    pub fn set_lane_as_book_root(&mut self, entry: String, cx: &mut Context<Self>) {
-        let Some(view) = self.view().map(|v| v.id.clone()) else {
-            return;
-        };
-        self.set_book_root(
-            dr_workspace::commands::v3::types::BookRoot::Lane { view, entry },
-            cx,
-        );
-    }
-    fn set_book_root(
-        &mut self,
-        root: dr_workspace::commands::v3::types::BookRoot,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(mut guard) = self
-            .book
-            .v3()
-            .map(|b| b.guard_for(&serde_json::to_value(&root).unwrap_or_default()))
-        else {
-            return;
-        };
-        self.popup = None;
-        self.write(cx, move |lib, book| {
-            let observed = lib.observe_records(
-                &format!("book:{book}"),
-                &[RecordKey::record("project", "book")],
-            )?;
-            guard.records.extend(observed.into_iter().map(Into::into));
-            lib.call_guarded(
-                &Actor::User,
-                "project.update",
-                serde_json::json!({
-                    "book": book,
-                    "has_book": true,
-                    "root": root,
-                }),
-                guard,
-            )?;
-            Ok(())
-        });
-    }
     pub fn create_act_track(&mut self, template: String, cx: &mut Context<Self>) {
         self.create_lane(template, true, cx);
     }

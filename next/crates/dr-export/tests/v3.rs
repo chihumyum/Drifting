@@ -359,7 +359,7 @@ fn descriptions_and_empty_levels_stay_out_while_own_book_prose_precedes_children
 }
 
 #[test]
-fn export_follows_project_book_root_and_empty_when_book_disabled() {
+fn export_reads_the_book_from_the_root_and_is_empty_when_the_book_is_off() {
     let dir = tempfile::tempdir().unwrap();
     let lib = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
     let ws = Workspace::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
@@ -383,7 +383,8 @@ fn export_follows_project_book_root_and_empty_when_book_disabled() {
         .unwrap()
         .to_owned();
 
-    // A second folder (`外篇 / 番外稿`) outside the initial `project.book.root`.
+    // A second folder (`外篇 / 番外稿`) at the root, after the writing
+    // template's own.
     let container = call(
         &ws,
         "entry.create",
@@ -427,26 +428,18 @@ fn export_follows_project_book_root_and_empty_when_book_disabled() {
         .unwrap()
         .to_owned();
 
-    // One project has one book sequence (`project.book.root`), starting on `书稿`.
+    // One project has one book sequence, read from the root (DW): 书稿's
+    // chapter, then the one under 外篇 / 番外稿.
     let outline = v3::outline(&ws, &book).unwrap();
     assert!(outline.has_book);
-    assert_eq!(outline.entries.len(), 1);
-    assert_eq!(outline.entries[0].id, ch_main);
-
-    // Switching `project.book.root` to `番外稿` switches the exported book sequence;
-    // `正篇第一章` (still using `tpl-chapter`) is now outside `project.book.root` and stays out.
-    call(
-        &ws,
-        "project.update",
-        json!({
-            "book": book,
-            "root": {"kind": "entry", "entry": side_part}
-        }),
+    assert_eq!(
+        outline
+            .entries
+            .iter()
+            .map(|e| e.id.clone())
+            .collect::<Vec<_>>(),
+        vec![ch_main.clone(), ch_side.clone()]
     );
-    let side_outline = v3::outline(&ws, &book).unwrap();
-    assert!(side_outline.has_book);
-    assert_eq!(side_outline.entries.len(), 1);
-    assert_eq!(side_outline.entries[0].id, ch_side);
 
     let labels = Labels {
         untitled_chapter: "Untitled".into(),
@@ -456,6 +449,7 @@ fn export_follows_project_book_root_and_empty_when_book_disabled() {
         &ws,
         &book,
         &Options {
+            chapters: Some(vec![ch_side.clone()]),
             chapter_titles: true,
             ..Options::default()
         },
@@ -475,8 +469,8 @@ fn export_follows_project_book_root_and_empty_when_book_disabled() {
         .collect();
     assert_eq!(side_titles, ["番外一"]);
 
-    // Build a timeline view with two lanes (`主线甲`, `主线乙`) and test both
-    // `BookRoot::View` and `BookRoot::Lane`, while chapters outside them stay out.
+    // Build a timeline view with two lanes (`主线甲`, `主线乙`): chapters
+    // attached to them live in 书稿, so they are in the book where 书稿 is.
     let storylines_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-storylines");
     let lane_a = call(
         &ws,
@@ -505,7 +499,7 @@ fn export_follows_project_book_root_and_empty_when_book_disabled() {
         .unwrap()
         .to_owned();
 
-    // Create three chapter entries attached to lanes (and keep `ch_main` & `ch_side` unattached!).
+    // Create three chapter entries attached to lanes (and keep `ch_main` & `ch_side` unattached).
     let ch_b_early = call(
         &ws,
         "entry.create",
@@ -572,46 +566,20 @@ fn export_follows_project_book_root_and_empty_when_book_disabled() {
         }),
     );
 
-    // `BookRoot::View`: follows timeline view scale order (`10.0` -> `20.0` -> `30.0`);
-    // `ch_main` and `ch_side` (outside the view) do NOT enter export.
-    call(
-        &ws,
-        "project.update",
-        json!({
-            "book": book,
-            "root": {"kind": "view", "view": view_id}
-        }),
+    let titles = |m: &dr_export::Manuscript| -> Vec<String> {
+        m.sections
+            .iter()
+            .map(|s| match s {
+                Section::Chapter { title, .. } => title.clone(),
+                Section::Act { .. } => unreachable!(),
+            })
+            .collect()
+    };
+    // 书稿 in its manual order, then 番外稿.
+    assert_eq!(
+        titles(&read(&ws, &book, None)),
+        ["正篇第一章", "乙线早章", "甲线中章", "甲线后章", "番外一"]
     );
-    let view_exported = read(&ws, &book, None);
-    let view_titles: Vec<&str> = view_exported
-        .sections
-        .iter()
-        .map(|s| match s {
-            Section::Chapter { title, .. } => title.as_str(),
-            Section::Act { .. } => unreachable!(),
-        })
-        .collect();
-    assert_eq!(view_titles, ["乙线早章", "甲线中章", "甲线后章"]);
-
-    // `BookRoot::Lane`: follows only `lane_a` (`甲线中章`, `甲线后章`); `乙线早章`, `正篇第一章`, `番外一` stay out.
-    call(
-        &ws,
-        "project.update",
-        json!({
-            "book": book,
-            "root": {"kind": "lane", "entry": lane_a, "view": view_id}
-        }),
-    );
-    let lane_exported = read(&ws, &book, None);
-    let lane_titles: Vec<&str> = lane_exported
-        .sections
-        .iter()
-        .map(|s| match s {
-            Section::Chapter { title, .. } => title.as_str(),
-            Section::Act { .. } => unreachable!(),
-        })
-        .collect();
-    assert_eq!(lane_titles, ["甲线中章", "甲线后章"]);
 
     // Disabling `成书` yields `has_book == false`, an empty outline, and refuses manuscript export.
     call(

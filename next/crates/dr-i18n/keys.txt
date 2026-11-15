@@ -382,8 +382,6 @@ settings.about.submitFeedback
 settings.about.submitFeedbackDesc
 settings.about.feedback
 userMenu.feedback
-nodeEditor.folio.chapter
-nodeEditor.folio.chapterNumber
 nodeEditor.meta.words
 chapterEditor.untitledChapter
 chapterEditor.synopsisPlaceholder

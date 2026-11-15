@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use dr_model::project_template::{
     MAX_PROJECT_TEMPLATE_AGENT_CHARS, MAX_PROJECT_TEMPLATE_BYTES, MAX_PROJECT_TEMPLATE_ENTRIES,
     MAX_PROJECT_TEMPLATE_TEMPLATES, PROJECT_TEMPLATE_FORMAT, PROJECT_TEMPLATE_FORMAT_VERSION,
-    ProjectTemplateCredit, ProjectTemplateDerivedFrom, ProjectTemplateError, ProjectTemplateValue,
-    TemplateAgent, TemplateBlockAttrs, TemplateBookRoot, TemplateDisplayMode, TemplateEntityLink,
-    TemplateEntry, TemplateEntryTemplate, TemplateFieldDef, TemplateFieldType,
-    TemplateFormatShortcuts, TemplateKvRow, TemplateLevelSettings, TemplateMediaArrangement,
-    TemplateMembership, TemplateModuleAgent, TemplateModuleConfig, TemplateModuleKind,
-    TemplateModuleSpec, TemplateParagraph, TemplateProject, TemplateProjectBook,
-    TemplateRelationEndpointKind, TemplateRelationOrientation, TemplateRelationType, TemplateRun,
-    TemplateTab, TemplateTabMount, TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane,
-    TemplateViewPin, TemplateViewPlacement, parse_project_template_json, to_canonical_json,
+    ProjectTemplateCredit, ProjectTemplateError, ProjectTemplateValue, TemplateAgent,
+    TemplateBlockAttrs, TemplateDisplayMode, TemplateEntityLink, TemplateEntry,
+    TemplateEntryTemplate, TemplateFieldDef, TemplateFieldType, TemplateFormatShortcuts,
+    TemplateKvRow, TemplateLevelSettings, TemplateMediaArrangement, TemplateMembership,
+    TemplateModuleAgent, TemplateModuleConfig, TemplateModuleKind, TemplateModuleSpec,
+    TemplateParagraph, TemplateProject, TemplateProjectBook, TemplateRelationEndpointKind,
+    TemplateRelationOrientation, TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount,
+    TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin,
+    TemplateViewPlacement, parse_project_template_json, to_canonical_json,
     validate_project_template_value,
 };
 use dr_model::v3::FieldValue;
@@ -50,11 +50,6 @@ fn minimal_valid_template() -> ProjectTemplateValue {
         revision: 1,
         credit: Some(ProjectTemplateCredit {
             author: "Lin".to_owned(),
-            homepage: "https://drifting.cc/templates/mystery".to_owned(),
-            derived_from: Some(ProjectTemplateDerivedFrom {
-                name: "基础设定集".to_owned(),
-                author: "Qian".to_owned(),
-            }),
         }),
         project: TemplateProject {
             agent: Some(TemplateAgent {
@@ -63,9 +58,6 @@ fn minimal_valid_template() -> ProjectTemplateValue {
                 instructions: "保持叙事视角一致。".to_owned(),
             }),
             book: Some(TemplateProjectBook {
-                root: Some(TemplateBookRoot::Entry {
-                    entry: "e1".to_owned(),
-                }),
                 word_target: Some(120_000),
                 daily_word_target: Some(2_000),
             }),
@@ -582,11 +574,6 @@ fn enforces_size_count_and_agent_char_limits() {
 
 #[test]
 fn rejects_real_ids_dangling_refs_and_structural_violations() {
-    // Credit homepage must be https://
-    let mut t = minimal_valid_template();
-    t.credit.as_mut().unwrap().homepage = "http://insecure.example.com".to_owned();
-    assert!(validate_project_template_value(&t).is_err());
-
     // Real UUID in entry ref rejected
     let mut t = minimal_valid_template();
     t.entries[0].sym_ref = "entry-01950000-0000-7000-8000-000000000001".to_owned();
@@ -743,4 +730,51 @@ fn rejects_real_ids_dangling_refs_and_structural_violations() {
             }),
         });
     validate_project_template_value(&t).expect("table with symbolic link should pass");
+}
+
+/// DW (`project-template-format.md`, 2026-11-15 night): the book has no
+/// start, and a credit is its author's name only, no homepage and no
+/// 「改自」. The format is closed, so a template still carrying one of these
+/// keys is refused; without them it reads.
+#[test]
+fn a_book_start_a_homepage_or_derived_from_is_refused() {
+    let base = json!({
+        "format": PROJECT_TEMPLATE_FORMAT,
+        "formatVersion": PROJECT_TEMPLATE_FORMAT_VERSION,
+        "name": "没有起点",
+        "revision": 1,
+        "credit": {"author": "某作者"},
+        "project": {"book": {"word_target": 1000}}
+    });
+    let parsed = parse_project_template_json(&base.to_string()).expect("no start, no homepage");
+    assert!(parsed.project.book.is_some());
+
+    for (what, value) in [
+        ("book.root", json!({"kind": "root"})),
+        ("book.root", json!({"kind": "entry", "entry": "e1"})),
+    ] {
+        let mut t = base.clone();
+        t["project"]["book"]["root"] = value;
+        assert!(
+            matches!(
+                parse_project_template_json(&t.to_string()),
+                Err(ProjectTemplateError::MalformedJson(_))
+            ),
+            "{what} is refused: {t}"
+        );
+    }
+    for (key, value) in [
+        ("homepage", json!("https://example.com/templates")),
+        ("derivedFrom", json!({"name": "上游", "author": "某人"})),
+    ] {
+        let mut t = base.clone();
+        t["credit"][key] = value;
+        assert!(
+            matches!(
+                parse_project_template_json(&t.to_string()),
+                Err(ProjectTemplateError::MalformedJson(_))
+            ),
+            "credit.{key} is refused: {t}"
+        );
+    }
 }
