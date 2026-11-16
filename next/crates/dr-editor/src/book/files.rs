@@ -1,12 +1,15 @@
 //! Files into the whole book's prose, as in a chapter editor (`v5-tracks.md`
 //! §T5b; the shared half is [`crate::prose_files`]): the slash menu's
-//! 「图片或 PDF…」 and its 「从电脑选…」 embed in the chapter the menu was
-//! opened in, a drop lands in the chapter under the pointer (between two
-//! chapters, the one whose paragraph is nearer), ⌘V and copying or cutting
-//! a selection holding embeds work in the caret's chapter. Each embed is a
-//! step of that chapter's own undo; after a drop the caret goes to the
-//! paragraph after the dropped files, so ⌘Z (which undoes in the caret's
-//! chapter) takes the drop back.
+//! 「图片或 PDF…」 and its 「从电脑选…」 embed at the caret, below the
+//! caret's paragraph, in the caret's chapter (when the system's file window
+//! was open the author may have clicked into another chapter meanwhile: the
+//! file follows the caret there, `kernel-v5.md` §15 item 49), a drop lands
+//! in the chapter under the pointer (between two chapters, the one whose
+//! paragraph is nearer), ⌘V and copying or cutting a selection holding
+//! embeds work in the caret's chapter. Each embed is a step of that
+//! chapter's own undo; after a drop the caret goes to the paragraph after
+//! the dropped files, so ⌘Z (which undoes in the caret's chapter) takes the
+//! drop back.
 
 use std::rc::Rc;
 
@@ -29,31 +32,36 @@ impl BookEditor {
         self.embeds.get(self.chapter_of(doc)?)?.as_ref()
     }
 
-    /// Embeds asset `material` (an image or a PDF) in chapter `chapter`: at
-    /// the caret when it is in that chapter, else at the chapter's end (the
-    /// file picker's 「从电脑选…」 finishes after the author may have moved
-    /// on). Returns whether it was.
+    /// Embeds asset `material` (an image or a PDF) at the caret, below the
+    /// caret's paragraph, in the caret's chapter, as a chapter editor does.
+    /// `chapter` is the chapter the slash menu was opened in: the file
+    /// picker's 「从电脑选…」 finishes after the author may have clicked into
+    /// another chapter, and the file follows the caret there (`kernel-v5.md`
+    /// §15 item 49). When the caret has left `chapter` and the body no
+    /// longer has the keyboard (the author went on outside the text), or the
+    /// caret's chapter takes no files, it goes to the end of `chapter`, as
+    /// before. Returns whether it was.
     pub fn insert_material(
         &mut self,
         chapter: usize,
         material: &str,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let (Some(Some(embeds)), Ok(id)) = (
-            self.embeds.get(chapter).cloned(),
-            dr_model::id::AssetId::parse(material),
-        ) else {
+        let Ok(id) = dr_model::id::AssetId::parse(material) else {
             return false;
         };
-        let offset = {
-            let e = self.editor.read(cx);
-            let sel = e.selection();
-            if sel.chapter == chapter {
-                sel.head
-            } else {
-                e.book().chapters[chapter].doc.max_cursor()
-            }
+        let sel = self.editor.read(cx).selection();
+        let follow = sel.chapter == chapter || prose_files::body_focused(&self.editor, window, cx);
+        let at_caret = follow
+            .then(|| self.chapter_embeds(sel.chapter))
+            .flatten()
+            .map(|embeds| (embeds, sel.head));
+        let Some((embeds, offset)) = at_caret.or_else(|| {
+            let doc = &self.editor.read(cx).book().chapters.get(chapter)?.doc;
+            Some((self.chapter_embeds(chapter)?, doc.max_cursor()))
+        }) else {
+            return false;
         };
         crate::embeds::insert_material(&embeds, offset, id, cx).is_some()
     }

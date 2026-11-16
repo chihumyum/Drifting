@@ -419,7 +419,7 @@ fn paste_image<V: FileView>(
 // ----- the clipboard --------------------------------------------------------------
 
 /// Whether the body (not a table's cell) has the keyboard.
-fn body_focused(prose: &Entity<ProseEditor>, window: &Window, cx: &App) -> bool {
+pub(crate) fn body_focused(prose: &Entity<ProseEditor>, window: &Window, cx: &App) -> bool {
     prose.read(cx).focus_handle(cx).is_focused(window)
 }
 

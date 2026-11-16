@@ -378,7 +378,10 @@ pub enum AssistEvent {
     },
     /// The slash menu's 表格 (a material note): a table at the caret.
     InsertTable { chapter: usize },
-    /// 插入素材…: material `material` embedded at the caret.
+    /// 插入素材…: material `material` embedded at the caret. `chapter` is
+    /// the chapter the menu was opened in; the caret may have left it while
+    /// the system's file window was open (`BookEditor::insert_material` says
+    /// where the file goes then).
     InsertMaterial { chapter: usize, material: String },
 }
 
@@ -1373,8 +1376,9 @@ impl Assist {
 
     /// The file picker's 「从电脑选…」: the system's file window, then each
     /// chosen file goes into the library (the same bytes give back the file
-    /// already there) and is embedded in chapter `chapter`
-    /// ([`AssistEvent::InsertMaterial`], one per file).
+    /// already there) and is embedded at the caret, which may by then have
+    /// left chapter `chapter`, the menu's ([`AssistEvent::InsertMaterial`],
+    /// one per file).
     pub fn pick_material_from_computer(
         &mut self,
         chapter: usize,
