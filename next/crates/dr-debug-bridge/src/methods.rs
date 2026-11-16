@@ -1079,7 +1079,7 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
 }
 
 /// What a page shows around its text and which of its fields has the
-/// keyboard: a chapter page's title, synopsis and ⁂ (M03), an element
+/// keyboard: a chapter page's title and synopsis (M03), an element
 /// page's name, aliases input, summary and field rows (M11).
 fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
     let focused = |h: gpui::FocusHandle| h.is_focused(window);

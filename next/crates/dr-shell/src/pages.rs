@@ -300,8 +300,8 @@ pub enum PageEditorRef {
 
 /// What a page's chrome is given when the shell opens an editor: the
 /// library and the book (dr-editor's `page::*` actions), the editor (to
-/// hand the caret to the text) and the window's workspace (to open the
-/// chapter ⁂ makes).
+/// hand the caret to the text) and the window's workspace (to read the
+/// book it shows).
 #[derive(Clone)]
 pub struct PageHost {
     pub workspace: WeakEntity<Workspace>,

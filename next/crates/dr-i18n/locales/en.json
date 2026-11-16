@@ -204,14 +204,6 @@
     "synopsisPlaceholder": "Synopsis…",
     "untitledChapter": "Untitled chapter"
   },
-  "chapterEnd": {
-    "defaultTitle": "New chapter",
-    "insertAfter": "New chapter after",
-    "markDraft": "Back to draft",
-    "markFinished": "Mark finished",
-    "trigger": "Chapter end actions",
-    "triggerFinished": "Chapter end actions (finished)"
-  },
   "commentRail": {
     "actions": {
       "reopen": "Reopen",

@@ -1,7 +1,7 @@
 //! Finding what the window shows by its accessible name (macOS).
 //!
 //! GPUI builds an AccessKit tree from every element with a role and an id
-//! (dr-ui's buttons, cells, tabs, radios, sliders; ⁂ and its actions; the
+//! (dr-ui's buttons, cells, tabs, radios, sliders; the
 //! selection bar's buttons …), but only while an assistive client is
 //! connected. The bridge connects from inside the app: it asks the window's
 //! content view for its accessibility children, as VoiceOver would, which

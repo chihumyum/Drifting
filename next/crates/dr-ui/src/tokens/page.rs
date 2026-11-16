@@ -1,15 +1,13 @@
 //! The chapter page around its text (`index.css` `.page`, `.page__folio`,
-//! `.page__title`, `.page__sub`, `.page__rule`, `.page__ornament`;
-//! `chapter-end-menu.css`; `guide.css` `.paper-empty-hints`;
+//! `.page__title`, `.page__sub`, `.page__rule`; `guide.css`
+//! `.paper-empty-hints`;
 //! `all-chapters.css` `.act-break`). These follow the paper, not the
 //! interface's text size; px unless noted.
 
-use std::time::Duration;
-
 /// Above the folio line (the page's top padding).
 pub const TOP: f32 = 48.0;
-/// Below ⁂ (the page's bottom padding): with the next page's top, the
-/// space between chapters in the whole book.
+/// Below the text (the page's bottom padding): with the next page's top,
+/// the space between chapters in the whole book.
 pub const BOTTOM: f32 = 80.0;
 
 /// The folio line 「第 N 章 · 故事线 · 字数」: index type in ink 4.
@@ -35,26 +33,6 @@ pub const SYNOPSIS_LINE: f32 = 1.5;
 /// Under the synopsis, down to the rule; under the rule, down to the text.
 pub const SYNOPSIS_GAP: f32 = 28.0;
 pub const RULE_GAP: f32 = 28.0;
-
-/// ⁂ (the brush's three stones): 20px in ink 4, the accent once the chapter
-/// is finished.
-pub const ORNAMENT: f32 = 20.0;
-pub const ORNAMENT_TOP: f32 = 36.0;
-pub const ORNAMENT_BOTTOM: f32 = 12.0;
-/// What the pointer can rest on around ⁂.
-pub const ORNAMENT_TARGET: (f32, f32) = (48.0, 32.0);
-/// One row of ⁂'s actions (`--chapter-end-row`).
-pub const END_ROW: f32 = 22.0;
-/// The pointer moving on ⁂ this long opens its actions, so a page scrolling
-/// under a still pointer or a sweep across it never does.
-pub const END_INTENT: Duration = Duration::from_millis(70);
-/// ⁂ turning into its actions, and back.
-pub const END_OPEN: Duration = Duration::from_millis(150);
-pub const END_CLOSE: Duration = Duration::from_millis(110);
-/// A click this soon after a hover opened the actions was meant for ⁂.
-pub const END_CLICK_GUARD: Duration = Duration::from_millis(250);
-/// How small ⁂ gets as it gives way (×).
-pub const END_SHRINK: f32 = 0.6;
 
 /// The empty page's hint: under where the first line goes, two columns.
 pub const HINTS_TOP: f32 = 96.0;

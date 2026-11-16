@@ -202,14 +202,6 @@
     "synopsisPlaceholder": "梗概…",
     "untitledChapter": "无标题章节"
   },
-  "chapterEnd": {
-    "defaultTitle": "新章节",
-    "insertAfter": "新建下一章",
-    "markDraft": "改回草稿",
-    "markFinished": "标为完成",
-    "trigger": "章末操作",
-    "triggerFinished": "章末操作（已完成）"
-  },
   "commentRail": {
     "actions": {
       "reopen": "未解决",
