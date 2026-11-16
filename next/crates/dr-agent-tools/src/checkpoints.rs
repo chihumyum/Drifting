@@ -371,8 +371,10 @@ impl Named {
                     .map(str::to_owned),
             );
         }
-        if call.name.starts_with("relation_row.")
-            && let Some(id) = args["id"].as_str()
+        if matches!(
+            call.name.as_str(),
+            "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete"
+        ) && let Some(id) = args["id"].as_str()
         {
             named.lookups.relations.push(id.to_owned());
         }

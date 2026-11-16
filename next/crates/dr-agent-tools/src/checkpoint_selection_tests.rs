@@ -111,7 +111,10 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     }
     let rows = view.relations_raw();
     for row in &rows {
-        let selected = if call.name.starts_with("relation_row.") {
+        let selected = if matches!(
+            call.name.as_str(),
+            "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete"
+        ) {
             Some(row.id.as_str()) == args["id"].as_str()
         } else if matches!(
             call.name.as_str(),
@@ -253,8 +256,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
     let out =
         |name: &str, input: Value| ws.call(&Actor::User, name, input).unwrap()["output"].clone();
 
-    // Records to name: entries, a patch, relations between entries and from
-    // the patch, memberships.
+    // Records to name: entries, a patch, relation rows, and memberships.
     let rows = out("entry.list", json!({"book":book,"all":true}));
     let of = |tpl: &str| {
         rows.as_array()
@@ -426,8 +428,11 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
                     looks_up,
                     matches!(
                         name.as_str(),
-                        "relation.delete"
-                            | "module.remove_relation"
+                        "relation_row.add_entry"
+                            | "relation_row.remove_entry"
+                            | "relation_row.delete"
+                            | "relation_type.set_direction"
+                            | "relation_type.delete"
                             | "comment.update"
                             | "comment.reanchor"
                             | "asset.rename"
