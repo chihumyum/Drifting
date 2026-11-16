@@ -66,7 +66,11 @@
   1. 焦点一走就把组字上屏。这次上屏先于失焦到达，而那时 `GetFocus()` 已经不是这个窗口了。编辑器把「窗口没有键盘时来的输入」当成迟到的：不写，连同组字一起丢掉，再发一次 `CPS_CANCEL`（`PlatformHooks::has_keyboard`，`SystemIme` 在 Windows 上就是 `GetFocus() == hwnd`；`ime.rs` 的 `input_is_late`）。
   2. 输入法把组字留着。随后的失焦把它取消。这里不像 GPUI 那样先看 `GetFocus()`：一帧之内没人能在别处开始新的组字，线程上下文里那段组字还是编辑器的；留着它，作者回来、或者在别的框里一打字，半截拼音又冒出来。
 - **「上屏空字」不删东西（第四轮修的）。** 上面那条「什么都不带 → `replace_text_in_range(None, "")`」以前被当成「用空字替换」：组字是盖在选中的字上开始的，选中的字会被删掉、还多一步撤销；没在组字时会删掉选区（跨章选区也是）。现在：在组字就等于删光了组字（取消，原文不动，和删光拼音一样）；不在组字就什么都不做。输入法明说了范围的（`Some(范围)`）照旧替换。
-- **组字中在正文别处点一下。** macOS 上 GPUI 先把鼠标交给输入法，输入法一般自己把组字上屏；Windows 后端不交，组字留在原处，光标挪到点的地方，接着打字组字还在原处长。这不是失焦，P0-B 的规则没管到，这一轮没改（见待协调 13）。
+- **组字中在正文别处点一下：丢掉组字，光标去点的地方**（作者 2026-11-16 定，[kernel-v5.md](../kernel-v5.md) 第 15 节第 37 条；2026-11-17 做，任务书 IC）。和「组字中失焦就丢掉」是同一条规矩：什么都不上屏，原文不动，不多一步撤销；盖着选区开始的组字被丢掉以后，选中的字还在。做法分两处：
+  - **鼠标按下**（`input/mouse.rs`）：有组字时，先照画出来的那一帧算出点在哪（画面上还带着拼音，算出来的是原文里的位置，丢掉拼音以后照样对），再取消组字、让系统输入法也丢掉它那一份（和失焦同一个钩子），最后落光标。Windows 后端不把鼠标交给输入法，走的就是这一处；macOS 上输入法没自己动的时候也是这一处。
+  - **macOS 上输入法抢先上屏**（`input/ime.rs` 的 `commit_is_a_press`）：GPUI v1.27 的 macOS 后端在把按下交给编辑器之前，先调 `[inputContext handleEvent:]` 把它交给输入法，输入法可能当场把拼音字母上屏。钩子多了一条 `PlatformHooks::pointer_press_in_flight`（macOS 上读 `[NSApp currentEvent]` 是不是鼠标键按下）：正在组字、这时候来的 `insertText:` / `unmarkText` 就当成这一下点击引起的，连同组字一起丢掉，随后到的鼠标按下照常落光标。没有组字时来的字照常写。不用改 GPUI。
+  - **点在拼音自己身上**（不含两头）：那是输入法的地方，编辑器这边什么都不做，组字和光标都不动。这一处作者没定过，是做的时候取的最不动现状的做法，列在任务书 IC 的交回里。
+  - **没在真输入法上验过。** 测试用的是模拟的输入法回调和模拟的鼠标按下（`input/tests/press.rs`、`windows_ime.rs` 的 `a_press_elsewhere_cancels_the_composition`）。macOS 那一半靠的是对系统拼音行为的推断（它在 `handleEvent:` 里同步上屏、那一刻 `currentEvent` 是鼠标按下），要真人打一遍才算数，见「要作者手测的」。标题、梗概、搜索框这些 dr-ui 的小输入框没跟着改。
 - **键位。** `KeyScheme::{Mac, Windows}`，`bind_keys` 按运行的平台选（Linux 用 Windows 那套）；`key_bindings(scheme)` 给出任一套的列表，F6 的快捷键注册表接管时用它。Windows 一套：Ctrl 代替 ⌘ 做命令，Ctrl+←/→ 按词（Mac 是 ⌥），Home/End 到屏幕行的头尾（换行处光标靠前一行），Ctrl+Home/End 到章首章尾，Ctrl+↑ 到段首（已在段首就到上一段段首）、Ctrl+↓ 到下一段段首（Word 的习惯），Ctrl+Backspace/Delete 删词，Ctrl+Y 和 Ctrl+Shift+Z 重做，Ctrl+Insert / Shift+Insert / Shift+Delete 复制粘贴剪切，F3 / Shift+F3 查找。Mac 一套另加 ⌥↑/⌥↓（到段首、段尾，已在就到上一段段首、下一段段尾）。仍然不绑任何单个可打印键（zed#59882 的规避照旧）。
 - **本机只能做到编译检查和单元测试。** Windows 的真跑要等 CI 或作者的虚拟机。GPUI 的 Windows 后端会发的那几种调用，单元测试照样发一遍（`input/tests/windows_ime.rs`）；`cargo check --target x86_64-pc-windows-msvc` 在 Mac 上要绕过三处 C 构建（Loro 依赖的 `stacker`、`psm` 和 GPUI 的资源文件），命令见「检查」。
 
@@ -231,7 +235,7 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
 
 ## 要作者手测的
 
-1. **真输入法**：清单沿用 [P0-B 的「待作者手测」](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p dr-editor --example prose-bench -- chapter`（基准程序已搬进 `dr-editor`）（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。这一轮多测一项：**组字中点到别处**（比如别的窗口或查找栏）再回来，不应残留拼音，也不应把拼音上屏到别处。
+1. **真输入法**：清单沿用 [P0-B 的「待作者手测」](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p dr-editor --example prose-bench -- chapter`（基准程序已搬进 `dr-editor`）（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。这一轮多测一项：**组字中点到别处**（比如别的窗口或查找栏）再回来，不应残留拼音，也不应把拼音上屏到别处。2026-11-17 再加一项：**组字中在正文里别处点一下**（macOS 系统拼音）。打 `zhong` 不选字，在正文另一段里点一下：拼音消失、不上屏，光标在点的地方；再打 `guo`，拼音从新光标处开始。日志里应该有 `press: marked text dropped` 或 `press: the input method's commit dropped` 其中一条；要是 `zhong` 留在了原处，把那一段 `[ime]` 日志贴回来（说明输入法上屏的时机和推断的不一样，`commit_is_a_press` 没拦住）。再试一次点在拼音自己身上：组字应该还在。
 2. **VoiceOver**（⌘F5 打开，测完再按 ⌘F5 关掉）：`cargo run -p gpui-prose --example editor`，点进正文：
    - 应读出「雨夜……文本区域」类的提示；VO+A 从光标读到章末；
    - ←/→ 逐字读、⌥←/⌥→ 逐词读（中文按词）、↑/↓ 读一行（屏幕上的那一行）；
@@ -258,7 +262,7 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
      - 记事本里不应出现 `zhong`；切回来，正文里没有 `zhong`，再打字时拼音从头开始。
      - 记下终端里切走那一刻打的是哪种：有 `late: the window has no keyboard, dropped`，说明微软拼音是「焦点一走就上屏」的那种，被编辑器拦下了；只有 `blur: marked text dropped`，说明它把组字留着、被随后的失焦取消了。两种都算对，记下来是为了知道 Windows 上实际走的是哪条路。
      - 用鼠标点任务栏、点桌面代替 Alt+Tab，各再来一次。
-   - **组字中在正文里别处点一下。** 打 `zhong` 不选字，在正文另一段里点一下，再接着打 `guo`：记下拼音出现在哪里（原处还是新光标处）、最后上屏到哪里。这一条目前没有规定（见待协调 13），只记现象。
+   - **组字中在正文里别处点一下**（2026-11-17 起有规矩，待协调 13）。打 `zhong` 不选字，在正文另一段里点一下：拼音消失、不上屏，光标在点的地方，日志里有 `press: marked text dropped`；再接着打 `guo`：拼音从新光标处开始，不带着 `zhong`，也不在原处长。选中两个字再打 `ni`、然后点别处：那两个字原样都在。
    - **候选窗位置。** 在窗口右边缘、最后一行附近组字：候选窗不跑出屏幕外太多、不盖住正在打的那行；滚动正文后再组字，候选窗跟着光标。
    - **别的输入。** Win+. 打开表情面板插入一个表情：插在光标处，一个表情是一个字（← 一下跨过去）。Win+V 剪贴板历史粘贴：照常粘贴。切换中英（Shift）后打英文：直接上屏。
    - **键位。** 逐个过一遍：Ctrl+←/→ 按词、Home/End 到屏幕行头尾、Ctrl+Home/End 到章首章尾、Ctrl+↑/↓ 按段、Ctrl+Backspace/Delete 删词、Ctrl+Z/Y 撤销重做、Ctrl+Shift+Z 重做、Shift+方向键选字。
@@ -277,7 +281,7 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
    - 「盖着选区组字、按 Esc」后选中的字没了：说明还有别的路径把空字当替换，带着 `[ime]` 日志查 `ime.rs` 的 `replace_text_in_range`。
 3. **dr-ui 对齐（待协调 12、14，F5 的文件）。** `dr-ui/src/input/field.rs` 和 `area.rs` 的 `replace_text_in_range`：`range16` 是 `None` 且文字为空时，有组字就当删光组字（`replace_and_mark(None, "", None)`），没组字直接返回；`ime.rs` 的 `system_discard` 在 Windows 上去掉 `GetFocus() != hwnd` 就返回的那一句；两个框的三个输入入口在 `GetFocus() != hwnd` 时丢掉输入和组字（照 `gpui-prose` 的 `input_is_late`）。各补一个单元测试，照 `input/tests/windows_ime.rs` 的写法。
 4. **编辑器的 macOS 那一段（待协调 14 第三点）。** `SystemIme` 的 macOS 分支改用窗口自己的视图的 `inputContext`（dr-ui `ime.rs` 的 `system_discard` 就是这样做的）。`PlatformHooks::discard_marked_text` 现在不带窗口，要么给它加一个 `&Window` 参数（`dr-editor/examples/prose-bench/platform.rs` 的 `MacHooks` 跟着改），要么在 `SystemIme::for_window` 时记下视图的指针；前一种更稳。
-5. **组字中在正文别处点一下（待协调 13）。** 等作者定了做法，在 `input/mouse.rs` 的鼠标按下处理里，挪光标之前先处理组字：丢掉就调 `cancel_composition` 再调钩子的 `discard_marked_text`；上屏就照 `unmark_text` 写入，再发 `CPS_CANCEL` 让输入法丢掉它那份。
+5. ~~**组字中在正文别处点一下（待协调 13）。**~~ 2026-11-17 做了，作者定的是丢掉，见上面「组字中在正文别处点一下」一条。剩下的是真输入法手测。
 6. **台账（待协调 15）。** `f4-editor.md` 的 G4 一行、`progress.md` 的 F4 一行补上第四轮。
 
 ## 待协调
@@ -294,7 +298,7 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
 10. **F4d：** 选区画法改从 `selected_in(章)` 来（`render/items.rs` 一处）；`f4d-lists-for-f4c.md` 里留给 F4c 的列表按键都做了。代码块、引注框（也是笔记专用）还没有样子，也就没做它们的按键。
 11. **F2 / F3：跨章删除不是一个事务。** 每章是一次独立的会话写入，几章之间没有共同提交；中途某一章写失败（`SessionSource` 记一条错误日志，那一章原样不动、也不留那一步），别的章照样删了。删了的每一章那一步都在同一组里，⌘Z 能一起撤回来；要不要做成跨文档的事务，等 F3 的会话层有这个能力再说。
 12. **已在轨道 2 修复（2026-11-09），实机仍待：** 原问题：F5（dr-ui）输入法「清空组字」会删掉文字框里选中的字。GPUI 的 Windows 后端把「组字清空」（`WM_IME_COMPOSITION` 不带标志：日文输入法按 Esc、回应 `CPS_CANCEL`）发成 `replace_text_in_range(None, "")`。dr-ui 的单行框、多行框照「用空字替换选区」处理（`LineComposer::replace(None, "")`），选中的字会被删掉。编辑器这一轮改成了「有组字就取消、没组字什么都不做」。dr-ui 不能改在 `LineComposer::replace` 里（剪切、删除自己也走 `replace(None, "")`），要改在两个框的 `replace_text_in_range` 入口：`range16` 是 `None`、文字是空的时候，有组字就当删光组字，没组字就返回。会碰到的场合：查找栏里原有的词被 Ctrl+F 选中，正好赶上编辑器失焦发的 `CPS_CANCEL` 的回声——回声同步回来的话 GPUI 会丢掉，碰不到；排队回来的才会，要真机看（手测第 5 条最后一项）。日文输入法在框里按 Esc 则一定会碰到。
-13. **作者 2026-11-16 定了：丢掉组字，光标去点的地方，两个系统都这样**（[kernel-v5.md](../kernel-v5.md) 第 15 节第 37 条，任务书 IC；还没做）。原来的问题：**组字中在正文别处点一下怎么办。** macOS 上 GPUI 先把鼠标交给输入法，输入法通常自己把组字上屏；Windows 后端不交，组字留在原处。P0-B 的「失焦就丢掉」管不到这里（焦点没走）。三种做法：照旧（Windows 上组字留在原处）、和失焦一样丢掉、和 macOS 常见的一样把拼音原样上屏。编辑器这边哪一种都好做（鼠标按下时先处理组字再挪光标），等定了再做；先看手测里两边实际各是什么样。
+13. **已做（2026-11-17）：丢掉组字，光标去点的地方，两个系统都这样**（作者 2026-11-16 定，[kernel-v5.md](../kernel-v5.md) 第 15 节第 37 条，任务书 IC）。真输入法上还没验，macOS 那一半是照推断做的。原来的问题：**组字中在正文别处点一下怎么办。** macOS 上 GPUI 先把鼠标交给输入法，输入法通常自己把组字上屏；Windows 后端不交，组字留在原处。P0-B 的「失焦就丢掉」管不到这里（焦点没走）。三种做法：照旧（Windows 上组字留在原处）、和失焦一样丢掉、和 macOS 常见的一样把拼音原样上屏。编辑器这边哪一种都好做（鼠标按下时先处理组字再挪光标），等定了再做；先看手测里两边实际各是什么样。
 14. **已在轨道 2 修复（2026-11-09），实机仍待：** 原问题：F5（dr-ui）窗口失活时和编辑器不一致的两处，加上编辑器反过来该学的一处。
     - dr-ui 的 `system_discard` 在 Windows 上先看 `GetFocus() == hwnd`，不是就不发 `CPS_CANCEL`。窗口失活引起的失焦晚一帧才到，那时 `GetFocus()` 已经不是这个窗口，所以输入法把组字留着的话，dr-ui 的框不会让它丢掉，作者回来一打字半截拼音又冒出来。编辑器不看 `GetFocus()`（理由见「整个窗口没了键盘」）。
     - 输入法在焦点一走就上屏的话，那次上屏先于失焦到达；dr-ui 的 `takes_input` 看的是 GPUI 的焦点，那一刻还在框上，会收下拼音。编辑器在 `has_keyboard`（Windows 上 `GetFocus() == hwnd`）为假时丢掉输入。

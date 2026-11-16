@@ -1,5 +1,5 @@
 {
-  "about": "K4 G1: v3-lite body input and undo, chapter chrome, slash, selection bar, end action and level about.",
+  "about": "K4 G1: v3-lite body input and undo, chapter chrome, slash, selection bar, no chapter-end mark and level about.",
   "steps": [
     {
       "seed": "lite"
@@ -273,165 +273,29 @@
       }
     },
     {
-      "app": "ui.press",
-      "params": {
-        "contains": "Chapter end actions",
-        "hover_ms": 0,
-        "settle_ms": 600
-      }
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "end-open.png"
-    },
-    {
-      "app": "ui.find",
-      "params": {},
-      "save": "end_ui"
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Mark finished"
-      }
-    },
-    {
       "app": "ui.screenshot",
       "png": "end.png"
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 600
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Mark finished"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 700
-      }
-    },
-    {
-      "call": "entry.get",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${empty.id}"
+        "contains": "Chapter end actions",
+        "absent": true
       },
-      "expect": {
-        "/fields/mod-fields/status": "finished"
-      }
+      "note": "The chapter-end mark and its actions are gone (kernel-v5 section 15, item 34): nothing under the text answers to their names."
     },
     {
-      "app": "ui.hover",
+      "app": "ui.find",
       "params": {
-        "contains": "Chapter end actions"
+        "label": "Mark finished",
+        "absent": true
       }
     },
     {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 600
-      }
-    },
-    {
-      "app": "ui.press",
+      "app": "ui.find",
       "params": {
         "label": "New chapter after",
-        "hover_ms": 0,
-        "settle_ms": 600
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "ready",
-        "state": {
-          "/pageTitle": "New chapter"
-        },
-        "timeout_ms": 30000
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 700
-      }
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "new-before.png"
-    },
-    {
-      "app": "input.type",
-      "params": {
-        "text": "G1 new"
-      }
-    },
-    {
-      "app": "input.key",
-      "params": {
-        "keys": "enter"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "ready",
-        "state": {
-          "/pageTitle": "G1 new"
-        },
-        "timeout_ms": 30000
-      }
-    },
-    {
-      "app": "input.type",
-      "params": {
-        "text": "G1 first"
-      }
-    },
-    {
-      "call": "entry.list",
-      "input": {
-        "book": "${books.0.id}",
-        "all": true,
-        "query": "G1 new"
-      },
-      "save": "fresh",
-      "expect": {
-        "/0/title": "G1 new"
-      }
-    },
-    {
-      "call": "entry.list",
-      "input": {
-        "book": "${books.0.id}",
-        "all": true,
-        "query": "New chapter"
-      },
-      "expect": {
-        "": []
-      },
-      "note": "The single end action creates exactly one chapter, now renamed."
-    },
-    {
-      "call": "module.read_prose",
-      "input": {
-        "book": "${books.0.id}",
-        "owner": "${fresh.0.id}",
-        "module": "mod-prose"
-      },
-      "expect": {
-        "/paragraphs/0/text": "G1 first"
+        "absent": true
       }
     },
     {

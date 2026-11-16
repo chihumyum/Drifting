@@ -135,6 +135,28 @@ impl ProseEditor {
         true
     }
 
+    /// An input method ending its composition because a pointer button
+    /// went down (macOS: GPUI hands it the press before the editor's
+    /// mouse-down, `system_ime.rs`): what it commits is dropped with the
+    /// marked text, as a press the editor handles itself drops it
+    /// (`mouse.rs`). Returns whether this input was that.
+    fn commit_is_a_press(&mut self, window: &Window, cx: &mut Context<Self>) -> bool {
+        if self.composition.is_none() {
+            return false;
+        }
+        self.ensure_system_ime(window);
+        if !self
+            .hooks
+            .as_ref()
+            .is_some_and(|hooks| hooks.pointer_press_in_flight())
+        {
+            return false;
+        }
+        self.log_ime(format_args!("press: the input method's commit dropped"));
+        self.drop_composition_on_press(window, cx);
+        true
+    }
+
     /// Writes confirmed text in one commit (one undo step), ending any
     /// composition.
     pub(crate) fn commit_text(
@@ -403,7 +425,7 @@ impl EntityInputHandler for ProseEditor {
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.log_ime(format_args!("unmark_text"));
         self.finish_commit_playback(cx);
-        if self.input_is_late(window, cx) {
+        if self.input_is_late(window, cx) || self.commit_is_a_press(window, cx) {
             return;
         }
         // The input method accepts the marked text as it stands.
@@ -421,7 +443,7 @@ impl EntityInputHandler for ProseEditor {
     ) {
         self.log_ime(format_args!("replace_text_in_range({range16:?}, {text:?})"));
         self.finish_commit_playback(cx);
-        if self.input_is_late(window, cx) {
+        if self.input_is_late(window, cx) || self.commit_is_a_press(window, cx) {
             return;
         }
         if range16.is_none() && text.is_empty() {

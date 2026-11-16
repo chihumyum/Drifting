@@ -103,7 +103,7 @@ impl PageHead {
             }));
         }
         let group_path = read_group_path(&host, book.as_deref(), page, has_book_cached, cx);
-        // A chapter ⁂ just made: its title takes the caret, selected, once
+        // A chapter just made: its title takes the caret, selected, once
         // this frame is drawn (on its own page, the page's head takes it).
         if titled && NewTitles::take(&page.doc, cx) {
             let field = title.clone();

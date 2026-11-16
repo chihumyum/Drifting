@@ -1491,4 +1491,5 @@ fn replace_all_costs(cx: &mut TestAppContext) {
 mod across;
 mod lists;
 mod objects;
+mod press;
 mod windows_ime;
