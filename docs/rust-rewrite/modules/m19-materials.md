@@ -279,3 +279,11 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 - 素材库文件悬停卡（`dr-view-material/src/library.rs`）底部新增「写批注」与（图片/PDF）「框一块写批注」；当文件在全书任意位置（文件自身、媒体模块项、正文嵌入）有未解决批注时，缩略图右上角显示砂点（`dr_ui::sand::comment_dot`）。
 - 文件查看器（`dr-view-material/src/page.rs`）支持按 `FrameScope`（文件自身、媒体模块项、正文嵌入）框选写区域批注（PDF 记录页码），并在右侧栏汇总列出该文件在全书三处的全部批注：文件自身置顶，随后每个用到它的条目一组，卡片带空心圆解决/重开按钮及跳回对应条目模块的箭头，不改动右栏审阅面板状态。契约测试：`dr-view-material/tests/material.rs` 的 `asset_library_viewer_lists_three_places_and_jumps_to_each`。详见 [M18](m18-review.md)。
 
+
+## 内核 v5 · 框选写批注时撰写框留住键盘（2026-11-16）
+
+**大白话。** 在查看器里框一块写批注，撰写框出来以后，点进它的输入框再打字，字以前进不去：撰写框浮在台面上却不挡鼠标，按下去的那一下台面也收到了，台面一按就把键盘收回整页（`MediaPage::stage_down`）。现在撰写框整张卡挡住下面（`dr-view-review` 的 `CommentComposer` 根上 `occlude()`），按在它上面只归它。SC 一路（`v5-sc-scenarios`）跑场景时查出，`v5-sc-fixes` 一路修。
+
+- 拖完直接打字本来就进撰写框（新建撰写框时把键盘给了输入框）；坏的是点进输入框以后。输入框没有无障碍节点是所有 `TextArea`、`TextField` 都这样（都没有 role），调试桥打字不靠它，不是这次的原因，没改。
+- 场景 `book-media-writes-v3` 里打字、保存、读回三步的 `pending` 去掉。
+- 测试：`tests/material.rs` 的 `the_region_composer_takes_the_keyboard`（图片上框一块：拖完打的字进撰写框；点进输入框再打的字也进去；点这一下没有落到台面上；存下的批注是两段字连起来）。改之前这条在第二段字上失败。

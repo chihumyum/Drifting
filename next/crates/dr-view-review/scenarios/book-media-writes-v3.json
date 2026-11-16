@@ -1,5 +1,5 @@
 {
-  "about": "G4 副屏主流程：用 testkit lite（素材库里自带一张合成图片「参考图」），保存主页书名，从右栏素材库打开这张图片，在查看器里画区域写批注并读回挂在这个文件上的批注。格式 5 起素材库只放文件（kernel-v5 §6），不再要另造库；最近访问只记条目，所以从素材库打开。框选后的撰写框现在拿不到键盘，打字、保存、读回三步暂挂 pending（见步骤里的说明）。",
+  "about": "G4 副屏主流程：用 testkit lite（素材库里自带一张合成图片「参考图」），保存主页书名，从右栏素材库打开这张图片，在查看器里画区域写批注并读回挂在这个文件上的批注。格式 5 起素材库只放文件（kernel-v5 §6），不再要另造库；最近访问只记条目，所以从素材库打开。框选后撰写框拿着键盘：打字、保存、读回。",
   "steps": [
     {
       "seed": "lite"
@@ -220,16 +220,14 @@
       "app": "input.type",
       "params": {
         "text": "${seed_comments.0.body}"
-      },
-      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+      }
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
         "label": "Save"
-      },
-      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+      }
     },
     {
       "call": "comment.list",
@@ -246,8 +244,7 @@
         "/0/target/kind": "asset",
         "/0/target/id": "${assets.0.id}",
         "/1": null
-      },
-      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+      }
     },
     {
       "app": "app.info",

@@ -430,15 +430,7 @@
       "params": {
         "name": "workspace::CloseActiveTab"
       },
-      "note": "One page per entry (T1): an entry already open keeps its page (and its outline) whichever module is named, so close its tab before opening it at another module."
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 900
-      },
-      "note": "As the scenario's own close below does: a tab closed and a page opened in the same frame crash the app (GPUI a11y 'set_focus called more than once in a single frame', found 2026-11-16 by sc-scenarios-v5)."
+      "note": "One page per entry (T1): an entry already open keeps its page (and its outline) whichever module is named, so close its tab before opening it at another module. The page opens straight after, in the same frame or the next: closing a tab and opening the same entry by module once crashed the app (GPUI a11y 'set_focus called more than once in a single frame', sc-scenarios-v5, 2026-11-16; fixed in dr-shell's page turn)."
     },
     {
       "app": "nav.open",

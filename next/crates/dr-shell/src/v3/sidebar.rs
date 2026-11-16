@@ -395,6 +395,7 @@ impl Sidebar {
         let weak = cx.entity().downgrade();
         div()
             .id("v3-tab-row")
+            .debug_selector(|| "v3-tab-row".into())
             .flex_shrink_0()
             .px_2()
             .flex()
@@ -402,10 +403,16 @@ impl Sidebar {
             .items_center()
             .gap_1()
             .child(
+                // A row, not a block: a block stretches the Tabs to the
+                // strip's width, so nothing would be left over to scroll.
                 div()
                     .id("v3-tab-strip")
+                    .debug_selector(|| "v3-tab-strip".into())
                     .flex_1()
                     .min_w_0()
+                    .flex()
+                    .flex_row()
+                    .items_center()
                     .overflow_x_scroll()
                     .child(
                         Segmented::new("v3-level-tabs", labels, selected)
@@ -624,6 +631,7 @@ impl Sidebar {
         let jiggling = !still;
         div()
             .id("v3-tab-row")
+            .debug_selector(|| "v3-tab-row".into())
             .flex_shrink_0()
             .px_2()
             .pb_1()

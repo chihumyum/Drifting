@@ -637,46 +637,7 @@
         "label": "New",
         "role": "MenuItem"
       },
-      "pending": "待协调：The storyline's hover card offers 「新建」, but its dialog submits entry.create with parent = the storyline, which has 「层级」 off: every 「创建」 is refused (V3-LEAF-NO-CHILDREN, found 2026-11-16 by sc-scenarios-v5; dr-view-elements dialogs::v3 create should send host for an entry that only takes attached entries). The same dialog is driven below from the storyline page's 「挂在这里的条目」 block."
-    },
-    {
-      "app": "nav.open",
-      "params": {
-        "target": "entry:${entries.[template=tpl-storyline].id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/page": "entry:${entries.[template=tpl-storyline].id}"
-        },
-        "timeout_ms": 15000
-      }
-    },
-    {
-      "app": "input.scroll",
-      "params": {
-        "x": 1050,
-        "y": 420,
-        "dy": 1800
-      },
-      "note": "The storyline's 「说明」 body comes first; bring the 「挂在这里的条目」 block's head into the window."
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 450
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "New",
-        "role": "Button"
-      },
-      "note": "The storyline page shows only the 「挂在这里的条目」 block open (「层级」 off), so its 「＋ 新建」 is the one New button: a new entry attached to the storyline, living where 「新条目住在」 says (T1)."
+      "note": "On a storyline (「层级」 off, 「收别处的条目」 on) the hover card's 「新建」 attaches the new entry, which lives where 「新条目住在」 says (kernel-v5 §16)."
     },
     {
       "app": "input.type",

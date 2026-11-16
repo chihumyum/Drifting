@@ -17,8 +17,8 @@ use dr_shell::{
 use dr_ui::sand;
 use dr_workspace::{Actor, Workspace, commands::v3::types::TabMount};
 use gpui::{
-    App, AppContext as _, Context, Entity, IntoElement, Render, TestAppContext, VisualTestContext,
-    Window, div,
+    App, AppContext as _, Context, Entity, IntoElement, Modifiers, Render, ScrollDelta,
+    ScrollEvent, TestAppContext, VisualTestContext, Window, div, point, px,
 };
 use serde_json::{Value, json};
 
@@ -367,6 +367,88 @@ fn the_selected_tab_goes_with_the_project(cx: &mut TestAppContext) {
     });
 }
 
+/// The Tab prototype (2026-11-15): a row that does not fit scrolls sideways,
+/// under an upright wheel as under a sideways one, so the last Tab can be
+/// reached; the manage button stays outside, at the row's end. The strip
+/// once laid its Tabs out as a block, stretched to its own width, so there
+/// was nothing to scroll (sc-scenarios-v5, 2026-11-16).
+#[gpui::test]
+fn a_tab_row_that_does_not_fit_scrolls_sideways(cx: &mut TestAppContext) {
+    let (_dir, lib, id) = seed();
+    for n in 0..6 {
+        let entry = call(
+            &lib,
+            "entry.create",
+            json!({"book": id, "title": format!("A rather long outermost entry {n}"), "template": "tpl-group"}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        call(
+            &lib,
+            "tab.put",
+            json!({"book": id, "mount": {"kind": "entry", "entry": entry}}),
+        );
+    }
+    let (view, cx) = open(cx, &lib, &id);
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let sidebar = sidebar(&view, cx);
+    // The column slides open: measure the row once it is all there.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, _| ws.left.shown() < 1.0) {
+        assert!(Instant::now() < deadline, "the left column opens");
+        std::thread::sleep(Duration::from_millis(5));
+        pump(cx);
+    }
+    pump(cx);
+    let (first, last) = view.read_with(cx, |ws, _| {
+        let tabs = tabs_of(ws);
+        (tabs[0].0.clone(), tabs.last().unwrap().0.clone())
+    });
+    let selected =
+        |cx: &mut VisualTestContext| sidebar.read_with(cx, |s, cx| s.state(cx)["selected"].clone());
+    let strip = cx.debug_bounds("v3-tab-strip").expect("the Tab row");
+    let end = point(strip.right() - px(3.), strip.center().y);
+    let start = point(strip.left() + px(3.), strip.center().y);
+    // The row overflows: what shows at its end is not the last Tab.
+    cx.simulate_click(end, Modifiers::default());
+    pump(cx);
+    assert_ne!(selected(cx), json!(last), "the last Tab is past the edge");
+    // An upright wheel scrolls it to the end.
+    cx.simulate_mouse_move(strip.center(), None, Modifiers::default());
+    cx.simulate_event(ScrollEvent {
+        position: strip.center(),
+        delta: ScrollDelta::Pixels(point(px(0.), px(-20_000.))),
+        ..Default::default()
+    });
+    pump(cx);
+    cx.simulate_click(end, Modifiers::default());
+    pump(cx);
+    assert_eq!(
+        selected(cx),
+        json!(last),
+        "the wheel brought the last Tab in"
+    );
+    // A sideways one scrolls it back to the start.
+    cx.simulate_event(ScrollEvent {
+        position: strip.center(),
+        delta: ScrollDelta::Pixels(point(px(20_000.), px(0.))),
+        ..Default::default()
+    });
+    pump(cx);
+    cx.simulate_click(start, Modifiers::default());
+    pump(cx);
+    assert_eq!(selected(cx), json!(first), "and back to the first");
+    // The strip keeps to its column; the manage button stays past it, at
+    // the row's end, wherever the Tabs are scrolled.
+    assert_eq!(cx.debug_bounds("v3-tab-strip"), Some(strip));
+    let row = cx.debug_bounds("v3-tab-row").expect("the row");
+    assert!(
+        row.right() - strip.right() >= px(20.),
+        "room for the manage button: {row:?} {strip:?}"
+    );
+}
+
 /// The Tab prototype (2026-11-15): a project left on a Tab that is gone
 /// since (removed on another device, say) opens on the first Tab, not on
 /// 「全部」; only a project never left on a Tab opens on 「全部」.
@@ -578,6 +660,73 @@ fn an_entry_opens_in_one_tab_from_the_home_page_and_from_the_left_column(cx: &mu
         assert!(ws.nav.is_selected(&from_column) && ws.nav.is_selected(&from_home));
         assert_eq!(ws.editors.len(), 1, "one page");
     });
+}
+
+/// One entry is one page, whichever module a target names: closing an
+/// entry's tab and opening it again by module in the same frame turns to
+/// no other page. It used to turn from `entry:X` to `entry:X/<module>`,
+/// drawing the one page view twice in a frame, underneath and in front;
+/// with accessibility on, its focused element claimed the focus twice and
+/// GPUI's debug builds panicked (sc-scenarios-v5, 2026-11-16). The test
+/// platform has no accessibility, so this watches the turn itself.
+#[gpui::test]
+fn closing_an_entrys_tab_and_opening_it_by_module_in_one_frame_turns_no_page(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let (view, cx) = open(cx, &lib, &id);
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let chapters: Vec<String> = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        v.entries
+            .iter()
+            .filter(|e| e.template.as_deref() == Some("tpl-chapter"))
+            .map(|e| e.id.clone())
+            .take(2)
+            .collect()
+    });
+    let page = Target::Entry {
+        id: chapters[0].parse().unwrap(),
+        module: None,
+    };
+    let by_module = Target::Entry {
+        id: chapters[0].parse().unwrap(),
+        module: Some("mod-prose".parse().unwrap()),
+    };
+    let turning = |cx: &mut VisualTestContext| cx.debug_bounds("page-main-under").is_some();
+    // The home page turns to the entry's; let the turn finish.
+    view.update(cx, |ws, cx| ws.open(page.clone(), Open::KEEP, cx));
+    pump(cx);
+    assert!(turning(cx), "the home page turns to the entry's");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while turning(cx) {
+        assert!(Instant::now() < deadline, "the turn ends");
+        std::thread::sleep(Duration::from_millis(5));
+        pump(cx);
+    }
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.nav.current().cloned()),
+        Some(page.clone())
+    );
+    // Closed and opened again by module before the next frame: what
+    // `CloseActiveTab` does, then an open, in one update (the test platform
+    // draws at the end of each).
+    view.update(cx, |ws, cx| {
+        assert!(ws.nav.close_active(), "the tab closes");
+        assert!(ws.nav.current() != Some(&page));
+        ws.open(by_module.clone(), Open::KEEP, cx);
+    });
+    pump(cx);
+    view.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&by_module)));
+    assert!(!turning(cx), "the same page: nothing to turn from");
+    // Another entry still turns the page.
+    let other = Target::Entry {
+        id: chapters[1].parse().unwrap(),
+        module: None,
+    };
+    view.update(cx, |ws, cx| ws.open(other, Open::KEEP, cx));
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(turning(cx), "another page turns in");
 }
 
 #[gpui::test]

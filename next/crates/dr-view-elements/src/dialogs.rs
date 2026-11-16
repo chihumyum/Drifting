@@ -513,8 +513,11 @@ pub mod v3 {
             if title.is_empty() {
                 return;
             }
-            let input = if self.attach {
-                json!({"book":host.book_id,"host":self.origin,"template":template,"title":title})
+            // On an entry that only takes entries from elsewhere (a story
+            // line), 「新建」 attaches, from its card as from its page; it
+            // cannot live there.
+            let input = if context.attach {
+                json!({"book":host.book_id,"host":context.context,"template":template,"title":title})
             } else {
                 json!({"book":host.book_id,"parent":context.context,"template":template,"title":title})
             };

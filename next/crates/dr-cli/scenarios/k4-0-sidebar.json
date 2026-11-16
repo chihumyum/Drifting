@@ -455,13 +455,10 @@
         "mount": {
           "kind": "entry",
           "entry": "${added.id}"
-        },
-        "place": {
-          "after": "tab-all"
         }
       },
       "save": "addedTab",
-      "note": "A Tab is called by what it mounts (kernel-v5 §5; DZ dropped the tab's own name). It goes right after 「全部」: the row does not scroll sideways yet, so a seventh Tab at the end could not be pressed (see the pending step)."
+      "note": "A Tab is called by what it mounts (kernel-v5 §5; DZ dropped the tab's own name). It goes last, the seventh, past the column's edge."
     },
     {
       "app": "input.scroll",
@@ -471,7 +468,7 @@
         "dx": -600,
         "dy": 0
       },
-      "pending": "待协调：The Tab row should scroll sideways when it does not fit (Tab prototype, T1), but neither a sideways nor an upright wheel moves it in the real window (2026-11-16): a Tab past the column's edge cannot be reached. Product issue reported by sc-scenarios-v5; once fixed, add the Tab last and scroll here."
+      "note": "A row that does not fit scrolls sideways; the manage button stays at its end (Tab prototype, T1)."
     },
     {
       "app": "ui.find",

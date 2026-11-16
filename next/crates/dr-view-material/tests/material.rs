@@ -443,6 +443,71 @@ fn a_rectangle_drawn_on_a_page_becomes_a_region_comment(cx: &mut TestAppContext)
     );
 }
 
+/// The composer a drawn rectangle brings up takes the keyboard, and a click
+/// into its text box keeps it there: the stage under it must not take the
+/// press back (sc-scenarios-v5, 2026-11-16: neither reached the text box).
+#[gpui::test]
+fn the_region_composer_takes_the_keyboard(cx: &mut TestAppContext) {
+    let e = env();
+    let id = material(
+        &e,
+        "image",
+        "海岸图",
+        dr_testkit::media::png(640, 400),
+        (640, 400),
+    );
+    let (page, mut cx) = open(cx, &e, &id);
+    let cx = &mut cx;
+    page.update(cx, |p, cx| p.set_drawing(true, cx));
+    draw(cx);
+    draw(cx);
+    let (a, b) = (at(&page, cx, (0.2, 0.2)), at(&page, cx, (0.45, 0.5)));
+    cx.simulate_event(MouseDownEvent {
+        position: a,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    draw(cx);
+    cx.simulate_event(MouseMoveEvent {
+        position: b,
+        pressed_button: Some(MouseButton::Left),
+        modifiers: Modifiers::none(),
+    });
+    draw(cx);
+    cx.simulate_event(MouseUpEvent {
+        position: b,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: 1,
+    });
+    draw(cx);
+    draw(cx);
+    let composer = page
+        .read_with(cx, |p, _| p.composer().cloned())
+        .expect("composer");
+    // Straight after the drag, typing goes into the composer.
+    cx.simulate_input("潮位");
+    draw(cx);
+    // A click into its text box: still the composer's, not the stage's.
+    let field = cx
+        .debug_bounds("comment-composer-field")
+        .expect("the text box");
+    cx.simulate_click(field.center(), Modifiers::none());
+    draw(cx);
+    assert!(
+        page.read_with(cx, |p, _| p.composer().is_some()),
+        "the click did not reach the stage"
+    );
+    cx.simulate_input("要核对");
+    draw(cx);
+    composer.update(cx, |c, cx| c.save(cx));
+    wait_for(cx, |cx| page.read_with(cx, |p, _| p.comments().len() == 1));
+    let listed = out(&e.ws, "comment.list", json!({"book": e.book}));
+    assert_eq!(listed.as_array().unwrap()[0]["body"], "潮位要核对");
+}
+
 #[gpui::test]
 fn the_column_reads_in_page_order_and_a_choice_turns_to_its_page(cx: &mut TestAppContext) {
     let e = env();

@@ -230,3 +230,7 @@ xtask（审计 972 crate、0 漏洞、12 既有 notice）及 public（5536 文�
 - **T5（`t5-files`）**：媒体模块缩略图与瀑布流合入时，直接复用同一套文件悬停卡两行（「写批注」「框一块写批注」）、`FrameScope` 与 `sand::comment_dot`。
 - **T7（`t7-agent`）**：编辑器已负责打开正文时补发一次 `comment.project`；若后台无编辑器打开时 Agent 写正文后需即时在未打开章节的审阅栏看到新清单项，可在工具结算或 T7 侧确认是否另调一次投影。
 - **T9**：`dr-view-shelf-review` 本轮仅保留最小编译与计数回归测试，待 T9 统一替换为各处「铺满」。
+
+## 内核 v5 · 撰写框挡住它下面的东西（2026-11-16）
+
+撰写框（`composer.rs` 的 `CommentComposer`）是一张浮在被批注处上面的卡：框出的区域、选中的正文、字段那一行。它的根现在 `occlude()`，按在卡上（输入框、按钮）只归撰写框，不再同时落到下面的台面或编辑器上把键盘收回去。查出的地方是素材查看器的框选批注（[M19](m19-materials.md) 同日一节，回归测试 `dr-view-material/tests/material.rs` 的 `the_region_composer_takes_the_keyboard`）；为了让测试找到输入框，撰写框里放输入框的那一块加了 `debug_selector`「comment-composer-field」。
