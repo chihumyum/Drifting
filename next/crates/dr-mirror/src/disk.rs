@@ -379,9 +379,9 @@ pub fn claim_for(
     if let Some((bytes, _, _)) = read(&file)? {
         let owner: Option<Owner> = serde_json::from_slice(&bytes).ok();
         return Ok(
-            if owner
-                .is_some_and(|owner| owner.installation_id == installation && owner.book == book)
-            {
+            if owner.is_some_and(|owner| {
+                owner.installation_id == installation && owner.app == app && owner.book == book
+            }) {
                 Ok(())
             } else {
                 Err(OwnedElsewhere)
@@ -462,6 +462,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(claim(dir.path(), "me", "app").unwrap(), Ok(()));
         assert_eq!(claim(dir.path(), "me", "app").unwrap(), Ok(()));
+        assert_eq!(
+            claim(dir.path(), "me", "another-app").unwrap(),
+            Err(OwnedElsewhere)
+        );
         assert_eq!(
             claim(dir.path(), "other", "app").unwrap(),
             Err(OwnedElsewhere)
