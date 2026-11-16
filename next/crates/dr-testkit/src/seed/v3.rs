@@ -793,6 +793,142 @@ pub fn with_showcase_files(b: &mut SeededBookV3) -> Result<()> {
     Ok(())
 }
 
+/// What [`with_level_only_lane`] put into a seeded book.
+#[derive(Clone, Debug)]
+pub struct LevelOnlyLane {
+    /// The book's first view, which now has the old lane.
+    pub view: TimelineViewId,
+    /// A second view, without the old lane; nothing in it may change.
+    pub other_view: TimelineViewId,
+    /// 书稿 as a lane of `view`: level on, 「收别处的条目」 off.
+    pub lane: EntryId,
+    /// A chapter living in 书稿 and hung on nothing, placed in `view` as a
+    /// build before DV placed what lived in a lane: this place goes with
+    /// the lane.
+    pub resident: EntryId,
+    /// A chapter living in 书稿 and hung on `storyline`, placed in `view`
+    /// and in `other_view`: its places stay.
+    pub hung: EntryId,
+    /// A storyline lane of `view` (and of `other_view`) as the seed has it.
+    pub storyline: EntryId,
+    /// A storyline lane of `view` whose 「收别处的条目」 is off (both its
+    /// switches are off): it stays, with the places of what is hung on it.
+    pub storyline_off: EntryId,
+    /// A volume in Recently Deleted (level on, 「收别处的条目」 off) as a
+    /// lane of `view`: it stays.
+    pub trashed_lane: EntryId,
+    /// A chapter in Recently Deleted with the volume, living in it and
+    /// placed in `view`: its place stays.
+    pub trashed_child: EntryId,
+}
+
+/// Tests only (DV2, `kernel-v5.md` §15 item 31): leave a seeded book as a
+/// build from before DV could have left it, with an old lane that is only a
+/// level and the places of what lived in it, so that opening it clears
+/// them once. Around it, what must stay: a chapter in that lane that is
+/// also hung on a storyline, a second view, a storyline lane whose
+/// 「收别处的条目」 is off and a volume lane in Recently Deleted. The book
+/// is not marked (`meta.level_lanes_cleared`), as such a build left it.
+/// Needs a seed with two storylines and a view (any preset has them).
+pub fn with_level_only_lane(b: &mut SeededBookV3) -> Result<LevelOnlyLane> {
+    let book = b.book_id().clone();
+    let id = |kind: &str| EntryId::parse(&super::build::id(0, book.as_str(), kind, 0)).expect("id");
+    let view = b.book.view();
+    let lane = view
+        .root_entry_by_template(&tid(TPL_MANUSCRIPT))
+        .ok_or(DocError::NotInProfile("the seeded book has no 书稿"))?
+        .id;
+    let first_view = view
+        .timeline_views_raw()
+        .into_iter()
+        .find(|v| !v.is_trashed())
+        .ok_or(DocError::NotInProfile("the seeded book has no view"))?;
+    let lanes: Vec<EntryId> = first_view.lanes.iter().map(|l| l.entry.clone()).collect();
+    let [storyline, storyline_off, ..] = lanes.as_slice() else {
+        return Err(DocError::NotInProfile(
+            "the seeded book's view has fewer than two lanes",
+        ));
+    };
+    let out = LevelOnlyLane {
+        view: first_view.id.clone(),
+        other_view: TimelineViewId::parse(&super::build::id(0, book.as_str(), "dv2-view", 0))
+            .expect("id"),
+        lane,
+        resident: id("dv2-resident"),
+        hung: id("dv2-hung"),
+        storyline: storyline.clone(),
+        storyline_off: storyline_off.clone(),
+        trashed_lane: id("dv2-trashed-volume"),
+        trashed_child: id("dv2-trashed-chapter"),
+    };
+    let end = timeline_scale_end(&first_view.placements);
+    let o = out.clone();
+    let (r, _) = b.book.edit_at(Origin::Import, Some(T0), move |t| {
+        let chapter = Some(tid(TPL_CHAPTER));
+        t.entries().create(
+            &o.resident,
+            Some(&o.lane),
+            "只在旧泳道里的章",
+            chapter.as_ref(),
+            false,
+        )?;
+        t.entries().create(
+            &o.hung,
+            Some(&o.lane),
+            "也挂在故事线上的章",
+            chapter.as_ref(),
+            false,
+        )?;
+        t.put_membership(&o.storyline, &o.hung, None, None)?;
+        let trashed = Some(Timestamp(T0));
+        t.entries()
+            .create(
+                &o.trashed_lane,
+                Some(&o.lane),
+                "删掉的卷",
+                Some(&tid(TPL_GROUP)),
+                true,
+            )?
+            .deleted_at(trashed)?;
+        t.entries()
+            .create(
+                &o.trashed_child,
+                Some(&o.trashed_lane),
+                "删掉的卷里的章",
+                chapter.as_ref(),
+                false,
+            )?
+            .deleted_at(trashed)?;
+        t.entries()
+            .entry(&o.storyline_off)?
+            .overrides(Some(&LevelSettingsOverride {
+                accept: Some(false),
+                ..Default::default()
+            }))?;
+        let last = first_view.lanes.iter().filter_map(|l| l.pos.clone()).max();
+        let after = |p: Option<PosKey>| p.map_or_else(PosKey::first, |p| p.after());
+        let old_pos = after(last);
+        let trashed_pos = old_pos.after();
+        t.timeline_view(&o.view)?
+            .put_lane(&o.lane, Some(&old_pos))?
+            .put_lane(&o.trashed_lane, Some(&trashed_pos))?
+            .put_placement(&o.resident, end, None)?
+            .put_placement(&o.hung, end + 1.0, None)?
+            .put_placement(&o.trashed_child, end + 2.0, None)?;
+        t.timeline_view(&o.other_view)?
+            .name("另一种排法")?
+            .pos(Some(&after(first_view.pos.clone())))?
+            .put_lane(&o.storyline, Some(&PosKey::first()))?
+            .put_placement(&o.hung, 1.0, None)?
+            .put_placement(&o.resident, 2.0, None)?;
+        // A build before DV2 wrote no mark.
+        t.meta().level_lanes_cleared(false)?;
+        Ok(())
+    });
+    r?;
+    Ok(out)
+}
+
 /// Write a synthetic [`Plan`] directly as v3 documents.
 pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     let mut b = BuilderV3::new(p.book.clone())?;

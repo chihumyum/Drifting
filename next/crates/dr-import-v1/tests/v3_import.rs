@@ -1153,6 +1153,32 @@ fn an_imported_book_names_the_built_in_template_as_its_source() {
     ws.close();
 }
 
+/// DV2 (`kernel-v5.md` §15 item 31): the imported book's lanes (storylines,
+/// 「未归属」, the act track) are written marked, so the book has no old lane
+/// to clear and opening the imported library writes nothing.
+#[test]
+fn an_imported_book_is_marked_and_writes_nothing_when_it_opens() {
+    let old = fixture::build();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+    let lib = open(&root);
+    let doc = lib.load_copy(&format!("book:{BOOK}")).unwrap();
+    let id = BookId::parse(BOOK).unwrap();
+    let book = dr_doc::v3::BorrowedBookV3::new(&doc, &id).unwrap();
+    let view = book.view();
+    assert!(
+        view.timeline_views_raw()
+            .iter()
+            .any(|tv| !tv.lanes.is_empty())
+    );
+    assert!(view.level_lanes_cleared());
+    assert!(!view.needs_repair());
+    lib.close().unwrap();
+    assert_eq!(dr_testkit::seed::writes_on_open(&root), Ok(0));
+}
+
 #[test]
 fn malformed_source_is_reported_without_automatic_repairs() {
     let old = fixture::build();

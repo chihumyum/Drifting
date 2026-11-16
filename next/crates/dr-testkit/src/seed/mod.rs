@@ -32,8 +32,9 @@ pub use digest::digest;
 pub use preset::{Budget, Preset, Spec, allocate};
 pub use shape::{GroupShape, Shape};
 pub use v3::{
-    BuilderV3, SeedFile, SeededBookV3, SeededV3, TPL_SHOWCASE_GALLERY, book_to_v3, digest_v3,
-    generate_v3, with_showcase_files, write_book_files_v3, write_book_v3,
+    BuilderV3, LevelOnlyLane, SeedFile, SeededBookV3, SeededV3, TPL_SHOWCASE_GALLERY, book_to_v3,
+    digest_v3, generate_v3, with_level_only_lane, with_showcase_files, write_book_files_v3,
+    write_book_v3,
 };
 
 pub(crate) use build::{Builder, day_before_t0, id as build_id, positions};
@@ -95,6 +96,37 @@ pub fn library_options(app_version: &str) -> dr_store::LibraryOptions {
     let mut o = dr_store::LibraryOptions::new(app_version);
     o.configure_doc = Some(std::sync::Arc::new(dr_doc::schema::configure));
     o
+}
+
+/// Open the library at `dir` as the App does (dr-workspace's library
+/// options), open every book in it (those in Recently Deleted too) as a
+/// project opens, with its book document and the three documents beside
+/// it, shut down, and return how many document updates that stored. A book
+/// that needs no repair stores nothing when it opens (DV2, `kernel-v5.md`
+/// §15 item 31): tests of the seeds, the sample books, the 0.1 import and
+/// the built-in writing project assert zero.
+pub fn writes_on_open(dir: &std::path::Path) -> std::result::Result<i64, String> {
+    use dr_workspace::{Actor, Workspace, WorkspaceOptions};
+    let err = |e: dr_workspace::WsError| e.to_string();
+    let lib = dr_store::Library::open(dir, dr_workspace::library_options("dr-testkit"))
+        .map_err(|e| e.to_string())?;
+    let before = lib.write_seq().map_err(|e| e.to_string())?;
+    let ws = Workspace::open(lib, WorkspaceOptions::default()).map_err(err)?;
+    let call = |name: &str, input: serde_json::Value| {
+        ws.call(&Actor::User, name, input)
+            .map(|v| v["output"].clone())
+            .map_err(err)
+    };
+    let books = call("book.list", serde_json::json!({"trashed": true}))?;
+    for book in books.as_array().into_iter().flatten() {
+        let input = serde_json::json!({"book": book["id"]});
+        for name in ["project.get", "entry.list", "timeline_view.list"] {
+            call(name, input.clone())?;
+        }
+    }
+    let after = ws.library().write_seq().map_err(|e| e.to_string())?;
+    ws.shutdown().map_err(err)?;
+    Ok(after - before)
 }
 
 /// A previous-format synthetic source for refusal and import-boundary tests.

@@ -193,6 +193,36 @@ impl MetaWriterV3 {
         set(&self.map, "created_at", v)?;
         Ok(self)
     }
+
+    /// `meta.level_lanes_cleared` (DV2, `kernel-v5.md` §15 item 31). Lane
+    /// writes and the open-time repair set it on their own; `false` removes
+    /// it, which only a test wants: it leaves a book as a build before DV2
+    /// left it, to be cleared when it opens.
+    pub fn level_lanes_cleared(&self, on: bool) -> Result<&Self> {
+        if on {
+            mark_level_lanes_cleared(&self.map)?;
+        } else {
+            set(
+                &self.map,
+                crate::schema::meta::LEVEL_LANES_CLEARED,
+                None::<bool>,
+            )?;
+        }
+        Ok(self)
+    }
+}
+
+/// Set `meta.level_lanes_cleared` (DV2) unless it is set: the book holds no
+/// old lane that is only a level left to clear.
+fn mark_level_lanes_cleared(meta: &LoroMap) -> Result<()> {
+    let key = crate::schema::meta::LEVEL_LANES_CLEARED;
+    if !matches!(
+        meta.get(key),
+        Some(loro::ValueOrContainer::Value(LoroValue::Bool(true)))
+    ) {
+        meta.insert(key, true)?;
+    }
+    Ok(())
 }
 
 /// Writes `project` of a book document (`kernel-v5.md` §2 & §10).
@@ -950,9 +980,23 @@ impl EntriesTreeWriterV3<'_> {
 /// Writes one timeline view in `timeline_views`.
 pub struct TimelineViewWriterV3 {
     map: LoroMap,
+    /// The book's `meta`: every write that puts a lane into the view marks
+    /// the book as holding no old lane that is only a level
+    /// (`meta.level_lanes_cleared`, DV2), so the open-time clearing never
+    /// takes out a lane a current build wrote.
+    meta: LoroMap,
 }
 
 impl TimelineViewWriterV3 {
+    /// The stored record of lane `entry`, made if missing; marks the book
+    /// (DV2).
+    fn lane(&self, entry: &EntryId) -> Result<LoroMap> {
+        let lanes = self.map.ensure_mergeable_map("lanes")?;
+        let lane = lanes.ensure_mergeable_map(entry.as_str())?;
+        mark_level_lanes_cleared(&self.meta)?;
+        Ok(lane)
+    }
+
     /// Restore just the selected path after native/history/CAS preflight via
     /// `BookViewV3::timeline_field_restore_state`. No sibling record is replaced.
     pub fn restore_field(
@@ -969,6 +1013,9 @@ impl TimelineViewWriterV3 {
             map = map.ensure_mergeable_map(key)?;
         }
         restore_raw_field(&map, path[path.len() - 1], value)?;
+        if value.is_some() && path[0] == "lanes" {
+            mark_level_lanes_cleared(&self.meta)?;
+        }
         Ok(self)
     }
 
@@ -1006,16 +1053,12 @@ impl TimelineViewWriterV3 {
     }
 
     pub fn put_lane(&self, entry: &EntryId, pos: Option<&PosKey>) -> Result<&Self> {
-        let lanes = self.map.ensure_mergeable_map("lanes")?;
-        let l = lanes.ensure_mergeable_map(entry.as_str())?;
-        set(&l, "pos", pos)?;
+        set(&self.lane(entry)?, "pos", pos)?;
         Ok(self)
     }
 
     pub fn set_lane_act_track(&self, entry: &EntryId, act_track: Option<bool>) -> Result<&Self> {
-        let lanes = self.map.ensure_mergeable_map("lanes")?;
-        let l = lanes.ensure_mergeable_map(entry.as_str())?;
-        set(&l, "act_track", act_track)?;
+        set(&self.lane(entry)?, "act_track", act_track)?;
         Ok(self)
     }
 
@@ -1537,6 +1580,7 @@ impl<'a> BookTxnV3<'a> {
     pub fn timeline_view(&mut self, id: &TimelineViewId) -> Result<TimelineViewWriterV3> {
         Ok(TimelineViewWriterV3 {
             map: self.entity(book_v3::TIMELINE_VIEWS, id.as_str())?,
+            meta: self.view.doc.get_map(book_v3::META),
         })
     }
 
@@ -2181,6 +2225,18 @@ impl<'a> BookTxnV3<'a> {
     pub fn apply_repair(&mut self, plan: &RepairPlanV3) -> Result<()> {
         for id in &plan.duplicate_relations {
             self.purge(CollectionV3::Relations, id.as_str())?;
+        }
+        // DV2: the old lanes that are only a level leave their views, with
+        // the places that went with them; the book is marked so this runs
+        // once.
+        for (view, entry) in &plan.level_only_placements {
+            self.timeline_view(view)?.remove_placement(entry)?;
+        }
+        for (view, lane) in &plan.level_only_lanes {
+            self.timeline_view(view)?.remove_lane(lane)?;
+        }
+        if plan.mark_level_lanes_cleared {
+            mark_level_lanes_cleared(&self.view.doc.get_map(book_v3::META))?;
         }
         Ok(())
     }

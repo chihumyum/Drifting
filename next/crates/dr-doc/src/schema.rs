@@ -45,6 +45,12 @@ pub mod meta {
     pub const DOC: &str = "doc";
     /// Book document: the book id.
     pub const BOOK: &str = "book";
+    /// Book document (format 5, DV2): `true` once the book holds no old
+    /// lane that is only a level left to clear: the open-time repair
+    /// cleared them, or the lanes were written by a build that refuses them
+    /// (every lane write sets it). A book without it that stores lanes is
+    /// cleared once when it opens (`kernel-v5.md` §15 item 31).
+    pub const LEVEL_LANES_CLEARED: &str = "level_lanes_cleared";
 }
 
 /// Root containers of a prose document.
