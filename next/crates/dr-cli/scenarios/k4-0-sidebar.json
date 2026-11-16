@@ -290,6 +290,14 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      },
+      "note": "Opening an entry from the filled column leaves fill; the left column closes back over 420 ms (motion::STRUCTURAL) and nothing in the state says when it is over. Hover once the rows have their open width, or the pointer lands outside the row before the card shows."
+    },
+    {
       "app": "ui.hover",
       "params": {
         "label": "${entries.[template=tpl-chapter].title}"
