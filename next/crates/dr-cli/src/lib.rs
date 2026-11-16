@@ -10,6 +10,7 @@
 //! cargo drifting workspace scenario seed:lite --library DIR --yes
 //! cargo drifting workspace inspect --library DIR [--json] [--doc ID]
 //! cargo drifting workspace scenario scenarios/writing-loop.json --app target/debug/drifting
+//! cargo drifting template check my-template.driftingtemplate [--json]
 //! cargo drifting app state | open 第一章 | type 灯塔亮了 | key secondary-z | screenshot a.png
 //! ```
 //!
@@ -91,6 +92,7 @@ pub fn execute(cmd: Command) -> Result<(i32, String), String> {
     match cmd {
         Command::Help => Ok((0, format!("{}{}", args::USAGE, app::VERBS))),
         Command::App(a) => Ok((0, app::execute(&a)?)),
+        Command::TemplateCheck { files, json } => check_templates(&files, json),
         Command::Describe { json } => Ok((
             0,
             if json {
@@ -300,4 +302,75 @@ fn scenario_command(
         |root| with_workspace(root, |ws| report(scenario::run(ws, &s)?)),
     )?;
     Ok((0, guarded(r)))
+}
+
+fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), String> {
+    use dr_export::template_file::{TemplateFileError, validate_template_file};
+    use serde_json::json;
+
+    let mut all_valid = true;
+    let mut human_lines = Vec::with_capacity(files.len());
+    let mut errors = Vec::new();
+    let mut json_items = Vec::with_capacity(files.len());
+
+    for path in files {
+        match validate_template_file(path) {
+            Ok(value) => {
+                let author = value
+                    .credit
+                    .as_ref()
+                    .map(|c| c.author.as_str())
+                    .filter(|a| !a.is_empty());
+                human_lines.push(format!(
+                    "ok: {} ({}, formatVersion {}, {} templates, {} entries)",
+                    path.display(),
+                    value.name,
+                    value.format_version,
+                    value.templates.len(),
+                    value.entries.len()
+                ));
+                json_items.push(json!({
+                    "path": path.display().to_string(),
+                    "valid": true,
+                    "name": value.name,
+                    "formatVersion": value.format_version,
+                    "templates": value.templates.len(),
+                    "entries": value.entries.len(),
+                    "author": author,
+                }));
+            }
+            Err(err) => {
+                all_valid = false;
+                let kind = match &err {
+                    TemplateFileError::NotATemplate => "not_a_template",
+                    TemplateFileError::Newer => "newer",
+                    TemplateFileError::TooLarge => "too_large",
+                    TemplateFileError::Damaged(_) => "damaged",
+                    TemplateFileError::Workspace(_) => "workspace",
+                    TemplateFileError::Io(_) => "io",
+                };
+                errors.push(format!("{}: {err}", path.display()));
+                json_items.push(json!({
+                    "path": path.display().to_string(),
+                    "valid": false,
+                    "reason": kind,
+                    "error": err.to_string(),
+                }));
+            }
+        }
+    }
+
+    if as_json {
+        let payload = if json_items.len() == 1 {
+            json_items.pop().unwrap()
+        } else {
+            json!({ "valid": all_valid, "files": json_items })
+        };
+        let code = if all_valid { 0 } else { 1 };
+        return Ok((code, pretty(&payload)?));
+    }
+    if !all_valid {
+        return Err(errors.join("\n"));
+    }
+    Ok((0, human_lines.join("\n")))
 }

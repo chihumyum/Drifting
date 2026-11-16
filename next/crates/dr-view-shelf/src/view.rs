@@ -54,6 +54,9 @@ actions!(
         /// Imports a `.driftingproject` (M41 handles it; the bookshelf only has
         /// the entry).
         ImportBook,
+        /// Imports a `.driftingtemplate` into the library's saved templates
+        /// (M41, `dr-view-transfer`, handles it; All Projects only has the entry).
+        ImportTemplate,
         /// Imports a Drifting 0.1 library (M10, `dr-view-import`, handles it
         /// with `cx.on_action`; the bookshelf only has the entry).
         ImportLegacyLibrary,
@@ -69,6 +72,15 @@ actions!(
 #[action(namespace = shelf, no_json)]
 pub struct ExportBook {
     pub book: String,
+}
+
+/// Exports saved template `template` as a `.driftingtemplate` (M41,
+/// `dr-view-transfer`, handles it with `cx.on_action`; All Projects' template
+/// hover card only has the entry).
+#[derive(Clone, Debug, PartialEq, Eq, gpui::Action)]
+#[action(namespace = shelf, no_json)]
+pub struct ExportTemplate {
+    pub template: String,
 }
 
 /// The rail's width (`.pp__frame`'s first column).

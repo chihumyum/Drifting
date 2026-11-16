@@ -100,7 +100,9 @@ project.create               command  library  Create a project from a project t
 project.get                  query    shared   Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.
 project.update               command  book     Update the project definition: Agent instructions, whether the project has a book, and word targets; with the project's name and profile, all in one undoable write.
 project_template.edit        command  library  Edit a saved project template in its working copy: a project made from it the way project.create makes one, kept on this device and out of the project lists, recording no writing days; every change made in it saves itself over the template. A working copy left from before is used again when it is in step with the template.
+project_template.export      query    shared   Export a saved project template to a deterministic .driftingtemplate file.
 project_template.get         query    shared   Read a saved project template and its validated value.
+project_template.import      command  library  Validate and import a .driftingtemplate file as a new saved project template in this library.
 project_template.list        query    shared   List saved project templates in this library.
 project_template.remove      command  library  Permanently delete a saved project template from this library.
 project_template.save        command  library  Save a project's structure and selected sample items as a project template, or a template's working copy over that template.

@@ -227,6 +227,8 @@ module.edit_patch: field edits belong to a view that showed the field; use the r
 module.prose_document: storage, editor, or derived-state maintenance
 project.create: library-wide lifecycle operation
 project_template.edit: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
+project_template.export: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
+project_template.import: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.remove: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.update: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.working_copies: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's

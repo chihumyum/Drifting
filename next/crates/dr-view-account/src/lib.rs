@@ -163,6 +163,10 @@ pub fn init(service: Service, cx: &mut App) {
             .user
             .as_ref()
             .map(|u| SharedString::from(u.display_name().to_owned()));
+        let display_name_is_fallback = state
+            .user
+            .as_ref()
+            .is_some_and(|u| u.profile_name().is_none());
         let status_line = Some(match state.status {
             SessionStatus::SignedOut => t(cx, um::LOCAL_STATUS),
             SessionStatus::Checking => t(cx, sess::CHECKING),
@@ -204,6 +208,7 @@ pub fn init(service: Service, cx: &mut App) {
             signed_in,
             hosted_configured: state.hosted_configured,
             display_name,
+            display_name_is_fallback,
             status_line,
             avatar,
             on_header_click,

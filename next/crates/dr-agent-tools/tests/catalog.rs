@@ -115,6 +115,8 @@ fn descriptors_are_generated_stable_and_book_scoped() {
         "material.delete",
         "idea.to_chapter",
         "idea.to_element",
+        "project_template.import",
+        "project_template.export",
     ] {
         assert!(catalog.descriptor(name).is_none(), "{name}");
     }
@@ -178,6 +180,25 @@ fn search_is_exact_or_paged_and_never_installs_another_schema_list() {
         );
     }
     assert!(serde_json::from_value::<Search>(json!({"query":"chapter","extra":true})).is_err());
+}
+
+#[test]
+fn project_template_file_transfer_is_excluded_from_agent_and_mcp() {
+    let f = Fixture::new();
+    let book_catalog = Catalog::for_book(&f.ws, &f.book).unwrap();
+    for name in ["project_template.import", "project_template.export"] {
+        assert!(registry().get(name).is_some(), "{name} must be registered");
+        assert!(book_catalog.descriptor(name).is_none(), "{name}");
+        let searched = book_catalog.search(Search {
+            query: name.into(),
+            ..Search::default()
+        });
+        assert_eq!(searched["total"], 0, "{name}");
+        assert!(
+            resolve(&f.ws, &f.book, name, json!({})).is_err(),
+            "{name} must not resolve through Agent/MCP facade"
+        );
+    }
 }
 
 #[test]

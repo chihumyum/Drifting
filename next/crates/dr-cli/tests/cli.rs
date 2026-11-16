@@ -487,3 +487,247 @@ fn all_seed_entrypoints_write_only_the_current_format() {
     );
     ws.shutdown().unwrap();
 }
+
+#[test]
+fn template_check_parses_and_runs_standalone_without_a_library() {
+    assert_eq!(
+        parse(&a(&["template", "check", "one.driftingtemplate"])).unwrap(),
+        Command::TemplateCheck {
+            files: vec![PathBuf::from("one.driftingtemplate")],
+            json: false,
+        }
+    );
+    assert_eq!(
+        parse(&a(&[
+            "template",
+            "check",
+            "--json",
+            "a.driftingtemplate",
+            "b.driftingtemplate"
+        ]))
+        .unwrap(),
+        Command::TemplateCheck {
+            files: vec![
+                PathBuf::from("a.driftingtemplate"),
+                PathBuf::from("b.driftingtemplate")
+            ],
+            json: true,
+        }
+    );
+    assert_eq!(parse(&a(&["template"])).unwrap(), Command::Help);
+    assert!(parse(&a(&["template", "check"])).is_err());
+    assert!(parse(&a(&["template", "frobnicate"])).is_err());
+
+    // Runs in an empty directory without any library on disk.
+    let tmp = tempfile::tempdir().unwrap();
+    let minimal = serde_json::json!({
+        "format": "drifting.project-template",
+        "formatVersion": 1,
+        "name": "独立校验",
+        "description": "无需书库即可校验",
+        "locale": "zh-CN",
+        "madeWith": "0.2.0-dev",
+        "revision": 1,
+        "credit": { "author": "林岬" },
+        "project": {
+            "book": {},
+            "tabs": [{ "mount": { "kind": "root" } }]
+        },
+        "templates": [],
+        "relation_types": [],
+        "entries": [],
+        "memberships": [],
+        "views": [],
+        "template_prose": {}
+    });
+    let ok_file = tmp.path().join("ok.driftingtemplate");
+    std::fs::write(&ok_file, serde_json::to_string_pretty(&minimal).unwrap()).unwrap();
+
+    let (code, human) = execute(Command::TemplateCheck {
+        files: vec![ok_file.clone()],
+        json: false,
+    })
+    .unwrap();
+    assert_eq!(code, 0, "{human}");
+    assert!(human.contains("ok:"), "{human}");
+
+    let (jcode, jout) = execute(Command::TemplateCheck {
+        files: vec![ok_file.clone()],
+        json: true,
+    })
+    .unwrap();
+    assert_eq!(jcode, 0, "{jout}");
+    let parsed: serde_json::Value = serde_json::from_str(&jout).unwrap();
+    assert_eq!(parsed["valid"], true);
+    assert_eq!(parsed["author"], "林岬");
+
+    let bad_file = tmp.path().join("bad.driftingtemplate");
+    std::fs::write(&bad_file, "not a template").unwrap();
+    assert!(
+        execute(Command::TemplateCheck {
+            files: vec![ok_file.clone(), bad_file.clone()],
+            json: false,
+        })
+        .is_err()
+    );
+    let (bad_jcode, bad_jout) = execute(Command::TemplateCheck {
+        files: vec![ok_file, bad_file],
+        json: true,
+    })
+    .unwrap();
+    assert_eq!(bad_jcode, 1);
+    let bad_parsed: serde_json::Value = serde_json::from_str(&bad_jout).unwrap();
+    assert_eq!(bad_parsed["valid"], false);
+    assert_eq!(bad_parsed["files"][0]["valid"], true);
+    assert_eq!(bad_parsed["files"][1]["valid"], false);
+}
+
+#[test]
+fn template_check_verdict_matches_app_import_across_all_cases() {
+    let (_tmp, lib_dir) = seeded();
+    let ws = dr_workspace::Workspace::open_dir(&lib_dir, offline::APP_VERSION).unwrap();
+    let book = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "project.create",
+            serde_json::json!({"name": "对照源"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let saved_id = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "project_template.save",
+            serde_json::json!({"book": book, "name": "对照模板"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let case_dir = tempfile::tempdir().unwrap();
+    let valid_exported = case_dir.path().join("exported.driftingtemplate");
+    dr_export::template_file::export_template(&ws, &saved_id, Some("林岬"), &valid_exported)
+        .unwrap();
+    let base: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&valid_exported).unwrap()).unwrap();
+
+    let mut no_credit = base.clone();
+    no_credit.as_object_mut().unwrap().remove("credit");
+
+    let mut unknown_key = base.clone();
+    unknown_key["unexpected"] = serde_json::json!(1);
+
+    let mut with_book_root = base.clone();
+    with_book_root["project"]["book"]["root"] = serde_json::json!("e1");
+
+    let mut with_homepage = base.clone();
+    with_homepage["credit"] =
+        serde_json::json!({"author": "林岬", "homepage": "https://example.com"});
+
+    let mut with_derived_from = base.clone();
+    with_derived_from["credit"] =
+        serde_json::json!({"author": "林岬", "derivedFrom": {"name": "旧模板"}});
+
+    let mut broken_ref = base.clone();
+    broken_ref["project"]["tabs"] = serde_json::json!([
+        {"mount": {"kind": "root"}},
+        {"mount": {"kind": "entry", "entry": "e99"}}
+    ]);
+
+    let mut newer_ver = base.clone();
+    newer_ver["formatVersion"] = serde_json::json!(2);
+
+    let mut zero_ver = base;
+    zero_ver["formatVersion"] = serde_json::json!(0);
+
+    let cases: Vec<(&str, Vec<u8>, bool)> = vec![
+        (
+            "valid-exported",
+            std::fs::read(&valid_exported).unwrap(),
+            true,
+        ),
+        (
+            "valid-no-credit",
+            serde_json::to_vec(&no_credit).unwrap(),
+            true,
+        ),
+        (
+            "too-large",
+            vec![b' '; (dr_export::template_file::MAX_BYTES as usize) + 1],
+            false,
+        ),
+        (
+            "unknown-key",
+            serde_json::to_vec(&unknown_key).unwrap(),
+            false,
+        ),
+        (
+            "book-root",
+            serde_json::to_vec(&with_book_root).unwrap(),
+            false,
+        ),
+        (
+            "credit-homepage",
+            serde_json::to_vec(&with_homepage).unwrap(),
+            false,
+        ),
+        (
+            "credit-derived-from",
+            serde_json::to_vec(&with_derived_from).unwrap(),
+            false,
+        ),
+        (
+            "broken-ref",
+            serde_json::to_vec(&broken_ref).unwrap(),
+            false,
+        ),
+        ("newer-ver", serde_json::to_vec(&newer_ver).unwrap(), false),
+        ("zero-ver", serde_json::to_vec(&zero_ver).unwrap(), false),
+        (
+            "truncated-template",
+            br#"{"format":"drifting.project-template","formatVersion":1"#.to_vec(),
+            false,
+        ),
+        ("zip-binary", b"PK\x03\x04\x14\x00\xff".to_vec(), false),
+        ("plain-text", b"hello world".to_vec(), false),
+        (
+            "wrong-format",
+            br#"{"format":"drifting.book","formatVersion":5}"#.to_vec(),
+            false,
+        ),
+    ];
+
+    for (label, bytes, expected_ok) in cases {
+        let path = case_dir.path().join(format!("{label}.driftingtemplate"));
+        std::fs::write(&path, &bytes).unwrap();
+
+        let cli_human_ok = execute(Command::TemplateCheck {
+            files: vec![path.clone()],
+            json: false,
+        })
+        .is_ok_and(|(code, _)| code == 0);
+        let cli_json_ok = execute(Command::TemplateCheck {
+            files: vec![path.clone()],
+            json: true,
+        })
+        .is_ok_and(|(code, _)| code == 0);
+        let app_import_ok = dr_export::template_file::import_template(&ws, &path).is_ok();
+        let ws_cmd_ok = ws
+            .call(
+                &dr_workspace::Actor::User,
+                "project_template.import",
+                serde_json::json!({"path": path.to_str().unwrap()}),
+            )
+            .is_ok();
+
+        assert_eq!(cli_human_ok, expected_ok, "{label}: cli human verdict");
+        assert_eq!(cli_json_ok, expected_ok, "{label}: cli json verdict");
+        assert_eq!(app_import_ok, expected_ok, "{label}: app import verdict");
+        assert_eq!(ws_cmd_ok, expected_ok, "{label}: workspace command verdict");
+    }
+
+    ws.shutdown().unwrap();
+}

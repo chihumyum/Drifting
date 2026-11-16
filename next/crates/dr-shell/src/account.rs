@@ -54,6 +54,9 @@ pub struct AccountViewInfo {
     pub signed_in: bool,
     pub hosted_configured: bool,
     pub display_name: Option<SharedString>,
+    /// True when `display_name` fell back to the email `@` prefix because the
+    /// signed-in account has no profile name set.
+    pub display_name_is_fallback: bool,
     pub status_line: Option<SharedString>,
     pub avatar: Option<Arc<RenderImage>>,
     pub on_header_click: Option<AccountCallback>,
@@ -102,6 +105,20 @@ pub fn display_name(cx: &App) -> SharedString {
         .display_name
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| t(cx, keys::common::LOCAL))
+}
+
+/// Explicit profile name of the signed-in account (`None` when signed out or
+/// when the account has no profile name set and [`display_name`] falls back to
+/// the email `@` prefix).
+pub fn author_name(cx: &App) -> Option<SharedString> {
+    let info = current_info(cx);
+    if !info.signed_in || info.display_name_is_fallback {
+        return None;
+    }
+    info.display_name.and_then(|s| {
+        let trimmed = s.trim();
+        (!trimmed.is_empty()).then(|| SharedString::from(trimmed.to_owned()))
+    })
 }
 
 /// Accessible label for the account cell button (`账号菜单` when signed in, else `本地书库菜单`).
