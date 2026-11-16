@@ -4,6 +4,7 @@
     "import": "Import project",
     "importFile": "Import project (.driftingproject)",
     "importLegacy": "Import Drifting 0.1",
+    "importTemplate": "Import template",
     "importTemplateFile": "Import template (.driftingtemplate)",
     "libraryProjects_one": "{{count}} project",
     "libraryProjects_other": "{{count}} projects",
@@ -137,6 +138,21 @@
       "bodyWithoutBook": "This project ({{entries}}) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "bodyWithoutChapters": "This project ({{words}} words · {{elements}} elements) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted."
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "Daily {{words}} words",
+    "bookOff": "Off",
+    "bookOn": "On",
+    "bookWordTarget": "Book {{words}} words",
+    "builtin": "Built-in",
+    "deleteTitle": "Delete template “{{name}}”?",
+    "description": "Description",
+    "exportFile": "Export (.driftingtemplate)",
+    "leftRail": "Left sidebar",
+    "myTemplates": "My templates",
+    "overwrite": "Overwrite…",
+    "structure": "Structure",
+    "timePins": "Time pins"
   },
   "settings": {
     "appearance": {

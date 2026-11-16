@@ -28,7 +28,11 @@ use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
     commands::{
         BookIn, NoInput,
-        book::{BookCreateIn, BookPurge, BookPurgeExpired, BookRestore, BookTrash},
+        book::{BookPurge, BookPurgeExpired, BookRestore, BookTrash},
+        v3::project_template::{
+            ProjectTemplateEdit, ProjectTemplateEditIn, ProjectTemplateIdIn, ProjectTemplateRemove,
+            ProjectTemplateSummary,
+        },
     },
 };
 use gpui::{
@@ -44,8 +48,9 @@ use dr_view_shelf_art::{
 };
 
 use crate::art::{self, ShelfArt};
-use crate::data::{ShelfBook, ShelfData, Status, TrashedBook, progress};
+use crate::data::{ShelfBook, ShelfData, Status, TrashedBook, is_template_store_event, progress};
 use crate::format;
+use crate::templates::{NewProjectModal, render_delete_template_dialog, render_rail_templates};
 use dr_i18n::number::{compact, grouped};
 
 actions!(
@@ -106,12 +111,14 @@ pub enum ShelfDialog {
     RecentlyDeleted,
     /// Deleting a book in Recently Deleted for good, now.
     Purge(String),
+    /// Deleting a saved project template for good.
+    DeleteTemplate(String),
 }
 
 enum DialogState {
-    Form {
-        /// `None`: a new book.
-        editing: Option<ShelfBook>,
+    Create(Entity<NewProjectModal>),
+    Edit {
+        book: ShelfBook,
         name: Entity<TextField>,
         summary: Entity<TextArea>,
     },
@@ -122,6 +129,9 @@ enum DialogState {
     /// The confirmation over Recently Deleted.
     Purge {
         book: TrashedBook,
+    },
+    DeleteTemplate {
+        template: ProjectTemplateSummary,
     },
 }
 
@@ -165,6 +175,8 @@ pub struct Shelf {
     /// How many times the expired books were purged (for tests).
     pub expired_runs: usize,
     _events: Option<dr_workspace::Subscription>,
+    _store_events: Option<dr_store::LibrarySubscription>,
+    _globals: Vec<Subscription>,
     _fields: Vec<Subscription>,
     _ws: Option<Subscription>,
 }
@@ -197,14 +209,16 @@ impl Shelf {
             was_shown: false,
             expired_runs: 0,
             _events: None,
+            _store_events: None,
+            _globals: Vec::new(),
             _fields: Vec::new(),
             _ws: None,
         };
         shelf
-            ._fields
+            ._globals
             .push(cx.observe_global::<dr_shell::Strings>(|_, cx| cx.notify()));
         shelf
-            ._fields
+            ._globals
             .push(cx.observe_global::<dr_shell::Settings>(|_, cx| cx.notify()));
         shelf.listen(cx);
         shelf.reload(cx);
@@ -219,6 +233,7 @@ impl Shelf {
                 shelf.task = None;
                 shelf.art_task = None;
                 shelf._events = None;
+                shelf._store_events = None;
                 shelf.lib = None;
                 shelf.jobs.drained()
             })
@@ -316,20 +331,29 @@ impl Shelf {
 
     pub fn dialog(&self) -> Option<ShelfDialog> {
         Some(match self.dialog.as_ref()? {
-            DialogState::Form { editing: None, .. } => ShelfDialog::Create,
-            DialogState::Form {
-                editing: Some(b), ..
-            } => ShelfDialog::Edit(b.id.clone()),
+            DialogState::Create(_) => ShelfDialog::Create,
+            DialogState::Edit { book, .. } => ShelfDialog::Edit(book.id.clone()),
             DialogState::Trash { book } => ShelfDialog::Trash(book.id.clone()),
             DialogState::Deleted => ShelfDialog::RecentlyDeleted,
             DialogState::Purge { book } => ShelfDialog::Purge(book.id.clone()),
+            DialogState::DeleteTemplate { template } => {
+                ShelfDialog::DeleteTemplate(template.id.clone())
+            }
         })
     }
 
-    /// The dialog's name and summary fields, for tests.
+    /// The open template-picker creation dialog, for tests.
+    pub fn new_project_dialog(&self) -> Option<Entity<NewProjectModal>> {
+        match self.dialog.as_ref()? {
+            DialogState::Create(modal) => Some(modal.clone()),
+            _ => None,
+        }
+    }
+
+    /// The edit dialog's name and summary fields, for tests.
     pub fn form_fields(&self) -> Option<(Entity<TextField>, Entity<TextArea>)> {
         match self.dialog.as_ref()? {
-            DialogState::Form { name, summary, .. } => Some((name.clone(), summary.clone())),
+            DialogState::Edit { name, summary, .. } => Some((name.clone(), summary.clone())),
             _ => None,
         }
     }
@@ -346,14 +370,16 @@ impl Shelf {
     // Reading.
 
     /// F3's bus: a book changed, came or went, its prose changed (the last
-    /// edit) or a document's derived index was written (the words; right
-    /// after an import or seeding the index is built in the background).
-    /// The shelf reads again when it next shows.
+    /// edit), a document's derived index was written (the words; right after
+    /// an import or seeding the index is built in the background), or a saved
+    /// project template (`project-template:<id>`) changed. The shelf reads
+    /// again when it next shows.
     fn listen(&mut self, cx: &mut Context<Self>) {
         let Some(lib) = self.lib.clone() else {
             return;
         };
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
+        let tx_ws = tx.clone();
         self._events = Some(lib.subscribe(move |event| {
             let counts = match event {
                 // A card shows the book's content and its writing days (the
@@ -367,6 +393,11 @@ impl Shelf {
                 WsEvent::Local(change) => dr_workspace::is_text_index(change),
             };
             if counts {
+                let _ = tx_ws.unbounded_send(());
+            }
+        }));
+        self._store_events = Some(lib.library().subscribe(move |event| {
+            if is_template_store_event(event) {
                 let _ = tx.unbounded_send(());
             }
         }));
@@ -419,6 +450,10 @@ impl Shelf {
                             started.elapsed().as_secs_f64() * 1e3,
                             data.books.len()
                         );
+                        if let Some(DialogState::Create(modal)) = &shelf.dialog {
+                            let tpls = data.templates.clone();
+                            modal.update(cx, |m, cx| m.set_templates(tpls, cx));
+                        }
                         shelf.data = Some(Rc::new(data));
                         shelf.load_art(cx);
                     }
@@ -498,38 +533,61 @@ impl Shelf {
     }
 
     pub fn start_create(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.open_form(None, window, cx);
+        let my_templates = self
+            .data
+            .as_ref()
+            .map(|d| d.templates.clone())
+            .unwrap_or_default();
+        let jobs = self.jobs.clone();
+        let ws = self.ws.clone();
+        let created_shelf = cx.weak_entity();
+        let closed_shelf = cx.weak_entity();
+        let modal = cx.new(|cx| {
+            NewProjectModal::new(
+                jobs,
+                ws,
+                my_templates,
+                move |id, window, cx| {
+                    let _ = created_shelf.update(cx, |shelf, cx| {
+                        shelf.dialog = None;
+                        shelf._fields.clear();
+                        shelf.stale = true;
+                        shelf.open(&id, window, cx);
+                        cx.notify();
+                    });
+                },
+                move |window, cx| {
+                    let _ = closed_shelf.update(cx, |shelf, cx| shelf.dismiss_dialog(window, cx));
+                },
+                cx,
+            )
+        });
+        self._fields.clear();
+        // The dialog holds the keyboard (as from the row of projects): ↩ and
+        // ⌘↵ create, Esc closes it; closing gives the keyboard back here.
+        modal.focus_handle(cx).focus(window, cx);
+        self.dialog = Some(DialogState::Create(modal));
+        self.error = None;
+        self.menu_open = false;
+        cx.notify();
     }
 
     pub fn start_edit(&mut self, book: ShelfBook, window: &mut Window, cx: &mut Context<Self>) {
-        self.open_form(Some(book), window, cx);
-    }
-
-    fn open_form(
-        &mut self,
-        editing: Option<ShelfBook>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let (name_text, summary_text) = editing
-            .as_ref()
-            .map(|b| (b.name.clone(), b.summary.clone()))
-            .unwrap_or_default();
         let name_hint = t(cx, keys::project_picker::form::NAME_PLACEHOLDER);
         let summary_hint = t(cx, keys::all_projects::SUMMARY_PLACEHOLDER);
         let name = cx.new(|cx| {
             TextField::new("shelf-form-name", window, cx)
                 .placeholder(name_hint)
-                .with_text(name_text)
+                .with_text(book.name.clone())
         });
         let summary = cx.new(|cx| {
             TextArea::new("shelf-form-summary", window, cx)
                 .framed(3.0)
                 .placeholder(summary_hint)
-                .with_text(summary_text)
+                .with_text(book.summary.clone())
         });
-        // ⌘↵ creates or saves (the summary's own ⌘↵ does it too, and Enter
-        // in the name); Esc in a field closes the dialog.
+        // ⌘↵ saves (the summary's own ⌘↵ does it too, and Enter in the name);
+        // Esc in a field closes the dialog.
         self._fields = vec![
             cx.subscribe_in(&name, window, |shelf, _, e, window, cx| match e {
                 FieldEvent::Submitted(_) => shelf.submit_form(window, cx),
@@ -543,14 +601,115 @@ impl Shelf {
             }),
         ];
         name.focus_handle(cx).focus(window, cx);
-        self.dialog = Some(DialogState::Form {
-            editing,
+        self.dialog = Some(DialogState::Edit {
+            book,
             name,
             summary,
         });
         self.error = None;
         self.menu_open = false;
         cx.notify();
+    }
+
+    /// Opens saved project template `id` in its working copy (`project_template.edit`).
+    pub fn edit_template(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.releasing || dr_shell::release::is_releasing(cx) || self.busy {
+            return;
+        }
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let template_id = id.to_owned();
+        self.busy = true;
+        self.menu_open = false;
+        cx.notify();
+        let lib = self.jobs.enter(lib);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    lib.run::<ProjectTemplateEdit>(
+                        &Actor::User,
+                        ProjectTemplateEditIn { id: template_id },
+                    )
+                })
+                .await;
+            this.update_in(cx, |shelf, window, cx| {
+                shelf.busy = false;
+                match result {
+                    Ok(out) => {
+                        shelf.open(&out.output.book, window, cx);
+                    }
+                    Err(error) => {
+                        log::warn!("the project template could not be opened for editing: {error}");
+                        // Said at the window's foot, as the shell says a step
+                        // that did not go through (the hover card is gone).
+                        let text = t(cx, keys::common::SAVE_FAILED);
+                        shelf.ws.update(cx, |ws, cx| ws.toast(text, cx)).ok();
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// Asks before deleting a saved project template for good.
+    pub fn ask_delete_template(
+        &mut self,
+        template: ProjectTemplateSummary,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.dialog = Some(DialogState::DeleteTemplate { template });
+        self.error = None;
+        self.menu_open = false;
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// Permanently deletes the saved project template of the open confirmation
+    /// (`project_template.remove`).
+    pub fn confirm_delete_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(DialogState::DeleteTemplate { template }) = &self.dialog else {
+            return;
+        };
+        if self.releasing || dr_shell::release::is_releasing(cx) || self.busy {
+            return;
+        }
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let id = template.id.clone();
+        self.busy = true;
+        self.error = None;
+        cx.notify();
+        let lib = self.jobs.enter(lib);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    lib.run::<ProjectTemplateRemove>(&Actor::User, ProjectTemplateIdIn { id })
+                })
+                .await;
+            this.update_in(cx, |shelf, window, cx| {
+                shelf.busy = false;
+                match result {
+                    Ok(_) => {
+                        shelf.stale = true;
+                        shelf.close_dialog(window, cx);
+                    }
+                    Err(error) => {
+                        log::warn!("the project template could not be deleted: {error}");
+                        shelf.error = Some(keys::mobile_workspace::project_actions::DELETE_FAILED);
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
     }
 
     pub fn ask_trash(&mut self, book: ShelfBook, window: &mut Window, cx: &mut Context<Self>) {
@@ -641,6 +800,16 @@ impl Shelf {
         if self.busy {
             return;
         }
+        if let Some(DialogState::Create(modal)) = &self.dialog
+            && modal.read(cx).is_busy()
+        {
+            return;
+        }
+        self.dismiss_dialog(window, cx);
+    }
+
+    /// Also called by the picker after it has handled its own busy state.
+    fn dismiss_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.dialog = None;
         self._fields.clear();
         self.error = None;
@@ -650,8 +819,13 @@ impl Shelf {
 
     /// Creates the book (and opens it) or saves the edit.
     pub fn submit_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(DialogState::Form {
-            editing,
+        if let Some(DialogState::Create(modal)) = &self.dialog {
+            let modal = modal.clone();
+            modal.update(cx, |m, cx| m.submit(window, cx));
+            return;
+        }
+        let Some(DialogState::Edit {
+            book,
             name,
             summary,
         }) = &self.dialog
@@ -669,8 +843,7 @@ impl Shelf {
         }
         let typed = name.read(cx).text().trim().to_owned();
         let summary = summary.read(cx).text().trim().to_owned();
-        let editing = editing.clone();
-        let untitled = t(cx, keys::project_picker::desk::UNTITLED).to_string();
+        let book = book.clone();
         self.busy = true;
         self.error = None;
         cx.notify();
@@ -679,41 +852,23 @@ impl Shelf {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    match editing {
-                        None => lib
-                            .run::<dr_workspace::commands::v3::entry::ProjectCreate>(
-                                &Actor::User,
-                                BookCreateIn {
-                                    name: if typed.is_empty() { untitled } else { typed },
-                                    summary,
-                                    template: None,
-                                },
-                            )
-                            .map(|o| Some(o.output.id)),
-                        Some(book) => lib
-                            .run::<dr_workspace::commands::v3::book::BookUpdate>(
-                                &Actor::User,
-                                dr_workspace::commands::v3::book::BookUpdateIn {
-                                    book: book.id.clone(),
-                                    name: (!typed.is_empty() && typed != book.name)
-                                        .then_some(typed),
-                                    summary: (summary != book.summary).then_some(summary),
-                                },
-                            )
-                            .map(|_| None),
-                    }
+                    lib.run::<dr_workspace::commands::v3::book::BookUpdate>(
+                        &Actor::User,
+                        dr_workspace::commands::v3::book::BookUpdateIn {
+                            book: book.id.clone(),
+                            name: (!typed.is_empty() && typed != book.name).then_some(typed),
+                            summary: (summary != book.summary).then_some(summary),
+                        },
+                    )
                 })
                 .await;
-            this.update_in(cx, |shelf, window, cx| {
+            this.update(cx, |shelf, cx| {
                 shelf.busy = false;
                 match result {
-                    Ok(created) => {
+                    Ok(_) => {
                         shelf.dialog = None;
                         shelf._fields.clear();
                         shelf.stale = true;
-                        if let Some(id) = created {
-                            shelf.open(&id, window, cx);
-                        }
                     }
                     Err(error) => {
                         log::warn!("the book could not be saved: {error}");
@@ -906,6 +1061,10 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
         None => SharedString::default(),
     };
     let trashed = shelf.data.as_ref().map_or(0, |d| d.trashed.len());
+    let my_templates = shelf
+        .data
+        .as_ref()
+        .and_then(|d| render_rail_templates(&d.templates, shelf.press_taken.clone(), window, cx));
     let entity = cx.entity();
     let deleted = {
         let entity = entity.clone();
@@ -941,6 +1100,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
                 .text_color(p.muted().solid())
                 .child(library),
         )
+        .children(my_templates)
         .child(div().flex_1())
         .child(rail_cell(
             "shelf-import-book",
@@ -952,6 +1112,20 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
             window,
             cx,
         ))
+        .child(
+            div()
+                .debug_selector(|| "shelf-import-template".into())
+                .child(rail_cell(
+                    "shelf-import-template",
+                    Icon::ArrowIn,
+                    t(cx, keys::all_projects::IMPORT_TEMPLATE),
+                    Some(".driftingtemplate".into()),
+                    t(cx, keys::all_projects::IMPORT_TEMPLATE_FILE),
+                    |_, window, cx| window.dispatch_action(Box::new(ImportTemplate), cx),
+                    window,
+                    cx,
+                )),
+        )
         .child(rail_cell(
             "shelf-import-library",
             Icon::GateIn,
@@ -1905,24 +2079,21 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
             .child(field)
     };
     match shelf.dialog.as_ref().expect("a dialog is open") {
-        DialogState::Form {
-            editing,
+        DialogState::Create(modal) => modal.clone().into_any_element(),
+        DialogState::Edit {
+            book,
             name,
             summary,
         } => {
-            let title = match editing {
-                None => t(cx, keys::all_projects::NEW_PROJECT),
-                Some(b) => tf(
-                    cx,
-                    keys::project_picker::desk::form::EDIT_TITLE,
-                    &[("name", &b.name)],
-                ),
-            };
-            let submit_label = match (editing.is_some(), busy) {
-                (false, false) => t(cx, keys::project_picker::form::CREATE_SUBMIT),
-                (false, true) => t(cx, keys::common::CREATING),
-                (true, false) => t(cx, keys::common::SAVE),
-                (true, true) => t(cx, keys::common::SAVING),
+            let title = tf(
+                cx,
+                keys::project_picker::desk::form::EDIT_TITLE,
+                &[("name", &book.name)],
+            );
+            let submit_label = if busy {
+                t(cx, keys::common::SAVING)
+            } else {
+                t(cx, keys::common::SAVE)
             };
             let submit = entity.clone();
             Dialog::new("shelf-form", title)
@@ -1952,6 +2123,13 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                 .on_close(close)
                 .into_any_element()
         }
+        DialogState::DeleteTemplate { template } => render_delete_template_dialog(
+            template,
+            busy,
+            error.map(IntoElement::into_any_element),
+            close,
+            cx,
+        ),
         DialogState::Trash { book } => {
             let confirm = entity.clone();
             let body = if book.has_book {

@@ -33,6 +33,7 @@ mod sidebar;
 mod stage;
 pub mod toast;
 mod undo;
+mod working_copy;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
@@ -1346,14 +1347,38 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The red light closes the window, in a book as on 全部项目: the
-    /// book's layout is stored first, so the next launch opens it as it was.
-    /// 全部项目 is reached only by its own button.
+    /// The red light closes the window, in an ordinary book as on 全部项目:
+    /// the book's layout is stored first, so the next launch opens it as it
+    /// was. In a project template's working copy (`project-templates.md` §12,
+    /// PT3), it returns to 全部项目 instead of closing the window
+    /// ([`working_copy`]).
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let this = cx.weak_entity();
-        window.on_window_should_close(cx, move |_, cx| {
-            let _ = this.update(cx, |ws, cx| ws.store_layout(cx));
-            true
+        window.on_window_should_close(cx, move |window, cx| {
+            let leaving = this
+                .update(cx, |ws, cx| {
+                    let leaving = ws.in_working_copy();
+                    if leaving {
+                        ws.close_over_working_copy(window, cx);
+                    }
+                    leaving
+                })
+                .unwrap_or(false);
+            if leaving {
+                // The field that had the keyboard hands over what is typed in
+                // it now, while the working copy is still the open book.
+                window.refresh();
+                window.draw(cx).clear(cx);
+            }
+            this.update(cx, |ws, cx| {
+                if leaving && ws.show_shelf(window, cx) {
+                    ws.save_left_working_copy(cx);
+                    return false;
+                }
+                ws.store_layout(cx);
+                true
+            })
+            .unwrap_or(true)
         });
     }
 

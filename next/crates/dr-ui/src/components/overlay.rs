@@ -6,7 +6,8 @@
 //!
 //! - [`Place::Rect`]: beside a rectangle (a trigger, the thing a hover card
 //!   belongs to): below it, aligned to its start, centre or end; above it
-//!   when there is no room below.
+//!   when there is no room below. [`Place::Above`] is the same, above first
+//!   (a list a dialog's bottom button opens).
 //! - [`Place::Point`]: at a point (a double-click on the canvas, a timeline
 //!   position): its top-left there, flipping left or up at the window's edge.
 //! - [`Place::Center`]: centred in the window (dialogs, global search).
@@ -90,6 +91,12 @@ pub enum Place {
         align: Align,
         gap: f32,
     },
+    /// Above `rect` (below it when there is no room above), `gap` px away.
+    Above {
+        rect: Bounds<Pixels>,
+        align: Align,
+        gap: f32,
+    },
     /// Beside `rect`, its top level with `rect`'s, `gap` px away: on the
     /// right, or on the left when it does not fit on the right and the left
     /// has more room (the 0.1 client's `right-start`).
@@ -140,7 +147,7 @@ pub fn place(place: Place, content: Size<Pixels>, window: Size<Pixels>) -> Point
             };
             (clamp(x, w, ww), clamp(y, h, wh))
         }
-        Place::Rect { rect, align, gap } => {
+        Place::Rect { rect, align, gap } | Place::Above { rect, align, gap } => {
             let (left, right) = (f32::from(rect.left()), f32::from(rect.right()));
             let (top, bottom) = (f32::from(rect.top()), f32::from(rect.bottom()));
             let x = match align {
@@ -150,10 +157,13 @@ pub fn place(place: Place, content: Size<Pixels>, window: Size<Pixels>) -> Point
             };
             let below = bottom + gap;
             let above = top - gap - h;
-            let y = if below + h > wh - MARGIN && above >= MARGIN {
-                above
-            } else {
-                below
+            let fits_below = below + h <= wh - MARGIN;
+            let fits_above = above >= MARGIN;
+            let y = match place {
+                Place::Above { .. } if fits_above || !fits_below => above,
+                Place::Above { .. } => below,
+                _ if !fits_below && fits_above => above,
+                _ => below,
             };
             (clamp(x, w, ww), clamp(y, h, wh))
         }
@@ -558,6 +568,30 @@ mod tests {
             WINDOW,
         );
         assert_eq!(end.x, px(8.0));
+    }
+
+    #[test]
+    fn above_goes_up_first_and_down_only_without_room_above() {
+        let up = place(
+            Place::Above {
+                rect: rect(500.0, 400.0, 80.0, 30.0),
+                align: Align::End,
+                gap: 6.0,
+            },
+            size(px(220.0), px(100.0)),
+            WINDOW,
+        );
+        assert_eq!(up, point(px(580.0 - 220.0), px(400.0 - 6.0 - 100.0)));
+        let down = place(
+            Place::Above {
+                rect: rect(500.0, 40.0, 80.0, 30.0),
+                align: Align::End,
+                gap: 6.0,
+            },
+            size(px(220.0), px(100.0)),
+            WINDOW,
+        );
+        assert_eq!(down.y, px(40.0 + 30.0 + 6.0));
     }
 
     #[test]
