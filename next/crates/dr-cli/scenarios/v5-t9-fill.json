@@ -445,8 +445,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Template name",
-        "role": "TextField"
+        "label": "Template name"
       }
     },
     {
@@ -545,6 +544,21 @@
     {
       "app": "ui.press",
       "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
         "label": "Project Home",
         "role": "Button"
       }
@@ -638,6 +652,21 @@
           "/v3Sidebar/fillLayout": "relation"
         },
         "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleProjects"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/projects": true
+        }
       }
     },
     {
