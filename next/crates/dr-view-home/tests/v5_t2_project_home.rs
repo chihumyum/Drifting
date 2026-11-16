@@ -587,11 +587,17 @@ fn template_source_row_renders_name_optional_single_author_and_never_derived_fro
 
     let (ws, home, vcx) = open_workspace(cx, &lib, &base_book);
 
-    // 1. Pre-PT1 seeded book without `source.name` hides `来源` rather than leaking raw IDs.
-    assert!(vcx.debug_bounds("v3-home-template-source").is_none());
-    assert!(
+    // 1. A seeded book names the built-in template it was laid out from, as a
+    //    new project does (the PT4 follow-up, 2026-11-16, records the name for
+    //    seeds, sample books and 0.1 imports), so 「来源」 shows it; a raw id
+    //    never shows.
+    wait(vcx, "seeded book shows its source", |vcx| {
+        vcx.debug_bounds("v3-home-template-source").is_some()
+    });
+    assert_eq!(
         home.read_with(vcx, |h, cx| h.template_source_text(cx))
-            .is_none()
+            .as_deref(),
+        Some("来自「写书」")
     );
 
     // 2. Project created from built-in template shows "来自「写书」" with no author, plus
