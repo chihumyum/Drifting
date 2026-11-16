@@ -29,7 +29,7 @@ pub struct ProseFile {
     pub present: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AssetFile {
     pub id: AssetId,
     pub path: String,

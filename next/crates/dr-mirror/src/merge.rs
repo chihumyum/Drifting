@@ -70,6 +70,7 @@ pub struct Merged {
     pub removed: usize,
     pub base_len: usize,
     pub conflicts: Vec<BlockId>,
+    pub replayed: bool,
 }
 
 impl Merged {
@@ -142,31 +143,31 @@ pub fn merge_with(
     if file.is_empty() && paragraphs.iter().any(|p| !Para::of(p).is_empty()) {
         return Ok(Err(Refusal::Emptied));
     }
-    let current: HashMap<_, _> =
-        if copy.oplog_frontiers() == *base || copy.oplog_vv().get(&peer).is_some() {
-            HashMap::new()
-        } else {
-            BorrowedProse::new(copy, doc)?
-                .view()
-                .paragraphs()
-                .filter_map(|p| {
-                    p.id.map(|id| {
-                        (
-                            id,
-                            p.runs
-                                .iter()
-                                .flat_map(|r| r.text.chars())
-                                .collect::<Vec<_>>(),
-                        )
-                    })
+    let replayed = copy.oplog_vv().get(&peer).is_some();
+    let current: HashMap<_, _> = if copy.oplog_frontiers() == *base || replayed {
+        HashMap::new()
+    } else {
+        BorrowedProse::new(copy, doc)?
+            .view()
+            .paragraphs()
+            .filter_map(|p| {
+                p.id.map(|id| {
+                    (
+                        id,
+                        p.runs
+                            .iter()
+                            .flat_map(|r| r.text.chars())
+                            .collect::<Vec<_>>(),
+                    )
                 })
-                .collect()
-        };
+            })
+            .collect()
+    };
     let (r, _) = prose.edit(Origin::Mirror, |txn| {
         edit(txn, &paragraphs, file, names, links, peer, &current)
     });
     let (removed, conflicts) = r?;
-    let update = if prose.version() == base_vv {
+    let update = if replayed || prose.version() == base_vv {
         Vec::new()
     } else {
         prose.export_updates_since(&base_vv)?
@@ -177,6 +178,7 @@ pub fn merge_with(
         removed,
         base_len,
         conflicts,
+        replayed,
     }))
 }
 

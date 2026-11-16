@@ -1848,6 +1848,7 @@ dependencies = [
  "dr-text",
  "dr-workspace",
  "icu_normalizer",
+ "libc",
  "log",
  "loro",
  "notify",
