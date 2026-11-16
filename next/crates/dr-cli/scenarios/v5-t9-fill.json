@@ -754,6 +754,15 @@
       }
     },
     {
+      "app": "input.scroll",
+      "params": {
+        "x": 500,
+        "y": 500,
+        "dy": -260
+      },
+      "note": "Bring the project template block above the Agent fields into the screenshot."
+    },
+    {
       "app": "ui.screenshot",
       "png": "home-structure.png"
     },
