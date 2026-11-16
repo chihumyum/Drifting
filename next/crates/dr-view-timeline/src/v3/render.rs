@@ -989,7 +989,16 @@ impl Timeline {
                     })
                     .flatten();
                 let id = clip.entry.clone();
-                let drag = self.page_host().map(|page| {
+                // A preview can arrive before its hang is in the book.
+                // Wait for the committed placement before editing it again.
+                let can_edit_placement = !self.pending.contains_key(&id)
+                    && self.book.v3().is_some_and(|b| {
+                        b.accepts_members(&lane.id)
+                            && b.memberships
+                                .iter()
+                                .any(|m| m.host == lane.id && m.member == id)
+                    });
+                let drag = self.page_host().filter(|_| can_edit_placement).map(|page| {
                     let mut drag = EntryDrag::new(page, id.clone(), title.clone())
                         .with_timeline_clip(view.id.clone(), lane.id.clone());
                     drag.span = clip.span;
@@ -1005,13 +1014,7 @@ impl Timeline {
                 };
                 let entry = id.clone();
                 let lane_id = lane.id.clone();
-                let can_remove_from_lane = self.book.v3().is_some_and(|b| {
-                    b.accepts_members(&lane.id)
-                        && b.memberships
-                            .iter()
-                            .any(|m| m.host == lane.id && m.member == id)
-                });
-                let show_more = w > 48. && can_remove_from_lane;
+                let show_more = w > 48. && can_edit_placement;
                 let more = PanelIconButton::new(
                     SharedString::from(format!("v3-clip-menu-{}-{id}", lane.id)),
                     Icon::More,
@@ -1075,7 +1078,7 @@ impl Timeline {
                 .text_color(color.solid())
                 .role(gpui::Role::Button)
                 .aria_label(title.clone())
-                .cursor_grab()
+                .when(can_edit_placement, |body| body.cursor_grab())
                 .when(!short_segment, |body| {
                     let title_id = SharedString::from(format!("v3-clip-title-{}-{id}", lane.id));
                     body.px(px(pad_x))
@@ -1174,7 +1177,7 @@ impl Timeline {
                             .child(more),
                     );
                 }
-                row = row.child(slab.child(handle));
+                row = row.child(slab.children(can_edit_placement.then_some(handle)));
             }
             tracks_col = tracks_col.child(row);
         }

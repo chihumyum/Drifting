@@ -296,6 +296,22 @@
       "save": "hungClip"
     },
     {
+      "app": "ui.find",
+      "params": {
+        "label": "Placement actions",
+        "role": "Button",
+        "within": {
+          "label": "${roots.1.title}",
+          "role": "Group",
+          "within": {
+            "label": "Lane ${lane.title}",
+            "role": "Group"
+          }
+        }
+      },
+      "note": "Wait for the persisted placement to become editable before dragging it back."
+    },
+    {
       "call": "entry.get",
       "input": {
         "book": "${books.0.id}",
@@ -591,7 +607,7 @@
       "app": "ui.find",
       "params": {
         "label": "Synthetic T9 template name",
-        "role": "Tab"
+        "role": "RadioButton"
       }
     },
     {
@@ -611,7 +627,7 @@
       "app": "ui.press",
       "params": {
         "label": "Synthetic T9 template name",
-        "role": "Tab"
+        "role": "RadioButton"
       }
     },
     {
