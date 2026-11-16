@@ -2694,18 +2694,14 @@ fn resolve_patch_id(patches: &[dr_model::v3::PatchV3], raw: &str) -> Result<Stri
 fn resolve_relation_type_id(view: &BookViewV3<'_>, value: &Value) -> Result<String> {
     let raw = string(value, "relation_type")?;
     let trimmed = raw.trim();
-    let types = view.relation_types();
+    let types = view.relation_types_raw();
     if let Some(rt) = types.iter().find(|t| t.id.as_str() == trimmed) {
         return Ok(rt.id.to_string());
     }
-    let key = trimmed.to_lowercase();
+    let key = dr_model::shared::normalize_relation_type_name(trimmed);
     let matches: Vec<_> = types
         .iter()
-        .filter(|t| {
-            t.name.trim().to_lowercase() == key
-                || t.normalized_name == key
-                || t.system_key.as_ref().is_some_and(|k| k.as_str() == trimmed)
-        })
+        .filter(|t| t.normalized_name == key)
         .collect();
     match matches.as_slice() {
         [rt] => Ok(rt.id.to_string()),
