@@ -21,7 +21,7 @@ use crate::{
     input::{Composition, KEY_CONTEXT, Selection},
     layout::{BlockMetrics, Book, HeightIndex, ProseLayout, column, shape_set},
     platform::PlatformHooks,
-    render::{CursorLayer, FlowItems, FlowState, FrameCache},
+    render::{CursorLayer, FlowItems, FlowState, FrameCache, PaintedLine},
     style::{EditorOptions, ProseStyle},
     text::{AnchorChange, BlockKind, MarkOverride, Marks, ProseDoc, segment},
 };
@@ -1207,9 +1207,9 @@ impl ProseEditor {
         Some((Rc::new(shaped), px(set.metrics.line_height)))
     }
 
-    /// The chapter offset under a window position (nearest painted paragraph),
-    /// snapped to a grapheme boundary.
-    pub(crate) fn hit_test(&mut self, position: Point<Pixels>) -> Option<(usize, usize)> {
+    /// The painted paragraph nearest a window position, and the byte of its
+    /// display text (marked text included) under it.
+    fn painted_at(&self, position: Point<Pixels>) -> Option<(PaintedLine, usize)> {
         let frame = self.frame.borrow();
         let painted = frame
             .lines
@@ -1228,6 +1228,25 @@ impl ProseEditor {
         drop(frame);
         let local = position - painted.origin;
         let (byte, _affinity) = painted.layout.byte_for_point(local, painted.line_height);
+        Some((painted, byte))
+    }
+
+    /// Whether a window position lands inside the marked text as it was
+    /// painted (not at either of its ends): the input method's own ground.
+    pub(crate) fn hits_marked_text(&self, position: Point<Pixels>) -> bool {
+        self.painted_at(position).is_some_and(|(painted, byte)| {
+            painted
+                .comp
+                .is_some_and(|comp| byte > comp.at && byte < comp.at + comp.len)
+        })
+    }
+
+    /// The chapter offset under a window position (nearest painted paragraph),
+    /// snapped to a grapheme boundary. Read from the lines as painted: with
+    /// marked text in one of them, positions after it are the committed
+    /// text's, so the offset holds after the marked text is dropped.
+    pub(crate) fn hit_test(&mut self, position: Point<Pixels>) -> Option<(usize, usize)> {
+        let (painted, byte) = self.painted_at(position)?;
         let byte = painted.comp.map_or(byte, |comp| comp.to_line_byte(byte));
         let doc = &mut self.book.chapters[painted.chapter].doc;
         let line = doc.line(painted.line);

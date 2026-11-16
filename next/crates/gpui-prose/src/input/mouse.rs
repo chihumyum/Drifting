@@ -11,6 +11,12 @@
 //! chapters: the selection then spans chapters (`span.rs`). Titles and the
 //! host's chapter heads and ends are not text; dragging over them selects
 //! up to the nearest paragraph.
+//!
+//! A press elsewhere in the text while an input method is composing drops
+//! the marked text, here and in the input method, and then places the caret
+//! (the author's rule, `docs/rust-rewrite/kernel-v5.md` §15, item 37: the
+//! same as losing focus, never half-typed pinyin left behind). A press
+//! inside the marked text is the input method's and does nothing here.
 
 use std::ops::Range;
 
@@ -53,7 +59,16 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus, cx);
-        let Some((chapter, offset)) = self.hit_test(event.position) else {
+        if self.composition.is_some() && self.hits_marked_text(event.position) {
+            // The input method's own ground (on macOS GPUI has already
+            // handed it the event): the composition and the caret stay.
+            return;
+        }
+        // Read where the press landed while the marked text is still in the
+        // painted lines, then drop it.
+        let hit = self.hit_test(event.position);
+        self.drop_composition_on_press(window, cx);
+        let Some((chapter, offset)) = hit else {
             return;
         };
         self.click_at(
@@ -63,6 +78,43 @@ impl ProseEditor {
             event.modifiers.shift,
             cx,
         );
+    }
+
+    /// A press on the text at `offset`, outside any marked text: half-typed
+    /// input is dropped first, then the press is a click ([`Self::click_at`]).
+    pub fn press_at(
+        &mut self,
+        chapter: usize,
+        offset: usize,
+        click_count: usize,
+        shift: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.drop_composition_on_press(window, cx);
+        self.click_at(chapter, offset, click_count, shift, cx);
+    }
+
+    /// A pointer press ends half-typed input: the marked text is dropped
+    /// here and in the input method, the committed text untouched and no
+    /// undo step made (a selection the composition was typed over is still
+    /// there). Returns whether there was marked text.
+    pub(crate) fn drop_composition_on_press(
+        &mut self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if self.composition.is_none() {
+            return false;
+        }
+        self.log_ime(format_args!("press: marked text dropped"));
+        self.cancel_composition();
+        if let Some(hooks) = &self.hooks {
+            hooks.discard_marked_text(window);
+        }
+        self.reset_blink(cx);
+        cx.notify();
+        true
     }
 
     /// A press at `offset`: places the caret, or selects the word or
