@@ -1,11 +1,11 @@
-//! The book document (`docs/rust-rewrite/kernel-v3.md`, format version 4 per
-//! `kernel-v4.md`).
+//! The current book document (`docs/rust-rewrite/kernel-v5.md`).
 //!
 //! This is the only App book runtime. [`crate::import_v1`] is an isolated
 //! in-memory source replay adapter for importing previous formats.
-//! Every book document starts from [`book_genesis`] with `meta.v = 4`; its
+//! Every book document starts from [`book_genesis`] with `meta.v = 5`; its
 //! writing days and checkpoint manifests live beside it ([`crate::side`]).
 
+mod linked_text;
 pub mod novel;
 mod raw;
 pub mod read;
@@ -17,7 +17,6 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use dr_model::id::BookId;
-use dr_model::kind::EntityKind;
 use dr_model::{DocId, Origin};
 use loro::event::{Diff, DiffEvent};
 use loro::{
@@ -25,7 +24,6 @@ use loro::{
     VersionVector,
 };
 
-use crate::catalog::{GENERIC_DESCRIPTION, GENERIC_NAME, generic_relation_type_id};
 use crate::core::{Committed, Core, Imported, check_borrowed, configured};
 use crate::error::Result;
 use crate::peer::{PeerId, genesis_peer};
@@ -47,18 +45,21 @@ pub use structure::{
 };
 pub use write::BookTxnV3;
 
-/// Whether `doc` is a book document of the current format
-/// (`meta.v == BOOK_SCHEMA_VERSION`). Any other version is refused as it is.
+/// Whether `doc` is a book document of the current format and genesis.
 pub fn is_book_doc(doc: &LoroDoc) -> bool {
-    match doc.get_map(book_v3::META).get(schema::meta::VERSION) {
+    let meta = doc.get_map(book_v3::META);
+    let version = match meta.get(schema::meta::VERSION) {
         Some(ValueOrContainer::Value(LoroValue::I64(v))) => v == BOOK_SCHEMA_VERSION,
         Some(ValueOrContainer::Value(LoroValue::Double(d))) => d == BOOK_SCHEMA_VERSION as f64,
         _ => false,
-    }
+    };
+    version && matches!(
+        meta.get(schema::meta::RELATION_ROWS),
+        Some(ValueOrContainer::Value(LoroValue::Bool(true)))
+    )
 }
 
-/// Deterministic genesis of a book document (`meta.v = 5` and the built-in
-/// locked relation type whose endpoints include `entry`, `patch`, `comment`, and `asset`).
+/// Deterministic genesis of a book. Relations start empty.
 pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
     let doc = LoroDoc::new();
     doc.config_text_style(schema::style_config());
@@ -70,41 +71,7 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         .expect("meta");
     meta.insert(schema::meta::BOOK, book_id.as_str())
         .expect("meta");
-    let rt = doc
-        .get_map(book_v3::RELATION_TYPES)
-        .ensure_mergeable_map(generic_relation_type_id(book_id).as_str())
-        .expect("relation type");
-    let kinds = |ks: &[EntityKind]| -> LoroValue {
-        LoroValue::List(
-            ks.iter()
-                .map(|k| LoroValue::from(k.as_str()))
-                .collect::<Vec<_>>()
-                .into(),
-        )
-    };
-    for (k, v) in [
-        ("name", LoroValue::from(GENERIC_NAME)),
-        (
-            "normalized_name",
-            dr_model::shared::normalize_relation_type_name(GENERIC_NAME).into(),
-        ),
-        ("description", GENERIC_DESCRIPTION.into()),
-        ("orientation", "directed".into()),
-        ("system_key", "generic-association".into()),
-        ("locked", true.into()),
-        ("source_role", "Source".into()),
-        ("target_role", "Target".into()),
-        (
-            "source_kinds",
-            kinds(&[EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]),
-        ),
-        (
-            "target_kinds",
-            kinds(&[EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]),
-        ),
-    ] {
-        rt.insert(k, v).expect("relation type field");
-    }
+    meta.insert(schema::meta::RELATION_ROWS, true).expect("meta");
     doc.commit_with(CommitOptions::new().timestamp(0));
     doc.export(ExportMode::all_updates())
         .expect("export v3 genesis")

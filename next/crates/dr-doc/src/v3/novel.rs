@@ -81,7 +81,6 @@ pub const MOD_PROSE: &str = "mod-prose";
 pub const MOD_MEDIA: &str = "mod-media";
 pub const MOD_PLOT_GRID: &str = "mod-plot-grid";
 pub const MOD_PATCHES: &str = "mod-patches";
-pub const MOD_RELATIONS: &str = "mod-relations";
 
 /// Root, default category, view and tab IDs created by [`apply_novel_project_template`].
 ///
@@ -330,14 +329,6 @@ fn element_template(id_str: &str, name: &str, description: &str) -> EntryTemplat
                 config: ModuleConfig::default(),
                 agent: agent_instructions("记录正文明确给出的设定演进，保留来源条目、模块和段落锚点；先核对原文，不能把推测登记为已发生的变化。"),
             },
-            ModuleSpec {
-                id: mid(MOD_RELATIONS),
-                kind: ModuleKind::Relations,
-                name: "关联".into(),
-                pos: Some(p[4].clone()),
-                config: ModuleConfig::default(),
-                agent: agent_instructions("读双方记录及原文证据后维护有向或对称关系，沿用已有关系类型，避免重复；需要作者决定的关系只作建议。"),
-            },
         ],
         level: false,
         linkable: true,
@@ -353,7 +344,7 @@ pub fn novel_project_agent() -> TemplateAgentConfig {
     TemplateAgentConfig {
         name: "写书".into(),
         description: "以成书为目标的小说或长篇写作项目。".into(),
-        instructions: "这是一个写书项目。默认结构是书稿 / 章 / H1 / H2 / H3；成书从项目的根照树读出来，只收进成书的正文（默认只有章的正文进成书，构想和要素的正文不进），App 不给章编号，幕不内置，作者添加的层级由作者命名。H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有成书正文、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复未解决的批注（含正文标记与清单项）或重开已解决的批注、重提已定事项；Agent 或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
+        instructions: "这是一个写书项目。默认结构是书稿 / 章 / H1 / H2 / H3；成书从项目的根照树读出来，只收进成书的正文（默认只有章的正文进成书，构想和要素的正文不进），App 不给章编号，幕不内置，作者添加的层级由作者命名。H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有成书正文、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复未解决的批注（含正文标记与清单项）或重开已解决的批注、重提已定事项；Agent 或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；读双方记录及原文证据后维护单向或双向关系，沿用已有关系，避免重复；需要作者决定的关系只作建议。项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
     }
 }
 

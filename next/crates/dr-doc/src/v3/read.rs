@@ -90,8 +90,6 @@ impl EntrySnapshotV3 {
 /// Deterministic background repair plan for a v3 book document.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RepairPlanV3 {
-    /// Semantic duplicate relations beyond the smallest `RelationId`.
-    pub duplicate_relations: Vec<RelationId>,
     /// DV2 (`kernel-v5.md` §15 item 31): the old lanes that are only a level
     /// ([`dr_model::v3::is_level_only_lane`]), by view, in a book that has
     /// not been cleared yet. They are taken out of their views.
@@ -107,8 +105,7 @@ pub struct RepairPlanV3 {
 
 impl RepairPlanV3 {
     pub fn is_empty(&self) -> bool {
-        self.duplicate_relations.is_empty()
-            && self.level_only_lanes.is_empty()
+        self.level_only_lanes.is_empty()
             && self.level_only_placements.is_empty()
             && !self.mark_level_lanes_cleared
     }
@@ -1548,103 +1545,92 @@ impl<'a> BookViewV3<'a> {
 
     // ---- relations and comments ------------------------------------------
 
-    fn read_relation_type(id: &str, v: &LoroValue) -> Option<RelationTypeV3> {
-        let f = F(v);
-        let name = f.string("name");
-        let tpl_list = |key: &str| -> Vec<EntryTemplateId> {
-            match f.get(key) {
-                Some(LoroValue::List(l)) => l
-                    .iter()
-                    .filter_map(|x| match x {
-                        LoroValue::String(s) => EntryTemplateId::parse(s).ok(),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => Vec::new(),
-            }
+    pub fn relation_types_raw(&self) -> Vec<RelationTypeV3> {
+        let mut types: Vec<_> = self.doc.get_map(book_v3::RELATION_TYPES)
+            .keys()
+            .filter_map(|key| self.relation_type_raw(&RelationTypeId::parse(key.as_str()).ok()?))
+            .collect();
+        types.sort_by(|a, b| (b.created_at, &b.id).cmp(&(a.created_at, &a.id)));
+        types
+    }
+
+    pub fn relation_types(&self) -> Vec<RelationTypeV3> {
+        let mut types = self.relation_types_raw();
+        for relation in &mut types {
+            relation.description = self.resolve_linked_text(&relation.description);
+        }
+        types
+    }
+
+    pub fn relation_type_raw(&self, id: &RelationTypeId) -> Option<RelationTypeV3> {
+        let map = self.entity_map(book_v3::RELATION_TYPES, id.as_str())?;
+        let value = map.get_deep_value();
+        let f = F(&value);
+        let name = f.opt_string("name")?;
+        let direction = match f.str("direction")? {
+            "directed" => RelationDirection::Directed,
+            "symmetric" => RelationDirection::Symmetric,
+            _ => return None,
         };
         Some(RelationTypeV3 {
-            id: RelationTypeId::parse(id).ok()?,
+            id: id.clone(),
             normalized_name: f
                 .opt_string("normalized_name")
                 .unwrap_or_else(|| normalize_relation_type_name(&name)),
             name,
-            description: f.string("description"),
-            orientation: f
-                .kind("orientation")
-                .unwrap_or(RelationOrientation::Directed),
-            system_key: f.kind("system_key"),
-            locked: f.bool("locked").unwrap_or(false),
-            source_role: f.string("source_role"),
-            target_role: f.string("target_role"),
-            color: f.opt_string("color"),
-            source_kinds: f.kinds("source_kinds"),
-            target_kinds: f.kinds("target_kinds"),
-            source_templates: tpl_list("source_templates"),
-            target_templates: tpl_list("target_templates"),
+            description: super::linked_text::read(&map, "description").unwrap_or_default(),
+            direction,
+            created_at: f.ts("created_at"),
         })
     }
 
-    pub fn relation_types(&self) -> Vec<RelationTypeV3> {
-        entities(self.doc, book_v3::RELATION_TYPES)
-            .iter()
-            .filter_map(|(id, v)| Self::read_relation_type(id, v))
-            .collect()
-    }
-
     pub fn relation_type(&self, id: &RelationTypeId) -> Option<RelationTypeV3> {
-        let v = entity(self.doc, book_v3::RELATION_TYPES, id.as_str())?;
-        Self::read_relation_type(id.as_str(), &v)
+        let mut relation = self.relation_type_raw(id)?;
+        relation.description = self.resolve_linked_text(&relation.description);
+        Some(relation)
     }
 
-    pub fn relations_raw(&self) -> Vec<Relation> {
-        use loro::{Container, ValueOrContainer};
-        let str_val = |m: &LoroMap, key: &str| -> Option<String> {
-            match m.get(key)? {
-                ValueOrContainer::Value(LoroValue::String(s)) if !s.is_empty() => {
-                    Some(s.to_string())
-                }
-                _ => None,
+    pub fn resolve_linked_text(&self, text: &LinkedText) -> LinkedText {
+        let tree = self.tree(book_v3::ENTRIES);
+        text.with_titles(|id| {
+            let node = forest_node(&tree, id.as_str())?;
+            let f = F(&node.meta);
+            f.ts("deleted_at").is_none().then(|| f.string("title"))
+        })
+    }
+
+    /// All stored rows, in creation order. Includes memberships of trashed
+    /// entries so edits don't accidentally reuse pairs hidden by the trash.
+    pub fn relations_raw(&self) -> Vec<RelationRow> {
+        let mut rows = Vec::new();
+        for (id, value) in entities(self.doc, book_v3::RELATIONS) {
+            let f = F(&value);
+            let (Ok(id), Some(relation_type), Some(LoroValue::Map(members))) =
+                (RelationId::parse(&id), f.id("type"), f.get("members"))
+            else {
+                continue;
+            };
+            let mut row = RelationRow {
+                id,
+                relation_type,
+                left: BTreeSet::new(),
+                right: BTreeSet::new(),
+                created_at: f.ts("created_at"),
+            };
+            for (key, value) in members.iter() {
+                let (Ok(entry), LoroValue::String(side)) = (EntryId::parse(key), value) else {
+                    continue;
+                };
+                match side.as_str() {
+                    "left" => row.left.insert(entry),
+                    "right" => row.right.insert(entry),
+                    _ => continue,
+                };
             }
-        };
-        let ts_val = |m: &LoroMap, key: &str| -> Option<Timestamp> {
-            match m.get(key)? {
-                ValueOrContainer::Value(LoroValue::I64(i)) => Some(Timestamp(i)),
-                ValueOrContainer::Value(LoroValue::Double(d))
-                    if d.is_finite() && d.fract() == 0.0 =>
-                {
-                    Some(Timestamp(d as i64))
-                }
-                _ => None,
-            }
-        };
-        let mut out = Vec::new();
-        self.doc.get_map(book_v3::RELATIONS).for_each(|id, val| {
-            let ValueOrContainer::Container(Container::Map(m)) = val else {
-                return;
-            };
-            let Some(rel_id) = RelationId::parse(id).ok() else {
-                return;
-            };
-            let (Some(fk), Some(fid), Some(tk), Some(tid), Some(ty)) = (
-                str_val(&m, "from_kind"),
-                str_val(&m, "from"),
-                str_val(&m, "to_kind"),
-                str_val(&m, "to"),
-                str_val(&m, "type").and_then(|s| RelationTypeId::parse(&s).ok()),
-            ) else {
-                return;
-            };
-            out.push(Relation {
-                id: rel_id,
-                from: EntityRef::new(EntityKind::from(fk.as_str()), fid),
-                to: EntityRef::new(EntityKind::from(tk.as_str()), tid),
-                relation_type: ty,
-                created_at: ts_val(&m, "created_at"),
-            });
-        });
-        out.sort_by(|a, b| a.id.cmp(&b.id));
-        out
+            rows.push(row);
+        }
+        rows.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+        rows
     }
 
     fn entity_map(&self, root: &str, id: &str) -> Option<LoroMap> {
@@ -1692,135 +1678,21 @@ impl<'a> BookViewV3<'a> {
         self.entity_exists_with(r, None)
     }
 
-    pub fn relations(&self) -> Vec<Relation> {
-        self.visible_relations(None, |_| true)
-    }
-
-    pub fn relations_of(&self, end: &EntityRef) -> Vec<Relation> {
-        self.visible_relations(None, |r| &r.from == end || &r.to == end)
-    }
-
-    pub fn relations_matching(&self, keep: impl Fn(&Relation) -> bool) -> Vec<Relation> {
-        self.visible_relations(None, keep)
-    }
-
-    pub fn relations_matching_with_entries(
-        &self,
-        entries: &(HashSet<String>, HashSet<String>),
-        keep: impl Fn(&Relation) -> bool,
-    ) -> Vec<Relation> {
-        self.visible_relations(Some(entries), keep)
-    }
-
-    fn visible_relations(
-        &self,
-        precomputed_entries: Option<&(HashSet<String>, HashSet<String>)>,
-        keep: impl Fn(&Relation) -> bool,
-    ) -> Vec<Relation> {
-        let raw: Vec<Relation> = self
-            .relations_raw()
-            .into_iter()
-            .filter(|r| keep(r))
-            .collect();
-        if raw.is_empty() {
-            return Vec::new();
+    /// Rows with a live relation and at least one live entry on each side.
+    /// Stored membership of a trashed entry is left intact.
+    pub fn relations(&self) -> Vec<RelationRow> {
+        let mut rows = self.relations_raw();
+        if rows.is_empty() {
+            return rows;
         }
-        let types: HashMap<RelationTypeId, RelationTypeV3> = self
-            .relation_types()
-            .into_iter()
-            .map(|t| (t.id.clone(), t))
-            .collect();
-        let needs_templates = raw.iter().any(|r| {
-            types
-                .get(&r.relation_type)
-                .is_some_and(|t| !t.source_templates.is_empty() || !t.target_templates.is_empty())
+        let (live, _) = self.entry_existence_sets();
+        let types: HashSet<_> = self.relation_types_raw().into_iter().map(|t| t.id).collect();
+        rows.retain_mut(|row| {
+            row.left.retain(|entry| live.contains(entry.as_str()));
+            row.right.retain(|entry| live.contains(entry.as_str()));
+            types.contains(&row.relation_type) && !row.left.is_empty() && !row.right.is_empty()
         });
-        let full_entries_and_tpls: Option<(
-            HashMap<String, Entry>,
-            BTreeMap<EntryTemplateId, EntryTemplate>,
-        )> = needs_templates.then(|| {
-            let entries = self
-                .entry_headers()
-                .into_iter()
-                .map(|(k, e)| (k.to_string(), e))
-                .collect();
-            (entries, self.templates_map())
-        });
-        let owned_entry_sets = if full_entries_and_tpls.is_none() && precomputed_entries.is_none() {
-            Some(self.entry_existence_sets())
-        } else {
-            None
-        };
-        let entry_sets = precomputed_entries.or(owned_entry_sets.as_ref());
-        let mut seen: HashSet<(EntityRef, EntityRef, RelationTypeId)> = HashSet::new();
-        let mut out = Vec::new();
-        for r in raw {
-            let Some(t) = types.get(&r.relation_type) else {
-                continue;
-            };
-            if r.from == r.to
-                || !r.from.kind.may_start_relation_v3()
-                || !r.to.kind.is_structural_v3()
-            {
-                continue;
-            }
-            let allowed_kind =
-                |kinds: &[EntityKind], k: &EntityKind| kinds.is_empty() || kinds.contains(k);
-            let allowed_tpl = |tpls: &[EntryTemplateId], end: &EntityRef| -> bool {
-                if tpls.is_empty() || end.kind != EntityKind::Entry {
-                    return true;
-                }
-                let Some((entries, templates)) = full_entries_and_tpls.as_ref() else {
-                    return true;
-                };
-                entries
-                    .get(&end.id)
-                    .and_then(|e| e.effective_template(templates))
-                    .is_some_and(|et| tpls.contains(&et.id))
-            };
-            let symmetric = t.orientation == RelationOrientation::Symmetric;
-            let fits = if symmetric {
-                allowed_kind(&t.source_kinds, &r.from.kind)
-                    && allowed_kind(&t.source_kinds, &r.to.kind)
-                    && allowed_tpl(&t.source_templates, &r.from)
-                    && allowed_tpl(&t.source_templates, &r.to)
-            } else {
-                allowed_kind(&t.source_kinds, &r.from.kind)
-                    && allowed_kind(&t.target_kinds, &r.to.kind)
-                    && allowed_tpl(&t.source_templates, &r.from)
-                    && allowed_tpl(&t.target_templates, &r.to)
-            };
-            if !fits {
-                continue;
-            }
-            let alive = |end: &EntityRef| match end.kind {
-                EntityKind::Entry => match (&full_entries_and_tpls, entry_sets) {
-                    (Some((entries, _)), _) => {
-                        entries.get(&end.id).is_some_and(|e| !e.is_trashed())
-                    }
-                    (_, Some((live, _))) => live.contains(&end.id),
-                    _ => false,
-                },
-                _ => self.entity_exists_with(end, entry_sets),
-            };
-            if !alive(&r.from) || !alive(&r.to) {
-                continue;
-            }
-            let key = Self::semantic_key(&r, symmetric);
-            if seen.insert(key) {
-                out.push(r);
-            }
-        }
-        out
-    }
-
-    fn semantic_key(r: &Relation, symmetric: bool) -> (EntityRef, EntityRef, RelationTypeId) {
-        if symmetric {
-            let (a, b) = canonical_symmetric(r.from.clone(), r.to.clone());
-            (a, b, r.relation_type.clone())
-        } else {
-            (r.from.clone(), r.to.clone(), r.relation_type.clone())
-        }
+        rows
     }
 
     fn comment_part_missing(
@@ -2020,9 +1892,8 @@ impl<'a> BookViewV3<'a> {
             author_kind,
             author: f.opt_string("author"),
             author_name: f.opt_string("author_name"),
-            body: f
-                .opt_string("body")
-                .unwrap_or_else(|| f.string("projection_text")),
+            body: self.resolve_linked_text(&self.comment_body_raw(&CommentId::parse(id).ok()?)
+                .unwrap_or_default()),
             status: f.kind("status").unwrap_or(CommentStatus::Open),
             source: f.kind("source").unwrap_or(CommentSource::Manual),
             metadata: f.opt_string("metadata"),
@@ -2032,6 +1903,12 @@ impl<'a> BookViewV3<'a> {
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
         })
+    }
+
+    /// As written, including links whose targets are in Recently Deleted.
+    pub fn comment_body_raw(&self, id: &CommentId) -> Option<LinkedText> {
+        let map = self.entity_map(book_v3::COMMENTS, id.as_str())?;
+        super::linked_text::read(&map, "body")
     }
 
     pub fn comment(&self, id: &CommentId) -> Option<CommentV3> {
@@ -2309,7 +2186,6 @@ impl<'a> BookViewV3<'a> {
             CollectionV3::Patches,
             CollectionV3::PlotGrids,
             CollectionV3::Memberships,
-            CollectionV3::Relations,
         ] {
             let rows = entities(self.doc, collection.root())
                 .into_iter()
@@ -2325,13 +2201,6 @@ impl<'a> BookViewV3<'a> {
                                     .split_once('|')
                                     .is_some_and(|(h, m)| h == id.as_str() || m == id.as_str())
                         }
-                        CollectionV3::Relations => [("from_kind", "from"), ("to_kind", "to")]
-                            .iter()
-                            .any(|(kind, end)| {
-                                f.str(kind) == Some("entry") && f.str(end) == Some(id.as_str())
-                                    || f.str(kind) == Some("patch")
-                                        && f.str(end).is_some_and(|p| patches.contains_key(p))
-                            }),
                         _ => false,
                     }
                 })
@@ -2407,7 +2276,7 @@ impl<'a> BookViewV3<'a> {
     }
 
     /// [`Self::entry_change_state`] of every entry, in tree order, from one
-    /// pass over the tree and the four record collections: linear in the
+    /// pass over the tree and the three record collections: linear in the
     /// book, where asking entry by entry reads the whole book for each.
     pub fn entry_change_states(&self) -> Vec<(EntryId, serde_json::Value)> {
         self.change_states(None)
@@ -2417,11 +2286,10 @@ impl<'a> BookViewV3<'a> {
         use super::raw::raw_value as raw;
         use loro::{Container, ValueOrContainer};
         // The collections of `entry_owned_records`, in its order.
-        const OWNED: [CollectionV3; 4] = [
+        const OWNED: [CollectionV3; 3] = [
             CollectionV3::Patches,
             CollectionV3::PlotGrids,
             CollectionV3::Memberships,
-            CollectionV3::Relations,
         ];
         let tree = self.tree(book_v3::ENTRIES);
         let nodes = match only {
@@ -2439,17 +2307,15 @@ impl<'a> BookViewV3<'a> {
             .collect();
         // Every record's owners, by the rules of `entry_owned_records` read
         // from the record's side.
-        let mut owned: Vec<[BTreeSet<String>; 4]> = vec![Default::default(); entries.len()];
+        let mut owned: Vec<[BTreeSet<String>; 3]> = vec![Default::default(); entries.len()];
         let mut own = |collection: usize, owner: &str, key: &str| {
             if let Some(&i) = slot.get(owner) {
                 owned[i][collection].insert(key.to_owned());
             }
         };
         let patches = entities(self.doc, book_v3::PATCHES);
-        let mut patch_owner: HashMap<&str, &str> = HashMap::new();
         for (key, value) in &patches {
             if let Some(owner) = F(value).str("entry") {
-                patch_owner.insert(key, owner);
                 own(0, owner, key);
             }
         }
@@ -2467,19 +2333,6 @@ impl<'a> BookViewV3<'a> {
                 .flatten()
             {
                 own(2, owner, &key);
-            }
-        }
-        for (key, value) in entities(self.doc, OWNED[3].root()) {
-            let f = F(&value);
-            for (kind, end) in [("from_kind", "from"), ("to_kind", "to")] {
-                let owner = match (f.str(kind), f.str(end)) {
-                    (Some("entry"), Some(entry)) => Some(entry),
-                    (Some("patch"), Some(patch)) => patch_owner.get(patch).copied(),
-                    _ => None,
-                };
-                if let Some(owner) = owner {
-                    own(3, owner, &key);
-                }
             }
         }
         let roots = OWNED.map(|c| self.doc.get_map(c.root()));
@@ -2650,36 +2503,11 @@ impl<'a> BookViewV3<'a> {
     }
 
     pub fn needs_repair(&self) -> bool {
-        if self.lanes_to_check() {
-            return true;
-        }
-        let symmetric: HashSet<RelationTypeId> = self
-            .relation_types()
-            .into_iter()
-            .filter(|t| t.orientation == RelationOrientation::Symmetric)
-            .map(|t| t.id)
-            .collect();
-        let mut seen = HashSet::new();
-        self.relations_raw()
-            .iter()
-            .any(|r| !seen.insert(Self::semantic_key(r, symmetric.contains(&r.relation_type))))
+        self.lanes_to_check()
     }
 
     pub fn repair_plan(&self) -> RepairPlanV3 {
         let mut plan = RepairPlanV3::default();
-        let symmetric: HashSet<RelationTypeId> = self
-            .relation_types()
-            .into_iter()
-            .filter(|t| t.orientation == RelationOrientation::Symmetric)
-            .map(|t| t.id)
-            .collect();
-        let mut kept: HashSet<(EntityRef, EntityRef, RelationTypeId)> = HashSet::new();
-        for r in self.relations_raw() {
-            let key = Self::semantic_key(&r, symmetric.contains(&r.relation_type));
-            if !kept.insert(key) {
-                plan.duplicate_relations.push(r.id.clone());
-            }
-        }
         if self.lanes_to_check() {
             plan.mark_level_lanes_cleared = true;
             self.level_only_lanes(&mut plan);
