@@ -592,6 +592,43 @@ fn one_request_accepts_zero_to_four_cards_without_writes_or_config_mutation() {
     );
 }
 
+/// The general rule about guidance (`project-templates.md` §10, rule 3) is in
+/// every check-in request's system prompt: with the project's guidance and
+/// with none at all (the structure carries no guidance, or no structure).
+#[test]
+fn every_checkin_request_states_that_guidance_is_not_the_authors_request() {
+    use dr_agent::driver::scripted::{ScriptedDriver, Step};
+    use dr_agent::guidance::PROJECT_GUIDANCE_RULE;
+    let (_temp, _lib, book, _nodes) = setup(Preset::Tiny);
+    let empty_guidance = context::Contribution {
+        source: "BOOK_STRUCTURE.json".into(),
+        text: json!({"project_agent": null, "templates": []}).to_string(),
+    };
+    for structure in [Some(empty_guidance), None] {
+        let driver = Arc::new(ScriptedDriver::new(vec![vec![
+            Step::Event(call(json!({"cards": []}))),
+            Step::Event(DriverEvent::Finish(FinishReason::Complete)),
+        ]]));
+        futures::executor::block_on(run_checkin_with_guidance(
+            driver.clone(),
+            input(&book),
+            Cancellation::default(),
+            structure,
+        ))
+        .unwrap();
+        let requests = driver.requests();
+        assert_eq!(requests.len(), 1);
+        assert!(
+            requests[0]
+                .config
+                .system_prompt
+                .contains(PROJECT_GUIDANCE_RULE),
+            "{}",
+            requests[0].config.system_prompt
+        );
+    }
+}
+
 #[test]
 fn invalid_cards_and_unknown_refs_never_authorize_internal_targets() {
     assert!(parse_checkin_cards(&json!({"cards":[{"title":"x"}]}), &[]).is_err());

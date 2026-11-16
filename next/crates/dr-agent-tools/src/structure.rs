@@ -31,7 +31,7 @@ use crate::{
 };
 
 pub const STRUCTURE_REVISION_PREFIX: &str = "k6-structure-v5";
-pub const STRUCTURE_CONTEXT_SOURCE: &str = "BOOK_STRUCTURE.json (this book's templates, levels, actions, and author-configured guidance; project guidance, not a substitute for reading source prose or write authorization)";
+pub const STRUCTURE_CONTEXT_SOURCE: &str = "BOOK_STRUCTURE.json (this book's templates, levels, actions, author-configured guidance and the project template it came from; project guidance: not the author's request, nor a substitute for reading source prose or write authorization)";
 
 const MAX_LISTED_ROOTS: usize = 32;
 const MAX_LISTED_LEVELS: usize = 32;
@@ -155,6 +155,40 @@ pub struct LevelSummary {
     pub actions: Vec<LevelActionSummary>,
 }
 
+/// Where the project came from (`project.source`, `project-templates.md` §10
+/// rule 4): the name of the project template it was made from and who that
+/// template credits (`credit.author`). Nothing else of the source: no id,
+/// version or origin, and no 「改自」.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectSourceSummary {
+    /// The project template's name.
+    pub template: String,
+    /// Who the template credits; none when it credits no one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+}
+
+impl ProjectSourceSummary {
+    /// `None` when the project records no template by name (a seed, a
+    /// sample or a 0.1 import records the built-in template by id alone).
+    pub fn of(source: Option<&ProjectTemplateRef>) -> Option<Self> {
+        let source = source?;
+        let template = source
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())?
+            .to_owned();
+        let author = source
+            .credit
+            .as_ref()
+            .map(|credit| credit.author.trim())
+            .filter(|author| !author.is_empty())
+            .map(str::to_owned);
+        Some(Self { template, author })
+    }
+}
+
 /// The project's book: it reads the whole project from the root, book
 /// prose only; nothing is numbered.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -238,8 +272,10 @@ pub struct StructureContext {
     pub schema_version: i64,
     pub structure_revision: String,
     pub catalog_revision: String,
+    /// Where the project came from: its project template's name and credit
+    /// ([`ProjectSourceSummary`]); absent when none is recorded by name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub project_template_source: Option<ProjectTemplateRef>,
+    pub project_source: Option<ProjectSourceSummary>,
     /// The whole project's Agent guidance (`project.agent`, `kernel-v5.md`
     /// §2): what the project template wrote for the Agent, as the author
     /// keeps it.
@@ -681,12 +717,14 @@ impl StructureContext {
             instructions: a.instructions.clone(),
         });
 
+        let project_source = ProjectSourceSummary::of(proj.source.as_ref());
+
         let catalog_revision = catalog.revision();
         let digest_payload = json!({
             "book": view.book_id(),
             "book_version": book_version,
             "catalog_revision": &catalog_revision,
-            "project_template_source": &proj.source,
+            "project_source": &project_source,
             "project_agent": &project_agent,
             "project_book": &project_book,
             "project_tabs": &project_tabs,
@@ -710,7 +748,7 @@ impl StructureContext {
             schema_version: BOOK_SCHEMA_VERSION,
             structure_revision,
             catalog_revision,
-            project_template_source: proj.source,
+            project_source,
             project_agent,
             project_book,
             project_tabs,

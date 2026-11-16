@@ -411,9 +411,12 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
     let cleared = StructureContext::for_book(&f.ws, &f.book, None)
         .unwrap()
         .unwrap();
+    // Clearing the guidance leaves where the project came from as it was.
+    let project = f.out("project.get", json!({"book": f.book}));
+    assert_eq!(project["source"]["id"], "builtin:novel");
     assert_eq!(
-        cleared.project_template_source.as_ref().unwrap().id,
-        "builtin:novel"
+        serde_json::to_value(&cleared).unwrap()["project_source"],
+        serde_json::to_value(&initial).unwrap()["project_source"]
     );
     assert!(cleared.project_agent.is_none());
     assert!(
@@ -645,6 +648,75 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
         focus_desc["prose_doc"],
         format!("body:{manuscript_id}/{MOD_DESCRIPTION}")
     );
+}
+
+/// PT4 (`project-templates.md` §10 rule 4, §15): the structure carries where
+/// the project came from, the project template's name and its credit and
+/// nothing else of `project.source` (no 「改自」, id, version or origin);
+/// nothing at all when the project has no named source. The book start and
+/// the numbering DW took out do not come back with it.
+#[test]
+fn structure_names_the_project_source_by_template_name_and_credit_only() {
+    let f = Fixture::new();
+    let structure = |book: &str| -> Value {
+        let book = BookId::parse(book).unwrap();
+        let context = StructureContext::for_book(&f.ws, &book, None)
+            .unwrap()
+            .unwrap();
+        serde_json::from_str(&context.to_contribution().unwrap().text).unwrap()
+    };
+    let id = |value: &Value| value["id"].as_str().unwrap().to_owned();
+
+    // The seed records the built-in template by id alone: no source is shown.
+    let seeded = structure(f.book.as_str());
+    assert!(seeded.get("project_source").is_none(), "{seeded}");
+    assert!(seeded.get("project_template_source").is_none(), "{seeded}");
+
+    // Made from the built-in 「写书」: its name, crediting no one.
+    let builtin = id(&f.out("project.create", json!({"name": "合成新项目"})));
+    let from_builtin = structure(&builtin);
+    assert_eq!(from_builtin["project_source"], json!({"template": "写书"}));
+
+    // Made from a saved template that credits someone: its name and that credit.
+    let saved = f.out(
+        "project_template.save",
+        json!({"book": f.book, "name": "合成模板", "credit": {"author": "合成署名"}}),
+    );
+    let made = id(&f.out(
+        "project.create",
+        json!({"name": "从合成模板建", "template_id": saved["id"]}),
+    ));
+    let raw = structure(&made);
+    assert_eq!(
+        raw["project_source"],
+        json!({"template": "合成模板", "author": "合成署名"})
+    );
+    // The project keeps its whole source; the structure shows two things of it.
+    let project = f.out("project.get", json!({"book": made}));
+    assert_eq!(project["source"]["id"], saved["id"]);
+    assert_eq!(project["source"]["origin"], "own");
+    let text = raw.to_string();
+    for absent in [
+        saved["id"].as_str().unwrap(),
+        "derivedFrom",
+        "derived_from",
+        "改自",
+        "project_template_source",
+    ] {
+        assert!(!text.contains(absent), "{absent} in {text}");
+    }
+    // No book start and no numbering (DW, kernel-v5 §18).
+    assert!(raw["project_book"].get("root").is_none(), "{raw}");
+    assert!(raw["project_book"].get("root_valid").is_none(), "{raw}");
+    for absent in [
+        "\"ordinal\"",
+        "\"number\"",
+        "manuscript_number",
+        "manuscript_roots",
+        "book_root",
+    ] {
+        assert!(!text.contains(absent), "{absent} in {text}");
+    }
 }
 
 #[test]

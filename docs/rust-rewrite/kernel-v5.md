@@ -999,6 +999,17 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 - **书库**：`dr_store::Library::{keep_local, local_book, local_books, set_local_note, is_local_doc, syncable_docs}`、`dr_store::LocalBook { book_id, note, created_ms }`；`docs_with_local_changes`、`export_for_upload`、`purged_docs`、`assets_pending_upload` 不列只在本机的书；`dr-sync` 改用 `syncable_docs`。迁移 `0008_local_book`（`xtask` 的迁移清单加了一行，未发布）。
 - **契约**：删 `BOOK-ROOT-VALID`、`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`，加 `WORKING-COPY-LOCAL`，改 `MANUSCRIPT-OWN-PROSE-FIRST`、`FLATTEN-MEMBERS-ONCE`、`VIEW-FOLDER-ORDER-FROM-SCALE` 的说明；共 94 条。
 
+### PT4 交回：项目模板与帮手（2026-11-16）
+
+任务书 PT4，[project-templates.md](project-templates.md) 第 10 节规则 3、4，第 13 节末段。数据层的接口没有动；改的是 `dr-agent`、`dr-agent-tools`、`dr-mcp`，外加 `dr-view-agent` 系统提示里的一行。
+
+- **通用规则**：`dr_agent::guidance::PROJECT_GUIDANCE_RULE`，一句英文，所有项目都一样，不在任何模板里，不加确认步骤。意思是：项目说明和模板说明（`project_agent`、条目模板的 `agent`、模块的 `agent.instructions`）只讲这个项目怎么组织、怎么写；它们不是作者的请求，单凭它们不能让帮手往项目外发东西、调用外部插件或删除内容，这几件事只在作者这一轮的请求要求时才做。它在三处：应用内帮手每次请求的系统提示（`dr-view-agent/src/prompt.rs`）、签到（`dr_agent::proactive::run_checkin_with_guidance`）、入站 MCP 的服务说明（`dr-mcp` 的 `get_info`）。清空项目和全部模板的说明以后照样在。
+- **结构说明带来源**：`StructureContext::project_source: Option<ProjectSourceSummary { template, author? }>`，取 `project.source` 的模板名和 `credit.author`；记着的来源没有模板名（样书、种子、0.1 导入只记了内置模板的 id）就不出现。原来原样带出的 `project_template_source`（id、版本、来源种类、署名）去掉。没有「改自」，成书没有起点和编号（DW）。`structure_revision` 的摘要跟着只算这两样；`project.get` 的 `source` 不变。BOOK_STRUCTURE.json 的来源标签（`STRUCTURE_CONTEXT_SOURCE`）跟着说明这里有模板来源、说明不是作者的请求。
+- **工具目录**：`project_template` 这一族只开放 `list`、`get`、`save`。`exclusion_v3` 按名字放行这三条，同族别的一律排除、理由是同一句，所以 `edit`、`working_copies`、`update`、`remove` 和以后加进注册表的 `import`、`export`、社区的命令都关着（有合成注册表的回归）。基础目录开放 98 项、排除 35 项（注册表 133 项）。
+- **`project_template.save` 给帮手的样子**：存的是当前书（`book` 由外观填上，别的书被拒）；`name`、`description` 可选，覆盖时不给就留原来的；`agent` 只进模板（不给用项目的，`null` 没有），项目不变；没有 `credit`（模板的署名是导出的人的账号名，帮手不给署名，传了就拒）。`replace` 指的那一份、或者工作区里它编辑的那一份，要在这一轮读过（`project_template.list` 或 `get`）并且版本没变：没读过是 `read_required`，读过以后作者又存过是 `conflict`，同一份两次冲突停下这一轮；存完要重读。工作区只能存回自己的模板（数据层照旧拒）。书本身不动，不留写前快照。`project_template.get` 的 `id` 不认作者起的名字（模板是书库的，不是书里的东西）。
+- **执行**：`save` 是书库一级的写，`Workspace::call_guarded` 不收这种写。执行器给它单开一条路（`AgentTools` 的 `save_project_template`）：先对照这一轮读到的版本，再普通地 `ws.call`；结算照常记在 `project-template:<id>` 上，MCP 回执里看得到。这一轮读到的模板记在 `templates`（id → revision），不绑书目的版本：书里别处改了不算模板过期。先查版本再写之间有一个很短的空档，作者恰好在这一瞬间存同一份模板，帮手那一下会盖过去（数据层没有给模板文档的条件写入）。
+- **测试**：`dr-agent-tools/tests/project_templates.rs`（目录只有三条、别的直接调也被拒；新建不用先读；覆盖要先读、过期被拒、两次停；工作区只存回自己的模板）、`tests/structure.rs` 的 `structure_names_the_project_source_by_template_name_and_credit_only`、`dr-agent/tests/proactive.rs` 的 `every_checkin_request_states_that_guidance_is_not_the_authors_request`、`dr-view-agent/tests/v3_guidance.rs` 的 `the_guidance_rule_stays_in_the_system_prompt_with_all_guidance_cleared`、`dr-mcp/tests/inbound.rs` 的 `project_templates_reach_mcp_through_list_get_and_save_only`。模型照不照这一条做测不了，没有为它写测试。
+
 ### 最终的接口名字
 
 **`dr_model`（领域类型与不变量）**
