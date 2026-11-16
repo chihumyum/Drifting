@@ -529,6 +529,10 @@ pub mod v3 {
         Membership {
             host: String,
         },
+        MoveMembership {
+            from_host: String,
+            to_host: String,
+        },
     }
 
     /// Resolve a UI drop slot against `onto`, distinguishing same-folder
@@ -548,20 +552,54 @@ pub mod v3 {
         resolve_drop_with(book, entry, onto, slot, can_reorder, is_member, false)
     }
 
-    /// Whether dropping onto `onto` attaches the entry rather than moving it
-    /// in (`kernel-v5.md` §16 「挂名」): an entry that only accepts entries
-    /// from elsewhere attaches; one that is only a level takes it in; one
-    /// that is both takes it in, and attaches it while ⌥ is held (`attach`).
+    /// Whether dropping a living row onto `onto` attaches the entry rather than
+    /// moving it in (`kernel-v5.md` §5, §16, `v5-tracks.md` T9.1): dragging in
+    /// the left tree moves house only, refusing accept-only entries; onto an
+    /// entry with both switches on it moves in, or attaches while ⌥ is held
+    /// (`attach`); onto a plain level it moves in even with ⌥ held.
     pub fn drop_attaches(book: &Book, onto: &str, attach: bool) -> Option<bool> {
         let v = book.v3()?;
         let level = v.entry(onto)?.level;
         let accepts = v.accepts_members(onto);
         match (level, accepts) {
             (true, true) => Some(attach),
-            (false, true) => Some(true),
+            (false, true) => None,
             (true, false) => Some(false),
             (false, false) => None,
         }
+    }
+
+    /// Resolves dragging a hung row (`from_host`) onto `onto` in the left tree
+    /// (`W31Hung`, `v5-tracks.md` T9.1): moves the hang from `from_host` to
+    /// `onto` when `onto` accepts members, leaving residence untouched;
+    /// dropping onto a non-accepting entry, the same host, or the entry's own
+    /// residence parent is refused.
+    pub fn resolve_hung_drop(
+        book: &Book,
+        entry: &str,
+        from_host: &str,
+        onto: &str,
+    ) -> Option<Drop> {
+        if entry == onto || from_host == onto {
+            return None;
+        }
+        let v = book.v3()?;
+        if !v.accepts_members(onto) {
+            return None;
+        }
+        let graph = Graph::of(book)?;
+        let id = entry.parse().ok()?;
+        let target = onto.parse().ok()?;
+        v.entry(entry)?;
+        let source_parent = model::effective_parent_id(graph.entries.get(&id)?, &graph.entries);
+        if source_parent.as_ref() == Some(&target) {
+            return None;
+        }
+        model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
+        Some(Drop::MoveMembership {
+            from_host: from_host.into(),
+            to_host: onto.into(),
+        })
     }
 
     /// [`resolve_drop`], with ⌥ held (`attach`) or not.
@@ -666,6 +704,8 @@ pub mod v3 {
                 parent: Some(onto.into()),
                 anchor: None,
             })
+        } else if v.accepts_members(onto) {
+            None
         } else {
             let parent = model::effective_parent_id(target_entry, &graph.entries);
             model::check_entry_move(&graph.entries, &id, parent.as_ref()).ok()?;
@@ -696,7 +736,22 @@ pub mod v3 {
             Drop::Membership { host } => {
                 prepare(book, "membership.add", json!({"member":entry,"host":host}))
             }
+            Drop::MoveMembership { to_host, .. } => prepare(
+                book,
+                "membership.add",
+                json!({"member":entry,"host":to_host}),
+            ),
         }?;
+        if let Drop::MoveMembership { from_host, .. } = &target
+            && let Some(pre) = v.shown_precondition(&RecordKey::membership(from_host, entry))
+            && !edit
+                .preconditions
+                .records
+                .iter()
+                .any(|r| !r.if_replaced && r.key == pre.key)
+        {
+            edit.preconditions.records.push(pre);
+        }
         if let Drop::Residence {
             parent,
             anchor: Some((onto, _)),
@@ -790,13 +845,27 @@ pub mod v3 {
         }
         pub fn commit(mut self, lib: &Workspace) -> Result<Value, WsError> {
             self.resolve_index(lib)?;
-            self.edit.commit(lib)
+            let book = self.edit.input["book"].clone();
+            let moving = self.moving.clone();
+            let remove_from = match &self.target {
+                Drop::MoveMembership { from_host, .. } => Some(from_host.clone()),
+                _ => None,
+            };
+            let out = self.edit.commit(lib)?;
+            if let Some(from_host) = remove_from {
+                lib.call(
+                    &Actor::User,
+                    "membership.remove",
+                    json!({ "book": book, "host": from_host, "member": moving }),
+                )?;
+            }
+            Ok(out)
         }
         pub fn commit_if_changed(mut self, lib: &Workspace) -> Result<Option<Value>, WsError> {
             if !self.resolve_index(lib)? {
                 return Ok(None);
             }
-            self.edit.commit(lib).map(Some)
+            self.commit(lib).map(Some)
         }
     }
     pub fn prepare_board(

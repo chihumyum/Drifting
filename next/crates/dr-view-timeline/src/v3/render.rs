@@ -554,11 +554,12 @@ impl Timeline {
 
     fn rails(&self, lanes: &[model::Lane], cx: &mut Context<Self>) -> AnyElement {
         let page = self.page_host();
+        let lane_h = self.lane_height();
         let existing_lanes: std::collections::BTreeSet<String> = self
             .view()
             .map(|v| v.lanes.iter().map(|l| l.entry.clone()).collect())
             .unwrap_or_default();
-        let mut rail = div()
+        let rail = div()
             .id("v3-lane-rail")
             .debug_selector(|| "v3-lane-rail".into())
             .w(px(model::RAIL))
@@ -579,7 +580,17 @@ impl Timeline {
                 })
             })
             .on_drop::<EntryDrag>(cx.listener(|this, drag, _, cx| this.dropped_lane(drag, cx)))
+            .on_pinch(cx.listener(|this, e, w, cx| this.pinch(e, w, cx)))
             .child(div().h(px(model::RULER)).flex_none());
+        let mut rail_rows = div()
+            .id("v3-lane-rail-scroll")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .track_scroll(&self.rail_scroll)
+            .on_scroll(cx.listener(|this, _, _, cx| this.sync_vertical_scroll(true, cx)))
+            .flex()
+            .flex_col();
         for (i, lane) in lanes.iter().enumerate() {
             let id = lane.id.clone();
             let color = lane.color.as_deref().and_then(color_of);
@@ -591,7 +602,7 @@ impl Timeline {
                 sand::Kind::Storyline
             };
             let row = div()
-                .min_h(px(model::ROW))
+                .min_h(px(lane_h))
                 .flex_1()
                 .flex()
                 .items_center()
@@ -712,9 +723,9 @@ impl Timeline {
                     }
                 })),
             );
-            rail = rail.child(row.child(actions));
+            rail_rows = rail_rows.child(row.child(actions));
         }
-        rail.into_any_element()
+        rail.child(rail_rows).into_any_element()
     }
 
     fn tracks(
@@ -822,17 +833,26 @@ impl Timeline {
                     }),
             );
         }
-        let mut content = div().w(px(width)).h_full().flex().flex_col().child(ruler);
+        let lane_h = self.lane_height();
+        let content = div().w(px(width)).h_full().flex().flex_col().child(ruler);
+        let mut tracks_col = div()
+            .id("v3-timeline-vscroll")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .track_scroll(&self.v_scroll)
+            .flex()
+            .flex_col();
         if lanes.is_empty() {
             let page = self.page_host();
             let existing_lanes: std::collections::BTreeSet<String> =
                 view.lanes.iter().map(|l| l.entry.clone()).collect();
-            content = content.child(
+            tracks_col = tracks_col.child(
                 div()
                     .id("v3-empty-lanes-drop")
                     .debug_selector(|| "v3-empty-lanes-drop".into())
                     .flex_1()
-                    .min_h(px(model::ROW))
+                    .min_h(px(lane_h))
                     .can_drop(move |value, _, _| {
                         value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
                             page.as_ref().is_some_and(|page| {
@@ -862,7 +882,7 @@ impl Timeline {
                     let id = format!("v3-track-{}", lane.id);
                     move || id.clone()
                 })
-                .min_h(px(model::ROW))
+                .min_h(px(lane_h))
                 .flex_1()
                 .relative()
                 .rounded(px(5.))
@@ -935,9 +955,17 @@ impl Timeline {
                     .and_then(|b| b.entry(&clip.entry))
                     .map(|e| e.title.clone())
                     .unwrap_or_default();
+                let summary = (w >= 104. && lane_h >= 68.)
+                    .then(|| {
+                        self.book
+                            .v3()
+                            .and_then(|b| model::entry_summary(b, &clip.entry))
+                    })
+                    .flatten();
                 let id = clip.entry.clone();
                 let drag = self.page_host().map(|page| {
-                    let mut drag = EntryDrag::new(page, id.clone(), title.clone());
+                    let mut drag = EntryDrag::new(page, id.clone(), title.clone())
+                        .with_timeline_clip(view.id.clone(), lane.id.clone());
                     drag.span = clip.span;
                     drag
                 });
@@ -957,6 +985,7 @@ impl Timeline {
                             .iter()
                             .any(|m| m.host == lane.id && m.member == id)
                 });
+                let show_more = w > 48. && can_remove_from_lane;
                 let more = PanelIconButton::new(
                     SharedString::from(format!("v3-clip-menu-{}-{id}", lane.id)),
                     Icon::More,
@@ -977,6 +1006,25 @@ impl Timeline {
                 let can_drop_clip_lane = lane.id.clone();
                 let page = self.page_host();
                 let clip_selector = format!("v3-clip-{}-{id}", lane.id);
+                let narrow_card = w < 44.;
+                let pad_x = if narrow_card { 2.0 } else { 8.0 };
+                let title_font_px = if narrow_card {
+                    (theme.scale.caption - 1.0).max(11.0)
+                } else {
+                    theme.scale.secondary
+                };
+                let avail_title_w = (w - pad_x * 2.0 - if show_more { 20.0 } else { 0.0 }).max(0.0);
+                let shown_title = if short_segment {
+                    String::new()
+                } else {
+                    model::slice_whole_chars(
+                        &title,
+                        avail_title_w,
+                        px(title_font_px),
+                        dr_ui::fonts::Role::Ui.font(dr_ui::fonts::weight::REGULAR),
+                        window,
+                    )
+                };
                 let clip_body = glass::glass_box(
                     SharedString::from(clip_selector.clone()),
                     Kind::Rest,
@@ -993,21 +1041,40 @@ impl Timeline {
                 .top_0()
                 .bottom_0()
                 .flex()
-                .items_center()
+                .when(summary.is_some(), |b| {
+                    b.flex_col().justify_center().items_start()
+                })
+                .when(summary.is_none(), |b| b.items_center())
                 .overflow_hidden()
-                .whitespace_nowrap()
                 .text_color(color.solid())
                 .role(gpui::Role::Button)
                 .aria_label(title.clone())
                 .cursor_grab()
                 .when(!short_segment, |body| {
-                    body.px_2().child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_ellipsis()
-                            .child(title.clone()),
-                    )
+                    let title_id = SharedString::from(format!("v3-clip-title-{}-{id}", lane.id));
+                    body.px(px(pad_x))
+                        .child(
+                            div()
+                                .id(title_id)
+                                .w_full()
+                                .min_w_0()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .type_px(title_font_px, theme.scale.line_caption)
+                                .child(shown_title),
+                        )
+                        .when_some(summary, |body, sum| {
+                            body.child(
+                                div()
+                                    .w_full()
+                                    .min_w_0()
+                                    .overflow_hidden()
+                                    .line_clamp(2)
+                                    .type_px(theme.scale.caption, theme.scale.line_caption)
+                                    .text_color(palette.ink(3).solid())
+                                    .child(sum),
+                            )
+                        })
                 })
                 .on_click(cx.listener(move |this, e, _, cx| {
                     cx.stop_propagation();
@@ -1069,7 +1136,7 @@ impl Timeline {
                     .role(gpui::Role::Group)
                     .aria_label(title)
                     .child(clip_body);
-                if w > 32. && can_remove_from_lane {
+                if show_more {
                     slab = slab.child(
                         div()
                             .absolute()
@@ -1083,7 +1150,7 @@ impl Timeline {
                 }
                 row = row.child(slab.child(handle));
             }
-            content = content.child(row);
+            tracks_col = tracks_col.child(row);
         }
         div()
             .id("v3-timeline-scroll")
@@ -1092,8 +1159,9 @@ impl Timeline {
             .h_full()
             .overflow_x_scroll()
             .track_scroll(&self.scroll)
-            .child(content)
+            .child(content.child(tracks_col))
             .on_scroll(cx.listener(|this, e, w, cx| this.wheel(e, w, cx)))
+            .on_pinch(cx.listener(|this, e, w, cx| this.pinch(e, w, cx)))
             .into_any_element()
     }
 }

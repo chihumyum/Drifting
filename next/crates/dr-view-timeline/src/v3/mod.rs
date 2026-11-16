@@ -68,7 +68,10 @@ pub struct Timeline {
     book: Rc<Book>,
     selected: Option<String>,
     scroll: ScrollHandle,
+    v_scroll: ScrollHandle,
+    rail_scroll: ScrollHandle,
     zoom: f32,
+    zoom_y: f32,
     kept_for: Option<String>,
     popup: Option<Popup>,
     editing: Option<Editing>,
@@ -104,7 +107,10 @@ impl Timeline {
             book: host.book.clone(),
             selected: None,
             scroll: ScrollHandle::new(),
+            v_scroll: ScrollHandle::new(),
+            rail_scroll: ScrollHandle::new(),
             zoom: 1.0,
+            zoom_y: 1.0,
             kept_for: None,
             popup: None,
             editing: None,
@@ -155,12 +161,19 @@ impl Timeline {
             }) {
                 return false;
             }
+            let still_detached = p.detach_from.as_ref().is_none_or(|old_host| {
+                !book
+                    .memberships
+                    .iter()
+                    .any(|m| &m.host == old_host && &m.member == entry)
+            });
             let arrived = view.placements.iter().any(|x| x == &p.place)
                 && p.lane.as_ref().is_none_or(|lane| {
                     book.memberships
                         .iter()
                         .any(|m| &m.host == lane && &m.member == entry)
-                });
+                })
+                && still_detached;
             !arrived && !(p.settled && book.revision != p.base)
         });
     }
@@ -171,7 +184,8 @@ impl Timeline {
             if ws.book_memory_ready() && self.kept_for.as_deref() != Some(self.book.id.as_str()) {
                 if let Some(v) = ws.book_memory("timeline-v3") {
                     self.selected = v["view"].as_str().map(str::to_owned);
-                    self.zoom = v["zoom"].as_f64().unwrap_or(1.0).clamp(0.5, 3.0) as f32;
+                    self.zoom = v["zoom"].as_f64().unwrap_or(1.0).clamp(0.35, 3.5) as f32;
+                    self.zoom_y = v["zoomY"].as_f64().unwrap_or(1.0).clamp(0.75, 3.2) as f32;
                     self.scroll.set_offset(point(
                         px(-v["scroll"].as_f64().unwrap_or(0.0).max(0.0) as f32),
                         px(0.0),
@@ -196,6 +210,9 @@ impl Timeline {
                 for (entry, p) in self.pending.iter().filter(|(_, p)| p.view == v.id) {
                     for lane in &mut lanes {
                         lane.clips.retain(|c| &c.entry != entry);
+                        if p.detach_from.as_deref() == Some(&lane.id) {
+                            continue;
+                        }
                         let is_member = b.accepts_members(&lane.id)
                             && b.memberships
                                 .iter()
@@ -225,8 +242,17 @@ impl Timeline {
             _ => Vec::new(),
         }
     }
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+    pub fn zoom_y(&self) -> f32 {
+        self.zoom_y
+    }
+    pub fn lane_height(&self) -> f32 {
+        (model::ROW * self.zoom_y).round()
+    }
     pub fn min_height(&self) -> f32 {
-        model::HEAD + model::RULER + model::ROW * self.lanes().len() as f32
+        (model::HEAD + model::RULER + model::ROW * self.lanes().len().min(4) as f32).max(180.0)
     }
     pub fn select(&mut self, id: String, cx: &mut Context<Self>) {
         self.selected = Some(id);
@@ -235,7 +261,12 @@ impl Timeline {
         cx.notify();
     }
     fn remember(&self, cx: &mut Context<Self>) {
-        let value = serde_json::json!({"view": self.selected.as_ref().or_else(||self.view().map(|v| &v.id)), "zoom": self.zoom, "scroll": -f32::from(self.scroll.offset().x)});
+        let value = serde_json::json!({
+            "view": self.selected.as_ref().or_else(|| self.view().map(|v| &v.id)),
+            "zoom": self.zoom,
+            "zoomY": self.zoom_y,
+            "scroll": -f32::from(self.scroll.offset().x),
+        });
         self.ws
             .update(cx, |ws, cx| {
                 if ws.book_id == self.book.id {

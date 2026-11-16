@@ -819,3 +819,201 @@ fn lane_creation_offers_only_lanes_that_take_entries_and_creates_on_them_by_hang
         assert_eq!(sl.clips[0].at, 27.5);
     });
 }
+
+#[gpui::test]
+fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narrow_cards_slice_whole_chars(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let book = Book::load(&lib, &id).unwrap();
+    let v = book.v3().unwrap();
+    let manuscript = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript") && e.parent.is_none())
+        .unwrap()
+        .id
+        .clone();
+    let storylines = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-storylines") && e.parent.is_none())
+        .unwrap()
+        .id
+        .clone();
+    let chapter = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": manuscript, "template": TPL_CHAPTER, "title": "第三章钟楼下"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_a = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": storylines, "template": TPL_STORYLINE, "title": "主线甲"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_b = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": storylines, "template": TPL_STORYLINE, "title": "支线乙"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "timeline_view.put",
+        json!({"book": id, "view": {"id": "t9-drag-view", "name": "Drag View"}}),
+    );
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": id, "view": "t9-drag-view", "lane": lane_a}),
+    );
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": id, "view": "t9-drag-view", "lane": lane_b}),
+    );
+
+    let (host, cx) = visual(cx, &lib, &id);
+    let ws = host.read_with(cx, |h, _| h.workspace.clone());
+    sync_all(&host, &ws, &lib, &id, cx);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    t.update(cx, |t, cx| t.select("t9-drag-view".into(), cx));
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    let track_a: &'static str = Box::leak(format!("v3-track-{lane_a}").into_boxed_str());
+    let track_b: &'static str = Box::leak(format!("v3-track-{lane_b}").into_boxed_str());
+    let hosts_of = |lib: &Library, member: &str| -> Vec<String> {
+        call(lib, "membership.list", json!({"book": id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|m| m["member"] == member)
+            .map(|m| m["host"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    // 1. Drag from left sidebar onto lane_a: hangs on lane_a, residence stays `manuscript`.
+    let page = page_host(&ws, &lib, &id, cx);
+    drag_entry_to(
+        &host,
+        EntryDrag::new(page, &chapter, "第三章钟楼下"),
+        track_a,
+        140.0,
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_a.clone()]);
+    assert_eq!(
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .entry(&chapter)
+            .unwrap()
+            .parent
+            .as_deref(),
+        Some(manuscript.as_str())
+    );
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // 2. Drag clip from lane_a onto lane_b without ⌥: moves hang (`换一处挂`).
+    let page = page_host(&ws, &lib, &id, cx);
+    drag_entry_to(
+        &host,
+        EntryDrag::new(page, &chapter, "第三章钟楼下").with_timeline_clip("t9-drag-view", &lane_a),
+        track_b,
+        200.0,
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // 3. Drag clip from lane_b onto lane_a WITH ⌥: multi-hangs (`多挂一处`).
+    let page = page_host(&ws, &lib, &id, cx);
+    host.update(cx, |h, cx| {
+        h.drag = Some(
+            EntryDrag::new(page, &chapter, "第三章钟楼下")
+                .with_timeline_clip("t9-drag-view", &lane_b),
+        );
+        cx.notify();
+    });
+    frame(cx);
+    let source = cx.debug_bounds("t4-test-drag-source").unwrap().center();
+    let bounds_a = cx.debug_bounds(track_a).unwrap();
+    let drop_pt = point(bounds_a.origin.x + px(260.0), bounds_a.center().y);
+    let alt = Modifiers {
+        alt: true,
+        ..Modifiers::none()
+    };
+    cx.simulate_mouse_down(source, MouseButton::Left, alt);
+    cx.simulate_mouse_move(source + point(px(8.), px(0.)), MouseButton::Left, alt);
+    frame(cx);
+    cx.simulate_mouse_move(drop_pt, MouseButton::Left, alt);
+    frame(cx);
+    cx.simulate_mouse_up(drop_pt, MouseButton::Left, alt);
+    frame(cx);
+    wait(cx, |_| hosts_of(&lib, &chapter).len() == 2);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // 4. Drag clip from lane_a back onto left sidebar: detaches from lane_a (`摘名`),
+    // keeping lane_b and residence untouched.
+    let page = page_host(&ws, &lib, &id, cx);
+    let clip_drag = EntryDrag::new(page.clone(), &chapter, "第三章钟楼下")
+        .with_timeline_clip("t9-drag-view", &lane_a);
+    cx.update(|_, cx| {
+        assert!(dr_shell::v3::tabs::detach_timeline_clip(
+            &page, &clip_drag, cx
+        ));
+    });
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
+    assert_eq!(
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .entry(&chapter)
+            .unwrap()
+            .parent
+            .as_deref(),
+        Some(manuscript.as_str())
+    );
+
+    // 5. Whole-char narrowest card slicing: never clips half a character, never adds `…`.
+    cx.update(|window, _| {
+        let font = dr_ui::fonts::Role::Ui.font(dr_ui::fonts::weight::REGULAR);
+        let one_or_two =
+            model::slice_whole_chars("第三章钟楼下", 14.0, px(11.0), font.clone(), window);
+        assert!(!one_or_two.is_empty());
+        assert!(!one_or_two.contains('…'));
+        assert!("第三章钟楼下".starts_with(&one_or_two));
+        assert!(one_or_two.chars().count() <= 2);
+        let full = model::slice_whole_chars("第三章钟楼下", 200.0, px(13.0), font, window);
+        assert_eq!(full, "第三章钟楼下");
+    });
+
+    // 6. Pinch zooms horizontal scale, and ⌥+pinch zooms vertical lane height.
+    let track_center = cx.debug_bounds(track_b).unwrap().center();
+    cx.simulate_event(gpui::PinchEvent {
+        position: track_center,
+        delta: 0.25,
+        modifiers: Modifiers::none(),
+        phase: gpui::TouchPhase::Moved,
+    });
+    frame(cx);
+    assert!(t.read_with(cx, |t, _| t.zoom() > 1.1));
+    cx.simulate_event(gpui::PinchEvent {
+        position: track_center,
+        delta: 0.30,
+        modifiers: alt,
+        phase: gpui::TouchPhase::Moved,
+    });
+    frame(cx);
+    assert!(t.read_with(cx, |t, _| t.zoom_y() > 1.1));
+}

@@ -5,7 +5,7 @@ use dr_shell::book::Book;
 use dr_store::OpenDoc;
 use dr_view_elements::data::v3::{
     Drop, creation, drop_target, membership_hosts, prepare, prepare_board, prepare_drop,
-    prepare_edit, switch_templates,
+    prepare_drop_with, prepare_edit, switch_templates,
 };
 use dr_workspace::{Actor, Workspace, WsError};
 use serde_json::{Value, json};
@@ -479,7 +479,9 @@ fn tree_drop_checks_the_switch_cycles_and_membership_without_moving_the_original
         Some(b.as_str())
     );
     assert!(membership_hosts(&moved, &child).contains(&lane));
-    prepare_drop(&moved, &child, &lane, false)
+    let both_on = root(&initial, "tpl-category");
+    assert!(prepare_drop(&moved, &child, &lane, false).is_err());
+    prepare_drop_with(&moved, &child, &both_on, false, true)
         .unwrap()
         .commit(&ws)
         .unwrap();
@@ -500,7 +502,7 @@ fn tree_drop_checks_the_switch_cycles_and_membership_without_moving_the_original
             .unwrap()
             .memberships
             .iter()
-            .any(|m| m.member == child && m.host == lane)
+            .any(|m| m.member == child && m.host == both_on)
     );
     let stale = prepare_drop(&assigned, &child, &a, false).unwrap();
     call(

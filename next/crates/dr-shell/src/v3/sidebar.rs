@@ -803,13 +803,26 @@ impl Render for Sidebar {
         let Some(v) = book.v3() else {
             return div().into_any_element();
         };
+        let can_host = self.host.clone();
+        let drop_host = self.host.clone();
+        let wash = Theme::of(window, cx).palette.page.alpha(0.45);
         let mut content = div()
             .id("v3-sidebar")
+            .debug_selector(|| "v3-sidebar".into())
             .track_focus(&self.focus)
             .flex()
             .flex_col()
             .min_h_0()
             .size_full()
+            .can_drop(move |value, _, _| {
+                value
+                    .downcast_ref::<super::EntryDrag>()
+                    .is_some_and(|drag| drag.timeline_clip.is_some() && drag.matches(&can_host))
+            })
+            .drag_over::<super::EntryDrag>(move |style, _, _, _| style.bg(wash))
+            .on_drop(move |drag: &super::EntryDrag, _, cx| {
+                let _ = tabs::detach_timeline_clip(&drop_host, drag, cx);
+            })
             .on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| {
                 if this.managing.is_some() && e.keystroke.key == "escape" {
                     cx.stop_propagation();

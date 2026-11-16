@@ -9,7 +9,9 @@ use dr_shell::{
     v3::{DisplaySurface, LevelHost, ROOT_LEVEL},
 };
 use dr_view_elements::{
-    data::v3::{Drop, DropSlot, drop_attaches, resolve_drop_with},
+    data::v3::{
+        Drop, DropSlot, drop_attaches, prepare_resolved_drop, resolve_drop_with, resolve_hung_drop,
+    },
     panel::v3::{Display, LevelDisplay, Row, rows},
 };
 use dr_workspace::{Actor, Workspace};
@@ -45,10 +47,10 @@ fn of_template(book: &Book, template: &str) -> String {
         .clone()
 }
 
-/// 作者 2026-11-15: onto an entry with both switches on (写书模板's 「分类」)
-/// a drop moves the entry in, and with ⌥ held attaches it; onto one that
-/// only accepts entries from elsewhere it attaches; onto a plain level it
-/// moves in.
+/// 作者 2026-11-16 (T9.1): dragging a living row in the left tree moves house
+/// only: onto an entry with both switches on (写书模板's 「分类」) it moves in,
+/// and with ⌥ held attaches it; onto a plain level it moves in even with ⌥
+/// held; onto an entry that only accepts entries from elsewhere it is refused.
 #[test]
 fn a_drop_moves_in_attaches_with_option_and_follows_the_switches() {
     let (_dir, ws, book) = seed();
@@ -62,7 +64,8 @@ fn a_drop_moves_in_attaches_with_option_and_follows_the_switches() {
     assert!(v.entry(&manuscript).unwrap().level && !v.accepts_members(&manuscript));
     assert_eq!(drop_attaches(&snapshot, &category, false), Some(false));
     assert_eq!(drop_attaches(&snapshot, &category, true), Some(true));
-    assert_eq!(drop_attaches(&snapshot, &storyline, false), Some(true));
+    assert_eq!(drop_attaches(&snapshot, &storyline, false), None);
+    assert_eq!(drop_attaches(&snapshot, &storyline, true), None);
     assert_eq!(drop_attaches(&snapshot, &manuscript, true), Some(false));
 
     // An element living in another category, dropped onto this one.
@@ -126,13 +129,63 @@ fn a_drop_moves_in_attaches_with_option_and_follows_the_switches() {
         false,
         false,
     );
-    assert!(
-        matches!(onto_line, Some(Drop::Membership { ref host }) if *host == storyline)
-            || snapshot.v3().unwrap().levels[&storyline]
-                .members
-                .contains(&chapter),
-        "onto a storyline a chapter is attached: {onto_line:?}"
+    assert_eq!(
+        onto_line, None,
+        "a living row dropped onto an accept-only storyline is refused"
     );
+
+    // Hung row drag (`W31Hung`): moves hang from `storyline` to `other_line`
+    // while keeping residence unchanged, and refuses `manuscript` (non-accepting)
+    // and its own residence parent.
+    let storylines_root = of_template(&snapshot, "tpl-storylines");
+    let other_line = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":storylines_root,"template":"tpl-storyline","title":"Second line"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "membership.add",
+        json!({"book":book,"host":storyline,"member":chapter}),
+    );
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let chapter_parent = snapshot
+        .v3()
+        .unwrap()
+        .entry(&chapter)
+        .unwrap()
+        .parent
+        .clone();
+    assert_eq!(
+        resolve_hung_drop(&snapshot, &chapter, &storyline, &manuscript),
+        None
+    );
+    if let Some(parent) = chapter_parent.as_deref() {
+        assert_eq!(
+            resolve_hung_drop(&snapshot, &chapter, &storyline, parent),
+            None
+        );
+    }
+    let moved_hang = resolve_hung_drop(&snapshot, &chapter, &storyline, &other_line);
+    assert_eq!(
+        moved_hang,
+        Some(Drop::MoveMembership {
+            from_host: storyline.clone(),
+            to_host: other_line.clone(),
+        })
+    );
+    prepare_resolved_drop(&snapshot, &chapter, moved_hang.unwrap())
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let after_move = Book::load(&ws, &book).unwrap();
+    let v_after = after_move.v3().unwrap();
+    assert_eq!(v_after.entry(&chapter).unwrap().parent, chapter_parent);
+    assert!(!v_after.levels[&storyline].members.contains(&chapter));
+    assert!(v_after.levels[&other_line].members.contains(&chapter));
     ws.shutdown().unwrap();
 }
 

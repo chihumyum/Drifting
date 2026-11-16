@@ -1,6 +1,9 @@
 //! A v3 timeline has no manuscript axis or synthetic lanes.
 use dr_shell::book::v3::BookV3;
-use dr_workspace::commands::v3::types::{EntryTemplate, TimelinePlacement, TimelineView};
+use dr_workspace::commands::v3::types::{
+    EntryTemplate, FieldValue, TimelinePlacement, TimelineView,
+};
+use gpui::{Font, Hsla, Pixels, SharedString, TextRun, Window};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const UNIT: f32 = 20.0;
@@ -110,4 +113,68 @@ pub fn extent(view: &TimelineView) -> (f64, f64) {
         .ceil()
         + 12.0;
     (min, max)
+}
+
+/// Extracts the configured summary text field of `entry_id`, if non-empty.
+pub fn entry_summary(book: &BookV3, entry_id: &str) -> Option<String> {
+    let entry = book.entry(entry_id)?;
+    let tpl = book.template_of(entry_id)?;
+    for m in &tpl.modules {
+        if m.kind != "fields" {
+            continue;
+        }
+        let Some(fmap) = entry.fields.get(&m.id) else {
+            continue;
+        };
+        if let Some(sf) = m.config.summary_field.as_ref()
+            && let Some(FieldValue::Text(s)) = fmap.get(sf)
+        {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_owned());
+            }
+        }
+    }
+    None
+}
+
+/// Returns the longest prefix of whole characters in `title` whose laid-out
+/// width fits within `avail_w` (`kernel-v5.md` §17, `v5-tracks.md` T9.6:
+/// narrowest cards show whole leading characters without half-glyph clipping
+/// and without `…`).
+pub fn slice_whole_chars(
+    title: &str,
+    avail_w: f32,
+    font_size: Pixels,
+    font: Font,
+    window: &Window,
+) -> String {
+    if title.is_empty() || avail_w <= 2.0 {
+        return String::new();
+    }
+    let shared = SharedString::from(title.to_owned());
+    let run = TextRun {
+        len: shared.len(),
+        font,
+        color: Hsla::transparent_black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let line = window
+        .text_system()
+        .layout_line(&shared, font_size, &[run], None);
+    if f32::from(line.width) <= avail_w + 0.5 {
+        return title.to_owned();
+    }
+    let mut end = 0;
+    for (idx, ch) in title.char_indices() {
+        let next = idx + ch.len_utf8();
+        if f32::from(line.x_for_index(next)) <= avail_w + 0.5 {
+            end = next;
+        } else {
+            break;
+        }
+    }
+    title[..end].to_owned()
 }

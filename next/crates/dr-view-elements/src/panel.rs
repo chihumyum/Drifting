@@ -7,8 +7,8 @@ pub mod v3 {
 
     pub use crate::data::v3::{DropSlot, SortOrder, UpdatedMap};
     use crate::data::v3::{
-        compare_entries, drop_slot_at, prepare_resolved_drop, resolve_drop_with, sort_memory_key,
-        updated_timestamps,
+        compare_entries, drop_slot_at, prepare_resolved_drop, resolve_drop_with, resolve_hung_drop,
+        sort_memory_key, updated_timestamps,
     };
     use dr_i18n::keys;
     use dr_shell::{
@@ -41,11 +41,13 @@ pub mod v3 {
             id: String,
             depth: usize,
         },
-        /// An entry attached to the row's parent: listed after what lives
-        /// there, never reordered by dragging.
+        /// An entry attached to `host`: listed after what lives there, with a
+        /// dotted guide in the left sidebar (`W31Hung`); dragging moves the
+        /// hang to another accepting host without moving residence.
         Member {
             id: String,
             depth: usize,
+            host: String,
         },
         Tiles {
             ids: Vec<String>,
@@ -125,15 +127,13 @@ pub mod v3 {
             return Vec::new();
         };
         let mut out = Vec::new();
-        // A lane's order is its view's scale (`kernel-v5.md` §4).
-        let root_is_lane = v.is_lane(level);
-        let active_sort = if matches!(display, Display::List | Display::Grid) && !root_is_lane {
+        let active_sort = if matches!(display, Display::List | Display::Grid) {
             sort
         } else {
             SortOrder::Manual
         };
-        let sort_of = |id: &str| {
-            if v.is_lane(id) {
+        let member_sort = |host_id: &str| {
+            if v.is_lane(host_id) {
                 SortOrder::Manual
             } else {
                 active_sort
@@ -141,42 +141,46 @@ pub mod v3 {
         };
         if surface == DisplaySurface::Members {
             out.extend(
-                ordered_ids(v, &members, active_sort, updated)
+                ordered_ids(v, &members, member_sort(level), updated)
                     .into_iter()
-                    .map(|id| Row::Member { id, depth: 0 }),
+                    .map(|id| Row::Member {
+                        id,
+                        depth: 0,
+                        host: level.to_owned(),
+                    }),
             );
             return out;
         }
-        // (id, depth, attached, the entries above it), last first. An
+        // (id, depth, hung_host, the entries above it), last first. An
         // attached entry shows under each entry it is attached to, as well
         // as where it lives; only an entry above itself is cut.
         type Path = Rc<Vec<String>>;
         let top: Path = Rc::new(vec![level.to_owned()]);
-        let mut pending: Vec<(String, usize, bool, Path)> = Vec::new();
+        let mut pending: Vec<(String, usize, Option<String>, Path)> = Vec::new();
         if surface == DisplaySurface::Sidebar {
             pending.extend(
-                ordered_ids(v, &members, active_sort, updated)
+                ordered_ids(v, &members, member_sort(level), updated)
                     .into_iter()
                     .rev()
-                    .map(|id| (id, 0, true, top.clone())),
+                    .map(|id| (id, 0, Some(level.to_owned()), top.clone())),
             );
         }
         pending.extend(
             ordered_ids(v, &children, active_sort, updated)
                 .into_iter()
                 .rev()
-                .map(|id| (id, 0, false, top.clone())),
+                .map(|id| (id, 0, None, top.clone())),
         );
-        while let Some((id, depth, attached, path)) = pending.pop() {
+        while let Some((id, depth, hung_host, path)) = pending.pop() {
             if path.contains(&id) {
                 continue;
             }
+            let attached = hung_host.is_some();
             let Some(child) = v.levels.get(&id) else {
                 if display == Display::List || attached {
-                    out.push(if attached {
-                        Row::Member { id, depth }
-                    } else {
-                        Row::Entry { id, depth }
+                    out.push(match hung_host {
+                        Some(host) => Row::Member { id, depth, host },
+                        None => Row::Entry { id, depth },
                     });
                 } else if let Some(Row::Tiles {
                     ids,
@@ -218,34 +222,33 @@ pub mod v3 {
                 out.push(Row::Island { id, members });
                 continue;
             }
-            out.push(if attached {
-                Row::Member {
+            out.push(match hung_host {
+                Some(host) => Row::Member {
                     id: id.clone(),
                     depth,
-                }
-            } else {
-                Row::Entry {
+                    host,
+                },
+                None => Row::Entry {
                     id: id.clone(),
                     depth,
-                }
+                },
             });
             if !folded.contains(&id) {
-                let sort = sort_of(&id);
                 let mut below: Vec<String> = path.as_ref().clone();
                 below.push(id.clone());
                 let below: Path = Rc::new(below);
                 // Last first: what is attached comes after what lives here.
                 pending.extend(
-                    ordered_ids(v, &child.members, sort, updated)
+                    ordered_ids(v, &child.members, member_sort(&id), updated)
                         .into_iter()
                         .rev()
-                        .map(|m| (m, depth + 1, true, below.clone())),
+                        .map(|m| (m, depth + 1, Some(id.clone()), below.clone())),
                 );
                 pending.extend(
-                    ordered_ids(v, &child.children, sort, updated)
+                    ordered_ids(v, &child.children, active_sort, updated)
                         .into_iter()
                         .rev()
-                        .map(|c| (c, depth + 1, false, below.clone())),
+                        .map(|c| (c, depth + 1, None, below.clone())),
                 );
             }
         }
@@ -331,15 +334,26 @@ pub mod v3 {
         if !drag.matches(page) || !drag.is_current(cx) {
             return;
         }
-        let Some(target) = resolve_drop_with(
-            &drag.page().book,
-            &drag.entry,
-            onto,
-            slot,
-            can_reorder,
-            is_member,
-            attach,
-        ) else {
+        if dr_shell::v3::tabs::detach_timeline_clip(page, drag, cx) {
+            return;
+        }
+        let target = if let Some(from_host) = &drag.hung_host {
+            if is_member {
+                return;
+            }
+            resolve_hung_drop(&drag.page().book, &drag.entry, from_host, onto)
+        } else {
+            resolve_drop_with(
+                &drag.page().book,
+                &drag.entry,
+                onto,
+                slot,
+                can_reorder,
+                is_member,
+                attach,
+            )
+        };
+        let Some(target) = target else {
             return;
         };
         if let Ok(edit) = prepare_resolved_drop(&drag.page().book, &drag.entry, target) {
@@ -584,7 +598,7 @@ pub mod v3 {
         }
         pub fn can_reorder(&self) -> bool {
             matches!(self.display, Display::List | Display::Grid)
-                && (self.is_lane() || self.sort == SortOrder::Manual)
+                && self.sort == SortOrder::Manual
                 && self.host.surface != DisplaySurface::Members
         }
         fn sync_workspace_memory(&mut self, ws: &dr_shell::Workspace) -> bool {
@@ -706,7 +720,7 @@ pub mod v3 {
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
-            self.entry_at(id, depth, tile, "root", false, None, window, cx)
+            self.entry_at(id, depth, tile, "root", None, None, window, cx)
         }
         fn entry_scoped(
             &self,
@@ -717,7 +731,7 @@ pub mod v3 {
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
-            self.entry_at(id, depth, tile, scope, false, None, window, cx)
+            self.entry_at(id, depth, tile, scope, None, None, window, cx)
         }
         #[allow(clippy::too_many_arguments)]
         fn entry_at(
@@ -726,7 +740,7 @@ pub mod v3 {
             depth: usize,
             tile: bool,
             scope: &str,
-            is_member: bool,
+            hung_host: Option<&str>,
             board: Option<(String, (f64, f64))>,
             window: &mut Window,
             cx: &mut App,
@@ -740,6 +754,7 @@ pub mod v3 {
             let Some(target) = entry_target(id) else {
                 return div().into_any_element();
             };
+            let is_member = hung_host.is_some();
             let is_level = v.levels.contains_key(id);
             let row_can_reorder =
                 self.can_reorder() && scope != "root" && !is_member && board.is_none();
@@ -864,16 +879,58 @@ pub mod v3 {
                 |_, _| None::<Point<Pixels>>,
             );
             let pressed = start.clone();
-            let drag = EntryDrag::new(self.host.page.clone(), id, entry.title.clone())
+            let mut drag = EntryDrag::new(self.host.page.clone(), id, entry.title.clone())
                 .with_source(EntryDragSource { start, board });
+            if let Some(host) = hung_host {
+                drag = drag.with_hung_host(host);
+            }
             let ghost = entry.title.clone();
             let page = self.host.page.clone();
             let can_page = page.clone();
             let onto = id.to_owned();
             let can_onto = onto.clone();
+            let is_sidebar = self.host.surface == DisplaySurface::Sidebar;
+            let show_hung_guide = hung_host.is_some() && is_sidebar && !tile;
+            let pad_left = if show_hung_guide {
+                (depth.min(20) as f32 * 14.0).max(10.0)
+            } else {
+                depth.min(20) as f32 * 14.0
+            };
             let palette = Theme::of(window, cx).palette;
             let wash = palette.accent.alpha(0.08);
             let line = palette.accent.alpha(0.55);
+            let dot_color = palette.ink(4).solid();
+            let hung_guide = hung_host.filter(|_| show_hung_guide).map(|host| {
+                let guide_sel = format!("v3-hung-guide-{host}-{id}");
+                div()
+                    .id(SharedString::from(format!(
+                        "v3-hung-guide-{scope}-{host}-{id}"
+                    )))
+                    .debug_selector(move || guide_sel.clone())
+                    .absolute()
+                    .left(px(pad_left - 8.0))
+                    .top(px(3.0))
+                    .bottom(px(3.0))
+                    .w(px(2.0))
+                    .child(
+                        canvas(
+                            |bounds, _, _| bounds,
+                            move |bounds, _, window, _| {
+                                let mut y = f32::from(bounds.origin.y);
+                                let end = y + f32::from(bounds.size.height);
+                                let x = f32::from(bounds.origin.x);
+                                while y + 2.0 <= end + 0.5 {
+                                    window.paint_quad(fill(
+                                        Bounds::new(point(px(x), px(y)), size(px(2.0), px(2.0))),
+                                        dot_color,
+                                    ));
+                                    y += 4.5;
+                                }
+                            },
+                        )
+                        .size_full(),
+                    )
+            });
             let slot_for = move |bounds: &Entity<Option<Bounds<Pixels>>>,
                                  window: &Window,
                                  cx: &App| {
@@ -896,7 +953,7 @@ pub mod v3 {
                 )))
                 .relative()
                 .when(!tile, |el| el.w_full())
-                .pl(px(depth.min(20) as f32 * 14.0))
+                .pl(px(pad_left))
                 .min_w_0()
                 .when(tile, |el| {
                     el.min_w(px(super::tile_basis(&entry.title)))
@@ -931,6 +988,19 @@ pub mod v3 {
                             if !drag.matches(&can_page) {
                                 return false;
                             }
+                            if drag.timeline_clip.is_some() {
+                                return is_sidebar;
+                            }
+                            if let Some(from_host) = &drag.hung_host {
+                                return !is_member
+                                    && resolve_hung_drop(
+                                        &drag.page().book,
+                                        &drag.entry,
+                                        from_host,
+                                        &can_onto,
+                                    )
+                                    .is_some();
+                            }
                             let slot = slot_for(&can_bounds, window, cx);
                             resolve_drop_with(
                                 &drag.page().book,
@@ -944,7 +1014,10 @@ pub mod v3 {
                             .is_some()
                         })
                     })
-                    .drag_over::<EntryDrag>(move |style, _, window, cx| {
+                    .drag_over::<EntryDrag>(move |style, drag, window, cx| {
+                        if drag.timeline_clip.is_some() || drag.hung_host.is_some() {
+                            return style.bg(wash);
+                        }
                         let slot = slot_for(&over_bounds, window, cx);
                         if slot == DropSlot::Into || tile {
                             style.bg(wash)
@@ -973,6 +1046,7 @@ pub mod v3 {
                     })
                 })
                 .child(overlay::probe(bounds))
+                .children(hung_guide)
                 .child(cell)
                 .into_any_element()
         }
@@ -986,8 +1060,11 @@ pub mod v3 {
         ) -> AnyElement {
             let theme = Theme::of(window, cx);
             match row {
-                Row::Entry { id, depth } | Row::Member { id, depth } => {
-                    let attached = matches!(row, Row::Member { .. });
+                Row::Entry { id, depth } | Row::Member { id, depth, .. } => {
+                    let hung_host = match row {
+                        Row::Member { host, .. } => Some(host.as_str()),
+                        _ => None,
+                    };
                     let mut row = div().flex().items_center().min_w_0().w_full();
                     if self
                         .host
@@ -1040,11 +1117,9 @@ pub mod v3 {
                                 }),
                         );
                     }
-                    row.child(
-                        div().flex_1().min_w_0().child(
-                            self.entry_at(id, *depth, false, scope, attached, None, window, cx),
-                        ),
-                    )
+                    row.child(div().flex_1().min_w_0().child(
+                        self.entry_at(id, *depth, false, scope, hung_host, None, window, cx),
+                    ))
                     .into_any_element()
                 }
                 Row::Tiles { ids, depth } => div()
@@ -1194,7 +1269,7 @@ pub mod v3 {
                             0,
                             false,
                             scope,
-                            false,
+                            None,
                             Some((self.host.level.clone(), *position)),
                             window,
                             cx,
@@ -1250,7 +1325,6 @@ pub mod v3 {
                     self.host.surface,
                     DisplaySurface::Members | DisplaySurface::Sidebar
                 )
-                && !self.is_lane()
             {
                 let weak = cx.entity().downgrade();
                 let sort_sel = format!("g2-sort-scroll-{}", self.host.level);

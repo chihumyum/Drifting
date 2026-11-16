@@ -97,6 +97,7 @@ fn a_level_lists_its_tree_and_what_is_attached_after_what_lives_under_it() {
     let member = |id: &str, depth| Row::Member {
         id: id.into(),
         depth,
+        host: group.into(),
     };
     // The entry page's two blocks.
     assert_eq!(list(DisplaySurface::Page), vec![entry(child, 0)]);
@@ -225,7 +226,7 @@ fn a_storyline_opens_to_its_chapters_and_a_chapter_on_two_shows_under_both() {
             .iter()
             .take_while(|r| !matches!(r, Row::Entry { depth: 0, .. }))
             .filter_map(|r| match r {
-                Row::Member { id, depth: 1 } => Some(id.as_str()),
+                Row::Member { id, depth: 1, host } if host == line => Some(id.as_str()),
                 _ => None,
             })
             .collect();
