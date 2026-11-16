@@ -95,7 +95,7 @@ F3 的命令注册表一好就能开，不必等阶段 3。
 | M31 | 帮手面板与改动显现 | 面板、对话记录、上下文指示、引导连接（ChatGPT / DeepSeek / Anthropic / OpenAI 四个格子，一道细线下面是本地模型的格子，加三条起手请求）；Agent 写入时逐字覆盖显现，之后留下绿色（新增）或紫色（改写）墨色，指针碰到才褪去；Markdown 文件夹的外部改动显示为蓝色 | `features/agent/*` 约 3.7k、`components/editor/AgentEditAnimator.tsx` 651 等，约 2.0k；`agent-panel.css` 1396 | M27、F4d | L |
 | M32 | MCP | 对外服务：89 个工具；macOS 用 Unix socket，Windows 用本机回环；一键配置 Codex、Claude Code、Antigravity。扩展客户端：stdio 和 HTTP 两种传输 | 已经是 Rust、可以复用的：`src-tauri/src/mcp_server.rs` 1872、`mcp_server/client_config.rs` 485、`mcp_stdio.rs` 860、`mcp_http.rs` 279；协议层改用 rmcp | M29 | M |
 | M33 | 生图（实验） | 给要素生成立绘候选，放进本机收件箱，保留下来的导入成素材 | `src-tauri/src/codex_images.rs` 1004（Rust，可以复用）、`features/element-images/*` 约 1.1k | M28、M19 | S |
-| M34 | 语音口述（未验收，可以放后面） | 在帮手的输入框里口述 | `lib/speech/*` 841（DashScope ASR） | M31 | S |
+| M34 | 语音口述（不做，作者 2026-11-16 定） | 原为在帮手的输入框里口述。已从 `next/` 删除：作者用系统听写或第三方语音输入，见 [m34](modules/m34-dictation.md) | `lib/speech/*` 841（DashScope ASR） | M31 | — |
 
 ## 阶段 6：连接与发布
 

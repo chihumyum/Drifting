@@ -253,8 +253,7 @@
     "empty": "In dieser Ansicht gibt es noch keine Beziehungen"
   },
   "editorOutline": {
-    "aria": "Gliederung",
-    "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
+    "aria": "Gliederung"
   },
   "editorTopBar": {
     "actions": {
@@ -1230,8 +1229,6 @@
       "ui_locale_desc": "Sprache für Menüs, Schaltflächen und Meldungen. Deine Texte bleiben unverändert."
     },
     "models": {
-      "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund.",
-      "speechTitle": "Sprachtranskription",
       "title": "Die Dienste, mit denen sich Driftings KI-Funktionen verbinden."
     },
     "privacy": {
@@ -1330,9 +1327,6 @@
     "restoreSuccess": "Ausgewählte Version wiederhergestellt. Der vorherige Zustand wurde zuerst als neuer Schnappschuss gespeichert.",
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
-  },
-  "speech": {
-    "backlog": "Transkriptionsrückstand"
   },
   "storyGraph": {
     "edge": {
@@ -1716,20 +1710,6 @@
     "usedIn": "Verwendet in",
     "viewList": "Liste",
     "viewMasonry": "Masonry"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "Transkriptionsschlüssel ungültig oder abgelaufen",
-      "micDenied": "Mikrofon nicht verfügbar; Systemberechtigungen prüfen",
-      "noKey": "Kein Transkriptionsschlüssel (Alibaba Cloud Bailian)",
-      "segmentRejected": "Transkriptionsdienst hat dieses Segment abgelehnt",
-      "transcribeFailed": "Transkription fehlgeschlagen; Aufnahme aufbewahrt. Erneut versuchen"
-    },
-    "record": "Aufnahme starten",
-    "recording": "Aufzeichnung",
-    "retry": "Transkription erneut versuchen",
-    "stopRecord": "Aufnahme stoppen",
-    "transcribing": "Wird transkribiert…"
   },
   "windowCaption": {
     "close": "Schließen",

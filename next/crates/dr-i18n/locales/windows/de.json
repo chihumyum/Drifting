@@ -15,9 +15,6 @@
         "storage_failed": "Die Anmeldung konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
       }
     },
-    "models": {
-      "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund."
-    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 und ARM64"
     }

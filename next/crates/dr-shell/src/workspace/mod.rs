@@ -421,10 +421,8 @@ pub struct Workspace {
     toast_timer: Option<Task<()>>,
     /// ⌘Z / ⇧⌘Z and the notice's 「撤销」 on the book's commands (`undo.rs`).
     structure_undo: undo::StructureUndo,
-    /// The outline rail's 「…」 whose list is open, and the timer that
-    /// closes it.
-    pub outline_reveal: Option<outline::Reveal>,
-    outline_reveal_close: Option<Task<()>>,
+    /// Each page's outline rail's own scroll, by page.
+    outline_rails: HashMap<String, outline::RailScroll>,
     /// Node documents edited since their patches' sources were last
     /// checked (`patch.check_sources`).
     unchecked: std::collections::BTreeSet<String>,
@@ -604,8 +602,7 @@ impl Workspace {
             companion: Default::default(),
             library_panel: Default::default(),
             super_views: Default::default(),
-            outline_reveal: None,
-            outline_reveal_close: None,
+            outline_rails: Default::default(),
             unchecked: Default::default(),
             caret_paragraph: None,
             focused_editor: None,

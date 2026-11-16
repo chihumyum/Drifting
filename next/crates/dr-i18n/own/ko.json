@@ -175,9 +175,6 @@
       "server_error": "업데이트 서비스에 지금 문제가 있습니다. 나중에 다시 시도해 주세요. 현재 버전은 계속 사용할 수 있습니다."
     }
   },
-  "speech": {
-    "backlog": "전사 처리 지연"
-  },
   "templateEditor": {
     "accept": "다른 곳의 항목 받기",
     "action_name": "동작 이름",

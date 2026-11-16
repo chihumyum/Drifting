@@ -29,6 +29,9 @@ chapter/storyline/book count. Collapsing the selection or leaving prose focus
 restores the contextual total. Switching tabs or split panes follows the active
 editor; hidden editors cannot supply the selection metric. Selecting only
 punctuation or whitespace displays zero, rather than falling back to the total.
+The marked text of an input-method composition is not a selection: on every key
+WebKit selects it for an instant before placing the caret, and the status bar
+keeps its usual count rather than flashing a selection count and back.
 
 This count reads the live ProseMirror selection slice using the same canonical
 mixed CJK/Latin and child-boundary rules as whole-document counts. It updates on

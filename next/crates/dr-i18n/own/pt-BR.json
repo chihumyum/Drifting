@@ -184,9 +184,6 @@
       "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando."
     }
   },
-  "speech": {
-    "backlog": "Transcrições pendentes"
-  },
   "templateEditor": {
     "accept": "Aceitar entradas de outros locais",
     "action_name": "Nome da ação",
