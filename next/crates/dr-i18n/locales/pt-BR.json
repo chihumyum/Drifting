@@ -242,7 +242,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Editar tipos",
     "empty": "Ainda não há relações nesta visualização"
   },
   "editorOutline": {
@@ -836,9 +835,6 @@
     }
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Vincular entidade"
-    },
     "filters": {
       "all": "Todos"
     },
@@ -848,27 +844,10 @@
       "node": "Capítulo",
       "patch": "Evolução",
       "storyline": "Linha narrativa"
-    },
-    "sections": {
-      "relations": "Relações"
     }
   },
   "relationTypes": {
-    "builtIn": "Integrado",
-    "create": "Novo",
-    "createInline": "Criar tipo de relação",
-    "delete": "Excluir tipo de relação",
-    "description": "Descrição",
-    "directed": "Direcionada",
-    "genericAssociation": {
-      "name": "Associação"
-    },
-    "name": "Nome",
-    "sourceRole": "Papel de origem",
-    "swap": "Inverter extremidades da relação",
-    "symmetric": "Simétrica",
-    "targetRole": "Papel de destino",
-    "title": "Definições dos tipos de relação"
+    "description": "Descrição"
   },
   "reviewPanel": {
     "commentPlaceholder": "Escreva um comentário…",
@@ -1315,10 +1294,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Criar",
-      "delete": "Excluir relação",
       "hideKind": "Ocultar “{{label}}”",
-      "kindLabel": "Tipo de relação",
       "showKind": "Mostrar “{{label}}”"
     }
   },
@@ -1348,7 +1324,6 @@
         "companions": "Costumam aparecer juntos",
         "edit": "Editar",
         "isolate": "Somente este",
-        "relations": "Relações",
         "showAll": "Mostrar tudo",
         "times": "× {{count}}"
       },
@@ -1374,15 +1349,11 @@
       "isles": "Ilhas",
       "relate": "Relações"
     },
-    "linkHintFrom": "De",
-    "linkHintTo": "para… escolha um segundo elemento ou capítulo; Esc cancela",
-    "manualRelationTitle": "Nova relação manual",
     "meta": "{{categories}} categorias · {{elements}} elementos",
     "relate": {
       "relayout": "Reorganizar"
     },
     "reset": "Redefinir",
-    "startEdgeFromElement": "Criar relação a partir deste elemento",
     "uncategorized": "Sem categoria",
     "unnamedCategory": "Categoria sem título"
   },
@@ -1448,7 +1419,6 @@
     "preview_failed": "Não foi possível carregar a prévia",
     "preview_loading": "Carregando prévia…",
     "prose": "Texto principal",
-    "relations": "Relações",
     "reorder": "Arrastar para reordenar",
     "restore": "Restaurar",
     "saved": "Salvo",

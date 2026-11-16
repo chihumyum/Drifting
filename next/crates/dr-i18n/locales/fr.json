@@ -242,7 +242,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Modifier les types",
     "empty": "Aucune relation dans cette vue pour le moment"
   },
   "editorOutline": {
@@ -836,9 +835,6 @@
     }
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Lier une entité"
-    },
     "filters": {
       "all": "Tout"
     },
@@ -848,27 +844,10 @@
       "node": "Chapitre",
       "patch": "Évolution",
       "storyline": "Intrigue"
-    },
-    "sections": {
-      "relations": "Relations"
     }
   },
   "relationTypes": {
-    "builtIn": "Intégré",
-    "create": "Nouveau",
-    "createInline": "Créer un type de relation",
-    "delete": "Supprimer le type de relation",
-    "description": "Description",
-    "directed": "Orientée",
-    "genericAssociation": {
-      "name": "Association"
-    },
-    "name": "Nom",
-    "sourceRole": "Rôle source",
-    "swap": "Inverser les extrémités de la relation",
-    "symmetric": "Symétrique",
-    "targetRole": "Rôle cible",
-    "title": "Définitions des types de relation"
+    "description": "Description"
   },
   "reviewPanel": {
     "commentPlaceholder": "Rédiger un commentaire…",
@@ -1315,10 +1294,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Créer",
-      "delete": "Supprimer la relation",
       "hideKind": "Masquer « {{label}} »",
-      "kindLabel": "Type de relation",
       "showKind": "Afficher « {{label}} »"
     }
   },
@@ -1348,7 +1324,6 @@
         "companions": "Souvent ensemble",
         "edit": "Modifier",
         "isolate": "Celui-ci uniquement",
-        "relations": "Relations",
         "showAll": "Tout afficher",
         "times": "× {{count}}"
       },
@@ -1374,15 +1349,11 @@
       "isles": "Îles",
       "relate": "Relations"
     },
-    "linkHintFrom": "De",
-    "linkHintTo": "vers… choisissez un second élément ou chapitre, Échap pour annuler",
-    "manualRelationTitle": "Nouvelle relation manuelle",
     "meta": "{{categories}} catégories · {{elements}} éléments",
     "relate": {
       "relayout": "Réorganiser"
     },
     "reset": "Réinitialiser",
-    "startEdgeFromElement": "Créer une relation depuis cet élément",
     "uncategorized": "Sans catégorie",
     "unnamedCategory": "Catégorie sans titre"
   },
@@ -1448,7 +1419,6 @@
     "preview_failed": "Impossible de charger l’aperçu",
     "preview_loading": "Chargement de l’aperçu…",
     "prose": "Texte principal",
-    "relations": "Relations",
     "reorder": "Glisser pour réordonner",
     "restore": "Rétablir",
     "saved": "Enregistré",

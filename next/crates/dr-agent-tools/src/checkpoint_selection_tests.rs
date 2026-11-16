@@ -85,10 +85,8 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     {
         endpoints.push((EntityKind::from(kind), id.to_owned()));
     }
-    if matches!(
-        call.name.as_str(),
-        "comment.update" | "comment.reanchor" | "comment.delete"
-    ) && let Some(id) = args["id"].as_str()
+    if matches!(call.name.as_str(), "comment.update" | "comment.reanchor")
+        && let Some(id) = args["id"].as_str()
     {
         comments.push(id.to_owned());
     }
@@ -231,7 +229,6 @@ const LOOKUPS: &[&str] = &[
     "asset_folder.rename",
     "asset_folder.restore",
     "asset_folder.trash",
-    "comment.delete",
     "comment.reanchor",
     "comment.update",
     "entry.set_level",

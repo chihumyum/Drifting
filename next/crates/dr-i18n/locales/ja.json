@@ -240,7 +240,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "種類を編集",
     "empty": "このビューには関係がまだありません"
   },
   "editorOutline": {
@@ -820,9 +819,6 @@
     }
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "エンティティをリンク"
-    },
     "filters": {
       "all": "すべて"
     },
@@ -832,27 +828,10 @@
       "node": "章",
       "patch": "変化記録",
       "storyline": "ストーリーライン"
-    },
-    "sections": {
-      "relations": "関係"
     }
   },
   "relationTypes": {
-    "builtIn": "組み込み",
-    "create": "新規",
-    "createInline": "関係の種類を作成",
-    "delete": "関係の種類を削除",
-    "description": "説明",
-    "directed": "有向",
-    "genericAssociation": {
-      "name": "関連"
-    },
-    "name": "名前",
-    "sourceRole": "始点の役割",
-    "swap": "関係の始点と終点を入れ替え",
-    "symmetric": "対称",
-    "targetRole": "終点の役割",
-    "title": "関係の種類の定義"
+    "description": "説明"
   },
   "reviewPanel": {
     "commentPlaceholder": "コメントを入力…",
@@ -1299,10 +1278,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "作成",
-      "delete": "関係を削除",
       "hideKind": "「{{label}}」を非表示",
-      "kindLabel": "関係の種類",
       "showKind": "「{{label}}」を表示"
     }
   },
@@ -1332,7 +1308,6 @@
         "companions": "よく一緒に登場",
         "edit": "編集",
         "isolate": "これだけ表示",
-        "relations": "関係",
         "showAll": "すべて表示",
         "times": "× {{count}}"
       },
@@ -1358,15 +1333,11 @@
       "isles": "島々",
       "relate": "関係"
     },
-    "linkHintFrom": "始点",
-    "linkHintTo": "終点…2つ目の要素または章を選択。Esc でキャンセル",
-    "manualRelationTitle": "手動の関係を作成",
     "meta": "{{categories}}カテゴリ・{{elements}}要素",
     "relate": {
       "relayout": "再配置"
     },
     "reset": "リセット",
-    "startEdgeFromElement": "この要素から関係を作成",
     "uncategorized": "未分類",
     "unnamedCategory": "無題のカテゴリ"
   },
@@ -1432,7 +1403,6 @@
     "preview_failed": "プレビューを読み込めません",
     "preview_loading": "プレビューを読み込み中…",
     "prose": "本文",
-    "relations": "関連",
     "reorder": "ドラッグで並べ替え",
     "restore": "元に戻す",
     "saved": "保存済み",

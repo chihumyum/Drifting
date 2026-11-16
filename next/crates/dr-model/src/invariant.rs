@@ -234,7 +234,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "书目写入：deleted_at 字段 / purge 删键；读取时废纸篓里的不进章节、关系等列表",
         [
             "chapters_sort_by_order_then_id_and_ideas_ignore_book_order",
-            "relations_are_shown_only_when_whole"
+            "trash_hides_only_the_trashed_members_and_restore_brings_the_rows_back"
         ]
     ),
     inv!(
@@ -373,7 +373,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "ASSET-LIBRARY-KEEPS-UNREFERENCED",
         "素材库里的文件不因为没人引用而被清掉；只有从素材库删掉、又从最近删除清掉的文件才删字节",
         [Structure, Command, Read],
-        "assets 就是素材库的清单；删除只写 deleted_at（进最近删除，用到它的媒体模块、正文嵌入、关系、批注读作占位或隐藏），asset.restore 清掉 deleted_at 后恢复，只有 asset.purge 删键并清本机资源字节，collect_asset_garbage 只清未完成导入的临时目录",
+        "assets 就是素材库的清单；删除只写 deleted_at（进最近删除，用到它的媒体模块、正文嵌入、批注读作占位或隐藏），asset.restore 清掉 deleted_at 后恢复，只有 asset.purge 删键并清本机资源字节，collect_asset_garbage 只清未完成导入的临时目录",
         ["asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"]
     ),
     inv!(
@@ -396,9 +396,9 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "FILE-REFS-LIVE",
-        "链接、嵌入、媒体模块、关系、批注指向的文件都在，没进最近删除",
+        "链接、嵌入、媒体模块、批注指向的文件都在，没进最近删除",
         [Read],
-        "读取时不在：正文链接读作普通文字的样子（prose.shape 的 missing_links），嵌入和媒体模块显示占位（missing_embeds、missing），关系读作不在，直接挂在文件上的批注标成找不到原处；数据留着，恢复后回来（kernel-v5.md 第 11 节）",
+        "读取时不在：正文链接读作普通文字的样子（prose.shape 的 missing_links），嵌入和媒体模块显示占位（missing_embeds、missing），直接挂在文件上的批注标成找不到原处；数据留着，恢复后回来（kernel-v5.md 第 11、19 节）",
         [
             "a_prose_link_to_a_file_is_a_usage_and_reads_as_text_while_the_file_is_trashed",
             "a_trashed_file_unlocates_its_comments_until_restored",
@@ -1022,7 +1022,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 93;
+pub const ACTIVE_CONTRACTS: usize = 90;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
@@ -1065,8 +1065,9 @@ mod tests {
     #[test]
     fn contracts_leave_only_by_a_recorded_retirement() {
         // A contract is retired by a recorded decision (the cutover's are
-        // named in `docs/rust-rewrite/v3-cutover.md`), never by going
-        // missing: adding or retiring one changes this count with it.
+        // named in `docs/rust-rewrite/v3-cutover.md` and the relation-row
+        // replacements in `docs/rust-rewrite/kernel-v5.md`). Adding or
+        // retiring one changes this count with it.
         assert_eq!(INVARIANTS.len(), ACTIVE_CONTRACTS);
         let by = |m: Mechanism| {
             INVARIANTS

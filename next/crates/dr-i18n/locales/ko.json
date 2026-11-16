@@ -240,7 +240,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "유형 편집",
     "empty": "이 보기에는 아직 관계가 없습니다"
   },
   "editorOutline": {
@@ -820,9 +819,6 @@
     }
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "엔터티 연결"
-    },
     "filters": {
       "all": "전체"
     },
@@ -832,27 +828,10 @@
       "node": "장",
       "patch": "변화 기록",
       "storyline": "스토리라인"
-    },
-    "sections": {
-      "relations": "관계"
     }
   },
   "relationTypes": {
-    "builtIn": "기본 제공",
-    "create": "새로 만들기",
-    "createInline": "관계 유형 만들기",
-    "delete": "관계 유형 삭제",
-    "description": "설명",
-    "directed": "방향 있음",
-    "genericAssociation": {
-      "name": "연관"
-    },
-    "name": "이름",
-    "sourceRole": "출발점 역할",
-    "swap": "관계 끝점 맞바꾸기",
-    "symmetric": "대칭",
-    "targetRole": "대상 역할",
-    "title": "관계 유형 정의"
+    "description": "설명"
   },
   "reviewPanel": {
     "commentPlaceholder": "댓글 작성…",
@@ -1299,10 +1278,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "만들기",
-      "delete": "관계 삭제",
       "hideKind": "“{{label}}” 숨기기",
-      "kindLabel": "관계 유형",
       "showKind": "“{{label}}” 표시"
     }
   },
@@ -1332,7 +1308,6 @@
         "companions": "자주 함께 등장",
         "edit": "편집",
         "isolate": "이 항목만",
-        "relations": "관계",
         "showAll": "모두 표시",
         "times": "× {{count}}"
       },
@@ -1358,15 +1333,11 @@
       "isles": "섬",
       "relate": "관계"
     },
-    "linkHintFrom": "출발",
-    "linkHintTo": "대상… 두 번째 요소나 장 선택, Esc로 취소",
-    "manualRelationTitle": "새 수동 관계",
     "meta": "분류 {{categories}}개 · 요소 {{elements}}개",
     "relate": {
       "relayout": "재배치"
     },
     "reset": "초기화",
-    "startEdgeFromElement": "이 요소에서 관계 만들기",
     "uncategorized": "미분류",
     "unnamedCategory": "이름 없는 분류"
   },
@@ -1432,7 +1403,6 @@
     "preview_failed": "미리보기를 불러올 수 없습니다",
     "preview_loading": "미리보기를 불러오는 중…",
     "prose": "본문",
-    "relations": "관계",
     "reorder": "드래그하여 순서 변경",
     "restore": "되돌리기",
     "saved": "저장됨",

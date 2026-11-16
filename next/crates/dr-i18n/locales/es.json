@@ -242,7 +242,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Editar tipos",
     "empty": "Aún no hay relaciones en esta vista"
   },
   "editorOutline": {
@@ -836,9 +835,6 @@
     }
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Vincular entidad"
-    },
     "filters": {
       "all": "Todo"
     },
@@ -848,27 +844,10 @@
       "node": "Capítulo",
       "patch": "Evolución",
       "storyline": "Trama"
-    },
-    "sections": {
-      "relations": "Relaciones"
     }
   },
   "relationTypes": {
-    "builtIn": "Integrado",
-    "create": "Nuevo",
-    "createInline": "Crear tipo de relación",
-    "delete": "Eliminar tipo de relación",
-    "description": "Descripción",
-    "directed": "Dirigida",
-    "genericAssociation": {
-      "name": "Asociación"
-    },
-    "name": "Nombre",
-    "sourceRole": "Rol de origen",
-    "swap": "Intercambiar extremos de la relación",
-    "symmetric": "Simétrica",
-    "targetRole": "Rol de destino",
-    "title": "Definiciones de tipos de relación"
+    "description": "Descripción"
   },
   "reviewPanel": {
     "commentPlaceholder": "Escribe un comentario…",
@@ -1315,10 +1294,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Crear",
-      "delete": "Eliminar relación",
       "hideKind": "Ocultar «{{label}}»",
-      "kindLabel": "Tipo de relación",
       "showKind": "Mostrar «{{label}}»"
     }
   },
@@ -1348,7 +1324,6 @@
         "companions": "Suelen aparecer juntos",
         "edit": "Editar",
         "isolate": "Solo este",
-        "relations": "Relaciones",
         "showAll": "Mostrar todo",
         "times": "× {{count}}"
       },
@@ -1374,15 +1349,11 @@
       "isles": "Islas",
       "relate": "Relaciones"
     },
-    "linkHintFrom": "Desde",
-    "linkHintTo": "a… elige un segundo elemento o capítulo; Esc cancela",
-    "manualRelationTitle": "Nueva relación manual",
     "meta": "{{categories}} categorías · {{elements}} elementos",
     "relate": {
       "relayout": "Reorganizar"
     },
     "reset": "Restablecer",
-    "startEdgeFromElement": "Crear relación desde este elemento",
     "uncategorized": "Sin categoría",
     "unnamedCategory": "Categoría sin título"
   },
@@ -1448,7 +1419,6 @@
     "preview_failed": "No se pudo cargar la vista previa",
     "preview_loading": "Cargando vista previa…",
     "prose": "Texto principal",
-    "relations": "Relaciones",
     "reorder": "Arrastrar para ordenar",
     "restore": "Restaurar",
     "saved": "Guardado",
