@@ -153,16 +153,7 @@ pub fn run(mode: Mode) -> Result<Bench, String> {
         let elements = v.elements();
         if let Some(e) = elements.first() {
             let end = EntityRef::new(EntityKind::Element, e.id.to_string());
-            case.time("relationsOf", || {
-                dr_model::id::EntryId::parse(&end.id)
-                    .ok()
-                    .map_or(0, |entry| {
-                        v.relations()
-                            .iter()
-                            .filter(|row| row.contains(&entry))
-                            .count()
-                    })
-            });
+            case.time("relationsOf", || v.relations_of(&end).len());
         }
         let mut rng = Rng::new(17);
         for _ in 0..lookups {
@@ -172,8 +163,7 @@ pub fn run(mode: Mode) -> Result<Bench, String> {
         }
         let needs = case.time("needsRepair", || v.needs_repair());
         case.time("repairPlan", || v.repair_plan().is_empty());
-        let pairs = relations.iter().map(|row| row.pairs().count()).sum();
-        counts = (chapters, pairs, comments, elements.len(), needs);
+        counts = (chapters, relations.len(), comments, elements.len(), needs);
     }
     case.set("chapters", counts.0)
         .set("relations", counts.1)
