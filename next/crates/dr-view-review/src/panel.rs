@@ -3101,7 +3101,7 @@ mod v3_write_tests {
             .unwrap();
         let target = source.target.as_ref().unwrap().id.clone();
         let module = source.target_module.as_ref().unwrap().to_string();
-        let body = source.body.clone();
+        let body = source.body.text.clone();
         seed.write_to(lib.library()).unwrap();
         let a = call(
             &lib,
